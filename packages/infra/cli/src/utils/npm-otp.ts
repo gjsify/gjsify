@@ -6,8 +6,8 @@
 // see refs/npm-cli/node_modules/npm-registry-fetch/lib/check-response.js.
 //
 // Detection and prompt-then-retry live here so ONE `OtpProvider` can be injected
-// across many operations in a single run: `gjsify onboard` sweeps ~110 packages and
-// would otherwise prompt per package, whereas a shared provider tries the cached
+// across many operations in a single run: `gjsify onboard` sweeps every publishable
+// package and would otherwise prompt per package, whereas a shared provider tries the cached
 // code first on every subsequent challenge and only re-prompts when npm actually
 // rejects or expires it. Standalone `publish`/`trust` each construct their own
 // provider and prompt on demand.

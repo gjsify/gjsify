@@ -131,7 +131,6 @@ export class MessagePort extends EventEmitter {
 
         if (!target) return;
 
-        // --- Transfer-list pre-flight ---
         // Validate transferable entries up front. Per HTML spec, validation must
         // happen before any side effects (no partial transfer on error).
         const arrayBufferTransfers: ArrayBuffer[] = [];
@@ -191,7 +190,6 @@ export class MessagePort extends EventEmitter {
             }
         }
 
-        // --- Substitute MessagePort placeholders before clone ---
         // The structured-clone layer doesn't know about MessagePort; we walk the
         // value tree and replace each transferred port instance with a placeholder
         // (so the cloned tree reuses the same placeholder objects), then swap the
@@ -202,7 +200,6 @@ export class MessagePort extends EventEmitter {
             substituted = substitutePortsWithPlaceholders(value, portTransfers);
         }
 
-        // --- Clone (with ArrayBuffer transfer) ---
         let cloned: unknown;
         try {
             cloned = structuredClone(substituted, {
@@ -213,7 +210,6 @@ export class MessagePort extends EventEmitter {
             return;
         }
 
-        // --- Materialise transferred MessagePorts on the receiver ---
         // For each transferred port: detach the source MessagePort locally, then
         // create a new MessagePort on the receiver side that takes over the
         // surviving end of the channel.
@@ -366,8 +362,6 @@ export class MessagePort extends EventEmitter {
         return this;
     }
 }
-
-// --- Helpers ---
 
 function createDataCloneError(message: string): Error {
     const DOMExceptionCtor = (globalThis as Record<string, unknown>).DOMException as

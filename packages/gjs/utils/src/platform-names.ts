@@ -1,18 +1,14 @@
-// Canonical OS + CPU-architecture vocabulary.
+// Canonical OS + CPU-architecture vocabulary: POSIX `uname` output → the names Node
+// uses for `process.platform` / `process.arch`.
 //
-// Pure string→string mapping from POSIX `uname` output to the names Node uses
-// for `process.platform` / `process.arch`. Lives here because it must have
-// exactly ONE definition: `@gjsify/process` (which probes `uname` under GJS)
-// and `@gjsify/os` (whose `platform()` / `arch()` are defined by Node as
-// returning those same values) have to agree, and two copies of a lookup table
-// are two chances to disagree.
-//
-// No platform imports — safe on every runtime, which is why it belongs to the
-// `/core` half rather than the GJS-only barrel.
+// One definition on purpose. `@gjsify/process` (which probes `uname` under GJS) and
+// `@gjsify/os` (whose `platform()` / `arch()` are defined as returning those same
+// values) have to agree, and two copies of a lookup table are two chances to
+// disagree. No platform imports, hence its place in the `/core` half.
 
-// Declared locally rather than as `NodeJS.Platform` / `NodeJS.Architecture`:
-// this module must not need Node's ambient types to compile. The members are
-// exactly Node's, so the values stay assignable to them at every consumer.
+// Declared locally rather than as `NodeJS.Platform` / `NodeJS.Architecture`, so this
+// module compiles without Node's ambient types. The members are exactly Node's, so
+// the values stay assignable to them at every consumer.
 export type ProcessPlatform =
     | 'aix'
     | 'android'
@@ -26,10 +22,9 @@ export type ProcessPlatform =
     | 'sunos'
     | 'win32';
 
-// Exactly `NodeJS.Architecture`, member for member — verified against
-// @types/node. Notably it has NO 32-bit `ppc` or `s390`: Node dropped both, so
-// `uname -m` reporting them maps to undefined rather than to a value
-// `process.arch` can never hold.
+// Exactly `NodeJS.Architecture`, member for member. Notably NO 32-bit `ppc` or
+// `s390`: Node dropped both, so a `uname -m` reporting them maps to undefined rather
+// than to a value `process.arch` can never hold.
 export type ProcessArch =
     | 'arm'
     | 'arm64'

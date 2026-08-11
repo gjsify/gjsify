@@ -267,8 +267,6 @@ export default async () => {
         });
     });
 
-    // ==================== env ====================
-
     await describe('process: env manipulation', async () => {
         await it('should set and get env variables', async () => {
             process.env.TEST_GJSIFY_VAR = 'test_value';
@@ -324,8 +322,6 @@ export default async () => {
         });
     });
 
-    // ==================== hrtime.bigint ====================
-
     await describe('process: hrtime.bigint', async () => {
         await it('should be a function', async () => {
             expect(typeof process.hrtime.bigint).toBe('function');
@@ -352,8 +348,6 @@ export default async () => {
         });
     });
 
-    // ==================== hrtime diff ====================
-
     await describe('process: hrtime diff', async () => {
         await it('should return diff when passed previous hrtime', async () => {
             const start = process.hrtime();
@@ -370,8 +364,6 @@ export default async () => {
             expect(diff[1] < 1e9).toBeTruthy();
         });
     });
-
-    // ==================== additional properties ====================
 
     await describe('process: additional properties', async () => {
         await it('process.ppid should be a number', async () => {
@@ -421,8 +413,6 @@ export default async () => {
         });
     });
 
-    // ==================== chdir ====================
-
     await describe('process: chdir', async () => {
         await it('should change and restore directory', async () => {
             const original = process.cwd();
@@ -452,15 +442,11 @@ export default async () => {
         });
     });
 
-    // ==================== emitWarning ====================
-
     await describe('process: emitWarning', async () => {
         await it('should be a function', async () => {
             expect(typeof process.emitWarning).toBe('function');
         });
     });
-
-    // ==================== EventEmitter interface ====================
 
     await describe('process: EventEmitter', async () => {
         await it('should have on method', async () => {

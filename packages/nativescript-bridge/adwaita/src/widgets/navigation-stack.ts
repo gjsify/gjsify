@@ -1,26 +1,16 @@
 // AdwNavigationView for NativeScript — the pure half.
 //
-// The stack machine itself is HEADLESS and lives in `@gjsify/adwaita-core`
-// (ADR 0004): the page registry, the tag index, the static-vs-dynamic
-// (`remove_on_pop`) lifecycle and the six mutators are ported once, from the C,
-// and shared with `@gjsify/adwaita-web`. What is NativeScript-specific is only
-// the mapping onto a `GridLayout`: pages are overlaid children shown by toggling
-// `visibility`, and the GObject signals become `notify()` events.
+// The stack machine is HEADLESS in `@gjsify/adwaita-core` (ADR 0004): page registry,
+// tag index, the static-vs-dynamic (`remove_on_pop`) lifecycle, the six mutators — all
+// shared with `@gjsify/adwaita-web`. NativeScript-specific is the mapping onto a
+// `GridLayout`: pages are overlaid children shown by toggling `visibility`, and the
+// GObject signals become `notify()` events. No `@nativescript/core` value imports, so
+// specs reach the real adapter off-device (AGENTS.md).
 //
-// This module is deliberately FREE of `@nativescript/core` value imports — like
-// `icon-path.ts`, `row-press.ts` and `avatar-color.ts` — so the spec suite can
-// exercise the real adapter off-device. `adw-navigation-view.ts` cannot serve
-// that role: it `extends GridLayout`, which evaluates the bare
-// `@nativescript/core` specifier at module-eval and is unresolvable on GJS/Node.
-// The suite that stood in for it before this split asserted against a
-// `MockNavigationView` whose `push()` behaved DIFFERENTLY from the widget — which
-// is why the widget's missing already-in-stack guard and its leak of
-// dynamically-pushed pages went untested for their whole life.
-//
-// NativeScript has no slide transition (the CSS subset carries no `transition`
-// or `animation`), so every change settles at once: {@link NsNavigationStack}
-// calls the core's `finishTransition()` seam immediately, which is exactly what
-// `adw_animation_skip` does in the C when `animate` is FALSE.
+// NativeScript has no slide transition (the CSS subset carries no `transition` or
+// `animation`), so every change settles at once: {@link NsNavigationStack} calls the
+// core's `finishTransition()` seam immediately, which is what `adw_animation_skip` does
+// in the C when `animate` is FALSE.
 //
 // Reference: refs/libadwaita/src/adw-navigation-view.c
 // Reference: refs/libadwaita/src/stylesheet/widgets/_navigation-view.scss
@@ -117,19 +107,14 @@ export class NsNavigationStack {
         });
     }
 
-    // --- Read-only derivations ---
-
-    /** The currently-visible page view, or `null`. */
     get visiblePage(): View | null {
         return this._state.visiblePage;
     }
 
-    /** The currently-visible page tag, or `null`. */
     get visiblePageTag(): string | null {
         return this._state.visiblePageTag;
     }
 
-    /** The current navigation stack depth. */
     get depth(): number {
         return this._state.depth;
     }
@@ -158,7 +143,6 @@ export class NsNavigationStack {
         return this._state.popOnEscape;
     }
 
-    /** Whether `view` is known to this navigation view. */
     isRegistered(view: View): boolean {
         return this._state.isRegistered(view);
     }
@@ -178,7 +162,6 @@ export class NsNavigationStack {
         return this._state.canPopOf(view);
     }
 
-    /** The page with this tag, or `null`. */
     findPage(tag: string): View | null {
         return this._state.findPage(tag);
     }
@@ -197,8 +180,6 @@ export class NsNavigationStack {
     backButtonTooltip(fallback?: string): string | null {
         return this._state.backButtonTooltip(fallback);
     }
-
-    // --- Mutators ---
 
     /**
      * Register a page (optionally with a tag for `push(tag)`). A page added while
@@ -225,7 +206,6 @@ export class NsNavigationStack {
         return pushed;
     }
 
-    /** Push the page carrying `tag`. */
     pushByTag(tag: string): boolean {
         const pushed = this._state.pushByTag(tag);
         this._flush();
@@ -246,7 +226,6 @@ export class NsNavigationStack {
         return popped;
     }
 
-    /** Pop until the page carrying `tag` is visible. */
     popToTag(tag: string): boolean {
         const popped = this._state.popToTag(tag);
         this._flush();
@@ -254,9 +233,8 @@ export class NsNavigationStack {
     }
 
     /**
-     * Replace the whole stack. String entries are resolved BEFORE anything is
-     * mutated, so replacing the stack with the tag of a dynamically-pushed page
-     * keeps that page (replace_with_tags:3136-3147).
+     * Replace the whole stack. String entries are resolved BEFORE anything is mutated,
+     * so replacing the stack with the tag of a dynamically-pushed page keeps that page.
      */
     replace(
         entries: ReadonlyArray<View | string | null>,
@@ -272,7 +250,6 @@ export class NsNavigationStack {
         this._flush();
     }
 
-    /** Replace the stack with the pages carrying `tags`. */
     replaceWithTags(tags: readonly string[]): void {
         this._state.replaceWithTags(tags);
         this._flush();
@@ -293,12 +270,10 @@ export class NsNavigationStack {
         return this._state.setCanPop(view, canPop);
     }
 
-    /** Set `animate-transitions`. */
     setAnimateTransitions(value: boolean): boolean {
         return this._state.setAnimateTransitions(value);
     }
 
-    /** Set `pop-on-escape`. */
     setPopOnEscape(value: boolean): boolean {
         return this._state.setPopOnEscape(value);
     }

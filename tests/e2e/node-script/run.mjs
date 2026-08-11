@@ -1,46 +1,17 @@
-// E2E: `gjsify run --node-script <file>` runs an UNBUNDLED Node-style script
-// on a host with no usable Node.
+// E2E: `gjsify run --node-script <file>` runs an UNBUNDLED Node-style script on a host with
+// no usable Node.
 //
-// This is the mechanism behind "A Node-less host cannot bootstrap a fresh
-// CLONE" (status/open-todos.md): the four `node scripts/*.mjs` calls in
-// `build:infra` import nothing but `node:fs` / `node:path` / `node:url`, and
-// were unrunnable under GJS only because GJS's ESM loader cannot resolve `node:`
-// specifiers for a file on disk.
+// The mechanism behind "A Node-less host cannot bootstrap a fresh CLONE"
+// (status/open-todos.md): the `node scripts/*.mjs` calls in `build:infra` import nothing but
+// `node:fs` / `node:path` / `node:url`, and were unrunnable under GJS only because GJS's ESM
+// loader cannot resolve `node:` specifiers for a file on disk.
 //
-// TWO ENTRY POINTS, both covered here:
+// TWO ENTRY POINTS, both covered: the FLAG for a direct call, and the SHIM — a `node` on PATH
+// that re-enters the flag, which is how the build chain reaches it, because its manifests must
+// keep spelling `node scripts/x.mjs` (a new flag there cannot be bootstrapped by the previous
+// release's CLI — see `writeNodeShim`).
 //
-//   the FLAG — `gjsify run --node-script <file>`, for a direct call; and
-//   the SHIM — a `node` on PATH that re-enters the flag, which is how the build
-//   chain reaches it, because its manifests must keep spelling `node
-//   scripts/x.mjs` (a new flag there cannot be bootstrapped by the previous
-//   release's CLI — see `writeNodeShim`).
-//
-// WHAT THIS TEST HOLDS, and why each assertion is here:
-//
-//   1. It runs the built `dist/cli.gjs.mjs` under `gjs -m`. For the FLAG cases
-//      that means FAKE `node`/`npm` on PATH which exit 127 and announce
-//      themselves, so "it worked" cannot secretly mean "it fell back to Node" —
-//      the arrangement `tests/e2e/workspace-node-free-gjs` uses. For the SHIM
-//      cases the sabotage is not enough (a sabotaged `node` is still a `node`,
-//      and the shim is deliberately written only when NONE resolves), so those
-//      run on a PATH with every node-carrying directory removed.
-//
-//   2. It asserts `import.meta.url` resolves to the SOURCE file, by having the
-//      script WRITE A SIBLING next to itself. This is the load-bearing property
-//      and the one that fails silently: the bundle lives in
-//      `node_modules/.cache/gjsify/node-scripts/`, so an unrewritten
-//      `import.meta.url` does not crash — it writes the build output into the
-//      cache directory and reports success. Every script this feature exists for
-//      opens with `dirname(fileURLToPath(import.meta.url))`.
-//
-//   3. It asserts a non-zero exit PROPAGATES. A build chain is `a && b`; a
-//      runner that swallows a failing script turns a broken build green, which
-//      is a failure mode this repo has paid for more than once.
-//
-//   4. It asserts a COMPOUND script works. That is the case no rewrite inside
-//      the CLI could serve: `/bin/sh` resolves `node` from PATH itself.
-//
-// SKIP when off a capable host (non-Linux / no gjs / no built bundle).
+// Skipped off a capable host (non-Linux / no gjs / no built bundle).
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -55,13 +26,10 @@ const REPO_ROOT = resolve(__dirname, '..', '..', '..');
 const CLI_BUNDLE = join(REPO_ROOT, 'packages', 'infra', 'cli', 'dist', 'cli.gjs.mjs');
 const WS_MODULES = join(REPO_ROOT, 'node_modules');
 
-// The `--app gjs` substitution resolves `node:fs` → `@gjsify/fs` FROM THE
-// SCRIPT's location, so the fixture needs those packages the way a real project
-// that installed gjsify has them. Same link set + same reason as
-// `tests/e2e/gjs-cli-config-load`, which bundles a config for exactly this
-// target. Without them the build fails loudly rather than silently
-// externalising `node:fs` (see plugins/unresolved-workspace-import.ts) — which
-// is correct behaviour, and not what this suite is measuring.
+// The `--app gjs` substitution resolves `node:fs` → `@gjsify/fs` FROM THE SCRIPT's location,
+// so the fixture needs these the way a real project that installed gjsify has them (same set
+// and reason as `tests/e2e/gjs-cli-config-load`). Without them the build fails loudly rather
+// than silently externalising `node:fs` — correct behaviour, but not what this suite measures.
 const LINK_PKGS = ['@gjsify', '@girs', 'rolldown', '@rolldown'];
 
 function hasGjs() {

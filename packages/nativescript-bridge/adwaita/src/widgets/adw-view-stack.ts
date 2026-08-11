@@ -1,26 +1,16 @@
 // AdwViewStack — a Libadwaita-style view stack for NativeScript.
 //
-// Renders a REAL NativeScript `GridLayout` that overlays its named pages and
-// shows exactly one at a time. Mirrors `Adw.ViewStack`: pages are registered with
-// `add(content, name, title?, icon?)`, the visible page is selected by `name` or
-// index, and a `notify::visible-child` event fires on change. Unlike the coupled
-// `AdwViewSwitcher` (which bundles its own button rail), `AdwViewStack` is a pure
-// CONTENT container — a separate `AdwViewSwitcher` / `AdwViewSwitcherBar` binds to
-// it via its `stack` property, exactly as in libadwaita. This decoupling is what
-// lets the switcher live in a header bar (wide) or a bottom bar (narrow) while the
-// stack fills the window body.
+// Renders a REAL NativeScript `GridLayout` that overlays its named pages and shows
+// exactly one at a time. Unlike the coupled `AdwViewSwitcher` (which bundles its own
+// button rail) this is a pure CONTENT container that a separate `AdwViewSwitcher` /
+// `AdwViewSwitcherBar` binds to via its `stack` property, which is what lets the
+// switcher sit in a header bar (wide) or a bottom bar (narrow) while the stack fills
+// the window body.
 //
-// The SELECTION is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as
-// `ViewStackState`, shared with the `@gjsify/adwaita-web` twin and pinned by the
-// conformance vectors; `view-stack-state.ts` holds the NS-specific projection
-// onto `View.visibility`. This class is the `GridLayout` wiring only. What the
-// lift fixed here, all of it C-derived: a fractional `visibleChildIndex` used to
-// pass the `Number.isFinite` guard and collapse every page at once; the per-page
-// `visible` flag did not exist, so the auto-pick took the first page ADDED rather
-// than the first VISIBLE one (adw-view-stack.c:1149-1151), a hidden page could be
-// selected (:2415), and hiding the visible page re-picked nothing (:1061-1082);
-// `add()` notified nothing where C notifies (:1038-1039), which is why a bound
-// switcher needed a manual `refresh()`; and there was no way to remove a page.
+// The SELECTION is HEADLESS in `@gjsify/adwaita-core` (ADR 0004) as `ViewStackState`,
+// shared with the `@gjsify/adwaita-web` twin and pinned by the conformance vectors;
+// `view-stack-state.ts` holds the NS projection onto `View.visibility`. This class is
+// the `GridLayout` wiring only.
 //
 // FIDELITY: approximated. NS has no native page stack; pages swap by toggling
 // `visibility` (`collapse`/`visible`) — instant, no cross-fade (the CSS subset has

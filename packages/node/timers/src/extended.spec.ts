@@ -4,7 +4,6 @@
 import { describe, it, expect } from '@gjsify/unit';
 
 export default async () => {
-    // ===================== setTimeout deep =====================
     await describe('setTimeout deep', async () => {
         await it('should call callback after delay', async () => {
             const start = Date.now();
@@ -48,7 +47,6 @@ export default async () => {
         });
     });
 
-    // ===================== setInterval deep =====================
     await describe('setInterval deep', async () => {
         await it('should call callback repeatedly', async () => {
             let count = 0;
@@ -92,7 +90,6 @@ export default async () => {
         });
     });
 
-    // ===================== setImmediate =====================
     await describe('setImmediate', async () => {
         await it('should call callback asynchronously', async () => {
             let called = false;
@@ -122,7 +119,6 @@ export default async () => {
         });
     });
 
-    // ===================== Ordering guarantees =====================
     await describe('timer ordering', async () => {
         await it('setImmediate should fire before setTimeout(0)', async () => {
             const order: string[] = [];

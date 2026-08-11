@@ -1,44 +1,23 @@
-// <adw-dialog> — A generic adaptive dialog: the web counterpart of Adw.Dialog.
-// It wraps arbitrary content in a floating card centred over a full-cover scrim
-// on wide viewports, and re-anchors it as a bottom sheet (full-width, rounded
-// top corners) on narrow ones — the adaptive presentation Adw.Dialog gets for
-// free from AdwBreakpoint on GTK. There is no Adw.Breakpoint primitive on the
-// web, so the switch is a CSS media query keyed on the `presentation-mode`.
+// <adw-dialog> — the web counterpart of Adw.Dialog: arbitrary content in a floating
+// card over a full-cover scrim on wide viewports, re-anchored as a bottom sheet
+// (full-width, rounded top corners) on narrow ones. The adaptive switch is a CSS
+// media query keyed on `presentation-mode`, not an AdwBreakpoint object.
 //
 // Unlike the specialised dialogs (<adw-alert-dialog>, <adw-preferences-dialog>,
-// <adw-about-dialog>) this one imposes no content model of its own: its default
-// slot holds any markup, and it renders an OPTIONAL flat header bar (a title +
-// a trailing close button) only when a `title` is set or `show-header` is used.
-// It is the generic base those specialised dialogs could later be built on.
+// <adw-about-dialog>) this one imposes no content model of its own: its default slot
+// holds any markup, and the flat header bar (title + trailing close button) renders
+// only when a `title` is set or `show-header` is used.
 //
-// Like Adw.Dialog it starts hidden; `present()` (or the `open` attribute)
-// reveals it and `close()` dismisses it — gated by `can-close` (Escape /
-// scrim-click / close-button raise `close-attempt` instead of closing while
-// locked). Presenting traps focus inside the dialog and returns it to the
-// previously-focused element on close. A disconnected element is attached to
-// `document.body` on present (the Adw.Dialog.present(parent) idiom); a
-// declaratively-authored dialog already in the DOM is simply revealed in place
-// (and stays reusable — close hides, it does not detach).
+// Starts hidden; `present()` (or the `open` attribute) reveals it and `close()`
+// dismisses it — gated by `can-close`, so while locked Escape / scrim-click /
+// close-button raise `close-attempt` instead. Presenting traps focus inside the
+// dialog and returns it to the previously-focused element on close. A DISCONNECTED
+// element is attached to `document.body` on present (the Adw.Dialog.present(parent)
+// idiom); one already in the DOM is revealed in place and stays reusable — close
+// hides, it does not detach.
 //
-// Attributes:
-//   title             (the header title — Adw.Dialog:title; presence renders the header)
-//   open              (boolean — whether the dialog is revealed; default hidden)
-//   can-close         (boolean — user may dismiss; default on. `="false"` locks it
-//                        so a dismissal raises `close-attempt` — Adw.Dialog:can-close)
-//   content-width     (max content width in px — Adw.Dialog:content-width; default 360)
-//   content-height    (max content height in px — Adw.Dialog:content-height; default unset)
-//   presentation-mode (`auto` | `floating` | `bottom-sheet`; default `auto` —
-//                        Adw.Dialog:presentation-mode. `auto` = floating when wide,
-//                        bottom sheet when narrow)
-//   show-header       (boolean — render the header bar even without a title)
-//
-// Properties: open, title, canClose, contentWidth, contentHeight, presentationMode.
-// Methods:    present(), close(), forceClose().
-// Events:
-//   `notify::open`   (CustomEvent, bubbles, detail = { open }) — revealed state changed.
-//   `closed`         (CustomEvent, bubbles) — the dialog finished closing (Adw.Dialog::closed).
-//   `close-attempt`  (CustomEvent, bubbles) — a dismissal was attempted while locked
-//                      (Adw.Dialog::close-attempt).
+// Events, all bubbling CustomEvents: `notify::open` (detail `{ open }`), `closed`
+// (Adw.Dialog::closed), `close-attempt` (Adw.Dialog::close-attempt).
 //
 // Reference: refs/libadwaita/src/adw-dialog.c (present/close/can-close, Escape, focus)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_dialogs.scss (floating sheet + bottom sheet)
@@ -51,7 +30,6 @@ export type AdwDialogPresentationMode = 'auto' | 'floating' | 'bottom-sheet';
 const DEFAULT_CONTENT_WIDTH = 360;
 const PRESENTATION_MODES: readonly AdwDialogPresentationMode[] = ['auto', 'floating', 'bottom-sheet'];
 
-// Selector matching the tabbable elements a focus trap must cycle through.
 const FOCUSABLE_SELECTOR = [
     'a[href]',
     'button:not([disabled])',
@@ -163,25 +141,24 @@ export class AdwDialog extends HTMLElement {
 
     connectedCallback() {
         if (this._initialized) {
-            // A re-attach (e.g. present() on a previously-connected dialog) must
-            // not rebuild the subtree — the DOM already exists.
+            // A re-attach (present() on a previously-connected dialog) must not rebuild
+            // the subtree — the DOM already exists.
             return;
         }
         this._initialized = true;
 
         this.classList.add('adw-dialog');
 
-        // Everything the author placed inside becomes the dialog content.
+        // Snapshot before the subtree is replaced: everything the author placed inside
+        // becomes the dialog content.
         const contentChildren = Array.from(this.childNodes);
 
-        // Full-cover scrim — a flex container that centres the box; clicking it
-        // (outside the box) attempts to dismiss the dialog.
         this._scrimEl = document.createElement('div');
         this._scrimEl.className = 'adw-dialog-scrim';
         this._scrimEl.addEventListener('click', () => this._attemptClose());
 
-        // The dialog box (the "sheet"). Focusable so it can receive keys even
-        // when the content has none; clicks inside must not reach the scrim.
+        // Focusable so the box receives keys even when the content has none, and clicks
+        // inside must not reach the scrim's dismiss handler.
         this._boxEl = document.createElement('div');
         this._boxEl.className = 'adw-dialog-box';
         this._boxEl.setAttribute('role', 'dialog');
@@ -190,8 +167,6 @@ export class AdwDialog extends HTMLElement {
         this._boxEl.addEventListener('click', (event) => event.stopPropagation());
         this._boxEl.addEventListener('keydown', (event) => this._onBoxKeyDown(event));
 
-        // Optional flat header bar (title + trailing close button), strictly
-        // centred like an AdwHeaderBar.
         this._headerEl = document.createElement('div');
         this._headerEl.className = 'adw-dialog-header';
 
@@ -208,14 +183,12 @@ export class AdwDialog extends HTMLElement {
         this._closeBtn.type = 'button';
         this._closeBtn.className = 'adw-dialog-close';
         this._closeBtn.setAttribute('aria-label', 'Close');
-        // No `window-close` symbolic ships in @gjsify/adwaita-icons; the "×"
-        // glyph is drawn in CSS (same approach as <adw-preferences-dialog>).
+        // The "×" glyph is drawn in CSS (same approach as <adw-preferences-dialog>).
         this._closeBtn.addEventListener('click', () => this._attemptClose());
         trailing.appendChild(this._closeBtn);
 
         this._headerEl.append(leading, this._titleEl, trailing);
 
-        // The content area — the author's markup.
         this._contentEl = document.createElement('div');
         this._contentEl.className = 'adw-dialog-content';
         for (const child of contentChildren) this._contentEl.appendChild(child);
@@ -237,8 +210,6 @@ export class AdwDialog extends HTMLElement {
             else this._onClosed();
         }
     }
-
-    // ── internals ──────────────────────────────────────────────────────────
 
     /** A dismissal was requested: honour `can-close`, else raise close-attempt. */
     private _attemptClose(): void {
@@ -306,20 +277,18 @@ export class AdwDialog extends HTMLElement {
         const title = this.title;
         this._titleEl.textContent = title;
 
-        // The header shows when there is a title or the author forces it.
         const hasHeader = title.length > 0 || this.hasAttribute('show-header');
         this._headerEl.hidden = !hasHeader;
 
-        // Presentation mode drives the CSS layout (floating vs bottom sheet).
+        // The CSS reads both of these: the dataset picks floating vs bottom sheet, the
+        // custom properties carry the size constraints.
         this.dataset.presentation = this.presentationMode;
 
-        // Size constraints as CSS custom properties consumed by the box.
         this._boxEl.style.setProperty('--adw-dialog-content-width', `${this.contentWidth}px`);
         const height = this.contentHeight;
         if (height > 0) this._boxEl.style.setProperty('--adw-dialog-content-height', `${height}px`);
         else this._boxEl.style.removeProperty('--adw-dialog-content-height');
 
-        // A locked dialog's close button has no effect; reflect that.
         const locked = !this.canClose;
         this._closeBtn.disabled = locked;
         this._closeBtn.classList.toggle('locked', locked);

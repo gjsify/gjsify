@@ -1,18 +1,14 @@
 // AdwWrapBox — a Libadwaita-style flowing wrap box for NativeScript.
 //
-// Renders a REAL NativeScript `FlexboxLayout` in wrapping mode: children flow
-// along the main axis and wrap onto the next line when they run out of room.
-// Mirrors `Adw.WrapBox`, including the properties this port could not express
-// while it was built on `WrapLayout` — `justify`, `align`, `justify-last-line`,
-// `line-homogeneous`, `pack-direction`, `wrap-reverse` and `wrap-policy` all map
-// onto `FlexboxLayout`'s own knobs, off the SAME `@gjsify/adwaita-core` decision
-// the browser element uses.
+// Renders a REAL NativeScript `FlexboxLayout` in wrapping mode. `justify`, `align`,
+// `justify-last-line`, `line-homogeneous`, `pack-direction`, `wrap-reverse` and
+// `wrap-policy` all map onto `FlexboxLayout`'s own knobs, off the SAME
+// `@gjsify/adwaita-core` decision the browser element uses.
 //
-// FIDELITY: approximated in three named places, all of them in
-// `wrap-box-layout.ts` — the spacing comes out of child margins (NativeScript
-// has no gap property on any layout), `align` snaps to the three positions
-// flexbox has rather than C's continuum, and the final-line rule reaches only
-// the single-child case, because NS offers no `:only-child` selector and no
+// FIDELITY: approximated in three places, all in `wrap-box-layout.ts` — the spacing
+// comes out of child margins (no NS layout has a gap property), `align` snaps to
+// flexbox's three positions rather than C's continuum, and the final-line rule reaches
+// only the single-child case, because NS offers no `:only-child` selector and no
 // generated content.
 //
 // `natural-line-length` and its unit are carried but NOT applied: NativeScript's

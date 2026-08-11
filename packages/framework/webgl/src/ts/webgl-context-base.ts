@@ -3,15 +3,11 @@
 //            refs/webgl/specs/latest/1.0/, refs/webgl/specs/latest/2.0/
 // Reimplemented for GJS using @girs/gwebgl-0.1 (libgwebgl Vala bindings).
 //
-// The class itself owns: fields, abstract members, the constructor, `_init` and
-// `_initGLConstants`, and a small set of foundational helpers used across every
-// split module. The actual WebGL method implementations live in `./context/*.ts`
-// modules — those modules use TypeScript declaration merging plus prototype
-// assignment to attach methods to this class without growing the file.
-//
-// The split is purely organisational: every method is still a regular method on
-// `WebGLContextBase.prototype`, and external consumers (`WebGLRenderingContext`,
-// `WebGL2RenderingContext`, application code) do not need to change anything.
+// This class owns the fields, abstract members, constructor, `_init` /
+// `_initGLConstants` and the helpers every split module needs; the WebGL methods
+// themselves live in `./context/*.ts` and attach through TypeScript declaration merging
+// plus prototype assignment. Purely organisational — each one is still a regular method
+// on `WebGLContextBase.prototype`.
 
 import '@girs/gdkpixbuf-2.0';
 
@@ -21,22 +17,18 @@ import { WebGLContextAttributes } from './webgl-context-attributes.js';
 import type { HTMLCanvasElement } from './html-canvas-element.js';
 import { flag } from './utils.js';
 
-// Extension factories
-// import { getANGLEInstancedArrays } from './extensions/angle-instanced-arrays.js';
 import { getOESElementIndexUint } from './extensions/oes-element-index-unit.js';
 import { getOESStandardDerivatives } from './extensions/oes-standard-derivatives.js';
 import { getOESTextureFloat } from './extensions/oes-texture-float.js';
 import { getOESTextureFloatLinear } from './extensions/oes-texture-float-linear.js';
 import { getSTACKGLDestroyContext } from './extensions/stackgl-destroy-context.js';
 import { getSTACKGLResizeDrawingBuffer } from './extensions/stackgl-resize-drawing-buffer.js';
-// import { getWebGLDrawBuffers } from './extensions/webgl-draw-buffers.js';
 import { getEXTBlendMinMax } from './extensions/ext-blend-minmax.js';
 import { getEXTColorBufferFloat } from './extensions/ext-color-buffer-float.js';
 import { getEXTColorBufferHalfFloat } from './extensions/ext-color-buffer-half-float.js';
 import { getEXTTextureFilterAnisotropic } from './extensions/ext-texture-filter-anisotropic.js';
 import { getOESTextureHalfFloat } from './extensions/oes-texture-half-float.js';
 import { getWEBGLDebugRendererInfo } from './extensions/webgl-debug-renderer-info.js';
-// import { getOESVertexArrayObject } from './extensions/oes-vertex-array-object.js';
 
 import type { WebGLBuffer } from './webgl-buffer.js';
 import type { WebGLDrawingBufferWrapper } from './webgl-drawing-buffer-wrapper.js';
@@ -56,15 +48,12 @@ const VERSION = '0.0.1';
 let CONTEXT_COUNTER = 0;
 
 const availableExtensions: Record<string, ExtensionFactory> = {
-    // angle_instanced_arrays: getANGLEInstancedArrays,
     oes_element_index_uint: getOESElementIndexUint,
     oes_texture_float: getOESTextureFloat,
     oes_texture_float_linear: getOESTextureFloatLinear,
     oes_standard_derivatives: getOESStandardDerivatives,
-    // oes_vertex_array_object: getOESVertexArrayObject,
     stackgl_destroy_context: getSTACKGLDestroyContext,
     stackgl_resize_drawingbuffer: getSTACKGLResizeDrawingBuffer,
-    // webgl_draw_buffers: getWebGLDrawBuffers,
     ext_blend_minmax: getEXTBlendMinMax,
     ext_color_buffer_float: getEXTColorBufferFloat,
     ext_color_buffer_half_float: getEXTColorBufferHalfFloat,
@@ -126,7 +115,6 @@ export abstract class WebGLContextBase {
 
     DEFAULT_COLOR_ATTACHMENTS: number[] = [];
 
-    /** context counter */
     _ = 0;
 
     abstract get _gl(): Gwebgl.WebGLRenderingContextBase;
@@ -178,9 +166,7 @@ export abstract class WebGLContextBase {
     _viewport: Int32Array = new Int32Array([0, 0, 0, 0]);
     _scissorBox: Int32Array = new Int32Array([0, 0, 0, 0]);
 
-    // GTK's own FBO ID (not FBO 0). GtkGLArea renders into a custom FBO, not the
-    // default surface FBO. Captured once at _init() time before any rebinding so
-    // that bindFramebuffer(target, null) can restore the correct FBO.
+    // GtkGLArea's own FBO — never FBO 0. Captured in `_init()`; see there.
     _gtkFboId = 0;
 
     _textureUnits: WebGLTextureUnit[] = [];
@@ -203,7 +189,7 @@ export abstract class WebGLContextBase {
             flag(options, 'failIfMajorPerformanceCaveat', false),
         );
 
-        // Can only use premultipliedAlpha if alpha is set
+        // premultipliedAlpha means nothing without alpha.
         this._contextAttributes.premultipliedAlpha =
             this._contextAttributes.premultipliedAlpha && this._contextAttributes.alpha;
     }
@@ -236,7 +222,6 @@ export abstract class WebGLContextBase {
 
         this._ = CONTEXT_COUNTER++;
 
-        // Initialize texture units
         const numTextures = this.getParameter(this.MAX_COMBINED_TEXTURE_IMAGE_UNITS) as number;
         this._textureUnits = Array.from({ length: numTextures });
         for (let i = 0; i < numTextures; ++i) {
@@ -271,17 +256,14 @@ export abstract class WebGLContextBase {
         // output path. Tracked in status/open-todos.md under WebGL Workstream D:
         // optional headless drawing-buffer pre-allocation.
 
-        // Initialize defaults
         this.bindBuffer(this.ARRAY_BUFFER, null);
         this.bindBuffer(this.ELEMENT_ARRAY_BUFFER, null);
         this.bindFramebuffer(this.FRAMEBUFFER, null);
         this.bindRenderbuffer(this.RENDERBUFFER, null);
 
-        // Set viewport and scissor
         this.viewport(0, 0, width, height);
         this.scissor(0, 0, width, height);
 
-        // Clear buffers
         this.clearDepth(1);
         this.clearColor(0, 0, 0, 0);
         this.clearStencil(0);
@@ -375,8 +357,6 @@ export abstract class WebGLContextBase {
         return haveMajor > major || (haveMajor === major && haveMinor >= minor);
     }
 
-    // ─── Foundational helpers used across multiple split modules ──────────
-
     _checkOwns(object: unknown): boolean {
         return typeof object === 'object' && object !== null && (object as { _ctx?: unknown })._ctx === this;
     }
@@ -430,8 +410,6 @@ export abstract class WebGLContextBase {
     _getParameterDirect(pname: GLenum): unknown {
         return this._gl.getParameterx(pname)?.deepUnpack();
     }
-
-    // ─── Public surface kept on the class itself ──────────────────────────
 
     /**
      * The `WebGLRenderingContext.getContextAttributes()` method returns a `WebGLContextAttributes`
@@ -702,7 +680,6 @@ export abstract class WebGLContextBase {
 
     destroy(): void {
         warnNotImplemented('destroy');
-        // this._gl.destroy()
     }
 }
 

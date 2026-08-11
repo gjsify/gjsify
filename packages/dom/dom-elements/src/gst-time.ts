@@ -1,25 +1,17 @@
-// Conversions between seconds (Web video API) and GStreamer's nanosecond
-// `BigInt` timebase (used by `Gst.Format.TIME` throughout GStreamer). Lives
-// in @gjsify/dom-elements so HTMLVideoElement/HTMLAudioElement can use it
-// directly; @gjsify/video re-exports these for consumers of the bridge
-// package. Kept as pure number math — no runtime Gst import required.
+// Conversions between seconds (Web video API) and GStreamer's nanosecond `BigInt`
+// timebase (`Gst.Format.TIME`). Pure number math, so no runtime Gst import is needed.
 
 const NS_PER_SECOND = 1_000_000_000;
 
-/**
- * Convert seconds (number) to GStreamer nanoseconds (bigint).
- * Rounds to the nearest nanosecond to avoid floating-point drift over
- * repeated back-and-forth conversions.
- */
+/** Seconds to GStreamer nanoseconds, rounded to avoid drift over repeated round-trips. */
 export function secondsToGstTime(seconds: number): bigint {
     return BigInt(Math.round(seconds * NS_PER_SECOND));
 }
 
 /**
- * Convert GStreamer nanoseconds to seconds (number).
- * Accepts both `bigint` (the runtime type from GStreamer queries) and `number`
- * (what the `@girs/gst-1.0` typings currently declare — a known GIR bug for
- * `gint64` return values in `query_position` / `query_duration`).
+ * GStreamer nanoseconds to seconds. Accepts `number` as well as `bigint` because the
+ * `@girs/gst-1.0` typings declare `gint64` returns as `number` (`query_position` /
+ * `query_duration`), while the runtime hands back a `bigint`.
  */
 export function gstTimeToSeconds(nanoseconds: bigint | number): number {
     return Number(nanoseconds) / NS_PER_SECOND;

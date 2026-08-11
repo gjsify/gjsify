@@ -97,7 +97,7 @@ export default async () => {
         });
 
         await it('reports an out-of-range position as not selected, never as an error', () => {
-            // adw_view_stack_pages_is_selected, adw-view-stack.c:659-672.
+            // adw_view_stack_pages_is_selected, adw-view-stack.c.
             const state = new ViewStackState();
             for (const name of ['a', 'b', 'c']) state.addPage({ name });
             state.setVisibleIndex(1);
@@ -111,7 +111,7 @@ export default async () => {
 
     await describe('ViewStackState.duplicateNames', async () => {
         await it('is DERIVED from the current pages, so removing the duplicate clears it', () => {
-            // C only warns once, at add time (adw-view-stack.c:1122). Deriving the
+            // C only warns once, at add time. Deriving the
             // list instead of logging it keeps it honest after a removal, while
             // `diagnostics` stays the append-only record of what C would have printed.
             const state = new ViewStackState();

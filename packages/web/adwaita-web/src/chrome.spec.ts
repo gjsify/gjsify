@@ -2,16 +2,12 @@
 // <adw-spinner> and <adw-toolbar-view> — driven by the SAME vectors the
 // NativeScript renderer asserts against (`@gjsify/adwaita-core/conformance`).
 //
-// Each of the three used to answer a question libadwaita had already answered,
-// and answered it differently from the NativeScript port: the clamp was a plain
-// `max-width` with no tightening and a `maximum-size="0"` that collapsed the
-// child to nothing, the spinner defaulted to 24px and stroked a 2px ring where
-// Adwaita strokes 3px, and the toolbar view carried none of the four style
-// classes at all. Nothing failed, because nothing compared them.
+// Each of the three answered a question libadwaita had already answered, and answered it
+// differently from the NativeScript port: clamp tightening and `maximum-size="0"`, the
+// spinner's default size and 3px stroke, and the toolbar view's four style classes.
 //
-// Sizes are driven by really resizing a host element and awaiting a real
-// ResizeObserver delivery, the same way `breakpoints.spec.ts` does — never by
-// faking one.
+// Sizes are driven by really resizing a host element and awaiting a real ResizeObserver
+// delivery, as `breakpoints.spec.ts` does — never by faking one.
 import { describe, expect, it } from '@gjsify/unit';
 
 import { ADW_SPINNER_MIN_SIZE, ADW_SPINNER_TRACK_OPACITY, spinnerGeometry } from '@gjsify/adwaita-core';
@@ -54,8 +50,8 @@ function mountClamp(available: number): {
     const { host, resize } = mountSized(available);
     const clamp = document.createElement('adw-clamp');
     const child = document.createElement('div');
-    // A bare block child fills the clamp and is capped by the max-width the
-    // element writes — the same shape every story uses.
+    // A bare block child fills the clamp and is capped by the max-width the element
+    // writes — the shape every story uses.
     child.textContent = 'clamped';
     clamp.appendChild(child);
     host.appendChild(clamp);
@@ -96,9 +92,8 @@ function mountToolbarView(topBarHeight: number, bottomBarHeight: number): { host
 
 export const AdwChromeTest = async () => {
     await describe('adw-clamp allocation (AdwClampLayout conformance vectors)', async () => {
-        // The browser resolves the child's own minimum through the normal
-        // `min-width` cascade, so only the rows that pass a zero child minimum
-        // describe what this element can be held to.
+        // The browser resolves the child's own minimum through the normal `min-width`
+        // cascade, so only rows with a zero child minimum describe this element.
         const vectors = CLAMP_ALLOCATE_VECTORS.filter((v) => v.params.childMin === 0);
 
         for (const { availableSize, params, childSize, sizeClass, offset, rule } of vectors) {
@@ -110,7 +105,7 @@ export const AdwChromeTest = async () => {
 
                 expect(clampedWidth(child)).toBe(childSize);
                 expect(sizeClassOf(child)).toBe(sizeClass);
-                // `margin-inline: auto` splits the remainder evenly; libadwaita
+                // `margin-inline: auto` splits the remainder evenly where libadwaita
                 // truncates, so the two can differ by half a pixel.
                 const leading = child.getBoundingClientRect().left - clamp.getBoundingClientRect().left;
                 expect(Math.abs(leading - offset) <= 1).toBe(true);
@@ -120,8 +115,7 @@ export const AdwChromeTest = async () => {
         }
 
         await it('follows the viewport instead of pinning the child to the maximum', async () => {
-            // The NativeScript twin's bug in browser form: a narrow clamp must
-            // hand the child ALL of the available width, not the cap.
+            // A narrow clamp hands the child ALL of the available width, not the cap.
             const { host, clamp, child, resize } = mountClamp(1000);
             await settle();
             expect(clampedWidth(child)).toBe(600);
@@ -132,8 +126,6 @@ export const AdwChromeTest = async () => {
         });
 
         await it('honours tightening-threshold, which the element used to ignore', async () => {
-            // The storybook has exposed this control all along and only the GTK
-            // pane responded to it.
             const { host, clamp, child } = mountClamp(700);
             clamp.setAttribute('maximum-size', '600');
             clamp.setAttribute('tightening-threshold', '400');
@@ -323,7 +315,7 @@ export const AdwChromeTest = async () => {
 
         await it('KEEPS SPINNING under reduced motion — a frozen busy indicator reads as a hang', () => {
             // libadwaita opts the spinner out of the animation setting on purpose
-            // (adw-spinner-paintable.c:537). The old stylesheet had
+            //. The old stylesheet had
             // `@media (prefers-reduced-motion: reduce) { animation: none }`, so
             // this asserts the ABSENCE of any CSS animation to switch off: the
             // arc is driven per frame from JS and cannot be disabled by a query.
@@ -345,7 +337,7 @@ export const AdwChromeTest = async () => {
             expect(arc.getAttribute('stroke-dashoffset')).not.toBe(first);
 
             // Unmapping removes it from the shared ticker — `widget_map_cb`
-            // (adw-spinner-paintable.c:181-185) is what plays the animation, so
+            // is what plays the animation, so
             // an off-screen spinner burns nothing.
             spinner.remove();
             const parked = arc.getAttribute('stroke-dashoffset');

@@ -1,6 +1,5 @@
-// NativeScript entry. The storybook is built + the devtools agent installed in
-// the page code-behind (storybook-page.ts, on first navigation), where the
-// storybook controller exists. Here we just start the app.
+// The storybook and the devtools agent are set up in the page code-behind (storybook-page.ts, on
+// first navigation), where the storybook controller exists.
 
 import { Application } from '@nativescript/core';
 

@@ -237,8 +237,6 @@ export default async () => {
             });
         });
 
-        // ==================== Additional tests ====================
-
         await describe('setTimeout additional', async () => {
             await it('should not throw with very large delay', async () => {
                 const timeout = timers.setTimeout(() => {}, 2147483647);

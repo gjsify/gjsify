@@ -9,42 +9,18 @@
 // conformance vectors; `tab-view-state.ts` holds the NS-specific projection onto
 // `View.visibility`. This class is the `GridLayout` wiring only.
 //
-// It no longer derives from `AdwViewSwitcherBase`. That base models "a bar of
-// mutually-exclusive buttons over a page stack", which `Adw.ViewSwitcher` and
-// `Adw.InlineViewSwitcher` are — but a tab view is an EDITABLE ordered list with
-// a pinned prefix, parent links and a close protocol, and its `setViews`-rebuilds-
-// everything shape cannot express an insert, a reorder or a pin. Sharing it left
-// two owners of one selection, which is exactly the split this lift removes.
+// Deliberately NOT derived from `AdwViewSwitcherBase`: that base models a bar of
+// mutually-exclusive buttons over a page stack, and its rebuild-everything `setViews`
+// shape cannot express an insert, a reorder or a pin — a tab view is an EDITABLE
+// ordered list with a pinned prefix, parent links and a close protocol.
 //
-// What the lift fixed here, all of it C-derived:
-//   - `_closeTab` removed the page synchronously with no signal, no confirm seam
-//     and a bail-out when one tab remained — where `close_page_cb` runs a
-//     two-phase confirm (adw-tab-view.c:1986-1993, :4386-4437) and closing the
-//     last page EMPTIES the view (:1912-1913).
-//   - the inherited `selected` setter accepted a FRACTIONAL index
-//     (`Number.isFinite`), stored it, and collapsed every page while still
-//     notifying `selected: 1.7`. `adw_tab_view_get_nth_page` takes an `int`
-//     (:4126-4134); the model refuses non-integers outright.
-//   - a close-driven selection change never notified: `_closeTab` assigned
-//     `_selected` directly while `notify::selected` lived only in the setter.
-//   - `AdwViewPage` had no `parent`, so the parent-aware close-successor rule
-//     (:1857-1897) was unreachable; the pinned partition, reordering and autohide
-//     did not exist at all.
-//   - the close button was reachable ONLY on the active tab, and a collapsed NS
-//     view is neither laid out nor hit-tested, so half of `_closeTab`'s index
-//     fix-up was dead code. It is now `tabCloseVisible`, whose pinned gate NS
-//     also lacked.
-//   - a page without a title rendered the literal string "undefined"; the model
-//     coerces an absent title to `''` (:3021).
-//
-// FIDELITY: approximated. NS ships a native `TabView`, but it imposes its own
-// platform tab chrome (Material/UIKit), bottom-tab placement quirks and an
-// item-binding model that fights the Adwaita top-tab look, so this builds the bar
-// from real NS widgets instead. Pages swap by visibility (no slide animation), a
-// `loading` page shows its icon rather than a spinner, and tab drag-and-drop —
-// hence the `dragging` and `is-transferring-page` terms — has no NS analogue.
-// The `icon` slot carries an Adwaita symbolic SVG string here (what `AdwIcon`
-// consumes) rather than a GTK icon name; the model treats it as opaque.
+// FIDELITY: approximated. NS ships a native `TabView`, but it imposes its own platform
+// tab chrome (Material/UIKit), bottom-tab placement quirks and an item-binding model
+// that fights the Adwaita top-tab look, so the bar is built from real NS widgets
+// instead. Pages swap by visibility (no slide animation), a `loading` page shows its
+// icon rather than a spinner, and tab drag-and-drop — hence the `dragging` and
+// `is-transferring-page` terms — has no NS analogue. The `icon` slot carries an Adwaita
+// symbolic SVG string rather than a GTK icon name; the model treats it as opaque.
 //
 // Reference: refs/libadwaita/src/adw-tab-view.c (Adw.TabView)
 // Reference: refs/libadwaita/src/adw-tab-bar.c (Adw.TabBar autohide)

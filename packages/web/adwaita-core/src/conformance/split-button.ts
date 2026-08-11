@@ -1,35 +1,21 @@
 // Split-button conformance vectors — the spec both renderers are held to.
 //
-// Every row is derived from a named function in the libadwaita C source, and the
-// four content SEQUENCES are line-for-line transcriptions of the upstream suite
-// (`refs/libadwaita/tests/test-split-button.c`), including its exact per-property
-// `notify::*` counts. Running the same table against the core state machine, the
-// Custom Element and the NativeScript widget is what turns "the two ports drifted
-// apart and away from GTK" into a failing unit test that names the input.
+// Every row is derived from a named function in the libadwaita C source, and the four
+// content SEQUENCES are line-for-line transcriptions of the upstream suite, including its
+// exact per-property `notify::*` counts.
 //
-// The divergences these vectors exist to catch, all of them real before the lift:
-//   - `<adw-split-button label="Save" icon-name="document-save">` rendered the
-//     icon AND the text, where C clears whichever slot it is not using;
-//   - removing the `label` attribute was a silent no-op in the browser port, so
-//     the storybook's icon-only mode showed icon + stale label;
-//   - `label="  "` was trimmed away in the browser port, flipping the icon-only
-//     branch, where C keys `text-button` off `label[0]` and never trims;
-//   - the NativeScript port kept the stale label VALUE behind a swapped view and
-//     titled its action sheet with it;
-//   - `dropdown-tooltip=""` produced an EMPTY accessible name instead of the
-//     translated `More Options` default;
-//   - a split button with no menu opened an empty popover instead of having an
-//     insensitive dropdown;
-//   - a menu choice was resolved with `indexOf` on the label, so two entries
-//     called `Copy` always dispatched the first;
-//   - `direction="none"` drew `open-menu-symbolic`. That one SHIPPED, in the
-//     vector and in both renderers, because the vector was derived from the same
-//     misread of the stylesheet as the implementation — see `./index.ts`.
+// The rows pin the derivations a renderer gets wrong by hand: which content slot C CLEARS
+// when it uses the other, `text-button` keyed off `label[0]` with no trimming, the
+// translated `More Options` default behind an empty `dropdown-tooltip`, an insensitive
+// dropdown (not an empty popover) with no menu, and menu choices resolved by index rather
+// than by label. `direction="none"` is the one that SHIPPED wrong in the vector AND in
+// both renderers, because the vector was derived from the same misread of the stylesheet
+// as the implementation — see `./index.ts`.
 //
 // Reference: refs/libadwaita/src/adw-split-button.c
 // Reference: refs/libadwaita/tests/test-split-button.c
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss
-//            (menubutton arrow :451-469 — and the splitbutton override at :621-623)
+//            (`menubutton arrow`, overridden by `splitbutton > menubutton > button > arrow`)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import type {
@@ -42,11 +28,8 @@ import type {
     SplitButtonStyleClass,
 } from '../split-button.js';
 
-// --- Content machine: label / icon-name / child mutual exclusion ---
-
 /** One mutation in a {@link SplitButtonContentVector} sequence, with its outcome. */
 export interface SplitButtonContentStep {
-    /** Which slot is being set. */
     op: 'label' | 'icon-name' | 'child';
     /**
      * The value passed. For `label`/`icon-name` the string itself; for `child` a
@@ -58,7 +41,6 @@ export interface SplitButtonContentStep {
     changed: boolean;
     /** The `notify::*` properties C emits for this one call, in emission order. */
     notified: readonly SplitButtonProperty[];
-    /** The content mode after the step. */
     mode: SplitButtonContentMode;
     /** `get_label()` after the step. */
     label: string | null;
@@ -66,7 +48,6 @@ export interface SplitButtonContentStep {
     iconName: string | null;
     /** The root style classes after the step. */
     styleClasses: readonly SplitButtonStyleClass[];
-    /** Why this step exists — the rule or edge case it pins down. */
     rule: string;
 }
 
@@ -74,25 +55,21 @@ export interface SplitButtonContentStep {
 export interface SplitButtonContentVector {
     /** Which upstream test (or derivation) this sequence transcribes. */
     name: string;
-    /** The mutations, in order. */
     steps: readonly SplitButtonContentStep[];
 }
 
 /**
- * The content machine (adw-split-button.c:661-682, :749-771, :799-824).
+ * The content machine.
  *
- * Two things in here are easy to get wrong and are asserted explicitly. First,
- * the `notified` ORDER: C freezes, notifies the slots it is about to CLEAR, sets
- * the new one, notifies it, then thaws — so one `set_label()` can emit three
- * notifications. Second, `child` is notified far more often than a reader
- * expects, because `adw_split_button_get_child()` returns GtkButton's INTERNAL
- * label/image widget in label/icon mode (the upstream suite states this at
- * tests/test-split-button.c:155-157) and the C guard tests that pointer, not
- * whether the app ever set a child.
+ * Two things are easy to get wrong and are asserted explicitly. The `notified` ORDER: C
+ * freezes, notifies the slots it is about to CLEAR, sets the new one, notifies it, then
+ * thaws — so one `set_label()` can emit three notifications. And `child` is notified far
+ * more often than a reader expects, because `adw_split_button_get_child()` returns
+ * GtkButton's INTERNAL label/image widget in label/icon mode (the upstream suite says so)
+ * and the C guard tests that pointer, not whether the app ever set a child.
  *
- * A driver that cannot express a step — a DOM element has no `child` slot —
- * asserts the sequence up to that step and stops; every sequence is written so
- * the interesting rows come first.
+ * A driver that cannot express a step — a DOM element has no `child` slot — asserts the
+ * sequence up to that step and stops; every sequence puts the interesting rows first.
  */
 export const SPLIT_BUTTON_CONTENT_VECTORS: ReadonlyArray<SplitButtonContentVector> = [
     {
@@ -370,8 +347,6 @@ export const SPLIT_BUTTON_CONTENT_VECTORS: ReadonlyArray<SplitButtonContentVecto
     },
 ];
 
-// --- Root style classes ---
-
 /** One `update_style_classes` expectation. */
 export interface SplitButtonStyleClassVector {
     /** `gtk_button_get_label()`. */
@@ -384,7 +359,7 @@ export interface SplitButtonStyleClassVector {
 }
 
 /**
- * `update_style_classes` (adw-split-button.c:145-165). Both branches read the
+ * `update_style_classes`. Both branches read the
  * FIRST CHARACTER, which is why `''` and `'  '` land on opposite sides.
  */
 export const SPLIT_BUTTON_STYLE_CLASS_VECTORS: ReadonlyArray<SplitButtonStyleClassVector> = [
@@ -408,13 +383,10 @@ export const SPLIT_BUTTON_STYLE_CLASS_VECTORS: ReadonlyArray<SplitButtonStyleCla
     },
 ];
 
-// --- Dropdown tooltip ---
-
 /** One `set_dropdown_tooltip` expectation. */
 export interface SplitButtonTooltipVector {
     /** The value passed to `adw_split_button_set_dropdown_tooltip`. */
     tooltip: string;
-    /** What the dropdown actually shows. */
     text: string;
     /** Whether it is Pango MARKUP (`set_tooltip_markup`) rather than plain text. */
     markup: boolean;
@@ -422,12 +394,11 @@ export interface SplitButtonTooltipVector {
 }
 
 /**
- * The tooltip fallback (adw-split-button.c:1044-1051, initial value :531-532).
+ * The tooltip fallback in `adw_split_button_set_dropdown_tooltip`, plus its initial value.
  *
- * `has_dropdown_tooltip = tooltip && *tooltip`. The empty branch is the one both
- * renderers got wrong: the browser port hardcoded `Menu` and, because `''` is not
- * nullish, `dropdown-tooltip=""` left the button with NO accessible name at all;
- * the NativeScript port had neither tooltip nor accessible name.
+ * `has_dropdown_tooltip = tooltip && *tooltip`. The empty branch is the trap: `''` is not
+ * nullish, so a nullish-coalescing fallback leaves `dropdown-tooltip=""` with NO accessible
+ * name at all instead of the translated `More Options`.
  */
 export const SPLIT_BUTTON_TOOLTIP_VECTORS: ReadonlyArray<SplitButtonTooltipVector> = [
     { tooltip: '', text: 'More Options', markup: false, rule: 'unset/cleared restores the translated default as TEXT' },
@@ -441,15 +412,11 @@ export const SPLIT_BUTTON_TOOLTIP_VECTORS: ReadonlyArray<SplitButtonTooltipVecto
     { tooltip: ' ', text: ' ', markup: true, rule: '`*tooltip` is a space — non-NUL, so it is a real tooltip' },
 ];
 
-// --- Direction ---
-
 /** One direction expectation. */
 export interface SplitButtonDirectionVector {
     /** The `GtkArrowType`. */
     direction: SplitButtonDirection;
-    /** The symbolic icon the arrow node draws. */
     arrowIcon: AdwArrowIcon;
-    /** Where the popup is placed. */
     popupDirection: SplitButtonDirection;
     /** Why this row exists — naming the selector that WINS, not the one that loses. */
     rule: string;
@@ -457,11 +424,11 @@ export interface SplitButtonDirectionVector {
 
 /**
  * Direction → glyph for the dropdown half of a SPLIT BUTTON, and → popup
- * placement (adw-split-button.c:415).
+ * placement.
  *
  * `none` is the row that matters, and it is the row that was WRONG here until the
  * override was found: the four shared directions come from `menubutton arrow`
- * (_buttons.scss:457-468), but `.none` is re-declared inside `splitbutton { … }`
+ * (`_buttons.scss`), but `.none` is re-declared inside `splitbutton { … }`
  * at :621-623, and that selector wins. See the header of `./index.ts` — "cite the
  * winning selector" — for what this table cost.
  */
@@ -541,17 +508,13 @@ export const MENU_BUTTON_DIRECTION_VECTORS: ReadonlyArray<SplitButtonDirectionVe
     },
 ];
 
-// --- Root state fold ---
-
 /** One `update_state` expectation. */
 export interface SplitButtonRootStateVector {
     /** State flags of the action half. */
     action: SplitButtonHalfState;
     /** State flags of the dropdown (arrow) half. */
     dropdown: SplitButtonHalfState;
-    /** Whether the root reads ACTIVE. */
     active: boolean;
-    /** Whether the root reads CHECKED. */
     checked: boolean;
     rule: string;
 }
@@ -559,9 +522,9 @@ export interface SplitButtonRootStateVector {
 const IDLE: SplitButtonHalfState = { active: false, checked: false, keyboardActivating: false };
 
 /**
- * `update_state` (adw-split-button.c:118-143) — an OR-fold of both halves onto
+ * `update_state` — an OR-fold of both halves onto
  * the root, which is what `splitbutton.flat:active/:checked` styles
- * (_buttons.scss:542-549).
+ * (`_buttons.scss`).
  *
  * CORE-ONLY: GAP — two of its three axes are hardcoded in the renderer, so there is nothing to vary. Tracked in #1072
  */
@@ -604,13 +567,10 @@ export const SPLIT_BUTTON_ROOT_STATE_VECTORS: ReadonlyArray<SplitButtonRootState
     },
 ];
 
-// --- Menu model ---
-
 /** One `parseMenuEntries` expectation. */
 export interface SplitButtonMenuParseVector {
     /** The raw `menu` attribute (or `null` when absent). */
     json: string | null;
-    /** The entries it yields. */
     entries: readonly AdwMenuEntry[];
     rule: string;
 }
@@ -653,9 +613,7 @@ export const SPLIT_BUTTON_MENU_PARSE_VECTORS: ReadonlyArray<SplitButtonMenuParse
 
 /** One activate-by-position expectation. */
 export interface SplitButtonMenuActivationVector {
-    /** The menu model. */
     entries: readonly AdwMenuEntry[];
-    /** The position activated. */
     index: number;
     /** The entry that must be dispatched, or `null`. */
     activated: AdwMenuEntry | null;
@@ -669,7 +627,7 @@ const DUPLICATE_MENU: readonly AdwMenuEntry[] = [
 
 /**
  * Activation is BY POSITION, never by label lookup: a `GMenuModel` addresses its
- * items by index and each carries its own detailed action (adw-split-button.c:385-388).
+ * items by index and each carries its own detailed action.
  */
 export const SPLIT_BUTTON_MENU_ACTIVATION_VECTORS: ReadonlyArray<SplitButtonMenuActivationVector> = [
     {
@@ -703,8 +661,8 @@ export interface SplitButtonDropdownVector {
 }
 
 /**
- * "If the menu model is `NULL`, the dropdown is disabled" (adw-split-button.c:376-378),
- * and the same for the popover (:394-396). An empty entry list is the renderers'
+ * "If the menu model is `NULL`, the dropdown is disabled",
+ * and the same for the popover. An empty entry list is the renderers'
  * only spelling of "no menu", so it collapses onto the `NULL` case.
  */
 export const SPLIT_BUTTON_DROPDOWN_VECTORS: ReadonlyArray<SplitButtonDropdownVector> = [

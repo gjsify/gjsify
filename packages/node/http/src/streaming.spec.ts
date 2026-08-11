@@ -52,8 +52,6 @@ function httpGetBody(
 }
 
 export default async () => {
-    // ---- res.write() + res.end() basic streaming ----
-
     await describe('http streaming: res.write + res.end', async () => {
         await it('should receive multiple write() chunks as single body', async () => {
             const { url, close } = await startServer((_req, res) => {
@@ -113,8 +111,6 @@ export default async () => {
             }
         });
     });
-
-    // ---- Readable.pipe(res) ----
 
     await describe('http streaming: Readable.pipe(res)', async () => {
         await it('should pipe a Readable stream to response', async () => {
@@ -210,8 +206,6 @@ export default async () => {
         });
     });
 
-    // ---- Large response bodies ----
-
     await describe('http streaming: large response bodies', async () => {
         await it('should handle a 64KB response body', async () => {
             const size = 64 * 1024;
@@ -272,8 +266,6 @@ export default async () => {
             }
         });
     });
-
-    // ---- Request body reading ----
 
     await describe('http streaming: request body', async () => {
         await it('should receive POST request body', async () => {
@@ -366,8 +358,6 @@ export default async () => {
         });
     });
 
-    // ---- Concurrent requests ----
-
     await describe('http streaming: concurrent requests', async () => {
         await it('should handle 5 concurrent GET requests', async () => {
             let requestCount = 0;
@@ -406,8 +396,6 @@ export default async () => {
             }
         });
     });
-
-    // ---- Status codes and redirects ----
 
     await describe('http streaming: status codes', async () => {
         await it('should handle 302 redirect to same server', async () => {
@@ -465,8 +453,6 @@ export default async () => {
             }
         });
     });
-
-    // ---- Content types and encodings ----
 
     await describe('http streaming: content types', async () => {
         await it('should serve JSON content', async () => {
@@ -529,8 +515,6 @@ export default async () => {
         });
     });
 
-    // ---- Routing by URL and method ----
-
     await describe('http streaming: routing', async () => {
         await it('should differentiate routes by URL path', async () => {
             const { url, close } = await startServer((req, res) => {
@@ -587,8 +571,6 @@ export default async () => {
             }
         });
     });
-
-    // ---- Server lifecycle ----
 
     await describe('http streaming: server lifecycle', async () => {
         await it('should emit listening event', async () => {

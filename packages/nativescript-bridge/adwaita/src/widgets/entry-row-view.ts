@@ -1,20 +1,15 @@
 // Entry-row rendering for NativeScript — the pure half.
 //
-// The derivation itself is HEADLESS and lives in `@gjsify/adwaita-core` (ADR
-// 0004). What is NativeScript-specific is only the PAINTING of one render
-// snapshot: NS has no cross-fade in its CSS subset, so libadwaita's 150 ms
-// empty↔filled title transition collapses to a `visibility` swap at the two
-// endpoints, and it has no "insensitive" state, so the desensitized pencil is an
+// The derivation is HEADLESS in `@gjsify/adwaita-core` (ADR 0004); NativeScript-specific
+// is the PAINTING of one render snapshot: the CSS subset has no cross-fade, so
+// libadwaita's 150 ms empty↔filled title transition collapses to a `visibility` swap at
+// the endpoints, and there is no "insensitive" state, so the desensitized pencil is an
 // opacity.
 //
-// This module is deliberately FREE of `@nativescript/core` VALUE imports — like
-// `icon-path.ts`, `row-press.ts` and `avatar-color.ts` — so the spec suite can
-// exercise the real code off-device. `adw-entry-row.ts` cannot serve that role:
-// it `extends AdwActionRow` → `GridLayout`, which evaluates the bare
-// `@nativescript/core` specifier at module-eval and is unresolvable on GJS/Node.
-// The view interfaces below are structural on purpose: a real `Label` satisfies
-// `ToggleableView`, and so does a plain object in a spec — so the test drives
-// the SAME function the widget does, instead of a mock that transcribes it.
+// No `@nativescript/core` VALUE imports, so specs reach the real painter off-device
+// (AGENTS.md). The view interfaces below are STRUCTURAL on purpose: a real `Label`
+// satisfies `ToggleableView` and so does a plain object in a spec, so the test drives
+// the same function the widget does.
 //
 // Reference: refs/libadwaita/src/adw-entry-row.c (update_empty, allocate_editable_area)
 // Reference: refs/libadwaita/src/adw-password-entry-row.c (notify_visibility_cb)

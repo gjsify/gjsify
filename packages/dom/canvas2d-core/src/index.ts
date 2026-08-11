@@ -1,10 +1,7 @@
-// Cairo-backed Canvas 2D core — no @gjsify/dom-elements dependency.
-// Extracted from @gjsify/canvas2d so @gjsify/dom-elements can depend on it
-// without creating a circular dependency.
-//
-// @gjsify/dom-elements imports this package to auto-register the '2d' context
-// factory on HTMLCanvasElement, mirroring browser behavior where
-// canvas.getContext('2d') works without any explicit import.
+// Cairo-backed Canvas 2D core. Deliberately does not depend on @gjsify/dom-elements: that package
+// imports this one to auto-register the '2d' context factory on HTMLCanvasElement (so
+// `canvas.getContext('2d')` works with no explicit import, as in a browser), and a dependency back
+// would close the cycle.
 
 export { CanvasRenderingContext2D } from './canvas-rendering-context-2d.js';
 export { CanvasGradient } from './canvas-gradient.js';

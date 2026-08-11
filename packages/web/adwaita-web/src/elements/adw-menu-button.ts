@@ -1,43 +1,19 @@
-// <adw-menu-button> — An icon button that opens a popover menu, the web
-// counterpart of Adw.MenuButton / a Gtk.MenuButton. By default it is the flat
-// `open-menu-symbolic` primary/app-menu button used at the end of a header bar
-// (About / Preferences / Keyboard Shortcuts / Quit …). Clicking it toggles a
-// real Adwaita-styled popover positioned under the button; the popover is
-// dismissed on an outside click or Escape and supports arrow-key navigation.
+// <adw-menu-button> — the web counterpart of Adw.MenuButton / Gtk.MenuButton: by
+// default the flat `open-menu-symbolic` app-menu button used at the end of a header
+// bar. Clicking it toggles an Adwaita-styled popover under the button, dismissed on
+// an outside click or Escape, with arrow-key navigation.
 //
 // The popover is `<adw-popover>` and the dismissal/keyboard machine is
-// `@gjsify/adwaita-core`'s (ADR 0004). This element used to build both by hand,
-// as did `<adw-drop-down>` and `<adw-split-button>` — three surfaces that
-// disagreed with libadwaita and with each other on radius, shadow and padding,
-// and two copies of the same `(current ± 1 + n) % n` arithmetic. This element
-// keeps only what is a menu button: the icon, the item model, the title.
+// `@gjsify/adwaita-core`'s (ADR 0004); this element keeps only what is a menu button:
+// the icon, the item model, the title. Icons go through `<adw-icon>`, whose
+// `normalizeIconName` guard is what keeps a multi-token `icon-name="a b"` from
+// shipping a stray CSS class — for the button icon and for every menu entry's.
 //
-// THE ICON WENT THE SAME WAY, and it is where the drift actually bit: this
-// element interpolated `class="adw-icon adw-menu-button-icon adw-icon--<name>"`
-// while `<adw-split-button>` — alone among six copies — first checked the name
-// was one CSS token. So `icon-name="a b"` shipped a stray `b` class here, and so
-// did every JSON menu entry's `icon`. Both are `<adw-icon>` now, and the guard
-// is `normalizeIconName`'s.
+// The `menu` attribute is a JSON array of `{ "id"?, "label", "icon"? }`. Choosing an
+// item closes the popover and fires `menu-item-activated` (CustomEvent, bubbles,
+// detail `{ id, label, index }`) with `id` falling back to `label`, matching the NS
+// twin.
 //
-// Attributes:
-//   icon-name  — symbolic icon (no `-symbolic` suffix), default `open-menu`.
-//   menu-title — optional heading shown atop the popover.
-//   menu       — JSON array of items, each `{ "id"?, "label", "icon"? }`.
-//   disabled   — boolean; a disabled button does not open the menu.
-//   flat       — boolean style class (default: flat, like the header app menu).
-//   circular   — boolean style class (round 34×34 button).
-//   direction  — none | up | down | left | right (default down); where the
-//                popover opens. `none` behaves as `down`, which is
-//                Gtk.MenuButton's own rule, not ours — see
-//                {@link menuButtonPopupDirection}.
-// Properties (mirroring Adw.MenuButton / the NS twin):
-//   menuItems  — the menu entries ({ id?, label, icon? }[]) (get/set).
-//   menuTitle  — the popover heading (get/set).
-//   active     — whether the popover is open (get).
-// Events:
-//   `menu-item-activated` (CustomEvent, bubbles, detail = { id, label, index })
-//     when an item is chosen — `id` falls back to `label` when omitted (matches
-//     the NS twin). The popover closes on activation.
 // Reference: refs/libadwaita/src/adw-menu-button.c (AdwMenuButton)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_menus.scss (popover.menu / modelbutton)
 // Reference: packages/nativescript-bridge/adwaita/src/widgets/adw-menu-button.ts (NS twin)
@@ -47,13 +23,12 @@
 import { isSplitButtonDirection, menuButtonPopupDirection } from '@gjsify/adwaita-core';
 import type { SplitButtonDirection } from '@gjsify/adwaita-core';
 
-// SIDE-EFFECT import, deliberately separate from the type import below: it is
-// what guarantees `adw-popover` is defined before this module's own
-// `customElements.define` can upgrade a server-rendered `<adw-menu-button>` and
-// build one. A combined `import { AdwPopover }` would NOT do it — the binding is
-// only ever used in type position here, and this package compiles without
-// `verbatimModuleSyntax`, so TypeScript would elide the whole statement and take
-// the registration with it.
+// SIDE-EFFECT import, deliberately separate from the type import below: it guarantees
+// `adw-popover` is defined before this module's `customElements.define` can upgrade a
+// server-rendered `<adw-menu-button>` and build one. A combined
+// `import { AdwPopover }` would NOT do it — the binding is only used in type position,
+// and this package compiles without `verbatimModuleSyntax`, so TypeScript would elide
+// the statement and take the registration with it.
 import './adw-popover.js';
 import type { AdwPopover } from './adw-popover.js';
 
@@ -67,14 +42,12 @@ export interface AdwMenuItem {
 }
 
 /**
- * Where the popover sits, per `GtkArrowType`. `menuButtonPopupDirection` folds
- * `none` onto `down` (adw-split-button.c:415 — a pass-through to
- * `gtk_menu_button_set_direction`, so it is GtkMenuButton's rule); this table is
- * only the direction→CSS-axis mapping, which is a renderer fact.
+ * Where the popover sits, per `GtkArrowType`. `menuButtonPopupDirection` folds `none`
+ * onto `down` — GtkMenuButton's rule, not ours; this table is only the
+ * direction→CSS-axis mapping, which is a renderer fact.
  *
- * `left`/`right` become `start`/`end` because the surface is placed with
- * logical properties, so it follows the writing direction the way GTK's
- * `:dir(rtl)` popovers do.
+ * `left`/`right` become `start`/`end` because the surface is placed with logical
+ * properties, so it follows the writing direction as GTK's `:dir(rtl)` popovers do.
  */
 const POPOVER_POSITIONS = {
     down: 'bottom',
@@ -163,9 +136,8 @@ export class AdwMenuButton extends HTMLElement {
 
         // Seed items from the `menu` attribute if the property was not set.
         if (this._items.length === 0) this._items = this._parseMenuAttr();
-        // Default to the flat header idiom unless another variant is requested.
-        // Set only now the DOM exists, so the observed-attribute callback (which
-        // renders) never runs before `_buttonEl` is created.
+        // The flat default is set only now the DOM exists, so the observed-attribute
+        // callback (which renders) never runs before `_buttonEl` is created.
         if (!this.hasAttribute('flat') && !this.hasAttribute('circular')) this.setAttribute('flat', '');
         this._render();
     }
@@ -197,7 +169,6 @@ export class AdwMenuButton extends HTMLElement {
     private _onPopoverToggled(open: boolean): void {
         this.classList.toggle('active', open);
         this._buttonEl.setAttribute('aria-expanded', String(open));
-        // Move focus into the menu for keyboard navigation.
         if (open) this._itemButtons[0]?.focus();
     }
 
@@ -238,9 +209,9 @@ export class AdwMenuButton extends HTMLElement {
             item.setAttribute('role', 'menuitem');
             item.tabIndex = -1;
 
-            // An entry with no USABLE icon gets no icon node at all, rather than
-            // an empty 16px box — the element itself answers whether the name
-            // resolved, so the `-symbolic`-only and bad-token cases agree.
+            // An entry with no USABLE icon gets no icon node at all rather than an empty
+            // 16px box; `<adw-icon>` itself answers whether the name resolved, so the
+            // `-symbolic`-only and bad-token cases agree.
             const entryIcon = createAdwIcon(entry.icon ?? null, 'adw-menu-button-item-icon');
             if (entryIcon.resolvedIconName !== '') item.appendChild(entryIcon);
             const labelEl = document.createElement('span');
@@ -262,7 +233,6 @@ export class AdwMenuButton extends HTMLElement {
             this._itemButtons.push(item);
         }
 
-        // A menu-button with no entries can never open.
         if (this._items.length === 0) this._popoverEl.popdown();
     }
 }

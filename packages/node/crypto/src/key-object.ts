@@ -14,8 +14,6 @@ import {
 } from './asn1.js';
 import type { ParsedKey, RsaPublicComponents, RsaPrivateComponents } from './asn1.js';
 
-// ---- Helpers ----
-
 /** Convert BigInt to base64url-encoded string (no padding). */
 function bigintToBase64url(value: bigint): string {
     if (value === 0n) return 'AA';
@@ -37,8 +35,6 @@ function base64urlToBigint(b64: string): bigint {
     }
     return result;
 }
-
-// ---- KeyObject base class ----
 
 export class KeyObject {
     readonly type: 'secret' | 'public' | 'private';
@@ -150,8 +146,6 @@ export class KeyObject {
     }
 }
 
-// ---- JWK export/import ----
-
 function exportJwk(parsed: ParsedKey, keyType: 'public' | 'private'): object {
     if (parsed.type === 'rsa-public') {
         return {
@@ -213,8 +207,6 @@ function importJwkRsa(jwk: any): { parsed: ParsedKey; pem: string } {
     const pem = derToPem(der, 'PUBLIC KEY');
     return { parsed, pem };
 }
-
-// ---- PEM/DER generation ----
 
 function generatePem(parsed: ParsedKey, keyType: 'public' | 'private', type?: string): string {
     if (parsed.type === 'rsa-public') {
@@ -287,8 +279,6 @@ function modInverse(a: bigint, m: bigint): bigint {
     }
     return ((old_s % m) + m) % m;
 }
-
-// ---- Factory functions ----
 
 interface KeyInput {
     key: string | Buffer | KeyObject | object;

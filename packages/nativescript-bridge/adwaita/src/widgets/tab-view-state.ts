@@ -1,21 +1,17 @@
 // AdwTabView's NativeScript-specific half — the parts that are not the model.
 //
-// The model itself (the ordered page list with its pinned prefix, the selection
-// guards, the parent-aware close successor, the two-phase close protocol, the
-// partition-clamped insert/reorder rules and the wrap-around cycling) is
-// HEADLESS and lives in `@gjsify/adwaita-core` as `TabViewState` (ADR 0004),
-// shared with `@gjsify/adwaita-web` and pinned by the conformance vectors. What
-// is NativeScript-specific is only how that model becomes pixels: NS has no page
-// stack, so pages overlay in a `GridLayout` and swap by toggling `visibility`
-// between `visible` and `collapse`, and a tab's close button is shown or
+// The model (the ordered page list with its pinned prefix, the selection guards, the
+// parent-aware close successor, the two-phase close protocol, the partition-clamped
+// insert/reorder rules and the wrap-around cycling) is HEADLESS in
+// `@gjsify/adwaita-core` as `TabViewState` (ADR 0004), shared with
+// `@gjsify/adwaita-web` and pinned by the conformance vectors. NativeScript-specific
+// is only how the model becomes pixels: NS has no page stack, so pages overlay in a
+// `GridLayout` and swap by toggling `visibility`, and a tab's close button is shown or
 // collapsed rather than faded.
 //
-// This module imports only TYPES from `@nativescript/core` — like
-// `icon-path.ts`, `row-press.ts`, `avatar-color.ts` and `view-stack-state.ts` —
-// so it carries no runtime `@nativescript/core` value import and loads, and is
-// unit-testable, off-device. `adw-tab-view.ts` cannot serve that role: it
-// `extends GridLayout`, which evaluates the bare specifier at module-eval and is
-// unresolvable on GJS/Node.
+// TYPE-only imports from `@nativescript/core`, so this module is unit-testable
+// off-device; `adw-tab-view.ts` cannot be, because `extends GridLayout` evaluates the
+// bare specifier at module-eval.
 //
 // Reference: refs/libadwaita/src/adw-tab-view.c (Adw.TabView)
 // Reference: refs/libadwaita/src/adw-tab-bar.c (Adw.TabBar autohide)
@@ -38,10 +34,9 @@ export function createTabViewState(handlers?: TabViewHandlers<View>): TabViewSta
 }
 
 /**
- * The `visibility` each page's content view must carry for the current
- * selection, in page order. Exactly one entry is `'visible'` — none when nothing
- * is selected, which is a real state here: closing the last tab EMPTIES the view
- * (adw-tab-view.c:1912-1913), where the old port refused the close outright.
+ * The `visibility` each page's content view must carry for the current selection, in
+ * page order. Exactly one entry is `'visible'` — none when nothing is selected, which
+ * is a real state: closing the last tab EMPTIES the view.
  */
 export function tabPageVisibilities(state: TabViewState<View>): NsVisibility[] {
     const selected = state.selectedIndex;
@@ -59,13 +54,10 @@ export function applyTabViewVisibility(state: TabViewState<View>): void {
 /**
  * The `visibility` each tab's close button must carry, in page order.
  *
- * `tabCloseVisible` is `(hovering && fullyVisible) || selected || dragging`, and
- * never on a pinned tab (adw-tab.c:124, :645-650). Touch has no hover and this
- * port has no tab drag-and-drop, so `hovering` and `dragging` are constantly
- * false and the predicate REDUCES to "selected, and not pinned" — which is the
- * old port's rule plus the pinned gate it was missing. Calling the shared
- * predicate rather than writing `active` keeps that a derivation instead of a
- * coincidence, and gives the pinned gate for free.
+ * `tabCloseVisible` is `(hovering && fullyVisible) || selected || dragging`, and never
+ * on a pinned tab. Touch has no hover and this port has no tab drag-and-drop, so both
+ * are constantly false and the predicate REDUCES to "selected, and not pinned" —
+ * called rather than written out so it stays a derivation.
  */
 export function tabCloseVisibilities(state: TabViewState<View>): NsVisibility[] {
     const selected = state.selectedId;
@@ -82,11 +74,7 @@ export function tabCloseVisibilities(state: TabViewState<View>): NsVisibility[] 
     );
 }
 
-/**
- * The `visibility` of the whole tab bar — `tabsRevealed` (adw-tab-bar.c:142-164)
- * projected onto NS. The old port had no autohide at all; the bar was added in
- * the constructor and never hidden.
- */
+/** The `visibility` of the whole tab bar — `tabsRevealed` projected onto NS. */
 export function tabBarVisibility(state: TabViewState<View>, autohide: boolean): NsVisibility {
     return tabsRevealed({
         autohide,
@@ -100,27 +88,20 @@ export function tabBarVisibility(state: TabViewState<View>, autohide: boolean): 
 }
 
 /**
- * The text a tab's label shows.
- *
- * A pinned tab is a single-glyph chip in libadwaita — `adw_tab_constructed`
- * hides its title outright (adw-tab.c:645-650) — so it renders no label at all
- * here either. Everything else shows its title, which is already `''` rather
- * than `undefined` for a page that declared none: the old port assigned
- * `page.title` straight to `Label.text` with no coercion, so an `AdwViewPage`
- * literal without a title rendered the string "undefined".
+ * The text a tab's label shows. A pinned tab is a single-glyph chip in libadwaita —
+ * `adw_tab_constructed` hides its title outright — so it renders no label here either.
+ * Everything else shows its title, which the model has already coerced to `''` for a
+ * page that declared none.
  */
 export function tabLabelText(page: AdwTabPage): string {
     return page.pinned ? '' : page.title;
 }
 
 /**
- * The tooltip text for a tab — `tabTooltip`, i.e. the page's own tooltip when it
- * has one and its title otherwise (adw-tab.c:137-146).
- *
- * NS has no tooltip primitive, so this is exposed for a consumer (and for the
- * accessibility label) rather than rendered. It is deliberately the TEXT form:
- * a page-supplied tooltip is Pango markup in C, and NS has no markup sink to
- * push it through.
+ * The tooltip text for a tab — the page's own tooltip when it has one, its title
+ * otherwise. NS has no tooltip primitive, so this is exposed for a consumer (and the
+ * accessibility label) rather than rendered, and in TEXT form: a page-supplied tooltip
+ * is Pango markup in C and NS has no markup sink.
  */
 export function tabTooltipText(page: AdwTabPage): string {
     return tabTooltip(page);
@@ -139,9 +120,8 @@ export interface TabViewNotifyPayload {
 }
 
 /**
- * Project a core change onto the event payload. Kept as a function rather than
- * spreading the change directly so that if the core payload ever grows a live
- * model object, it does not silently leak into an event a consumer holds on to.
+ * Project a core change onto the event payload. A function rather than a spread so a
+ * live model object cannot leak into an event a consumer holds on to.
  */
 export function tabViewNotifyPayload(change: TabViewSelectionChange): TabViewNotifyPayload {
     return {

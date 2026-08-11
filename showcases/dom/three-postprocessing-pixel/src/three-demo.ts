@@ -19,11 +19,9 @@ export interface PixelEffectController {
 export interface PixelDemo {
     readonly effectController: PixelEffectController;
     render(): void;
-    /** Halt the animation loop. Cheap to call — demo stays alive. */
+    /** Halts the animation loop; the demo itself stays alive and `resume()` picks it back up. */
     pause(): void;
-    /** Restart the animation loop after a previous `pause()`. */
     resume(): void;
-    /** Current running state. */
     readonly isPaused: boolean;
 }
 
@@ -34,7 +32,6 @@ export interface StartOptions {
 export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelDemo {
     const assetBase = options?.assetBase ?? './';
 
-    // Renderer
     // oxlint-disable-next-line typescript/no-explicit-any -- THREE.WebGLRenderer canvas option expects OffscreenCanvas; GJS canvas type is incompatible
     const renderer = new THREE.WebGLRenderer({ canvas: canvas as any, antialias: false });
     renderer.shadowMap.enabled = true;
@@ -43,44 +40,37 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
     renderer.setSize(canvas.width, canvas.height, false);
     renderer.debug.checkShaderErrors = true;
 
-    // Track previous canvas size for resize detection
-    // (renderer.domElement === canvas, so comparing them is always equal)
+    // Resize detection needs its own copy: `renderer.domElement === canvas`, so comparing those two
+    // is always equal.
     let prevW = canvas.width;
     let prevH = canvas.height;
 
-    // Camera (orthographic)
     const aspectRatio = canvas.width / canvas.height;
     const camera = new THREE.OrthographicCamera(-aspectRatio, aspectRatio, 1, -1, 0.1, 10);
     camera.position.y = 2 * Math.tan(Math.PI / 6);
     camera.position.z = 2;
 
-    // Scene
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x151729);
 
-    // Post-processing
     const composer = new EffectComposer(renderer);
     const renderPixelatedPass = new RenderPixelatedPass(6, scene, camera);
     composer.addPass(renderPixelatedPass);
     composer.addPass(new OutputPass());
 
-    // OrbitControls
     // oxlint-disable-next-line typescript/no-explicit-any -- OrbitControls domElement type is HTMLElement; GJS canvas type is incompatible
     const controls = new OrbitControls(camera, canvas as any);
     // oxlint-disable-next-line typescript/no-explicit-any -- OrbitControls.maxZoom is not in @types/three OrbitControls
     (controls as any).maxZoom = 2;
 
-    // Timer for animation
     const timer = new THREE.Timer();
 
-    // Textures
     const loader = new THREE.TextureLoader();
     const texChecker = pixelTexture(loader.load(`${assetBase}assets/checker.png`));
     const texChecker2 = pixelTexture(loader.load(`${assetBase}assets/checker.png`));
     texChecker.repeat.set(3, 3);
     texChecker2.repeat.set(1.5, 1.5);
 
-    // Meshes
     const boxMaterial = new THREE.MeshPhongMaterial({ map: texChecker2 });
 
     function addBox(boxSideLength: number, x: number, z: number, rotation: number) {
@@ -118,9 +108,8 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
     crystalMesh.castShadow = true;
     scene.add(crystalMesh);
 
-    // GJSify label — canvas texture plane, pixelated by post-processing pass.
-    // @gjsify/dom-elements auto-registers the '2d' factory via @gjsify/canvas2d-core,
-    // so getContext('2d') works in GJS without any explicit import.
+    // A canvas texture, pixelated by the post-processing pass. No canvas2d import is needed:
+    // @gjsify/dom-elements auto-registers the '2d' factory via @gjsify/canvas2d-core.
     const textCanvas = document.createElement('canvas');
     textCanvas.width = 512;
     textCanvas.height = 128;
@@ -140,7 +129,6 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
     textMesh.position.set(0, 0.85, -0.65);
     scene.add(textMesh);
 
-    // Lights
     scene.add(new THREE.AmbientLight(0x757f8e, 3));
 
     const directionalLight = new THREE.DirectionalLight(0xfffecd, 1.5);
@@ -156,7 +144,6 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
     spotLight.castShadow = true;
     scene.add(spotLight);
 
-    // Effect controller
     const effectController: PixelEffectController = {
         pixelSize: 4,
         normalEdgeStrength: 0.3,
@@ -164,7 +151,6 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
         pixelAlignedPanning: true,
     };
 
-    // Helper functions
     function pixelTexture(texture: THREE.Texture) {
         texture.minFilter = THREE.NearestFilter;
         texture.magFilter = THREE.NearestFilter;
@@ -223,7 +209,6 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
         cam.updateProjectionMatrix();
     }
 
-    // Animation loop
     function animate() {
         timer.update();
         const t = timer.getElapsed();
@@ -232,13 +217,12 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
         crystalMesh.position.y = 0.7 + Math.sin(t * 2) * 0.05;
         crystalMesh.rotation.y = stopGoEased(t, 2, 4) * 2 * Math.PI;
 
-        // Apply current effect controller values
         renderPixelatedPass.setPixelSize(effectController.pixelSize);
         renderPixelatedPass.normalEdgeStrength = effectController.normalEdgeStrength;
         renderPixelatedPass.depthEdgeStrength = effectController.depthEdgeStrength;
 
-        // Handle resize — canvas.width/height are set externally
-        // (browser: ResizeObserver on parent, GJS: GTK resize signal).
+        // canvas.width/height are set externally: a ResizeObserver on the parent in the browser, the
+        // GTK resize signal on GJS.
         const w = canvas.width;
         const h = canvas.height;
         if (w > 0 && h > 0 && (w !== prevW || h !== prevH)) {
@@ -272,9 +256,8 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
         composer.render();
     }
 
-    // Animation loop — use requestAnimationFrame directly (GTK frame clock compatible)
-    // Three.js setAnimationLoop uses self.requestAnimationFrame internally which works,
-    // but we use the same on-demand pattern as the teapot demo for consistency.
+    // requestAnimationFrame directly rather than THREE's setAnimationLoop: same on-demand shape as
+    // the other three.js showcases, and it maps onto the GTK frame clock.
     let animPending = false;
     let paused = false;
     function scheduleFrame() {
@@ -289,10 +272,8 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): PixelD
     }
     scheduleFrame();
 
-    // Render scheduling for manual re-renders (from control changes)
-    function render() {
-        // Animation loop handles continuous rendering, nothing extra needed
-    }
+    // Nothing to do on demand — the animation loop renders continuously.
+    function render() {}
 
     return {
         effectController,

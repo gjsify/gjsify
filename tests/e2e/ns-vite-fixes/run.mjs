@@ -1,30 +1,24 @@
-// E2E test for `@gjsify/nativescript-vite`'s `applyVite8Fixes(config)` composer.
+// E2E test for `@gjsify/nativescript-vite`'s `applyVite8Fixes(config)` composer, which
+// makes a `@nativescript/vite` config build under Vite 8 / Rolldown by dropping three
+// constructs (the same three its own source header lists):
+//   1. `resolve.alias` array entries whose `replacement` is a FUNCTION — Rolldown's native
+//      `ViteAlias` cannot convert one into a Rust `String`. Safe to drop: the upstream
+//      `nativescript-package-resolver` resolveId plugin + the `~/` / `@` string aliases
+//      already cover the same resolution. String/record aliases are kept.
+//   2. The explicit `@rollup/plugin-commonjs` (`{ name: 'commonjs' }`), including from
+//      nested plugin arrays — it crashes Rolldown with `Cannot read properties of undefined
+//      (reading 'currentLoadingModule')`, and Rolldown handles CommonJS natively.
+//   3. The vite-side `ns-typescript-check` plugin, on EITHER version line — a bundler is
+//      not a type-checker, and `gjsify tsc` is the gate.
 //
-// `@gjsify/nativescript-vite` makes a `@nativescript/vite` config build under
-// Vite 8 / Rolldown by fixing exactly two constructs Rolldown rejects:
-//   1. `resolve.alias` array entries whose `replacement` is a FUNCTION — Vite 8 /
-//      Rolldown's native alias (`ViteAlias`) cannot convert a function replacement
-//      into a Rust `String`, so they are DROPPED. String/record aliases are kept;
-//      the upstream `nativescript-package-resolver` resolveId plugin + the `~/` /
-//      `@` string aliases already cover the same resolution.
-//   2. The explicit `@rollup/plugin-commonjs` plugin (`{ name: 'commonjs' }`) —
-//      crashes Rolldown with `Cannot read properties of undefined (reading
-//      'currentLoadingModule')`. It is DROPPED (including from nested plugin
-//      arrays); Rolldown handles CommonJS natively.
+// CI-safe by construction: no `@nativescript/vite`, no `nativescript` CLI, none of the NS
+// toolchain. A SYNTHETIC config reproduces every rejected shape, so the composer's contract
+// is proven in isolation from a full `ns prepare` build.
 //
-// This suite is CI-safe: it does NOT require `@nativescript/vite`, the
-// `nativescript` CLI, or any of the NS toolchain (CI has none of them). It feeds
-// `applyVite8Fixes` a SYNTHETIC Vite config that reproduces both rejected shapes
-// and asserts the function aliases + the `commonjs` plugin are removed while
-// string aliases + every other plugin survive — proving the composer's contract
-// in isolation from a full `ns prepare` build.
-//
-// `applyVite8Fixes` is imported from the package's BUILT lib via a relative path
-// (`../../../packages/infra/nativescript-vite/lib/index.js`). The package isn't
-// symlinked into the workspace-root `node_modules`, so a bare
-// `@gjsify/nativescript-vite` specifier would not resolve; the relative path
-// resolves the module's own top-level `vite` + `@gjsify/vite-plugin-gjsify`
-// imports from the package's own `node_modules` (neither is the NS toolchain).
+// Imported from the package's BUILT lib by relative path because the package is not
+// symlinked into the workspace-root `node_modules`, so a bare `@gjsify/nativescript-vite`
+// specifier would not resolve. The relative path still resolves the module's own `vite` +
+// `@gjsify/vite-plugin-gjsify` imports from the package's `node_modules`.
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -34,16 +28,13 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync, symlinkSync, copyFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-// Resolve the built lib relative to this file (not CWD) so the suite works no
-// matter which directory `node --test` is launched from.
+// Relative to this file, not CWD, so the suite works whatever directory `node --test` runs in.
 const LIB_URL = new URL('../../../packages/infra/nativescript-vite/lib/index.js', import.meta.url);
 
 describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
     let applyVite8Fixes;
 
     before(async () => {
-        // `node:url` import is only used to produce a readable path in the
-        // assertion message below; the dynamic import takes the URL directly.
         ({ applyVite8Fixes } = await import(LIB_URL));
         assert.equal(
             typeof applyVite8Fixes,
@@ -53,28 +44,22 @@ describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
     });
 
     /**
-     * A synthetic `@nativescript/vite`-shaped config exercising both fixes:
-     *   - `resolve.alias` ARRAY mixing function-`replacement` entries (the
-     *     platform-`main` + tsconfig-wildcard + `@nativescript/core/...index`
-     *     canonicalizers upstream emits) with plain string-`replacement` entries
-     *     (the `~/` / `@` source aliases).
-     *   - a `plugins` array with a fake `{ name: 'commonjs' }` (the explicit
-     *     `@rollup/plugin-commonjs`) alongside other plugins, plus a NESTED
-     *     plugins array that ALSO contains a `commonjs` plugin — to prove the
-     *     strip recurses.
+     * A synthetic `@nativescript/vite`-shaped config: an alias ARRAY mixing the
+     * function-`replacement` canonicalizers upstream emits with the `~/` / `@` string
+     * entries, and a `plugins` array whose `commonjs` plugin appears BOTH top-level and
+     * inside a nested array — the nesting is what proves the strip recurses.
      */
     function makeSyntheticConfig() {
         return {
             resolve: {
                 alias: [
-                    // KEEP — string replacements (Rolldown accepts these).
+                    // KEEP
                     { find: '~', replacement: '/abs/app/src' },
                     { find: '@', replacement: '/abs/app/src' },
-                    // DROP — function replacements (Rolldown rejects these).
+                    // DROP
                     { find: /^.*$/, replacement: () => '/resolved/platform/main' },
                     { find: 'tsconfig-wildcard', replacement: (id) => id.replace('*', 'x') },
-                    // KEEP — another string replacement after the functions, to
-                    // prove filtering preserves order/position of survivors.
+                    // KEEP — after the functions, so filtering must preserve survivor order.
                     { find: 'fonts', replacement: '/abs/app/fonts' },
                 ],
             },
@@ -83,14 +68,12 @@ describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
                 { name: 'commonjs' }, // DROP — @rollup/plugin-commonjs
                 { name: 'vite:esbuild' }, // KEEP
                 [
-                    // Nested plugin array (Vite flattens these). The strip must
-                    // recurse: drop the nested commonjs, keep the nested sibling.
                     { name: 'commonjs' }, // DROP
                     { name: 'nested-keeper' }, // KEEP
                 ],
                 { name: 'vite:define' }, // KEEP
             ],
-            // An unrelated field that must be passed through untouched.
+            // Must be passed through untouched.
             build: { target: 'esnext' },
         };
     }
@@ -106,15 +89,13 @@ describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
     }
 
     it('drops function-replacement aliases, keeps string-replacement aliases', () => {
-        // Pin the legacy <= 2 line explicitly: the function-alias drop is part of
-        // the FULL patch set, and `@nativescript/vite@8.x` may be installed in this
-        // workspace (auto-detect would then skip fix 1). The override arg makes the
-        // assertion deterministic regardless of what's on disk.
+        // The legacy <= 2 line is pinned explicitly because the function-alias drop belongs
+        // to the FULL patch set and `@nativescript/vite@8.x` may be installed here, where
+        // auto-detect would skip it. The override makes the assertion disk-independent.
         const fixed = applyVite8Fixes(makeSyntheticConfig(), 2);
 
         assert.ok(Array.isArray(fixed.resolve.alias), 'resolve.alias should remain an array');
 
-        // No alias entry may have a function replacement after the fix.
         const hasFunctionAlias = fixed.resolve.alias.some((a) => typeof a.replacement === 'function');
         assert.equal(
             hasFunctionAlias,
@@ -122,7 +103,6 @@ describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
             'a function-replacement alias survived the fix — Rolldown will reject it',
         );
 
-        // The three string aliases survive, in original order.
         const aliasFinds = fixed.resolve.alias.map((a) => a.find);
         assert.deepEqual(
             aliasFinds,
@@ -164,9 +144,7 @@ describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
     });
 
     it("removes every 'commonjs' plugin (incl. nested), keeps all others", () => {
-        // Pin the legacy <= 2 line explicitly (the commonjs strip is part of the
-        // FULL patch set, skipped on 8.x which may be installed here) — see the
-        // function-alias test above.
+        // Legacy line pinned for the same reason as the function-alias test above.
         const fixed = applyVite8Fixes(makeSyntheticConfig(), 2);
 
         assert.ok(Array.isArray(fixed.plugins), 'plugins should remain an array');
@@ -178,15 +156,13 @@ describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
             "a 'commonjs' plugin survived the fix — Rolldown will crash on currentLoadingModule",
         );
 
-        // Every non-commonjs plugin survives, including the nested keeper.
         assert.deepEqual(
             names,
             ['nativescript-package-resolver', 'vite:esbuild', 'nested-keeper', 'vite:define'],
             'non-commonjs plugins were not preserved (top-level order + nested survivor)',
         );
 
-        // The nested array structure is preserved (not flattened away): the
-        // 4th top-level entry stays an array, now holding only the keeper.
+        // Nesting must survive the strip, not be flattened away.
         const nested = fixed.plugins.find((p) => Array.isArray(p));
         assert.ok(Array.isArray(nested), 'nested plugins array was flattened away — nesting must be preserved');
         assert.deepEqual(
@@ -202,15 +178,13 @@ describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
     });
 
     it('is a no-op on a config with neither resolve.alias nor plugins', () => {
-        // The composer must tolerate a minimal config (the fixes are guarded on
-        // the presence of `resolve.alias` / an array `plugins`).
         const fixed = applyVite8Fixes({ build: { target: 'esnext' } });
         assert.deepEqual(fixed, { build: { target: 'esnext' } }, 'minimal config should be returned unchanged');
     });
 
     it('leaves a record-form (object) resolve.alias untouched', () => {
-        // The object/record alias form only ever carries string values, so it is
-        // passed through verbatim — never coerced to an array or filtered.
+        // The record form only ever carries string values, so it needs no filtering and is
+        // never coerced to an array.
         const recordAlias = { '~': '/abs/app/src', '@': '/abs/app/src' };
         const fixed = applyVite8Fixes({ resolve: { alias: recordAlias } });
         assert.deepEqual(
@@ -220,17 +194,13 @@ describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
         );
     });
 
-    // ─── Conditional on the @nativescript/vite major (override arg) ──────────
-    //
-    // The 2nd `nsViteMajor` argument bypasses the auto-detection (which would
-    // return `undefined` here — @nativescript/vite isn't installed in CI — and
-    // fail-safe to the full <= 2 patch set). It exercises both branches without
-    // two installs.
+    // The 2nd `nsViteMajor` argument bypasses auto-detection — which here returns
+    // `undefined` (@nativescript/vite is not installed in CI) and fail-safes to the full
+    // <= 2 patch set — so both branches are exercised without two installs.
 
     it('on @nativescript/vite >= 8: skips fixes 1 & 2, still strips ns-typescript-check', () => {
         // 8.x ships native Vite-8/Rolldown support (string-only aliases, no
-        // @rollup/plugin-commonjs), so the function-alias drop + commonjs strip
-        // must be SKIPPED — but the bundler-shouldn't-type-check strip stays.
+        // @rollup/plugin-commonjs), so fixes 1 and 2 must be SKIPPED while fix 3 stays.
         const fixed = applyVite8Fixes(
             {
                 resolve: {
@@ -248,17 +218,14 @@ describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
             },
             8,
         );
-        // Fix (1) skipped — the function-replacement alias survives untouched.
         const hasFunctionAlias = fixed.resolve.alias.some((a) => typeof a.replacement === 'function');
         assert.equal(
             hasFunctionAlias,
             true,
             'on 8.x the function-replacement alias must be left in place (fix skipped)',
         );
-        // Fix (2) skipped — the commonjs plugin survives.
         const names = pluginNames(fixed.plugins);
         assert.ok(names.includes('commonjs'), 'on 8.x the commonjs plugin must be left in place (fix skipped)');
-        // Fix (3) still applied — ns-typescript-check is gone.
         assert.equal(
             names.includes('ns-typescript-check'),
             false,
@@ -272,7 +239,7 @@ describe('@gjsify/nativescript-vite applyVite8Fixes E2E', () => {
     });
 
     it('on @nativescript/vite <= 2 (explicit major): applies the full patch set', () => {
-        // Passing 2 explicitly must reproduce the auto-detect-unknown default.
+        // An explicit 2 must reproduce the auto-detect-unknown default.
         const fixed = applyVite8Fixes(makeSyntheticConfig(), 2);
         const hasFunctionAlias = fixed.resolve.alias.some((a) => typeof a.replacement === 'function');
         assert.equal(hasFunctionAlias, false, 'on <=2 every function-replacement alias must be dropped');
@@ -333,19 +300,15 @@ describe('@gjsify/nativescript-vite nativescriptSbgBundleSyncFix', () => {
     });
 });
 
-// ── Isolated-fixture helpers (Bug 1 + Bug 2) ─────────────────────────────────
-//
-// Both Bug 1 (exports-gated detection) and Bug 2 (missing-peer stubs) must run the
-// BUILT lib against a FIXTURE `@nativescript/vite`, not the workspace's real one.
-// Because the workspace symlinks `node_modules/@gjsify/nativescript-vite` → the
-// package source, a bare import of the lib from a CWD inside the repo resolves the
-// workspace copy (and the workspace `@nativescript/vite`). So the fixture lives in
-// the OS tmp dir, OUTSIDE the repo, with a parent whose `node_modules` symlinks the
-// workspace `node_modules` (for the lib's deep deps: `vite`, `@gjsify/vite-plugin-gjsify`,
-// …) and an `app/` child whose own `node_modules` shadows with a COPY of the built
-// lib + the fixture `@nativescript/vite`. Running the lib (bare import) from `app/`
-// then resolves the fixture `@nativescript/vite` while deep deps fall through to the
-// workspace.
+// Isolated-fixture helpers for the two suites below, both of which must run the BUILT lib
+// against a FIXTURE `@nativescript/vite` rather than the workspace's real one. The workspace
+// symlinks `node_modules/@gjsify/nativescript-vite` → the package source, so a bare import
+// from any CWD inside the repo resolves the workspace copy. Hence: fixture in the OS tmp dir
+// OUTSIDE the repo, its parent `node_modules` symlinked to the workspace's (for the lib's
+// deep deps — `vite`, `@gjsify/vite-plugin-gjsify`, …), and an `app/` child whose own
+// `node_modules` shadows with a COPY of the built lib plus the fixture
+// `@nativescript/vite`. Running from `app/` then hits the fixture while deep deps fall
+// through to the workspace.
 const WORKSPACE_NODE_MODULES = fileURLToPath(new URL('../../../node_modules', import.meta.url));
 const ALL_TMP = [];
 
@@ -359,14 +322,11 @@ function makeIsolatedFixture(nsVite) {
     const root = mkdtempSync(join(tmpdir(), 'gjsify-nsvite-'));
     ALL_TMP.push(root);
     if (nsVite) {
-        // Parent node_modules → the whole workspace (deep deps + a fall-through
-        // workspace `@nativescript/vite`; the fixture below shadows it in `app/`).
         symlinkSync(WORKSPACE_NODE_MODULES, join(root, 'node_modules'), 'dir');
     } else {
-        // GENUINELY-ABSENT case: symlink ONLY the lib's deep deps, NOT the
-        // workspace's `@nativescript/vite` — so detection sees no peer at all.
-        // A symlinked package resolves its own transitive deps from its real
-        // (workspace) location, so these two links suffice to load the lib.
+        // GENUINELY-ABSENT case: link ONLY the lib's deep deps, not the workspace's
+        // `@nativescript/vite`, so detection sees no peer at all. A symlinked package
+        // resolves its own transitive deps from its real location, so two links suffice.
         const parentNm = join(root, 'node_modules');
         mkdirSync(join(parentNm, '@gjsify'), { recursive: true });
         symlinkSync(join(WORKSPACE_NODE_MODULES, 'vite'), join(parentNm, 'vite'), 'dir');
@@ -379,7 +339,6 @@ function makeIsolatedFixture(nsVite) {
 
     const app = join(root, 'app');
     const appNm = join(app, 'node_modules');
-    // Shadowing lib copy.
     const libDir = join(appNm, '@gjsify', 'nativescript-vite');
     mkdirSync(libDir, { recursive: true });
     copyFileSync(fileURLToPath(LIB_URL), join(libDir, 'index.js'));
@@ -400,7 +359,7 @@ function makeIsolatedFixture(nsVite) {
             name: '@nativescript/vite',
             version: nsVite.version,
             type: 'module',
-            // exports-gated: root entry only, NO ./package.json subpath (the 8.x shape).
+            // The 8.x shape: root entry only, NO ./package.json subpath.
             exports: { '.': { import: './index.js', default: './index.js' } },
         };
         if (nsVite.peerName) {
@@ -409,8 +368,8 @@ function makeIsolatedFixture(nsVite) {
         }
         writeFileSync(join(pkg, 'package.json'), JSON.stringify(pkgJson));
         const body = nsVite.eagerImport
-            ? // Eager NAMED import of the (absent) peer at module-eval — the
-              // `@vue/compiler-sfc` failure shape that breaks ESM link.
+            ? // The `@vue/compiler-sfc` failure shape: an eager NAMED import of an absent
+              // peer at module-eval, which breaks the ESM link.
               `import { compileScript, parse } from '${nsVite.peerName}';\n` +
               `export const typescriptConfig = () => ({ plugins: [], _peerSeen: typeof compileScript + ',' + typeof parse });\n`
             : `export const typescriptConfig = () => ({ plugins: [] });\n`;
@@ -420,10 +379,9 @@ function makeIsolatedFixture(nsVite) {
 }
 
 /**
- * Run `expr` (an async expression over the default-imported lib `mod`) from `app/`
- * and return its result. The lib emits informational notices (e.g. the "8.x
- * detected" one) on stdout/stderr, so the result is bracketed in a unique marker
- * and extracted — keeping the assertion immune to that noise.
+ * Run `expr` (an async expression over the default-imported lib `mod`) from `app/`. The lib
+ * writes informational notices to stdout/stderr, so the result is bracketed in a unique
+ * marker and extracted, keeping the assertions immune to that noise.
  */
 function runInFixture(app, expr) {
     const M = '<<<NSVITE-RESULT>>>';
@@ -448,13 +406,11 @@ after(() => {
     for (const d of ALL_TMP) rmSync(d, { recursive: true, force: true });
 });
 
-// ─── Bug 1: major detection works against an exports-gated package ────────────
-//
-// `@nativescript/vite@8.x`'s `package.json#exports` does NOT expose the
-// `./package.json` subpath. The old detector resolved `@nativescript/vite/package.json`
-// directly → Node threw `ERR_PACKAGE_PATH_NOT_EXPORTED` → caught → `undefined`, so
-// the major-8 gate never fired and the full legacy patch set ran. The fix resolves
-// the package's MAIN entry (always exported) and walks up to its `package.json`.
+// `@nativescript/vite@8.x`'s `package.json#exports` does NOT expose the `./package.json`
+// subpath, so resolving that path directly throws `ERR_PACKAGE_PATH_NOT_EXPORTED` and a
+// detector that catches it answers `undefined` — the major-8 gate never fires and the full
+// legacy patch set runs. Detection therefore resolves the MAIN entry (always exported) and
+// walks up to the package root.
 describe('@gjsify/nativescript-vite detectNativescriptViteMajor (Bug 1: exports-gated package)', () => {
     function detect(nsVite) {
         const { app } = makeIsolatedFixture(nsVite);
@@ -462,8 +418,6 @@ describe('@gjsify/nativescript-vite detectNativescriptViteMajor (Bug 1: exports-
     }
 
     it('detects the major of an exports-gated @nativescript/vite (no ./package.json subpath)', () => {
-        // Under the OLD code this came back "undefined" (ERR_PACKAGE_PATH_NOT_EXPORTED);
-        // the fix walks up from the main entry and reads the package root.
         assert.equal(
             detect({ version: '8.0.0-alpha.57' }),
             '8',
@@ -481,15 +435,11 @@ describe('@gjsify/nativescript-vite detectNativescriptViteMajor (Bug 1: exports-
     });
 });
 
-// ─── Bug 2: a framework-less Core app loads the config (missing-peer stubs) ───
-//
-// `@nativescript/vite@8.x`'s config chain STATICALLY imports the framework
-// compilers (`@vue/compiler-sfc`, etc.) at module-eval. They are `peerDependencies`,
-// so a framework-LESS NativeScript-Core app can't even `import('@nativescript/vite')`
-// — Node throws `ERR_MODULE_NOT_FOUND: Cannot find package '@vue/compiler-sfc'`.
-// `defineNativescriptConfig()` stubs the missing peers (no-op modules) so the
-// config loads. Verified against a fixture `@nativescript/vite` whose config eagerly
-// NAMED-imports a framework peer that is NOT installed.
+// `@nativescript/vite@8.x`'s config chain STATICALLY imports the framework compilers
+// (`@vue/compiler-sfc`, …) at module-eval, and they are `peerDependencies` — so a
+// framework-LESS NativeScript-Core app cannot even `import('@nativescript/vite')`:
+// `ERR_MODULE_NOT_FOUND`. `defineNativescriptConfig()` stubs the missing peers with no-op
+// modules so the config loads.
 describe('@gjsify/nativescript-vite missing-framework-peer stubs (Bug 2: Core app)', () => {
     function compose(nsVite) {
         const { app } = makeIsolatedFixture(nsVite);
@@ -501,8 +451,6 @@ describe('@gjsify/nativescript-vite missing-framework-peer stubs (Bug 2: Core ap
     }
 
     it('composes a Core-app config without throwing when a framework peer is missing', () => {
-        // Under the OLD code: `ERR_MODULE_NOT_FOUND` (Cannot find package
-        // '@gjsify/fake-vue-compiler'). With the stub: the config composes.
         const out = compose({ version: '8.0.0-alpha.57', peerName: '@gjsify/fake-vue-compiler', eagerImport: true });
         assert.ok(
             out.startsWith('OK:'),
@@ -512,13 +460,12 @@ describe('@gjsify/nativescript-vite missing-framework-peer stubs (Bug 2: Core ap
     });
 });
 
-// `gjsifyNativescript()` aliases the bare `css-tree` specifier to css-tree's
-// self-contained `dist/csstree.esm.js`. @nativescript/core's CSS parser pulls
-// css-tree, whose data modules load JSON via `createRequire(...)` at module-eval
-// time — dynamic requires Rolldown can't resolve, which then throw on the NS V8
-// runtime. The dist bundle has the data inlined (no createRequire), so the alias
-// keeps the crash out. Resolved from the Vite config's `root` (css-tree is a
-// transitive dep of the consuming project), skipped when css-tree is absent.
+// `gjsifyNativescript()` aliases the bare `css-tree` specifier to css-tree's self-contained
+// `dist/csstree.esm.js`: @nativescript/core's CSS parser pulls css-tree, whose data modules
+// load JSON via `createRequire(...)` at module-eval — dynamic requires Rolldown cannot
+// resolve, which then throw on the NS V8 runtime. The dist bundle has that data inlined.
+// Resolved from the Vite config's `root` (css-tree is a transitive dep of the consuming
+// project), skipped when css-tree is absent.
 describe('gjsifyNativescript css-tree alias E2E', () => {
     let gjsifyNativescript;
     const tmp = [];
@@ -533,7 +480,6 @@ describe('gjsifyNativescript css-tree alias E2E', () => {
         );
     });
 
-    // Run the preset's config() hook the way Vite does and return its result.
     function runConfig(root) {
         const plugin = gjsifyNativescript().find((p) => p && p.name === 'gjsify-nativescript-config');
         assert.ok(plugin, 'gjsify-nativescript-config plugin missing from gjsifyNativescript()');
@@ -574,17 +520,16 @@ describe('gjsifyNativescript css-tree alias E2E', () => {
         tmp.push(empty);
         const alias = runConfig(empty).resolve.alias;
         assert.ok(!('css-tree' in alias), 'no css-tree alias should be added when css-tree is absent');
-        // …but the node-builtin aliases are still present (the preset still works).
+        // The rest of the preset must still be wired.
         assert.ok('path' in alias || 'node:path' in alias, 'node-builtin aliases must still be wired');
     });
 });
 
-// `@nativescript/vite`'s ns-bundler-context registers XML files + their paired
-// code-behind, but NOT standalone barrels referenced only via `xmlns="~/MOD"`
-// (a barrel `index.ts` with no `.xml` sibling). gjsifyNativescript()'s
-// xmlns-barrels plugin augments the generated `virtual:ns-bundler-context`
-// module to `import * as` + `registerModule` those barrels — reproducing
-// @nativescript/webpack's xml-namespace-loader so `<w:SourceView>` resolves.
+// `@nativescript/vite`'s ns-bundler-context registers XML files + their paired code-behind,
+// but NOT a standalone barrel referenced only via `xmlns="~/MOD"` (an `index.ts` with no
+// `.xml` sibling). The xmlns-barrels plugin augments the generated
+// `virtual:ns-bundler-context` to `import * as` + `registerModule` those barrels,
+// reproducing @nativescript/webpack's xml-namespace-loader so `<w:SourceView>` resolves.
 describe('gjsifyNativescript xmlns barrels E2E', () => {
     let gjsifyNativescript;
     const tmp = [];
@@ -605,7 +550,7 @@ describe('gjsifyNativescript xmlns barrels E2E', () => {
         for (const d of tmp) rmSync(d, { recursive: true, force: true });
     });
 
-    // The xmlns-barrels plugin, with configResolved(root) already run.
+    /** The plugin with `configResolved(root)` already run. */
     function pluginForRoot(root) {
         const plugin = gjsifyNativescript().find((p) => p && p.name === 'gjsify-nativescript-xmlns-barrels');
         assert.ok(plugin, 'gjsify-nativescript-xmlns-barrels plugin missing from gjsifyNativescript()');
@@ -613,9 +558,11 @@ describe('gjsifyNativescript xmlns barrels E2E', () => {
         return plugin;
     }
 
-    // A throwaway NS app whose editor.xml references `~/widgets/index` (a barrel,
-    // no .xml sibling → must be registered) AND `~/widgets/source-view` (has an
-    // .xml sibling → ns-bundler-context owns it, plugin must SKIP it).
+    /**
+     * A throwaway NS app whose editor.xml references both cases: `~/widgets/index` (a
+     * barrel, no .xml sibling → must be registered) and `~/widgets/source-view` (has an
+     * .xml sibling → ns-bundler-context owns it, so the plugin must SKIP it).
+     */
     function fixtureApp() {
         const root = mkdtempSync(join(tmpdir(), 'gjsify-xmlns-'));
         tmp.push(root);
@@ -629,7 +576,6 @@ describe('gjsifyNativescript xmlns barrels E2E', () => {
         );
         writeFileSync(join(app, 'widgets', 'index.ts'), 'export class SourceView {}\n');
         writeFileSync(join(app, 'mdx', 'index.ts'), 'export class TutorialView {}\n');
-        // Has an .xml sibling → registered by ns-bundler-context, not by us.
         writeFileSync(join(app, 'widgets', 'source-view.xml'), '<GridLayout />\n');
         writeFileSync(join(app, 'widgets', 'source-view.ts'), 'export class SourceView {}\n');
         return root;
@@ -638,14 +584,11 @@ describe('gjsifyNativescript xmlns barrels E2E', () => {
     it('registers xmlns barrels with no .xml sibling, skipping those that have one', () => {
         const plugin = pluginForRoot(fixtureApp());
         const out = plugin.transform(UPSTREAM_CODE, BUNDLER_CONTEXT_ID).code;
-        // The upstream bundler-context code is preserved.
         assert.ok(out.includes(UPSTREAM_CODE), 'upstream ns-bundler-context code must be preserved');
-        // Barrels without an .xml sibling are imported (root-relative) + registered.
         assert.ok(out.includes('"/app/widgets/index.ts"'), 'widgets/index barrel must be imported root-relative');
         assert.ok(out.includes('"/app/mdx/index.ts"'), 'mdx/index barrel must be imported root-relative');
         assert.ok(out.includes('global.registerModule("widgets/index"'), 'widgets/index must be registerModule-d');
         assert.ok(out.includes('global.registerModule("mdx/index"'), 'mdx/index must be registerModule-d');
-        // A target WITH an .xml sibling is left to ns-bundler-context.
         assert.ok(
             !out.includes('registerModule("widgets/source-view"'),
             'widgets/source-view has an .xml sibling — must NOT be re-registered',
@@ -668,12 +611,11 @@ describe('gjsifyNativescript xmlns barrels E2E', () => {
 });
 
 // `@nativescript/vite`'s base config aliases @nativescript/core to
-// `<project>/../../packages/core` whenever that path exists, WITHOUT verifying
-// the directory's package name. In a monorepo whose own `packages/core` is a
-// DIFFERENT package (e.g. @learn6502/core), @nativescript/core is aliased to the
-// wrong package and its subpaths fail to resolve. `repointCoreAliasEntries` (the
-// pure core of the composer's `repointMistargetedCoreAlias` fix) repoints those
-// entries at the real installed @nativescript/core.
+// `<project>/../../packages/core` whenever that path exists, WITHOUT verifying the
+// directory's package name — so in a monorepo whose own `packages/core` is a different
+// package (e.g. @learn6502/core), @nativescript/core is aliased to the wrong one and its
+// subpaths fail to resolve. `repointCoreAliasEntries` is the pure core of the composer's
+// `repointMistargetedCoreAlias` fix.
 describe('@gjsify/nativescript-vite repointCoreAliasEntries (core-alias collision)', () => {
     let repointCoreAliasEntries;
 
@@ -689,9 +631,7 @@ describe('@gjsify/nativescript-vite repointCoreAliasEntries (core-alias collisio
     const WRONG = '/ws/packages/core'; // a sibling @learn6502/core (the collision)
     const REAL = '/ws/node_modules/@nativescript/core'; // the real installed core
 
-    // The three @nativescript/core alias entries @nativescript/vite emits (with the
-    // capture-group replacements), plus unrelated `~`/`@` source aliases that must
-    // survive untouched.
+    /** The three core alias entries @nativescript/vite emits, plus `~`/`@` bystanders. */
     function makeAliases(root) {
         return [
             { find: '~', replacement: '/abs/app/src' },
@@ -706,19 +646,17 @@ describe('@gjsify/nativescript-vite repointCoreAliasEntries (core-alias collisio
     it('repoints @nativescript/core aliases that target the wrong package', () => {
         const aliases = makeAliases(WRONG);
         repointCoreAliasEntries(aliases, REAL, nameOf);
-        // The three core entries now resolve to the real core; `/$1` is preserved.
+        // `/$1` must survive the repoint.
         assert.equal(aliases[1].replacement, `${REAL}/$1`);
         assert.equal(aliases[2].replacement, REAL);
         assert.equal(aliases[3].replacement, `${REAL}/$1`);
-        // Unrelated source aliases are untouched.
         assert.equal(aliases[0].replacement, '/abs/app/src');
         assert.equal(aliases[4].replacement, '/abs/app/src');
     });
 
     it('leaves a correctly-targeted @nativescript/core alias untouched (real core elsewhere)', () => {
-        // Already points at a real @nativescript/core source root (NS's OWN monorepo,
-        // where `packages/core` really is @nativescript/core) — name verifies, so it
-        // is kept even though `realRoot` differs.
+        // NS's OWN monorepo, where `packages/core` really is @nativescript/core: the name
+        // verifies, so the alias is kept even though `realRoot` differs.
         const aliases = makeAliases(REAL);
         const snapshot = aliases.map((a) => a.replacement);
         repointCoreAliasEntries(aliases, '/some/other/core', nameOf);

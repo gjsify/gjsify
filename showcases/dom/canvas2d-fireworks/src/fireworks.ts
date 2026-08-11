@@ -12,8 +12,6 @@ function easeOutExpo(t: number): number {
     return t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
 }
 
-// --- Effect controller ------------------------------------------------------
-
 export interface FireworksEffectController {
     /** Number of particles per burst. */
     particleCount: number;
@@ -34,15 +32,11 @@ export const DEFAULT_CONTROLLER: FireworksEffectController = {
 
 export interface FireworksDemo {
     readonly effectController: FireworksEffectController;
-    /** Halt the animation loop. Cheap to call — the demo stays alive and can be resumed. */
+    /** Halts the animation loop; the demo stays alive. `resume()` restarts it, both idempotent. */
     pause(): void;
-    /** Restart the animation loop after a previous `pause()`. No-op if already running. */
     resume(): void;
-    /** Current running state. */
     readonly isPaused: boolean;
 }
-
-// --- Particle types ---------------------------------------------------------
 
 interface Particule {
     startX: number;
@@ -66,8 +60,6 @@ interface Burst {
     particules: Particule[];
     circle: Circle;
 }
-
-// --- Burst creation ---------------------------------------------------------
 
 function createBurst(x: number, y: number, now: number, controller: FireworksEffectController): Burst {
     const particules: Particule[] = [];
@@ -101,14 +93,11 @@ function createBurst(x: number, y: number, now: number, controller: FireworksEff
     };
 }
 
-// --- Drawing ----------------------------------------------------------------
-
 function drawBurst(ctx: CanvasRenderingContext2D, burst: Burst, now: number): boolean {
     const elapsed = now - burst.startTime;
     const t = Math.min(elapsed / burst.duration, 1);
     const eased = easeOutExpo(t);
 
-    // Draw particules
     for (const p of burst.particules) {
         const x = p.startX + (p.endX - p.startX) * eased;
         const y = p.startY + (p.endY - p.startY) * eased;
@@ -121,7 +110,6 @@ function drawBurst(ctx: CanvasRenderingContext2D, burst: Burst, now: number): bo
         }
     }
 
-    // Draw expanding circle
     const c = burst.circle;
     const circleRadius = 0.1 + (c.targetRadius - 0.1) * eased;
     const alphaT = Math.min(elapsed / c.alphaDuration, 1); // linear
@@ -138,16 +126,12 @@ function drawBurst(ctx: CanvasRenderingContext2D, burst: Burst, now: number): bo
         ctx.globalAlpha = 1;
     }
 
-    // Return true if burst is still alive
     return t < 1;
 }
 
-// --- Main animation loop ----------------------------------------------------
-
 /**
- * Start the fireworks animation on the given canvas.
- * Works both in browser and GJS (uses globalThis.requestAnimationFrame).
- * Returns a demo handle with a mutable effect controller.
+ * Starts the fireworks on `canvas`, in the browser and on GJS alike — the only host API it needs is
+ * `globalThis.requestAnimationFrame`. The returned handle's effect controller is mutable.
  */
 export function start(canvas: HTMLCanvasElement): FireworksDemo {
     const ctx = canvas.getContext('2d')!;
@@ -175,7 +159,6 @@ export function start(canvas: HTMLCanvasElement): FireworksDemo {
         if (!running) return;
         requestAnimationFrame(step);
 
-        // Handle resize
         const newW = canvas.width;
         const newH = canvas.height;
         if (newW !== w || newH !== h) {
@@ -183,10 +166,8 @@ export function start(canvas: HTMLCanvasElement): FireworksDemo {
             h = newH;
         }
 
-        // Clear canvas
         ctx.clearRect(0, 0, w, h);
 
-        // Auto-fireworks near center when enabled
         if (effectController.autoFireworks) {
             if (lastAutoTime === 0) lastAutoTime = now;
             if (now - lastAutoTime >= effectController.autoInterval) {
@@ -204,7 +185,6 @@ export function start(canvas: HTMLCanvasElement): FireworksDemo {
             }
         }
 
-        // Draw all active bursts, remove finished ones
         for (let i = bursts.length - 1; i >= 0; i--) {
             if (!drawBurst(ctx, bursts[i], now)) {
                 bursts.splice(i, 1);
@@ -228,8 +208,7 @@ export function start(canvas: HTMLCanvasElement): FireworksDemo {
             if (!paused) return;
             paused = false;
             running = true;
-            // Reset auto-burst timer so the next auto burst doesn't fire
-            // immediately based on the stale timestamp from before the pause.
+            // Reset the auto-burst timer, or the stale pre-pause timestamp fires a burst at once.
             lastAutoTime = 0;
             requestAnimationFrame(step);
         },

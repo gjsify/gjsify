@@ -22,8 +22,6 @@ function getFH(fd: number | FileHandle, syscall: string): FileHandle {
     return FileHandle.getInstance(fd, syscall);
 }
 
-// ─── fstat ────────────────────────────────────────────────────────────────────
-
 export function fstatSync(fd: number, options?: { bigint?: false }): Stats;
 export function fstatSync(fd: number, options: { bigint: true }): BigIntStats;
 export function fstatSync(fd: number, options?: { bigint?: boolean }): Stats | BigIntStats {
@@ -66,8 +64,6 @@ export async function fstatAsync(fd: number, options?: StatOptions): Promise<Sta
     return fstatSync(fd, options as { bigint?: false });
 }
 
-// ─── ftruncate ────────────────────────────────────────────────────────────────
-
 export function ftruncateSync(fd: number, len = 0): void {
     getFH(fd, 'ftruncate')._truncateSync(len);
 }
@@ -88,7 +84,6 @@ export async function ftruncateAsync(fd: number, len = 0): Promise<void> {
     ftruncateSync(fd, len);
 }
 
-// ─── fdatasync / fsync ────────────────────────────────────────────────────────
 // Best-effort: flush the IOChannel write buffer (equivalent to fdatasync on GJS).
 
 export function fdatasyncSync(fd: number): void {
@@ -114,8 +109,6 @@ export function fsync(fd: number, callback: (err: NodeJS.ErrnoException | null) 
 export async function fsyncAsync(fd: number): Promise<void> {
     fsyncSync(fd);
 }
-
-// ─── fchmod / fchown / futimes ────────────────────────────────────────────────
 
 export function fchmodSync(fd: number, mode: number | string): void {
     // fchmod(2): the descriptor, so a swapped path cannot capture the change.
@@ -164,15 +157,11 @@ export async function futimesAsync(fd: number, atime: TimeLike, mtime: TimeLike)
     futimesSync(fd, atime, mtime);
 }
 
-// ─── closeSync ────────────────────────────────────────────────────────────────
-
 export function closeSync(fd: number): void {
     // Never close the process's own stdin/stdout/stderr underneath it.
     if (isStdFd(fd)) return;
     getFH(fd, 'close')._closeSync();
 }
-
-// ─── readSync ─────────────────────────────────────────────────────────────────
 
 export function readSync(
     fd: number,
@@ -210,8 +199,6 @@ export function readSync(
     return getFH(fd, 'read')._readSync(buffer, offset, length!, position ?? null);
 }
 
-// ─── writeSync ────────────────────────────────────────────────────────────────
-
 export function writeSync(
     fd: number,
     buffer: NodeJS.ArrayBufferView,
@@ -244,8 +231,6 @@ export function writeSync(
     if (isStdFd(fd)) return writeStdFdSync(fd, data);
     return getFH(fd, 'write')._writeSync(data, position ?? null);
 }
-
-// ─── readvSync / readv ────────────────────────────────────────────────────────
 
 export function readvSync(fd: number, buffers: NodeJS.ArrayBufferView[], position?: number | null): number {
     let bytesRead = 0;
@@ -289,8 +274,6 @@ export async function readvAsync(fd: number, buffers: NodeJS.ArrayBufferView[], 
     return { bytesRead: readvSync(fd, buffers, position), buffers };
 }
 
-// ─── writevSync / writev ──────────────────────────────────────────────────────
-
 export function writevSync(fd: number, buffers: NodeJS.ArrayBufferView[], position?: number | null): number {
     let bytesWritten = 0;
     for (const buf of buffers) {
@@ -332,8 +315,6 @@ export async function writevAsync(fd: number, buffers: NodeJS.ArrayBufferView[],
     return { bytesWritten: writevSync(fd, buffers, position), buffers };
 }
 
-// ─── exists (deprecated) ──────────────────────────────────────────────────────
-
 export function exists(path: PathLike, callback: (exists: boolean) => void): void {
     try {
         statSync(normalizePath(path));
@@ -342,8 +323,6 @@ export function exists(path: PathLike, callback: (exists: boolean) => void): voi
         callback(false);
     }
 }
-
-// ─── openAsBlob ───────────────────────────────────────────────────────────────
 
 export async function openAsBlob(path: PathLike, options?: { type?: string }): Promise<Blob> {
     const data = readFileSync(normalizePath(path)) as unknown as ArrayBuffer;

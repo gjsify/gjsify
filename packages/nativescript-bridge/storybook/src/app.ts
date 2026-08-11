@@ -1,23 +1,15 @@
-// StorybookNativeApp — the NativeScript component browser: a story SIDEBAR/LIST
-// grouped by category, a PREVIEW area (the selected StoryView), and a CONTROLS
-// panel (the live-bound Adwaita rows for the selected story). The NS counterpart
-// of @gjsify/adwaita-storybook's StorybookWebApp and @gjsify/storybook's
-// StorybookWindow, built from REAL @gjsify/adwaita-nativescript widgets so it
-// looks + behaves like the native GTK / browser storybooks. Nothing compares the
-// three renderers' rendered OUTPUT — a screenshot harness is NOT implemented
-// (#1052); their behaviour is held by the @gjsify/adwaita-core/conformance
-// vectors both renderer suites assert against.
+// StorybookNativeApp — the NativeScript component browser (story SIDEBAR, PREVIEW,
+// CONTROLS panel), counterpart of @gjsify/adwaita-storybook's StorybookWebApp and
+// @gjsify/storybook's StorybookWindow, built from REAL @gjsify/adwaita-nativescript
+// widgets. Nothing compares the three renderers' rendered OUTPUT — a screenshot harness
+// is NOT implemented (#1052); their behaviour is held by the
+// @gjsify/adwaita-core/conformance vectors both renderer suites assert against.
 //
-// The app state machine (register/instantiate, category grouping, show + wire
-// controls, the MCP control surface) lives in @gjsify/storybook-core's
-// StorybookController. This class is the NS StorybookView<StoryView>: it owns
-// ONLY the @gjsify/adwaita-nativescript chrome (_buildUI): an AdwNavigationSplitView
-// that ADAPTS to width via an AdwBreakpoint (the GTK storybook's `Adw.Breakpoint`,
-// `max-width: 720sp`). On a phone it stays collapsed — the master story list and
-// the detail (preview + controls) never sit side-by-side, tapping a story
-// navigates to the detail and a back button returns. On a wide tablet / desktop
-// screen it expands to three side-by-side panes (sidebar | preview | controls)
-// with no back button, exactly like the native GTK storybook un-collapsed.
+// The app state machine (register/instantiate, category grouping, show + wire controls,
+// the MCP control surface) lives in @gjsify/storybook-core's StorybookController. This
+// class is the NS StorybookView<StoryView> and owns only the chrome (_buildUI): an
+// AdwNavigationSplitView that ADAPTS to width via an AdwBreakpoint, collapsed to
+// master→detail on a phone and three side-by-side panes above the breakpoint.
 
 import type { StoryArgValue } from '@gjsify/stories';
 import {
@@ -43,12 +35,7 @@ import {
 import { goPreviousSymbolic, sidebarShowRightSymbolic } from '@gjsify/adwaita-icons/actions';
 import { Label, Screen, ScrollView, StackLayout, type View } from '@nativescript/core';
 
-/**
- * Width below which the storybook collapses to phone layout (master→detail nav +
- * controls overlay). At or above it the sidebar, preview and controls sit
- * side-by-side as three panes — matching the GTK storybook's `Adw.Breakpoint`
- * (`max-width: 720sp`).
- */
+/** The GTK storybook's own breakpoint: below it phone layout, at or above it three panes. */
 const COLLAPSE_CONDITION = 'max-width: 720sp';
 import { createControlRow } from './controls.js';
 import type { StoryView } from './story-view.js';
@@ -75,9 +62,8 @@ export interface StorybookNativeOptions {
     /** Auto-select the first story on mount (default true). */
     openFirst?: boolean;
     /**
-     * The NativeScript `Application` (optional). When given, the storybook follows
-     * the OS color scheme: NS already flips the `ns-dark` CSS class on the root view
-     * (so backgrounds/text follow the system theme), and this keeps the symbolic
+     * The NativeScript `Application`. When given, the storybook follows the OS color
+     * scheme: NS already flips `ns-dark` on the root view, and this keeps the symbolic
      * ICON bitmaps recoloured to match (they are pre-coloured, outside CSS's reach).
      */
     application?: NsAppearanceSource;
@@ -132,11 +118,7 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         return this.root;
     }
 
-    /**
-     * Collapse to phone layout below 720sp, expand to three side-by-side panes at
-     * or above it — the GTK storybook's `Adw.Breakpoint`, driven by the root
-     * view's post-layout width. Seeds immediately so the first paint is correct.
-     */
+    /** Driven by the root view's post-layout width; seeds immediately so the first paint is correct. */
     private _wireBreakpoint(): void {
         const breakpoint = new AdwBreakpoint(COLLAPSE_CONDITION, {
             onApply: () => this._applyLayoutMode(true), // narrow → collapse
@@ -147,29 +129,21 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
 
     /**
      * Switch between collapsed (phone) and expanded (wide) chrome. Collapsed: the
-     * master/detail nav swaps panes, the controls are a tap-to-reveal overlay, and
-     * the back button shows. Expanded: sidebar + preview + controls sit side by
-     * side and the back button hides (no navigation needed).
+     * master/detail nav swaps panes, the controls are a tap-to-reveal overlay, and the
+     * back button shows. Expanded: three panes side by side, no back button.
      */
     private _applyLayoutMode(collapsed: boolean): void {
         if (collapsed === this._collapsed && this.root.collapsed === collapsed) return;
         this._collapsed = collapsed;
         this.root.collapsed = collapsed;
-        // Collapsing hides the controls overlay and uncollapsing brings it back —
-        // `Adw.OverlaySplitView`'s own unpinned collapse coupling
-        // (adw-overlay-split-view.c:1457-1458). This app used to hand-roll it with a
-        // show/hide call beside every `collapsed` assignment, because the widget did
-        // not have it.
+        // Hiding/restoring the controls overlay with the collapse is
+        // `Adw.OverlaySplitView`'s own unpinned coupling, not something to hand-roll here.
         this._controlsSplit.collapsed = collapsed;
-        // Either way, start on the master list. The back button only makes sense on
-        // the phone layout — it lives in the detail header, so it shows once the user
-        // navigates into the detail pane; wide, there is nothing to navigate back from.
+        // Either way, start on the master list. The back button lives in the detail
+        // header, so it only makes sense in the phone layout.
         this.root.showSidebarPane();
         this._backButton.visibility = collapsed ? 'visible' : 'collapse';
     }
-
-    // --- control surface (delegates to the controller; driven by the host
-    //     @gjsify/devtools-nativescript agent over CDP) ---
 
     /** The currently-displayed story, or null. */
     get activeStory(): StoryView | null {
@@ -201,28 +175,20 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         return this._controller;
     }
 
-    // --- color scheme (follow the OS, like a real Adwaita app) ---
-
     /**
-     * Match the OS color scheme at mount. NS applies the `ns-dark` CSS class to the
-     * root BEFORE the first style pass (so backgrounds/text/borders follow the
-     * system theme via `autoSystemAppearanceChanged`); the pre-coloured symbolic
-     * ICON bitmaps are outside CSS's reach, so this sets the global icon scheme to
-     * the matching fg (dark icons on light, near-white on dark). No-op without an
-     * `application` option.
+     * Match the OS color scheme at mount. NS applies `ns-dark` before the first style
+     * pass; the pre-coloured symbolic ICON bitmaps are outside CSS's reach, so this sets
+     * the global icon scheme to the matching fg.
      *
-     * Seed-only (mount-time): a clean launch is the dependable path because NS
-     * 9.1-alpha does not reliably RE-APPLY the `.ns-dark` overrides at runtime, so a
-     * live OS theme switch is picked up on the next launch rather than risking the
-     * icons getting ahead of a CSS that didn't flip.
+     * SEED ONLY, deliberately: NS 9.1-alpha does not reliably RE-APPLY the `.ns-dark`
+     * overrides at runtime, so a live OS theme switch is picked up on the next launch
+     * rather than risking icons that are ahead of a CSS which did not flip.
      */
     private _wireColorScheme(): void {
         const src = this._options.application;
         if (!src?.systemAppearance) return;
         setAdwaitaColorScheme(src.systemAppearance() === 'dark' ? 'dark' : 'light');
     }
-
-    // --- StorybookView<StoryView> render seams (driven by the controller) ---
 
     renderSidebar(groups: Array<CategoryGroup<StoryView>>, onSelect: (instance: StoryView) => void): void {
         this._listColumn.removeChildren();
@@ -242,14 +208,9 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
                 rowLabel.text = name;
                 rowLabel.className = 'sb-story-row-label';
                 row.addChild(rowLabel);
-                // Press-darken on touch ($hover_color), like the native
-                // `.navigation-sidebar` activatable rows — NS only auto-applies
-                // :highlighted to Button, so wire it by hand.
                 attachRowPressFeedback(row);
-                // Tapping a story selects it. In collapsed (phone) layout it also
-                // navigates to the detail pane (the master→detail step of the GTK
-                // NavigationSplitView); in wide layout the sidebar stays up beside
-                // the preview, so the selection just swaps the preview content.
+                // In collapsed layout a tap also navigates to the detail pane; wide, the
+                // sidebar stays up and the selection only swaps the preview content.
                 row.addEventListener('tap', () => {
                     onSelect(instance);
                     if (this._collapsed) this.root.hideSidebarPane();
@@ -298,13 +259,11 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
     }
 
     private _buildUI(): void {
-        // Each pane is an AdwToolbarView with its OWN header bar — the collapsed
-        // navigation split shows one pane at a time, so only that pane's header is
-        // visible. There is NO page-level ActionBar (set on the NS Page), so the
-        // app shows a SINGLE header bar, matching the GTK storybook where each
-        // Adw.NavigationPage carries its own Adw.HeaderBar.
+        // Each pane is an AdwToolbarView with its OWN header bar, and there is NO
+        // page-level ActionBar: the collapsed split shows one pane at a time, so exactly
+        // one header is visible — as each Adw.NavigationPage carries its own in GTK.
 
-        // --- Sidebar pane (master): header "Adwaita Storybook" + story list ---
+        // --- Sidebar pane (master) ---
         const sidebar = new AdwToolbarView();
         sidebar.className = `${sidebar.className} sb-sidebar-pane`.trim();
 
@@ -324,10 +283,9 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         sidebar.setContent(sidebarScroll);
         this.root.setSidebar(sidebar);
 
-        // --- Detail pane: a header bar (back + story title + a controls toggle)
-        //     over an OverlaySplitView whose content is the preview and whose
-        //     RIGHT (sidebar_position=END) overlay is the controls — the GTK
-        //     preview NavigationPage + its OverlaySplitView controls sidebar. ---
+        // --- Detail pane: header bar (back + title + controls toggle) over an
+        //     OverlaySplitView whose content is the preview and whose END overlay is the
+        //     controls, as in the GTK storybook. ---
         const detail = new AdwToolbarView();
         detail.className = `${detail.className} sb-content-pane`.trim();
 
@@ -337,8 +295,8 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         back.icon = goPreviousSymbolic;
         back.className = `${back.className} sb-back-button`.trim();
         back.addEventListener('tap', () => this.root.showSidebarPane());
-        // Hidden in wide (three-pane) layout — there is nothing to navigate back
-        // from when the sidebar stays up; _applyLayoutMode flips this on resize.
+        // Hidden in wide layout — nothing to navigate back from while the sidebar stays
+        // up; `_applyLayoutMode` flips it on resize.
         back.visibility = this._collapsed ? 'visible' : 'collapse';
         this._backButton = back;
         header.packStart(back);
@@ -356,8 +314,8 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         header.packEnd(controlsToggle);
         detail.addTopBar(header);
 
-        // The overlay split: preview as content, controls as a right overlay when
-        // collapsed (phone), or a permanent right pane when expanded (wide).
+        // Preview as content, controls as a right overlay when collapsed or a permanent
+        // right pane when expanded.
         this._controlsSplit = new AdwOverlaySplitView();
         this._controlsSplit.collapsed = this._collapsed;
         this._controlsSplit.sidebarPosition = 'end';
@@ -379,15 +337,13 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         controlsScroll.className = 'sb-controls-scroll';
         controlsScroll.content = this._controlsGroup;
         this._controlsSplit.setSidebar(controlsScroll);
-        // No show/hide call here either: `collapsed = true` above already left the
-        // controls hidden (phone — full-width preview, revealed by the toggle) and
-        // `collapsed = false` left them up as a permanent right pane.
+        // No show/hide call: the `collapsed` assignment above already left the controls
+        // hidden (phone) or up as a permanent right pane (wide).
 
         detail.setContent(this._controlsSplit);
         this.root.setContent(detail);
 
-        // Start on the story list (the master pane); in wide layout the sidebar and
-        // detail are both visible regardless.
+        // Start on the story list; in wide layout both panes are visible regardless.
         this.root.showSidebarPane();
     }
 }

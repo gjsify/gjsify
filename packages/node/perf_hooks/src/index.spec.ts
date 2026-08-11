@@ -9,7 +9,6 @@ import {
 
 export default async () => {
     await describe('perf_hooks', async () => {
-        // --- performance.now ---
         await describe('performance.now', async () => {
             await it('should return a number', async () => {
                 const now = performance.now();
@@ -70,7 +69,6 @@ export default async () => {
             });
         });
 
-        // --- performance.timeOrigin ---
         await describe('performance.timeOrigin', async () => {
             await it('should be a number', async () => {
                 expect(typeof performance.timeOrigin).toBe('number');
@@ -108,7 +106,6 @@ export default async () => {
             });
         });
 
-        // --- performance.mark / measure ---
         await describe('performance.mark', async () => {
             await it('should be a function', async () => {
                 expect(typeof performance.mark).toBe('function');
@@ -252,7 +249,6 @@ export default async () => {
             });
         });
 
-        // --- performance.getEntries ---
         await describe('performance.getEntries', async () => {
             await it('should be a function', async () => {
                 expect(typeof performance.getEntries).toBe('function');
@@ -360,7 +356,6 @@ export default async () => {
             });
         });
 
-        // --- performance.clearMarks ---
         await describe('performance.clearMarks', async () => {
             await it('should be a function', async () => {
                 expect(typeof performance.clearMarks).toBe('function');
@@ -401,7 +396,6 @@ export default async () => {
             });
         });
 
-        // --- performance.clearMeasures ---
         await describe('performance.clearMeasures', async () => {
             await it('should be a function', async () => {
                 expect(typeof performance.clearMeasures).toBe('function');
@@ -445,7 +439,6 @@ export default async () => {
             });
         });
 
-        // --- performance.toJSON ---
         await describe('performance.toJSON', async () => {
             await it('should be a function', async () => {
                 expect(typeof performance.toJSON).toBe('function');
@@ -468,7 +461,6 @@ export default async () => {
             });
         });
 
-        // --- exports ---
         await describe('exports', async () => {
             await it('monitorEventLoopDelay should be a function', async () => {
                 expect(typeof monitorEventLoopDelay).toBe('function');
@@ -487,7 +479,6 @@ export default async () => {
             });
         });
 
-        // --- eventLoopUtilization ---
         await describe('eventLoopUtilization', async () => {
             await it('should return an object with idle, active, utilization', async () => {
                 const elu = eventLoopUtilization();
@@ -497,7 +488,6 @@ export default async () => {
             });
         });
 
-        // --- timerify ---
         await describe('timerify', async () => {
             await it('should return a function', async () => {
                 const fn = () => 42;
@@ -513,7 +503,6 @@ export default async () => {
             });
         });
 
-        // --- monitorEventLoopDelay ---
         await describe('monitorEventLoopDelay', async () => {
             await it('should be a function', async () => {
                 expect(typeof monitorEventLoopDelay).toBe('function');

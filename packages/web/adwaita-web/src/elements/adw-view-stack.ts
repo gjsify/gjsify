@@ -1,10 +1,9 @@
 // <adw-view-stack> — A standalone, named-page CONTENT container: the web
 // counterpart of Adw.ViewStack decoupled from any switcher. It holds a set of
 // named pages and shows exactly one at a time; a paired <adw-view-switcher-bar>
-// (or an adaptive header-bar switcher) binds to it and drives the selection.
-// This is the piece the web package lacked — it already had switchers that own
-// their own pages (<adw-view-switcher>, <adw-inline-view-switcher>) but no
-// standalone stack a separate switcher can drive.
+// (or an adaptive header-bar switcher) binds to it and drives the selection. The
+// alternative switchers (<adw-view-switcher>, <adw-inline-view-switcher>) own their
+// own pages instead.
 //
 // The SELECTION itself — the name lookup, the guards on an index change, the
 // first-visible-page auto-pick and which paths notify — is HEADLESS and lives in
@@ -38,11 +37,10 @@
 //                                       page falls back to the next visible one.
 // Events:
 //   `notify::visible-child` (CustomEvent, bubbles,
-//     detail = { index, name, title, interactive }) whenever the visible page
-//     changes — including the auto-shown first page, exactly as
-//     `set_visible_child` notifies there (adw-view-stack.c:1038-1039). It used to
-//     stay silent on that path, which is why a bound switcher needed a manual
-//     `refresh()`. `interactive` is false for an auto-pick.
+//     detail = { index, name, title, interactive }) whenever the visible page changes,
+//     INCLUDING the auto-shown first page — `set_visible_child` notifies there too, and
+//     a switcher that is not told needs a manual `refresh()`. `interactive` is false
+//     for an auto-pick.
 // Reference: refs/libadwaita/src/adw-view-stack.c (AdwViewStack behaviour)
 // Reference: packages/nativescript-bridge/adwaita/src/widgets/adw-view-stack.ts (NS twin)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
@@ -51,7 +49,6 @@
 import { ViewStackState } from '@gjsify/adwaita-core';
 import type { AdwViewStackPageInfo as CorePageInfo, ViewStackStateChange } from '@gjsify/adwaita-core';
 
-/** A page descriptor exposed via `pages` (consumed by a bound switcher bar). */
 export type AdwViewStackPageInfo = CorePageInfo<HTMLElement>;
 
 export class AdwViewStack extends HTMLElement {
@@ -69,7 +66,6 @@ export class AdwViewStack extends HTMLElement {
         this._state.subscribe((change) => this._onStateChange(change));
     }
 
-    /** All pages in declaration/add order. A bound switcher reads this. */
     get pages(): readonly AdwViewStackPageInfo[] {
         return this._state.pages;
     }
@@ -83,7 +79,6 @@ export class AdwViewStack extends HTMLElement {
         this._state.setVisibleIndex(value);
     }
 
-    /** Name of the visible page, or '' when nothing is selected. */
     get visibleChildName(): string {
         return this._state.visibleName;
     }
@@ -92,7 +87,6 @@ export class AdwViewStack extends HTMLElement {
         this._state.setVisibleName(name);
     }
 
-    /** The visible page's content element, or null when nothing is selected. */
     get visibleChild(): HTMLElement | null {
         return this._state.visiblePage?.content ?? null;
     }
@@ -106,21 +100,17 @@ export class AdwViewStack extends HTMLElement {
         // otherwise overwrite the author's value with page 0's name.
         const initialName = this.getAttribute('visible-child-name');
 
-        // Adopt the declared <adw-view-stack-page> children by APPENDING them —
-        // never by replacing the page list. The old code assigned the parsed
-        // wrappers wholesale and then `replaceChildren()`d the subtree away, so a
-        // stack built imperatively before it entered the document
-        // (`createElement` → `add()` → `body.append()`) lost every page it had
-        // been given. libadwaita has no parse-once phase that can discard
-        // children: the buildable adds them one at a time
-        // (adw_view_stack_buildable_add_child, adw-view-stack.c:1666-1680) and
-        // `adw_view_stack_add` works at any point in the widget's life.
+        // Adopt the declared <adw-view-stack-page> children by APPENDING them, never by
+        // replacing the page list: a stack built imperatively before it entered the
+        // document (`createElement` → `add()` → `body.append()`) would lose every page
+        // it had been given. libadwaita has no parse-once phase that can discard
+        // children — the buildable adds them one at a time and `adw_view_stack_add`
+        // works at any point in the widget's life.
         for (const pageEl of Array.from(this.querySelectorAll(':scope > adw-view-stack-page')) as HTMLElement[]) {
-            // A declared page with no `name` is the page named '' — C stores the
-            // name verbatim (adw-view-stack.c:1170), and an invented `page-<index>`
-            // is addressable by a name the author never wrote.
+            // A declared page with no `name` is the page named '': C stores the name
+            // verbatim, and an invented `page-<index>` would be addressable by a name the
+            // author never wrote.
             const name = pageEl.getAttribute('name') ?? '';
-            // Wrapping each page's content lets us toggle exactly one.
             const element = document.createElement('div');
             element.className = 'adw-view-stack-child';
             element.dataset.name = name;
@@ -132,16 +122,15 @@ export class AdwViewStack extends HTMLElement {
                 icon: pageEl.getAttribute('icon-name'),
                 content: element,
                 // `hidden` is the DOM spelling of AdwViewStackPage:visible, which
-                // gates the auto-pick and refuses selection (adw-view-stack.c:1149-1151, :2415).
+                // gates the auto-pick and refuses selection.
                 visible: !pageEl.hasAttribute('hidden'),
             });
             this.replaceChild(element, pageEl);
         }
 
-        // An explicit `visible-child-name` selects the initial page. Only a
-        // MISSING attribute falls through to the auto-pick — an empty value is a
-        // legal lookup for a page named '' (g_strcmp0, adw-view-stack.c:901),
-        // which the old `initialName ? … : -1` falsy check silently dropped.
+        // An explicit `visible-child-name` selects the initial page; only a MISSING
+        // attribute falls through to the auto-pick. An empty value is a legal lookup for
+        // a page named '' (`g_strcmp0`), so a falsy check here is wrong.
         if (initialName !== null) this._state.setVisibleName(initialName, false);
         this._applyVisibility();
         this._reflectName();
@@ -159,7 +148,7 @@ export class AdwViewStack extends HTMLElement {
 
     /**
      * Append a page. It becomes visible when nothing is selected yet, matching
-     * `Adw.ViewStack.add()` — and, unlike before, that auto-pick NOTIFIES.
+     * `Adw.ViewStack.add()`, and that auto-pick NOTIFIES.
      */
     add(content: HTMLElement, name: string, title?: string, icon?: string): AdwViewStackPageInfo {
         content.classList.add('adw-view-stack-child');
@@ -172,7 +161,6 @@ export class AdwViewStack extends HTMLElement {
         return page;
     }
 
-    /** Convenience alias mirroring Adw.ViewStack.add_titled() (no icon). */
     addTitled(content: HTMLElement, name: string, title: string): AdwViewStackPageInfo {
         return this.add(content, name, title);
     }
@@ -181,7 +169,7 @@ export class AdwViewStack extends HTMLElement {
      * Remove the first page named `name` and detach its content. Returns whether
      * anything was removed. When the removed page was the visible one the stack
      * ends up showing NOTHING and emits no event — `stack_remove` clears
-     * `visible_child` without re-picking (adw-view-stack.c:1202-1203).
+     * `visible_child` without re-picking.
      */
     removePage(name: string): boolean {
         const content = this._state.pages[this._state.indexOfName(name)]?.content;
@@ -197,28 +185,23 @@ export class AdwViewStack extends HTMLElement {
      * Show or hide a page (`AdwViewStackPage:visible`). Returns whether the
      * SELECTION moved: hiding the visible page falls back to the next visible
      * one, and making a page visible while nothing is selected selects it
-     * (`update_child_visible`, adw-view-stack.c:1061-1082).
+     * (`update_child_visible`).
      */
     setPageVisible(name: string, visible: boolean): boolean {
         const moved = this._state.setPageVisible(name, visible);
         this._applyVisibility();
         // A visibility flip changes what the pages MODEL reports, which is what
-        // `update_bar_revealed` counts (adw-view-switcher-bar.c:340) — hiding
-        // the second-to-last visible page must retract the bar.
+        // `update_bar_revealed` counts — hiding the second-to-last visible page must
+        // retract the bar.
         this._emitItemsChanged();
         return moved;
     }
 
     /**
-     * The pages model's `items-changed`, which the DOM stack had no counterpart
-     * for at all.
-     *
-     * `AdwViewSwitcherBar` re-runs `update_bar_revealed` on it
-     * (adw-view-switcher-bar.c:340) and `AdwViewSwitcher` rebinds its buttons
-     * (adw-view-switcher.c:258-263). Both ports listened only on
-     * `notify::visible-child`, so adding a page or hiding a non-selected one
-     * left `revealed` — and the button row — stale, with a manual `refresh()`
-     * as the documented workaround.
+     * The pages model's `items-changed`: `AdwViewSwitcherBar` re-runs
+     * `update_bar_revealed` on it and `AdwViewSwitcher` rebinds its buttons. A listener
+     * on `notify::visible-child` alone leaves `revealed` and the button row stale when a
+     * page is added or a non-selected one hidden.
      */
     private _emitItemsChanged(): void {
         this.dispatchEvent(new CustomEvent('items-changed', { bubbles: true, detail: { count: this.pages.length } }));
@@ -253,11 +236,9 @@ export class AdwViewStack extends HTMLElement {
 
     private _reflectName(): void {
         // With nothing selected there is no name to mirror — C's
-        // `adw_view_stack_get_visible_child_name` returns NULL there
-        // (adw-view-stack.c:2384), and a missing attribute is the DOM spelling of
-        // that. An EMPTY name is still a name and IS reflected: the old
-        // `if (current && …)` guard meant a stack of nameless pages never
-        // reflected its selection at all.
+        // `adw_view_stack_get_visible_child_name` returns NULL, and a missing attribute
+        // is the DOM spelling of that. An EMPTY name is still a name and IS reflected: a
+        // truthiness guard here stops a stack of nameless pages reflecting at all.
         if (this._state.visibleIndex < 0) {
             this.removeAttribute('visible-child-name');
             return;

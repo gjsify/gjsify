@@ -5,18 +5,14 @@
 // layer covers the content and dismisses the sheet on click (unless `can-close`
 // is false, in which case a close attempt is signalled instead).
 //
-// The open/closed state and the dismissal gate are NOT implemented here: they
-// live in `@gjsify/adwaita-core` as `BottomSheetPresentation` +
-// `resolveBottomSheetClose`, ported from the C source and shared with
-// `@gjsify/adwaita-nativescript` (ADR 0004). This element owns only the DOM.
-// Three things changed when it moved:
-//   - `open="false"` now means CLOSED. The old getter was `hasAttribute('open')`
-//     while every other boolean used `!== 'false'`, so one element carried two
-//     incompatible conventions and `<adw-bottom-sheet open="false">` rendered
-//     open (adw-bottom-sheet.c:1670 — `open = !!open` on a strict gboolean).
-//   - `notify::open` follows the STATE, not the attribute VALUE. Rewriting the
-//     attribute to another truthy spelling no longer fires a notification
-//     carrying an unchanged payload (adw-bottom-sheet.c:1672-1682).
+// The open/closed state and the dismissal gate are NOT implemented here: they live in
+// `@gjsify/adwaita-core` as `BottomSheetPresentation` + `resolveBottomSheetClose`,
+// ported from the C source and shared with `@gjsify/adwaita-nativescript` (ADR 0004).
+// This element owns only the DOM. Three rules are easy to get wrong:
+//   - `open="false"` means CLOSED, like every other boolean here — C's setter is
+//     `open = !!open` on a strict gboolean, so `hasAttribute` is the wrong test.
+//   - `notify::open` follows the STATE, not the attribute VALUE, so rewriting the
+//     attribute to another truthy spelling notifies nobody.
 //   - the drag handle is decorative, not a close button — see below.
 //
 // Children are declared as <adw-bottom-sheet-content> (the persistent content)
@@ -38,10 +34,9 @@
 //     state changes — mirrors the Adw.BottomSheet `open` GObject property.
 //   `close-attempt` (CustomEvent, bubbles) when a dismissal is attempted that the
 //     sheet refuses — mirrors the Adw.BottomSheet `close-attempt` signal.
-//   `sheet.close` (CustomEvent, bubbles) when the sheet.close action is used on
-//     an ALREADY-closed sheet, so an enclosing sheet/dialog can handle it — the
-//     DOM equivalent of `gtk_widget_activate_action (parent, "sheet.close")`
-//     (adw-bottom-sheet.c:382-385).
+//   `sheet.close` (CustomEvent, bubbles) when the sheet.close action is used on an
+//     ALREADY-closed sheet, so an enclosing sheet/dialog can handle it — the DOM
+//     equivalent of `gtk_widget_activate_action (parent, "sheet.close")`.
 //
 // Reference: refs/libadwaita/src/adw-bottom-sheet.c (AdwBottomSheet behaviour)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_bottom-sheet.scss
@@ -72,7 +67,6 @@ export class AdwBottomSheet extends HTMLElement {
         return ['open', 'modal', 'can-close', 'show-drag-handle'];
     }
 
-    /** Whether the sheet is revealed. */
     get open(): boolean {
         return this._state.open;
     }
@@ -81,7 +75,6 @@ export class AdwBottomSheet extends HTMLElement {
         this._setOpen(!!value);
     }
 
-    /** Whether the content is dimmed + blocked while the sheet is open. */
     get modal(): boolean {
         return this._boolAttr('modal', true);
     }
@@ -99,7 +92,6 @@ export class AdwBottomSheet extends HTMLElement {
         this._setBoolAttr('can-close', value);
     }
 
-    /** Whether the overlaid drag handle is shown. */
     get showDragHandle(): boolean {
         return this._boolAttr('show-drag-handle', true);
     }
@@ -109,14 +101,13 @@ export class AdwBottomSheet extends HTMLElement {
     }
 
     /**
-     * Route a dismissal affordance through the shared gate and act on the
-     * verdict: close, raise `close-attempt`, forward `sheet.close` to an
-     * ancestor, or do nothing. The element calls this for the dimming layer and
-     * Escape; a close button inside the sheet calls it with `'close-button'`.
+     * Route a dismissal affordance through the shared gate and act on the verdict: close,
+     * raise `close-attempt`, forward `sheet.close` to an ancestor, or do nothing. Called
+     * for the dimming layer and Escape; a close button inside the sheet passes
+     * `'close-button'`.
      *
-     * The verdict differs per source — a locked sheet signals a scrim click but
-     * swallows a swipe, and the drag handle never closes anything. See
-     * `resolveBottomSheetClose` in `@gjsify/adwaita-core`.
+     * The verdict differs PER SOURCE — a locked sheet signals a scrim click but swallows
+     * a swipe, and the drag handle never closes anything (`resolveBottomSheetClose`).
      */
     requestClose(source: BottomSheetCloseSource): BottomSheetCloseOutcome {
         const outcome = this._state.requestClose(source);
@@ -132,37 +123,30 @@ export class AdwBottomSheet extends HTMLElement {
         if (this._initialized) return;
         this._initialized = true;
 
-        // Snapshot declared children before taking over the subtree. The sheet
-        // and content are placed by slot; anything unslotted falls back to the
+        // The sheet and content are placed by slot; anything unslotted falls back to the
         // content (the AdwBottomSheet GtkBuildable default).
         const claimed = new Set<Node>();
         const sheetChildren = this._collectSlot('adw-bottom-sheet-sheet', 'sheet', claimed);
         const contentChildren = this._collectSlot('adw-bottom-sheet-content', 'content', claimed);
         const unslotted = Array.from(this.childNodes).filter((n) => !claimed.has(n));
 
-        // Persistent content layer.
         this._contentEl = document.createElement('div');
         this._contentEl.className = 'adw-bottom-sheet-content';
         for (const child of contentChildren) this._contentEl.appendChild(child);
         for (const child of unslotted) this._contentEl.appendChild(child);
 
-        // Dimming layer — covers the content while the sheet is open (modal).
-        // Clicking it dismisses the sheet (or raises close-attempt when locked).
         this._dimmingEl = document.createElement('div');
         this._dimmingEl.className = 'adw-bottom-sheet-dimming';
         this._dimmingEl.addEventListener('click', () => this.requestClose('dimming'));
 
-        // The slide-up sheet with its overlaid drag handle.
         this._sheetEl = document.createElement('div');
         this._sheetEl.className = 'adw-bottom-sheet-sheet';
 
-        // libadwaita builds the handle with can_focus = FALSE and
-        // can_target = FALSE (adw-bottom-sheet.c:1197-1198): it is a decorative
-        // pill that cannot be clicked or focused at all. Its only behavioural
-        // role is elsewhere — `allow_mouse_drag = show_drag_handle || bottom_bar`
-        // (adw-bottom-sheet.c:455-457). This element used to give it
-        // role="button", tabindex=0 and a click-to-close handler, which is the
-        // one behaviour it provably does not have.
+        // libadwaita builds the handle with can_focus = FALSE and can_target = FALSE: a
+        // decorative pill that cannot be clicked or focused at all. Its only behavioural
+        // role is elsewhere — `allow_mouse_drag = show_drag_handle || bottom_bar`. Giving
+        // it role="button" and a click-to-close handler is the one behaviour it provably
+        // does not have.
         this._dragHandleEl = document.createElement('div');
         this._dragHandleEl.className = 'adw-bottom-sheet-drag-handle';
         this._dragHandleEl.setAttribute('aria-hidden', 'true');
@@ -175,12 +159,11 @@ export class AdwBottomSheet extends HTMLElement {
 
         this.replaceChildren(this._contentEl, this._dimmingEl, this._sheetEl);
 
-        // Escape → maybe_close_cb (adw-bottom-sheet.c:389-400). In GTK the
-        // shortcut sits on the sheet itself, so it fires exactly while the sheet
-        // has focus — INCLUDING while the sheet is closed, which is the corner
-        // that still emits `close-attempt`. This port has no focus transfer into
-        // the sheet, so an open sheet counts as the focused surface and a closed
-        // one only when focus is still inside its (off-screen) body.
+        // Escape → `maybe_close_cb`. In GTK the shortcut sits on the sheet itself, so it
+        // fires exactly while the sheet has focus — INCLUDING while the sheet is closed,
+        // which is the corner that still emits `close-attempt`. This port has no focus
+        // transfer into the sheet, so an open sheet counts as the focused surface and a
+        // closed one only when focus is still inside its (off-screen) body.
         this.addEventListener('keydown', (event) => {
             if (event.key !== 'Escape') return;
             if (!this.open && !this._sheetEl.contains(event.target as Node)) return;
@@ -188,9 +171,8 @@ export class AdwBottomSheet extends HTMLElement {
             this.requestClose('escape');
         });
 
-        // Adopt whatever the author declared, then start mirroring state changes
-        // back out. Seeding before the subscription keeps the initial value
-        // silent, as an attribute set during upgrade has always been.
+        // Seeding BEFORE the subscription keeps the initial value silent, which is what
+        // an attribute set during upgrade must be.
         this._state.setCanClose(this._boolAttr('can-close', true));
         this._state.setOpen(this._boolAttr('open', false));
         this._state.subscribe((open) => {
@@ -234,13 +216,10 @@ export class AdwBottomSheet extends HTMLElement {
         this.classList.toggle('modal', this.modal);
         this.classList.toggle('has-drag-handle', this.showDragHandle);
 
-        // The dimming layer is only meaningful while modal; it fades in with the
-        // sheet and is non-interactive when closed.
         this._dimmingEl.classList.toggle('visible', open && this.modal);
         this._dragHandleEl.hidden = !this.showDragHandle;
     }
 
-    /** Mirror the state onto the `open` attribute (the CSS + markup hook). */
     private _reflectOpen(open: boolean): void {
         this._reflecting = true;
         if (open) this.setAttribute('open', '');
@@ -265,7 +244,7 @@ export class AdwBottomSheet extends HTMLElement {
      *
      * The `<adw-bottom-sheet-sheet>` / `<adw-bottom-sheet-content>` wrappers are
      * markup, not widgets — GtkBuilder's `<child type="sheet">` leaves nothing in
-     * the tree (adw-bottom-sheet.c:1278-1293) — so the wrapper itself is claimed
+     * the tree — so the wrapper itself is claimed
      * too. It used to fall through to `unslotted` and be appended to the content
      * layer, leaving an empty custom element behind after its children were
      * pulled out.

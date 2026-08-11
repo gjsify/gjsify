@@ -5,7 +5,6 @@ import { describe, it, expect } from '@gjsify/unit';
 import https, { Agent, globalAgent, request, get, createServer, Server } from 'node:https';
 
 export default async () => {
-    // ===================== Module exports =====================
     await describe('https exports', async () => {
         await it('should export Agent as a function', async () => {
             expect(typeof Agent).toBe('function');
@@ -46,7 +45,6 @@ export default async () => {
         });
     });
 
-    // ===================== Agent constructor =====================
     await describe('https.Agent', async () => {
         await it('should be constructable with new', async () => {
             const agent = new Agent();
@@ -147,7 +145,6 @@ export default async () => {
         });
     });
 
-    // ===================== globalAgent =====================
     await describe('https.globalAgent', async () => {
         await it('should be an Agent instance', async () => {
             expect(globalAgent).toBeDefined();
@@ -177,7 +174,6 @@ export default async () => {
         });
     });
 
-    // ===================== request =====================
     await describe('https.request', async () => {
         await it('should return a ClientRequest-like object', async () => {
             const req = request({ hostname: 'localhost', port: 1, path: '/' });
@@ -319,7 +315,6 @@ export default async () => {
         });
     });
 
-    // ===================== get =====================
     await describe('https.get', async () => {
         await it('should return a ClientRequest-like object', async () => {
             const req = get({ hostname: 'localhost', port: 1, path: '/' });
@@ -364,7 +359,6 @@ export default async () => {
         });
     });
 
-    // ===================== createServer =====================
     await describe('https.createServer', async () => {
         await it('should create a server without options', async () => {
             const server = createServer();
@@ -428,7 +422,6 @@ export default async () => {
         });
     });
 
-    // ===================== Server constructor =====================
     await describe('https.Server', async () => {
         await it('should be constructable', async () => {
             const server = new Server();
@@ -482,7 +475,6 @@ export default async () => {
         });
     });
 
-    // ===================== Protocol defaults =====================
     await describe('https protocol defaults', async () => {
         await it('Agent defaultPort should be 443 (not 80)', async () => {
             const agent = new Agent();

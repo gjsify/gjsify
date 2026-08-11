@@ -172,8 +172,6 @@ const qsUnescapeTestCases: [string, string][] = [
 ];
 
 export default async () => {
-    // ==================== parse ====================
-
     await describe('querystring.parse', async () => {
         await it('should parse basic id string', async () => {
             expect(qs.parse('id=918854443121279438895193').id).toBe('918854443121279438895193');
@@ -237,8 +235,6 @@ export default async () => {
             check(qs.parse('%\u0100=%\u0101'), { '%\u0100': '%\u0101' });
         });
     });
-
-    // ==================== parse — maxKeys ====================
 
     await describe('querystring.parse maxKeys', async () => {
         await it('should limit keys with maxKeys=1', async () => {
@@ -304,8 +300,6 @@ export default async () => {
         });
     });
 
-    // ==================== parse — custom decode ====================
-
     await describe('querystring.parse custom decode', async () => {
         await it('should use custom decodeURIComponent', async () => {
             function demoDecode(str: string) {
@@ -333,8 +327,6 @@ export default async () => {
             check(qs.parse('a=a', undefined, undefined, { decodeURIComponent: errDecode }), { a: 'a' });
         });
     });
-
-    // ==================== stringify ====================
 
     await describe('querystring.stringify', async () => {
         await describe('qsTestCases round-trip', async () => {
@@ -449,8 +441,6 @@ export default async () => {
         });
     });
 
-    // ==================== escape ====================
-
     await describe('querystring.escape', async () => {
         await it('should escape numbers', async () => {
             expect(qs.escape(5 as unknown as string)).toBe('5');
@@ -500,8 +490,6 @@ export default async () => {
             expect(() => qs.escape(Symbol('test') as unknown as string)).toThrow();
         });
     });
-
-    // ==================== unescape / unescapeBuffer ====================
 
     await describe('querystring.unescape', async () => {
         for (const [input, expected] of qsUnescapeTestCases) {
@@ -571,8 +559,6 @@ export default async () => {
         });
     });
 
-    // ==================== multichar separator ====================
-
     await describe('querystring multichar separator', async () => {
         await it('should parse with && and =>', async () => {
             check(qs.parse('foo=>bar&&bar=>baz', '&&', '=>'), { foo: 'bar', bar: 'baz' });
@@ -590,8 +576,6 @@ export default async () => {
             expect(qs.stringify({ foo: 'bar', bar: 'baz' }, ', ', '==>')).toBe('foo==>bar, bar==>baz');
         });
     });
-
-    // ==================== decode / encode aliases ====================
 
     await describe('querystring aliases', async () => {
         await it('decode should be an alias for parse', async () => {

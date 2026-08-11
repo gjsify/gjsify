@@ -1,11 +1,10 @@
 // Navigation-view specs — driven by the shared conformance vectors, so this
 // suite and the two renderer suites assert the SAME table.
 //
-// What is core-only here: the `NavigationStackChange` payload (`animate`, `pop`,
-// `tagNotify`, `removeAfterTransition`) and `removeOnPop`. Both renderers settle
-// the transition immediately and expose neither, so the vectors carry those
-// fields for this suite while the renderers assert the state and the signal
-// sequence the same fields produce.
+// Core-only here: the `NavigationStackChange` payload (`animate`, `pop`, `tagNotify`,
+// `removeAfterTransition`) and `removeOnPop`. Both renderers settle the transition
+// immediately and expose neither, so the vectors carry those fields for this suite while
+// the renderers assert the state and signal sequence they produce.
 
 import { describe, it, expect } from '@gjsify/unit';
 
@@ -197,7 +196,7 @@ export default async () => {
             expect(describeNavigationDiagnostic({ code: 'duplicate-tag', tag: 'sidebar' })).toBe(
                 'Duplicate page tag in AdwNavigationView: sidebar',
             );
-            // push_to_stack picks its wording from use_tag_for_errors (:943-949).
+            // push_to_stack picks its wording from use_tag_for_errors.
             expect(describeNavigationDiagnostic({ code: 'already-in-stack', tag: 'sidebar' })).toBe(
                 "Page with the tag 'sidebar' is already in navigation stack",
             );

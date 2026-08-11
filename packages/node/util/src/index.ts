@@ -71,12 +71,8 @@ export {
     isBuffer,
 };
 
-// ---- Re-export web-platform globals (Node compat) ----
-
 export const TextDecoder = globalThis.TextDecoder;
 export const TextEncoder = globalThis.TextEncoder;
-
-// ---- Default export ----
 
 export default {
     format,

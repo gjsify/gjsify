@@ -2,12 +2,10 @@
 // driven by the SAME vectors the NativeScript renderer asserts against
 // (`@gjsify/adwaita-core/conformance`).
 //
-// Everything these vectors describe used to be MISSING here, not merely
-// different: `update_empty`'s truth table, the apply button (declared `true` in
-// the shared story metadata all along), the Enter key, max-length, the caps-lock
-// warning and its two suppression rules. Nothing failed, because nothing
-// compared this renderer to the C. This suite is that comparison — it drives the
-// real elements through each scenario and reads back what a user would see.
+// The vectors cover `update_empty`'s truth table, the apply button, the Enter key,
+// max-length, and the caps-lock warning with its two suppression rules — all of which
+// were missing from this renderer, not merely different. Each scenario drives the real
+// elements and reads back what a user would see.
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
@@ -141,9 +139,8 @@ export const AdwEntryRowsTest = async () => {
                 parts.row.maxLength = 0;
                 parts.row.text = '';
                 parts.row.maxLength = maxLength;
-                // Type it: the `input` event path must clamp exactly like the
-                // property path, which is why `input.maxLength` (UTF-16 units)
-                // is deliberately left unset.
+                // The `input` event path must clamp exactly like the property path, which
+                // is why `input.maxLength` (UTF-16 units) is deliberately left unset.
                 parts.input.value = text;
                 parts.input.dispatchEvent(new Event('input', { bubbles: true }));
                 expect(parts.input.value).toBe(clamped);
@@ -166,8 +163,8 @@ export const AdwEntryRowsTest = async () => {
         }
 
         await it('activates the default BEFORE emitting entry-activated', () => {
-            // C:253-256 — gtk_widget_activate_default is line 254, the signal is
-            // line 256. Implicit form submission is the web's default activation.
+            // `gtk_widget_activate_default` runs before the `entry-activated` signal;
+            // implicit form submission is the web's spelling of that default activation.
             const host = document.createElement('div');
             document.body.appendChild(host);
             host.innerHTML = '<form><adw-entry-row title="T" activates-default></adw-entry-row></form>';
@@ -210,9 +207,8 @@ export const AdwEntryRowsTest = async () => {
 
     await describe('adw-entry-row change signals', async () => {
         await it('emits both GtkEditable spellings on every buffer change', () => {
-            // libadwaita implements GtkEditable through a delegate (C:87-93,
-            // :821-834), so an AdwEntryRow emits `changed` AND `notify::text`.
-            // The two ports had each picked one and drifted apart.
+            // libadwaita implements GtkEditable through a DELEGATE, so an AdwEntryRow emits
+            // `changed` AND `notify::text` — a port must not pick just one.
             const parts = mount('adw-entry-row', 'adw-entry-row');
             const recorded = recordEvents(parts.row, ['changed', 'notify::text', 'notify::text-length']);
             parts.row.text = 'Ada';
@@ -255,8 +251,8 @@ export const AdwEntryRowsTest = async () => {
 
     await describe('adw-entry-row light-DOM children (GtkBuildable)', async () => {
         await it('keeps author children instead of discarding them', () => {
-            // `replaceChildren(text, edit)` used to throw every authored child
-            // away silently. add_suffix (C:885-899) appends into a BOX.
+            // `replaceChildren(text, edit)` throws every authored child away silently,
+            // where `add_suffix` appends into a BOX.
             const parts = mount('adw-entry-row', 'adw-entry-row', '<button id="go">Go</button>');
             const go = parts.row.querySelector('#go') as HTMLElement;
             expect(go).not.toBe(null);
@@ -281,9 +277,8 @@ export const AdwEntryRowsTest = async () => {
 
     await describe('adw-entry-row click-to-focus (pressed_cb)', async () => {
         await it('focuses the entry when the row body is clicked', () => {
-            // C:201-227 — the click lands on the row, the header, the editable
-            // area, the indicator or an affordance box, and grabs focus. The port
-            // had this inverted: only the pencil focused, the body was inert.
+            // The click lands on the row, the header, the editable area, the indicator or
+            // an affordance box, and grabs focus — not only on the pencil.
             const parts = mount('adw-entry-row', 'adw-entry-row');
             parts.row.click();
             expect(document.activeElement).toBe(parts.input);
@@ -365,20 +360,19 @@ export const AdwEntryRowsTest = async () => {
         });
 
         await it('keeps the peek toggle when a consumer adds a suffix', () => {
-            // add_suffix appends into a box (C:885-899) and the toggle is
-            // installed through it (adw-password-entry-row.c:152), so both stay.
+            // `add_suffix` appends into a box and the toggle is installed through it, so
+            // both stay.
             const parts = mount('adw-password-entry-row', 'adw-password-entry-row', '<button id="go">Go</button>');
             const suffixes = parts.row.querySelector('.adw-password-entry-row-suffixes') as HTMLElement;
             expect(suffixes.querySelector('.adw-password-entry-row-toggle')).not.toBe(null);
             expect(suffixes.querySelector('#go')).not.toBe(null);
-            // C:152 — the row's own toggle is the FIRST suffix.
+            // The row's own toggle is the FIRST suffix.
             expect(suffixes.children[0]?.classList.contains('adw-password-entry-row-toggle')).toBe(true);
             parts.host.remove();
         });
 
         await it('inherits the entry row rather than copying it', () => {
-            // The two element files used to be a normalized-diff-identical
-            // copy-paste; the password row now IS an entry row.
+            // The password row IS an entry row, not a copy-paste of one.
             const parts = mount('adw-password-entry-row', 'adw-password-entry-row');
             parts.row.showApplyButton = true;
             parts.input.focus();

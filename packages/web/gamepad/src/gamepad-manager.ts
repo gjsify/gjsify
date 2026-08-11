@@ -1,7 +1,6 @@
-// Gamepad Web API — GamepadManager
-// Bridges libmanette's event-driven model to the W3C polling-based Gamepad API.
+// Gamepad Web API — bridges libmanette's event-driven model (gi://Manette) to the
+// W3C polling-based Gamepad API.
 // Reference: https://w3c.github.io/gamepad/
-// Reimplemented for GJS using libmanette (gi://Manette)
 
 import type Manette from '@girs/manette-0.2';
 import { loadGamepadBackend, reportGamepadBackendOnce, reportGamepadMonitorFault } from './backend.js';
@@ -27,11 +26,9 @@ interface DeviceState {
 }
 
 /**
- * Singleton manager that wraps Manette.Monitor and maintains gamepad state.
- *
- * libmanette fires GObject signals on button/axis changes. This manager
- * caches the latest state so that `getGamepads()` can return a snapshot
- * matching the W3C Gamepad API's polling model.
+ * Singleton manager wrapping `Manette.Monitor`. libmanette fires GObject signals on
+ * button/axis changes, so this caches the latest state and `getGamepads()` returns a
+ * snapshot, matching the W3C polling model.
  */
 export class GamepadManager {
     private _monitor: Manette.Monitor | null = null;
@@ -46,44 +43,36 @@ export class GamepadManager {
     private _initPromise: Promise<void> | null = null;
     private _initialized = false;
 
-    /**
-     * Lazily initialize the Manette.Monitor.
-     * Called on first `getGamepads()` invocation.
-     */
+    /** Lazily initialize the `Manette.Monitor`, on the first `getGamepads()`. */
     private _ensureInit(): void {
         if (this._initialized) return;
         if (this._initPromise) return;
 
-        // `_init()` is deliberately NOT awaited — `getGamepads()` is synchronous
-        // per the W3C polling contract — so a rejection here would surface as an
-        // UNHANDLED rejection: unattributable on GJS and, under Node's default
-        // `--unhandled-rejections=throw`, a process kill. Everything past the
-        // backend probe (`new Monitor()`, `iterate()`, `connect()`) can throw a
-        // GError, and before this handler existed each one was a permanently
-        // silent "no gamepads" plus an unhandled rejection. Only THAT class of
-        // failure reaches here — the probe never rejects, it returns a classified
-        // result — so this is reported as a monitor fault, not as a failed load.
+        // `_init()` is deliberately NOT awaited — `getGamepads()` is synchronous per the
+        // W3C polling contract — so a rejection here would be an UNHANDLED rejection:
+        // unattributable on GJS and a process kill under Node's default
+        // `--unhandled-rejections=throw`. Everything past the backend probe
+        // (`new Monitor()`, `iterate()`, `connect()`) can throw a GError; only that class
+        // reaches here, because the probe returns a classified result instead of
+        // rejecting — hence a monitor fault, not a failed load.
         this._initPromise = this._init().catch((error: unknown) => {
             reportGamepadMonitorFault(error);
             // Mark done rather than leaving `_initialized` false with a live
-            // `_initPromise`: the retry gate would block re-entry anyway, so say
-            // so explicitly instead of relying on that side effect.
+            // `_initPromise`: the retry gate would block re-entry anyway, so say so
+            // explicitly instead of relying on that side effect.
             this._initialized = true;
         });
     }
 
     private async _init(): Promise<void> {
         const backend = await loadGamepadBackend();
-        // The USE site is what says it, once per process — the capability query
-        // stays silent (see the header of `backend.ts`). This is the operation
-        // that wanted a monitor, so this is where "there is no backend" or
-        // "the backend is broken" is worth a line.
+        // The USE site says it, once per process — the capability query stays silent
+        // (see the header of `backend.ts`).
         reportGamepadBackendOnce(backend);
         if (backend.module === null) {
-            // No usable backend on this host. `getGamepads()` keeps answering
-            // the W3C shape (see its doc comment for why that is correct, not a
-            // silent failure), and `hasGamepadBackend()` is the machine-readable
-            // form of the same fact.
+            // No usable backend here. `getGamepads()` keeps answering the W3C shape (see
+            // its doc for why that is correct rather than a silent failure) and
+            // `hasGamepadBackend()` is the machine-readable form of the same fact.
             this._initialized = true;
             return;
         }
@@ -92,7 +81,6 @@ export class GamepadManager {
         const monitor = new this._ManetteModule.Monitor();
         this._monitor = monitor;
 
-        // Enumerate already-connected devices
         const iter = monitor.iterate();
         let result = iter.next();
         while (result[0]) {
@@ -103,7 +91,6 @@ export class GamepadManager {
             result = iter.next();
         }
 
-        // Listen for future connect/disconnect
         this._monitorSignalIds.push(
             monitor.connect('device-connected', (_monitor: Manette.Monitor, device: Manette.Device) => {
                 this._onDeviceConnected(device);
@@ -139,7 +126,6 @@ export class GamepadManager {
             signalIds: [],
         };
 
-        // Wire up device signals
         state.signalIds.push(
             device.connect('button-press-event', (_device: Manette.Device, event: Manette.Event) => {
                 this._onButtonPress(state, event);
@@ -160,7 +146,6 @@ export class GamepadManager {
 
         this._slots[slotIndex] = state;
 
-        // Dispatch gamepadconnected event
         const snapshot = this._createSnapshot(state);
         if (snapshot) {
             globalThis.dispatchEvent?.(new GamepadEvent('gamepadconnected', { gamepad: snapshot }) as unknown as Event);
@@ -171,7 +156,6 @@ export class GamepadManager {
         const state = this._findStateByDevice(device);
         if (!state) return;
 
-        // Disconnect all device signals
         for (const id of state.signalIds) {
             device.disconnect(id);
         }
@@ -180,7 +164,6 @@ export class GamepadManager {
         const snapshot = this._createSnapshot(state);
         this._slots[state.index] = null;
 
-        // Dispatch gamepaddisconnected event
         if (snapshot) {
             globalThis.dispatchEvent?.(
                 new GamepadEvent('gamepaddisconnected', { gamepad: snapshot }) as unknown as Event,

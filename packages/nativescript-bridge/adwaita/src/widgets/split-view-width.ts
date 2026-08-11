@@ -2,23 +2,14 @@
 //
 // `Adw.OverlaySplitView` does not have a sidebar width; it has a FRACTION of the
 // container clamped between a minimum and a maximum, recomputed whenever the
-// container resizes. The NativeScript port instead carried a single invented
-// constant (240 DIP), which cannot be right across the range it has to serve:
+// container resizes — so any single constant is wrong somewhere across the phone →
+// tablet → desktop range. The arithmetic is HEADLESS in `@gjsify/adwaita-core`; what
+// this module adds is the NativeScript defaults and the "no size yet" case.
 //
-//   411 DIP phone  -> libadwaita 180 (clamp lifts 102 up), NS 240 = 58% of it
-//   800 DIP tablet -> libadwaita 200,                       NS 240
-//  1200 DIP        -> libadwaita 280 (clamp holds 300 down), NS 240
+// Free of `@nativescript/core` value imports so the spec suite exercises the shipping
+// code; `split-view-base.ts` `extends GridLayout` and is unresolvable off-device.
 //
-// The arithmetic itself is HEADLESS and lives in `@gjsify/adwaita-core`; what
-// this module adds is the NativeScript defaults and the "no size yet" case, so
-// that a widget which has not been laid out still has something to draw.
-//
-// Free of `@nativescript/core` value imports — like `icon-path.ts`,
-// `row-press.ts` and `avatar-color.ts` — so the spec suite exercises the
-// shipping code rather than a transcription of it. `split-view-base.ts` cannot
-// serve that role: it `extends GridLayout`, which is unresolvable off-device.
-//
-// Reference: refs/libadwaita/src/adw-overlay-split-view.c (:1036-1075)
+// Reference: refs/libadwaita/src/adw-overlay-split-view.c
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import {
@@ -60,10 +51,9 @@ export interface SplitViewWidthContext {
     /** The sidebar child's own minimum width. */
     sidebarChildMin?: number;
     /**
-     * Whether the view is collapsed. Overlay only, and not a detail: COLLAPSED
-     * `get_sidebar_width` IGNORES the fraction and clamps the VIEW width instead
-     * (adw-overlay-split-view.c:462-463), so on a 360 DIP phone GTK draws 280
-     * where a fraction would give 180.
+     * Whether the view is collapsed. Overlay only, and not a detail: a COLLAPSED
+     * `get_sidebar_width` IGNORES the fraction and clamps the VIEW width instead, so
+     * on a 360 DIP phone GTK draws 280 where a fraction would give 180.
      */
     collapsed?: boolean;
 }
@@ -71,20 +61,17 @@ export interface SplitViewWidthContext {
 /**
  * The sidebar width for a container of `totalWidth` DIPs.
  *
- * The two widgets genuinely differ, and not only in a corner: OVERLAY takes a
- * final `min(width, totalWidth - contentMin)`, so it never claims more than the
- * view has left; NAVIGATION folds that same limit into the clamp's UPPER bound,
- * where the LOWER bound can still win — so it may exceed the view. A 100 DIP
- * container with no content minimum at all already splits them: navigation
- * answers 180 (its minimum), overlay answers 100 (all there is).
+ * The two widgets genuinely differ: OVERLAY takes a final
+ * `min(width, totalWidth - contentMin)` and never claims more than the view has left;
+ * NAVIGATION folds that limit into the clamp's UPPER bound, where the LOWER bound can
+ * still win — so it may exceed the view. A 100 DIP container with no content minimum
+ * splits them: navigation answers 180 (its minimum), overlay answers 100.
  *
- * `collapsed` only reaches the overlay rule, because only the overlay has a
- * collapsed sidebar to size — a collapsed NAVIGATION pane fills the view and
- * takes no derived width at all ({@link appliesDerivedSidebarWidth}).
+ * `collapsed` only reaches the overlay rule, because only the overlay has a collapsed
+ * sidebar to size ({@link appliesDerivedSidebarWidth}).
  *
- * `totalWidth <= 0` means the view has not been laid out yet — NativeScript
- * reports a zero size before the first pass — so the MINIMUM is returned rather
- * than a fraction of nothing. That is the smallest thing libadwaita would ever
+ * `totalWidth <= 0` means NativeScript has not laid the view out yet, so the MINIMUM
+ * is returned rather than a fraction of nothing: the smallest thing libadwaita would
  * draw, so the first layout can only widen it, never jump down.
  */
 export function sidebarWidthFor(
@@ -109,29 +96,22 @@ export function sidebarWidthFor(
 /**
  * Whether the sidebar pane takes a DERIVED width at all, or sizes itself.
  *
- * Only one case says no, and it is the one that cost a frame-late regression:
- * a COLLAPSED navigation split view has no sidebar column. Its visible page
- * fills the whole view (`gtk_bin_layout_new`,
- * adw-navigation-split-view.c:538), which NativeScript expresses as
- * `width = 'auto'` spanning both columns — so writing a number over it, as the
- * post-layout re-measure did, snapped the full-screen pane back to 180-280 DIP
- * one frame after the collapse.
+ * Exactly one case says no: a COLLAPSED navigation split view has no sidebar column,
+ * its visible page fills the whole view, and NativeScript expresses that as
+ * `width = 'auto'` spanning both columns. Writing a number over it snaps the
+ * full-screen pane back to 180-280 DIP one frame after the collapse.
  *
- * The overlay is deliberately NOT exempt. Its collapsed sidebar really is a
- * clamped-width overlay drawn above the content
- * (adw-overlay-split-view.c:462-463), so it still wants a number — a shared
- * "collapsed means auto" rule would have been wrong for half the callers.
+ * The overlay is deliberately NOT exempt: its collapsed sidebar really is a
+ * clamped-width overlay drawn above the content, so it still wants a number.
  */
 export function appliesDerivedSidebarWidth(collapsed: boolean, rule: SplitViewWidthRule): boolean {
     return !(collapsed && rule === 'navigation');
 }
 
 /**
- * Normalise one width property, keeping a nonsense value from reaching layout.
- *
- * A non-finite or negative input falls back to the default rather than to zero:
- * a zero-width sidebar is indistinguishable from a missing one on screen, which
- * turns a typo into a widget that looks broken instead of one that looks wrong.
+ * Normalise one width property. A non-finite or negative input falls back to the
+ * DEFAULT rather than to zero, because a zero-width sidebar is indistinguishable from
+ * a missing one on screen.
  */
 export function normalizeWidthProp(value: number, fallback: number): number {
     return Number.isFinite(value) && value >= 0 ? value : fallback;

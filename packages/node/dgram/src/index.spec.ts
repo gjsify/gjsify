@@ -13,7 +13,6 @@ declare module 'node:dgram' {
 
 export default async () => {
     await describe('dgram', async () => {
-        // --- Module exports ---
         await describe('exports', async () => {
             await it('should export createSocket as a function', async () => {
                 expect(typeof createSocket).toBe('function');
@@ -29,7 +28,6 @@ export default async () => {
             });
         });
 
-        // --- Socket creation ---
         await describe('createSocket', async () => {
             await it('should create a udp4 socket', async () => {
                 const socket = createSocket('udp4');
@@ -66,7 +64,6 @@ export default async () => {
             });
         });
 
-        // --- Socket methods ---
         await describe('Socket methods', async () => {
             await it('should have multicast methods', async () => {
                 const socket = createSocket('udp4');
@@ -105,7 +102,6 @@ export default async () => {
             });
         });
 
-        // --- Close event ---
         await describe('close', async () => {
             await it('should emit close event', async () => {
                 const socket = createSocket('udp4');
@@ -127,7 +123,6 @@ export default async () => {
             });
         });
 
-        // --- Bind ---
         await describe('bind', async () => {
             await it('should bind and emit listening event', async () => {
                 const socket = createSocket('udp4');
@@ -286,8 +281,6 @@ export default async () => {
             });
         });
 
-        // --- Additional tests ---
-
         // Cross-platform fix: mismatched address-family sends must fail cleanly
         // via the callback with EINVAL. On Node this matches the kernel errno;
         // on GJS, Gio.Socket.send_to would otherwise throw NOT_SUPPORTED with a
@@ -445,7 +438,6 @@ export default async () => {
             });
         });
 
-        // --- setBroadcast ---
         // Ported from refs/node-test/parallel/test-dgram-setBroadcast.js
         await describe('setBroadcast', async () => {
             await it('should call setBroadcast after bind without error', async () => {
@@ -468,7 +460,6 @@ export default async () => {
             });
         });
 
-        // --- setTTL ---
         // Ported from refs/node-test/parallel/test-dgram-setTTL.js
         await describe('setTTL', async () => {
             await it('should return the TTL value after bind', async () => {
@@ -491,7 +482,6 @@ export default async () => {
             });
         });
 
-        // --- setMulticastTTL ---
         // Ported from refs/node-test/parallel/test-dgram-multicast-setTTL.js
         await describe('setMulticastTTL', async () => {
             await it('should return the TTL value after bind', async () => {
@@ -514,7 +504,6 @@ export default async () => {
             });
         });
 
-        // --- setMulticastLoopback ---
         // Ported from refs/node-test/parallel/test-dgram-multicast-loopback.js
         await describe('setMulticastLoopback', async () => {
             await it('should return the flag value after bind', async () => {
@@ -537,7 +526,6 @@ export default async () => {
             });
         });
 
-        // --- addMembership / dropMembership ---
         await describe('addMembership and dropMembership', async () => {
             await it('should have addMembership as a function', async () => {
                 const socket = createSocket('udp4');
@@ -552,7 +540,6 @@ export default async () => {
             });
         });
 
-        // --- ref / unref ---
         // Ported from refs/node-test/parallel/test-dgram-ref.js, test-dgram-unref.js
         await describe('ref and unref', async () => {
             await it('ref() should return the socket for chaining', async () => {
@@ -597,7 +584,6 @@ export default async () => {
             });
         });
 
-        // --- close ---
         await describe('close on unbound socket', async () => {
             await it('close() on unbound socket should not throw', async () => {
                 const socket = createSocket('udp4');
@@ -626,7 +612,6 @@ export default async () => {
             });
         });
 
-        // --- EventEmitter behavior ---
         await describe('EventEmitter behavior', async () => {
             await it('socket should be an instance of EventEmitter', async () => {
                 const socket = createSocket('udp4');
@@ -726,7 +711,6 @@ export default async () => {
             });
         });
 
-        // --- IPv6 socket creation ---
         await describe('IPv6 socket', async () => {
             await it('should create udp6 socket with options object', async () => {
                 const socket = createSocket({ type: 'udp6' });
@@ -756,7 +740,6 @@ export default async () => {
             });
         });
 
-        // --- bind with callback ---
         await describe('bind with callback', async () => {
             await it('should accept callback as second argument to bind(port, cb)', async () => {
                 const socket = createSocket('udp4');
@@ -777,7 +760,6 @@ export default async () => {
             });
         });
 
-        // --- setRecvBufferSize / setSendBufferSize ---
         await describe('setRecvBufferSize and setSendBufferSize', async () => {
             await it('should have setRecvBufferSize as a function', async () => {
                 const socket = createSocket('udp4');
@@ -828,7 +810,6 @@ export default async () => {
             });
         });
 
-        // --- connect / disconnect / remoteAddress ---
         // Ported from refs/node-test/parallel/test-dgram-connect.js
         await describe('connect and disconnect', async () => {
             await it('connect should set remoteAddress', async () => {
@@ -1000,7 +981,6 @@ export default async () => {
             });
         });
 
-        // --- Node.js-only tests requiring actual socket I/O ---
         await on('Node.js', async () => {
             await describe('UDP send', async () => {
                 await it('should send UDP message without error', async () => {

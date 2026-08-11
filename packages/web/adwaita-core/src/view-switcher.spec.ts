@@ -139,8 +139,8 @@ export default async () => {
         });
 
         await it('reads a badge that cannot exist in C as no badge at all', () => {
-            // `badge-number` is a guint; a negative or fractional value has no C
-            // spelling, and wrapping it around G_MAXUINT would invent a "999+".
+            // `badge-number` is a guint: a negative or fractional value has no C spelling,
+            // and wrapping around G_MAXUINT would invent a "999+".
             expect(viewSwitcherBadgeLabel(-5)).toBe('');
             expect(viewSwitcherBadgeLabel(Number.NaN)).toBe('');
             expect(viewSwitcherBadgeLabel(2.7)).toBe('2');
@@ -155,8 +155,8 @@ export default async () => {
         }
 
         await it('accepts a wave-1 view-stack page list unchanged', () => {
-            // The bar binds to an `Adw.ViewStack`, so the shape it can actually
-            // feed this must be the stack's own page descriptor.
+            // The bar binds to an `Adw.ViewStack`, so the only shape it can feed this is
+            // the stack's own page descriptor.
             const stack = new ViewStackState();
             stack.addPage({ name: 'a' });
             expect(shouldRevealViewSwitcherBar(true, stack.pages)).toBe(false);
@@ -246,8 +246,8 @@ export default async () => {
 
     await describe('policy + display-mode enums', async () => {
         await it('rejects an unknown value instead of coercing it to a default', () => {
-            // `g_return_if_fail (mode <= ADW_INLINE_VIEW_SWITCHER_BOTH)` REJECTS
-            // the call; the browser port replaced the current mode with 'both'.
+            // `g_return_if_fail (mode <= ADW_INLINE_VIEW_SWITCHER_BOTH)` REJECTS the call
+            // rather than falling back to 'both'.
             expect(isInlineViewSwitcherDisplayMode('bogus')).toBe(false);
             expect(isInlineViewSwitcherDisplayMode('labels')).toBe(true);
             expect(isViewSwitcherPolicy('bogus')).toBe(false);

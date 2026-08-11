@@ -176,8 +176,8 @@ export default async () => {
         }
 
         await it('coerces a truthy non-boolean, as `!!show_apply_button` does', () => {
-            // adw-entry-row.c:982 — the coercion is BEFORE the equality guard, so
-            // the property settles to `true` instead of holding the number 1.
+            // The coercion is BEFORE the equality guard, so the property settles to `true`
+            // instead of holding the number 1.
             const state = new EntryRowState();
             expect(state.setShowApplyButton(1 as unknown as boolean)).toBe(true);
             expect(state.showApplyButton).toBe(true);
@@ -226,10 +226,9 @@ export default async () => {
         });
 
         await it('needs no push from the password row when focus alone changes', () => {
-            // adw-password-entry-row.c:83-88 re-runs update_caps_lock on the focus
-            // notify; here the entry row's own `editing && show_indicator` gate
-            // (adw-entry-row.c:151) covers it, so a focus change re-derives the
-            // warning without the password row being involved at all.
+            // `adw-password-entry-row.c` re-runs update_caps_lock on the focus notify; here
+            // the entry row's own `editing && show_indicator` gate covers it, so a focus
+            // change re-derives the warning without the password row involved.
             const entry = new EntryRowState();
             const password = new PasswordEntryRowState(entry);
             password.setCapsLockOn(true);
@@ -241,7 +240,7 @@ export default async () => {
 
     await describe('entry-row layout constants', async () => {
         await it('carries the C source values so both renderers use one number', () => {
-            // adw-entry-row.c:18-19 — web hardcoded `1px`, NS `2`.
+            // adw-entry-row.c — web hardcoded `1px`, NS `2`.
             expect(EMPTY_ANIMATION_DURATION_MS).toBe(150);
             expect(ENTRY_ROW_TITLE_SPACING).toBe(3);
         });

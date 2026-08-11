@@ -1,14 +1,13 @@
 import Gio from '@girs/gio-2.0';
 import GioUnix from '@girs/giounix-2.0';
-/** Check if a file descriptor exists */
+/** Is `fd` open? Probed by wrapping it, as GLib has no file-descriptor test. */
 export const existsFD = (fd: number) => {
     try {
         let stream = GioUnix.InputStream.new(fd, false);
         stream.close(null);
-        // File descriptor 12345 exists
         return true;
     } catch (_error) {
-        // File descriptor 12345 does not exist
+        // The throw IS the answer: an unusable fd cannot be wrapped.
         return false;
     }
 };

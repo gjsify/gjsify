@@ -5,7 +5,6 @@ import { describe, it, expect } from '@gjsify/unit';
 import process from 'node:process';
 
 export default async () => {
-    // ===================== Signal handling =====================
     await describe('process signal handling', async () => {
         await it('should support registering SIGTERM handler', async () => {
             let _handlerCalled = false;
@@ -25,7 +24,6 @@ export default async () => {
         });
     });
 
-    // ===================== process.stdout/stderr =====================
     await describe('process.stdout and process.stderr', async () => {
         await it('process.stdout should exist', async () => {
             expect(process.stdout).toBeDefined();
@@ -44,14 +42,12 @@ export default async () => {
         });
     });
 
-    // ===================== process.stdin =====================
     await describe('process.stdin', async () => {
         await it('should exist', async () => {
             expect(process.stdin).toBeDefined();
         });
     });
 
-    // ===================== process.nextTick ordering =====================
     await describe('process.nextTick ordering', async () => {
         await it('should execute callbacks in FIFO order', async () => {
             const order: number[] = [];
@@ -86,7 +82,6 @@ export default async () => {
         });
     });
 
-    // ===================== process.env deep =====================
     await describe('process.env deep', async () => {
         await it('should support setting and deleting env vars', async () => {
             process.env.TEST_GJSIFY_VAR = 'test_value';
@@ -117,7 +112,6 @@ export default async () => {
         });
     });
 
-    // ===================== process.hrtime =====================
     await describe('process.hrtime deep', async () => {
         await it('hrtime should return [seconds, nanoseconds]', async () => {
             const hr = process.hrtime();
@@ -167,7 +161,6 @@ export default async () => {
         });
     });
 
-    // ===================== process.memoryUsage =====================
     await describe('process.memoryUsage deep', async () => {
         await it('should return object with expected fields', async () => {
             const mem = process.memoryUsage();
@@ -189,7 +182,6 @@ export default async () => {
         });
     });
 
-    // ===================== process.cpuUsage =====================
     await describe('process.cpuUsage deep', async () => {
         await it('should return user and system times', async () => {
             const usage = process.cpuUsage();
@@ -210,14 +202,12 @@ export default async () => {
         });
     });
 
-    // ===================== process.emitWarning =====================
     await describe('process.emitWarning', async () => {
         await it('should be a function', async () => {
             expect(typeof process.emitWarning).toBe('function');
         });
     });
 
-    // ===================== process.versions =====================
     await describe('process.versions deep', async () => {
         await it('should have versions object', async () => {
             expect(typeof process.versions).toBe('object');
@@ -234,7 +224,6 @@ export default async () => {
         });
     });
 
-    // ===================== process.config =====================
     await describe('process.config', async () => {
         await it('should be an object', async () => {
             expect(typeof process.config).toBe('object');

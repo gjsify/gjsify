@@ -1,15 +1,11 @@
-// StorybookWebApp — the browser component browser: a sidebar of stories grouped
-// by category, a preview pane, and a controls panel that renders live-bound
-// adwaita-web rows from each story's controls. The web counterpart of
-// @gjsify/storybook's StorybookWindow, built from @gjsify/adwaita-web custom
-// elements so it looks and behaves like the native GTK storybook.
+// The browser component browser — sidebar of stories by category, preview pane, and a
+// controls panel of live-bound adwaita-web rows; the web counterpart of
+// `@gjsify/storybook`'s `StorybookWindow`.
 //
-// The app state machine (register/instantiate, category grouping, show + wire
-// controls, the MCP control surface) lives in @gjsify/storybook-core's
-// StorybookController. This class is the browser StorybookView<StoryElement>:
-// it owns ONLY the adwaita-web split-views chrome (_buildUI), the browser-only
-// responsive breakpoint fold (_observeBreakpoint/_applyBreakpoint), and the
-// window.__storybook MCP bridge (_exposeGlobal, delegating to the controller).
+// `StorybookController` in `@gjsify/storybook-core` owns the app state machine. This
+// class is the browser `StorybookView<StoryElement>` and owns ONLY the split-views
+// chrome (`_buildUI`), the browser-only responsive fold (`_observeBreakpoint` /
+// `_applyBreakpoint`) and the `window.__storybook` MCP bridge (`_exposeGlobal`).
 
 import '@gjsify/adwaita-web'; // registers the custom elements + self-injects the adwaita stylesheet
 import type { StoryArgValue } from '@gjsify/stories';
@@ -87,14 +83,10 @@ export class StorybookWebApp implements StorybookView<StoryElement> {
     }
 
     /**
-     * Adapt the two split views to the available width, the way a desktop
-     * Adwaita window sheds panes as it narrows. There are two thresholds:
-     *
-     *   - below {@link CONTROLS_BREAKPOINT} the controls panel folds away into an
-     *     on-demand overlay, so the sidebar + preview keep their room (this is
-     *     what a medium embed — e.g. the docs page — wants);
-     *   - below {@link NAV_BREAKPOINT} there isn't room for the sidebar either,
-     *     so the whole thing goes single-pane and navigates one column at a time.
+     * Adapt the two split views to the available width, the way a desktop Adwaita
+     * window sheds panes as it narrows: below {@link CONTROLS_BREAKPOINT} the controls
+     * panel folds into an on-demand overlay so sidebar + preview keep their room, and
+     * below {@link NAV_BREAKPOINT} the sidebar goes too and nav is single-pane.
      */
     private _observeBreakpoint(): void {
         const apply = (): void => this._applyBreakpoint();
@@ -115,18 +107,14 @@ export class StorybookWebApp implements StorybookView<StoryElement> {
         const osv = this._controlsSplit as HTMLElement & { collapsed: boolean; showSidebar: boolean };
         if (nav.collapsed !== navCollapsed) nav.collapsed = navCollapsed;
         if (osv.collapsed !== controlsCollapsed) osv.collapsed = controlsCollapsed;
-        // Single-pane nav shows the story list first (like native); the back
-        // button only appears once a story is pushed onto the content pane.
+        // Single-pane nav shows the story list first, as native does; the back button
+        // only appears once a story is pushed onto the content pane.
         this._navSplit.removeAttribute('show-content');
         this._backBtn.hidden = true;
-        // The controls panel docks only when there's room; otherwise it's an
-        // on-demand overlay so the sidebar + preview keep their space.
         osv.showSidebar = !controlsCollapsed;
     }
 
-    // --- control surface (delegates to the controller; driven by host-level MCP via window.__storybook) ---
-
-    /** The currently-displayed story, or null. */
+    /** The currently-displayed story, or null. Also the MCP surface via `window.__storybook`. */
     get activeStory(): StoryElement | null {
         return this._controller.activeStory;
     }
@@ -150,8 +138,6 @@ export class StorybookWebApp implements StorybookView<StoryElement> {
     setActiveArg(name: string, value: StoryArgValue): boolean {
         return this._controller.setActiveArg(name, value);
     }
-
-    // --- StorybookView<StoryElement> render seams (driven by the controller) ---
 
     renderSidebar(groups: Array<CategoryGroup<StoryElement>>, onSelect: (instance: StoryElement) => void): void {
         this._listEl.replaceChildren();
@@ -217,7 +203,6 @@ export class StorybookWebApp implements StorybookView<StoryElement> {
     }
 
     private _buildUI(): void {
-        // --- Sidebar pane: header + scrollable story list ---
         this._listEl = h('div', { class: 'sb-sidebar-list navigation-sidebar' });
         const sidebarScroll = h('div', { class: 'sb-sidebar-scroll' }, [this._listEl]);
         const sidebarHeader = h('adw-header-bar', { slot: 'top' }, [
@@ -227,7 +212,6 @@ export class StorybookWebApp implements StorybookView<StoryElement> {
             h('adw-toolbar-view', {}, [sidebarHeader, sidebarScroll]),
         ]);
 
-        // --- Content pane: preview header + (preview | controls) split ---
         this._previewEl = h('div', { class: 'sb-preview-scroll' });
 
         this._controlsGroup = h('adw-preferences-group', { title: 'Controls' });
@@ -249,7 +233,6 @@ export class StorybookWebApp implements StorybookView<StoryElement> {
 
         this._controlsSplit = controlsSplit;
 
-        // Back button — only shown when collapsed, returns to the story list.
         this._backBtn = h('button', {
             class: 'adw-header-btn sb-back-btn',
             slot: 'start',
@@ -279,7 +262,6 @@ export class StorybookWebApp implements StorybookView<StoryElement> {
             h('adw-toolbar-view', {}, [previewHeader, controlsSplit]),
         ]);
 
-        // --- Outer split + window ---
         this._navSplit = h('adw-navigation-split-view', { 'min-sidebar-width': '220', 'max-sidebar-width': '320' }, [
             sidebarPane,
             contentPane,
@@ -289,8 +271,8 @@ export class StorybookWebApp implements StorybookView<StoryElement> {
     }
 
     private _exposeGlobal(): void {
-        // Expose a tiny control surface so the host browser's MCP `eval_js` can
-        // drive stories without an in-page devtools channel.
+        // A control surface for the host browser's MCP `eval_js`, so stories can be
+        // driven without an in-page devtools channel.
         (globalThis as unknown as { __storybook?: unknown }).__storybook = {
             listStories: () => this.listStories(),
             openStory: (title: string) => this.openStoryByTitle(title),

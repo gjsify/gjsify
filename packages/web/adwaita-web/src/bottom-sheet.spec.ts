@@ -2,18 +2,15 @@
 // the core suite and the NativeScript renderer assert against
 // (`@gjsify/adwaita-core/conformance`).
 //
-// `Adw.BottomSheet` has four dismissal paths and they are four different gates.
-// This element used to route all of them through one `_attemptClose()`, which
-// meant: the drag handle closed the sheet (in libadwaita it is `can_target =
-// FALSE` and closes nothing), Escape on a closed-but-focused sheet did nothing
-// (libadwaita still signals `close-attempt`), and the `sheet.close` action on an
-// already-closed sheet did nothing (libadwaita forwards it to the parent).
-// Nothing failed, because nothing compared the element to the C source.
+// `Adw.BottomSheet` has four dismissal paths and they are four DIFFERENT gates, so one
+// shared `_attemptClose()` cannot express them: the drag handle is `can_target = FALSE`
+// and closes nothing; Escape on a closed-but-focused sheet still signals
+// `close-attempt`; and the `sheet.close` action on an already-closed sheet forwards to
+// the parent.
 //
-// Two element-local bugs are pinned here too, both from the same root cause —
-// the open STATE used to be read off the attribute rather than held:
-// `open="false"` rendered OPEN, and re-spelling the attribute fired a
-// `notify::open` carrying an unchanged payload.
+// The open STATE must be HELD, not read back off the attribute — reading it made
+// `open="false"` render OPEN and let a re-spelt attribute fire a `notify::open` with an
+// unchanged payload.
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { AdwBottomSheet } from './elements/adw-bottom-sheet.js';
@@ -75,8 +72,8 @@ export const AdwBottomSheetTest = async () => {
                 });
 
                 expect(returned).toBe(outcome);
-                // The verdict must be VISIBLE, not just returned: a renderer that
-                // returns the right word and closes anyway is still wrong.
+                // The verdict must be VISIBLE, not just returned: returning the right word
+                // and closing anyway is still wrong.
                 expect(sheet.open).toBe(outcome === 'close' ? false : open);
                 expect(attempts).toBe(outcome === 'close-attempt' ? 1 : 0);
                 expect(delegated).toBe(outcome === 'delegate' ? 1 : 0);
@@ -120,9 +117,9 @@ export const AdwBottomSheetTest = async () => {
 
     await describe('adw-bottom-sheet open attribute semantics', async () => {
         await it('open="false" renders CLOSED', () => {
-            // The getter used to be `hasAttribute('open')` while every other
-            // boolean used `!== 'false'`, so one element carried two conventions.
-            // adw-bottom-sheet.c:1670 — `open = !!open` on a strict gboolean.
+            // `hasAttribute('open')` for the getter while every other boolean uses
+            // `!== 'false'` gives one element two conventions.
+            // adw-bottom-sheet.c — `open = !!open` on a strict gboolean.
             const sheet = document.createElement('adw-bottom-sheet') as AdwBottomSheet;
             sheet.setAttribute('open', 'false');
             document.body.appendChild(sheet);
@@ -141,10 +138,9 @@ export const AdwBottomSheetTest = async () => {
         });
 
         await it('re-spelling the attribute fires no spurious notify::open', () => {
-            // The old callback guarded only `oldValue === newValue` and then
-            // dispatched unconditionally, so `open=""` → `open="open"` fired a
-            // second notification carrying an UNCHANGED payload.
-            // adw-bottom-sheet.c:1672-1682 returns before notifying.
+            // Guarding only on `oldValue === newValue` lets `open=""` → `open="open"` fire
+            // a second notification carrying an UNCHANGED payload.
+            // adw-bottom-sheet.c returns before notifying.
             const sheet = mountSheet();
             const payloads: boolean[] = [];
             sheet.addEventListener('notify::open', (event) => {
@@ -170,9 +166,8 @@ export const AdwBottomSheetTest = async () => {
 
     await describe('adw-bottom-sheet affordances', async () => {
         await it('the drag handle is decorative — not focusable, not a button, closes nothing', () => {
-            // gtk_widget_set_can_focus/can_target (self->drag_handle, FALSE)
-            // — adw-bottom-sheet.c:1197-1198. This element used to give it
-            // role="button", tabindex=0 and a click-to-close handler.
+            // `gtk_widget_set_can_focus/can_target (self->drag_handle, FALSE)` — so no
+            // role="button", no tabindex=0 and no click-to-close handler.
             const sheet = mountSheet();
             sheet.open = true;
             const handle = dragHandle(sheet);
@@ -207,8 +202,8 @@ export const AdwBottomSheetTest = async () => {
         });
 
         await it('a dimming click on a CLOSED sheet does nothing and signals nothing', () => {
-            // The scrim is `can_target = open` (adw-bottom-sheet.c:1692), so it
-            // is not reachable at all — unlike Escape, it does not signal.
+            // The scrim is `can_target = open`, so it is not reachable at all — unlike
+            // Escape, it does not signal.
             const sheet = mountSheet();
             sheet.canClose = false;
             const { attempts } = recordSignals(sheet, () => {
@@ -228,10 +223,9 @@ export const AdwBottomSheetTest = async () => {
         });
 
         await it('Escape on a CLOSED but focused sheet still raises close-attempt', () => {
-            // maybe_close_cb's emit is the fallthrough for every case that is not
-            // (can_close && open) — adw-bottom-sheet.c:393-399. This element
-            // guarded it away twice (once in the key handler, once in
-            // `_attemptClose`), so the corner was unreachable.
+            // `maybe_close_cb`'s emit is the fallthrough for every case that is NOT
+            // (can_close && open); guarding it away in the key handler and in
+            // `_attemptClose` makes the corner unreachable.
             const sheet = mountSheet();
             const { attempts } = recordSignals(sheet, () => {
                 insideSheet(sheet).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
@@ -254,9 +248,9 @@ export const AdwBottomSheetTest = async () => {
         });
 
         await it('sheet.close on an already-closed sheet delegates upward', () => {
-            // sheet_close_cb activates the PARENT's `sheet.close` action instead
-            // of doing nothing — adw-bottom-sheet.c:382-385. A bubbling event is
-            // the DOM equivalent, so an enclosing sheet/dialog can act on it.
+            // `sheet_close_cb` activates the PARENT's `sheet.close` action rather than
+            // doing nothing; a bubbling event is the DOM equivalent, so an enclosing
+            // sheet or dialog can act on it.
             const sheet = mountSheet();
             const host = sheet.parentElement as HTMLElement;
             let seenOnAncestor = 0;
@@ -278,10 +272,10 @@ export const AdwBottomSheetTest = async () => {
         });
 
         await it('consumes the slot wrappers instead of leaving them in the content', () => {
-            // `<child type="sheet">` is GtkBuilder markup — nothing of it survives
-            // into the widget tree (adw-bottom-sheet.c:1278-1293). The emptied
-            // <adw-bottom-sheet-sheet> / <adw-bottom-sheet-content> wrappers used
-            // to fall through to `unslotted` and land in the content layer.
+            // `<child type="sheet">` is GtkBuilder markup and nothing of it survives into
+            // the widget tree, so the emptied <adw-bottom-sheet-sheet> /
+            // <adw-bottom-sheet-content> wrappers must not fall through to `unslotted` and
+            // land in the content layer.
             const sheet = mountSheet();
             const content = sheet.querySelector('.adw-bottom-sheet-content') as HTMLElement;
             expect(Array.from(content.children).map((el) => el.tagName.toLowerCase())).toStrictEqual(['button']);

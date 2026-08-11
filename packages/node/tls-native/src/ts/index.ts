@@ -1,35 +1,18 @@
 // @gjsify/tls-native — optional GjsifyTls GI module loader.
 //
-// Uses GJS's legacy `imports.gi` API (synchronous) rather than `gi://` ESM
-// so the loader stays usable from both library code and runtime entry points.
-// The try/catch provides graceful degradation: if the typelib is not in
-// `GI_TYPELIB_PATH` the module simply isn't available — `hasNativeTls()`
-// returns `false` and callers fall back to whatever the GnuTLS-less code
-// path is (typically: feature unsupported, raise a clear error).
+// Loads via the legacy synchronous `imports.gi` rather than `gi://` ESM so the
+// loader works from both library code and runtime entry points. Absent typelib
+// is not an error: `hasNativeTls()` returns `false` and callers degrade.
 
-/** Parsed OCSP response from `Tls.parse_ocsp_response`. Mirrors the
- *  GObject properties exposed by `GjsifyTls.OcspResponseInfo`. */
+/** Parsed OCSP response from `Tls.parse_ocsp_response`. */
 export interface OcspResponseInfo {
-    /**
-     * `responseStatus` per RFC 6960 §4.2.1.
-     *   0 = successful
-     *   1 = malformedRequest
-     *   2 = internalError
-     *   3 = tryLater
-     *   5 = sigRequired
-     *   6 = unauthorized
-     */
+    /** `responseStatus` per RFC 6960 §4.2.1 — see {@link OcspResponseStatus}. */
     responseStatus: number;
 
     /** `producedAt` (Unix seconds, 0 if unparseable). */
     producedAt: number;
 
-    /**
-     * `certStatus` per RFC 6960 §4.2.1.
-     *   0 = good
-     *   1 = revoked
-     *   2 = unknown
-     */
+    /** `certStatus` per RFC 6960 §4.2.1 — see {@link OcspCertStatus}. */
     certStatus: number;
 
     /** `thisUpdate` (Unix seconds). */
@@ -46,25 +29,15 @@ export interface OcspResponseInfo {
     revocationReason: number;
 }
 
-/** Native handle returned by `imports.gi.GjsifyTls`. The shape mirrors
- *  the GIR — `OcspResponseInfo` properties are exposed in camelCase via
- *  GObject's automatic property accessor lowering on the GJS side. */
+/** Native handle from `imports.gi.GjsifyTls`. `OcspResponseInfo` properties
+ *  arrive camelCased via GObject's property-accessor lowering in GJS. */
 export interface NativeTls {
-    /**
-     * Parse a DER-encoded OCSP response (RFC 6960). Returns `null` when
-     * the bytes are not a valid response (init / import errors).
-     */
+    /** Returns `null` when the bytes are not a valid OCSP response. */
     parse_ocsp_response(bytes: Uint8Array): OcspResponseInfo | null;
 }
 
-/**
- * Symbolic channel-binding type per RFC 5929 / RFC 9266.
- *
- * Mirrors `GjsifyTls.ChannelBindingType` in the GIR. Values are stable
- * across GnuTLS / OpenSSL / Node — the RFCs assign them implicitly via
- * the wire-protocol identifier ("tls-unique", "tls-server-end-point",
- * "tls-exporter").
- */
+/** Channel-binding type per RFC 5929 / RFC 9266; mirrors
+ *  `GjsifyTls.ChannelBindingType`. */
 export const TlsChannelBindingType = {
     /** `tls-unique` (RFC 5929 §3) — TLS 1.0–1.2 only. */
     TLS_UNIQUE: 0,
@@ -76,10 +49,10 @@ export const TlsChannelBindingType = {
 export type TlsChannelBindingType = (typeof TlsChannelBindingType)[keyof typeof TlsChannelBindingType];
 
 /**
- * Minimal Gio.TlsConnection shape — typed structurally so this module
- * doesn't take a value-level dep on `@girs/gio-2.0` (would force every
- * consumer to install the GIR-types package even on Node). Real
- * connections come from `@gjsify/tls`'s `TLSSocket._tlsConnection`.
+ * Minimal Gio.TlsConnection shape — typed structurally so this module takes no
+ * value-level dep on `@girs/gio-2.0`, which would force the GIR-types package
+ * on every consumer, Node included. Real connections come from `@gjsify/tls`'s
+ * `TLSSocket._tlsConnection`.
  */
 export interface TlsConnectionHandle {
     /** Tag for type-narrowing — present on real Gio.TlsConnection. */
@@ -87,15 +60,10 @@ export interface TlsConnectionHandle {
 }
 
 /**
- * Native SessionAccess wrapper (Phase 2 POC).
+ * Native SessionAccess wrapper, mirroring `GjsifyTls.SessionAccess`.
  *
- * Mirrors `GjsifyTls.SessionAccess` from the GIR. Every method currently
- * throws a GLib.Error with domain `gjsify-tls-session-access-error-quark`
- * and code `NOT_SUPPORTED` — see `docs/poc/tls-phase2-session-access.md`
- * for the open struct-layout question gating the real implementation.
- *
- * The shape is locked in now so flipping the native side from
- * throw → real is a transparent change for JS callers.
+ * On a non-GnuTLS GIO TLS backend every method throws a GLib.Error with
+ * domain `gjsify-tls-session-access-error-quark`, code `NOT_SUPPORTED`.
  */
 export interface NativeSessionAccess {
     /** `gnutls_session_is_resumed` — true if the session was resumed. */
@@ -116,16 +84,10 @@ export interface NativeSessionAccess {
 
 /** Native `SessionAccess` class constructor surface (GIR static methods). */
 export interface NativeSessionAccessClass {
-    /**
-     * Returns whether the native session access layer is functional.
-     * Currently always `false` — see `hasTlsSessionAccess()` for the
-     * preferred predicate that callers should use.
-     */
+    /** True when the GnuTLS session bridge works here; prefer the
+     *  {@link hasTlsSessionAccess} wrapper, which tolerates a missing typelib. */
     is_supported(): boolean;
-    /**
-     * Build a SessionAccess for a live `Gio.TlsConnection`. Returns
-     * `null` if @connection is `null`.
-     */
+    /** Returns `null` if @connection is `null`. */
     for_connection(connection: TlsConnectionHandle | null): NativeSessionAccess | null;
 }
 
@@ -135,7 +97,6 @@ export interface GjsifyTlsModule {
     ChannelBindingType: typeof TlsChannelBindingType;
 }
 
-// Synchronous optional load via GJS legacy imports API.
 let _mod: GjsifyTlsModule | null = null;
 
 /** Module-local typed view of the GJS legacy `imports.gi` host slot. */
@@ -148,8 +109,7 @@ if (_gi) {
     try {
         _mod = _gi['GjsifyTls'] as GjsifyTlsModule;
     } catch {
-        // GjsifyTls typelib not installed — feature unsupported by this
-        // runtime; consumers should check `hasNativeTls()` before calling.
+        // Typelib not installed — consumers gate on `hasNativeTls()`.
     }
 }
 
@@ -162,17 +122,11 @@ export function hasNativeTls(): boolean {
 }
 
 /**
- * Parse a DER-encoded OCSP response (RFC 6960).
+ * Parse a DER-encoded OCSPResponse (RFC 6960) — typically the body of a POST to
+ * the cert's AIA responder URL. `null` when the bytes do not parse.
  *
- * Throws when `@gjsify/tls-native`'s typelib is not loaded — callers can
- * gate with `hasNativeTls()` and fall back to a pure-JS path (no such path
- * exists today; OCSP parsing requires either the GnuTLS bridge here or a
- * full RFC 6960 ASN.1 decoder).
- *
- * @param bytes  DER-encoded OCSPResponse bytes (typically the body of a
- *               POST response from the cert's AIA OCSP responder URL).
- * @returns      Parsed response on success, `null` when the bytes don't
- *               parse as an OCSPResponse.
+ * Throws without the typelib; gate on `hasNativeTls()`. There is no pure-JS
+ * fallback — the alternative would be a full RFC 6960 ASN.1 decoder.
  */
 export function parseOcspResponse(bytes: Uint8Array): OcspResponseInfo | null {
     if (!_mod) {
@@ -181,10 +135,7 @@ export function parseOcspResponse(bytes: Uint8Array): OcspResponseInfo | null {
     return _mod.Tls.parse_ocsp_response(bytes);
 }
 
-/**
- * Symbolic OCSP cert-status values per RFC 6960 §4.2.1. Use as
- * `OcspCertStatus.GOOD` for readable comparisons.
- */
+/** OCSP cert-status values per RFC 6960 §4.2.1. */
 export const OcspCertStatus = {
     GOOD: 0,
     REVOKED: 1,
@@ -192,9 +143,7 @@ export const OcspCertStatus = {
 } as const;
 export type OcspCertStatus = (typeof OcspCertStatus)[keyof typeof OcspCertStatus];
 
-/**
- * Symbolic OCSP responseStatus values per RFC 6960 §4.2.1.
- */
+/** OCSP responseStatus values per RFC 6960 §4.2.1. */
 export const OcspResponseStatus = {
     SUCCESSFUL: 0,
     MALFORMED_REQUEST: 1,
@@ -205,22 +154,13 @@ export const OcspResponseStatus = {
 } as const;
 export type OcspResponseStatus = (typeof OcspResponseStatus)[keyof typeof OcspResponseStatus];
 
-// ─── Phase 2: SessionAccess (POC scaffold) ─────────────────────────────────
-
 /**
- * Returns `true` when the Phase 2 session-access bridge is functional.
+ * Returns `true` when the session-access bridge works on this host: it needs the
+ * typelib AND glib-networking's GnuTLS backend, whose private struct the C shim
+ * reads (`docs/poc/tls-phase2-session-access.md`).
  *
- * Today this always returns `false` even when the native typelib is
- * loaded — the underlying gnutls_session_t extraction from
- * `Gio.TlsConnection` is not yet implemented. See
- * `docs/poc/tls-phase2-session-access.md` for the open question.
- *
- * Callers (e.g. `@gjsify/tls`'s `TLSSocket.getFinished()`) should gate
- * with this predicate so consumers can detect "not supported on this
- * platform / version" without triggering a thrown error.
- *
- * When the native side becomes functional this predicate flips to
- * `true` automatically (it reads `GjsifyTls.SessionAccess.is_supported()`).
+ * Callers such as `@gjsify/tls`'s `TLSSocket.getFinished()` gate on this so an
+ * unsupported backend degrades to Node's no-session contract instead of throwing.
  */
 export function hasTlsSessionAccess(): boolean {
     if (!_mod) return false;
@@ -232,12 +172,9 @@ export function hasTlsSessionAccess(): boolean {
 }
 
 /**
- * Build a {@link NativeSessionAccess} wrapper around a live
- * `Gio.TlsConnection`. Returns `null` if @connection is `null` or
- * the native typelib is unavailable.
- *
- * The returned object's methods THROW until {@link hasTlsSessionAccess}
- * starts returning `true` — surface stays stable across the impl flip.
+ * Wrap a live `Gio.TlsConnection`. `null` if @connection is `null` or the native
+ * typelib is unavailable; the returned methods throw `NOT_SUPPORTED` unless
+ * {@link hasTlsSessionAccess} is `true`.
  */
 export function createSessionAccess(connection: TlsConnectionHandle | null): NativeSessionAccess | null {
     if (!_mod) return null;

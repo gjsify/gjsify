@@ -19,7 +19,7 @@ export interface AvatarInitialsVector {
 }
 
 /**
- * `extract_initials_from_text` (adw-avatar.c:85) — the first character, plus the
+ * `extract_initials_from_text` — the first character, plus the
  * character after the LAST ASCII space when there is one.
  */
 export const AVATAR_INITIALS_VECTORS: ReadonlyArray<AvatarInitialsVector> = [
@@ -57,18 +57,17 @@ export interface AvatarFontSizeVector {
     size: number;
     /** `sqr_size - padding` for that diameter, rounded to 2dp for the table. */
     maxFontSize: number;
-    /** What the browser renderer's old heuristic asked for, before this landed. */
+    /** The pre-lift browser heuristic, kept as the counter-example. */
     legacyWebGuess: number;
 }
 
 /**
- * `update_font_size`'s cap (adw-avatar.c:221-227) — the inscribed square
+ * `update_font_size`'s cap — the inscribed square
  * `size / 1.4142` less `max(size * 0.4 - 5, 0)`.
  *
- * `legacyWebGuess` is kept in the table on purpose: it is `size * (size < 32 ?
- * 0.5 : 0.4)`, which OVERFLOWS the cap at 28, 30, 31 and every size from 64 up
- * (the initials spilled out of the circle), and is not even monotonic — it asked
- * for 16px at size 31 and 13px at size 32.
+ * `legacyWebGuess` is kept in the table on purpose: `size * (size < 32 ? 0.5 : 0.4)`
+ * OVERFLOWS the cap at 28, 30, 31 and every size from 64 up (the initials spill out of the
+ * circle), and is not even monotonic — 16px at size 31, 13px at size 32.
  */
 export const AVATAR_FONT_SIZE_VECTORS: ReadonlyArray<AvatarFontSizeVector> = [
     { size: 12, maxFontSize: 8.49, legacyWebGuess: 6 },
@@ -91,7 +90,7 @@ export interface AvatarModeVector {
     rule: string;
 }
 
-/** `update_visibility` (adw-avatar.c:117). */
+/** `update_visibility`. */
 export const AVATAR_MODE_VECTORS: ReadonlyArray<AvatarModeVector> = [
     { hasCustomImage: true, showInitials: true, text: 'Ada', mode: 'image', rule: 'a custom image wins outright' },
     {
@@ -113,7 +112,7 @@ export const AVATAR_MODE_VECTORS: ReadonlyArray<AvatarModeVector> = [
 ];
 
 /**
- * `g_str_hash` + `set_class_color` (adw-avatar.c:143).
+ * `g_str_hash` + `set_class_color`.
  *
  * The non-ASCII rows are the ones that matter: GLib hashes the UTF-8 bytes as
  * `signed char`, so a port reading UTF-16 code units picks a different colour

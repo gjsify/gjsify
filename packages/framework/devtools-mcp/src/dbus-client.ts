@@ -2,10 +2,9 @@
 // DBus-call mechanics adapted from the PixelRPG map-editor (apps/mcp-bridge/src/index.ts).
 // Copyright (c) PixelRPG. MIT.
 //
-// Two transports, one call path: the session bus (Linux default, unchanged) and
-// a bus-less `Gio.DBusServer` PEER address (macOS/Windows, where there is no
-// session bus at all). The only wire difference is the destination — a peer
-// connection has no bus name, so every call sends `null` there.
+// Two transports, one call path: the session bus, and a bus-less `Gio.DBusServer` PEER
+// address for macOS/Windows, which have no session bus at all. The only wire difference
+// is the destination — a peer connection has no bus name, so every call sends `null`.
 
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
@@ -48,12 +47,11 @@ function envValue(name: string): string | null {
 }
 
 /**
- * Read the peer address an app of this id published, or `null` when there is none.
- * A CLAIM, not proof: the app deletes the file on `unexport`/`shutdown`, but
- * Ctrl-C, SIGKILL and a crash all skip that — and on macOS/Windows
- * `GLib.get_user_runtime_dir()` degrades to the user CACHE dir, where a leftover
- * file survives reboots. {@link connectToDevtools} therefore VERIFIES the claim by
- * dialling it, and deletes it when nothing answers.
+ * Read the peer address an app of this id published, or `null`. A CLAIM, not proof: the
+ * app deletes the file on `unexport`/`shutdown`, but Ctrl-C, SIGKILL and a crash all skip
+ * that, and on macOS/Windows `GLib.get_user_runtime_dir()` degrades to the user CACHE
+ * dir, where a leftover survives reboots. {@link connectToDevtools} therefore VERIFIES
+ * the claim by dialling it, and deletes it when nothing answers.
  */
 function readAddressFile(path: string): string | null {
     if (!GLib.file_test(path, GLib.FileTest.EXISTS)) return null;
@@ -68,9 +66,9 @@ function readAddressFile(path: string): string | null {
 }
 
 /**
- * Retract a published address whose claim just proved false, so the next bridge
- * run does not repeat the dead dial. A failure here is genuinely uninteresting:
- * the file being gone is the state being asked for.
+ * Retract a published address whose claim proved false, so the next bridge run does not
+ * repeat the dead dial. A failure here is uninteresting: the file being gone IS the state
+ * being asked for.
  */
 function deleteAddressFile(path: string): void {
     try {
@@ -106,10 +104,9 @@ export interface ConnectContext {
 }
 
 /**
- * The two I/O steps of the resolution, overridable ONLY so the specs can drive
- * every row of the precedence — including "stale file falls back to the session
- * bus" — on a host with no bus daemon, which is what CI and macOS are. The
- * defaults are the real GDBus calls.
+ * The resolution's two I/O steps, overridable ONLY so the specs can drive every row of
+ * the precedence — "stale file falls back to the session bus" included — on a host with
+ * no bus daemon, which is what CI and macOS are.
  */
 export interface ConnectDeps {
     dial?: (address: string) => Gio.DBusConnection;
@@ -120,21 +117,18 @@ export interface ConnectDeps {
  * Resolve the precedence into a LIVE connection — dial-then-fallback, not
  * dial-and-hope.
  *
- * The published address file outranks the session bus because it is meant to be
- * positive evidence that an app of exactly this id is listening NOW. Nothing made
- * that true: it is removed on `unexport`/`GApplication::shutdown`, and GApplication
- * installs a handler for SIGTERM only, so Ctrl-C, SIGKILL and a crash all leave it
- * behind — and `Gio.DBusConnection.new_for_address_sync` on a socket that is gone
- * throws `G_IO_ERROR_NOT_FOUND` (measured, gjs 1.88.1) out of the bridge's FIRST
- * statement. Ranking a claim above the bus is only honest if the claim is CHECKED:
- * dial it, and on failure delete the file and continue down the precedence. A stale
- * file then degrades to "the session bus, as on any Linux desktop" or to the
- * three-ways-in diagnostic, never to a raw localised GIO error.
+ * The published address file outranks the session bus as positive evidence that an app of
+ * exactly this id is listening NOW — but only if the claim is CHECKED, because nothing
+ * makes it true: GApplication handles SIGTERM only, so Ctrl-C, SIGKILL and a crash all
+ * leave the file behind, and `Gio.DBusConnection.new_for_address_sync` on a vanished
+ * socket throws `G_IO_ERROR_NOT_FOUND` (measured, gjs 1.88.1) out of the bridge's FIRST
+ * statement. So: dial it, and on failure delete it and continue down the precedence, which
+ * degrades to the session bus or to the three-ways-in diagnostic rather than to a raw
+ * localised GIO error.
  *
- * An EXPLICIT address (`--address`, `GJSIFY_DEVTOOLS_ADDRESS`) deliberately does
- * NOT fall back: the operator named it on both sides, so quietly talking to
- * something else would hide the typo instead of reporting it. It fails with a
- * message naming that address and what to do — not with GIO's.
+ * An EXPLICIT address (`--address`, `GJSIFY_DEVTOOLS_ADDRESS`) deliberately does NOT fall
+ * back: the operator named it on both sides, so talking to something else would hide the
+ * typo instead of reporting it.
  */
 export function connectToDevtools(
     ctx: ConnectContext,
@@ -222,9 +216,8 @@ export class DbusDevtoolsClient {
     ) {
         const instance = options.instance ?? envValue(DEVTOOLS_INSTANCE_ENV) ?? undefined;
         const addressFilePath = devtoolsAddressFilePath(GLib.get_user_runtime_dir(), busNameBase, instance);
-        // One resolution step, so `transport` and `_bus` can never disagree about
-        // what this client is talking to: the transport a dial SUCCEEDED on is the
-        // transport reported.
+        // One resolution step, so `transport` and `_bus` cannot disagree: the transport a
+        // dial SUCCEEDED on is the transport reported.
         const { bus, transport } = connectToDevtools({
             busNameBase,
             instance,
@@ -251,9 +244,8 @@ export class DbusDevtoolsClient {
     }
 
     /**
-     * The destination for a call. A peer connection has no bus daemon and no
-     * name registry, so the message must carry NO destination — sending the
-     * well-known name there gets `ServiceUnknown` from a peer that has never
+     * A peer connection has no bus daemon and no name registry, so the message must carry
+     * NO destination: the well-known name gets `ServiceUnknown` from a peer that has never
      * heard of names.
      */
     private _destination(label?: string): string | null {
@@ -299,9 +291,9 @@ export class DbusDevtoolsClient {
     }
 
     /**
-     * Whether `busName` currently has an owner (the app is running). In peer
-     * mode there is no name registry: being connected IS the answer, because the
-     * socket belongs to exactly one app process.
+     * Whether `busName` currently has an owner, i.e. the app is running. In peer mode
+     * there is no name registry and being connected IS the answer, because the socket
+     * belongs to exactly one app process.
      */
     nameHasOwner(busName: string): Promise<boolean> {
         if (this.transport.kind === 'peer') return Promise.resolve(!this._bus.is_closed());
@@ -328,9 +320,9 @@ export class DbusDevtoolsClient {
     }
 
     /**
-     * Enumerate devtools-enabled instances (base + labelled). Enumeration is a
-     * BUS feature; a peer address reaches exactly one app, so peer mode reports
-     * that one rather than pretending to have searched.
+     * Enumerate devtools-enabled instances. Enumeration is a BUS feature: a peer address
+     * reaches exactly one app, so peer mode reports that one rather than pretending to
+     * have searched.
      */
     listInstances(): Promise<DevtoolsInstanceRef[]> {
         if (this.transport.kind === 'peer') {

@@ -3,8 +3,7 @@ import type { HTMLElement } from '@gjsify/dom-elements';
 /**
  * HTML Image Element.
  *
- * Reference:
- * https://developer.mozilla.org/en-US/docs/Web/API/HTMLImageElement.
+ * Reference: https://developer.mozilla.org/en-US/docs/Web/API/HTMLImageElement
  */
 export interface IHTMLImageElement extends HTMLElement {
     alt: string;
@@ -26,19 +25,9 @@ export interface IHTMLImageElement extends HTMLElement {
     readonly x: number;
     readonly y: number;
 
-    /**
-     * The decode() method of the HTMLImageElement interface returns a Promise that resolves when the image is decoded and it is safe to append the image to the DOM.
-     *
-     * @returns Promise.
-     */
+    /** Resolves once the image is decoded and safe to append to the DOM. */
     decode(): Promise<void>;
 
-    /**
-     * Clones a node.
-     *
-     * @override
-     * @param [deep=false] "true" to clone deep.
-     * @returns Cloned node.
-     */
+    /** @override */
     cloneNode(deep?: boolean): IHTMLImageElement;
 }

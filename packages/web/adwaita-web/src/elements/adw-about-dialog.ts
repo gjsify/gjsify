@@ -1,65 +1,52 @@
-// <adw-about-dialog> — The standard Adwaita "About" dialog (the web counterpart
-// of Adw.AboutDialog). It is a modal AdwDialog (a full-cover scrim + a centred,
-// scrollable floating sheet) hosting a navigation view: the main page shows the
-// app icon, name, developer name and a version pill, followed by up to three
-// preference groups of rows that link out or push a subpage.
+// <adw-about-dialog> — The standard Adwaita "About" dialog (the web counterpart of
+// Adw.AboutDialog): a modal AdwDialog (full-cover scrim + centred, scrollable
+// floating sheet) hosting a navigation view, whose main page shows the app icon,
+// name, developer name and a version pill, followed by up to three preference
+// groups of rows that link out or push a subpage.
 //
-// Like Adw.AboutDialog the dialog is presented imperatively — `present()` (or
-// setting the `open` attribute) reveals it; Escape, a scrim click, the header
-// close button, or `close()` dismisses it. The header title fades in once the
-// main page is scrolled (mirroring AdwAboutDialog's update_headerbar_cb).
+// Presented imperatively — `present()` (or setting `open`) reveals it; Escape, a
+// scrim click, the header close button or `close()` dismisses it. The header title
+// fades in once the main page is scrolled (`update_headerbar_cb`).
 //
 // WHICH PAGE A ROW IS ON IS NOT A LAYOUT CHOICE — it is `update_details` and
-// `update_support`, and this element used to get it wrong in three ways: it put
-// Support Questions and Report an Issue on the DETAILS page, where the template
-// keeps them on the MAIN page (adw-about-dialog.ui:146-186); it treated
-// `website` as Details content, which is the one input libadwaita deliberately
-// leaves out of that predicate (adw-about-dialog.c:1108), so a dialog whose only
-// extra was a website grew a Details subpage holding a single link; and it
-// invented fallbacks GTK does not have — "Application" for a missing name, a
-// generic executable glyph for a missing icon, and an "About <app>" title on top
-// of an "About <app>" label. All four derivations now come from
-// `@gjsify/adwaita-core`, which holds them once for both renderers (ADR 0004)
-// and is held to `@gjsify/adwaita-core/conformance`.
+// `update_support`. `website` is the one input libadwaita deliberately leaves OUT
+// of the details predicate, so a dialog whose only extra is a website must not grow
+// a Details subpage holding a single link; and there are no fallbacks GTK does not
+// have (no "Application" for a missing name, no generic glyph for a missing icon).
+// All four derivations come from `@gjsify/adwaita-core` (ADR 0004), which holds them
+// once for both renderers and is held to `@gjsify/adwaita-core/conformance`.
 //
 // Properties / attributes (all reflected, mirroring the AdwAboutDialog GObject
 // properties of the same name, hyphenated):
 //   application-name   the application's display name (shown as a title-1)
-//   application-icon   a symbolic icon name (with or without -symbolic) — the
-//                        large app icon; absent one, no icon is drawn
+//   application-icon   a symbolic icon name (with or without -symbolic); absent
+//                        one, no icon is drawn
 //   developer-name     the developer / vendor line below the name
 //   version            the version, shown as a clickable pill
-//   comments           a longer description (shown on the Details page)
-//   website            the application's website URL — a Website link row, on
-//                        the MAIN page unless the Details page has other content
+//   comments           a longer description (Details page)
+//   website            the website URL — a Website link row, on the MAIN page
+//                        unless the Details page has other content
 //   support-url        a support-forum URL (a main-page Support Questions row)
 //   issue-url          an issue-tracker URL (a main-page Report an Issue row)
-//   copyright          the copyright line (shown on the Legal page)
-//   license            the license text/name (shown on the Legal page); when a
-//                        `license-url` is also given the name becomes a link
+//   copyright          the copyright line (Legal page)
+//   license            the license text/name (Legal page); with a `license-url`
+//                        the name becomes a link
 //   license-url        a URL the license name links to
 //   open               (boolean) whether the dialog is presented
 //
 // List-valued credits are set via properties (string arrays), mirroring the
-// AdwAboutDialog `developers` / `designers` / `artists` / `documenters`
-// properties — entries may be `Name`, `Name <email>` or `Name https://url`,
-// parsed by the core's `parseCreditPerson`, which is `parse_person` (:490-534).
+// AdwAboutDialog `developers` / `designers` / `artists` / `documenters` properties
+// — entries may be `Name`, `Name <email>` or `Name https://url`, parsed by the
+// core's `parseCreditPerson` (`parse_person`).
 //
-// NOT implemented here (and therefore left at their empty values when the core
-// derivations are asked): `release-notes` + the What's New page, `debug-info` +
-// the Troubleshooting page, `add_link`, `add_credit_section`,
-// `translator-credits` and the Acknowledgements page. The core covers all of
-// them; adopting them is a feature, not a fidelity fix.
+// NOT implemented here, so the core derivations see them empty: `release-notes` +
+// the What's New page, `debug-info` + the Troubleshooting page, `add_link`,
+// `add_credit_section`, `translator-credits` and the Acknowledgements page.
 //
-// Events (CustomEvent, bubbles):
-//   `notify::open` (detail = { open }) when the presented state changes —
-//     mirrors the Adw.Dialog `open` notification.
-//   `closed` when the dialog is dismissed — mirrors Adw.Dialog::closed.
-//   `activate-link` (detail = { uri }, CANCELABLE) when a link is activated —
-//     mirrors AdwAboutDialog::activate-link, a boolean signal with the
-//     `true_handled` accumulator (:2093-2103): a handler that returns TRUE
-//     suppresses the default navigation (:429-437). `preventDefault()` is the
-//     web spelling of returning TRUE.
+// Events (CustomEvent, bubbles): `notify::open` (detail `{ open }`), `closed`, and
+// `activate-link` (detail `{ uri }`, CANCELABLE — the signal's `true_handled`
+// accumulator means "a handler returned TRUE suppresses the default navigation",
+// which is what `preventDefault()` spells).
 //
 // Reference: refs/libadwaita/src/adw-about-dialog.c (AdwAboutDialog behaviour)
 // Reference: refs/libadwaita/src/adw-about-dialog.ui (navigation page tree)
@@ -119,8 +106,6 @@ export class AdwAboutDialog extends HTMLElement {
             'open',
         ];
     }
-
-    // --- Reflected scalar properties ---
 
     get applicationName(): string {
         return this.getAttribute('application-name') ?? '';
@@ -210,7 +195,6 @@ export class AdwAboutDialog extends HTMLElement {
         this.setAttribute('license-url', value);
     }
 
-    /** Whether the dialog is presented. */
     get open(): boolean {
         return this.hasAttribute('open');
     }
@@ -219,8 +203,6 @@ export class AdwAboutDialog extends HTMLElement {
         if (value) this.setAttribute('open', '');
         else this.removeAttribute('open');
     }
-
-    // --- List-valued credit properties (no attribute form) ---
 
     get developers(): string[] {
         return this._developers;
@@ -272,19 +254,17 @@ export class AdwAboutDialog extends HTMLElement {
         if (this._initialized) return;
         this._initialized = true;
 
-        // The full-cover modal scrim — clicking it dismisses the dialog.
         this._scrimEl = document.createElement('div');
         this._scrimEl.className = 'adw-about-dialog-scrim';
         this._scrimEl.addEventListener('click', () => this.close());
 
-        // The centred floating sheet.
         this._sheetEl = document.createElement('div');
         this._sheetEl.className = 'adw-about-dialog-sheet';
         this._sheetEl.setAttribute('role', 'dialog');
         this._sheetEl.setAttribute('aria-modal', 'true');
-        // AdwDialog:title, whose template default is the bare word (.ui:6). The
-        // application name is announced by the title-1 label inside, exactly as
-        // the header revealer shows it separately in GTK (.ui:29-31).
+        // AdwDialog:title, whose template default is the bare word. The application
+        // name is announced by the title-1 label inside, exactly as the header
+        // revealer shows it separately in GTK.
         this._sheetEl.setAttribute('aria-label', ADW_ABOUT_DIALOG_LABELS.dialogTitle);
 
         this.replaceChildren(this._scrimEl, this._sheetEl);
@@ -337,23 +317,18 @@ export class AdwAboutDialog extends HTMLElement {
     }
 
     /**
-     * Whether the Legal page has anything on it.
-     *
-     * This element's licence model is the simplified one — a name plus an
-     * optional URL — so it maps onto `GtkLicense` as "custom text when a licence
-     * is set, unknown otherwise", which is what `adw_about_dialog_set_license`
-     * does to the type anyway (:3472).
+     * Whether the Legal page has anything on it. This element's licence model is the
+     * simplified one — a name plus an optional URL — so it maps onto `GtkLicense` as
+     * "custom text when a licence is set, unknown otherwise", which is what
+     * `adw_about_dialog_set_license` does to the type anyway.
      */
     private _hasLegal(): boolean {
         const licenseType = this.license.length > 0 ? GTK_LICENSE.CUSTOM : GTK_LICENSE.UNKNOWN;
         return legalSectionVisible(this.copyright, licenseType, this.license);
     }
 
-    /** Rebuild the sheet contents from the current attributes / credit lists. */
     private _render(): void {
         const sections = this._creditsSections();
-        // The four inputs this element has no API for stay empty: `debug-info`,
-        // `release-notes`, `add_link` and the acknowledgements page.
         const visibility = aboutDialogVisibility({
             applicationIcon: this.applicationIcon,
             applicationName: this.applicationName,
@@ -367,12 +342,11 @@ export class AdwAboutDialog extends HTMLElement {
             hasLegal: this._hasLegal(),
         });
 
-        // The navigation view (main page + subpages) lives inside the sheet.
         this._navView = document.createElement('adw-navigation-view');
         this._navView.append(this._buildMainPage(visibility));
 
         // The Details page exists exactly when its row does — `details_row` is
-        // `has_comments || show_links` (:1115), i.e. "the page has content".
+        // `has_comments || show_links`, i.e. "the page has content".
         if (visibility.detailsRow) this._navView.append(this._buildDetailsPage(visibility));
         if (visibility.creditsRow) this._navView.append(this._buildCreditsPage(sections));
         if (visibility.legalRow) this._navView.append(this._buildLegalPage());
@@ -385,10 +359,8 @@ export class AdwAboutDialog extends HTMLElement {
 
     /**
      * A navigation page wrapping a header bar (with the close button) + content.
-     *
-     * `headerTitle` defaults to the page title; the main page overrides it,
-     * because its page title is the dialog's ("About", .ui:19) while its header
-     * shows the application name (.ui:30).
+     * `headerTitle` defaults to the page title; the main page overrides it, because its
+     * page title is the dialog's ("About") while its header shows the application name.
      */
     private _buildPage(
         tag: string,
@@ -410,9 +382,10 @@ export class AdwAboutDialog extends HTMLElement {
         header.setAttribute('title', headerTitle);
 
         if (showClose) {
-            // The close button — drawn with a CSS "×" glyph (no window-close
-            // symbolic icon ships in @gjsify/adwaita-icons, the same approach as
-            // adw-tab-view's close affordance).
+            // The close button — drawn with a CSS "×" glyph, the same approach as
+            // adw-tab-view's close affordance: `window-close` has no mask class,
+            // because it is not in the ICONS map in `scripts/build-scss.mjs` that
+            // generates them (`@gjsify/adwaita-icons` does export the SVG).
             const close = document.createElement('button');
             close.type = 'button';
             close.className = 'adw-button flat circular adw-about-dialog-close';
@@ -422,8 +395,8 @@ export class AdwAboutDialog extends HTMLElement {
                 const end = (header as { endSection?: HTMLElement | null }).endSection ?? null;
                 if (end) end.appendChild(close);
             };
-            // The header bar builds its sections in its own connectedCallback;
-            // append the close button once that has run.
+            // The header bar builds its sections in its own connectedCallback, so the
+            // close button can only be appended after that has run.
             queueMicrotask(endApply);
         }
 
@@ -445,7 +418,6 @@ export class AdwAboutDialog extends HTMLElement {
         if (tag === 'main') {
             this._scrollEl = scroll;
             this._mainToolbarEl = toolbar;
-            // The main page's header title fades in once the content scrolls.
             toolbar.classList.add('main-page');
             scroll.addEventListener('scroll', () => this._updateHeaderTitle());
         }
@@ -453,21 +425,19 @@ export class AdwAboutDialog extends HTMLElement {
         return { page, body, header };
     }
 
-    /** The main page: icon, name, developer, version pill, then the three groups. */
     private _buildMainPage(visibility: ReturnType<typeof aboutDialogVisibility>): HTMLElement {
         const { page, body } = this._buildPage('main', ADW_ABOUT_DIALOG_LABELS.dialogTitle, true, this.applicationName);
 
-        // App icon — a large symbolic glyph, and only when one was given. GTK
-        // hides the image outright for an empty icon name (:2313-2314); picking
-        // a generic glyph here would show an icon for an application that asked
-        // for none. A reverse-DNS application id (`org.gnome.Builder`) is not one
-        // CSS token and resolves to no glyph rather than to three stray classes —
-        // see `normalizeIconName`.
+        // Only when one was given: GTK hides the image outright for an empty icon
+        // name, and a generic glyph would show an icon for an application that asked
+        // for none. A reverse-DNS application id (`org.gnome.Builder`) is not one CSS
+        // token and resolves to no glyph rather than to three stray classes — see
+        // `normalizeIconName`.
         if (visibility.appIcon) {
             body.appendChild(createAdwIcon(this.applicationIcon, 'adw-about-dialog-icon'));
         }
 
-        // App name — title-1. No fallback: an unset name means no label (:2376-2377).
+        // No fallback: an unset name means no label.
         if (visibility.appName) {
             const nameEl = document.createElement('span');
             nameEl.className = 'adw-about-dialog-name';
@@ -475,7 +445,6 @@ export class AdwAboutDialog extends HTMLElement {
             body.appendChild(nameEl);
         }
 
-        // Developer / vendor.
         if (visibility.developerName) {
             const devEl = document.createElement('span');
             devEl.className = 'adw-about-dialog-developer';
@@ -483,7 +452,6 @@ export class AdwAboutDialog extends HTMLElement {
             body.appendChild(devEl);
         }
 
-        // Version pill.
         if (visibility.version) {
             const versionEl = document.createElement('span');
             versionEl.className = 'adw-about-dialog-version';
@@ -491,10 +459,9 @@ export class AdwAboutDialog extends HTMLElement {
             body.appendChild(versionEl);
         }
 
-        // Three separate preference groups, as in the template: details_group
-        // (.ui:96), support_group (.ui:146) and credits_legal_group (.ui:188).
-        // They are groups, not one list, and the stylesheet already spaces
-        // consecutive `.adw-about-dialog-rows` apart for exactly this.
+        // Three separate preference groups, as in the template (details_group,
+        // support_group, credits_legal_group) — groups, not one list, and the
+        // stylesheet already spaces consecutive `.adw-about-dialog-rows` apart.
         const detailsGroupRows: HTMLElement[] = [];
         if (visibility.detailsRow) {
             detailsGroupRows.push(this._buildNavRow(rowLabel('detailsRow'), 'details'));
@@ -523,12 +490,10 @@ export class AdwAboutDialog extends HTMLElement {
     }
 
     /**
-     * One `AdwPreferencesGroup` in its spacing wrapper.
-     *
-     * `data-group` carries the template's widget id so a test — and a reader —
-     * can tell the four named groups apart; nothing styles off it. The credits
-     * sections pass `null`, because the template has no id for them: they are
-     * built one per section at runtime (:548-549).
+     * One `AdwPreferencesGroup` in its spacing wrapper. `data-group` carries the
+     * template's widget id so a test — and a reader — can tell the named groups apart;
+     * nothing styles off it. The credits sections pass `null`, because the template has
+     * no id for them: they are built one per section at runtime.
      */
     private _buildGroup(id: string | null, rows: HTMLElement[], title?: string): HTMLElement {
         const group = document.createElement('adw-preferences-group');
@@ -542,7 +507,6 @@ export class AdwAboutDialog extends HTMLElement {
         return wrap;
     }
 
-    /** An activatable row that pushes a subpage, with a trailing go-next chevron. */
     private _buildNavRow(title: string, tag: string): HTMLElement {
         const row = document.createElement('adw-action-row');
         row.setAttribute('title', title);
@@ -561,20 +525,17 @@ export class AdwAboutDialog extends HTMLElement {
     }
 
     /**
-     * Emit `activate-link` and navigate unless a handler took over.
-     *
-     * The GObject signal is `BOOLEAN__STRING` with `g_signal_accumulator_true_handled`
-     * (:2093-2103) and its default handler returns `GDK_EVENT_PROPAGATE`
-     * (:455-460), i.e. "not handled, do the default". A handler returning TRUE
-     * suppresses it — which is what `preventDefault()` on a cancelable event
-     * means, and why `dispatchEvent`'s return value is the gate here.
+     * Emit `activate-link` and navigate unless a handler took over. The GObject signal
+     * is `BOOLEAN__STRING` with `g_signal_accumulator_true_handled` and its default
+     * handler returns `GDK_EVENT_PROPAGATE` ("not handled, do the default"); a handler
+     * returning TRUE suppresses it, which is what `preventDefault()` on a cancelable
+     * event means — hence the gate on `dispatchEvent`'s return value.
      */
     private _activateLink(uri: string): void {
         const event = new CustomEvent('activate-link', { bubbles: true, cancelable: true, detail: { uri } });
         if (this.dispatchEvent(event)) window.open(uri, '_blank', 'noopener,noreferrer');
     }
 
-    /** The Details page: comments + the links group (website + future custom links). */
     private _buildDetailsPage(visibility: ReturnType<typeof aboutDialogVisibility>): HTMLElement {
         const { page, body } = this._buildPage('details', ADW_ABOUT_DIALOG_LABELS.detailsPage, false);
 
@@ -596,7 +557,6 @@ export class AdwAboutDialog extends HTMLElement {
         return page;
     }
 
-    /** A link row that opens a URL in a new tab and emits `activate-link`. */
     private _buildLinkRow(title: string, uri: string): HTMLElement {
         const row = document.createElement('adw-action-row');
         row.setAttribute('title', title);
@@ -612,7 +572,6 @@ export class AdwAboutDialog extends HTMLElement {
         return row;
     }
 
-    /** The Credits page: one group per section the core assembled. */
     private _buildCreditsPage(sections: ReturnType<typeof creditsSections>): HTMLElement {
         const { page, body } = this._buildPage('credits', ADW_ABOUT_DIALOG_LABELS.creditsPage, false);
 
@@ -625,11 +584,10 @@ export class AdwAboutDialog extends HTMLElement {
     }
 
     /**
-     * A credit row — a plain title, or a link row when the entry carries a URI.
-     *
-     * The gate is `link !== null`, not the URI's truthiness: `"Ada <>"` parses to
-     * an EMPTY link, which is still a link in the C (`if (link)` tests the
-     * pointer, :562) and still produces an `AdwLinkRow`, to `mailto:`.
+     * A credit row — a plain title, or a link row when the entry carries a URI. The gate
+     * is `link !== null`, not the URI's truthiness: `"Ada <>"` parses to an EMPTY link,
+     * which is still a link in the C (`if (link)` tests the pointer) and still produces
+     * an `AdwLinkRow`, to `mailto:`.
      */
     private _buildCreditRow(person: AdwCreditPerson): HTMLElement {
         const row = document.createElement('adw-action-row');
@@ -648,7 +606,6 @@ export class AdwAboutDialog extends HTMLElement {
         return row;
     }
 
-    /** The Legal page: copyright + license text. */
     private _buildLegalPage(): HTMLElement {
         const { page, body } = this._buildPage('legal', ADW_ABOUT_DIALOG_LABELS.legalPage, false);
 
@@ -664,7 +621,7 @@ export class AdwAboutDialog extends HTMLElement {
             license.className = 'adw-about-dialog-license';
             if (this.licenseUrl) {
                 // GTK connects the legal label's `activate-link` to the same
-                // handler as the rows (:695), so this link is cancelable too.
+                // handler as the rows, so this link is cancelable too.
                 const link = document.createElement('a');
                 link.href = this.licenseUrl;
                 link.rel = 'noopener noreferrer';

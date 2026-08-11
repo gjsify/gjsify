@@ -4,28 +4,16 @@
 // and exactly one page is visible at a time.
 //
 // Everything that decides WHAT to show is HEADLESS and lives in
-// `@gjsify/adwaita-core` (ADR 0004) — including the TWO INDEX SPACES this widget
-// is built on: a hidden page produces NO toggle, so the compacted toggle index
-// and the page index diverge, and libadwaita reconciles them through the
-// `child-index` it stashes on every toggle (adw-inline-view-switcher.c:346,
-// :114-129, :434-453). `buildInlineToggles` carries both indices, so this file
-// never has to reconcile them itself.
+// `@gjsify/adwaita-core` (ADR 0004) — including the TWO INDEX SPACES this widget is
+// built on: a hidden page produces NO toggle, so the compacted toggle index and the
+// page index diverge, and libadwaita reconciles them through the `child-index` it
+// stashes on every toggle. `buildInlineToggles` carries both indices, so this file
+// never reconciles them itself.
 //
-// What the lift fixed here, all of it C-derived:
-//   - hidden pages were not filtered at all, so the two index spaces collapsed
-//     into one and `AdwViewStackPage:visible` had no spelling (:370-378).
-//   - the display-mode default was 'both'; libadwaita's is 'labels' (:657, :715).
-//   - an unrecognised display-mode value REPLACED the current mode with 'both';
-//     `g_return_if_fail (mode <= …_BOTH)` rejects it and keeps the current one
-//     (:819).
-//   - the icons-mode tooltip used the RAW title, so `title="_Files"` showed the
-//     underscore; C strips the mnemonic when use-underline is set (:180-188).
-//   - a page with no icon rendered no icon; C substitutes `image-missing`
-//     (:137-142) in every mode that builds an image at all.
-//   - `active` was CLAMPED into range instead of refused, `notify::display-mode`
-//     was documented but never dispatched, the page query was unscoped (so a
-//     nested switcher lost its pages to the outer one), and the 500 ms
-//     drag-hover auto-switch did not exist (:80, :194-236).
+// Two of the core's derivations are easy to get wrong by hand: the icons-mode tooltip
+// STRIPS the mnemonic when use-underline is set (`title="_Files"` must not show the
+// underscore), and a page with no icon gets `image-missing` substituted in every mode
+// that builds an image at all.
 //
 // Attributes:
 //   active — zero-based index of the visible PAGE (not of the toggle). Refused,
@@ -77,14 +65,10 @@ export class AdwViewStackPage extends HTMLElement {
 
 export class AdwInlineViewSwitcher extends HTMLElement {
     /**
-     * The dwell timer, injectable.
-     *
-     * It used to be `new ViewSwitcherState({ scheduler: domViewSwitcherScheduler })`
-     * inline, which left NOWHERE to hand a clock in — so
-     * `VIEW_SWITCHER_DRAG_VECTORS` was driven by the core suite alone, and the
-     * conformance header claimed all three suites drove it. `scheduler` is a
-     * property so a test can replace it before the element connects; the DOM one
-     * is the default, exactly as before.
+     * The dwell timer, injectable: a property rather than an inline
+     * `new ViewSwitcherState({ scheduler: domViewSwitcherScheduler })`, so a test can
+     * replace the clock before the element connects and drive
+     * `VIEW_SWITCHER_DRAG_VECTORS` here too. The DOM scheduler is the default.
      */
     scheduler: ViewSwitcherScheduler = domViewSwitcherScheduler;
     private _stateInstance: ViewSwitcherState | null = null;
@@ -127,14 +111,12 @@ export class AdwInlineViewSwitcher extends HTMLElement {
 
     /**
      * Index of the ACTIVE TOGGLE, `-1` when the visible page has none because it
-     * is hidden — the port-safe `GTK_INVALID_LIST_POSITION`
-     * (adw-inline-view-switcher.c:441-446).
+     * is hidden — the port-safe `GTK_INVALID_LIST_POSITION`.
      */
     get activeToggle(): number {
         return toggleIndexForPage(this._state.pages, this._state.selected);
     }
 
-    /** What the toggles display: 'labels', 'icons' or 'both'. */
     get displayMode(): AdwInlineViewSwitcherDisplayMode {
         return this._displayMode;
     }
@@ -152,7 +134,6 @@ export class AdwInlineViewSwitcher extends HTMLElement {
         this._state.selectName(name);
     }
 
-    /** The resolved page records. */
     get pages(): readonly AdwViewSwitcherPage[] {
         return this._state.pages;
     }
@@ -160,8 +141,7 @@ export class AdwInlineViewSwitcher extends HTMLElement {
     /**
      * Show or hide a page. Returns whether the SELECTION moved. Rebuilds the
      * toggle row, because a hidden page has no toggle at all — C reacts to a
-     * page's `notify::visible` with `recreate_toggles`
-     * (adw-inline-view-switcher.c:425, :471-477).
+     * page's `notify::visible` with `recreate_toggles`.
      */
     setPageVisible(name: string, visible: boolean): boolean {
         const moved = this._state.setPageVisible(name, visible);
@@ -222,11 +202,9 @@ export class AdwInlineViewSwitcher extends HTMLElement {
     }
 
     /**
-     * Re-read every declared page and push it into the state.
-     *
-     * Driven by {@link _watchPages}, which is what makes a runtime
-     * `badge-number` or `icon-name` change reach the toggle — C rebinds on every
-     * page `notify` (adw-view-switcher.c:184-193) and this element did not.
+     * Re-read every declared page and push it into the state. Driven by
+     * {@link _watchPages}, which is what makes a runtime `badge-number` or `icon-name`
+     * change reach the toggle, as C's per-page `notify` bindings do.
      */
     refreshPages(): void {
         if (!this._initialized) return;
@@ -236,13 +214,11 @@ export class AdwInlineViewSwitcher extends HTMLElement {
 
     /**
      * Watch the declared pages for attribute changes — the DOM's `notify::` on
-     * `AdwViewStackPage`, which C binds per page (adw-view-switcher.c:184-193).
-     *
-     * A `MutationObserver` rather than an `attributeChangedCallback`: this
-     * element consumes the page elements at connect and `replaceChildren`s them
-     * out of the tree, so a detached page cannot find its owner. It delivers on
-     * a MICROTASK where GTK's notify is synchronous — invisible to a user, and
-     * nothing here reads the toggle back inside the setter.
+     * `AdwViewStackPage`. A `MutationObserver` rather than an
+     * `attributeChangedCallback`, because this element consumes the page elements at
+     * connect and `replaceChildren`s them out of the tree, so a detached page cannot
+     * find its owner. It delivers on a MICROTASK where GTK's notify is synchronous —
+     * invisible to a user, and nothing here reads the toggle back inside the setter.
      */
     private _watchPages(): void {
         this._pageObserver?.disconnect();
@@ -264,14 +240,13 @@ export class AdwInlineViewSwitcher extends HTMLElement {
             if (next === this._displayMode) return;
             this._displayMode = next;
             // C rebuilds every toggle's child on a mode change rather than
-            // toggling visibility on the existing ones (:852-854).
+            // toggling visibility on the existing ones.
             this._rebuildToggles();
             this.dispatchEvent(
                 new CustomEvent('notify::display-mode', { bubbles: true, detail: { displayMode: next } }),
             );
             return;
         }
-        // flat / round are styling-only.
         this._applyStyleClasses();
     }
 
@@ -282,11 +257,10 @@ export class AdwInlineViewSwitcher extends HTMLElement {
     }
 
     /**
-     * Rebuild the toggle row from the derived models. One node per VISIBLE page,
-     * in compacted order — the structural half of `recreate_toggles`. Selection
-     * alone never lands here: `selection_changed_cb` only sets the active toggle
-     * (adw-inline-view-switcher.c:434-453), and rebuilding mid-drag would drop
-     * the dwell the drag has already armed.
+     * Rebuild the toggle row from the derived models: one node per VISIBLE page, in
+     * compacted order — the structural half of `recreate_toggles`. Selection alone never
+     * lands here (`selection_changed_cb` only sets the active toggle), because
+     * rebuilding mid-drag would drop the dwell the drag has already armed.
      */
     private _rebuildToggles(): void {
         if (!this._initialized) return;
@@ -327,13 +301,12 @@ export class AdwInlineViewSwitcher extends HTMLElement {
             toggle.addEventListener('click', () => {
                 this._state.setSelected(model.pageIndex);
             });
-            // The `relatedTarget` test is load-bearing: a toggle holds an icon,
-            // a label and an indicator, and the DOM fires `dragleave` +
-            // `dragenter` when the pointer crosses BETWEEN them — which cleared
-            // the dwell timer and re-armed a fresh 500ms, so a drag that merely
-            // slid across the toggle never switched the page. C has one
-            // `GtkDropControllerMotion` per BUTTON widget
-            // (adw-view-switcher-button.c:79-96), which has no internal edges.
+            // The `relatedTarget` test is load-bearing: a toggle holds an icon, a label
+            // and an indicator, and the DOM fires `dragleave` + `dragenter` when the
+            // pointer crosses BETWEEN them, which clears the dwell timer and re-arms a
+            // fresh 500 ms — so a drag that merely slid across the toggle would never
+            // switch the page. C has one `GtkDropControllerMotion` per BUTTON widget,
+            // which has no internal edges.
             toggle.addEventListener('dragenter', (event) => {
                 if (toggle.contains((event as DragEvent).relatedTarget as Node | null)) return;
                 this._state.dragEnter(model.pageIndex);
@@ -389,18 +362,16 @@ export class AdwInlineViewSwitcher extends HTMLElement {
     }
 
     private _applyStyleClasses(): void {
-        // `css_classes_changed_cb` (adw-inline-view-switcher.c:528-545) forwards
-        // THREE classes onto the toggle group, not two: `flat`, `round` and
-        // `osd`. This element carried the first two and only onto the host, so an
-        // `osd` inline switcher — the one in a floating overlay, where the class
-        // exists to make it legible — styled nothing at all.
+        // `css_classes_changed_cb` forwards THREE classes onto the toggle group, not
+        // two: `flat`, `round` AND `osd` — the last is what makes an inline switcher in a
+        // floating overlay legible, so dropping it styles nothing.
         for (const name of ['flat', 'round', 'osd'] as const) {
             const present = this.hasAttribute(name);
             this.classList.toggle(name, present);
             this._groupEl?.classList.toggle(name, present);
         }
         // The group carries the display-mode class, mirroring libadwaita's
-        // inline-view-switcher > toggle-group.{labels,icons,both} (:826-850).
+        // `inline-view-switcher > toggle-group.{labels,icons,both}`.
         for (const mode of INLINE_VIEW_SWITCHER_DISPLAY_MODES) {
             this._groupEl.classList.toggle(mode, mode === this._displayMode);
         }

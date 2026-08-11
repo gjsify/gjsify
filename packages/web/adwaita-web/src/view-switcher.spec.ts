@@ -3,9 +3,9 @@
 // vectors the core suite and the NativeScript suite assert against
 // (`@gjsify/adwaita-core/conformance`).
 //
-// The two renderers previously carried independent copies of every switcher
-// derivation and five libadwaita rules lived in neither, because nothing
-// compared them. This suite is that comparison.
+// The suite exists to keep the two renderers from drifting: they used to carry
+// independent copies of every switcher derivation, and five libadwaita rules lived in
+// neither because nothing compared them.
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
@@ -38,8 +38,8 @@ import type { AdwViewStack } from './elements/adw-view-stack.js';
 function declarePage(tag: string, page: ViewSwitcherVectorPage): HTMLElement {
     const element = document.createElement(tag);
     element.setAttribute('name', page.name);
-    // `getAttribute` returns null for an absent attribute, which IS C's NULL —
-    // so an absent or explicitly-null title must not become `title=""`.
+    // `getAttribute` returns null for an absent attribute, which IS C's NULL, so an
+    // absent or explicitly-null title must not become `title=""`.
     if (typeof page.title === 'string') element.setAttribute('title', page.title);
     if (typeof page.iconName === 'string') element.setAttribute('icon-name', page.iconName);
     if (page.visible === false) element.setAttribute('hidden', '');
@@ -71,8 +71,7 @@ function mountSwitcher(pages: readonly ViewSwitcherVectorPage[], policy?: string
     for (const page of pages) element.appendChild(declarePage('adw-view-switcher-page', page));
 
     const changes: ViewSwitcherVectorChange[] = [];
-    // Attached BEFORE the element connects, so the auto-pick notification is
-    // observable.
+    // Attached BEFORE connect, so the auto-pick notification is observable.
     element.addEventListener('notify::visible-child', (event) => {
         const detail = (event as CustomEvent<{ index: number; name: string; title: string; interactive: boolean }>)
             .detail;
@@ -136,10 +135,10 @@ function partText(button: HTMLElement, selector: string): string | null {
 export const AdwViewSwitcherTest = async () => {
     await describe('adw-view-switcher buttons (libadwaita conformance vectors)', async () => {
         for (const vector of VIEW_SWITCHER_BUTTON_VECTORS) {
-            // `selected: -1` cannot be staged here: this element bundles its own
-            // stack, whose auto-pick takes the first visible page, and the only way
-            // to reach "nothing selected" is to hide every page — which changes the
-            // `visible` flags the row asserts. The core suite drives that row.
+            // `selected: -1` cannot be staged here: this element bundles its own stack,
+            // whose auto-pick takes the first visible page, and reaching "nothing
+            // selected" needs every page hidden — which changes the `visible` flags the
+            // row asserts. The core suite drives that row.
             if (vector.selected < 0) continue;
             await it(vector.rule, () => {
                 const { element, host } = mountSwitcher(vector.pages, vector.policy);
@@ -155,7 +154,7 @@ export const AdwViewSwitcherTest = async () => {
                     expect(button.hidden).toBe(!model.visible);
                     expect(button.getAttribute('aria-selected')).toBe(String(model.selected));
                     expect(partText(button, '.adw-view-switcher-label')).toBe(model.label);
-                    // The icon node always exists and always names an icon —
+                    // The icon node always exists and always names an icon:
                     // `image-missing` when the page has none.
                     const icon = button.querySelector('.adw-icon') as HTMLElement;
                     expect(icon.classList.contains(`adw-icon--${normalizeIconName(model.iconName)}`)).toBe(true);
@@ -169,8 +168,8 @@ export const AdwViewSwitcherTest = async () => {
         }
 
         await it('hides a titleless, iconless button in the LAYOUT, not just visually', () => {
-            // The `[hidden]` UA rule loses to the component's own author
-            // `display: inline-flex` unless the stylesheet re-asserts it.
+            // The `[hidden]` UA rule loses to the component's own author `display:
+            // inline-flex` unless the stylesheet re-asserts it.
             const { element, host } = mountSwitcher([{ name: 'a', title: 'A' }, { name: 'b' }]);
             const buttons = buttonsOf(element, '.adw-view-switcher-button');
             expect(getComputedStyle(buttons[1]!).display).toBe('none');
@@ -192,16 +191,16 @@ export const AdwViewSwitcherTest = async () => {
                 expect(element.active).toBe(vector.selected);
                 expect(element.visibleChildName).toBe(vector.selectedName);
 
-                // The DOM must agree with the model: exactly the selected page's
-                // body is shown, and none at all when the selection is -1.
+                // Exactly the selected page's body is shown, none when the selection
+                // is -1.
                 const bodies = buttonsOf(element, '.adw-view-switcher-page');
                 const shown = bodies.map((body) => !(body as HTMLElement).hidden);
                 const expectedShown = vector.pages.map((_page, index) => index === vector.selected);
                 expect(shown).toStrictEqual(expectedShown);
 
-                // The reflected attribute must not claim a REFUSED selection.
-                // libadwaita refuses an out-of-range index; clamping turned
-                // `active="99"` into the last page silently.
+                // The reflected attribute must not claim a REFUSED selection: libadwaita
+                // refuses an out-of-range index, where clamping makes `active="99"` the
+                // last page silently.
                 expect(element.getAttribute('active')).toBe(String(vector.selected));
                 host.remove();
             });
@@ -227,8 +226,8 @@ export const AdwViewSwitcherTest = async () => {
         });
 
         await it('scopes its page query, so a nested switcher keeps its own pages', () => {
-            // Both switchers use the same tag for their pages; an unscoped
-            // querySelectorAll let the outer one adopt the inner one's.
+            // Both switchers use the same tag for their pages, so an unscoped
+            // querySelectorAll lets the outer one adopt the inner one's.
             const host = document.createElement('div');
             document.body.appendChild(host);
 
@@ -276,8 +275,7 @@ export const AdwViewSwitcherTest = async () => {
                 const { element, host } = mountInline(vector.pages, vector.displayMode);
 
                 const toggles = buttonsOf(element, '.adw-inline-view-switcher-toggle');
-                // A hidden page produces NO toggle — the whole reason the two index
-                // spaces exist.
+                // A hidden page produces NO toggle — why the two index spaces exist.
                 expect(toggles).toHaveLength(vector.toggles.length);
 
                 vector.toggles.forEach((model, index) => {
@@ -297,15 +295,15 @@ export const AdwViewSwitcherTest = async () => {
                     expect(toggle.getAttribute('aria-description')).toBe(model.description || null);
                 });
 
-                // Every panel still exists — only the toggles are compacted.
+                // Every panel still exists; only the toggles are compacted.
                 expect(buttonsOf(element, '.adw-inline-view-switcher-page')).toHaveLength(vector.pages.length);
                 host.remove();
             });
         }
 
         for (const vector of INLINE_TOOLTIP_VECTORS) {
-            // A NULL title has no attribute spelling that differs from an absent
-            // one, and both are covered by the toggle vectors above.
+            // A NULL title has no attribute spelling distinct from an absent one; the
+            // toggle vectors above cover both.
             if (vector.title === null) continue;
             await it(`tooltip in ${vector.displayMode} — ${vector.rule}`, () => {
                 const { element, host } = mountInline(
@@ -348,8 +346,8 @@ export const AdwViewSwitcherTest = async () => {
             changes.length = 0;
 
             const toggles = buttonsOf(element, '.adw-inline-view-switcher-toggle');
-            // Toggle 1 is page 2 — a click must select the PAGE, not the toggle
-            // index, which is what a missing child-index mapping selects.
+            // Toggle 1 is page 2: a click selects the PAGE, not the toggle index, which is
+            // what a missing child-index mapping would select.
             toggles[1]!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
             expect(element.active).toBe(2);
             expect(element.activeToggle).toBe(1);
@@ -362,8 +360,8 @@ export const AdwViewSwitcherTest = async () => {
                 { name: 'a', title: 'A' },
                 { name: 'b', title: 'B' },
             ]);
-            // Hiding the shown page normally moves the selection; reach the state
-            // the C sentinel exists for by hiding every OTHER page first.
+            // Hiding the shown page normally moves the selection, so reach the state the C
+            // sentinel exists for by hiding every OTHER page first.
             element.setPageVisible('a', false);
             expect(element.active).toBe(1);
             element.setPageVisible('b', false);
@@ -397,8 +395,8 @@ export const AdwViewSwitcherTest = async () => {
 
                 bar.reveal = vector.reveal;
                 expect(bar.reveal).toBe(vector.reveal);
-                // `reveal && more-than-one-visible-page`: a one-page stack keeps the
-                // bar collapsed however loudly the layout asks.
+                // `reveal && more-than-one-visible-page`: a one-page stack keeps the bar
+                // collapsed however loudly the layout asks.
                 expect(bar.revealed).toBe(vector.revealed);
                 expect(bar.hidden).toBe(!vector.revealed);
                 expect(getComputedStyle(bar).display).toBe(vector.revealed ? 'block' : 'none');
@@ -407,8 +405,8 @@ export const AdwViewSwitcherTest = async () => {
         }
 
         await it('keeps tracking its stack after being detached and re-inserted', () => {
-            // `connectedCallback` re-added the listener only when `ref &&
-            // !this._stack`, never true on a re-attach, so the bar went deaf.
+            // Re-adding the listener only when `ref && !this._stack` is never true on a
+            // re-attach, and the bar goes deaf.
             const host = document.createElement('div');
             document.body.appendChild(host);
 
@@ -463,8 +461,8 @@ export const AdwViewSwitcherTest = async () => {
                         continue;
                     }
                     const button = buttons[step.index];
-                    // `relatedTarget` OUTSIDE the button — a real cross-button move.
-                    // The internal case has its own test below.
+                    // `relatedTarget` OUTSIDE the button — a real cross-button move; the
+                    // internal case is tested below.
                     button?.dispatchEvent(
                         new DragEvent(step.kind === 'enter' ? 'dragenter' : 'dragleave', {
                             bubbles: true,
@@ -479,9 +477,9 @@ export const AdwViewSwitcherTest = async () => {
 
         await it('a drag sliding from the icon to the LABEL does not restart the dwell', () => {
             // A button CONTAINS an icon and a label, so crossing between them fires
-            // leave + enter; without the relatedTarget check that cleared the timer
-            // and re-armed a fresh 500 ms, and a drag sliding across the button
-            // never switched at all. The vectors cannot see this.
+            // leave + enter; without the relatedTarget check that cleared the timer and
+            // re-armed a fresh 500 ms, so a drag across the button never switched. The
+            // vectors cannot see this.
             const pages: ViewSwitcherVectorPage[] = [
                 { name: 'one', title: 'One' },
                 { name: 'two', title: 'Two' },
@@ -505,7 +503,7 @@ export const AdwViewSwitcherTest = async () => {
 
         await it('a page attribute changed AFTER connect reaches the button', async () => {
             // `observedAttributes` without an `attributeChangedCallback` is a dead
-            // declaration; C rebinds on every page notify (adw-view-switcher.c:184-193).
+            // declaration, where C rebinds on every page notify.
             const host = document.createElement('div');
             document.body.appendChild(host);
             const switcher = document.createElement('adw-view-switcher') as AdwViewSwitcher;
@@ -518,8 +516,8 @@ export const AdwViewSwitcherTest = async () => {
                 (switcher.querySelector('.adw-view-switcher-label') as HTMLElement | null)?.textContent;
             expect(labelOf()).toBe('One');
             page.setAttribute('title', 'Renamed');
-            // A MutationObserver delivers on a MICROTASK where GTK's `notify` is
-            // synchronous; nothing depends on the repaint happening in the setter.
+            // A MutationObserver delivers on a MICROTASK where GTK's `notify` is sync;
+            // nothing depends on the repaint happening inside the setter.
             await Promise.resolve();
             expect(labelOf()).toBe('Renamed');
             host.remove();
@@ -538,8 +536,8 @@ export const AdwViewSwitcherTest = async () => {
 
                 const indicator = switcher.querySelector('.adw-view-switcher-indicator') as HTMLElement;
                 expect(indicator.textContent).toBe(vector.badgeLabel);
-                // The DESCRIPTION is what a screen reader announces; a badge with
-                // no accessible text is a dot nobody hears.
+                // The DESCRIPTION is what a screen reader announces: a badge with no
+                // accessible text is a dot nobody hears.
                 const button = switcher.querySelector('.adw-view-switcher-button') as HTMLElement;
                 expect(button.getAttribute('aria-description') ?? '').toBe(vector.description);
                 host.remove();
@@ -547,11 +545,10 @@ export const AdwViewSwitcherTest = async () => {
         }
 
         await it('names the three tables that stay the core suite’s', () => {
-            // MNEMONIC and ICON are pure string derivations with no DOM surface
-            // beyond the label this suite already asserts through
-            // VIEW_SWITCHER_BUTTON_VECTORS; BUTTON_VISIBILITY and REBUILD are
-            // asserted through the rendered button set by the same table. Named
-            // so the omission is a decision rather than a gap.
+            // MNEMONIC and ICON are string derivations with no DOM surface beyond the
+            // label VIEW_SWITCHER_BUTTON_VECTORS already asserts; BUTTON_VISIBILITY and
+            // REBUILD are asserted through that table's rendered button set. Named so
+            // the omission is a decision rather than a gap.
             expect(VIEW_SWITCHER_MNEMONIC_VECTORS.length).toBeGreaterThan(0);
             expect(VIEW_SWITCHER_ICON_VECTORS.length).toBeGreaterThan(0);
             expect(VIEW_SWITCHER_BUTTON_VISIBILITY_VECTORS.length).toBeGreaterThan(0);
@@ -561,10 +558,9 @@ export const AdwViewSwitcherTest = async () => {
 
     await describe('<adw-view-switcher-bar> reveal follows the pages model, not just the selection', async () => {
         await it('retracts when a page is REMOVED without moving the selection', () => {
-            // `update_bar_revealed` re-runs on the pages model's `items-changed`
-            // (adw-view-switcher-bar.c:340). Both ports listened only on
-            // `notify::visible-child`, so the bar went stale and a manual
-            // `refresh()` was the documented workaround.
+            // `update_bar_revealed` re-runs on the pages model's `items-changed`.
+            // Listening only on `notify::visible-child` leaves the bar stale, with a
+            // manual `refresh()` as the workaround.
             const host = document.createElement('div');
             document.body.appendChild(host);
             const stack = document.createElement('adw-view-stack') as AdwViewStack;
@@ -606,13 +602,10 @@ export const AdwViewSwitcherTest = async () => {
         });
     });
 
-    // MOVING A SWITCHER MUST NOT MAKE IT DEAF.
-    //
-    // `disconnectedCallback` drops the page observer, and `connectedCallback`
-    // returned early once the element was built — so a switcher that had merely
-    // been moved between parents (a slideshow slide, a client-side route change)
-    // stopped tracking its pages permanently, and silently. Same shape as the
-    // overlay split view's ResizeObserver, and found with it.
+    // `disconnectedCallback` drops the page observer, and `connectedCallback` returned
+    // early once the element was built — so a switcher merely MOVED between parents (a
+    // slideshow slide, a client-side route change) stopped tracking its pages
+    // permanently and silently. Same shape as the overlay split view's ResizeObserver.
     await describe('adw-view-switcher — a moved switcher keeps watching its pages', async () => {
         await it('still notices a page attribute change after being re-parented', async () => {
             const from = document.createElement('div');

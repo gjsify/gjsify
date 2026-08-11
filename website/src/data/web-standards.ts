@@ -52,11 +52,11 @@ export const webStandardsCategories: readonly WebStandardCategory[] = [
     {
         name: 'Streams & Encoding',
         standards: [
-            { name: 'Streams (Readable/Writable/Transform)', status: 'full', pkg: '@gjsify/streams' },
-            { name: 'Queuing Strategies', status: 'full', pkg: '@gjsify/streams' },
+            { name: 'Streams (Readable/Writable/Transform)', status: 'full', pkg: '@gjsify/web-streams' },
+            { name: 'Queuing Strategies', status: 'full', pkg: '@gjsify/web-streams' },
             { name: 'Compression Streams', status: 'full', pkg: '@gjsify/compression-streams' },
-            { name: 'Encoding (TextEncoder/Decoder)', status: 'full', pkg: '@gjsify/globals' },
-            { name: 'TextEncoderStream / TextDecoderStream', status: 'full', pkg: '@gjsify/streams' },
+            { name: 'Encoding (TextEncoder/Decoder)', status: 'full', pkg: '@gjsify/node-globals' },
+            { name: 'TextEncoderStream / TextDecoderStream', status: 'full', pkg: '@gjsify/web-streams' },
         ],
     },
     {
@@ -154,7 +154,7 @@ export const webStandardsCategories: readonly WebStandardCategory[] = [
         standards: [
             { name: 'Performance API', status: 'full', pkg: '@gjsify/perf_hooks' },
             { name: 'WebAssembly', status: 'full', pkg: '@gjsify/webassembly' },
-            { name: 'structuredClone', status: 'full', pkg: '@gjsify/globals' },
+            { name: 'structuredClone', status: 'full', pkg: '@gjsify/node-globals' },
         ],
     },
     {

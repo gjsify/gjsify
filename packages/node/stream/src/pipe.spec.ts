@@ -20,9 +20,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import { Stream, Readable, Writable, PassThrough, Transform } from 'node:stream';
 
 export default async () => {
-    // -------------------------------------------------------------------------
     // pipe: 'pipe' event on destination
-    // -------------------------------------------------------------------------
     await describe('pipe: pipe event', async () => {
         await it('pipe event fires on writable when piped', async () => {
             const w: any = Object.create(Stream.prototype);
@@ -42,9 +40,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // pipe: after end
-    // -------------------------------------------------------------------------
     await describe('pipe: after end', async () => {
         await it('piping an already-ended readable to a writable finishes the writable', async () => {
             class TestReadable extends Readable {
@@ -87,9 +83,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // pipe: cleanup — no dangling listeners
-    // -------------------------------------------------------------------------
     await describe('pipe: cleanup removes listeners after end/close', async () => {
         await it('end event removes all listeners added by pipe', async () => {
             // Legacy Stream-based test — uses Stream.call(this) pattern
@@ -159,9 +153,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // pipe: error handling
-    // -------------------------------------------------------------------------
     await describe('pipe: error handling', async () => {
         await it('source with error listener does not propagate error to dest', async () => {
             const source = new Stream();
@@ -258,9 +250,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // pipe: multiple destinations
-    // -------------------------------------------------------------------------
     await describe('pipe: multiple destinations', async () => {
         await it('pipe to 5 writables — each receives the same chunk', async () => {
             const readable = new Readable({ read() {} });
@@ -324,9 +314,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // pipe: same destination twice
-    // -------------------------------------------------------------------------
     await describe('pipe: same destination twice', async () => {
         await it('pipe twice to same dest registers 2 data listeners', async () => {
             const pt = new PassThrough();
@@ -376,9 +364,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // pipe: unpipe streams
-    // -------------------------------------------------------------------------
     await describe('pipe: unpipe', async () => {
         await it('unpipe in reverse order removes correct dest', async () => {
             const source = new Readable({ read() {} });
@@ -470,9 +456,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // pipe: needDrain — pause while dest needs drain
-    // -------------------------------------------------------------------------
     await describe('pipe: needDrain handling', async () => {
         await it('pipe pauses source when dest writableNeedDrain is true', async () => {
             const w = new Writable({
@@ -507,9 +491,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // pipe: objectMode to non-objectMode error
-    // -------------------------------------------------------------------------
     await describe('pipe: objectMode to non-objectMode', async () => {
         await it('piping objects to non-objectMode transform emits an error', async () => {
             const objectReadable = Readable.from([{ hello: 'hello' }, { world: 'world' }]);
@@ -549,9 +531,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // pipe: flow — basic data flow through pipes
-    // -------------------------------------------------------------------------
     await describe('pipe: data flow', async () => {
         await it('basic Readable → Writable pipe delivers all data', async () => {
             const chunks: Buffer[] = [];

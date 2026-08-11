@@ -1,49 +1,27 @@
 // SPDX-License-Identifier: MIT
 //
-// GTK-GUI-on-node-gi proof — increment 3: BROAD Libadwaita widget breadth in an
-// INTERACTIVE application whose SINGLE source builds AND runs on both GJS and
-// Node.js through the reverse bridge:
+// An interactive Libadwaita app whose SINGLE source builds and runs on both GJS and Node.js through
+// the reverse bridge:
 //
-//   gjsify build src/app.ts --app gjs   → gjs  -m dist/app.gjs.mjs   (native gi://)
-//   gjsify build src/app.ts --app node  → node    dist/app.node.mjs  (@gjsify/node-gi)
+//   gjsify build src/app.ts --app gjs   → gjs  dist/app.gjs.mjs   (native gi://)
+//   gjsify build src/app.ts --app node  → node dist/app.node.mjs  (@gjsify/node-gi)
 //
-// Two views in an `Adw.ViewStack` (switched by a bottom `Adw.ViewSwitcherBar`),
-// the whole thing wrapped in an `Adw.ToastOverlay`:
+// Every counter mutation funnels through ONE path — `Gio.SimpleAction`s on the WINDOW — so a button
+// click, a keyboard accelerator and a DBus call all exercise the same chain.
 //
-//   • "Counter" (increment 1+2, unchanged) — a click counter driven through ONE
-//     state-mutation path: a `Gtk.Button::clicked` signal AND `Gio.SimpleAction`s
-//     added to the WINDOW (`<primary>plus` / `<primary>r` accelerators) all route
-//     into JS, mutate the counter, and the window title + `Adw.WindowTitle` subtitle
-//     + an `Adw.ActionRow` subtitle update.
-//   • "Settings" (increment 3) — a representative slice of the REAL Libadwaita
-//     widget set proves it constructs + renders + reacts via node-gi: an
-//     `Adw.PreferencesPage` / `Adw.PreferencesGroup` with `Adw.ActionRow`,
-//     `Adw.SwitchRow`, `Adw.EntryRow`, `Adw.ComboRow` (a `Gtk.StringList` model),
-//     `Adw.SpinRow` (a `Gtk.Adjustment`) and `Adw.ExpanderRow`, plus a `Gtk.ListBox`
-//     in the boxed-list idiom. Interactions dispatch through the node-gi signal
-//     chain — toggling the switch and a `win.toast` action both raise a dismissible
-//     `Adw.Toast` via the overlay.
+// SELF-VERIFYING over DBus: with `GJSIFY_DEVTOOLS=1`, `installDevtools(app)` exports
+// `org.gjsify.Devtools`, and a tool can `ActivateAction("win", "increment", "null")` and then
+// `DumpTree`/`GetProperty`/`Screenshot` the live window to assert the state changed. The `win.*`
+// group resolves off the active window because `Adw.ApplicationWindow` implements
+// `Gio.ActionGroup` — node-gi's `instanceof` spans the whole GObject hierarchy, as GJS does.
 //
-// SELF-VERIFYING over DBus. `installDevtools(app)` embeds the `@gjsify/devtools`
-// control plane (`org.gjsify.Devtools`): launch with `GJSIFY_DEVTOOLS=1` and a tool
-// can `ActivateAction("win", "increment", "null")` (or `"toast"`) to drive the SAME
-// chains over the session bus, then `DumpTree`/`GetProperty`/`Screenshot` the LIVE
-// window to assert the state changed. `Adw.ApplicationWindow` implements
-// `Gio.ActionGroup`, so devtools resolves the `win.*` group off the active window
-// (node-gi's `instanceof` spans the whole GObject hierarchy, matching GJS).
-// `installDevtools` is a no-op unless `GJSIFY_DEVTOOLS` is truthy — prod-safe.
+// runAsync, NOT sync run(): a gjsify GTK/Adwaita app must use `Adw.Application.runAsync()`. The
+// `print` global (ambient under GJS, injected by `--globals auto` for the node build) additionally
+// triggers the reverse bridge's `@girs/*`-body resolution, which is what keeps `@gjsify/devtools`
+// real code under `--app node`.
 //
-// runAsync — NOT sync run(). A gjsify GTK/Adwaita app MUST run via
-// `Adw.Application.runAsync()`. The `print` global (ambient under GJS, injected by
-// `--globals auto` via the `@gjsify/node-gi/globals` shim for the node build) also
-// triggers the reverse bridge's `@girs/*`-body resolution so `@gjsify/devtools` keeps
-// its real code under `--app node`.
-//
-// Reference: refs/gjs (g_application_run / adw_init, Gio.SimpleAction / GActionMap
-// accelerators, GObject property notify), refs/libadwaita (ToolbarView / HeaderBar /
-// WindowTitle / ViewStack / ViewSwitcherBar / PreferencesPage / PreferencesGroup /
-// ActionRow / SwitchRow / EntryRow / ComboRow / SpinRow / ExpanderRow / ToastOverlay
-// / Toast). Copyright (c) GNOME contributors, MIT/LGPL.
+// Reference: refs/gjs (g_application_run / adw_init, Gio.SimpleAction accelerators, property
+// notify), refs/libadwaita. Copyright (c) GNOME contributors, MIT/LGPL.
 
 import Adw from 'gi://Adw?version=1';
 import Gio from 'gi://Gio?version=2.0';
@@ -53,9 +31,7 @@ import { installDevtools } from '@gjsify/devtools';
 const app = new Adw.Application({ application_id: 'eu.jumplink.NodeGiWindow' });
 
 app.connect('startup', () => {
-    // Session bus + object path only exist after the app registers, so wire the
-    // devtools control plane from `startup`. No-op returning null unless
-    // GJSIFY_DEVTOOLS is truthy — prod-safe.
+    // From `startup` because the session bus and object path only exist once the app registers.
     installDevtools(app);
 });
 
@@ -77,7 +53,6 @@ app.connect('activate', () => {
         print(`node-gi-window: toast → ${text}`);
     };
 
-    // ---- View 1: the counter (increments 1+2, unchanged state path) -----------
     const countRow = new Adw.ActionRow({ title: 'Clicks', subtitle: '0' });
     const counterGroup = new Adw.PreferencesGroup();
     counterGroup.add(countRow);
@@ -100,7 +75,6 @@ app.connect('activate', () => {
     counterBox.append(resetButton);
     const counterClamp = new Adw.Clamp({ maximum_size: 360, child: counterBox });
 
-    // ---- View 2: the Adwaita widget-breadth preferences surface ---------------
     const prefsPage = new Adw.PreferencesPage();
 
     const settingsGroup = new Adw.PreferencesGroup({ title: 'Settings' });
@@ -156,7 +130,6 @@ app.connect('activate', () => {
     listGroup.add(toastButton);
     prefsPage.add(listGroup);
 
-    // ---- The ViewStack + bottom switcher, under the ToastOverlay --------------
     const viewStack = new Adw.ViewStack();
     viewStack.add_titled_with_icon(counterClamp, 'counter', 'Counter', 'list-add-symbolic');
     viewStack.add_titled_with_icon(prefsPage, 'settings', 'Settings', 'emblem-system-symbolic');
@@ -171,8 +144,6 @@ app.connect('activate', () => {
     toastOverlay.set_child(toolbar);
     win.set_content(toastOverlay);
 
-    // The ONE counter state-mutation path: every trigger (button, accelerator,
-    // devtools ActivateAction) funnels through these actions' `activate` handlers.
     const render = () => {
         const label = count === 1 ? '1 click' : `${count} clicks`;
         windowTitle.set_subtitle(label);
@@ -196,16 +167,14 @@ app.connect('activate', () => {
     });
     win.add_action(reset);
 
-    // A window action that raises a toast — drivable over DBus (ActivateAction) too.
     const toastAction = new Gio.SimpleAction({ name: 'toast' });
     toastAction.connect('activate', () => showToast('Saved'));
     win.add_action(toastAction);
 
-    // Keyboard accelerators bound to the WINDOW-scoped actions.
     app.set_accels_for_action('win.increment', ['<primary>plus', '<primary>equal', 'plus']);
     app.set_accels_for_action('win.reset', ['<primary>r']);
 
-    // GTK button `clicked` → drive the SAME window actions (one state path).
+    // Buttons activate the window actions rather than mutating state themselves.
     incrementButton.connect('clicked', () => win.activate_action('increment', null));
     resetButton.connect('clicked', () => win.activate_action('reset', null));
     toastButton.connect('clicked', () => win.activate_action('toast', null));

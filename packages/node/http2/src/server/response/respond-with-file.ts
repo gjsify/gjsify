@@ -100,7 +100,6 @@ const respondWithFileMethods: RespondWithFileMethods & ThisType<Http2ServerRespo
     },
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 // Internal-only — only called from the methods above.
 
 /**

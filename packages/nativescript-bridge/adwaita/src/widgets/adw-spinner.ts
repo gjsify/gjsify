@@ -1,25 +1,20 @@
 // AdwSpinner — a Libadwaita-style busy spinner for NativeScript.
 //
-// A `GridLayout` BOX holding the platform's own `ActivityIndicator`, centred.
-// The box is the requested size and the indicator is the RING, capped at 64 —
-// which is the split `Adw.Spinner` makes and this port did not: the view WAS the
-// ring, so `size = 200` reported 64 back and occupied 64 DIPs of layout where
-// GTK occupies 200 (`adw_spinner_measure` reports MIN_SIZE as minimum AND
-// natural with no upper bound, adw-spinner.c:78-81, while the paintable caps
-// only the radius and still centres on the box, adw-spinner-paintable.c:343-351).
+// A `GridLayout` BOX holding the platform's own `ActivityIndicator`, centred. The box
+// is the requested size and the indicator is the RING, capped at 64 — the split
+// `Adw.Spinner` makes: `adw_spinner_measure` reports MIN_SIZE as minimum AND natural
+// with no upper bound, while the paintable caps only the radius and still centres on
+// the box. Collapsing the two makes `size = 200` occupy 64 DIPs of layout.
 //
-// FIDELITY: the ARC is the platform's, deliberately. `ActivityIndicator` is the
-// native spinner and the engine drives it, which is the one animation that fits
-// the CSS-subset contract; hand-drawing libadwaita's breathing arc here would
-// mean a per-frame JS animation on a phone to replace an animation the OS
-// already runs. What IS ported is everything around it: the size split, the
-// colour, the accessibility role, and the map gating.
+// FIDELITY: the ARC is the platform's, deliberately. `ActivityIndicator` is the native
+// spinner and the engine drives it, the one animation that fits the CSS-subset
+// contract; hand-drawing libadwaita's breathing arc would mean a per-frame JS animation
+// on a phone to replace one the OS already runs. Ported instead: the size split, the
+// colour, the accessibility role and the map gating.
 //
-// The colour is the widget's TEXT colour, NOT the accent: the paintable strokes
-// with `gtk_widget_get_color()` (adw-spinner-paintable.c:432). This port used
-// Adwaita's accent blue for its whole life while adwaita-web used `currentColor`
-// and documented the neutrality in a comment — the two ports contradicted each
-// other in the open, and no conformance vector covers colour, so nothing looked.
+// The colour is the widget's TEXT colour, NOT the accent — the paintable strokes with
+// `gtk_widget_get_color()`, and no conformance vector covers colour, so a renderer that
+// picks accent blue drifts silently.
 //
 // Reference: refs/libadwaita/src/adw-spinner.c (MIN_SIZE, adw_spinner_measure, the a11y role)
 // Reference: refs/libadwaita/src/adw-spinner-paintable.c (MAX_RADIUS, widget_map_cb)

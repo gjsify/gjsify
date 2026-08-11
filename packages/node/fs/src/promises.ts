@@ -377,8 +377,6 @@ async function _writeStr(
     return { bytesWritten: result.bytesWritten, buffer: data };
 }
 
-// --- helpers ---
-
 function queryInfoAsync(
     path: PathLike,
     flags: Gio.FileQueryInfoFlags,
@@ -404,8 +402,6 @@ function queryInfoAsync(
         );
     });
 }
-
-// --- stat / lstat ---
 
 async function stat(path: PathLike, options?: { bigint?: boolean }): Promise<Stats | BigIntStats> {
     return queryInfoAsync(path, Gio.FileQueryInfoFlags.NONE, 'stat', options);
@@ -520,22 +516,18 @@ async function rm(path: PathLike, options?: RmOptions): Promise<void> {
     });
 }
 
-// --- rename ---
 async function rename(oldPath: PathLike, newPath: PathLike): Promise<void> {
     renameSync(oldPath, newPath);
 }
 
-// --- copyFile ---
 async function copyFile(src: PathLike, dest: PathLike, mode?: number): Promise<void> {
     copyFileSync(src, dest, mode);
 }
 
-// --- access ---
 async function access(path: PathLike, mode?: number): Promise<void> {
     accessSync(path, mode);
 }
 
-// --- appendFile ---
 async function appendFile(
     path: PathLike | FileHandle,
     data: string | Uint8Array,
@@ -544,27 +536,22 @@ async function appendFile(
     appendFileSync(path as PathLike, data, options);
 }
 
-// --- readlink ---
 async function readlink(path: PathLike, options?: { encoding?: string } | string): Promise<string | Buffer> {
     return readlinkSync(path, options);
 }
 
-// --- truncate ---
 async function truncate(path: PathLike, len?: number): Promise<void> {
     truncateSync(path, len);
 }
 
-// --- chmod ---
 async function chmod(path: PathLike, mode: number | string): Promise<void> {
     chmodSync(path, mode);
 }
 
-// --- chown ---
 async function chown(path: PathLike, uid: number, gid: number): Promise<void> {
     chownSync(path, uid, gid);
 }
 
-// --- link ---
 async function link(existingPath: PathLike, newPath: PathLike): Promise<void> {
     linkSync(existingPath, newPath);
 }

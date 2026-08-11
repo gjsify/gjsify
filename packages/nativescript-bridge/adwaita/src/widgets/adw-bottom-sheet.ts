@@ -12,28 +12,19 @@
 // NS half is `widgets/bottom-sheet-state.ts`, which is where the spec drives it
 // from — this module cannot be imported off-device (`extends GridLayout`).
 //
-// Two behaviours arrived with that lift and one left:
-//   + `can-close` is honoured, and a refused dismissal emits `close-attempt`.
-//     Before this, a locked sheet was silently dismissable here.
-//   + `requestClose(source)` is the interactive entry point, so a host can route
-//     the Android back button / an in-sheet close button through the same gate
-//     the browser port uses. `open()`/`close()` stay the PROGRAMMATIC pair and
-//     deliberately ignore `can-close` ("Bottom sheet can still be closed using
-//     [property@BottomSheet:open]", adw-bottom-sheet.c:2071).
-//   - the drag handle no longer closes the sheet on tap. libadwaita builds it
-//     with can_focus = FALSE and can_target = FALSE (adw-bottom-sheet.c:1197-1198):
-//     it is a decorative pill whose only behavioural role is
-//     `allow_mouse_drag = show_drag_handle || bottom_bar`.
+// `requestClose(source)` is the INTERACTIVE entry point, so a host can route the
+// Android back button or an in-sheet close button through the same gate the browser
+// port uses; `open()`/`close()` stay the PROGRAMMATIC pair and deliberately ignore
+// `can-close`, as upstream says outright. The drag handle does NOT close on tap:
+// libadwaita builds it `can_focus = FALSE`, `can_target = FALSE`, a decorative pill
+// whose only behavioural role is `allow_mouse_drag = show_drag_handle || bottom_bar`.
 //
-// FIDELITY: compromised on the slide + scrim. NS has no z-index / box-shadow /
-// translate transition in this CSS subset, so the sheet is bottom-aligned within
-// the grid and toggled by `visibility` (instant show/hide, NO upward slide
-// animation and NO dimming scrim/backdrop-blur over the content). The
-// content-underneath + drag-handle + rounded-top-sheet LOOK and the open/close
-// state machine are faithful; a real NS app wanting the slide can wrap `open`/
-// `close` in `view.animate({ translate })`, which is outside this widget's
-// CSS-subset contract. (A `modal` bottom sheet on a phone would more naturally be
-// a native `Dialogs`/modal Page — this widget targets the in-page sheet form.)
+// FIDELITY: compromised on the slide + scrim. This CSS subset has no z-index,
+// box-shadow or translate transition, so the sheet is bottom-aligned in the grid and
+// toggled by `visibility`: instant show/hide, no upward slide, no dimming
+// scrim/backdrop-blur. The look and the state machine are faithful; an app wanting the
+// slide wraps `open`/`close` in `view.animate({ translate })`. (A `modal` sheet on a
+// phone is more naturally a native `Dialogs`/modal Page — this targets the in-page form.)
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-bottom-sheet`.
 // Reference: refs/libadwaita/src/adw-bottom-sheet.c

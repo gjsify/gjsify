@@ -33,39 +33,32 @@ function setButtonIcon(btn: HTMLButtonElement, svgSource: string): void {
 export function mount(container: HTMLElement, options?: MountOptions): ShowcaseHandle {
     const { assetBase } = options ?? {};
 
-    // Build UI — mirrors GJS Blueprint structure
     const win = document.createElement('adw-window');
     win.setAttribute('width', '1100');
     win.setAttribute('height', '700');
 
-    // Header bar (toggle button added after DOM connection below)
     const headerBar = document.createElement('adw-header-bar') as AdwHeaderBar;
     headerBar.setAttribute('title', 'Pixel Post-Processing');
 
-    // Sidebar toggle button — will be placed in header bar start section
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'adw-header-btn adw-sidebar-toggle-icon active';
     toggleBtn.title = 'Toggle Sidebar';
 
-    // Pause/Resume rendering button — placed in header bar end section.
     const pauseBtn = document.createElement('button');
     pauseBtn.className = 'adw-header-btn';
     pauseBtn.title = 'Pause Rendering';
     setButtonIcon(pauseBtn, mediaPlaybackPauseSymbolic);
 
-    // OverlaySplitView — sidebar + content
     const splitView = document.createElement('adw-overlay-split-view') as AdwOverlaySplitView;
     splitView.setAttribute('min-sidebar-width', '280');
     splitView.setAttribute('max-sidebar-width', '400');
     splitView.setAttribute('sidebar-width-fraction', '0.30');
     splitView.setAttribute('show-sidebar', '');
 
-    // Sidebar content
     const sidebarContent = document.createElement('div');
     sidebarContent.setAttribute('slot', 'sidebar');
     sidebarContent.className = 'adw-sidebar-content';
 
-    // Post-Processing group
     const group = document.createElement('adw-preferences-group');
     group.setAttribute('title', 'Post-Processing');
 
@@ -97,8 +90,7 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     group.append(pixelSizeRow, normalEdgeRow, depthEdgeRow, pixelAlignRow);
     sidebarContent.append(group);
 
-    // GL container (content slot) — inline styles so the showcase
-    // is self-contained and works regardless of host CSS.
+    // Inline styles so the layout holds in the website embed too, which loads no showcase CSS.
     const glContainer = document.createElement('div');
     glContainer.setAttribute('slot', 'content');
     glContainer.id = 'gl-area-container';
@@ -113,13 +105,11 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     win.append(headerBar, splitView);
     container.append(win);
 
-    // Append toggle button to header bar start section AFTER DOM connection
-    // (connectedCallback has already created the .adw-header-bar-start wrapper)
+    // AFTER DOM connection: connectedCallback is what creates the .adw-header-bar-start wrapper.
     const startSection = headerBar.startSection ?? headerBar.querySelector('.adw-header-bar-start');
     if (startSection) {
         startSection.appendChild(toggleBtn);
     } else {
-        // Fallback: prepend directly
         headerBar.prepend(toggleBtn);
     }
 
@@ -130,7 +120,6 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
         headerBar.append(pauseBtn);
     }
 
-    // Sync canvas buffer to parent container dimensions
     function syncCanvasSize() {
         const w = glContainer.clientWidth;
         const h = glContainer.clientHeight;
@@ -140,18 +129,16 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
         }
     }
 
-    // Sidebar toggle button wiring
     toggleBtn.addEventListener('click', () => {
         splitView.toggleSidebar();
         toggleBtn.classList.toggle('active', splitView.showSidebar);
     });
 
-    // Sync toggle button on sidebar-toggled events (e.g. backdrop click)
+    // Also fires for a backdrop click, which does not go through the button.
     splitView.addEventListener('sidebar-toggled', () => {
         toggleBtn.classList.toggle('active', splitView.showSidebar);
     });
 
-    // Responsive breakpoints — mirror GJS Adw.Breakpoint behavior
     let lastCollapsed: boolean | null = null;
     new ResizeObserver(([entry]) => {
         const width = entry.contentRect.width;
@@ -163,9 +150,8 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
         toggleBtn.classList.toggle('active', !shouldCollapse);
     }).observe(win);
 
-    // Observe parent container for size changes (window resize, layout changes).
-    // Demo reference lives in an outer closure so the pause button and returned
-    // ShowcaseHandle can delegate to it once it's alive.
+    // The demo reference lives in an outer closure so the pause button and the returned handle can
+    // delegate to it once it exists.
     let demo: PixelDemo | null = null;
     // Buffers pause() calls that arrive before the demo exists.
     let pendingPause = false;
@@ -189,12 +175,11 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     });
     sizeObserver.observe(glContainer);
 
-    // Also observe the split view content area — catches sidebar toggle
-    // changes that glContainer's observer might miss during CSS transitions.
+    // The content area is observed too: glContainer's own observer can miss a sidebar toggle while a
+    // CSS transition is running.
     const contentArea = splitView.querySelector('.adw-osv-content');
     if (contentArea) sizeObserver.observe(contentArea);
 
-    // Pause button wiring — toggles demo state and swaps the icon.
     function updatePauseButton(paused: boolean): void {
         setButtonIcon(pauseBtn, paused ? mediaPlaybackStartSymbolic : mediaPlaybackPauseSymbolic);
         pauseBtn.title = paused ? 'Resume Rendering' : 'Pause Rendering';

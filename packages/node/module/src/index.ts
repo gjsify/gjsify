@@ -58,9 +58,6 @@ export function isBuiltin(name: string): boolean {
     return builtinModules.includes(n) || builtinModules.includes(base);
 }
 
-// --- Private helpers for createRequire ---
-// Resolution logic ported from @gjsify/require, cleaned up for ESM-only use
-
 /** Resolve symlinks for a Gio.File, returning the real path. */
 function resolveSymlink(file: Gio.File): string {
     const info = file.query_info('standard::', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
@@ -369,7 +366,6 @@ function resolveModulePath(id: string, callerDir: string): string {
     return resolvedPath;
 }
 
-// --- CJS file loading via GJS imports system ---
 // Ported from @gjsify/require (c) Andrea Giammarchi - ISC
 
 /** Load a CJS .js/.cjs file using GJS's legacy imports system. */

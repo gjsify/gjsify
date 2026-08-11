@@ -1,11 +1,11 @@
 // View-switcher conformance vectors — the spec all three implementations are
 // held to.
 //
-// Two kinds of expectation, and the tables follow the split: the PURE derivations
-// (mnemonic stripping, icon fallback, button-visibility predicate, badge label +
-// screen-reader description, bar-reveal gate, tooltip) are one input and one output
-// per row; the rest is a STATE MACHINE, so a row is a script — a page list, a
-// sequence of operations, and the exact change notifications those produce.
+// The tables follow a split: the PURE derivations (mnemonic stripping, icon fallback,
+// button-visibility predicate, badge label + screen-reader description, bar-reveal
+// gate, tooltip) are one input and one output per row; the rest is a STATE MACHINE, so
+// a row is a script — a page list, a sequence of operations, and the exact change
+// notifications those produce.
 //
 // A `rule` opening with REGRESSION PIN encodes behaviour BOTH ports shipped wrong,
 // so "fixing" that vector to match a renderer undoes the reason the table exists.
@@ -33,7 +33,6 @@ import type {
  * both to "do not set the attribute".
  */
 export interface ViewSwitcherVectorPage {
-    /** The page name. */
     name: string;
     /** `AdwViewStackPage:title`; absent means NULL. */
     title?: string | null;
@@ -51,7 +50,6 @@ export interface ViewSwitcherVectorPage {
 
 /** One `stripMnemonic` expectation. */
 export interface MnemonicVector {
-    /** The raw title. */
     label: string;
     /** What `adw_strip_mnemonic` produces. */
     stripped: string;
@@ -59,12 +57,9 @@ export interface MnemonicVector {
 }
 
 /**
- * `adw_strip_mnemonic` (adw-widget-utils.c:685-703) — `g_markup_escape_text`
- * then `pango_parse_markup` with `'_'` as the accel marker.
- *
- * The escape/parse round trip is entity-NEUTRAL, which is what the `R&D` row
- * pins: a port that only escaped, or only unescaped, would drift on every
- * ampersand.
+ * `adw_strip_mnemonic` — `g_markup_escape_text`, then `pango_parse_markup` with `'_'`
+ * as the accel marker. The round trip is entity-NEUTRAL, which is what the `R&D` row
+ * pins: a port that only escaped, or only unescaped, would drift on every ampersand.
  */
 export const VIEW_SWITCHER_MNEMONIC_VECTORS: ReadonlyArray<MnemonicVector> = [
     { label: '_Files', stripped: 'Files', rule: 'a single accel marker is removed' },
@@ -88,12 +83,11 @@ export interface ViewSwitcherIconVector {
 }
 
 /**
- * The `image-missing` substitution (adw-view-switcher-button.c:399-405,
- * adw-inline-view-switcher.c:137-142). Both ports rendered NO icon instead, so an
- * icons-mode toggle for a page without an icon was a blank box.
+ * The `image-missing` substitution for a page with no icon of its own — rendering NO
+ * icon leaves an icons-mode toggle as a blank box.
  *
- * No `-symbolic` stripping here: C passes the name to `GtkImage` unchanged, and
- * turning a name into a CSS class or an SVG document is the renderer's job.
+ * No `-symbolic` stripping here: C passes the name to `GtkImage` unchanged, and turning
+ * a name into a CSS class or an SVG document is the renderer's job.
  */
 export const VIEW_SWITCHER_ICON_VECTORS: ReadonlyArray<ViewSwitcherIconVector> = [
     {
@@ -122,12 +116,8 @@ export interface ViewSwitcherButtonVisibilityVector {
 
 /**
  * `update_button`'s `gtk_widget_set_visible (button, visible && (title != NULL ||
- * icon_name != NULL))` (adw-view-switcher.c:178).
- *
- * In NEITHER port: the browser hid the label and icon spans but always appended a
- * visible `<button>`, NativeScript always added the button `StackLayout` with an
- * empty `Label`. Both rendered an empty, clickable tab for a page with no title
- * and no icon.
+ * icon_name != NULL))` — a page with neither title nor icon gets no tab at all, not an
+ * empty clickable one.
  */
 export const VIEW_SWITCHER_BUTTON_VISIBILITY_VECTORS: ReadonlyArray<ViewSwitcherButtonVisibilityVector> = [
     { visible: true, title: 'Home', iconName: null, buttonVisible: true, rule: 'a title alone is enough' },
@@ -177,12 +167,9 @@ export interface ViewSwitcherBadgeVector {
 }
 
 /**
- * `get_badge_label` (adw-indicator-bin.c:58-68) and `update_description`
- * (:70-113), omitted by both ports — neither renders a badge, a needs-attention
- * dot, or an accessible description.
- *
- * The composition ORDER is the subtle part: with both clauses the format is
- * `"%s %s", badge_description, needs_attention_description` (:96) — badge first.
+ * `get_badge_label` and `update_description`. The composition ORDER is the subtle part:
+ * with both clauses the format is `"%s %s", badge_description,
+ * needs_attention_description` — badge first.
  */
 export const VIEW_SWITCHER_BADGE_VECTORS: ReadonlyArray<ViewSwitcherBadgeVector> = [
     { badgeNumber: 0, needsAttention: false, badgeLabel: '', description: '', rule: 'no badge, no attention, no text' },
@@ -243,7 +230,7 @@ export interface ViewSwitcherBarRevealVector {
 }
 
 /**
- * `update_bar_revealed` (adw-view-switcher-bar.c:104-126) — absent from BOTH
+ * `update_bar_revealed` — absent from BOTH
  * ports, which reduced `revealed` to a boolean flag and never consulted the page
  * count, so a bar on a one-page stack showed a strip libadwaita keeps collapsed.
  */
@@ -297,7 +284,6 @@ export interface ViewSwitcherBarSnapshot {
 /** One end-to-end switcher-bar expectation. */
 export interface ViewSwitcherBarVector {
     rule: string;
-    /** The C function + lines it is derived from. */
     derivedFrom: string;
     /** The script, applied in order to a fresh bar. */
     steps: readonly ViewSwitcherBarStep[];
@@ -314,10 +300,9 @@ export interface ViewSwitcherBarVector {
 }
 
 /**
- * `AdwViewSwitcherBar`'s reveal machine end to end. `update_bar_revealed` is
- * re-run from `set_reveal`, from `set_stack` and from the pages' `items-changed`
- * (adw-view-switcher-bar.c:340-343, :383, :277), which is why the page set alone
- * can flip the bar while `reveal` never moves.
+ * `AdwViewSwitcherBar`'s reveal machine end to end. `update_bar_revealed` is re-run
+ * from `set_reveal`, from `set_stack` and from the pages' `items-changed`, which is why
+ * the page set alone can flip the bar while `reveal` never moves.
  */
 export const VIEW_SWITCHER_BAR_VECTORS: ReadonlyArray<ViewSwitcherBarVector> = [
     {
@@ -404,7 +389,6 @@ export interface InlineTooltipVector {
     title: string | null;
     /** `AdwViewStackPage:use-underline`. */
     useUnderline: boolean;
-    /** The current display mode. */
     displayMode: AdwInlineViewSwitcherDisplayMode;
     /** The tooltip text, as PLAIN text. */
     tooltip: string;
@@ -412,7 +396,7 @@ export interface InlineTooltipVector {
 }
 
 /**
- * `update_tooltip` (adw-inline-view-switcher.c:163-192). The browser port gated on
+ * `update_tooltip`. The browser port gated on
  * the mode correctly but used the RAW attribute, so `title="_Files"` produced the
  * tooltip `_Files`; NativeScript has no tooltip at all.
  */
@@ -446,17 +430,13 @@ export const INLINE_TOOLTIP_VECTORS: ReadonlyArray<InlineTooltipVector> = [
 
 /** The derived per-button model a vector expects. */
 export interface ExpectedViewSwitcherButton {
-    /** Position in the page list. */
     pageIndex: number;
-    /** The page name. */
     name: string;
     /** The text painted on the button. */
     label: string;
     /** The icon name painted on the button, never empty. */
     iconName: string;
-    /** Whether the button is shown at all. */
     visible: boolean;
-    /** Whether it is the selected one. */
     selected: boolean;
     /** Icon/label arrangement, from the policy. */
     orientation: 'horizontal' | 'vertical';
@@ -471,9 +451,7 @@ export interface ExpectedViewSwitcherButton {
 /** One `buildViewSwitcherButtons` expectation. */
 export interface ViewSwitcherButtonVector {
     rule: string;
-    /** The C function + lines it is derived from. */
     derivedFrom: string;
-    /** The pages, in order. */
     pages: readonly ViewSwitcherVectorPage[];
     /** The selected PAGE index, `-1` for none. */
     selected: number;
@@ -485,8 +463,8 @@ export interface ViewSwitcherButtonVector {
 
 /**
  * `AdwViewSwitcher`'s per-button derivation: `populate_switcher` adds a button
- * for EVERY page (adw-view-switcher.c:230-238) and `update_button` decides what
- * it shows and whether it is visible (:149-182).
+ * for EVERY page and `update_button` decides what
+ * it shows and whether it is visible.
  */
 export const VIEW_SWITCHER_BUTTON_VECTORS: ReadonlyArray<ViewSwitcherButtonVector> = [
     {
@@ -722,15 +700,12 @@ export interface ExpectedInlineToggle {
     toggleIndex: number;
     /** Position in the page list — libadwaita's `child-index`. */
     pageIndex: number;
-    /** The page name. */
     name: string;
     /** The text painted on the toggle. */
     label: string;
     /** The icon name painted on the toggle, never empty. */
     iconName: string;
-    /** Whether this display mode builds an icon. */
     showIcon: boolean;
-    /** Whether this display mode builds a label. */
     showLabel: boolean;
     /** Tooltip text, `''` outside icons mode. */
     tooltip: string;
@@ -745,9 +720,7 @@ export interface ExpectedInlineToggle {
 /** One `buildInlineToggles` + index-mapping expectation. */
 export interface InlineToggleVector {
     rule: string;
-    /** The C function + lines it is derived from. */
     derivedFrom: string;
-    /** The pages, in order. */
     pages: readonly ViewSwitcherVectorPage[];
     /** `AdwInlineViewSwitcher:display-mode`. */
     displayMode: AdwInlineViewSwitcherDisplayMode;
@@ -762,12 +735,10 @@ export interface InlineToggleVector {
 /**
  * The inline switcher's TWO index spaces, plus what each display mode builds.
  *
- * `populate_group` calls `add_toggle` only for visible pages and passes the PAGE
- * index `i`, which `add_toggle` stashes as `child-index`
- * (adw-inline-view-switcher.c:370-378, :346); `notify_active_cb` reads it back
- * (:114-129) and `selection_changed_cb` walks the other way (:434-453). Neither
- * port filtered hidden pages, so the mapping looked like the identity and the `-1`
- * sentinel had no spelling.
+ * `populate_group` calls `add_toggle` only for visible pages and passes the PAGE index
+ * `i`, which `add_toggle` stashes as `child-index`; `notify_active_cb` reads it back and
+ * `selection_changed_cb` walks the other way. Skip the hidden-page filter and the two
+ * spaces collapse into the identity, which is where the `-1` sentinel gets lost.
  */
 export const INLINE_TOGGLE_VECTORS: ReadonlyArray<InlineToggleVector> = [
     {
@@ -959,13 +930,11 @@ export type ViewSwitcherVectorOp =
 /** One end-to-end switcher-selection expectation. */
 export interface ViewSwitcherSelectionVector {
     rule: string;
-    /** The C function + lines it is derived from. */
     derivedFrom: string;
     /** The pages, set in this order. */
     pages: readonly ViewSwitcherVectorPage[];
     /** Changes emitted WHILE the pages are set (the auto-pick), in order. */
     setupChanges: readonly ViewSwitcherVectorChange[];
-    /** Operations applied after the pages exist. */
     ops: readonly ViewSwitcherVectorOp[];
     /**
      * Return value of each op, in order. Asserted by the core and NativeScript
@@ -986,14 +955,13 @@ export interface ViewSwitcherSelectionVector {
 }
 
 /**
- * The selection machine a switcher drives, which is the bound stack's — the
- * switcher owns no selection property of its own (adw-view-switcher.c:126-147
- * goes straight to `gtk_selection_model_select_item`).
+ * The selection machine a switcher drives, which is the bound stack's — the switcher
+ * owns no selection property of its own; it goes straight to
+ * `gtk_selection_model_select_item`.
  *
- * The refusal rows are where the ports failed differently: the browser switcher
- * CLAMPED an out-of-range or negative index (`active="-1"` jumped to the first
- * page, `active="99"` to the last), and both stacks accepted a fractional index
- * and then matched no page at all.
+ * The refusal rows pin that a negative, out-of-range or FRACTIONAL index is refused
+ * outright: clamping it (`active="-1"` to the first page, `active="99"` to the last)
+ * silently selects a page the caller did not ask for.
  */
 export const VIEW_SWITCHER_SELECTION_VECTORS: ReadonlyArray<ViewSwitcherSelectionVector> = [
     {
@@ -1200,13 +1168,10 @@ export const VIEW_SWITCHER_SELECTION_VECTORS: ReadonlyArray<ViewSwitcherSelectio
 /** One page-list rebuild expectation. */
 export interface ViewSwitcherRebuildVector {
     rule: string;
-    /** The C function + lines it is derived from. */
     derivedFrom: string;
-    /** The initial pages. */
     pages: readonly ViewSwitcherVectorPage[];
     /** A page name to select before the rebuild; omitted keeps the auto-pick. */
     select?: string;
-    /** The replacement pages. */
     nextPages: readonly ViewSwitcherVectorPage[];
     /** Changes emitted BY the rebuild, in order. */
     changes: readonly ViewSwitcherVectorChange[];
@@ -1217,15 +1182,13 @@ export interface ViewSwitcherRebuildVector {
 }
 
 /**
- * What happens to the selection when the page list is replaced wholesale — the
- * shape both renderers actually use (`setViews` on NativeScript, a re-parse on
- * the browser side).
+ * What happens to the selection when the page list is replaced wholesale — the shape
+ * both renderers use (`setViews` on NativeScript, a re-parse on the browser side).
  *
  * libadwaita's selection is a page POINTER compared by identity
- * (`adw_view_stack_pages_is_selected`, adw-view-stack.c:660-672), so it follows
- * the page across inserts instead of pinning an index; a rebuild that drops the
- * selected page falls through to the first-visible auto-pick
- * (adw-view-switcher.c:258-263).
+ * (`adw_view_stack_pages_is_selected`), so it follows the page across inserts instead of
+ * pinning an index; a rebuild that drops the selected page falls through to the
+ * first-visible auto-pick.
  */
 export const VIEW_SWITCHER_REBUILD_VECTORS: ReadonlyArray<ViewSwitcherRebuildVector> = [
     {
@@ -1319,13 +1282,10 @@ export type ViewSwitcherDragStep =
 /** One drag-hover auto-switch expectation. */
 export interface ViewSwitcherDragVector {
     rule: string;
-    /** The C function + lines it is derived from. */
     derivedFrom: string;
-    /** The pages. */
     pages: readonly ViewSwitcherVectorPage[];
     /** The page index selected before the drag starts. */
     initial: number;
-    /** The drag script. */
     steps: readonly ViewSwitcherDragStep[];
     /** Changes emitted by the script, in order. */
     changes: readonly ViewSwitcherVectorChange[];
@@ -1334,10 +1294,8 @@ export interface ViewSwitcherDragVector {
 }
 
 /**
- * `TIMEOUT_EXPAND` — the 500 ms dwell that switches pages mid-drag. Defined
- * identically in both C files (adw-view-switcher-button.c:14, :58-96;
- * adw-inline-view-switcher.c:80, :194-236) and in NEITHER port, which only ever
- * listened for `click`/`tap`.
+ * `TIMEOUT_EXPAND` — the 500 ms dwell that switches pages mid-drag, defined identically
+ * in `adw-view-switcher-button.c` and `adw-inline-view-switcher.c`.
  *
  * `interactive: true` on the resulting change because the C timeout activates the
  * toggle, running the same `on_button_toggled` a click does.
@@ -1456,12 +1414,10 @@ export interface ViewSwitcherClock extends ViewSwitcherScheduler {
 }
 
 /**
- * A fake clock for the drag vectors. It schedules and cancels callbacks and
- * nothing else, so it cannot transcribe the logic it is used to exercise.
- *
- * Driven by the core suite and the browser suite, the latter through the
- * elements' injectable `scheduler` property. The NativeScript port has no drag
- * surface, so it drives none of these rows.
+ * A fake clock for the drag vectors. It schedules and cancels callbacks and nothing
+ * else, so it cannot transcribe the logic it is used to exercise. The browser suite
+ * injects it through the elements' `scheduler` property; the NativeScript port has no
+ * drag surface and drives none of these rows.
  */
 export function createViewSwitcherClock(): ViewSwitcherClock {
     let now = 0;

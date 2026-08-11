@@ -1,33 +1,22 @@
-// Minimalist Browser — platform-agnostic shared core.
+// Minimalist Browser — the platform-agnostic core, shared by the browser variant (a real
+// `<iframe>`) and the GJS variant (an `IFrameBridge` over WebKit.WebView); each supplies only a thin
+// `IFrameHandle`-shaped adapter.
 //
-// The same `BrowserCore` runs in both the browser variant (driving a
-// real `<iframe>` element) and the GJS variant (driving an `IFrameBridge`
-// over WebKit.WebView). The variant-specific bootstrap is just a thin
-// adapter that constructs an `IFrameHandle`-shaped wrapper.
+// History is an application-side stack in BOTH variants. A browser `<iframe>` cannot be navigated
+// cross-origin through `contentWindow.history.go(-1)` at all (by spec), and while GJS could call
+// WebKit's own go_back, the shared stack keeps the two variants identical.
 //
-// Cross-variant parity: both variants maintain an **application-side
-// history stack** (browser-side `<iframe>` cannot be navigated
-// cross-origin via `contentWindow.history.go(-1)` by spec; GJS could use
-// WebKit's internal go_back but we mirror the same model for
-// symmetry). Back / Forward / Reload pop the stack and re-set the
-// iframe src.
-//
-// PostMessage demonstration: every bundled "page:<name>" srcdoc page has
-// an inline `<script>` that calls `window.parent.postMessage({type:
-// 'page-loaded', title, url}, '*')` on `DOMContentLoaded`. The
-// `BrowserCore` listens on `iframeEl.contentWindow` and surfaces the
-// announcement to the UI via the `onPageLoaded` callback.
+// Each built-in page posts `{type: 'page-loaded', …}` to its parent on DOMContentLoaded, which is
+// what `onPageLoaded` surfaces — the postMessage round-trip is part of what the showcase proves.
 
-/** Abstract shape of the iframe content area. Both real `<iframe>` and
- *  IFrameBridge's `iframeElement` satisfy this duck-type. */
+/** Satisfied by both a real `<iframe>` and IFrameBridge's `iframeElement`. */
 export interface IFrameHandle {
     /** Either `src` (URL) or `srcdoc` (HTML) is set to navigate. */
     set src(value: string);
     get src(): string;
     set srcdoc(value: string);
     get srcdoc(): string;
-    /** Provides the `contentWindow` once the frame has loaded. May be null
-     *  before first load. */
+    /** Null before the first load. */
     readonly contentWindow: {
         addEventListener(type: 'message', listener: (event: { data: unknown }) => void): void;
     } | null;
@@ -62,17 +51,13 @@ export interface PageLoadedInfo {
     url: string;
 }
 
-/* ── Built-in page library ──────────────────────────────────────────── */
-
 interface BuiltinPage {
     title: string;
     html: string;
 }
 
 function pageTemplate(title: string, url: string, body: string): string {
-    // Each built-in page announces itself to the parent via postMessage so
-    // the showcase can demonstrate the round-trip. JSON.stringify of the
-    // title/url avoids quoting concerns inside the template literal.
+    // `JSON.stringify` on title/url so neither can break out of the template literal.
     return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>${title}</title>
 <style>
@@ -190,36 +175,24 @@ const PAGES: Record<string, BuiltinPage> = {
     },
 };
 
-/* ── BrowserCore — drives the iframe + history-stack ────────────────── */
-
 export class BrowserCore implements BrowserHandle {
-    /** Application-side history stack. The current URL is at
-     *  `_history[_historyIndex]`; `back()` decrements, `forward()` increments. */
+    /** The current URL is `_history[_historyIndex]`. */
     private _history: string[] = [];
     private _historyIndex = -1;
     private _stateCbs: ((state: NavState) => void)[] = [];
     private _loadedCbs: ((info: PageLoadedInfo) => void)[] = [];
 
     constructor(private readonly _iframe: IFrameHandle) {
-        // Wire the iframe's contentWindow listener once. The handle is
-        // duck-typed: real `<iframe>` provides `.contentWindow.addEventListener`,
-        // and so does the GJS `IFrameWindowProxy` returned by
-        // `iframeElement.contentWindow`. Both speak W3C MessageEvent.
-        //
-        // `contentWindow` may be null before first load — the GJS variant
-        // lazy-creates the proxy on first message. We register inside an
-        // `onReady`-like hook in the platform adapter (which is responsible
-        // for invoking `_attachListener` once contentWindow exists). Some
-        // platforms (real browser) have it immediately.
+        // Deferred a microtask because `contentWindow` is null before the first load: the GJS
+        // variant lazy-creates its `IFrameWindowProxy`, so the adapter re-attaches later via
+        // `reattachListener()`. Both proxies speak W3C MessageEvent.
         queueMicrotask(() => this._attachListener());
     }
 
     private _attachListener(): void {
         const cw = this._iframe.contentWindow;
         if (!cw) {
-            // Try again after the first navigate — the GJS proxy is lazy.
-            // The platform adapter may also call this explicitly.
-            return;
+            return; // Nothing to attach to yet; `reattachListener()` retries after a navigate.
         }
         cw.addEventListener('message', (event) => {
             const data = event.data as { type?: string; title?: string; url?: string };
@@ -230,8 +203,7 @@ export class BrowserCore implements BrowserHandle {
     }
 
     navigate(url: string): void {
-        // Truncate any forward history (browsers do the same on new
-        // navigation after a back).
+        // Forward history is truncated on a new navigation, as a browser does.
         this._history = this._history.slice(0, this._historyIndex + 1);
         this._history.push(url);
         this._historyIndex = this._history.length - 1;
@@ -256,8 +228,7 @@ export class BrowserCore implements BrowserHandle {
     reload(): void {
         if (this._historyIndex < 0) return;
         this._loadInto(this._history[this._historyIndex]!);
-        // No state change — same index — but trigger the callback so the
-        // status line can clear / re-flash.
+        // The index did not change, but the callback still fires so the status line can re-flash.
         this._emitState();
     }
 
@@ -282,17 +253,14 @@ export class BrowserCore implements BrowserHandle {
     }
 
     /**
-     * Public hook for the platform adapter to re-attach the listener
-     * after a `loadHtml` (GJS variant resets contentWindow on each
-     * load). Browser variant doesn't need this — the real iframe keeps
-     * its contentWindow across navigations.
+     * For the GJS adapter, whose `contentWindow` is reset on every `loadHtml`. A real iframe keeps
+     * its contentWindow across navigations, so the browser variant never needs this.
      */
     reattachListener(): void {
         this._attachListener();
     }
 
-    /** Internal: route a URL into the iframe, picking `srcdoc` for the
-     *  `page:<name>` scheme and `src` for everything else. */
+    /** `srcdoc` for the `page:<name>` scheme, `src` for everything else. */
     private _loadInto(url: string): void {
         if (url.startsWith('page:')) {
             const name = url.slice('page:'.length);
@@ -311,8 +279,6 @@ export class BrowserCore implements BrowserHandle {
             this._iframe.srcdoc = page.html;
             return;
         }
-        // Normal URL — set src directly. Both real iframe and IFrameBridge
-        // honour the same setter.
         this._iframe.src = url;
     }
 
@@ -326,8 +292,6 @@ export class BrowserCore implements BrowserHandle {
     }
 }
 
-/** List of built-in page URLs — exported for UI dropdown / quick-nav buttons. */
 export const BUILTIN_PAGE_URLS: string[] = Object.keys(PAGES).map((name) => `page:${name}`);
 
-/** Default URL the browser opens on launch. */
 export const DEFAULT_HOME_URL = 'page:welcome';

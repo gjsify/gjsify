@@ -42,8 +42,6 @@ const TMP_DIR_RESOLVED = realpathSync(TMP_DIR);
 // Original: MIT license, Node.js contributors
 
 export default async () => {
-    // ==================== execSync ====================
-
     await describe('child_process.execSync', async () => {
         await it('should run a shell command and return output', async () => {
             const result = execSync('echo hello', { encoding: 'utf8' });
@@ -77,8 +75,6 @@ export default async () => {
         });
     });
 
-    // ==================== execFileSync ====================
-
     await describe('child_process.execFileSync', async () => {
         await it('should run a command and return output', async () => {
             const result = execFileSync(...echo('hello world'), { encoding: 'utf8' });
@@ -105,8 +101,6 @@ export default async () => {
             expect((result as string).trim()).toBe(TMP_DIR_RESOLVED);
         });
     });
-
-    // ==================== spawnSync ====================
 
     await describe('child_process.spawnSync', async () => {
         await it('should return result with status 0', async () => {
@@ -155,8 +149,6 @@ export default async () => {
             expect((result.stdout as string).trim()).toBe(TMP_DIR_RESOLVED);
         });
     });
-
-    // ==================== exec (async callback) ====================
 
     await describe('child_process.exec', async () => {
         await it('should call callback with stdout', async () => {
@@ -209,8 +201,6 @@ export default async () => {
         });
     });
 
-    // ==================== execFile (async callback) ====================
-
     await describe('child_process.execFile', async () => {
         await it('should call callback with stdout', async () => {
             const result = await new Promise<string>((resolve, reject) => {
@@ -231,8 +221,6 @@ export default async () => {
             expect(error).toBeDefined();
         });
     });
-
-    // ==================== Module exports ====================
 
     await describe('child_process exports', async () => {
         await it('should export execSync as a function', async () => {
@@ -256,8 +244,6 @@ export default async () => {
             expect(typeof execFile).toBe('function');
         });
     });
-
-    // ==================== Additional edge cases ====================
 
     await describe('child_process edge cases', async () => {
         await it('spawnSync should handle empty stdout', async () => {
@@ -327,8 +313,6 @@ export default async () => {
         });
     });
 
-    // ==================== exec with encoding option ====================
-
     await describe('child_process.exec with encoding', async () => {
         await it('exec with encoding option should return string stdout', async () => {
             // Testing child_process module API — hardcoded safe literal
@@ -353,8 +337,6 @@ export default async () => {
         });
     });
 
-    // ==================== spawnSync additional tests ====================
-
     await describe('child_process.spawnSync additional', async () => {
         await it('spawnSync with input option should pass stdin data', async () => {
             const result = spawnSync(...cat(), {
@@ -373,8 +355,6 @@ export default async () => {
         });
     });
 
-    // ==================== execSync additional tests ====================
-
     await describe('child_process.execSync additional', async () => {
         await it('execSync should respect encoding option and return string', async () => {
             const result = execSync('echo encoded', { encoding: 'utf8' });
@@ -388,8 +368,6 @@ export default async () => {
         });
     });
 
-    // ==================== execFileSync additional tests ====================
-
     await describe('child_process.execFileSync additional', async () => {
         await it('execFileSync should handle env option', async () => {
             const result = execFileSync(...printEnv('MY_CUSTOM_VAR'), {
@@ -399,8 +377,6 @@ export default async () => {
             expect((result as string).trim()).toBe('custom_value');
         });
     });
-
-    // ==================== Export type checks ====================
 
     await describe('child_process function exports type checks', async () => {
         await it('spawn should be exported as a function', async () => {
@@ -425,7 +401,6 @@ export default async () => {
         });
     });
 
-    // ==================== spawn (async event-based) ====================
     // Ported from refs/node-test/parallel/test-child-process-spawn*.js
     // Original: MIT license, Node.js contributors
 
@@ -541,7 +516,6 @@ export default async () => {
         });
     });
 
-    // ==================== ChildProcess kill ====================
     // Ported from refs/node-test/parallel/test-child-process-kill.js
     // Original: MIT license, Node.js contributors
 
@@ -577,7 +551,6 @@ export default async () => {
         });
     });
 
-    // ==================== exec edge cases ====================
     // Ported from refs/node-test/parallel/test-child-process-exec-*.js
     // Original: MIT license, Node.js contributors
 
@@ -652,8 +625,6 @@ export default async () => {
         });
     });
 
-    // ==================== execFile edge cases ====================
-
     await describe('child_process.execFile edge cases', async () => {
         await it('should pass arguments correctly', async () => {
             const result = await new Promise<string>((resolve, reject) => {
@@ -682,7 +653,6 @@ export default async () => {
         });
     });
 
-    // ==================== spawnSync extended ====================
     // Ported from refs/node-test/parallel/test-child-process-spawnsync*.js
     // Original: MIT license, Node.js contributors
 
@@ -736,7 +706,6 @@ export default async () => {
         });
     });
 
-    // ==================== execSync extended ====================
     // Ported from refs/node-test/parallel/test-child-process-execsync*.js
     // Original: MIT license, Node.js contributors
 
@@ -797,8 +766,6 @@ export default async () => {
         });
     });
 
-    // ==================== execFileSync extended ====================
-
     await describe('child_process.execFileSync extended', async () => {
         await it('should return Buffer without encoding', async () => {
             const result = execFileSync(...echo('raw'));
@@ -834,8 +801,6 @@ export default async () => {
             expect(lines[1]).toBe(TMP_DIR_RESOLVED);
         });
     });
-
-    // ==================== spawn() with streaming stdout/stderr ====================
 
     await describe('child_process.spawn stdout/stderr streaming', async () => {
         await it('spawn() sets proc.stdout as a Readable', async () => {

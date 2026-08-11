@@ -79,10 +79,9 @@ export default async () => {
         });
 
         await it('should handle Symbol operands without throwing', async () => {
-            // Regression: toBe() builds its failure message eagerly via
-            // `${expectedValue}`, which throws "Cannot convert a Symbol value to
-            // a string" — so even a PASSING comparison used to crash. These
-            // passing assertions would throw a TypeError before the formatValue fix.
+            // `toBe()` builds its failure message eagerly, so interpolating a symbol
+            // threw "Cannot convert a Symbol value to a string" and even a PASSING
+            // comparison crashed. These assertions pin `formatValue`'s job.
             const sym = Symbol('s');
             expect(sym).toBe(sym);
             expect(Symbol.for('x')).toBe(Symbol.for('x'));
@@ -115,15 +114,13 @@ export default async () => {
             expect(obj).not.toEqual(obj2);
         });
 
-        // Read through `toThrow`, which is how the matchers' own specs inspect a
-        // failure here — a hand-rolled try/catch would skip its
-        // `forgetThrownAssertion` and the absorbed error would be reported as a
-        // lost assertion (the phantom-failure mode documented in
-        // callback-assertion.spec.ts).
+        // Inspect the failure through `toThrow`: a hand-rolled try/catch skips
+        // `forgetThrownAssertion`, and the absorbed error is then reported as a lost
+        // assertion (see callback-assertion.spec.ts).
         await it('names toStrictEqual when the values are structurally equal', async () => {
-            // The trap the hint exists for: `toEqual` compares objects by
-            // REFERENCE, so a Jest-shaped `toEqual([...])` fails while printing
-            // two identical-looking lines, which reads as a framework bug.
+            // The trap the hint exists for: `toEqual` compares objects by REFERENCE, so
+            // a Jest-shaped `toEqual([…])` fails while printing two identical-looking
+            // lines, which reads as a framework bug.
             expect(() => expect([['real', '^2']]).toEqual([['real', '^2']])).toThrow('structurally equal');
             expect(() => expect([['real', '^2']]).toEqual([['real', '^2']])).toThrow('toStrictEqual');
         });
@@ -302,12 +299,11 @@ export default async () => {
         }, 1000);
 
         await it('should fail when test exceeds timeout', async () => {
-            // This test verifies timeout detection by running a test that will timeout,
-            // then checking that the failure was counted.
+            // Does NOT observe a timeout: an `it()` that times out cannot be watched
+            // from inside another `it()` without failing the run, so only the accepted
+            // timeout argument is pinned here. The real thing is an e2e concern.
             const _failedBefore = (globalThis as Record<string, unknown>).__testFailedCount;
 
-            // We can't directly test that it() times out from within it() itself,
-            // so we test that a fast test with a generous timeout succeeds.
             expect(true).toBeTruthy();
         }, 1000);
 
@@ -328,16 +324,13 @@ export default async () => {
 
     await describe('timeout::configure', async () => {
         await it('should allow configuring default test timeout', async () => {
-            // Save and restore config
             configure({ testTimeout: 2000 });
-            // A fast test should still pass with 2s timeout
             expect(true).toBeTruthy();
-            // Restore default
+            // Back to the default, or every later test inherits 2 s.
             configure({ testTimeout: 5000 });
         });
 
         await it('should allow disabling timeout with 0', async () => {
-            // timeout: 0 means no timeout
             await new Promise<void>((resolve) => setTimeout(resolve, 10));
             expect(true).toBeTruthy();
         }, 0);

@@ -27,8 +27,6 @@ function setTimestamps(path: string, atime: TimeLike, mtime: TimeLike, flags: Gi
     file.set_attributes_from_info(info, flags, null);
 }
 
-// ─── utimes ───────────────────────────────────────────────────────────────────
-
 export function utimesSync(path: PathLike, atime: TimeLike, mtime: TimeLike): void {
     setTimestamps(normalizePath(path), atime, mtime, Gio.FileQueryInfoFlags.NONE);
 }
@@ -47,8 +45,6 @@ export function utimes(
 export async function utimesAsync(path: PathLike, atime: TimeLike, mtime: TimeLike): Promise<void> {
     utimesSync(path, atime, mtime);
 }
-
-// ─── lutimes ──────────────────────────────────────────────────────────────────
 
 export function lutimesSync(path: PathLike, atime: TimeLike, mtime: TimeLike): void {
     setTimestamps(normalizePath(path), atime, mtime, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS);
@@ -69,7 +65,6 @@ export async function lutimesAsync(path: PathLike, atime: TimeLike, mtime: TimeL
     lutimesSync(path, atime, mtime);
 }
 
-// ─── lchown ───────────────────────────────────────────────────────────────────
 // NOFOLLOW_SYMLINKS changes the ownership of the symlink itself, not its
 // target — the Gio equivalent of `chown -h`. The previous impl shelled out
 // with unquoted paths (broken on spaces, command-injection hazard) and
@@ -98,8 +93,6 @@ export function lchown(
 export async function lchownAsync(path: PathLike, uid: number, gid: number): Promise<void> {
     lchownSync(path, uid, gid);
 }
-
-// ─── lchmod ───────────────────────────────────────────────────────────────────
 
 /**
  * `lchmod` is not implemented — and the shape of "not implemented" is the whole

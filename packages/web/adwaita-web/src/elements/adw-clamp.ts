@@ -1,16 +1,15 @@
 // <adw-clamp> — Constrains its children to a maximum width and centers them.
 // Attributes: maximum-size (px, default 600), tightening-threshold (px, default 400).
 //
-// The clamp is NOT a `max-width`, which is what this element used to be. Adwaita
-// eases the child from "all the available width" into the cap across a tightening
-// region, and stamps a `small`/`medium`/`large` class on it — the arithmetic lives
-// in `@gjsify/adwaita-core` (`clampAllocate`) so this element and the NativeScript
-// widget produce the same width for the same viewport.
+// The clamp is NOT a `max-width`: Adwaita eases the child from "all the available width"
+// into the cap across a tightening region and stamps a `small`/`medium`/`large` class on
+// it. The arithmetic lives in `@gjsify/adwaita-core` (`clampAllocate`), so this element and
+// the NativeScript widget produce the same width for the same viewport.
 //
-// The cap now sits on the CHILDREN, not on this element. The element has to keep
-// reporting the AVAILABLE width — it is what the curve is evaluated against — and
-// an element that caps itself reports the capped width back to its own
-// ResizeObserver, which is a feedback loop, not a measurement.
+// The cap sits on the CHILDREN, not on this element, which has to keep reporting the
+// AVAILABLE width — that is what the curve is evaluated against. An element that caps
+// itself reports the capped width back to its own ResizeObserver, which is a feedback
+// loop, not a measurement.
 //
 // `childMin` is passed as 0 rather than measured. libadwaita's
 // `lower = MAX (…, child_min)` says a child is never squeezed below its own

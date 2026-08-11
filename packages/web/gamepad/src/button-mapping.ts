@@ -2,15 +2,12 @@
 // Reference: https://w3c.github.io/gamepad/#remapping
 //
 // IMPORTANT: libmanette 0.2 delivers Linux input event codes (BTN_*) in
-// Event.get_button(), NOT the Manette.Button enum values from the docs.
-// The enum (SOUTH=5, EAST=7, …) describes the semantic meaning, but the
-// actual values transmitted over signals are the kernel BTN_* constants.
+// Event.get_button(), NOT the Manette.Button enum values from the docs. The enum
+// (SOUTH=5, EAST=7, …) is the semantic meaning; the values on the wire are the
+// kernel BTN_* constants.
 // Reference: linux/input-event-codes.h
 
-/**
- * Linux BTN_* input event codes as reported by Manette.Event.get_button().
- * These are the actual values libmanette 0.2 passes in button-press/release signals.
- */
+/** Linux BTN_* input event codes as reported by `Manette.Event.get_button()`. */
 export const LinuxButton = {
     BTN_SOUTH: 304, // 0x130 — A (Xbox), B (Nintendo), Cross (PlayStation)
     BTN_EAST: 305, // 0x131 — B (Xbox), A (Nintendo), Circle (PlayStation)
@@ -33,10 +30,7 @@ export const LinuxButton = {
     BTN_DPAD_RIGHT: 547, // 0x223
 } as const;
 
-/**
- * W3C standard gamepad button indices.
- * https://w3c.github.io/gamepad/#remapping
- */
+/** W3C standard gamepad button indices — https://w3c.github.io/gamepad/#remapping */
 export const W3CButton = {
     FACE_1: 0, // A (Xbox), B (Nintendo), Cross (PlayStation)
     FACE_2: 1, // B (Xbox), A (Nintendo), Circle (PlayStation)
@@ -60,9 +54,7 @@ export const W3CButton = {
 /** Total number of buttons in the W3C standard mapping. */
 export const W3C_BUTTON_COUNT = 17;
 
-/**
- * Maps Linux BTN_* code → W3C standard button index.
- */
+/** Linux BTN_* code → W3C standard button index. */
 export const MANETTE_TO_W3C_BUTTON: ReadonlyMap<number, number> = new Map([
     [LinuxButton.BTN_SOUTH, W3CButton.FACE_1],
     [LinuxButton.BTN_EAST, W3CButton.FACE_2],
@@ -83,5 +75,5 @@ export const MANETTE_TO_W3C_BUTTON: ReadonlyMap<number, number> = new Map([
     [LinuxButton.BTN_MODE, W3CButton.HOME],
 ]);
 
-// Keep the old name exported for backward compat in tests/examples
+// The legacy spelling stays exported: `gamepad.spec.ts` still imports it.
 export { LinuxButton as ManetteButton };

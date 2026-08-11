@@ -10,16 +10,12 @@
 // CodeMirror. Importing the subpath registers <adw-source-view> and self-injects
 // its stylesheet.
 //
-// Attributes (kebab-case) mirror the properties (camelCase):
-//   code, editable, readonly, selectable, line-numbers, line-number-start,
-//   hex-addresses, language, copyable, copy-button-icon, copy-button-tooltip,
-//   fill-height.
-// Events:
-//   `code-changed` (CustomEvent, bubbles, detail = { code }) — on USER edits
-//     only (programmatic `.code =` is suppressed so an EditorView two-way bind
-//     does not loop). The consuming SourceViewWidget maps it to `changed`.
-//   `copy` (CustomEvent, bubbles, detail = { code }) — when the copy button is
-//     pressed; the clipboard receives the whitespace-stripped text in hex mode.
+// Attributes are the kebab-case spelling of the properties. Events:
+//   `code-changed` (CustomEvent, bubbles, detail `{ code }`) — USER edits only;
+//     programmatic `.code =` is suppressed so an EditorView two-way bind does not loop.
+//     The consuming SourceViewWidget maps it to `changed`.
+//   `copy` (CustomEvent, bubbles, detail `{ code }`) — the clipboard receives the
+//     whitespace-stripped text in hex mode.
 // Reference: packages/app-gnome/src/widgets/source-view.ts (native parity target)
 // Copyright (c) 2025 gjsify contributors. MIT License.
 
@@ -53,7 +49,6 @@ function boolAttr(value: string | null): boolean {
 }
 
 export class AdwSourceView extends HTMLElement {
-    // ─── instance state ──────────────────────────────────────────────────────
     private _view?: EditorView;
     private _editorHost!: HTMLDivElement;
     private _copyButton!: HTMLButtonElement;
@@ -94,8 +89,6 @@ export class AdwSourceView extends HTMLElement {
             'fill-height',
         ];
     }
-
-    // ─── SourceViewWidget surface ────────────────────────────────────────────
 
     /** The document text. Programmatic assignment does NOT emit `code-changed`. */
     get code(): string {
@@ -232,8 +225,6 @@ export class AdwSourceView extends HTMLElement {
         return this._view ?? null;
     }
 
-    // ─── lifecycle ───────────────────────────────────────────────────────────
-
     connectedCallback(): void {
         if (this._initialized) return;
         this._initialized = true;
@@ -314,8 +305,6 @@ export class AdwSourceView extends HTMLElement {
                 break;
         }
     }
-
-    // ─── CodeMirror wiring ───────────────────────────────────────────────────
 
     private _baseExtensions(): Extension {
         return [
@@ -400,8 +389,6 @@ export class AdwSourceView extends HTMLElement {
     private _reconfigure(compartment: Compartment, extension: Extension): void {
         this._view?.dispatch({ effects: compartment.reconfigure(extension) });
     }
-
-    // ─── copy button ─────────────────────────────────────────────────────────
 
     private _onCopyButtonClick(): void {
         const text = this._hexAddresses ? stripWhitespace(this.code) : this.code;

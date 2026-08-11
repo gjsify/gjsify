@@ -96,8 +96,6 @@ import {
     NO_PWRITE_APPEND_REASON,
 } from './capabilities.spec.js';
 
-// ─── fixtures ────────────────────────────────────────────────────────────────
-
 /** A fresh scratch directory; every test cleans up its own. */
 function scratch(name: string): string {
     return mkdtempSync(join(tmpdir(), `gjsify-fs-sem-${name}-`));
@@ -228,7 +226,6 @@ function drainReadStream(stream: NodeJS.ReadableStream & { on: (e: string, f: ()
 }
 
 export default async () => {
-    // ─── 1. fd offset semantics ──────────────────────────────────────────────
     //
     // One cursor per open file description, owned by the kernel, shared by
     // reads and writes. `position: null` uses it and advances it; a numeric
@@ -542,8 +539,6 @@ export default async () => {
         });
     });
 
-    // ─── 2. open() mode ──────────────────────────────────────────────────────
-
     await describe('fs — open() applies mode at creation', async () => {
         await it.failing(
             'honours an explicit mode on the created file',
@@ -744,8 +739,6 @@ export default async () => {
             { when: !CAN_EXPRESS_POSIX_MODE },
         );
     });
-
-    // ─── 3. mkdir mode + special bits ────────────────────────────────────────
 
     await describe('fs — mkdir mode and special bits', async () => {
         await it.failing(
@@ -953,8 +946,6 @@ export default async () => {
         });
     });
 
-    // ─── 4. mkdtemp permissions ──────────────────────────────────────────────
-
     await describe('fs — mkdtemp is a PRIVATE scratch directory', async () => {
         await it.failing(
             'never grants group or other any access',
@@ -1032,8 +1023,6 @@ export default async () => {
             }
         });
     });
-
-    // ─── 5. exclusive create ─────────────────────────────────────────────────
 
     await describe('fs — exclusive create (wx / ax)', async () => {
         await it('refuses an existing file WITHOUT truncating it', async () => {
@@ -1291,8 +1280,6 @@ export default async () => {
         });
     });
 
-    // ─── 6. streams ──────────────────────────────────────────────────────────
-
     await describe('fs — write streams ride the fd cursor', async () => {
         await it('appends with { flags: "a" }', async () => {
             const dir = scratch('wsapp');
@@ -1392,7 +1379,6 @@ export default async () => {
         });
     });
 
-    // ─── 7. the codes and cursors an fd-first rewrite newly exposes ──────────
     //
     // Every rule below was demonstrated against a GREEN suite. The redesign
     // landed, both legs passed, and three adversarial reads still produced a
@@ -2080,7 +2066,6 @@ export default async () => {
         );
     });
 
-    // ─── 8. what the classifier is NOT allowed to invent ─────────────────────
     //
     // Every rule here failed on this branch and passes on Node, and every one
     // of them came from the SAME patch round that fixed the rules above it.
@@ -2788,8 +2773,6 @@ export default async () => {
             }
         });
     });
-
-    // ─── 9. the registry ─────────────────────────────────────────────────────
 
     await describe('fs — every suite is registered', async () => {
         await it('test.mts imports every spec that exports one', async () => {

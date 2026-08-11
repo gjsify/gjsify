@@ -1,13 +1,10 @@
 // DOM-level conformance tests for <adw-about-dialog>, driven by the vectors in
 // `@gjsify/adwaita-core/conformance` — the same table the core suite asserts.
 //
-// This element carried its own copy of `parse_person`, its own page-visibility
-// rules and its own set of invented fallbacks, and diverged from libadwaita on
-// thirteen counts. Two of them were not subtle: Support Questions and Report an
-// Issue were rendered on the DETAILS page, one navigation step deeper than GTK
-// puts them (adw-about-dialog.ui:146-186), and `website` was treated as Details
-// content, which is exactly the one input libadwaita leaves OUT of that
-// predicate (:1108). Nothing compared the two, so nothing failed.
+// A local copy of `parse_person`, of the page-visibility rules or of the fallbacks
+// diverges from libadwaita in thirteen ways, two of them structural: Support Questions
+// and Report an Issue belong on the MAIN page, not one navigation step deeper on Details;
+// and `website` is the one input the Details-visibility predicate leaves OUT.
 import { describe, expect, it } from '@gjsify/unit';
 
 import { ADW_ABOUT_DIALOG_LABELS, stripMnemonic } from '@gjsify/adwaita-core';
@@ -33,9 +30,9 @@ interface Mounted {
 }
 
 /**
- * Mount a dialog and set every attribute imperatively — several vectors hinge on
- * exact whitespace, which a value parsed out of markup is not a reliable
- * carrier for. `window.open` is stubbed because the link rows really do call it.
+ * Mount a dialog and set every attribute imperatively: several vectors hinge on exact
+ * whitespace, which markup is not a reliable carrier for. `window.open` is stubbed
+ * because the link rows really do call it.
  */
 function mount(attributes: Record<string, string> = {}): Mounted {
     const host = document.createElement('div');
@@ -85,10 +82,8 @@ function rowTitles(scope: Element | null): string[] {
 }
 
 /**
- * Activate a row and report the URI it asked for.
- *
- * The URI never reaches the DOM — it is captured in the row's activation
- * handler — so the only way to observe it is to drive the row and listen.
+ * Activate a row and report the URI it asked for. The URI never reaches the DOM — it is
+ * captured in the row's activation handler — so driving the row is the only way to see it.
  */
 function activateRow(dialog: HTMLElement, row: Element): string | null {
     let uri: string | null = null;
@@ -121,8 +116,8 @@ export const AdwAboutDialogTest = async () => {
         }
 
         await it('makes a row with an empty link a LINK row, not a plain one', () => {
-            // `if (link)` is a pointer test in the C, so `"Ada <>"` still links,
-            // to the URI `mailto:` — collapsing "" to null loses the row type.
+            // `if (link)` is a POINTER test in the C, so `"Ada <>"` still links, to the
+            // URI `mailto:` — collapsing "" to null loses the row type.
             const mounted = mount();
             mounted.dialog.developers = ['Ada <>'];
             const row = page(mounted.dialog, 'credits')!.querySelector('adw-action-row')!;
@@ -197,9 +192,9 @@ export const AdwAboutDialogTest = async () => {
         }
 
         await it('keeps a website-only dialog on the main page with no Details row', () => {
-            // `show_details` is `has_comments || has_custom_links` (:1108) —
-            // website is deliberately not in it, so a dialog whose only extra is
-            // a website links straight from the main page.
+            // `show_details` is `has_comments || has_custom_links`; website is
+            // deliberately not in it, so a dialog whose only extra is a website links
+            // straight from the main page.
             const mounted = mount({ 'application-name': 'Builder', website: 'https://example.org' });
             expect(page(mounted.dialog, 'details')).toBe(null);
             expect(hasRow(page(mounted.dialog, 'main'), label('websiteRow'))).toBe(true);
@@ -208,8 +203,8 @@ export const AdwAboutDialogTest = async () => {
     });
 
     await describe('adw-about-dialog main page (update_support vectors)', async () => {
-        // debug-info has no counterpart on this element (there is no
-        // Troubleshooting page), so those rows are asserted by the core suite.
+        // debug-info has no counterpart here (no Troubleshooting page), so the core
+        // suite asserts those rows.
         for (const vector of ABOUT_DIALOG_SUPPORT_VECTORS.filter((row) => !row.debugInfo)) {
             const { supportUrl, issueUrl, visible, rule } = vector;
             await it(`support=${supportUrl} issue=${issueUrl} — ${rule}`, () => {
@@ -235,8 +230,7 @@ export const AdwAboutDialogTest = async () => {
         }
 
         await it('puts the support and issue rows on the MAIN page, not on Details', () => {
-            // adw-about-dialog.ui:146-186 — `support_group` is a child of the
-            // main page, and the class docs say so outright (:87-90).
+            // In `adw-about-dialog.ui`, `support_group` is a child of the MAIN page.
             const mounted = mount({
                 'application-name': 'Builder',
                 'support-url': 'https://example.org/help',
@@ -304,9 +298,8 @@ export const AdwAboutDialogTest = async () => {
         }
 
         await it('titles the dialog "About", not "About <app name>"', () => {
-            // The main page's title is bound to AdwDialog:title, whose template
-            // default is the bare word (.ui:6, :19); the application name lives
-            // in the header revealer instead (.ui:29-31).
+            // The main page's title is bound to AdwDialog:title, whose template default
+            // is the bare word; the application name lives in the header revealer.
             const mounted = mount({ 'application-name': 'Builder' });
             expect(page(mounted.dialog, 'main')!.getAttribute('title')).toBe('About');
             mounted.dispose();
@@ -323,12 +316,11 @@ export const AdwAboutDialogTest = async () => {
         });
 
         await it('does NOT open when a handler cancels it', () => {
-            // `activate_link_cb` returns the accumulated handler result
-            // (:429-437, accumulator `g_signal_accumulator_true_handled`
-            // :2098): a handler saying "handled" suppresses the default
-            // navigation. `preventDefault()` is the web spelling of that, and it
-            // was unavailable — the event was not cancelable and `window.open`
-            // ran regardless.
+            // `activate_link_cb` returns the accumulated handler result (accumulator
+            // `g_signal_accumulator_true_handled`): a handler saying "handled"
+            // suppresses the default navigation, and `preventDefault()` is the web
+            // spelling of that — so the event must be cancelable, or `window.open` runs
+            // regardless.
             const mounted = mount({ 'application-name': 'Builder', website: 'https://example.org' });
             mounted.dialog.addEventListener('activate-link', (event) => event.preventDefault());
             const row = page(mounted.dialog, 'main')!.querySelector(`adw-action-row[title="${label('websiteRow')}"]`)!;
@@ -348,19 +340,14 @@ export const AdwAboutDialogTest = async () => {
         });
     });
 
-    // AN OPENED DIALOG HAS TO OCCUPY SPACE.
+    // An opened dialog has to OCCUPY SPACE, and no other test here can see that: they
+    // all read the built DOM, and all passed while the sheet measured 360×0.
     //
-    // Every other test in this file reads the built DOM, and all of them passed
-    // while the dialog rendered INVISIBLE — its sheet measured 360×0. The suite
-    // could not see that, because none of it looks at geometry.
-    //
-    // The sheet is `position: fixed` with a width and no height, which is what
-    // `adw-about-dialog.ui:7` declares: `content-width` 360 and no
-    // content-height, libadwaita taking the height from the content. The content
-    // could not supply one — the navigation pages were absolutely positioned, so
-    // they contributed nothing to the page stack, which contributed nothing to
-    // the view, which left the sheet at zero; and the pages, being `inset: 0` of
-    // a zero-height parent, were zero in turn.
+    // `adw-about-dialog.ui` declares `content-width` 360 and no content-height, so
+    // libadwaita takes the height from the content — which absolutely-positioned
+    // navigation pages cannot supply, since they contribute nothing to the page stack,
+    // which contributes nothing to the view, and the pages are then `inset: 0` of a
+    // zero-height parent.
     await describe('adw-about-dialog — an opened dialog is actually on screen', async () => {
         await it('gives its sheet a height derived from its content', () => {
             const mounted = mount({ 'application-name': 'Adwaita Storybook', version: '0.11.0' });
@@ -368,11 +355,9 @@ export const AdwAboutDialogTest = async () => {
 
             const sheet = mounted.dialog.querySelector('.adw-about-dialog-sheet') as HTMLElement;
             const rect = sheet.getBoundingClientRect();
-            // HEIGHT only. The width was never the defect, and pinning it here
-            // needs `calc(100vw - 48px)` restated in JS — where `100vw` and
-            // `innerWidth` disagree by the scrollbar (360 against a measured
-            // 342), so the assertion would report the harness rather than the
-            // widget. A test should assert the rule the bug broke.
+            // HEIGHT only: pinning the width needs `calc(100vw - 48px)` restated in JS,
+            // where `100vw` and `innerWidth` disagree by the scrollbar, so the assertion
+            // would report the harness rather than the widget.
             expect(rect.height > 0).toBe(true);
             // And not merely the header: the sheet has to be taller than the one
             // child that had a size of its own all along, which is what made the

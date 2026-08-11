@@ -1,10 +1,9 @@
 // Window-chrome conformance vectors — the spec both renderers are held to.
 //
-// Every row cites the C function it was derived from. The rows that matter most
-// are the ones whose INPUT used to produce a different answer in each of the
-// three implementations: `maximum-size="0"`, a non-numeric `maximum-size`, a
-// clamp narrower than its tightening threshold, a spinner at 24px, a spinner at
-// 200px, and a toolbar view squeezed below its content's minimum.
+// Every row cites the C function it was derived from. The rows that matter most are the
+// inputs the three implementations each answered differently: `maximum-size="0"`, a
+// non-numeric `maximum-size`, a clamp narrower than its tightening threshold, a spinner at
+// 24px, a spinner at 200px, and a toolbar view squeezed below its content's minimum.
 //
 // Reference: refs/libadwaita/src/adw-clamp-layout.c
 // Reference: refs/libadwaita/src/adw-toolbar-view.c
@@ -22,8 +21,6 @@ import type {
     ToolbarViewMeasureInput,
 } from '../chrome.js';
 
-// --- Adw.Clamp ---------------------------------------------------------------
-
 /** One `clampThresholds` expectation. */
 export interface ClampThresholdsVector {
     /** The clamp properties plus the child's measured min/nat. */
@@ -37,7 +34,9 @@ export interface ClampThresholdsVector {
     rule: string;
 }
 
-/** `lower`/`max`/`upper` (adw-clamp-layout.c:173-176, :210-213).  *
+/**
+ * `lower`/`max`/`upper`.
+ *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (CLAMP_ALLOCATE_VECTORS)
  */
 export const CLAMP_THRESHOLD_VECTORS: ReadonlyArray<ClampThresholdsVector> = [
@@ -96,7 +95,9 @@ const CLAMP_DEFAULT_PARAMS: ClampParams = {
     childNat: 1000,
 };
 
-/** `child_size_from_clamp` (adw-clamp-layout.c:193-232).  *
+/**
+ * `child_size_from_clamp`.
+ *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (CLAMP_ALLOCATE_VECTORS)
  */
 export const CLAMP_CHILD_SIZE_VECTORS: ReadonlyArray<ClampChildSizeVector> = [
@@ -166,7 +167,9 @@ export interface ClampSizeFromChildVector {
     rule: string;
 }
 
-/** `clamp_size_from_child` (adw-clamp-layout.c:156-191) — the inverse ease.  *
+/**
+ * `clamp_size_from_child` — the inverse ease.
+ *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (CLAMP_ALLOCATE_VECTORS)
  */
 export const CLAMP_SIZE_FROM_CHILD_VECTORS: ReadonlyArray<ClampSizeFromChildVector> = [
@@ -212,12 +215,11 @@ export interface ClampAllocateVector {
     lowerThreshold: number;
     /** The style class the CHILD carries. */
     sizeClass: AdwClampSizeClass;
-    /** The centring offset. */
     offset: number;
     rule: string;
 }
 
-/** `adw_clamp_layout_allocate` (adw-clamp-layout.c:317-386). */
+/** `adw_clamp_layout_allocate`. */
 export const CLAMP_ALLOCATE_VECTORS: ReadonlyArray<ClampAllocateVector> = [
     {
         availableSize: 300,
@@ -285,7 +287,6 @@ export const CLAMP_ALLOCATE_VECTORS: ReadonlyArray<ClampAllocateVector> = [
 export interface ClampPropertyVector {
     /** The raw attribute value or property assignment. */
     value: number | string | null | undefined;
-    /** The default the property falls back to. */
     fallback: number;
     /** The value that reaches the layout. */
     size: number;
@@ -293,12 +294,10 @@ export interface ClampPropertyVector {
 }
 
 /**
- * `maximum-size` / `tightening-threshold` as `g_param_spec_int (…, 0, G_MAXINT, …)`
- * (adw-clamp-layout.c:413-416, :448-451).
+ * `maximum-size` / `tightening-threshold` as `g_param_spec_int (…, 0, G_MAXINT, …)`.
  *
- * The three interesting rows are the three the ports disagreed on: `"0"` (valid,
- * and NOT the default), a non-numeric value (never reaches the layout, so the
- * DEFAULT applies — the browser port kept whatever cap was already set), and a
+ * The three interesting rows: `"0"` (valid, and NOT the default), a non-numeric value
+ * (never reaches the layout, so the DEFAULT applies rather than the cap already set), and a
  * negative (out of range, clamped to the range floor).
  */
 export const CLAMP_PROPERTY_VECTORS: ReadonlyArray<ClampPropertyVector> = [
@@ -322,11 +321,8 @@ export const CLAMP_PROPERTY_VECTORS: ReadonlyArray<ClampPropertyVector> = [
     { value: '420px', fallback: 600, size: 420, rule: 'a CSS-flavoured attribute still yields its number' },
 ];
 
-// --- Adw.ToolbarView ---------------------------------------------------------
-
 /** One `toolbarViewAllocate` expectation. */
 export interface ToolbarViewAllocateVector {
-    /** The measured sizes going in. */
     input: ToolbarViewAllocateInput;
     /** `Adw.ToolbarView:top-bar-height`. */
     topBarHeight: number;
@@ -339,7 +335,9 @@ export interface ToolbarViewAllocateVector {
     rule: string;
 }
 
-/** `adw_toolbar_view_size_allocate` (adw-toolbar-view.c:357-406).  *
+/**
+ * `adw_toolbar_view_size_allocate`.
+ *
  * CORE-ONLY: both renderers let the BROWSER and NativeScript lay the bars out rather than allocating by hand, so there is no allocation of theirs to compare — the rule they DO apply is TOOLBAR_VIEW_CLASS_VECTORS, which both drive. This reason used to live in the two `adw-toolbar-view.ts` files and nowhere a reader of this table would look
  */
 export const TOOLBAR_VIEW_ALLOCATE_VECTORS: ReadonlyArray<ToolbarViewAllocateVector> = [
@@ -466,7 +464,6 @@ export const TOOLBAR_VIEW_ALLOCATE_VECTORS: ReadonlyArray<ToolbarViewAllocateVec
 
 /** One `toolbarViewMeasure` expectation. */
 export interface ToolbarViewMeasureVector {
-    /** The measured sizes going in. */
     input: ToolbarViewMeasureInput;
     /** The view's minimum along the measured axis. */
     minimum: number;
@@ -475,7 +472,9 @@ export interface ToolbarViewMeasureVector {
     rule: string;
 }
 
-/** `adw_toolbar_view_measure` (adw-toolbar-view.c:266-354).  *
+/**
+ * `adw_toolbar_view_measure`.
+ *
  * CORE-ONLY: same as TOOLBAR_VIEW_ALLOCATE_VECTORS — neither renderer measures the bars itself
  */
 export const TOOLBAR_VIEW_MEASURE_VECTORS: ReadonlyArray<ToolbarViewMeasureVector> = [
@@ -597,7 +596,6 @@ export const TOOLBAR_VIEW_MEASURE_VECTORS: ReadonlyArray<ToolbarViewMeasureVecto
 export interface ToolbarViewContentForSizeVector {
     /** The `for_size` the view was measured at. */
     forSize: number;
-    /** The bar heights and extend flags. */
     input: ToolbarViewContentForSizeInput;
     /** `for_size` for the content's minimum. */
     forSizeMin: number;
@@ -606,7 +604,9 @@ export interface ToolbarViewContentForSizeVector {
     rule: string;
 }
 
-/** `adw_toolbar_view_measure`'s height-for-width branch (adw-toolbar-view.c:292-316).  *
+/**
+ * `adw_toolbar_view_measure`'s height-for-width branch.
+ *
  * CORE-ONLY: same as TOOLBAR_VIEW_ALLOCATE_VECTORS — neither renderer measures the bars itself
  */
 export const TOOLBAR_VIEW_CONTENT_FOR_SIZE_VECTORS: ReadonlyArray<ToolbarViewContentForSizeVector> = [
@@ -688,7 +688,7 @@ const FLAT_BARS = {
     extendContentToBottomEdge: false,
 };
 
-/** `update_undershoots` (adw-toolbar-view.c:215-232) + the style setters (:1011-1024, :1097-1110). */
+/** `update_undershoots` + the style setters. */
 export const TOOLBAR_VIEW_CLASS_VECTORS: ReadonlyArray<ToolbarViewClassVector> = [
     {
         input: { ...FLAT_BARS, topBarHeight: 46, bottomBarHeight: 30 },
@@ -748,13 +748,9 @@ export const TOOLBAR_VIEW_CLASS_VECTORS: ReadonlyArray<ToolbarViewClassVector> =
     },
 ];
 
-// --- Adw.Spinner -------------------------------------------------------------
-
 /** One `spinnerGeometry` expectation. */
 export interface SpinnerGeometryVector {
-    /** Allocated box width. */
     width: number;
-    /** Allocated box height. */
     height: number;
     /** `MIN (floorf (MIN (w, h) / 2), MAX_RADIUS)`. */
     radius: number;
@@ -767,16 +763,16 @@ export interface SpinnerGeometryVector {
     /** `roundf (height / 2)`. */
     centerY: number;
     /**
-     * What the browser element drew before this landed — `max(2, round(size / 12))`
-     * — or `null` for a non-square box, which that element had no notion of.
+     * The pre-lift browser formula `max(2, round(size / 12))`, or `null` for a
+     * non-square box, which that element had no notion of.
      */
     legacyWebLineWidth: number | null;
     rule: string;
 }
 
 /**
- * `adw_spinner_paintable_snapshot_with_weight` (adw-spinner-paintable.c:342-352)
- * + `calculate_line_width` (:314-321) at the default weight 400.
+ * `adw_spinner_paintable_snapshot_with_weight`
+ * + `calculate_line_width` at the default weight 400.
  *
  * `legacyWebLineWidth` stays in the table on purpose: it is the formula the
  * browser element shipped, and it is wrong at every size above 16 — 2px where
@@ -883,7 +879,7 @@ export interface SpinnerSizeVector {
 }
 
 /**
- * `adw_spinner_measure` (adw-spinner.c:70-84) — minimum AND natural are both
+ * `adw_spinner_measure` — minimum AND natural are both
  * `MIN_SIZE`, and GTK never allocates below a widget's minimum.
  *
  * The rows without a usable value all land on 16, which is the measured natural

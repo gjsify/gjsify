@@ -7,25 +7,17 @@
 // dropdown sits in a header bar or a toolbar, and for `AdwComboRow` when it
 // belongs to a preferences list.
 //
-// The selection STATE MACHINE is the row's, unchanged: `ComboState` from
-// `@gjsify/adwaita-core` (ADR 0004) — the options list, the two-way
-// selectedIndex↔selectedValue mapping, the empty/out-of-range guards and the
-// programmatic-vs-interactive notify split. This class is the render half only,
-// so the standalone control and the row cannot drift apart the way two copies of
-// a selection model would. `@gjsify/adwaita-core/conformance`'s
-// `COMBO_SELECTION_VECTORS` is the table both are held to.
+// The selection STATE MACHINE is the row's: `ComboState` from `@gjsify/adwaita-core`
+// (ADR 0004), held to its `COMBO_SELECTION_VECTORS`. This class is the render half only,
+// so the standalone control and the row cannot drift apart.
 //
-// FIDELITY: approximated for the popover — the NS subset has no popover, so the
-// options open in the platform `action()` sheet, the same substitution
-// `AdwComboRow`, `AdwSplitButton` and `AdwMenuButton` make. Two consequences,
-// both of them the sheet's and neither hideable:
-//   - the sheet has no search field, so `Gtk.DropDown:enable-search` (which the
-//     browser renderer offers) has no surface here and is deliberately absent
-//     rather than accepted-and-ignored;
-//   - the sheet marks nothing as selected, so the current option is visible only
-//     on the button. GtkDropDown's own list — its factory model and the check on
-//     the selected row — is NOT verifiable in this tree: `refs/gtk` is empty and
-//     libadwaita vendors no `adw-drop-down.c`.
+// FIDELITY: approximated for the popover — the NS subset has none, so the options open
+// in the platform `action()` sheet, the same substitution `AdwComboRow`,
+// `AdwSplitButton` and `AdwMenuButton` make. Two unhideable consequences: the sheet has
+// no search field, so `Gtk.DropDown:enable-search` is deliberately ABSENT rather than
+// accepted-and-ignored; and the sheet marks nothing as selected, so the current option
+// is visible only on the button (libadwaita vendors no `adw-drop-down.c`, so GtkDropDown's
+// own factory model and selected-row check are not reproduced here).
 //
 // Reference: refs/libadwaita/src/stylesheet/widgets/_dropdowns.scss
 //   (`dropdown > button > box` border-spacing, the 16px `arrow`)

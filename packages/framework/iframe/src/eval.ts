@@ -1,14 +1,10 @@
-// Pure helpers for IFrameBridge.evaluateJavaScript — original implementation.
+// Pure helpers for IFrameBridge.evaluateJavaScript. Building the in-page wrapper and
+// parsing its JSON result stay WebView-free so they unit-test headless — CI has no GDK
+// display to instantiate a real WebKit.WebView.
 //
-// Building the in-page wrapper script and parsing its JSON result are kept
-// WebView-free so they unit-test headless (CI has no GDK display to
-// instantiate a real WebKit.WebView, see the package's other specs).
-//
-// Contract (mirrors Playwright/Puppeteer `page.evaluate`): the caller passes
-// a JavaScript *expression*. Its value is serialised to JSON in-page and read
-// back on the GJS host. Multi-statement scripts wrap themselves in an IIFE
-// that returns a value, e.g. `(() => { const a = 1; return a + 1; })()`.
-// No `eval` is used in-page, so the wrapper stays compatible with strict CSP.
+// The caller passes an EXPRESSION, as `page.evaluate` does; its value is JSON-serialised
+// in-page and read back on the host, and multi-statement logic wraps itself in an IIFE.
+// No in-page `eval`, so the wrapper survives a strict CSP.
 
 /** JSON envelope the in-page wrapper returns. */
 export type EvalResult =
@@ -17,12 +13,8 @@ export type EvalResult =
     | { __gjsifyEval: 'error'; message: string };
 
 /**
- * Wrap a user expression so its value comes back as a JSON string.
- *
- * The wrapper always evaluates to a JSON string of one {@link EvalResult}
- * shape — `ok` with the JSON-serialised value, `undefined` when the value is
- * `undefined`, or `error` with the thrown message. A value that is not
- * JSON-serialisable (function, circular object) collapses to `undefined`.
+ * Wrap a user expression so its value comes back as a JSON {@link EvalResult}. A value
+ * that is not JSON-serialisable (function, circular object) collapses to `undefined`.
  */
 export function buildEvalScript(expression: string): string {
     return (
@@ -39,14 +31,9 @@ export function buildEvalScript(expression: string): string {
 }
 
 /**
- * Parse the JSON string returned by {@link buildEvalScript} (read off the
- * JSCValue via `to_string()`).
- *
- * - `ok` → the deserialised value.
- * - `undefined` → `undefined`.
- * - `error` → throws an `Error` (name `EvalError`) carrying the page message.
- * - malformed / `null` / non-envelope JSON → `undefined` (defensive — a
- *   tampered page or a non-wrapper result must not crash the host).
+ * Parse the JSON string {@link buildEvalScript} produces, read off the JSCValue. An
+ * `error` envelope throws (as `EvalError`) carrying the page's message; malformed or
+ * non-envelope JSON yields `undefined`, because a tampered page must not crash the host.
  */
 export function parseEvalResult(json: string | null | undefined): unknown {
     if (json === null || json === undefined) return undefined;

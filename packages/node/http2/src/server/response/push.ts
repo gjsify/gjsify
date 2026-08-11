@@ -249,8 +249,6 @@ const streamPushMethods: StreamPushMethods & ThisType<ServerHttp2Stream> = {
     },
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 /**
  * _makeDetachedSoupMessage — placeholder factory for push-stream Http2ServerResponse.
  *

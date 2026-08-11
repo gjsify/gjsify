@@ -219,8 +219,6 @@ export class X509Certificate {
     }
 }
 
-// ---- Helpers ----
-
 function formatFingerprint(hash: Buffer): string {
     const hex = hash.toString('hex').toUpperCase();
     const parts: string[] = [];

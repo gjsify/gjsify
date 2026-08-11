@@ -71,7 +71,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         return es ? '300 es' : this._desktopGlslVersion();
     }
 
-    // ─── WebGL2 overrides for WebGL1 validation that's too strict ─────────
+    // The overrides below relax WebGL1 validation the WebGL2 spec no longer imposes.
 
     /**
      * WebGL2 delegates framebuffer completeness to the native GL driver.
@@ -85,7 +85,7 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         return attachment >= 0x8ce1 && attachment <= 0x8cef;
     }
 
-    // ─── MRT: native COLOR_ATTACHMENT0–15 support ────────────────────────
+    // Multiple render targets: native COLOR_ATTACHMENT0–15.
 
     private static readonly _WGL2_ALL_COLOR_ATTACHMENTS: number[] = [
         0x8ce0, 0x8ce1, 0x8ce2, 0x8ce3, 0x8ce4, 0x8ce5, 0x8ce6, 0x8ce7, 0x8ce8, 0x8ce9, 0x8cea, 0x8ceb, 0x8cec, 0x8ced,
@@ -489,8 +489,6 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         }
     }
 
-    // ─── Indexed Buffer Binding ───────────────────────────────────────────
-
     bindBufferBase(target: GLenum, index: GLuint, buffer: WebGLBuffer | null): void {
         this._native2.bindBufferBase(target, index, buffer ? (buffer as unknown as OurWebGLBuffer)._ : 0);
     }
@@ -541,7 +539,6 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         dst.set(data.subarray(0, dst.byteLength));
     }
 
-    // ─── WebGL2 texImage2D / texSubImage2D overrides ─────────────────────
     // The base WebGL1 implementation rejects WebGL2 sized internal formats
     // (e.g. RGBA8, RGB8, SRGB8_ALPHA8) and requires format === internalFormat.
     // WebGL2 allows format !== internalFormat (e.g. internalFormat=RGBA8, format=RGBA).
@@ -779,8 +776,6 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         this._gl.texSubImage2D(target, level, xoffset, yoffset, width, height, format, type, Uint8ArrayToVariant(data));
     }
 
-    // ─── getUniform — WebGL2 uint type support ────────────────────────────
-
     /** WebGL1 getUniform falls to default:null for UNSIGNED_INT types. Handle them here. */
     override getUniform(program: WebGLProgram, location: WebGLUniformLocation): unknown {
         const type = location?._activeInfo?.type;
@@ -805,8 +800,6 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         if (type === UVEC3) return new Uint32Array([data[0] >>> 0, data[1] >>> 0, data[2] >>> 0]);
         return new Uint32Array([data[0] >>> 0, data[1] >>> 0, data[2] >>> 0, data[3] >>> 0]);
     }
-
-    // ─── Uniform Blocks ───────────────────────────────────────────────────
 
     getUniformBlockIndex(program: WebGLProgram, uniformBlockName: string): GLuint {
         return this._native2.getUniformBlockIndex((program as unknown as OurWebGLProgram)._, uniformBlockName);
@@ -847,13 +840,9 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         return result;
     }
 
-    // ─── Program Queries ──────────────────────────────────────────────────
-
     getFragDataLocation(program: WebGLProgram, name: string): GLint {
         return this._native2.getFragDataLocation((program as unknown as OurWebGLProgram)._, name);
     }
-
-    // ─── Indexed Parameter Queries ────────────────────────────────────────
 
     // oxlint-disable-next-line typescript/no-explicit-any -- byte-matches lib.dom WebGL2RenderingContext.getIndexedParameter: any (target-dependent return type)
     getIndexedParameter(target: GLenum, index: GLuint): any {
@@ -933,14 +922,10 @@ export class WebGL2RenderingContext extends WebGLContextBase implements WebGL2Re
         return super.getParameter(pname);
     }
 
-    // ─── Misc ─────────────────────────────────────────────────────────────
-
     getStringi(name: GLenum, index: GLuint): string | null {
         const s = this._native2.getStringi(name, index);
         return s.length > 0 ? s : null;
     }
-
-    // ─── WebGL2 overrides for format validation ────────────────────────────
 
     /**
      * WebGL2 supports ~30+ renderbuffer formats (R8, RG8, RGBA8, RGBA16F,

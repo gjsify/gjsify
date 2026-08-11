@@ -1,23 +1,14 @@
-// Local typed shape for Cairo objects whose runtime methods are missing from
-// the GIR-generated `@girs/cairo-1.0` / `@girs/gjs/cairo` typings.
-//
-// `setExtend()` and `setFilter()` exist at runtime on every Cairo pattern but
-// are absent from the .d.ts (the GIR generator emits an empty `class Pattern`
-// for "Foreign Struct" types). Rather than reach for `(pat as any).setFilter`
-// at every call site, we declare a thin interface here and narrow the
-// `Cairo.Pattern` returned by `Cairo.Context.getSource()` through a single
-// helper.
-//
+// Typed view of the pattern methods that are unreachable through `Cairo.Context.getSource()`:
+// it is declared to return the base `Cairo.Pattern`, which carries no methods at all
+// (`@girs/cairo-1.0` emits Foreign Structs as empty classes, `@girs/gjs` adds only `getType()`).
+// Narrowing once here beats `(pat as any).setFilter` at every call site.
 // Reference: https://www.cairographics.org/manual/cairo-cairo-pattern-t.html
-//
-// This is a pure type-level construct; runtime behavior is unchanged.
 
 import type Cairo from 'cairo';
 
 /**
- * The `setExtend` / `setFilter` slice that exists at runtime on every
- * `cairo_pattern_t` but is missing from the GIR types. Combined with
- * `Cairo.Pattern` to give us a fully-typed view.
+ * The `setExtend` / `setFilter` slice of `cairo_pattern_t`. Measured on GJS 1.88 these exist at
+ * runtime on `SurfacePattern` only — solid patterns and gradients have neither.
  */
 export interface CairoPatternRuntime {
     setExtend(extend: Cairo.Extend): void;
@@ -26,13 +17,11 @@ export interface CairoPatternRuntime {
     getFilter(): Cairo.Filter;
 }
 
-/** A `Cairo.Pattern` augmented with the runtime methods documented above. */
 export type CairoPattern = Cairo.Pattern & CairoPatternRuntime;
 
 /**
- * Narrow a `Cairo.Pattern` returned by the GIR API to the augmented type.
- * Returns `null` if the input is missing the runtime methods (e.g. a future
- * Cairo binding that reshapes the API).
+ * Narrow a `Cairo.Pattern` to the augmented type, or `null` when the runtime methods are absent.
+ * `null` is the ordinary answer for a solid pattern or a gradient, not an exotic-binding case.
  */
 export function asCairoPattern(pat: Cairo.Pattern | undefined | null): CairoPattern | null {
     if (!pat) return null;

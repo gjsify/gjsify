@@ -1,8 +1,6 @@
-// Ported from `@gjsify/adwaita-nativescript`'s index.spec.ts alongside the dialog
-// move (ADR 0004) — the NS package keeps only the `present()` binding onto native
-// `confirm()`/`action()`. The response ordering + confirm/action resolution the NS
-// mock re-implemented is exercised HERE against the real model, extended with the
-// appearance/enabled registry the mock omitted.
+// The dialog model (ADR 0004): response ordering, confirm/action resolution and the
+// appearance/enabled registry, against the real model rather than a renderer mock. The NS
+// package keeps only the `present()` binding onto native `confirm()`/`action()`.
 
 import { describe, it, expect } from '@gjsify/unit';
 
@@ -142,9 +140,8 @@ export default async () => {
         }
 
         await it('gives the four sources four different answers on a locked open sheet', () => {
-            // The whole reason the source is a parameter: a renderer that routes
-            // every affordance through one `_attemptClose()` cannot produce this
-            // row, and both ports did exactly that.
+            // Why the source is a PARAMETER: a renderer routing every affordance through
+            // one `_attemptClose()` cannot produce this row at all.
             const locked = { open: true, canClose: false };
             expect([
                 resolveBottomSheetClose('dimming', locked),
@@ -156,9 +153,8 @@ export default async () => {
         });
 
         await it('never closes a sheet that is already closed', () => {
-            // Drive the IMPLEMENTATION with each closed-sheet row. Asserting only
-            // on the vector's own `outcome` would check the table against itself
-            // and could not fail for a code reason.
+            // Drive the IMPLEMENTATION with each closed-sheet row: asserting on the
+            // vector's own `outcome` would check the table against itself.
             for (const { source, open, canClose, outcome } of BOTTOM_SHEET_CLOSE_VECTORS) {
                 if (open) continue;
                 expect(resolveBottomSheetClose(source, { open, canClose })).toBe(outcome);
@@ -212,14 +208,14 @@ export default async () => {
 
         await it('coerces a truthy/falsy argument like the C `open = !!open`', () => {
             const state = new BottomSheetPresentation();
-            // adw-bottom-sheet.c:1670 — a gboolean is normalised before the
+            // adw-bottom-sheet.c — a gboolean is normalised before the
             // idempotence check, so `1` and `true` are the same open.
             expect(state.setOpen(1 as unknown as boolean)).toBe(true);
             expect(state.setOpen(true)).toBe(false);
         });
 
         await it('lets a closing handler re-open the sheet, and does not notify twice', () => {
-            // adw-bottom-sheet.c:1697-1698 — the re-entrant call already emitted
+            // adw-bottom-sheet.c — the re-entrant call already emitted
             // notify::open(true); the outer close must return without emitting
             // its own notify::open(false), or a listener sees the sheet close.
             const notifications: boolean[] = [];
@@ -239,7 +235,7 @@ export default async () => {
         });
 
         await it('finishClose fires onClosed only once the sheet has settled closed', () => {
-            // open_animation_done_cb's `progress < 0.5` guard (adw-bottom-sheet.c:338).
+            // open_animation_done_cb's `progress < 0.5` guard.
             const callbacks: BottomSheetTeardownCallback[] = [];
             const state = new BottomSheetPresentation({
                 onClosing: () => callbacks.push('closing'),

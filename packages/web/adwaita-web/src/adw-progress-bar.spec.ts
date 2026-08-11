@@ -1,13 +1,11 @@
 // DOM-level tests for <adw-progress-bar>.
 //
-// Three things here are worth more than the attribute round-trips: the CLAMP is
-// GLib's (`glibClamp`, shared from `@gjsify/adwaita-core`, not a local
-// `Math.min/max`), the ZERO fraction has to make the indicator VANISH rather
-// than draw a rounded stub (`> trough.empty > progress { all: unset }`,
-// _progress-bar.scss:85), and the text node has to actually PICK UP `.dimmed` +
-// `.numeric` from `_labels.scss` — that composition is the reason those classes
-// exist, and a `@extend` that silently reached nothing would look identical in
-// the source.
+// Three things matter more than the attribute round-trips: the CLAMP is GLib's
+// (`glibClamp` from `@gjsify/adwaita-core`, not a local `Math.min/max`); a ZERO fraction
+// makes the indicator VANISH rather than draw a rounded stub
+// (`> trough.empty > progress { all: unset }` in `_progress-bar.scss`); and the text node
+// really PICKS UP `.dimmed` + `.numeric` from `_labels.scss` — a `@extend` that reached
+// nothing would look identical in the source.
 
 import { describe, expect, it } from '@gjsify/unit';
 
@@ -124,8 +122,8 @@ export const AdwProgressBarTest = async () => {
         });
 
         await it('the text node composes .dimmed and .numeric from _labels.scss', () => {
-            // `> text { @extend .dimmed; @extend .numeric; }`
-            // (_progress-bar.scss:17-21) — this asserts the extends actually
+            // `> text { @extend.dimmed; @extend.numeric; }`
+            // (_progress-bar.scss) — this asserts the extends actually
             // REACHED the utility classes, which a source read cannot tell.
             const { el, host } = mount();
             el.showText = true;
@@ -138,8 +136,8 @@ export const AdwProgressBarTest = async () => {
 
     await describe('<adw-progress-bar> variants', async () => {
         await it('is an 8px trough by default and a 2px hairline with osd', () => {
-            // The 8px is libadwaita's (_progress-bar.scss:6) and the 2px is its
-            // `.osd` variant (:59-83) — NOT the vendored web port's 6px, which
+            // The 8px is libadwaita's (_progress-bar.scss) and the 2px is its
+            // `.osd` variant — NOT the vendored web port's 6px, which
             // has no OSD variant at all.
             //
             // TWO bars rather than one flipped in place, on purpose: the trough

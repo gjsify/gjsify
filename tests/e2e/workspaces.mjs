@@ -18,10 +18,8 @@ export const MONOREPO_ROOT = resolve(__dirname, '..', '..');
 export const HOST_TARGET = `${process.platform}-${process.arch}`;
 
 /**
- * Every workspace package, as `{ name, location, pkg }`.
- *
- * Inline workspace walk — minimal-glob form (trailing `*` only) matches
- * every pattern this monorepo's root pkg.workspaces uses.
+ * Every workspace package, as `{ name, location, pkg }`. The minimal-glob walk (trailing `*`
+ * only) matches every pattern this monorepo's root `pkg.workspaces` uses.
  */
 export function discoverWorkspaces() {
     const rootPkg = JSON.parse(readFileSync(join(MONOREPO_ROOT, 'package.json'), 'utf8'));
@@ -51,43 +49,34 @@ export function discoverWorkspaces() {
 /**
  * A per-target platform package (ADR 0017) for a target that is NOT this host's.
  *
- * A consumer never installs more than one of them — that IS the split: the
- * bridge lists every target as an `optionalDependencies` entry, each child
- * declares `os`/`cpu`, and the package manager takes the one that fits and
- * silently skips the rest. A temp tree simulating an external consumer is
- * therefore MORE faithful without the other five, not less.
+ * A consumer never installs more than one — that IS the split: the bridge lists every target
+ * in `optionalDependencies`, each child declares `os`/`cpu`, and the package manager takes the
+ * one that fits and skips the rest. So a temp tree simulating an external consumer is MORE
+ * faithful without the others, not less.
  *
  * It is also the difference between a suite that finishes and one that does not.
- * `createTestEnvironment()` packs the whole workspace and 34 e2e suites call it,
- * so the split added 58 tarballs carrying ~98 MB of committed binaries to every
- * one of them. Measured in CI: 127 packages / 199 s on `main`, 185 / 258 s with
- * the split — which pushed `cli-only-pnp` past its parent's timeout ("test did
- * not finish before its parent and was cancelled"). Filtering to the host target
- * keeps the prebuilds `dlx-native-prebuilds` and `napi-transparent-app-gjs`
- * actually resolve at run time, and drops only bytes no install in the tree
- * could have used.
- *
- * @param {Record<string, any>} pkg a parsed package.json
+ * `createTestEnvironment()` packs the whole workspace and 34 e2e suites call it, so the split
+ * added 58 tarballs / ~98 MB of committed binaries to every one — measured in CI at 127
+ * packages / 199 s before, 185 / 258 s after, which pushed `cli-only-pnp` past its parent's
+ * timeout. Filtering to the host target keeps the prebuilds `dlx-native-prebuilds` and
+ * `napi-transparent-app-gjs` need and drops only bytes no install could have used.
  */
 export function isForeignPlatformPackage(pkg) {
     const g = pkg.gjsify;
     if (!g || typeof g !== 'object') return false;
     if (typeof g.prebuilds !== 'string') return false;
     if (!Array.isArray(g.platforms) || g.platforms.length !== 1) return false;
-    // `os`/`cpu` are what make the package skippable for a real consumer, so
-    // they are what identify it here — the same signature
-    // `isPlatformPackageManifest()` uses, inlined because this module
-    // deliberately imports nothing outside node builtins.
+    // `os`/`cpu` are what make the package skippable for a real consumer, so they are what
+    // identify it here — `isPlatformPackageManifest()`'s signature, inlined because this
+    // module deliberately imports nothing outside node builtins.
     if (!Array.isArray(pkg.os) || !Array.isArray(pkg.cpu)) return false;
     return g.platforms[0] !== HOST_TARGET;
 }
 
 /**
- * The workspaces `pack.mjs` turns into tarballs.
- *
- * Skip templates (consumed via scaffolding, not installed as deps) and private
- * packages. Examples stay in because @gjsify/cli depends on @gjsify/example-*
- * showcases.
+ * The workspaces `pack.mjs` turns into tarballs. Templates are consumed via scaffolding
+ * rather than installed as deps, so they go; examples stay, because @gjsify/cli depends on
+ * the @gjsify/example-* showcases.
  */
 export function packableWorkspaces() {
     return discoverWorkspaces().filter((w) => {
@@ -102,12 +91,11 @@ export function packableWorkspaces() {
  * from **npm**: declared as a runtime / optional / peer dependency by something
  * that IS packed, but not packed itself.
  *
- * Derived rather than listed. Today the answer is exactly the foreign-target
- * platform packages, but stating it that way would be stating a coincidence: any
- * future omission from `packableWorkspaces()` — a package turned private, a new
- * exclusion — lands a consumer in the same registry dependency without touching
- * anything that names it. `devDependencies` are left out on purpose; a
- * dependency's dev deps are not installed into a consumer's tree.
+ * Derived rather than listed. Today the answer is exactly the foreign-target platform
+ * packages, but writing it that way would state a coincidence: any future omission from
+ * `packableWorkspaces()` lands a consumer in the same registry dependency without touching
+ * anything that names it. `devDependencies` are excluded on purpose — a dependency's dev deps
+ * are not installed into a consumer's tree.
  *
  * @returns {{name: string, version: string}[]} sorted by name
  */
@@ -122,9 +110,8 @@ export function registryOnlyDependencies() {
         for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies']) {
             for (const name of Object.keys(w.pkg[field] ?? {})) {
                 if (!name.startsWith('@gjsify/') || packed.has(name) || needed.has(name)) continue;
-                // Only workspace members carry a version this release moves. A
-                // genuinely external @gjsify dependency resolves from npm at a
-                // published range and is unaffected by the release window.
+                // Only workspace members carry a version this release moves; a genuinely
+                // external @gjsify dependency resolves from npm at a published range.
                 const target = byName.get(name);
                 if (target?.pkg.version) needed.set(name, { name, version: target.pkg.version });
             }

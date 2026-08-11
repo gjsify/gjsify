@@ -45,7 +45,6 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
     const assetBase = options?.assetBase ?? './';
     const ldrawPath = `${assetBase}assets/models/ldraw/officialLibrary/`;
 
-    // Renderer
     // oxlint-disable-next-line typescript/no-explicit-any -- THREE.WebGLRenderer canvas option expects OffscreenCanvas; GJS canvas type is incompatible
     const renderer = new THREE.WebGLRenderer({ canvas: canvas as any, antialias: true });
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -53,25 +52,20 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
     // container (GTK allocation / browser flex layout), we only size the
     // drawing buffer.
     renderer.setSize(canvas.width, canvas.height, false);
-    // Track the size we last handed the renderer. `renderer.domElement` IS this
-    // canvas, so the obvious `renderer.domElement.width !== w` compares a value
-    // with itself and is never true — the resize branch in animate() would be
-    // dead and the camera aspect would stay frozen at the first allocation.
-    // (Same shape as the teapot / pixel showcases; keep the three aligned.)
+    // The last size handed to the renderer, tracked separately because `renderer.domElement` IS this
+    // canvas: the obvious `renderer.domElement.width !== w` compares a value with itself, leaving the
+    // resize branch dead and the camera aspect frozen at the first allocation.
     let prevW = canvas.width;
     let prevH = canvas.height;
 
-    // Scene
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xdeebed);
     scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
 
-    // Camera
     const camera = new THREE.PerspectiveCamera(45, canvas.width / canvas.height, 1, 10000);
     camera.position.set(150, 200, 250);
 
-    // Controls
     // oxlint-disable-next-line typescript/no-explicit-any -- OrbitControls domElement type is HTMLElement; GJS canvas type is incompatible
     const controls = new OrbitControls(camera, canvas as any);
     controls.enableDamping = true;
@@ -142,7 +136,6 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
                     });
                 }
 
-                // Merge geometries by material
                 if (effectController.mergeModel) model = LDrawUtils.mergeObject(model);
 
                 // Convert from LDraw coordinates: rotate 180 degrees around OX
@@ -154,7 +147,6 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
 
                 updateObjectsVisibility();
 
-                // Adjust camera
                 const bbox = new THREE.Box3().setFromObject(model);
                 const size = bbox.getSize(new THREE.Vector3());
                 const radius = Math.max(size.x, Math.max(size.y, size.z)) * 0.5;
@@ -169,10 +161,9 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
             },
             undefined,
             (error: unknown) => {
-                // Upstream's example passes an onError; dropping it in the port made
-                // every load failure invisible — LDrawLoader routes them into a
-                // promise chain, so without this handler a failed model is a silently
-                // rejected promise and the viewer just shows the empty background.
+                // The onError handler is load-bearing: LDrawLoader routes failures into a promise
+                // chain, so without it a failed model is a silent rejection and the viewer just shows
+                // the empty background.
                 console.error(`[ldraw] loading ${ldrawPath}${entry.file} failed:`, error);
             },
         );
@@ -192,12 +183,11 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
         return newMat;
     }
 
-    // Animation loop
     function animate() {
         controls.update();
 
-        // Handle resize — canvas.width/height are the host-owned drawing buffer
-        // (GJS: GTK allocation, browser: ResizeObserver on the parent).
+        // canvas.width/height are the host-owned drawing buffer: GTK allocation on GJS, a parent
+        // ResizeObserver in the browser.
         const w = canvas.width;
         const h = canvas.height;
         if (w !== prevW || h !== prevH) {
@@ -211,7 +201,7 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
         renderer.render(scene, camera);
     }
 
-    // Animation loop — use requestAnimationFrame directly (GTK frame clock compatible)
+    // requestAnimationFrame directly, which maps onto the GTK frame clock.
     let animPending = false;
     let paused = false;
     function scheduleFrame() {
@@ -225,7 +215,6 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
     }
     scheduleFrame();
 
-    // Load initial model
     reloadObject(true);
 
     return {

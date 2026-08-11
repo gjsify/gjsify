@@ -1,9 +1,8 @@
 // Action-row family conformance vectors — the spec both renderers are held to.
 //
-// Covers `Adw.ActionRow`, `Adw.SwitchRow`, `Adw.ButtonRow` and
-// `Adw.WindowTitle`. Every row cites the C line it is derived from; the
-// `LABEL_VISIBILITY_VECTORS` table is shared by all four, because in libadwaita
-// it is literally one closure declared four times.
+// Covers `Adw.ActionRow`, `Adw.SwitchRow`, `Adw.ButtonRow` and `Adw.WindowTitle`. Every row
+// cites the C function it is derived from; `LABEL_VISIBILITY_VECTORS` is shared by all four,
+// because in libadwaita it is literally one closure declared four times.
 //
 // Reference: refs/libadwaita/src/adw-action-row.c, adw-action-row.ui
 // Reference: refs/libadwaita/src/adw-switch-row.c
@@ -11,32 +10,26 @@
 // Reference: refs/libadwaita/src/adw-window-title.c, adw-window-title.ui
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-// ---------------------------------------------------------------------------
-// The shared label rule
-// ---------------------------------------------------------------------------
-
 /** One `string_is_not_empty` expectation. */
 export interface LabelVisibilityVector {
     /** The label's text — `null` stands for "property unset / attribute absent". */
     text: string | null;
-    /** Whether the bound label is visible. */
     visible: boolean;
     rule: string;
 }
 
 /**
- * `string_is_not_empty` (adw-action-row.c:112-117 ≡ adw-button-row.c:92-97,
- * inlined at adw-window-title.c:208 and :249).
+ * `string_is_not_empty`, declared identically in `adw-action-row.c` and
+ * `adw-button-row.c`.
  *
- * Applies to the TITLE and to the subtitle alike — the bindings are two copies
- * of the same closure (adw-action-row.ui:49-53 and :71-75). The title half is
- * what every port dropped: a row with `title=""` kept a zero-height but
- * line-height-consuming label, and `<adw-window-title>` reserved a title line in
- * every header bar that only had a subtitle.
+ * Applies to the TITLE and the subtitle alike — the `.ui` bindings are two copies of the
+ * same closure. The title half is the one a port drops: a row with `title=""` keeps a
+ * zero-height but line-height-consuming label, and `<adw-window-title>` reserves a title
+ * line in a header bar that only has a subtitle.
  *
- * `' '` is the canary row. The C never trims — `string && string[0]` reads ONE
- * byte — so a single space is a VISIBLE label. A port reaching for
- * `value.trim().length` passes every other row here and fails this one.
+ * `' '` is the canary row. The C never trims — `string && string[0]` reads ONE byte — so
+ * a single space is a VISIBLE label, and a port reaching for `value.trim().length` passes
+ * every other row here and fails this one.
  */
 export const LABEL_VISIBILITY_VECTORS: ReadonlyArray<LabelVisibilityVector> = [
     { text: 'Wi-Fi', visible: true, rule: 'an ordinary label shows' },
@@ -47,10 +40,6 @@ export const LABEL_VISIBILITY_VECTORS: ReadonlyArray<LabelVisibilityVector> = [
     { text: '0', visible: true, rule: 'a falsy-looking string is still a string' },
     { text: 'Ελληνικά', visible: true, rule: 'non-ASCII is not special — the check is on the first byte' },
 ];
-
-// ---------------------------------------------------------------------------
-// Adw.ActionRow — the activatable-widget coupling
-// ---------------------------------------------------------------------------
 
 /** One step of an {@link ActionRowActivationVector}. */
 export type ActionRowStep =
@@ -68,9 +57,7 @@ export type ActionRowStep =
 
 /** One `activatable-widget` ↔ `activatable` expectation. */
 export interface ActionRowActivationVector {
-    /** What the scenario is called. */
     name: string;
-    /** The steps to run against a fresh row, in order. */
     steps: readonly ActionRowStep[];
     /** `GtkListBoxRow:activatable` afterwards. */
     activatable: boolean;
@@ -80,13 +67,13 @@ export interface ActionRowActivationVector {
 }
 
 /**
- * `adw_action_row_set_activatable_widget` (adw-action-row.c:696-741).
+ * `adw_action_row_set_activatable_widget`.
  *
  * The two rows that decide whether a port read the C or guessed it:
  * `insensitive-widget-does-not-activate` (the binding is `sensitive` →
- * `activatable` with `G_BINDING_SYNC_CREATE`, C:729-732 — NOT a constant TRUE),
- * and `unsetting-keeps-activatable` (clearing only unbinds, C:709, so the flag
- * stays where the binding last left it — stated outright at C:28-30).
+ * `activatable` with `G_BINDING_SYNC_CREATE`, NOT a constant TRUE), and
+ * `unsetting-keeps-activatable` (clearing only unbinds, so the flag stays where the binding
+ * last left it — the class docs say so outright).
  */
 export const ACTION_ROW_ACTIVATION_VECTORS: ReadonlyArray<ActionRowActivationVector> = [
     {
@@ -187,10 +174,6 @@ export const ACTION_ROW_ACTIVATION_VECTORS: ReadonlyArray<ActionRowActivationVec
     },
 ];
 
-// ---------------------------------------------------------------------------
-// Adw.SwitchRow — the notify rule
-// ---------------------------------------------------------------------------
-
 /** One step of a {@link SwitchRowNotifyVector}. */
 export type SwitchRowStep =
     /** `adw_switch_row_set_active` — a PROGRAMMATIC set. */
@@ -200,9 +183,7 @@ export type SwitchRowStep =
 
 /** One `notify::active` expectation. */
 export interface SwitchRowNotifyVector {
-    /** What the scenario is called. */
     name: string;
-    /** The steps to run against a fresh row, in order. */
     steps: readonly SwitchRowStep[];
     /** `Adw.SwitchRow:active` afterwards. */
     active: boolean;
@@ -212,14 +193,14 @@ export interface SwitchRowNotifyVector {
 }
 
 /**
- * `adw_switch_row_set_active` (C:216-228) → `slider_notify_active_cb` (C:66-77).
+ * `adw_switch_row_set_active` → `slider_notify_active_cb`.
  *
  * `programmatic-set-notifies` is the row the two renderers answered differently:
  * the notify is emitted by the SLIDER's own `notify::active`, which fires
  * whatever wrote it, so there is no programmatic-vs-interactive split to model.
  * `activate-row-toggles` is the row NEITHER had: `adw_switch_row_init` points
- * the activatable-widget at the slider (C:160-162) and the class docs spell out
- * the result (C:23-27).
+ * the activatable-widget at the slider and the class docs spell out
+ * the result.
  */
 export const SWITCH_ROW_NOTIFY_VECTORS: ReadonlyArray<SwitchRowNotifyVector> = [
     {
@@ -276,25 +257,21 @@ export const SWITCH_ROW_NOTIFY_VECTORS: ReadonlyArray<SwitchRowNotifyVector> = [
     },
 ];
 
-// ---------------------------------------------------------------------------
-// Adw.ButtonRow
-// ---------------------------------------------------------------------------
-
 /** One `Adw.ButtonRow` icon expectation. */
 export interface ButtonRowIconVector {
     /** `AdwButtonRow:start-icon-name`. */
     startIconName: string | null;
     /** `AdwButtonRow:end-icon-name`. */
     endIconName: string | null;
-    /** Whether the leading `image.icon.start` shows (adw-button-row.ui:20-24). */
+    /** Whether the leading `image.icon.start` shows. */
     startIconVisible: boolean;
-    /** Whether the trailing `image.icon.end` shows (adw-button-row.ui:55-59). */
+    /** Whether the trailing `image.icon.end` shows. */
     endIconVisible: boolean;
     rule: string;
 }
 
 /**
- * The two icons of `Adw.ButtonRow` (C:201-223), each bound through the same
+ * The two icons of `Adw.ButtonRow`, each bound through the same
  * `string_is_not_empty` closure as the title.
  *
  * `end-icon-name` has existed since 1.6 and was missing from BOTH renderers, so
@@ -349,16 +326,13 @@ export interface ButtonRowActivatableVector {
 }
 
 /**
- * `Adw.ButtonRow` is always activatable — `adw-button-row.ui:5` sets it TRUE in
- * the template, `adw-button-row.c:31` documents it in one line, and the class
- * exposes no property, no setter and no getter for it (the whole public surface
- * is C:270-352: `new`, and the two icon-name pairs).
+ * `Adw.ButtonRow` is always activatable — the template sets it TRUE and the class exposes
+ * no property, no setter and no getter for it; the whole public surface is `new` plus the
+ * two icon-name pairs.
  *
- * The vector exists because the browser renderer had invented an
- * `activatable="false"` opt-out — and `adw-button-row.spec.ts` PINNED the
- * invention with a passing test, which is worse than not testing it: it made the
- * divergence look like a decision. A row that reads its own attribute is a row
- * that has to be told to ignore it.
+ * The vector exists because a renderer had invented an `activatable="false"` opt-out and
+ * its own spec PINNED the invention with a passing test, which made the divergence look
+ * like a decision.
  */
 export const BUTTON_ROW_ACTIVATABLE_VECTORS: ReadonlyArray<ButtonRowActivatableVector> = [
     { declared: null, activatable: true, rule: 'nothing declared — the template value stands' },
@@ -367,26 +341,17 @@ export const BUTTON_ROW_ACTIVATABLE_VECTORS: ReadonlyArray<ButtonRowActivatableV
     { declared: 'true', activatable: true, rule: 'and no such switch in the other direction either' },
 ];
 
-// ---------------------------------------------------------------------------
-// Adw.WindowTitle
-// ---------------------------------------------------------------------------
-
 /** One step of a {@link WindowTitleVector}. */
 export type WindowTitleStep = { op: 'set-title'; value: string | null } | { op: 'set-subtitle'; value: string | null };
 
 /** One `Adw.WindowTitle` expectation. */
 export interface WindowTitleVector {
-    /** What the scenario is called. */
     name: string;
     /** The steps to run against a fresh window title, in order. */
     steps: readonly WindowTitleStep[];
-    /** The title text afterwards. */
     title: string;
-    /** Whether the title label is visible (C:207-208). */
     titleVisible: boolean;
-    /** The subtitle text afterwards. */
     subtitle: string;
-    /** Whether the subtitle label is visible (C:248-249). */
     subtitleVisible: boolean;
     /** Which property each `notify::*` named, in emission order. */
     notified: readonly ('title' | 'subtitle')[];
@@ -394,7 +359,7 @@ export interface WindowTitleVector {
 }
 
 /**
- * `adw_window_title_set_title` / `_set_subtitle` (C:197-211, C:238-252).
+ * `adw_window_title_set_title` / `_set_subtitle`.
  *
  * `null-over-empty-is-silent` is the one DIVERGENCE in this file, and it is
  * deliberate: libadwaita would notify there, because its guard compares a

@@ -1,14 +1,11 @@
 // DOM-level conformance tests for <adw-split-button>, driven by the SAME vectors
 // the NativeScript renderer asserts against (`@gjsify/adwaita-core/conformance`).
 //
-// The two renderers used to carry independent split-button logic, and the copies
-// had drifted apart AND away from libadwaita: this element rendered the label AND
-// the icon at once where GTK clears whichever slot it is not using, could not
-// clear the label at all (so the storybook's icon-only mode showed the icon next
-// to a stale "Save"), trimmed `label="  "` away, hardcoded "Menu" as the
-// dropdown's accessible name and left it EMPTY for `dropdown-tooltip=""`, and
-// opened a fully styled empty popover when there was no menu at all. Nothing
-// failed, because nothing compared them. This suite is that comparison.
+// The rules independent copies of the split-button logic drifted from: GTK clears
+// whichever of label/icon it is not using, so both never render at once and the label
+// must be clearable; a whitespace-only `label` is kept, not trimmed away; the dropdown's
+// accessible name comes from `dropdown-tooltip`, with `DEFAULT_DROPDOWN_TOOLTIP` as the
+// fallback and no hardcoded "Menu"; and no menu means no popover at all.
 import { describe, expect, it } from '@gjsify/unit';
 
 import { DEFAULT_DROPDOWN_TOOLTIP } from '@gjsify/adwaita-core';
@@ -36,9 +33,9 @@ const NOTIFY_PROPERTIES: readonly SplitButtonProperty[] = [
 ];
 
 /**
- * Mount a split button, setting attributes through `setAttribute` rather than
- * parsed HTML — several vectors hinge on exact whitespace (`label="  "`), which
- * an attribute value in markup is not a reliable carrier for.
+ * Mount a split button, setting attributes through `setAttribute` rather than parsed
+ * HTML: several vectors hinge on exact whitespace (`label="  "`), which markup is not a
+ * reliable carrier for.
  */
 function mount(attributes: Record<string, string> = {}): { el: AdwSplitButton; host: HTMLElement } {
     const host = document.createElement('div');
@@ -86,8 +83,8 @@ export const AdwSplitButtonTest = async () => {
                 }
 
                 for (const step of vector.steps) {
-                    // A DOM element has no `child` slot; clearing the content is
-                    // the one child step it can express (both attributes gone).
+                    // A DOM element has no `child` slot, so clearing the content (both
+                    // attributes gone) is the one child step it can express.
                     if (step.op === 'child' && step.value !== null) break;
 
                     seen.length = 0;
@@ -98,14 +95,13 @@ export const AdwSplitButtonTest = async () => {
                         el.removeAttribute('icon-name');
                     }
 
-                    // The element re-emits libadwaita's notify sequence verbatim,
-                    // so the ORDER — cleared slots first, then the set one — is
-                    // observable from the DOM.
+                    // The element re-emits libadwaita's notify sequence verbatim, so the
+                    // ORDER — cleared slots first, then the set one — is DOM-observable.
                     expect(seen).toStrictEqual([...step.notified]);
                     expect(el.label).toBe(step.label);
                     expect(el.iconName).toBe(step.iconName);
-                    // An empty label is SET but paints nothing, so it reads as an
-                    // empty action half — the `label[0]` distinction, on screen.
+                    // An empty label is SET but paints nothing — the `label[0]`
+                    // distinction, on screen.
                     const painted = step.mode === 'icon' ? 'icon' : (step.label ?? '').length > 0 ? 'label' : 'empty';
                     expect(renderedMode(el)).toBe(painted);
                     expect(rootStyleClasses(el)).toStrictEqual([...step.styleClasses]);
@@ -219,11 +215,9 @@ export const AdwSplitButtonTest = async () => {
         }
 
         await it('`none` draws the DOWN caret, not the open-menu hamburger (_buttons.scss:621-623)', () => {
-            // The element used to key its mask table by DIRECTION and put
-            // `open-menu` on `none`, which is the PLAIN menubutton glyph
-            // (:454-456). Inside a `splitbutton` that rule is overridden, so the
-            // symbolic name now comes from `splitButtonArrowIcon` and only the
-            // glyph→mask mapping is still decided here.
+            // `open-menu` on `none` is the PLAIN menubutton glyph, and inside a
+            // `splitbutton` that rule is overridden — so the symbolic name comes from
+            // `splitButtonArrowIcon` and only the glyph→mask mapping is decided here.
             expect(arrowClass('none')).toBe(arrowClass('down'));
             expect(arrowClass('none').includes('adw-icon--open-menu')).toBe(false);
         });
@@ -287,7 +281,6 @@ export const AdwSplitButtonTest = async () => {
             (items[1] as HTMLButtonElement).click();
 
             expect(activated).toStrictEqual([{ label: 'Copy', action: 'app.copy-special', index: 1 }]);
-            // Activating an entry dismisses the menu.
             expect(el.active).toBe(false);
             host.remove();
         });
@@ -329,11 +322,9 @@ export const AdwSplitButtonTest = async () => {
         });
     });
 
-    // The two behaviours this element NEVER HAD. Its hand-rolled popover carried
-    // an outside-click handler and nothing else — a menu you could open from the
-    // keyboard and then only leave with the mouse, whose items the arrow keys
-    // could not reach at all. Both arrive with `<adw-popover>`; these are the
-    // cases that prove the lift was a lift and not a move.
+    // The two behaviours a hand-rolled popover with only an outside-click handler cannot
+    // give: leaving by keyboard, and reaching the items with the arrow keys. Both come
+    // from `<adw-popover>`, and these cases prove the lift was a lift, not a move.
     await describe('adw-split-button menu keyboard (gained with <adw-popover>)', async () => {
         await it('Escape dismisses the menu and returns focus to the dropdown half', () => {
             const { el, host } = mount({ menu: '[{"label":"Print"},{"label":"Export"}]' });
@@ -343,8 +334,8 @@ export const AdwSplitButtonTest = async () => {
             document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
 
             expect(el.active).toBe(false);
-            // SplitButtonState stays the source of truth — a dismissal the
-            // popover owns is fed back into it, not held only in the popover.
+            // SplitButtonState stays the source of truth: a dismissal the popover owns is
+            // fed back into it, not held only there.
             expect(el.classList.contains('checked')).toBe(false);
             expect(document.activeElement).toBe(dropdownHalf(el));
             host.remove();
@@ -366,10 +357,10 @@ export const AdwSplitButtonTest = async () => {
             const { el, host } = mount({ menu: '[{"label":"Print"},{"label":"Export"},{"label":"Share"}]' });
             dropdownHalf(el).click();
 
-            // Queried AFTER opening on purpose: `_renderMenu` runs on every state
-            // change and `replaceChildren()`s the rows, so nodes captured before
-            // the click are detached and `document.activeElement` can never be one
-            // of them. The popover ELEMENT survives — only its children are rebuilt.
+            // Queried AFTER opening on purpose: `_renderMenu` runs on every state change
+            // and `replaceChildren()`s the rows, so nodes captured before the click are
+            // detached and can never be `document.activeElement`. The popover ELEMENT
+            // survives; only its children are rebuilt.
             const items = [...el.querySelectorAll<HTMLButtonElement>('.adw-split-button-menu-item')];
             expect(items.length).toBe(3);
             // Opening focuses the first row — without that there is nothing to move from.
@@ -405,20 +396,17 @@ export const AdwSplitButtonTest = async () => {
             menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
             menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
 
-            // Two entries share a label, so only the position tells them apart —
-            // and `preventDefault()` before the synthetic click keeps a focused
-            // <button> from ALSO activating natively, which would fire twice.
+            // Two entries share a label, so only position tells them apart; and
+            // `preventDefault()` before the synthetic click keeps a focused <button> from
+            // ALSO activating natively and firing twice.
             expect(seen).toStrictEqual([1]);
             host.remove();
         });
     });
 
-    // The assertion that would have CAUGHT the original bug. The core vectors pin
-    // the numbers against the vendored stylesheet; nothing pinned the numbers the
-    // browser actually paints, which is how a 9px surface under a two-layer shadow
-    // shipped here (and a 12px one under the right shadow shipped twice more).
-    // Computed style, not the SCSS text: a rule that loses the cascade reads fine
-    // in the source and renders wrong.
+    // The core vectors pin the numbers against the vendored stylesheet; only a COMPUTED
+    // read pins what the browser paints, which is how a 9px surface under a two-layer
+    // shadow shipped. A rule that loses the cascade reads fine in the SCSS source.
     await describe('adw-split-button menu surface (libadwaita popover vectors)', async () => {
         /** The `popover.menu` row of the shared table — what this element renders. */
         const menuVector = POPOVER_SURFACE_VECTORS.find((vector) => vector.variant === 'menu');

@@ -45,18 +45,12 @@ import {
 } from './utils/finished.js';
 import { getDefaultHighWaterMark, setDefaultHighWaterMark } from './internal/state.js';
 
-// ---- Re-exports of internal helpers ----
-
 export { getDefaultHighWaterMark, setDefaultHighWaterMark };
 export { pipeline, finished, addAbortSignal };
 export { isReadable, isWritable, isDestroyed, isDisturbed, isErrored };
 
-// ---- Type-only re-exports ----
-
 export type { ReadableOptions, WritableOptions, DuplexOptions, TransformOptions, FinishedOptions } from 'node:stream';
 export type { StreamOptions } from './internal/types.js';
-
-// ---- Class wrappers (callable for legacy CJS) ----
 
 export const Stream = makeCallable(Stream_) as typeof Stream_;
 export const Readable = makeCallable(Readable_) as typeof Readable_;
@@ -72,7 +66,6 @@ export type Duplex = Duplex_;
 export type Transform = Transform_;
 export type PassThrough = PassThrough_;
 
-// ---- Default export ----
 //
 // Node returns the Stream constructor with sub-classes + helpers hung off it.
 // `cjs-compat.cjs` resolves `mod.default || mod` to this exact value, so the

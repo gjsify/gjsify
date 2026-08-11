@@ -10,12 +10,12 @@
 //
 // The C rules that are not visible in the DOM code:
 //   - closing defaults to closing a non-pinned page and DENYING a pinned one
-//     (`close_page_cb`, adw-tab-view.c:1986-1993).
-//   - an out-of-range `selected` is IGNORED, not clamped (:2145, :4126-4134),
-//     and every path notifies, property sets included (:1854).
-//   - the bar stays up for a single PINNED tab (adw-tab-bar.c:163).
-//   - the close affordance follows `tabCloseVisible` (adw-tab.c:124, pinned gate
-//     :645-650), and titles/tooltips/icons/loading stay live (adw-tab.c:930-931).
+//     (`close_page_cb`).
+//   - an out-of-range `selected` is IGNORED, not clamped, and every path notifies,
+//     property sets included.
+//   - the bar stays up for a single PINNED tab.
+//   - the close affordance follows `tabCloseVisible` (three terms plus a pinned
+//     gate), and titles/tooltips/icons/loading stay live.
 //
 // Pages are declared as <adw-tab-page> children — the element itself becomes the
 // panel, so its attributes stay live — or added imperatively. The roving tabindex
@@ -50,20 +50,18 @@ import type { AdwTabPageSpec, AdwTabPageState, TabViewPagesChange, TabViewSelect
 
 import { type AdwIcon, createAdwIcon } from './adw-icon.js';
 
-/** A page descriptor as `pages` exposes it. */
 export type AdwTabViewPage = AdwTabPageState<HTMLElement>;
 
-/** The page spec the imperative insertion methods take. */
 export type AdwTabViewPageSpec = AdwTabPageSpec<HTMLElement>;
 
 /** The live `<adw-tab-page>` properties, each mapped onto a state setter. */
 const PAGE_ATTRIBUTES = ['title', 'tooltip', 'icon', 'indicator-icon', 'loading', 'needs-attention', 'pinned'];
 
 /**
- * A single page. Declared as a child of <adw-tab-view>; the element itself
- * becomes the page panel, so its attributes keep driving the tab after connect —
- * the old implementation moved the children out and discarded the element, which
- * is why its `observedAttributes` declaration had nothing to act on.
+ * A single page. Declared as a child of <adw-tab-view>; the element itself becomes the
+ * page panel, so its attributes keep driving the tab after connect — a renderer that
+ * moves the children out and discards the element leaves `observedAttributes` with
+ * nothing to act on.
  */
 export class AdwTabPage extends HTMLElement {
     static get observedAttributes() {
@@ -117,8 +115,6 @@ export class AdwTabView extends HTMLElement {
         this._state.subscribe((change) => this._onSelectionChange(change));
     }
 
-    // --- Declarative surface ------------------------------------------------
-
     /** Zero-based index of the visible page, `-1` when the view is empty. */
     get selected(): number {
         return this._state.selectedIndex;
@@ -141,7 +137,6 @@ export class AdwTabView extends HTMLElement {
         else this.removeAttribute('autohide');
     }
 
-    /** Whether tabs stretch to fill the bar evenly (Adw.TabBar `expand-tabs`). */
     get expandTabs(): boolean {
         return this.hasAttribute('expand-tabs');
     }
@@ -231,17 +226,14 @@ export class AdwTabView extends HTMLElement {
 
     // --- Model surface (thin delegations to TabViewState) --------------------
 
-    /** All pages in order. */
     get pages(): readonly AdwTabViewPage[] {
         return this._state.pages;
     }
 
-    /** Number of pages. */
     get nPages(): number {
         return this._state.nPages;
     }
 
-    /** Length of the pinned prefix. */
     get nPinnedPages(): number {
         return this._state.nPinnedPages;
     }
@@ -256,7 +248,6 @@ export class AdwTabView extends HTMLElement {
         return this._state.selectedIndex;
     }
 
-    /** The selected page's panel element, or `null`. */
     get selectedContent(): HTMLElement | null {
         return this._state.selectedPage?.content ?? null;
     }
@@ -407,8 +398,6 @@ export class AdwTabView extends HTMLElement {
         return this._state.diagnostics;
     }
 
-    // --- Adoption -----------------------------------------------------------
-
     private _adoptDeclaredPage(pageEl: AdwTabPage): void {
         // The declared element IS the panel — attributes stay live on it, which
         // is what makes `<adw-tab-page title>` observable at all.
@@ -441,8 +430,6 @@ export class AdwTabView extends HTMLElement {
         this._generatedIds += 1;
         return `tab-${this._generatedIds}`;
     }
-
-    // --- Rendering ----------------------------------------------------------
 
     private _onPagesChange(change: TabViewPagesChange): void {
         switch (change.kind) {
@@ -488,19 +475,16 @@ export class AdwTabView extends HTMLElement {
         tab.setAttribute('role', 'tab');
         tab.dataset.pageId = page.id;
 
-        // Decorative mask-image nodes — <adw-icon> carries the convention (and
-        // the `-symbolic` strip, which is that convention and not C: the name
-        // reaches `GtkImage` untouched there).
+        // Decorative mask-image nodes — <adw-icon> carries the convention, including the
+        // `-symbolic` strip, which is ours and not C's: there the name reaches
+        // `GtkImage` untouched.
         const icon = createAdwIcon(null, 'adw-tab-icon');
         tab.appendChild(icon);
 
-        // `AdwTabPage:loading` swaps the icon image for an `AdwSpinnerPaintable`
-        // — the SAME paintable `Adw.Spinner` uses (`update_icons`,
-        // adw-tab.c:172-190). So this is a real `<adw-spinner>` in the icon's
-        // slot, not a ring drawn again in CSS: the stylesheet used to restate
-        // the border, the grey and the 0.8s under a comment claiming it was
-        // "not a second copy of them", and it inherited every spinner defect
-        // independently.
+        // `AdwTabPage:loading` swaps the icon image for an `AdwSpinnerPaintable` — the
+        // SAME paintable `Adw.Spinner` uses (`update_icons`). So this is a real
+        // `<adw-spinner>` in the icon's slot, not a ring drawn again in CSS: a CSS copy
+        // inherits every spinner defect independently.
         const spinner = document.createElement('adw-spinner');
         spinner.className = 'adw-tab-spinner';
         spinner.setAttribute('size', '16');
@@ -513,9 +497,10 @@ export class AdwTabView extends HTMLElement {
 
         tab.appendChild(createAdwIcon(null, 'adw-tab-indicator'));
 
-        // Close affordance — a small flat button drawn with a CSS "×" glyph (no
-        // symbolic close icon ships in @gjsify/adwaita-icons). `can-focus=False`
-        // in adw-tab.ui:72, so it stays out of the tab order here too.
+        // Close affordance — a small flat button drawn with a CSS "×" glyph, because
+        // `window-close` has no mask class: it is not in the ICONS map in
+        // `scripts/build-scss.mjs` that generates them. `can-focus=False` in C, so it
+        // stays out of the tab order here too.
         const close = document.createElement('button');
         close.type = 'button';
         close.className = 'adw-tab-close';
@@ -548,7 +533,6 @@ export class AdwTabView extends HTMLElement {
         this._refreshTab(page.id);
     }
 
-    /** Remove-then-insert, the same shape the model's own reorder has. */
     private _moveTab(id: string, position: number): void {
         const tab = this._tabs.get(id);
         if (tab) {
@@ -569,10 +553,9 @@ export class AdwTabView extends HTMLElement {
 
         const label = tab.querySelector('.adw-tab-title') as HTMLElement | null;
         if (label) label.textContent = page.title;
-        // The tooltip is Pango MARKUP when the page sets one of its own
-        // (adw-tab.c:141-146). The DOM `title` attribute is a TEXT sink, so the
-        // markup is shown verbatim rather than being pushed through an HTML sink
-        // — a renderer that interpreted it would be executing page-supplied markup.
+        // The tooltip is Pango MARKUP when the page sets one of its own. The DOM `title`
+        // attribute is a TEXT sink, so the markup is shown verbatim rather than pushed
+        // through an HTML sink — interpreting it would execute page-supplied markup.
         tab.title = tabTooltip(page);
         tab.classList.toggle('pinned', page.pinned);
         tab.classList.toggle('needs-attention', page.needsAttention);
@@ -599,10 +582,10 @@ export class AdwTabView extends HTMLElement {
     }
 
     /**
-     * `tabCloseVisible` (adw-tab.c:124 + the pinned gate at :645-650). `dragging`
-     * is constantly false — tab drag-and-drop is compositor work and is not
-     * modelled — and `fullyVisible` is measured against the bar's scroll window,
-     * which is exactly what the C term means for a horizontally scrolled bar.
+     * `tabCloseVisible`, with its pinned gate. `dragging` is constantly false — tab
+     * drag-and-drop is compositor work and is not modelled — and `fullyVisible` is
+     * measured against the bar's scroll window, which is what the C term means for a
+     * horizontally scrolled bar.
      */
     private _refreshCloseVisibility(id: string): void {
         const page = this._state.getPage(id);
@@ -681,23 +664,18 @@ export class AdwTabView extends HTMLElement {
 
     private _applySelectedAttribute(value: string): void {
         const index = Number.parseInt(value, 10);
-        // An unparseable value is IGNORED rather than treated as 0: the old
-        // `Number.isNaN(raw) ? 0 : clamp(raw)` made `selected="oops"` select the
-        // first page, and `selected="99"` the last, where libadwaita refuses both
-        // (adw-tab-view.c:2145, :4126-4134).
+        // An unparseable value is IGNORED rather than treated as 0, and an out-of-range
+        // one is refused rather than clamped: libadwaita refuses both, so
+        // `selected="oops"` must not select the first page nor `selected="99"` the last.
         if (Number.isNaN(index)) return;
         this._state.selectNthPage(index);
     }
 
-    // --- Keyboard -----------------------------------------------------------
-
     /**
-     * The `Adw.TabView` shortcut table (`init_shortcuts`, adw-tab-view.c:2192+),
-     * plus the ArrowLeft/ArrowRight movement `role=tablist` promises.
-     *
-     * Ctrl+Tab WRAPS and Ctrl+Page-Up/Down does not — the same `last` flag that
-     * separates them in `select_page_cb` (:2017-2041). Alt+0 is page index 9,
-     * because pages count from 0 (:2149-2150).
+     * The `Adw.TabView` shortcut table (`init_shortcuts`), plus the ArrowLeft/ArrowRight
+     * movement `role=tablist` promises. Ctrl+Tab WRAPS and Ctrl+Page-Up/Down does not —
+     * the same `last` flag that separates them in `select_page_cb`. Alt+0 is page index
+     * 9, because pages count from 0.
      */
     private _onKeyDown(event: KeyboardEvent): void {
         const inBar = event.target instanceof Node && this._barEl.contains(event.target);
@@ -739,10 +717,10 @@ export class AdwTabView extends HTMLElement {
     }
 
     /**
-     * The `close-page` seam. A CANCELABLE DOM event is the idiomatic spelling of
-     * the C signal's return value: letting it through takes libadwaita's default
-     * (`!pinned`, adw-tab-view.c:1990-1991), and `preventDefault()` defers the
-     * close until the app calls {@link closePageFinish}.
+     * The `close-page` seam. A CANCELABLE DOM event is the idiomatic spelling of the C
+     * signal's return value: letting it through takes libadwaita's default (`!pinned`),
+     * and `preventDefault()` defers the close until the app calls
+     * {@link closePageFinish}.
      */
     private _requestClose(page: AdwTabViewPage): boolean | 'defer' {
         const proceed = this.dispatchEvent(

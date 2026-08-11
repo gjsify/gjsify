@@ -120,11 +120,7 @@ function measure() {
 /** @param {{code: number, comment: number}} t */
 const ratio = (t) => (t.code === 0 ? 0 : t.comment / t.code);
 
-const mode = process.argv.includes('--check')
-    ? 'check'
-    : process.argv.includes('--update')
-      ? 'update'
-      : 'print';
+const mode = process.argv.includes('--check') ? 'check' : process.argv.includes('--update') ? 'update' : 'print';
 
 const totals = measure();
 

@@ -7,8 +7,7 @@ import WebKit from 'gi://WebKit?version=6.0';
 import type JavaScriptCore from 'gi://JavaScriptCore?version=6.0';
 import { MessageEvent } from '@gjsify/dom-events';
 
-// Install the Promise-returning overloads of the WebKit.WebView async methods
-// (evaluate_javascript / get_snapshot) used across this package.
+// Installs the Promise-returning overloads of evaluate_javascript / get_snapshot.
 import './promisify.js';
 
 import type { IFrameWindowProxy } from './iframe-window-proxy.js';
@@ -22,36 +21,25 @@ const CHANNEL_NAME = 'gjsify-iframe';
 
 /** Options for {@link MessageBridge}. */
 export interface MessageBridgeOptions {
-    /** Inject the console-capture UserScript so the page's console.* is
-     *  forwarded to the host. Default: false. */
+    /** Forward the page's `console.*` to the host via a UserScript. Default: false. */
     captureConsole?: boolean;
 }
 
 /**
- * Synthetic origin attached to messages travelling FROM the GJS host
- * INTO the WebView. The WebView can use this in a targetOrigin filter to
- * accept messages only when they originate from its hosting GJS process
- * (vs. any other code that might inject script via developer tools).
+ * Synthetic origin on messages travelling FROM the GJS host INTO the WebView, so page
+ * code can filter on it and accept only what its hosting process sent.
  *
- * Uses the `https://` scheme so WHATWG URL parsing gives a real origin
- * string (non-special schemes like `gjsify://` return `null` as origin
- * per the URL spec, which would break the equality comparison the
- * bridge does on every message). `.local` is the standard RFC 6762
- * suffix for non-routable mDNS names, so it can't collide with a real
- * site.
+ * `https://` because WHATWG URL parsing yields `null` as the origin of a non-special
+ * scheme like `gjsify://`, which would break the equality comparison the bridge does on
+ * every message. `.local` is RFC 6762's non-routable suffix, so it cannot collide with a
+ * real site.
  */
 export const GJS_HOST_ORIGIN = 'https://gjsify.local';
 
 /**
- * Per HTML spec for window.postMessage:
- *   - '*'         → no origin restriction
- *   - URL string  → only deliver if destination origin matches URL.origin
- *   - '/'         → only deliver if destination origin matches source origin
- *   - other       → throw SyntaxError
- *
- * Returns the canonical origin string (e.g. 'https://example.com'),
- * `'*'`, or `null` if the input is `'/'`. Throws `SyntaxError` for
- * malformed input.
+ * `targetOrigin` per the HTML spec for window.postMessage: `'*'` is unrestricted, a URL
+ * must match the destination origin, `'/'` means "the source's own origin" (returned as
+ * `null`), and anything else is a `SyntaxError`.
  */
 export function normaliseTargetOrigin(targetOrigin: string): string | null {
     if (targetOrigin === '*') return '*';
@@ -66,20 +54,14 @@ export function normaliseTargetOrigin(targetOrigin: string): string | null {
 }
 
 /**
- * Bootstrap script injected into every WebView page at document start.
- * Provides the `window.parent.postMessage()` bridge from WebView content back to GJS.
- *
- * The script:
- * 1. Gets the WebKit message handler registered under CHANNEL_NAME
- * 2. Creates a parent proxy with a postMessage() that sends via the WebKit handler
- * 3. Overrides window.parent to point to the proxy
- */
-/**
- * @internal Exposed only for unit testing — verifies the bootstrap
- * idempotency guard survives refactors. Not part of the public API.
+ * @internal Exposed only so a unit test can check that the bootstrap script's
+ * idempotency guard survives a refactor. Not public API.
  */
 export const BOOTSTRAP_SCRIPT_FOR_TEST = (): string => BOOTSTRAP_SCRIPT;
 
+// Injected into every page at document start: overrides `window.parent` with a proxy
+// whose postMessage goes through the WebKit message handler registered under
+// CHANNEL_NAME, which is the WebView → GJS direction.
 const BOOTSTRAP_SCRIPT = `(function() {
     var handler = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers['${CHANNEL_NAME}'];
     if (!handler) return;
@@ -218,15 +200,13 @@ const BOOTSTRAP_SCRIPT = `(function() {
 })();`;
 
 /**
- * Manages bidirectional postMessage communication between GJS and a WebKit.WebView.
+ * Bidirectional postMessage between GJS and a WebKit.WebView.
  *
- * Direction 1 — GJS → WebView:
- *   Uses webView.evaluate_javascript() to dispatch a MessageEvent on the WebView's window.
- *
- * Direction 2 — WebView → GJS:
- *   Bootstrap script overrides window.parent.postMessage to call
- *   webkit.messageHandlers[CHANNEL_NAME].postMessage(), which triggers
- *   the UserContentManager 'script-message-received' signal in GJS.
+ * GJS → WebView goes through `evaluate_javascript()`, which dispatches a MessageEvent on
+ * the WebView's window. WebView → GJS goes through the bootstrap script's
+ * `window.parent.postMessage` override, which calls
+ * `webkit.messageHandlers[CHANNEL_NAME].postMessage()` and raises the
+ * UserContentManager 'script-message-received' signal.
  */
 export class MessageBridge {
     private _webView: WebKit.WebView;
@@ -234,9 +214,8 @@ export class MessageBridge {
     private _windowProxy: IFrameWindowProxy | null = null;
     private _currentUri = 'about:blank';
     private _signalId: number | null = null;
-    /** GJS-side endpoints of transferred ports, keyed by per-bridge id.
-     *  When the WebView sends a `{__gjsifyPortMessage: id, payload}` envelope,
-     *  we route the payload to `_ports.get(id)._receive(decoded)`. */
+    /** GJS-side endpoints of transferred ports, keyed by per-bridge id: a
+     *  `{__gjsifyPortMessage: id, payload}` envelope routes to `_receive(decoded)`. */
     private _ports = new Map<number, MessagePort>();
     private _nextPortId = 1;
     private _transport: BridgePortTransport | null = null;
@@ -257,8 +236,7 @@ export class MessageBridge {
         if (this._captureConsole) this._injectConsoleCaptureScript();
     }
 
-    /** Buffered console entries captured from the page (oldest first). Empty
-     *  unless the bridge was created with `captureConsole`. */
+    /** Console entries from the page, oldest first; empty without `captureConsole`. */
     getConsoleLogs(): ConsoleLogEntry[] {
         return this._consoleBuffer.list();
     }
@@ -279,17 +257,17 @@ export class MessageBridge {
         for (const cb of this._consoleCallbacks) cb(entry);
     }
 
-    /** Connect the IFrameWindowProxy that will receive messages from the WebView */
+    /** Connect the IFrameWindowProxy that receives messages from the WebView. */
     setWindowProxy(proxy: IFrameWindowProxy): void {
         this._windowProxy = proxy;
     }
 
-    /** Update current URI (called by IFrameBridge on load-changed) */
+    /** Called by IFrameBridge on load-changed. */
     updateUri(uri: string): void {
         this._currentUri = uri;
     }
 
-    /** Get current location info for the IFrameWindowProxy */
+    /** Location info for the IFrameWindowProxy. */
     getLocation(): { href: string; origin: string } {
         let origin: string;
         try {
@@ -301,20 +279,16 @@ export class MessageBridge {
         return { href: this._currentUri, origin };
     }
 
-    /**
-     * Send a message from GJS to the WebView content.
-     * Dispatches a standard MessageEvent on the WebView's window object.
-     */
+    /** Dispatches a standard MessageEvent on the WebView's window object. */
     /**
      * Register a port pair for cross-bridge transfer. Called by
      * IFrameWindowProxy.postMessage when it sees a `MessagePort` in the
      * transferList. Returns the port-id placeholder that should be
      * substituted into the outgoing payload.
      *
-     * Marks the transferred port as detached locally and wires its
-     * surviving partner with a `BridgePortTransport` so the partner's
-     * postMessage routes back over the WebKit bridge instead of the
-     * (now-null) in-process partner.
+     * The transferred port is detached locally and its surviving partner gets a
+     * `BridgePortTransport`, so the partner's postMessage routes over the WebKit bridge
+     * instead of the now-null in-process partner.
      */
     _registerTransferredPort(port: MessagePort): number {
         if (port._transferred) {
@@ -325,11 +299,8 @@ export class MessageBridge {
             throw new Error('MessagePort: partner missing — port already transferred or closed');
         }
         const id = this._nextPortId++;
-        // Detach the transferred port locally.
         port._transferred = true;
         port._partner = null;
-        // Wire the partner: future postMessages on partner flow via the
-        // bridge transport adapter.
         partner._partner = null;
         partner._transport = this._getTransport();
         partner._portId = id;
@@ -357,24 +328,18 @@ export class MessageBridge {
     }
 
     sendToWebView(data: unknown, targetOrigin: string, transfer?: MessagePort[]): void {
-        // Validate + match against the WebView's current origin per HTML spec.
-        // '*' always delivers; a parseable URL must match the WebView's
-        // location.origin; '/' means "must match source's own origin" — for
-        // GJS-side senders that's GJS_HOST_ORIGIN, which can never match a
-        // real WebView origin, so '/' always drops.
+        // Matched against the WebView's current origin per the HTML spec. For a GJS-side
+        // sender '/' resolves to GJS_HOST_ORIGIN, which never matches a real WebView
+        // origin, so '/' always drops.
         const targetCanonical = normaliseTargetOrigin(targetOrigin);
         if (targetCanonical !== '*') {
             const webViewOrigin = this.getLocation().origin;
-            // `null` from '/' OR a real origin string. '/' resolves to source's
-            // own origin = GJS_HOST_ORIGIN here, which never matches a real
-            // WebView origin.
             const compareTo = targetCanonical ?? GJS_HOST_ORIGIN;
             if (compareTo !== webViewOrigin) return;
         }
 
-        // Substitute any MessagePort instances in the payload with
-        // {__gjsifyPort: id} placeholders. The bootstrap walker turns these
-        // back into proxy ports on the WebView side.
+        // MessagePorts become `{__gjsifyPort: id}` placeholders, which the bootstrap
+        // walker turns back into proxy ports on the WebView side.
         let prepared = data;
         if (transfer && transfer.length > 0) {
             const portToId = new Map<MessagePort, number>();
@@ -385,16 +350,13 @@ export class MessageBridge {
             prepared = substitutePorts(data, portToId);
         }
 
-        // Encode binaries to base64 placeholders before JSON-stringifying the
-        // payload. The injected snippet decodes them on the WebView side before
-        // dispatching MessageEvent, so user code sees a real typed array.
+        // Binaries become base64 placeholders for the JSON hop; the injected snippet
+        // decodes them before dispatching, so page code sees a real typed array.
         const encoded = encodeBinariesForJson(prepared);
         const serialized = JSON.stringify(encoded);
         const origin = JSON.stringify(GJS_HOST_ORIGIN);
-        // Note: do not pass `source` — WebKit's MessageEvent constructor throws TypeError
-        // if source is not a valid MessageEventSource (Window/MessagePort/ServiceWorker)
-        // The snippet decodes binaries first, then walks for {__gjsifyPort: id}
-        // placeholders and replaces them with the WebView-side proxy ports.
+        // No `source`: WebKit's MessageEvent constructor throws TypeError unless it is a
+        // Window/MessagePort/ServiceWorker.
         const script = `(function(){${BINARY_SERIALIZER_INJECTED_SRC}var d = __decodeBin(JSON.parse(${JSON.stringify(serialized)})); if (window.__gjsifySubstitutePorts) d = window.__gjsifySubstitutePorts(d); window.dispatchEvent(new MessageEvent('message', { data: d, origin: ${origin} }));})();`;
 
         // evaluate_javascript is async in WebKit 6.0 — fire and forget

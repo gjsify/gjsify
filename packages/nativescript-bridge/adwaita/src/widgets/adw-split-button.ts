@@ -8,19 +8,15 @@
 // `menuTapped`.
 //
 // The BEHAVIOUR — which content slot is filled (label/icon/child are mutually
-// exclusive), whether the dropdown is live at all, the arrow direction, the
-// dropdown tooltip fallback — is headless and lives in `@gjsify/adwaita-core`
-// (ADR 0004) as `SplitButtonState`; this class only renders it. It used to keep
-// its own: the `actionIcon` setter swapped the label VIEW out but left the label
-// VALUE in place, so `get label()` returned text nobody could see and the action
-// sheet was titled with it, while `set label()` wrote into a detached view and
-// appeared to do nothing.
+// exclusive), whether the dropdown is live at all, the arrow direction, the dropdown
+// tooltip fallback — is headless in `@gjsify/adwaita-core` (ADR 0004) as
+// `SplitButtonState`; this class only renders it.
 //
-// FIDELITY: approximated for the menu. `Adw.SplitButton` shows an in-app popover;
-// the NS subset has no popover, so the dropdown opens the platform `action()`
-// sheet (the same substitution `AdwComboRow` makes). The label→position round
-// trip that substitution forces is handled in `split-button-menu.ts`. The
-// two-part linked shape + symbolic icons are faithful.
+// FIDELITY: approximated for the menu. `Adw.SplitButton` shows an in-app popover; the
+// NS subset has none, so the dropdown opens the platform `action()` sheet (the same
+// substitution `AdwComboRow` makes). The label→position round trip that substitution
+// forces is handled in `split-button.ts`. The two-part linked shape and the symbolic
+// icons are faithful.
 //
 // Reference: refs/libadwaita/src/adw-split-button.c (AdwSplitButton)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss (.split-button)

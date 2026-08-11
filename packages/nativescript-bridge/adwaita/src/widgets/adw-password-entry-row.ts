@@ -4,19 +4,14 @@
 // (adw-password-entry-row.c): a masked field, a trailing peek toggle that swaps
 // between the reveal / conceal symbolics, and the Caps Lock warning.
 //
-// The reveal/caps-lock DERIVATION is HEADLESS and lives in
-// `@gjsify/adwaita-core` (ADR 0004) as {@link PasswordEntryRowState}, which
-// COMPOSES the parent row's state exactly like the C drives its parent through
-// the private `adw_entry_row_set_show_indicator` hook. Two rules fall out of it
-// that this port did not have: peeking suppresses the caps-lock warning
-// (C:57-59), and so does losing focus (adw-entry-row.c:151). The icon/label swap
-// used to be written out THREE times in this file alone; it is now one lookup in
-// the core, painted by `entry-row-view.ts`.
+// The reveal/caps-lock DERIVATION is HEADLESS in `@gjsify/adwaita-core` (ADR 0004) as
+// {@link PasswordEntryRowState}, which COMPOSES the parent row's state the way the C
+// drives its parent through the private `adw_entry_row_set_show_indicator` hook. Two
+// rules that follow: peeking suppresses the caps-lock warning, and so does losing focus.
 //
-// Also fixed here: the peek toggle is installed through {@link AdwEntryRow.addSuffix}
-// rather than the single-slot `setSuffix`, so a consumer suffix no longer
-// detaches it — which used to leave `_peekButton` pointing at a view that was no
-// longer in the tree, so the row could never be revealed again.
+// The peek toggle is installed through {@link AdwEntryRow.addSuffix} rather than the
+// single-slot `setSuffix`, so a consumer suffix cannot detach it and leave
+// `_peekButton` pointing at a view that is no longer in the tree.
 //
 // COMPROMISE: NativeScript exposes no keyboard modifier state, so nothing on
 // this port can OBSERVE Caps Lock. {@link setCapsLockOn} is the seam a host with

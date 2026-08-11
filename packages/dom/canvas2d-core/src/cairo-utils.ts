@@ -1,13 +1,10 @@
-// Cairo utility helpers for Canvas 2D context
-// Handles format conversions and path operations not directly available in Cairo.
+// Format conversions and the path operations Cairo does not offer directly.
 
 import type Cairo from 'cairo';
 
 /**
- * Convert quadratic Bezier control point to cubic Bezier control points.
- * Canvas 2D has quadraticCurveTo but Cairo only has cubic curveTo.
- *
- * Given current point (cx, cy), quadratic control point (cpx, cpy), and end (x, y):
+ * Canvas 2D has quadraticCurveTo, Cairo only cubic curveTo. From the current point (cx, cy), the
+ * quadratic control point (cpx, cpy) and the end (x, y):
  *   cp1 = current + 2/3 * (cp - current)
  *   cp2 = end + 2/3 * (cp - end)
  */
@@ -28,11 +25,9 @@ export function quadraticToCubic(
 }
 
 /**
- * Compute arcTo parameters.
- * Canvas arcTo(x1,y1,x2,y2,radius) draws a line from current point to the tangent point,
- * then an arc of the given radius tangent to both lines (current→p1 and p1→p2).
- *
- * Returns the two tangent points and arc center, or null if degenerate (collinear points).
+ * Canvas arcTo(x1,y1,x2,y2,radius) draws a line from the current point to the tangent point, then an
+ * arc of that radius tangent to both current→p1 and p1→p2. Returns the two tangent points and the
+ * arc center, or `null` for degenerate input (collinear points).
  */
 export function computeArcTo(
     x0: number,
@@ -59,13 +54,11 @@ export function computeArcTo(
     const dx1 = x2 - x1;
     const dy1 = y2 - y1;
 
-    // Lengths
     const len0 = Math.sqrt(dx0 * dx0 + dy0 * dy0);
     const len1 = Math.sqrt(dx1 * dx1 + dy1 * dy1);
 
     if (len0 === 0 || len1 === 0) return null;
 
-    // Normalize
     const ux0 = dx0 / len0;
     const uy0 = dy0 / len0;
     const ux1 = dx1 / len1;
@@ -82,7 +75,6 @@ export function computeArcTo(
     // Distance from p1 to tangent point
     const tanDist = radius / Math.tan(halfAngle);
 
-    // Tangent points
     const tx0 = x1 + ux0 * tanDist;
     const ty0 = y1 + uy0 * tanDist;
     const tx1 = x1 + ux1 * tanDist;
@@ -96,7 +88,6 @@ export function computeArcTo(
     const cx = x1 + (bisectX / bisectLen) * centerDist;
     const cy = y1 + (bisectY / bisectLen) * centerDist;
 
-    // Start and end angles
     const startAngle = Math.atan2(ty0 - cy, tx0 - cx);
     const endAngle = Math.atan2(ty1 - cy, tx1 - cx);
 
@@ -106,9 +97,6 @@ export function computeArcTo(
     return { tx0, ty0, tx1, ty1, cx, cy, startAngle, endAngle, counterclockwise };
 }
 
-/**
- * Apply an arcTo operation to a Cairo context.
- */
 export function cairoArcTo(
     ctx: Cairo.Context,
     x0: number,
@@ -128,10 +116,8 @@ export function cairoArcTo(
 
     const { tx0, ty0, cx, cy, startAngle, endAngle, counterclockwise } = result;
 
-    // Line from current point to first tangent point
     ctx.lineTo(tx0, ty0);
 
-    // Arc
     if (counterclockwise) {
         ctx.arcNegative(cx, cy, radius, startAngle, endAngle);
     } else {
@@ -139,11 +125,7 @@ export function cairoArcTo(
     }
 }
 
-/**
- * Draw an ellipse on a Cairo context.
- * Canvas ellipse(x, y, radiusX, radiusY, rotation, startAngle, endAngle, counterclockwise)
- * is implemented via save/translate/rotate/scale/arc/restore.
- */
+/** Canvas ellipse() built out of save/translate/rotate/scale/arc/restore — Cairo has no ellipse. */
 export function cairoEllipse(
     ctx: Cairo.Context,
     x: number,
@@ -169,10 +151,7 @@ export function cairoEllipse(
     ctx.restore();
 }
 
-/**
- * Draw a rounded rectangle path on a Cairo context.
- * Implements the Canvas roundRect(x, y, w, h, radii) method.
- */
+/** The Canvas roundRect(x, y, w, h, radii) path. */
 export function cairoRoundRect(
     ctx: Cairo.Context,
     x: number,
@@ -223,16 +202,8 @@ export function cairoRoundRect(
 }
 
 /**
- * Map Canvas globalCompositeOperation to Cairo.Operator values.
- *
- * Cairo.Operator enum (verified runtime in GJS 1.86):
- *   CLEAR=0, SOURCE=1, OVER=2, IN=3, OUT=4, ATOP=5,
- *   DEST=6, DEST_OVER=7, DEST_IN=8, DEST_OUT=9, DEST_ATOP=10,
- *   XOR=11, ADD=12, SATURATE=13,
- *   MULTIPLY=14, SCREEN=15, OVERLAY=16, DARKEN=17, LIGHTEN=18,
- *   COLOR_DODGE=19, COLOR_BURN=20, HARD_LIGHT=21, SOFT_LIGHT=22,
- *   DIFFERENCE=23, EXCLUSION=24, HSL_HUE=25, HSL_SATURATION=26,
- *   HSL_COLOR=27, HSL_LUMINOSITY=28
+ * Canvas globalCompositeOperation → `Cairo.Operator`, whose values are its declaration order from
+ * `CLEAR=0` through `HSL_LUMINOSITY=28`. Each entry names the operator it resolves to.
  */
 export const COMPOSITE_OP_MAP: Record<string, number> = {
     'source-over': 2, // OVER

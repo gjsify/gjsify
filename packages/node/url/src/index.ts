@@ -4,8 +4,6 @@
 
 import GLib from '@girs/glib-2.0';
 
-// ---- URLSearchParams ----
-
 const PARSE_FLAGS = GLib.UriFlags.HAS_PASSWORD | GLib.UriFlags.ENCODED | GLib.UriFlags.SCHEME_NORMALIZE;
 
 export class URLSearchParams {
@@ -139,8 +137,6 @@ function encodeComponent(s: string): string {
     return encodeURIComponent(s).replace(/%20/g, '+');
 }
 
-// ---- URL class using GLib.Uri ----
-
 export class URL {
     #uri: GLib.Uri;
     #searchParams: URLSearchParams;
@@ -269,7 +265,6 @@ export class URL {
         return this.href;
     }
 
-    // ---- URL.createObjectURL / URL.revokeObjectURL ----
     //
     // Consumers like Excalibur.js do `const src = URL.createObjectURL(blob);
     // image.src = src;`. For that to work on GJS we need `src` to be a path
@@ -313,8 +308,6 @@ export class URL {
         URL._objectURLPaths.delete(url);
     }
 }
-
-// ---- Legacy url.parse / url.format / url.resolve ----
 
 export interface UrlObject {
     protocol?: string | null;
@@ -514,8 +507,6 @@ export function format(urlObject: UrlObject | string | URL): string {
 export function resolve(from: string, to: string): string {
     return new URL(to, new URL(from, 'resolve://')).href.replace(/^resolve:\/\//, '');
 }
-
-// ---- File URL helpers ----
 
 export function fileURLToPath(url: string | URL): string {
     if (typeof url === 'string') {

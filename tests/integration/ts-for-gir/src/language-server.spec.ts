@@ -1,19 +1,14 @@
 // SPDX-License-Identifier: MIT
-// Phase 8: @ts-for-gir/language-server programmatic tests.
-// Validates that the TypeScript Language Server validation API works in the
-// bundled Node.js environment (TypeScript compiler runs in-process via the
-// `typescript` npm package).
+// `@ts-for-gir/language-server` programmatic tests: the validation API against an
+// in-process TypeScript compiler (the `typescript` npm package).
 //
-// GLib-specific GVariant type-inference tests (ported from
-// refs/ts-for-gir/tests/language-server-validation/src/gvariant-validation.test.ts)
-// require pre-generated @girs/glib-2.0 ambient declarations to be resolvable
-// by the in-process TypeScript compiler.  That setup (generate + path-wiring)
-// is deferred to a follow-up PR.  The tests here cover the language-server API
-// surface and pure-TypeScript compilation paths that work without any GIR types.
+// SCOPE — the GVariant type-inference tests (ported from
+// refs/ts-for-gir/tests/language-server-validation/src/gvariant-validation.test.ts) need
+// pre-generated @girs/glib-2.0 ambient declarations resolvable by that compiler, so only
+// the API surface and the GIR-free compilation paths are covered here.
 //
-// All tests run on Node.js only — the TypeScript compiler relies on `typescript`
-// (a CJS package using __dirname to locate lib.*.d.ts files) which is bundled
-// correctly for Node but not yet validated for GJS/SpiderMonkey 128.
+// Node.js only: `typescript` is a CJS package that uses `__dirname` to locate its
+// `lib.*.d.ts` files, and that bundles correctly for Node but is not yet validated for GJS.
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import {

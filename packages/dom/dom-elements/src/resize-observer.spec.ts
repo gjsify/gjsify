@@ -1,22 +1,15 @@
-// Tests for the ResizeObserver polyfill + the bridge ↔ DOM resize pipeline.
-// Locks in the fix for `docs/reports/webgl-bridge-resize-observer.md` —
-// without this, `Excalibur.js`'s `DisplayMode.FillContainer` never sees
-// GTK widget resizes and the rendered world stays at its initial
-// resolution.
-//
-// Cross-platform: uses only DOM polyfill primitives (no GTK), so the
-// same suite runs under Node + GJS.
+// Tests for the ResizeObserver polyfill + the bridge ↔ DOM resize pipeline. The invariant:
+// Excalibur's `DisplayMode.FillContainer` must see GTK widget resizes, or the rendered world stays
+// at its initial resolution. Uses only DOM polyfill primitives (no GTK), so the suite runs under
+// both Node and GJS.
 
 import { describe, it, expect } from '@gjsify/unit';
 
 import { HTMLCanvasElement, HTMLElement, ResizeObserver, document, notifyElementResize } from '@gjsify/dom-elements';
 import type { ResizeObserverEntry } from '@gjsify/dom-elements';
 
-// Microtask flush helper. ResizeObserver batches entries into a microtask
-// (matching the spec's "deliver resize loop notifications" cycle), so
-// tests have to await a microtask round-trip between an enqueue and the
-// callback firing. Three awaits cover: the enqueue's own microtask, the
-// observe()-initial-measurement microtask, and the flush dispatch.
+// Three awaits, one each for: the enqueue's own microtask, the observe() initial measurement, and
+// the flush dispatch.
 async function flushMicrotasks(): Promise<void> {
     for (let i = 0; i < 3; i++) await Promise.resolve();
 }
@@ -40,7 +33,6 @@ export default async () => {
             });
             observer.observe(canvas);
 
-            // Initial measurement fires once with the canvas's current dimensions.
             await flushMicrotasks();
             expect(fired).toBeGreaterThan(0);
             const initialFired = fired;
@@ -55,9 +47,8 @@ export default async () => {
         });
 
         await it('fires for observers on an ancestor when a descendant resizes', async () => {
-            // Excalibur.js's actual usage: observe(canvas.parentElement) (i.e.
-            // document.body), then dispatch the resize on the canvas. Both
-            // observations have to fire.
+            // Excalibur's actual usage: observe(canvas.parentElement), then dispatch the resize on
+            // the canvas.
             const canvas = new HTMLCanvasElement();
             document.body.appendChild(canvas);
 
@@ -76,7 +67,6 @@ export default async () => {
             await flushMicrotasks();
             const initialBodyFired = bodyFired;
 
-            // Bridge fires its GTK 'resize' signal → notify on the canvas.
             notifyElementResize(canvas, 1024, 768);
             await flushMicrotasks();
             expect(bodyFired).toBe(initialBodyFired + 1);
@@ -87,26 +77,18 @@ export default async () => {
         });
 
         await it('updates clientWidth / clientHeight / offsetWidth / offsetHeight / scrollWidth / scrollHeight on target + ancestors', async () => {
-            // notifyElementResize is the one path that writes the
-            // GTK allocation into the polyfill's layout-dim fields.
-            // Without this Excalibur.js's `Screen.FillContainer`
-            // path reads 0 from `canvas.offsetWidth` (it sets
-            // `canvas.style.{width,height} = '100%'` and then
-            // reads offsetWidth/Height) and sibling
-            // `Screen.FitContainer` reads 0 from
-            // `canvas.parentElement.clientWidth` — both produce a
-            // 0×0 backing store on every resize → blank canvas.
+            // notifyElementResize is the only path that writes the GTK allocation into the
+            // polyfill's layout-dim fields. Without it Excalibur reads 0 from `canvas.offsetWidth`
+            // (FillContainer) or `canvas.parentElement.clientWidth` (FitContainer), giving a 0×0
+            // backing store and a blank canvas on every resize.
             //
-            // Uses a fresh wrapper Element instead of document.body
-            // as the ancestor, because document.body is shared across
-            // tests and earlier resize-notify calls in this suite
-            // leave its cached client-size populated.
+            // The ancestor is a fresh wrapper, not document.body: document.body is shared across
+            // tests and earlier notifies in this suite leave its cached client-size populated.
             const wrapper = new HTMLElement();
             const canvas = new HTMLCanvasElement();
             wrapper.appendChild(canvas);
             document.body.appendChild(wrapper);
 
-            // Fresh elements — no resize fired yet.
             expect(canvas.clientWidth).toBe(0);
             expect(canvas.clientHeight).toBe(0);
             expect(canvas.offsetWidth).toBe(0);
@@ -116,8 +98,7 @@ export default async () => {
 
             notifyElementResize(canvas, 1024, 768);
 
-            // Both the resized target + its ancestor see the new size
-            // through every layout-dim getter we wired.
+            // Target and ancestor, through every layout-dim getter.
             expect(canvas.clientWidth).toBe(1024);
             expect(canvas.clientHeight).toBe(768);
             expect(canvas.offsetWidth).toBe(1024);
@@ -129,8 +110,7 @@ export default async () => {
             expect(wrapper.offsetWidth).toBe(1024);
             expect(wrapper.offsetHeight).toBe(768);
 
-            // Subsequent resize overwrites the previous value
-            // (last-write-wins on shared ancestors — documented).
+            // Last-write-wins on shared ancestors.
             notifyElementResize(canvas, 640, 480);
             expect(canvas.clientWidth).toBe(640);
             expect(canvas.offsetWidth).toBe(640);
@@ -182,8 +162,7 @@ export default async () => {
             observer.observe(canvas);
             observer.observe(canvas);
             await flushMicrotasks();
-            // Even with two observe() calls we should get one initial entry,
-            // not two — same target collapses.
+            // Two observe() calls on one target must collapse to a single initial entry.
             const initialFired = fired;
 
             notifyElementResize(canvas, 200, 100);
@@ -215,7 +194,7 @@ export default async () => {
             expect(firedB).toBe(initialB + 1);
 
             a.disconnect();
-            // After A disconnects, B keeps firing.
+            // B keeps firing after A disconnects.
             const beforeSecond = firedB;
             notifyElementResize(canvas, 321, 241);
             await flushMicrotasks();
@@ -238,9 +217,8 @@ export default async () => {
             await flushMicrotasks();
 
             expect(captured).toBeDefined();
-            // Use a non-null local because TS narrowing through `captured` would
-            // require a null guard at every property access; the
-            // `typescript/no-non-null-assertion` rule is disabled for this reason.
+            // A local, because narrowing through `captured` would need a null guard at every
+            // property access below.
             const entry = captured as unknown as ResizeObserverEntry;
             expect(entry.target).toBe(canvas as unknown as object);
             expect(entry.contentRect.width).toBe(640);

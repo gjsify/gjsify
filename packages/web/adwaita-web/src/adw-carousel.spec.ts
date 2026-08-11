@@ -1,15 +1,9 @@
 // DOM-level conformance tests for <adw-carousel>, driven by the SAME vectors the
 // NativeScript renderer asserts against (`@gjsify/adwaita-core/conformance`).
 //
-// The two renderers used to carry independent, differently-wrong copies of the
-// carousel's arithmetic, and nothing compared them: this element defaulted
-// `allow-scroll-wheel` to FALSE where libadwaita defaults it TRUE (so a plain
-// <adw-carousel> ignored the wheel while its own header claimed the opposite),
-// resolved a half-way position to the LATER page where every libadwaita lookup
-// takes the earlier one, dropped `<adw-carousel position="2">` on the floor,
-// dropped the horizontal-delta fallback its comment described, and emitted
-// `page-changed` only when the index changed — which made the documented -1
-// unreachable. This suite is that comparison.
+// The suite exists because the two renderers used to carry independent,
+// differently-wrong copies of the carousel's arithmetic with nothing comparing them;
+// each rule that drifted is pinned by a test below.
 //
 // Scrolls are made instant by overriding the track's `scroll-behavior`; the
 // element sets it as an inline style precisely so it stays overridable.
@@ -44,10 +38,9 @@ function card(label: string): HTMLElement {
 }
 
 /**
- * Mount a carousel with the given page labels.
- *
- * The host gets an explicit size because the page pitch is MEASURED — a carousel
- * with no width has no distance, and every scroll would be a no-op.
+ * Mount a carousel with the given page labels. The host gets an explicit size because
+ * the page pitch is MEASURED: a carousel with no width has no distance, so every scroll
+ * would be a no-op.
  */
 function mount(labels: readonly string[], attributes: Record<string, string> = {}) {
     const host = document.createElement('div');
@@ -61,10 +54,9 @@ function mount(labels: readonly string[], attributes: Record<string, string> = {
     host.appendChild(carousel);
 
     const track = carousel.querySelector('.adw-carousel-track') as HTMLElement;
-    // Instant scrolls: the assertions are about WHERE it lands, never about the
-    // animation getting there. Snapping is off for the same reason — `mandatory`
-    // re-snaps a programmatic `scrollLeft` to the nearest page, which is exactly
-    // the fractional position several of these tests are about.
+    // Instant scrolls: the assertions are about WHERE it lands, never the animation.
+    // Snapping is off for the same reason — `mandatory` re-snaps a programmatic
+    // `scrollLeft` to the nearest page, the very fractional position under test.
     track.style.setProperty('scroll-behavior', 'auto');
     track.style.setProperty('scroll-snap-type', 'none');
     return { carousel, host, track };
@@ -131,16 +123,15 @@ function applyPageOp(carousel: CarouselElement, op: CarouselPageOp, pages: Map<s
         case 'scrollTo':
         case 'setPosition':
         case 'settle':
-            // Position ops need a settled scroll, so they are driven separately
-            // by the scroll tests below rather than through this replay.
+            // Position ops need a settled scroll and are driven by the scroll tests
+            // below, not through this replay.
             return true;
     }
 }
 
 export const AdwCarouselTest = async () => {
     await describe('adw-carousel page list (libadwaita conformance vectors)', async () => {
-        // Only the structural rows: the element's page methods are what the DOM
-        // exposes, while position ops need a real scroll and are covered below.
+        // Only the structural rows: the page methods are what the DOM exposes.
         const structural = CAROUSEL_PAGE_LIST_VECTORS.filter((vector) =>
             vector.ops.every((op) => op.kind === 'insert' || op.kind === 'remove' || op.kind === 'reorder'),
         );
@@ -157,11 +148,11 @@ export const AdwCarouselTest = async () => {
 
                 expect(results).toStrictEqual([...vector.opResults]);
                 expect(carousel.nPages).toBe(vector.expected.nPages);
-                // The DOM order IS the model order — a reorder that only moved
-                // the model would leave the pages painted where they were.
+                // The DOM order IS the model order: a reorder that moved only the model
+                // would leave the pages painted where they were.
                 expect(domOrder(carousel)).toStrictEqual([...vector.expected.ids]);
-                // And the position compensation reached the scroll container: a
-                // page revealed before the current one must not push it aside.
+                // The position compensation reaches the scroll container: a page revealed
+                // before the current one must not push it aside.
                 expect(carousel.position).toBe(vector.expected.position);
                 host.remove();
             });
@@ -170,17 +161,15 @@ export const AdwCarouselTest = async () => {
 
     await describe('adw-carousel page lookup (libadwaita conformance vectors)', async () => {
         for (const vector of CAROUSEL_PAGE_AT_POSITION_VECTORS) {
-            // Only the rows whose snap points are a settled page list are
-            // reachable through the DOM; the mid-reveal geometry rows need a
-            // reveal ramp this port does not have.
+            // Only rows whose snap points are a settled page list are reachable through
+            // the DOM; mid-reveal geometry rows need a reveal ramp this port lacks.
             const settled = vector.snapPoints.length > 0 && vector.snapPoints.every((point, i) => point === i);
             if (!settled) continue;
 
             await it(`${vector.position} → page ${vector.page} — ${vector.rule}`, async () => {
-                // Driven through the `position` property rather than a real
-                // scroll: a scroll offset is quantised to device pixels, so the
-                // ±1e-7 rows around the tie are not expressible as a drag. The
-                // tie ITSELF is, and gets its own drag test below.
+                // Driven through the `position` property, not a real scroll: a scroll
+                // offset is quantised to device pixels, so the ±1e-7 rows around the tie
+                // are not expressible as a drag. The tie itself is, below.
                 const { carousel, host } = mount(vector.snapPoints.map((_point, index) => `p${index}`));
                 (carousel as unknown as { position: number }).position = vector.position;
                 await flush();
@@ -192,8 +181,8 @@ export const AdwCarouselTest = async () => {
 
     await describe('adw-carousel scroll wheel (scroll_cb)', async () => {
         await it('pages on a mouse wheel WITHOUT being asked to — the default is TRUE', async () => {
-            // The regression pin: this element used to require an explicit
-            // `allow-scroll-wheel` attribute, inverting adw-carousel.c:1103-1106.
+            // This element used to require an explicit `allow-scroll-wheel` attribute,
+            // inverting the libadwaita default.
             const { carousel, host } = mount(['a', 'b', 'c']);
             expect(carousel.allowScrollWheel).toBe(true);
             expect(wheel(carousel, { deltaY: 120 })).toBe(true);
@@ -212,8 +201,8 @@ export const AdwCarouselTest = async () => {
         });
 
         await it('pages on a horizontal delta — the fallback the port dropped', async () => {
-            // adw-carousel.c:554-559. The old code returned early whenever
-            // |deltaY| <= |deltaX|, so a dx-only event did nothing at all.
+            // The old code returned early whenever |deltaY| <= |deltaX|, so a dx-only
+            // event did nothing at all.
             const { carousel, host } = mount(['a', 'b', 'c']);
             expect(wheel(carousel, { deltaX: 120 })).toBe(true);
             await flush();
@@ -222,8 +211,8 @@ export const AdwCarouselTest = async () => {
         });
 
         await it('locks out a second notch for 150 ms', async () => {
-            // adw-carousel.c:22, :526. The old accumulator had no time component
-            // at all, so a fast wheel paged as many times as it had deltas.
+            // The old accumulator had no time component, so a fast wheel paged as many
+            // times as it had deltas.
             const { carousel, host } = mount(['a', 'b', 'c']);
             expect(wheel(carousel, { deltaY: 120 })).toBe(true);
             expect(wheel(carousel, { deltaY: 120 })).toBe(false);
@@ -233,8 +222,8 @@ export const AdwCarouselTest = async () => {
         });
 
         await it('leaves a touchpad gesture to the native scroll-snap', async () => {
-            // A touchpad is ignored outright (:537-538) because its own kinetic
-            // scroll already drives the strip — here, the track's scroll-snap.
+            // A touchpad is ignored outright: its own kinetic scroll already drives the
+            // strip, here the track's scroll-snap.
             const { carousel, host } = mount(['a', 'b', 'c']);
             expect(wheel(carousel, { deltaX: 12, deltaY: 7 })).toBe(false);
             await flush();
@@ -243,8 +232,8 @@ export const AdwCarouselTest = async () => {
         });
 
         await it('does not consume a wheel event it did not act on', async () => {
-            // GDK_EVENT_STOP only when it paged (:561-562 vs :576). The old code
-            // called preventDefault BEFORE its threshold test.
+            // GDK_EVENT_STOP only when it paged; the old code called preventDefault()
+            // BEFORE its threshold test.
             const { carousel, host } = mount(['a', 'b', 'c'], { interactive: 'false' });
             expect(wheel(carousel, { deltaY: 120 })).toBe(false);
             host.remove();
@@ -253,8 +242,8 @@ export const AdwCarouselTest = async () => {
 
     await describe('adw-carousel page-changed (scroll_animation_done_cb)', async () => {
         await it('reports every completed scroll, including back onto the same page', async () => {
-            // The old emission was gated on the ROUNDED index changing, so a
-            // settle back onto the page it started from said nothing.
+            // Gating the emission on the ROUNDED index means a settle back onto the page
+            // it started from says nothing.
             const { carousel, host } = mount(['a', 'b', 'c']);
             const seen: number[] = [];
             carousel.addEventListener('page-changed', (event) => {
@@ -271,8 +260,7 @@ export const AdwCarouselTest = async () => {
         await it('reports the LOWER page for a half-way settle', async () => {
             const { carousel, host } = mount(['a', 'b']);
             await dragTo(carousel, 0.5);
-            // Math.round would have said page 1 here; every libadwaita lookup
-            // resolves the tie downwards (adw-carousel.c:198-201).
+            // Math.round would say page 1; every libadwaita lookup resolves the tie down.
             expect(carousel.currentPage).toBe(0);
             host.remove();
         });
@@ -280,8 +268,8 @@ export const AdwCarouselTest = async () => {
 
     await describe('adw-carousel declarative position', async () => {
         await it('honours <adw-carousel position="2"> at upgrade time', async () => {
-            // Attribute changes are delivered BEFORE connectedCallback, and the
-            // old guard dropped them, so a declared position never applied.
+            // Attribute changes are delivered BEFORE connectedCallback, so a guard that
+            // drops them drops a declared position.
             const { carousel, host } = mount(['a', 'b', 'c'], { position: '2' });
             await flush();
             expect(carousel.currentPage).toBe(2);
@@ -360,9 +348,8 @@ export const AdwCarouselTest = async () => {
 
         await it('turns allow-long-swipes into scroll-snap-stop', async () => {
             // The property used to be inert: both branches of its ternary were
-            // `current + step`. FALSE means "each swipe can only move to the
-            // adjacent pages" (adw-carousel.c:1111-1113), which is what
-            // scroll-snap-stop: always enforces.
+            // `current + step`. FALSE means "each swipe moves only to an adjacent
+            // page", which `scroll-snap-stop: always` enforces.
             const { carousel, host } = mount(['a', 'b', 'c']);
             const slot = carousel.querySelector('.adw-carousel-page') as HTMLElement;
             expect(carousel.allowLongSwipes).toBe(false);
@@ -374,8 +361,8 @@ export const AdwCarouselTest = async () => {
         });
 
         await it('spaces the pages by the spacing property', async () => {
-            // `distance = size + spacing` (adw-carousel.c:767); with no gap in the
-            // track the property would have nowhere to show up.
+            // `distance = size + spacing`; with no gap in the track the property would
+            // have nowhere to show up.
             const { carousel, host, track } = mount(['a', 'b', 'c'], { spacing: '16' });
             expect(track.style.columnGap).toBe('16px');
             // The pitch a drag is measured in must include the gap; if it did not,

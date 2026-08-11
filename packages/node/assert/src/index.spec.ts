@@ -24,8 +24,6 @@ import {
 import assert from 'node:assert';
 
 export default async () => {
-    // ---- AssertionError ----
-
     await describe('AssertionError', async () => {
         await it('should be an instance of Error', async () => {
             const err = new AssertionError({ message: 'test' });
@@ -64,8 +62,6 @@ export default async () => {
         });
     });
 
-    // ---- assert / ok ----
-
     await describe('assert / ok', async () => {
         await it('should pass for truthy values', async () => {
             expect(() => ok(true)).not.toThrow();
@@ -95,8 +91,6 @@ export default async () => {
             }).toThrow();
         });
     });
-
-    // ---- equal / notEqual ----
 
     await describe('assert.equal', async () => {
         await it('should do nothing if both values are equal', async () => {
@@ -131,8 +125,6 @@ export default async () => {
         });
     });
 
-    // ---- strictEqual / notStrictEqual ----
-
     await describe('assert.strictEqual', async () => {
         await it('should pass for strictly equal values', async () => {
             expect(() => strictEqual(1, 1)).not.toThrow();
@@ -166,8 +158,6 @@ export default async () => {
             expect(() => notStrictEqual('a', 'a')).toThrow();
         });
     });
-
-    // ---- deepEqual / notDeepEqual ----
 
     await describe('assert.deepEqual', async () => {
         await it('should pass for equal objects', async () => {
@@ -213,8 +203,6 @@ export default async () => {
             expect(() => notDeepEqual({ a: 1 }, { a: 1 })).toThrow();
         });
     });
-
-    // ---- deepStrictEqual / notDeepStrictEqual ----
 
     await describe('assert.deepStrictEqual', async () => {
         await it('should pass for strictly equal objects', async () => {
@@ -270,8 +258,6 @@ export default async () => {
             expect(() => notDeepStrictEqual({ a: 1 }, { a: 1 })).toThrow();
         });
     });
-
-    // ---- throws / doesNotThrow ----
 
     await describe('assert.throws', async () => {
         await it('should pass when function throws', async () => {
@@ -336,8 +322,6 @@ export default async () => {
         });
     });
 
-    // ---- fail ----
-
     await describe('assert.fail', async () => {
         await it('should always throw AssertionError', async () => {
             expect(() => fail()).toThrow();
@@ -366,8 +350,6 @@ export default async () => {
         });
     });
 
-    // ---- ifError ----
-
     await describe('assert.ifError', async () => {
         await it('should pass for null', async () => {
             expect(() => ifError(null)).not.toThrow();
@@ -388,8 +370,6 @@ export default async () => {
         });
     });
 
-    // ---- match / doesNotMatch ----
-
     await describe('assert.match', async () => {
         await it('should pass when string matches regexp', async () => {
             expect(() => match('hello world', /hello/)).not.toThrow();
@@ -409,8 +389,6 @@ export default async () => {
             expect(() => doesNotMatch('hello world', /hello/)).toThrow();
         });
     });
-
-    // ---- rejects / doesNotReject ----
 
     await describe('assert.rejects', async () => {
         await it('should pass for rejected promise', async () => {
@@ -464,8 +442,6 @@ export default async () => {
         });
     });
 
-    // ---- strict ----
-
     await describe('assert.strict', async () => {
         await it('should be a function', async () => {
             expect(typeof strict).toBe('function');
@@ -488,8 +464,6 @@ export default async () => {
             expect(strict.strict).toBe(strict);
         });
     });
-
-    // ---- assert default export properties ----
 
     await describe('assert default export', async () => {
         await it('should have all methods', async () => {

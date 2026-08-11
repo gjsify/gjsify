@@ -3,84 +3,63 @@ import { stringIsNotEmpty, stripMnemonic } from './glib.js';
 // Headless `Adw.PreferencesGroup` / `Adw.PreferencesDialog` behaviour
 // (ADR 0004 — headless Adwaita core).
 //
-// Two halves live here, and they are deliberately the only two:
+// Two halves live here, deliberately the only two:
 //
-//   1. THE GROUP HEADER DERIVATION. Five booleans that both renderers derive
-//      today, each with its own mechanism and each with only half the rules.
-//      The web port computes a three-way `hidden` flag
-//      (`adw-preferences-group.ts` `_renderHeader`), the NativeScript port
-//      add/removes a `Label` from the tree (`title` setter) — and NEITHER
-//      computes `single-line` (which keys real metrics in the Adwaita
-//      stylesheet: `> box.header:not(.single-line) { margin-bottom: 6px }` vs
-//      `> box.single-line { min-height: 34px }`) nor hides the listbox at zero
-//      rows, which is why an empty web group still strokes the full-width
-//      `box-shadow` hairline of its `.boxed-list` card.
+// 1. THE GROUP HEADER DERIVATION — five booleans, including `single-line`, which
+// keys real metrics in the Adwaita stylesheet
+// (`> box.header:not(.single-line) { margin-bottom: 6px }` vs
+// `> box.single-line { min-height: 34px }`), and the zero-row listbox hide,
+// without which an empty group still strokes the full-width `box-shadow`
+// hairline of its `.boxed-list` card.
 //
-//   2. THE SEARCH PIPELINE. The preferences dialog's headline feature — "the
-//      preferences are searchable by the user" is the first paragraph of the C
-//      class docs — and it exists in NEITHER port. It is also the one derivation
-//      in this family a per-renderer reimplementation reliably gets wrong,
-//      because its rules are spread over three C files and two of them are
-//      counter-intuitive:
-//        - `make_comparable` folds FIRST and parses markup SECOND, so the
-//          lowercased `<b>` tags still parse (adw-preferences-dialog.c:101-114);
-//        - the corpus is `visible page → visible group → row that is a
-//          preferences row AND visible AND has a non-empty title`, and those
-//          three filters live in adw-preferences-dialog.c:632-641,
-//          adw-preferences-page.c:831-834 and adw-preferences-group.c:736-740.
-//      Get the corpus wrong and an application's search finds nothing, with no
-//      error anywhere.
+// 2. THE SEARCH PIPELINE. Its rules are spread over three C files and two are
+// counter-intuitive:
+// - `make_comparable` folds FIRST and parses markup SECOND, so the lowercased
+// `<b>` tags still parse;
+// - the corpus is `visible page → visible group → row that is a preferences row
+// AND visible AND has a non-empty title`, with the three filters in three
+// different C files.
+// Get the corpus wrong and an application's search finds nothing, with no error
+// anywhere.
 //
-// WHAT IS DELIBERATELY NOT HERE. `present`/`close`/`can-close`/`::closed` is
-// `Adw.Dialog` behaviour (adw-dialog.c:1928-1999), not preferences behaviour —
-// the preferences dialog composes it. The page collection (`visible-page`,
+// NOT HERE: `present`/`close`/`can-close`/`::closed` is `Adw.Dialog` behaviour, which
+// the preferences dialog composes. The page collection (`visible-page`,
 // `visible-page-name`, the auto-pick and the remove-vs-hide asymmetry) is
-// `Adw.ViewStack`, already lifted as `ViewStackState` in `view-stack.ts`;
-// `adw_preferences_dialog_add` binds a page onto exactly that
-// (adw-preferences-dialog.c:707-711), so a renderer reaches for `ViewStackState`
-// here rather than for a second page model.
+// `Adw.ViewStack`, already lifted as `ViewStackState` in `view-stack.ts` —
+// `adw_preferences_dialog_add` binds a page onto exactly that, so a renderer reaches
+// for `ViewStackState` rather than a second page model.
 //
 // Reference: refs/libadwaita/src/adw-preferences-group.c
-//   (update_title_visibility, update_description_visibility,
-//    update_listbox_visibility, is_single_line, update_header_visibility,
-//    row_has_title, adw_preferences_group_get_rows)
+// (update_title_visibility, update_description_visibility,
+// update_listbox_visibility, is_single_line, update_header_visibility,
+// row_has_title, adw_preferences_group_get_rows)
 // Reference: refs/libadwaita/src/adw-preferences-page.c
-//   (is_visible_group, adw_preferences_page_get_rows, set_title/set_description)
+// (is_visible_group, adw_preferences_page_get_rows, set_title/set_description)
 // Reference: refs/libadwaita/src/adw-preferences-dialog.c
-//   (make_comparable, filter_search_results, get_n_pages,
-//    create_search_row_subtitle, new_search_row_for_preference)
+// (make_comparable, filter_search_results, get_n_pages,
+// create_search_row_subtitle, new_search_row_for_preference)
 // Reference: refs/libadwaita/src/adw-widget-utils.c (adw_strip_mnemonic)
 // Reference: refs/libadwaita/src/adw-preferences-group.ui (use-markup on both labels)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_preferences.scss (single-line metrics)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-// ---------------------------------------------------------------------------
 // Case folding
-// ---------------------------------------------------------------------------
 
 /**
- * A caseless-compare normaliser, i.e. what `g_utf8_casefold` does for the C.
- *
- * Injected rather than hard-wired — the same seam style as `ToastScheduler` and
- * the avatar's measurement callback — because full Unicode case folding is a
- * DATA TABLE, not a language builtin, and a size-sensitive renderer may
- * legitimately want to trade the table away. Making it a parameter keeps that a
- * documented choice instead of an accident.
+ * A caseless-compare normaliser, i.e. what `g_utf8_casefold` does for the C. Injected
+ * rather than hard-wired because full Unicode case folding is a DATA TABLE, not a
+ * language builtin, and a size-sensitive renderer may legitimately trade the table away.
  */
 export type CaseFolder = (text: string) => string;
 
 /**
- * Every single character whose Unicode **full case folding** differs from its
- * lowercase mapping, keyed by the LOWERCASED form.
- *
- * Generated by walking all of Unicode and comparing `casefold(cp)` against
- * `lower(cp)`, then verified exhaustively: for every code point,
- * `applyExtras(lower(cp)) === casefold(cp)`. The two Cherokee ranges are the
- * only regular ones and are handled arithmetically in {@link defaultCaseFolder}
- * rather than as 86 more table rows.
- *
- * The rows that matter in shipped languages are the first ones a naive port
- * loses: `ß → ss`, final `ς → σ`, and the `ﬁ`/`ﬂ` ligatures.
+ * Every character whose Unicode **full case folding** differs from its lowercase
+ * mapping, keyed by the LOWERCASED form. Generated by walking all of Unicode and
+ * comparing `casefold(cp)` against `lower(cp)`, then verified exhaustively:
+ * `applyExtras(lower(cp)) === casefold(cp)` for every code point. The two Cherokee
+ * ranges are the only regular ones and are handled arithmetically in
+ * {@link defaultCaseFolder} rather than as 86 more rows. The rows that matter in
+ * shipped languages are `ß → ss`, final `ς → σ` and the `ﬁ`/`ﬂ` ligatures.
  */
 const CASEFOLD_EXTRAS: ReadonlyMap<string, string> = new Map([
     ['\u00B5', '\u03BC'],
@@ -196,22 +175,18 @@ function foldCherokee(codePoint: number): string | undefined {
 }
 
 /**
- * `g_utf8_casefold` (adw-preferences-dialog.c:101, :133) — Unicode FULL case
- * folding, i.e. `toLowerCase()` plus the mappings where a case fold and a
- * lowercase mapping disagree.
+ * `g_utf8_casefold` — Unicode FULL case folding, i.e. `toLowerCase()` plus the mappings
+ * where a case fold and a lowercase mapping disagree. The obvious implementation ships
+ * wrong behaviour in languages people actually use, invisibly to an ASCII test suite;
+ * the three canaries, verified against a real full-folding implementation:
  *
- * This is the one place in the family where the obvious implementation ships
- * wrong behaviour in languages people actually use, invisibly to an ASCII test
- * suite. The three canaries, all verified against a real full-folding
- * implementation:
- *
- * | input    | `toLowerCase()` | case fold  |
+ * | input | `toLowerCase()` | case fold |
  * |----------|-----------------|------------|
- * | `Straße` | `straße`        | `strasse`  |
- * | `ΟΔΟΣ`   | `οδος`          | `οδοσ`     |
- * | `ﬁle`    | `ﬁle`           | `file`     |
+ * | `Straße` | `straße` | `strasse` |
+ * | `ΟΔΟΣ` | `οδος` | `οδοσ` |
+ * | `ﬁle` | `ﬁle` | `file` |
  *
- * `normalize('NFKC').toLowerCase()` is NOT a substitute: it repairs the
+ * `normalize('NFKC').toLowerCase` is NOT a substitute: it repairs the
  * ligature, still misses `ß` and final sigma, and OVER-normalises `Ǆ` (U+01C4)
  * to the two-character `dž` where a case fold gives the single character `ǆ`.
  */
@@ -230,9 +205,7 @@ export const defaultCaseFolder: CaseFolder = (text: string): string => {
     return folded;
 };
 
-// ---------------------------------------------------------------------------
 // Pango markup
-// ---------------------------------------------------------------------------
 
 /** The tag names pango's markup parser knows; anything else is a parse ERROR. */
 const PANGO_MARKUP_TAGS: ReadonlySet<string> = new Set([
@@ -263,13 +236,10 @@ const NAME_CHAR = /[A-Za-z0-9._:-]/;
 const XML_SPACE = /[ \t\r\n]/;
 
 /**
- * `g_markup_escape_text` — the escape `create_search_row_subtitle` puts a page
- * title through before it becomes a markup subtitle
- * (adw-preferences-dialog.c:201-207).
- *
- * GLib emits NUMERIC references for the quote characters (`&#39;`, `&#34;`),
- * not `&apos;`/`&quot;`; a port that "tidies" those up produces a different
- * string for the same input. Control characters become `&#xN;` — GLib's own C1
+ * `g_markup_escape_text` — the escape `create_search_row_subtitle` puts a page title
+ * through before it becomes a markup subtitle. GLib emits NUMERIC references for the
+ * quote characters (`&#39;`, `&#34;`), not `&apos;`/`&quot;`, so a port that "tidies"
+ * those up produces a different string. Control characters become `&#xN;`; GLib's own C1
  * branch is unreachable for valid UTF-8 (it compares a signed `char` against
  * `0x7f`-`0x9f`), so only the ASCII controls are escaped here.
  */
@@ -384,25 +354,23 @@ function readTag(
 }
 
 /**
- * `pango_parse_markup (text, -1, 0, NULL, &parsed, NULL, &error)` reduced to the
- * part `make_comparable` uses: the plain text, with tags dropped and entities
- * resolved.
+ * `pango_parse_markup (text, -1, 0, NULL, &parsed, NULL, &error)` reduced to the part
+ * `make_comparable` uses: the plain text, tags dropped and entities resolved.
  *
- * Returns `null` — NEVER throws — when the markup does not parse, so callers
- * reproduce the C fallback exactly: `g_critical` and keep the UNPARSED string
- * (adw-preferences-dialog.c:110-113). A row whose title contains a bare `&` must
- * stay in the search index under its literal text, not vanish from it.
+ * Returns `null` — NEVER throws — when the markup does not parse, so callers reproduce
+ * the C fallback exactly (`g_critical`, keep the UNPARSED string): a row whose title
+ * contains a bare `&` must stay in the search index under its literal text.
  *
- * Pango wraps the input in an implicit `<markup>` element, so several top-level
- * tags are legal. Unknown tag names are a parse error, which is why this keeps
- * pango's tag list rather than stripping anything that looks like a tag: `<3`
- * and `<div>` are TEXT to libadwaita, and a search for them must find them.
+ * Pango wraps the input in an implicit `<markup>` element, so several top-level tags are
+ * legal, and unknown tag names are a parse error — which is why this keeps pango's tag
+ * list rather than stripping anything tag-shaped: `<3` and `<div>` are TEXT to
+ * libadwaita and a search for them must find them.
  *
- * Deviations, both in the fail-closed direction (unparsed → caller keeps the raw
- * string, never a wrongly-stripped one): pango additionally validates `<span>`'s
- * attribute NAMES, and this does not; GMarkup's DOCTYPE/PI/CDATA handling is
- * modelled as plain passthrough, which is what pango's parser does with it
- * (its `passthrough` handler is NULL, so the content is discarded).
+ * Deviations, both fail-closed (unparsed → the caller keeps the raw string, never a
+ * wrongly-stripped one): pango additionally validates `<span>`'s attribute NAMES, and
+ * this does not; GMarkup's DOCTYPE/PI/CDATA handling is modelled as plain passthrough,
+ * which is what pango's parser does with it (its `passthrough` handler is NULL, so the
+ * content is discarded).
  */
 export function stripMarkup(text: string): string | null {
     let plain = '';
@@ -460,23 +428,20 @@ export interface MakeComparableOptions {
     useUnderline?: boolean;
     /**
      * `make_comparable`'s third argument. The TITLE path passes `true`, the
-     * SUBTITLE path passes `false` (adw-preferences-dialog.c:133, :141) — so a
+     * SUBTITLE path passes `false` — so a
      * subtitle keeps its underscores even on a row that uses mnemonics.
      */
     allowUnderline?: boolean;
 }
 
 /**
- * `make_comparable` (adw-preferences-dialog.c:96-123): the form of a string the
- * search compares against, i.e. case-folded, markup-stripped and (for titles on
- * mnemonic rows) mnemonic-stripped.
+ * `make_comparable`: the form of a string the search compares against — case-folded,
+ * markup-stripped and (for titles on mnemonic rows) mnemonic-stripped.
  *
- * THE ORDER IS THE POINT AND IT IS NOT THE OBVIOUS ONE: fold FIRST, parse the
- * FOLDED string second. Parsing first would work too — but folding first is what
- * the C does, and the two differ for any markup whose tag name is case-sensitive
- * to the parser. Folding a lowercase-only tag set leaves it parseable, which is
- * why `<b>Dark</b> Style` still reduces to `dark style` rather than keeping its
- * tags.
+ * THE ORDER IS NOT THE OBVIOUS ONE: fold FIRST, parse the FOLDED string second, as the C
+ * does. The two differ for any markup whose tag name is case-sensitive to the parser;
+ * folding a lowercase-only tag set leaves it parseable, which is why `<b>Dark</b> Style`
+ * still reduces to `dark style` rather than keeping its tags.
  */
 export function makeComparable(
     source: string | null | undefined,
@@ -498,23 +463,20 @@ export function makeComparable(
     return plaintext;
 }
 
-// ---------------------------------------------------------------------------
 // Group header derivation
-// ---------------------------------------------------------------------------
 
 /** What {@link derivePreferencesGroupHeader} is asked about. */
 export interface PreferencesGroupHeaderInput {
     /**
      * `AdwPreferencesGroup:title`. `null`/`undefined` is the empty string —
-     * `adw_preferences_group_set_title` normalises NULL to `""`
-     * (adw-preferences-group.c:508).
+     * `adw_preferences_group_set_title` normalises NULL to `""`.
      */
     title?: string | null;
     /**
      * `AdwPreferencesGroup:description`. Normalised here as well, although
      * `adw_preferences_group_set_description` passes NULL straight through
-     * (:555) where its own `set_title` and `adw_preferences_page_set_title`
-     * (adw-preferences-page.c:538) both normalise — an inconsistency in the C
+     * where its own `set_title` and `adw_preferences_page_set_title`
+     * both normalise — an inconsistency in the C
      * with no behavioural consequence, since the visibility test treats NULL and
      * `""` alike.
      */
@@ -523,8 +485,8 @@ export interface PreferencesGroupHeaderInput {
     hasHeaderSuffix?: boolean;
     /**
      * How many children the listbox holds. This is the RAW child count —
-     * `update_listbox_visibility` reads `gtk_widget_observe_children (listbox)`
-     * (adw-preferences-group.c:111-123), NOT the title-filtered model that
+     * `update_listbox_visibility` reads `gtk_widget_observe_children (listbox)`,
+     * NOT the title-filtered model that
      * `get_rows` builds, so a row with an empty title still keeps the card
      * painted.
      */
@@ -540,20 +502,20 @@ export interface PreferencesGroupHeaderInput {
 
 /** The five derived visual states of a preferences group. */
 export interface PreferencesGroupHeaderState {
-    /** `update_title_visibility` (adw-preferences-group.c:91-99). */
+    /** `update_title_visibility`. */
     titleVisible: boolean;
-    /** `update_description_visibility` (:101-109). */
+    /** `update_description_visibility`. */
     descriptionVisible: boolean;
-    /** `update_header_visibility` (:142-156) — the header box takes no space otherwise. */
+    /** `update_header_visibility` — the header box takes no space otherwise. */
     headerVisible: boolean;
     /**
-     * `is_single_line` (:125-140), carried as the `single-line` style class.
+     * `is_single_line`, carried as the `single-line` style class.
      * Load-bearing: the stylesheet gives a single-line header `min-height: 34px`
      * and a multi-line one `margin-bottom: 6px`
-     * (stylesheet/widgets/_preferences.scss:6-13).
+     * (stylesheet/widgets/_preferences.scss).
      */
     singleLine: boolean;
-    /** `update_listbox_visibility` (:111-123) — the `.boxed-list` card is hidden at zero rows. */
+    /** `update_listbox_visibility` — the `.boxed-list` card is hidden at zero rows. */
     listboxVisible: boolean;
 }
 
@@ -561,7 +523,7 @@ export interface PreferencesGroupHeaderState {
  * The text a `use-markup` label DISPLAYS, which is what the visibility tests
  * read: `update_title_visibility` compares `gtk_label_get_text` — markup already
  * stripped — while `adw_preferences_group_get_title` returns
- * `gtk_label_get_label`, the raw markup (adw-preferences-group.c:96-98 vs :485).
+ * `gtk_label_get_label`, the raw markup (adw-preferences-group.c vs:485).
  *
  * So a title of `<b></b>` reads back as `<b></b>` and is HIDDEN. Unparseable
  * markup keeps the raw string, which is both the safe direction and what a
@@ -603,17 +565,15 @@ export function derivePreferencesGroupHeader(input: PreferencesGroupHeaderInput)
     };
 }
 
-// ---------------------------------------------------------------------------
 // The search corpus
-// ---------------------------------------------------------------------------
 
 /**
  * One indexable row, as the search reasons about it.
  *
  * `isActionRow` is load-bearing and is NOT "has a subtitle": only
- * `ADW_IS_ACTION_ROW` rows have their subtitle searched
- * (adw-preferences-dialog.c:140-146), and `AdwEntryRow` derives from
- * `AdwPreferencesRow`, not from `AdwActionRow` (adw-entry-row.c:90) — so the
+ * `ADW_IS_ACTION_ROW` rows have their subtitle searched,
+ * and `AdwEntryRow` derives from
+ * `AdwPreferencesRow`, not from `AdwActionRow` — so the
  * text typed into an entry row is deliberately not searchable. Same for
  * `AdwExpanderRow` and `AdwButtonRow`.
  */
@@ -638,7 +598,7 @@ export interface PreferencesSearchRow<T = unknown> {
 export interface PreferencesSearchGroup<T = unknown> {
     /** `AdwPreferencesGroup:title`; an empty one drops out of the result subtitle. */
     title?: string | null;
-    /** `is_visible_group` (adw-preferences-page.c:76-82), default `true`. */
+    /** `is_visible_group`, default `true`. */
     visible?: boolean;
     /** The group's preferences rows, in listbox order. */
     rows: readonly PreferencesSearchRow<T>[];
@@ -650,7 +610,7 @@ export interface PreferencesSearchGroup<T = unknown> {
  * One page, as the search reasons about it.
  *
  * `visible` is the same flag `ViewStackState.setPageVisible` maintains —
- * the dialog's pages ARE an `AdwViewStack` (adw-preferences-dialog.c:707-711),
+ * the dialog's pages ARE an `AdwViewStack`,
  * so a renderer holds the page ORDER and SELECTION there and describes the
  * same pages here for indexing.
  */
@@ -681,7 +641,7 @@ export interface PreferencesSearchEntry<T = unknown> {
 }
 
 /**
- * `get_n_pages` (adw-preferences-dialog.c:150-166) — how many pages are visible,
+ * `get_n_pages` — how many pages are visible,
  * which is what decides whether a result subtitle names its page.
  */
 export function countVisiblePages<T>(pages: readonly PreferencesSearchPage<T>[]): number {
@@ -694,14 +654,14 @@ export function countVisiblePages<T>(pages: readonly PreferencesSearchPage<T>[])
  * The search corpus: every row the dialog will ever match against.
  *
  * This is the filter → map → flatten chain of `adw_preferences_dialog_init`
- * (:632-641) composed with `adw_preferences_page_get_rows` (:821-841) and
- * `adw_preferences_group_get_rows` (:726-741), i.e. THREE filters written in
+ * composed with `adw_preferences_page_get_rows` and
+ * `adw_preferences_group_get_rows`, i.e. THREE filters written in
  * three different C files:
  *
- *   1. visible PAGES only — a `GtkBoolFilter` over `AdwViewStackPage:visible`;
- *   2. visible GROUPS only — `is_visible_group`;
- *   3. rows that are preferences rows AND visible AND have a NON-EMPTY title —
- *      `row_has_title`.
+ * 1. visible PAGES only — a `GtkBoolFilter` over `AdwViewStackPage:visible`;
+ * 2. visible GROUPS only — `is_visible_group`;
+ * 3. rows that are preferences rows AND visible AND have a NON-EMPTY title —
+ * `row_has_title`.
  *
  * Filter 3 is the one a port drops, and dropping it is invisible: nothing
  * errors, the search just silently indexes rows a user cannot recognise (an
@@ -728,18 +688,18 @@ export function collectSearchRows<T>(pages: readonly PreferencesSearchPage<T>[])
 }
 
 /**
- * `filter_search_results` (adw-preferences-dialog.c:125-153): whether a row
+ * `filter_search_results`: whether a row
  * matches the current search terms.
  *
  * Three properties a port tends to get wrong, all of them user-visible:
  *
- *   - it is a SUBSTRING test (`strstr`), not a prefix and not word-boundary —
- *     `ARK` matches `Dark Style`;
- *   - the EMPTY query matches everything (`strstr (title, "")` returns `title`),
- *     which is why the dialog shows "results" and not "no results" before the
- *     user has typed anything;
- *   - the query is only case-FOLDED. It is not markup-parsed and not
- *     mnemonic-stripped, so typing `_` searches for a literal underscore.
+ * - it is a SUBSTRING test (`strstr`), not a prefix and not word-boundary —
+ * `ARK` matches `Dark Style`;
+ * - the EMPTY query matches everything (`strstr (title, "")` returns `title`),
+ * which is why the dialog shows "results" and not "no results" before the
+ * user has typed anything;
+ * - the query is only case-FOLDED. It is not markup-parsed and not
+ * mnemonic-stripped, so typing `_` searches for a literal underscore.
  */
 export function rowMatchesQuery<T>(
     row: PreferencesSearchRow<T>,
@@ -756,8 +716,8 @@ export function rowMatchesQuery<T>(
 }
 
 /**
- * The translated fallback for a page with no title
- * (adw-preferences-dialog.c:218). Exported so a renderer with a translation
+ * The translated fallback for a page with no title.
+ * Exported so a renderer with a translation
  * catalogue can pass its own through `untitledPageLabel`.
  */
 export const UNTITLED_PAGE_LABEL = 'Untitled page';
@@ -785,21 +745,21 @@ export interface SearchRowSubtitleInput {
 }
 
 /**
- * `create_search_row_subtitle` (adw-preferences-dialog.c:168-234) — the second
+ * `create_search_row_subtitle` — the second
  * line of a search result, e.g. `General → Appearance`.
  *
  * The rules, in the order the C applies them, none of them symmetric:
  *
- *   - an empty GROUP title becomes "absent", and the whole `page → group` join
- *     is then skipped — the result falls through to the bare page title;
- *   - the PAGE title is mnemonic-stripped when the PAGE uses underline, then
- *     markup-escaped when the ROW uses markup (a page-level property and a
- *     row-level property deciding two steps on the same string), and only then
- *     tested for emptiness;
- *   - the join happens only when more than one page is VISIBLE; with a single
- *     page the subtitle is the group title alone;
- *   - the group title is NOT escaped, so the two halves of `page → group` are
- *     escaped differently on purpose.
+ * - an empty GROUP title becomes "absent", and the whole `page → group` join
+ * is then skipped — the result falls through to the bare page title;
+ * - the PAGE title is mnemonic-stripped when the PAGE uses underline, then
+ * markup-escaped when the ROW uses markup (a page-level property and a
+ * row-level property deciding two steps on the same string), and only then
+ * tested for emptiness;
+ * - the join happens only when more than one page is VISIBLE; with a single
+ * page the subtitle is the group title alone;
+ * - the group title is NOT escaped, so the two halves of `page → group` are
+ * escaped differently on purpose.
  *
  * `null` means "no subtitle at all", which is what a renderer should render as
  * an absent line rather than as an empty one.
@@ -824,7 +784,7 @@ export function createSearchRowSubtitle(input: SearchRowSubtitleInput): string |
 
 /** One row of the search results list. */
 export interface PreferencesSearchResult<T = unknown> {
-    /** Copied verbatim from the matched row (`new_search_row_for_preference`, :245-256). */
+    /** Copied verbatim from the matched row (`new_search_row_for_preference`). */
     title: string;
     /** {@link createSearchRowSubtitle}; `null` when there is nothing to show. */
     subtitle: string | null;
@@ -854,7 +814,7 @@ export interface SearchPreferencesOptions {
  * `GtkFlattenListModel` produces).
  *
  * Each result carries the source `page`/`group`/`row` so a renderer can
- * implement `search_result_activated_cb` (adw-preferences-dialog.c:267-290) —
+ * implement `search_result_activated_cb` —
  * switch the visible page, focus the row — without re-deriving anything.
  */
 export function searchPreferences<T>(

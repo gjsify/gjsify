@@ -1,34 +1,24 @@
 // Popover conformance vectors — the surface metrics and the keyboard moves both
 // renderers are held to.
 //
-// These exist because three web elements hand-rolled a popover and NO TWO
-// AGREED: `_menu_button.scss:83-103` and `_drop_down.scss:81-102` drew a 12px
-// (`--card-radius`) surface, `_split_button.scss:115-132` a 9px
-// (`--button-radius`) one with a 2-layer shadow of its own invention, and
-// libadwaita draws 15px with three layers. All three padded with 6px. Nothing
-// compared them to the vendored stylesheet, so all three shipped.
+// These exist because three web elements hand-rolled a popover and NO TWO AGREED: the menu
+// button and drop-down drew a 12px (`--card-radius`) surface, the split button a 9px
+// (`--button-radius`) one with a 2-layer shadow of its own invention, and libadwaita draws
+// 15px with three layers. All three padded with 6px, and all three shipped.
 //
-// CITING THE SELECTOR THAT WINS THE CASCADE (see ./index.ts)
+// WHICH SELECTOR WINS THE CASCADE (the rule lives in ./index.ts): `popover > contents` says
+// `padding: 8px`, but further into `_menus.scss` `popover.menu > contents` re-declares
+// `padding: 0` and moves the inset onto the item box as `$menu_margin`. Two element
+// selectors plus a class beats one element selector plus a child, so a MENU popover is
+// 0 + 6px and a plain one is 8px — both numbers are correct and the class decides which.
+// Grep the whole stylesheet for `contents`, not just the first block that mentions it.
 //
-// The padding rows are the reason that house rule exists. `popover > contents`
-// says `padding: 8px` (_popovers.scss:14) — but 45 lines into `_menus.scss`,
-// `popover.menu > contents` re-declares `padding: 0` and moves the inset onto
-// the item box as `$menu_margin` (:58-66). Two element selectors plus a class
-// beats one element selector plus a child, so a MENU popover is 0 + 6px and a
-// plain one is 8px. Both numbers are correct; the class decides which. The three
-// copies used 6px, which means they were RIGHT about the inset for the menus
-// they were drawing and wrong only about the radius — a detail that is invisible
-// unless you grep the whole stylesheet for `contents` rather than stopping at
-// the first block that mentions it.
-//
-// Reference: refs/libadwaita/src/stylesheet/widgets/_popovers.scss:7-28
-// Reference: refs/libadwaita/src/stylesheet/widgets/_menus.scss:58-66, :134-156
-// Reference: refs/libadwaita/src/stylesheet/_common.scss:10-13
+// Reference: refs/libadwaita/src/stylesheet/widgets/_popovers.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_menus.scss
+// Reference: refs/libadwaita/src/stylesheet/_common.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import type { PopoverKeyContext, PopoverKeyResolution } from '../popover.js';
-
-// --- Surface -----------------------------------------------------------------
 
 /** Which popover surface a {@link PopoverSurfaceVector} describes. */
 export type PopoverSurfaceVariant =
@@ -41,7 +31,6 @@ export type PopoverSurfaceVariant =
 
 /** One popover surface expectation, derived from the vendored stylesheet. */
 export interface PopoverSurfaceVector {
-    /** The surface under test. */
     variant: PopoverSurfaceVariant;
     /** Inner inset in px — where the whitespace around the content actually comes from. */
     padding: number;
@@ -67,7 +56,7 @@ export interface PopoverSurfaceVector {
 /** The exact three-layer elevation of `popover > contents` (_popovers.scss:18-20). */
 const POPOVER_SHADOW = ['0px 0px 0px 1px', '0px 1px 5px 1px', '0px 2px 14px 3px'] as const;
 
-/** Popover surface metrics (_popovers.scss:13-21, _menus.scss:58-66, :134-138). */
+/** Popover surface metrics (_popovers.scss:13-21, _menus.scss:58-66). */
 export const POPOVER_SURFACE_VECTORS: ReadonlyArray<PopoverSurfaceVector> = [
     {
         variant: 'plain',
@@ -99,15 +88,11 @@ export const POPOVER_SURFACE_VECTORS: ReadonlyArray<PopoverSurfaceVector> = [
     },
 ];
 
-// --- Keyboard ----------------------------------------------------------------
-
 /** One `resolvePopoverKey` expectation. */
 export interface PopoverKeyVector {
     /** `KeyboardEvent.key`. */
     key: string;
-    /** The list state it is resolved against. */
     context: PopoverKeyContext;
-    /** What the renderer must do. */
     expected: PopoverKeyResolution;
     rule: string;
 }
@@ -116,14 +101,13 @@ export interface PopoverKeyVector {
  * `resolvePopoverKey` — the wrap arithmetic `adw-menu-button.ts` and
  * `adw-drop-down.ts` each carried a copy of, reconciled.
  *
- * The rows that matter are the ones where the copies were WRONG rather than
- * merely duplicated: ArrowUp from an unfocused list (both computed `n - 2`), and
- * Home/End while a search entry owns the caret (the drop-down stole both).
+ * The rows that matter are the ones the two copies got WRONG rather than merely
+ * duplicated: ArrowUp from an unfocused list (both computed `n - 2`), and Home/End while a
+ * search entry owns the caret (the drop-down stole both).
  *
  * CORE-ONLY: GAP — `adw-popover` calls `resolvePopoverKey` on keydown but publishes no readable outcome for a spec to compare. Tracked in #1072
  */
 export const POPOVER_KEY_VECTORS: ReadonlyArray<PopoverKeyVector> = [
-    // --- ArrowDown ---
     {
         key: 'ArrowDown',
         context: { itemCount: 3, currentIndex: -1 },
@@ -148,7 +132,6 @@ export const POPOVER_KEY_VECTORS: ReadonlyArray<PopoverKeyVector> = [
         expected: { action: 'focus', index: 0 },
         rule: 'a one-item list wraps onto itself — `% 1` must not divide by zero or land on -1',
     },
-    // --- ArrowUp: the divergence ---
     {
         key: 'ArrowUp',
         context: { itemCount: 3, currentIndex: -1 },
@@ -173,7 +156,6 @@ export const POPOVER_KEY_VECTORS: ReadonlyArray<PopoverKeyVector> = [
         expected: { action: 'focus', index: 0 },
         rule: 'a one-item list wraps onto itself',
     },
-    // --- Home / End ---
     {
         key: 'Home',
         context: { itemCount: 4, currentIndex: 2 },
@@ -204,7 +186,6 @@ export const POPOVER_KEY_VECTORS: ReadonlyArray<PopoverKeyVector> = [
         expected: { action: 'focus', index: 0 },
         rule: 'once focus has LEFT the entry, a searchable popover navigates like any other',
     },
-    // --- Activation ---
     {
         key: 'Enter',
         context: { itemCount: 3, currentIndex: 1 },
@@ -229,7 +210,6 @@ export const POPOVER_KEY_VECTORS: ReadonlyArray<PopoverKeyVector> = [
         expected: { action: 'none', index: -1 },
         rule: 'Space in the search entry types a space; it must never activate an option',
     },
-    // --- Escape ---
     {
         key: 'Escape',
         context: { itemCount: 3, currentIndex: 1 },
@@ -242,7 +222,6 @@ export const POPOVER_KEY_VECTORS: ReadonlyArray<PopoverKeyVector> = [
         expected: { action: 'close', index: -1 },
         rule: 'Escape closes even an empty popover: it is the escape hatch, not a move, so it is resolved BEFORE the empty-list guard',
     },
-    // --- Guards ---
     {
         key: 'ArrowDown',
         context: { itemCount: 0, currentIndex: -1 },

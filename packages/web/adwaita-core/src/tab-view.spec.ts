@@ -34,12 +34,10 @@ import type { TabViewVector, TabViewVectorPage, TabViewVectorPagesChange } from 
 /**
  * A page list built by hand, for the vectors that drive a PURE function.
  *
- * `successorAfterClose` and `isDescendantOfPage` take a page list as data, so
- * their rows are inputs rather than a re-implementation of anything — and one of
- * them (a page whose parent is not in the list, which a detach leaves behind for
- * exactly one instant) cannot be produced through the mutating API at all. The
- * `matches the shape a real TabViewState produces` test below pins this factory
- * to the real record, so the two cannot drift.
+ * `successorAfterClose` and `isDescendantOfPage` take a page list as DATA, and one row —
+ * a page whose parent is not in the list, which a detach leaves behind for exactly one
+ * instant — cannot be produced through the mutating API at all. The `matches the shape a
+ * real TabViewState produces` test below pins this factory to the real record.
  */
 function pageStates(pages: readonly TabViewVectorPage[]): AdwTabPageState[] {
     return pages.map((page) => ({
@@ -75,12 +73,9 @@ interface VectorRun {
 }
 
 /**
- * Replay one vector.
- *
- * `withHandler: false` installs NO close handler at all, so the built-in default
- * (`!page.pinned`) is the thing under test; the recording wrapper the normal
- * replay installs reproduces that same verdict, which is what makes the
- * close-attempt ORDER observable.
+ * Replay one vector. `withHandler: false` installs NO close handler, so the built-in
+ * default (`!page.pinned`) is under test; the recording wrapper the normal replay installs
+ * reproduces that verdict, which is what makes the close-attempt ORDER observable.
  */
 function runVector(vector: TabViewVector, withHandler = true): VectorRun {
     const attempts: string[] = [];
@@ -101,8 +96,8 @@ function runVector(vector: TabViewVector, withHandler = true): VectorRun {
 
     seedTabViewPages(state, vector.pages);
     const seededOrder = tabViewOrder(state);
-    // Split the log at the seed/op boundary; the seed phase's page changes are
-    // all `attached` and are covered by the seeded-order assertion.
+    // Split the log at the seed/op boundary: the seed phase's page changes are all
+    // `attached` and are covered by the seeded-order assertion.
     const setupChanges = selections.splice(0);
     pagesChanges.length = 0;
 
@@ -116,9 +111,9 @@ export default async () => {
             await it(vector.rule, () => {
                 const run = runVector(vector);
 
-                // The fixtures are themselves a test of adw_tab_view_add_page's
-                // position derivation: a parented page is seeded through addPage,
-                // which DERIVES its slot, and the declared order is where it must land.
+                // The fixtures also test `adw_tab_view_add_page`'s position derivation: a
+                // parented page is seeded through addPage, which DERIVES its slot, and the
+                // declared order is where it must land.
                 expect(run.seededOrder).toStrictEqual(vector.pages.map((page) => page.id));
                 expect(run.setupChanges).toStrictEqual([...vector.setupChanges]);
                 expect(run.results).toStrictEqual([...vector.opResults]);
@@ -133,8 +128,8 @@ export default async () => {
                 if (vector.closing) expect(tabViewClosing(run.state)).toStrictEqual([...vector.closing]);
                 if (vector.diagnostics) expect(run.state.diagnostics).toStrictEqual([...vector.diagnostics]);
 
-                // The invariant every insert, reorder and first/last hop depends
-                // on: the pinned pages are exactly the prefix [0, nPinnedPages).
+                // The invariant every insert, reorder and first/last hop depends on: the
+                // pinned pages are exactly the prefix [0, nPinnedPages).
                 const pinnedCount = run.state.nPinnedPages;
                 const partition = run.state.pages.map((page, index) => page.pinned === index < pinnedCount);
                 expect(partition).toStrictEqual(run.state.pages.map(() => true));
@@ -320,7 +315,7 @@ export default async () => {
         });
 
         await it('emits the attach BEFORE the auto-select, so a renderer has built the tab', () => {
-            // C's freeze/thaw around insert_page (adw-tab-view.c:1947-1961):
+            // C's freeze/thaw around insert_page:
             // page-attached is a signal and fires immediately, the selection
             // notify only lands at thaw.
             const state = new TabViewState();

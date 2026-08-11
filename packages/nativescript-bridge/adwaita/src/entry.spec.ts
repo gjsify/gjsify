@@ -1,24 +1,19 @@
 // AdwEntry's character arithmetic, against the SAME vectors the entry ROW is
 // held to (`@gjsify/adwaita-core/conformance`).
 //
-// The widget cannot be imported here — `AdwEntry extends GridLayout` evaluates
-// the bare `@nativescript/core` specifier at module-eval — and needs no pure
-// sibling, because it delegates rather than derives: everything that could be
-// got wrong about a text entry's length and truncation is `clampEntryText` /
-// `entryTextLength` in `@gjsify/adwaita-core`, which are importable off-device
-// and are what the widget calls.
+// The widget cannot be imported here (`extends GridLayout` evaluates the bare
+// `@nativescript/core` specifier at module-eval) and needs no pure sibling, because it
+// delegates: everything gettable-wrong about a text entry's length and truncation is
+// `clampEntryText` / `entryTextLength` in `@gjsify/adwaita-core`.
 //
-// The composition IS the thing under test. `AdwEntry._applyText` truncates with
-// `clampEntryText` and then reports `entryTextLength` of the RESULT, so a port
-// that reached for `String.prototype.slice` or `.length` anywhere on that path
-// would report 3 characters for `'🔒é'` and cut a surrogate pair in half — the
-// rows below carry both halves of every expectation, so the two functions are
-// checked against each other and not only against themselves.
+// The COMPOSITION is what is under test. `_applyText` truncates with `clampEntryText`
+// then reports `entryTextLength` of the RESULT, so a port reaching for
+// `String.prototype.slice` or `.length` anywhere on that path reports 3 characters for
+// `'🔒é'` and cuts a surrogate pair in half; every row below carries both halves.
 //
-// The re-entrancy guard in `_applyText` (writing the field re-enters through
-// `textChange`, and the notify must still fire exactly once) is NOT covered:
-// it needs a real `TextField`, and nothing in this package can be checked on a
-// device from here.
+// NOT covered: the re-entrancy guard in `_applyText` (writing the field re-enters
+// through `textChange` and the notify must still fire exactly once) needs a real
+// `TextField`.
 
 import { describe, expect, it } from '@gjsify/unit';
 

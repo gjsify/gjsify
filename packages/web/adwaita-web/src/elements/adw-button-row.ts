@@ -1,27 +1,17 @@
-// <adw-button-row> — A boxed-list row that behaves like a button: a centered
-// title between an optional start icon and an optional end icon, spanning the
-// full width of the list. The `suggested-action` / `destructive-action` style
-// classes recolor it like the matching Adwaita button variants.
-// Attributes: title, start-icon-name, end-icon-name (symbolic names, e.g.
-//   "list-add" / "go-next").
-// Events: `activated` (CustomEvent, bubbles) when the row is clicked — mirrors
-//   the Adw.ButtonRow `activated` GObject signal.
+// <adw-button-row> — a boxed-list row that behaves like a button: a centred title between
+// an optional start and end icon, spanning the full width of the list. The
+// `suggested-action` / `destructive-action` style classes recolour it like the matching
+// Adwaita button variants, and `activated` (CustomEvent, bubbles) mirrors the
+// Adw.ButtonRow GObject signal.
 //
-// The label/icon visibility rules are HEADLESS and live in
-// `@gjsify/adwaita-core` (ADR 0004) as {@link ButtonRowState}; this element
-// composes it and keeps only the DOM render half.
-// `@gjsify/adwaita-nativescript` composes the same state, so both ports share one
-// behaviour. Two things this fixes, both from adw-button-row.c:
-//   - `end-icon-name` (C:213-223, bound at adw-button-row.ui:52-65) exists since
-//     libadwaita 1.6 and neither renderer had it, so the trailing-chevron shape
-//     the property exists for could not be expressed.
-//   - THERE IS NO `activatable` OPT-OUT. `<property name="activatable">True
-//     </property>` is in the template (adw-button-row.ui:5), the class docs say
-//     "AdwButtonRow is always activatable." (C:31), and the whole public surface
-//     (C:270-352) is `new` plus the two icon-name pairs. This element used to
-//     honour an invented `activatable="false"`, which also gave the same markup
-//     two opposite meanings inside one package — `<adw-action-row>` reads
-//     `activatable` by PRESENCE, so `activatable="false"` there meant TRUE.
+// The label/icon visibility rules are HEADLESS and live in `@gjsify/adwaita-core`
+// (ADR 0004) as {@link ButtonRowState}; this element keeps only the DOM render half.
+//
+// THERE IS NO `activatable` OPT-OUT, and inventing one would be wrong twice over: the
+// upstream template hardcodes `activatable=True` and the class docs say "AdwButtonRow is
+// always activatable", while `<adw-action-row>` in this same package reads `activatable`
+// by PRESENCE — so `activatable="false"` means TRUE there, and one spelling would carry
+// two opposite meanings.
 //
 // Reference: refs/libadwaita/src/adw-button-row.c, adw-button-row.ui
 // Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss (row.button)
@@ -91,7 +81,7 @@ export class AdwButtonRow extends HTMLElement {
     }
 
     /**
-     * Paint one of the two `image.icon.{start,end}` nodes (adw-button-row.c:39-40).
+     * Paint one of the two `image.icon.{start,end}` nodes.
      *
      * The `start` / `end` position class is set once at construction — it is
      * where the node sits, not what it draws — so only the name changes here.

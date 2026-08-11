@@ -21,8 +21,6 @@ CIQCLct55OBKu69IfxnLnB2PBBLCfBw9NMH6fR0Tq4v7gSw==
 const SECRET_KEY_MATERIAL = Buffer.from('0123456789abcdef0123456789abcdef', 'utf8');
 
 export default async () => {
-    // ==================== createSecretKey ====================
-
     await describe('createSecretKey', async () => {
         await it('should create a secret key from Buffer', async () => {
             const key = createSecretKey(SECRET_KEY_MATERIAL);
@@ -65,8 +63,6 @@ export default async () => {
         });
     });
 
-    // ==================== KeyObject properties ====================
-
     await describe('KeyObject', async () => {
         await it('should have Symbol.toStringTag', async () => {
             const key = createSecretKey(SECRET_KEY_MATERIAL);
@@ -85,8 +81,6 @@ export default async () => {
             expect(key1.equals(key2)).toBeFalsy();
         });
     });
-
-    // ==================== createPublicKey / createPrivateKey ====================
 
     // These tests require a valid RSA PEM key. We test with the key above
     // which may or may not parse depending on formatting.

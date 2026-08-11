@@ -9,8 +9,6 @@
 
 import { Buffer } from 'node:buffer';
 
-// ─── Algorithm parsing ───────────────────────────────────────────────────
-
 export interface AlgorithmInfo {
     keySize: number; // bytes
     ivSize: number; // bytes
@@ -31,8 +29,6 @@ export function parseAlgorithm(algorithm: string): AlgorithmInfo {
         mode,
     };
 }
-
-// ─── Encoding helpers ────────────────────────────────────────────────────
 
 export function toBuffer(data: string | Buffer | Uint8Array, encoding?: string): Buffer {
     if (typeof data === 'string') {
@@ -75,8 +71,6 @@ export function incompleteUtf8Tail(buf: Uint8Array): number {
     }
     return 0;
 }
-
-// ─── PKCS#7 Padding ──────────────────────────────────────────────────────
 
 export function pkcs7Pad(data: Uint8Array): Uint8Array {
     const padLen = 16 - (data.length % 16);

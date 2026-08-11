@@ -56,8 +56,6 @@ export default async () => {
             expect(result).toBe(42);
         });
 
-        // ==================== additional tests ====================
-
         await it('executionAsyncId should return a number', async () => {
             const id = executionAsyncId();
             expect(typeof id).toBe('number');
@@ -136,8 +134,6 @@ export default async () => {
             expect(typeof resource.triggerAsyncId).toBe('function');
             expect(typeof resource.triggerAsyncId()).toBe('number');
         });
-
-        // ==================== Additional tests ====================
 
         await describe('createHook additional', async () => {
             await it('createHook returned object should have enable and disable methods', async () => {
@@ -231,8 +227,6 @@ export default async () => {
                 expect(id >= 0).toBe(true);
             });
         });
-
-        // ==================== New tests ====================
 
         await describe('AsyncLocalStorage.enterWith', async () => {
             await it('enterWith should set the store without a callback', async () => {

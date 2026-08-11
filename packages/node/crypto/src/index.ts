@@ -2,7 +2,6 @@
 // Hash via GLib.Checksum, Hmac via pure-JS (using Hash), random via WebCrypto/GLib
 // Reference: Node.js lib/crypto.js
 
-// === GLib.Checksum-based implementations ===
 export { Hash, getHashes, hash } from './hash.js';
 export { Hmac } from './hmac.js';
 export { randomBytes, randomFill, randomFillSync, randomUUID, randomInt } from './random.js';

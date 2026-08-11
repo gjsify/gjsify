@@ -449,8 +449,6 @@ export default async () => {
         });
     });
 
-    // ==================== additional tests ported from refs/node ====================
-
     await describe('EventEmitter: defaultMaxListeners static', async () => {
         await it('should have defaultMaxListeners property', async () => {
             expect(typeof EventEmitter.defaultMaxListeners).toBe('number');
@@ -683,8 +681,6 @@ export default async () => {
         });
     });
 
-    // ==================== expanded tests: setMaxListeners / getMaxListeners ====================
-
     await describe('EventEmitter: setMaxListeners / getMaxListeners (expanded)', async () => {
         await it('should return this from setMaxListeners for chaining', async () => {
             const emitter = new EventEmitter();
@@ -729,8 +725,6 @@ export default async () => {
         });
     });
 
-    // ==================== expanded tests: errorMonitor ====================
-
     await describe('EventEmitter: errorMonitor symbol', async () => {
         await it('should emit to errorMonitor before throwing', async () => {
             const emitter = new EventEmitter();
@@ -770,8 +764,6 @@ export default async () => {
         });
     });
 
-    // ==================== expanded tests: captureRejections ====================
-
     await describe('EventEmitter: captureRejections', async () => {
         await it('should have captureRejectionSymbol static property', async () => {
             expect(EventEmitter.captureRejectionSymbol).toBeDefined();
@@ -806,8 +798,6 @@ export default async () => {
         });
     });
 
-    // ==================== expanded tests: getEventListeners static ====================
-
     await describe('EventEmitter.getEventListeners (expanded)', async () => {
         await it('should return empty array for non-existent event', async () => {
             const emitter = new EventEmitter();
@@ -841,8 +831,6 @@ export default async () => {
         });
     });
 
-    // ==================== expanded tests: listenerCount static ====================
-
     await describe('EventEmitter.listenerCount static (expanded)', async () => {
         await it('should return 0 for no listeners', async () => {
             const emitter = new EventEmitter();
@@ -863,8 +851,6 @@ export default async () => {
             expect(EventEmitter.listenerCount(emitter, 'test')).toBe(3);
         });
     });
-
-    // ==================== expanded tests: once static (promise-based) ====================
 
     await describe('EventEmitter.once static (expanded)', async () => {
         await it('should resolve with empty array when event has no args', async () => {
@@ -931,8 +917,6 @@ export default async () => {
         });
     });
 
-    // ==================== expanded tests: prependListener / prependOnceListener ====================
-
     await describe('EventEmitter: prependListener (expanded)', async () => {
         await it('should return this for chaining', async () => {
             const emitter = new EventEmitter();
@@ -974,8 +958,6 @@ export default async () => {
         });
     });
 
-    // ==================== expanded tests: eventNames ====================
-
     await describe('EventEmitter: eventNames (expanded)', async () => {
         await it('should reflect removal of events', async () => {
             const emitter = new EventEmitter();
@@ -1000,8 +982,6 @@ export default async () => {
             expect(typeof names[1]).toBe('symbol');
         });
     });
-
-    // ==================== expanded tests: rawListeners ====================
 
     await describe('EventEmitter: rawListeners (expanded)', async () => {
         await it('should return unwrapped functions for on listeners', async () => {
@@ -1035,8 +1015,6 @@ export default async () => {
         });
     });
 
-    // ==================== expanded tests: removeAllListeners with specific event ====================
-
     await describe('EventEmitter: removeAllListeners specific (expanded)', async () => {
         await it('should not affect other events when removing specific event', async () => {
             const emitter = new EventEmitter();
@@ -1064,8 +1042,6 @@ export default async () => {
             expect(removed[1]).toBe('data');
         });
     });
-
-    // ==================== expanded tests: error handling ====================
 
     await describe('EventEmitter: error handling (expanded)', async () => {
         await it('should throw the Error object directly when emitting error', async () => {
@@ -1101,8 +1077,6 @@ export default async () => {
         });
     });
 
-    // ==================== expanded tests: emit returns boolean ====================
-
     await describe('EventEmitter: emit return value (expanded)', async () => {
         await it('should return true when once listener exists', async () => {
             const emitter = new EventEmitter();
@@ -1124,8 +1098,6 @@ export default async () => {
             expect(emitter.emit('test')).toBeTruthy();
         });
     });
-
-    // ==================== expanded tests: Symbol events ====================
 
     await describe('EventEmitter: Symbol events (expanded)', async () => {
         await it('should pass arguments with Symbol events', async () => {
@@ -1172,8 +1144,6 @@ export default async () => {
         });
     });
 
-    // ==================== expanded tests: multiple listeners ordering ====================
-
     await describe('EventEmitter: multiple listeners ordering (expanded)', async () => {
         await it('should call listeners in registration order', async () => {
             const emitter = new EventEmitter();
@@ -1217,8 +1187,6 @@ export default async () => {
             expect(order[3]).toBe(2);
         });
     });
-
-    // ==================== expanded tests: on async iterator ====================
 
     await describe('EventEmitter.on async iterator (expanded)', async () => {
         await it('should be an async iterable', async () => {
@@ -1278,8 +1246,6 @@ export default async () => {
             expect(result.done).toBeTruthy();
         });
     });
-
-    // ==================== expanded tests: newListener and removeListener events ====================
 
     await describe('EventEmitter: newListener event (expanded)', async () => {
         await it('should receive the listener function as second arg', async () => {
@@ -1344,15 +1310,11 @@ export default async () => {
         });
     });
 
-    // ==================== expanded tests: EventEmitter.EventEmitter backward compat ====================
-
     await describe('EventEmitter: backward compatibility', async () => {
         await it('EventEmitter.EventEmitter should reference itself', async () => {
             expect((EventEmitter as any).EventEmitter).toBe(EventEmitter);
         });
     });
-
-    // ==================== expanded tests: listeners copy behavior ====================
 
     await describe('EventEmitter: listeners returns a copy', async () => {
         await it('should return a copy, not a reference', async () => {
@@ -1369,8 +1331,6 @@ export default async () => {
             expect(list2.length).toBe(1);
         });
     });
-
-    // ==================== expanded tests: addListener chaining ====================
 
     await describe('EventEmitter: chaining', async () => {
         await it('should support fluent chaining of multiple methods', async () => {
@@ -1393,8 +1353,6 @@ export default async () => {
         });
     });
 
-    // ==================== expanded tests: this binding in listeners ====================
-
     await describe('EventEmitter: this in listeners', async () => {
         await it('should bind this to the emitter in on listeners', async () => {
             const emitter = new EventEmitter();
@@ -1416,8 +1374,6 @@ export default async () => {
             expect(self).toBe(emitter);
         });
     });
-
-    // ==================== expanded tests: listener validation ====================
 
     await describe('EventEmitter: listener validation', async () => {
         await it('should throw TypeError for non-function listener on on()', async () => {

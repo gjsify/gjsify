@@ -34,8 +34,6 @@ import { join } from 'node:path';
 import { CAN_SYMLINK, NO_SYMLINK_REASON } from './capabilities.spec.js';
 
 export default async () => {
-    // ==================== constants ====================
-
     await describe('fs.constants', async () => {
         await it('should export F_OK, R_OK, W_OK, X_OK', async () => {
             expect(constants.F_OK).toBe(0);
@@ -66,8 +64,6 @@ export default async () => {
         );
     });
 
-    // ==================== renameSync ====================
-
     await describe('fs.renameSync', async () => {
         await it('should rename a file', async () => {
             const dir = mkdtempSync('fs-test-');
@@ -84,8 +80,6 @@ export default async () => {
             rmdirSync(dir);
         });
     });
-
-    // ==================== rename (callback) ====================
 
     await describe('fs.rename (callback)', async () => {
         await it('should rename a file asynchronously', async () => {
@@ -108,8 +102,6 @@ export default async () => {
             rmdirSync(dir);
         });
     });
-
-    // ==================== copyFileSync ====================
 
     await describe('fs.copyFileSync', async () => {
         await it('should copy a file', async () => {
@@ -143,8 +135,6 @@ export default async () => {
         });
     });
 
-    // ==================== copyFile (callback) ====================
-
     await describe('fs.copyFile (callback)', async () => {
         await it('should copy a file asynchronously', async () => {
             const dir = mkdtempSync('fs-test-');
@@ -166,8 +156,6 @@ export default async () => {
             rmdirSync(dir);
         });
     });
-
-    // ==================== accessSync ====================
 
     await describe('fs.accessSync', async () => {
         await it('should not throw for existing file with F_OK', async () => {
@@ -215,8 +203,6 @@ export default async () => {
         });
     });
 
-    // ==================== access (callback) ====================
-
     await describe('fs.access (callback)', async () => {
         await it('should callback without error for existing file', async () => {
             const dir = mkdtempSync('fs-test-');
@@ -244,8 +230,6 @@ export default async () => {
         });
     });
 
-    // ==================== appendFileSync ====================
-
     await describe('fs.appendFileSync', async () => {
         await it('should append data to a file', async () => {
             const dir = mkdtempSync('fs-test-');
@@ -272,8 +256,6 @@ export default async () => {
         });
     });
 
-    // ==================== appendFile (callback) ====================
-
     await describe('fs.appendFile (callback)', async () => {
         await it('should append data asynchronously', async () => {
             const dir = mkdtempSync('fs-test-');
@@ -294,8 +276,6 @@ export default async () => {
         });
     });
 
-    // ==================== truncateSync ====================
-
     await describe('fs.truncateSync', async () => {
         await it('should truncate a file to 0 bytes', async () => {
             const dir = mkdtempSync('fs-test-');
@@ -309,8 +289,6 @@ export default async () => {
             rmdirSync(dir);
         });
     });
-
-    // ==================== readlinkSync ====================
 
     await describe('fs.readlinkSync', async () => {
         await it.failing(
@@ -333,8 +311,6 @@ export default async () => {
             { when: !CAN_SYMLINK },
         );
     });
-
-    // ==================== readFile / writeFile (callback) ====================
 
     await describe('fs.readFile / fs.writeFile (callback)', async () => {
         await it('should write and read a file', async () => {
@@ -361,8 +337,6 @@ export default async () => {
             rmdirSync(dir);
         });
     });
-
-    // ==================== createReadStream ====================
 
     await describe('fs.createReadStream', async () => {
         await it('should read file contents via stream', async () => {
@@ -416,8 +390,6 @@ export default async () => {
         });
     });
 
-    // ==================== createWriteStream ====================
-
     await describe('fs.createWriteStream', async () => {
         await it('should write file contents via stream', async () => {
             const dir = mkdtempSync('fs-test-');
@@ -442,8 +414,6 @@ export default async () => {
         });
     });
 
-    // ==================== promises.rename ====================
-
     await describe('fs.promises.rename', async () => {
         await it('should rename a file', async () => {
             const dir = mkdtempSync('fs-test-');
@@ -459,8 +429,6 @@ export default async () => {
             rmdirSync(dir);
         });
     });
-
-    // ==================== promises.copyFile ====================
 
     await describe('fs.promises.copyFile', async () => {
         await it('should copy a file', async () => {
@@ -478,8 +446,6 @@ export default async () => {
             rmdirSync(dir);
         });
     });
-
-    // ==================== promises.access ====================
 
     await describe('fs.promises.access', async () => {
         await it('should resolve for existing file', async () => {
@@ -504,8 +470,6 @@ export default async () => {
         });
     });
 
-    // ==================== promises.appendFile ====================
-
     await describe('fs.promises.appendFile', async () => {
         await it('should append data to a file', async () => {
             const dir = mkdtempSync('fs-test-');
@@ -519,8 +483,6 @@ export default async () => {
             rmdirSync(dir);
         });
     });
-
-    // ==================== promises.truncate ====================
 
     await describe('fs.promises.truncate', async () => {
         await it('should truncate a file', async () => {

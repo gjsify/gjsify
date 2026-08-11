@@ -1,8 +1,7 @@
 // Headless Adwaita ROW interaction state machines (ADR 0004 — headless Adwaita core).
 //
-// The selection / disclosure / clamp-and-snap logic behind the Libadwaita row
-// widgets, lifted out of `@gjsify/adwaita-nativescript` so every renderer shares
-// ONE behavior:
+// The selection / disclosure / clamp-and-snap logic behind the Libadwaita row widgets, so
+// every renderer shares ONE behavior:
 //   - {@link ExpanderState}    — `Adw.ExpanderRow`'s expanded/collapsed disclosure.
 //   - {@link ComboState}       — `Adw.ComboRow`'s selectedIndex↔selectedValue mapping
 //                                over an options list, with empty/out-of-range guards.
@@ -10,26 +9,20 @@
 //                                clamping on every mutation and stepped increments.
 //   - {@link ToggleGroupState} — `Adw.ToggleGroup`'s selected segment over a label list.
 //
-// This module is PLATFORM-NEUTRAL: it renders nothing and never touches a global
-// timer or the DOM. Each state machine exposes a small per-instance subscribe/emit
-// surface — {@link ExpanderState.subscribe} et al. return an unsubscribe function,
-// mirroring the module-scoped `onAdwaitaColorSchemeChanged` observable but scoped
-// to one widget. A renderer subscribes to drive both the visual update and the
-// GObject-style `notify::*` re-emit; it feeds interaction back through the state
-// methods (`toggle`, `select`, `increment`, `setSelected`, …).
+// PLATFORM-NEUTRAL: renders nothing, touches no global timer and no DOM. Each state
+// machine exposes a per-instance subscribe/emit surface returning an unsubscribe function
+// — the module-scoped `onAdwaitaColorSchemeChanged` shape, scoped to one widget. A
+// renderer subscribes to drive both the visual update and the GObject-style `notify::*`
+// re-emit, and feeds interaction back through the state methods.
 //
-// Programmatic-vs-interactive fidelity: `Adw.SpinRow` / `Adw.ComboRow` in the NS
-// port emit their `notify::*` signal ONLY on a user-driven change (a stepper press,
-// a chooser pick), not on a programmatic property set (which silently updates the
-// display). {@link SpinState} / {@link ComboState} preserve this exactly by tagging
-// every change with an `interactive` flag — the renderer re-emits `notify::*` only
-// when it is set. `Adw.ExpanderRow` / `Adw.ToggleGroup` make no such distinction
-// (both paths notify), so their change carries no flag.
+// Programmatic-vs-interactive fidelity: `Adw.SpinRow` / `Adw.ComboRow` notify ONLY on a
+// user-driven change (a stepper press, a chooser pick), not on a programmatic property set
+// — so {@link SpinState} / {@link ComboState} tag every change with an `interactive` flag
+// and the renderer re-emits `notify::*` only when it is set. `Adw.ExpanderRow` /
+// `Adw.ToggleGroup` make no such distinction (both paths notify) and carry no flag.
 //
 // Reference: refs/libadwaita/src/adw-{expander-row,combo-row,spin-row,toggle-group}.c
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
-
-// --- Expander (Adw.ExpanderRow disclosure) ---
 
 /** Subscriber for {@link ExpanderState} changes — receives the new expanded flag. */
 export type ExpanderStateListener = (expanded: boolean) => void;
@@ -88,8 +81,6 @@ export class ExpanderState {
     }
 }
 
-// --- Combo (Adw.ComboRow selection) ---
-
 /** One selectable option in a {@link ComboState}. */
 export interface AdwComboOption {
     /** Display label shown in the row + chooser. */
@@ -106,19 +97,14 @@ export interface AdwComboOption {
 export type AdwComboOptionInput = string | { value?: unknown; label?: unknown };
 
 /**
- * Raw authored options → the stable `{ value, label }` descriptors every combo
- * surface works with.
+ * Raw authored options → the stable `{ value, label }` descriptors every combo surface
+ * works with.
  *
  * A bare string is both value and label (`Gtk.StringList`'s model, which is what
- * `Adw.ComboRow` is fed in the common case). In a descriptor either half stands
- * in for the missing other, so `{ label: 'Apple' }` is addressable by the value
- * `'Apple'` rather than by `undefined`.
- *
- * ONE home, because there were two: `<adw-combo-row>` mapped `string[]` inline
- * from its JSON attribute while `<adw-drop-down>` carried a private
- * `normalizeOptions` that also handled descriptors — so the same widget family
- * accepted two different option vocabularies depending on which element you
- * reached for.
+ * `Adw.ComboRow` is fed in the common case). In a descriptor either half stands in for the
+ * missing other, so `{ label: 'Apple' }` is addressable by the value `'Apple'` rather than
+ * by `undefined`. ONE home for the rule, so `<adw-combo-row>` and `<adw-drop-down>` cannot
+ * accept two different option vocabularies.
  */
 export function normalizeComboOptions(raw: ReadonlyArray<AdwComboOptionInput> | null | undefined): AdwComboOption[] {
     if (!Array.isArray(raw)) return [];
@@ -132,17 +118,13 @@ export function normalizeComboOptions(raw: ReadonlyArray<AdwComboOptionInput> | 
 
 /**
  * The "no item is selected" index — the TS mirror of `GTK_INVALID_LIST_POSITION`
- * (`AdwComboRow:selected`'s default and empty value, adw-combo-row.c:593-596,
- * :809-810).
+ * (`AdwComboRow:selected`'s default and empty value).
  *
- * libadwaita spells it `G_MAXUINT` because the property is a `guint`; `-1` is the
- * idiomatic TS sentinel and the spelling {@link ADW_SIDEBAR_NO_SELECTION} already
- * uses for the same GTK constant.
- *
- * It exists because an EMPTY model and a model whose first item happens to have
- * an empty label were previously indistinguishable: both reported index 0 with
- * `selectedValue === ''`. A renderer that wants to draw a placeholder had nothing
- * to test.
+ * libadwaita spells it `G_MAXUINT` because the property is a `guint`; `-1` is the idiomatic
+ * TS sentinel and the spelling {@link ADW_SIDEBAR_NO_SELECTION} uses for the same GTK
+ * constant. Without it, an EMPTY model and a model whose first item has an empty label are
+ * indistinguishable — both report index 0 with `selectedValue === ''` — so a renderer that
+ * wants to draw a placeholder has nothing to test.
  */
 export const ADW_COMBO_NO_SELECTION = -1;
 
@@ -207,19 +189,18 @@ export class ComboState {
     }
 
     /**
-     * Replace the options, then notify (`interactive: false`) so the renderer
-     * re-syncs the inline value label — which may change even at an unchanged
-     * index, because the label is read out of the MODEL.
+     * Replace the options, then notify (`interactive: false`) so the renderer re-syncs the
+     * inline value label — which may change even at an unchanged index, because the label is
+     * read out of the MODEL.
      *
-     * Replacing the model re-runs autoselect, so an index the new one does not
-     * have falls back to 0 — including the sentinel, which is how a row recovers
-     * a selection when its model grows. An EMPTY model has no 0 to fall back to
-     * and lands on {@link ADW_COMBO_NO_SELECTION}; that case is the one both
-     * ports used to spell as index 0.
+     * Replacing the model re-runs autoselect, so an index the new one does not have falls
+     * back to 0 — including the sentinel, which is how a row recovers a selection when its
+     * model grows. An EMPTY model has no 0 to fall back to and lands on
+     * {@link ADW_COMBO_NO_SELECTION}.
      *
-     * The check is `hasIndex`, not `selected >= length`: the sentinel is BELOW
-     * the range, so the one-sided comparison left a `-1` in place and a model
-     * that had been emptied and refilled came back with nothing selected.
+     * The check is `hasIndex`, not `selected >= length`: the sentinel is BELOW the range, so
+     * a one-sided comparison leaves a `-1` in place and a model that was emptied and
+     * refilled comes back with nothing selected.
      */
     setOptions(options: AdwComboOption[]): void {
         this._options = Array.isArray(options) ? options : [];
@@ -230,25 +211,21 @@ export class ComboState {
     }
 
     /**
-     * The selected option index, or {@link ADW_COMBO_NO_SELECTION}.
-     *
-     * May also sit PAST the options length: {@link setSelectedIndex} is
-     * deliberately permissive, mirroring a `guint` property that takes any
-     * position. {@link selectedValue} reads `''` in both cases, which is why the
-     * sentinel is what distinguishes "nothing selected" from "an empty label".
+     * The selected option index, or {@link ADW_COMBO_NO_SELECTION}. May also sit PAST the
+     * options length: {@link setSelectedIndex} is deliberately permissive, mirroring a
+     * `guint` property that takes any position. {@link selectedValue} reads `''` in both
+     * cases, which is why the sentinel is what distinguishes "nothing selected" from "an
+     * empty label".
      */
     get selectedIndex(): number {
         return this._selected;
     }
 
     /**
-     * Whether the row presents itself as a CHOOSER — `model_changed`
-     * (adw-combo-row.c:187-195) makes the arrow visible and the row activatable
-     * on `n_items > 1` and hides both otherwise.
-     *
-     * One item or none is not a choice, so `Adw.ComboRow` stops looking like one:
-     * no chevron, and tapping does nothing. Neither port did this, so a
-     * single-option row showed its arrow and opened a chooser with one entry.
+     * Whether the row presents itself as a CHOOSER — `model_changed` makes the arrow visible
+     * and the row activatable on `n_items > 1`, and hides both otherwise. One item or none is
+     * not a choice, so `Adw.ComboRow` stops looking like one: no chevron, and tapping does
+     * nothing.
      */
     get presentsChooser(): boolean {
         return this._options.length > 1;
@@ -278,17 +255,15 @@ export class ComboState {
     /**
      * Whether `index` addresses an option that exists.
      *
-     * The bounds arithmetic lives here; the POLICY for a programmatic
-     * out-of-range set does not, because this tree cannot settle it:
-     * `adw_combo_row_set_selected` forwards the position straight to
-     * `gtk_single_selection_set_selected` (adw-combo-row.c:788) and documents
-     * `GTK_INVALID_LIST_POSITION` as a legal argument, but `refs/gtk` is EMPTY
-     * so what GtkSingleSelection does with it is not verifiable here. So each
-     * renderer states its own answer against this one predicate:
-     * {@link setSelectedIndex} keeps the permissive model (an index past the end
-     * is how "nothing selected" is spelled — {@link selectedValue} then reads
-     * `''`), while `<adw-drop-down>` rejects the set, as its published `selected`
-     * docs promise. Neither re-derives `index >= 0 && index < count`.
+     * The bounds arithmetic lives here; the POLICY for a programmatic out-of-range set does
+     * not, because this tree cannot settle it: `adw_combo_row_set_selected` forwards the
+     * position straight to `gtk_single_selection_set_selected` and documents
+     * `GTK_INVALID_LIST_POSITION` as a legal argument, but `refs/gtk` is EMPTY so what
+     * GtkSingleSelection does with it is not verifiable here. Each renderer therefore states
+     * its own answer against this one predicate: {@link setSelectedIndex} keeps the permissive
+     * model (an index past the end is how "nothing selected" is spelled and
+     * {@link selectedValue} reads `''`), while `<adw-drop-down>` rejects the set, as its
+     * published `selected` docs promise.
      */
     hasIndex(index: number): boolean {
         return Number.isFinite(index) && index >= 0 && index < this._options.length;
@@ -296,14 +271,12 @@ export class ComboState {
 
     /**
      * Select an option by index as a USER pick (the chooser result) — notifies
-     * `interactive: true`. A no-op (returns false) for the already-selected index
-     * or one that addresses no option, matching the renderer's chooser guard.
+     * `interactive: true`. A no-op for the already-selected index or one that addresses no
+     * option.
      *
-     * The upper bound is part of that guard: a pick is a pick OF something, so
-     * `select(99)` on a three-option model is not "select nothing", it is a
-     * chooser reporting an index the model does not have. Only the negative half
-     * used to be checked, which left the interactive path able to move the index
-     * somewhere {@link setSelectedIndex} would have called "no selection".
+     * The UPPER bound is part of that guard: a pick is a pick OF something, so `select(99)` on
+     * a three-option model is not "select nothing", it is a chooser reporting an index the
+     * model does not have.
      */
     select(index: number): boolean {
         if (!this.hasIndex(index) || index === this._selected) return false;
@@ -315,8 +288,6 @@ export class ComboState {
         return this._options.length;
     }
 }
-
-// --- Spin (Adw.SpinRow numeric adjustment) ---
 
 /** Payload of a {@link SpinState} change. */
 export interface SpinStateChange {
@@ -436,8 +407,6 @@ export class SpinState {
         return this._bump(-this._step);
     }
 }
-
-// --- Toggle group (Adw.ToggleGroup segmented selection) ---
 
 /** Payload of a {@link ToggleGroupState} change. */
 export interface ToggleGroupStateChange {

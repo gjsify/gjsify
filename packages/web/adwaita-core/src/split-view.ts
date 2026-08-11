@@ -16,15 +16,15 @@
 // default so the state machine stays deterministic and timer-free.
 //
 // FOUR sharp edges a straightforward TS port gets wrong, each pinned by a vector:
-//   - GLib's `CLAMP` tests HIGH first, so with INVERTED bounds it is NOT
-//     `Math.min(max, Math.max(min, x))`. The navigation allocate path reaches
-//     inverted bounds whenever `width - contentMin < minSidebarWidth`.
-//   - the navigation widget caps the sidebar MAX BOUND by `width - contentMin`
-//     while the overlay caps the RESULT — different answers for identical input.
-//   - `(int)` truncates toward zero: `Math.trunc`, never `Math.floor`, and never a
-//     CSS percentage (which is fractional).
-//   - the length-unit conversion is CEILed in the allocate paths and TRUNCATED in
-//     the measure paths — a real 1px asymmetry at dpi ≠ 96.
+// - GLib's `CLAMP` tests HIGH first, so with INVERTED bounds it is NOT
+// `Math.min(max, Math.max(min, x))`. The navigation allocate path reaches
+// inverted bounds whenever `width - contentMin < minSidebarWidth`.
+// - the navigation widget caps the sidebar MAX BOUND by `width - contentMin`
+// while the overlay caps the RESULT — different answers for identical input.
+// - `(int)` truncates toward zero: `Math.trunc`, never `Math.floor`, and never a
+// CSS percentage (which is fractional).
+// - the length-unit conversion is CEILed in the allocate paths and TRUNCATED in
+// the measure paths — a real 1px asymmetry at dpi ≠ 96.
 //
 // Reference: refs/libadwaita/src/adw-navigation-split-view.c
 // Reference: refs/libadwaita/src/adw-overlay-split-view.c
@@ -33,8 +33,6 @@
 
 import { glibClamp } from './glib.js';
 import { type AdwLengthUnit, adwLengthToPx, DEFAULT_DPI } from './length-unit.js';
-
-// --- Units, direction, packing ---
 
 /** `GtkPackType` — which side of the view a pane is packed on. */
 export type AdwPackType = 'start' | 'end';
@@ -58,12 +56,12 @@ export const DEFAULT_SIDEBAR_WIDTH_UNIT: AdwLengthUnit = 'sp';
 export const ADW_SWIPE_BORDER = 32;
 
 /**
- * GLib's `CLAMP` (gmacros.h) — `x > high ? high : x < low ? low : x`.
+ * GLib's `CLAMP` (gmacros.h) — `x > high ? high: x < low ? low: x`.
  *
  * HIGH is tested FIRST, which only matters when the bounds are inverted
  * (`low > high`) — there GLib returns `low` for anything below it, where
  * `Math.min(high, Math.max(low, x))` returns `high`. Not a curiosity:
- * `allocate_uncollapsed` (adw-navigation-split-view.c:297-304) inverts the bounds
+ * `allocate_uncollapsed` inverts the bounds
  * whenever the content pane's own minimum leaves less room than
  * `min-sidebar-width`, and libadwaita then keeps the sidebar at its minimum and
  * lets the content overflow.
@@ -71,19 +69,15 @@ export const ADW_SWIPE_BORDER = 32;
 
 /**
  * Whether the sidebar is laid out at `x = 0`, i.e. `sidebar_position ==
- * get_start_or_end (self)` (adw-navigation-split-view.c:220-227,
- * adw-overlay-split-view.c:227-234).
+ * get_start_or_end (self)`.
  *
- * `start`/`end` are LOGICAL: under RTL `get_start_or_end` returns `GTK_PACK_END`,
- * so a `start` sidebar is drawn on the RIGHT. This one predicate drives pane
- * placement, the overlay's slide direction and the swipe area — neither renderer
- * mirrored any of them before.
+ * `start`/`end` are LOGICAL: under RTL `get_start_or_end` returns `GTK_PACK_END`, so a
+ * `start` sidebar is drawn on the RIGHT. This one predicate drives pane placement, the
+ * overlay's slide direction and the swipe area.
  */
 export function isSidebarAtVisualStart(position: AdwPackType, direction: AdwTextDirection = 'ltr'): boolean {
     return (position === 'start') === (direction !== 'rtl');
 }
-
-// --- Sidebar sizing ---
 
 /** The four sizing properties `Adw.NavigationSplitView` and `Adw.OverlaySplitView` share. */
 export interface SidebarWidthSpec {
@@ -115,11 +109,10 @@ function fractionOf(spec: SidebarWidthSpec): number {
  * `sidebar_min` / `sidebar_max` in pixels, i.e. the two `MAX (…, length_to_px (…))`
  * lines both widgets open their sizing with.
  *
- * `ceil: true` reproduces the ALLOCATE paths, which wrap the conversion in `ceil()`
- * (adw-navigation-split-view.c:292-300, adw-overlay-split-view.c:452-460);
+ * `ceil: true` reproduces the ALLOCATE paths, which wrap the conversion in `ceil()`;
+ *
  * `ceil: false` (the default) reproduces the MEASURE paths, which assign the raw
- * double to an `int` and therefore truncate (adw-navigation-split-view.c:251-256,
- * adw-overlay-split-view.c:545-550). At dpi ≠ 96 the two disagree by a pixel, and
+ * double to an `int` and therefore truncate. At dpi ≠ 96 the two disagree by a pixel, and
  * that is upstream behaviour, not rounding noise.
  *
  * `max` is raised to `min` BEFORE any other cap, so a `max-sidebar-width` below
@@ -141,8 +134,7 @@ export function resolveSidebarBounds(
 
 /**
  * The sidebar's NATURAL width, estimated from the content's natural width and the
- * fraction — `ceil (content_nat * f / (1 - f))`, clamped into `bounds`
- * (adw-navigation-split-view.c:260-262, adw-overlay-split-view.c:554-556).
+ * fraction — `ceil (content_nat * f / (1 - f))`, clamped into `bounds`.
  *
  * The sidebar's OWN natural width is deliberately ignored: a sidebar asks for the
  * share of the window the fraction promises it, not for however wide its widest row
@@ -169,8 +161,7 @@ export interface SidebarWidthInput extends SidebarWidthSpec {
 }
 
 /**
- * `Adw.NavigationSplitView`'s allocated sidebar width
- * (adw-navigation-split-view.c:292-304).
+ * `Adw.NavigationSplitView`'s allocated sidebar width.
  *
  * The content pane's minimum is protected by capping the MAX BOUND
  * (`sidebar_max = MIN (sidebar_max, width - content_min)`) and only then clamping.
@@ -186,14 +177,13 @@ export function resolveNavigationSidebarWidth(input: SidebarWidthInput): number 
 
 /**
  * `Adw.OverlaySplitView`'s allocated sidebar width — `get_sidebar_width`
- * (adw-overlay-split-view.c:441-466) plus `allocate_uncollapsed`'s cap
- * (adw-overlay-split-view.c:585).
+ * plus `allocate_uncollapsed`'s cap.
  *
  * Two differences from the navigation widget, both load-bearing:
- *   - COLLAPSED the fraction is IGNORED and the VIEW width is clamped instead, so
- *     an overlay sidebar keeps its natural size on a phone rather than shrinking to
- *     a quarter of it (and may legitimately end up WIDER than the view);
- *   - uncollapsed the content-minimum cap lands on the RESULT, not on the bound.
+ * - COLLAPSED the fraction is IGNORED and the VIEW width is clamped instead, so
+ * an overlay sidebar keeps its natural size on a phone rather than shrinking to
+ * a quarter of it (and may legitimately end up WIDER than the view);
+ * - uncollapsed the content-minimum cap lands on the RESULT, not on the bound.
  */
 export function resolveOverlaySidebarWidth(input: SidebarWidthInput & { collapsed?: boolean }): number {
     const bounds = resolveSidebarBounds(input, input.sidebarChildMin ?? 0, { ceil: true });
@@ -218,14 +208,13 @@ export interface SplitViewMeasureInput {
 
 /**
  * The horizontal size request of an uncollapsed split view —
- * `measure_uncollapsed` (adw-overlay-split-view.c:558-563; the navigation variant
- * at adw-navigation-split-view.c:264-267 is the same rule with progress pinned to 1).
+ * `measure_uncollapsed` (adw-overlay-split-view.c; the navigation variant
+ * is the same rule with progress pinned to 1).
  *
- * This is the container MINIMUM neither renderer had, and its absence is why their
- * content pane can be squeezed to nothing: the sidebar is `flex-shrink: 0` (web) or
- * sits in an `auto` column (NativeScript), so it always wins and the content
- * collapses. Feeding this number into the host's own minimum makes the split view
- * refuse to be narrower than sidebar + content instead.
+ * The container MINIMUM: without it the content pane can be squeezed to nothing, because
+ * the sidebar is `flex-shrink: 0` (web) or sits in an `auto` column (NativeScript) and
+ * always wins. Feeding this number into the host's own minimum makes the split view refuse
+ * to be narrower than sidebar + content.
  */
 export function measureSplitViewHorizontal(input: SplitViewMeasureInput): { minimum: number; natural: number } {
     const progress = glibClamp(input.showProgress ?? 1, 0, 1);
@@ -234,8 +223,6 @@ export function measureSplitViewHorizontal(input: SplitViewMeasureInput): { mini
         natural: Math.trunc(input.sidebarNatural * progress) + input.contentNatural,
     };
 }
-
-// --- Pane geometry ---
 
 /** One pane's horizontal placement, in pixels from the view's left edge. */
 export interface SplitViewPaneRect {
@@ -253,10 +240,7 @@ export interface NavigationSplitViewLayout {
     content: SplitViewPaneRect;
 }
 
-/**
- * `allocate_uncollapsed` (adw-navigation-split-view.c:306-316) — the two pane rects,
- * including the RTL mirror that neither renderer had.
- */
+/** `allocate_uncollapsed` — the two pane rects, including the RTL mirror. */
 export function layoutNavigationSplitView(input: {
     totalWidth: number;
     sidebarWidth: number;
@@ -288,19 +272,19 @@ export interface OverlaySplitViewLayout {
 }
 
 /**
- * `allocate_uncollapsed` (adw-overlay-split-view.c:572-610) and
- * `allocate_collapsed` (:653-703), plus the shield (`update_shield`, :249-256) and
- * the paint gate (`adw_overlay_split_view_snapshot`, :757).
+ * `allocate_uncollapsed` and
+ * `allocate_collapsed`, plus the shield (`update_shield`) and
+ * the paint gate (`adw_overlay_split_view_snapshot`).
  *
- * The overshoot swap is the subtle part: the swipe tracker enables UPPER overshoot
- * (:1121), so `showProgress` can exceed 1. When the offset then runs past the
+ * The overshoot swap is the subtle part: the swipe tracker enables UPPER overshoot,
+ * so `showProgress` can exceed 1. When the offset then runs past the
  * measured width, libadwaita WIDENS the pane to the offset and pins the offset to
  * the measured width — the sidebar stretches instead of detaching from its edge.
  *
  * `shadowProgress` is inverted relative to the reveal: `adw_shadow_helper` hides
- * the shadow at 1 and paints it fully at 0 (adw-shadow-helper.c:234-249). It is only
+ * the shadow at 1 and paints it fully at 0. It is only
  * ALLOCATED in the collapsed layout, and `set_collapsed(FALSE)` re-allocates it at 1
- * (adw-overlay-split-view.c:1466-1477) — which is exactly what the formula returns
+ * — which is exactly what the formula returns
  * for an uncollapsed view, so a renderer can apply it unconditionally.
  */
 export function layoutOverlaySplitView(input: {
@@ -354,7 +338,7 @@ export function layoutOverlaySplitView(input: {
 // --- Navigation split view: tags, stack, actions ---
 
 /**
- * `tags_equal` (adw-navigation-split-view.c:413-429) — whether the sidebar and
+ * `tags_equal` — whether the sidebar and
  * content pages collide on their `Adw.NavigationPage:tag`.
  *
  * Two rules a `a === b` port loses: an ABSENT tag never collides (so two untagged
@@ -385,17 +369,16 @@ export interface NavigationStackPlan {
 }
 
 /**
- * `update_navigation_stack` (adw-navigation-split-view.c:342-405) — the whole
+ * `update_navigation_stack` — the whole
  * ordering table.
  *
- * Two rules both renderers were missing. A LONE child stays visible no matter what
- * `show-content` says (`self->content && (self->show_content || !self->sidebar)`
- * and its mirror, :389-401) — without it a collapsed split view with only a sidebar
- * renders blank. And with `sidebar-position: end` the CONTENT is the root page, so
- * `show-content: false` means the sidebar is PUSHED ON TOP of the content rather
- * than replacing it.
+ * Two easily-missed rules. A LONE child stays visible no matter what `show-content` says
+ * (`self->content && (self->show_content || !self->sidebar)` and its mirror) — without it a
+ * collapsed split view with only a sidebar renders blank. And with `sidebar-position: end`
+ * the CONTENT is the root page, so `show-content: false` means the sidebar is PUSHED ON TOP
+ * of the content rather than replacing it.
  *
- * `changingPage` selects the animated branch (:351-387), which requires BOTH
+ * `changingPage` selects the animated branch, which requires BOTH
  * children. Its final stack is always identical to the static branch's — it differs
  * only in reaching that stack by a push or a pop, which is the direction a renderer
  * needs for its transition.
@@ -459,8 +442,8 @@ export type NavigationActionInput =
     | { action: 'pop'; hasSidebar: boolean; hasContent: boolean; showContent: boolean };
 
 /**
- * `navigation_push_cb` (adw-navigation-split-view.c:644-685) and
- * `navigation_pop_cb` (:687-702) — the action routing both renderers lack entirely.
+ * `navigation_push_cb` and
+ * `navigation_pop_cb` — the action routing both renderers lack entirely.
  *
  * Three details the shape hides. The CONTENT tag is tested first, so a split view
  * whose panes share a tag pushes the content. The "already in the navigation stack"
@@ -493,20 +476,20 @@ export function resolveNavigationAction(input: NavigationActionInput): Navigatio
 
 /** `g_critical` texts, verbatim from the C so a renderer's diagnostics match GTK's. */
 export const NAVIGATION_SPLIT_VIEW_CRITICALS = {
-    /** `navigation_push_cb` :657 / :672. */
+    /** `navigation_push_cb`:657 /:672. */
     alreadyInStack: (tag: string) => `Page with the tag '${tag}' is already in the navigation stack`,
-    /** `navigation_push_cb` :683. The C also prints the widget pointer, which has no meaning here. */
+    /** `navigation_push_cb`:683. The C also prints the widget pointer, which has no meaning here. */
     notFound: (tag: string) => `No page with the tag '${tag}' found in AdwNavigationSplitView`,
-    /** `adw_navigation_split_view_set_sidebar` :1103. */
+    /** `adw_navigation_split_view_set_sidebar`:1103. */
     sidebarCollision: (tag: string) =>
         `Trying to add sidebar with the tag '${tag}' to AdwNavigationSplitView, but content already has the same tag`,
-    /** `adw_navigation_split_view_set_content` :1196. */
+    /** `adw_navigation_split_view_set_content`:1196. */
     contentCollision: (tag: string) =>
         `Trying to add content with the tag '${tag}' to AdwNavigationSplitView, but sidebar already has the same tag`,
-    /** `check_tags_cb` :440. */
+    /** `check_tags_cb`:440. */
     sidebarTagCollision: (tag: string) =>
         `Trying to set the sidebar's tag to '${tag}', but the content already has the same tag`,
-    /** `check_tags_cb` :450. */
+    /** `check_tags_cb`:450. */
     contentTagCollision: (tag: string) =>
         `Trying to set the content's tag to '${tag}', but the sidebar already has the same tag`,
 } as const;
@@ -554,9 +537,9 @@ export interface NavigationSplitViewOptions extends NavigationSplitViewHandlers 
  *
  * The tag guard has TWO different failure modes and both matter. Mounting a page
  * whose tag already belongs to the other pane REFUSES THE ASSIGNMENT
- * (adw-navigation-split-view.c:1102-1108 / :1195-1201) — the pane keeps whatever it
+ * (adw-navigation-split-view.c /:1195-1201) — the pane keeps whatever it
  * had. RETAGGING a mounted page instead keeps the page and CLEARS the offending tag
- * (`check_tags_cb`, :431-460), because by then the page is already installed.
+ * (`check_tags_cb`), because by then the page is already installed.
  *
  * Tags are held HERE, not written back into the {@link NavigationPageRef} you hand
  * in: {@link setTag} resets a colliding tag, and silently mutating a caller's object
@@ -732,8 +715,8 @@ export class NavigationSplitViewState {
      *
      * The emitted plan carries a `push`/`pop` transition only when the change is
      * actually animatable — collapsed WITH both children, the condition under which
-     * `set_show_content` drives the navigation view instead of just setting the flag
-     * (adw-navigation-split-view.c:1403-1428). Returns whether it changed.
+     * `set_show_content` drives the navigation view instead of just setting the flag.
+     * Returns whether it changed.
      */
     setShowContent(value: boolean, interactive = false): boolean {
         const next = !!value;
@@ -792,8 +775,6 @@ export class NavigationSplitViewState {
     }
 }
 
-// --- Overlay split view ---
-
 /** A running reveal animation, cancellable when a new one supersedes it. */
 export interface SplitViewAnimation {
     /** Stop the animation. Must be safe to call after it already finished. */
@@ -808,7 +789,7 @@ export interface SplitViewAnimationRequest {
     to: number;
     /** Initial velocity, in progress units per second (0 for a plain toggle). */
     velocity: number;
-    /** Whether to clamp the spring's overshoot — `to < 0.5` (adw-overlay-split-view.c:288-289). */
+    /** Whether to clamp the spring's overshoot — `to < 0.5`. */
     clamp: boolean;
     /** Feed every intermediate progress back to the state. */
     onValue: (progress: number) => void;
@@ -818,7 +799,7 @@ export interface SplitViewAnimationRequest {
 
 /**
  * The injected timing seam for the reveal, mirroring `ToastScheduler`. libadwaita
- * uses a spring with params `(1, 0.5, 500)` (adw-overlay-split-view.c:1163-1165);
+ * uses a spring with params `(1, 0.5, 500)`;
  * a renderer supplies whatever its platform has — a CSS transition, NativeScript's
  * `View.animate()`, or a deterministic fake in tests.
  */
@@ -892,16 +873,12 @@ export interface OverlaySplitViewOptions {
 /**
  * `Adw.OverlaySplitView`'s state machine.
  *
- * The rule worth having lifted is the collapse coupling: unless `pin-sidebar` is
- * set, collapsing HIDES the sidebar and uncollapsing SHOWS it, without animating
- * (`if (!self->pin_sidebar) set_show_sidebar (self, !self->collapsed, FALSE, 0);`,
- * adw-overlay-split-view.c:1454-1455). Neither renderer had it, so BOTH storybooks
- * re-derived it by hand next to their own breakpoint code — the clearest possible
- * evidence that it belongs in the widget.
+ * The rule worth having lifted is the collapse coupling: unless `pin-sidebar` is set,
+ * collapsing HIDES the sidebar and uncollapsing SHOWS it, without animating
+ * (`if (!self->pin_sidebar) set_show_sidebar (self, !self->collapsed, FALSE, 0);`).
  *
- * `show-sidebar` defaults to TRUE and `show-progress` to 1 (:1107-1109); the web
- * element's presence-attribute reading had it inverted, so an
- * `<adw-overlay-split-view>` with no attributes started with the sidebar hidden.
+ * `show-sidebar` defaults to TRUE and `show-progress` to 1 — an HTML boolean attribute is
+ * absent-means-false, so a renderer reading presence alone starts with them inverted.
  */
 export class OverlaySplitViewState {
     private _showSidebar: boolean;
@@ -986,30 +963,30 @@ export class OverlaySplitViewState {
         return this._showProgress;
     }
 
-    /** Whether the click-outside shield takes input — `update_shield` (:249-256). */
+    /** Whether the click-outside shield takes input — `update_shield`. */
     get shieldVisible(): boolean {
         return this._collapsed && this._showProgress > 0;
     }
 
-    /** Whether the sidebar is painted at all — the snapshot gate (:757). */
+    /** Whether the sidebar is painted at all — the snapshot gate. */
     get sidebarPainted(): boolean {
         return this._showProgress > 0;
     }
 
-    /** `gtk_widget_set_can_focus (sidebar_bin, …)` (:330). */
+    /** `gtk_widget_set_can_focus (sidebar_bin, …)`. */
     get sidebarFocusable(): boolean {
         return !this._collapsed || this._showSidebar;
     }
 
-    /** `gtk_widget_set_can_focus (content_bin, …)` (:331). */
+    /** `gtk_widget_set_can_focus (content_bin, …)`. */
     get contentFocusable(): boolean {
         return !this._collapsed || !this._showSidebar;
     }
 
     /**
-     * Show or hide the sidebar — `set_show_sidebar` (:294-360). No-op (and no
+     * Show or hide the sidebar — `set_show_sidebar`. No-op (and no
      * notification) when the value is unchanged; the public GTK setter animates, so
-     * `animate` defaults to true. Returns whether it changed.
+     * `animate()` defaults to true. Returns whether it changed.
      */
     setShowSidebar(
         value: boolean,
@@ -1034,7 +1011,7 @@ export class OverlaySplitViewState {
     }
 
     /**
-     * Collapse or expand — `adw_overlay_split_view_set_collapsed` (:1439-1481).
+     * Collapse or expand — `adw_overlay_split_view_set_collapsed`.
      *
      * Unless the sidebar is pinned this also flips `show-sidebar` to match, WITHOUT
      * animating, and emits that change first: GTK freezes notifications across the
@@ -1084,7 +1061,7 @@ export class OverlaySplitViewState {
     }
 
     /**
-     * Drive the reveal progress directly — `set_show_progress` (:258-270), the sink
+     * Drive the reveal progress directly — `set_show_progress`, the sink
      * an in-flight animation and a live swipe both write to. Does not touch
      * `show-sidebar`.
      */
@@ -1094,7 +1071,7 @@ export class OverlaySplitViewState {
     }
 
     /**
-     * Handle Escape — `escape_shortcut_cb` (:705-716). Only a COLLAPSED view with a
+     * Handle Escape — `escape_shortcut_cb`. Only a COLLAPSED view with a
      * visible sidebar consumes the key; otherwise it propagates so an enclosing
      * dialog still closes. Returns whether the key was consumed.
      */
@@ -1107,28 +1084,26 @@ export class OverlaySplitViewState {
     }
 
     /**
-     * Handle a click on the shield — `released_cb` (:431-439), which hides the
+     * Handle a click on the shield — `released_cb`, which hides the
      * sidebar unconditionally. Returns whether anything changed.
      */
     dismissShield(): boolean {
         return this.setShowSidebar(false, { interactive: true });
     }
 
-    // --- swipe plumbing ---
-
     /** Whether a swipe currently owns the progress. */
     get swipeActive(): boolean {
         return this._swipeActive;
     }
 
-    /** `begin_swipe_cb` (:389-401) — pause the animation and take over the progress. */
+    /** `begin_swipe_cb` — pause the animation and take over the progress. */
     beginSwipe(): void {
         this._cancelAnimation();
         this._swipeActive = true;
     }
 
     /**
-     * `end_swipe_cb` (:414-429) — settle on `to`. When `to` agrees with the current
+     * `end_swipe_cb` — settle on `to`. When `to` agrees with the current
      * `show-sidebar` this only animates (no property change, no notification);
      * otherwise it is a real `show-sidebar` change. Returns what was done.
      */
@@ -1179,7 +1154,7 @@ export class OverlaySplitViewState {
 // --- Swipe geometry (Adw.Swipeable) ---
 
 /**
- * `adw_overlay_split_view_get_snap_points` (:1214-1243) — where a swipe may settle.
+ * `adw_overlay_split_view_get_snap_points` — where a swipe may settle.
  *
  * A gesture already in flight (`swipeActive`) unlocks both ends regardless of the
  * `enable-*-gesture` properties, so a swipe that started legally can always be
@@ -1198,7 +1173,7 @@ export function resolveSwipeSnapPoints(input: {
 }
 
 /**
- * `prepare_cb` (:362-387) — whether a starting swipe is picked up at all.
+ * `prepare_cb` — whether a starting swipe is picked up at all.
  *
  * A MID-FLIGHT swipe (neither fully open nor fully closed) is always resumable,
  * which is why the gesture-enable flags are only consulted at the two ends.
@@ -1221,7 +1196,7 @@ export function resolveSwipeStart(input: {
 }
 
 /**
- * `end_swipe_cb` (:414-429) — what releasing a swipe at `to` means.
+ * `end_swipe_cb` — what releasing a swipe at `to` means.
  *
  * Landing back where `show-sidebar` already is only SETTLES the animation; landing
  * on the other side is a real property change that must notify.
@@ -1232,7 +1207,7 @@ export function resolveSwipeRelease(input: { to: number; showSidebar: boolean })
 }
 
 /**
- * `adw_overlay_split_view_get_cancel_progress` (:1253-1258) — where a cancelled
+ * `adw_overlay_split_view_get_cancel_progress` — where a cancelled
  * swipe snaps back to.
  *
  * C's `round()` is half-away-from-zero; JS `Math.round` is half-UP, so it disagrees
@@ -1245,7 +1220,7 @@ export function swipeCancelProgress(showProgress: number): number {
 }
 
 /**
- * `adw_overlay_split_view_get_swipe_area` (:1261-1290) — the rectangle that starts
+ * `adw_overlay_split_view_get_swipe_area` — the rectangle that starts
  * a reveal swipe.
  *
  * With the sidebar closed the grabbable strip never shrinks below

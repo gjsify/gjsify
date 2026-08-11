@@ -9,7 +9,6 @@ import * as path from 'node:path';
 import { tmpdir } from 'node:os';
 
 export default async () => {
-    // ===================== Module exports =====================
     await describe('fs module exports', async () => {
         await it('should export readFileSync', async () => {
             expect(typeof fs.readFileSync).toBe('function');
@@ -95,7 +94,6 @@ export default async () => {
         // await it('should export unwatchFile', ...)
     });
 
-    // ===================== fs.constants =====================
     await describe('fs.constants comprehensive', async () => {
         await it('should have F_OK', async () => {
             expect(typeof fs.constants.F_OK).toBe('number');
@@ -148,7 +146,6 @@ export default async () => {
         });
     });
 
-    // ===================== ENOENT error handling =====================
     await describe('fs ENOENT error handling', async () => {
         const nonExistent = path.join(tmpdir(), 'gjsify-test-nonexistent-' + Date.now());
 
@@ -239,7 +236,6 @@ export default async () => {
         });
     });
 
-    // ===================== existsSync edge cases =====================
     await describe('fs.existsSync edge cases', async () => {
         await it('should return true for /', async () => {
             expect(fs.existsSync('/')).toBe(true);
@@ -255,7 +251,6 @@ export default async () => {
         });
     });
 
-    // ===================== readdir with options =====================
     await describe('fs.readdirSync options', async () => {
         await it('should return string array by default', async () => {
             const entries = fs.readdirSync(tmpdir());
@@ -286,7 +281,6 @@ export default async () => {
         });
     });
 
-    // ===================== mkdirSync recursive =====================
     await describe('fs.mkdirSync recursive', async () => {
         const baseDir = path.join(tmpdir(), 'gjsify-mkdir-recursive-' + Date.now());
 
@@ -319,7 +313,6 @@ export default async () => {
         });
     });
 
-    // ===================== writeFileSync/readFileSync round-trip =====================
     await describe('fs read/write round-trip', async () => {
         const testFile = path.join(tmpdir(), 'gjsify-roundtrip-' + Date.now() + '.txt');
 
@@ -361,7 +354,6 @@ export default async () => {
         });
     });
 
-    // ===================== appendFileSync =====================
     await describe('fs.appendFileSync', async () => {
         const testFile = path.join(tmpdir(), 'gjsify-append-' + Date.now() + '.txt');
 

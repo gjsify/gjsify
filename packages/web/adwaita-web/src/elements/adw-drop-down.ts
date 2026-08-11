@@ -13,19 +13,15 @@
 // type-ahead (typing jumps to the next matching option).
 //
 // The popover is `<adw-popover>` and the dismissal/keyboard machine is
-// `@gjsify/adwaita-core`'s (ADR 0004). So is the SELECTION: the options list,
-// the index↔value mapping, the bounds guards and the
-// programmatic-vs-interactive split are {@link ComboState}, the same state
-// machine `<adw-combo-row>` composes — this element imported NOTHING from core
-// and re-derived all of it, which is how the two selectors ended up accepting
-// different option vocabularies (this one took `{value,label}` descriptors, the
-// row only bare strings). What stays here is what is genuinely a DROP-DOWN: the
-// search filter and the type-ahead buffer.
+// `@gjsify/adwaita-core`'s (ADR 0004). So is the SELECTION: the options list, the
+// index↔value mapping, the bounds guards and the programmatic-vs-interactive split are
+// {@link ComboState}, the same state machine `<adw-combo-row>` composes — so both
+// selectors accept one option vocabulary. What stays here is what is genuinely a
+// DROP-DOWN: the search filter and the type-ahead buffer.
 //
-// The arrow/Home/End wrap arithmetic left earlier, with the popover lift — it
-// was a second copy of `<adw-menu-button>`'s, and both had the same bug (ArrowUp
-// from an unfocused list landed on the SECOND-TO-LAST option, which
-// `enable-search` hit on every single open because it focuses the entry).
+// The arrow/Home/End wrap arithmetic belongs to the popover, not here: a per-element
+// copy is how ArrowUp from an unfocused list lands on the SECOND-TO-LAST option, which
+// `enable-search` hits on every open because it focuses the entry.
 //
 // Attributes:
 //   options / items — JSON array: `["a","b"]` or `[{"value":"a","label":"A"}]`.
@@ -66,11 +62,9 @@ import type { AdwComboOption, AdwComboOptionInput } from '@gjsify/adwaita-core';
 import { createAdwIcon } from './adw-icon.js';
 
 /**
- * A dropdown option — `value` is the stable id, `label` the shown text.
- *
- * An alias of core's {@link AdwComboOption}: the drop-down and the combo row are
- * the same selection model behind two chromes, and they had two names for one
- * descriptor. Kept exported so the published type name does not break.
+ * A dropdown option — `value` is the stable id, `label` the shown text. An alias of
+ * core's {@link AdwComboOption}, since the drop-down and the combo row are the same
+ * selection model behind two chromes; still exported so the published name keeps working.
  */
 export type AdwDropDownOption = AdwComboOption;
 
@@ -103,7 +97,6 @@ export class AdwDropDown extends HTMLElement {
         if (this._initialized) this._renderAll();
     }
 
-    /** Alias of `options` (Gtk.DropDown's model is often called "items"). */
     get items(): AdwDropDownOption[] {
         return this._state.options;
     }
@@ -131,12 +124,10 @@ export class AdwDropDown extends HTMLElement {
         if (index >= 0) this._selectIndex(index);
     }
 
-    /** The selected option descriptor, or null when empty. */
     get selectedItem(): AdwDropDownOption | null {
         return this._state.options[this._state.selectedIndex] ?? null;
     }
 
-    /** Whether the search entry is shown in the popover. */
     get enableSearch(): boolean {
         return this.hasAttribute('enable-search');
     }
@@ -146,7 +137,6 @@ export class AdwDropDown extends HTMLElement {
         else this.removeAttribute('enable-search');
     }
 
-    /** Whether the popover is currently open. */
     get active(): boolean {
         return this._popoverEl?.open ?? false;
     }
@@ -177,19 +167,17 @@ export class AdwDropDown extends HTMLElement {
         this._popoverEl = document.createElement('adw-popover') as AdwPopover;
         this._popoverEl.classList.add('adw-drop-down-popover');
         this._popoverEl.setAttribute('role', 'listbox');
-        // A dropdown's popover is a `popover.menu` too — `dropdown { popover.menu
-        // { … } }` (_dropdowns.scss:22) — even though its rows are ARIA `option`s
-        // rather than `menuitem`s. The style class and the role answer different
-        // questions, so neither is derived from the other.
+        // A dropdown's popover is a `popover.menu` too — `dropdown { popover.menu { … } }`
+        // — even though its rows are ARIA `option`s rather than `menuitem`s. The style
+        // class and the role answer different questions, so neither derives the other.
         this._popoverEl.setAttribute('menu', '');
 
         this._listEl = document.createElement('div');
         this._listEl.className = 'adw-drop-down-list';
         this._popoverEl.appendChild(this._listEl);
 
-        // Seed options from the property (already set) or the JSON attribute,
-        // BEFORE anything subscribes, so building the initial DOM below is not
-        // driven by a change notification.
+        // Seed options BEFORE anything subscribes, so building the initial DOM below is
+        // not driven by a change notification.
         if (this._state.count === 0) this._state.setOptions(this._parseOptionsAttr());
         const attrSelected = Number.parseInt(this.getAttribute('selected') ?? '', 10);
         if (this._state.hasIndex(attrSelected)) this._state.setSelectedIndex(attrSelected);
@@ -197,9 +185,9 @@ export class AdwDropDown extends HTMLElement {
         this.replaceChildren(this._buttonEl, this._popoverEl);
         this._popoverEl.anchor = this._buttonEl;
         this._popoverEl.subscribe((open) => this._onPopoverToggled(open));
-        // Type-ahead is the ONE key class the shared popover deliberately leaves
-        // to the renderer (`resolvePopoverKey` returns 'none' for printables), so
-        // it needs a listener of its own alongside the popover's.
+        // Type-ahead is the ONE key class the shared popover deliberately leaves to the
+        // renderer (`resolvePopoverKey` returns 'none' for printables), so it needs a
+        // listener of its own alongside the popover's.
         this._popoverEl.addEventListener('keydown', (event) => this._onPopoverTypeAhead(event));
         this._renderAll();
     }
@@ -220,14 +208,12 @@ export class AdwDropDown extends HTMLElement {
         }
     }
 
-    // ── internals ──────────────────────────────────────────────────────────
-
     private _parseOptionsAttr(): AdwDropDownOption[] {
         const raw = this.getAttribute('options') ?? this.getAttribute('items');
         if (!raw) return [];
         try {
-            // `normalizeComboOptions` already guards a non-array, so a JSON
-            // object or scalar yields the empty model rather than a throw.
+            // `normalizeComboOptions` already guards a non-array, so a JSON object or
+            // scalar yields the empty model rather than a throw.
             return normalizeComboOptions(JSON.parse(raw) as AdwComboOptionInput[]);
         } catch {
             return [];
@@ -237,12 +223,11 @@ export class AdwDropDown extends HTMLElement {
     private _selectIndex(index: number, opts: { fromAttr?: boolean; fromUser?: boolean } = {}): void {
         // The bounds arithmetic is `ComboState`'s; the POLICY of rejecting an
         // out-of-range set is this element's published `selected` contract, and
-        // `<adw-combo-row>` deliberately answers it the other way — see
-        // `ComboState.hasIndex`.
+        // `<adw-combo-row>` deliberately answers it the other way (`ComboState.hasIndex`).
         if (!this._state.hasIndex(index)) return;
-        // Both core setters return "did it change", which is what gates the
-        // notify — no second copy of the current index is kept here to compare
-        // against, and `setOptions`' own label re-sync cannot masquerade as one.
+        // Both core setters return "did it change", which is what gates the notify — no
+        // second copy of the current index is kept here, so `setOptions`' own label
+        // re-sync cannot masquerade as one.
         const changed = opts.fromUser ? this._state.select(index) : this._state.setSelectedIndex(index);
         this._updateLabel();
         this._updateSelectedStates();
@@ -252,13 +237,12 @@ export class AdwDropDown extends HTMLElement {
         }
         if (changed) {
             const option = this._state.options[index];
-            // `notify::selected` mirrors GObject property-notify: it fires on EVERY change,
+            // `notify::selected` mirrors GObject property-notify: EVERY change,
             // programmatic included.
             this.dispatchEvent(new CustomEvent('notify::selected', { bubbles: true, detail: { selected: index } }));
-            // `change` mirrors the DOM <select> contract: it fires ONLY on a user-initiated change.
-            // A programmatic `.selected`/`.selectedValue`/`selected`-attribute assignment stays silent
-            // (just as native `select.value = x` fires no `change`), so consumers can set the value
-            // without guarding against a spurious user-style event.
+            // `change` mirrors the DOM <select> contract: ONLY a user-initiated change. A
+            // programmatic assignment stays silent, just as native `select.value = x` fires
+            // no `change`, so consumers can set the value without guarding against it.
             if (opts.fromUser) {
                 this.dispatchEvent(
                     new CustomEvent('change', {
@@ -302,7 +286,6 @@ export class AdwDropDown extends HTMLElement {
         this._typeAhead(event.key);
     }
 
-    /** Type-ahead: accumulate keys, focus/select the next matching option. */
     private _typeAhead(char: string): void {
         this._typeAheadBuffer += char.toLowerCase();
         if (this._typeAheadTimer) clearTimeout(this._typeAheadTimer);
@@ -313,7 +296,6 @@ export class AdwDropDown extends HTMLElement {
         else this._selectIndex(match, { fromUser: true });
     }
 
-    /** Filter the visible items by a search query (case-insensitive substring). */
     private _filter(query: string): void {
         const q = query.trim().toLowerCase();
         this._itemButtons.forEach((button, index) => {
@@ -334,8 +316,8 @@ export class AdwDropDown extends HTMLElement {
     }
 
     private _updateLabel(): void {
-        // The setters (`options`/`selected`) may run before connectedCallback
-        // builds the DOM — stay a no-op until the label element exists.
+        // The setters may run before connectedCallback builds the DOM — a no-op until the
+        // label element exists.
         if (!this._labelEl) return;
         this._labelEl.textContent = this._state.selectedLabel;
     }
@@ -360,7 +342,6 @@ export class AdwDropDown extends HTMLElement {
             this._searchEl.placeholder = 'Search…';
             this._searchEl.setAttribute('aria-label', 'Search');
             this._searchEl.addEventListener('input', () => this._filter(this._searchEl?.value ?? ''));
-            // Prepend before the list so it sits atop the options.
             this._popoverEl.insertBefore(this._searchEl, this._listEl);
         } else {
             const existing = this._popoverEl.querySelector('.adw-drop-down-search');
@@ -378,7 +359,6 @@ export class AdwDropDown extends HTMLElement {
             label.className = 'adw-drop-down-item-label';
             label.textContent = option.label;
 
-            // A check icon marks the selected option (Gtk.DropDown's selected row).
             const check = document.createElement('span');
             check.className = 'adw-drop-down-item-check';
             check.setAttribute('aria-hidden', 'true');

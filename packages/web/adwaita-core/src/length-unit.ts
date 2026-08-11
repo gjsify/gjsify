@@ -17,11 +17,9 @@ export const ADW_LENGTH_UNITS: readonly AdwLengthUnit[] = ['px', 'pt', 'sp'];
 export const DEFAULT_DPI = 96;
 
 /**
- * `adw_length_unit_to_px` (adw-length-unit.c:57-82) — convert `value` to pixels.
- *
- * `pt` and `sp` both scale with the text-scale factor, which GTK reads from
- * `gtk-xft-dpi`; a renderer that has no such setting passes the default 96, where
- * `sp` is a pixel passthrough and `pt` is the familiar 4/3 ratio.
+ * `adw_length_unit_to_px` — convert `value` to pixels. `pt` and `sp` both scale with the
+ * text-scale factor, which GTK reads from `gtk-xft-dpi`; a renderer with no such setting
+ * passes the default 96, where `sp` is a pixel passthrough and `pt` the 4/3 ratio.
  */
 export function adwLengthToPx(unit: AdwLengthUnit, value: number, dpi: number = DEFAULT_DPI): number {
     switch (unit) {
@@ -35,12 +33,10 @@ export function adwLengthToPx(unit: AdwLengthUnit, value: number, dpi: number = 
 }
 
 /**
- * An authored unit → the enum value, or the caller's default.
- *
- * A GObject enum property rejects an out-of-range value and keeps what it had; a
- * renderer reading an HTML attribute or an XML layout has no such gate, so
- * `fallback` is the property's own default — `sp` for the split views, `px` for
- * the wrap box.
+ * An authored unit → the enum value, or the caller's default. A GObject enum property
+ * rejects an out-of-range value and keeps what it had; a renderer reading an HTML
+ * attribute or an XML layout has no such gate, so `fallback` is the property's own
+ * default — `sp` for the split views, `px` for the wrap box.
  */
 export function normalizeLengthUnit(value: unknown, fallback: AdwLengthUnit): AdwLengthUnit {
     return ADW_LENGTH_UNITS.includes(value as AdwLengthUnit) ? (value as AdwLengthUnit) : fallback;

@@ -1,22 +1,15 @@
 // Bottom-sheet dismissal conformance vectors — the spec all three
 // implementations are held to.
 //
-// `Adw.BottomSheet` has FOUR dismissal paths and they are four different gates.
-// Both ports had collapsed them into one predicate —
-// `if (!open) return; if (!canClose) { emit close-attempt; return; } open = false;`
-// — which is right for exactly one of the four, and the NativeScript port did not
-// even have that (no `can-close`, no `close-attempt`, and a drag handle wired
-// straight to an unconditional `close()`). These rows are the difference.
-//
-// Two of them contradict what BOTH ports shipped, and one contradicts nothing
-// because neither port implemented it:
-//   - the drag handle is `can_target = FALSE`, i.e. not clickable at all
-//     (adw-bottom-sheet.c:1197-1198) — both ports made it the primary close
-//     button;
-//   - Escape on a CLOSED sheet still emits `close-attempt`
-//     (adw-bottom-sheet.c:393-399) — the web port guarded it away twice;
-//   - the `sheet.close` action on a closed sheet DELEGATES to the parent
-//     (adw-bottom-sheet.c:377-385).
+// `Adw.BottomSheet` has FOUR dismissal paths and they are four different gates. Collapsing
+// them into one predicate —
+// `if (!open) return; if (!canClose) { emit close-attempt; return; } open = false;` — is
+// right for exactly one of the four. These rows are the difference, and three of them are
+// counter-intuitive:
+//   - the drag handle is `can_target = FALSE`, i.e. not clickable at all, so it is not the
+//     primary close button;
+//   - Escape on a CLOSED sheet still emits `close-attempt`;
+//   - the `sheet.close` action on a closed sheet DELEGATES to the parent.
 //
 // Reference: refs/libadwaita/src/adw-bottom-sheet.c
 // Reference: refs/libadwaita/src/adw-dialog.c (the closing/closed callback pair)
@@ -34,9 +27,7 @@ export interface BottomSheetCloseVector {
     canClose: boolean;
     /** What the C source does with it. */
     outcome: BottomSheetCloseOutcome;
-    /** Why this row exists — the rule or corner it pins down. */
     rule: string;
-    /** The C function + lines it is derived from. */
     derivedFrom: string;
 }
 
@@ -233,7 +224,6 @@ export interface BottomSheetPresentationVector {
     /** `has_been_open` after the last step. */
     hasBeenOpen: boolean;
     rule: string;
-    /** The C function + lines it is derived from. */
     derivedFrom: string;
 }
 
@@ -282,11 +272,10 @@ export function runBottomSheetSteps(
  * `adw_bottom_sheet_set_open`'s state machine as scripts: the idempotent guard,
  * the never-been-open teardown replay, and which paths notify.
  *
- * The `notifications` column is the one that caught a live bug: the browser port
- * emitted `notify::open` whenever the open ATTRIBUTE VALUE changed rather than
- * when the open STATE changed, so `setAttribute('open','')` followed by
- * `setAttribute('open','false')` fired a second notification carrying an
- * unchanged payload.
+ * The `notifications` column caught a live bug: emitting `notify::open` whenever the open
+ * ATTRIBUTE VALUE changes rather than when the open STATE changes makes
+ * `setAttribute('open','')` then `setAttribute('open','false')` fire a second notification
+ * carrying an unchanged payload.
  */
 export const BOTTOM_SHEET_PRESENTATION_VECTORS: ReadonlyArray<BottomSheetPresentationVector> = [
     {

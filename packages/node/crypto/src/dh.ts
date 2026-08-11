@@ -7,10 +7,8 @@ import { Buffer } from 'node:buffer';
 import { randomBytes } from './random.js';
 import { modPow } from './bigint-math.js';
 
-// ---------------------------------------------------------------------------
 // Predefined MODP groups (RFC 2409 Section 6.1-6.2, RFC 3526 Sections 2-7)
 // All generators are 2.
-// ---------------------------------------------------------------------------
 
 const PREDEFINED_GROUPS: Record<string, { gen: string; prime: string }> = {
     // RFC 2409 Section 6.1 — 768-bit MODP Group
@@ -166,9 +164,7 @@ const PREDEFINED_GROUPS: Record<string, { gen: string; prime: string }> = {
     },
 };
 
-// ---------------------------------------------------------------------------
 // BigInt utility helpers
-// ---------------------------------------------------------------------------
 
 /** Convert a BigInt to a Buffer (big-endian, unsigned). */
 function bigIntToBuffer(n: bigint): Buffer {
@@ -200,9 +196,7 @@ function bitLength(n: bigint): number {
     return n.toString(2).length;
 }
 
-// ---------------------------------------------------------------------------
 // Primality testing (for verifyError)
-// ---------------------------------------------------------------------------
 
 // Small primes for sieve test
 const SMALL_PRIMES: number[] = [];
@@ -358,9 +352,7 @@ function getCachedCheckPrime(prime: bigint, generatorBuf: Buffer): number {
     return result;
 }
 
-// ---------------------------------------------------------------------------
 // DiffieHellman class
-// ---------------------------------------------------------------------------
 
 /**
  * Format a BigInt return value as Buffer or encoded string.
@@ -553,9 +545,7 @@ export class DiffieHellman {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Prime generation for createDiffieHellman(primeLength)
-// ---------------------------------------------------------------------------
 
 /**
  * Generate a random prime of the specified bit length suitable for DH.
@@ -631,9 +621,7 @@ function generatePrime(bits: number, generator: Buffer): Buffer {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Public API
-// ---------------------------------------------------------------------------
 
 const VALID_ENCODINGS: Record<string, boolean> = {
     binary: true,

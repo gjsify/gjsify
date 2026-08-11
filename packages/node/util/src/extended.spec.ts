@@ -7,7 +7,6 @@ import { describe, it, expect } from '@gjsify/unit';
 import * as util from 'node:util';
 
 export default async () => {
-    // ===================== inspect.colors =====================
     await describe('util.inspect.colors', async () => {
         await it('should be an object', async () => {
             expect(typeof util.inspect.colors).toBe('object');
@@ -52,7 +51,6 @@ export default async () => {
         });
     });
 
-    // ===================== inspect.styles =====================
     await describe('util.inspect.styles', async () => {
         await it('should be an object', async () => {
             expect(typeof util.inspect.styles).toBe('object');
@@ -76,7 +74,6 @@ export default async () => {
         });
     });
 
-    // ===================== inspect.custom =====================
     await describe('util.inspect.custom', async () => {
         await it('should be a symbol', async () => {
             expect(typeof util.inspect.custom).toBe('symbol');
@@ -100,7 +97,6 @@ export default async () => {
         });
     });
 
-    // ===================== inspect.defaultOptions =====================
     await describe('util.inspect.defaultOptions', async () => {
         await it('should have expected default values', async () => {
             const opts = util.inspect.defaultOptions;
@@ -112,7 +108,6 @@ export default async () => {
         });
     });
 
-    // ===================== inspect edge cases =====================
     await describe('util.inspect edge cases', async () => {
         await it('should inspect null', async () => {
             expect(util.inspect(null)).toBe('null');
@@ -207,7 +202,6 @@ export default async () => {
         });
     });
 
-    // ===================== format edge cases =====================
     await describe('util.format edge cases', async () => {
         await it('should handle %% as literal percent with args', async () => {
             // %% only produces single % when formatting is applied (with extra args)
@@ -256,7 +250,6 @@ export default async () => {
         });
     });
 
-    // ===================== util.types =====================
     await describe('util.types', async () => {
         await it('isDate should detect Date', async () => {
             expect(util.types.isDate(new Date())).toBe(true);
@@ -326,7 +319,6 @@ export default async () => {
         });
     });
 
-    // ===================== promisify =====================
     await describe('util.promisify', async () => {
         await it('should convert callback function to promise', async () => {
             function asyncOp(val: string, cb: (err: Error | null, result: string) => void) {
@@ -362,7 +354,6 @@ export default async () => {
         });
     });
 
-    // ===================== callbackify =====================
     await describe('util.callbackify', async () => {
         await it('should convert async function to callback style', async () => {
             async function asyncFn() {
@@ -392,7 +383,6 @@ export default async () => {
         });
     });
 
-    // ===================== deprecate =====================
     await describe('util.deprecate', async () => {
         await it('should return a function', async () => {
             const deprecated = util.deprecate(() => 42, 'deprecated');
@@ -405,7 +395,6 @@ export default async () => {
         });
     });
 
-    // ===================== inherits =====================
     await describe('util.inherits', async () => {
         await it('should set up prototype chain', async () => {
             function Parent(this: any) {
@@ -431,7 +420,6 @@ export default async () => {
         });
     });
 
-    // ===================== isDeepStrictEqual =====================
     await describe('util.isDeepStrictEqual', async () => {
         await it('should compare primitives', async () => {
             expect(util.isDeepStrictEqual(1, 1)).toBe(true);
@@ -471,7 +459,6 @@ export default async () => {
         });
     });
 
-    // ===================== TextEncoder/TextDecoder =====================
     await describe('util TextEncoder/TextDecoder exports', async () => {
         await it('should export TextEncoder', async () => {
             expect(util.TextEncoder).toBeDefined();
@@ -482,7 +469,6 @@ export default async () => {
         });
     });
 
-    // ===================== styleText =====================
     await describe('util.styleText', async () => {
         await it('returns plain text when stream is not a TTY', async () => {
             // Default options: validateStream=true, stream=process.stdout (no isTTY in test runtime).
@@ -541,7 +527,6 @@ export default async () => {
         });
     });
 
-    // ===================== stripVTControlCharacters =====================
     await describe('util.stripVTControlCharacters', async () => {
         await it('returns string unchanged when no escape sequence is present', async () => {
             expect(util.stripVTControlCharacters('plain')).toBe('plain');

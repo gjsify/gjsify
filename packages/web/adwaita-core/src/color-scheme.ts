@@ -1,16 +1,15 @@
 // Adwaita light/dark color-scheme observable — headless.
 //
 // The single source of truth for the current Adwaita color scheme plus a change
-// notifier, shared by every renderer (ADR 0004 — headless Adwaita core). The
-// host app flips it (`setAdwaitaColorScheme`); theme-aware widgets subscribe via
-// `onAdwaitaColorSchemeChanged` and re-render in `themeIconColor()` when it
-// changes — UNLESS the caller set an explicit colour (e.g. white on a suggested
-// button, destructive red), which must survive both schemes.
+// notifier, shared by every renderer (ADR 0004 — headless Adwaita core). The host app
+// flips it (`setAdwaitaColorScheme`); theme-aware widgets subscribe via
+// `onAdwaitaColorSchemeChanged` and re-render in `themeIconColor()` — UNLESS the caller
+// set an explicit colour (white on a suggested button, destructive red), which must
+// survive both schemes.
 //
-// This module is PLATFORM-NEUTRAL: applying the scheme to a surface is the
-// renderer's job — e.g. `@gjsify/adwaita-nativescript` toggles the `ns-dark`
-// CSS class on its root view and re-rasterises symbolic-icon bitmaps, a browser
-// renderer would flip a CSS custom-property scope.
+// PLATFORM-NEUTRAL: applying the scheme to a surface is the renderer's job —
+// `@gjsify/adwaita-nativescript` toggles the `ns-dark` class on its root view and
+// re-rasterises symbolic-icon bitmaps, a browser renderer flips a CSS scope.
 //
 // Reference: refs/libadwaita/src/stylesheet/_colors.scss (light/dark palettes).
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
@@ -34,9 +33,8 @@ export function adwaitaColorScheme(): AdwColorScheme {
 
 /**
  * Set the active color scheme. A no-op when unchanged; otherwise notifies every
- * subscriber (so theme-aware icons re-render). The renderer should also apply
- * its platform half (e.g. the `ns-dark` class on NativeScript, a CSS scope in
- * the browser).
+ * subscriber (so theme-aware icons re-render). The renderer must also apply its platform
+ * half — the `ns-dark` class on NativeScript, a CSS scope in the browser.
  */
 export function setAdwaitaColorScheme(scheme: AdwColorScheme): void {
     const next: AdwColorScheme = scheme === 'dark' ? 'dark' : 'light';
@@ -70,9 +68,9 @@ export function isThemeIconColor(color: string): boolean {
 }
 
 /**
- * Subscribe to scheme changes. Returns an unsubscribe function. Widgets should
- * subscribe while on screen and unsubscribe when leaving it (e.g. NS `loaded` /
- * `unloaded`), so the registry only ever holds live subscribers.
+ * Subscribe to scheme changes. Returns an unsubscribe function. Widgets subscribe while
+ * on screen and unsubscribe when leaving it (NS `loaded`/`unloaded`), so the registry
+ * only ever holds live subscribers.
  */
 export function onAdwaitaColorSchemeChanged(listener: () => void): () => void {
     listeners.add(listener);

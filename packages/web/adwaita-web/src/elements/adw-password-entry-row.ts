@@ -2,27 +2,18 @@
 // masked, a trailing peek button reveals it, and a warning shows while Caps Lock
 // is engaged.
 //
-// It now EXTENDS `<adw-entry-row>`, as `AdwPasswordEntryRow` extends
-// `AdwEntryRow` in the C (adw-password-entry-row.c:50). This file used to be a
-// near copy-paste of `adw-entry-row.ts` — a normalized diff showed the
-// connectedCallback and attributeChangedCallback bodies were the same code — so
-// every entry-row fix had to be made twice and one of the two always drifted.
-// What is left here is only what the C subclass adds: the masked input, the peek
-// toggle, and the caps-lock source.
+// EXTENDS `<adw-entry-row>`, as `AdwPasswordEntryRow` extends `AdwEntryRow` in the C, so
+// only what the subclass adds lives here: the masked input, the peek toggle and the
+// caps-lock source.
 //
-// The reveal/caps-lock DERIVATION is HEADLESS and lives in
-// `@gjsify/adwaita-core` (ADR 0004) as {@link PasswordEntryRowState}, which
-// composes the parent's `EntryRowState` exactly like the C drives its
-// parent through `adw_entry_row_set_show_indicator`. Two rules fall out of it
-// that neither port had: peeking suppresses the caps-lock warning, and so does
-// losing focus.
+// The reveal/caps-lock DERIVATION is HEADLESS and lives in `@gjsify/adwaita-core`
+// (ADR 0004) as {@link PasswordEntryRowState}, which composes the parent's
+// `EntryRowState` the way the C drives its parent through
+// `adw_entry_row_set_show_indicator`. Two rules fall out of it: peeking suppresses the
+// caps-lock warning, and so does losing focus.
 //
-// Attributes: everything `<adw-entry-row>` observes, plus `revealed`.
-// Properties: `revealed`, `capsLockOn` (+ everything inherited).
-// Events: `notify::revealed` — only on a REAL change. The old implementation
-//   fired it on every `setAttribute`, including a redundant one, because
-//   attributeChangedCallback runs for a same-value write; the core's setter
-//   guard (the house rule at adw-entry-row.c:984/:1198/:1247) is what fixes it.
+// `notify::revealed` fires only on a REAL change. That needs the core's setter guard,
+// because `attributeChangedCallback` also runs for a same-value write.
 //
 // Reference: refs/libadwaita/src/adw-password-entry-row.c
 // Reference: refs/adwaita-web/adwaita-web/docs/widgets/passwordentryrow.md
@@ -66,17 +57,16 @@ export class AdwPasswordEntryRow extends AdwEntryRow {
     }
 
     /**
-     * Feed the platform's Caps Lock state in — GDK gets it from the keyboard
-     * device (adw-password-entry-row.c:111-115). Public because a host that
-     * knows better than `KeyboardEvent.getModifierState` (a virtual keyboard, a
-     * test) can drive it directly.
+     * Feed the platform's Caps Lock state in — GDK gets it from the keyboard device.
+     * Public so a host that knows better than `KeyboardEvent.getModifierState` (a virtual
+     * keyboard, a test) can drive it directly.
      */
     setCapsLockOn(on: boolean): void {
         this._password.setCapsLockOn(on);
     }
 
     protected override _onConnected(): void {
-        // `gtk_text_set_visibility (…, FALSE)` + GTK_INPUT_PURPOSE_PASSWORD (C:158-160).
+        // C's `gtk_text_set_visibility (…, FALSE)` + GTK_INPUT_PURPOSE_PASSWORD.
         this._input.type = 'password';
         this._input.autocomplete = 'off';
 
@@ -86,7 +76,7 @@ export class AdwPasswordEntryRow extends AdwEntryRow {
         this._toggleIcon = createAdwIcon(null);
         this._toggle.append(this._toggleIcon);
         this._toggle.addEventListener('click', () => this._password.togglePeek());
-        // C:152 — installed through add_suffix, so it is the FIRST suffix and a
+        // Installed through add_suffix as C does, so it is the FIRST suffix and a
         // consumer's own suffix lands after it instead of replacing it.
         this.addSuffix(this._toggle);
 
@@ -96,8 +86,8 @@ export class AdwPasswordEntryRow extends AdwEntryRow {
         this._input.addEventListener('keydown', readCapsLock);
         this._input.addEventListener('keyup', readCapsLock);
 
-        // The indicator icon + tooltip are set once at init (C:169-171); their
-        // canonical names come from the core so both ports spell them alike.
+        // The indicator icon + tooltip are set once at init, as in C; their canonical names
+        // come from the core so both ports spell them alike.
         const initial = this._password.state;
         this.setIndicatorIconName(initial.indicatorIconName);
         this.setIndicatorTooltip(initial.indicatorTooltip);
@@ -125,7 +115,7 @@ export class AdwPasswordEntryRow extends AdwEntryRow {
         this._password.setRevealed(value !== null && value !== 'false');
     }
 
-    /** `notify_visibility_cb` (C:62-81), applied to the DOM. */
+    /** `notify_visibility_cb`, applied to the DOM. */
     private _renderPassword(state: PasswordEntryRowRenderState): void {
         this._input.type = state.revealed ? 'text' : 'password';
         // The libadwaita name travels in `data-icon-name`; the mask class is the

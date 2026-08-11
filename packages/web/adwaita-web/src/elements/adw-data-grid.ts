@@ -1,18 +1,15 @@
-// <adw-data-grid> — A slim, Adwaita-styled ALIGNED data grid: the web mirror of
-// the native Gtk.Grid an accounting app (Buchhaltung) uses for its financial
-// statements (the BWA / P&L, invoice line-items). It is DELIBERATELY NOT a
-// heavyweight sortable Gtk.ColumnView / TreeView — boxed lists (<adw-action-row>
-// inside <adw-preferences-group>) stay the default for record lists. Reach for
-// this ONLY for genuinely tabular numeric data where columns of figures must
-// line up (labels left, amounts right-aligned with tabular figures), with the
-// accounting row emphasis a statement needs: section headers, subtotals and a
-// bold final total.
+// <adw-data-grid> — A slim, Adwaita-styled ALIGNED data grid: the web mirror of the
+// native Gtk.Grid an accounting app uses for its financial statements (BWA / P&L,
+// invoice line-items). DELIBERATELY NOT a heavyweight sortable Gtk.ColumnView /
+// TreeView — boxed lists (<adw-action-row> inside <adw-preferences-group>) stay the
+// default for record lists. Reach for this ONLY for genuinely tabular numeric data
+// where columns of figures must line up, with the accounting row emphasis a statement
+// needs: section headers, subtotals and a bold final total.
 //
-// It is a PLAIN presentational element — it does layout, alignment and emphasis;
-// it never formats or sorts. Cell values are PRE-FORMATTED strings (locale
-// currency formatting stays in the app, e.g. `1.234,50 €`); the grid renders the
-// strings and aligns them. Sorting is a data op driven externally (e.g. an
-// <adw-drop-down>) — there are no clickable-sortable column headers here.
+// PRESENTATIONAL ONLY: layout, alignment and emphasis, never formatting or sorting.
+// Cell values are PRE-FORMATTED strings (locale currency formatting stays in the app,
+// e.g. `1.234,50 €`); sorting is a data op driven externally, so there are no
+// clickable-sortable column headers here.
 //
 // Columns (the `columns` property, or a JSON `columns` attribute):
 //   { key, label?, align?, width?, flex?, monospace?, numeric? }
@@ -51,13 +48,12 @@
 // Responsive: the grid scrolls horizontally within its OWN container on narrow
 //   viewports (it never overflows the page); it sits inside an <adw-card>/boxed
 //   surface and follows light + dark via the adwaita-web CSS variables.
-// The derivations are HEADLESS and live in `@gjsify/adwaita-core` (ADR 0004):
-// the column tracks, the cell classes, the two normalisers, the cell text and
-// the activation rule. `@gjsify/adwaita-nativescript` renders the same widget
-// over `GridLayout` `ItemSpec`s — NativeScript has no subgrid — so the TRACK
-// rule is emitted as a renderer-neutral descriptor and only the mapping onto
-// `grid-template-columns` stays here. `@gjsify/adwaita-core/conformance`'s
-// `DATA_GRID_*_VECTORS` is the table both ports are held to.
+// The derivations are HEADLESS and live in `@gjsify/adwaita-core` (ADR 0004): the
+// column tracks, the cell classes, the two normalisers, the cell text and the activation
+// rule. `@gjsify/adwaita-nativescript` renders the same widget over `GridLayout`
+// `ItemSpec`s — NativeScript has no subgrid — so the TRACK rule is a renderer-neutral
+// descriptor and only the mapping onto `grid-template-columns` stays here. Both ports
+// are held to `@gjsify/adwaita-core/conformance`'s `DATA_GRID_*_VECTORS`.
 // Reference: Gtk.Grid usage in the Buchhaltung BWA view (native financial grid).
 // Reference: refs/libadwaita/src/stylesheet/_colors.scss (separator / card tokens).
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
@@ -94,7 +90,6 @@ export class AdwDataGrid extends HTMLElement {
         return ['columns', 'rows', 'caption', 'interactive'];
     }
 
-    /** The column descriptors. Setting rebuilds the grid. */
     get columns(): AdwDataGridColumn[] {
         return this._columns;
     }
@@ -104,7 +99,6 @@ export class AdwDataGrid extends HTMLElement {
         if (this._initialized) this._render();
     }
 
-    /** The row objects. Setting rebuilds the body. */
     get rows(): AdwDataGridRow[] {
         return this._rows;
     }
@@ -124,7 +118,6 @@ export class AdwDataGrid extends HTMLElement {
         else this.removeAttribute('caption');
     }
 
-    /** Whether every `normal` row is clickable (element-level flag). */
     get interactive(): boolean {
         return this.hasAttribute('interactive');
     }
@@ -176,8 +169,6 @@ export class AdwDataGrid extends HTMLElement {
         void value;
     }
 
-    // ── internals ──────────────────────────────────────────────────────────
-
     private _parseJsonAttr<T>(name: string, coerce: (v: unknown) => T): T {
         const raw = this.getAttribute(name);
         if (!raw) return coerce(undefined);
@@ -195,13 +186,11 @@ export class AdwDataGrid extends HTMLElement {
     }
 
     /**
-     * The CSS `grid-template-columns` value derived from the column descriptors.
-     *
-     * The DERIVATION is core's (`dataGridTracks`), because NativeScript needs the
-     * same one for its `ItemSpec`s and can do nothing with a CSS string; the
-     * mapping onto CSS text — including the `minmax(0px, 1fr)` slack track whose
-     * `0px` must keep its unit to round-trip through the CSSOM — is
-     * `dataGridTrackTemplate`.
+     * The CSS `grid-template-columns` value derived from the column descriptors. The
+     * DERIVATION is core's (`dataGridTracks`), because NativeScript needs the same one for
+     * its `ItemSpec`s and can do nothing with a CSS string; the mapping onto CSS text —
+     * including the `minmax(0px, 1fr)` slack track whose `0px` must keep its unit to
+     * round-trip through the CSSOM — is `dataGridTrackTemplate`.
      */
     private _trackTemplate(): string {
         return dataGridTrackTemplate(dataGridTracks(this._columns));
@@ -220,7 +209,6 @@ export class AdwDataGrid extends HTMLElement {
         const columnCount = this._columns.length;
         if (columnCount === 0) return;
 
-        // Header row (dim, small-caps) — column labels, aligned per column.
         const header = document.createElement('div');
         header.className = 'adw-data-grid-row header';
         header.setAttribute('role', 'row');
@@ -242,8 +230,8 @@ export class AdwDataGrid extends HTMLElement {
             row.setAttribute('role', 'row');
 
             if (variant === 'section') {
-                // A section header spans all columns; its text is the first
-                // column's value (the section title).
+                // A section header spans all columns; its text is the first column's
+                // value (the section title).
                 const firstKey = this._columns[0]?.key ?? '';
                 const cell = document.createElement('div');
                 cell.className = 'adw-data-grid-cell align-start section-cell';
@@ -261,8 +249,8 @@ export class AdwDataGrid extends HTMLElement {
                 }
             }
 
-            // A row is clickable only when it is a plain data row AND either the
-            // element opts everything in or the row opts itself in.
+            // A row is clickable only when it is a plain data row AND either the element
+            // opts everything in or the row opts itself in.
             if (dataGridRowInteractive(variant, rowData.interactive, elementInteractive)) {
                 row.classList.add('interactive');
                 row.tabIndex = 0;

@@ -1,12 +1,7 @@
-// Runtime-agnostic story-authoring contract for gjsify storybook renderers.
-// original implementation — ZERO platform imports, so the GTK renderer
-// (@gjsify/storybook) and any future web / nativescript renderer share one
+// The story-authoring contract, with ZERO platform imports, so every renderer shares one
 // vocabulary of controls, args and metadata.
 
-/**
- * Value type for a single story argument — covers every {@link ControlType}.
- * `null` represents "not set".
- */
+/** A single story argument, for every {@link ControlType}; `null` means "not set". */
 export type StoryArgValue = string | number | boolean | null;
 
 /** Map of story-argument name → current value. */
@@ -29,15 +24,13 @@ export interface StorySelectOption {
 }
 
 interface StoryControlBase {
-    /** Argument key this control drives (matches a key in {@link StoryArgs}). */
+    /** Argument key this control drives (a key in {@link StoryArgs}). */
     name: string;
-    /** Human-readable label shown beside the control. */
     label: string;
-    /** Optional help / tooltip text. */
+    /** Help / tooltip text. */
     description?: string;
 }
 
-/** Free-text control. */
 export interface StoryTextControl extends StoryControlBase {
     type: ControlType.TEXT;
     defaultValue?: string;
@@ -49,7 +42,6 @@ export interface StoryColorControl extends StoryControlBase {
     defaultValue?: string;
 }
 
-/** Toggle control. */
 export interface StoryBooleanControl extends StoryControlBase {
     type: ControlType.BOOLEAN;
     defaultValue?: boolean;
@@ -72,9 +64,8 @@ export interface StorySelectControl extends StoryControlBase {
 }
 
 /**
- * A control descriptor — a discriminated union on `type` so per-kind fields are
- * compile-time-checked (`min`/`max`/`step` only on NUMBER/RANGE, `options` only
- * on SELECT).
+ * Discriminated on `type`, so per-kind fields are compile-time-checked: `min`/`max`/`step`
+ * only on NUMBER/RANGE, `options` only on SELECT.
  */
 export type StoryControl =
     | StoryTextControl
@@ -84,11 +75,9 @@ export type StoryControl =
     | StorySelectControl;
 
 /**
- * Metadata describing one story (or a group of variants of one component).
- *
- * `TComponent` defaults to `unknown` to keep this contract platform-free — the
- * GTK renderer passes a `GObject.GType`, a future web renderer might pass a tag
- * name. It is display-only.
+ * Metadata for one story, or for a group of variants of one component. `TComponent`
+ * defaults to `unknown` to keep the contract platform-free — the GTK renderer passes a
+ * `GObject.GType`, a web renderer a tag name — and is display-only either way.
  */
 export interface StoryMeta<TComponent = unknown> {
     /** `"Category/Name"` — the slash-prefix groups the navigation sidebar. */
@@ -104,9 +93,8 @@ export interface StoryMeta<TComponent = unknown> {
 }
 
 /**
- * A renderer's story-widget contract: a zero-arg constructor that also exposes
- * static metadata. Each renderer specializes `TWidget` with its own base class
- * (the GTK renderer's `StoryWidget`, a future web renderer's element).
+ * A renderer's story-widget contract: a zero-arg constructor that also exposes static
+ * metadata, with `TWidget` specialised to that renderer's own base class.
  */
 export interface StoryComponentConstructor<TWidget = unknown> {
     new (): TWidget;
@@ -123,9 +111,8 @@ export interface StoryModule<TWidget = unknown> {
 }
 
 /**
- * Wraps a story's content-build step — e.g. to install a shared action group or
- * a mock environment around every story in a module. Runs in the renderer's
- * initialize path: call `build()` to perform the default construction.
+ * Wraps a story's content-build step, e.g. to install a shared action group or a mock
+ * environment around every story in a module. Call `build()` for the default construction.
  */
 export type StoryDecorator<TWidget = unknown> = (build: () => void, widget: TWidget) => void;
 

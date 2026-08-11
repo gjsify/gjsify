@@ -4,14 +4,11 @@
 // `globalThis` by the side-effect import of `@gjsify/webrtc/register`. The tests assert presence
 // via `(globalThis as any).<Ctor>` because the assertions intentionally read through an untyped
 // host object — typing each access against lib.dom would mask a missed registration (the spec's
-// purpose is to verify the writes happened, not to consume the constructors typed). Same precedent
-// as #348's `@gjsify/globals` register-existence file-level disable.
-// WebRTC globals registration tests — verifies the granular /register
-// subpaths wire each identifier onto globalThis.
+// purpose is to verify the writes happened, not to consume the constructors typed). Same
+// file-level disable precedent as `@gjsify/node-globals`' own register-existence spec.
 //
-// These tests must run AFTER importing the register subpaths — in `test.mts`
-// the register module is imported alongside the spec, so the assertions below
-// run post-registration.
+// These tests must run AFTER the register subpaths are imported — in `test.mts` the register
+// module is imported alongside the spec, so the assertions below run post-registration.
 
 import { describe, it, expect } from '@gjsify/unit';
 

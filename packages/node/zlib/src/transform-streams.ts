@@ -39,8 +39,6 @@ function concat(chunks: Uint8Array[]): Uint8Array {
     return out;
 }
 
-// ---- Base Transform ----
-
 type ZlibMode =
     | { kind: 'compress'; format: GioFormat }
     | { kind: 'decompress'; format: GioFormat }
@@ -191,8 +189,6 @@ export class ZstdDecompress extends Transform {
         throw err;
     }
 }
-
-// ---- Factory functions (mirror Node.js API) ----
 
 export function createGzip(options?: ZlibOptions): Gzip {
     return new Gzip(options);

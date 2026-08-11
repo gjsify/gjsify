@@ -113,7 +113,6 @@ function openFlagDescriptors(): PropertyDescriptorMap {
     return descriptors;
 }
 
-// --- fs.constants ---
 const fixedConstants = {
     // File access constants
     F_OK: 0,

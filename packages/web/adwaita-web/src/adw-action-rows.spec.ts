@@ -3,20 +3,16 @@
 // vectors the NativeScript renderer asserts against
 // (`@gjsify/adwaita-core/conformance`).
 //
-// What this suite exists to catch, in the words of what it found:
-//   - NEITHER renderer hid an empty TITLE. `string_is_not_empty` is bound to the
-//     title label as much as to the subtitle (adw-action-row.ui:49-53 vs :71-75),
-//     and the browser port hand-rolled the subtitle-only half of that block six
-//     times over.
-//   - a programmatic `switchRow.active = true` emitted nothing here, because the
-//     DOM does not fire `change` for a scripted `.checked =` — while the
-//     NativeScript port, whose `checkedChange` does fire, emitted. One C source,
-//     two opposite answers, and nothing comparing them.
-//   - clicking anywhere but the handle of a switch row did nothing, though
-//     `adw_switch_row_init` makes the whole row the switch's activator.
-//   - `<adw-button-row activatable="false">` was honoured, an opt-out libadwaita
-//     does not have — and `<adw-action-row activatable="false">` meant the
-//     OPPOSITE, because that element reads the attribute by presence.
+// The rules it pins, each of which one renderer had wrong:
+//   - `string_is_not_empty` in `adw-action-row.ui` is bound to the TITLE label as much
+//     as to the subtitle, so an empty title hides too;
+//   - the DOM fires no `change` for a scripted `.checked =`, so a programmatic
+//     `switchRow.active = true` must be made to notify anyway — NativeScript's
+//     `checkedChange` does fire, and one C source must not give two answers;
+//   - `adw_switch_row_init` makes the WHOLE row the switch's activator;
+//   - libadwaita has no activatable opt-out for a button row, and
+//     `<adw-action-row activatable="false">` reads by PRESENCE, so it means the
+//     opposite of what it says.
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
@@ -35,9 +31,8 @@ import type { AdwSwitchRow } from './elements/adw-switch-row.js';
 import type { AdwWindowTitle } from './elements/adw-window-title.js';
 
 /**
- * Mount an element imperatively — never through parsed HTML, because several
- * label vectors hinge on exact whitespace (`' '`, `'\t'`) that an attribute
- * value in markup is not a reliable carrier for.
+ * Mount an element imperatively, never through parsed HTML: several label vectors hinge
+ * on exact whitespace (`' '`, `'\t'`) that markup is not a reliable carrier for.
  */
 function mount<T extends HTMLElement>(tag: string): { el: T; host: HTMLElement } {
     const host = document.createElement('div');
@@ -144,13 +139,11 @@ export const AdwActionRowsTest = async () => {
         await it('reads `activatable` by PRESENCE, like every other boolean attribute here', () => {
             const { el: row, host } = mount<AdwActionRow>('adw-action-row');
             row.setAttribute('activatable', 'false');
-            // The HTML boolean-attribute convention (`<input disabled="false">`
-            // is disabled), which is how every other boolean attribute in this
-            // package is read. NOT a libadwaita rule — libadwaita has a typed
-            // gboolean and no attribute parsing at all — so it is pinned here
-            // rather than in the cross-renderer vectors. Pinned so the next
-            // reader does not "fix" it into the string comparison
-            // <adw-button-row> used to carry, which gave one markup two
+            // The HTML boolean-attribute convention (`<input disabled="false">` IS
+            // disabled), how every other boolean attribute in this package is read. NOT a
+            // libadwaita rule — libadwaita has a typed gboolean and no attribute parsing —
+            // so it is pinned here rather than in the cross-renderer vectors, and pinned so
+            // nobody "fixes" it into a string comparison that would give one markup two
             // opposite meanings inside one package.
             expect(row.activatable).toBe(true);
             host.remove();
@@ -183,9 +176,9 @@ export const AdwActionRowsTest = async () => {
 
             widget.click();
 
-            // One click, and no row activation: GtkListBox does not emit
-            // `row-activated` for a click a child widget claimed. Re-clicking the
-            // widget here would also bounce back into the row's own listener.
+            // One click, no row activation: GtkListBox does not emit `row-activated` for a
+            // click a child widget claimed, and re-clicking the widget here would bounce
+            // back into the row's own listener.
             expect(widgetClicks).toBe(1);
             expect(activations.length).toBe(0);
             host.remove();
@@ -257,16 +250,15 @@ export const AdwActionRowsTest = async () => {
                 setAttr(row, 'start-icon-name', vector.startIconName);
                 setAttr(row, 'end-icon-name', vector.endIconName);
 
-                // The two `image.icon.{start,end}` nodes are <adw-icon> now, not
-                // hand-rolled decorative spans.
+                // The two `image.icon.{start,end}` nodes are <adw-icon>, not hand-rolled
+                // decorative spans.
                 const icons = Array.from(row.querySelectorAll('adw-icon')) as HTMLElement[];
                 expect(icons.length).toBe(2);
                 expect(!icons[0]!.hidden).toBe(vector.startIconVisible);
                 expect(!icons[1]!.hidden).toBe(vector.endIconVisible);
-                // The mask class is the NORMALIZED name: the generated classes
-                // never carry `-symbolic`, and this row used to interpolate the
-                // raw one — so `start-icon-name="list-add-symbolic"` asked for a
-                // class that has never existed and drew an empty box.
+                // The mask class is the NORMALIZED name — the generated classes never
+                // carry `-symbolic`, so interpolating the raw one asks for a class that has
+                // never existed and draws an empty box.
                 if (vector.startIconVisible) {
                     expect(icons[0]!.classList.contains(`adw-icon--${normalizeIconName(vector.startIconName)}`)).toBe(
                         true,

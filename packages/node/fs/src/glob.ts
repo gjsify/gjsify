@@ -11,8 +11,6 @@ export interface GlobOptions {
     withFileTypes?: boolean;
 }
 
-// ─── Pattern → RegExp conversion ─────────────────────────────────────────────
-
 /** Convert a single glob segment (no `/`) to a regex source string */
 function segmentToRegexSrc(seg: string): string {
     // Handle extglob: !(pattern), *(pattern), +(pattern), ?(pattern), @(pattern)
@@ -125,8 +123,6 @@ function globToRegex(pattern: string): RegExp {
     return new RegExp('^(?:' + parts.join('') + ')$');
 }
 
-// ─── Exclude logic ────────────────────────────────────────────────────────────
-
 function buildExcludePredicate(exclude: GlobOptions['exclude']): ((path: string) => boolean) | null {
     if (!exclude) return null;
     if (typeof exclude === 'function') return exclude;
@@ -134,8 +130,6 @@ function buildExcludePredicate(exclude: GlobOptions['exclude']): ((path: string)
     const regexes = patterns.map((p) => globToRegex(p));
     return (path: string) => regexes.some((rx) => rx.test(path));
 }
-
-// ─── Walk + match ─────────────────────────────────────────────────────────────
 
 function matchAll(pattern: string, cwd: string, exclude: GlobOptions['exclude']): string[] {
     const regex = globToRegex(pattern);
@@ -163,8 +157,6 @@ function matchAll(pattern: string, cwd: string, exclude: GlobOptions['exclude'])
 
     return results;
 }
-
-// ─── Public API ───────────────────────────────────────────────────────────────
 
 export function globSync(pattern: string | string[], options?: GlobOptions): string[] {
     const patterns = Array.isArray(pattern) ? pattern : [pattern];

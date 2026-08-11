@@ -8,8 +8,6 @@
 //
 // Phase 2 (future, requires Vala/nghttp2): pushStream, stream IDs, flow control, GOAWAY
 
-// ─── Protocol constants & settings ───────────────────────────────────────────
-
 export {
     constants,
     getDefaultSettings,
@@ -19,8 +17,6 @@ export {
 } from './protocol.js';
 
 import { constants, getDefaultSettings, getPackedSettings, getUnpackedSettings } from './protocol.js';
-
-// ─── Server-side classes ──────────────────────────────────────────────────────
 
 export {
     Http2ServerRequest,
@@ -44,8 +40,6 @@ import {
     type SecureServerOptions,
 } from './server.js';
 
-// ─── Client-side classes ──────────────────────────────────────────────────────
-
 export {
     Http2Session,
     ClientHttp2Session,
@@ -66,8 +60,6 @@ import type { TLSSocket } from 'node:tls';
  * Typed as the Node union so consumer callbacks stay drop-in.
  */
 type ConnectSocket = Socket | TLSSocket;
-
-// ─── Factory functions ────────────────────────────────────────────────────────
 
 export function createServer(
     options?: ServerOptions | ((req: Http2ServerRequest, res: Http2ServerResponse) => void),
@@ -98,15 +90,11 @@ export function connect(
     return session;
 }
 
-// ─── Misc ─────────────────────────────────────────────────────────────────────
-
 export const sensitiveHeaders = Symbol.for('nodejs.http2.sensitiveHeaders');
 
 export function performServerHandshake(_socket: unknown): unknown {
     throw new Error('http2.performServerHandshake() is not yet implemented in GJS');
 }
-
-// ─── Default export ───────────────────────────────────────────────────────────
 
 export default {
     constants,

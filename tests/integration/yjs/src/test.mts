@@ -1,42 +1,18 @@
 // Integration-test entry for @gjsify/integration-yjs.
 //
-// Yjs is the de-facto JavaScript CRDT — it backs TipTap, ProseMirror
-// collab, BlockNote, Hocuspocus, and a long tail of collaborative
-// editors. Unlike Loro (Rust → WASM, exercised by the sibling
-// `tests/integration/loro-crdt/` suite), Yjs is pure JavaScript at
-// its core, so it stresses a different cross-section of the GJS engine:
+// Unlike Loro (Rust → WASM, in the sibling `tests/integration/loro-crdt/` suite), Yjs is pure
+// JavaScript, so it stresses a different cross-section of the GJS engine: heavy
+// `Uint8Array`/`DataView` traffic for the binary wire format (a real workout for
+// `@gjsify/buffer`'s interop), and `crypto.getRandomValues` for the 32-bit clientID `Y.Doc`
+// allocates on construction, which `--globals auto` picks up from that marker.
 //
-//   - **Heavy `Uint8Array` + `DataView` use** for the binary wire format
-//     (`Y.encodeStateAsUpdate`, `Y.encodeStateVector`, deltas) — a real
-//     workout for `@gjsify/buffer`'s `Buffer`/`Uint8Array` interop.
-//   - **`Map` / `Set` / `WeakMap`** for the delete-set + transaction
-//     bookkeeping — SpiderMonkey 140 native, no polyfill, but a useful
-//     stability canary for the JS-level data structures.
-//   - **`crypto.getRandomValues`** for clientID generation — `Y.Doc`
-//     allocates a random 32-bit clientID via `crypto.getRandomValues`
-//     on construction (browser path; on Node the upstream code uses
-//     `crypto.randomBytes`). `--globals auto` picks this up via the
-//     `Math.random` / `crypto` getRandomValues marker.
-//   - **EventEmitter-shaped observers** (`ytype.observe(handler)`,
-//     `ydoc.on('update', handler)`) — though Yjs ships its own
-//     `lib0/observable` mini-EventEmitter, so this exercises the JS
-//     class semantics rather than `@gjsify/events` directly.
-//   - **`y-protocols/awareness`** — the standard Yjs sync companion.
-//     Awareness messages are exchanged on the same wire as document
-//     updates and are how every Yjs-backed editor knows who's online
-//     and where their cursor is.
+// NOT covered: the upstream multi-user TestConnector simulations. They depend on `lib0/prng`
+// randomness plus complex internal state and mostly probe Yjs's own correctness, not the GJS
+// substrate, so each is reduced to a deterministic 2- or 3-doc
+// `Y.applyUpdate(b, Y.encodeStateAsUpdate(a))` — the wire shape every real deployment uses.
 //
-// What's intentionally NOT covered here:
-//   - Multi-user TestConnector simulations from the upstream suite — they
-//     depend on `lib0/prng` randomness + complex internal state and
-//     mostly probe Yjs's own correctness, not the GJS substrate. We
-//     reduce each multi-user scenario to a deterministic 2- or 3-doc
-//     sync via `Y.applyUpdate(b, Y.encodeStateAsUpdate(a))` — the same
-//     wire-shape every real Yjs deployment uses.
-//
-// Build: defaults — `--globals auto` picks up Uint8Array, DataView,
-// performance, crypto.getRandomValues, etc. directly. No explicit
-// extras needed: Yjs's encoder/decoder stays in pure-ES territory.
+// Build: defaults. Yjs's encoder/decoder stays in pure-ES territory, so `--globals auto`
+// needs no explicit extras.
 
 import { run } from '@gjsify/unit';
 import yTextSuite from './y-text.spec.js';

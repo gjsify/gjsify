@@ -1,49 +1,40 @@
 // Data-grid conformance vectors — the cross-renderer spec for `AdwDataGrid`.
 //
-// NOT DERIVED FROM C, and cannot be: libadwaita vendors no `adw-data-grid.c`,
-// `refs/gtk` is empty in this tree, and the widget is OURS — the web mirror of
-// the native `Gtk.Grid` an accounting app fills for a BWA / P&L. The rows are
-// derived from the browser element that shipped the behaviour
+// NOT DERIVED FROM C, and cannot be: libadwaita vendors no `adw-data-grid.c` and the
+// widget is OURS — the web mirror of the native `Gtk.Grid` an accounting app fills for a
+// BWA / P&L. The rows are derived from the browser element that shipped the behaviour
 // (`adwaita-web/src/elements/adw-data-grid.ts`) and its stylesheet
-// (`adwaita-web/scss/_data_grid.scss`), per this directory's rule for the absence
-// of C: name the thing that decides.
+// (`adwaita-web/scss/_data_grid.scss`), per this directory's rule for the absence of C:
+// name the thing that decides.
 //
-// The one genuinely upstream rule here is typographic — `_labels.scss:81-88`
-// gives `.numeric` `font-variant-numeric: tabular-nums` and `.monospace` the
-// monospace family. It is cited on the class table and nowhere else; the layout
-// rules have no upstream and must not be given a borrowed one.
+// The one genuinely upstream rule is typographic — `_labels.scss` gives `.numeric`
+// `font-variant-numeric: tabular-nums` and `.monospace` the monospace family. It is cited
+// on the class table and nowhere else; the layout rules have no upstream and must not be
+// given a borrowed one.
 //
-// The five derivations live in `@gjsify/adwaita-core` and both renderers call
-// them, so there is no second copy to drift. What the rows pin is the half a
-// shared function cannot: that the two renderers make the SAME USE of the answer.
-// The browser turns a `slack` track into `minmax(0px, 1fr)` and NativeScript into
-// `ItemSpec(1, 'star')`; nothing in either type system connects those, so a
-// renderer that re-decided which column absorbs the slack would still type-check
-// and still pass its own suite.
+// The five derivations live in `@gjsify/adwaita-core` and both renderers call them, so
+// what the rows pin is the half a shared function cannot: that the two renderers make the
+// SAME USE of the answer. The browser turns a `slack` track into `minmax(0px, 1fr)` and
+// NativeScript into `ItemSpec(1, 'star')`; nothing in either type system connects those,
+// so a renderer that re-decided which column absorbs the slack would still type-check and
+// still pass its own suite.
 //
-// A trap in the browser mapping, pinned here: the slack track spells `0px` WITH
-// its unit. `0` and `0px` are the same length and not the same CSS text —
-// `style.gridTemplateColumns` reads back the canonical `minmax(0px, 1fr)`, so a
-// template built with a bare `0` fails an equality assertion in the browser and
-// nowhere else.
+// A trap in the browser mapping: the slack track spells `0px` WITH its unit. `0` and `0px`
+// are the same length and not the same CSS text — `style.gridTemplateColumns` reads back
+// the canonical `minmax(0px, 1fr)`, so a template built with a bare `0` fails an equality
+// assertion in the browser and nowhere else.
 //
-// Driven by the core suite against the functions themselves; by the NativeScript
-// suite against them plus its own descriptor→`ItemSpec` mapping (its widget cannot
-// be imported off-device — `AdwDataGrid extends GridLayout` evaluates the bare
-// `@nativescript/core` specifier at module eval); and by the browser's own DOM
-// spec, which drives a REAL `<adw-data-grid>` and reads the derived values back
-// off the element.
+// The NativeScript widget cannot be imported off-device: `AdwDataGrid extends GridLayout`
+// evaluates the bare `@nativescript/core` specifier at module eval, so that suite drives
+// the functions plus its own descriptor→`ItemSpec` mapping instead.
 //
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: the grid itself is a @gjsify/adwaita-* widget, not a port.
 
 import type { AdwDataGridAlign, AdwDataGridColumn, AdwDataGridRowVariant, DataGridTrack } from '../data-grid.js';
 
-// --- Column tracks ------------------------------------------------------------
-
 /** One track-derivation expectation. */
 export interface DataGridTrackVector {
-    /** What the row is about. */
     name: string;
     /** The column descriptors handed to `dataGridTracks`. */
     columns: ReadonlyArray<AdwDataGridColumn>;
@@ -134,15 +125,10 @@ export const DATA_GRID_TRACK_VECTORS: ReadonlyArray<DataGridTrackVector> = [
     },
 ];
 
-// --- Cell classes -------------------------------------------------------------
-
 /** One cell-class expectation. */
 export interface DataGridColumnClassVector {
-    /** What the row is about. */
     name: string;
-    /** The column descriptor. */
     column: AdwDataGridColumn;
-    /** The effective alignment. */
     align: string;
     /** The full class list, in order. */
     classes: ReadonlyArray<string>;
@@ -152,7 +138,7 @@ export interface DataGridColumnClassVector {
 /**
  * `dataGridColumnAlign` + `dataGridColumnClasses`.
  *
- * `numeric` and `mono` are libadwaita's own label classes (`_labels.scss:81-88`):
+ * `numeric` and `mono` are libadwaita's own label classes (`_labels.scss`):
  * `.numeric` is `font-variant-numeric: tabular-nums`, `.monospace` additionally
  * the monospace family. They stack, and `numeric` also moves the default
  * alignment to the right edge.
@@ -214,13 +200,10 @@ export const DATA_GRID_COLUMN_CLASS_VECTORS: ReadonlyArray<DataGridColumnClassVe
     },
 ];
 
-// --- Row variants -------------------------------------------------------------
-
 /** One variant-normalisation expectation. */
 export interface DataGridVariantVector {
     /** The raw `variant` value off the row object. */
     input: unknown;
-    /** What it normalises to. */
     variant: AdwDataGridRowVariant;
     rule: string;
 }
@@ -244,8 +227,6 @@ export const DATA_GRID_VARIANT_VECTORS: ReadonlyArray<DataGridVariantVector> = [
     { input: 0, variant: 'normal', rule: 'a non-string is rejected by the typeof guard before the set lookup' },
     { input: null, variant: 'normal', rule: 'null likewise — typeof null is object' },
 ];
-
-// --- Cell text ----------------------------------------------------------------
 
 /** One cell-text expectation. */
 export interface DataGridCellTextVector {
@@ -274,17 +255,13 @@ export const DATA_GRID_CELL_TEXT_VECTORS: ReadonlyArray<DataGridCellTextVector> 
     { input: null, text: '', rule: 'null reaches this from JSON and is the other empty' },
 ];
 
-// --- Interactivity ------------------------------------------------------------
-
 /** One activation expectation. */
 export interface DataGridInteractiveVector {
-    /** The row's normalised variant. */
     variant: AdwDataGridRowVariant;
     /** The row's own `interactive` value, as it arrives (JSON can hold anything). */
     rowFlag: unknown;
     /** The grid-level `interactive` flag. */
     gridInteractive: boolean;
-    /** Whether the row activates. */
     interactive: boolean;
     rule: string;
 }
@@ -363,15 +340,11 @@ export const DATA_GRID_INTERACTIVE_VECTORS: ReadonlyArray<DataGridInteractiveVec
     },
 ];
 
-// --- Column normalisation -----------------------------------------------------
-
 /** One column-normalisation expectation. */
 export interface DataGridColumnNormalizeVector {
-    /** What the row is about. */
     name: string;
     /** The raw value — a parsed JSON attribute, so genuinely anything. */
     input: unknown;
-    /** The normalised descriptors. */
     columns: ReadonlyArray<AdwDataGridColumn>;
     rule: string;
 }

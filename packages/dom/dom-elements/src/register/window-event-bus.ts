@@ -1,6 +1,5 @@
-// Window-scope event bus installer — shared by `register/document.ts`.
-// A plain helper module (no side effects); the register calls it with
-// `globalThis`, tests call it with a mock host.
+// Window-scope event bus installer for `register/document.ts`, kept side-effect free so the
+// register can pass `globalThis` and tests a mock host.
 
 import { EventTarget as OurEventTarget } from '@gjsify/dom-events';
 
@@ -17,34 +16,23 @@ type AnyAddOpts = Parameters<OurEventTarget['addEventListener']>[2];
 type AnyRemoveOpts = Parameters<OurEventTarget['removeEventListener']>[2];
 
 /**
- * Install the gjsify window-scope event bus (`__gjsify_globalEventTarget`) on
- * `host` and route `addEventListener` / `removeEventListener` /
- * `dispatchEvent` through it.
+ * Install the gjsify window-scope event bus (`__gjsify_globalEventTarget`) on `host` and route
+ * `addEventListener` / `removeEventListener` / `dispatchEvent` through it.
  *
- * UNCONDITIONAL BY DESIGN (idempotent via the singleton check): loading this
- * register declares a GTK-hosted DOM environment, so the window-scope bus MUST
- * be the same object the GTK→DOM event-bridge dispatches on
- * (`@gjsify/event-bridge` `attachEventControllers()` → `getGlobalEventTarget()`),
- * or window-level input is lost. Bun and Deno ship a NATIVE
- * `globalThis.addEventListener` (GJS and Node do not) — the previous
- * "only install when missing" guard therefore SPLIT the bus on those runtimes:
- * app listeners (e.g. Excalibur `Keyboard.init`'s 'keydown'/'keyup'/'blur')
- * registered on the native runtime EventTarget while the event-bridge
- * dispatched into the never-installed gjsify bus — keyboard input silently
- * dead on bun/deno while the identical bundle worked on gjs/node (measured on
- * showcases/dom/excalibur-jelly-jumper: focus + controller attachment healthy,
- * `__gjsify_globalEventTarget` undefined, Excalibur received no keys).
+ * Installs unconditionally, because the bus must be the same object the GTK→DOM bridge dispatches
+ * on (`@gjsify/event-bridge` `attachEventControllers()` → `getGlobalEventTarget()`) or window-level
+ * input is lost. Bun and Deno ship a native `globalThis.addEventListener` where GJS and Node do
+ * not, so an install-only-when-missing guard split the bus there: Excalibur's `Keyboard.init`
+ * listeners sat on the native EventTarget while the bridge dispatched into a never-installed gjsify
+ * bus, leaving keyboard input dead on bun/deno with the identical bundle working on gjs/node.
  *
- * A pre-existing native surface is not discarded: registrations are ALSO
- * forwarded to it, so genuinely native runtime events (Deno's 'unload' /
- * 'beforeunload', bun's 'error') still reach listeners registered through the
- * window surface. Dispatches go to the gjsify bus only — each event type fires
- * from exactly one side (the runtime never fires DOM input events globally),
- * so nothing double-fires.
+ * A pre-existing native surface is not discarded — registrations are forwarded to it too, so
+ * genuinely native events (Deno's 'unload', bun's 'error') still arrive. Dispatch goes to the
+ * gjsify bus only; the runtime never fires DOM input events globally, so nothing double-fires.
  */
 export function installWindowEventBus(host: WindowEventBusHost): OurEventTarget {
-    // Idempotent: a second register pass must not create a second bus (the
-    // event-bridge may already hold listeners on the first one).
+    // A second register pass must not create a second bus — the event-bridge may already hold
+    // listeners on the first one.
     if (host.__gjsify_globalEventTarget) return host.__gjsify_globalEventTarget;
 
     const bus = new OurEventTarget();

@@ -3,9 +3,7 @@
 
 import { Buffer } from 'node:buffer';
 
-// ============================================================================
 // PEM parsing
-// ============================================================================
 
 /**
  * Strip PEM armor (header/footer lines), base64-decode the body to DER bytes.
@@ -38,9 +36,7 @@ function pemToDer(pem: string): { type: string; der: Uint8Array } {
     return { type, der: new Uint8Array(der.buffer, der.byteOffset, der.byteLength) };
 }
 
-// ============================================================================
 // DER / ASN.1 parser
-// ============================================================================
 
 /** ASN.1 tag constants */
 const ASN1_INTEGER = 0x02;
@@ -120,9 +116,7 @@ function parseDer(buf: Uint8Array): DerValue {
     return value;
 }
 
-// ============================================================================
 // Integer extraction
-// ============================================================================
 
 /**
  * Convert an ASN.1 INTEGER's raw data bytes to a non-negative BigInt.
@@ -142,9 +136,7 @@ function integerToBigInt(data: Uint8Array): bigint {
     return result;
 }
 
-// ============================================================================
 // OID matching
-// ============================================================================
 
 /** RSA encryption OID: 1.2.840.113549.1.1.1 */
 const RSA_OID = new Uint8Array([0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x01, 0x01, 0x01]);
@@ -157,9 +149,7 @@ function oidsEqual(a: Uint8Array, b: Uint8Array): boolean {
     return true;
 }
 
-// ============================================================================
 // Key component types
-// ============================================================================
 
 export interface RsaPublicComponents {
     n: bigint;
@@ -178,9 +168,7 @@ export type ParsedKey =
     | { type: 'rsa-public'; components: RsaPublicComponents }
     | { type: 'rsa-private'; components: RsaPrivateComponents };
 
-// ============================================================================
 // PKCS#1 RSAPublicKey / RSAPrivateKey
-// ============================================================================
 
 /**
  * Parse PKCS#1 RSAPublicKey:
@@ -226,9 +214,7 @@ function parseRsaPrivateKeyPkcs1(seq: DerValue): RsaPrivateComponents {
     };
 }
 
-// ============================================================================
 // PKCS#8 SubjectPublicKeyInfo / PrivateKeyInfo
-// ============================================================================
 
 /**
  * Parse PKCS#8 SubjectPublicKeyInfo:
@@ -298,9 +284,7 @@ function parsePrivateKeyInfo(seq: DerValue): RsaPrivateComponents {
     return parseRsaPrivateKeyPkcs1(innerSeq);
 }
 
-// ============================================================================
 // DER encoder
-// ============================================================================
 
 /**
  * Encode a length value in DER format.
@@ -475,9 +459,7 @@ function modInverse(a: bigint, m: bigint): bigint {
     return ((old_s % m) + m) % m;
 }
 
-// ============================================================================
 // X.509 Certificate parsing
-// ============================================================================
 
 export interface X509Components {
     raw: Uint8Array;
@@ -623,8 +605,6 @@ export function parseX509Der(der: Uint8Array): X509Components {
     };
 }
 
-// ---- Distinguished Name (DN) parsing ----
-
 const OID_NAMES: Record<string, string> = {
     '2.5.4.3': 'CN',
     '2.5.4.6': 'C',
@@ -740,9 +720,7 @@ function parseSAN(data: Uint8Array): string[] {
     return names;
 }
 
-// ============================================================================
 // Public API
-// ============================================================================
 
 /**
  * Parse a PEM-encoded RSA key. Supports:

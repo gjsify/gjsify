@@ -19,9 +19,7 @@ import { describe, it, expect } from '@gjsify/unit';
 import { Transform, Readable, Writable, PassThrough } from 'node:stream';
 
 export default async () => {
-    // -------------------------------------------------------------------------
     // Constructor: set methods via options
-    // -------------------------------------------------------------------------
     await describe('Transform: constructor options set _transform/_flush/_final', async () => {
         await it('throws ERR_METHOD_NOT_IMPLEMENTED when _transform is not set', async () => {
             const t = new Transform();
@@ -67,9 +65,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // Flush can push data
-    // -------------------------------------------------------------------------
     await describe('Transform: flush can push data', async () => {
         await it('data pushed in _flush is received as a data event', async () => {
             const expected = 'asdf';
@@ -93,9 +89,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // ObjectMode: falsy values pass through
-    // -------------------------------------------------------------------------
     await describe('Transform: objectMode passes falsy values', async () => {
         await it('pipes -1, 0, 1..10 through objectMode PassThrough streams', async () => {
             const expected = [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -142,9 +136,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // Split highWaterMark options
-    // -------------------------------------------------------------------------
     await describe('Transform: readableHighWaterMark / writableHighWaterMark options', async () => {
         await it('readableHighWaterMark sets _readableState.highWaterMark independently', async () => {
             const t = new Transform({
@@ -252,9 +244,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // Split objectMode: readableObjectMode / writableObjectMode
-    // -------------------------------------------------------------------------
     await describe('Transform: readableObjectMode / writableObjectMode', async () => {
         await it('readableObjectMode enables objectMode only on readable side', async () => {
             const parser = new Transform({
@@ -301,9 +291,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // highWaterMark: 0 — backpressure and drain
-    // -------------------------------------------------------------------------
     await describe('Transform: highWaterMark 0', async () => {
         await it('write returns false when hwm is 0 (objectMode)', async () => {
             const t = new Transform({
@@ -340,9 +328,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // Callback called twice — ERR_MULTIPLE_CALLBACK
-    // -------------------------------------------------------------------------
     await describe('Transform: callback called twice', async () => {
         await it('emits error with ERR_MULTIPLE_CALLBACK when callback called twice', async () => {
             const stream = new Transform({
@@ -361,9 +347,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // destroy()
-    // -------------------------------------------------------------------------
     await describe('Transform: destroy()', async () => {
         await it('destroy() emits close, not end or finish', async () => {
             await new Promise<void>((resolve) => {
@@ -474,9 +458,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // final / flush ordering (async final)
-    // -------------------------------------------------------------------------
     await describe('Transform: final/flush ordering (async final)', async () => {
         await it('data, final, flush and end events fire in the correct order', async () => {
             const order: string[] = [];
@@ -532,9 +514,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // final / flush ordering (sync final)
-    // -------------------------------------------------------------------------
     await describe('Transform: final/flush ordering (sync final)', async () => {
         await it('sync final completes before flush', async () => {
             const order: string[] = [];

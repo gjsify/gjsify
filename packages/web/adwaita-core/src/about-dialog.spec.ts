@@ -1,10 +1,9 @@
 // About-dialog derivation specs — driven by the shared conformance vectors, so
 // this suite and the renderer suites assert the SAME table.
 //
-// Every derivation here returns a struct, so every comparison is
-// `toStrictEqual`: `@gjsify/unit`'s `toEqual` compares with `==`, which is
-// reference equality for objects and arrays and would pass on two structs that
-// share nothing but their identity.
+// Every derivation here returns a struct, so every comparison is `toStrictEqual`:
+// `@gjsify/unit`'s `toEqual` compares with `==`, which for objects and arrays is
+// reference equality and would pass on two structs sharing nothing but identity.
 
 import { describe, expect, it } from '@gjsify/unit';
 
@@ -55,9 +54,8 @@ export default async () => {
         }
 
         await it('distinguishes an EMPTY link from NO link', () => {
-            // `if (link)` in the C is a pointer test, so "" is still a link row.
-            // A port using `link ? … : null` collapses the two and turns
-            // `"Ada <>"` into a plain action row.
+            // `if (link)` in the C is a POINTER test, so "" is still a link row: a port
+            // using `link ? … : null` turns `"Ada <>"` into a plain action row.
             expect(parseCreditPerson('Ada <>').link).toBe('');
             expect(parseCreditPerson('Ada').link).toBe(null);
         });
@@ -77,7 +75,7 @@ export default async () => {
         }
 
         await it('does not behave like String.prototype.split on the empty string', () => {
-            // g_strsplit("") is a zero-length vector; ''.split('\n') is ['']. The
+            // g_strsplit("") is a zero-length vector where ''.split('\n') is [''] — the
             // difference is a whole "Translated by" group with one blank row.
             expect(translatorCreditsPeople('')).toStrictEqual([]);
             expect(''.split('\n')).toStrictEqual(['']);
@@ -113,7 +111,7 @@ export default async () => {
 
         await it('keeps blank translator lines as rows', () => {
             // g_strsplit keeps interior empty tokens and add_credits_section only
-            // skips NULL pointers (:557-558), so the blank line IS a row.
+            // skips NULL pointers, so the blank line IS a row.
             const [section] = creditsSections({ translatorCredits: 'Ada\n\nBob' });
             expect(section!.people.map((person) => person.name)).toStrictEqual(['Ada', '', 'Bob']);
         });
@@ -188,8 +186,8 @@ export default async () => {
         }
 
         await it('never shows both website rows at once', () => {
-            // The two are separate template widgets (.ui:133 and :347) and the
-            // pair of tests at :1112-1113 is mutually exclusive by construction.
+            // The two are separate template widgets, and the pair of tests guarding them
+            // is mutually exclusive by construction.
             for (const website of ['', 'https://example.org']) {
                 for (const comments of ['', 'A description.']) {
                     for (const hasCustomLinks of [false, true]) {
@@ -211,7 +209,7 @@ export default async () => {
 
         await it('does not build the dialog title out of the application name', () => {
             // The template default is the bare word; the app name lives in the
-            // header revealer instead (.ui:6 vs :29-31).
+            // header revealer instead.
             expect(ADW_ABOUT_DIALOG_LABELS.dialogTitle).toBe('About');
         });
     });

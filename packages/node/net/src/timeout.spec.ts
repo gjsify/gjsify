@@ -25,7 +25,6 @@ function listenServer(
 }
 
 export default async () => {
-    // ===================== Socket.setTimeout =====================
     await describe('net Socket.setTimeout', async () => {
         await it('should return the socket instance (chainable)', async () => {
             const socket = new Socket();
@@ -122,7 +121,6 @@ export default async () => {
         });
     });
 
-    // ===================== allowHalfOpen =====================
     await describe('net allowHalfOpen', async () => {
         await it('server should store allowHalfOpen option', async () => {
             const server1 = createServer({ allowHalfOpen: true });
@@ -166,7 +164,6 @@ export default async () => {
         });
     });
 
-    // ===================== Server lifecycle =====================
     await describe('net Server lifecycle', async () => {
         await it('should set listening=true after listen', async () => {
             const server = createServer();
@@ -219,7 +216,6 @@ export default async () => {
         });
     });
 
-    // ===================== Socket connection lifecycle =====================
     await describe('net Socket connection lifecycle', async () => {
         await it('should emit connect and ready events', async () => {
             const { port, close } = await listenServer((sock) => {
@@ -308,7 +304,6 @@ export default async () => {
         });
     });
 
-    // ===================== Socket destroy =====================
     await describe('net Socket.destroy', async () => {
         await it('should set destroyed=true', async () => {
             const { port, close } = await listenServer((sock) => sock.end());
@@ -344,7 +339,6 @@ export default async () => {
         });
     });
 
-    // ===================== Error handling =====================
     await describe('net error handling', async () => {
         await it('should emit error on connection refused', async () => {
             const errorEmitted = await new Promise<boolean>((resolve) => {
@@ -375,7 +369,6 @@ export default async () => {
         });
     });
 
-    // ===================== Socket options =====================
     await describe('net Socket options', async () => {
         await it('setKeepAlive should return the socket (chainable)', async () => {
             const socket = new Socket();
@@ -399,7 +392,6 @@ export default async () => {
         });
     });
 
-    // ===================== Server maxConnections =====================
     await describe('net Server maxConnections', async () => {
         await it('should accept connections up to maxConnections', async () => {
             const { port, server, close } = await listenServer((sock) => {
@@ -425,7 +417,6 @@ export default async () => {
         });
     });
 
-    // ===================== Data transfer =====================
     await describe('net data transfer', async () => {
         await it('should echo data correctly', async () => {
             const { port, close } = await listenServer((sock) => {

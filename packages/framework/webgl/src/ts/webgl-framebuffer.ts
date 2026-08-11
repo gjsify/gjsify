@@ -1,5 +1,4 @@
 import { Linkable } from './linkable.js';
-// import { gl } from './native-gl.js'
 
 import type { WebGLContextBase } from './webgl-context-base.js';
 // import type { WebGLDrawBuffers } from './extensions/webgl-draw-buffers.js';

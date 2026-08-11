@@ -1,21 +1,17 @@
 // Entry-row conformance vectors — the spec both renderers are held to.
 //
-// `update_empty` (adw-entry-row.c:140-163) is a five-output truth table, and a
-// truth table is exactly the kind of thing a renderer re-derives "obviously
-// correctly" and gets wrong in two corners. So every row here carries the WHOLE
-// snapshot, not the one flag it is about: a drift anywhere in the derivation
-// fails the row that was pinning something else.
+// `update_empty` is a five-output truth table — the kind of thing a renderer re-derives
+// "obviously correctly" and gets wrong in two corners. So every row carries the WHOLE
+// snapshot, not the one flag it is about: a drift anywhere in the derivation fails the row
+// that was pinning something else.
 //
-// The step sequences are DATA rather than closures on purpose — a renderer suite
-// replays them against a real widget (focus the field, type, press the apply
-// button) and compares what the user would actually see, so a port that
-// re-implements the table instead of delegating to `@gjsify/adwaita-core` fails
-// a unit test naming the exact input that drifted.
+// The step sequences are DATA rather than closures so a renderer suite can replay them
+// against a real widget (focus the field, type, press apply) and compare what the user would
+// actually see.
 //
-// The `EntryRowRenderState` / `PasswordEntryRowRenderState` types are imported
-// TYPE-ONLY: sharing the field names with the implementation is what makes a
-// renamed output a compile error here instead of a silently un-asserted column.
-// No runtime edge is created — these tables stay pure data.
+// The `EntryRowRenderState` / `PasswordEntryRowRenderState` types are imported TYPE-ONLY:
+// sharing the field names with the implementation makes a renamed output a compile error
+// here instead of a silently un-asserted column, with no runtime edge.
 //
 // Reference: refs/libadwaita/src/adw-entry-row.c, adw-entry-row.ui,
 //   adw-password-entry-row.c
@@ -27,7 +23,6 @@ import type { EntryRowActivation, EntryRowRenderState, PasswordEntryRowRenderSta
 
 /** One `entryTextLength` expectation. */
 export interface EntryTextLengthVector {
-    /** The entry contents. */
     text: string;
     /** `adw_entry_row_get_text_length` — "The current number of characters". */
     length: number;
@@ -35,8 +30,7 @@ export interface EntryTextLengthVector {
 }
 
 /**
- * `adw_entry_row_get_text_length` (adw-entry-row.c:1304-1318), whose property is
- * declared `0, G_MAXUINT16, 0` (C:666-669).
+ * `adw_entry_row_get_text_length`, whose property is declared `0, G_MAXUINT16, 0`.
  *
  * The astral rows are the point: `'🔒é'.length` is 3 in JS because JS counts
  * UTF-16 units, and GTK counts characters. A port that gets this wrong also
@@ -70,10 +64,10 @@ export interface EntryMaxLengthVector {
 }
 
 /**
- * `adw_entry_row_set_max_length` (adw-entry-row.c:1329-1343) read together with
+ * `adw_entry_row_set_max_length` read together with
  * the property doc "Maximum number of characters for the entry" and its
- * `0..GTK_ENTRY_BUFFER_MAX_SIZE` range with `0` as both default and floor
- * (C:674, :678-682).
+ * `0..GTK_ENTRY_BUFFER_MAX_SIZE` range with `0` as both default and floor.
+ *
  */
 export const ENTRY_MAX_LENGTH_VECTORS: ReadonlyArray<EntryMaxLengthVector> = [
     { text: 'Ada Lovelace', maxLength: 5, clamped: 'Ada L', length: 5, rule: 'truncate to five characters' },
@@ -120,23 +114,19 @@ export type EntryRowStep =
 
 /** One `update_empty` truth-table row: a scenario and the FULL snapshot it lands on. */
 export interface EntryRowStateVector {
-    /** Human-readable scenario name (used as the test title). */
     name: string;
-    /** Applied in order to a freshly-constructed entry row. */
     steps: ReadonlyArray<EntryRowStep>;
-    /** Every output of the derivation afterwards. */
     expected: EntryRowRenderState;
     rule: string;
 }
 
 /**
- * `update_empty` (adw-entry-row.c:147-161) plus the `text_changed` latch
- * (C:170-172) and its two reset paths (the apply click C:237, the property
- * turned off C:989-992).
+ * `update_empty` plus the `text_changed` latch and its two reset paths (the apply click, the
+ * property turned off).
  *
  * Defaults of a fresh row: no text, unlimited length, not editing, EDITABLE,
  * no apply button, no indicator — plus the indicator and apply button starting
- * child-invisible (`adw_entry_row_init`, C:764-765).
+ * child-invisible (`adw_entry_row_init`).
  */
 export const ENTRY_ROW_STATE_VECTORS: ReadonlyArray<EntryRowStateVector> = [
     {
@@ -502,7 +492,6 @@ export const ENTRY_ROW_STATE_VECTORS: ReadonlyArray<EntryRowStateVector> = [
 
 /** One `text_activated_cb` expectation. */
 export interface EntryRowActivationVector {
-    /** Human-readable scenario name. */
     name: string;
     /** Applied in order to a freshly-constructed entry row before pressing Enter. */
     steps: ReadonlyArray<EntryRowStep>;
@@ -514,9 +503,9 @@ export interface EntryRowActivationVector {
 }
 
 /**
- * `text_activated_cb` (adw-entry-row.c:243-266): the apply path when the apply
- * button is child-visible, otherwise activate-the-default (C:253-254) followed
- * by `entry-activated` (C:256) — in that order.
+ * `text_activated_cb`: the apply path when the apply
+ * button is child-visible, otherwise activate-the-default followed
+ * by `entry-activated` — in that order.
  */
 export const ENTRY_ROW_ACTIVATION_VECTORS: ReadonlyArray<EntryRowActivationVector> = [
     {
@@ -570,9 +559,7 @@ export const ENTRY_ROW_ACTIVATION_VECTORS: ReadonlyArray<EntryRowActivationVecto
 
 /** One setter-guard expectation: what each step returns, and how many re-derivations the sequence causes. */
 export interface EntryRowGuardVector {
-    /** Human-readable scenario name. */
     name: string;
-    /** Applied in order to a freshly-constructed entry row. */
     steps: ReadonlyArray<EntryRowStep>;
     /** Per step: the setter's return value, or `null` for the `void` `setShowIndicator`. */
     returns: ReadonlyArray<boolean | null>;
@@ -583,11 +570,11 @@ export interface EntryRowGuardVector {
 
 /**
  * The guards are NOT uniform, and the asymmetry is the point: every public
- * setter early-outs on an unchanged value (C:984, :1198, :1247, :1339), while
- * the private `adw_entry_row_set_show_indicator` (C:1281-1296) deliberately has
+ * setter early-outs on an unchanged value, while
+ * the private `adw_entry_row_set_show_indicator` deliberately has
  * NO equality check and re-derives unconditionally.
  *
- * CORE-ONLY: GAP — the browser element discards the setter’s boolean, so the guard has no observable answer. Tracked in #1072
+ * CORE-ONLY: GAP — the browser element exposes these as attributes and void methods, so a setter's boolean return is not observable through the DOM surface. Tracked in #1072
  */
 export const ENTRY_ROW_GUARD_VECTORS: ReadonlyArray<EntryRowGuardVector> = [
     {
@@ -656,8 +643,6 @@ export const ENTRY_ROW_GUARD_VECTORS: ReadonlyArray<EntryRowGuardVector> = [
     },
 ];
 
-// --- Adw.PasswordEntryRow ---
-
 /** One mutation in a password-entry-row scenario. */
 export type PasswordEntryRowStep =
     | { op: 'setRevealed'; value: boolean }
@@ -668,7 +653,6 @@ export type PasswordEntryRowStep =
 
 /** One password-entry-row expectation: the peek/caps-lock snapshot plus what it did to the parent row. */
 export interface PasswordEntryRowVector {
-    /** Human-readable scenario name. */
     name: string;
     /** Applied in order to a freshly-constructed password entry row. */
     steps: ReadonlyArray<PasswordEntryRowStep>;
@@ -680,10 +664,10 @@ export interface PasswordEntryRowVector {
 }
 
 /**
- * `notify_visibility_cb` (adw-password-entry-row.c:62-81) + `update_caps_lock`
- * (C:52-60), and the two rules that make the caps-lock warning more than a
- * boolean: it is suppressed while PEEKING (C:58, `!gtk_text_get_visibility`) and
- * suppressed while UNFOCUSED (adw-entry-row.c:151, `editing && show_indicator`).
+ * `notify_visibility_cb` + `update_caps_lock`,
+ * and the two rules that make the caps-lock warning more than a
+ * boolean: it is suppressed while PEEKING (`!gtk_text_get_visibility`) and while UNFOCUSED
+ * (`editing && show_indicator`).
  */
 export const PASSWORD_ENTRY_ROW_VECTORS: ReadonlyArray<PasswordEntryRowVector> = [
     {
@@ -805,7 +789,6 @@ export const PASSWORD_ENTRY_ROW_VECTORS: ReadonlyArray<PasswordEntryRowVector> =
 
 /** One peek-notification expectation — how often a reveal change is observable. */
 export interface PasswordRevealGuardVector {
-    /** Human-readable scenario name. */
     name: string;
     /** Reveal-only steps applied to a freshly-constructed password entry row. */
     steps: ReadonlyArray<{ op: 'setRevealed'; value: boolean } | { op: 'togglePeek' }>;
@@ -815,10 +798,9 @@ export interface PasswordRevealGuardVector {
 }
 
 /**
- * The peek guard. Every settable property in this family early-outs on an
- * unchanged value (adw-entry-row.c:984, :1198, :1247), so a redundant set is
- * silent by house rule — which is what makes the web port's unguarded
- * `notify::revealed` on a same-value `setAttribute` a defect.
+ * The peek guard. Every settable property in this family early-outs on an unchanged value,
+ * so a redundant set is silent — an unguarded `notify::revealed` on a same-value
+ * `setAttribute` is a defect.
  */
 export const PASSWORD_REVEAL_GUARD_VECTORS: ReadonlyArray<PasswordRevealGuardVector> = [
     {

@@ -31,9 +31,8 @@ import {
 import type { SplitButtonContentStep } from './conformance/split-button.js';
 
 /**
- * Apply one vector step. `child` steps name their widget by key, so the same key
- * within a sequence is the same object — which is what the pointer-equality
- * guard at adw-split-button.c:806 keys off.
+ * Apply one vector step. `child` steps name their widget by key, so the same key within a
+ * sequence is the same object — what the pointer-equality guard keys off.
  */
 function applyStep(state: SplitButtonState, step: SplitButtonContentStep, children: Map<string, object>): boolean {
     switch (step.op) {
@@ -64,7 +63,7 @@ export default async () => {
             expect(state.child).toBe(null);
             expect(state.useUnderline).toBe(false);
             expect(state.direction).toBe('down');
-            // The getter reports "" while unset, never null (c:1017-1018).
+            // The getter reports "" while unset, never null.
             expect(state.dropdownTooltip).toBe('');
             expect(state.menuModel).toBe(null);
             expect(state.popover).toBe(null);
@@ -99,7 +98,7 @@ export default async () => {
                         expect(state.child).toBe(children.get(step.value));
                     } else if (step.mode === 'label' || step.mode === 'icon') {
                         // gtk_button_get_child() reports the INTERNAL content
-                        // widget here, never the app child (tests:155-157).
+                        // widget here, never the app child.
                         expect(state.child).not.toBe(null);
                         for (const child of children.values()) expect(state.child).not.toBe(child);
                     } else if (step.mode === 'empty') {
@@ -227,8 +226,8 @@ export default async () => {
             expect(notified).toBe(2);
 
             expect(state.setMenuModel(model1)).toBe(true);
-            // Which popover a model derives is an implementation detail; what is
-            // guaranteed is that it is not the one just set (tests:236-238).
+            // Which popover a model derives is an implementation detail; only "not the one
+            // just set" is guaranteed.
             expect(state.popover).not.toBe(popover2);
             expect(state.popover).not.toBe(null);
             expect(notified).toBe(3);
@@ -343,9 +342,8 @@ export default async () => {
             const shared = MENU_BUTTON_DIRECTION_VECTORS.filter((vector) => vector.direction !== 'none');
             for (const { direction, arrowIcon } of shared) expect(splitButtonArrowIcon(direction)).toBe(arrowIcon);
 
-            // `menubutton arrow.none` :454-456 vs `splitbutton > menubutton >
-            // button > arrow.none` :621-623 — the only glyph the split button
-            // block re-declares, and the one that shipped wrong.
+            // `menubutton arrow.none` against `splitbutton > menubutton > button >
+            // arrow.none` — the only glyph the split-button block re-declares.
             expect(menuButtonArrowIcon('none')).toBe('open-menu-symbolic');
             expect(splitButtonArrowIcon('none')).toBe('pan-down-symbolic');
             expect(splitButtonArrowIcon('none')).toBe(splitButtonArrowIcon('down'));

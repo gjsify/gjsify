@@ -1,19 +1,11 @@
-// Coverage for `it.failing` — the expected-failure marker.
+// Coverage for `it.failing`. The invariant worth guarding is the SECOND half of the
+// marker: a marked test that starts PASSING must fail the suite, which is what makes
+// it self-retiring instead of a skip that rots. Asserted against `getTestCounters()`,
+// the counters the CI gate reads, rather than against printed text.
 //
-// The behaviour worth guarding is not "a failing test may fail". It is the
-// SECOND half: a marked test that starts PASSING must fail the suite, because
-// that is what makes the marker self-retiring instead of a skip that rots.
-//
-// These specs drive the real `it.failing` and observe the run summary through
-// `getTestCounters()`, so they assert the counters the CI gate actually reads
-// rather than the printed text.
-
-// Import through the PACKAGE specifier, exactly like the sibling specs and
-// like `test.mts`'s `run()`. A relative `./index.js` here resolves to a
-// SECOND module instance in the bundle, with its own copy of the run counters
-// — the probes then increment one copy while the summary prints the other, so
-// a deliberate failure vanishes and the run exits 0. Measured while writing
-// this spec.
+// Import through the PACKAGE specifier, like the sibling specs and `test.mts`'s
+// `run()`: a relative `./index.js` resolves to a SECOND module instance with its own
+// copy of the counters, so a deliberate failure vanishes and the run exits 0.
 import { describe, it, expect, getTestCounters } from '@gjsify/unit';
 
 export default async () => {
@@ -45,10 +37,9 @@ export default async () => {
         });
 
         await it('with when:false the test runs as an ordinary it() and must pass', async () => {
-            // The scoped form. `when: false` must NOT tolerate a failure and must
-            // NOT skip: it is a plain `it()`. A PASSING body is the only case that
-            // can be asserted from inside this run — a failing one would put a
-            // real failure into it (same reason as the note below).
+            // `when: false` must neither tolerate a failure nor skip: it is a plain
+            // `it()`. Only a PASSING body can be asserted from inside this run — a
+            // failing one would put a real failure into it (see the note below).
             const before = getTestCounters();
             await it.failing(
                 'a body that passes, with the expectation scoped out',
@@ -77,14 +68,9 @@ export default async () => {
             expect(getTestCounters().xfail).toBe(before.xfail + 1);
         });
 
-        // The self-retiring half — "a marked test that starts passing must FAIL
-        // the suite" — is NOT asserted here on purpose: triggering it would add
-        // a real failure to THIS run and turn the unit suite red. It is covered
-        // in a child process by `tests/e2e/unit-it-failing`, which is the only
-        // way to observe an exit code without becoming it.
-        //
-        // The same reasoning covers the interesting half of `when: false`: a
-        // FAILING body with the expectation scoped out must redden the run, and
-        // that too can only be observed from outside.
+        // The self-retiring half — a marked test that starts passing must FAIL the
+        // suite — cannot be asserted here: triggering it would add a real failure to
+        // THIS run. It is covered in a child process by `tests/e2e/unit-it-failing`,
+        // as is the mirror case of a FAILING body with `when: false`.
     });
 };

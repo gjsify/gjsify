@@ -39,9 +39,8 @@ export default async () => {
         }
 
         await it('never reports single-line without a visible header', () => {
-            // is_single_line is only consulted for a header that is shown, and
-            // the two must not disagree: a `single-line` class on a hidden
-            // header would give it a 34px min-height it has no business taking.
+            // is_single_line is only consulted for a header that is SHOWN: a
+            // `single-line` class on a hidden header gives it a 34px min-height.
             const disagreements: string[] = [];
             for (const title of ['', 'Appearance']) {
                 for (const description of ['', 'Controls how it looks.']) {
@@ -57,11 +56,10 @@ export default async () => {
         });
 
         await it('every row without dependsOnMarkup also holds for a verbatim renderer', () => {
-            // Both renderers paint labels as plain text and therefore pass
-            // `useMarkup: false`. This is the guard that keeps their suites
-            // drivable from this table: a new row whose expectation silently
-            // depends on markup interpretation fails HERE, once, instead of in
-            // two renderer suites that would then have to be taught to skip it.
+            // Both renderers paint labels as plain text and pass `useMarkup: false`, and
+            // this guard keeps their suites drivable from the table: a new row whose
+            // expectation depends on markup interpretation fails HERE, once, instead of in
+            // two renderer suites that would each have to be taught to skip it.
             const undrivable = PREFERENCES_GROUP_HEADER_VECTORS.filter(({ input, state, dependsOnMarkup }) => {
                 if (dependsOnMarkup) return false;
                 const verbatim = derivePreferencesGroupHeader({ ...input, useMarkup: false });
@@ -71,8 +69,7 @@ export default async () => {
         });
 
         await it('hides the listbox at zero rows and shows it at one', () => {
-            // The regression that motivated the lift: the web port created the
-            // `.boxed-list` div unconditionally, so an empty group still stroked
+            // Creating the `.boxed-list` div unconditionally makes an empty group stroke
             // the full-width box-shadow hairline of a card with nothing in it.
             expect(derivePreferencesGroupHeader({ rowCount: 0 }).listboxVisible).toBe(false);
             expect(derivePreferencesGroupHeader({ rowCount: 1 }).listboxVisible).toBe(true);
@@ -99,8 +96,8 @@ export default async () => {
         });
 
         await it('is not reproducible by NFKC + toLowerCase', () => {
-            // The plausible-looking substitute: it repairs the ligature but
-            // over-normalises the digraph into two characters.
+            // The plausible substitute repairs the ligature but over-normalises the
+            // digraph into two characters.
             // Escaped: `d\u017E` and `\u01C6` are indistinguishable on screen.
             expect('\u01C4'.normalize('NFKC').toLowerCase()).toBe('d\u017E');
             expect(defaultCaseFolder('\u01C4')).toBe('\u01C6');
@@ -116,8 +113,8 @@ export default async () => {
         }
 
         await it('returns null instead of throwing, so callers can keep the raw text', () => {
-            // C logs a g_critical and carries on with the unparsed string; a port
-            // that threw here would drop the row out of the search index.
+            // C logs a g_critical and carries on with the unparsed string; throwing here
+            // would drop the row out of the search index.
             expect(stripMarkup('<<<')).toBe(null);
             expect(makeComparable('Tom & Jerry', { useMarkup: true })).toBe('tom & jerry');
         });
@@ -138,8 +135,8 @@ export default async () => {
         });
 
         await it('uses GLib’s NUMERIC references for the quotes', () => {
-            // Not &apos;/&quot; — a port that "tidies" these up produces a
-            // different subtitle string for the same page title.
+            // Not &apos;/&quot;: "tidying" these up produces a different subtitle string
+            // for the same page title.
             expect(escapeMarkup(`'x' "y"`)).toBe('&#39;x&#39; &#34;y&#34;');
         });
 
@@ -187,7 +184,7 @@ export default async () => {
         }
 
         await it('folds the query but does not markup-parse it', () => {
-            // The entry text goes through g_utf8_casefold ONLY (:133), so typing
+            // The entry text goes through g_utf8_casefold ONLY, so typing
             // an entity searches for its literal characters.
             expect(rowMatchesQuery({ title: 'AT&amp;T' }, 'at&t')).toBe(true);
             expect(rowMatchesQuery({ title: 'AT&amp;T' }, '&amp;')).toBe(false);
@@ -273,7 +270,7 @@ export default async () => {
         });
 
         await it('carries the source page and row, so a result can be activated', () => {
-            // search_result_activated_cb (:267-290) switches the visible page and
+            // search_result_activated_cb switches the visible page and
             // focuses the row; both come off the result, not off a second lookup.
             const [result] = searchPreferences(PREFERENCES_SEARCH_PAGES, 'strasse');
             expect(result!.page.name).toBe('network');

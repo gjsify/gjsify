@@ -39,9 +39,9 @@ export default async () => {
         }
 
         await it('spells the slack track with the CSSOM-canonical 0px', () => {
-            // `0` and `0px` are the same length and NOT the same CSS text: the
-            // browser reads `style.gridTemplateColumns` back canonicalised, so a
-            // bare `0` fails an equality assertion in the browser suite alone.
+            // `0` and `0px` are the same length and NOT the same CSS text: the browser
+            // reads `style.gridTemplateColumns` back canonicalised, so a bare `0` fails an
+            // equality assertion in the browser suite alone.
             expect(dataGridTrackTemplate([{ kind: 'slack' }])).toBe('minmax(0px, 1fr)');
         });
     });

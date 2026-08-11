@@ -70,7 +70,6 @@ export default async () => {
 
             expect(dismissedSeen[1]).toStrictEqual({ open: false, interactive: true });
             expect(closedSeen[1]).toStrictEqual({ open: false, interactive: false });
-            // A dismiss on an already-closed popover is a no-op, like popdown.
             expect(dismissed.dismiss()).toBe(false);
         });
 
@@ -149,8 +148,8 @@ export default async () => {
         });
 
         await it('hasSearch only suppresses Home/End while the entry actually has focus', () => {
-            // The flag alone must not disable navigation — that would break every
-            // searchable dropdown the moment focus reached an option.
+            // The flag alone must not disable navigation, or every searchable dropdown
+            // breaks the moment focus reaches an option.
             expect(resolvePopoverKey('End', { itemCount: 3, currentIndex: 0, hasSearch: true })).toStrictEqual({
                 action: 'focus',
                 index: 2,
@@ -173,15 +172,15 @@ export default async () => {
         });
 
         await it('$popover_radius is $menu_radius + 6, not $card_radius or $button_radius', () => {
-            // _common.scss:10,13 — the derivation the three copies each replaced
-            // with a token that happened to be nearby.
+            // The derivation in `_common.scss`, which local copies replace with whichever
+            // token happens to be nearby.
             expect(POPOVER_RADIUS).toBe(POPOVER_ITEM_RADIUS + 6);
             expect(POPOVER_RADIUS).not.toBe(12); // $card_radius — menu button + drop-down
             expect(POPOVER_RADIUS).not.toBe(9); // $button_radius — split button
         });
 
         await it('the popover elevation is THREE layers', () => {
-            // The split button shipped two. The count is the assertion.
+            // The COUNT is the assertion — a two-layer shadow is the failure mode.
             for (const vector of POPOVER_SURFACE_VECTORS) {
                 expect(vector.shadow.length).toBe(vector.variant === 'menu-item' ? 0 : 3);
             }

@@ -1,10 +1,8 @@
-// The two split views against the shared conformance vectors: that the attributes
-// reach `OverlaySplitViewState`, and that what the state derives reaches the DOM.
+// The two split views against the shared conformance vectors: the attributes reach
+// `OverlaySplitViewState`, and what the state derives reaches the DOM.
 //
-// Asserted first: `Adw.OverlaySplitView:show-sidebar` defaults to TRUE
-// (adw-overlay-split-view.c:974-976), but an HTML boolean attribute is
-// presence-only and can only express a FALSE default — hence the explicit
-// `show-sidebar="false"`.
+// `Adw.OverlaySplitView:show-sidebar` defaults to TRUE, but an HTML boolean attribute
+// is presence-only and can only express a FALSE default — hence `show-sidebar="false"`.
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { OverlaySplitViewState } from '@gjsify/adwaita-core';
@@ -52,13 +50,12 @@ interface DomSnapshot {
 }
 
 /**
- * Read the whole derived state back OUT of the DOM — every field the element
- * publishes, not just `showSidebar`/`collapsed`: those two agreed while
- * `pin-sidebar` had fallen out of `observedAttributes`, because the vectors only
- * set it in markup, which `connectedCallback` reads directly.
+ * Read the whole derived state back OUT of the DOM — EVERY field the element publishes,
+ * because `showSidebar`/`collapsed` agreed while `pin-sidebar` had fallen out of
+ * `observedAttributes`.
  *
  * `showProgress` has no DOM surface (the reveal is painted from the
- * `collapsed`/`show-sidebar` classes, not a numeric progress); `shieldVisible` is
+ * `collapsed`/`show-sidebar` classes, not a numeric progress), but `shieldVisible` is
  * derived from it, so a progress bug still shows here.
  */
 function domSnapshot(view: AdwOverlaySplitView): DomSnapshot {
@@ -150,10 +147,9 @@ export const AdwSplitViewsTest = async () => {
         }
 
         await it('honours pin-sidebar set AFTER construction, not only in markup', () => {
-            // The vector loop above cannot see this: it only puts `pin-sidebar` in
-            // markup, which `connectedCallback` reads directly. With the attribute
-            // missing from `observedAttributes`, pinning a live element was a
-            // silent no-op and the next collapse still hid the sidebar.
+            // The vector loop only puts `pin-sidebar` in markup, which
+            // `connectedCallback` reads directly: with the attribute missing from
+            // `observedAttributes`, pinning a live element was a silent no-op.
             const { view, host } = mount();
             view.setAttribute('pin-sidebar', '');
 
@@ -193,9 +189,9 @@ export const AdwSplitViewsTest = async () => {
         });
 
         await it('marks the off-screen pane aria-hidden once collapsing hides it', () => {
-            // Collapsing is a TRANSITION: it auto-hides an unpinned sidebar, so
-            // content becomes the reachable pane. Constructing collapsed does NOT,
-            // matching a GTK widget built with both properties set.
+            // Collapsing is a TRANSITION and auto-hides an unpinned sidebar, so content
+            // becomes the reachable pane; constructing collapsed does NOT, matching a GTK
+            // widget built with both properties set.
             const { view, host } = mount();
             expect((view.querySelector('.adw-osv-sidebar') as HTMLElement).getAttribute('aria-hidden')).toBe('false');
 
@@ -220,9 +216,9 @@ export const AdwSplitViewsTest = async () => {
     });
     await describe('adw-overlay-split-view sidebar width (Adw.OverlaySplitView properties)', async () => {
         await it('defaults to the WIDGET values, not to an app preference', () => {
-            // 180 / 280 / 0.25 — adw-overlay-split-view.c:1036-1075. The showcase
-            // values (280 / 400 / 0.30, set explicitly in their .blp) had leaked in
-            // as the defaults, so storybook's GTK and browser sides diverged.
+            // 180 / 280 / 0.25 per `adw-overlay-split-view.c`. The showcase values
+            // (280 / 400 / 0.30, set explicitly in their .blp) had leaked in as the
+            // defaults, so storybook's GTK and browser sides diverged.
             const { view, host } = mount();
             expect(view.minSidebarWidth).toBe(180);
             expect(view.maxSidebarWidth).toBe(280);
@@ -233,17 +229,16 @@ export const AdwSplitViewsTest = async () => {
         await it('writes the normalised bounds, not the raw attributes', () => {
             const { view, host } = mount('min-sidebar-width="300" max-sidebar-width="200"');
             const sidebar = view.querySelector('.adw-osv-sidebar') as HTMLElement;
-            // libadwaita never lets max fall below min, so both land at 300. CSS
-            // alone resolves it the other way (min-width beats max-width), which
-            // would render a different widget.
+            // libadwaita never lets max fall below min, so both land at 300 — CSS alone
+            // resolves it the other way (min-width beats max-width).
             expect(sidebar.style.minWidth).toBe('300px');
             expect(sidebar.style.maxWidth).toBe('300px');
             host.remove();
         });
 
         for (const vector of SIDEBAR_BOUNDS_VECTORS) {
-            // Only rows expressible in CSS pixels — the element has no dpi or
-            // length-unit attribute, so `sp`-at-another-dpi rows stay in core.
+            // Only rows expressible in CSS pixels: the element has no dpi or length-unit
+            // attribute, so `sp`-at-another-dpi rows stay in core.
             if (vector.spec.sidebarWidthUnit !== undefined || vector.spec.dpi !== undefined) continue;
             if (vector.sidebarChildMin !== 0 || !vector.ceil) continue;
 
@@ -334,7 +329,7 @@ export const AdwSplitViewsTest = async () => {
                 offsets.add(sidebar.style.marginLeft || sidebar.style.left || '');
             }
             // Two end states would give at most two distinct offsets; the five
-            // OVERLAY_SWIPE_* tables need every value in between to mean something.
+            // OVERLAY_SWIPE_* tables need every value between them to mean something.
             expect(offsets.size).toBeGreaterThan(2);
             host.remove();
         });
@@ -355,9 +350,9 @@ export const AdwSplitViewsTest = async () => {
         }
 
         await it('grabs only where the swipe area is — the ADW_SWIPE_BORDER strip when closed', async () => {
-            // Closed, start edge, LTR: the grabbable strip is `ADW_SWIPE_BORDER`
-            // wide and nothing outside it starts a gesture. That second half is the
-            // DOM renderer's, and no unit test of `resolveSwipeArea` can show it.
+            // Closed, start edge, LTR: the grabbable strip is `ADW_SWIPE_BORDER` wide and
+            // nothing outside it starts a gesture — the second half is the DOM renderer's,
+            // which no unit test of `resolveSwipeArea` can show.
             const closedAtStart = OVERLAY_SWIPE_AREA_VECTORS.find(
                 (vector) =>
                     vector.isDrag &&
@@ -451,12 +446,12 @@ export const AdwSplitViewsTest = async () => {
         });
 
         await it('Escape closes a collapsed revealed sidebar', async () => {
-            // `escape_shortcut_cb` — adw-overlay-split-view.c:705-716.
+            // `escape_shortcut_cb`.
             const { view, host } = mountSizedView(800, 'collapsed');
             await settle();
-            // Parse-time attributes are CONSTRUCTION options, not sequential
-            // setters, so markup `collapsed` never fires the auto-hide (the setter
-            // path is OVERLAY_COLLAPSE_VECTORS) — the sidebar is revealed here.
+            // Parse-time attributes are CONSTRUCTION options, not sequential setters, so
+            // markup `collapsed` never fires the auto-hide (the setter path is
+            // OVERLAY_COLLAPSE_VECTORS) and the sidebar is revealed here.
             expect(view.showSidebar).toBe(true);
 
             const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
@@ -474,18 +469,18 @@ export const AdwSplitViewsTest = async () => {
 
             const event = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
             view.dispatchEvent(event);
-            // A docked sidebar is not something Escape closes, however revealed
-            // it is — the gate is `!collapsed`, checked before the progress.
+            // Escape never closes a DOCKED sidebar, however revealed: the gate is
+            // `!collapsed`, checked before the progress.
             expect(event.defaultPrevented).toBe(false);
             expect(view.showSidebar).toBe(true);
             host.remove();
         });
 
         await it('is gated on the PROGRESS, so it still consumes mid-close', async () => {
-            // `escape_shortcut_cb` gates on `show_progress`, not `show_sidebar`, so
-            // a second Escape mid-close is consumed too and the set inside is a
-            // no-op. Reading the gate as "is the sidebar shown" would let the key
-            // propagate for ~250ms after the first press and close a dialog behind.
+            // `escape_shortcut_cb` gates on `show_progress`, not `show_sidebar`, so a
+            // second Escape mid-close is consumed too. Reading the gate as "is the
+            // sidebar shown" would let the key propagate for ~250ms after the first
+            // press and close a dialog behind.
             const { view, host } = mountSizedView(800, 'collapsed');
             await settle();
             expect(view.showSidebar).toBe(true);
@@ -545,8 +540,8 @@ export const AdwSplitViewsTest = async () => {
         });
 
         await it('keeps the content pane from being squeezed to nothing', async () => {
-            // `measure_uncollapsed` (:558-563) as CSS spells it: the pane claims its
-            // own min-content, where `min-width: 0` let the sidebar take everything.
+            // `measure_uncollapsed` as CSS spells it: the pane claims its own min-content,
+            // where `min-width: 0` let the sidebar take everything.
             const { view, host } = mountSizedView(800);
             await settle();
             const content = view.querySelector('.adw-osv-content') as HTMLElement;
@@ -567,8 +562,8 @@ export const AdwSplitViewsTest = async () => {
                 const state = stateOf(view);
                 state.setShowProgress(vector.showProgress);
 
-                // Only the shield and the paint gate: the pixel rects depend on the
-                // measured sidebar width, which a real layout decides.
+                // Shield and paint gate only: the pixel rects depend on the measured
+                // sidebar width, which a real layout decides.
                 const backdrop = view.querySelector('.adw-osv-backdrop') as HTMLElement;
                 expect(backdrop.hidden).toBe(!vector.layout.shieldVisible);
                 const sidebar = view.querySelector('.adw-osv-sidebar') as HTMLElement;
@@ -578,8 +573,8 @@ export const AdwSplitViewsTest = async () => {
         }
 
         await it('names the cancel rows the core owns, so this suite is not read as covering them', () => {
-            // `swipeCancelProgress`'s half-away-from-zero rounding has no DOM
-            // surface — a pointercancel shows the rounded OUTCOME, not the rule.
+            // `swipeCancelProgress`'s half-away-from-zero rounding has no DOM surface: a
+            // pointercancel shows the rounded OUTCOME, not the rule.
             expect(OVERLAY_SWIPE_CANCEL_VECTORS.length).toBeGreaterThan(0);
             expect(OVERLAY_SWIPE_START_VECTORS.length).toBeGreaterThan(0);
         });
@@ -615,8 +610,8 @@ export const AdwSplitViewsTest = async () => {
         };
 
         for (const vector of NAVIGATION_STACK_VECTORS) {
-            // Only the STATIC rows: the animated branch reaches the same stack by a
-            // push or a pop, which a renderer with no transition cannot tell apart.
+            // Only the STATIC rows: the animated branch reaches the same stack by a push
+            // or a pop, which a renderer with no transition cannot tell apart.
             if (vector.changingPage) continue;
             const label =
                 `${vector.hasSidebar ? 'sidebar' : '-'}/${vector.hasContent ? 'content' : '-'} ` +
@@ -635,9 +630,8 @@ export const AdwSplitViewsTest = async () => {
                 await settle();
                 const top = vector.plan.stack[vector.plan.stack.length - 1] ?? null;
                 const panes = visiblePane(view);
-                // A LONE child stays visible whatever `show-content` says — two CSS
-                // classes could not express that, so a collapsed sidebar-only view
-                // rendered blank.
+                // A LONE child stays visible whatever `show-content` says; two CSS classes
+                // cannot express that, and a collapsed sidebar-only view renders blank.
                 if (vector.hasSidebar) expect(panes.sidebar).toBe(top === 'sidebar');
                 if (vector.hasContent) expect(panes.content).toBe(top === 'content');
                 host.remove();
@@ -650,8 +644,7 @@ export const AdwSplitViewsTest = async () => {
                     ? `push "${vector.tag}" (sidebar=${vector.sidebarTag ?? 'none'}, content=${vector.contentTag ?? 'none'})`
                     : `pop (sidebar=${vector.hasSidebar}, content=${vector.hasContent})`;
             // Two panes with the SAME tag is a state the duplicate-tag guard makes
-            // unreachable — the second assignment is refused (:1195-1201). Asserted
-            // below instead of driven here.
+            // unreachable — the second assignment is refused. Asserted below instead.
             const collides =
                 vector.action === 'push' && vector.sidebarTag != null && vector.sidebarTag === vector.contentTag;
             if (collides) continue;
@@ -664,9 +657,8 @@ export const AdwSplitViewsTest = async () => {
                     sidebarTag: vector.sidebarTag ?? '',
                     contentTag: vector.contentTag ?? '',
                 });
-                // `delegate` is the ROUTING's answer; an ancestor that CLAIMS the
-                // tag is the case the table describes. The unclaimed one becomes a
-                // critical and has its own test below.
+                // `delegate` is the ROUTING's answer; the table describes an ancestor that
+                // CLAIMS the tag. The unclaimed case is a critical, tested below.
                 host.addEventListener('navigation-push', (event) => {
                     (event as CustomEvent<{ handled: boolean }>).detail.handled = true;
                 });
@@ -678,8 +670,8 @@ export const AdwSplitViewsTest = async () => {
                 expect(result.kind).toBe(vector.result.kind);
                 if (result.kind === 'set-show-content' && vector.result.kind === 'set-show-content') {
                     expect(view.showContent).toBe(vector.result.showContent);
-                    // The DOM has to agree, or a consumer reading the attribute
-                    // back after a push sees the pre-push answer.
+                    // The DOM has to agree, or a consumer reading the attribute back after
+                    // a push sees the pre-push answer.
                     expect(view.hasAttribute('show-content')).toBe(vector.result.showContent);
                 }
                 host.remove();
@@ -697,8 +689,8 @@ export const AdwSplitViewsTest = async () => {
         });
 
         await it('an UNCLAIMED push becomes a critical, not a silent no-op', async () => {
-            // `navigation_push_cb` :683 — the parent gets first refusal, and only
-            // then is it an error. A pop walks off the end silently instead.
+            // `navigation_push_cb` — the parent gets first refusal, and only then is it
+            // an error. A pop walks off the end silently instead.
             const { view, host } = mountNav('collapsed', {
                 sidebar: true,
                 content: true,
@@ -735,8 +727,8 @@ export const AdwSplitViewsTest = async () => {
         });
 
         await it('REFUSES a pane whose tag the other one already carries', async () => {
-            // `adw_navigation_split_view_set_content` :1195-1201 — the pane keeps
-            // what it had; the assignment does not happen.
+            // `adw_navigation_split_view_set_content` — the pane keeps what it had; the
+            // assignment does not happen.
             const { view, host } = mountNav('', {
                 sidebar: true,
                 content: true,
@@ -763,15 +755,12 @@ export const AdwSplitViewsTest = async () => {
         });
     });
 
-    // A view that was never measured, and a view that was moved: the docs-site
-    // slideshow builds each slide inside `display: none` and moves it in, so the
-    // pane had no measurement when it first rendered and no live observer
-    // afterwards, and a hidden sidebar was painted over the content at the wrong
-    // edge.
-    //
-    // PLACEMENT assertions on purpose — every state-and-class test here PASSED
-    // while the widget was visibly wrong, because none of them looked at where the
-    // pane ended up.
+    // The docs-site slideshow builds each slide inside `display: none` and moves it in,
+    // so the pane had no measurement when it first rendered and no live observer
+    // afterwards, and a hidden sidebar was painted over the content at the wrong edge.
+    // These assert PLACEMENT on purpose: every state-and-class test here PASSED while
+    // the widget was visibly wrong, because none of them looked at where the pane
+    // ended up.
     await describe('AdwOverlaySplitView — geometry survives being unmeasured and moved', async () => {
         /** Does the pane cover the view's own box? */
         const covers = (view: AdwOverlaySplitView): boolean => {
@@ -845,15 +834,12 @@ export const AdwSplitViewsTest = async () => {
         });
     });
 
-    // The pane STYLE CLASSES libadwaita documents as each split view's CSS node
-    // tree. The class is not a constant restatement of the colour: it says which
-    // STATE a pane is in and the colour follows, so hard-coding
+    // The pane STYLE CLASSES libadwaita documents as each split view's CSS node tree. A
+    // class says which STATE a pane is in and the colour follows: hard-coding
     // `--sidebar-bg-color` onto a private pane class painted a collapsed overlay
-    // sidebar as though it were still docked.
-    //
-    // The class NAMES are asserted, not only the colours, because the names are
-    // the app-facing contract — looking right through some other selector still
-    // breaks every app stylesheet written against the documented one.
+    // sidebar as though it were still docked. The class NAMES are asserted, not only
+    // the colours, because the names are the app-facing contract — looking right
+    // through some other selector still breaks every app stylesheet.
     await describe('split-view panes carry libadwaita pane style classes', async () => {
         const bg = (el: Element) => getComputedStyle(el).backgroundColor;
         const token = (name: string) => {

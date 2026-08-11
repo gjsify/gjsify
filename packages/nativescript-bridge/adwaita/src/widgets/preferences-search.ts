@@ -1,21 +1,17 @@
 // Preferences search for the NativeScript renderer — the view-tree half only.
 //
-// The pipeline (case fold, markup parse, the three corpus filters, the
-// `page → group` subtitle) is headless and lives in `@gjsify/adwaita-core`, so
-// this renderer and `@gjsify/adwaita-web` answer identically for the same tree.
-// What belongs here is the one NativeScript-specific step: reading a page /
-// group / row tree of real NS views and describing it as the renderer-free
-// shape the core reasons over — including NS's `visibility` in place of GTK's
-// `gtk_widget_get_visible`.
+// The pipeline (case fold, markup parse, the three corpus filters, the `page → group`
+// subtitle) is headless in `@gjsify/adwaita-core`, so this renderer and
+// `@gjsify/adwaita-web` answer identically for the same tree. What belongs here is the
+// one NativeScript-specific step: reading a page / group / row tree of real NS views as
+// the renderer-free shape the core reasons over — including NS's `visibility` in place
+// of `gtk_widget_get_visible`.
 //
-// This module imports only TYPES from `@nativescript/core`, so it loads, and is
-// unit-testable, off-device — the widgets themselves cannot be imported by a
-// spec at all (`extends GridLayout` evaluates the bare specifier at
-// module-eval). The widgets satisfy the small structural interfaces below,
-// which is what keeps the spec honest: it drives the SHIPPING mapper with
-// stand-in trees rather than transcribing the mapper into a mock.
+// TYPE-only NS imports, so specs run off-device (AGENTS.md). The widgets satisfy the
+// small STRUCTURAL interfaces below, so a spec drives the shipping mapper with stand-in
+// trees rather than transcribing it into a mock.
 //
-// Reference: refs/libadwaita/src/adw-preferences-dialog.c (:617-641, :168-234)
+// Reference: refs/libadwaita/src/adw-preferences-dialog.c
 // Reference: refs/libadwaita/src/adw-preferences-page.c (is_visible_group)
 // Reference: refs/libadwaita/src/adw-preferences-group.c (row_has_title)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
@@ -32,11 +28,11 @@ import type {
 /**
  * What the search reads off a row widget.
  *
- * `isActionRow` is a declared property rather than an `instanceof` test,
- * because the NativeScript hierarchy does NOT match the GObject one:
- * `AdwEntryRow extends AdwActionRow` here so it can reuse the row chrome, while
- * in C it derives from `AdwPreferencesRow` (adw-entry-row.c:90) and its text is
- * therefore deliberately NOT searchable. The row classes carry the C answer.
+ * `isActionRow` is a declared property rather than an `instanceof` test, because the
+ * NativeScript hierarchy does NOT match the GObject one: `AdwEntryRow extends
+ * AdwActionRow` here to reuse the row chrome, while in C it derives from
+ * `AdwPreferencesRow` and its text is therefore deliberately NOT searchable. The row
+ * classes carry the C answer.
  */
 export interface NsSearchableRow {
     /** `AdwPreferencesRow:title`. */

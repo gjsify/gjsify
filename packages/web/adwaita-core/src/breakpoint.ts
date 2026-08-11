@@ -1,29 +1,23 @@
 // AdwBreakpoint — headless Libadwaita-style responsive breakpoints.
 //
-// Mirrors `Adw.Breakpoint` + `Adw.BreakpointCondition`: a condition is evaluated
-// against a measured size and apply / unapply callbacks run as the condition
-// flips. Adwaita apps lean on these to collapse split views, swap header layouts,
-// or hide chrome on narrow widths — the single most important adaptive primitive
-// when porting a GNOME app to a phone, tablet or browser window.
+// Mirrors `Adw.Breakpoint` + `Adw.BreakpointCondition`: a condition is evaluated against a
+// measured size and apply / unapply callbacks run as the condition flips — the primitive
+// Adwaita apps collapse split views and swap header layouts with.
 //
-// This module is PLATFORM-NEUTRAL (ADR 0004 — headless Adwaita core): it knows
-// nothing about where a `{ width, height }` sample comes from. Renderers own the
-// size source and drive {@link AdwBreakpoint.evaluate} from it — e.g.
-// `@gjsify/adwaita-nativescript`'s `addBreakpoints(view, …)` feeds it the bound
-// view's post-layout size off the NS `layoutChanged` event.
+// PLATFORM-NEUTRAL (ADR 0004): knows nothing about where a `{ width, height }` sample comes
+// from. Renderers own the size source and drive {@link AdwBreakpoint.evaluate} from it —
+// `@gjsify/adwaita-nativescript`'s `addBreakpoints(view, …)` feeds it the bound view's
+// post-layout size off the NS `layoutChanged` event.
 //
-// FIDELITY: Adwaita evaluates against the WINDOW content size in `sp` (scalable
-// px). The `px` / `sp` / `pt` units in a condition string are all read as DIPs
-// (density-independent px — what both NS layout and CSS px effectively are).
-// Conditions support `min-width` / `max-width` / `min-height` / `max-height`
-// leaves joined by `and` / `or` with optional parentheses — the grammar GNOME
-// apps actually use.
+// FIDELITY: Adwaita evaluates against the WINDOW content size in `sp` (scalable px). The
+// `px` / `sp` / `pt` units in a condition string are all read as DIPs (what both NS layout
+// and CSS px effectively are). Conditions support `min-width` / `max-width` / `min-height` /
+// `max-height` leaves joined by `and` / `or` with optional parentheses.
 //
-// Divergence from `Adw.Breakpoint`: Adwaita keeps at most ONE breakpoint applied
-// at a time (the best match) and unapplies the others, because breakpoints there
-// fight over the same GObject properties. Here each breakpoint owns independent
-// apply/unapply callbacks, so a renderer evaluates each on its own merits — more
-// flexible for the callback model and identical for the common single-breakpoint
+// DIVERGENCE from `Adw.Breakpoint`: Adwaita keeps at most ONE breakpoint applied at a time
+// (the best match) and unapplies the others, because breakpoints there fight over the same
+// GObject properties. Here each breakpoint owns independent apply/unapply callbacks, so a
+// renderer evaluates each on its own merits — identical for the common single-breakpoint
 // case.
 //
 // Reference: refs/libadwaita/src/adw-breakpoint.c (condition grammar, apply/unapply)
@@ -67,10 +61,9 @@ function isLeaf(node: BreakpointConditionNode): node is BreakpointConditionLeaf 
 }
 
 /**
- * Split `spec` on the rightmost top-level (paren-depth 0) occurrence of `op`
- * (a whole word with surrounding whitespace). Rightmost-as-root yields
- * left-associative grouping (`A op B op C` → `(A op B) op C`). Returns the two
- * raw sides, or null when `op` does not appear at the top level.
+ * Split `spec` on the rightmost top-level (paren-depth 0) occurrence of `op`, as a whole word
+ * with surrounding whitespace. Rightmost-as-root yields left-associative grouping
+ * (`A op B op C` → `(A op B) op C`). Null when `op` does not appear at the top level.
  */
 function splitOn(spec: string, op: 'and' | 'or'): { left: string; right: string } | null {
     let depth = 0;
@@ -95,10 +88,9 @@ function splitOn(spec: string, op: 'and' | 'or'): { left: string; right: string 
 }
 
 /**
- * Split `spec` on a top-level boolean operator, honouring precedence: `or` binds
- * LOOSER than `and` (so `A or B and C` parses as `A or (B and C)`), matching CSS
- * media-query / Adwaita semantics. Returns the operator + sides, or null when the
- * top level is a single comparison.
+ * Split `spec` on a top-level boolean operator, honouring precedence: `or` binds LOOSER than
+ * `and` (so `A or B and C` parses as `A or (B and C)`), matching CSS media-query / Adwaita
+ * semantics. Null when the top level is a single comparison.
  */
 function splitTopLevel(spec: string): { op: 'and' | 'or'; left: string; right: string } | null {
     for (const op of ['or', 'and'] as const) {
@@ -161,10 +153,9 @@ export interface AdwBreakpointHandlers {
 }
 
 /**
- * A single responsive breakpoint: a condition plus apply/unapply callbacks.
- * Mirrors `Adw.Breakpoint`. Drive {@link evaluate} from your renderer's size
- * source (e.g. `addBreakpoints` in `@gjsify/adwaita-nativescript`, or a
- * `ResizeObserver` in a browser renderer).
+ * A single responsive breakpoint: a condition plus apply/unapply callbacks, mirroring
+ * `Adw.Breakpoint`. Drive {@link evaluate} from the renderer's size source (`addBreakpoints`
+ * in `@gjsify/adwaita-nativescript`, a `ResizeObserver` in a browser renderer).
  */
 export class AdwBreakpoint {
     /** The parsed condition (null when an invalid string was passed). */
@@ -183,9 +174,9 @@ export class AdwBreakpoint {
     }
 
     /**
-     * Re-evaluate against `size`, firing apply / unapply ONLY on a state change
-     * (so a steady stream of layout passes doesn't re-run the callbacks). Returns
-     * the post-evaluation applied state. A null condition never applies.
+     * Re-evaluate against `size`, firing apply / unapply ONLY on a state change, so a steady
+     * stream of layout passes does not re-run the callbacks. Returns the post-evaluation
+     * applied state; a null condition never applies.
      */
     evaluate(size: BreakpointSize): boolean {
         const matches = this.condition ? evaluateBreakpointCondition(this.condition, size) : false;

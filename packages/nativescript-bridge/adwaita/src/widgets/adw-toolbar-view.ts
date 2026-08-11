@@ -4,21 +4,18 @@
 // (header bars / toolbars), an expanding content slot, and a bottom-bar slot.
 // Mirrors `Adw.ToolbarView`: `addTopBar()` / `setContent()` / `addBottomBar()`.
 //
-// FIDELITY: the vertical top/content/bottom arrangement maps directly onto an NS
-// `GridLayout`. `top-bar-style` / `bottom-bar-style` and the four classes
-// libadwaita derives from them — `raised`, `border`, `undershoot-top`,
-// `undershoot-bottom` — come from `@gjsify/adwaita-core`'s `toolbarViewClasses`,
-// so this widget and the browser element agree on when each applies. The
-// `extend-content-to-*-edge` properties move the bar box into the content row and
-// pin it to that edge, which is the NS spelling of "the content spans the full
-// height and the bar is drawn over it".
+// FIDELITY: the vertical arrangement maps directly onto an NS `GridLayout`, and the four
+// classes libadwaita derives from `top-bar-style`/`bottom-bar-style` (`raised`,
+// `border`, `undershoot-top`, `undershoot-bottom`) come from `@gjsify/adwaita-core`'s
+// `toolbarViewClasses`. `extend-content-to-*-edge` moves the bar box into the content
+// row and pins it to that edge — the NS spelling of "the content spans the full height
+// and the bar is drawn over it".
 //
-// What is NOT reproduced is the two chained CLAMPs of
-// `adw_toolbar_view_size_allocate`: NS row specs do the allocation, so a STRETCHY
-// bar (natural > minimum) keeps its natural height here where libadwaita would
-// shrink it back toward its minimum to protect the content. The arithmetic is in
-// core with vectors (`toolbarViewAllocate`); this widget has no stretchy bars to
-// apply it to.
+// NOT reproduced: the two chained CLAMPs of `adw_toolbar_view_size_allocate`. NS row
+// specs do the allocation, so a STRETCHY bar (natural > minimum) keeps its natural
+// height where libadwaita would shrink it toward its minimum to protect the content.
+// The arithmetic is in core with vectors (`toolbarViewAllocate`); this widget has no
+// stretchy bars to apply it to.
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-toolbar-view`.
 // Reference: refs/libadwaita/src/adw-toolbar-view.c

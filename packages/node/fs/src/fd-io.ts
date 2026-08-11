@@ -1,47 +1,29 @@
 // Raw file-descriptor I/O — the only module in `@gjsify/fs` that owns an fd.
 //
-// WHY THIS EXISTS
+// The whole descriptor is reachable from GI, so nothing here emulates POSIX.
+// `GLib.open()` is introspectable and takes a mode, so the KERNEL applies it
+// atomically at creation, masked by the live umask, in the same syscall that
+// honours `O_EXCL` — which is also why `O_EXCL` refuses a symlink whatever it
+// points at, where a `file_test(EXISTS)` pre-check follows the link and reads a
+// dangling one as free. `GioUnix.{Input,Output}Stream` do real `read(2)`/`write(2)`
+// and the kernel advances the offset; `GLib.IOChannel.unix_new()` is a working
+// `lseek(2)` on the same open file description.
 //
-// `@gjsify/fs` never had a file descriptor. It had a `GLib.IOChannel` whose fd
-// it read once for a number, and then did all real I/O by RE-OPENING THE PATH.
-// Every defect this redesign closes follows mechanically from that:
+// WHAT IS NOT REACHABLE
 //
-//   - no kernel cursor to inherit, so a JS cursor had to be invented — and four
-//     of them appeared, disagreeing with each other;
-//   - no `open(2)` to hand a mode to, so `mode` had to be emulated with a
-//     post-create `chmod`, which needed a umask to be correct, which needed a
-//     probe, a cache and a "probe failed" fallback — and each of those grew its
-//     own defects (a probe blind to the execute bits, a cached `umask 0`, a
-//     chmod that stripped INHERITED setgid, a chmod by path that could land on
-//     a different inode);
-//   - no `O_EXCL`, so exclusivity had to be emulated with `file_test(EXISTS)`,
-//     which FOLLOWS SYMLINKS — a dangling link read as "free", so `wx` created
-//     and wrote THROUGH it.
-//
-// The fd is reachable. `GLib.open()` is introspectable and takes a mode, so the
-// KERNEL applies it, atomically, masked by the live umask, at creation, in the
-// same syscall that honours `O_EXCL`. `GioUnix.{Input,Output}Stream` do real
-// `read(2)`/`write(2)` on that fd and the kernel advances the offset.
-// `GLib.IOChannel.unix_new()` is a working `lseek(2)` on the same open file
-// description. So the emulation is not improved here — it is DELETED, and with
-// it every defect that lived in it.
-//
-// WHAT IS NOT REACHABLE, STATED PLAINLY
-//
-//   - `errno`. `GLib.open()` returns `-1` with no `GError`, and GioUnix
-//     collapses `EBADF` into `G_IO_ERROR_FAILED` with a LOCALIZED message.
-//     Open failures are therefore CLASSIFIED (see `classifyOpenFailure`) from
-//     state we can observe after the kernel has already refused; per-operation
-//     codes we know deterministically (`EBADF` for wrong-direction I/O) are
-//     raised from our own access mode instead of read from the OS. Never parse
-//     a message. Not covered: ENOSPC / EDQUOT / EIO discrimination.
-//   - `pread`/`pwrite`/`lseek`-tell. Positional I/O is seek-then-io against a
-//     single authoritative shadow offset (see `file-handle.ts`); `tellFd()`
-//     reads the truth from procfs where the kernel moved the offset behind us.
-//   - `fstat`/`fchmod`/`ftruncate` on the descriptor. These go through
-//     `/proc/self/fd/<fd>`, which is Linux-only; elsewhere they degrade to the
-//     path and lose descriptor identity after a rename. Measured, not assumed —
-//     see `CAN_PROC_FD` in `capabilities.spec.ts`.
+//   - `errno`. `GLib.open()` returns `-1` with no `GError`, and GioUnix collapses
+//     `EBADF` into `G_IO_ERROR_FAILED` with a LOCALIZED message. Open failures are
+//     therefore CLASSIFIED (`classifyOpenFailure`) from state observable after the
+//     kernel refused; codes we know deterministically (`EBADF` for wrong-direction
+//     I/O) come from our own access mode. NEVER parse a message. Not covered:
+//     ENOSPC / EDQUOT / EIO discrimination.
+//   - `pread`/`pwrite`/`lseek`-tell. Positional I/O is seek-then-io against one
+//     authoritative shadow offset (`file-handle.ts`); `tellFd()` reads the truth
+//     from procfs where the kernel moved the offset behind us.
+//   - `fstat`/`fchmod`/`ftruncate` on the descriptor. They go through
+//     `/proc/self/fd/<fd>`, which is Linux-only; elsewhere they degrade to the path
+//     and lose descriptor identity after a rename. Measured, not assumed — see
+//     `CAN_PROC_FD` in `capabilities.spec.ts`.
 
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
@@ -128,17 +110,15 @@ function describe(code: string): string {
     }
 }
 
-// ─── procfs ──────────────────────────────────────────────────────────────────
-
 let procFdSupported: boolean | null = null;
 
 /**
  * Can this host name an open descriptor as a path?
  *
- * Measured once, and only ONCE it is needed — a module-eval probe would run in
- * every consumer that merely imports `node:fs`. `respond-with-file.ts` carries
- * the scar of assuming procfs exists: the path resolved to nothing on macOS,
- * `statSync` threw, and a swallowed catch meant the check silently never ran.
+ * Lazy, not at module eval: a probe there runs in every consumer that merely
+ * imports `node:fs`. Do not assume procfs exists — in `respond-with-file.ts` the
+ * path resolved to nothing on macOS, `statSync` threw, and a swallowed catch meant
+ * the check silently never ran.
  */
 export function hasProcFd(): boolean {
     if (procFdSupported === null) {
@@ -148,27 +128,16 @@ export function hasProcFd(): boolean {
 }
 
 /**
- * A path that names the DESCRIPTOR rather than the name it was opened from,
- * or `null` where the host cannot express one.
- *
- * This is what makes `fstat`/`fchmod`/`ftruncate` survive a rename or an
- * unlink: `/proc/self/fd/<fd>` resolves to the inode the fd holds, even after
- * the directory entry is gone.
+ * A path naming the DESCRIPTOR rather than the name it was opened from, or `null`
+ * where the host cannot express one. `/proc/self/fd/<fd>` resolves to the inode
+ * the fd holds even after the directory entry is gone, which is what lets
+ * `fstat`/`fchmod`/`ftruncate` survive a rename or unlink.
  */
 export function fdPath(fd: number): string | null {
     return hasProcFd() ? `/proc/self/fd/${fd}` : null;
 }
 
-// ─── open / close ────────────────────────────────────────────────────────────
-
-/**
- * `open(2)`.
- *
- * The mode reaches the kernel, so it is applied ATOMICALLY at creation, masked
- * by the live umask, and it survives a crash — none of which a post-create or
- * close-time `chmod` can offer. `O_EXCL` is likewise the kernel's, so it is
- * atomic and it refuses a symlink whatever the link points at.
- */
+/** `open(2)`. */
 export function openFd(path: string, spec: OpenSpec, mode: number): number {
     const fd = GLib.open(path, spec.posix, mode);
     if (fd < 0) throw classifyOpenFailure(path, spec);
@@ -180,19 +149,14 @@ export function closeFd(fd: number): void {
 }
 
 /**
- * Name the reason `open(2)` refused.
- *
- * GJS cannot read `errno`, so the code is reconstructed from what is observable
- * AFTER the kernel has already refused. That makes this a classification, not a
- * check-then-act: it never decides whether to create anything, so it carries no
- * TOCTOU. The `lstat`-equivalent lookup (`NOFOLLOW_SYMLINKS`) matters — a
- * dangling symlink must read as "the name is taken", which is exactly why
- * `file_test(EXISTS)` was the wrong instrument for the check this replaces.
+ * Name the reason `open(2)` refused, reconstructed from what is observable AFTER
+ * the kernel refused. A classification, not a check-then-act: it decides nothing
+ * about creating anything, so it carries no TOCTOU. The lookup must be
+ * `NOFOLLOW_SYMLINKS` so a dangling symlink reads as "the name is taken".
  */
 export function classifyOpenFailure(path: string, spec: OpenSpec): NodeJS.ErrnoException {
-    // The kernel's own order, so a path that trips two rules reports the code
-    // `open(2)` would. Length goes first: it is decided before any lookup
-    // happens, and it needs no syscall at all.
+    // The kernel's own order, so a path tripping two rules reports the code
+    // `open(2)` would. Length first: decided before any lookup, needs no syscall.
     const tooLong = nameTooLong(path, 'open');
     if (tooLong) return tooLong;
 
@@ -214,23 +178,20 @@ export function classifyOpenFailure(path: string, spec: OpenSpec): NodeJS.ErrnoE
         existing = null;
     }
 
-    // "I was not allowed to look" is neither "it is not there" nor "it is
-    // there" — it is the permission answer, which is the one `open(2)` gave.
-    // See {@link answered}: this used to fall into the `existing` branch below
-    // and report EEXIST for a hard EACCES.
+    // "I was not allowed to look" is neither "not there" nor "there" — it is the
+    // permission answer, the one `open(2)` gave. Falling into the `existing` branch
+    // instead reports EEXIST for a hard EACCES. See {@link answered}.
     if (unanswered) return refusalNotAboutThePath(path, spec, file, null);
 
     if (existing) {
-        // EEXIST is gated on O_EXCL. Reporting "file already exists" for what
-        // is really a permission error would be a silently wrong answer from
-        // the mechanism added to remove silently wrong answers.
+        // EEXIST is gated on O_EXCL: "file already exists" for what is really a
+        // permission error is exactly the silently wrong answer to avoid.
         if (spec.excl) return fsError('EEXIST', 'open', path);
 
-        // The open that just failed FOLLOWED this symlink (unless the caller
-        // asked it not to), so the name found here is not the object the kernel
-        // refused. Two of `open(2)`'s codes are reachable only from the chain,
-        // and both used to arrive as EACCES — which is what sent a retry loop
-        // keyed on ELOOP down the give-up branch instead.
+        // The failed open FOLLOWED this symlink unless the caller said otherwise, so
+        // the name found here is not the object the kernel refused. ELOOP and
+        // ENAMETOOLONG are reachable only from the chain; report them as EACCES and
+        // a retry loop keyed on ELOOP takes the give-up branch.
         if (existing.get_file_type() === Gio.FileType.SYMBOLIC_LINK && !spec.nofollow) {
             const chain = walkSymlinkChain(file);
             if (chain === 'loop') return fsError('ELOOP', 'open', path);
@@ -245,11 +206,9 @@ export function classifyOpenFailure(path: string, spec: OpenSpec): NodeJS.ErrnoE
             return fsError('EISDIR', 'open', path);
         }
 
-        // `O_DIRECTORY` is the caller saying "a directory or nothing", and
-        // `open(2)` answers ENOTDIR when it is anything else. The flag was
-        // parsed and then never consulted, so the refusal fell through to the
-        // permission answer — the one code that tells a caller to stop rather
-        // than to look elsewhere.
+        // `O_DIRECTORY` means "a directory or nothing", and `open(2)` answers ENOTDIR
+        // for anything else. Not consulting the flag leaves the refusal as the
+        // permission answer, which tells a caller to stop rather than look elsewhere.
         if (spec.directory && existing.get_file_type() !== Gio.FileType.DIRECTORY) {
             return fsError('ENOTDIR', 'open', path);
         }
@@ -257,14 +216,12 @@ export function classifyOpenFailure(path: string, spec: OpenSpec): NodeJS.ErrnoE
         return refusalNotAboutThePath(path, spec, file, existing);
     }
 
-    // BEFORE the ENOENT below, because `open(2)` decides it before it decides
-    // ENOENT: a prefix component that exists and is not a directory ends the
-    // path walk whatever the caller asked for. Gating this on `O_CREAT` — the
-    // shape this replaces — made `openSync(file/child, 'r')` answer ENOENT
-    // ("not there, try the next candidate") for a base path that is a FILE,
-    // while `openSync(file/child, 'w')`, `readFileSync`, `accessSync` and
-    // `statSync` on the very same name all answered ENOTDIR. A config loader
-    // walking candidate paths silently skipped the misconfiguration.
+    // BEFORE the ENOENT below, and NOT gated on `O_CREAT`: `open(2)` decides ENOTDIR
+    // first, because a prefix component that exists and is not a directory ends the
+    // walk whatever the caller asked for. Gate it and `openSync('file/child','r')`
+    // answers ENOENT — "try the next candidate" — where `'w'`, `readFileSync`,
+    // `accessSync` and `statSync` on the same name all answer ENOTDIR, so a config
+    // loader walking candidates silently skips the misconfiguration.
     const notDir = ancestorIsNotADirectory(file);
     if (notDir) return fsError('ENOTDIR', 'open', path);
 
@@ -283,11 +240,10 @@ export function classifyOpenFailure(path: string, spec: OpenSpec): NodeJS.ErrnoE
 /**
  * Does an existing ancestor of `path` block the walk by not being a directory?
  *
- * The immediate parent is not enough: for `<file>/a/b.json` the parent
- * `<file>/a` cannot be looked up AT ALL — the lookup dies one level higher —
- * so the first ancestor that answers is the one that decides. Walking up until
- * something answers is exactly the order `open(2)` resolves the name in, and it
- * stops at the first answer, so it costs one lookup in the ordinary case.
+ * The immediate parent is not enough: for `<file>/a/b.json` the parent `<file>/a`
+ * cannot be looked up AT ALL, so the first ancestor that ANSWERS decides. Climbing
+ * until one does is the order `open(2)` resolves the name in, and it stops at the
+ * first answer, so the ordinary case costs one lookup.
  */
 function ancestorIsNotADirectory(file: Gio.File): boolean {
     for (let parent = file.get_parent(); parent; parent = parent.get_parent()) {
@@ -298,8 +254,8 @@ function ancestorIsNotADirectory(file: Gio.File): boolean {
             // This component does not exist either — keep climbing.
             continue;
         }
-        // No answer (see {@link answered}) is not evidence of a non-directory;
-        // the permission branch above already owns that case.
+        // No answer is not evidence of a non-directory; the permission branch above
+        // owns that case. See {@link answered}.
         if (!answered(info)) return false;
         return info.get_file_type() !== Gio.FileType.DIRECTORY;
     }
@@ -309,33 +265,26 @@ function ancestorIsNotADirectory(file: Gio.File): boolean {
 /**
  * Does this `GFileInfo` actually ANSWER, or is it an empty shell?
  *
- * `g_file_query_info()` does NOT fail when the kernel refuses to stat a name.
- * A path under a directory the process cannot search comes back as a non-NULL
- * `GFileInfo` carrying NO attributes at all — measured directly:
- * `list_attributes(null)` is `[]` and `has_attribute('standard::type')` is
- * `false`, where an ordinary lookup returns `['standard::type']`.
+ * `g_file_query_info()` does NOT fail when the kernel refuses to stat a name. A
+ * path under a directory the process cannot search returns a non-NULL `GFileInfo`
+ * with NO attributes at all — measured: `list_attributes(null)` is `[]` and
+ * `has_attribute('standard::type')` is `false`, where an ordinary lookup gives
+ * `['standard::type']`. Every attribute read in this module is therefore gated on
+ * this, and `false` means "no answer", NEVER "no".
  *
- * Two things follow, and this package got both wrong. Reading the type off
- * that shell logs `GFileInfo created without standard::type` plus
- * `g_file_info_get_file_type: should not be reached` — two `GLib-GIO-CRITICAL`
- * lines that `G_DEBUG=fatal-criticals` (standard in GNOME CI, and the exact
- * condition {@link isSeekableFd} below exists to satisfy) turns into a
- * SIGABRT before the caller's `catch` can run. And taking the shell as proof
- * the name EXISTS answered EEXIST — "the name is taken" — for a plain
- * permission denial, which sends an `openSync(lock,'wx')` retry loop round
- * forever and makes the ubiquitous
- * `try { mkdirSync(d) } catch (e) { if (e.code !== 'EEXIST') throw }`
- * swallow a hard EACCES and carry on as if the directory were there.
+ * Both ways of skipping the gate are live hazards:
+ *   - reading the type off the shell logs `GFileInfo created without
+ *     standard::type` and `g_file_info_get_file_type: should not be reached`, two
+ *     `GLib-GIO-CRITICAL`s that `G_DEBUG=fatal-criticals` (standard in GNOME CI)
+ *     turns into a SIGABRT before the caller's `catch` can run;
+ *   - taking the shell as proof the name EXISTS answers EEXIST for a plain
+ *     permission denial, so an `openSync(lock,'wx')` retry loop spins forever and
+ *     the ubiquitous `catch (e) { if (e.code !== 'EEXIST') throw }` around
+ *     `mkdirSync` swallows a hard EACCES.
  *
- * So every read of an attribute in this module is gated on this, and a
- * `false` means "no answer" — never "no".
- *
- * Exported because the stat family needs the identical gate and used to lack
- * it: `statSync` under an unsearchable directory built a `Stats` from the empty
- * shell, which is BOTH of the failures above at once — four CRITICALs (hence a
- * SIGABRT under `G_DEBUG=fatal-criticals`) and then a fabricated `{mode: 0,
- * size: 0, ino: 0}` returned as fact where Node raises EACCES. See
- * `statsFrom()` in `stats.ts`, which is the one place that decision now lives.
+ * Exported because the stat family needs the identical gate; without it `statSync`
+ * hits both hazards at once and returns a fabricated `{mode: 0, size: 0, ino: 0}`
+ * as fact where Node raises EACCES. `statsFrom()` in `stats.ts` owns that decision.
  */
 export function answered(info: Gio.FileInfo | null): boolean {
     return info !== null && info.has_attribute('standard::type');
@@ -354,10 +303,9 @@ function nameTooLong(path: string, syscall: string): NodeJS.ErrnoException | nul
 /**
  * Follow a symlink chain the way `open(2)` would, and name how it ends.
  *
- * `SYMLOOP_MAX` is 40 on Linux: the kernel gives up at that depth and reports
- * ELOOP whether or not the links form an actual cycle. Counting hops is
- * therefore the faithful test, and it terminates on a self-referential pair
- * without having to remember where it has already been.
+ * `SYMLOOP_MAX` is 40 on Linux and the kernel reports ELOOP at that depth whether
+ * or not the links form a real cycle, so counting hops is the faithful test — and
+ * it terminates on a self-referential pair without remembering where it has been.
  */
 function walkSymlinkChain(start: Gio.File): 'loop' | 'dangling' | 'too-long' | 'resolved' {
     const encoder = new TextEncoder();
@@ -373,10 +321,9 @@ function walkSymlinkChain(start: Gio.File): 'loop' | 'dangling' | 'too-long' | '
         } catch {
             return 'dangling';
         }
-        // No answer ends the walk: the kernel would not describe this hop, so
-        // it is neither a loop nor a dangling link — and reading the type off
-        // the empty info it handed back is the `GLib-GIO-CRITICAL` that
-        // {@link answered} documents. The caller then reaches the permission
+        // No answer ends the walk: the kernel would not describe this hop, so it is
+        // neither a loop nor dangling, and reading the type off the empty info is the
+        // CRITICAL {@link answered} documents. The caller then reaches the permission
         // answer, which is the one `open(2)` gave.
         if (!answered(info)) return 'resolved';
         if (info.get_file_type() !== Gio.FileType.SYMBOLIC_LINK) return 'resolved';
@@ -392,13 +339,10 @@ function walkSymlinkChain(start: Gio.File): 'loop' | 'dangling' | 'too-long' | '
 }
 
 /**
- * The refusals that are not about this path at all.
- *
- * Everything above reads the NAME; these two read the process and the mount,
- * and they are why this function no longer ends in a bare `EACCES`. A
- * descriptor-table exhaustion reported as "permission denied" is the worst of
- * the codes that were collapsed: EMFILE is the one a caller is expected to back
- * off and retry on, and EACCES tells it to give up instead.
+ * The refusals that are not about this path at all: everything above reads the
+ * NAME, these read the process and the mount. Collapsing them into a bare `EACCES`
+ * costs the most on EMFILE — the one code a caller is expected to back off and
+ * retry on, where "permission denied" tells it to give up.
  */
 function refusalNotAboutThePath(
     path: string,
@@ -406,23 +350,19 @@ function refusalNotAboutThePath(
     file: Gio.File,
     existing: Gio.FileInfo | null,
 ): NodeJS.ErrnoException {
-    // Ask for a descriptor that cannot be refused for any reason of its own. If
-    // even that fails, the table is full and the caller's path was never the
-    // problem. One fd, closed immediately.
+    // A descriptor that cannot be refused for any reason of its own: if even this
+    // fails, the table is full and the caller's path was never the problem.
     const probe = GLib.open('/dev/null', 0, 0);
     if (probe < 0) return fsError('EMFILE', 'open', path);
     GLib.close(probe);
 
-    // The FILE's own mode beats the MOUNT's claim, and the order matters. A
-    // mode with no write bit for anyone explains the refusal by itself, and no
-    // fact about the filesystem can make that answer EROFS — while the reverse
-    // is not true: a 0o644 file on a read-only mount is a genuine EROFS.
-    //
-    // Measured, and the reason this is not merely tidier: GitHub's macOS runners
-    // report `filesystem::readonly == true` for a volume they then happily write
-    // to (macOS synthesizes a read-only system root), so the mount branch fired
-    // first and answered EROFS for a plain chmod-0444 EACCES — on the darwin GJS
-    // leg only, where nothing on Linux could see it.
+    // The FILE's own mode must be checked BEFORE the MOUNT's claim. A mode with no
+    // write bit for anyone explains the refusal by itself and no filesystem fact can
+    // make that EROFS, while the reverse does hold: 0o644 on a read-only mount is a
+    // genuine EROFS. Measured: GitHub's macOS runners report
+    // `filesystem::readonly == true` for a volume they then happily write to (macOS
+    // synthesizes a read-only system root), so the mount branch first answers EROFS
+    // for a plain chmod-0444 EACCES — on the darwin leg only, invisible from Linux.
     const deniedByMode = existing !== null && (existing.get_attribute_uint32('unix::mode') & 0o222) === 0;
 
     if ((spec.writable || spec.creat) && !deniedByMode) {
@@ -430,8 +370,7 @@ function refusalNotAboutThePath(
             const fsInfo = file.query_filesystem_info('filesystem::readonly', null);
             if (fsInfo.get_attribute_boolean('filesystem::readonly')) return fsError('EROFS', 'open', path);
         } catch {
-            // A mount that will not describe itself is not evidence of anything;
-            // fall through to the permission answer rather than invent one.
+            // A mount that will not describe itself is not evidence of anything.
         }
     }
 
@@ -441,21 +380,17 @@ function refusalNotAboutThePath(
 }
 
 /**
- * Is this "the device exists but there is nothing on the other end" (ENXIO)
- * rather than "you may not" (EACCES)?
+ * Is this "the device exists but nothing is on the other end" (ENXIO) rather than
+ * "you may not" (EACCES)? Both arrive as the same bare `-1` and tell a caller
+ * opposite things: a writer that retries on ENXIO until a reader attaches gives up
+ * permanently on "permission denied". Two ordinary paths reach it —
+ * `open('/dev/tty')` with no controlling terminal, and a FIFO opened
+ * `O_WRONLY | O_NONBLOCK` with no reader (both ENXIO, errno -6, on Node v24.15.0).
  *
- * Both arrive here as the same bare `-1`, and the two tell a caller opposite
- * things: a writer that retries on ENXIO until a reader attaches gives up
- * permanently when it is told "permission denied" instead. Two ordinary paths
- * reach it — `open('/dev/tty')` with no controlling terminal, and a FIFO opened
- * `O_WRONLY | O_NONBLOCK` with no reader (measured against Node v24.15.0: both
- * ENXIO, errno -6).
- *
- * The discriminator is `access(2)`, which GIO exposes as `access::can-*`: if
- * the kernel grants the access the caller asked for and the open STILL failed,
- * permission was not the obstruction. Narrowed to devices and FIFOs on purpose
- * — those are the only objects `open(2)` raises ENXIO for, so an ordinary file
- * keeps the EACCES answer whatever `access(2)` says about it.
+ * The discriminator is `access(2)` via GIO's `access::can-*`: if the kernel grants
+ * what the caller asked for and the open STILL failed, permission was not the
+ * obstruction. Narrowed to devices and FIFOs on purpose, the only objects
+ * `open(2)` raises ENXIO for — an ordinary file keeps EACCES regardless.
  */
 function nothingOnTheOtherEnd(spec: OpenSpec, existing: Gio.FileInfo): boolean {
     if (!existing.has_attribute('unix::mode')) return false;
@@ -473,11 +408,9 @@ function nothingOnTheOtherEnd(spec: OpenSpec, existing: Gio.FileInfo): boolean {
 
 /** The same reconstruction for `mkdir(2)`, which also returns a bare `-1`. */
 export function classifyMkdirFailure(path: string): NodeJS.ErrnoException {
-    // Same order as `classifyOpenFailure`, and for the same reason: the kernel
-    // rejects an over-long name before it looks anything up. This call was
-    // missing entirely, so `mkdirSync(<500-char name>)` reported "permission
-    // denied" for a length the open-side sibling already named correctly —
-    // the two halves of one failure disagreeing inside one release.
+    // Same order as `classifyOpenFailure`: the kernel rejects an over-long name
+    // before it looks anything up. Omit this and `mkdirSync(<500-char name>)` reports
+    // "permission denied" for a length the open side names correctly.
     const tooLong = nameTooLong(path, 'mkdir');
     if (tooLong) return tooLong;
 
@@ -485,10 +418,9 @@ export function classifyMkdirFailure(path: string): NodeJS.ErrnoException {
     try {
         const info = file.query_info('standard::type', Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, null);
         if (answered(info)) return fsError('EEXIST', 'mkdir', path);
-        // No answer means the search bit on some parent, not a taken name —
-        // see {@link answered}. Reporting EEXIST here is what made
-        // `try { mkdirSync(d) } catch (e) { if (e.code !== 'EEXIST') throw }`
-        // swallow a hard permission denial.
+        // No answer means the search bit on some parent, not a taken name — see
+        // {@link answered}. EEXIST here is what makes the ubiquitous
+        // `catch (e) { if (e.code !== 'EEXIST') throw }` swallow a permission denial.
         return fsError('EACCES', 'mkdir', path);
     } catch {
         // Not there — so the obstruction is above it.
@@ -507,18 +439,15 @@ export function classifyMkdirFailure(path: string): NodeJS.ErrnoException {
     return fsError('EACCES', 'mkdir', path);
 }
 
-// ─── seek / tell ─────────────────────────────────────────────────────────────
-
 /**
  * Per-fd seek handles.
  *
- * `GioUnix` streams are NOT `Gio.Seekable` and `GLib.lseek` is not
- * introspected, so the only route to `lseek(2)` from GJS is an `IOChannel`
- * wrapped around the same descriptor. Its three settings are an invariant, not
- * a preference, and they live in exactly one place because getting any of them
- * wrong is silent: an encoding makes GLib transcode the bytes, buffering makes
- * the channel hold writes the GioUnix streams know nothing about, and
- * `close_on_unref` hands our fd to the garbage collector.
+ * `GioUnix` streams are NOT `Gio.Seekable` and `GLib.lseek` is not introspected, so
+ * the only route to `lseek(2)` from GJS is an `IOChannel` over the same descriptor.
+ * Its three settings are an invariant, not a preference, because each failure is
+ * silent: an encoding makes GLib transcode the bytes, buffering makes the channel
+ * hold writes the GioUnix streams know nothing about, and `close_on_unref` hands
+ * our fd to the garbage collector.
  */
 const seekHandles = new Map<number, GLib.IOChannel>();
 const inputStreams = new Map<number, GioUnix.InputStream>();
@@ -561,53 +490,37 @@ const seekableFds = new Map<number, boolean>();
 /**
  * Can this descriptor be positioned at all?
  *
- * `seekFd` used to be issued before EVERY read and write, unconditionally, so a
- * FIFO / pipe / socket / tty produced one
- * `g_io_channel_seek_position: assertion 'channel->is_seekable' failed`
- * per I/O call — a `GLib-CRITICAL`, which `G_DEBUG=fatal-criticals` (standard
- * in GNOME CI) turns into an abort. The bytes happened to survive because a
- * pipe ignores the offset, so the failed seek was a silent no-op and `_pos`
- * accumulated a number that meant nothing.
+ * Seeking unconditionally before every read and write emits one
+ * `g_io_channel_seek_position: assertion 'channel->is_seekable' failed` per I/O
+ * call on a FIFO / pipe / socket / tty — a `GLib-CRITICAL`, which
+ * `G_DEBUG=fatal-criticals` (standard in GNOME CI) turns into an abort. The bytes
+ * survive, because a pipe ignores the offset, so `_pos` silently accumulates a
+ * number that means nothing.
  *
- * The answer is therefore ASKED FOR rather than discovered by tripping an
- * assertion. `GIOChannel` decides it with `lseek(fd, 0, SEEK_CUR)`, which GJS
- * cannot reach, and its `is_seekable` field is not introspectable — so the file
- * TYPE is the available instrument.
+ * The answer must therefore be ASKED FOR, not discovered by tripping the
+ * assertion, and it takes TWO tests in this order:
  *
- * The rule is deliberately narrow: only `S_IFIFO` and `S_IFSOCK` are refused.
- * The tempting "seekable means `S_IFREG` or `S_IFBLK`" is WRONG and would trade
- * this defect for a worse one — a character device usually seeks fine
- * (`noop_llseek`), and Node performs positional I/O on `/dev/null`,
- * `/dev/zero` and `/dev/urandom` without complaint (measured against
- * v24.15.0). Refusing those would have turned a stray log line into an ESPIPE
- * that Node never raises.
+ * 1. The file TYPE, refusing ONLY `S_IFIFO` and `S_IFSOCK` — the two whose channel
+ *    is not `is_seekable`, so asking them at all is the CRITICAL above. The
+ *    tempting "seekable means `S_IFREG` or `S_IFBLK`" is WRONG: a character device
+ *    usually seeks fine (`noop_llseek`) and Node does positional I/O on
+ *    `/dev/null`, `/dev/zero` and `/dev/urandom` (measured, v24.15.0), so
+ *    refusing those raises an ESPIPE Node never raises.
+ * 2. The DESCRIPTOR itself, via the same `lseek(fd, 0, SEEK_CUR)` `GIOChannel` uses
+ *    internally — a pure query that moves nothing. Needed because a TTY is
+ *    `S_IFCHR` exactly like `/dev/zero` but has `no_llseek`. Measured under gjs
+ *    1.88.1: `G_IO_STATUS_NORMAL` on a regular file, `/dev/zero` and `/dev/null`;
+ *    a clean `GLib.IOChannelError` ("Illegal seek") on a pty slave, with no
+ *    CRITICAL, because that channel IS `is_seekable` and the kernel refuses.
  *
- * The type test alone is NOT the whole answer, and a TTY is where it runs out:
- * `/dev/pts/N` is `S_IFCHR` exactly like `/dev/zero`, but it has `no_llseek`.
- * So after the type test the DESCRIPTOR ITSELF is asked, with the same
- * `lseek(fd, 0, SEEK_CUR)` `GIOChannel` uses internally — a pure query that
- * moves nothing. Measured under gjs 1.88.1: it returns `G_IO_STATUS_NORMAL` on
- * a regular file, on `/dev/zero` and on `/dev/null`, and THROWS
- * `GLib.IOChannelError` ("Illegal seek") on a pty slave — cleanly, with no
- * CRITICAL, because a `GIOChannel` over a tty is `is_seekable` and the failure
- * comes from the kernel rather than from an assertion. Order matters: the type
- * test runs FIRST because a FIFO / socket channel is NOT `is_seekable`, and
- * asking one to seek is the `g_io_channel_seek_position: assertion failed`
- * CRITICAL this function exists to avoid.
+ * Skipping test 2 makes writing to a terminal by path impossible: the seek throws
+ * a RAW `Gio.IOErrorEnum` — numeric `code`, `instanceof Error === false` — out of
+ * `writeFileSync`/`writeSync`/`createWriteStream`, invisible to
+ * `catch (e) { if (e.code === 'ESPIPE') }`.
  *
- * Without the second test, writing to a terminal by path was impossible: the
- * unconditional `seekFd` threw a RAW `Gio.IOErrorEnum` — `code === 8` as a
- * NUMBER, `instanceof Error === false` — straight out of `writeFileSync`,
- * `writeSync` and `createWriteStream`, so `catch (e) { if (e.code === 'ESPIPE') }`
- * could not see it and the classic "write to the terminal even when stdout is
- * redirected" idiom simply failed.
- *
- * The process's own stdin/stdout/stderr — the overwhelmingly common tty case —
- * never reach this code: `isStdFd()` intercepts them first.
- *
- * Cached per fd: the type behind an open file description cannot change under
- * it, and the cache is dropped by {@link releaseFd} so a recycled fd number
- * never inherits the previous holder's answer.
+ * The process's own stdin/stdout/stderr never arrive here; `isStdFd()` takes them
+ * first. Cached per fd — the type behind an open file description cannot change —
+ * and dropped by {@link releaseFd} so a recycled fd number inherits nothing.
  */
 export function isSeekableFd(fd: number, fallbackPath: string): boolean {
     let known = seekableFds.get(fd);
@@ -631,17 +544,16 @@ function probeSeekable(fd: number, fallbackPath: string): boolean {
             if (format === 0o010000 /* S_IFIFO */ || format === 0o140000 /* S_IFSOCK */) return false;
         }
     } catch {
-        // No answer is not the same as "no" — fall through and ask the
-        // descriptor, which answers about the object rather than about a name.
+        // No answer is not "no" — ask the descriptor, which answers about the object
+        // rather than about a name.
     }
 
     try {
         seekHandle(fd).seek_position(0, GLib.SeekType.CUR);
         return true;
     } catch {
-        // `lseek(fd, 0, SEEK_CUR)` failing IS the definition of a
-        // non-seekable descriptor, and it is the only definition available
-        // here: `GIOChannel.is_seekable` is not introspectable.
+        // A failing `lseek(fd, 0, SEEK_CUR)` IS the definition of non-seekable, and
+        // the only one available: `GIOChannel.is_seekable` is not introspectable.
         return false;
     }
 }
@@ -654,11 +566,9 @@ export function seekFd(fd: number, position: number): void {
 /**
  * The descriptor's true offset, or `null` where the host cannot report it.
  *
- * Only needed where the KERNEL moved the offset behind us — an `O_APPEND`
- * write jumps to EOF without telling anyone, and computing the new position
- * from the pre-write value is how the previous attempt let the cursor drift
- * away from the file after the first append. `seek_position()` cannot answer
- * this: it returns a `GIOStatus`, not an offset.
+ * Only needed where the KERNEL moved the offset behind us: an `O_APPEND` write jumps
+ * to EOF silently, and computing the new position from the pre-write value drifts.
+ * `seek_position()` cannot answer this — it returns a `GIOStatus`, not an offset.
  */
 export function tellFd(fd: number): number | null {
     if (!hasProcFd()) return null;
@@ -668,13 +578,10 @@ export function tellFd(fd: number): number | null {
         const match = /^pos:\s*(\d+)/m.exec(new TextDecoder().decode(data));
         return match ? Number(match[1]) : null;
     } catch {
-        // procfs is readable or it is not; an unreadable one means "no answer",
-        // and the caller has a documented fallback. Nothing is dropped here.
+        // An unreadable procfs means "no answer"; the caller has a documented fallback.
         return null;
     }
 }
-
-// ─── read / write ────────────────────────────────────────────────────────────
 
 /** `read(2)` at the descriptor's current offset. The kernel advances it. */
 export function readFd(fd: number, length: number): Uint8Array {
@@ -696,11 +603,9 @@ export function fsyncFd(fd: number): void {
 }
 
 /**
- * Release the cached per-fd views.
- *
- * The streams must go before the descriptor does: a GioUnix stream outliving
- * its fd would answer a later call against whatever the OS handed that number
- * to next.
+ * Release the cached per-fd views. They must go before the descriptor does: a
+ * GioUnix stream outliving its fd answers later calls against whatever the OS
+ * handed that number to next.
  */
 export function releaseFd(fd: number): void {
     const out = outputStreams.get(fd);
@@ -708,9 +613,8 @@ export function releaseFd(fd: number): void {
         try {
             out.flush(null);
         } catch {
-            // A flush failure on teardown is reported by the caller's close();
-            // dropping the cache entry must still happen or the next fd with
-            // this number inherits a stale stream.
+            // The caller's close() reports a teardown flush failure; the cache entry
+            // must be dropped regardless, or the next fd with this number inherits it.
         }
     }
     seekHandles.delete(fd);
@@ -718,8 +622,6 @@ export function releaseFd(fd: number): void {
     outputStreams.delete(fd);
     seekableFds.delete(fd);
 }
-
-// ─── descriptor metadata ─────────────────────────────────────────────────────
 
 /** The size of the file behind `fd`, via the descriptor where the host allows. */
 export function sizeOfFd(fd: number, fallbackPath: string): number {
@@ -731,33 +633,26 @@ export function sizeOfFd(fd: number, fallbackPath: string): number {
 /**
  * `ftruncate(2)`, as closely as GJS can express it.
  *
- * THE PART THAT IS REACHABLE, AND WHERE IT LIVES
+ * The access-mode check `ftruncate(2)` performs — descriptor open for writing, mode
+ * never consulted — is bookkeeping we already hold, so it lives in `FileHandle`
+ * beside the identical gates in `_readCore`/`_writeCore`, NOT here. Without it a
+ * handle opened `'r'` destroys the file, because the re-open below asks the kernel
+ * for fresh permission and gets it.
  *
- * `ftruncate(2)` checks ONE thing: that the descriptor is open for writing. It
- * never looks at the file's mode. That check is pure bookkeeping we already
- * hold, so it is enforced where the access mode lives — `FileHandle`, next to
- * the identical gates in `_readCore`/`_writeCore` — and NOT here. Without it a
- * handle opened `'r'` could destroy the file, because the re-open below asks
- * the kernel for its own fresh permission and gets it.
+ * A re-open is unavoidable: there is no `g_ftruncate` and no route from an fd to a
+ * `GSeekable` — `GioUnix.OutputStream` does not implement it, and
+ * `GBufferedOutputStream` / `GDataOutputStream` around one both report
+ * `can_truncate() == false` (measured, gjs 1.88.1). It goes by the descriptor's
+ * procfs name so it lands on the right inode after a rename or unlink, and being a
+ * second open it IS checked against the file's mode.
  *
- * THE PART THAT IS NOT, MEASURED
- *
- * There is no `g_ftruncate`, and no route from an fd to a `GSeekable`:
- * `GioUnix.OutputStream` does not implement it, and `GBufferedOutputStream` /
- * `GDataOutputStream` wrapped around one both report `can_truncate() == false`
- * (measured under gjs 1.88.1). Truncation therefore needs a second `open(2)`,
- * by the descriptor's procfs name so it lands on the right inode after a rename
- * or an unlink — and a second open is checked against the FILE's mode.
- *
- * So the re-open takes the least privilege that can truncate: `append_to()` is
- * `O_WRONLY`, `open_readwrite()` is `O_RDWR`. That is not a micro-optimisation
- * — it is the difference between working and not on a write-only file: mode
- * 0o200 truncates through the first and is refused by the second (measured).
- * What remains unreachable is a file whose mode denies its own owner write
- * (0o444, 0o400, 0o000): Node truncates those through the descriptor, we cannot.
- * The failure is at least REPORTED now — it used to escape as a bare
- * `Gio.IOErrorEnum` with a numeric `code` and `instanceof Error === false`, so
- * `catch (e) { if (e.code === 'EACCES') }` could not see it.
+ * Hence the least privilege that can truncate: `append_to()` is `O_WRONLY`,
+ * `open_readwrite()` is `O_RDWR`. Not an optimisation — on a write-only file, mode
+ * 0o200 truncates through the first and is refused by the second (measured). Still
+ * unreachable: a mode denying its own owner write (0o444, 0o400, 0o000), which Node
+ * truncates through the descriptor. That failure must at least be REPORTED as an
+ * ErrnoException — raw it escapes as a `Gio.IOErrorEnum` with a numeric `code` and
+ * `instanceof Error === false`, invisible to `catch (e) { if (e.code === 'EACCES') }`.
  */
 export function truncateFd(fd: number, length: number, fallbackPath: string): void {
     const file = Gio.File.new_for_path(fdPath(fd) ?? fallbackPath);

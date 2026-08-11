@@ -1,21 +1,16 @@
-// @gjsify/adwaita-storybook — browser renderer for the @gjsify/stories contract.
-// The web counterpart of @gjsify/storybook: author *.web.ts files as
-// StoryElement subclasses and render them in a generic Adwaita component browser
-// built from @gjsify/adwaita-web, looking and behaving like the native GTK
-// storybook.
+// Browser renderer for the `@gjsify/stories` contract, the web counterpart of
+// `@gjsify/storybook`: `*.web.ts` files author `StoryElement` subclasses, rendered in
+// an Adwaita component browser built from `@gjsify/adwaita-web`.
 //
-// A screenshot harness comparing the renderers is NOT implemented (#1052). What
-// holds their behaviour together is the @gjsify/adwaita-core/conformance vector
-// tables, which both renderer suites assert their real widgets against.
-//
-// A thin DOM adapter over @gjsify/storybook-core — the renderer-agnostic logic
-// (story base, registry, control binding, app controller) lives in core; this
-// package keeps only the @gjsify/adwaita-web view layer.
+// A thin DOM adapter over `@gjsify/storybook-core`, which owns the renderer-agnostic
+// logic (story base, registry, control binding, app controller) — this package is only
+// the view layer. Nothing compares the two renderers by screenshot (#1052); what holds
+// their behaviour together is the `@gjsify/adwaita-core/conformance` vector tables both
+// renderer suites assert their real widgets against.
 
-// Re-export the renderer-agnostic authoring contract so a story only needs one
-// import (`@gjsify/adwaita-storybook`). The web-specific WebStoryModule /
-// WebStoryDecorator (which reference StoryElement) intentionally shadow the
-// generic ones from @gjsify/stories.
+// The authoring contract is re-exported so a story needs one import only. The
+// web-specific WebStoryModule / WebStoryDecorator intentionally shadow the generic
+// ones from `@gjsify/stories`, because they reference `StoryElement`.
 export {
     ControlType,
     argsFromControls,

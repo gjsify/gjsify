@@ -5,41 +5,23 @@
 // (row 1). Mirrors `Adw.Carousel`: `insertPage`/`removePage`/`reorderPage`,
 // `position`, `scrollToPage()`, `nPages`, `notify::position` and `page-changed`.
 //
-// The BEHAVIOUR is headless and lives in `@gjsify/adwaita-core` (ADR 0004) as
-// `CarouselState`, shared with the `@gjsify/adwaita-web` twin and pinned by the
-// conformance vectors; `carousel-state.ts` holds the NS-specific projection onto
-// scroll offsets and dot classes. This class is the `GridLayout` wiring only.
+// The BEHAVIOUR is headless in `@gjsify/adwaita-core` (ADR 0004) as `CarouselState`,
+// shared with the `@gjsify/adwaita-web` twin and pinned by the conformance vectors;
+// `carousel-state.ts` holds the NS projection onto scroll offsets and dot classes.
+// This class is the `GridLayout` wiring only. `position` is a FRACTIONAL double fed by
+// the `ScrollView` scroll listener, so a drag in progress is observable, and the dots
+// mark `get_page_at_position` (a half-way position resolves DOWN) rather than an
+// integer compare.
 //
-// What the lift fixed here, all of it C-derived:
-//   - `scrollToPage(NaN)` used to set `_position` to NaN and emit it, after
-//     which no dot matched and the carousel had no current page at all. C's
-//     `adw_carousel_get_nth_page` fails its precondition instead (:1616), which
-//     is what the state machine now does — refuse, and record the warning.
-//   - `position` is a fractional double in C (:1036-1041), updated on every
-//     swipe frame (:418-424). It was an integer page index that only ever moved
-//     through `scrollToPage`, so nothing could observe a drag in progress; a
-//     `ScrollView` scroll listener now feeds it.
-//   - `page-changed` did not exist. It fires on every completed scroll, with -1
-//     for an empty carousel (:363-376, :1150-1151).
-//   - a re-selection of the current page notified nothing; C's
-//     `g_object_notify_by_pspec` at :281 is unconditional.
-//   - the dots marked the page at an integer `===` compare; the selected one is
-//     now `get_page_at_position`, which resolves a half-way position DOWN
-//     (:198-201) and marks something even mid-swipe.
-//   - the page set was append-only. Insert, remove and reorder now follow the C
-//     ordering rules and their position compensation (:1370-1532).
-//
-// FIDELITY: compromised. NS has NO native carousel and no paging-snap on
-// `ScrollView`. This approximates one: pages are fixed-width children of a
-// horizontal `ScrollView`; `scrollToPage(i)` calls `scrollToHorizontalOffset`.
-// COMPROMISES: (1) no snap-to-page on free swipe — a free flick can rest between
-// pages, and although `position` now tracks it, nothing pulls it to a snap point;
-// (2) the page width must be known to compute offsets — set `pageWidth` to the
-// carousel's on-screen width (defaults to a sensible 320 DIP); (3) dot
-// indicators are tappable `Label`s, not the animated libadwaita dots — the
-// per-dot radius/opacity ramp needs measurements this port does not take; (4)
-// there is no scroll wheel and no reveal animation, so `allow-scroll-wheel` and
-// `reveal-duration` are absent rather than present and inert.
+// FIDELITY: compromised. NS has no native carousel and no paging-snap on `ScrollView`,
+// so pages are fixed-width children of a horizontal `ScrollView` and `scrollToPage(i)`
+// calls `scrollToHorizontalOffset`. (1) No snap-to-page: a free flick can rest between
+// pages and nothing pulls it to a snap point. (2) The page width must be known to
+// compute offsets — set `pageWidth` to the carousel's on-screen width (default 320
+// DIP). (3) Dots are tappable `Label`s, not the animated libadwaita dots: the per-dot
+// radius/opacity ramp needs measurements this port does not take. (4) No scroll wheel
+// and no reveal animation, so `allow-scroll-wheel` and `reveal-duration` are absent
+// rather than present and inert.
 //
 // Reference: refs/libadwaita/src/adw-carousel.c (Adw.Carousel)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_carousel.scss

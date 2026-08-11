@@ -63,8 +63,6 @@ export interface ClientStreamOptions {
     signal?: AbortSignal;
 }
 
-// ─── Http2Session (base) ──────────────────────────────────────────────────────
-
 export class Http2Session extends EventEmitter {
     readonly type: number = constants.NGHTTP2_SESSION_CLIENT;
     readonly alpnProtocol: string | undefined = undefined;
@@ -137,7 +135,6 @@ export class Http2Session extends EventEmitter {
     unref(): void {}
 }
 
-// ─── ClientHttp2Stream ────────────────────────────────────────────────────────
 // Duplex: writable = request body (buffered until end()), readable = response body.
 // The Soup request is dispatched when end() is called.
 
@@ -396,8 +393,6 @@ export class ClientHttp2Stream extends Duplex {
         return this;
     }
 }
-
-// ─── ClientHttp2Session ───────────────────────────────────────────────────────
 
 export class ClientHttp2Session extends Http2Session {
     override readonly type = constants.NGHTTP2_SESSION_CLIENT;

@@ -1,5 +1,4 @@
 // @gjsify/devtools — the opt-in entry point.
-// Original implementation.
 
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
@@ -25,10 +24,9 @@ import {
 const SESSION_BUS_ENV = 'DBUS_SESSION_BUS_ADDRESS';
 
 /**
- * GC root: keep each exported service (and its `Gio.DBusExportedObject`)
- * reachable for the app's lifetime. SpiderMonkey can otherwise collect a
- * wrapper that is only reachable through its own DBus export self-cycle — a
- * real failure mode seen elsewhere in this project.
+ * GC root: keeps each exported service (and its `Gio.DBusExportedObject`) reachable for
+ * the app's lifetime. SpiderMonkey otherwise collects a wrapper that is only reachable
+ * through its own DBus-export self-cycle.
  */
 const activeServices = new Set<DevtoolsService>();
 
@@ -42,13 +40,12 @@ function envValue(name: string): string | null {
 }
 
 /**
- * Is there a session bus that actually ANSWERS? Not the same question as "is
- * `DBUS_SESSION_BUS_ADDRESS` set": on macOS, Homebrew's dbus advertises
- * `launchd:env=DBUS_LAUNCHD_SESSION_BUS_SOCKET`, and when that inner variable is
- * empty the address is present and unusable — the state that made every macOS
- * attempt read as an app bug. The env check comes FIRST on purpose: with the
- * variable unset, `Gio.bus_get_sync` may try to AUTOLAUNCH a bus, and spawning a
- * daemon is not something a diagnostic probe should do.
+ * Is there a session bus that actually ANSWERS? A different question from "is
+ * `DBUS_SESSION_BUS_ADDRESS` set": Homebrew's dbus on macOS advertises
+ * `launchd:env=DBUS_LAUNCHD_SESSION_BUS_SOCKET`, and with that inner variable empty the
+ * address is present and unusable — the state that made every macOS attempt read as an
+ * app bug. The env check comes FIRST because `Gio.bus_get_sync` may AUTOLAUNCH a bus
+ * when the variable is unset, and a diagnostic probe must not spawn a daemon.
  */
 function sessionBusUsable(): boolean {
     if (!envValue(SESSION_BUS_ENV)) return false;
@@ -72,8 +69,7 @@ export type DevtoolsTransportChoice =
     | { kind: 'unregistered' };
 
 /**
- * The transport PRECEDENCE, as one pure function so it is machine-checked
- * rather than merely described:
+ * The transport PRECEDENCE, as one pure function so a spec can check it:
  *
  * | requested address | app has bus connection | session bus answers | choice |
  * |---|---|---|---|
@@ -82,16 +78,11 @@ export type DevtoolsTransportChoice =
  * | unset | no  | no  | `peer`, auto-picked — this machine has no usable bus |
  * | unset | no  | yes | `unregistered` — the bus is fine, the CALL SITE is early |
  *
- * The third row is the point of the whole transport, and it AUTO-PICKS rather
- * than failing: `GJSIFY_DEVTOOLS=1` is an explicit request for a control plane,
- * and answering it with "no control plane, one line on stderr" is exactly the
- * silent absence being removed. It cannot regress Linux — a host whose bus
- * answers never reaches that row.
- *
- * The fourth row deliberately does NOT fall back. The bus works, so the honest
- * diagnosis is that `installDevtools` ran before the application registered
- * (call it from `startup`); standing a socket up there would paper over a
- * call-site bug and hide it behind a working-looking address.
+ * Row three AUTO-PICKS rather than failing: `GJSIFY_DEVTOOLS=1` is an explicit request
+ * for a control plane, so refusing it with one stderr line is the silent absence this
+ * transport exists to remove. Row four deliberately does NOT fall back — the bus works,
+ * so the honest diagnosis is a call site that ran before registration, and a socket
+ * there would hide that behind a working-looking address.
  */
 export function chooseDevtoolsTransport(input: {
     requestedAddress?: string | null;
@@ -105,11 +96,9 @@ export function chooseDevtoolsTransport(input: {
 }
 
 /**
- * The diagnostic for "no connection to export on". It must NAME THE RIGHT
- * CAUSE: the old message blamed the call site unconditionally ("call
- * installDevtools() from the startup handler"), which on macOS sent every reader
- * hunting a bug in their own app when the machine simply has no session bus.
- * Three distinguishable states, three answers.
+ * The diagnostic for "no connection to export on", which must NAME THE RIGHT CAUSE:
+ * blaming the call site unconditionally sent every macOS reader hunting a bug in their
+ * own app when the machine simply has no session bus. Three states, three answers.
  */
 export function describeMissingConnection(sessionBusAddress: string | null, busAnswers: boolean): string {
     if (!sessionBusAddress) {
@@ -140,15 +129,14 @@ export function describeMissingConnection(sessionBusAddress: string | null, busA
  * handler — the session-bus connection + object path are only available after
  * the application has registered.
  *
- * Needs NO session bus (macOS, Windows): with none, it listens on a socket of
- * its own and publishes the address. {@link chooseDevtoolsTransport} documents
- * the precedence; `options.address` / `GJSIFY_DEVTOOLS_ADDRESS` pins it.
+ * Needs NO session bus (macOS, Windows): with none it listens on a socket of its own
+ * and publishes the address — precedence in {@link chooseDevtoolsTransport},
+ * `options.address` / `GJSIFY_DEVTOOLS_ADDRESS` pins it.
  *
- * TOTAL BY CONTRACT: it never throws. Every failure — an address already in use,
- * a stale socket that cannot be reclaimed, a malformed address — is reported on
- * stderr with the address and the way out, and returns `null` like the disabled
- * path. Callers wire it into `startup`/`activate` handlers whose remaining
- * statements (`present()`, `onStartup()`) GJS would silently skip on a throw.
+ * TOTAL BY CONTRACT: it never throws. Every failure is reported on stderr with the
+ * address and the way out, and returns `null` like the disabled path, because callers
+ * wire it into `startup`/`activate` handlers whose remaining statements GJS would
+ * silently skip on a throw.
  *
  * @example
  * ```ts
@@ -164,16 +152,11 @@ export function installDevtools(app: Gtk.Application, options: InstallDevtoolsOp
     try {
         return exportDevtools(app, service, options, instance);
     } catch (error) {
-        // TOTALITY, and it is load-bearing. This is an OPT-IN DIAGNOSTIC that
-        // consumers call from inside a GObject handler — `@gjsify/storybook`'s
-        // `activate` (before `this._window.present()`) and `@gjsify/adwaita-app`'s
-        // `startup` (before `options.onStartup?.(this)`). GJS LOGS an exception
-        // thrown in a handler and SWALLOWS it, skipping the REST of that handler:
-        // a throw here costs the consumer its window or its entire startup hook,
-        // and is diagnosed as "my app hangs with no window". A control plane that
-        // cannot come up is a devtools problem and must never become an app
-        // problem — so fail in the LOG, with the address and the way out, and hand
-        // back `null` exactly as the disabled path does.
+        // Totality, and load-bearing: consumers call this opt-in diagnostic from inside a
+        // GObject handler (storybook's `activate` before `present()`, adwaita-app's
+        // `startup` before `onStartup`), and GJS LOGS an exception thrown in a handler
+        // while SWALLOWING it — skipping the rest of that handler. A throw here would
+        // cost the consumer its window and be diagnosed as "my app hangs".
         service.unexport(); // idempotent — stops a server that did come up, retracts its address file
         console.error(
             `[gjsify-devtools] devtools stayed OFF, the app is unaffected — ${describeInstallFailure(error)}`,
@@ -192,10 +175,9 @@ function describeInstallFailure(error: unknown): string {
 }
 
 /**
- * The fallible half of {@link installDevtools}, which is its only caller. Keeping
- * every failing operation inside ONE function is what makes the wrapper's totality
- * structural instead of a promise: a new throwing call added here is caught by
- * construction, not by remembering to wrap it.
+ * The fallible half of {@link installDevtools}, its only caller. Every failing operation
+ * lives in this ONE function, which makes the wrapper's totality structural: a new
+ * throwing call added here is caught by construction.
  */
 function exportDevtools(
     app: Gtk.Application,
@@ -203,11 +185,9 @@ function exportDevtools(
     options: InstallDevtoolsOptions,
     instance: string | undefined,
 ): DevtoolsService {
-    // Both getters g_return_if_fail on an UNREGISTERED application, so asking
-    // before registration logs two GLib-GIO-CRITICALs and returns null anyway.
-    // Reachable on purpose now: on a bus-less host installDevtools may run
-    // outside `startup`, and a CRITICAL that means "there is no bus here" reads
-    // like a defect.
+    // Both getters g_return_if_fail on an UNREGISTERED application: asking before
+    // registration logs two GLib-GIO-CRITICALs and returns null anyway, and on a bus-less
+    // host that CRITICAL reads like a defect when it only means "no bus here".
     const registered = app.get_is_registered();
     const connection = registered ? app.get_dbus_connection() : null;
     const basePath = registered ? app.get_dbus_object_path() : null;
@@ -223,9 +203,9 @@ function exportDevtools(
     });
 
     const appId = app.get_application_id() ?? 'unknown';
-    // The app's own path when it has one; on a bus-less host the application
-    // never registers, so derive it the way Gio.Application does (id dots →
-    // slashes) — that keeps the bridge's predicted path correct either way.
+    // The app's own path where it has one; on a bus-less host it never registers, so
+    // derive the path as Gio.Application does (id dots → slashes), which keeps the
+    // bridge's prediction correct either way.
     const objectPath = `${basePath ?? `/${appId.replace(/\./g, '/')}`}/devtools`;
 
     if (transport.kind === 'unregistered' || (transport.kind === 'peer' && transport.reason === 'no-session-bus')) {
@@ -234,14 +214,10 @@ function exportDevtools(
 
     if (transport.kind === 'session-bus' && connection) {
         service.export(connection, objectPath);
-        // Confirm the export so "did devtools actually come up?" is answerable
-        // from the app's own stderr. installDevtools only reaches here when
-        // devtools is ENABLED (gate passed / opts.enabled), so this line only
-        // appears when the operator explicitly turned devtools on — exactly when
-        // they want the confirmation. Its ABSENCE is the diagnostic: no line ⇒
-        // installDevtools was never called (e.g. a stale app bundle) or the gate
-        // was off — as opposed to the previous silence, where a present-but-not-
-        // exported object was indistinguishable from a not-installed one.
+        // Confirms the export, so "did devtools come up?" is answerable from the app's
+        // own stderr. Only reachable with devtools ENABLED, so its ABSENCE is the
+        // diagnostic: no line means installDevtools never ran (a stale bundle) or the
+        // gate was off.
         console.log(`[gjsify-devtools] exported ${DEVTOOLS_INTERFACE} at ${objectPath} (dest ${appId})`);
     } else if (transport.kind === 'peer') {
         // Throws a DevtoolsPeerServerError when the address cannot be listened on
@@ -258,17 +234,14 @@ function exportDevtools(
             `[gjsify-devtools] exported ${DEVTOOLS_INTERFACE} at ${objectPath} ` +
                 `(peer address ${peer.address}${addressFile ? `, published to ${addressFile}` : ''})`,
         );
-        // A dead address must not stay discoverable. GApplication::shutdown is the
-        // one exit hook GJS reliably has (there is no atexit), and it fires both on
-        // quit and when the last window closes — but GApplication installs a
-        // handler for SIGTERM only, so Ctrl-C, SIGKILL and a crash all skip it, and
-        // on macOS/Windows `GLib.get_user_runtime_dir()` degrades to the user CACHE
-        // dir, where a leftover file survives reboots. Installing our own SIGINT
-        // handler is deliberately NOT the answer: it is unix-only (this transport
-        // exists for macOS and Windows), it changes an app's termination semantics
-        // from inside an opt-in diagnostic, and it still cannot cover SIGKILL. The
-        // claim is therefore VERIFIED where it is consumed — the bridge dials the
-        // published address and deletes the file when nothing answers.
+        // A dead address must not stay discoverable. GApplication::shutdown is the only
+        // exit hook GJS reliably has (there is no atexit) and fires on quit and on the
+        // last window closing, but GApplication handles SIGTERM only — Ctrl-C, SIGKILL
+        // and a crash all skip it, and on macOS/Windows `GLib.get_user_runtime_dir()`
+        // degrades to the user CACHE dir, where a leftover file survives reboots. Our own
+        // SIGINT handler is not the answer (unix-only, changes an app's termination
+        // semantics from inside a diagnostic, still misses SIGKILL), so the claim is
+        // VERIFIED at the consumer: the bridge deletes the file when nothing answers.
         if (addressFile) app.connect('shutdown', () => removeDevtoolsAddressFile(addressFile));
     }
 

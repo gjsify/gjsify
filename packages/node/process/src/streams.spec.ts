@@ -12,9 +12,7 @@
 import { describe, it, expect } from '@gjsify/unit';
 import { ProcessReadStream } from './streams.js';
 
-// ---------------------------------------------------------------------------
 // TestableProcessReadStream — captures resume/pause calls + synthetic data
-// ---------------------------------------------------------------------------
 
 class TestableProcessReadStream extends ProcessReadStream {
     resumeCallCount = 0;
@@ -54,9 +52,7 @@ class TestableProcessReadStream extends ProcessReadStream {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Tests
-// ---------------------------------------------------------------------------
 
 export default async () => {
     await describe('ProcessReadStream: auto-resume on data listener', async () => {

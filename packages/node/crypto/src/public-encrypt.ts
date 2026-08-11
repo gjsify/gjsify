@@ -7,9 +7,7 @@ import { randomBytes } from './random.js';
 import { parsePemKey, rsaKeySize } from './asn1.js';
 import { modPow, bigIntToBytes, bytesToBigInt } from './bigint-math.js';
 
-// ============================================================================
 // Key extraction helpers
-// ============================================================================
 
 interface KeyInput {
     key: string | Buffer;
@@ -33,9 +31,7 @@ function extractPem(key: string | Buffer | KeyInput): string {
     throw new TypeError('Invalid key argument');
 }
 
-// ============================================================================
 // PKCS#1 v1.5 padding
-// ============================================================================
 
 /**
  * Apply PKCS#1 v1.5 Type 2 padding (for encryption).
@@ -141,9 +137,7 @@ function pkcs1v15Type1Unpad(em: Uint8Array): Uint8Array {
     return em.slice(sepIdx + 1);
 }
 
-// ============================================================================
 // Public API
-// ============================================================================
 
 /**
  * Encrypt data using an RSA public key with PKCS#1 v1.5 Type 2 padding.

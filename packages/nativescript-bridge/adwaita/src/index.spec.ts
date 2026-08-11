@@ -1,25 +1,17 @@
 // @gjsify/adwaita-nativescript — unit tests.
 //
 // These run on GJS (and Node), where neither the NativeScript runtime globals
-// (`java` / `NSFileManager` / `registerElement`) nor `@nativescript/core` exist.
-// We therefore exercise only the parts that are pure-TS-testable off-device:
-//   - the `assertNativeScript()` guard (must throw 'Platform not supported'),
-//   - the font wiring helpers (pure strings / booleans),
-//   - the `registerAdwaitaElements()` no-op-when-global-absent contract,
-//   - the `active` <-> `Switch.checked` accessor logic, validated against a
-//     standalone mock that mirrors the real widget's binding (importing the real
-//     widget classes would require `@nativescript/core` at module-eval, which is
-//     absent here — the same reason `@gjsify/native-fs-bridge` keeps its spec to
-//     guard-throwing functions only).
+// (`java` / `NSFileManager` / `registerElement`) nor `@nativescript/core` exist, so only
+// the pure-TS-testable surface is exercised: the `assertNativeScript()` guard, the font
+// helpers, the `registerAdwaitaElements()` no-op-when-global-absent contract, and the
+// accessor logic against mocks.
 
 import { describe, it, expect } from '@gjsify/unit';
 
 // IMPORTANT: import the NS-core-free surface from its OWN modules, NOT from
 // `./index.js`. The package root re-exports the widget classes, whose modules
-// `import { GridLayout } from '@nativescript/core'` at top level — that bare
-// specifier is unresolvable off NativeScript and would fail the test bundle
-// before any guard could run. `@gjsify/native-platform` and `./fonts.js` are
-// pure-TS (no `@nativescript/core` value imports), so they load everywhere.
+// `import { GridLayout } from '@nativescript/core'` at top level — that bare specifier
+// is unresolvable off NativeScript and fails the test bundle before any guard can run.
 import { AVATAR_COLORS, flattenAvatarGradient } from '@gjsify/adwaita-core';
 import { AVATAR_COLOR_VECTORS, AVATAR_INITIALS_VECTORS, COMBO_CHOOSER_VECTORS } from '@gjsify/adwaita-core/conformance';
 import { assertNativeScript, isNativeScript } from '@gjsify/native-platform';
@@ -30,20 +22,14 @@ import {
     adwaitaFontInstallInstructions,
     hasAdwaitaSans,
 } from './fonts.js';
-// `row-press.js` imports only TYPES from `@nativescript/core` (no `extends
-// GridLayout`), so — unlike the widget classes — it carries no runtime
-// `@nativescript/core` value import and loads off-device. We test the REAL helper.
+// `row-press.js` and `icon-path.js` are TYPE-only / pure, so the REAL helpers load here.
 import { attachRowPressFeedback } from './widgets/row-press.js';
 import type { TouchGestureEventData, View } from '@nativescript/core';
-// `icon-path.js` is pure (no `@nativescript/core` import), so the real symbolic-icon
-// path extraction is unit-testable off-device.
 import { extractIconPaths, extractPathData, normalizeArcFlags } from './widgets/icon-path.js';
 import { DEFAULT_ICON_COLOR, DEFAULT_ICON_COLOR_DARK } from './widgets/icon-path.js';
-// The color-scheme observable + the breakpoint parser/evaluator/state machine
-// are HEADLESS and moved to `@gjsify/adwaita-core` (ADR 0004). Their behavior
-// matrix is specced THERE; here we import through the NS re-export shims to pin
-// the no-consumer-break guarantee, plus test the NS-specific `addBreakpoints`
-// view binding against a tiny mock view.
+// Color scheme + breakpoints are HEADLESS in `@gjsify/adwaita-core` and specced THERE;
+// imported through the NS re-export shims to pin the no-consumer-break guarantee. The
+// NS-specific `addBreakpoints` view binding IS tested here, against a mock view.
 import {
     adwaitaColorScheme,
     isThemeIconColor,
@@ -59,47 +45,30 @@ import {
     parseBreakpointCondition,
 } from './widgets/breakpoint.js';
 import type { BreakpointConditionLeaf } from './widgets/breakpoint.js';
-// The AdwToast value object + the AdwToastQueue one-at-a-time/auto-dismiss state
-// machine and the alert-dialog response model (AdwAlertResponses) are HEADLESS and
-// moved to `@gjsify/adwaita-core` (ADR 0004). Their behavior matrices are specced
-// THERE (`toast.spec.ts` / `dialog.spec.ts`); here we import the moved classes to
-// smoke-test the surface. Unlike breakpoint/color-scheme — whose NS shims are
-// import-safe — the NS `AdwToastOverlay` (a `GridLayout`) and `AdwAlertDialog` (an
-// `Observable`) pull `@nativescript/core` at module-eval, so they can't load in
-// this off-device spec; the built `lib/esm` re-export is verified separately.
+// Toast + alert-dialog models are HEADLESS in `@gjsify/adwaita-core`, specced in its
+// `toast.spec.ts` / `dialog.spec.ts`; imported here only to smoke-test the surface. Their
+// NS wrappers (`AdwToastOverlay`, `AdwAlertDialog`) pull `@nativescript/core` at
+// module-eval and cannot load off-device — the built `lib/esm` re-export is verified
+// separately.
 import { AdwAlertResponses, AdwToast, AdwToastQueue, DEFAULT_TOAST_TIMEOUT } from '@gjsify/adwaita-core';
 import type { ToastScheduler, ToastTimerHandle } from '@gjsify/adwaita-core';
-// The row interaction state machines (expander/combo/spin/toggle-group) are HEADLESS
-// and moved to `@gjsify/adwaita-core` (ADR 0004). Their clamp/step/selection/toggle
-// matrices are specced THERE (`rows.spec.ts`); here we import the moved classes to
-// smoke-test the surface the NS row widgets (the `@nativescript/core`-backed render
-// halves that can't load off-device) now compose + re-export.
+// Same for the row interaction state machines, specced in the core's `rows.spec.ts`.
 import { ComboState, ExpanderState, SpinState, ToggleGroupState } from '@gjsify/adwaita-core';
 
-// The XML-registration helper only touches the global `registerElement` (it does
-// not extend any `@nativescript/core` class at module-eval), so its own module is
-// import-safe off-device — but it lives in the widgets barrel which DOES pull the
-// classes. Re-implement its absent-global no-op contract inline to keep this spec
-// free of the `@nativescript/core` import chain.
+// The XML-registration helper's own module is import-safe, but it lives in the widgets
+// barrel, which DOES pull the classes — so its absent-global no-op contract is
+// re-implemented inline to keep this spec out of the `@nativescript/core` import chain.
 function registerAdwaitaElementsNoopProbe(): void {
     // Mirrors widgets/index.ts: returns silently when registerElement is absent.
     const g = globalThis as { registerElement?: unknown };
     if (typeof g.registerElement !== 'function') return;
 }
 
-// DELETED: `MockSwitchRow`, a standalone re-implementation of the switch row's
-// active<->checked binding, and the four green tests over it. A mock that
-// respells the setters can only ever confirm that the mock agrees with itself —
-// and it did, right up to shipping the wrong rule: it emitted on every flip and
-// nothing on a programmatic set, where libadwaita emits on both and drops only
-// the no-op set (adw-switch-row.c:216-228 -> :66-77). The binding now lives in
-// `SwitchRowState` (`@gjsify/adwaita-core`), which `row-state.spec.ts` drives
-// through the shared conformance vectors as the SHIPPING code it is.
-
-// --- Mocks for the new Tier-1 widgets (mirror the real accessor logic, kept in
-// lockstep with the corresponding src/widgets/adw-*.ts modules). Importing the
-// real classes would evaluate `import { GridLayout } from '@nativescript/core'`
-// at module-eval, which is unresolvable off NativeScript. ---
+// The mocks below mirror the real accessor logic and must be kept in lockstep with the
+// matching `src/widgets/adw-*.ts` modules; importing the real classes would evaluate
+// `import { GridLayout } from '@nativescript/core'` at module-eval. A mock can only
+// confirm that it agrees with itself, so anything with a real rule belongs in
+// `@gjsify/adwaita-core` and is driven from `row-state.spec.ts` against its vectors.
 
 interface MockField {
     text: string;
@@ -126,16 +95,8 @@ class MockEntryRow {
     }
 }
 
-// AdwComboRow's selectedIndex↔selectedValue mapping (ComboState), AdwSpinRow's
-// clamped value/min/max/step + stepping (SpinState), AdwExpanderRow's disclosure
-// toggle (ExpanderState) and AdwToggleGroup's segment selection (ToggleGroupState)
-// are HEADLESS and moved to `@gjsify/adwaita-core` (ADR 0004) — specced there in
-// `rows.spec.ts`. Their former mock stand-ins are gone; the smoke tests below drive
-// the real state machines (imported above) to pin the moved surface, exactly like
-// the toast/dialog re-export smoke tests.
-
-// Mirrors AdwSliderRow's clamp-then-snap-to-step (the RANGE slider). Kept in
-// lockstep with src/widgets/adw-slider-row.ts `_snap`.
+// Mirrors AdwSliderRow's clamp-then-snap-to-step, in lockstep with
+// `src/widgets/adw-slider-row.ts` `_snap`.
 class MockSliderRow {
     private _value = 0;
     private _min = 0;
@@ -164,9 +125,6 @@ class MockSliderRow {
         this._step = v > 0 ? v : 1;
     }
 }
-
-// --- Mocks for the new Tier-2 widgets (mirror their accessor logic, kept in
-// lockstep with the corresponding src/widgets/adw-*.ts modules). ---
 
 // Mirrors AdwViewSwitcherBase's selection: visibility + active-button + clamp +
 // the don't-emit-on-no-change/out-of-range guard (selected setter).
@@ -329,8 +287,8 @@ class MockNavigationView {
     }
 }
 
-// A deterministic scheduler stand-in for the AdwToastQueue re-export smoke test —
-// the injected timing seam a renderer supplies (NS wraps `setTimeout`).
+// A deterministic scheduler stand-in for the AdwToastQueue smoke test — the injected
+// timing seam a renderer supplies (NS wraps `setTimeout`).
 class FakeToastScheduler implements ToastScheduler {
     private _next: (() => void) | null = null;
     schedule(callback: () => void, _ms: number): ToastTimerHandle {
@@ -347,9 +305,8 @@ class FakeToastScheduler implements ToastScheduler {
     }
 }
 
-// Minimal View stand-in for attachRowPressFeedback: records pseudo-class
-// add/delete and exposes the captured `touch` handler so the test can drive the
-// gesture phases the real platform would dispatch.
+// Minimal View stand-in for attachRowPressFeedback: records pseudo-class add/delete and
+// exposes the captured `touch` handler so the test can drive the gesture phases.
 class MockPressRow {
     pseudo = new Set<string>();
     private _touch: ((e: TouchGestureEventData) => void) | null = null;
@@ -439,9 +396,8 @@ export default async () => {
     });
 
     await describe('AdwComboRow selection (core ComboState re-export)', async () => {
-        // The full options/index↔value/empty/out-of-range matrix is specced in
-        // @gjsify/adwaita-core; this pins the moved surface the NS `AdwComboRow`
-        // (the inline-value + chevron + native-chooser render) composes.
+        // The full matrix is specced in @gjsify/adwaita-core; this pins the surface the
+        // NS `AdwComboRow` composes.
         await it('resolves selectedValue from selectedIndex', () => {
             const state = new ComboState();
             state.setOptions([
@@ -465,12 +421,10 @@ export default async () => {
             expect(state.selectedIndex).toBe(1);
         });
 
-        // `model_changed` (adw-combo-row.c:187-195). The widget reads this
-        // predicate twice — once to collapse the chevron, once to refuse the tap
-        // — and it cannot be imported here, so the table is driven against the
-        // state it reads. Both halves matter: hiding the chevron alone leaves a
-        // row that still opens an `action()` sheet with one entry, which is what
-        // this port did.
+        // `model_changed`. The widget reads this predicate TWICE — once to collapse the
+        // chevron, once to refuse the tap — and cannot be imported here, so the table is
+        // driven against the state it reads. Both halves matter: hiding the chevron alone
+        // leaves a row that still opens an `action()` sheet with one entry.
         for (const { count, presentsChooser, rule } of COMBO_CHOOSER_VECTORS) {
             await it(`${count} option(s) → presentsChooser ${presentsChooser}: ${rule}`, () => {
                 const state = new ComboState();
@@ -481,8 +435,7 @@ export default async () => {
     });
 
     await describe('AdwSpinRow numeric stepper (core SpinState re-export)', async () => {
-        // The full clamp/step-edge matrix is specced in @gjsify/adwaita-core; this
-        // pins the moved surface the NS `AdwSpinRow` (the ± stepper render) composes.
+        // The full clamp/step-edge matrix is specced in @gjsify/adwaita-core.
         await it('clamps the value and steps to the bounds', () => {
             const state = new SpinState();
             state.setMin(0);
@@ -539,9 +492,8 @@ export default async () => {
     });
 
     await describe('AdwExpanderRow disclosure (core ExpanderState re-export)', async () => {
-        // The toggle/idempotence matrix is specced in @gjsify/adwaita-core; this
-        // pins the moved surface the NS `AdwExpanderRow` (the disclosure render)
-        // composes to drive `visibility` + the chevron.
+        // The toggle/idempotence matrix is specced in @gjsify/adwaita-core; this pins the
+        // surface the NS `AdwExpanderRow` composes to drive `visibility` + the chevron.
         await it('toggles expanded idempotently', () => {
             const state = new ExpanderState();
             expect(state.expanded).toBe(false);
@@ -553,11 +505,9 @@ export default async () => {
         });
     });
 
-    // The REAL derivation, not a mirror of it: `avatar-color.ts` is free of
-    // `@nativescript/core` value imports precisely so this suite can drive the
-    // shipping code, and the vectors are the same table `@gjsify/adwaita-web`
-    // asserts against — so a divergence between the two renderers, or from the
-    // libadwaita C source, fails here instead of in a screenshot.
+    // The REAL derivation, not a mirror: the vectors are the same table
+    // `@gjsify/adwaita-web` asserts against, so a divergence between the two renderers —
+    // or from the libadwaita source — fails here instead of in a screenshot.
     await describe('AdwAvatar derivation (shared conformance vectors)', async () => {
         for (const { text, initials, rule } of AVATAR_INITIALS_VECTORS) {
             await it(`initials ${JSON.stringify(text)} -> ${JSON.stringify(initials)} — ${rule}`, () => {

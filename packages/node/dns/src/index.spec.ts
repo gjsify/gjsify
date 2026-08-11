@@ -52,7 +52,6 @@ const isPreV25NativeNode =
 
 export default async () => {
     await describe('dns', async () => {
-        // --- Constants ---
         await describe('constants', async () => {
             await it('should export NOTFOUND as ENOTFOUND', async () => {
                 expect(NOTFOUND).toBe('ENOTFOUND');
@@ -107,7 +106,6 @@ export default async () => {
             });
         });
 
-        // --- Module exports ---
         await describe('exports', async () => {
             await it('should export lookup as a function', async () => {
                 expect(typeof lookup).toBe('function');
@@ -146,7 +144,6 @@ export default async () => {
             });
         });
 
-        // --- lookup ---
         await describe('lookup', async () => {
             await it('should resolve localhost', async () => {
                 await new Promise<void>((resolve, reject) => {
@@ -263,7 +260,6 @@ export default async () => {
             });
         });
 
-        // --- resolve4 / resolve6 ---
         await describe('resolve4', async () => {
             await it('should resolve localhost to IPv4 addresses', async () => {
                 await new Promise<void>((resolve, reject) => {
@@ -302,7 +298,6 @@ export default async () => {
             });
         });
 
-        // --- reverse ---
         await describe('reverse', async () => {
             await it('should reverse lookup 127.0.0.1', async () => {
                 await new Promise<void>((resolve) => {
@@ -319,7 +314,6 @@ export default async () => {
             });
         });
 
-        // --- setDefaultResultOrder / getDefaultResultOrder ---
         await describe('setDefaultResultOrder', async () => {
             await it('should return verbatim by default', async () => {
                 expect(getDefaultResultOrder()).toBe('verbatim');
@@ -336,7 +330,6 @@ export default async () => {
             });
         });
 
-        // --- Additional export checks ---
         await describe('additional exports', async () => {
             await it('resolve6 should be a function', async () => {
                 expect(typeof resolve6).toBe('function');
@@ -376,7 +369,6 @@ export default async () => {
             });
         });
 
-        // --- lookup with hints option ---
         await describe('lookup with hints', async () => {
             await it('lookup with hints option should not throw', async () => {
                 await new Promise<void>((resolve) => {
@@ -390,7 +382,6 @@ export default async () => {
             });
         });
 
-        // --- resolve with different rrtypes ---
         await describe('resolve with rrtypes', async () => {
             await it('resolve with MX rrtype should be supported', async () => {
                 // We just verify the function accepts the rrtype without crashing

@@ -1,20 +1,15 @@
 // AdwToast + AdwToastQueue — headless Libadwaita-style transient-snackbar queue.
 //
-// Mirrors `Adw.ToastOverlay` + `Adw.Toast`: a `Adw.ToastOverlay` shows at most
-// ONE toast at a time and queues the rest, showing each in turn as the previous
-// dismisses (manually or after its auto-dismiss timeout). `AdwToast` is the value
-// object (title + auto-dismiss timeout + optional action button); `AdwToastQueue`
-// is the ordering + one-at-a-time + auto-dismiss lifecycle state machine.
+// Mirrors `Adw.ToastOverlay` + `Adw.Toast`: the overlay shows at most ONE toast at a time
+// and queues the rest, showing each in turn as the previous dismisses (manually or after
+// its auto-dismiss timeout). `AdwToast` is the value object; `AdwToastQueue` is the
+// ordering + one-at-a-time + auto-dismiss lifecycle.
 //
-// This module is PLATFORM-NEUTRAL (ADR 0004 — headless Adwaita core): it renders
-// nothing and never touches a global timer. A renderer supplies the two seams:
-//   - a {@link ToastScheduler} (the injected timing — e.g. NativeScript's
-//     `setTimeout`/`clearTimeout`, a browser's, or a deterministic fake in tests)
-//     so the auto-dismiss lifecycle lives HERE, testable, not in a renderer, and
-//   - {@link AdwToastQueueHandlers} `onShow`/`onHide` that mount/tear-down the
-//     visible strip (the NS `GridLayout` toast + CSS; the web `.adw-toast` node).
-// This mirrors how {@link AdwBreakpoint} takes renderer-fed size samples: the
-// behavior is here, the platform I/O is fed in.
+// PLATFORM-NEUTRAL (ADR 0004): renders nothing, touches no global timer. A renderer
+// supplies two seams — a {@link ToastScheduler} (its platform timer, or a deterministic
+// fake in tests) so the auto-dismiss lifecycle stays HERE and testable, and
+// {@link AdwToastQueueHandlers} `onShow`/`onHide` to mount and tear down the visible
+// strip. Same shape as {@link AdwBreakpoint} taking renderer-fed size samples.
 //
 // Reference: refs/libadwaita/src/adw-toast-overlay.c, adw-toast.c
 //   (add_toast → queue, show one at a time, dismiss advances to the next).

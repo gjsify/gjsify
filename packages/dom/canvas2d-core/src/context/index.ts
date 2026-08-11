@@ -1,12 +1,7 @@
-// Barrel for the focused method-group modules that compose
-// CanvasRenderingContext2D.
-//
-// Each module exports an `install*Methods(proto)` function plus a TypeScript
-// `*Methods` interface that augments the `CanvasRenderingContext2D`
-// declaration via `declare module`. The base file calls
-// `installAllContextMethods(CanvasRenderingContext2D.prototype)` after the
-// class declaration runs — this avoids the circular-dependency hazard that
-// prototype-merge mixins would otherwise hit at module-load time.
+// Barrel for the method-group modules that compose CanvasRenderingContext2D. Each pairs an
+// `install*Methods(proto)` function with a `declare module` interface. The base file installs onto
+// the prototype AFTER its class declaration has run, which is what keeps the arrangement clear of
+// the circular-dependency hazard prototype-merge mixins hit at module-load time.
 
 import { installTransformMethods } from './transforms.js';
 import { installPathMethods } from './path-ops.js';
@@ -15,8 +10,6 @@ import { installPixelMethods } from './pixels.js';
 import { installTextMethods } from './text-rendering.js';
 import { installFactoryMethods } from './factories.js';
 
-// Re-export interfaces so the declaration-merging in each module is reachable
-// through this single entry point.
 export type { TransformMethods } from './transforms.js';
 export type { PathMethods } from './path-ops.js';
 export type { DrawingMethods } from './drawing.js';

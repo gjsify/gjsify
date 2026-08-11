@@ -112,7 +112,6 @@ export class Http2ServerResponse extends Writable {
     }
 }
 
-// ─── ServerHttp2Stream ────────────────────────────────────────────────────────
 // Facade over Http2ServerResponse exposing the session/stream API.
 // Delegates all writes to the underlying response object.
 

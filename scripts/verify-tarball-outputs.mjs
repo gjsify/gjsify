@@ -186,7 +186,7 @@ if (!asJson) {
         `${totalUnshipped} declared entry point(s) across ${broken.length} package(s) exist in the repo but would not ` +
             'be published. The file is built, so nothing in this tree is broken — only the tarball is, and only for ' +
             'consumers. Name the built output in package.json "files" (a plain directory entry such as "lib" is ' +
-            'safest — see the packer-glob lesson in AGENTS.md), then re-run. Inspect one with: ' +
+            'safest — see the packer-glob lesson in docs/bundled-toolchains.md), then re-run. Inspect one with: ' +
             '`cd <pkg> && gjsify pack && tar tzf *.tgz`.',
     );
 }

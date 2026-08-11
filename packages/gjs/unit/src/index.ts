@@ -9,11 +9,10 @@ import type { AssertPredicate } from 'node:assert';
 import { quitMainLoop } from '@gjsify/utils/main-loop';
 
 /**
- * Module-internal typed view of the cross-runtime globals this test runner
- * reads from. `@gjsify/unit` must run on plain GJS (no Node polyfills loaded),
- * Node.js, and browsers — so every access into `globalThis` is potentially
- * undefined. Centralising those shapes here lets the call sites use
- * `runtimeGlobals().<field>?.<...>` instead of scattering `as any` casts.
+ * Typed view of the cross-runtime globals this runner reads. `@gjsify/unit` must
+ * run on plain GJS (no Node polyfills loaded), Node.js and browsers, so every
+ * `globalThis` access is potentially undefined; centralising the shapes keeps the
+ * call sites on `runtimeGlobals().<field>?.…` instead of scattered `as any`.
  */
 interface _RuntimeGlobals {
     imports?: {
@@ -43,30 +42,26 @@ interface _RuntimeGlobals {
 const runtimeGlobals = (): _RuntimeGlobals => globalThis as unknown as _RuntimeGlobals;
 
 /**
- * Brand for `Error` instances produced by our own matchers / `assert.*`
- * helpers. It marks an error as a *deliberate assertion-failure signal* (vs an
- * unexpected impl error). The throw/rejection matchers (`toThrow`, `toReject`,
- * `toResolve`) read it to recognise an inner matcher throw they are *expecting*
- * and must not re-surface.
+ * Brand for `Error`s produced by our own matchers / `assert.*` helpers: a
+ * deliberate assertion-failure signal, as opposed to an unexpected impl error.
+ * `toThrow`/`toReject`/`toResolve` read it to recognise an inner matcher throw
+ * they are expecting and must not re-surface.
  *
- * It deliberately does NOT mean "already added to the failure count". Failure
- * counting is owned exclusively by the boundary that OBSERVES the outcome —
- * `it()` (and the run/suite timeout handlers) — never by the throw site. See
- * `triggerResult`.
+ * It does NOT mean "already added to the failure count": counting is owned
+ * exclusively by the boundary that OBSERVES the outcome — `it()` and the
+ * run/suite timeout handlers — never by the throw site. See `triggerResult`.
  */
 interface _CountedError {
     __testFailureCounted?: boolean;
 }
 
 // Decide the run/exit strategy by the ACTUAL runtime, NOT by `imports.mainloop`
-// presence. GJS drives async tests by blocking on `imports.mainloop.run()` and
-// quitting from a callback; Node/Bun/Deno instead exit via `process.exit()` after
-// the (promise-based) run settles. `@gjsify/node-gi` now legitimately provides
-// `imports.mainloop` on Node too (a GJS-compat feature), so keying on its presence
-// would wrongly send node-gi consumers down the GJS path — a blocking mainloop
-// whose quit (queued as a promise continuation) never drains under the blocking
-// loop, so the process hangs forever. Gate on `process.versions.gjs` (the same
-// signal getRuntime() uses) so only real GJS runs the blocking mainloop.
+// presence: GJS blocks on `imports.mainloop.run()` and quits from a callback,
+// Node/Bun/Deno exit via `process.exit()` once the run settles. `@gjsify/node-gi`
+// legitimately provides `imports.mainloop` on Node too, so keying on presence
+// sends node-gi consumers down the GJS path, where the quit is queued as a promise
+// continuation that never drains under the blocking loop — the process hangs
+// forever. Gate on `process.versions.gjs`, the same signal `getRuntime()` uses.
 const mainloop: GLib.MainLoop | undefined =
     typeof runtimeGlobals().process?.versions?.gjs === 'string' ? runtimeGlobals().imports?.mainloop : undefined;
 
@@ -77,14 +72,10 @@ let countTestsIgnored = 0;
 let countTestsXfail = 0;
 
 /**
- * True only while an `it()` callback is on the stack. A matcher/assert that
- * throws while this is false escaped its test (a leaked late assertion fired by
- * a settled test's timer/promise, or an `expect()` used outside any `it`). Such
- * a stray throw must NOT corrupt the global pass/fail tally of a bystander test
- * — `it()` only counts errors that escape ITS OWN callback. This flag lets the
- * (rare) out-of-band failure be surfaced as its own distinct entry instead of
- * silently poisoning whichever test happens to be active. See `it()` and
- * `noteStrayFailure`.
+ * Non-zero only while an `it()` callback is on the stack. A matcher throwing at
+ * depth 0 escaped its test (a late assertion from a settled test's timer, or an
+ * `expect()` outside any `it`); such a throw must not corrupt a bystander test's
+ * tally, so it is surfaced as its own entry. See `it()` and `noteStrayFailure`.
  */
 let activeTestDepth = 0;
 const strayFailures: Array<{ suite: string; message: string }> = [];
@@ -93,13 +84,12 @@ const strayFailures: Array<{ suite: string; message: string }> = [];
  * Non-gating observations: things a reader must SEE, that the runner refuses to
  * turn into a verdict because it cannot know whether they are intended.
  *
- * Distinct from every other counter here. `countTestsFailed` gates the run,
- * `it.failing`'s xfail is a DECLARED expectation that self-retires (it fails the
- * run the day it starts passing), and `countTestsIgnored` means "did not run".
- * A warning is none of those: it ran, nothing is claimed about it, and there is
- * nothing to retire — so it is reported and deliberately left out of the exit
- * code. Anything with an owner who could declare it belongs in `it.failing`
- * instead; a warning that could self-retire would just rot into background noise.
+ * Distinct from the other counters: `countTestsFailed` gates the run,
+ * `it.failing`'s xfail is a DECLARED expectation that self-retires, and
+ * `countTestsIgnored` means "did not run". A warning ran, claims nothing and has
+ * nothing to retire, so it stays out of the exit code. Anything an owner COULD
+ * declare belongs in `it.failing` instead — a warning that could self-retire just
+ * rots into background noise.
  */
 const warnings: Array<{ suite: string; message: string }> = [];
 
@@ -108,10 +98,9 @@ const noteWarning = (message: string): void => {
 };
 
 /**
- * Record an assertion failure that fired with no `it()` on the stack. These are
- * real bugs in a test (a missing `await`, an unclosed socket, a late callback),
- * but they belong to NO currently-running test, so they get their own pseudo-
- * test in the summary rather than being charged to an innocent bystander.
+ * Record an assertion failure that fired with no `it()` on the stack — a real test
+ * bug (missing `await`, unclosed socket, late callback) that belongs to no running
+ * test, so it gets its own pseudo-test instead of an innocent bystander's tally.
  */
 const noteStrayFailure = (message: string): void => {
     ++countTestsFailed;
@@ -124,39 +113,25 @@ const noteStrayFailure = (message: string): void => {
 };
 
 /**
- * Per-`it()` ledgers of assertion errors THROWN while that test was on the
- * stack. `it()` removes the one its `catch` observes; anything left when the
- * test settles never reached the awaited chain at all.
+ * Per-`it()` ledgers of assertion errors THROWN while that test was on the stack.
+ * `it()` removes the one its `catch` observes; anything left never reached the
+ * awaited chain at all.
  *
- * That leftover is a whole failure class the runner used to be blind to — an
- * assertion inside a host callback, off the promise's reject path:
- *
- * ```ts
- * await new Promise<void>((resolve) => {
- *     stat(p, (err, st) => { expect(st.mode).toBe(0o644); resolve(); });
- * });
- * ```
- *
- * The throw unwinds into libuv/GLib, not into the promise. So the promise is
- * never settled, `it()` is still awaiting, and the error goes wherever the HOST
- * sends an exception raised in its own callback: on Node to `uncaughtException`,
- * which by default prints the (minified) bundle and KILLS THE PROCESS; on GJS to
- * a logged warning, leaving the test to time out 5 s later under a message that
- * names neither the assertion nor the file.
- *
- * Measured on Windows: ONE such `expect` in `@gjsify/fs`'s `callback.spec.ts`
- * ended the run inside the first of 19 spec modules, with no summary line — so
- * the other 18 modules, and ~56 lines of unrelated real Windows failures, were
- * never even executed. The assertion message is the only thing that says what is
- * actually wrong, and it was the one thing being discarded.
+ * That leftover is a failure class the runner was blind to: an `expect` inside a
+ * host callback (`stat(p, (err, st) => { expect(…); resolve(); })`) unwinds into
+ * libuv/GLib, not into the promise — so the promise never settles, and the error
+ * goes wherever the HOST sends it. On Node that is `uncaughtException`, which
+ * prints the minified bundle and KILLS THE PROCESS; on GJS a logged warning,
+ * leaving a 5 s timeout naming neither the assertion nor the file. Measured on
+ * Windows: one such `expect` in `@gjsify/fs`'s `callback.spec.ts` ended the run
+ * inside the first of 19 spec modules with no summary line.
  *
  * A STACK, not a single set: `it.failing` legitimately runs nested inside an
  * `it()` (see `it-failing.spec.ts`), and a throw belongs to the INNERMOST test.
  *
- * Known limit, unchanged from `activeTestDepth`: a late callback from an ALREADY
- * SETTLED test that fires while a later test is running is charged to the later
- * one. Attribution across that boundary is genuinely ambiguous — the fix for
- * that shape is not to guess, it is to not leak the callback.
+ * Known limit, as for `activeTestDepth`: a late callback from an ALREADY SETTLED
+ * test is charged to whichever test is running when it fires. Attribution across
+ * that boundary is ambiguous — the fix is to not leak the callback.
  */
 const assertionLedgers: Array<Set<Error>> = [];
 
@@ -169,14 +144,13 @@ const noteThrownAssertion = (error: unknown): void => {
 /**
  * Un-ledger an error a matcher DELIBERATELY absorbed.
  *
- * `toThrow`/`toReject`/`toResolve` exist to catch a throw, and the throw they
- * catch is often a nested `expect` — `expect(() => expect(a).toBe(b)).toThrow()`
- * is how the matchers' own specs are written. Such an error is observed and
- * handled; it is emphatically NOT lost, and leaving it in the ledger turns every
- * negative-matcher test into a phantom failure. Measured: 9 phantom failures in
- * this package's own suite the first time the ledger ran without this.
+ * The throw `toThrow`/`toReject`/`toResolve` catch is often a nested `expect`
+ * (`expect(() => expect(a).toBe(b)).toThrow()` is how their own specs are
+ * written). That error is handled, not lost; leaving it in the ledger turns every
+ * negative-matcher test into a phantom failure — 9 of them in this package's suite
+ * the first time the ledger ran without this.
  *
- * Every site that swallows a caught error must call this — the ledger is only as
+ * Every site that swallows a caught error must call this: the ledger is only as
  * exact as its absorbers are honest.
  */
 const forgetThrownAssertion = (error: unknown): void => {
@@ -187,10 +161,10 @@ let runtime = '';
 let runStartTime = 0;
 let currentSuite = '';
 /**
- * Name of the `it()` currently on the stack, for attributing an out-of-band
- * observation (see `noteWarning`). Only meaningful while `activeTestDepth > 0`;
- * a settled test deliberately leaves the last name in place rather than clearing
- * it, because a late callback naming its likely origin beats naming nothing.
+ * Name of the `it()` on the stack, for attributing an out-of-band observation (see
+ * `noteWarning`). Only meaningful while `activeTestDepth > 0`; a settled test
+ * leaves the last name in place on purpose, because a late callback naming its
+ * likely origin beats naming nothing.
  */
 let currentTest = '';
 let testErrors: Array<{ suite: string; test: string; message: string }> = [];
@@ -213,13 +187,10 @@ const DEFAULT_TIMEOUT_CONFIG: TimeoutConfig = {
 let timeoutConfig: TimeoutConfig = { ...DEFAULT_TIMEOUT_CONFIG };
 
 /**
- * Opt-in per-test skip map (test name → reason), populated by `run()` from its
- * `skip` option. An `it()` whose `expectation` is a key here is reported as
- * skipped (with the reason) instead of run — the honest way for a caller to run
- * a suite on a runtime that cannot pass a known subset (e.g. a `@gjsify/node-gi`
- * consumer skipping tests that hit an unimplemented GI-marshalling surface),
- * WITHOUT editing or weakening the shared spec files. Empty by default, so it is
- * a no-op for every normal run.
+ * Opt-in per-test skip map (test name → reason), populated by `run()`'s `skip`
+ * option. Lets a caller run a suite on a runtime that cannot pass a known subset
+ * (e.g. a `@gjsify/node-gi` consumer hitting an unimplemented GI-marshalling
+ * surface) without editing or weakening the shared spec files. Empty by default.
  */
 let skipReasons: Map<string, string> = new Map();
 
@@ -231,13 +202,13 @@ class TimeoutError extends Error {
 }
 
 /**
- * Reject hooks for the `withTimeout` calls currently in flight (innermost last).
+ * Reject hooks for the `withTimeout` calls in flight (innermost last).
  *
  * An exception the HOST raises out of its own callback (Node's
- * `uncaughtException`) belongs to whichever test armed that callback. Failing
- * THAT test — rather than letting the host tear the process down — is what turns
- * a run-ending crash into one reported failure with the other suites still to
- * come. See `installUncaughtHooks`.
+ * `uncaughtException`) belongs to whichever test armed that callback; failing THAT
+ * test instead of letting the host tear the process down turns a run-ending crash
+ * into one reported failure with the other suites still to come. See
+ * `installUncaughtHooks`.
  */
 const abortHooks: Array<(error: unknown) => void> = [];
 
@@ -248,15 +219,14 @@ async function withTimeout<T>(fn: () => T | Promise<T>, timeoutMs: number, label
     const timeoutPromise = new Promise<never>((_, reject) => {
         timeoutId = setTimeout(() => reject(new TimeoutError(label, timeoutMs)), timeoutMs);
     });
-    // The race below is normally this promise's only consumer, so once `fn`
-    // settles first nobody observes the rejection. Claim it here rather than
-    // leaving it to become an unhandled rejection.
+    // Once `fn` settles first nobody observes this rejection; claim it here so it
+    // cannot become an unhandled rejection.
     timeoutPromise.catch(() => {});
 
     // Third racer: a host-level exception attributed to this call (see
-    // `abortHooks`). Registered for the whole body so it is armed before `fn()`
-    // can schedule anything, and removed by identity in `finally` — an index
-    // would be wrong the moment a nested `withTimeout` settles out of order.
+    // `abortHooks`). Armed before `fn()` can schedule anything, and removed by
+    // identity in `finally` — an index would be wrong the moment a nested
+    // `withTimeout` settles out of order.
     let abort!: (error: unknown) => void;
     const abortPromise = new Promise<never>((_, reject) => {
         abort = reject;
@@ -265,14 +235,12 @@ async function withTimeout<T>(fn: () => T | Promise<T>, timeoutMs: number, label
     abortHooks.push(abort);
 
     try {
-        // `fn()` belongs INSIDE the try. A synchronous throw — which is what
-        // EVERY failed `expect` in a non-async `it` is — escaped before the
-        // `finally` was installed, so `clearTimeout` never ran. The armed timer
-        // then rejected `timeoutPromise` with nobody listening: `timeoutMs`
-        // later the run died on an unhandled rejection reporting a TimeoutError
-        // in place of the assertion message, and every suite after the failing
-        // one never ran. Observed as `Timeout: "resolves from the caller cwd"
-        // exceeded 5000ms` masking a one-line path mismatch.
+        // `fn()` belongs INSIDE the try. A synchronous throw — every failed
+        // `expect` in a non-async `it` is one — used to escape before the `finally`
+        // was installed, so `clearTimeout` never ran and the armed timer rejected
+        // `timeoutPromise` with nobody listening: `timeoutMs` later the run died on
+        // an unhandled rejection reporting a TimeoutError in place of the
+        // assertion, and every later suite never ran.
         const fnPromise = Promise.resolve(fn());
         fnPromise.catch(() => {}); // Prevent unhandled rejection if it fails after timeout
         return await Promise.race([fnPromise, timeoutPromise, abortPromise]);
@@ -287,33 +255,24 @@ async function withTimeout<T>(fn: () => T | Promise<T>, timeoutMs: number, label
  * Route a host-level uncaught exception into the test that is in flight, instead
  * of letting the host end the process.
  *
- * This is the Node-family half of the callback-assertion fix; the ledger
- * (`assertionLedgers`) is the half that works everywhere. Both are needed and
- * neither subsumes the other: without the hook the process dies before any
- * ledger can be drained, and without the ledger a GJS run — where the host only
- * logs the exception — still reports a bare 5 s timeout instead of the
- * assertion.
+ * The Node-family half of the callback-assertion fix; the ledger
+ * (`assertionLedgers`) is the half that works everywhere. Neither subsumes the
+ * other: without the hook the process dies before any ledger is drained, and
+ * without the ledger a GJS run — where the host only logs the exception — still
+ * reports a bare 5 s timeout instead of the assertion.
  *
- * BOTH `uncaughtException` and `unhandledRejection` are needed, and the reason is
- * a runtime disagreement that only CI surfaced:
+ * BOTH events are needed, because the runtimes disagree:
  *
  * - a SYNCHRONOUS throw in a host callback arrives as `uncaughtException`
  *   everywhere;
- * - an ASYNC callback's throw rejects that function's promise, and what happens
- *   next differs. Node (measured, v24/v26) re-raises it as `uncaughtException`
- *   under its default `--unhandled-rejections=throw` *when no rejection listener
- *   exists* — so on Node alone, hooking the one event is enough. **Bun does not**
- *   (measured, v1.3.14): it terminates the process on the unhandled rejection,
- *   killing the run with no summary — exactly the failure this whole change
- *   exists to remove, reintroduced on a different runtime.
+ * - an ASYNC callback's throw rejects that function's promise, and Node (measured,
+ *   v24/v26) re-raises that as `uncaughtException` under its default
+ *   `--unhandled-rejections=throw` *only when no rejection listener exists*, while
+ *   Bun (measured, v1.3.14) terminates the process instead — killing the run with
+ *   no summary, the exact failure this hook exists to remove.
  *
- * So both are hooked, which makes the three runtimes agree instead of encoding
- * Node's default into a cross-runtime test framework.
- *
- * An earlier version of this comment argued that hooking rejections would
- * mis-charge the runner's own deliberate late rejections. That was wrong on its
- * own terms: every one of those carries a `.catch(() => {})` (see `withTimeout`),
- * which makes it HANDLED, so it can never raise this event.
+ * The runner's own late rejections cannot be mis-charged here: each carries a
+ * `.catch(() => {})` (see `withTimeout`), which makes it HANDLED.
  */
 let uncaughtHooksInstalled = false;
 
@@ -321,10 +280,9 @@ const installUncaughtHooks = (): void => {
     if (uncaughtHooksInstalled) return;
     const proc = runtimeGlobals().process;
     if (typeof proc?.on !== 'function') return;
-    // Real GJS has no host hook for this. `@gjsify/process` does provide `on()`
-    // as an EventEmitter method, but nothing ever emits these events there, so
-    // registering would be a silent no-op that reads like coverage. Gate on the
-    // same `process.versions.gjs` signal `getRuntime()`/`mainloop` use.
+    // Real GJS has no host hook for this: `@gjsify/process` provides `on()` as an
+    // EventEmitter method but nothing ever emits these events, so registering would
+    // be a silent no-op that reads like coverage.
     if (typeof proc.versions?.gjs === 'string') return;
 
     uncaughtHooksInstalled = true;
@@ -334,24 +292,19 @@ const installUncaughtHooks = (): void => {
         // whole class this hook exists for, and it is claimed unconditionally.
         const isAssertion = (error as _CountedError)?.__testFailureCounted === true;
 
-        // Anything else may be an error a SPEC provokes on purpose. Some do:
-        // `@gjsify/diagnostics_channel`'s "should continue notifying remaining
-        // subscribers when one throws" makes a subscriber throw, installs its own
+        // Anything else may be an error a SPEC provokes on purpose:
+        // `@gjsify/diagnostics_channel` makes a subscriber throw, installs its own
         // `uncaughtException` listener to swallow it, and asserts the remaining
-        // subscribers still ran. Node invokes every listener, so this hook fired
-        // too and failed a test that was working exactly as intended.
+        // subscribers still ran — Node invokes every listener, so this hook fired
+        // too and failed a test that worked as intended. A spec's own listener is
+        // therefore the signal that the escape is deliberate; ignoring all
+        // non-assertion errors instead would SILENTLY swallow genuine impl errors,
+        // since merely registering here already suppresses the default crash.
         //
-        // A spec having installed its OWN listener for this event is the signal
-        // that the escape is deliberate. Counting listeners is precise (the
-        // alternative — ignoring all non-assertion errors — would SILENTLY
-        // swallow a genuine impl error, since merely registering here already
-        // suppresses the runtime's default crash).
-        //
-        // But "a listener exists" is only a PROXY for "this one was expected",
-        // and the proxy is wrong in a real case: a spec that installs a listener
-        // for ONE anticipated error is equally deaf to a genuine impl error
-        // escaping beside it. So this is reported as a non-gating WARNING rather
-        // than dropped — the runner cannot decide it, and the reader can.
+        // "A listener exists" is only a PROXY for "this one was expected" — a spec
+        // listening for ONE anticipated error is equally deaf to a real error
+        // escaping beside it. Hence a non-gating WARNING: the runner cannot decide
+        // it, the reader can.
         const otherListeners = (proc.listenerCount?.(event) ?? 1) - 1;
         if (!isAssertion && otherListeners > 0) {
             const text = (error as { message?: string })?.message ?? String(error);
@@ -361,16 +314,14 @@ const installUncaughtHooks = (): void => {
         }
 
         const hook = abortHooks[abortHooks.length - 1];
-        // No test in flight → it belongs to no test; report it as its own entry
-        // rather than charging a bystander (same rule as a stray assertion).
+        // No test in flight → charge no bystander, same rule as a stray assertion.
         if (hook) hook(error);
         else noteStrayFailure((error as { message?: string })?.message ?? String(error));
     };
 
-    // A given error reaches exactly one of these: the runtimes route an unhandled
-    // rejection to `unhandledRejection` once a listener exists, and only re-raise
-    // it as `uncaughtException` when none does. Registering both is therefore not
-    // double-handling.
+    // Not double-handling: an unhandled rejection is routed to `unhandledRejection`
+    // once a listener exists, and re-raised as `uncaughtException` only when none
+    // does, so a given error reaches exactly one of these.
     proc.on('uncaughtException', handle('uncaughtException'));
     proc.on('unhandledRejection', handle('unhandledRejection'));
 };
@@ -417,22 +368,14 @@ export type Callback = () => void | Promise<void>;
 
 export type Runtime = 'Gjs' | 'Deno' | 'Node.js' | 'Unknown' | 'Browser' | 'Display';
 
-// Makes this work on Gjs and Node.js
-// In browsers, globalThis.print is window.print() (the print dialog), not text output.
-// Use console.log in browser contexts to avoid triggering print dialogs.
-// GJS check takes priority: @gjsify/dom-elements can set globalThis.document on GJS,
-// which would otherwise cause a false-positive browser detection.
+// In browsers `globalThis.print` is `window.print()` — the print DIALOG, not text
+// output — so browser contexts must use console.log. The GJS check takes priority
+// because `@gjsify/dom-elements` can set `globalThis.document` on GJS, which would
+// otherwise read as a browser.
 const _isGjsProcess = typeof runtimeGlobals().process?.versions?.gjs === 'string';
 export const print =
     !_isGjsProcess && typeof runtimeGlobals().document !== 'undefined' ? console.log : globalThis.print || console.log;
 
-/**
- * Render any value as a human-readable string for assertion failure messages
- * WITHOUT throwing. Template-literal / `+` interpolation throws a TypeError on
- * `symbol` and `bigint` operands (`Cannot convert a Symbol value to a string`),
- * which would mask the real assertion result, so matchers route operands
- * through this instead of interpolating them directly.
- */
 /**
  * Are two values deeply equal? Used ONLY to enrich a `toEqual` failure message
  * with the "you probably meant `toStrictEqual`" hint — never to decide a verdict.
@@ -451,6 +394,12 @@ function isStructurallyEqual(actual: unknown, expected: unknown): boolean {
     }
 }
 
+/**
+ * Render any value for an assertion failure message WITHOUT throwing.
+ * Template-literal / `+` interpolation throws a TypeError on `symbol` and `bigint`
+ * operands, which would mask the real assertion result, so matchers route operands
+ * through this rather than interpolating them.
+ */
 export function formatValue(value: unknown): string {
     switch (typeof value) {
         case 'symbol':
@@ -491,7 +440,6 @@ function matchesObject(actual: unknown, expected: unknown): boolean {
     );
 }
 
-// --- vitest-compatible mock + environment-stub helpers (`vi`) ---
 // oxlint-disable-next-line typescript/no-explicit-any -- a mock must wrap any function signature
 type AnyFn = (...args: any[]) => any;
 
@@ -602,13 +550,11 @@ class MatcherFactory {
     }
 
     toEqual(expectedValue: unknown) {
-        // `==` on two objects compares REFERENCES, so this matcher can only ever
-        // pass for primitives — while its name is the one every Jest/Vitest
-        // author reaches for to compare structure. The failure it produces then
-        // prints two IDENTICAL-looking lines ("Expected: [["real","^2"]] /
-        // Actual: [["real","^2"]]") and reads like a framework bug, which is
-        // exactly how it cost a CI round on #988. Detect that shape and name the
-        // right matcher instead of leaving the author to re-read `==`.
+        // `==` on two objects compares REFERENCES, so this matcher can only pass for
+        // primitives — while its name is the one every Jest/Vitest author reaches for
+        // to compare structure. The failure then prints two identical-looking lines
+        // and reads like a framework bug (it cost a CI round on #988), so detect that
+        // shape and name the right matcher.
         const success = this.actualValue == expectedValue;
         let hint = '';
         if (!success && isStructurallyEqual(this.actualValue, expectedValue)) {
@@ -946,7 +892,6 @@ export const describe = async function (
     const duration = now() - t0;
     print(`  ${GRAY}↳ ${formatDuration(duration)}${RESET}`);
 
-    // Reset after and before callbacks
     beforeEachCb = null;
     afterEachCb = null;
 };
@@ -957,15 +902,13 @@ describe.skip = async function (moduleName: string, _callback?: Callback) {
 };
 
 const hasDisplay = (): boolean => {
-    // Check process.env (Node.js and GJS with @gjsify/globals)
     const env = runtimeGlobals().process?.env;
     if (env) {
         return !!(env.DISPLAY || env.WAYLAND_DISPLAY);
     }
-    // GJS fallback via imports.gi.GLib (before process polyfill is available).
-    // The optional-chained probe is non-throwing off GJS (`imports` is simply
-    // undefined), and on GJS the GLib typelib is the runtime's own hard
-    // dependency — no try/catch, which would only hide which runtime we are on.
+    // GJS fallback for before the process polyfill exists. The optional-chained
+    // probe is non-throwing off GJS, and on GJS the GLib typelib is the runtime's
+    // own hard dependency — a try/catch would only hide which runtime we are on.
     const GLib = runtimeGlobals().imports?.gi?.GLib;
     if (GLib) {
         return !!(GLib.getenv('DISPLAY') || GLib.getenv('WAYLAND_DISPLAY'));
@@ -974,7 +917,7 @@ const hasDisplay = (): boolean => {
 };
 
 const runtimeMatch = async function (onRuntime: Runtime[], version?: string) {
-    // Special case: 'Display' checks for a graphical display, not runtime identity
+    // 'Display' asks for a graphical display, not for runtime identity.
     if (onRuntime.includes('Display')) {
         return { matched: hasDisplay() };
     }
@@ -1006,7 +949,7 @@ const runtimeMatch = async function (onRuntime: Runtime[], version?: string) {
 };
 
 // TODO(open-todos: 10 small API gaps): add support for Browser (tests/browser/ exists, this matcher cannot name it)
-/** E.g on('Deno', () {  it(...) }) */
+/** Run `callback` only on the named runtime(s): `on('Deno', () => { it(…) })`. */
 export const on = async function (onRuntime: Runtime | Runtime[], version: string | Callback, callback?: Callback) {
     if (typeof onRuntime === 'string') {
         onRuntime = [onRuntime];
@@ -1045,9 +988,7 @@ export const it = async function (
     callback: () => void | Promise<void>,
     options?: { timeout?: number } | number,
 ) {
-    // Opt-in skip: a caller-supplied `run({...}, { skip })` entry for this test
-    // name reports it as skipped (with the reason) instead of running it. No-op
-    // unless the caller populated `skip` (see `skipReasons`).
+    // Opt-in skip from `run(…, { skip })` — see `skipReasons`.
     const skipReason = skipReasons.get(expectation);
     if (skipReason !== undefined) {
         ++countTestsIgnored;
@@ -1058,16 +999,13 @@ export const it = async function (
     const timeoutMs = typeof options === 'number' ? options : (options?.timeout ?? timeoutConfig.testTimeout);
 
     const t0 = now();
-    // Mark an it() as on the stack so a matcher throw is attributed to THIS
-    // test (counted once in the catch below) rather than routed to a stray
-    // pseudo-test. Balanced in `finally` so a settled test leaves depth at 0 —
-    // a late assertion that fires after this test resolved is then correctly
-    // recognised as out-of-band (see triggerResult / noteStrayFailure).
+    // Attributes a matcher throw to THIS test rather than to a stray pseudo-test.
+    // Balanced in `finally`, so an assertion firing after this test resolved is
+    // correctly recognised as out-of-band (see triggerResult / noteStrayFailure).
     ++activeTestDepth;
     currentTest = expectation;
-    // This test's ledger of thrown-but-not-yet-observed assertions. Whatever
-    // survives to the drain below never reached the `catch` (see
-    // `assertionLedgers`).
+    // Thrown-but-not-yet-observed assertions; whatever survives to the drain below
+    // never reached the `catch` (see `assertionLedgers`).
     const ledger = new Set<Error>();
     assertionLedgers.push(ledger);
 
@@ -1095,15 +1033,13 @@ export const it = async function (
 
     const duration = now() - t0;
 
-    // A ledger leftover only means "lost" when the test TIMED OUT. That is the
-    // signature of the class: the throw unwound into the host instead of the
-    // promise, so the promise was never settled and the test could not end any
-    // other way. A test that FINISHED — passed, or failed through its own
-    // boundary — proves its chain completed, which means a leftover there was
-    // caught by the test on purpose. That pattern is supported and spec'd
-    // (`vitest-compat.spec.ts`: "a matcher throw caught inside the test does not
-    // count as a failure"), and reporting it would invent failures rather than
-    // reveal them — measured as 2 phantom failures before this narrowing.
+    // A ledger leftover only means "lost" when the test TIMED OUT — that is the
+    // signature of the class, since the throw unwound into the host instead of the
+    // promise and the test could not end any other way. A test that FINISHED proves
+    // its chain completed, so a leftover there was caught on purpose; that pattern
+    // is spec'd (`vitest-compat.spec.ts`: "a matcher throw caught inside the test
+    // does not count as a failure") and reporting it invented 2 phantom failures
+    // before this narrowing.
     const lost = observed instanceof TimeoutError ? [...ledger] : [];
 
     if (!threw) {
@@ -1111,10 +1047,8 @@ export const it = async function (
         return;
     }
 
-    // The error escaped THIS test's callback → it is this test's single failure.
-    // Count it exactly once here (the throw site no longer counts). A lost
-    // assertion counts the same way: one failing test, however many assertions
-    // vanished inside it.
+    // The error escaped THIS test's callback → one failure, counted here and not at
+    // the throw site, however many assertions vanished inside it.
     ++countTestsFailed;
 
     const messages: string[] = [];
@@ -1145,39 +1079,9 @@ it.skip = async function (expectation: string, _callback?: () => void | Promise<
 };
 
 /**
- * An EXPECTED failure — a test that asserts the correct behaviour against a
- * defect we cannot fix from here (an upstream bug, a platform gap).
- *
- * This is categorically NOT `it.skip`, and the difference is the whole point:
- *
- * - a skip stops running the code, so it hides forever and nothing ever tells
- *   you the day the bug is fixed;
- * - `it.failing` RUNS the test, tolerates the failure it was told to expect —
- *   and **fails the suite the moment the test starts passing**, because that
- *   means the marker has outlived its cause and must be removed.
- *
- * So it is self-retiring: it keeps the suite honest today without turning the
- * gate off, and it turns itself into a task the moment upstream lands the fix.
- * The assertion is never weakened — the test still asserts the spec-correct
- * behaviour, which is what makes the pass-detection meaningful.
- *
- * `reason` is mandatory and should name the upstream defect and where it is
- * tracked, so the next reader does not have to re-derive why this is here.
- *
- * ```ts
- * await it.failing(
- *     'send/receive empty string',
- *     async () => { … },
- *     'GStreamer webrtcdatachannel sends a zero-length buffer for the ' +
- *         'STRING_EMPTY PPID; RFC 8831 §6.6 requires one zero byte. Not ' +
- *         'reachable from JS — needs an upstream fix.',
- * );
- * ```
- */
-/**
- * Live view of the run counters. Exposed so `it.failing`'s own spec can assert
- * on what the CI gate reads (the counters) instead of scraping printed text —
- * the summary's wording is free to change, its accounting is not.
+ * Live view of the run counters. Exposed so `it.failing`'s own spec can assert on
+ * what the CI gate reads instead of scraping printed text — the summary's wording
+ * is free to change, its accounting is not.
  */
 export const getTestCounters = (): {
     overall: number;
@@ -1193,41 +1097,49 @@ export const getTestCounters = (): {
     warnings: warnings.length,
 });
 
+/**
+ * An EXPECTED failure — a test asserting the correct behaviour against a defect we
+ * cannot fix from here (an upstream bug, a platform gap).
+ *
+ * Categorically NOT `it.skip`: a skip stops running the code, so it hides forever
+ * and nothing tells you the day the bug is fixed, whereas `it.failing` RUNS the
+ * test, tolerates the failure it was told to expect, and **fails the suite the
+ * moment the test starts passing** — the marker has then outlived its cause. It is
+ * self-retiring, and the assertion is never weakened, which is what makes the
+ * pass-detection meaningful.
+ *
+ * `reason` is mandatory and should name the upstream defect and where it is
+ * tracked, so the next reader need not re-derive why this is here.
+ */
 it.failing = async function (
     expectation: string,
     callback: () => void | Promise<void>,
     reason: string,
-    // `timeout` mirrors `it()`'s third argument, for the same reason: a probe
-    // whose expected failure IS a timeout should not wait the full default.
-    //
-    // `when` scopes the EXPECTATION without touching the test. See below.
+    // `timeout` mirrors `it()`'s third argument: a probe whose expected failure IS a
+    // timeout should not wait the full default. `when` scopes the EXPECTATION
+    // without touching the test — see below.
     options?: { timeout?: number; when?: boolean } | number,
 ) {
     const timeoutMs = typeof options === 'number' ? options : (options?.timeout ?? timeoutConfig.testTimeout);
 
-    // `when: false` → this is an ordinary `it()`. Not a skip, not a tolerated
-    // failure: the test runs and must PASS, exactly as if the marker were absent.
-    //
-    // This exists for the failure class that is neither a bug nor a test defect:
-    // an assertion a PLATFORM cannot satisfy. `chmod` reading back 0o666 on NTFS,
-    // a stat-able character device, a directory with `size > 0`, `S_IRUSR` — each
-    // is correct on POSIX and impossible on win32, and the two bad options were
-    // to let CI stay red forever or to guard the test away and lose it.
-    //
-    // Scoping the marker keeps BOTH properties that make `it.failing` worth
-    // having: the assertion is never weakened, and it still fails the run the day
-    // it starts passing — on the platform where it was declared failing. A plain
-    // platform `if` around the test gives up the second half, which is the half
-    // that stops the note from rotting.
+    // `when: false` → an ordinary `it()`: the test runs and must PASS, exactly as if
+    // the marker were absent. This is for assertions a PLATFORM cannot satisfy
+    // (`chmod` reading back 0o666 on NTFS, a stat-able character device, `S_IRUSR` —
+    // correct on POSIX, impossible on win32), where the alternatives were a
+    // permanently red CI or guarding the test away and losing it. Scoping the marker
+    // keeps both properties: the assertion is never weakened, and it still fails the
+    // run the day it starts passing on the platform where it was declared failing —
+    // which a plain platform `if` gives up, and that is the half that stops the note
+    // from rotting.
     if (typeof options === 'object' && options?.when === false) {
         return it(expectation, callback, { timeout: timeoutMs });
     }
     const t0 = now();
     ++activeTestDepth;
-    // Own ledger frame, so an assertion thrown inside THIS probe is attributed
-    // here and cannot leak into the enclosing it()'s ledger (`it.failing` runs
-    // nested inside an `it()` — see `it-failing.spec.ts`). Nothing reads it: the
-    // timeout a lost assertion causes already satisfies the marker below.
+    // Own ledger frame, so an assertion thrown inside THIS probe cannot leak into
+    // the enclosing it()'s ledger (`it.failing` runs nested inside an `it()` — see
+    // `it-failing.spec.ts`). Nothing reads it: a lost assertion makes the probe time
+    // out, which already satisfies the marker below.
     assertionLedgers.push(new Set<Error>());
     let threw = false;
     try {
@@ -1235,8 +1147,7 @@ it.failing = async function (
         await withTimeout(callback, timeoutMs, expectation);
         if (typeof afterEachCb === 'function') await afterEachCb();
     } catch {
-        // The expected outcome. Deliberately swallowed — tolerating THIS
-        // failure is the contract; the assertion itself is unchanged and the
+        // The expected outcome: tolerating THIS failure is the contract, and the
         // pass-branch below is what keeps the marker honest.
         threw = true;
     } finally {
@@ -1245,19 +1156,14 @@ it.failing = async function (
     }
 
     const duration = now() - t0;
-    // A lost assertion makes the probe TIME OUT, and `threw` already covers a
-    // timeout — so the marker is satisfied without reading the ledger. The
-    // ledger is still pushed/popped above, so a throw inside this probe is
-    // attributed here and cannot leak into the enclosing it()'s ledger.
     if (threw) {
         ++countTestsXfail;
         print(`  ${BLUE}✗${RESET} ${GRAY}${expectation}  (expected failure — ${reason})${RESET}`);
         return;
     }
 
-    // It PASSED. The defect this marker documents is gone, so the marker is
-    // now the lie. Fail loudly rather than let it rot: whoever fixed upstream
-    // gets told to delete the marker, in the run that proves they can.
+    // It PASSED: the defect is gone, so the marker is now the lie. Fail loudly, in
+    // the run that proves whoever fixed upstream can delete it.
     ++countTestsFailed;
     testErrors.push({
         suite: currentSuite,
@@ -1271,8 +1177,8 @@ it.failing = async function (
     print(`${RED}it.failing passed unexpectedly — remove the marker. Reason it carried: ${reason}${RESET}`);
 };
 
-// The optional second argument mirrors vitest/jest `expect(value, message?)`;
-// it is a human label for the assertion and does not affect matching.
+// The optional second argument mirrors vitest/jest `expect(value, message?)`: a
+// human label that does not affect matching.
 export const expect = function (actualValue: unknown, _message?: string) {
     ++countTestsOverall;
 
@@ -1282,11 +1188,9 @@ export const expect = function (actualValue: unknown, _message?: string) {
 };
 
 /**
- * Brand an assertion error and rethrow. Failure counting is owned by the
- * observing boundary: while an it() is on the stack its catch counts the
- * escaped error once; with no it() active the failure is out-of-band and gets
- * its own stray pseudo-test (never charged to a bystander). Mirrors
- * `MatcherFactory.triggerResult`.
+ * Brand an assertion error and rethrow. Mirrors `MatcherFactory.triggerResult`:
+ * counting belongs to the observing boundary, so with no `it()` active the failure
+ * gets its own stray pseudo-test rather than a bystander's tally.
  */
 const failAssertion = (error: unknown): never => {
     (error as Error & _CountedError).__testFailureCounted = true;
@@ -1347,15 +1251,11 @@ assert.deepStrictEqual = function <T>(actual: unknown, expected: T, message?: st
 // TODO(open-todos: 10 small API gaps): wrap more assert methods
 
 const runTests = async function (namespaces: Namespaces) {
-    // recursively check the test directory for executable tests
     for (const subNamespace in namespaces) {
         const namespace = namespaces[subNamespace];
-        // execute any test functions
         if (typeof namespace === 'function') {
             await namespace();
-        }
-        // descend into subfolders and objects
-        else if (typeof namespace === 'object') {
+        } else if (typeof namespace === 'object') {
             await runTests(namespace);
         }
     }
@@ -1378,28 +1278,25 @@ const printResult = () => {
     const totalMs = runStartTime > 0 ? now() - runStartTime : 0;
     const durationStr = totalMs > 0 ? `  ${GRAY}(${formatDuration(totalMs)})` : '';
     // Tag the summary with the runtime so a failure is self-identifying in a
-    // concatenated multi-package, multi-runtime CI log — a native-Node failure
-    // reads as `[Node.js …]`, not as a GJS/gjsify problem. `runtime` is set by
-    // getRuntime() during the run's startup printRuntime().
+    // concatenated multi-package, multi-runtime CI log — a native-Node failure reads
+    // as `[Node.js …]`, not as a GJS/gjsify problem.
     const rtTag = runtime ? `[${runtime}] ` : '';
 
     if (countTestsIgnored) {
-        // some tests ignored
         print(`\n${BLUE}✔ ${countTestsIgnored} ignored test${countTestsIgnored > 1 ? 's' : ''}${RESET}`);
     }
 
     if (countTestsXfail) {
-        // Expected failures are NOT silent: they are printed as their own line
-        // so a reader sees the suite is gating around a known upstream defect,
-        // and so the count going DOWN is visible when one gets fixed.
+        // Expected failures get their own line so a reader sees the suite is gating
+        // around a known upstream defect, and so the count going DOWN is visible.
         print(
             `\n${BLUE}✗ ${countTestsXfail} expected failure${countTestsXfail > 1 ? 's' : ''} (it.failing — upstream defects)${RESET}`,
         );
     }
 
     if (warnings.length) {
-        // Non-gating by design (see `warnings`). Printed with its own glyph and
-        // an explicit "not counted" so nobody reads it as part of the verdict.
+        // Non-gating by design (see `warnings`); its own glyph plus an explicit "not
+        // counted" so nobody reads it as part of the verdict.
         print(
             `\n${BLUE}⚠ ${warnings.length} warning${warnings.length > 1 ? 's' : ''} (not counted — nothing is claimed about these)${RESET}`,
         );
@@ -1409,9 +1306,9 @@ const printResult = () => {
     }
 
     if (strayFailures.length) {
-        // Late assertions that fired with no it() on the stack (a leaked timer
-        // / unawaited promise in some test). Surface them as their own line so
-        // they read as a distinct problem, not a corrupted bystander test.
+        // Late assertions that fired with no it() on the stack (a leaked timer or
+        // unawaited promise), on their own line so they read as a distinct problem
+        // rather than a corrupted bystander test.
         print(
             `\n${RED}⚠ ${strayFailures.length} assertion${strayFailures.length > 1 ? 's' : ''} fired outside any it() (leaked from a settled test)${RESET}`,
         );
@@ -1421,10 +1318,8 @@ const printResult = () => {
     }
 
     if (countTestsFailed) {
-        // some tests failed
         print(`\n${RED}❌ ${rtTag}${countTestsFailed} of ${countTestsOverall} tests failed${durationStr}${RESET}`);
     } else {
-        // all tests okay
         print(`\n${GREEN}✔ ${rtTag}${countTestsOverall} completed${durationStr}${RESET}`);
     }
 };
@@ -1438,9 +1333,9 @@ const getRuntime = async () => {
         return 'Deno ' + globalThis.Deno?.version?.deno;
     }
 
-    // Check process (GJS / Node) BEFORE document: @gjsify/dom-elements can set
-    // globalThis.document on GJS, which would otherwise cause a false browser-positive.
-    // dynamic import('process') throws in the browser so this stays safe there.
+    // Check process (GJS / Node) BEFORE document: `@gjsify/dom-elements` can set
+    // `globalThis.document` on GJS, which would otherwise read as a browser. The
+    // dynamic `import('process')` throws in the browser, hence the catch.
     {
         let process = globalThis.process;
 
@@ -1461,8 +1356,7 @@ const getRuntime = async () => {
         }
     }
 
-    // Only treat as Browser after confirming no Node/GJS process is present.
-    // dynamic imports throw in browsers, so we are safely past that path here.
+    // Browser only after no Node/GJS process was found.
     if (typeof runtimeGlobals().document !== 'undefined') {
         runtime = 'Browser';
         return runtime;
@@ -1519,7 +1413,8 @@ export const run = async (
             quitMainLoop(); // Pre-quit ensureMainLoop's loop so it exits immediately when the hook fires
             mainloop?.quit();
 
-            // Node.js: exit here (code after mainloop?.run() executes before tests on Node.js)
+            // Node.js exits here: without a mainloop, the code after `mainloop?.run()`
+            // below would already have run before any test did.
             if (!mainloop) {
                 const exitCode = countTestsFailed > 0 ? 1 : 0;
                 try {
@@ -1531,16 +1426,15 @@ export const run = async (
             }
         });
 
-    // Run the GJS mainloop for async operations (blocks until mainloop.quit() is called)
+    // Blocks until `mainloop.quit()`.
     mainloop?.run();
 
-    // GJS: exit after mainloop returns (system.exit() inside a mainloop
-    // callback does not terminate immediately)
+    // GJS exits only after the mainloop returns — `system.exit()` from inside a
+    // mainloop callback does not terminate immediately.
     if (mainloop) {
         const exitCode = countTestsFailed > 0 ? 1 : 0;
-        // Real-GJS-only path (see the `mainloop` gate above): `imports.system`
-        // is a native builtin that always resolves there, `exit()` never
-        // throws, and the `?.` chain already covers a host without it.
+        // Real-GJS-only path (see the `mainloop` gate above), where `imports.system`
+        // is a native builtin that always resolves and `exit()` never throws.
         runtimeGlobals().imports?.system?.exit(exitCode);
     }
 };

@@ -1,35 +1,27 @@
 // Adwaita navigation-view state machine — headless (ADR 0004).
 //
-// `Adw.NavigationView` is almost entirely bookkeeping: a page REGISTRY with a
-// tag index, an ordered STACK over that registry, a static-vs-dynamic
-// (`remove_on_pop`) ownership lifecycle, and six mutators — add / remove / push /
-// pop / pop-to / replace — each with precise reject conditions. Only "show the
-// top of the stack" plus the spring animation is rendering, and both renderers
-// already reduce that to a visibility toggle.
+// `Adw.NavigationView` is almost entirely bookkeeping: a page REGISTRY with a tag
+// index, an ordered STACK over that registry, a static-vs-dynamic (`remove_on_pop`)
+// ownership lifecycle, and six mutators — add / remove / push / pop / pop-to / replace
+// — each with precise reject conditions. Only "show the top of the stack" plus the
+// spring animation is rendering.
 //
-// Both ports re-implemented the machine independently and each landed a
-// different set of real bugs, none of them rendering concerns:
-//   - web's `pop()` refused to pop a `can-pop="false"` page. The C documents the
-//     exact opposite (adw-navigation-view.c:2559-2561): `can_pop` gates
-//     shortcuts, gestures and the header-bar back button — a manual `pop()`
-//     always works.
-//   - web's `replace()` purged dynamic pages BEFORE resolving string entries, so
-//     `replace(['tag-of-a-pushed-page'])` silently blanked the whole view.
-//   - NS's `push()` had no already-in-stack guard, so `push(v)` twice produced
-//     the stack `[v, v]` and needed two pops to leave one page.
-//   - NS never destroyed a dynamically-pushed page, so it leaked and a later
-//     `push()` resurrected the old instance.
-// Plus four public C entry points (`pop_to_page`, `replace_with_tags`,
-// `find_page`, `get_previous_page`) existed in NEITHER port, and the back-button
-// derivation — which lives in `adw-back-button.c`, not in the view — was
-// hand-inlined by web and absent from NS.
+// Four rules that are easy to get wrong:
+// - `pop()` IGNORES `can-pop`: the property gates shortcuts, gestures and the
+// header-bar back button only, and the docs say a manual `pop()` still works;
+// - `replace()` resolves string entries BEFORE purging dynamic pages, so
+// `replace(['tag-of-a-pushed-page'])` works;
+// - `push()` refuses a page already on the stack, so `push(v)` twice cannot produce
+// `[v, v]`;
+// - a dynamically-pushed page is DESTROYED on pop; a statically added one survives.
+//
+// The back-button derivation lives in `adw-back-button.c`, not in the view.
 //
 // The two seams follow the rest of this package: {@link NavigationViewState.subscribe}
-// is the per-instance observable (as `ExpanderState`/`ComboState` in `rows.ts`),
-// and {@link NavigationViewState.finishTransition} is the injected TIMING seam
-// standing in for `AdwAnimation`'s "done" callback (as `ToastScheduler` does for
-// toasts) — the deferred destroy of the outgoing page is a lifecycle rule that
-// merely happens to be scheduled by the animation.
+// is the per-instance observable (as `ExpanderState`/`ComboState` in `rows.ts`), and
+// {@link NavigationViewState.finishTransition} is the injected TIMING seam standing in
+// for `AdwAnimation`'s "done" callback — the deferred destroy of the outgoing page is a
+// lifecycle rule that merely happens to be scheduled by the animation.
 //
 // The page handle `P` is opaque on purpose: a DOM element for `@gjsify/adwaita-web`,
 // a NativeScript `View` for `@gjsify/adwaita-nativescript`. Stack membership is
@@ -44,12 +36,12 @@ export interface AdwNavigationPageProps {
     /**
      * `AdwNavigationPage:tag` — unique within one view, or `null` for untagged.
      * `''` is a legal tag: the C tag table is a plain `g_str_hash` table and only
-     * a NULL tag is skipped (add_page:1281).
+     * a NULL tag is skipped (add_page).
      */
     tag?: string | null;
-    /** `AdwNavigationPage:title` — defaults to `''`, never null (adw_navigation_page_init:794). */
+    /** `AdwNavigationPage:title` — defaults to `''`, never null (adw_navigation_page_init). */
     title?: string;
-    /** `AdwNavigationPage:can-pop` — defaults to `true` (adw_navigation_page_init:795). */
+    /** `AdwNavigationPage:can-pop` — defaults to `true` (adw_navigation_page_init). */
     canPop?: boolean;
 }
 
@@ -58,7 +50,7 @@ export interface AdwNavigationPageProps {
  * them without re-deriving the cause: `'add'`/`'push'` → `::pushed`, `'pop'` →
  * one `::popped` per entry in {@link NavigationStackChange.popped}, `'replace'` →
  * `::replaced`. `'add'` is split out from `'push'` only because it is the
- * auto-push add_page:1284-1285 performs, which is never animated.
+ * auto-push add_page performs, which is never animated.
  */
 export type NavigationChangeReason = 'add' | 'push' | 'pop' | 'replace';
 
@@ -74,14 +66,14 @@ export interface NavigationStackChange<P> {
      * The page that was visible before this mutation. `previousVisiblePage !==
      * visiblePage` is exactly the condition under which libadwaita notifies
      * `visible-page` — including the `replace()` corner where the old visible
-     * page was destroyed rather than switched away from (replace:3078-3079).
+     * page was destroyed rather than switched away from (replace).
      */
     previousVisiblePage: P | null;
     /** Why the stack moved. */
     reason: NavigationChangeReason;
     /**
      * The popped pages, TOP-FIRST — `::popped` is emitted in this order.
-     * pop_from_stack:989-994 builds the list with `g_slist_prepend` while walking
+     * pop_from_stack builds the list with `g_slist_prepend` while walking
      * bottom-up, then iterates it forward. Always empty unless `reason` is `'pop'`.
      */
     popped: readonly P[];
@@ -89,20 +81,20 @@ export interface NavigationStackChange<P> {
     removed: readonly P[];
     /**
      * The outgoing visible page, destroyed only once the transition finishes
-     * (pop_from_stack:1007 skips it; transition_done_cb:1042 does it). The
+     * (pop_from_stack skips it; transition_done_cb does it). The
      * renderer hands it back by calling {@link NavigationViewState.finishTransition}.
      */
     removeAfterTransition: P | null;
     /**
-     * Whether this transition animates. `false` for the auto-push (add_page:1285),
-     * for every `replace()` (replace:3075), and whenever there is no outgoing page
-     * to slide away from (switch_page:857-858).
+     * Whether this transition animates. `false` for the auto-push (add_page),
+     * for every `replace()` (replace), and whenever there is no outgoing page
+     * to slide away from (switch_page).
      */
     animate: boolean;
     /** Transition direction: `true` when the new page comes from BELOW (pop/replace). */
     pop: boolean;
     /**
-     * Whether `visible-page-tag` re-notifies: switch_page:927-930 notifies only
+     * Whether `visible-page-tag` re-notifies: switch_page notifies only
      * when the outgoing OR the incoming page carries a tag.
      */
     tagNotify: boolean;
@@ -142,15 +134,15 @@ export type NavigationPagePropsResolver<P> = (page: P) => AdwNavigationPageProps
  * What a shortcut handler must do with the key event. `'stop'` is
  * `GDK_EVENT_STOP` — notably also returned WITHOUT popping when the visible page
  * has `can-pop = FALSE`, so the key is not forwarded to an enclosing navigation
- * view (pop_shortcut_cb:1150-1152).
+ * view (pop_shortcut_cb).
  */
 export type NavigationShortcutResult = 'stop' | 'propagate';
 
 /** Construction defaults + the diagnostic seam. */
 export interface NavigationViewOptions {
-    /** `AdwNavigationView:animate-transitions`, default `true` (init:2142). */
+    /** `AdwNavigationView:animate-transitions`, default `true` (init). */
     animateTransitions?: boolean;
-    /** `AdwNavigationView:pop-on-escape`, default `true` (init:2143). */
+    /** `AdwNavigationView:pop-on-escape`, default `true` (init). */
     popOnEscape?: boolean;
     /** Where rejected mutations are reported. Unset = silent. */
     onDiagnostic?: NavigationDiagnosticListener;
@@ -224,8 +216,6 @@ export class NavigationViewState<P = unknown> {
         };
     }
 
-    // --- Read-only derivations ---
-
     /** The navigation stack, bottom-first. A snapshot — mutating it does nothing. */
     get stack(): readonly P[] {
         return [...this._stack];
@@ -241,12 +231,12 @@ export class NavigationViewState<P = unknown> {
         return [...this._registry.keys()];
     }
 
-    /** The top of the stack, or `null` when the stack is empty (get_visible_page:3165). */
+    /** The top of the stack, or `null` when the stack is empty (get_visible_page). */
     get visiblePage(): P | null {
         return this._stack.length === 0 ? null : (this._stack[this._stack.length - 1] as P);
     }
 
-    /** The visible page's tag, or `null` — never `''` for an untagged page (get_visible_page_tag:3195). */
+    /** The visible page's tag, or `null` — never `''` for an untagged page (get_visible_page_tag). */
     get visiblePageTag(): string | null {
         const page = this.visiblePage;
         return page === null ? null : this.tagOf(page);
@@ -309,19 +299,19 @@ export class NavigationViewState<P = unknown> {
     }
 
     /**
-     * The page with this tag, or `null` (find_page:2774).
+     * The page with this tag, or `null` (find_page).
      *
      * Byte-exact: the C table is `g_str_hash`/`g_str_equal`, so NFC and NFD
      * spellings of the same word are DIFFERENT keys and `''` is a valid one.
      * Dynamically-pushed pages are found too — `maybe_add_page` routes through
-     * `add_page`, which indexes the tag (:1281-1282).
+     * `add_page`, which indexes the tag.
      */
     findPage(tag: string): P | null {
         return this._tags.get(tag) ?? null;
     }
 
     /**
-     * The page popping `page` would reveal (get_previous_page:3228) — `null` when
+     * The page popping `page` would reveal (get_previous_page) — `null` when
      * `page` is the root page or is not on the stack.
      */
     getPreviousPage(page: P): P | null {
@@ -329,19 +319,13 @@ export class NavigationViewState<P = unknown> {
         return pos <= 0 ? null : (this._stack[pos - 1] as P);
     }
 
-    // --- Registry ---
-
     /**
-     * Permanently add `page` (adw_navigation_view_add:2719). A page added this way
-     * survives being popped.
-     *
-     * Two rules that were missing from the renderers:
-     *   1. Adding a page that is on the stack as a DYNAMIC page converts it to a
-     *      permanent one and does nothing else (:2725-2730) — the stack does not
-     *      move and no change is emitted.
-     *   2. The auto-push fires whenever the stack is EMPTY, not only for the very
-     *      first page ever added (add_page:1284) — so `add()` after `replace([])`
-     *      pushes again.
+     * Permanently add `page` (`adw_navigation_view_add`); a page added this way survives
+     * being popped. Two easily-missed rules:
+     * 1. adding a page that is on the stack as a DYNAMIC page converts it to a permanent
+     * one and does nothing else — the stack does not move and nothing is emitted;
+     * 2. the auto-push fires whenever the stack is EMPTY, not only for the first page
+     * ever added, so `add()` after `replace([])` pushes again.
      *
      * Returns `false` (with a `duplicate-tag` diagnostic) when the tag collides.
      */
@@ -362,17 +346,17 @@ export class NavigationViewState<P = unknown> {
     }
 
     /**
-     * Remove `page` (adw_navigation_view_remove:2750 → remove_page:1312).
+     * Remove `page` (adw_navigation_view_remove → remove_page).
      *
      * If the page is on the stack the removal is DEFERRED: the page is marked
-     * remove-on-pop and destroyed when it is popped (:1323-1326). Otherwise it is
+     * remove-on-pop and destroyed when it is popped. Otherwise it is
      * unregistered immediately and its tag freed. Returns `false` only for a page
      * this view does not know.
      */
     remove(page: P): boolean {
         const record = this._registry.get(page);
         if (record === undefined) return false;
-        // remove_page:1319 skips the animation for the page currently transitioning
+        // remove_page skips the animation for the page currently transitioning
         // out, which resolves its deferred destroy here instead.
         if (this._pendingRemoval === page) this._pendingRemoval = null;
         if (this._stack.includes(page)) {
@@ -383,12 +367,10 @@ export class NavigationViewState<P = unknown> {
         return true;
     }
 
-    // --- Page properties ---
-
     /**
-     * Set `page`'s tag (adw_navigation_page_set_tag:2437). Silent no-op when
-     * unchanged (:2448); rejected with `duplicate-tag` when another page already
-     * owns the tag, in which case the OLD tag is kept (:2456-2460).
+     * Set `page`'s tag (adw_navigation_page_set_tag). Silent no-op when
+     * unchanged; rejected with `duplicate-tag` when another page already
+     * owns the tag, in which case the OLD tag is kept.
      */
     setTag(page: P, tag: string | null): boolean {
         const record = this._registry.get(page);
@@ -406,9 +388,9 @@ export class NavigationViewState<P = unknown> {
     }
 
     /**
-     * Set `page`'s title (adw_navigation_page_set_title:2508). Drives the header-bar
+     * Set `page`'s title (adw_navigation_page_set_title). Drives the header-bar
      * title and the NEXT page's back-button tooltip. `null`/`undefined` is rejected
-     * — the C has `g_return_if_fail (title != NULL)` (:2514).
+     * — the C has `g_return_if_fail (title != NULL)`.
      */
     setTitle(page: P, title: string): boolean {
         if (typeof title !== 'string') return false;
@@ -419,7 +401,7 @@ export class NavigationViewState<P = unknown> {
     }
 
     /**
-     * Set `page`'s `can-pop` (adw_navigation_page_set_can_pop:2569). Gates
+     * Set `page`'s `can-pop` (adw_navigation_page_set_can_pop). Gates
      * shortcuts, gestures and the back button — deliberately NOT {@link pop}.
      */
     setCanPop(page: P, canPop: boolean): boolean {
@@ -431,18 +413,16 @@ export class NavigationViewState<P = unknown> {
         return true;
     }
 
-    // --- Stack mutators ---
-
     /**
-     * Push `page` onto the stack (adw_navigation_view_push:2800).
+     * Push `page` onto the stack (adw_navigation_view_push).
      *
      * A page the view has never seen is registered as DYNAMIC (destroyed when
-     * popped, maybe_add_page:1307-1308); an already-registered one keeps its
-     * permanence, because maybe_add_page returns early for it (:1296-1297). That
+     * popped, maybe_add_page); an already-registered one keeps its
+     * permanence, because maybe_add_page returns early for it. That
      * asymmetry is why a static page survives a push/pop round trip.
      *
      * Returns `false` with `already-in-stack` when the page is already on the
-     * stack (push_to_stack:942-952), or with `duplicate-tag` when its tag collides.
+     * stack (push_to_stack), or with `duplicate-tag` when its tag collides.
      */
     push(page: P, props: AdwNavigationPageProps = {}): boolean {
         if (!this._maybeAddPage(page, props)) return false;
@@ -450,7 +430,7 @@ export class NavigationViewState<P = unknown> {
     }
 
     /**
-     * Push the page carrying `tag` (adw_navigation_view_push_by_tag:2829). An
+     * Push the page carrying `tag` (adw_navigation_view_push_by_tag). An
      * unknown tag is rejected with `tag-not-found` and changes nothing.
      */
     pushByTag(tag: string): boolean {
@@ -463,12 +443,12 @@ export class NavigationViewState<P = unknown> {
     }
 
     /**
-     * Pop the visible page (adw_navigation_view_pop:2869). `false` when there is
+     * Pop the visible page (adw_navigation_view_pop). `false` when there is
      * no visible page or no page beneath it.
      *
      * Deliberately IGNORES `can-pop`: the C function contains no such test and the
      * property docs say so in as many words — "Manually calling
-     * [method@NavigationView.pop] […] will still work" (:2560-2561). Use
+     * [method@NavigationView.pop] […] will still work". Use
      * {@link popFromShortcut} for the gated path.
      */
     pop(): boolean {
@@ -481,7 +461,7 @@ export class NavigationViewState<P = unknown> {
     }
 
     /**
-     * Pop until `page` is visible (adw_navigation_view_pop_to_page:2913) — ONE
+     * Pop until `page` is visible (adw_navigation_view_pop_to_page) — ONE
      * atomic splice, so ONE visible-page notification carrying every popped page,
      * not N sequential pops. Ignores `can-pop` on the pages it passes.
      *
@@ -499,7 +479,7 @@ export class NavigationViewState<P = unknown> {
     }
 
     /**
-     * Pop until the page carrying `tag` is visible (adw_navigation_view_pop_to_tag:2958).
+     * Pop until the page carrying `tag` is visible (adw_navigation_view_pop_to_tag).
      * An unknown tag yields `tag-not-found`; a known but off-stack one yields
      * `not-in-stack`.
      */
@@ -513,12 +493,12 @@ export class NavigationViewState<P = unknown> {
     }
 
     /**
-     * Replace the whole stack (adw_navigation_view_replace:3002). Never animates
-     * (:3075) and emits no `popped` — `::replaced` is its own signal.
+     * Replace the whole stack (adw_navigation_view_replace). Never animates
+     * and emits no `popped` — `::replaced` is its own signal.
      *
-     * `null` entries are skipped (:3021, :3052) and a page listed twice is
-     * rejected on its second occurrence (:3055-3059). Old DYNAMIC pages are
-     * destroyed only when they are absent from the new set (:3033-3034); that
+     * `null` entries are skipped and a page listed twice is
+     * rejected on its second occurrence. Old DYNAMIC pages are
+     * destroyed only when they are absent from the new set; that
      * guard is what makes replacing the stack with the tag of a pushed page work.
      * An empty array leaves no visible page.
      *
@@ -538,7 +518,7 @@ export class NavigationViewState<P = unknown> {
             if (page !== null && page !== undefined) keep.add(page);
         }
 
-        // replace:3027-3046 — walk the OLD stack top-first, destroying the dynamic
+        // replace — walk the OLD stack top-first, destroying the dynamic
         // pages that the new stack does not keep.
         for (let i = this._stack.length - 1; i >= 0; i--) {
             const page = this._stack[i] as P;
@@ -575,7 +555,7 @@ export class NavigationViewState<P = unknown> {
         } else if (switchPrev !== null) {
             outcome = this._beginSwitch(switchPrev, null, true, false, removed);
         } else {
-            // replace:3078-3082 — the old visible page was destroyed rather than
+            // replace — the old visible page was destroyed rather than
             // switched away from, so `visible-page` still notifies but the tag only
             // does when that page carried one.
             outcome = { animate: false, tagNotify: hadVisiblePage && oldVisibleHadTag, removeAfterTransition: null };
@@ -585,12 +565,10 @@ export class NavigationViewState<P = unknown> {
 
     /**
      * Replace the stack with the pages carrying `tags`
-     * (adw_navigation_view_replace_with_tags:3124).
+     * (adw_navigation_view_replace_with_tags).
      *
-     * Every tag is resolved BEFORE any mutation; an unknown one reports
-     * `tag-not-found` and becomes a null slot {@link replace} then skips, rather
-     * than aborting the call. Resolving up front is exactly what the web port's
-     * `replace()` failed to do.
+     * Every tag is resolved BEFORE any mutation; an unknown one reports `tag-not-found`
+     * and becomes a null slot {@link replace} then skips, rather than aborting the call.
      */
     replaceWithTags(tags: readonly string[]): void {
         const pages = tags.map((tag) => {
@@ -601,10 +579,8 @@ export class NavigationViewState<P = unknown> {
         this.replace(pages);
     }
 
-    // --- Transition seam ---
-
     /**
-     * Report that the outgoing transition finished (transition_done_cb:1029-1075),
+     * Report that the outgoing transition finished (transition_done_cb),
      * and receive the pages the renderer must now destroy.
      *
      * This is the injected timing seam replacing `AdwAnimation`'s "done" callback.
@@ -612,18 +588,18 @@ export class NavigationViewState<P = unknown> {
      * is precisely what `adw_animation_skip` does in the C when `animate` is FALSE.
      * A page pushed back onto the stack before the transition finished survives,
      * because the C routes this through `adw_navigation_view_remove` and its
-     * on-the-stack check (:1042 → remove_page:1323).
+     * on-the-stack check (:1042 → remove_page).
      */
     finishTransition(): readonly P[] {
         const page = this._resolvePendingRemoval();
         return page === null ? [] : [page];
     }
 
-    // --- Back button (adw-back-button.c) ---
+    // Back button — Reference: refs/libadwaita/src/adw-back-button.c
 
     /**
      * Whether the automatic back button is shown — `get_previous_page(visible) !==
-     * null && can_pop(visible)` (adw-back-button.c update_page:84-108). This is the
+     * null && can_pop(visible)` (adw-back-button.c update_page). This is the
      * ONLY place `can-pop` decides whether a page can be left.
      */
     canGoBack(): boolean {
@@ -635,7 +611,7 @@ export class NavigationViewState<P = unknown> {
     /**
      * The back button's tooltip: the title of the page the button would reveal,
      * falling back to `fallback` only when that title is empty
-     * (adw-back-button.c query_tooltip:399-419). `null` when there is no back
+     * (adw-back-button.c query_tooltip). `null` when there is no back
      * button at all.
      */
     backButtonTooltip(fallback: string = BACK_BUTTON_FALLBACK_TOOLTIP): string | null {
@@ -646,11 +622,9 @@ export class NavigationViewState<P = unknown> {
         return title.length > 0 ? title : fallback;
     }
 
-    // --- Shortcuts ---
-
     /**
      * The `can-pop`-aware pop behind Alt+Left and the back mouse button
-     * (pop_shortcut_cb:1142-1158).
+     * (pop_shortcut_cb).
      *
      * Returns `'stop'` WITHOUT popping when the visible page has `can-pop = FALSE`
      * — deliberately, so the key is not forwarded to an enclosing navigation view.
@@ -662,12 +636,10 @@ export class NavigationViewState<P = unknown> {
         return this.pop() ? 'stop' : 'propagate';
     }
 
-    /** Escape-to-pop: {@link popFromShortcut} gated on `pop-on-escape` (escape_shortcut_cb:1175-1182). */
+    /** Escape-to-pop: {@link popFromShortcut} gated on `pop-on-escape` (escape_shortcut_cb). */
     popFromEscape(): NavigationShortcutResult {
         return this._popOnEscape ? this.popFromShortcut() : 'propagate';
     }
-
-    // --- Internals ---
 
     private _diagnose(diagnostic: NavigationDiagnostic): void {
         this._onDiagnostic?.(diagnostic);
@@ -703,7 +675,7 @@ export class NavigationViewState<P = unknown> {
         });
     }
 
-    /** `add_page` (:1263) — register, index the tag, and auto-push into an empty stack. */
+    /** `add_page` — register, index the tag, and auto-push into an empty stack. */
     private _addPage(page: P, props: AdwNavigationPageProps, autoPush: boolean): boolean {
         const tag = props.tag ?? null;
         if (tag !== null && this._tags.has(tag)) {
@@ -717,13 +689,13 @@ export class NavigationViewState<P = unknown> {
             removeOnPop: false,
         });
         if (tag !== null) this._tags.set(tag, page);
-        // :1284-1285 — the condition is "the stack is empty", not "this is the
+        // the condition is "the stack is empty", not "this is the
         // first page", and the auto-push is hard-coded NOT to animate.
         if (autoPush && this._stack.length === 0) this._pushToStack(page, 'add', false, false);
         return true;
     }
 
-    /** `maybe_add_page` (:1290) — register an unknown page as DYNAMIC; keep a known one as it is. */
+    /** `maybe_add_page` — register an unknown page as DYNAMIC; keep a known one as it is. */
     private _maybeAddPage(page: P, props: AdwNavigationPageProps): boolean {
         if (this._registry.has(page)) return true;
         const tag = props.tag ?? null;
@@ -737,7 +709,7 @@ export class NavigationViewState<P = unknown> {
         return true;
     }
 
-    /** `push_to_stack` (:933) — the append plus its already-in-stack guard. */
+    /** `push_to_stack` — the append plus its already-in-stack guard. */
     private _pushToStack(page: P, reason: NavigationChangeReason, animate: boolean, useTagForErrors: boolean): boolean {
         if (this._stack.includes(page)) {
             this._diagnose(
@@ -755,18 +727,18 @@ export class NavigationViewState<P = unknown> {
         return true;
     }
 
-    /** `pop_from_stack` (:969) — one splice, one switch, then the per-page destroys. */
+    /** `pop_from_stack` — one splice, one switch, then the per-page destroys. */
     private _popFromStack(pageTo: P, animate: boolean): void {
         const oldPage = this.visiblePage;
         if (pageTo === oldPage) return;
         const pos = this._stack.indexOf(pageTo);
-        // :989-994 — prepend-while-walking-up makes `popped` top-first.
+        // prepend-while-walking-up makes `popped` top-first.
         const popped = this._stack.slice(pos + 1).reverse();
         this._stack.length = pos + 1;
 
         const removed: P[] = [];
         const outcome = this._beginSwitch(oldPage, pageTo, true, animate, removed);
-        // :1007 — every popped DYNAMIC page is destroyed now EXCEPT the outgoing
+        // every popped DYNAMIC page is destroyed now EXCEPT the outgoing
         // visible one, which waits for the transition to finish.
         for (const page of popped) {
             if (page === oldPage) continue;
@@ -777,7 +749,7 @@ export class NavigationViewState<P = unknown> {
     }
 
     /**
-     * `switch_page` (:824), minus the rendering: flush a still-pending deferred
+     * `switch_page`, minus the rendering: flush a still-pending deferred
      * destroy, decide whether this transition animates, and queue the new one.
      */
     private _beginSwitch(
@@ -787,14 +759,14 @@ export class NavigationViewState<P = unknown> {
         animate: boolean,
         removed: P[],
     ): SwitchOutcome<P> {
-        // :860-873 — starting a transition on a DIFFERENT page resolves the one
+        // starting a transition on a DIFFERENT page resolves the one
         // still owed from the previous transition.
         if (this._pendingRemoval !== null && this._pendingRemoval !== prev) {
             const stale = this._resolvePendingRemoval();
             if (stale !== null) removed.push(stale);
         }
 
-        // :1042 — the destroy is deferred, and `remove_page`'s on-the-stack check
+        // the destroy is deferred, and `remove_page`'s on-the-stack check
         // spares a page the new stack still holds.
         let removeAfterTransition: P | null = null;
         if (pop && prev !== null && this._registry.get(prev)?.removeOnPop === true && !this._stack.includes(prev)) {
@@ -803,10 +775,10 @@ export class NavigationViewState<P = unknown> {
         }
 
         return {
-            // :857-858 — with no outgoing page there is nothing to slide away, so
+            // with no outgoing page there is nothing to slide away, so
             // the very first push into an empty view never animates.
             animate: animate && prev !== null,
-            // :927-930 — the tag re-notifies when EITHER side carries one.
+            // the tag re-notifies when EITHER side carries one.
             tagNotify: (prev !== null && this.tagOf(prev) !== null) || (page !== null && this.tagOf(page) !== null),
             removeAfterTransition,
         };
@@ -815,7 +787,7 @@ export class NavigationViewState<P = unknown> {
     /**
      * Settle the deferred destroy owed by the last pop — the shared body of
      * {@link finishTransition} and the mid-transition flush in {@link _beginSwitch}.
-     * Both go through `adw_navigation_view_remove` in the C (:1042 / :868), so both
+     * Both go through `adw_navigation_view_remove` in the C, so both
      * inherit `remove_page`'s on-the-stack check: a page pushed BACK before the
      * transition ended survives and is merely re-marked remove-on-pop.
      */

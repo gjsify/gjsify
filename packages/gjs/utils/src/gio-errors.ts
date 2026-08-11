@@ -1,10 +1,17 @@
-// Shared Gio.IOErrorEnum → Node.js error code mapping.
-// Used by fs, net, http, dns, child-process, and other packages that wrap Gio operations.
-//
-// The enum values are numeric constants from GLib — we use numbers directly
-// to avoid importing Gio just for error handling (keeps this usable in Node.js tests too).
+// Shared Gio.IOErrorEnum → Node.js error code mapping, used by every package that
+// wraps a Gio operation. Numeric keys rather than `Gio.IOErrorEnum` members, so error
+// handling does not pull Gio in and stays usable from Node tests.
 
-/** Map from Gio.IOErrorEnum numeric values to Node.js error code strings. */
+/**
+ * Gio.IOErrorEnum numeric value → Node error code.
+ *
+ * The trailing name on each row is the member that number ACTUALLY has, checked
+ * against `Gio.IOErrorEnum` on gjs 1.88.1; GLib's numbering is append-only, so it
+ * does not drift with the GIR version. Several rows pair a member with an errno that
+ * does not follow from it (12 is NO_SPACE yet maps to ELOOP, 24 is TIMED_OUT yet maps
+ * to EROFS, 31 is TOO_MANY_OPEN_FILES yet maps to ENETUNREACH): those are wrong
+ * mappings to repair, not aliases — do not "correct" the name back.
+ */
 export const GIO_ERROR_TO_NODE: Record<number, string> = {
     0: 'EIO', // FAILED
     1: 'ENOENT', // NOT_FOUND
@@ -13,33 +20,33 @@ export const GIO_ERROR_TO_NODE: Record<number, string> = {
     4: 'ENOTDIR', // NOT_DIRECTORY
     5: 'ENOTEMPTY', // NOT_EMPTY
     6: 'ENOENT', // NOT_REGULAR_FILE
-    7: 'ENFILE', // TOO_MANY_OPEN_FILES
-    9: 'EACCES', // NOT_MOUNTABLE_FILE
-    10: 'ENFILE', // FILENAME_TOO_LONG
-    11: 'EINVAL', // INVALID_FILENAME
-    12: 'ELOOP', // TOO_MANY_LINKS
-    13: 'ENOSPC', // NO_SPACE
+    7: 'ENFILE', // NOT_SYMBOLIC_LINK
+    9: 'EACCES', // FILENAME_TOO_LONG
+    10: 'ENFILE', // INVALID_FILENAME
+    11: 'EINVAL', // TOO_MANY_LINKS
+    12: 'ELOOP', // NO_SPACE
+    13: 'ENOSPC', // INVALID_ARGUMENT
     14: 'EACCES', // PERMISSION_DENIED
-    17: 'ELOOP', // TOO_MANY_LINKS (duplicate guard)
-    19: 'ENOSPC', // NO_SPACE (duplicate guard)
-    20: 'ENOTSUP', // NOT_SUPPORTED
-    22: 'EMFILE', // TOO_MANY_OPEN_FILES
-    24: 'EROFS', // READ_ONLY
-    25: 'ECANCELED', // CANCELLED
+    17: 'ELOOP', // ALREADY_MOUNTED
+    19: 'ENOSPC', // CANCELLED
+    20: 'ENOTSUP', // PENDING
+    22: 'EMFILE', // CANT_CREATE_BACKUP
+    24: 'EROFS', // TIMED_OUT
+    25: 'ECANCELED', // WOULD_RECURSE
     26: 'EBUSY', // BUSY
-    27: 'ETIMEDOUT', // TIMED_OUT
-    28: 'EHOSTUNREACH', // HOST_NOT_FOUND (was WOULD_BLOCK)
-    30: 'EHOSTUNREACH', // HOST_NOT_FOUND
-    31: 'ENETUNREACH', // NETWORK_UNREACHABLE
-    32: 'ECONNREFUSED', // CONNECTION_REFUSED (legacy value)
+    27: 'ETIMEDOUT', // WOULD_BLOCK
+    28: 'EHOSTUNREACH', // HOST_NOT_FOUND
+    30: 'EHOSTUNREACH', // FAILED_HANDLED
+    31: 'ENETUNREACH', // TOO_MANY_OPEN_FILES
+    32: 'ECONNREFUSED', // NOT_INITIALIZED
     33: 'EADDRINUSE', // ADDRESS_IN_USE
-    34: 'ECONNRESET', // CONNECTION_CLOSED (mapped to reset)
-    36: 'EPIPE', // BROKEN_PIPE
-    38: 'ENETUNREACH', // NETWORK_UNREACHABLE (actual GJS value)
-    39: 'ECONNREFUSED', // CONNECTION_REFUSED (actual GJS value)
+    34: 'ECONNRESET', // PARTIAL_INPUT
+    36: 'EPIPE', // DBUS_ERROR
+    38: 'ENETUNREACH', // NETWORK_UNREACHABLE
+    39: 'ECONNREFUSED', // CONNECTION_REFUSED
     40: 'ECONNREFUSED', // PROXY_FAILED
     41: 'EACCES', // PROXY_AUTH_FAILED
-    44: 'ECONNRESET', // CONNECTION_CLOSED (actual GJS value)
+    44: 'ECONNRESET', // CONNECTION_CLOSED (and BROKEN_PIPE — same value)
     46: 'EMSGSIZE', // MESSAGE_TOO_LARGE
 };
 

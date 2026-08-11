@@ -1,11 +1,8 @@
-// Control-row builders — render each @gjsify/stories ControlType as an
-// @gjsify/adwaita-web row, wired two-way to a StoryElement's args. The web
-// counterpart of StorybookWindow's _createControlRow family.
-//
-// All the per-kind value coercion (initial-value seeding, SELECT index↔value,
-// RANGE/NUMBER formatting + type guards, the refresh "set only if differs"
-// guard) now lives in @gjsify/storybook-core's bindControl. This file supplies
-// ONLY the adwaita-web leaf-widget factory — the single renderer seam.
+// Renders each `@gjsify/stories` ControlType as an `@gjsify/adwaita-web` row, wired
+// two-way to a StoryElement's args. Per-kind value coercion (initial-value seeding,
+// SELECT index↔value, RANGE/NUMBER formatting + guards, the refresh "set only if
+// differs" guard) belongs to `bindControl` in `@gjsify/storybook-core`; this file
+// supplies ONLY the adwaita-web leaf-widget factory, the single renderer seam.
 
 import type { StoryControl, StoryNumberControl, StorySelectControl } from '@gjsify/stories';
 import {
@@ -25,9 +22,8 @@ export function createControlRow(story: StoryElement, control: StoryControl): Co
 }
 
 /**
- * The @gjsify/adwaita-web leaf-widget factory — builds one `adw-*` (or range/
- * color) element per control kind with get/set/onChange over the DOM events the
- * widgets emit. The only renderer-specific seam; all coercion is in bindControl.
+ * One `adw-*` (or range/color) element per control kind, with get/set/onChange over the
+ * DOM events those widgets emit. The only renderer-specific seam.
  */
 const ADWAITA_WEB_FACTORY: ControlWidgetFactory<HTMLElement> = {
     text(label: string): ControlWidget<HTMLElement, string> {

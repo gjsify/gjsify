@@ -21,8 +21,6 @@ function cleanup(): void {
 }
 
 export default async () => {
-    // ---- createReadStream ----
-
     await describe('fs.createReadStream', async () => {
         await it('should read a file and emit data + end events', async () => {
             setup();
@@ -228,8 +226,6 @@ export default async () => {
         });
     });
 
-    // ---- createWriteStream ----
-
     await describe('fs.createWriteStream', async () => {
         await it('should write data to a file', async () => {
             setup();
@@ -334,8 +330,6 @@ export default async () => {
         });
     });
 
-    // ---- pipe: ReadStream → WriteStream ----
-
     await describe('fs pipe: createReadStream → createWriteStream', async () => {
         await it('should copy a file via pipe', async () => {
             setup();
@@ -424,8 +418,6 @@ export default async () => {
         });
     });
 
-    // ---- Multiple sequential reads ----
-
     await describe('fs streams: sequential operations', async () => {
         await it('should read the same file twice sequentially', async () => {
             setup();
@@ -473,8 +465,6 @@ export default async () => {
             }
         });
     });
-
-    // ---- Unicode and special content ----
 
     await describe('fs streams: unicode and binary', async () => {
         await it('should handle UTF-8 content with multibyte chars', async () => {

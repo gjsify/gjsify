@@ -11,8 +11,6 @@ import '@girs/gtk-4.0';
 export * from './html-canvas-element.js';
 export * from './software-renderer.js';
 export * from './webgl-bridge.js';
-// export * from './linkable.js';
-// export * from './utils.js';
 export * from './webgl-active-info.js';
 export * from './webgl-buffer.js';
 export * from './webgl-context-attributes.js';

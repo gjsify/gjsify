@@ -17,10 +17,9 @@
 //   open       (boolean — whether the dialog is shown; default closed)
 //   prefer-wide-layout (boolean — lay responses out horizontally when they fit)
 //
-// Buttons are stacked vertically by default (the Adw.AlertDialog default at
-// medium sizes) and laid out horizontally when prefer-wide-layout is set and
-// there are no more than two of them — mirroring the libadwaita measure/allocate
-// heuristic in spirit.
+// Buttons are stacked vertically by default (the Adw.AlertDialog default at medium
+// sizes) and laid out horizontally when prefer-wide-layout is set and there are no more
+// than two of them — the libadwaita measure/allocate heuristic in spirit, not to the px.
 //
 // Events:
 //   `response` (CustomEvent, bubbles, `detail = { response }`) when a response
@@ -29,13 +28,10 @@
 //   `notify::heading` / `notify::body` / `notify::open` (CustomEvent, bubbles)
 //     mirroring the matching GObject properties.
 //
-// The RESPONSE MODEL — the response registry (id/label/appearance/enabled), the
-// default/close-response semantics and the resolve-to-chosen-id contract — is
-// HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as
-// {@link AdwAlertResponses}; this element composes it and keeps only the DOM
-// render half: the scrim + floating sheet, one `<button>` per registered
-// response, and the `response` event. `@gjsify/adwaita-nativescript` composes the
-// same model, so both ports share one behaviour.
+// The RESPONSE MODEL — the registry (id/label/appearance/enabled), the
+// default/close-response semantics and the resolve-to-chosen-id contract — is HEADLESS
+// and lives in `@gjsify/adwaita-core` (ADR 0004) as {@link AdwAlertResponses}, composed
+// by `@gjsify/adwaita-nativescript` too. This element keeps only the DOM render half.
 //
 // Reference: refs/libadwaita/src/adw-alert-dialog.c (AdwAlertDialog behaviour)
 // Reference: refs/libadwaita/src/adw-dialog.c (shared dialog base — Escape/close)
@@ -76,16 +72,14 @@ export class AdwAlertDialog extends HTMLElement {
     private _model = new AdwAlertResponses();
     /** The rendered button per registered response id (the DOM half of the model). */
     private readonly _buttons = new Map<string, HTMLButtonElement>();
-    // Set while a response is being emitted from a button so the close handler
-    // does not also fire the close-response (mirrors AdwAlertDialog's
-    // block_close_response flag).
+    // Set while a response is being emitted from a button, so the close handler does not
+    // also fire the close-response (AdwAlertDialog's `block_close_response`).
     private _blockCloseResponse = false;
 
     static get observedAttributes() {
         return ['heading', 'body', 'open', 'prefer-wide-layout'];
     }
 
-    /** The heading of the dialog. */
     get heading(): string {
         return this.getAttribute('heading') ?? '';
     }
@@ -94,7 +88,6 @@ export class AdwAlertDialog extends HTMLElement {
         this.setAttribute('heading', value);
     }
 
-    /** The body text of the dialog. */
     get body(): string {
         return this.getAttribute('body') ?? '';
     }
@@ -103,7 +96,6 @@ export class AdwAlertDialog extends HTMLElement {
         this.setAttribute('body', value);
     }
 
-    /** Whether the dialog is currently shown. */
     get open(): boolean {
         return this.hasAttribute('open');
     }
@@ -145,18 +137,16 @@ export class AdwAlertDialog extends HTMLElement {
         if (this._initialized) return;
         this._initialized = true;
 
-        // Snapshot any declared <adw-alert-response> children before we take
+        // Declared <adw-alert-response> children are snapshotted before the element takes
         // over the subtree; everything else becomes the extra child.
         const declared = Array.from(this.querySelectorAll(':scope > adw-alert-response')) as AdwAlertResponse[];
         const declaredSet = new Set<Node>(declared);
         const extraChildren = Array.from(this.childNodes).filter((n) => !declaredSet.has(n));
 
-        // The fixed full-cover scrim. Clicking it dismisses the dialog.
         this._scrimEl = document.createElement('div');
         this._scrimEl.className = 'adw-alert-dialog-scrim';
         this._scrimEl.addEventListener('click', () => this._dismiss());
 
-        // The centred dialog box.
         this._dialogEl = document.createElement('div');
         this._dialogEl.className = 'adw-alert-dialog-box';
         this._dialogEl.setAttribute('role', 'alertdialog');
@@ -164,7 +154,6 @@ export class AdwAlertDialog extends HTMLElement {
         // Clicks inside the box must not bubble to the scrim's dismiss handler.
         this._dialogEl.addEventListener('click', (event) => event.stopPropagation());
 
-        // The scrolled message area (heading + body + extra child).
         const messageArea = document.createElement('div');
         messageArea.className = 'adw-alert-dialog-message';
 
@@ -180,15 +169,14 @@ export class AdwAlertDialog extends HTMLElement {
 
         messageArea.append(this._headingEl, this._bodyEl, this._childEl);
 
-        // The response button area.
         this._responseAreaEl = document.createElement('div');
         this._responseAreaEl.className = 'adw-alert-dialog-responses';
 
         this._dialogEl.append(messageArea, this._responseAreaEl);
         this.replaceChildren(this._scrimEl, this._dialogEl);
 
-        // Escape dismisses the dialog when open (mirrors the AdwDialog Escape
-        // shortcut → close-response).
+        // Escape dismisses the dialog when open (the AdwDialog Escape shortcut →
+        // close-response).
         this.addEventListener('keydown', (event) => {
             if (event.key === 'Escape' && this.open) {
                 event.stopPropagation();
@@ -196,7 +184,6 @@ export class AdwAlertDialog extends HTMLElement {
             }
         });
 
-        // Adopt declared responses now that the response area exists.
         for (const el of declared) {
             const id = el.getAttribute('id');
             if (!id) continue;
@@ -206,8 +193,8 @@ export class AdwAlertDialog extends HTMLElement {
             if (el.getAttribute('enabled') === 'false') this.setResponseEnabled(id, false);
         }
 
-        // Seed the headless model's text from the parsed markup (the attributes
-        // stay the source of truth for what is rendered).
+        // Seed the headless model's text from the parsed markup; the attributes stay the
+        // source of truth for what is rendered.
         this._model.heading = this.heading;
         this._model.body = this.body;
 
@@ -219,8 +206,8 @@ export class AdwAlertDialog extends HTMLElement {
         if (oldValue === newValue) return;
         this._render();
         if (name === 'heading') {
-            // Keep the headless model a complete description of the dialog; the
-            // attribute stays the source of truth for the rendered heading.
+            // Keep the headless model a complete description of the dialog; the attribute
+            // stays the source of truth for the rendered heading.
             this._model.heading = this.heading;
             this.dispatchEvent(
                 new CustomEvent('notify::heading', { bubbles: true, detail: { heading: this.heading } }),
@@ -239,10 +226,9 @@ export class AdwAlertDialog extends HTMLElement {
         this.open = true;
     }
 
-    /** Adds a response button with the given ID and label. */
     addResponse(id: string, label: string): void {
-        // The core registry UPDATES a duplicate id in place; AdwAlertDialog
-        // refuses it, so the guard stays here.
+        // The core registry UPDATES a duplicate id in place; AdwAlertDialog refuses it,
+        // so the guard stays here.
         if (this._model.hasResponse(id)) {
             // Mirror AdwAlertDialog's g_critical without throwing.
             console.warn(
@@ -270,13 +256,12 @@ export class AdwAlertDialog extends HTMLElement {
         }
     }
 
-    /** Removes a response. */
     removeResponse(id: string): void {
         if (!this._model.hasResponse(id)) return;
         this._buttons.get(id)?.remove();
         this._buttons.delete(id);
         // `AdwAlertResponses` exposes no removal (a gap against
-        // adw_alert_dialog_remove_response), so the registry is rebuilt from the
+        // `adw_alert_dialog_remove_response`), so the registry is rebuilt from the
         // survivors — core stays the single owner of the response state.
         const survivors = this._model.responses.filter((response) => response.id !== id);
         const rebuilt = new AdwAlertResponses(this._model.heading, this._model.body);
@@ -292,17 +277,14 @@ export class AdwAlertDialog extends HTMLElement {
         this._render();
     }
 
-    /** Whether a response with the given ID exists. */
     hasResponse(id: string): boolean {
         return this._model.hasResponse(id);
     }
 
-    /** Gets a response's label. */
     getResponseLabel(id: string): string | null {
         return this._model.responses.find((response) => response.id === id)?.label ?? null;
     }
 
-    /** Sets a response's label. */
     setResponseLabel(id: string, label: string): void {
         const button = this._buttons.get(id);
         if (!button) return;
@@ -311,12 +293,10 @@ export class AdwAlertDialog extends HTMLElement {
         button.textContent = label;
     }
 
-    /** Gets a response's appearance. */
     getResponseAppearance(id: string): AdwResponseAppearance | null {
         return this._model.hasResponse(id) ? this._model.getResponseAppearance(id) : null;
     }
 
-    /** Sets a response's appearance (default / suggested / destructive). */
     setResponseAppearance(id: string, appearance: AdwResponseAppearance): void {
         const button = this._buttons.get(id);
         if (!button) return;
@@ -325,7 +305,6 @@ export class AdwAlertDialog extends HTMLElement {
         button.classList.toggle('destructive-action', appearance === 'destructive');
     }
 
-    /** Gets whether a response is enabled. */
     getResponseEnabled(id: string): boolean {
         return this._model.hasResponse(id) ? this._model.getResponseEnabled(id) : false;
     }
@@ -349,16 +328,13 @@ export class AdwAlertDialog extends HTMLElement {
         this._model.closeResponse = id;
     }
 
-    // ── internals ──────────────────────────────────────────────────────────
-
-    /** A response button was activated: close, then emit `response`. */
     private _activateResponse(id: string): void {
         if (!this._model.getResponseEnabled(id)) return;
         this._blockCloseResponse = true;
         this.open = false;
         this._blockCloseResponse = false;
-        // resolveById validates against the registry (the core resolve-to-chosen-id
-        // contract) and falls back to the close response.
+        // `resolveById` validates against the registry and falls back to the close
+        // response.
         this._emitResponse(this._model.resolveById(id));
     }
 
@@ -398,14 +374,13 @@ export class AdwAlertDialog extends HTMLElement {
 
         this._childEl.hidden = this._childEl.childElementCount === 0;
 
-        // Layout: stack vertically by default; lay out horizontally only when
-        // prefer-wide-layout is set and there are at most two responses (the
-        // AdwAlertDialog heuristic for keeping wide buttons readable).
+        // Horizontal only when prefer-wide-layout is set AND there are at most two
+        // responses — the AdwAlertDialog heuristic for keeping wide buttons readable.
         const horizontal = this.preferWideLayout && this._model.responses.length <= 2;
         this._responseAreaEl.classList.toggle('horizontal', horizontal);
 
-        // Reflect the default response on its button (suggested highlight) unless
-        // the response already carries an explicit appearance.
+        // The default response gets the suggested highlight unless it already carries an
+        // explicit appearance.
         const defaultId = this._model.defaultResponse;
         for (const response of this._model.responses) {
             const isDefault = response.id === defaultId && response.appearance === 'default';

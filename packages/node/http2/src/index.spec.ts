@@ -34,8 +34,6 @@ const {
 } = http2;
 
 export default async () => {
-    // --- Constants ---
-
     await describe('http2.constants', async () => {
         await it('should export constants object', async () => {
             expect(constants).toBeDefined();
@@ -153,8 +151,6 @@ export default async () => {
         });
     });
 
-    // --- Settings ---
-
     await describe('http2.getDefaultSettings', async () => {
         await it('should return an object with default settings', async () => {
             const settings = getDefaultSettings();
@@ -237,15 +233,11 @@ export default async () => {
         });
     });
 
-    // --- sensitiveHeaders ---
-
     await describe('http2.sensitiveHeaders', async () => {
         await it('should be a symbol', async () => {
             expect(typeof sensitiveHeaders).toBe('symbol');
         });
     });
-
-    // --- Factory functions ---
 
     await describe('http2 factory functions', async () => {
         await it('createServer should be a function', async () => {
@@ -263,8 +255,6 @@ export default async () => {
         // Note: createServer/createSecureServer/connect work on Node.js but throw on GJS.
         // Testing the throw behavior would be platform-specific.
     });
-
-    // --- Class exports ---
 
     await describe('http2 class exports', async () => {
         await it('should export Http2ServerRequest', async () => {

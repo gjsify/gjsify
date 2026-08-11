@@ -37,43 +37,35 @@ function setButtonIcon(btn: HTMLButtonElement, svgSource: string): void {
 }
 
 /**
- * Create the Adwaita teapot UI and mount it into the given container.
- * The container receives an adw-window with sidebar controls and a WebGL canvas.
+ * Mounts an adw-window with sidebar controls and a WebGL canvas into `container`.
  */
 export function mount(container: HTMLElement, options?: MountOptions): ShowcaseHandle {
-    // Build UI — mirrors GJS Blueprint structure
     const win = document.createElement('adw-window');
     win.setAttribute('width', '1100');
     win.setAttribute('height', '700');
 
-    // Header bar (toggle button added after DOM connection below)
     const headerBar = document.createElement('adw-header-bar') as AdwHeaderBar;
     headerBar.setAttribute('title', 'Three.js Teapot');
 
-    // Sidebar toggle button
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'adw-header-btn adw-sidebar-toggle-icon active';
     toggleBtn.title = 'Toggle Sidebar';
 
-    // Pause/Resume rendering button — placed in header bar end section.
     const pauseBtn = document.createElement('button');
     pauseBtn.className = 'adw-header-btn';
     pauseBtn.title = 'Pause Rendering';
     setButtonIcon(pauseBtn, mediaPlaybackPauseSymbolic);
 
-    // OverlaySplitView — sidebar + content
     const splitView = document.createElement('adw-overlay-split-view') as AdwOverlaySplitView;
     splitView.setAttribute('min-sidebar-width', '280');
     splitView.setAttribute('max-sidebar-width', '400');
     splitView.setAttribute('sidebar-width-fraction', '0.30');
     splitView.setAttribute('show-sidebar', '');
 
-    // Sidebar content
     const sidebarContent = document.createElement('div');
     sidebarContent.setAttribute('slot', 'sidebar');
     sidebarContent.className = 'adw-sidebar-content';
 
-    // Geometry group
     const geoGroup = document.createElement('adw-preferences-group');
     geoGroup.setAttribute('title', 'Geometry');
 
@@ -102,7 +94,6 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
 
     geoGroup.append(tessRow, lidRow, bodyRow, bottomRow, fitLidRow, nonblinnRow);
 
-    // Material group
     const matGroup = document.createElement('adw-preferences-group');
     matGroup.setAttribute('title', 'Material');
 
@@ -115,8 +106,7 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
 
     sidebarContent.append(geoGroup, matGroup);
 
-    // GL container (content slot) — inline styles so the showcase
-    // is self-contained and works regardless of host CSS.
+    // Inline styles so the layout holds in the website embed too, which loads no showcase CSS.
     const glContainer = document.createElement('div');
     glContainer.setAttribute('slot', 'content');
     glContainer.id = 'gl-area-container';
@@ -131,7 +121,7 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     win.append(headerBar, splitView);
     container.append(win);
 
-    // Append toggle button to header bar start section AFTER DOM connection
+    // AFTER DOM connection: connectedCallback is what creates the header-bar-start wrapper.
     const startSection = headerBar.startSection ?? headerBar.querySelector('.adw-header-bar-start');
     if (startSection) {
         startSection.appendChild(toggleBtn);
@@ -146,7 +136,6 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
         headerBar.append(pauseBtn);
     }
 
-    // Sidebar toggle wiring
     toggleBtn.addEventListener('click', () => {
         splitView.toggleSidebar();
         toggleBtn.classList.toggle('active', splitView.showSidebar);
@@ -156,7 +145,6 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
         toggleBtn.classList.toggle('active', splitView.showSidebar);
     });
 
-    // Responsive breakpoints — mirror GJS Adw.Breakpoint behavior
     let lastCollapsed: boolean | null = null;
     new ResizeObserver(([entry]) => {
         const width = entry.contentRect.width;
@@ -168,8 +156,8 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
         toggleBtn.classList.toggle('active', !shouldCollapse);
     }).observe(win);
 
-    // Sync canvas size with container and re-render on resize
-    // (needed when slide becomes visible after being display:none)
+    // Also covers a slide becoming visible after `display: none`, which reports a size for the first
+    // time.
     canvas.width = glContainer.clientWidth;
     canvas.height = glContainer.clientHeight;
 
@@ -204,7 +192,6 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
         }
     }).observe(glContainer);
 
-    // Pause button wiring — toggles demo state and swaps the icon.
     function updatePauseButton(paused: boolean): void {
         setButtonIcon(pauseBtn, paused ? mediaPlaybackStartSymbolic : mediaPlaybackPauseSymbolic);
         pauseBtn.title = paused ? 'Resume Rendering' : 'Pause Rendering';

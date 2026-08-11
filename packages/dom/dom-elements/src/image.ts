@@ -1,20 +1,11 @@
-// HTMLImageElement Image constructor for GJS — original implementation using GdkPixbuf
-
 import { HTMLImageElement } from './html-image-element.js';
 
 /**
- * Image as constructor.
+ * The `Image` constructor form of HTMLImageElement.
  *
- * Reference:
- * https://developer.mozilla.org/en-US/docs/Web/API/HTMLImageElement/Image.
+ * Reference: https://developer.mozilla.org/en-US/docs/Web/API/HTMLImageElement/Image
  */
 export default class Image extends HTMLImageElement {
-    /**
-     * Constructor.
-     *
-     * @param [width] Width.
-     * @param [height] Height.
-     */
     constructor(width: number | null = null, height: number | null = null) {
         super();
 

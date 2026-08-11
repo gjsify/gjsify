@@ -11,33 +11,12 @@
 // in `view-switcher-model.ts`, which the spec suite drives because a widget
 // module cannot be imported off-device.
 //
-// What the lift fixed here, all of it C-derived:
-//   - a page with neither title nor icon rendered a zero-content but tappable,
-//     space-consuming button; libadwaita hides it (adw-view-switcher.c:178).
-//   - a page with no icon rendered no icon at all; C substitutes `image-missing`
-//     (adw-view-switcher-button.c:399-405).
-//   - `selected = 1.5` passed the `Number.isFinite` guard, matched no page, and
-//     collapsed every page at once while marking no button active; positions are
-//     `guint` (adw-view-stack.c:675-683).
-//   - `notify::selected` fired for a programmatic set as well as a tap with no
-//     way to tell them apart; the payload now carries `interactive`, the same
-//     tagging `ViewStackState` uses.
-//   - there was no per-page `visible` flag, so the auto-pick took the first page
-//     ADDED rather than the first VISIBLE one (adw-view-stack.c:1149-1151) and a
-//     hidden page could be selected (:2415).
-//   - `setViews` reset the selection to 0 whenever the index no longer fit;
-//     libadwaita's selection is a page POINTER and follows the page across a
-//     rebuild (adw-view-stack.c:660-672).
-//   - a stale comment claimed the out-of-range branch "still applies on first
-//     set"; it returned without applying anything.
-//
 // Each switcher button is a REAL tappable NS `StackLayout` holding an `AdwIcon`
 // + a `Label` + a badge `Label`. Press feedback is wired with
 // {@link attachRowPressFeedback} (NS only auto-applies `:highlighted` to
-// `Button`, and these buttons are layouts). The per-button chrome hooks this base
-// used to carry are gone with their only user: `AdwTabView` is an EDITABLE
-// ordered list, not a fixed bar of mutually-exclusive buttons, and now owns its
-// own model.
+// `Button`, and these buttons are layouts). `AdwTabView` is an EDITABLE ordered
+// list, not a fixed bar of mutually-exclusive buttons, so it owns its own model
+// and no per-button chrome hooks live here.
 //
 // FIDELITY: approximated. NS has no `Adw.ViewStack`; pages swap by toggling
 // `visibility` (`collapse`/`visible`) — instant, no cross-fade (the CSS subset
@@ -64,8 +43,7 @@ import {
     type ViewSwitcherNotifyPayload,
 } from './view-switcher-model.js';
 
-// Re-exported so the widget module stays the one import site for the page type,
-// as `widgets/index.ts` and every consumer already expect.
+// Re-exported so the widget module stays the one import site for the page type.
 export type { AdwViewPage };
 
 /** Event name emitted when the selected view changes. Mirrors GObject `notify::selected`. */
@@ -78,7 +56,7 @@ export const NOTIFY_SELECTED = 'notify::selected';
  */
 export interface NotifyViewSelectedEventData extends EventData, ViewSwitcherNotifyPayload {}
 
-/** The per-button NS nodes, so a selection change repaints instead of rebuilding. */
+/** The per-button NS nodes kept so a selection change repaints instead of rebuilding. */
 interface ButtonNodes {
     button: StackLayout;
     icon: AdwIcon;
@@ -93,7 +71,7 @@ interface ButtonNodes {
 export abstract class AdwViewSwitcherBase extends GridLayout {
     /** The horizontal switcher bar holding the buttons. */
     protected readonly _bar: GridLayout;
-    /** `Adw.ViewSwitcher:policy`, default NARROW (adw-view-switcher.c:447-451). */
+    /** `Adw.ViewSwitcher:policy`, default NARROW as in C. */
     private _policy: AdwViewSwitcherPolicy = 'narrow';
     /** The content area where the selected page is shown. */
     protected readonly _contentArea: GridLayout;
@@ -107,27 +85,12 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
     protected abstract get barClass(): string;
     /** CSS class applied to each switcher button — subclass-specific. */
     protected abstract get buttonClass(): string;
-    /**
-     * `AdwViewSwitcher:policy`, which decides the button orientation
-     * (adw-view-switcher.c:534-537).
-     *
-     * It used to be a HARD-CODED `'wide'` with a note saying there was no policy
-     * property on NS — so a consumer could not follow a breakpoint, and the
-     * default was the opposite of C's, which is `ADW_VIEW_SWITCHER_POLICY_NARROW`
-     * (adw-view-switcher.c:447-451). It is a real property now, defaulting to
-     * `narrow`; a subclass may still pin it.
-     */
+    /** `AdwViewSwitcher:policy`, which decides the button orientation. A subclass may pin it. */
     protected get policy(): AdwViewSwitcherPolicy {
         return this._policy;
     }
 
-    /**
-     * `Adw.ViewSwitcher:policy` — settable, defaulting to NARROW as in C
-     * (adw-view-switcher.c:447-451).
-     *
-     * A hard-coded `'wide'` meant an NS consumer could not follow a breakpoint
-     * at all, and the value it was pinned to was not even the default.
-     */
+    /** `Adw.ViewSwitcher:policy` — settable, so a consumer can drive it from a breakpoint. */
     get switcherPolicy(): AdwViewSwitcherPolicy {
         return this._policy;
     }
@@ -141,9 +104,8 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
     }
 
     /**
-     * What the buttons show. `'both'` for the classic switcher, whose buttons
-     * "always have an icon and a label" (adw-view-switcher.c class docs);
-     * `AdwInlineViewSwitcher` overrides it with the real
+     * What the buttons show. `'both'` for the classic switcher, whose buttons always
+     * have an icon and a label; `AdwInlineViewSwitcher` overrides it with the real
      * `AdwInlineViewSwitcherDisplayMode`.
      */
     protected get buttonDisplayMode(): AdwInlineViewSwitcherDisplayMode {
@@ -158,12 +120,9 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
         this.addRow(new ItemSpec(1, 'auto')); // bar
         this.addRow(new ItemSpec(1, 'star')); // content
 
-        // HOMOGENEOUS, which a centred StackLayout is not:
-        // `gtk_box_layout_set_homogeneous (…, TRUE)` (adw-view-switcher.c:475)
-        // gives every button the same width, so a long label cannot dominate the
-        // row. The grid takes one `star` column per button in `_rebuildButtons`;
-        // the NS *bar* widget already did this and the switcher did not, so the
-        // two disagreed about the same widget family.
+        // A grid, not a centred StackLayout: GTK's box layout is HOMOGENEOUS here,
+        // so every button gets the same width and a long label cannot dominate the
+        // row. One `star` column per button is what reproduces that.
         const bar = new GridLayout();
         bar.horizontalAlignment = 'stretch';
         bar.addRow(new ItemSpec(1, 'auto'));
@@ -197,10 +156,9 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
     /**
      * Register the view pages. Rebuilds the switcher bar + content stack.
      *
-     * The SELECTED PAGE survives the rebuild whenever a page of the same name
-     * does — libadwaita's selection is a page pointer, not an index
-     * (adw-view-stack.c:660-672) — and falls back to the first VISIBLE page
-     * otherwise (:1149-1151).
+     * The SELECTED PAGE survives the rebuild whenever a page of the same name does —
+     * libadwaita's selection is a page pointer, not an index — and falls back to the
+     * first VISIBLE page otherwise.
      */
     setViews(pages: AdwViewPage[]): void {
         for (const nodes of this._nodes) this._bar.removeChild(nodes.button);
@@ -234,9 +192,9 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
         button.className = this.buttonClass;
         button.horizontalAlignment = 'center';
 
-        // Icon and label always EXIST, exactly as AdwViewSwitcherButton's
-        // template does; what varies is what they carry. The icon holds the
-        // `image-missing` fallback when the page has none.
+        // Icon and label always EXIST, as AdwViewSwitcherButton's template does;
+        // what varies is what they carry. The icon holds the `image-missing`
+        // fallback when the page has none.
         const icon = new AdwIcon();
         icon.className = `${icon.className} ${this.buttonClass}-icon`.trim();
         icon.verticalAlignment = 'middle';
@@ -247,7 +205,7 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
         label.verticalAlignment = 'middle';
         button.addChild(label);
 
-        // AdwIndicatorBin's badge (adw-indicator-bin.c:58-68).
+        // AdwIndicatorBin's badge.
         const badge = new Label();
         badge.className = `${this.buttonClass}-badge`;
         badge.verticalAlignment = 'middle';
@@ -257,9 +215,6 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
         button.addEventListener('tap', () => {
             this._state.setSelected(index);
         });
-        // One `star` column per button IS the homogeneity: every column gets an
-        // equal share, so a long label cannot take the row
-        // (`gtk_box_layout_set_homogeneous (…, TRUE)`, adw-view-switcher.c:475).
         this._bar.addColumn(new ItemSpec(1, 'star'));
         GridLayout.setColumn(button, index);
         GridLayout.setRow(button, 0);
@@ -306,9 +261,8 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
             } else {
                 nodes.badge.className = `${this.buttonClass}-badge`;
             }
-            // `update_description` (adw-indicator-bin.c:70-113) is what a screen
-            // reader announces for a badged page. The core computes it and this
-            // port DROPPED it on the floor, so a badge was a silent dot.
+            // `update_description` is what a screen reader announces for a badged
+            // page; without it a badge is a silent dot.
             nodes.button.accessibilityLabel = model.description || model.label;
         });
     }
@@ -327,8 +281,7 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
      * page + emits `notify::selected`.
      *
      * Out-of-range, negative, fractional and hidden-page indices are all silent
-     * NO-OPS — refused, never clamped, exactly as
-     * `adw_view_stack_pages_select_item` refuses (adw-view-stack.c:682-684).
+     * NO-OPS — refused, never clamped, as `adw_view_stack_pages_select_item` does.
      */
     get selected(): number {
         return this._state.selected;
@@ -344,9 +297,8 @@ export abstract class AdwViewSwitcherBase extends GridLayout {
     }
 
     /**
-     * Show or hide a page by name. Returns whether the SELECTION moved: hiding
-     * the selected page falls back to the first still-visible one
-     * (`update_child_visible`, adw-view-stack.c:1061-1082).
+     * Show or hide a page by name. Returns whether the SELECTION moved: hiding the
+     * selected page falls back to the first still-visible one.
      */
     setPageVisible(name: string, visible: boolean): boolean {
         const moved = this._state.setPageVisible(name, visible);

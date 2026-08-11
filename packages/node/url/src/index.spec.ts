@@ -5,8 +5,6 @@ import { URL, URLSearchParams, fileURLToPath, pathToFileURL, parse, format, reso
 // Original: MIT license, Node.js contributors
 
 export default async () => {
-    // ==================== URL constructor ====================
-
     await describe('URL constructor', async () => {
         await it('should parse HTTP URL', async () => {
             const u = new URL('http://example.com:8080/path?query=1#hash');
@@ -134,8 +132,6 @@ export default async () => {
         });
     });
 
-    // ==================== URL properties ====================
-
     await describe('URL properties', async () => {
         await it('should return correct searchParams', async () => {
             const u = new URL('http://example.com/?a=1&b=2');
@@ -232,8 +228,6 @@ export default async () => {
         });
     });
 
-    // ==================== URL special protocols ====================
-
     await describe('URL special protocols', async () => {
         await it('should handle http protocol', async () => {
             const u = new URL('http://example.com');
@@ -277,8 +271,6 @@ export default async () => {
         });
     });
 
-    // ==================== URL percent encoding ====================
-
     await describe('URL percent encoding', async () => {
         await it('should encode spaces in path', async () => {
             const u = new URL('http://example.com/hello%20world');
@@ -305,8 +297,6 @@ export default async () => {
             expect(u.username).toBe('user%40name');
         });
     });
-
-    // ==================== URLSearchParams ====================
 
     await describe('URLSearchParams', async () => {
         await it('should construct from string', async () => {
@@ -371,8 +361,6 @@ export default async () => {
         });
     });
 
-    // ==================== URLSearchParams: append ====================
-
     await describe('URLSearchParams append', async () => {
         await it('should append multiple values for same key', async () => {
             const params = new URLSearchParams();
@@ -398,8 +386,6 @@ export default async () => {
         });
     });
 
-    // ==================== URLSearchParams: delete ====================
-
     await describe('URLSearchParams delete', async () => {
         await it('should delete all values for a key', async () => {
             const params = new URLSearchParams('a=1&a=2&b=3');
@@ -423,8 +409,6 @@ export default async () => {
             expect(url.searchParams.toString()).toBe('');
         });
     });
-
-    // ==================== URLSearchParams: get and getAll ====================
 
     await describe('URLSearchParams get and getAll', async () => {
         await it('should return null for nonexistent key', async () => {
@@ -463,8 +447,6 @@ export default async () => {
         });
     });
 
-    // ==================== URLSearchParams: has ====================
-
     await describe('URLSearchParams has', async () => {
         await it('should return true for existing key', async () => {
             const params = new URLSearchParams('a=1&b=2');
@@ -488,8 +470,6 @@ export default async () => {
             expect(params.has('a')).toBeFalsy();
         });
     });
-
-    // ==================== URLSearchParams: set ====================
 
     await describe('URLSearchParams set', async () => {
         await it('should set value for new key', async () => {
@@ -519,8 +499,6 @@ export default async () => {
             expect(params.get('c')).toBe('3');
         });
     });
-
-    // ==================== URLSearchParams: sort ====================
 
     await describe('URLSearchParams sort', async () => {
         await it('should sort parameters by key name', async () => {
@@ -626,8 +604,6 @@ export default async () => {
         });
     });
 
-    // ==================== URLSearchParams: forEach ====================
-
     await describe('URLSearchParams forEach', async () => {
         await it('should call callback for each entry', async () => {
             const params = new URLSearchParams('a=1&b=2&c=3');
@@ -659,8 +635,6 @@ export default async () => {
             expect(order[2]).toBe('b');
         });
     });
-
-    // ==================== URLSearchParams: toString ====================
 
     await describe('URLSearchParams toString', async () => {
         await it('should return empty string for empty params', async () => {
@@ -696,8 +670,6 @@ export default async () => {
         });
     });
 
-    // ==================== URLSearchParams: size ====================
-
     await describe('URLSearchParams size', async () => {
         await it('should return 0 for empty params', async () => {
             const params = new URLSearchParams();
@@ -731,8 +703,6 @@ export default async () => {
             expect(params.size).toBe(2);
         });
     });
-
-    // ==================== URLSearchParams: construction edge cases ====================
 
     await describe('URLSearchParams construction edge cases', async () => {
         await it('should handle string with leading ?', async () => {
@@ -794,8 +764,6 @@ export default async () => {
         });
     });
 
-    // ==================== URL.searchParams integration ====================
-
     await describe('URL.searchParams integration', async () => {
         await it('should return searchParams linked to URL', async () => {
             const u = new URL('http://example.com/?a=1');
@@ -822,8 +790,6 @@ export default async () => {
             expect(u.searchParams.get('c')).toBe('3');
         });
     });
-
-    // ==================== URL relative resolution ====================
 
     await describe('URL relative resolution', async () => {
         await it('should resolve absolute path against base', async () => {
@@ -866,8 +832,6 @@ export default async () => {
         });
     });
 
-    // ==================== fileURLToPath ====================
-
     await describe('fileURLToPath', async () => {
         const testCases = [
             { path: '/foo', fileURL: 'file:///foo' },
@@ -900,8 +864,6 @@ export default async () => {
         });
     });
 
-    // ==================== pathToFileURL ====================
-
     await describe('pathToFileURL', async () => {
         await it('should convert absolute path', async () => {
             const u = pathToFileURL('/foo/bar');
@@ -930,8 +892,6 @@ export default async () => {
             expect(u.protocol).toBe('file:');
         });
     });
-
-    // ==================== legacy parse ====================
 
     await describe('url.parse (legacy)', async () => {
         await it('should parse simple HTTP URL', async () => {
@@ -988,8 +948,6 @@ export default async () => {
             expect(parsed.query).toBeNull();
         });
     });
-
-    // ==================== legacy format ====================
 
     await describe('url.format (legacy)', async () => {
         await it('should format parsed URL back to string', async () => {
@@ -1050,8 +1008,6 @@ export default async () => {
             expect(result).toBe('http://example.com:8080/path?a=1#top');
         });
     });
-
-    // ==================== legacy resolve ====================
 
     await describe('url.resolve (legacy)', async () => {
         await it('should resolve absolute URL', async () => {

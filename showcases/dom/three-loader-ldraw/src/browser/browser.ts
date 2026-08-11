@@ -27,7 +27,6 @@ export interface ShowcaseHandle {
 export function mount(container: HTMLElement, options?: MountOptions): ShowcaseHandle {
     const { assetBase } = options ?? {};
 
-    // Build UI
     const win = document.createElement('adw-window');
     win.setAttribute('width', '1100');
     win.setAttribute('height', '700');
@@ -35,30 +34,20 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     const headerBar = document.createElement('adw-header-bar');
     headerBar.setAttribute('title', 'LDraw Loader');
 
-    // OverlaySplitView — sidebar + content, same shell as the teapot showcase.
-    //
-    // This used to be a hand-rolled `.adw-window-body` / `.adw-sidebar` /
-    // `#gl-area-container` flex row whose ENTIRE layout lived in
-    // `browser/webgl.css` — a stylesheet only the standalone `index.html`
-    // loads. Embedded in the website, none of those rules applied: the sidebar
-    // stretched to full width and the canvas collapsed to its intrinsic 150px
-    // at the bottom of the frame. A showcase has two hosts, so its browser UI
-    // has to carry its own layout.
+    // A showcase has two hosts — the standalone page and the website embed — and only the former
+    // loads `browser/webgl.css`, so the layout has to live here rather than in that stylesheet.
     const splitView = document.createElement('adw-overlay-split-view') as AdwOverlaySplitView;
     splitView.setAttribute('min-sidebar-width', '280');
     splitView.setAttribute('max-sidebar-width', '400');
     splitView.setAttribute('sidebar-width-fraction', '0.30');
     splitView.setAttribute('show-sidebar', '');
 
-    // Sidebar content — inline styles for the same reason as the GL container
-    // below: the standalone page and the website embed must lay out alike, and
-    // only one of them loads `webgl.css`.
+    // Inline styles for the same reason as the GL container below.
     const sidebarContent = document.createElement('div');
     sidebarContent.setAttribute('slot', 'sidebar');
     sidebarContent.className = 'adw-sidebar-content';
     sidebarContent.style.cssText = 'padding:12px;display:flex;flex-direction:column;gap:12px';
 
-    // Model group
     const modelGroup = document.createElement('adw-preferences-group');
     modelGroup.setAttribute('title', 'Model');
 

@@ -32,18 +32,15 @@ export interface TeapotEffectController {
 
 export interface TeapotDemo {
     readonly effectController: TeapotEffectController;
-    /** Call after changing effectController properties to schedule a re-render. */
+    /** Call after mutating effectController to schedule a re-render. */
     render(): void;
-    /** Suppress future render() calls until `resume()` is called. */
+    /** Suppresses render() until `resume()`, which then flushes anything queued meanwhile. */
     pause(): void;
-    /** Flush any pending render queued during pause. */
     resume(): void;
-    /** Current paused state. */
     readonly isPaused: boolean;
 }
 
 export interface StartOptions {
-    /** Base path for loading texture assets (default: './'). */
     assetBase?: string;
 }
 
@@ -52,29 +49,23 @@ const TEAPOT_SIZE = 300;
 export function start(canvas: HTMLCanvasElement, options?: StartOptions): TeapotDemo {
     const assetBase = options?.assetBase ?? './';
 
-    // Renderer
     // oxlint-disable-next-line typescript/no-explicit-any -- THREE.WebGLRenderer canvas option expects OffscreenCanvas; GJS canvas type is incompatible
     const renderer = new THREE.WebGLRenderer({ canvas: canvas as any, antialias: true });
     // Pass updateStyle=false: the canvas CSS width/height are managed by the
     // host container (flex layout). We only want to update the drawing buffer.
     renderer.setSize(canvas.width, canvas.height, false);
-    // Track the size we last handed the renderer. `renderer.domElement` IS this
-    // canvas, so the obvious `renderer.domElement.width !== w` compares a value
-    // with itself and is never true — the resize branch below would be dead and
-    // the camera aspect would stay frozen at the first allocation. (The pixel
-    // post-processing showcase already carries this shape; keep the two aligned.)
+    // The last size handed to the renderer, tracked separately because `renderer.domElement` IS this
+    // canvas: the obvious `renderer.domElement.width !== w` compares a value with itself, leaving the
+    // resize branch dead and the camera aspect frozen at the first allocation.
     let prevW = canvas.width;
     let prevH = canvas.height;
 
-    // Camera
     const camera = new THREE.PerspectiveCamera(45, canvas.width / canvas.height, 1, 80000);
     camera.position.set(-600, 550, 1300);
 
-    // Scene
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xaaaaaa);
 
-    // Lights
     const ambientLight = new THREE.AmbientLight(0x7c7c7c, 2.0);
     scene.add(ambientLight);
 
@@ -82,18 +73,15 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): Teapot
     light.position.set(0.32, 0.39, 0.7);
     scene.add(light);
 
-    // Texture map
     const textureMap = new THREE.TextureLoader().load(`${assetBase}assets/uv_grid_opengl.jpg`);
     textureMap.wrapS = textureMap.wrapT = THREE.RepeatWrapping;
     textureMap.anisotropy = 16;
     textureMap.colorSpace = THREE.SRGBColorSpace;
 
-    // Reflection map (cubemap)
     const path = `${assetBase}assets/pisa/`;
     const urls = ['px.png', 'nx.png', 'py.png', 'ny.png', 'pz.png', 'nz.png'];
     const textureCube = new THREE.CubeTextureLoader().setPath(path).load(urls);
 
-    // Materials
     const materials: Record<ShadingMode, THREE.Material> = {
         wireframe: new THREE.MeshBasicMaterial({ wireframe: true }),
         flat: new THREE.MeshPhongMaterial({ specular: 0x000000, flatShading: true, side: THREE.DoubleSide }),
@@ -108,12 +96,11 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): Teapot
         reflective: new THREE.MeshPhongMaterial({ envMap: textureCube, side: THREE.DoubleSide }),
     };
 
-    // OrbitControls
     // oxlint-disable-next-line typescript/no-explicit-any -- OrbitControls domElement type is HTMLElement; GJS canvas type is incompatible
     const cameraControls = new OrbitControls(camera, canvas as any);
     cameraControls.addEventListener('change', render);
 
-    // Effect controller — external GUI mutates this, then calls render()
+    // An external GUI mutates this, then calls render().
     const effectController: TeapotEffectController = {
         newTess: 15,
         lid: true,
@@ -124,7 +111,6 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): Teapot
         newShading: 'glossy',
     };
 
-    // Track last-rendered state for change detection
     let tess = -1; // force initial creation
     let bBottom: boolean;
     let bLid: boolean;
@@ -155,7 +141,6 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): Teapot
     }
 
     function doRender() {
-        // Check if parameters changed
         if (
             effectController.newTess !== tess ||
             effectController.bottom !== bBottom ||
@@ -176,14 +161,13 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): Teapot
             createNewTeapot();
         }
 
-        // Reflective mode uses cubemap as background
         if (shading === 'reflective') {
             scene.background = textureCube;
         } else {
             scene.background = null;
         }
 
-        // Handle resize — canvas.width/height are the GTK-owned drawing buffer
+        // canvas.width/height are the host-owned drawing buffer.
         const w = canvas.width;
         const h = canvas.height;
         if (prevW !== w || prevH !== h) {
@@ -197,9 +181,8 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): Teapot
         renderer.render(scene, camera);
     }
 
-    // Render scheduling: coalesce multiple render requests into one frame.
-    // In GTK, the GL context is only current inside the frame pipeline (rAF),
-    // so direct calls from signal handlers would fail.
+    // Render requests coalesce into one frame, and must go through rAF: under GTK the GL context is
+    // only current inside the frame pipeline, so a direct call from a signal handler would fail.
     let renderPending = false;
     let paused = false;
     // Set when render() is called while paused, so resume() can flush it.
@@ -217,7 +200,6 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions): Teapot
         });
     }
 
-    // Initial render
     render();
 
     return {

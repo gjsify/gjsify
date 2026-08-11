@@ -1,23 +1,15 @@
-// Internal interface declarations for the DOM-shaped objects that
-// CanvasRenderingContext2D consumes.
-//
-// canvas2d-core deliberately has *no* dependency on @gjsify/dom-elements (that
-// would create a cycle: dom-elements → canvas2d-core → dom-elements). Instead
-// it accepts duck-typed inputs that match the relevant slice of the WHATWG
-// Canvas 2D API. These interfaces document those slices and let the rest of
-// the package work against concrete types instead of `any`.
+// Duck-typed slices of the WHATWG Canvas 2D API that CanvasRenderingContext2D consumes. Declared
+// here because a dependency on @gjsify/dom-elements would close the cycle
+// dom-elements → canvas2d-core → dom-elements.
 
 import type Cairo from 'cairo';
 
 import type { CanvasImageHandle } from './pixel-bridge.js';
 
 /**
- * The HTMLCanvasElement-shaped object passed into the
- * `CanvasRenderingContext2D` constructor by the registered context factory.
- *
- * `@gjsify/dom-elements`' `HTMLCanvasElement` satisfies this — but so does any
- * lightweight `{ width, height }` mock used by unit tests. Width/height
- * default to the WHATWG canvas defaults (300×150) when missing.
+ * The HTMLCanvasElement-shaped object the context factory passes into the
+ * `CanvasRenderingContext2D` constructor. Missing width/height fall back to the WHATWG canvas
+ * defaults, 300×150.
  */
 export interface CanvasLike {
     width?: number;
@@ -25,27 +17,23 @@ export interface CanvasLike {
 }
 
 /**
- * GdkPixbuf-backed image source produced by `@gjsify/dom-elements`'
- * `HTMLImageElement` (and other pixbuf-bearing wrappers).
- *
- * The `isPixbuf()` brand keeps us decoupled from the concrete class while
- * preventing accidental matches against unrelated objects.
+ * GdkPixbuf-backed image source produced by `HTMLImageElement` and other pixbuf-bearing wrappers.
+ * The `isPixbuf()` brand keeps this decoupled from the concrete class without matching unrelated
+ * objects by accident.
  */
 export interface PixbufImageSource {
     isPixbuf(): boolean;
     /**
-     * @internal — populated by HTMLImageElement once decoding completes.
-     *
-     * Typed as the platform-agnostic {@link CanvasImageHandle} (the readable
-     * slice of `GdkPixbuf.Pixbuf`) so the headless core needs no `gi://`
-     * import; a real `GdkPixbuf.Pixbuf` satisfies it structurally.
+     * @internal — populated by HTMLImageElement once decoding completes. Typed as
+     * {@link CanvasImageHandle} so the headless core needs no `gi://` import; a real
+     * `GdkPixbuf.Pixbuf` satisfies it structurally.
      */
     _pixbuf: CanvasImageHandle;
 }
 
 /**
- * Canvas-like image source carrying a 2D context whose backing surface can be
- * sampled (used for `drawImage(canvas, …)` and `createPattern(canvas, …)`).
+ * Canvas-like image source whose 2D context's backing surface can be sampled, for
+ * `drawImage(canvas, …)` and `createPattern(canvas, …)`.
  */
 export interface CanvasImageSource extends CanvasLike {
     getContext(contextId: '2d', options?: unknown): CanvasContext2DLike | null;
@@ -53,32 +41,28 @@ export interface CanvasImageSource extends CanvasLike {
 }
 
 /**
- * The minimal slice of `CanvasRenderingContext2D` required to extract pixel
- * data for `drawImage` / `createPattern`. Our own context naturally satisfies
- * this through `_getSurface()`.
+ * The minimal slice of `CanvasRenderingContext2D` needed to extract pixel data for `drawImage` /
+ * `createPattern`.
  */
 export interface CanvasContext2DLike {
-    /** @internal — exposes the Cairo backing surface. */
+    /** @internal */
     _getSurface?(): Cairo.ImageSurface;
 }
 
-/** Type guard for {@link PixbufImageSource}. */
 export function isPixbufImageSource(value: unknown): value is PixbufImageSource {
     if (value === null || typeof value !== 'object') return false;
     const candidate = value as { isPixbuf?: unknown };
     return typeof candidate.isPixbuf === 'function' && (value as PixbufImageSource).isPixbuf();
 }
 
-/** Type guard for {@link CanvasImageSource}. */
 export function isCanvasImageSource(value: unknown): value is CanvasImageSource {
     if (value === null || typeof value !== 'object') return false;
     return typeof (value as { getContext?: unknown }).getContext === 'function';
 }
 
 /**
- * Minimal `DOMMatrix` shape returned by `CanvasRenderingContext2D.getTransform()`
- * when no native `DOMMatrix` constructor is registered. Mirrors the
- * `is2D`-only subset of the WHATWG matrix interface.
+ * What `CanvasRenderingContext2D.getTransform()` returns when no native `DOMMatrix` constructor is
+ * registered: the `is2D`-only subset of the WHATWG matrix interface.
  */
 export interface DOMMatrix2DLike {
     a: number;
@@ -108,13 +92,11 @@ export interface DOMMatrix2DLike {
 }
 
 /**
- * Constructor signature for the platform `DOMMatrix`. Lets us reach the
- * runtime constructor through `globalThis` without an `any` cast when an
- * embedder (e.g. `@gjsify/dom-elements`) has registered one.
+ * Constructor signature for the platform `DOMMatrix`, so the runtime constructor an embedder
+ * registered on `globalThis` is reachable without an `any` cast.
  */
 export type DOMMatrixConstructor = new (init?: number[] | string) => DOMMatrix;
 
-/** Subset of `globalThis` we touch inside this package. */
 export interface CanvasGlobalThis {
     DOMMatrix?: DOMMatrixConstructor;
 }

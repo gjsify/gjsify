@@ -1,7 +1,6 @@
-// Built-in storybook-web chrome styles, shipped as a string and injected once on
-// mount (mirrors @gjsify/adwaita-web's self-applied stylesheet and the native
-// renderer's STORYBOOK_CSS). Everything is driven by the adwaita-web CSS custom
-// properties so it follows the active light/dark theme.
+// Chrome styles, shipped as a string and injected once on mount (as adwaita-web's own
+// stylesheet and the native renderer's STORYBOOK_CSS are). Driven entirely by the
+// adwaita-web CSS custom properties, so it follows the active light/dark theme.
 
 export const STORYBOOK_WEB_CSS = `
 .sb-window {

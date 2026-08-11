@@ -131,6 +131,23 @@ jobs:
       - name: Check each tree's comment budget
         run: node scripts/check-comment-budget.mjs --check
 
+      # Same failure mode one level up: an AGENTS.md is loaded on EVERY agent turn, and
+      # the root file reached 277 KB before it was split, one defensible paragraph at a
+      # time. Past 32 KiB (`project_doc_max_bytes`) Codex truncates the tail with no
+      # warning, so the end of an oversized file is not read at all. Per-file ceilings
+      # are MEASURED for the same reason as above: two files are over the 20 KB target
+      # AGENTS.md sets itself, and a flat gate would have been waived on arrival.
+      - name: Check agent context file sizes
+        run: node scripts/check-agent-context-size.mjs --check
+
+      # The published API tables told readers to install `@gjsify/streams` and
+      # `@gjsify/globals`, five rows between them, neither name ever a package
+      # (`@gjsify/web-streams`, `@gjsify/node-globals`). A rename lands in `packages/`
+      # and nothing walks the prose citing it. Website-scoped so the allowlist is
+      # empty: repo-wide, fixtures like `@gjsify/e2e-pub-otp` would need ~76 entries.
+      - name: Check website package names resolve
+        run: node scripts/check-website-package-names.mjs
+
       # A multi-line inline `node -e '…'` whose body contains the quote that opened
       # it: the shell truncates the program and the step dies before asserting
       # anything, so the gate reports nothing about what it was gating. Belongs here

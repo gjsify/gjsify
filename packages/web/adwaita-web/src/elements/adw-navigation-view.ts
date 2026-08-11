@@ -10,14 +10,7 @@
 // automatic back button, translate stack changes into CustomEvents, and route
 // Escape / Alt+Left into the core's shortcut handlers.
 //
-// The copy this replaces had drifted from libadwaita in ways nothing compared:
-// `pop()` refused to pop a `can-pop="false"` page (the C documents the exact
-// opposite at adw-navigation-view.c:2559-2561), `replace()` purged dynamic pages
-// BEFORE resolving string entries so `replace(['tag-of-a-pushed-page'])` blanked
-// the view outright, `popToTag()` was a loop of single pops that stopped early at
-// a `can-pop="false"` page, and the back-button tooltip was hardcoded to "Back"
-// where the C uses the previous page's title. See `navigation-view.spec.ts` for
-// the vectors this element is now held to.
+// The vectors this element is held to are in `navigation-view.spec.ts`.
 //
 // Pages are declared as <adw-navigation-page> children (each with a `title` and
 // optional `tag` attribute). The view snapshots them at connect time. Like
@@ -111,7 +104,6 @@ export class AdwNavigationPage extends HTMLElement {
         view?.syncPageProperty(this, name, previous);
     }
 
-    /** Put an attribute back the way it was, without re-entering the sync. */
     revertAttribute(name: string, value: string | null): void {
         this._syncing = true;
         if (value === null) this.removeAttribute(name);
@@ -138,7 +130,6 @@ export class AdwNavigationView extends HTMLElement {
         return ['animate-transitions', 'pop-on-escape'];
     }
 
-    /** Whether push/pop transitions are animated. */
     get animateTransitions(): boolean {
         // Absent attribute defaults to true (matches Adw.NavigationView).
         return this.getAttribute('animate-transitions') !== 'false';
@@ -157,17 +148,14 @@ export class AdwNavigationView extends HTMLElement {
         this.setAttribute('pop-on-escape', value ? 'true' : 'false');
     }
 
-    /** The currently-visible page (top of the stack), or null when empty. */
     get visiblePage(): AdwNavigationPage | null {
         return this._state.visiblePage;
     }
 
-    /** The tag of the visible page, or null. */
     get visiblePageTag(): string | null {
         return this._state.visiblePageTag;
     }
 
-    /** The number of pages on the navigation stack. */
     get depth(): number {
         return this._state.depth;
     }
@@ -177,7 +165,6 @@ export class AdwNavigationView extends HTMLElement {
         return this._state.stack;
     }
 
-    /** Every page this view knows — static and dynamically pushed. */
     get pages(): readonly AdwNavigationPage[] {
         return this._state.pages;
     }
@@ -214,9 +201,9 @@ export class AdwNavigationView extends HTMLElement {
         this._state.setPopOnEscape(this.popOnEscape);
         this.addEventListener('keydown', this._onKeyDown);
 
-        // add_page:1284 auto-pushes into an EMPTY stack, so the first declared page
-        // becomes visible — and it does so through push_to_stack, which is why the
-        // `pushed` / `notify::visible-page` events fire for it.
+        // `add_page` auto-pushes into an EMPTY stack, so the first declared page becomes
+        // visible — and it does so through `push_to_stack`, which is why the `pushed` /
+        // `notify::visible-page` events fire for it.
         for (const page of declared) this._state.add(page, readPageProps(page));
         // A declared page the core REJECTED (a duplicate tag) is not one of ours:
         // it must leave the DOM, or it would sit in the stack wrapper unmanaged and
@@ -330,9 +317,8 @@ export class AdwNavigationView extends HTMLElement {
      * Replace the whole navigation stack (mirrors AdwNavigationView.replace). The
      * last page becomes visible; the transition is never animated.
      *
-     * String entries are resolved BEFORE anything is mutated — the C does the same
-     * in replace_with_tags:3136-3147, and resolving late is what used to lose a
-     * dynamically-pushed page and blank the view.
+     * String entries are resolved BEFORE anything is mutated, as `replace_with_tags`
+     * does: resolving late loses a dynamically-pushed page and blanks the view.
      */
     replace(pages: ReadonlyArray<AdwNavigationPage | string | null>): void {
         const resolved = pages.map((entry) => {
@@ -391,8 +377,8 @@ export class AdwNavigationView extends HTMLElement {
         if (event.key === 'Escape') {
             result = this._state.popFromEscape();
         } else if (event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
-            // back_forward_shortcut_cb:1192-1193 swaps the arrows under RTL; only
-            // the BACK direction is handled, since forward needs ::get-next-page.
+            // `back_forward_shortcut_cb` swaps the arrows under RTL; only the BACK
+            // direction is handled, since forward needs ::get-next-page.
             const back = getComputedStyle(this).direction === 'rtl' ? 'ArrowRight' : 'ArrowLeft';
             if (event.key !== back) return;
             result = this._state.popFromShortcut();
@@ -437,15 +423,14 @@ export class AdwNavigationView extends HTMLElement {
         if (page.parentNode === this._pagesEl) this._pagesEl.removeChild(page);
     }
 
-    /** Inject (or remove) the automatic back button on the visible page. */
     private _syncBackButton(page: AdwNavigationPage): void {
         if (!this._state.canGoBack() || page.hasAttribute('no-back-button')) {
             this._removeBackButton(page);
             return;
         }
 
-        // The tooltip is the title of the page the button REVEALS, so it can change
-        // while the button itself stays put (adw-back-button.c query_tooltip:411-417).
+        // The tooltip is the title of the page the button REVEALS, so it can change while
+        // the button itself stays put (`AdwBackButton`'s `query_tooltip`).
         const tooltip = this._state.backButtonTooltip() ?? BACK_BUTTON_FALLBACK_TOOLTIP;
         const existing = this._backButtons.get(page);
         if (existing) {
@@ -453,9 +438,8 @@ export class AdwNavigationView extends HTMLElement {
             return;
         }
 
-        // Find the page's header bar's start section. We surface the button into
-        // the first <adw-header-bar> inside the page content, the way
-        // AdwHeaderBar grows a back button when placed inside an AdwNavigationView.
+        // The button goes into the first <adw-header-bar> inside the page content, the
+        // way AdwHeaderBar grows one when placed inside an AdwNavigationView.
         const headerBar = page.querySelector('adw-header-bar') as HTMLElement | null;
         if (!headerBar) return;
         const start = (headerBar as { startSection?: HTMLElement | null }).startSection ?? null;

@@ -1,28 +1,20 @@
 // GJS console shim — bundled into GJS user builds via Rolldown's `inject`.
-// Uses print()/printerr() on GJS, bypassing GLib.log_structured() — no
-// `Gjs-Console-Message:` prefix, ANSI escapes work, output goes to
-// stdout/stderr instead of GLib's logging stream.
+// Routes through print()/printerr() rather than GLib.log_structured(): no
+// `Gjs-Console-Message:` prefix, ANSI escapes survive, output on stdout/stderr.
 //
-// `@gjsify/console` is resolved by the user's `gjsify build` Rolldown
-// run, NOT by tsc here. The bare specifier survives compilation and only
-// gets followed at user-build time, where the CLI's `@gjsify/node-polyfills`
-// dep tree has the package. tsc on this package would otherwise need the
-// `@gjsify/console` lib to be pre-built (build-order coupling).
+// `globalThis.console` is non-writable AND non-configurable in GJS — re-measured
+// on 1.88/SM 140, so it is a property of the runtime and not of one version — which
+// is why nothing here assigns to it. Rolldown's `inject` rewrites bare `console`
+// references to a named import from this shim instead.
 //
-// We can't reassign `globalThis.console` on SpiderMonkey 128 — the
-// property is non-configurable. Rolldown's `inject` option rewrites bare
-// `console` references to a named import from this shim instead, leaving
-// `globalThis.console` untouched and routing user `console.log(…)` calls
-// through our object.
+// The `@gjsify/console` specifier is followed at USER-build time by Rolldown, not by
+// tsc here; resolving it here would make this package depend on that one being built
+// first. Hence the namespace import: a single statement no formatter can wrap, so the
+// `@ts-ignore` stays on the line directly above it. A multi-line named import would
+// let oxfmt detach the suppression from the `from '@gjsify/console'` line.
 // @ts-ignore — resolved by Rolldown at user-build time, not by tsc here.
 import * as gjsConsole from '@gjsify/console';
 
-// NOTE: a namespace import is used deliberately. It is a single statement that
-// no formatter (oxfmt) can wrap across lines, so the `@ts-ignore` above always
-// sits on the line immediately preceding the import and reliably suppresses the
-// TS2307 (`@gjsify/console` is resolved by Rolldown at user-build time, not by
-// tsc here). A multi-line named import would let the reformatter detach the
-// suppression from the offending `from '@gjsify/console'` line.
 export const console = {
     log: gjsConsole.log,
     info: gjsConsole.info,

@@ -30,8 +30,6 @@ export class Buffer extends Uint8Array {
     // Marker to identify Buffer instances
     private static readonly _isBuffer = true;
 
-    // ---- Static constructors ----
-
     static alloc(size: number, fill?: number | string | Uint8Array | Buffer, encoding?: string): Buffer {
         if (typeof size !== 'number') {
             throw new TypeError(`The "size" argument must be of type number. Received type ${typeof size}`);
@@ -165,8 +163,6 @@ export class Buffer extends Uint8Array {
         );
     }
 
-    // ---- Static methods ----
-
     static isBuffer(obj: unknown): obj is Buffer {
         return obj instanceof Buffer;
     }
@@ -249,8 +245,6 @@ export class Buffer extends Uint8Array {
     // (≈ v24.x / v26): `Buffer.poolSize` defaults to 64 KiB. Track the current
     // default so `Buffer.poolSize` matches native Node on the Node axis too.
     static poolSize = 65536;
-
-    // ---- Instance methods ----
 
     toString(encoding?: string, start?: number, end?: number): string {
         const enc = normalizeEncoding(encoding);
@@ -400,8 +394,6 @@ export class Buffer extends Uint8Array {
         return this.indexOf(value, byteOffset, encoding) !== -1;
     }
 
-    // ---- Read methods ----
-
     readUInt8(offset = 0): number {
         checkOffset(offset, 1, this.length);
         return this[offset];
@@ -550,8 +542,6 @@ export class Buffer extends Uint8Array {
         return val;
     }
 
-    // ---- Write methods ----
-
     writeUInt8(value: number, offset = 0): number {
         checkOffset(offset, 1, this.length);
         this[offset] = value & 0xff;
@@ -684,8 +674,6 @@ export class Buffer extends Uint8Array {
         view.setBigUint64(0, value, true);
         return offset + 8;
     }
-
-    // ---- Swap methods ----
 
     swap16(): this {
         const len = this.length;

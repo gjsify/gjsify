@@ -1,26 +1,11 @@
 // The view switchers' NativeScript-specific half — the parts that are not the
 // derivation.
 //
-// Everything that decides WHAT a switcher shows lives in `@gjsify/adwaita-core`
-// (ADR 0004) and is pinned by the conformance vectors: the CLASSIC switcher's
-// button-visibility rule `visible && (title != NULL || icon-name != NULL)` —
-// the INLINE one gates on `visible` alone, see {@link switcherButtonVisible} —
-// the `image-missing`
-// fallback, the mnemonic-stripped label, the badge label + screen-reader
-// description, the inline switcher's two index spaces, the bar's
-// `reveal && more-than-one-visible-page` gate, and the selection machine itself
-// (`ViewSwitcherState` over the wave-1 `ViewStackState`). What is
-// NativeScript-specific — and lives here — is how a derived model becomes
-// pixels: NS has no page stack, so pages overlay in a `GridLayout` and swap by
-// toggling `visibility`, and an icon is a raw Adwaita SVG document rather than a
-// name.
-//
-// This module imports only TYPES from `@nativescript/core` — like
-// `icon-path.ts`, `row-press.ts`, `avatar-color.ts` and `view-stack-state.ts` —
-// so it carries no runtime `@nativescript/core` value import and is unit-testable
-// off-device. `view-switcher-base.ts` cannot serve that role: it
-// `extends GridLayout`, which evaluates the bare specifier at module-eval and is
-// unresolvable on GJS/Node.
+// Everything that decides WHAT a switcher shows lives in `@gjsify/adwaita-core` (ADR
+// 0004), pinned by the conformance vectors. What lives HERE is how a derived model
+// becomes pixels: NS has no page stack, so pages overlay in a `GridLayout` and swap by
+// toggling `visibility`, and an icon is a raw Adwaita SVG document rather than a name.
+// TYPE-only `@nativescript/core` imports, so specs run off-device (AGENTS.md).
 //
 // Reference: refs/libadwaita/src/adw-view-switcher.c
 // Reference: refs/libadwaita/src/adw-view-switcher-bar.c
@@ -36,10 +21,8 @@ import type { AdwViewSwitcherPageInit, ViewSwitcherStateChange } from '@gjsify/a
  * One page registered with a view switcher.
  *
  * Mirrors `AdwViewStackPage`'s properties with their C defaults. `title` and
- * `icon` are NULLABLE on purpose: a page with neither renders no button at all
- * (adw-view-switcher.c:178), and once an absent title has been flattened to `''`
- * that rule is no longer expressible — which is why the old shape, with a
- * required `title: string`, could not implement it.
+ * `icon` are NULLABLE on purpose: a page with neither renders no button at all, and
+ * an absent title flattened to `''` makes that rule inexpressible.
  *
  * `icon` is an Adwaita symbolic SVG DOCUMENT here, not a GTK icon name: `AdwIcon`
  * rasterises the path data natively. The core treats the field as an opaque
@@ -47,12 +30,7 @@ import type { AdwViewSwitcherPageInit, ViewSwitcherStateChange } from '@gjsify/a
  * the fallback sentinel it hands back.
  */
 export interface AdwViewPage {
-    /**
-     * The switcher button label. ABSENT means the page has none — which is C's
-     * NULL, and the state the button-visibility rule turns on. Spelled as an
-     * optional `string` rather than `string | null` so the existing consumers
-     * that pass a plain `string` keep type-checking unchanged.
-     */
+    /** The switcher button label. ABSENT is C's NULL — the state button visibility turns on. */
     title?: string;
     /** The page content view, shown when this page is selected. */
     content: View;
@@ -86,9 +64,9 @@ export function createViewSwitcherBarState(): ViewSwitcherBarState {
 /**
  * Project one NS page onto the core's page init.
  *
- * A page without an explicit `name` gets its POSITION as the name — the NS API
- * has always been positional (`setViews` takes an array), and a stable id is
- * what the name-preserving rebuild needs to keep the selected page selected.
+ * A page without an explicit `name` gets its POSITION as the name: the NS API is
+ * positional (`setViews` takes an array), and the name-preserving rebuild needs a
+ * stable id to keep the selected page selected.
  */
 export function viewSwitcherPageSpec(page: AdwViewPage, index: number): AdwViewSwitcherPageInit {
     return {
@@ -110,11 +88,10 @@ export function viewSwitcherPageSpecs(pages: readonly AdwViewPage[]): AdwViewSwi
 /**
  * Resolve the core's icon slot to something `AdwIcon` can rasterise.
  *
- * The core substitutes the NAME `image-missing` for an absent icon
- * (adw-view-switcher-button.c:405). On the browser side that name becomes a CSS
- * mask class; here it has to become the actual symbolic document, so the
- * sentinel is swapped for the vendored `image-missing-symbolic` SVG. Anything
- * else is already an SVG and passes through.
+ * The core substitutes the NAME `image-missing` for an absent icon. On the browser
+ * side that name becomes a CSS mask class; here it has to become the actual
+ * symbolic document, so the sentinel is swapped for the vendored
+ * `image-missing-symbolic` SVG. Anything else is already an SVG and passes through.
  */
 export function nsIconSvg(iconName: string): string {
     return iconName === VIEW_SWITCHER_FALLBACK_ICON ? imageMissingSymbolic : iconName;
@@ -142,24 +119,15 @@ export function applyViewSwitcherVisibility(pages: readonly AdwViewPage[], selec
 export type ViewSwitcherKind = 'switcher' | 'inline';
 
 /**
- * Whether a page gets a button/toggle at all.
+ * Whether a page gets a button/toggle at all. The two switchers genuinely differ:
  *
- * The two switchers genuinely differ, and the difference is easy to miss because
- * only one of them is documented where you would look:
+ * - `AdwViewSwitcher` needs a title or an icon ON TOP OF `visible`
+ *   (`visible && (title != NULL || icon_name != NULL)`).
+ * - `AdwInlineViewSwitcher` gates on `visible` alone, so a page with neither still
+ *   gets an empty toggle.
  *
- * - `AdwViewSwitcher` needs a title or an icon ON TOP OF `visible` —
- *   `gtk_widget_set_visible (button, visible && (title != NULL || icon_name !=
- *   NULL))` (adw-view-switcher.c:178).
- * - `AdwInlineViewSwitcher` does not. `populate_group` gates on `visible` alone
- *   (adw-inline-view-switcher.c:370-378), so a page with neither still gets an
- *   empty toggle.
- *
- * The inline widget inherited the stricter rule and silently dropped toggles
- * libadwaita draws. `@gjsify/adwaita-core` had spelled this out in
- * `buildInlineToggles`' doc and pinned it in `INLINE_TOGGLE_VECTORS` the whole
- * time — the rule just lived in a class that `extends GridLayout`, which no
- * spec can import, so nothing could reach it to check. That is why it is here
- * and not there.
+ * The rule lives here rather than in the widget because a class that `extends
+ * GridLayout` cannot be imported by a spec.
  */
 export function switcherButtonVisible(kind: ViewSwitcherKind, modelVisible: boolean, pageVisible: boolean): boolean {
     return kind === 'inline' ? pageVisible : modelVisible;

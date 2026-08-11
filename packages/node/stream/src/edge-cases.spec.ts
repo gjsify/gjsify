@@ -10,7 +10,6 @@ import { pipeline as pipelinePromise, finished as finishedPromise } from 'node:s
 import { Buffer } from 'node:buffer';
 
 export default async () => {
-    // ===================== pipeline =====================
     await describe('stream.pipeline', async () => {
         await it('should pipe data through multiple streams', async () => {
             const chunks: string[] = [];
@@ -128,7 +127,6 @@ export default async () => {
         });
     });
 
-    // ===================== pipeline (promises) =====================
     await describe('stream/promises pipeline', async () => {
         await it('should resolve on success', async () => {
             const chunks: string[] = [];
@@ -171,7 +169,6 @@ export default async () => {
         });
     });
 
-    // ===================== finished =====================
     await describe('stream.finished', async () => {
         await it('should call callback when writable finishes', async () => {
             const done = await new Promise<boolean>((resolve) => {
@@ -249,7 +246,6 @@ export default async () => {
         });
     });
 
-    // ===================== finished (promises) =====================
     await describe('stream/promises finished', async () => {
         await it('should resolve when stream finishes', async () => {
             const writable = new Writable({
@@ -280,7 +276,6 @@ export default async () => {
         });
     });
 
-    // ===================== Transform flush =====================
     await describe('Transform _flush', async () => {
         await it('should call _flush before finishing', async () => {
             const chunks: string[] = [];
@@ -347,7 +342,6 @@ export default async () => {
         });
     });
 
-    // ===================== Readable.from =====================
     await describe('Readable.from', async () => {
         await it('should create Readable from array', async () => {
             const readable = Readable.from(['a', 'b', 'c']);
@@ -410,7 +404,6 @@ export default async () => {
         });
     });
 
-    // ===================== addAbortSignal =====================
     await describe('stream.addAbortSignal', async () => {
         await it('should destroy stream when signal is aborted', async () => {
             const ac = new AbortController();
@@ -448,7 +441,6 @@ export default async () => {
         });
     });
 
-    // ===================== Backpressure =====================
     await describe('stream backpressure', async () => {
         await it('write() should return false when buffer is full', async () => {
             const writable = new Writable({
@@ -487,7 +479,6 @@ export default async () => {
         });
     });
 
-    // ===================== PassThrough =====================
     await describe('PassThrough', async () => {
         await it('should pass data through unchanged', async () => {
             const pt = new PassThrough();
@@ -502,7 +493,6 @@ export default async () => {
         });
     });
 
-    // ===================== Duplex =====================
     await describe('Duplex', async () => {
         await it('should support both read and write', async () => {
             let readCalled = false;
@@ -532,7 +522,6 @@ export default async () => {
         });
     });
 
-    // ===================== Object mode =====================
     await describe('stream objectMode', async () => {
         await it('should pass objects through Transform', async () => {
             const transform = new Transform({
@@ -563,7 +552,6 @@ export default async () => {
         });
     });
 
-    // ===================== Stream utility functions =====================
     await describe('stream utility functions', async () => {
         await it('Readable.isDisturbed should return false for undisturbed', async () => {
             const readable = new Readable({ read() {} });
@@ -574,7 +562,6 @@ export default async () => {
         });
     });
 
-    // ===================== Async iteration =====================
     await describe('stream async iteration', async () => {
         await it('should support for-await-of on Readable', async () => {
             let pushed = false;

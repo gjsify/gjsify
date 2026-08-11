@@ -6,8 +6,6 @@ import { isDeepEqual, isDeepStrictEqual } from './deep-equal.js';
 
 export { AssertionError };
 
-// ---- Helpers ----
-
 function innerFail(obj: {
     actual?: unknown;
     expected?: unknown;
@@ -28,8 +26,6 @@ function innerFail(obj: {
 function isPromiseLike(val: unknown): val is PromiseLike<unknown> {
     return val !== null && typeof val === 'object' && typeof (val as { then?: unknown }).then === 'function';
 }
-
-// ---- Core functions ----
 
 function ok(value: unknown, message?: string | Error): void {
     if (!value) {
@@ -138,8 +134,6 @@ function notDeepStrictEqual(actual: unknown, expected: unknown, message?: string
         });
     }
 }
-
-// ---- throws / doesNotThrow ----
 
 type ErrorPredicate = RegExp | Function | ((err: unknown) => boolean) | object | Error;
 
@@ -388,8 +382,6 @@ async function doesNotReject(
     }
 }
 
-// ---- fail ----
-
 function fail(message?: string | Error): never;
 function fail(
     actual: unknown,
@@ -427,8 +419,6 @@ function fail(
     });
 }
 
-// ---- ifError ----
-
 function ifError(value: unknown): void {
     if (value !== null && value !== undefined) {
         let message = 'ifError got unwanted exception: ';
@@ -459,8 +449,6 @@ function ifError(value: unknown): void {
         throw err;
     }
 }
-
-// ---- match / doesNotMatch ----
 
 function match(actual: string, expected: RegExp, message?: string | Error): void {
     if (typeof actual !== 'string') {
@@ -500,8 +488,6 @@ function doesNotMatch(actual: string, expected: RegExp, message?: string | Error
     }
 }
 
-// ---- strict namespace ----
-
 const strict = Object.assign(
     function strict(value: unknown, message?: string | Error) {
         ok(value, message);
@@ -529,8 +515,6 @@ const strict = Object.assign(
     },
 );
 strict.strict = strict;
-
-// ---- Default export: assert function with all methods ----
 
 const assert = Object.assign(
     function assert(value: unknown, message?: string | Error) {

@@ -35,8 +35,6 @@ import { Buffer } from 'node:buffer';
 import { CAN_SYMLINK, NO_SYMLINK_REASON } from './capabilities.spec.js';
 
 export default async () => {
-    // ==================== realpathSync ====================
-
     await describe('fs.realpathSync', async () => {
         await it('should resolve the real path of a file', async () => {
             const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'realpath-');
@@ -66,8 +64,6 @@ export default async () => {
         });
     });
 
-    // ==================== realpath (callback) ====================
-
     await describe('fs.realpath (callback)', async () => {
         await it('should resolve the real path of a file', async () => {
             const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'realpath-cb-');
@@ -96,8 +92,6 @@ export default async () => {
             expect(err).toBeDefined();
         });
     });
-
-    // ==================== promises.stat / promises.lstat ====================
 
     await describe('fs.promises.stat', async () => {
         await it('should return stats for existing file', async () => {
@@ -145,8 +139,6 @@ export default async () => {
             rmdirSync(dir);
         });
     });
-
-    // ==================== linkSync / link ====================
 
     await describe('fs.linkSync', async () => {
         await it('should create a hard link', async () => {
@@ -285,8 +277,6 @@ export default async () => {
         });
     });
 
-    // ==================== stat / lstat (callback) extended ====================
-
     await describe('fs.stat (callback) extended', async () => {
         await it('should return file size', async () => {
             const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'stat-ext-');
@@ -332,8 +322,6 @@ export default async () => {
             rmdirSync(dir);
         });
     });
-
-    // ==================== chmodSync / chmod ====================
 
     await describe('fs.chmodSync', async () => {
         await it.failing(
@@ -385,8 +373,6 @@ export default async () => {
         );
     });
 
-    // ==================== promises.chmod ====================
-
     await describe('fs.promises.chmod', async () => {
         await it.failing(
             'should change file permissions',
@@ -406,8 +392,6 @@ export default async () => {
             { when: isWin32() },
         );
     });
-
-    // ==================== promises.writeFile / readFile ====================
 
     await describe('fs.promises.writeFile / readFile extended', async () => {
         await it('should write and read Buffer data', async () => {
@@ -436,8 +420,6 @@ export default async () => {
         });
     });
 
-    // ==================== promises.rename ====================
-
     await describe('fs.promises.rename', async () => {
         await it('should rename a file', async () => {
             const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'prename-');
@@ -453,8 +435,6 @@ export default async () => {
             rmdirSync(dir);
         });
     });
-
-    // ==================== promises.access ====================
 
     await describe('fs.promises.access', async () => {
         await it('should resolve for existing file', async () => {
@@ -480,8 +460,6 @@ export default async () => {
         });
     });
 
-    // ==================== promises.appendFile ====================
-
     await describe('fs.promises.appendFile', async () => {
         await it('should append to a file', async () => {
             const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'pappend-');
@@ -496,8 +474,6 @@ export default async () => {
             rmdirSync(dir);
         });
     });
-
-    // ==================== promises.copyFile ====================
 
     await describe('fs.promises.copyFile', async () => {
         await it('should copy a file', async () => {
@@ -516,8 +492,6 @@ export default async () => {
         });
     });
 
-    // ==================== promises.truncate ====================
-
     await describe('fs.promises.truncate', async () => {
         await it('should truncate a file', async () => {
             const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'ptrunc-');
@@ -533,8 +507,6 @@ export default async () => {
         });
     });
 
-    // ==================== promises.realpath ====================
-
     await describe('fs.promises.realpath', async () => {
         await it('should resolve real path', async () => {
             const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'prealpath-');
@@ -549,8 +521,6 @@ export default async () => {
             rmdirSync(dir);
         });
     });
-
-    // ==================== promises.link ====================
 
     await describe('fs.promises.link', async () => {
         await it('should create a hard link', async () => {
@@ -568,8 +538,6 @@ export default async () => {
             rmdirSync(dir);
         });
     });
-
-    // ==================== createReadStream extended ====================
 
     await describe('createReadStream extended', async () => {
         await it('should emit end event', async () => {
@@ -615,8 +583,6 @@ export default async () => {
         });
     });
 
-    // ==================== createWriteStream extended ====================
-
     await describe('createWriteStream extended', async () => {
         await it('should write data to file', async () => {
             const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'cws-');
@@ -651,8 +617,6 @@ export default async () => {
             rmdirSync(dir);
         });
     });
-
-    // ==================== readFile / writeFile callback extended ====================
 
     await describe('fs.readFile / writeFile callback extended', async () => {
         await it('readFile should accept encoding option', async () => {
@@ -706,8 +670,6 @@ export default async () => {
         });
     });
 
-    // ==================== statSync extended ====================
-
     await describe('fs.statSync extended', async () => {
         await it('should return file timestamps', async () => {
             const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'stat-ts-');
@@ -745,8 +707,6 @@ export default async () => {
         });
     });
 
-    // ==================== symlink creation ====================
-
     await describe('fs.symlinkSync (creation)', async () => {
         await it.failing(
             'should create and read a symlink',
@@ -775,8 +735,6 @@ export default async () => {
         );
     });
 
-    // ==================== promises.symlink ====================
-
     await describe('fs.promises.symlink', async () => {
         await it.failing(
             'should create a symlink',
@@ -801,8 +759,6 @@ export default async () => {
         );
     });
 
-    // ==================== promises.unlink ====================
-
     await describe('fs.promises.unlink', async () => {
         await it('should delete a file', async () => {
             const dir = mkdtempSync(join(tmpdir(), 'fs-') + 'punlink-');
@@ -815,8 +771,6 @@ export default async () => {
             rmdirSync(dir);
         });
     });
-
-    // ==================== promises.mkdir / rmdir ====================
 
     await describe('fs.promises.mkdir / rmdir', async () => {
         await it('should create and remove a directory', async () => {

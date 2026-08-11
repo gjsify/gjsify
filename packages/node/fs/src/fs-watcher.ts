@@ -113,8 +113,6 @@ function changed(watcher, file, otherFile, eventType) {
 
 export default FSWatcher;
 
-// ─── fs.promises.watch ────────────────────────────────────────────────────────
-
 type WatchEvent = { eventType: string; filename: string | null };
 
 function gioEventToNodeType(eventType: Gio.FileMonitorEvent): string | null {

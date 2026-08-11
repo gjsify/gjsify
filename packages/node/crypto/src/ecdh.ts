@@ -7,9 +7,7 @@ import { Buffer } from 'node:buffer';
 import { randomBytes } from './random.js';
 import { modPow } from './bigint-math.js';
 
-// ---------------------------------------------------------------------------
 // Elliptic curve types
-// ---------------------------------------------------------------------------
 
 /** A point on an elliptic curve, or null for the point at infinity. */
 type ECPoint = { x: bigint; y: bigint } | null;
@@ -31,9 +29,7 @@ interface CurveParams {
     byteLength: number;
 }
 
-// ---------------------------------------------------------------------------
 // Curve parameter definitions (NIST FIPS 186-4 / SEC 2)
-// ---------------------------------------------------------------------------
 
 const CURVES: Record<string, CurveParams> = {
     secp256k1: {
@@ -91,9 +87,7 @@ const CURVE_ALIASES: Record<string, string> = {
     p521: 'secp521r1',
 };
 
-// ---------------------------------------------------------------------------
 // BigInt modular arithmetic
-// ---------------------------------------------------------------------------
 
 /**
  * Non-negative modulus: always returns a value in [0, mod).
@@ -132,9 +126,7 @@ function modInverse(a: bigint, m: bigint): bigint {
     return mod(old_s, m);
 }
 
-// ---------------------------------------------------------------------------
 // Elliptic curve point operations
-// ---------------------------------------------------------------------------
 
 /**
  * Add two points on the curve.
@@ -225,9 +217,7 @@ function scalarMul(k: bigint, P: ECPoint, curve: CurveParams): ECPoint {
     return R0;
 }
 
-// ---------------------------------------------------------------------------
 // Encoding helpers
-// ---------------------------------------------------------------------------
 
 /**
  * Convert a BigInt to a Buffer of exactly `len` bytes (big-endian,
@@ -429,9 +419,7 @@ function formatReturnValue(buf: Buffer, encoding?: BufferEncoding | null): Buffe
     return buf;
 }
 
-// ---------------------------------------------------------------------------
 // Resolve curve name through aliases
-// ---------------------------------------------------------------------------
 
 function resolveCurve(curveName: string): { canonical: string; params: CurveParams } {
     const lower = curveName.toLowerCase();
@@ -446,9 +434,7 @@ function resolveCurve(curveName: string): { canonical: string; params: CurvePara
     return { canonical, params };
 }
 
-// ---------------------------------------------------------------------------
 // ECDH class
-// ---------------------------------------------------------------------------
 
 class ECDH {
     private _curve: CurveParams;
@@ -571,18 +557,14 @@ class ECDH {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Public API
-// ---------------------------------------------------------------------------
 
 /**
  * Create an ECDH key exchange object for the specified curve.
  *
  * Supported curves: secp256k1, prime256v1 (P-256), secp384r1 (P-384), secp521r1 (P-521).
  */
-// ---------------------------------------------------------------------------
 // Exported EC math primitives (used by ECDSA)
-// ---------------------------------------------------------------------------
 
 export { mod, modInverse, scalarMul, pointAdd, CURVES, CURVE_ALIASES };
 export type { ECPoint, CurveParams };

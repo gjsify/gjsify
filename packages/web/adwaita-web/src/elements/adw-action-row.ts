@@ -1,18 +1,11 @@
-// <adw-action-row> — A boxed-list row with a title, optional subtitle, and
-// prefix / suffix widget slots. The most fundamental Adwaita row type.
-// Attributes: title, subtitle, activatable.
-// Properties: activatableWidget (get/set) — the Adw.ActionRow:activatable-widget
-//   the row forwards its activation to, and whose sensitivity drives whether the
-//   row is activatable at all.
-// Slots: slot="prefix" (icons/widgets before the text), slot="suffix" (controls
-//   after the text — switches, buttons, value labels).
-// Events: `activated` (CustomEvent) when an `activatable` row is clicked.
+// <adw-action-row> — a boxed-list row with a title, optional subtitle and prefix /
+// suffix widget slots; the most fundamental Adwaita row type. `slot="prefix"` holds
+// icons/widgets before the text, `slot="suffix"` the controls after it, and an
+// `activatable` row emits `activated` on click.
 //
-// The LABEL VISIBILITY rule and the activatable-widget coupling are HEADLESS and
-// live in `@gjsify/adwaita-core` (ADR 0004) as {@link ActionRowState}; this
-// element composes it and keeps only the DOM render half.
-// `@gjsify/adwaita-nativescript` composes the same state, so both ports share one
-// behaviour.
+// The LABEL VISIBILITY rule and the activatable-widget coupling are HEADLESS and live
+// in `@gjsify/adwaita-core` (ADR 0004) as {@link ActionRowState}; this element keeps
+// only the DOM render half.
 //
 // Reference: refs/adwaita-web/adwaita-web/docs/widgets/actionrow.md
 // Reference: refs/libadwaita/src/adw-action-row.c, adw-action-row.ui
@@ -67,10 +60,9 @@ export class AdwActionRow extends HTMLElement {
     }
 
     /**
-     * Set the activatable widget. Its sensitivity is copied into `activatable`
-     * right away and then tracked, exactly as libadwaita's `sensitive` →
-     * `activatable` binding does (adw-action-row.c:729-732) — including the part
-     * that surprises: clearing the widget LEAVES the row activatable (C:709).
+     * Set the activatable widget. Its sensitivity is copied into `activatable` right
+     * away and then tracked, as libadwaita's `sensitive` → `activatable` binding does —
+     * including the surprising part: clearing the widget LEAVES the row activatable.
      */
     set activatableWidget(widget: HTMLElement | null) {
         if (!this._state.setActivatableWidget(widget, widget ? isSensitive(widget) : true)) return;
@@ -85,13 +77,9 @@ export class AdwActionRow extends HTMLElement {
 
     connectedCallback() {
         if (this._initialized) {
-            // Re-entering a document. `disconnectedCallback` drops the
-            // sensitivity observer, and returning here without rebuilding it
-            // left a MOVED row permanently blind to its activatable widget
-            // becoming insensitive — the same shape that broke the overlay
-            // split view's ResizeObserver and both view switchers' page
-            // observers. Anything torn down on the way out has to be rebuilt
-            // on the way back in.
+            // Re-entering a document: `disconnectedCallback` dropped the sensitivity
+            // observer, so it has to be rebuilt here or a MOVED row is permanently blind
+            // to its activatable widget becoming insensitive.
             this._observeSensitivity(this._state.activatableWidget);
             return;
         }
@@ -117,8 +105,8 @@ export class AdwActionRow extends HTMLElement {
         for (const child of suffixChildren) this._suffixEl.appendChild(child);
 
         this.replaceChildren(this._prefixEl, textEl, this._suffixEl);
-        // Adopt the declared attributes; `attributeChangedCallback` was guarded
-        // until now, so a parsed row would otherwise start with a stale state.
+        // `attributeChangedCallback` was guarded until now, so a parsed row would
+        // otherwise start with a stale state.
         this._adoptAttributes();
         this._render();
 
@@ -144,15 +132,13 @@ export class AdwActionRow extends HTMLElement {
     }
 
     /**
-     * `adw_action_row_activate_real` (adw-action-row.c:297-307): forward the
-     * activation to the activatable widget, then emit `activated`.
+     * `adw_action_row_activate_real`: forward the activation to the activatable widget,
+     * then emit `activated`.
      *
-     * A click that ORIGINATED inside the activatable widget does not activate the
-     * row at all — no forwarding, no `activated`. That is GTK's answer too: the
-     * widget claims the gesture, so `GtkListBox` never emits `row-activated`, and
-     * `pressed_cb` denies anything picked below the row / header / prefixes /
-     * suffixes (C:120-137). It is also what keeps the forwarding from looping —
-     * the synthetic click dispatched below bubbles straight back into this same
+     * A click that ORIGINATED inside the activatable widget does not activate the row at
+     * all — no forwarding, no `activated`. That is GTK's answer too: the widget claims
+     * the gesture, so `GtkListBox` never emits `row-activated`. It is also what keeps the
+     * forwarding from looping — the synthetic click below bubbles back into this same
      * listener, and without the guard one activation emitted `activated` twice.
      */
     private _onClick(event: Event) {
@@ -188,8 +174,7 @@ export class AdwActionRow extends HTMLElement {
     private _render() {
         const { title, titleVisible, subtitle, subtitleVisible } = this._state.state;
         this._titleEl.textContent = title;
-        // `string_is_not_empty` applies to the TITLE as much as to the subtitle
-        // (adw-action-row.ui:49-53) — an empty title used to keep its line here.
+        // `string_is_not_empty` applies to the TITLE as much as to the subtitle.
         this._titleEl.hidden = !titleVisible;
         this._subtitleEl.textContent = subtitle;
         this._subtitleEl.hidden = !subtitleVisible;

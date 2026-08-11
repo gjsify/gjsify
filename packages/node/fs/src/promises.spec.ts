@@ -348,8 +348,6 @@ export default async () => {
         });
     });
 
-    // --- New tests below ---
-
     await describe('fs.promises.writeFile + readFile round-trip', async () => {
         await it('should write and read back a string correctly', async () => {
             const dir = await mkdtemp(join(tmpdir(), 'fs-prt-'));

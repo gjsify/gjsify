@@ -1,6 +1,5 @@
-// @gjsify/devtools-mcp — how the bridge decides WHERE to dial the app.
-// Original implementation. Pure logic, so the precedence is machine-checked
-// rather than described in prose.
+// @gjsify/devtools-mcp — how the bridge decides WHERE to dial the app. Pure logic, so a
+// spec can check the precedence.
 
 /** The transport the bridge uses to reach `org.gjsify.Devtools`. */
 export type ClientTransportChoice =
@@ -22,16 +21,13 @@ export type ClientTransportChoice =
  * | unset | unset | absent  | yes | `session-bus` — **Linux is byte-unchanged** |
  * | unset | unset | absent  | no  | `unavailable` |
  *
- * The published address FILE deliberately outranks the session bus. It is
- * POSITIVE evidence — it exists only while an app of exactly this id runs on the
- * peer transport, and the app deletes it on shutdown — whereas "a session bus
- * exists" says nothing about the app. With the file ranked below the bus, an app
- * launched with an explicit `GJSIFY_DEVTOOLS_ADDRESS` on a Linux desktop would
- * have been reported as "no devtools-enabled app on the session bus", which is a
- * misleading answer to a question the file already answers correctly.
- *
- * Linux stays unchanged in the default case regardless: with nothing in peer
- * mode no address file is ever written, so that row is a stat() that misses.
+ * The published address FILE deliberately outranks the session bus, because it is
+ * POSITIVE evidence: it exists only while an app of exactly this id runs on the peer
+ * transport, and the app deletes it on shutdown, whereas "a session bus exists" says
+ * nothing about the app. Ranked the other way, an app launched with an explicit
+ * `GJSIFY_DEVTOOLS_ADDRESS` on a Linux desktop was reported as "no devtools-enabled app
+ * on the session bus". In the default case that row is a stat() that misses, since
+ * nothing in bus mode writes an address file.
  */
 export function chooseClientTransport(input: {
     optionAddress?: string | null;

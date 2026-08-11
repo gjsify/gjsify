@@ -1,6 +1,5 @@
-// @gjsify/devtools — the in-app org.gjsify.Devtools DBus service.
-// Original implementation; method bodies adapt the PixelRPG map-editor's
-// ControlDbusService (apps/maker-gjs/src/services/control-dbus.service.ts).
+// @gjsify/devtools — the in-app org.gjsify.Devtools DBus service. Method bodies adapt
+// the PixelRPG map-editor's ControlDbusService.
 
 import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
@@ -42,11 +41,10 @@ function frameDelay(ms: number): Promise<void> {
 }
 
 /**
- * Capture `widget` to PNG, retrying across a handful of frames. A window that is
- * mapped but not yet realised/allocated (e.g. right after launch, or while a
- * heavy view is still being laid out) produces a zero-size GSK frame — giving it
- * a few main-loop iterations to lay out turns those transient empty captures into
- * a real screenshot. Returns null only if it never becomes renderable.
+ * Capture `widget` to PNG, retrying across a handful of frames: a window that is mapped
+ * but not yet realised or allocated produces a zero-size GSK frame, so a few main-loop
+ * iterations turn a transient empty capture into a real screenshot. `null` only if the
+ * widget never becomes renderable.
  */
 async function captureWidgetWhenRenderable(widget: Gtk.Widget, tries = 12, gapMs = 50): Promise<Uint8Array | null> {
     for (let i = 0; i < tries; i++) {
@@ -58,22 +56,18 @@ async function captureWidgetWhenRenderable(widget: Gtk.Widget, tries = 12, gapMs
 }
 
 /**
- * The permanent `org.gjsify.Devtools` DBus interface for a GTK app — lets
- * external tooling (the MCP bridge, `gdbus`, scripts) inspect, screenshot,
- * and drive the running app. Generic methods are implemented here; app
- * extensions contribute extra methods that are attached (pause-guarded) and
- * merged into the same interface. Resolves the live window lazily per call so
- * it survives window recreation.
+ * The permanent `org.gjsify.Devtools` DBus interface for a GTK app, through which
+ * external tooling (the MCP bridge, `gdbus`, scripts) inspects, screenshots and drives
+ * it. Generic methods live here; app extensions contribute pause-guarded methods merged
+ * into the same interface. The live window is resolved lazily per call, so the service
+ * survives window recreation.
  */
 export class DevtoolsService {
     /**
-     * One `Gio.DBusExportedObject` PER CONNECTION. The session bus is a single
-     * shared pipe, but the peer transport (`peer-transport.ts`) hands out one
-     * `Gio.DBusConnection` per client with no shared object registry — a
-     * single-slot field would export the interface to the FIRST peer only, and
-     * every later client would see `UnknownMethod` for all 26 methods. Keyed by
-     * connection, so `export()` stays idempotent PER connection while serving
-     * any number of them.
+     * One `Gio.DBusExportedObject` PER CONNECTION. The session bus is a single shared
+     * pipe, but the peer transport hands out one `Gio.DBusConnection` per client with no
+     * shared object registry, so a single-slot field would export to the FIRST peer only
+     * and every later client would see `UnknownMethod` for every method.
      */
     private readonly _exported = new Map<Gio.DBusConnection, Gio.DBusExportedObject>();
     private _peer: DevtoolsPeerServer | null = null;
@@ -91,12 +85,10 @@ export class DevtoolsService {
             for (const [name, kind] of Object.entries(ext.methodKinds)) this._kinds.set(name, kind);
             for (const [name, fn] of Object.entries(ext.handlers)) {
                 const impl = fn as (...args: unknown[]) => unknown;
-                // Extension handlers are attached under the bare method name, so a
-                // handler that RETURNS A PROMISE hits gjs 1.86.0's broken
-                // `_handleDBusReply` path (see ScreenshotAsync). Every extension
-                // handler today is synchronous; an async one must register itself
-                // as `<Name>Async(params, invocation, fdList)` and reply manually
-                // until the upstream fix lands (status/upstream-patch-candidates.md).
+                // Extension handlers are attached under the bare method name. Every one
+                // today is synchronous; an async one may return a Promise (measured working
+                // on gjs 1.88.1) or use the `<Name>Async(params, invocation, fdList)`
+                // manual-reply convention, as ScreenshotAsync does.
                 (this as unknown as Record<string, (...args: unknown[]) => unknown>)[name] = (...args: unknown[]) => {
                     this._guard(name);
                     return impl(...args);
@@ -132,13 +124,10 @@ export class DevtoolsService {
         this._exported.clear();
         this._peer?.stop();
         this._peer = null;
-        // The published address file is a CLAIM that an app of this id is
-        // listening RIGHT NOW — the bridge ranks it above the session bus on
-        // exactly that basis. It must therefore retract in the same breath as the
-        // socket it names: `uninstallDevtools()` stops the server with no app exit
-        // involved, and `GApplication::shutdown` does not fire on Ctrl-C or
-        // SIGKILL at all, so leaving removal to shutdown alone published a dead
-        // address that outlived its socket.
+        // The published address file CLAIMS that an app of this id is listening right now,
+        // and the bridge ranks it above the session bus on that basis, so it must retract
+        // together with the socket it names: `uninstallDevtools()` stops the server with no
+        // app exit at all, and `GApplication::shutdown` never fires on Ctrl-C or SIGKILL.
         if (this._addressFile) {
             removeDevtoolsAddressFile(this._addressFile);
             this._addressFile = null;
@@ -146,9 +135,9 @@ export class DevtoolsService {
     }
 
     /**
-     * Record the peer server hosting this service — plus the file its address was
-     * published to, if any — so `unexport()` closes the socket AND retracts the
-     * claim, and callers can read both back rather than scraping the app's stderr.
+     * Record the peer server hosting this service and the file its address went to, so
+     * `unexport()` closes the socket AND retracts the claim, and callers can read both
+     * back instead of scraping the app's stderr.
      */
     attachPeerServer(peer: DevtoolsPeerServer, addressFile?: string | null): void {
         this._peer = peer;
@@ -165,7 +154,7 @@ export class DevtoolsService {
         return this._addressFile;
     }
 
-    // --- generic DBus methods (names match buildDevtoolsIfaceXml) ---
+    // Generic DBus methods; the names match buildDevtoolsIfaceXml.
 
     /** `GetStatus() -> s` — JSON snapshot of the app's live state. */
     GetStatus(): string {
@@ -190,20 +179,16 @@ export class DevtoolsService {
     /**
      * `Screenshot(scope) -> ay` — PNG bytes of the active window via the GSK renderer.
      *
-     * Implemented with the `<Name>Async` manual-reply convention (the method
-     * gets the raw `invocation` and calls `return_value()` itself) rather than a
-     * plain `async Screenshot(): Promise<Uint8Array>` ON PURPOSE. On gjs 1.86.0 a
-     * Promise-returning exported DBus method mis-marshals its resolved value and
-     * the caller sees `org.gnome.gjs.JSError.ValueError: Service implementation
-     * returned an incorrect value type` — the `_handleDBusReply` continuation in
-     * the Gio override fails for EVERY resolved type (a bare `s`, a pre-packed
-     * `GLib.Variant`, an `ay`), not just byte arrays; only Screenshot surfaced it
-     * because it is the sole async method in the interface. Replying manually
-     * through the invocation is unaffected. The wire method stays `Screenshot`
-     * (the interface XML is unchanged) — `wrapJSObject` falls back to
-     * `<Name>Async` when the bare name is absent. Tracked upstream in
-     * status/upstream-patch-candidates.md; collapse back to a plain `async
-     * Screenshot` once the gjs fix ships.
+     * Uses the `<Name>Async` manual-reply convention: the method takes the raw
+     * `invocation` and calls `return_value()` itself, and `wrapJSObject` finds it because
+     * it falls back to `<Name>Async` when the bare name is absent, so the wire method
+     * stays `Screenshot`.
+     *
+     * The shape exists because gjs 1.86.0 mis-marshalled the resolved value of ANY
+     * Promise-returning exported method (`org.gnome.gjs.JSError.ValueError: Service
+     * implementation returned an incorrect value type`), while a manual reply was
+     * unaffected. That no longer reproduces on gjs 1.88.1 — a plain `async Screenshot()`
+     * returning `ay` marshals correctly — so this can collapse back into one.
      */
     async ScreenshotAsync(_params: unknown[], invocation: Gio.DBusMethodInvocation): Promise<void> {
         try {
@@ -218,12 +203,10 @@ export class DevtoolsService {
     }
 
     /**
-     * Capture the active window to PNG, warming up across frames when needed. A
-     * just-launched or mid-layout window yields a zero-size GSK frame, so the
-     * first `captureWidgetPng` can be empty; presenting it and retrying across a
-     * few main-loop iterations turns that into a real screenshot. The empty-bytes
-     * contract is preserved as the genuine-failure signal (window truly never
-     * realises / is occluded).
+     * Capture the active window to PNG, warming up across frames: a just-launched or
+     * mid-layout window yields a zero-size GSK frame, so the first `captureWidgetPng` can
+     * be empty. Empty bytes remain the genuine-failure signal, for a window that never
+     * realises at all.
      */
     private async _captureActiveWindowPng(): Promise<Uint8Array> {
         const win = this._app.get_active_window();

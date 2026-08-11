@@ -393,7 +393,6 @@ export class WebSocket extends EventEmitter {
         return this.readyState === CLOSING || this.readyState === CLOSED;
     }
 
-    // --- W3C EventTarget compat surface -------------------------------------
     // ws uses EventEmitter by default, but exposes addEventListener-style
     // registration for consumers that prefer the W3C API. We mirror it to
     // stay compat.

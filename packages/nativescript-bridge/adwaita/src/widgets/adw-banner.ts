@@ -5,26 +5,19 @@
 // strip. Mirrors `Adw.Banner`: `title`, `buttonLabel`, `revealed`, `useMarkup`,
 // `buttonStyle`, and a `buttonClicked` event.
 //
-// The DEFAULTS and the derivations are headless and live in
-// `@gjsify/adwaita-core` (ADR 0004), reached through `chrome.ts`. This class used
-// to keep its own, and two of them were wrong in a way only a cross-renderer
-// comparison could catch: `_revealed` started TRUE and the constructor never
-// wrote `visibility`, so a banner put itself on screen here while the same
-// markup stayed hidden in `@gjsify/adwaita-web` — where `revealed` was opt-in,
-// which is what libadwaita does (adw-banner.c:456-459). `use-markup` was absent
-// (its C default is TRUE, :422-425), `button-style` was absent (Since 1.7,
-// :443-447), and the mnemonic marker the template puts on the button
-// (adw-banner.ui:33) was painted as a literal underscore.
+// The DEFAULTS and the derivations are headless in `@gjsify/adwaita-core` (ADR 0004),
+// reached through `chrome.ts` — including the two that are easy to get backwards
+// (`revealed` defaults FALSE, `use-markup` TRUE) and the mnemonic marker the template
+// puts on the button, which must not paint as a literal underscore.
 //
-// FIDELITY: approximated for the reveal and for markup. `Adw.Banner` slides in
-// through a `GtkRevealer`; the NS subset has no revealer, so `revealed` toggles
-// `visibility` between `visible` and `collapse`. The NS CSS subset has no inline
-// markup, so a markup title is reduced to its plain text rather than painted
-// with its tags — see `bannerTitleText`.
+// FIDELITY: approximated for the reveal and for markup. `Adw.Banner` slides in through
+// a `GtkRevealer`; the NS subset has none, so `revealed` toggles `visibility`. The NS
+// CSS subset has no inline markup, so a markup title is reduced to its plain text
+// rather than painted with its tags — see `bannerTitleText`.
 //
 // Reference: refs/libadwaita/src/adw-banner.c (AdwBanner)
 // Reference: refs/libadwaita/src/adw-banner.ui (the template both labels come from)
-// Reference: refs/libadwaita/src/stylesheet/widgets/_toolbars.scss (banner :243-262)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_toolbars.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { Button, GridLayout, ItemSpec, Label, type EventData } from '@nativescript/core';

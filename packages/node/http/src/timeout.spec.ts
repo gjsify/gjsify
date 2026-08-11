@@ -52,7 +52,6 @@ function httpGetBody(
 }
 
 export default async () => {
-    // ===================== ServerResponse.setTimeout =====================
     await describe('http ServerResponse.setTimeout', async () => {
         await it('should return the ServerResponse instance', async () => {
             const { close } = await startServer((req, res) => {
@@ -108,7 +107,6 @@ export default async () => {
         });
     });
 
-    // ===================== IncomingMessage.setTimeout =====================
     await describe('http IncomingMessage.setTimeout', async () => {
         await it('should return the IncomingMessage instance', async () => {
             let returnedSelf = false;
@@ -126,7 +124,6 @@ export default async () => {
         });
     });
 
-    // ===================== ClientRequest.setTimeout =====================
     await describe('http ClientRequest.setTimeout', async () => {
         await it('should emit timeout event on slow server', async () => {
             // Server that never responds
@@ -221,7 +218,6 @@ export default async () => {
         });
     });
 
-    // ===================== ClientRequest.abort =====================
     await describe('http ClientRequest.abort', async () => {
         await it('should set aborted property to true', async () => {
             const { port, close } = await startServer((_req, res) => {
@@ -269,7 +265,6 @@ export default async () => {
         });
     });
 
-    // ===================== HEAD response =====================
     await describe('http HEAD response', async () => {
         await it('should receive empty body for HEAD request', async () => {
             const { port, close } = await startServer((_req, res) => {
@@ -338,7 +333,6 @@ export default async () => {
         });
     });
 
-    // ===================== Automatic headers =====================
     await describe('http automatic headers', async () => {
         await it('should include custom headers in response', async () => {
             const { port, close } = await startServer((_req, res) => {
@@ -373,7 +367,6 @@ export default async () => {
         });
     });
 
-    // ===================== Custom status messages =====================
     await describe('http custom status messages', async () => {
         await it('should use custom status message from writeHead', async () => {
             const { port, close } = await startServer((_req, res) => {
@@ -414,7 +407,6 @@ export default async () => {
         });
     });
 
-    // ===================== res.end() callback =====================
     await describe('http res.end() callback', async () => {
         await it('should invoke callback passed to res.end()', async () => {
             let callbackInvoked = false;
@@ -451,7 +443,6 @@ export default async () => {
         });
     });
 
-    // ===================== Multiple headers (Set-Cookie) =====================
     await describe('http multiple headers', async () => {
         await it('should send multiple Set-Cookie headers', async () => {
             const { port, close } = await startServer((_req, res) => {
@@ -497,7 +488,6 @@ export default async () => {
         });
     });
 
-    // ===================== flushHeaders =====================
     await describe('http flushHeaders', async () => {
         await it('should mark headersSent as true', async () => {
             let headersSentAfterFlush = false;
@@ -516,7 +506,6 @@ export default async () => {
         });
     });
 
-    // ===================== Server properties =====================
     await describe('http Server timeout properties', async () => {
         await it('should have default timeout properties', async () => {
             const server = createServer();
@@ -539,7 +528,6 @@ export default async () => {
         });
     });
 
-    // ===================== Server.close =====================
     await describe('http Server.close', async () => {
         await it('should emit close event', async () => {
             const server = createServer();
@@ -565,7 +553,6 @@ export default async () => {
         });
     });
 
-    // ===================== Request body as Readable stream =====================
     await describe('http request body streaming', async () => {
         await it('should receive POST body as data events', async () => {
             const { port, close } = await startServer((req, res) => {
@@ -689,7 +676,6 @@ export default async () => {
         });
     });
 
-    // ===================== Error handling =====================
     await describe('http error handling', async () => {
         await it('should emit error on connection refused', async () => {
             const errorEmitted = await new Promise<boolean>((resolve) => {

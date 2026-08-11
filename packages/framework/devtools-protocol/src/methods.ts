@@ -1,5 +1,4 @@
 // @gjsify/devtools-protocol — generic method surface + pause classification.
-// Original implementation.
 
 /**
  * How a method behaves while external control is paused by the host:
@@ -10,23 +9,18 @@
 export type MethodKind = 'read-only' | 'presence' | 'mutating';
 
 /**
- * The generic, toolkit-neutral devtools methods and their kinds. Adapters
- * (DBus / WebSocket) implement the subset they support; the bridge
- * advertises only the implemented ones. App-specific methods are added via
- * extensions with their own kinds — the registry rejects an unclassified
- * method name, so a new method cannot bypass the pause policy unnoticed.
+ * The generic, toolkit-neutral devtools methods and their kinds. Adapters implement the
+ * subset they support and the bridge advertises only those; app-specific methods arrive
+ * through extensions with their own kinds, and the registry rejects an unclassified name
+ * so nothing can bypass the pause policy unnoticed.
  *
- * A NAME HERE IS A PROMISE, so nothing may be listed ahead of an adapter.
- * `SetProperty` and `EmitSignal` were classified `mutating` here and existed on
- * no wire at all: no `<method>` fragment in `GENERIC_METHODS_XML`, no handler
- * in `DevtoolsService`, no MCP tool. A caller reading this contract saw the
- * name and the kind, called it, and got `UnknownMethod` — the classification
- * made a method look supported and the pause policy look complete. Both were
- * removed rather than stubbed; add each back in the change that lands its
- * adapter, which is the only change that can prove the kind is right.
+ * A NAME HERE IS A PROMISE, so nothing may be listed ahead of an adapter. `SetProperty`
+ * and `EmitSignal` were once classified `mutating` here while existing on no wire at all
+ * — no XML fragment, no handler, no MCP tool — so a caller read the contract, called
+ * them and got `UnknownMethod`, while the pause policy looked complete. Add a method back
+ * in the change that lands its adapter, which is the only change that can prove the kind.
  */
 export const GENERIC_METHODS = {
-    // --- Phase 1 (core control plane) ---
     GetStatus: 'read-only',
     Screenshot: 'read-only',
     ListActions: 'read-only',
@@ -34,7 +28,6 @@ export const GENERIC_METHODS = {
     ChangeActionState: 'mutating',
     PresentWindow: 'read-only',
     ResizeWindow: 'mutating',
-    // --- Phase 3 (full introspection) ---
     ListToplevels: 'read-only',
     DumpTree: 'read-only',
     GetProperty: 'read-only',

@@ -87,8 +87,6 @@ function withServer(handler: (server: Server, port: number) => Promise<void>): P
 }
 
 export default async () => {
-    // ---- TCP Echo ----
-
     await describe('net TCP: echo server', async () => {
         await it('should echo data back to client', async () => {
             await withServer(async (server, port) => {
@@ -139,8 +137,6 @@ export default async () => {
         });
     });
 
-    // ---- Large data transfer ----
-
     await describe('net TCP: large data transfer', async () => {
         await it('should transfer 64KB of data', async () => {
             const size = 64 * 1024;
@@ -161,8 +157,6 @@ export default async () => {
             });
         });
     });
-
-    // ---- Connection events ----
 
     await describe('net TCP: connection events', async () => {
         await it('should emit connect event on client', async () => {
@@ -228,8 +222,6 @@ export default async () => {
         });
     });
 
-    // ---- Server properties ----
-
     await describe('net TCP: server properties', async () => {
         await it('should return address with port and family', async () => {
             await withServer(async (server, port) => {
@@ -255,8 +247,6 @@ export default async () => {
             await new Promise<void>((resolve) => server.close(() => resolve()));
         });
     });
-
-    // ---- Socket properties ----
 
     await describe('net TCP: socket properties', async () => {
         await it('should expose remoteAddress and remotePort after connect', async () => {
@@ -293,8 +283,6 @@ export default async () => {
             });
         });
     });
-
-    // ---- Data encoding ----
 
     await describe('net TCP: data encoding', async () => {
         await it('should transfer UTF-8 strings', async () => {
@@ -339,8 +327,6 @@ export default async () => {
             });
         });
     });
-
-    // ---- Error handling ----
 
     await describe('net TCP: error handling', async () => {
         await it('should emit error for connection refused', async () => {
