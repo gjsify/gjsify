@@ -1,3 +1,10 @@
+/* Page chrome for the STANDALONE `index.html` only — how the window is centred
+   on an otherwise empty page. The window's own layout (sidebar vs. GL area) is
+   deliberately NOT here: `browser.ts` builds an <adw-overlay-split-view> and
+   inline-styles the GL container, because the website embeds `mount()` without
+   ever loading this file, and a layout that lives here is a layout the embed
+   does not get. */
+
 * {
     margin: 0;
     padding: 0;
@@ -19,35 +26,3 @@ adw-window {
     max-height: 100%;
 }
 
-.adw-window-body {
-    display: flex;
-    flex: 1;
-    min-height: 0;
-}
-
-.adw-sidebar {
-    width: 320px;
-    flex-shrink: 0;
-    overflow-y: auto;
-}
-
-.adw-sidebar-content {
-    padding: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-#gl-area-container {
-    flex: 1;
-    position: relative;
-    min-width: 0;
-}
-
-#gl-area-container canvas {
-    display: block;
-    width: 100%;
-    height: 100%;
-    position: absolute;
-    inset: 0;
-}
