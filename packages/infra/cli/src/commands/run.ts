@@ -22,6 +22,7 @@ import { runGjsBundle } from '../utils/run-gjs.js';
 import { runRuntimeBundle } from '../utils/run-node.js';
 import { readPackageJson } from '../utils/pkg-json-edit.js';
 import { runNodeScript } from '../utils/node-script.js';
+import { nodeShimDir } from '../utils/gjsify-shim.js';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import { discoverWorkspaces } from '@gjsify/workspace';
 import { isGjs, hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
@@ -373,6 +374,14 @@ async function runScript(script: string, extraArgs: readonly string[], cwd: stri
     if (process.env.GJSIFY_SHIM_DIR) {
         binDirs.unshift(process.env.GJSIFY_SHIM_DIR);
     }
+    // The `node` shim (see `nodeShimDir`) reaches PACKAGE SCRIPTS and nothing
+    // else. A script saying `node scripts/x.mjs` means "run this script", which
+    // gjsify can serve on a host with no Node; the CLI's own internals asking for
+    // `node` mean "I need a real Node", and answering those turned
+    // `gjsify tsc`'s honest "not on PATH" diagnosis into a bundling error two
+    // layers down (tests/e2e/tsc-node-fallback caught exactly that).
+    const nodeShim = nodeShimDir();
+    if (nodeShim) binDirs.unshift(nodeShim);
     // Default FORCE_COLOR=1 when not already set, matching yarn / npm
     // script-runner behaviour. Without this, tools that check
     // `process.stdout.isTTY` (chalk, picocolors, biome, …) disable colors

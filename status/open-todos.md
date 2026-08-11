@@ -154,7 +154,7 @@ Linux-only pipeline could not see this — the same shape ADR 0018 § 5 predicts
 
 The bootstrap chain itself is closed: `gjsify run --node-script <file>` bundles an
 unbundled `.mjs` that imports `node:*` and runs it, `ensureGjsifyShimOnPath()`
-puts a `node` on PATH that re-enters it when the host has none, and `build:infra`
+puts a `node` on a package script's PATH that re-enters it when the host has none, and `build:infra`
 now goes end to end with no `node` at all — measured by putting `node`/`npm`/`npx`
 on PATH that exit 127 and announce themselves, then running the whole chain under
 `gjs -m …/cli.gjs.mjs`: exit 0 warm, and exit 0 COLD with both native facades
@@ -233,8 +233,9 @@ Measure it first.
 
 ### Which `node scripts/*.mjs` calls are UNMEASURED on a Node-less host
 
-The shim is indiscriminate by design: on a host with no `node`, EVERY
-`node <file>.mjs` in every package script now re-enters the CLI. That is right
+The shim is indiscriminate WITHIN its scope: on a host with no `node`, EVERY
+`node <file>.mjs` in every package script now re-enters the CLI (the CLI's own
+internal spawns are deliberately out of reach — see `nodeShimDir`). That is right
 for the build chain, whose four scripts are measured. It says nothing about the
 rest, and some of them cannot work there at all:
 
