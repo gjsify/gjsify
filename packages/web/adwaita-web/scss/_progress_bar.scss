@@ -84,11 +84,9 @@ adw-progress-bar {
     font-size: smaller;
   }
 
-  // `&:disabled { filter: Opacity(var(--disabled-opacity)) }` (:23-25). This
-  // package defines no `--disabled-opacity`, so `--dim-opacity` stands in — the
-  // same substitution `_switch.scss` documents, not a fourth invented token.
+  // `&:disabled { filter: Opacity(var(--disabled-opacity)) }` (:23-25).
   &[disabled] {
-    opacity: var(--dim-opacity);
+    opacity: var(--disabled-opacity);
   }
 
   // Fill from the far end. GTK spells this `:inverted`; flexbox handles the
@@ -104,8 +102,13 @@ adw-progress-bar {
   }
 
   // The `.osd` variant (:59-83): a hairline bar with no trough at all, the way
-  // it is drawn under a header bar.
-  &[osd] {
+  // it is drawn under a header bar. `[osd]` is the attribute this element takes;
+  // `.osd` is libadwaita's DOCUMENTED spelling for the same variant, and
+  // `_style_classes.scss` excludes `adw-progress-bar` from the generic OSD
+  // surface exactly so the class lands here instead of turning the bar into a
+  // dark translucent box.
+  &[osd],
+  &.osd {
     min-width: 2px;
 
     .adw-progress-bar-trough {

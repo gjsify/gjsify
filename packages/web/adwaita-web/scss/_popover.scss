@@ -74,7 +74,13 @@ adw-popover {
 
   // `popover.menu > contents { padding: 0 }` + `$menu_margin` on the item box
   // (_menus.scss:58-66), flattened onto the single surface node.
-  &[menu] {
+  //
+  // `[menu]` is the attribute the element sets; `.menu` is the name libadwaita
+  // DOCUMENTS for the same thing (style-classes.md "Menu Popovers"). Both are
+  // accepted, because a consumer following the upstream documentation reaches
+  // for the class and would otherwise get an 8px inset and no explanation.
+  &[menu],
+  &.menu {
     padding: 6px;
   }
 
@@ -165,9 +171,7 @@ adw-popover {
   }
 
   &[disabled] {
-    // `--disabled-opacity` is libadwaita's own variable (_colors.scss:320,
-    // 50%); this port does not define it yet, so the fallback carries the value.
-    opacity: var(--disabled-opacity, 0.5);
+    opacity: var(--disabled-opacity);
     pointer-events: none;
   }
 }

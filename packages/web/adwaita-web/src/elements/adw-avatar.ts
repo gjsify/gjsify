@@ -1,7 +1,9 @@
-// <adw-avatar> — A round avatar showing initials derived from a name (with a
-// colour picked from the name), or a symbolic fallback icon.
+// <adw-avatar> — A round avatar showing a custom image, initials derived from a
+// name (with a colour picked from the name), or a symbolic fallback icon.
 // Attributes: text, size (px, default 48), show-initials (boolean),
-//   icon (symbolic fallback name, with or without -symbolic).
+//   icon (symbolic fallback name, with or without -symbolic),
+//   custom-image (an image URL — `Adw.Avatar:custom-image` is a GdkPaintable,
+//   and a URL is what a browser draws one from).
 // Reference: refs/adwaita-web/adwaita-web/scss/_avatar.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
@@ -15,6 +17,12 @@
 // there, and accented names picked the wrong colour in both). The shared
 // vectors in `@gjsify/adwaita-core/conformance` now pin this element to the C
 // source — see `src/adw-avatar.spec.ts`.
+//
+// `custom-image` was UNPORTED here until #1049's follow-up: this element passed
+// `hasCustomImage: false` unconditionally, so the `image` branch of
+// `update_visibility` (adw-avatar.c:117-125) — the branch that wins over both
+// others — could not be reached, and the vector row covering it had nothing to
+// drive.
 
 import { avatarColor, avatarFontSize, avatarInitials, avatarMaxFontSize, avatarMode } from '@gjsify/adwaita-core';
 
@@ -23,10 +31,11 @@ import { type AdwIcon, createAdwIcon } from './adw-icon.js';
 export class AdwAvatar extends HTMLElement {
     private _textEl!: HTMLSpanElement;
     private _iconEl!: AdwIcon;
+    private _imageEl!: HTMLImageElement;
     private _initialized = false;
 
     static get observedAttributes() {
-        return ['text', 'size', 'show-initials', 'icon'];
+        return ['text', 'size', 'show-initials', 'icon', 'custom-image'];
     }
 
     connectedCallback() {
@@ -38,7 +47,14 @@ export class AdwAvatar extends HTMLElement {
 
         this._iconEl = createAdwIcon(null, 'adw-avatar-icon');
 
-        this.replaceChildren(this._textEl, this._iconEl);
+        this._imageEl = document.createElement('img');
+        this._imageEl.className = 'adw-avatar-custom-image';
+        // The image is the avatar's own presentation, not content of its own —
+        // the accessible name comes from the surrounding row, as in GTK where
+        // the custom image is a plain GtkImage inside the widget.
+        this._imageEl.alt = '';
+
+        this.replaceChildren(this._textEl, this._iconEl, this._imageEl);
         this._render();
     }
 
@@ -52,15 +68,29 @@ export class AdwAvatar extends HTMLElement {
         this.style.height = `${size}px`;
 
         const text = this.getAttribute('text') ?? '';
+        const customImage = this.getAttribute('custom-image') ?? '';
         // The gate is the TEXT, not the derived initials — `update_visibility`
         // keeps a whitespace-only name in initials mode with a blank label.
         const mode = avatarMode({
-            hasCustomImage: false,
+            hasCustomImage: customImage.length > 0,
             showInitials: this.hasAttribute('show-initials'),
             text,
         });
 
-        if (mode === 'initials') {
+        this._imageEl.hidden = mode !== 'image';
+        if (mode === 'image') {
+            // Only touch `src` when it changed: re-assigning the same URL
+            // restarts the load and flashes the avatar on every unrelated
+            // attribute change.
+            if (this._imageEl.getAttribute('src') !== customImage) this._imageEl.src = customImage;
+            // No gradient behind an image: `set_class_color` still runs in the C,
+            // but nothing of it is visible, and leaving it would show through a
+            // transparent PNG.
+            this.style.backgroundImage = '';
+            this.style.color = '';
+            this._textEl.hidden = true;
+            this._iconEl.hidden = true;
+        } else if (mode === 'initials') {
             const { fg, start, stop } = avatarColor(text);
             this.style.backgroundImage = `linear-gradient(${start}, ${stop})`;
             this.style.color = fg;

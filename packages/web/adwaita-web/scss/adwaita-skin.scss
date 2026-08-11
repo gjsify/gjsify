@@ -25,6 +25,15 @@
 // it (`_progress_bar.scss`'s text node, `_data_grid.scss`'s cells) exactly as
 // libadwaita's own `_progress-bar.scss` does.
 @use 'labels';
+// The REST of libadwaita's documented style-class surface — the widget-
+// independent half: the surfaces (`.background`, `.view`, `.frame`), `.card` and
+// the two boxed lists, `.toolbar`, `.spacer`, `.osd`, `.linked`, the app-icon
+// shadows and the undershoot indicators. Emitted here for the same two reasons
+// as `_labels.scss`: a widget's own rule then wins on ordinary specificity, and
+// `_card.scss` / `_preferences.scss` @extend `%card` from it.
+// `scripts/check-adwaita-style-classes.mjs` holds the ledger of the whole
+// documented surface and fails on a class with no rule behind it.
+@use 'style_classes';
 @use 'window';
 @use 'headerbar';
 @use 'window_title';
@@ -51,6 +60,9 @@
 @use 'data_grid';
 @use 'clamp';
 @use 'spinner';
+// <adw-shortcut-label>'s keycaps. After `labels`, because a separator inside it
+// is an ordinary `.dimmed`.
+@use 'shortcut_label';
 @use 'avatar';
 @use 'banner';
 @use 'status_page';

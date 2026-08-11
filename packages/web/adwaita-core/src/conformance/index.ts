@@ -473,6 +473,10 @@ export type {
 export { POPOVER_KEY_VECTORS, POPOVER_SURFACE_VECTORS } from './popover.js';
 export type { PopoverKeyVector, PopoverSurfaceVariant, PopoverSurfaceVector } from './popover.js';
 
+// --- Adw.ShortcutLabel accelerator grammar + keycap vectors ---
+export { formatShortcutLabelNodes, SHORTCUT_LABEL_VECTORS } from './shortcut-label.js';
+export type { ShortcutLabelVector } from './shortcut-label.js';
+
 // --- Adw.Spinner animation vectors ---
 export {
     SPINNER_ARC_ENVELOPE,

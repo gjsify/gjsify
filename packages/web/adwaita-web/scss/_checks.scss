@@ -161,12 +161,10 @@ adw-radio {
     }
   }
 
-  // `&:disabled { filter: Opacity(var(--disabled-opacity)) }` (:62-64). This
-  // package defines no `--disabled-opacity`, so `--dim-opacity` stands in — the
-  // same substitution `_switch.scss` documents.
+  // `&:disabled { filter: Opacity(var(--disabled-opacity)) }` (:62-64).
   &[disabled] {
     cursor: not-allowed;
-    opacity: var(--dim-opacity);
+    opacity: var(--disabled-opacity);
   }
 
   // `@include focus-ring()` on `checkbutton` (:8). The ring follows the real

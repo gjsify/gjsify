@@ -79,10 +79,11 @@
 }
 
 // libadwaita dims the whole widget (`filter: Opacity(var(--disabled-opacity))`,
-// _switch.scss:20-22). This package has no `--disabled-opacity` token, so the
-// existing `--dim-opacity` stands in rather than a fourth invented colour.
+// _switch.scss:20-22), and `--disabled-opacity` is a real token here now — it
+// used to be stood in for by `--dim-opacity`, which is a different number and
+// moves the OTHER way under high contrast.
 .adw-switch.disabled {
-  opacity: var(--dim-opacity);
+  opacity: var(--disabled-opacity);
 
   .adw-switch-slider {
     cursor: not-allowed;

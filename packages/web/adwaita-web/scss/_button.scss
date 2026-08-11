@@ -112,34 +112,56 @@ adw-button {
     padding: 6px 20px;
     border-radius: 9999px;
   }
+
+  // Raised — the documented opt-OUT of the automatic flat appearance a button
+  // gets inside a `.toolbar` or a header bar (style-classes.md "Raised"). It is
+  // the default look, stated explicitly, so it must also beat `.flat` when both
+  // are present, the way `_toolbars.scss` treats it.
+  &.raised {
+    background-color: var(--button-bg-color);
+
+    &:hover {
+      background-color: var(--button-hover-color);
+    }
+
+    &:active {
+      background-color: var(--button-active-color);
+    }
+  }
+
+  // OSD — a standalone button overlapping content (style-classes.md "OSD ›
+  // Overlay Buttons"). `_common.scss:44` excludes buttons from the generic OSD
+  // surface precisely so this can define what `.osd` means for one:
+  // `_buttons.scss:111-135` gives it a dark translucent background whose hover
+  // and active states mix TOWARDS the foreground rather than changing alpha, so
+  // it stays readable over any content. It composes with `.circular` / `.pill`.
+  &.osd {
+    min-height: 32px;
+    min-width: 32px;
+    color: rgb(255 255 255 / 90%);
+    background-color: rgb(0 0 0 / 65%);
+
+    @media (prefers-contrast: more) {
+      box-shadow: 0 0 0 1px currentColor;
+    }
+
+    &:hover {
+      color: #ffffff;
+      background-color: color-mix(in srgb, black calc(0.85 * 65%), currentColor calc(0.15 * 65%));
+    }
+
+    &:active {
+      color: #ffffff;
+      background-color: color-mix(in srgb, black calc(0.75 * 65%), currentColor calc(0.25 * 65%));
+    }
+  }
 }
 
 // The symbolic icon (`.adw-icon`) used to be declared here, because the first
 // widget that needed one was the button. It is `scss/_icon.scss` now — every
 // other widget needs one too, and `<adw-icon>` is an element.
 
-// Linked group — adjacent buttons share edges (segmented control).
-.adw-linked {
-  display: inline-flex;
-
-  > .adw-button,
-  > adw-button .adw-button {
-    border-radius: 0;
-  }
-
-  > :first-child .adw-button,
-  > .adw-button:first-child {
-    border-top-left-radius: var(--button-radius);
-    border-bottom-left-radius: var(--button-radius);
-  }
-
-  > :last-child .adw-button,
-  > .adw-button:last-child {
-    border-top-right-radius: var(--button-radius);
-    border-bottom-right-radius: var(--button-radius);
-  }
-
-  > * + * {
-    margin-left: 2px;
-  }
-}
+// The linked group is `scss/_style_classes.scss` now, under libadwaita's own
+// `.linked` name (with `.adw-linked` kept as an alias): the documented class is
+// what a consumer reading style-classes.md reaches for, and it applies to
+// entries and drop-downs too, not only to buttons.

@@ -28,4 +28,16 @@ adw-avatar {
     -webkit-mask-size: contain;
     mask-size: contain;
   }
+
+  // `custom-image`. The avatar's own `border-radius: 50%` + `overflow: hidden`
+  // already clip it, so the image only has to FILL the box — `cover`, not
+  // `contain`, because GTK scales the paintable to the widget and crops inside a
+  // rounded clip, where `contain` would letterbox a non-square photo inside the
+  // circle.
+  .adw-avatar-custom-image {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
 }

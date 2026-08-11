@@ -63,3 +63,36 @@ adw-action-row {
     text-overflow: ellipsis;
   }
 }
+
+// `.property` SWAPS the emphasis of a row: the title becomes the small dimmed
+// label and the subtitle carries the value at full weight — a read-only property
+// rather than an action (style-classes.md "Property Rows", `_lists.scss:426-455`).
+//
+// It is written against the shared `.adw-row-title` / `.adw-row-subtitle` nodes,
+// so it works on every row type that renders them (action, expander header,
+// entry, switch), which is the same reach upstream gives it.
+adw-action-row.property,
+adw-expander-row.property {
+  .adw-row-title {
+    font-size: var(--font-size-small);
+    opacity: var(--dim-opacity);
+  }
+
+  .adw-row-subtitle {
+    font-size: var(--font-size-base);
+    opacity: 1;
+  }
+
+  // `.monospace` on a property row monospaces the VALUE only — the label and any
+  // suffix widget stay in the UI font (`_lists.scss:445-455`). Put `.monospace`
+  // on the list instead to get all of it.
+  &.monospace {
+    font-family: inherit;
+    font-size: inherit;
+
+    .adw-row-subtitle {
+      font-family: var(--monospace-font-family);
+      font-size: var(--monospace-font-size);
+    }
+  }
+}

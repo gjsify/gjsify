@@ -218,3 +218,60 @@ adw-sidebar {
     }
   }
 }
+
+// `.navigation-sidebar` — the documented class a consumer puts on its OWN list
+// to get the sidebar look without `<adw-sidebar>`: transparent background,
+// rounded and padded items, and a NEUTRAL selection instead of an accent one
+// (style-classes.md "Sidebars", `_sidebars.scss:113-205`).
+//
+// `<adw-sidebar>` renders the same look from its own structure classes above; it
+// is not rewritten in terms of this class, because its rows carry an icon,
+// title, subtitle and arrow that a bare list does not have. What IS shared is
+// the metric: `$menu_margin` (6px) around the list and on each row, and
+// `$button_radius` corners.
+.navigation-sidebar {
+  &,
+  &.view,
+  &.view:disabled {
+    background-color: transparent;
+    color: inherit;
+  }
+
+  &.background {
+    background-color: var(--window-bg-color);
+    color: var(--window-fg-color);
+  }
+
+  padding-top: var(--spacing-xs);
+  // 6px minus the last row's own 2px margin, upstream's `$menu_margin - 2px`.
+  padding-bottom: 4px;
+
+  > * {
+    margin: 0 var(--spacing-xs) 2px;
+    padding: 3px 14px;
+    border-radius: var(--button-radius);
+  }
+
+  > .activatable {
+    &:hover {
+      background-color: color-mix(in srgb, currentColor 7%, transparent);
+    }
+
+    &:active {
+      background-color: color-mix(in srgb, currentColor 16%, transparent);
+    }
+  }
+
+  > [aria-selected='true'],
+  > .selected {
+    background-color: color-mix(in srgb, currentColor 10%, transparent);
+
+    &:hover {
+      background-color: color-mix(in srgb, currentColor 13%, transparent);
+    }
+
+    &:active {
+      background-color: color-mix(in srgb, currentColor 19%, transparent);
+    }
+  }
+}
