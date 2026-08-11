@@ -17,6 +17,7 @@ import {
     AdwButton,
     AdwBanner,
     AdwAvatar,
+    AdwShortcutLabel,
     AdwWindowTitle,
     NOTIFY_ACTIVE,
     type NotifyActiveEventData,
@@ -147,5 +148,28 @@ export function onNavigatingTo(args: NavigatedData): void {
 
     prefs.addGroup(actions);
 
-    console.log('[adwaita-spike] full demo page built: 3 groups, 8 rows, banner, avatar, 2 buttons');
+    // Group: Shortcuts — one row per grammar level, so the four nesting rules and
+    // the keycap look are all on screen at once instead of behind a control.
+    const shortcuts = new AdwPreferencesGroup();
+    shortcuts.title = 'SHORTCUTS';
+    for (const [title, accelerator] of [
+        ['Copy', '<Control>C'],
+        ['Select all', '<Shift><Control>a'],
+        ['Alternatives', '<Shift>A Home'],
+        ['Range', '<Alt>1...9'],
+        ['In sequence', '<Control>C+<Control>X'],
+        ['Together', 'Control_L&Control_R'],
+        ['Unset', ''],
+    ] as const) {
+        const row = new AdwActionRow();
+        row.title = title;
+        const shortcut = new AdwShortcutLabel();
+        shortcut.disabledText = 'Disabled';
+        shortcut.accelerator = accelerator;
+        row.setSuffix(shortcut);
+        shortcuts.addRow(row);
+    }
+    prefs.addGroup(shortcuts);
+
+    console.log('[adwaita-spike] full demo page built: 4 groups, 15 rows, banner, avatar, 2 buttons');
 }

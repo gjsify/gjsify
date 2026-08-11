@@ -23,6 +23,7 @@ export * from './navigation/overlay-split-view.meta.js';
 export * from './navigation/sidebar.meta.js';
 export * from './presentation/avatar.meta.js';
 export * from './presentation/banner.meta.js';
+export * from './presentation/shortcut-label.meta.js';
 export * from './presentation/spinner.meta.js';
 export * from './presentation/status-page.meta.js';
 export * from './presentation/window-title.meta.js';

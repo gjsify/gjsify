@@ -1,10 +1,11 @@
 /* NativeScript core theme (resets / base widget styling). */
 @import '@nativescript/theme/css/core.css';
 
-/* The Libadwaita look. Copied from @gjsify/adwaita-nativescript/theme/adwaita.css
-   into the app dir for reliable NS @import resolution; importing it straight from
-   the package export (`@gjsify/adwaita-nativescript/theme/adwaita.css`) is the
-   long-term path once verified through the NS CSS pipeline. */
+/* The Libadwaita look. SYNCED into the app dir by `npm run sync:theme`, which
+   every prepare/build/run/debug script calls first — NS @import resolves `~/`
+   reliably and a package export less so. It was a committed hand-copy until it
+   had drifted to 434 lines against the package's 1972; the sibling storybook
+   showcase already synced, so this only adopts the pattern that works. */
 @import '~/adwaita.css';
 
 /* Adwaita Sans. Android resolves the font-family by the TTF file name in

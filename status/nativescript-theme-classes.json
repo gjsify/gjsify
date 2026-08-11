@@ -1,0 +1,31 @@
+{
+    "reviewed": {
+        "adw-insensitive": "A styling hook with no look of its own: the widget applies NS_INSENSITIVE_OPACITY (0.4) imperatively, which is what the user sees (entry-row-view.ts:69-77).",
+        "adw-shortcut-label-keys": "One combination's box. It carries no paint — the 6-unit border-spacing between keycaps rides on the caps themselves via adw-shortcut-label-spaced, because the NS subset has no :first-child.",
+        "adw-shortcut-label-disabled": "A consumer hook so the no-shortcut state can be styled without matching on child count. The look comes from the .dimmed half of the same className, which the theme does style."
+    },
+    "unreviewedBaseline": [
+        "adw-bottom-sheet",
+        "adw-bottom-sheet-content",
+        "adw-bottom-sheet-sheet",
+        "adw-button-row-end-icon",
+        "adw-carousel",
+        "adw-carousel-track",
+        "adw-entry-edit",
+        "adw-entry-empty-title",
+        "adw-entry-indicator",
+        "adw-entry-row",
+        "adw-entry-row-suffixes",
+        "adw-expander-row",
+        "adw-icon",
+        "adw-inline-view-switcher",
+        "adw-preferences-group-labels",
+        "adw-preferences-group-suffix",
+        "adw-spin-row",
+        "adw-spinner-ring",
+        "adw-switch-row",
+        "adw-tab-view",
+        "adw-toast-overlay",
+        "adw-wrap-box"
+    ]
+}

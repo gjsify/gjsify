@@ -22,6 +22,18 @@ const META: StoryMeta = {
     ],
 };
 
+/** Every `Gtk.Label` text under `root` — what the chrome actually renders. */
+function labelTexts(root: Gtk.Widget): string[] {
+    const found: string[] = [];
+    let child = root.get_first_child();
+    while (child) {
+        if (child instanceof Gtk.Label) found.push(child.get_text());
+        found.push(...labelTexts(child));
+        child = child.get_next_sibling();
+    }
+    return found;
+}
+
 // A real story subclass — a GObject class must be registered once at module
 // scope (registering twice with the same GTypeName throws), so the subclass
 // lives here rather than inside an `it()` body.
@@ -105,6 +117,25 @@ export default async () => {
                 lastUpdatedLabel = undefined;
                 w.setArg('label', 'updated');
                 expect(lastUpdatedLabel).toBe('updated');
+            });
+
+            await it('renders a title and description containing markup characters', async () => {
+                // BOTH AdwPreferencesGroup labels are `use-markup="True"`
+                // (adw-preferences-group.ui:20-23, :33-35) while a StoryMeta's
+                // strings are renderer-agnostic PLAIN TEXT. An unescaped `&` made
+                // Pango reject the whole string, so the chrome rendered EMPTY with
+                // only a Gtk-WARNING on stderr — found by the first meta to
+                // describe an accelerator grammar: "pressed together (&)".
+                const description = 'Levels: a range (...), in sequence (+) & together (&). Also <angles>.';
+                const w = new StoryWidget(
+                    StoryWidget.fromMeta({ ...META, title: 'A & B <C>', description }, 'Default'),
+                );
+
+                const texts = labelTexts(w);
+                // `get_text()` returns the PARSED text, so the markup characters
+                // come back as written rather than as entities.
+                expect(texts).toContain(description);
+                expect(texts.some((text) => text.includes('A & B <C>'))).toBe(true);
             });
 
             await it('addContent installs the child into the default stage', async () => {

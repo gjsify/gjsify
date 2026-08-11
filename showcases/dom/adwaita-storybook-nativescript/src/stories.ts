@@ -32,6 +32,7 @@ import { SidebarNsStories } from './navigation/sidebar.ns.js';
 // Presentation
 import { AvatarNsStories } from './presentation/avatar.ns.js';
 import { BannerNsStories } from './presentation/banner.ns.js';
+import { ShortcutLabelNsStories } from './presentation/shortcut-label.ns.js';
 import { SpinnerNsStories } from './presentation/spinner.ns.js';
 import { StatusPageNsStories } from './presentation/status-page.ns.js';
 import { WindowTitleNsStories } from './presentation/window-title.ns.js';
@@ -76,6 +77,7 @@ export const stories: NsStoryModule[] = [
     // Presentation
     AvatarNsStories,
     BannerNsStories,
+    ShortcutLabelNsStories,
     SpinnerNsStories,
     StatusPageNsStories,
     WindowTitleNsStories,

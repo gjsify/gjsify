@@ -23,10 +23,12 @@ import wrapBoxNsTestSuite from './wrap-box.spec.js';
 import statusPageNsTestSuite from './status-page.spec.js';
 import bannerNsTestSuite from './banner.spec.js';
 import buttonContentNsTestSuite from './button-content.spec.js';
+import shortcutLabelNsTestSuite from './shortcut-label.spec.js';
 
 run({
     bannerNsTestSuite,
     buttonContentNsTestSuite,
+    shortcutLabelNsTestSuite,
     adwaitaNativescriptTestSuite,
     svgPathTestSuite,
     splitViewWidthTestSuite,

@@ -1371,6 +1371,66 @@ Page.adw-window {
     margin: 0;
 }
 
+/* ===== Shortcut label (keycaps) =====
+ *
+ * libadwaita: `_shortcuts-dialog.scss:33-58` — 6 spacing at BOTH levels, keycaps
+ * filled with 10% of the current colour, an inset bottom edge, 6 radius, 6
+ * padding, 20 minimum width, and `> .dimmed { padding: 6 0 }` so a separator
+ * lines up with the caps beside it.
+ *
+ * Two substitutions the NS subset forces, both visible rather than silent:
+ *   - `color-mix(in srgb, currentColor 10%, transparent)` has no NS spelling, so
+ *     the fill is written out per scheme against that scheme's foreground;
+ *   - `box-shadow: inset 0 -2px` has none either (NS box-shadow is outer-only),
+ *     so the key's bottom edge is a 2 bottom BORDER. It occupies layout where the
+ *     shadow did not, which grows a keycap by 2 — the closest the subset gets.
+ */
+
+.adw-shortcut-label {
+    background-color: transparent;
+}
+
+/* The 6 that GTK gets from `border-spacing`, which puts it BETWEEN children
+ * only. NS has no `gap` and the subset no `:first-child`, so the widget adds
+ * this class to every child after the first. */
+.adw-shortcut-label-spaced {
+    margin-left: 6;
+}
+
+/* Scoped, because `keycap` is libadwaita's generic name and this theme is one
+ * flat file — an app with its own `.keycap` must not inherit these metrics. */
+.adw-shortcut-label .keycap {
+    background-color: rgba(0, 0, 0, 0.08);
+    border-radius: 6;
+    border-bottom-width: 2;
+    border-bottom-color: rgba(0, 0, 6, 0.07);
+    padding: 6;
+    min-width: 20;
+}
+
+.adw-shortcut-label-cap-text {
+    color: rgba(0, 0, 0, 0.8);
+    font-size: 14;
+    text-align: center;
+}
+
+/* `%s <small><b>%s</b></small>` (adw-shortcut-label.c:195) — the L/R marker is
+ * smaller and bold, and rides inside its keycap rather than beside it. */
+.adw-shortcut-label-side {
+    color: rgba(0, 0, 0, 0.8);
+    font-size: 11;
+    font-weight: 700;
+    margin-left: 2;
+}
+
+/* `dim_label` — `--dim-opacity: 55%` (`_colors.scss:319`). */
+.adw-shortcut-label .dimmed {
+    color: rgba(0, 0, 0, 0.8);
+    font-size: 14;
+    opacity: 0.55;
+    padding: 6 0 6 0;
+}
+
 /* ===== Dark variant (.ns-dark on the page/root) ===== */
 
 .ns-dark .adw-window,
@@ -1892,4 +1952,21 @@ Page.ns-dark.adw-window {
 
 .ns-dark .adw-preferences-dialog-close {
     color: rgba(255, 255, 255, 0.55);
+}
+
+/* ===== Dark: shortcut label =====
+ * The fill is 10% of the foreground, which is `#ffffff` here rather than the
+ * light scheme's near-black — the one reason these rules exist at all. The
+ * bottom edge follows `--card-shade-color`, which darkens in the dark theme
+ * (`_theme.scss:28`: 0.36 against the light scheme's 0.07). */
+
+.ns-dark .adw-shortcut-label .keycap {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-bottom-color: rgba(0, 0, 6, 0.36);
+}
+
+.ns-dark .adw-shortcut-label-cap-text,
+.ns-dark .adw-shortcut-label-side,
+.ns-dark .adw-shortcut-label .dimmed {
+    color: #ffffff;
 }
