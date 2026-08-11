@@ -84,6 +84,13 @@ export interface RunGjsBundleOptions {
      * truncated `gjsify test` after the first gjs bundle.
      */
     exitOnSuccess?: boolean;
+    /**
+     * Suppress the `$ <env> gjs -m …` echo. The echo exists so a user can
+     * copy-paste the exact command, which is worth ~2 kB of env prefix for a
+     * one-shot `gjsify run <bundle>` — and is pure noise for a build script the
+     * chain invokes a dozen times (`utils/node-script.ts`).
+     */
+    quiet?: boolean;
 }
 
 export async function runGjsBundle(
@@ -106,14 +113,24 @@ export async function runGjsBundle(
     // Use stderr so that children speaking a protocol on stdout (e.g. an
     // MCP stdio server) receive an uncontaminated stdout stream.
     const gjsCommand = ['gjs', ...gjsArgs.map((a) => (a.includes(' ') ? `"${a}"` : a))].join(' ');
-    console.error(`$ ${envPrefix ? `${envPrefix} ` : ''}${gjsCommand}`);
+    if (!options.quiet) console.error(`$ ${envPrefix ? `${envPrefix} ` : ''}${gjsCommand}`);
 
     const child = spawn('gjs', gjsArgs, { env, stdio: 'inherit' });
 
     let failed = false;
+    // The CHILD's own exit code, so it can be re-raised verbatim. A spawn error
+    // (no `gjs` on PATH) has no code of its own and falls back to 1.
+    //
+    // Collapsing every failure to 1 lost information a caller acts on: a script
+    // run through `gjsify run --node-script` reports ITS status (the bootstrap
+    // scripts all end `process.exit(r.status ?? 1)`, forwarding a child's code),
+    // and a chain that reads `$?` to distinguish "tool failed" from "tool says
+    // no" saw the same 1 for both.
+    let childCode = 1;
     await new Promise<void>((resolvePromise, reject) => {
         child.on('close', (code) => {
             if (code !== 0) {
+                childCode = code ?? 1;
                 reject(new Error(`gjs exited with code ${code}`));
             } else {
                 resolvePromise();
@@ -133,8 +150,8 @@ export async function runGjsBundle(
         // swallowed a non-zero gjs exit and returned 0 — masking a failing
         // `test:gjs` in the `test` script chain (and, via `gjsify foreach test`,
         // in CI). The `return` guards against a fall-through second `exit`.
-        process.exitCode = 1;
-        return process.exit(1);
+        process.exitCode = childCode;
+        return process.exit(childCode);
     }
     // See RunGjsBundleOptions.exitOnSuccess — terminal callers opt in,
     // mid-flow callers (test.ts's runtime loop) keep the process alive.

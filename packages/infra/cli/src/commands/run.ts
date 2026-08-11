@@ -21,6 +21,7 @@ import type { Command } from '../types/index.js';
 import { runGjsBundle } from '../utils/run-gjs.js';
 import { runRuntimeBundle } from '../utils/run-node.js';
 import { readPackageJson } from '../utils/pkg-json-edit.js';
+import { runNodeScript } from '../utils/node-script.js';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import { discoverWorkspaces } from '@gjsify/workspace';
 import { isGjs, hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
@@ -37,6 +38,7 @@ interface RunOptions {
     args: string[];
     workspace?: string;
     runtime?: string;
+    nodeScript?: boolean;
 }
 
 export const runCommand: Command<unknown, RunOptions> = {
@@ -67,6 +69,17 @@ export const runCommand: Command<unknown, RunOptions> = {
                 type: 'string',
                 description:
                     'Run <target> as a script in the named workspace (by name or path), like `npm run <script> -w <name>`.',
+            })
+            .option('node-script', {
+                // Run an UNBUNDLED `.mjs` that imports `node:*` builtins on the
+                // host runtime — bundling it for GJS first when that is the host.
+                // Declared here so yargs captures it instead of forwarding it to
+                // the target (this command routes unknown flags to the child).
+                // Forces file mode, like --runtime.
+                type: 'boolean',
+                default: false,
+                description:
+                    'Treat <target> as an unbundled Node-style script (imports `node:` builtins) and run it on the host runtime. Under GJS the file is bundled `--app gjs` on the fly first, which is what makes a repo script runnable on a host that has no Node.',
             })
             .option('runtime', {
                 // Runtime selector for a BUNDLE FILE. `gjs` (default) launches
@@ -122,6 +135,23 @@ export const runCommand: Command<unknown, RunOptions> = {
             (v): v is string => typeof v === 'string',
         );
         const extraArgs = [...positionalArgs, ...doubleDashArgs];
+
+        // `--node-script` (explicit) → run an UNBUNDLED Node-style script on the
+        // host runtime; under GJS it is bundled `--app gjs` on the fly first.
+        // Checked before `--runtime` and `--workspace`: it is a file mode, and
+        // combining it with either is a caller error rather than a precedence
+        // question (`--runtime` picks a launcher for a PREBUILT bundle,
+        // `--workspace` names a package.json script).
+        if (args.nodeScript === true) {
+            const isSet = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
+            const clash = isSet(args.runtime) ? '--runtime' : isSet(args.workspace) ? '--workspace' : null;
+            if (clash) {
+                console.error(`gjsify run: --node-script cannot be combined with ${clash}.`);
+                return process.exit(1);
+            }
+            await runNodeScript(target, extraArgs, { exitOnSuccess: true });
+            return;
+        }
 
         // `--runtime <gjs|node|bun|deno>` (explicit) → run a BUNDLE FILE on the
         // chosen runtime. This FORCES file mode: the runtime selector only makes

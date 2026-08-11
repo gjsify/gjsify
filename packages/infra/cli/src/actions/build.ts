@@ -519,6 +519,25 @@ export class BuildAction {
             noCacheEnv?: string;
             /** Extra compile-time `define`s (e.g. rewrite the entry's `import.meta.url`). */
             define?: Record<string, string>;
+            /**
+             * Whether a fresh cached bundle may be reused (default true). Set
+             * false when the caller's input has a module graph the freshness
+             * check cannot see — the entry's own mtime plus the lockfile covers
+             * installed deps, not workspace sources. See `utils/node-script.ts`,
+             * which runs repo BUILD scripts and so cannot afford a stale one.
+             */
+            cache?: boolean;
+            /**
+             * Re-export the entry's `default` through the side-effect wrapper so
+             * the bundle IMPORTS as a library (default true — the plugin and
+             * config loaders both `import()` the result and read `.default`).
+             *
+             * A script is EXECUTED, not imported, and has no default export, so
+             * wrapping one only produces `IMPORT_IS_UNDEFINED: Import 'default'
+             * will always be undefined` on every build — a warning that says the
+             * wrapper does not apply here.
+             */
+            preserveDefaultExport?: boolean;
         },
     ): Promise<string> {
         const cwd = process.cwd();
@@ -526,7 +545,8 @@ export class BuildAction {
         const safeName = opts.label.replace(/[^a-zA-Z0-9._-]/g, '_');
         const outfile = join(cacheDir, `${safeName}-${shortHash(inputPath)}.mjs`);
 
-        const cacheDisabled = opts.noCacheEnv ? isTruthyEnv(process.env[opts.noCacheEnv]) : false;
+        const cacheDisabled =
+            opts.cache === false || (opts.noCacheEnv ? isTruthyEnv(process.env[opts.noCacheEnv]) : false);
         if (!cacheDisabled && (await isBundleFresh(outfile, inputPath, cwd))) {
             if (opts.verbose) console.debug(`[gjsify] reusing cached GJS bundle ${outfile}`);
             return outfile;
@@ -541,7 +561,7 @@ export class BuildAction {
                 output: { file: outfile },
                 ...(opts.define ? { transform: { define: opts.define } } : {}),
             },
-        }).buildApp('gjs', { preserveDefaultExport: true });
+        }).buildApp('gjs', { preserveDefaultExport: opts.preserveDefaultExport ?? true });
         return outfile;
     }
 
