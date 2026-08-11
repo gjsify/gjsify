@@ -228,6 +228,40 @@ export default async () => {
             expect(r.bodyUsed).toBe(true);
         });
 
+        // `body` is an ATTRIBUTE holding one stream, not a factory. Reading it
+        // twice used to build two wrappers over the same flowing Readable, so
+        // the first reader drained everything and every later one saw an
+        // immediate `done` — silently, with no error. three.js' FileLoader
+        // reads `.body` three times in its feature guard before taking a
+        // reader, and so received an empty document.
+        await it('should return the same body stream on every read', async () => {
+            const r = new Response('stable body');
+            expect(r.body).toBe(r.body);
+        });
+
+        await it('should deliver the full body to a reader taken after re-reading body', async () => {
+            const r = new Response('the whole payload');
+            // Touch `.body` twice first, exactly like a feature guard does.
+            expect(r.body !== undefined).toBe(true);
+            expect(typeof r.body?.getReader).toBe('function');
+
+            const reader = r.body!.getReader();
+            const chunks: Uint8Array[] = [];
+            for (;;) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                chunks.push(value);
+            }
+            const total = chunks.reduce((n, c) => n + c.byteLength, 0);
+            const joined = new Uint8Array(total);
+            let offset = 0;
+            for (const c of chunks) {
+                joined.set(c, offset);
+                offset += c.byteLength;
+            }
+            expect(new TextDecoder().decode(joined)).toBe('the whole payload');
+        });
+
         await it('Response.error() should return error response', async () => {
             const r = Response.error();
             expect(r.type).toBe('error');
