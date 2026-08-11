@@ -22,10 +22,7 @@ export interface ShowcaseHandle {
     readonly isPaused?: boolean;
 }
 
-type ShowcaseMounter = (
-    container: HTMLElement,
-    opts: ShowcaseMountOpts,
-) => Promise<ShowcaseHandle | undefined>;
+type ShowcaseMounter = (container: HTMLElement, opts: ShowcaseMountOpts) => Promise<ShowcaseHandle | undefined>;
 
 /**
  * Name → mounter. The `Record<ShowcaseName, …>` annotation is the mechanism

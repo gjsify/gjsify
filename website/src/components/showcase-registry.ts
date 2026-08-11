@@ -77,11 +77,7 @@ export const SHOWCASE_DEFAULT_OPTS: Partial<Record<ShowcaseName, ShowcaseMountOp
  * (e.g. `/gjsify/` in production), then layer any page-specific overrides on
  * top. Call it wherever `import.meta.env.BASE_URL` is readable.
  */
-export function showcaseMountOpts(
-    name: ShowcaseName,
-    base: string,
-    overrides?: ShowcaseMountOpts,
-): ShowcaseMountOpts {
+export function showcaseMountOpts(name: ShowcaseName, base: string, overrides?: ShowcaseMountOpts): ShowcaseMountOpts {
     const defaults = SHOWCASE_DEFAULT_OPTS[name];
     return {
         ...defaults,
