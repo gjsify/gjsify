@@ -147,12 +147,25 @@ function workspaceShimTargets(root) {
  * rungs below that would have worked. Measured on a fresh clone after
  * `gjsify install --immutable`, where both targets are absent by construction.
  *
+ * **`preferPath` inverts the first two rungs, and it exists for exactly one
+ * caller.** `bootstrap-native-facades.mjs` under GJS asks a `gjsify` to BUILD
+ * `@gjsify/rolldown-native`'s facade — the bundler engine itself. The workspace
+ * CLI is the one host that structurally cannot do that on a cold tree: whatever
+ * `node_modules/.bin/gjsify` points at resolves its engine from THIS tree, where
+ * the facade is the artifact still missing. The `gjsify` on PATH is a global
+ * install, which carries its own built engine (`installGjsEnginePackages()`), so
+ * it can. Measured: with the default order the facade build exited 1 on a cold
+ * tree while the same command through the PATH CLI succeeded in ~3 s.
+ *
+ * Everything else keeps the default order — the workspace pin SHOULD win when
+ * the question is "which gjsify does this tree use".
+ *
  * Returns `null` when nothing resolves, so the caller owns the error message —
- * the two callers word it differently and both are right for their context.
+ * the callers word it differently and each is right for its context.
  *
  * @param {string} root Repository root.
  * @param {readonly string[]} argv Arguments for the CLI, unescaped.
- * @param {{platform?: string, env?: NodeJS.ProcessEnv}} [opts] Injected for tests.
+ * @param {{platform?: string, env?: NodeJS.ProcessEnv, preferPath?: boolean}} [opts] Injected for tests.
  * @returns {{cmd: string, args: string[], windowsVerbatimArguments?: boolean, via: string} | null}
  */
 export function resolveGjsifySpawn(root, argv, opts = {}) {
@@ -164,11 +177,17 @@ export function resolveGjsifySpawn(root, argv, opts = {}) {
     // extensionless sibling exists but cannot be spawned.
     const localBase = join(root, 'node_modules', '.bin', 'gjsify');
     const local = platform === 'win32' ? `${localBase}.cmd` : localBase;
-    if (existsSync(local) && workspaceShimTargets(root).some((t) => existsSync(t))) {
+    const localUsable = existsSync(local) && workspaceShimTargets(root).some((t) => existsSync(t));
+    const onPath = lookupOnPath('gjsify', env, platform);
+
+    // See `preferPath` in the docblock — PATH first only for the caller that
+    // needs a CLI which is NOT this tree's.
+    if (opts.preferPath && onPath) return { ...invoke(onPath, args, env, platform), via: 'PATH' };
+
+    if (localUsable) {
         return { ...invoke(local, args, env, platform), via: 'node_modules/.bin' };
     }
 
-    const onPath = lookupOnPath('gjsify', env, platform);
     if (onPath) return { ...invoke(onPath, args, env, platform), via: 'PATH' };
 
     // This tree's own GJS bundle, when it has been built. Needs a `gjs` to run

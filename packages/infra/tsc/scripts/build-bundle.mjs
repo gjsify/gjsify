@@ -157,9 +157,18 @@ const nodeCliEntry = join(pkgRoot, '..', 'cli', 'lib', 'index.js');
 // or complete new bundle, never a half-written one.
 const buildTmp = `${outfile}.building`;
 const buildArgv = ['build', entry, '--app', 'gjs', '--outfile', buildTmp, '--shebang'];
-const r = existsSync(nodeCliEntry)
-    ? spawnSync(process.execPath, [nodeCliEntry, ...buildArgv], { stdio: 'inherit', cwd: pkgRoot, env })
-    : spawnSync('gjsify', buildArgv, { stdio: 'inherit', cwd: pkgRoot, env });
+// The Node fast path is gated on the HOST, not merely on the entry EXISTING.
+// `process.execPath` is `gjs` when this script runs under GJS (bundled and
+// launched there by `gjsify run --node-script`), and `packages/infra/cli/lib/
+// index.js` is present in any clone regardless of host — so an existence-only
+// test spawned `gjs <node-cjs-entry>`, which cannot load. Under GJS the PATH
+// `gjsify` is the only usable builder, and it is a real one: a globally
+// installed CLI carries its own engine.
+const hostIsGjs = typeof globalThis.imports?.gi !== 'undefined';
+const r =
+    !hostIsGjs && existsSync(nodeCliEntry)
+        ? spawnSync(process.execPath, [nodeCliEntry, ...buildArgv], { stdio: 'inherit', cwd: pkgRoot, env })
+        : spawnSync('gjsify', buildArgv, { stdio: 'inherit', cwd: pkgRoot, env });
 if (r.status !== 0) {
     rmSync(buildTmp, { force: true });
     console.error(`[@gjsify/tsc] build failed (exit ${r.status}${r.signal ? `, signal ${r.signal}` : ''})`);
