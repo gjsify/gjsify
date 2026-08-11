@@ -23,6 +23,17 @@ if (typeof document !== 'undefined' && !document.getElementById('adwaita-web-sty
 // `AdwBreakpoint`, and the `breakpoint="…"` attribute wiring the split views use.
 export { addBreakpoints, bindBreakpointSetter } from './breakpoints.js';
 
+// The accent palette and its OkLab standalone derivation are
+// `@gjsify/adwaita-core`'s; this is the browser half that puts them in the cascade.
+export {
+    ACCENT_BG_PROPERTY,
+    ACCENT_PROPERTY,
+    applyAdwaitaAccent,
+    clearAdwaitaAccent,
+    isAdwaitaDark,
+} from './accent.js';
+export type { ApplyAccentOptions } from './accent.js';
+
 export { AdwAvatar } from './elements/adw-avatar.js';
 export { AdwBanner } from './elements/adw-banner.js';
 export { AdwCard } from './elements/adw-card.js';

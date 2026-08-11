@@ -15,6 +15,7 @@ import dataGridTestSuite from './data-grid.spec.js';
 import avatarTestSuite from './avatar.spec.js';
 import actionRowTestSuite from './action-row.spec.js';
 import breakpointTestSuite from './breakpoint.spec.js';
+import accentTestSuite from './accent.spec.js';
 import colorSchemeTestSuite from './color-scheme.spec.js';
 import dialogTestSuite from './dialog.spec.js';
 import rowsTestSuite from './rows.spec.js';
@@ -34,6 +35,7 @@ run({
     buttonContentTestSuite,
     checksTestSuite,
     breakpointTestSuite,
+    accentTestSuite,
     colorSchemeTestSuite,
     toastTestSuite,
     dialogTestSuite,
