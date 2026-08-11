@@ -60,7 +60,7 @@
 // host with `gjs`) stays byte-for-byte unchanged. Widening this to every Node
 // invocation would silently move in-repo nested builds off the GJS bundle.
 
-import { mkdtempSync, writeFileSync, chmodSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, delimiter, relative, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -173,8 +173,41 @@ export function ensureGjsifyShimOnPath(): void {
 }
 
 /**
- * Also put a `node` on PATH — one that runs the file through
- * `gjsify run --node-script` — when the host is GJS and there is NO REAL `node`.
+ * Subdirectory holding the `node` shim. Deliberately NOT the shim dir itself —
+ * see {@link nodeShimDir}.
+ */
+const NODE_SHIM_SUBDIR = 'node-shim';
+
+/**
+ * Directory carrying a `node` that runs the file through
+ * `gjsify run --node-script`, or null when this host needs none.
+ *
+ * **It is NOT on `process.env.PATH`, and that is the whole point.** Only
+ * `runScript` puts it on the PATH of a PACKAGE SCRIPT's child (`commands/run.ts`).
+ *
+ * The first version did prepend it globally, and CI named the cost immediately:
+ * `gjsify tsc`'s Node fallback spawns a real `node` to run typescript's CJS
+ * entry, and `tests/e2e/tsc-node-fallback` asserts that on a PATH without one it
+ * FAILS LOUDLY naming the missing interpreter — the assertion exists because a
+ * silent exit 0 there once let `set-bin-mode.mjs` run against a `lib/index.js`
+ * tsc never wrote. A global shim answered that spawn, so the CLI stopped being
+ * able to see that Node was missing at all.
+ *
+ * The line the subdirectory draws: a PACKAGE SCRIPT saying `node x.mjs` means
+ * "run this script", and gjsify can serve that. The CLI's own internals asking
+ * for `node` mean "I need a real Node", and lying to them turns an honest
+ * diagnosis into a confusing one two layers down.
+ */
+export function nodeShimDir(): string | null {
+    const dir = process.env.GJSIFY_SHIM_DIR;
+    if (!dir) return null;
+    const sub = join(dir, NODE_SHIM_SUBDIR);
+    return existsSync(join(sub, 'node')) ? sub : null;
+}
+
+/**
+ * Write a `node` that runs the file through `gjsify run --node-script`, when the
+ * host is GJS and there is NO REAL `node`.
  *
  * WHY A SHIM AND NOT A MANIFEST REWRITE
  *
@@ -197,13 +230,14 @@ export function ensureGjsifyShimOnPath(): void {
  * `/bin/sh`, which resolves `node` from PATH — as does anything those scripts
  * spawn in turn.
  *
- * IT CANNOT SHADOW ANYTHING, which is the safety argument: it is written only
- * when `node` resolves nowhere on PATH. Where a real Node exists, that Node keeps
- * running the scripts, byte-for-byte as before.
+ * Two things keep it from shadowing anything: it is written only when `node`
+ * resolves NOWHERE, and it is reachable only from a package script's PATH (see
+ * {@link nodeShimDir}).
  */
 function writeNodeShim(dir: string, gjs: boolean, selfEntry: string): void {
     if (!gjs) return;
-    if (existsSync(join(dir, 'node'))) return; // inherited from a parent gjsify
+    const sub = join(dir, NODE_SHIM_SUBDIR);
+    if (existsSync(join(sub, 'node'))) return; // inherited from a parent gjsify
     if (resolveBinOnPath('node')) return; // a real Node is present — leave it alone
 
     const interpreter = process.env.GJS_CONSOLE || 'gjs';
@@ -212,7 +246,8 @@ function writeNodeShim(dir: string, gjs: boolean, selfEntry: string): void {
     // `--node-script` can honour, and yargs would silently take `--test` FOR the
     // script path (`unknown-options-as-args` turns an unknown flag into a
     // positional). A refusal naming the limit beats a mis-parse naming a file.
-    const shim = join(dir, 'node');
+    mkdirSync(sub, { recursive: true });
+    const shim = join(sub, 'node');
     writeFileSync(
         shim,
         '#!/bin/sh\n' +
