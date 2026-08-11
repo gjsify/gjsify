@@ -46,12 +46,15 @@ export default class Body {
     [INTERNALS]: {
         body: null | Buffer | Readable | Blob;
         stream: Readable | null;
+        /** Memoized `body` wrapper — see the getter for why identity matters. */
+        webStream: ReadableStream<Uint8Array> | null;
         boundary: string;
         disturbed: boolean;
         error: null | FetchBaseError;
     } = {
         body: null,
         stream: null,
+        webStream: null,
         boundary: '',
         disturbed: false,
         error: null,
@@ -128,14 +131,33 @@ export default class Body {
         }
     }
 
+    /**
+     * The body as a `ReadableStream`.
+     *
+     * Per the Fetch spec `body` is an ATTRIBUTE holding one stream, so every
+     * read must return the SAME object — `res.body === res.body`. This used to
+     * build a fresh wrapper per access, each one subscribing to the same
+     * already-flowing `Readable`: the first reader got every byte and every
+     * later one got an immediate `done`, with no error anywhere.
+     *
+     * That is not a theoretical spec detail. Consumers legitimately touch
+     * `.body` several times in a row — three.js' `FileLoader` guards with
+     * `response.body === undefined`, then `response.body.getReader === undefined`,
+     * and only then calls `response.body.getReader()`, so it read the THIRD,
+     * empty stream. Downstream: an empty response text, an LDraw model that
+     * parsed to zero meshes, and a viewer showing nothing but its clear colour.
+     */
     get body(): ReadableStream<Uint8Array> | null {
         const stream = this[INTERNALS].stream;
         if (!stream) return null;
 
+        const memoized = this[INTERNALS].webStream;
+        if (memoized) return memoized;
+
         // If ReadableStream is available, wrap the Readable into one
         if (typeof ReadableStream !== 'undefined') {
             let closed = false;
-            return new ReadableStream<Uint8Array>({
+            const webStream = new ReadableStream<Uint8Array>({
                 start(controller) {
                     stream.on('data', (chunk: Buffer | Uint8Array) => {
                         if (closed) return;
@@ -172,6 +194,8 @@ export default class Body {
                     stream.destroy();
                 },
             });
+            this[INTERNALS].webStream = webStream;
+            return webStream;
         }
 
         return null;
