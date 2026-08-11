@@ -1,15 +1,11 @@
-// <adw-toast-overlay> — Adwaita toast notification overlay.
-// The web counterpart of Adw.ToastOverlay: it wraps arbitrary content and shows
-// transient `.adw-toast` banners (the Adw.Toast equivalent — a title, an
-// optional action button and a close affordance) layered over the bottom of its
-// own bounds.
+// <adw-toast-overlay> — the web counterpart of Adw.ToastOverlay: wraps arbitrary
+// content and shows transient toast strips (title, optional action button, close
+// affordance) layered over the bottom of its own bounds.
 //
-// The QUEUE — Adw.ToastOverlay's one-at-a-time policy, the FIFO ordering and the
-// auto-dismiss lifecycle — is HEADLESS and lives in `@gjsify/adwaita-core` (ADR
-// 0004) as {@link AdwToastQueue}; this element composes it and keeps only the DOM
-// render half: building the `.adw-toast` strip on `onShow`, tearing it down on
-// `onHide`, and the enter/exit CSS transitions. `@gjsify/adwaita-nativescript`
-// composes the same core queue, so both ports share one behaviour.
+// The QUEUE — the one-at-a-time policy, FIFO ordering and auto-dismiss lifecycle —
+// is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as {@link AdwToastQueue};
+// this element composes it and keeps only the DOM half: build the strip on `onShow`,
+// tear it down on `onHide`, run the enter/exit transitions.
 //
 // Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
 // Reference: refs/adwaita-web/adwaita-web/scss/_toast.scss, _toast_overlay.scss
@@ -41,7 +37,11 @@ export interface AdwToastOptions {
 /** Default toast lifetime in SECONDS — this element's public unit (Adw.Toast:timeout). */
 const DEFAULT_TIMEOUT_SECONDS = 5;
 
-/** Exit-transition budget in ms; must stay in sync with `.adw-toast.hiding` in `_toast.scss`. */
+/**
+ * Fallback budget in ms for the exit transition: must stay at or above the
+ * `.adw-toast.hiding` transition-duration in `_toast.scss` (0.15s today), because it
+ * only fires when `transitionend` does not.
+ */
 const TOAST_EXIT_MS = 300;
 
 /** The default timing seam: the browser's own timers. */
@@ -73,9 +73,9 @@ export class AdwToastOverlay extends HTMLElement {
             },
             onShow: (toast) => this._mountToast(toast),
             // The core queue fires `onHide` BEFORE it shifts the next toast in, so
-            // `pending > 0` here means another toast takes this slot immediately:
-            // detach without the exit transition so exactly one strip is ever in
-            // the DOM. A last toast fades out instead.
+            // `pending > 0` here means another toast takes this slot immediately: detach
+            // without the exit transition, keeping exactly one strip in the DOM. A last
+            // toast fades out instead.
             onHide: () => this._unmountToast(this._queue.pending > 0),
         });
     }
@@ -84,8 +84,8 @@ export class AdwToastOverlay extends HTMLElement {
         if (this._initialized) return;
         this._initialized = true;
 
-        // Adopt the declared children as the wrapped content (the Adw.ToastOverlay
-        // :child) and layer a dedicated toast container over the bottom edge.
+        // The declared children become the wrapped content (Adw.ToastOverlay:child);
+        // the toast container is layered over the bottom edge.
         const content = document.createElement('div');
         content.className = 'adw-toast-overlay-content';
         for (const child of Array.from(this.childNodes)) content.appendChild(child);
@@ -121,16 +121,12 @@ export class AdwToastOverlay extends HTMLElement {
     }
 
     /**
-     * Show a toast notification — the web equivalent of Adw.ToastOverlay.add_toast()
-     * with a freshly-built Adw.Toast.
+     * Show a toast — the web equivalent of Adw.ToastOverlay.add_toast() with a
+     * freshly-built Adw.Toast. Only ONE toast is visible at a time; this one shows
+     * immediately when the slot is free, otherwise it waits its turn.
      *
-     * Like Adw.ToastOverlay, only ONE toast is visible at a time: this one shows
-     * immediately when the slot is free, otherwise it waits its turn behind the
-     * toasts already queued.
-     *
-     * @param title   The text to display.
-     * @param options Either a timeout in milliseconds (legacy shorthand) or an
-     *                {@link AdwToastOptions} bag (title text already supplied here).
+     * `options` is either an {@link AdwToastOptions} bag or, as a legacy shorthand, a
+     * timeout in MILLISECONDS.
      */
     addToast(title: string, options: number | AdwToastOptions = {}): void {
         // Ensure the toast container exists even if addToast() races a not-yet
@@ -187,8 +183,7 @@ export class AdwToastOverlay extends HTMLElement {
             el.appendChild(button);
         }
 
-        // Close affordance — a CSS-drawn "×" (no symbolic close icon ships in the
-        // curated @gjsify/adwaita-icons set), mirroring adw-tab-view's .adw-tab-close.
+        // Close affordance: a CSS-drawn "×", as in adw-tab-view's close button.
         const close = document.createElement('button');
         close.type = 'button';
         close.className = 'adw-toast-close-button';
@@ -206,10 +201,9 @@ export class AdwToastOverlay extends HTMLElement {
     }
 
     /**
-     * Detach the mounted strip — the DOM half of the queue's `onHide`.
-     *
-     * @param immediate Skip the exit transition because the next queued toast is
-     *                  about to take this slot (keeps exactly one strip mounted).
+     * Detach the mounted strip — the DOM half of the queue's `onHide`. `immediate`
+     * skips the exit transition because the next queued toast is about to take this
+     * slot, which is what keeps exactly one strip mounted.
      */
     private _unmountToast(immediate: boolean): void {
         const el = this._currentEl;
@@ -224,9 +218,8 @@ export class AdwToastOverlay extends HTMLElement {
         el.classList.remove('visible');
         el.classList.add('hiding');
         el.addEventListener('transitionend', () => el.remove(), { once: true });
-        // Fallback if transitionend doesn't fire (e.g. reduced motion). Routed
-        // through the injected scheduler so the whole lifecycle is deterministic
-        // when a fake clock is installed.
+        // Fallback for when transitionend does not fire (reduced motion). Routed through
+        // the injected scheduler so the lifecycle stays deterministic under a fake clock.
         this._scheduler.schedule(() => {
             if (el.parentNode) el.remove();
         }, TOAST_EXIT_MS);

@@ -85,15 +85,14 @@ export const AdwRowStateTest = async () => {
                 const value = row.querySelector('.adw-row-value') as HTMLSpanElement;
                 const select = row.querySelector('select') as HTMLSelectElement;
 
-                // The ARROW: `.adw-row-value::after` is masked in, and the
-                // `[data-presents-chooser='false']` block removes it. Asserted
-                // as "not none" rather than against the authored `inline-block`,
-                // because `.adw-row-value` is a flex container and blockifies
-                // its children's display.
+                // The ARROW: `.adw-row-value::after` is masked in and the
+                // `[data-presents-chooser='false']` block removes it. Asserted as "not
+                // none" rather than against the authored `inline-block`, because
+                // `.adw-row-value` is a flex container and blockifies its children.
                 expect(getComputedStyle(value, '::after').display === 'none').toBe(!presentsChooser);
-                // ...and the ROW being activatable, which on this port is the
-                // overlaid <select> taking clicks at all. Hiding the arrow
-                // without this leaves a row that still opens a one-entry popup.
+                // …and the ROW being activatable, which here is the overlaid <select>
+                // taking clicks at all: hiding the arrow alone leaves a row that still
+                // opens a one-entry popup.
                 expect(select.disabled).toBe(!presentsChooser);
 
                 host.remove();
@@ -108,8 +107,8 @@ export const AdwRowStateTest = async () => {
             const select = row.querySelector('select') as HTMLSelectElement;
             expect(select.disabled).toBe(true);
 
-            // `items` is read at connect only, so the model is replaced through
-            // the state the element composes — the same path a consumer has.
+            // `items` is read at connect only, so the model is replaced through the state
+            // the element composes — the same path a consumer has.
             (
                 row as unknown as { _state: { setOptions(o: { label: string; value: string }[]): void } }
             )._state.setOptions([

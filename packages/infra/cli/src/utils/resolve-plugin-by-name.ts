@@ -8,10 +8,9 @@
 //     ]
 //   }
 //
-// Lets `package.json#gjsify` describe the full plugin chain without dropping
-// to a JS-form config file (`gjsify.config.mjs`). Resolution is anchored at
-// the project root (where the config lives) so the project's own
-// `node_modules` wins over the CLI's own dependencies.
+// Lets `package.json#gjsify` describe the full plugin chain without dropping to a JS-form config
+// file (`gjsify.config.mjs`). Resolution is anchored at the project root, so the project's own
+// `node_modules` wins over the CLI's dependencies.
 
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
@@ -30,22 +29,17 @@ export interface PluginByName {
 /**
  * Strategy for turning a resolved plugin file path into its module namespace.
  *
- * On Node this is a plain dynamic `import()`. Under GJS it cannot be — GJS's
- * native ESM loader does not follow npm `package.json#exports` subpath maps
- * for bare specifiers, so importing a plugin whose source does
- * `import … from '@scope/pkg/internal-subpath'` throws
- * `Module not found: @scope/pkg/internal-subpath` even when the file is on
- * disk. The CLI injects a GJS strategy that first bundles the plugin to a
- * single self-contained ESM file (Rolldown resolves the exports map at
- * bundle time), then imports that. See `BuildAction.loadPluginViaGjsBundle`.
+ * A plain dynamic `import()` on Node, but under GJS it cannot be: GJS's native ESM loader does not
+ * follow npm `package.json#exports` subpath maps for bare specifiers, so a plugin whose source
+ * does `import … from '@scope/pkg/internal-subpath'` throws `Module not found` even with the file
+ * on disk. The CLI injects a GJS strategy that first bundles the plugin to one self-contained ESM
+ * file (Rolldown resolves the exports map at bundle time), then imports that — see
+ * `BuildAction.loadPluginViaGjsBundle`.
  */
 export type LoadPluginModule = (resolvedPath: string, pluginName: string) => Promise<Record<string, unknown>>;
 
 export interface ResolveUserPluginsOptions {
-    /**
-     * Override how a resolved plugin path is turned into its module
-     * namespace. Defaults to a direct dynamic `import()` (correct on Node).
-     */
+    /** Defaults to a direct dynamic `import()`, which is correct on Node. */
     loadModule?: LoadPluginModule;
 }
 
@@ -59,9 +53,8 @@ export function isPluginByName(value: unknown): value is PluginByName {
         typeof value === 'object' &&
         value !== null &&
         typeof (value as { name?: unknown }).name === 'string' &&
-        // RolldownPluginOption can be `false | null | undefined | Plugin | Promise<Plugin>`.
-        // A real plugin always has a function-shape behavior; `name` alone is shared
-        // with our shape, so we additionally require absence of plugin-shape fields.
+        // `name` alone does not discriminate — a real Rolldown plugin has it too — so the
+        // absence of every plugin-shape hook is what separates the two.
         !('apply' in value) &&
         !('resolveId' in value) &&
         !('load' in value) &&
@@ -72,13 +65,10 @@ export function isPluginByName(value: unknown): value is PluginByName {
 }
 
 /**
- * Resolve a list of mixed user plugins. Entries that are already plugin
- * objects pass through unchanged; entries shaped like `PluginByName` get
- * dynamically imported, instantiated with their `options`, and returned in
- * the same position. Resolution is anchored at `projectDir`.
- *
- * Throws when a name fails to resolve, when the chosen export is not a
- * function, or when the factory returns nothing.
+ * Resolve a list of mixed user plugins, anchored at `projectDir`. Plugin objects pass through
+ * unchanged; `PluginByName` entries are imported, instantiated with their `options`, and returned
+ * in the same position. Throws when a name fails to resolve, the chosen export is not a function,
+ * or the factory returns nothing.
  */
 export async function resolveUserPlugins(
     plugins: ReadonlyArray<RolldownPluginOption | PluginByName>,

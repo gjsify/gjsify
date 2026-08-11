@@ -1,29 +1,17 @@
 // @gjsify/sab-native — optional GjsifySabNative GI module loader + JS façade.
 //
-// Cross-process SharedArrayBuffer for @gjsify/worker_threads:
-//   - SharedBuffer.create(size) allocates a memfd_create + mmap(MAP_SHARED)
-//     region; the .fd can be passed to a child via SCM_RIGHTS.
-//   - SharedBuffer.fromFd(fd, size) reattaches a region whose fd was
-//     received from another process.
-//   - Typed accessors (getInt32LE / setUint8 / …) — no typed-array views
-//     yet (V1 — minimal method API).
-//   - atomics.{add,load,store,xchg,cmpxchg,wait,notify}32 — operates on
-//     `SharedBuffer` instances directly, no `Atomics.*` overload.
+// Cross-process shared memory for @gjsify/worker_threads: `SharedBuffer.create()`
+// makes a memfd_create + mmap(MAP_SHARED) region whose `.fd` travels to a child via
+// SCM_RIGHTS, and `SharedBuffer.fromFd()` reattaches it there. Access is through
+// typed accessors and the `atomics` namespace — never `Atomics.*`, see there.
 //
-// Platform scope (ADR 0013, docs/adr/0013-sab-native-platform-scope.md):
-// the native backend is **Linux-only** today — it is built on memfd_create(2),
-// the non-private SYS_futex flavour and SCM_RIGHTS, and prebuilds ship for
-// linux-{x64,arm64,ppc64,s390x,riscv64} only. macOS is a decided but
-// not-yet-implemented port (shm_open + os_sync_wait_on_address, macOS 14.4+);
-// Windows is blocked (no GJS host, and no cross-process address-keyed wait
-// primitive exists there).
+// Platform scope is Linux-only (ADR 0013): memfd_create(2), the non-private
+// SYS_futex flavour and SCM_RIGHTS. macOS is a decided but unimplemented port
+// (shm_open + os_sync_wait_on_address, 14.4+); Windows is blocked outright, having
+// no cross-process address-keyed wait primitive at all.
 //
-// The package is GJS-only by construction. On Node — and on any platform or
-// build without the prebuild — the lazy load yields null; consumers MUST guard
-// with `hasNativeSab()` before touching `SharedBuffer`, which throws a
-// descriptive error rather than failing obscurely.
-
-/* ── Native GI module surface ───────────────────────────────────────────── */
+// GJS-only by construction: on Node, or any build without the prebuild, the lazy
+// load yields null and consumers MUST gate on `hasNativeSab()`.
 
 export interface NativeSharedBuffer {
     readonly fd: number;
@@ -69,13 +57,11 @@ export interface GjsifySabNativeModule {
     FdChannel: NativeFdChannelClass;
 }
 
-/* ── Lazy load via GJS legacy imports API ───────────────────────────────── */
-
 /**
- * Module-local typed view of the GJS-runtime globals this file reads.
- * `globalThis.imports` is the GJS bootstrap object — it exists before any
- * `@girs/*` modules resolve, so we read it via a structural type instead
- * of importing `@girs/glib-2.0` from a node-side polyfill.
+ * Structural view of the GJS-runtime globals this file reads. `globalThis.imports`
+ * is the GJS bootstrap object, available before any `@girs/*` module resolves —
+ * hence a structural type rather than importing `@girs/glib-2.0` into a module that
+ * also loads under Node.
  */
 interface _GjsRuntimeGlobals {
     imports?: {
@@ -88,24 +74,15 @@ interface _GjsRuntimeGlobals {
 const _runtime = globalThis as unknown as _GjsRuntimeGlobals;
 
 /**
- * Resolve the `GjsifySabNative` GI module out of a GJS `imports.gi` object,
- * normalising **every** unavailable case to `null`.
+ * Resolve the `GjsifySabNative` GI module, normalising EVERY unavailable case to
+ * `null`: no `gi` at all (not GJS), a throwing property access (typelib not on
+ * `GI_TYPELIB_PATH` — the macOS/Windows case), and a value that is not the module
+ * we expect (stale, partial or shadowed typelib). The third needs the shape check:
+ * a partial value otherwise leaves `hasNativeSab()` reporting `true` and fails with
+ * an opaque `TypeError` at first use.
  *
- * Exported so the degradation contract can be pinned by a spec without a
- * second process (see `shared-buffer.gjs.spec.ts`). Three ways this returns
- * `null`, all of which must behave identically to the caller:
- *
- * 1. `gi` itself is absent — we are not on GJS at all (Node, browser).
- * 2. The property access throws — GJS raises when the typelib is not on
- *    `GI_TYPELIB_PATH`, i.e. no prebuild for this platform. This is the
- *    macOS/Windows case.
- * 3. The access succeeds but yields something that is not the module we
- *    expect — a stale, partial or shadowed typelib. Without the shape check
- *    a `undefined`/partial value would leave `hasNativeSab()` reporting
- *    `true` and then blow up with an opaque `TypeError` at first use; the
- *    check converts that into the same clean "unavailable" answer.
- *
- * @internal
+ * @internal exported so a spec can pin the degradation contract in-process
+ * (`shared-buffer.gjs.spec.ts`).
  */
 export function resolveNativeSab(gi: Record<string, unknown> | undefined): GjsifySabNativeModule | null {
     if (!gi) return null;
@@ -113,8 +90,7 @@ export function resolveNativeSab(gi: Record<string, unknown> | undefined): Gjsif
     try {
         candidate = gi['GjsifySabNative'];
     } catch {
-        // Typelib not installed for this platform/arch — the package is
-        // unusable here; SharedBuffer.create() throws a descriptive error.
+        // Typelib not installed for this platform/arch.
         return null;
     }
     if (!candidate || typeof candidate !== 'object') return null;
@@ -130,23 +106,17 @@ const _mod: GjsifySabNativeModule | null = resolveNativeSab(_runtime.imports?.gi
 export const nativeSab: GjsifySabNativeModule | null = _mod;
 
 /**
- * Returns true when the GjsifySabNative native library is available.
- *
- * This is THE gate for cross-process `SharedBuffer` support and it is
- * platform-conditional by design: it is `true` only on Linux (see ADR 0013),
- * and `false` on macOS, Windows, Node and the browser. Guard every use of
- * `SharedBuffer` / `atomics` / `fdChannel` with it.
+ * THE gate for cross-process `SharedBuffer`, and platform-conditional by design:
+ * `true` only on Linux (ADR 0013), `false` on macOS, Windows, Node and the browser.
+ * Guard every use of `SharedBuffer` / `atomics` / `fdChannel` with it.
  */
 export function hasNativeSab(): boolean {
     return _mod !== null;
 }
 
-/* ── Public JS façade ───────────────────────────────────────────────────── */
-
 /**
- * Message thrown by `SharedBuffer.create()` / `.fromFd()` when the native
- * backend is unavailable. Names the actual situation — a platform-scoped
- * capability — instead of implying a broken install.
+ * Thrown by `SharedBuffer.create()` / `.fromFd()` when the native backend is
+ * unavailable. Says "platform-scoped capability", not "broken install".
  *
  * @internal exported so specs and docs can assert the exact contract text.
  */
@@ -159,21 +129,16 @@ export const NATIVE_SAB_UNAVAILABLE =
     'On Linux, a missing prebuild can be built locally with `gjsify workspace @gjsify/sab-native build:prebuilds`.';
 
 /**
- * A shared-memory region backed by an anonymous memfd (Linux) and
- * mmap(MAP_SHARED). The `.fd` may be passed to a child process via
- * SCM_RIGHTS over a Unix-domain socket; the child mmaps the same fd via
- * `SharedBuffer.fromFd()` to share the backing store.
+ * A shared-memory region backed by an anonymous memfd and mmap(MAP_SHARED). The
+ * `.fd` may be passed to a child over a Unix-domain socket via SCM_RIGHTS; the
+ * child mmaps the same fd with `SharedBuffer.fromFd()` to share the backing store.
  *
- * Reads and writes are explicitly little-endian regardless of host
- * byte-order — the C shim swaps where needed (s390x / ppc64).
+ * Reads and writes are little-endian regardless of host byte-order — the C shim
+ * swaps where needed (s390x / ppc64).
  *
- * Atomic operations on `SharedBuffer` go through the `atomics` namespace
- * exported from this module — they cannot use JS's built-in
- * `Atomics` because `Atomics` rejects non-SharedArrayBuffer views.
- *
- * Lifecycle: the underlying memfd is closed and the mmap freed when the
- * `SharedBuffer` instance is garbage-collected. Call `.close()` to
- * release explicitly.
+ * Lifecycle: the memfd is closed and the mmap freed by the native destructor, i.e.
+ * when this instance is garbage-collected. `.close()` does NOT release the region;
+ * it only drops our reference so later access throws.
  */
 export class SharedBuffer {
     /** @internal */
@@ -184,11 +149,10 @@ export class SharedBuffer {
     }
 
     /**
-     * Allocate a fresh anonymous shared-memory region.
-     * @param size byte length. SHOULD be a multiple of the system page size
-     *             (4096 on x86_64) for efficient mmap; smaller values work
-     *             but waste a whole page per region.
-     * @throws Error if the prebuild is not loaded, or if memfd_create/mmap fail.
+     * Allocate a fresh anonymous shared-memory region. `size` SHOULD be a multiple
+     * of the page size — smaller values work but waste a whole page per region.
+     *
+     * @throws if the prebuild is not loaded, or memfd_create/mmap fail.
      */
     static create(size: number): SharedBuffer {
         if (!_mod) throw new Error(NATIVE_SAB_UNAVAILABLE);
@@ -201,14 +165,11 @@ export class SharedBuffer {
     }
 
     /**
-     * Map an existing shared-memory fd into this process. The fd is dup'd
-     * — the caller retains ownership of their copy and may close it.
+     * Map an existing shared-memory fd — typically received via SCM_RIGHTS — into
+     * this process. The fd is dup'd, so the caller keeps ownership of their copy.
      *
-     * @param fd file descriptor for a shared-memory object (typically
-     *           received via SCM_RIGHTS from a parent process).
-     * @param size MUST match the sender's view of the region size; the
-     *             kernel does not check this for memfd, so a mismatch
-     *             results in silent partial maps.
+     * `size` MUST match the sender's view of the region: the kernel does not check
+     * it for a memfd, so a mismatch silently produces a partial map.
      */
     static fromFd(fd: number, size: number): SharedBuffer {
         if (!_mod) throw new Error(NATIVE_SAB_UNAVAILABLE);
@@ -229,9 +190,8 @@ export class SharedBuffer {
     }
 
     /**
-     * File descriptor of the backing memfd. Pass this to a child process
-     * via Gio.SubprocessLauncher.take_fd() (pre-spawn) or SCM_RIGHTS
-     * (post-spawn) so the child can call `SharedBuffer.fromFd(fd, size)`.
+     * File descriptor of the backing memfd — hand it to a child via
+     * `Gio.SubprocessLauncher.take_fd()` pre-spawn or SCM_RIGHTS post-spawn.
      */
     get fd(): number {
         return this._assertOpen().fd;
@@ -243,18 +203,14 @@ export class SharedBuffer {
     }
 
     /**
-     * Release the underlying memfd + mmap explicitly. Idempotent. The
-     * backing store survives in any other process that still has the fd
-     * mapped.
+     * Drop this view of the region. Idempotent. NOT a release: the memfd and mmap go
+     * away with the native GObject's destructor, so this only makes later access
+     * throw rather than segfault. The backing store also survives in any other
+     * process still holding the fd mapped.
      */
     close(): void {
-        // The native GObject's destructor releases the memory when the
-        // JS reference is GC'd; setting _native=null here just makes
-        // subsequent access throw instead of segfaulting.
         this._native = null;
     }
-
-    /* ── Plain read / write ─────────────────────────────────────────────── */
 
     getUint8(offset: number): number {
         return this._assertOpen().get_u8(offset);
@@ -285,84 +241,54 @@ export class SharedBuffer {
     }
 
     /**
-     * Read a byte range out as a Uint8Array. ONE-TIME COPY — modifications
-     * to the returned array do NOT propagate back to the region. Use
-     * `writeBytes()` to commit changes back, or `viewBytes()` for a
-     * zero-copy view.
+     * Read a byte range as a Uint8Array. ONE-TIME COPY — modifications do NOT
+     * propagate back; use `writeBytes()` to commit changes.
      */
     readBytes(offset: number, length: number): Uint8Array {
         const bytes = this._assertOpen().read_bytes(offset, length);
-        // GJS exposes GLib.Bytes-like values via imports.byteArray.fromGBytes
-        // → Uint8Array. The copy keeps GC ownership inside SpiderMonkey.
         const byteArray = _runtime.imports?.byteArray;
         if (byteArray && typeof byteArray.fromGBytes === 'function') {
             const arr = byteArray.fromGBytes(bytes);
-            return new Uint8Array(arr); // detach from internal GByteArray
+            return new Uint8Array(arr); // detach from the internal GByteArray
         }
-        // Fallback: assume the returned object exposes a .toArray() method
-        // (older GJS). Wrapped in Uint8Array so callers don't see GByteArray.
+        // Older GJS: the GBytes-like value exposes `.toArray()` instead. Wrapped so
+        // callers never see a GByteArray.
         return new Uint8Array((bytes as { toArray(): Uint8Array }).toArray());
     }
 
     /**
-     * Return a fresh `Uint8Array` containing the bytes at `[offset, offset+length)`.
-     * Same semantics as `readBytes()` — kept under this name because
-     * downstream tooling (`Buffer.from`, `node:crypto`'s `Hash.update`,
-     * `fs.writeSync`) calls into this method via duck-typing and the
-     * `viewBytes` name reads more naturally there.
+     * Identical to `readBytes()`, under a second name because downstream tooling
+     * (`Buffer.from`, `node:crypto`'s `Hash.update`, `fs.writeSync`) duck-types into
+     * it and `viewBytes` reads naturally there.
      *
-     * **NOT zero-copy in current GJS.** GJS's `byteArray.fromGBytes`
-     * (`refs/gjs/gjs/byteArray.cpp::from_gbytes_func`) allocates a fresh
-     * `JS::ArrayBuffer` and memcpy's the GBytes data into it — by design,
-     * for alignment + immutability reasons.
-     *
-     * **Why no internal fix is possible**: a true zero-copy view would need
-     * `JS::NewExternalArrayBuffer` against the mmap pointer, but that JSAPI
-     * call requires a `JSContext*` which GJS does not expose to
-     * GObject-introspected `.so` plugins. The fix has to land in GJS
-     * itself (e.g. a `byteArray.fromGBytesShared` helper). Tracked under
-     * status/upstream-patch-candidates.md.
-     *
-     * Modifications to the returned array therefore do NOT propagate back
-     * to the region — use `writeBytes()` to commit changes.
-     *
-     * @throws Error if `byteArray.fromGBytes` is not available (GJS < 1.66).
+     * Despite the name it is NOT zero-copy, and cannot be made so from here: GJS's
+     * `byteArray.fromGBytes` (`refs/gjs/gjs/byteArray.cpp::from_gbytes_func`)
+     * allocates a fresh `JS::ArrayBuffer` and memcpys into it, deliberately, for
+     * alignment and immutability. A real view needs `JS::NewExternalArrayBuffer`
+     * over the mmap pointer, which needs a `JSContext*` that GJS does not hand to
+     * introspected `.so` plugins — so the fix belongs in GJS (a
+     * `byteArray.fromGBytesShared`). Tracked in status/upstream-patch-candidates.md.
      */
     viewBytes(offset: number, length: number): Uint8Array {
-        // Reuse readBytes — same C-side GBytes wrap + same SpiderMonkey
-        // copy. Method exists as a stable duck-type entry for Buffer.from.
         return this.readBytes(offset, length);
     }
 
     /**
-     * Return a `Buffer` containing the bytes at `[offset, offset+length)`.
-     * The Buffer is a fresh allocation (see `viewBytes()` for the "not
-     * zero-copy in current GJS" caveat — the limitation is in GJS'
-     * `byteArray.fromGBytes`, not bypassable from a `.so` plugin without
-     * upstream patching GJS) — `buf.writeUInt32LE(...)`, `buf.subarray(...)`,
-     * `buf.toString('hex')`, `createHash().update(buf)` all work, but
-     * writes do NOT propagate back to the shared region.
+     * The bytes at `[offset, offset+length)` as a `Buffer`, so `writeUInt32LE`,
+     * `subarray`, `toString('hex')` and `createHash().update()` all work — on a
+     * COPY, per `viewBytes()`, so writes do not reach the shared region.
      *
-     * Requires `globalThis.Buffer` to be registered (via
-     * `@gjsify/buffer/register`) — otherwise throws. Consumers running
-     * under the standard gjsify CLI bundle have Buffer registered via
-     * `--globals auto`; for ad-hoc scripts, add an explicit
-     * `import '@gjsify/buffer/register'` at the entry point.
+     * Needs `globalThis.Buffer` registered, which `--globals auto` does for the
+     * standard CLI bundle; an ad-hoc script needs an explicit
+     * `import '@gjsify/buffer/register'`.
      *
-     * Return type is generic to avoid an import dependency on
-     * `@gjsify/buffer` — the concrete return is a `Buffer` (subclass of
-     * `Uint8Array`). Default `T = Uint8Array` is always safe;
-     * `toBuffer<Buffer>()` gets the full Buffer surface.
-     *
-     * @param offset byte offset into the shared region. Defaults to 0.
-     * @param length byte length. Defaults to `byteLength - offset`.
+     * The return type is generic only to avoid a dependency on `@gjsify/buffer`; the
+     * concrete value is always a `Buffer`, so `toBuffer<Buffer>()` gets the full
+     * surface and the `Uint8Array` default is always safe.
      */
     toBuffer<T extends Uint8Array = Uint8Array>(offset = 0, length?: number): T {
         const len = length ?? this.byteLength - offset;
         const view = this.viewBytes(offset, len);
-        // Buffer is registered globally by `@gjsify/buffer/register`. We
-        // type the structural `Buffer.from(ArrayBuffer, …)` overload via
-        // the runtime-globals view.
         interface _BufferStatic {
             from(buffer: ArrayBufferLike, byteOffset?: number, length?: number): unknown;
         }
@@ -373,23 +299,18 @@ export class SharedBuffer {
                     'Import "@gjsify/buffer/register" or rely on --globals auto.',
             );
         }
-        // Buffer.from(ArrayBuffer, byteOffset, length) is zero-copy in
-        // @gjsify/buffer (constructor reuses the ArrayBuffer directly) —
-        // the underlying ArrayBuffer is already a SpiderMonkey-owned copy
-        // produced by readBytes, so no further copy happens here.
+        // No second copy: `@gjsify/buffer`'s `Buffer.from(ArrayBuffer, …)` reuses the
+        // ArrayBuffer, which `readBytes` already made SpiderMonkey-owned.
         return BufferCtor.from(view.buffer, view.byteOffset, view.byteLength) as T;
     }
 
-    /**
-     * Write a byte range into the region. memcpy on the C side.
-     */
+    /** Write a byte range into the region. memcpy on the C side. */
     writeBytes(offset: number, data: Uint8Array): void {
         const byteArray = _runtime.imports?.byteArray;
         let bytes: unknown;
         if (byteArray && typeof byteArray.toGBytes === 'function') {
             bytes = byteArray.toGBytes(data);
         } else {
-            // Fallback: GLib.Bytes from a Uint8Array via global GLib.
             interface _GLibBytesCtor {
                 Bytes?: new (data: Uint8Array) => unknown;
             }
@@ -410,15 +331,12 @@ export class SharedBuffer {
     }
 }
 
-/* ── Atomics namespace ──────────────────────────────────────────────────── */
-
 /**
  * Atomic operations against a `SharedBuffer`. Memory order: SEQ_CST.
  *
- * **Cannot be used with `Atomics.*` built-ins** — those reject anything
- * that isn't a typed-array view over a real `SharedArrayBuffer`. This
- * namespace mirrors the most common Atomics surface against our
- * memfd-backed regions instead.
+ * The `Atomics.*` built-ins are not an option: GJS does not expose `Atomics` at all
+ * (verified on gjs 1.88.1), and a `SharedBuffer` is not a typed-array view in any
+ * case. This namespace mirrors the common surface over the memfd-backed region.
  */
 export const atomics = {
     /** `[*(int32_t*)(sb+offset)] += v`, returns previous value. */
@@ -474,14 +392,12 @@ export const atomics = {
     },
 };
 
-/* ── Internal: fd-passing channel (used by @gjsify/worker_threads) ──────── */
-
 /**
- * Unix-domain socket pair + SCM_RIGHTS fd-transfer helper.
+ * Unix-domain socket pair + SCM_RIGHTS fd transfer.
  *
- * **Internal API.** Exposed for `@gjsify/worker_threads` to wire up the
- * cross-process SharedBuffer transfer at `Worker` spawn time. Direct
- * consumers should use `Worker.postMessage(value, [sb])` instead.
+ * @internal for `@gjsify/worker_threads` to wire up the cross-process SharedBuffer
+ * transfer at `Worker` spawn time; direct consumers use
+ * `Worker.postMessage(value, [sb])`.
  */
 export const fdChannel = _mod
     ? {
@@ -491,28 +407,21 @@ export const fdChannel = _mod
               return { parentFd: parent_fd, childFd: child_fd };
           },
           /**
-           * Send one fd over an open SOCK_SEQPACKET pair via SCM_RIGHTS. Returns
-           * `true` on success, `false` on `sendmsg()` failure (errno preserved on
-           * the calling thread — caller surfaces the error in whatever shape
-           * makes sense for the situation).
+           * Send one fd over an open SOCK_SEQPACKET pair via SCM_RIGHTS. `false` on
+           * `sendmsg()` failure, with errno left on the calling thread for the caller
+           * to shape into an error.
            */
           sendFd(socketFd: number, fdToSend: number, tag: number): boolean {
               return _mod!.FdChannel.send_fd(socketFd, fdToSend, tag >>> 0);
           },
-          /**
-           * Blocking recv of one fd. Returns the received fd + tag, or null on
-           * orderly EOF.
-           */
+          /** Blocking recv of one fd + tag, or `null` on orderly EOF. */
           recvFd(socketFd: number): { fd: number; tag: number } | null {
               const [fd, tag] = _mod!.FdChannel.recv_fd(socketFd);
               if (fd === 0) return null; // orderly EOF
               if (fd < 0) throw new Error('recvmsg failed');
               return { fd, tag: tag >>> 0 };
           },
-          /**
-           * close(2) on a fd previously created by `makePair()` (or any fd, really).
-           * Idempotent — closing an already-closed fd is fine.
-           */
+          /** close(2) on any fd. Idempotent: the shim reports success on EBADF too. */
           closeFd(fd: number): void {
               _mod!.FdChannel.close_fd(fd);
           },

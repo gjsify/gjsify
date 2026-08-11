@@ -1,16 +1,14 @@
 // Publishable-package discovery shared by `gjsify trust` and `gjsify onboard`.
 //
-// `discoverWorkspaces` only sees ROOT WORKSPACES. Some publishable packages
+// `discoverWorkspaces` only sees ROOT WORKSPACES, and some publishable packages
 // deliberately are not: each is an independent native engine with its own CI
-// workflow, kept out of the workspace graph so a full `gjsify foreach` never
-// tries to build it. They still publish through `release.yml`, so every sweep
-// that reasons about "what do we publish" has to include them — otherwise the
-// sweep silently under-reports and the package's first release fails the OIDC
-// exchange with `404 — package not found`.
-//
-// That is not hypothetical: `gjsify onboard` reported 127 packages "already
-// done" on 2026-07-26 while `@gjsify/napi` was neither in the list nor
-// published at all, because only `packages/node-gi/*` was carved out.
+// workflow, kept out of the graph so a full `gjsify foreach` never tries to build
+// it. They still publish through `release.yml`, so a sweep that reasons about
+// "what do we publish" must include them — otherwise it silently under-reports and
+// the package's first release fails the OIDC exchange with `404 — package not
+// found`. Measured: `gjsify onboard` called 127 packages "already done" while
+// `@gjsify/napi` was neither listed nor published, because only
+// `packages/node-gi/*` had been carved out.
 
 import { type Dirent, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -18,9 +16,8 @@ import type { Workspace } from '@gjsify/workspace';
 
 /**
  * Package-group directories holding publishable packages that are NOT root
- * workspaces. Add one here the moment a new non-workspace publishable group
- * appears — this list is the only thing standing between such a package and a
- * silently broken first release.
+ * workspaces. Extend this the moment a new such group appears — the list is the
+ * only thing standing between one and a silently broken first release.
  */
 export const NON_WORKSPACE_PUBLISHABLE_DIRS = [
     ['packages', 'node-gi'], // @gjsify/node-gi + the @gjsify/gtk-runtime-* bundles
@@ -31,13 +28,12 @@ export const NON_WORKSPACE_PUBLISHABLE_DIRS = [
  * Publishable packages in {@link NON_WORKSPACE_PUBLISHABLE_DIRS}, shaped as
  * `Workspace` entries so callers can treat them like any other package.
  *
- * Best-effort by design: a missing directory or an unreadable/malformed
- * manifest is skipped rather than thrown, because this runs inside sweeps whose
- * value is covering everything they can reach.
+ * Best-effort by design — a missing directory or malformed manifest is skipped,
+ * not thrown: this runs inside sweeps whose value is covering everything reachable.
  */
 export function discoverNonWorkspacePublishables(cwd: string): Workspace[] {
-    // Walk up to the repo root. Anchored on the FIRST configured group rather
-    // than on `packages/` itself, which also exists inside individual packages.
+    // Walk up to the repo root, anchored on the FIRST configured group rather than
+    // on `packages/` itself, which also exists inside individual packages.
     let root = cwd;
     const anchor = NON_WORKSPACE_PUBLISHABLE_DIRS[0];
     for (let i = 0; i < 8; i++) {

@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: MIT
-// Unit tests for the content-hash per-package build cache (ADR 0006 phase 1).
-//
-// Covers the pure key computation (file-content sensitivity, dep-key
-// composition, toolchain salt) plus the store/restore/prune disk contract.
-// The end-to-end behaviour (hit skips the script, dep edit re-runs
-// dependents) lives in tests/e2e/build-cache/.
+// The content-hash per-package build cache (ADR 0006 phase 1): pure key
+// computation plus the store/restore/prune disk contract. End-to-end behaviour
+// (a hit skips the script, a dep edit re-runs dependents) is tests/e2e/build-cache/.
 
 import { describe, it, expect } from '@gjsify/unit';
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -188,16 +185,15 @@ export default async () => {
             const root = mkdtempSync(join(tmpdir(), 'gjsify-build-cache-'));
             try {
                 const ws = makeWorkspace(root, 'a', '@x/a');
-                // The package convention: `build:gjsify` → lib/esm,
-                // `build:types` → lib/types. Two scripts, ONE parent dir.
+                // The package convention: `build:gjsify` → lib/esm, `build:types` →
+                // lib/types. Two scripts, ONE parent dir.
                 mkdirSync(join(ws.location, 'lib', 'esm'), { recursive: true });
                 mkdirSync(join(ws.location, 'lib', 'types'), { recursive: true });
                 writeFileSync(join(ws.location, 'lib', 'esm', 'index.js'), 'export const x = 1;\n');
                 writeFileSync(join(ws.location, 'lib', 'types', 'index.d.ts'), 'export declare const x: number;\n');
                 expect(outputUnits(ws.location)).toStrictEqual(['lib/esm', 'lib/types']);
 
-                // Re-running only the types half must claim only `lib/types`;
-                // at whole-`lib` granularity a hit would wipe `lib/esm`.
+                // At whole-`lib` granularity a `build:types` hit would wipe `lib/esm`.
                 const before = snapshotOutputDirs(ws.location);
                 writeFileSync(join(ws.location, 'lib', 'types', 'other.d.ts'), 'export {};\n');
                 expect(modifiedOutputDirs(ws.location, before)).toStrictEqual(['lib/types']);
@@ -210,10 +206,10 @@ export default async () => {
             const root = mkdtempSync(join(tmpdir(), 'gjsify-build-cache-'));
             try {
                 const ws = makeWorkspace(root, 'a', '@x/a');
-                // `@gjsify/semver`'s real shape: both emit dirs PLUS the
-                // incremental-compiler state tsc writes beside them. That loose
-                // file used to flip ownership back to the whole `lib`, so a
-                // `build:types` hit restored over — and deleted — `lib/esm`.
+                // `@gjsify/semver`'s real shape: both emit dirs PLUS the incremental
+                // state tsc writes beside them. That loose file used to flip ownership
+                // back to the whole `lib`, so a `build:types` hit restored over — and
+                // deleted — `lib/esm`.
                 mkdirSync(join(ws.location, 'lib', 'esm'), { recursive: true });
                 mkdirSync(join(ws.location, 'lib', 'types'), { recursive: true });
                 writeFileSync(join(ws.location, 'lib', 'esm', 'index.js'), 'export const x = 1;\n');
@@ -239,10 +235,9 @@ export default async () => {
                 writeFileSync(join(ws.location, 'lib', 'esm', 'index.js'), 'export const x = 1;\n');
                 writeFileSync(join(ws.location, 'lib', 'tsconfig.build.tsbuildinfo'), '{"version":"5"}\n');
 
-                // tsc rewrites its state on every run. That alone must not make
-                // the cache believe an output unit changed — and, restored into
-                // a tree whose emit never happened, it is what makes the next
-                // `tsc` skip emitting and exit 0 with nothing written.
+                // tsc rewrites its state on every run. Treating that as a changed output
+                // unit is how a restore into a tree whose emit never happened makes the
+                // next `tsc` skip emitting and exit 0 with nothing written.
                 const before = snapshotOutputDirs(ws.location);
                 writeFileSync(join(ws.location, 'lib', 'tsconfig.build.tsbuildinfo'), '{"version":"5","n":1}\n');
                 expect(modifiedOutputDirs(ws.location, before)).toStrictEqual([]);

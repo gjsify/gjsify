@@ -1,44 +1,10 @@
 // Split-view state for the NativeScript split views — the pure half.
 //
-// `Adw.OverlaySplitView` and `Adw.NavigationSplitView` are not two flags and a
-// layout: `collapsed`, `show-sidebar`/`show-content` and `pin-sidebar` form ONE
-// state machine per widget, and both machines already live headless in
-// `@gjsify/adwaita-core` (ADR 0004). The NativeScript port re-derived them from
-// `_collapsed` and `_showSidebar` alone and got four rules wrong:
-//
-//   - collapsing did NOT hide an unpinned sidebar
-//     (`if (!self->pin_sidebar) set_show_sidebar (self, !self->collapsed, FALSE, 0);`,
-//     adw-overlay-split-view.c:1457-1458), so on a phone the overlay and its scrim
-//     covered the content the instant the breakpoint fired. Both storybooks
-//     hand-rolled the coupling next to their own breakpoint code;
-//   - there was no `pin-sidebar` property to suppress it (:990-992);
-//   - the off-screen pane stayed keyboard- and screen-reader-reachable, where GTK
-//     drops `can-focus` on it (:330-331, :1460-1461);
-//   - a collapsed navigation split view keyed its visible pane on `show-content`
-//     alone, so a view holding ONLY a sidebar rendered blank — the C keeps a LONE
-//     child visible (`self->content && (self->show_content || !self->sidebar)` and
-//     its mirror, adw-navigation-split-view.c:389-401) — and with
-//     `sidebar-position: end` it animated the swap BACKWARDS, because there
-//     showing the content is a POP and hiding it a PUSH (:1414-1428).
-//
-// This module is deliberately FREE of `@nativescript/core` value imports — like
-// `navigation-stack.ts`, `split-view-width.ts` and `row-press.ts` — so the spec
-// suite can exercise the real adapter off-device. `split-view-base.ts` cannot
-// serve that role: it `extends GridLayout`, which evaluates the bare
-// `@nativescript/core` specifier at module-eval and is unresolvable on GJS/Node.
-// The suite that stood in for it before this split asserted against a
-// `MockSplitView` that reimplemented the setters — so it could only ever confirm
-// that the mock agreed with itself, and every rule above went untested for the
-// widgets' whole life.
-//
-// TEXT DIRECTION is real here now. It used to be pinned to `'ltr'` with a note
-// saying "NativeScript surfaces no text direction to read" — which is false:
-// `@nativescript/core` ships `directionProperty`, an INHERITED CSS property on
-// `Style` (`ui/styling/style-properties`), valued `'ltr' | 'rtl'` and defaulting
-// to unset. So `view.style.direction ?? 'ltr'` is the direction, it inherits
-// from the Page the way GTK's inherits from the window, and
-// `isSidebarAtVisualStart` can finally do its job: under RTL a `start` sidebar
-// is drawn on the RIGHT (`get_start_or_end`, adw-overlay-split-view.c:227-234).
+// `collapsed`, `show-sidebar`/`show-content` and `pin-sidebar` form ONE state
+// machine per widget; both machines live headless in `@gjsify/adwaita-core` (ADR
+// 0004) and this module only binds one to a NativeScript widget. Their coupling
+// rules are on the members below. No `@nativescript/core` value imports, so specs
+// reach the real adapter off-device (`split-view-base.ts` cannot — AGENTS.md).
 //
 // Reference: refs/libadwaita/src/adw-overlay-split-view.c
 // Reference: refs/libadwaita/src/adw-navigation-split-view.c
@@ -61,7 +27,6 @@ export type { AdwPackType, NavigationStackPlan, SplitViewPane };
 
 /** Payload of the `notify::show-sidebar` a state change asks the widget to emit. */
 export interface NsShowSidebarNotification {
-    /** Whether the sidebar is meant to be shown. */
     showSidebar: boolean;
     /** Whether the view is in its collapsed (narrow) mode. */
     collapsed: boolean;
@@ -70,10 +35,10 @@ export interface NsShowSidebarNotification {
 /**
  * The NativeScript side of a split view: what a state change makes it do.
  *
- * Only the changes with real ordering or animation semantics come through here.
- * Structural mutations (mounting a pane, moving the sidebar to the other side)
- * stay the widget's own business, because they also have to re-declare the grid
- * columns — a callback would only be able to run after that anyway.
+ * Only changes with real ordering or animation semantics come through here.
+ * Structural mutations (mounting a pane, moving the sidebar) stay the widget's own
+ * business, because they also have to re-declare the grid columns — a callback
+ * could only run after that anyway.
  */
 export interface NsSplitViewHost {
     /** Re-run the structural layout for the SETTLED state. Instant. */
@@ -88,17 +53,16 @@ export interface NsSplitViewHost {
 export interface NsSplitViewState {
     /** Whether the panes are stacked (one at a time) rather than side by side. */
     readonly collapsed: boolean;
-    /** Whether the sidebar is meant to be shown. */
     readonly showSidebar: boolean;
     /** Which side the sidebar is packed on. */
     readonly sidebarPosition: AdwPackType;
     /** Attach the widget. Called exactly once, from the base constructor. */
     bind(host: NsSplitViewHost): void;
-    /** Collapse or expand. Returns whether it changed. */
+    /** Returns whether it changed. */
     setCollapsed(value: boolean): boolean;
-    /** Show or hide the sidebar. Returns whether it changed. */
+    /** Returns whether it changed. */
     setShowSidebar(value: boolean): boolean;
-    /** Move the sidebar to the other side. Returns whether it changed. */
+    /** Returns whether it changed. */
     setSidebarPosition(position: AdwPackType): boolean;
     /** Record that a pane was mounted or unmounted. Returns whether it changed. */
     setPaneMounted(pane: SplitViewPane, mounted: boolean): boolean;
@@ -109,12 +73,8 @@ export interface NsSplitViewState {
  *
  * `AdwSplitViewBase._syncColumns` makes the SIDEBAR's column the fixed (`'auto'`)
  * one and the content's the expanding (`'star'`) one, ordered by
- * `sidebar-position`. So a pane placed in the wrong column is not merely
- * mirrored — it also swaps its sizing mode, which is what made an
- * `end`-positioned navigation split view fully inverted: it wrote the sidebar
- * into column 0 and the content into column 1 unconditionally, while the base had
- * already made column 0 the star column. libadwaita allocates an `end` sidebar at
- * `width - sidebar_width` (adw-navigation-split-view.c:306-316).
+ * `sidebar-position`. A pane in the wrong column is therefore not merely mirrored,
+ * it also swaps its sizing mode.
  */
 export function splitViewColumns(
     sidebarPosition: AdwPackType,
@@ -127,26 +87,21 @@ export function splitViewColumns(
 }
 
 /**
- * `Adw.OverlaySplitView` bound to a NativeScript widget.
+ * `Adw.OverlaySplitView` bound to a NativeScript widget. The widget keeps ZERO
+ * split-view state.
  *
- * Holds an `OverlaySplitViewState` and turns its notifications into the two
- * things NativeScript can do: re-lay the panes out, or animate the reveal. The
- * widget keeps ZERO split-view state.
- *
- * The reveal itself is NOT driven from here. NativeScript animates with a native
- * `View.animate()` on `translateX`/`opacity`, not by sampling a progress value,
- * so the core's `SplitViewAnimator` seam stays on its instant default and
- * `show-progress` settles at 0 or 1 — which is also what a renderer without a
- * spring gets from `adw_animation_skip`.
+ * The reveal is NOT driven from here: NativeScript animates with a native
+ * `View.animate()` on `translateX`/`opacity` rather than by sampling a progress
+ * value, so the core's `SplitViewAnimator` seam stays on its instant default and
+ * `show-progress` settles at 0 or 1 — what `adw_animation_skip` also yields.
  */
 export class NsOverlaySplitViewState implements NsSplitViewState {
     private readonly _state: OverlaySplitViewState;
     private _host: NsSplitViewHost | null = null;
     /**
      * True while {@link setCollapsed} runs. The `show-sidebar` flip it couples is
-     * STRUCTURAL, not a user toggle: `set_collapsed` passes `animate = FALSE`
-     * (adw-overlay-split-view.c:1457-1458) and the `collapsed` notification right
-     * behind it re-lays the whole view out anyway.
+     * STRUCTURAL, not a user toggle: `set_collapsed` passes `animate = FALSE` and
+     * the `collapsed` notification behind it re-lays the whole view out anyway.
      */
     private _coupling = false;
 
@@ -159,14 +114,11 @@ export class NsOverlaySplitViewState implements NsSplitViewState {
         this._host = host;
     }
 
-    // --- Read-only derivations ---
-
     /** Whether the sidebar overlays the content instead of sitting beside it. */
     get collapsed(): boolean {
         return this._state.collapsed;
     }
 
-    /** Whether the sidebar is meant to be shown. */
     get showSidebar(): boolean {
         return this._state.showSidebar;
     }
@@ -186,36 +138,30 @@ export class NsOverlaySplitViewState implements NsSplitViewState {
         return this._state.showProgress;
     }
 
-    /** Whether the tap-to-dismiss scrim takes input — `update_shield` (:249-256). */
+    /** Whether the tap-to-dismiss scrim takes input — `update_shield`. */
     get shieldVisible(): boolean {
         return this._state.shieldVisible;
     }
 
     /**
-     * Whether the SIDEBAR pane may take focus — `gtk_widget_set_can_focus
-     * (sidebar_bin, !collapsed || show_sidebar)` (:330, :1460).
-     *
-     * NativeScript's equivalent is `isUserInteractionEnabled` (the precedent is
-     * the decorative bottom-sheet handle, adw-bottom-sheet.c:1198). Without it the
-     * pane hidden behind the overlay keeps answering taps and stays in the
-     * screen-reader order.
+     * Whether the SIDEBAR pane may take focus — GTK's
+     * `can_focus = !collapsed || show_sidebar`. NativeScript's equivalent is
+     * `isUserInteractionEnabled`; without it the pane hidden behind the overlay
+     * keeps answering taps and stays in the screen-reader order.
      */
     get sidebarFocusable(): boolean {
         return this._state.sidebarFocusable;
     }
 
-    /** Whether the CONTENT pane may take focus — the mirror of {@link sidebarFocusable} (:331, :1461). */
+    /** The mirror of {@link sidebarFocusable} for the CONTENT pane. */
     get contentFocusable(): boolean {
         return this._state.contentFocusable;
     }
 
-    // --- Mutators ---
-
     /**
      * Collapse or expand. Unless the sidebar is pinned this also flips
      * `show-sidebar` to match, notifying it FIRST — GTK freezes notifications
-     * across the whole setter and thaws them in queue order
-     * (adw-overlay-split-view.c:1449-1483).
+     * across the whole setter and thaws them in queue order.
      */
     setCollapsed(value: boolean): boolean {
         this._coupling = true;
@@ -232,7 +178,7 @@ export class NsOverlaySplitViewState implements NsSplitViewState {
         return this._state.setShowSidebar(value);
     }
 
-    /** Pin the sidebar so collapsing no longer hides it (`pin-sidebar`, :990-992). */
+    /** Pin the sidebar so collapsing no longer hides it (`pin-sidebar`). */
     setPinSidebar(value: boolean): boolean {
         return this._state.setPinSidebar(value);
     }
@@ -250,7 +196,7 @@ export class NsOverlaySplitViewState implements NsSplitViewState {
         return false;
     }
 
-    /** Tap on the scrim — `released_cb` (:431-439) hides the sidebar unconditionally. */
+    /** Tap on the scrim — hides the sidebar unconditionally. */
     dismissShield(): boolean {
         return this._state.dismissShield();
     }
@@ -270,19 +216,17 @@ export class NsOverlaySplitViewState implements NsSplitViewState {
 /**
  * `Adw.NavigationSplitView` bound to a NativeScript widget.
  *
- * NativeScript spells the visible pane as `showSidebar`, GTK as `show-content`;
- * they are each other's negation and the core owns the meaning. What the core
- * adds is the whole ordering table: which pane is on top for a given
- * `sidebar-position` × `show-content` × which children exist, and whether
- * reaching it is a push or a pop.
+ * This port spells the visible pane `showSidebar`, GTK spells it `show-content`;
+ * they are each other's negation and the core owns the meaning, including the
+ * ordering table (which pane is on top for a given `sidebar-position` ×
+ * `show-content` × which children exist, and whether reaching it is a push or pop).
  *
- * Tags and the `navigation.push`/`navigation.pop` actions ARE wired, through an
- * explicit {@link setTag} rather than by handing the core a `View`: a `View` is
- * not a `NavigationPageRef`, and reading a `tag` property off one would silently
- * adopt whatever NativeScript happens to put there. The panes stay tracked by
- * presence with a marker object, and the tag of record lives in the core — which
- * is where it lives in the browser port too, because `setTag` CLEARS a colliding
- * tag and mutating a caller's view to do that would be a surprise.
+ * Tags go through an explicit {@link setTag} rather than by handing the core a
+ * `View`: a `View` is not a `NavigationPageRef`, and reading a `tag` property off
+ * one would silently adopt whatever NativeScript happens to put there. Panes stay
+ * tracked by presence with a marker object and the tag of record lives in the
+ * core, because `setTag` CLEARS a colliding tag and mutating a caller's view to do
+ * that would be a surprise.
  */
 export class NsNavigationSplitViewState implements NsSplitViewState {
     private readonly _state: NavigationSplitViewState;
@@ -312,11 +256,9 @@ export class NsNavigationSplitViewState implements NsSplitViewState {
     }
 
     /**
-     * Retag a mounted pane — `check_tags_cb` (adw-navigation-split-view.c:431-460).
-     *
-     * On a collision the pane KEEPS its page and loses the tag, which is a
-     * different failure from mounting a colliding page (that one is refused
-     * outright). Returns whether the tag stuck.
+     * Retag a mounted pane — `check_tags_cb`. On a collision the pane KEEPS its
+     * page and loses the tag, which is a different failure from mounting a
+     * colliding page (that one is refused outright). Returns whether the tag stuck.
      */
     setTag(pane: SplitViewPane, tag: string | null): boolean {
         return this._state.setTag(pane, tag);
@@ -332,24 +274,17 @@ export class NsNavigationSplitViewState implements NsSplitViewState {
         return this._state.contentTag;
     }
 
-    /** `navigation.push` with `tag` — `navigation_push_cb` (:644-685). */
+    /** `navigation.push` with `tag`. */
     push(tag: string): NavigationActionResult {
         return this._state.push(tag);
     }
 
-    /** `navigation.pop` — `navigation_pop_cb` (:687-702). */
+    /** `navigation.pop`. */
     pop(): NavigationActionResult {
         return this._state.pop();
     }
 
-    /**
-     * `Adw.NavigationSplitView:show-content` under ITS OWN NAME.
-     *
-     * This port spells the visible pane `showSidebar`, which is the negation —
-     * and that costs every consumer a `!(…)`, including the storybook, which
-     * carries one purely to bind a shared story arg. Both spellings are here now
-     * and neither is derived from a second copy of the flag.
-     */
+    /** `Adw.NavigationSplitView:show-content` — the negation of {@link showSidebar}. */
     get showContent(): boolean {
         return !this.showSidebar;
     }
@@ -357,8 +292,6 @@ export class NsNavigationSplitViewState implements NsSplitViewState {
     set showContent(value: boolean) {
         this.setShowSidebar(!value);
     }
-
-    // --- Read-only derivations ---
 
     /** Whether the panes are stacked (one at a time) rather than side by side. */
     get collapsed(): boolean {
@@ -383,9 +316,9 @@ export class NsNavigationSplitViewState implements NsSplitViewState {
     /**
      * The pane on top of the stack — what a COLLAPSED view shows.
      *
-     * Keyed on the stack, not on `showSidebar`: a LONE child stays visible
-     * whatever `show-content` says (adw-navigation-split-view.c:389-401), and
-     * keying on the flag alone is what rendered a sidebar-only split view blank.
+     * Keyed on the stack, not on `showSidebar`: a LONE child stays visible whatever
+     * `show-content` says, and keying on the flag alone renders a sidebar-only
+     * split view blank.
      */
     get visiblePane(): SplitViewPane | null {
         return this._state.visiblePane;
@@ -398,20 +331,17 @@ export class NsNavigationSplitViewState implements NsSplitViewState {
 
     /**
      * How the last `show-content` change reached its stack: `push`, `pop`, or
-     * `replace` for a structural rebuild that NativeScript paints instantly.
+     * `replace` for a structural rebuild NativeScript paints instantly.
      *
      * This is the animation DIRECTION, and it is not `showSidebar`: with
      * `sidebar-position: end` the content is the ROOT page, so showing it is a POP
-     * and hiding it a PUSH — the reverse of `start` (:1414-1428). Taking the
-     * direction from the flag ran an `end`-positioned swap backwards.
+     * and hiding it a PUSH — the reverse of `start`.
      */
     get transition(): NavigationStackPlan['transition'] {
         return this._plan.transition;
     }
 
-    // --- Mutators ---
-
-    /** Collapse or expand. `Adw.NavigationSplitView` has no `show-content` coupling (:1341-1353). */
+    /** Collapse or expand. `Adw.NavigationSplitView` has no `show-content` coupling. */
     setCollapsed(value: boolean): boolean {
         return this._state.setCollapsed(value);
     }

@@ -14,11 +14,7 @@ export interface WebStoryConstructor {
 /** Wraps a story's content-build step (e.g. to install a shared environment). */
 export type WebStoryDecorator = (build: () => void, story: StoryElement) => void;
 
-/**
- * A group of related web stories, optionally wrapped by module-level decorators.
- * The DOM binding of {@link StoryModuleLike} over {@link StoryElement} +
- * {@link WebStoryConstructor}.
- */
+/** A group of related web stories, optionally wrapped by module-level decorators. */
 export interface WebStoryModule extends StoryModuleLike<StoryElement, WebStoryConstructor> {
     stories: WebStoryConstructor[];
     /** Populated by {@link StoryRegistry.createStoryInstances}. */

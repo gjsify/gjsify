@@ -2,12 +2,9 @@
 //
 // Uses GJS's legacy `imports.gi` API (synchronous) rather than `gi://` ESM so
 // the loader stays usable from both library code and runtime entry points
-// (mirrors @gjsify/tls-native). The try/catch provides graceful degradation:
-// if the typelib is not in `GI_TYPELIB_PATH` the module simply isn't
-// available — `hasNapi()` returns `false` and `loadAddon()` throws a clear
-// error instead of crashing.
+// (mirrors @gjsify/tls-native).
 //
-// Bootstrap contract (ADR 0011 / plan §3a): `GjsifyNapi.init()` installs ONE
+// Bootstrap contract (ADR 0011): `GjsifyNapi.init()` installs ONE
 // non-enumerable JSNative `globalThis.__gjsifyNapiLoadAddon`; this L1 calls
 // init() once, captures the native and deletes the global property. From then
 // on `loadAddon(path)` is a plain JS→JSNative call — the addon's `exports`
@@ -28,7 +25,6 @@ export interface GjsifyNapiModule {
 /** The addon-loader native installed by `GjsifyNapi.init()`. */
 type LoadAddonFn = (path: string) => Record<string, unknown>;
 
-/** Module-local typed view of the GJS legacy `imports.gi` host slot. */
 interface _GjsImportsHost {
     imports?: { gi?: Record<string, unknown> };
 }
@@ -38,7 +34,6 @@ interface _NapiBootstrapHost {
     __gjsifyNapiLoadAddon?: LoadAddonFn;
 }
 
-// Synchronous optional load via GJS legacy imports API.
 let _mod: GjsifyNapiModule | null = null;
 
 const _gi: Record<string, unknown> | undefined = (globalThis as unknown as _GjsImportsHost).imports?.gi;
@@ -46,8 +41,8 @@ if (_gi) {
     try {
         _mod = _gi['GjsifyNapi'] as GjsifyNapiModule;
     } catch {
-        // GjsifyNapi typelib not installed — feature unsupported by this
-        // runtime; consumers should check `hasNapi()` before calling.
+        // Typelib not in GI_TYPELIB_PATH — degrade instead of crashing at
+        // import time: `hasNapi()` then returns false and `loadAddon()` throws.
     }
 }
 
@@ -83,12 +78,10 @@ function ensureInstalled(): LoadAddonFn {
 /**
  * Load a compiled Node-API addon (`.node`) into the running GJS context.
  *
- * The addon must be a pure Node-API module (e.g. a stock node-gyp build);
- * legacy NAN/V8 addons are rejected with a clear error. A second load of the
- * same (real)path returns the cached `exports` object.
- *
- * @param path  Filesystem path to the `.node` shared object.
- * @returns     The addon's `exports` object.
+ * `path` is the filesystem path to the shared object; the addon must be a pure
+ * Node-API module (e.g. a stock node-gyp build), legacy NAN/V8 addons are
+ * rejected with a clear error. Returns the addon's `exports` object — a second
+ * load of the same realpath returns the cached one.
  */
 export function loadAddon(path: string): Record<string, unknown> {
     return ensureInstalled()(path);

@@ -1,25 +1,17 @@
-// Shared npmrc loader for `gjsify publish` / `gjsify whoami` / future
-// auth-aware commands. Mirrors npm CLI's resolution order so a maintainer's
-// `~/.npmrc` token AND a CI-injected `NPM_CONFIG_USERCONFIG` token both
-// reach the registry call.
+// Shared npmrc loader for the auth-aware commands (`gjsify publish`,
+// `gjsify whoami`, …), so that both a maintainer's `~/.npmrc` token and a
+// CI-injected `NPM_CONFIG_USERCONFIG` token reach the registry call.
+// `actions/setup-node` writes its auth-token npmrc to `$RUNNER_TEMP/.npmrc` and
+// exports `NPM_CONFIG_USERCONFIG` at it — it never touches `~/.npmrc`, so
+// honouring that env var is what makes CI authentication work, and `${VAR}`
+// placeholders must be expanded on read (npm's own behaviour):
+// `_authToken=${NODE_AUTH_TOKEN}` arrives as a literal placeholder.
 //
-// Resolution order (lowest → highest precedence — last write wins on key
-// collisions because the sources are concatenated and re-parsed):
-//   1. globalconfig:  /etc/npmrc  (system; intentionally NOT read here —
-//                     gjsify's user-facing commands operate on per-user
-//                     credentials, matching `npm whoami`'s behavior)
-//   2. userconfig:    $NPM_CONFIG_USERCONFIG  (overrides ~/.npmrc)
-//                     or ~/.npmrc  (default)
-//   3. projectconfig: ./.npmrc  (closest workspace)
-//
-// `actions/setup-node` writes the auth-token npmrc to $RUNNER_TEMP/.npmrc
-// and exports NPM_CONFIG_USERCONFIG pointing at it — it does NOT touch
-// ~/.npmrc. Honor the env var so CI authentication works end-to-end.
-//
-// `${VAR}` placeholders are expanded inline (npm CLI's expand-on-read
-// behavior). The auth-token npmrc from actions/setup-node ships
-// `_authToken=${NODE_AUTH_TOKEN}` as a literal placeholder; the env var is
-// set on the publish step.
+// `/etc/npmrc` (globalconfig) is deliberately NOT read — these commands operate
+// on per-user credentials, matching `npm whoami`. The remaining sources are
+// concatenated and re-parsed, so LAST WRITE WINS on a key collision: appended
+// project-first then user, the user/CI config overrides the project `.npmrc`,
+// which is the inverse of npm's own precedence.
 
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -44,18 +36,17 @@ export async function loadNpmrc(cwd: string): Promise<NpmrcConfig> {
 }
 
 /**
- * True iff the parsed npmrc contains *any* `_authToken` entry. Cheap helper
- * for commands that want a clear "no token configured" error message
- * instead of a generic 401/empty response.
+ * True iff the parsed npmrc contains *any* `_authToken` entry — lets a command
+ * say "no token configured" instead of relaying a generic 401.
  */
 export function hasAnyAuthToken(npmrc: NpmrcConfig): boolean {
     return Object.keys(npmrc.authTokens).length > 0;
 }
 
 /**
- * True iff the parsed npmrc has *any* credential (bearer token or basic
- * auth). Used by `gjsify whoami` to differentiate "no token configured"
- * from "token configured but rejected by the registry".
+ * True iff the parsed npmrc has *any* credential (bearer token or basic auth).
+ * `gjsify whoami` uses it to tell "no token configured" apart from "token
+ * configured but rejected by the registry".
  */
 export function hasAnyCredential(npmrc: NpmrcConfig): boolean {
     return hasAnyAuthToken(npmrc) || Object.keys(npmrc.basicAuth).length > 0;

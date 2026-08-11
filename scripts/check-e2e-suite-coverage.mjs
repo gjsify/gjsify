@@ -3,18 +3,17 @@
 //
 // THE INCIDENT
 //
-// `package.json#scripts.test:e2e` listed 100 suite paths while 112 existed on disk, so
-// 12 ran nowhere — no shard, no workflow, no local `run test:e2e`. Eleven of the twelve
-// were oversights: all eleven pass unchanged. Two of them make the cost concrete —
-// `gjs-less-host` covers the Node-free host path, which is exactly where a released
-// `gjsify lint` regression had just been found, and `release-bundle-gate` was written to
-// cover the release gate that let v0.28.0 publish `cli`/`node-gi`/`napi` while its three
-// GTK bundles stayed a version behind. That PR's body claimed the suite WAS the
-// pre-release coverage. It was in no script, so it was coverage of nothing.
+// `package.json#scripts.test:e2e` listed 100 suite paths while 112 existed on disk, so 12
+// ran nowhere — no shard, no workflow, no local `run test:e2e`. Eleven were oversights and
+// all eleven pass unchanged. Two show the cost: `gjs-less-host` covers the Node-free host
+// path, exactly where a released `gjsify lint` regression had just been found, and
+// `release-bundle-gate` was written to cover the release gate that let v0.28.0 publish
+// `cli`/`node-gi`/`napi` while its three GTK bundles stayed a version behind — its PR body
+// claimed the suite WAS the pre-release coverage, and it was in no script.
 //
 // `e2e-shard.mjs` parses the script instead of globbing, deliberately and correctly — a
 // suite CAN need setup the shared batch does not do. The missing half was a record of
-// which omissions were meant, which is what `e2e-unlisted-suites.mjs` now carries.
+// which omissions were meant, which `e2e-unlisted-suites.mjs` now carries.
 //
 // WHAT IT CHECKS, three directions
 //
@@ -22,13 +21,9 @@
 //   2. a ledger entry that IS listed                            → FAIL (self-retiring)
 //   3. a ledger entry whose directory no longer exists          → FAIL (stale deferral)
 //
-// (2) and (3) are what keep the ledger from becoming the place omissions go to die: an
-// entry cannot outlive its cause, exactly as `PREBUILD_GIR_GAPS` and
-// `unchecked-fields.mjs` are built. Every entry is PRINTED on every run, so the
-// deferrals stay visible rather than merely recorded.
-//
-// Plain Node over the repo's own files — no install, no build — so it runs in
-// `audit-runtimes.yml` behind a required check, next to the other repo-scoped guards.
+// (2) and (3) keep the ledger from becoming where omissions go to die — an entry cannot
+// outlive its cause, as with `PREBUILD_GIR_GAPS` and `unchecked-fields.mjs` — and every
+// entry is PRINTED on every run, so deferrals stay visible rather than merely recorded.
 //
 // Usage: node scripts/check-e2e-suite-coverage.mjs [--root <dir>]
 
@@ -113,7 +108,6 @@ if (problems.length > 0) {
     fail([`${problems.length} problem(s):`, ...problems]);
 }
 
-// Report the comparison this check actually makes — how many of the suites ON DISK run.
 // `listed.size` is deliberately not the headline: the script also names paths outside
 // tests/e2e/ (`tests/lint-engines.mjs`), so quoting it beside the directory count invites
 // reading two different sets as one.

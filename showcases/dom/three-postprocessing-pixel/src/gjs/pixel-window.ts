@@ -46,7 +46,6 @@ export class PixelWindow extends Adw.ApplicationWindow {
     constructor(application: Adw.Application) {
         super({ application });
 
-        // Set up SpinRow adjustments
         this._pixelSizeRow.set_adjustment(
             new Gtk.Adjustment({
                 lower: 1,
@@ -76,14 +75,13 @@ export class PixelWindow extends Adw.ApplicationWindow {
         );
         this._depthEdgeRow.set_digits(2);
 
-        // Create and insert WebGL widget
         const glArea = new WebGLBridge();
         glArea.set_hexpand(true);
         glArea.set_vexpand(true);
         glArea.installGlobals();
         this._glAreaContainer.append(glArea);
 
-        // Expose GL area dimensions as innerWidth/innerHeight for three.js
+        // three.js reads innerWidth/innerHeight, so the GL area's dimensions go there.
         Object.defineProperty(globalThis, 'innerWidth', {
             get: () => glArea.get_allocated_width(),
             configurable: true,
@@ -93,31 +91,25 @@ export class PixelWindow extends Adw.ApplicationWindow {
             configurable: true,
         });
 
-        // Initialize three.js when GL context is ready
         glArea.onReady((canvas) => {
             glArea.grab_focus();
-            // No canvas.width/height sync here: the GLArea-backed canvas reports
-            // the LIVE drawing buffer (allocation × scale-factor) and ignores
-            // writes — GTK owns the framebuffer. The three.js resize check in the
-            // animation loop reads those getters, so it sees a sidebar toggle by
-            // itself. The writes this replaces were silent no-ops whose comment
-            // claimed they were what made the resize check work.
+            // Deliberately no canvas.width/height sync: a GLArea-backed canvas reports the LIVE
+            // drawing buffer (allocation × scale-factor) and IGNORES writes, because GTK owns the
+            // framebuffer. three.js's resize check reads those getters, so it sees a sidebar toggle
+            // on its own.
 
-            // Derived in URI SPACE, never by pasting `file://` onto a native path.
-            // `GLib.filename_from_uri()` hands back a PLATFORM path, which on win32
-            // is `C:\…\dist` — and `file://${that}/` makes `C:` the URI HOSTNAME, so
-            // GdkPixbuf rejects every texture with "The hostname of the URI … is
-            // invalid" and the scene loads nothing. It only looked right on Linux and
-            // macOS, where an absolute path already starts with the `/` that
-            // `file://` needs. `new URL('./', …)` keeps the value a URL end to end, so
-            // no separator or drive letter is ever handled by hand.
+            // Kept in URI space end to end, never `file://` pasted onto a native path.
+            // `GLib.filename_from_uri()` returns a PLATFORM path, which on win32 is `C:\…\dist`, and
+            // `file://${that}/` then makes `C:` the URI HOSTNAME — GdkPixbuf rejects every texture
+            // with "The hostname of the URI … is invalid" and the scene loads nothing. It only looked
+            // correct on Linux and macOS, where an absolute path already starts with the `/` that
+            // `file://` needs.
             const assetBase = new URL('./', import.meta.url).href;
 
             this._demo = start(canvas, { assetBase });
             this.connectControls(this._demo);
         });
 
-        // Pause/Resume button — toggles demo state and swaps the icon.
         this._pauseButton.connect('clicked', () => {
             if (!this._demo) return;
             if (this._demo.isPaused) {

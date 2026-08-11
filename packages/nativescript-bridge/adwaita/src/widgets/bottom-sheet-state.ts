@@ -1,23 +1,12 @@
 // AdwBottomSheet's NativeScript-specific half — the parts that are not the
 // open/closed state machine or the dismissal gate.
 //
-// Both of those are HEADLESS and live in `@gjsify/adwaita-core` as
-// `BottomSheetPresentation` + `resolveBottomSheetClose` (ADR 0004), shared with
-// `@gjsify/adwaita-web` and pinned by the conformance vectors. Before that lift
-// this port had NO `can-close`, no `close-attempt` and no Escape/back path at
-// all: every dismissal went through one unconditional `close()`, so a locked
-// sheet was silently dismissable and the drag handle closed it on tap.
-//
-// What is NativeScript-specific is only how the state becomes pixels: the CSS
-// subset here has no transform transition, so the sheet panel is toggled between
-// `visible` and `collapse` (documented in `adw-bottom-sheet.ts`), and which
-// native event each gate verdict turns into.
-//
-// This module imports only TYPES from `@nativescript/core` — like `icon-path.ts`,
-// `row-press.ts`, `avatar-color.ts` and `view-stack-state.ts` — so it carries no
-// runtime `@nativescript/core` value import and is unit-testable off-device.
-// `adw-bottom-sheet.ts` cannot serve that role: it `extends GridLayout`, which
-// evaluates the bare specifier at module-eval and is unresolvable on GJS/Node.
+// Both are HEADLESS in `@gjsify/adwaita-core` as `BottomSheetPresentation` +
+// `resolveBottomSheetClose` (ADR 0004), shared with `@gjsify/adwaita-web` and pinned by
+// the conformance vectors. NativeScript-specific is how the state becomes pixels: the
+// CSS subset has no transform transition, so the sheet panel is toggled between
+// `visible` and `collapse` (see `adw-bottom-sheet.ts`), plus which native event each
+// gate verdict turns into. TYPE-only NS imports, so specs run off-device (AGENTS.md).
 //
 // Reference: refs/libadwaita/src/adw-bottom-sheet.c (AdwBottomSheet)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.

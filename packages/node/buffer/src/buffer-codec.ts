@@ -18,8 +18,6 @@ let _textDecoder: TextDecoder | undefined;
 const textEncoder = (): TextEncoder => (_textEncoder ??= new TextEncoder());
 const textDecoder = (): TextDecoder => (_textDecoder ??= new TextDecoder());
 
-// ─── Encode string → Uint8Array ──────────────────────────────────────────
-
 export function encodeString(str: string, encoding: BufferEncoding): Uint8Array {
     switch (encoding) {
         case 'utf8':
@@ -78,8 +76,6 @@ export function encodeString(str: string, encoding: BufferEncoding): Uint8Array 
     }
 }
 
-// ─── Decode Uint8Array → string ──────────────────────────────────────────
-
 export function decodeString(buf: Uint8Array, encoding: BufferEncoding, start?: number, end?: number): string {
     const slice = start !== undefined || end !== undefined ? buf.subarray(start ?? 0, end ?? buf.length) : buf;
 
@@ -136,8 +132,6 @@ export function decodeString(buf: Uint8Array, encoding: BufferEncoding, start?: 
             return textDecoder().decode(slice);
     }
 }
-
-// ─── Range check helper ──────────────────────────────────────────────────
 
 export function checkOffset(offset: number, ext: number, length: number): void {
     if (offset + ext > length) {

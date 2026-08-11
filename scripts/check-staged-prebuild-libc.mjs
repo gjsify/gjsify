@@ -1,62 +1,42 @@
 #!/usr/bin/env node
 // The glibc floor of what THIS LEG JUST BUILT, measured where it can still block a PR.
 //
-// THE INCIDENT
-//
-// `prebuilds.yml`'s base image decides which glibc our published binaries link against, so
+// `prebuilds.yml`'s base image decides which glibc the published binaries link against, so
 // bumping it rewrites `gjsify.glibcRequires` for every consumer without touching a line of
-// source. #897 bumped it 43 → 44 in a hygiene sweep; glibc 2.43 re-versions
-// `acosf`/`asinf`/`atan2f`, which lightningcss's colour conversion calls, so the measured
-// floor went 2.39 → 2.43 and `main` was red for three consecutive `commit-prebuilds` runs
-// (#924). The gate WORKED — it named both numbers and refused the artifacts — it just fired
-// POST-MERGE, because `commit-prebuilds` is main-only. The PR that caused it was green.
+// source. #897 bumped it 43 → 44; glibc 2.43 re-versions `acosf`/`asinf`/`atan2f`, which
+// lightningcss's colour conversion calls, so the measured floor went 2.39 → 2.43 and `main`
+// was red for three consecutive `commit-prebuilds` runs (#924). The gate WORKED — it named
+// both numbers and refused the artifacts — it just fired POST-MERGE, because
+// `commit-prebuilds` is main-only, and the PR that caused it was green. That is the dishonesty
+// docs/ci-selective.md § "PR coverage parity" forbids, so the same measurement runs in the
+// BUILD legs, which do run on `pull_request`.
 //
-// That is the shape AGENTS.md § "PR coverage parity" calls dishonest: a green PR must
-// predict a green main. This runs the same measurement in the BUILD legs, which do run on
-// `pull_request`.
+// It does NOT just call `audit-runtimes --check`: that would measure the WRONG BYTES, and
+// silently. After ADR 0017 the committed binaries live in the per-target platform packages,
+// where `commit-prebuilds` downloads artifacts to, while a build leg stages into the BRIDGE's
+// own `prebuilds/<target>/` (`stage-prebuild.mjs --scratch` — the leg commits nothing).
+// `audit-runtimes` resolves directories through the manifests, so it would walk past the fresh
+// files and grade the OLD COMMITTED ones — and pass, because `auditPrebuildLibc` counts a
+// missing target directory as a stat rather than a failure (`stats.skippedMissing++`), so a
+// gate pointed at the wrong place reports "0 targets measured" and goes green.
 //
-// WHY IT DOES NOT JUST CALL `audit-runtimes --check`
+// So this takes the real rows — declarations and all, from the platform packages — and
+// redirects only `prebuildDir` at the freshly staged bridge directory. Same rule, same failure
+// text, fresh bytes. Two properties a path-guessing version would not have:
 //
-// Because that would measure the WRONG BYTES, and would do so SILENTLY.
+//   1. It STRUCTURALLY cannot read a committed copy: the bridge `prebuilds/` directories are
+//      empty in git, so anything under one was written by this leg's collect steps.
+//   2. The bridge ↔ platform-package mapping stays ONE derivation — `platformPackageDirName()`
+//      builds the name and this strips exactly that suffix. A second spelling in a workflow is
+//      how the two drift.
 //
-// After ADR 0017 the committed binaries live in the per-target platform packages
-// (`packages/<pillar>/<bridge>-linux-x64/prebuilds/linux-x64/`), which is also where
-// `commit-prebuilds` downloads the artifacts to. A build leg stages into the BRIDGE's own
-// `prebuilds/<target>/` — `stage-prebuild.mjs --scratch`, deliberately: the leg commits
-// nothing. `audit-runtimes` resolves directories through the manifests, so in a build leg it
-// would walk straight past the freshly built files and grade the OLD COMMITTED ONES.
+// And what the silent-skip demands: zero staged directories is a FAILURE, not a quiet pass.
 //
-// And it would pass while doing it. `auditPrebuildLibc` treats a missing target directory as
-// a STAT, not a failure (`stats.skippedMissing++; continue;`), so a gate pointed at the wrong
-// place reports "0 targets measured" and goes green — worse than not having it.
+// SCOPE, stated rather than silently narrowed: the libc rule only — glibc floor, libc flavour,
+// musl verdict, unreadable ELF. Artifact existence, loader paths and `.gir` provenance still
+// run only in `commit-prebuilds` and `audit-runtimes.yml`.
 //
-// WHAT THIS DOES INSTEAD
-//
-// `auditPrebuildLibc` is kept as a standalone export precisely so it can be driven against
-// packages other than the ones on disk ("so an e2e suite can drive it against SYNTHETIC
-// packages in a temp directory"). Its rows carry WHERE TO MEASURE (`prebuildDir`) and WHAT TO
-// HOLD IT TO (`manifestGjsify.glibcRequires`) as separate fields. So this takes the real rows
-// — declarations and all, from the platform packages — and redirects only `prebuildDir` at
-// the freshly staged bridge directory. Same rule, same failure text, fresh bytes.
-//
-// Two properties this shape has and a path-guessing one would not:
-//
-//   1. It STRUCTURALLY cannot read a committed copy. The bridge `prebuilds/` directories are
-//      empty in git (verified across all ten bridges), so anything found under one was
-//      written by this leg's collect steps.
-//   2. The bridge ↔ platform-package mapping stays ONE derivation: `platformPackageDirName()`
-//      builds the name, and this strips exactly that suffix. A second spelling in a workflow
-//      is how the two drift.
-//
-// And the guard the silent-skip above demands: **zero staged directories is a FAILURE**, not
-// a quiet pass. In a build leg it means the collect steps did not run.
-//
-// SCOPE, stated rather than silently narrowed: this holds the libc rule — glibc floor, libc
-// flavour, musl verdict, unreadable ELF — over the freshly built artifacts. The other
-// prebuild rules (artifact existence, loader paths, `.gir` provenance) still run only in
-// `commit-prebuilds` and `audit-runtimes.yml`.
-//
-// Plain Node over the repo's own files — no install, no build. The build legs already install
+// Plain Node over the repo's own files — no install, no build; the build legs already install
 // `nodejs` for `stage-prebuild.mjs`.
 //
 // Usage: node scripts/check-staged-prebuild-libc.mjs [--root <dir>]
@@ -86,9 +66,8 @@ const ctx = createContext({ root: ROOT, discoveryRoots: ['packages'] });
 /**
  * Rows whose measurement is redirected at this leg's freshly staged output.
  *
- * Only platform packages are considered: they are the ones that carry both a single target
- * and the `gjsify.glibcRequires` entry for it, and they are the ones a bridge's staged
- * directory is destined to become.
+ * Platform packages only: they carry both a single target and its
+ * `gjsify.glibcRequires` entry, and they are what a bridge's staged directory becomes.
  */
 const redirected = [];
 /** Platform packages whose bridge staged nothing — this leg did not build them. */
@@ -100,9 +79,9 @@ for (const row of collectLibcPackages(ctx)) {
     if (target === null) continue;
     if (!target.startsWith('linux-')) continue;
 
-    // The inverse of `platformPackageDirName(parentDirName, target)`, which is the ONE
-    // derivation of the forward direction. `isPlatformPackageManifest` has already
-    // established that the NAME ends in `-${target}`; the directory follows the same rule.
+    // The inverse of `platformPackageDirName(parentDirName, target)`.
+    // `isPlatformPackageManifest` has established the NAME ends in `-${target}`; the
+    // directory follows the same rule.
     const suffix = `-${target}`;
     if (!row.path.endsWith(suffix)) continue;
     const bridgeRel = row.path.slice(0, -suffix.length);

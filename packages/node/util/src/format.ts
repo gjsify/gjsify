@@ -168,8 +168,6 @@ export function formatWithOptions(inspectOptions: InspectOptions, fmt: string, .
     return format(fmt, ...args);
 }
 
-// ---- styleText / stripVTControlCharacters (Node 21+ / 16.11+) ----
-
 // Matches all ANSI escape code sequences. Same regex used by Node — sourced
 // from Sindre Sorhus's chalk/ansi-regex (MIT). Kept module-local; the only
 // consumer is stripVTControlCharacters and its callers.

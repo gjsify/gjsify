@@ -16,7 +16,6 @@
 // look up the locator and return its `packageLocation`.
 //
 // What this implementation supports
-// ---------------------------------
 //
 //   * `linkType: "SOFT"` packages — workspaces and unplugged deps; their
 //     `packageLocation` is a real on-disk directory, so resolved paths are
@@ -29,7 +28,6 @@
 //     separately in gjsify status/open-todos.md.
 //
 // What is NOT supported
-// ---------------------
 //
 //   * Resolution of bare specifiers FROM a PnP-virtual location (e.g. a
 //     module loaded from inside a zip resolving its own dependencies).

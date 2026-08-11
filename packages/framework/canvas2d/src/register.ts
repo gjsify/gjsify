@@ -1,33 +1,24 @@
-// Side-effect module: installs the Canvas 2D globals `@gjsify/canvas2d` owns
-// on GJS. Imported by `--globals auto` (via `GJS_GLOBALS_MAP`) or explicitly:
+// Side-effect module installing the Canvas 2D globals `@gjsify/canvas2d` owns on GJS,
+// reached by `--globals auto` (via `GJS_GLOBALS_MAP`) or by importing it directly.
 //
-//     import '@gjsify/canvas2d/register';
-//
-// Ownership split (see docs/adr/0012-framework-register-ownership.md):
-//
-//   - `HTMLCanvasElement`, `CanvasRenderingContext2D`, `DOMMatrix`,
-//     `DOMMatrixReadOnly` and the `'2d'` context factory belong to the DOM
-//     pillar and are installed by `@gjsify/dom-elements/register/canvas`. This
-//     module IMPORTS that register instead of re-implementing it — a second
-//     `HTMLCanvasElement.registerContextFactory('2d', …)` call would silently
-//     replace the pillar's factory with a byte-identical copy (the duplicate
-//     this module removes).
-//   - `ImageData` and `Path2D` have no pillar register: `@gjsify/canvas2d-core`
-//     declares `runtimes.browser: "native"` and ships a `globals.mjs`
-//     re-export, so by design it never writes to `globalThis`. `@gjsify/canvas2d`
-//     is the GJS-only distribution of those classes (`node`/`browser`/
-//     `nativescript`: `"none"`) and therefore hosts their registration.
+// Ownership split per docs/adr/0012-framework-register-ownership.md: the canvas
+// element, its 2D context, the DOMMatrix classes and the `'2d'` factory belong to
+// the DOM pillar, so this module IMPORTS `@gjsify/dom-elements/register/canvas`
+// rather than re-registering them — a second `registerContextFactory('2d', …)`
+// would silently replace the pillar's factory with a byte-identical copy.
+// `ImageData` and `Path2D` have no pillar register (`@gjsify/canvas2d-core` is
+// `browser: "native"` and never writes to `globalThis`), so this GJS-only
+// distribution hosts them.
 
 import '@gjsify/dom-elements/register/canvas';
 
 import { ImageData, Path2D } from '@gjsify/canvas2d-core';
 
 /**
- * Install a class on `globalThis` unless the host already provides it.
- *
- * Idempotent by construction — evaluating this module twice must not throw and
- * must not clobber a value another register already installed. `configurable`
- * keeps the slot replaceable (tests, a later explicit `installGlobals()`).
+ * Install a class on `globalThis` unless the host already provides it. Idempotent by
+ * construction, so evaluating this module twice neither throws nor clobbers what another
+ * register installed; `configurable` keeps the slot replaceable by a later
+ * `installGlobals()` or a test.
  */
 function defineGlobalIfMissing(name: string, value: unknown): void {
     if (typeof (globalThis as Record<string, unknown>)[name] === 'undefined') {

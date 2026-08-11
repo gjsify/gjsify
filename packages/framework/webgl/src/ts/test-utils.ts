@@ -64,7 +64,6 @@ export function pixelClose(a: Uint8Array, b: number[], tolerance = 3): boolean {
     return true;
 }
 
-// ─── Off-screen FBO helpers ────────────────────────────────────────────────────
 //
 // GtkGLArea renders into GTK's own FBO; FBO 0 (the Wayland surface) is not
 // readable via readPixels outside the render signal. All pixel-verification
@@ -136,8 +135,6 @@ export function destroyTestFBOWithDepth(gl: WebGLRenderingContext, fbo: TestFBOW
     gl.deleteRenderbuffer(fbo.depthRb);
     gl.deleteFramebuffer(fbo.fb);
 }
-
-// ─── WebGL2 test helpers ──────────────────────────────────────────────────────
 
 export interface TestFBOFloat {
     fb: WebGLFramebuffer;

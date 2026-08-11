@@ -241,10 +241,9 @@ export default async () => {
             });
 
             await it('DIAGNOSTIC: bisect — { port } mode + raw Soup.Session client (no @gjsify/ws WebSocket)', async () => {
-                // If this passes while the @gjsify/ws-client variants fail,
-                // the bug is in the @gjsify/ws WebSocket client side.
-                // If this also fails, the bug is in the `{ port }` mode
-                // server-side `add_websocket_handler` setup.
+                // Passing here while the variants that use the @gjsify/ws WebSocket
+                // client fail puts the bug on that client side; failing here too puts
+                // it in the `{ port }` mode server-side `add_websocket_handler` setup.
                 const Soup3 = (await import('@girs/soup-3.0')).default;
                 const GLib2 = (await import('@girs/glib-2.0')).default;
 

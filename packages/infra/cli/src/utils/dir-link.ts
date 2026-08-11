@@ -1,19 +1,12 @@
 // Creating a link to a DIRECTORY, portably.
 //
-// WHY THIS FILE EXISTS. Windows cannot create a directory *symlink* without
-// elevation or Developer Mode — the call fails with `EPERM` — but any user can
-// create an NTFS **junction**, which is why npm, yarn and pnpm all use junctions
-// for directory links. `commands/install.ts` learned that and encoded it, twice,
-// as a local constant for its workspace links. Nothing shared it, so the next
-// site to link a directory got it wrong: `dlx-cache.ts` linked with `'dir'` and
-// every non-elevated Windows user hit
-//
-//     Could not resolve showcase "canvas2d-fireworks": EPERM: operation not
-//     permitted, symlink '…\<prepare-dir>' -> '…\pkg.tmp-…'
-//
-// on a plain `npx @gjsify/cli@latest showcase …`. The knowledge existed in the
-// repo and the bug shipped anyway, which is the argument for a single callable
-// definition rather than a convention.
+// Windows cannot create a directory *symlink* without elevation or Developer Mode
+// (`EPERM`), but any user can create an NTFS **junction**, which is why npm, yarn
+// and pnpm all use junctions for directory links. Encoded as a local constant and
+// shared nowhere, the next site got it wrong: `dlx-cache.ts` linked with `'dir'` and
+// every non-elevated Windows user hit `EPERM: operation not permitted, symlink` on a
+// plain `npx @gjsify/cli@latest showcase …`. Hence one callable definition rather
+// than a convention.
 //
 // THE TWO GOTCHAS, both load-bearing:
 //
@@ -25,9 +18,8 @@
 //     tree: a relative symlink survives the whole tree being moved or mounted
 //     elsewhere. So the target spelling is per-platform, not one string.
 //
-// Autodetection is NOT a substitute. Node picks `'file'` or `'dir'` when the
-// type argument is omitted — never `'junction'` — so an omitted type is the
-// failing case, not the safe default.
+// Autodetection is no substitute on Windows: with the type argument omitted Node
+// picks `'file'` or `'dir'`, never `'junction'`.
 
 import { readlinkSync, statSync, symlinkSync } from 'node:fs';
 import { symlink } from 'node:fs/promises';
@@ -36,15 +28,11 @@ import { dirname, relative, resolve } from 'node:path';
 /**
  * Which kind of directory link this platform uses.
  *
- * Spelled with a NAME for the POSIX case rather than `undefined`, so both
- * branches can be requested explicitly. `dirLinkTarget` takes this as a
- * defaulted parameter, and a defaulted parameter cannot receive `undefined`:
- * passing it IS how you ask for the default. So while POSIX was spelled
- * `undefined`, `dirLinkTarget(link, target, undefined)` meant "use the host's
- * kind" — the POSIX branch was unexercisable on Windows, and the win32 branch
- * unexercisable anywhere else. The suite read as if it covered both and did
- * not, which is precisely the shape the header above blames for the `'dir'`
- * bug reaching a release.
+ * The POSIX case is spelled with a NAME rather than `undefined` so both branches
+ * stay explicitly requestable: `dirLinkTarget` takes this as a DEFAULTED
+ * parameter, and a defaulted parameter cannot receive `undefined` — passing it IS
+ * how you ask for the host's kind. Spelled `undefined`, each branch was
+ * unexercisable off its own platform while the suite read as if it covered both.
  */
 export type DirLinkKind = 'junction' | 'symlink';
 
@@ -52,10 +40,8 @@ export type DirLinkKind = 'junction' | 'symlink';
 export const DIR_LINK_KIND: DirLinkKind = process.platform === 'win32' ? 'junction' : 'symlink';
 
 /**
- * The link type a directory link must pass to `fs.symlink`.
- *
- * `undefined` on POSIX is deliberate: Node's default is correct there, and
- * passing a type would be noise. Derived from {@link DIR_LINK_KIND} so the
+ * The link type a directory link must pass to `fs.symlink` — `undefined` on POSIX,
+ * where Node's default is correct. Derived from {@link DIR_LINK_KIND} so the
  * platform decision has exactly one source.
  */
 export const DIR_LINK_TYPE: 'junction' | undefined = DIR_LINK_KIND === 'junction' ? 'junction' : undefined;
@@ -70,23 +56,17 @@ export const dirLinksAreJunctions = (): boolean => DIR_LINK_KIND === 'junction';
  * on POSIX so the tree stays movable (gotcha 2).
  *
  * `linkKind` is a PARAMETER, defaulting to the host's, for the same reason
- * `detect-native-packages.ts` takes `platform`/`arch`: the Windows branch is
- * then unit-testable from a Linux host, which is the only place anyone runs the
- * tests. A branch nobody can exercise is how the `'dir'` bug survived to a
- * release — and see {@link DirLinkKind} for why the POSIX side had to be named
- * rather than spelled `undefined` before that promise actually held.
+ * `detect-native-packages.ts` takes `platform`/`arch`: the Windows branch is then
+ * unit-testable from a Linux host, the only place anyone runs the tests.
  *
- * BOTH paths must be in the SAME canonical space — either both canonical or
- * both spelled through the same symlinks. The POSIX target is relative to the
- * link's own directory, but the kernel resolves it from the link's REAL
- * directory, so mixing the two spaces yields a link that points nowhere. macOS
- * is where this actually happens: `os.tmpdir()` is `/var/folders/…` and `/var`
- * is a symlink to `/private/var`, so a `linkPath` built from `tmpdir()` and an
- * `absTarget` that has been through `realpathSync` disagree, and the relative
- * path between them walks out of the real tree. `realpathSync` whichever side
- * is not already canonical before calling this.
+ * BOTH paths must be in the SAME canonical space. The POSIX target is relative to
+ * the link's own directory, but the kernel resolves it from the link's REAL
+ * directory, so mixing the two yields a link pointing nowhere. macOS is where this
+ * bites: `os.tmpdir()` is `/var/folders/…` and `/var` is a symlink to
+ * `/private/var`, so a `linkPath` from `tmpdir()` and an `absTarget` that went
+ * through `realpathSync` disagree and the relative path between them walks out of
+ * the real tree. `realpathSync` whichever side is not already canonical.
  *
- * @param linkPath  where the link itself will live
  * @param absTarget the directory it should point at, as an ABSOLUTE path
  * @param linkKind  override the host's link kind (tests only)
  */
@@ -96,11 +76,9 @@ export function dirLinkTarget(linkPath: string, absTarget: string, linkKind: Dir
 
 /**
  * Link `linkPath` → `absTarget`, choosing symlink-vs-junction and the target
- * spelling for the host.
- *
- * `absTarget` must be absolute; passing a relative path is the mistake gotcha 1
- * describes, and it would only misbehave on Windows, so it is rejected here on
- * every platform rather than left to surface on the one host nobody tests on.
+ * spelling for the host. A relative `absTarget` is gotcha 1 and would only misbehave
+ * on Windows, so it is rejected on every platform rather than left to surface on the
+ * one host nobody tests on.
  */
 export function linkDirSync(linkPath: string, absTarget: string): void {
     assertAbsolute(absTarget);
@@ -116,22 +94,17 @@ export async function linkDir(linkPath: string, absTarget: string): Promise<void
 /**
  * Recreate an EXISTING link at a new path, preserving what it points at.
  *
- * A different job from {@link linkDirSync}, and it cannot reuse it: the source
- * link's target is whatever it already is — frequently relative, deliberately so
- * — while a junction demands an absolute one. Copying the target verbatim is
- * therefore right on POSIX and wrong on Windows the moment the target is a
- * directory.
+ * Cannot reuse {@link linkDirSync}: the source link's target is whatever it
+ * already is — frequently relative, deliberately so — while a junction demands an
+ * absolute one, so copying verbatim is right on POSIX and wrong on Windows the
+ * moment the target is a directory. The target's KIND therefore decides: a link to
+ * a directory becomes a junction with the target resolved against the source
+ * link's own directory (gotcha 1); anything else stays a plain file symlink, which
+ * Windows allows unprivileged. A dangling source link keeps the verbatim target —
+ * guessing a kind for it would turn a faithful copy into a fabrication.
  *
- * So the target's KIND decides: a link to a directory becomes a junction with
- * the target resolved against the source link's own directory (the resolution
- * Node will not do for you — see gotcha 1 above); anything else stays a plain
- * file symlink, which Windows allows unprivileged.
- *
- * A dangling source link keeps the verbatim target: it points nowhere either
- * way, and guessing a kind for it would turn a faithful copy into a fabrication.
- *
- * Primitive fs ops only — this runs under the GJS facade as well as Node, which
- * is why there is no `fs.cp`/`opendir` here.
+ * Primitive fs ops only: this runs under the GJS facade as well as Node, hence no
+ * `fs.cp`/`opendir`.
  */
 export function replicateLinkSync(srcLink: string, dstLink: string): void {
     const rawTarget = readlinkSync(srcLink);

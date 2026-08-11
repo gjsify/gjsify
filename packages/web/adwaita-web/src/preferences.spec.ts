@@ -2,14 +2,12 @@
 // <adw-preferences-dialog>, driven by the SAME vectors the NativeScript
 // renderer asserts against (`@gjsify/adwaita-core/conformance`).
 //
-// Two things are being held here. First, the group header: this element derived
-// two of the five states by hand and was missing the other three, so an empty
-// group kept painting a `.boxed-list` card (its `box-shadow` strokes a
-// full-width hairline over nothing) and no header ever carried the `single-line`
-// class the stylesheet keys its metrics off. Second, the search: it did not
-// exist in this port at all, and the dialog actively prevented it by hoisting
-// every page's children out of the page element and discarding the pages —
-// leaving nothing to derive `General → Appearance` from.
+// Two things are held here. The GROUP HEADER has five states, all five derived: an empty
+// group must not paint a `.boxed-list` card (its `box-shadow` strokes a full-width
+// hairline over nothing) and a one-line header carries the `single-line` class the
+// stylesheet keys its metrics off. The SEARCH needs the page elements to survive — a
+// dialog that hoists every page's children out and discards the pages leaves nothing to
+// derive `General → Appearance` from.
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
@@ -49,8 +47,8 @@ function mountGroup(options: {
     }
 
     host.appendChild(group);
-    // Set AFTER connect so the attribute path is exercised, and via
-    // setAttribute so exact whitespace survives (` ` is a visible title).
+    // Set AFTER connect to exercise the attribute path, and via setAttribute so exact
+    // whitespace survives (` ` is a visible title).
     if (options.title !== undefined && options.title !== null) group.setAttribute('title', options.title);
     if (options.description !== undefined && options.description !== null) {
         group.setAttribute('description', options.description);
@@ -97,8 +95,8 @@ function mountSearchDialog(pages: readonly PreferencesSearchPage[]): {
             if (group.visible === false) groupEl.hidden = true;
 
             for (const row of group.rows) {
-                // An action row has a searchable subtitle; an entry row does
-                // not, and that difference is the point of the vector.
+                // An action row has a searchable subtitle and an entry row does not — the
+                // point of the vector.
                 const rowEl = document.createElement(row.isActionRow ? 'adw-action-row' : 'adw-entry-row');
                 rowEl.setAttribute('title', row.title);
                 if (row.subtitle) rowEl.setAttribute('subtitle', row.subtitle);
@@ -107,8 +105,8 @@ function mountSearchDialog(pages: readonly PreferencesSearchPage[]): {
             }
             pageEl.appendChild(groupEl);
         }
-        // Through the public add(), i.e. AFTER connect — the path that used to
-        // leave a page rendering outside the dialog card.
+        // Through the public add(), i.e. AFTER connect: the path that can leave a page
+        // rendering outside the dialog card.
         dialog.add(pageEl);
     }
     return { dialog, host };
@@ -170,7 +168,7 @@ export const AdwPreferencesTest = async () => {
             const { group, host } = mountGroup({ title: 'Account', rowCount: 1 });
             const foreign = document.createElement('adw-action-row');
             document.body.appendChild(foreign);
-            // ADW_CRITICAL_CANNOT_REMOVE_CHILD (adw-preferences-group.c:437).
+            // ADW_CRITICAL_CANNOT_REMOVE_CHILD.
             expect(group.removeRow(foreign)).toBe(false);
             foreign.remove();
             host.remove();

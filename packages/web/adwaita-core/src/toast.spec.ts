@@ -89,7 +89,6 @@ export default async () => {
 
             queue.add(new AdwToast('second'));
             queue.add(new AdwToast('third'));
-            // Still only the first is shown; the others wait.
             expect(shown).toStrictEqual(['first']);
             expect(queue.pending).toBe(2);
         });

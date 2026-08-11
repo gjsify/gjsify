@@ -1,111 +1,57 @@
 #!/usr/bin/env node
-// The workspace manifest-conformance gate.
+// The workspace manifest-conformance gate: the ENTRY POINT for the rule registry in
+// `@gjsify/manifest-conformance` (`packages/infra/manifest-conformance/`). Rules
+// register themselves, declare which manifest FIELDS they govern, and `field-coverage`
+// fails the run on any `gjsify.*` declaration kind no rule claims — so a new
+// declaration cannot be added without a check.
 //
-// This file used to BE the audit — eight independent checks in one 2 800-line
-// script, next to four other standalone scripts that each answered the same
-// shape of question ("does this declaration match reality") for a different
-// declaration. That collection grew one incident at a time and was never
-// designed; nothing connected "we added a field to the manifest contract" to
-// "therefore something must verify it".
+// WHAT LIVES WHERE. PORTABLE rules (`packages/infra/manifest-conformance/lib/rules/`)
+// read only the manifest, files on disk and binaries, so they are correct in any npm
+// package — hence a package rather than `scripts/`. REPO-SCOPED rules
+// (`scripts/manifest-conformance/rules/` plus the three at the bottom of this file) know
+// about THIS repository: its directory layout as an axis taxonomy, curated `@gjsify/*`
+// package-name allowlists, `prebuilds.yml`'s matrix, `@gjsify/resolve-npm`'s alias
+// table, `refs/` submodules. Correct here, actively misleading anywhere else.
 //
-// It is now the ENTRY POINT for the registry in
-// `@gjsify/manifest-conformance` (`packages/infra/manifest-conformance/`).
-// Rules register themselves, declare which manifest FIELDS they govern, and the
-// `field-coverage` rule fails the run on any `gjsify.*` declaration kind no rule
-// claims — so a new declaration is no longer addable without a check.
+// THE GATE STAYS A SCRIPT, NOT A CLI COMMAND. `.github/workflows/audit-runtimes.yml`
+// runs on a bare ubuntu runner with `setup-node`, NO install and NO build, and this
+// file is pure Node plus relative imports of unbuilt `lib/*.mjs`. A CLI route would
+// need either a full `gjsify install` or a BUILT `dist/cli.gjs.mjs`, and the second
+// reintroduces the staleness circularity `scripts/verify-committed-bundles.mjs` exists
+// to break: a rule added in source but not rebuilt into the bundle silently does not
+// run. #821 proved bundles do merge stale.
 //
-// WHAT LIVES WHERE, and the axis that decides it:
+// The three checks still implemented here are the ones inseparable from the
+// source-signal model: runtime-slot DRIFT, ADR-0014 cross-runtime REACHABILITY, and
+// curated-alias routing.
 //
-//   PORTABLE rules (`packages/infra/manifest-conformance/lib/rules/`) read only
-//   the manifest, files on disk and binaries: `package-outputs`,
-//   `prebuild-artifacts`, `headless`, `field-coverage`. They are correct in any
-//   npm package, which is why they live in a package rather than in `scripts/`.
-//
-//   REPO-SCOPED rules (`scripts/manifest-conformance/rules/` and the three
-//   defined at the bottom of this file) know about THIS repository: its
-//   directory layout as an axis taxonomy, curated `@gjsify/*` package-name
-//   allowlists, `prebuilds.yml`'s matrix, `@gjsify/resolve-npm`'s alias table,
-//   `refs/` submodules. Correct here, actively misleading anywhere else.
-//
-// WHY THE GATE IS A SCRIPT AND NOT A CLI COMMAND: `.github/workflows/
-// audit-runtimes.yml` runs on a bare ubuntu runner with `setup-node` and NO
-// install and NO build — this file is pure Node plus relative imports of
-// committed, unbuilt `lib/*.mjs`. Routing the gate through the CLI would need
-// either a full `gjsify install` or the COMMITTED `dist/cli.gjs.mjs`, and the
-// second reintroduces exactly the staleness circularity `verify-committed-
-// bundles.mjs` exists to break: a rule added in source but not rebuilt into the
-// bundle would silently not run. #821 proved bundles do merge stale.
-//
-// The checks this file still implements are the three that are inseparable from
-// the source-signal model: the runtime-slot DRIFT check, the ADR-0014
-// cross-runtime REACHABILITY check, and the curated-alias routing check.
-//
-// Usage:
-//   node scripts/audit-runtimes.mjs               # human-readable table
-//   node scripts/audit-runtimes.mjs --json        # machine-readable
-//   node scripts/audit-runtimes.mjs --markdown    # paste into STATUS.md
-//   node scripts/audit-runtimes.mjs --apply       # write the SUGGESTED
-//                                                 # runtimes triplet back
-//                                                 # into each package.json
-//                                                 # (only when absent)
-//   node scripts/audit-runtimes.mjs --check       # exit 1 if any declared
-//                                                 # triplet drifts from what
-//                                                 # the signal-based detection
-//                                                 # would suggest (CI guard),
-//                                                 # plus every other
-//                                                 # registered rule
-//   node scripts/audit-runtimes.mjs --check --strict
-//                                                 # functional probes:
-//                                                 # statically validate that
-//                                                 # `native`/`polyfill` slots
-//                                                 # have the mechanics they
-//                                                 # claim (globals.mjs parses
-//                                                 # + each re-export is
-//                                                 # plausibly resolvable on
-//                                                 # the target runtime; a
-//                                                 # browser:"polyfill" slot
-//                                                 # ships a `src/test.browser
-//                                                 # .{mts,ts}` entry). Exit 1
-//                                                 # on any probe failure, in
-//                                                 # addition to the drift /
-//                                                 # missing checks.
-//   node scripts/audit-runtimes.mjs --platforms   # the OS × native-package
-//                                                 # matrix: which `<os>-<arch>`
-//                                                 # prebuild each native
-//                                                 # package declares, ships
-//                                                 # and actually gets built
-//                                                 # for in CI. Combine with
-//                                                 # --markdown / --json.
-//   node scripts/audit-runtimes.mjs --rules       # list every registered rule,
-//                                                 # its scope and the manifest
-//                                                 # fields it governs
-//   node scripts/audit-runtimes.mjs --check --quick
-//                                                 # explicit forward-
-//                                                 # compatible opt-out for
-//                                                 # the functional probes.
-//
-// Pure read-only by default. `--apply` only fills in missing declarations;
-// existing `gjsify.runtimes` values are NEVER overwritten — the human stays
-// in charge of every non-default decision. `--check` is read-only; it never
-// edits package.json — it only reports drift.
+// Usage — `node scripts/audit-runtimes.mjs` with:
+//   (none)      human-readable table; `--json` / `--markdown` reformat it
+//   --apply     write the SUGGESTED triplet into each package.json, ONLY where absent;
+//               an existing `gjsify.runtimes` is never overwritten
+//   --check     exit 1 on any drift from the signal-based suggestion, plus every other
+//               selected rule (CI guard). Read-only.
+//   --strict    with `--check`: also run the functional probes — `globals.mjs` parses
+//               and each re-export is plausibly resolvable on-target, and a
+//               `browser:"polyfill"` slot ships `src/test.browser.{mts,ts}`
+//   --quick     suppress the probes even when `--strict` is passed (forward-compatible
+//               opt-out for the eventual strict-by-default flip)
+//   --platforms the OS × native-package matrix: which `<os>-<arch>` prebuild each
+//               native package declares, ships and is built for in CI
+//   --rules     list every registered rule, its scope and the fields it governs
 
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 
-// `toPosixRel` used to be defined here, byte-identical to `toRecord`'s
-// normalisation in `manifest-conformance/lib/context.mjs`. Two copies of the
-// one rule every repo-relative path in this tree depends on is exactly the
-// shape that drifted before; the definition and the incidents behind it now
-// live once, in `toPosixPath`.
+// Local name for the ONE repo-relative path normalisation; the definition and the
+// incidents behind it live in `toPosixPath`, never in a second copy here.
 const toPosixRel = toPosixPath;
 import { fileURLToPath } from 'node:url';
 
-// The shared registry + the PORTABLE rule set. Importing the barrel registers
-// `package-outputs`, `prebuild-artifacts`, `headless` and `field-coverage`;
-// importing the repo-rule modules below registers `tier`, `platforms-ci` and
-// `refs-pin`. Registration IS the wiring — there is no second list to keep in
-// sync, which is the whole point.
+// Importing the barrel registers the portable rules; importing the repo-rule modules
+// below registers theirs. Registration IS the wiring — there is no second list to keep
+// in sync, which is the whole point.
 import {
     auditPrebuildArtifacts,
     collectNativePackages,
@@ -136,10 +82,9 @@ import './manifest-conformance/rules/status-data.mjs';
 import './manifest-conformance/rules/platform-packages.mjs';
 import './manifest-conformance/rules/release-train.mjs';
 
-// `tests/e2e/prebuild-declaration-invariant` drives the prebuild invariant
-// against SYNTHETIC packages, because proving that a MISSING prebuild directory
-// fails means removing one and the e2e suites share a checkout. Re-exported
-// here so that suite keeps importing the same path it always has.
+// Re-exported for `tests/e2e/prebuild-declaration-invariant`, which drives the prebuild
+// invariant against SYNTHETIC packages: proving that a MISSING prebuild directory fails
+// means removing one, and the e2e suites share a checkout.
 export { auditPrebuildArtifacts, collectNativePackages, renderPrebuildSummary };
 
 const ROOT = resolve(fileURLToPath(import.meta.url), '..', '..');
@@ -152,19 +97,14 @@ const args = new Set(process.argv.slice(2));
 const FORMAT = args.has('--json') ? 'json' : args.has('--markdown') ? 'markdown' : 'table';
 const APPLY = args.has('--apply');
 const CHECK = args.has('--check');
-// `--quick` is the forward-compatible opt-out flag for the future default-
-// strict mode (PR-B follow-up). Today the default is still legacy, so
-// `--quick` is a no-op; the constant is wired now so callers can pin the
-// legacy behavior with the forward-compatible spelling and stay green when
-// the default flips.
+// `--quick` opts OUT of the functional probes: today by suppressing `--strict`, and
+// after the eventual strict-by-default flip by pinning the current behaviour. Wiring the
+// spelling now lets a caller stay green across that flip.
 const QUICK = args.has('--quick');
 /** Print only the OS × native-package matrix (the platform-support report). */
 const PLATFORMS = args.has('--platforms');
-// `--strict` runs the functional probes during `--check`. The default-flip
-// to strict mode is parked behind PR-B follow-up (gated on R1 closing the
-// remaining `src/test.browser.{mts,ts}` gaps — 26 packages affected on
-// the integration base today). `--quick` wins on conflict to keep the
-// caller's opt-out intent unambiguous.
+// `--quick` wins on conflict, so the caller's opt-out intent is unambiguous. The flip to
+// strict-by-default is gated on closing the remaining `src/test.browser.{mts,ts}` gaps.
 const STRICT = args.has('--strict') && !QUICK;
 /** `--rules` lists the registry instead of running anything. */
 const RULES_LIST = args.has('--rules');
@@ -180,10 +120,9 @@ async function scanSourceTree(pkgDir) {
         imports_legacy: false,
         gjs_imports_guard: false,
         has_browser_entry: false,
-        // Standard cross-runtime test harness (`src/test.{mts,ts}`) — the signal
-        // that a package's behavior is exercised by `@gjsify/unit` across
-        // runtimes. Distinguishes headless behavior CONTRACTS from design-ASSET
-        // packages on the design-identity axis (see `suggestRuntimes`).
+        // The standard cross-runtime `@gjsify/unit` harness. On the design-identity
+        // axis it is what distinguishes a headless behaviour CONTRACT from a design
+        // ASSET package (see `suggestRuntimes`).
         has_test_entry: existsSync(join(srcDir, 'test.mts')) || existsSync(join(srcDir, 'test.ts')),
         has_browser_polyfill: existsSync(join(srcDir, 'browser.ts')) || existsSync(join(srcDir, 'browser.mts')),
         browser_src_is_partial: false,
@@ -198,27 +137,21 @@ async function scanSourceTree(pkgDir) {
             : join(srcDir, 'browser.mts');
         try {
             const txt = await readFile(browserSrc, 'utf8');
-            // Heuristic: a browser entry is `partial` when the file declares its
-            // slot explicitly in a comment (`Slot is "browser:\"partial\""`) OR
-            // when its impl throws ENOTSUP from MULTIPLE entry points (the
-            // canonical dns/module/ws pattern — at least 2 method bodies
-            // produce a code:'ENOTSUP' error). A single throw (e.g.
-            // process.chdir throwing) does NOT downgrade an otherwise functional
-            // polyfill to `partial`; that's the process-browserify shape.
+            // `partial` when the file declares that slot in a comment, or when its impl
+            // throws ENOTSUP from MULTIPLE entry points (the dns/module/ws shape). ONE
+            // throw does not downgrade an otherwise functional polyfill — that is the
+            // process-browserify shape (`process.chdir`).
             const slotDeclaredPartial = /Slot[^.\n]*partial/i.test(txt);
             const enotsupHits = (txt.match(/code\s*[:=]\s*['"]ENOTSUP['"]/g) ?? []).length;
             signals.browser_src_is_partial = slotDeclaredPartial || enotsupHits >= 2;
-            // A THIRD shape the two states above cannot express: a NAMED
-            // UNSUPPORTED STUB. The module has no browser pendant at all
-            // (`child_process`, `net`, `tls` — the `NODE_API_NO_BROWSER_SENSE`
-            // judgement), so its honest slot is `none`; the `src/browser.ts`
-            // exists only so the curated alias can redirect to a NAMED module
-            // that exports the real shape and throws with a message instead of
-            // to the shared anonymous `@gjsify/empty`. Without this the mere
-            // EXISTENCE of the file reads as a promotion to `polyfill` and the
-            // drift check fails on a declaration that is correct. Declared by
-            // the same `Slot: browser:"<slot>"` marker the `partial` entries
-            // already use, so a file states its own slot in ONE place.
+            // A third shape neither state can express: a NAMED UNSUPPORTED STUB. The
+            // module has no browser pendant at all (`child_process`, `net`, `tls`), so
+            // `none` is its honest slot, and `src/browser.ts` exists only so the curated
+            // alias can point at a named module that throws with a message instead of at
+            // the anonymous `@gjsify/empty`. Without this the file's mere EXISTENCE reads
+            // as a promotion to `polyfill` and the drift check fails a correct
+            // declaration. Same `Slot: browser:"<slot>"` marker, so a file states its own
+            // slot in ONE place.
             signals.browser_src_is_unsupported = /Slot[^.\n]*none/i.test(txt);
         } catch {
             // unreadable — treat as full polyfill (conservative for upgrade path)
@@ -227,11 +160,10 @@ async function scanSourceTree(pkgDir) {
     if (signals.has_globals_mjs) {
         try {
             const txt = await readFile(join(pkgDir, 'globals.mjs'), 'utf8');
-            // Browser-safe iff the file ships actual exports AND none re-export
-            // from a `node:` specifier — i.e. it routes through `globalThis.*`
-            // (Wave-3 pattern) or otherwise stays runtime-agnostic. An empty
-            // `export {};` file (the `@gjsify/node-polyfills` meta-pkg pattern)
-            // is NOT a browser-native delegation path.
+            // Browser-safe iff the file ships actual exports AND none re-export from a
+            // `node:` specifier — i.e. it routes through `globalThis.*` or otherwise
+            // stays runtime-agnostic. An empty `export {};` file (the
+            // `@gjsify/node-polyfills` meta-package shape) is NOT a delegation path.
             const hasNonEmptyExport = /export\s+(?:const|let|var|function|class|default|\{[^}]*\w[^}]*\})/m.test(txt);
             signals.globals_mjs_browser_safe = hasNonEmptyExport && !/from\s+['"]node:/m.test(txt);
         } catch {
@@ -261,8 +193,8 @@ async function walkSource(dir, signals) {
         if (entry.name === 'test.browser.mts' || entry.name === 'test.browser.ts') {
             signals.has_browser_entry = true;
         }
-        // Only scan TS / MTS sources; skip spec/test files (they're allowed to
-        // exercise GJS-only paths via *.gjs.spec.ts).
+        // TS/MTS only, and skip `*.gjs.spec.ts` — specs are allowed to exercise
+        // GJS-only paths.
         if (!/\.(ts|mts)$/.test(entry.name)) continue;
         if (/\.gjs\.spec\.(ts|mts)$/.test(entry.name)) continue;
         signals.file_count++;
@@ -278,17 +210,17 @@ async function walkSource(dir, signals) {
 // ─── Classification ─────────────────────────────────────────────────────────
 
 function classifyAxis(relativeDir, pkgName) {
-    // Path-based axis. The strategic-direction section defines five axes;
-    // packages/infra/* and packages/gjs/* are infra (build tooling / GJS
-    // runtime helpers), not user-facing polyfills — flagged as 'infra'.
+    // Path-based axis taxonomy (slot model: AGENTS.md § Runtime & platform model).
+    // `packages/infra/*` and `packages/gjs/*` ship build tooling and GJS runtime
+    // helpers, not user-facing polyfills, so they classify as 'infra'.
     const [pillar, subpath] = relativeDir.split('/');
     if (pillar === 'infra') return 'infra';
     if (pillar === 'gjs') return 'infra';
     if (pillar === 'node') return 'node-api';
     if (pillar === 'dom') return 'dom';
     if (pillar === 'framework') {
-        // Today only iframe straddles a platform-bridge case via WebKit.WebView;
-        // the rest is GJS-only framework composition glue.
+        // Only iframe is a platform bridge (WebKit.WebView); the rest is GJS-only
+        // framework composition glue.
         if (subpath === 'iframe') return 'platform-bridge';
         return 'framework-gjs';
     }
@@ -300,12 +232,11 @@ function classifyAxis(relativeDir, pkgName) {
 }
 
 /**
- * Node-API packages that have NO meaningful browser pendant (POSIX-fork,
- * V8 debugger protocol, TTY readline, …). The R1 audit (Quick-Wins 11–13)
- * downgrades these to `browser: "none"` instead of the empty-stub polyfill
- * that would otherwise be the heuristic default — shipping an "empty stub"
- * as a polyfill is dishonest, the slot should reflect "no sensible browser
- * surface exists". The heuristic recognises these by name.
+ * Node-API packages with NO meaningful browser pendant (POSIX fork, the V8 debugger
+ * protocol, TTY readline, …), recognised by name. They get `browser: "none"` rather
+ * than the empty-stub polyfill the heuristic would otherwise default to: shipping an
+ * empty stub AS a polyfill is a false claim, and the honest slot says "no sensible
+ * browser surface exists".
  */
 const NODE_API_NO_BROWSER_SENSE = new Set([
     'cluster',
@@ -321,55 +252,44 @@ const NODE_API_NO_BROWSER_SENSE = new Set([
 ]);
 
 /**
- * Node-API packages that are GJS-only by design (native Vala+C bridges via
- * a `gi://Gjsify*` typelib): they ship `.so`+`.typelib` prebuilds and have
- * no meaningful surface anywhere except GJS. They keep `node:"none"` +
- * `browser:"none"` even though they may have a `.imports?.gi` guard the
- * scanner picks up — the prebuild is the impl, not a polyfill.
+ * Node-API packages GJS-only by design — native Vala+C bridges behind a
+ * `gi://Gjsify*` typelib. They keep `node:"none"` + `browser:"none"` even where the
+ * scanner picks up a `.imports?.gi` guard: the prebuild IS the implementation, not a
+ * polyfill, and there is no surface anywhere except GJS.
  */
 const NODE_API_GJS_ONLY = new Set(['tls-native', 'sab-native', 'terminal-native', 'http2-native', 'http-soup-bridge']);
 
 /**
- * Pre-existing declared `node:"none"` packages that the heuristic would
- * suggest `polyfill` for, but which a dedicated PR still needs to lift —
- * out of scope for the Wave 2-W slot pass. The audit recognises the
- * existing declaration so CI stays green.
+ * EMPTY. The seam for a declared `node:"none"` package the heuristic would suggest
+ * `polyfill` for and that only a dedicated change can lift; its last member,
+ * `@gjsify/process`, now ships `src/browser.ts`, which the heuristic honours through
+ * `has_browser_polyfill` instead.
  */
-const NODE_API_LEGACY_NONE = new Set([
-    // `process` used to live here while it had no browser entry; it now ships
-    // `src/browser.ts` (defunctzombie-style env / nextTick / stdio stubs) so
-    // the legacy-none designation is no longer accurate. The heuristic now
-    // honours the browser.ts via `has_browser_polyfill` instead.
-]);
+const NODE_API_LEGACY_NONE = new Set([]);
 
 /**
- * Node-API packages whose Node-native value IS also a browser native value
- * (different identity, same shape). Per R1 Quick-Wins 2–5 + R2 §5.3 / §6.1
- * these packages get `browser: "native"`:
+ * Node-API packages whose Node-native value IS also a browser-native value (different
+ * identity, same shape), so they get `browser: "native"`:
  *   - `url`        → `URL` / `URLSearchParams` global
  *   - `perf_hooks` → `performance` / `PerformanceObserver` global
- * The heuristic recognises these by name. Other node-api packages with a
- * `globals.mjs` keep `browser: "polyfill"` because globals.mjs there is
- * the Node-native `node:<pkg>` re-export (no browser equivalent).
+ * Every other node-api package with a `globals.mjs` keeps `browser: "polyfill"`, because
+ * there that file is a `node:<pkg>` re-export with no browser equivalent.
  */
 const NODE_API_BROWSER_NATIVE = new Set(['url', 'perf_hooks']);
 
 /**
- * Web-API packages whose impl is GJS-bound AND has NO Node-native pendant
- * (e.g. AudioContext / RTCPeerConnection / XMLHttpRequest / Gamepad —
- * browser-only Web APIs). globals.mjs presence here only signals browser
- * native-delegation; Node-target stays `none` since there is no `node:`
- * equivalent to re-export.
+ * Web-API packages that are GJS-bound AND have NO Node-native pendant — browser-only
+ * Web APIs (AudioContext, RTCPeerConnection, XMLHttpRequest, Gamepad). A `globals.mjs`
+ * here signals browser delegation only; the node slot stays `none` because there is no
+ * `node:` equivalent to re-export.
  */
 const WEB_API_NODE_NONE = new Set(['webaudio', 'webrtc', 'xmlhttprequest', 'gamepad']);
 
 /**
- * Pure-TS Web-API packages with a globals.mjs AND a Node-native pendant
- * stable enough for slot=`native` on Node ≥22 LTS (R2 §5.1). For other
- * Pure-TS Web-API packages (dom-events with `CustomEvent` <23, EventSource
- * experimental, DOMParser absent on Node, navigator/Storage experimental)
- * the slot stays `polyfill` on Node — see the per-package floor notes in
- * `.gjsify-native-audit-R2.md` §1.
+ * Pure-TS Web-API packages with a `globals.mjs` AND a Node-native pendant stable enough
+ * for `native` from Node 22 LTS on. The rest keep `polyfill` on Node, each for its own
+ * reason: `CustomEvent` before Node 23 in dom-events, EventSource still experimental,
+ * DOMParser absent on Node, navigator/Storage experimental.
  */
 const WEB_API_NODE_NATIVE = new Set([
     'abort-controller',
@@ -385,12 +305,11 @@ const WEB_API_NODE_NATIVE = new Set([
 /** Suggest a default {gjs, node, browser} triplet from the signals + axis. */
 function suggestRuntimes(axis, signals, pkgSubpath) {
     const gjsBound = signals.girs_value || signals.gi_url || signals.imports_legacy || signals.gjs_imports_guard;
-    // Dynamic-only GJS binding: package is portable, GJS path supplies the
-    // real impl, other runtimes get a degraded no-op fallback. Slot = partial.
+    // Dynamic-only GJS binding: portable package, real impl on the GJS path, degraded
+    // no-op fallback elsewhere — slot `partial`.
     const gjsDynamicOnly = !gjsBound && signals.dynamic_gi;
 
-    // Infra packages: build tooling, not runtime polyfills. Excluded from the
-    // triplet model — they ship the toolchain itself, not a polyfill.
+    // Infra ships the toolchain itself, so it is outside the triplet model entirely.
     if (axis === 'infra') return null;
 
     // GJS-only by construction. (A PURE-TS framework contract — no GJS-binding
@@ -400,20 +319,17 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
     // conservative `none` suggested here and the opt-in `polyfill`.)
     if (axis === 'framework-gjs') return { gjs: 'polyfill', node: 'none', browser: 'none' };
 
-    // Design-identity (adwaita-*). Two shapes share the axis:
-    //   - Asset / component packages (`adwaita-{web,fonts,icons,storybook}`):
-    //     GJS already has Libadwaita native, browser gets our polyfill, Node
-    //     n/a (no UI in headless Node). No cross-runtime test harness.
-    //   - Headless behavior CONTRACT (`adwaita-core`, ADR 0004): pure TS with
-    //     the standard `src/test.mts` cross-runtime harness — the design-axis
-    //     twin of the pure-TS framework contracts (`stories`/`storybook-core`).
-    //     It runs unmodified everywhere and is a runtime DEPENDENCY of the
-    //     renderers (`adwaita-nativescript` re-exports its surface), so `none`
-    //     slots would be dishonest — and actively harmful on NS, where `none`
-    //     aliases the package to `@gjsify/empty` inside consumer bundles.
-    //     Suggest the conservative GJS-first triplet and let `diffDeclared`'s
-    //     pure-TS-contract tolerance accept the all-`polyfill` opt-in, exactly
-    //     like the framework contracts.
+    // Design-identity (adwaita-*) carries two shapes:
+    //   - ASSET / component packages (`adwaita-{web,fonts,icons,storybook}`): GJS has
+    //     Libadwaita natively, the browser gets our polyfill, Node has no UI. No
+    //     cross-runtime test harness.
+    //   - Headless behaviour CONTRACT (`adwaita-core`, ADR 0004): pure TS with the
+    //     standard `src/test.mts` harness, the design-axis twin of the pure-TS framework
+    //     contracts. It runs unmodified everywhere and the renderers depend on it at
+    //     RUNTIME, so `none` slots would be false — and actively harmful on NS, where
+    //     `none` aliases the package to `@gjsify/empty` inside consumer bundles. Suggest
+    //     the conservative GJS-first triplet; `diffDeclared`'s pure-TS-contract tolerance
+    //     accepts the all-`polyfill` opt-in.
     if (axis === 'design-identity') {
         if (!gjsBound && !signals.dynamic_gi && signals.has_test_entry) {
             return { gjs: 'polyfill', node: 'none', browser: 'none' };
@@ -421,49 +337,36 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
         return { gjs: 'none', node: 'none', browser: 'polyfill' };
     }
 
-    // Platform-bridge: today's iframe is GJS-only (wraps WebKit.WebView).
-    // Browser/Node have no equivalent — would need a different bridge entirely.
+    // Platform-bridge: iframe wraps WebKit.WebView, so it is GJS-only — browser and Node
+    // would each need a different bridge entirely.
     if (axis === 'platform-bridge') {
         return { gjs: 'polyfill', node: 'none', browser: 'none' };
     }
 
-    // Node-API, Web-API, DOM — three-pillar polyfills.
-    // (A) GJS-bound — polyfill on GJS, other slots depend on whether the
-    // package ships a `globals.mjs` re-export pointing at the runtime's
-    // native equivalent. Examples:
-    //   - `@gjsify/websocket` is gjs-bound (Soup impl) AND ships globals.mjs
-    //     re-exporting globalThis.WebSocket — Node 22+ and modern browsers
-    //     have native WebSocket. Slot = `native` on Node/browser.
-    //   - `@gjsify/webrtc-native` is gjs-bound and ships NO globals.mjs —
-    //     no native equivalent on Node/browser. Slot = `none` on both.
-    // Convention: `globals.mjs` presence is the signal that the package
-    // has a workable native-delegation path on the non-GJS runtimes it
-    // re-exports for. Where present, suggest `native`; otherwise `none`.
+    // (A) GJS-bound — `polyfill` on GJS; the other slots turn on whether the package
+    // ships a `globals.mjs` re-export pointing at the runtime's native equivalent, which
+    // is the signal that a workable delegation path exists. Present → `native`, absent →
+    // `none`. `@gjsify/websocket` is gjs-bound (Soup) and re-exports
+    // `globalThis.WebSocket`, which Node 22+ and every modern browser have;
+    // `@gjsify/webrtc-native` is gjs-bound with no `globals.mjs` and nothing to delegate
+    // to.
     if (gjsBound) {
-        // DOM is native on browser even when impl is GJS-bound (the browser
-        // doesn't need our impl; logically the slot is 'native').
+        // The browser does not need our impl, so DOM is `native` there even when the
+        // implementation is GJS-bound.
         if (axis === 'dom') {
             return { gjs: 'polyfill', node: 'none', browser: 'native' };
         }
-        // Web-API gjs-bound: globals.mjs presence signals native-delegation on
-        // both Node + browser when the package's source-shipped impl is
-        // GJS-bound but the runtime-native value is available on both other
-        // runtimes (fetch, websocket via globalThis.{fetch,WebSocket} on
-        // Node ≥21/22 + every modern browser). For packages whose value is
-        // browser-only (webaudio/webrtc/xmlhttprequest/gamepad — no Node
-        // pendant), the curated WEB_API_NODE_NONE set keeps node=`none`.
+        // Web-API: a `globals.mjs` signals delegation on Node AND browser when the
+        // runtime-native value exists on both (fetch, WebSocket). Where the value is
+        // browser-only, the curated WEB_API_NODE_NONE set keeps node=`none`.
         if (axis === 'web-api' && signals.has_globals_mjs) {
             const nodeSlot = WEB_API_NODE_NONE.has(pkgSubpath) ? 'none' : 'native';
             return { gjs: 'polyfill', node: nodeSlot, browser: 'native' };
         }
-        // Node-API gjs-bound — split by reason:
-        //   - GJS-only native-bridge (NODE_API_GJS_ONLY): node=`none`, browser=`none`.
-        //   - Legacy `node:"none"` packages (NODE_API_LEGACY_NONE) kept as-is until
-        //     a dedicated follow-up declares them properly.
-        //   - Otherwise (e.g. `path` — guarded `imports?.gi` fallback, runs fine in
-        //     a browser bundler) → use the per-package WEB-style mapping:
-        //     NODE_API_BROWSER_NATIVE → native/native, others → polyfill/polyfill.
-        //     R1 Quick-Win 1 + Quick-Wins 2–5 + R2 §5.3.
+        // Node-API gjs-bound, split by reason: a GJS-only native bridge is `none`/`none`;
+        // a NODE_API_LEGACY_NONE package keeps its declaration; anything else (e.g.
+        // `path` — guarded `imports?.gi` fallback, fine in a browser bundler) takes the
+        // per-package WEB-style mapping.
         if (axis === 'node-api') {
             if (NODE_API_GJS_ONLY.has(pkgSubpath)) {
                 return { gjs: 'polyfill', node: 'none', browser: 'none' };
@@ -471,31 +374,25 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
             if (NODE_API_LEGACY_NONE.has(pkgSubpath)) {
                 return { gjs: 'polyfill', node: 'none', browser: 'none' };
             }
-            // path / perf_hooks etc.: gjs_imports_guard only (no static gi:// /
-            // @girs/* value-import / legacy imports.X). Pure-TS portable.
+            // `gjs_imports_guard` only, with no static `gi://` / `@girs/*` value import /
+            // legacy `imports.X`: pure-TS portable (path, perf_hooks, …).
             if (signals.gjs_imports_guard && !signals.girs_value && !signals.gi_url && !signals.imports_legacy) {
                 const nativeMember = NODE_API_BROWSER_NATIVE.has(pkgSubpath);
-                // A `globals.mjs` re-exporting the runtime-native value upgrades
-                // the node slot to `native` — same logic the post-PR-#392 audit
-                // already applies to the gjs-bound default below. Without this
-                // check, packages like `@gjsify/process` (`gjs_imports_guard` +
-                // a `globalThis.process` globals.mjs) get a spurious `polyfill`
-                // suggestion that drifts from their honest `native` declaration.
+                // A `globals.mjs` re-exporting the runtime-native value upgrades the node
+                // slot to `native`, as for the gjs-bound default below. Without it,
+                // `@gjsify/process` (guard + a `globalThis.process` globals.mjs) gets a
+                // spurious `polyfill` suggestion that drifts from its honest `native`.
                 const nodeSlot = nativeMember || signals.has_globals_mjs ? 'native' : 'polyfill';
                 const browserSlot = nativeMember ? 'native' : 'polyfill';
                 return { gjs: 'polyfill', node: nodeSlot, browser: browserSlot };
             }
         }
         const nativeSlot = signals.has_globals_mjs ? 'native' : 'none';
-        // Browser slot upgrade: a dedicated `src/browser.ts` entry indicates
-        // a partial/polyfill browser-specific impl exists alongside the
-        // GJS-bound default. The `browser_src_is_partial` heuristic distinguishes
-        // a stub-shaped browser entry (ENOTSUP throws ≥2 OR `Slot ... partial`
-        // comment) from a full polyfill.
-        // A NAMED UNSUPPORTED STUB is not an upgrade: the entry exists so the
-        // curated browser alias can name a module instead of the anonymous
-        // `@gjsify/empty`, and the module still has no browser pendant. Keep
-        // the conservative slot the package already declares.
+        // A dedicated `src/browser.ts` means a browser-specific impl exists alongside the
+        // GJS-bound default; `browser_src_is_partial` separates a stub-shaped entry from a
+        // full polyfill. A NAMED UNSUPPORTED STUB is NOT an upgrade — that entry exists
+        // only so the curated alias can name a module instead of the anonymous
+        // `@gjsify/empty`, and the module still has no browser pendant.
         let browserSlot = nativeSlot;
         if (signals.has_browser_polyfill && !signals.has_globals_mjs && !signals.browser_src_is_unsupported) {
             browserSlot = signals.browser_src_is_partial ? 'partial' : 'polyfill';
@@ -503,56 +400,44 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
         return { gjs: 'polyfill', node: nativeSlot, browser: browserSlot };
     }
 
-    // (B) Pure-TS — portable on all three. Browser-native flag if a Web-API
-    // surface has a same-named browser global (most do; the slot is 'native'
-    // meaning "delegate via re-export"); when not certain, leave 'polyfill'
-    // (our impl is correct fallback). When the package uses dynamic
-    // `import('gi://X')` for graceful degradation, downgrade non-GJS slots to
-    // `partial` — the package loads everywhere, but functionality drops on
-    // non-GJS runtimes.
+    // (B) Pure-TS — portable on all three. `native` means "delegate via re-export", so a
+    // Web-API surface with a same-named browser global gets it; where that is not certain,
+    // `polyfill` leaves our impl as the fallback. A package using dynamic
+    // `import('gi://X')` for graceful degradation drops its non-GJS slots to `partial`: it
+    // loads everywhere but loses functionality off GJS.
     //
-    // Cross-runtime `globals.mjs`: a node-api pkg that ships a browser-safe
-    // `globals.mjs` (re-exports `globalThis.*`, no `node:*` specifiers) has
-    // a working `native` slot for both Node AND browser — the same file
-    // serves both targets. This is the Wave-3 pattern for `console` / `timers`.
+    // A node-api package whose `globals.mjs` is browser-safe (routes through
+    // `globalThis.*`, no `node:*` specifiers) has a working `native` slot on Node AND
+    // browser from that one file — the `console` / `timers` shape.
     const nonGjsSlot = gjsDynamicOnly ? 'partial' : 'polyfill';
     if (axis === 'web-api') {
-        // Web APIs are native on browser by definition. For Node, the slot
-        // is `native` when (a) the package ships a `globals.mjs` re-export
-        // AND (b) the package is in the WEB_API_NODE_NATIVE curated set —
-        // Node ≥22 LTS makes most Web-API globals stable (R2 §5.1), but a
-        // handful (CustomEvent in dom-events <23, EventSource still
-        // experimental, DOMParser absent on Node, navigator/Storage
-        // experimental — see R2 §1) keep `polyfill` as the safer default.
+        // Native on browser by definition. On Node, `native` needs BOTH a `globals.mjs`
+        // re-export and membership of WEB_API_NODE_NATIVE — see that set for which
+        // globals are not stable enough and why they keep `polyfill`.
         const nodeNativeEligible = WEB_API_NODE_NATIVE.has(pkgSubpath);
         const nodeSlot = gjsDynamicOnly
             ? 'partial'
             : signals.has_globals_mjs && nodeNativeEligible
               ? 'native'
               : 'polyfill';
-        // Browser: gjsDynamicOnly means the package falls back to a graceful
-        // no-op when its GJS backend is missing. If it ships a globals.mjs
-        // pointing at a native browser value (gamepad → Gamepad/GamepadEvent),
-        // the browser-slot upgrades to `native` per R2 §5.2 — the dynamic
-        // backend simply never loads in a browser bundle.
+        // Under `gjsDynamicOnly` the package degrades to a no-op without its GJS backend.
+        // A `globals.mjs` naming a native browser value (gamepad → Gamepad/GamepadEvent)
+        // upgrades the browser slot to `native`: the dynamic backend never loads in a
+        // browser bundle anyway.
         const browserSlot = gjsDynamicOnly ? (signals.has_globals_mjs ? 'native' : 'partial') : 'native';
         return { gjs: 'polyfill', node: nodeSlot, browser: browserSlot };
     }
     if (axis === 'node-api') {
-        // Node APIs are native on Node by definition; browser uses our polyfill,
-        // unless globals.mjs is browser-safe — then browser is also `native`.
-        // A dedicated `src/browser.ts` shipping ENOTSUP-throws on multiple
-        // entries (or self-declared as partial) downgrades the slot from
-        // `polyfill` to `partial` — pure-TS-but-functionally-partial pattern
-        // used by `@gjsify/https` (server throws, client via fetch).
+        // Native on Node by definition; the browser gets our polyfill unless `globals.mjs`
+        // is browser-safe, in which case `native` there too. A `src/browser.ts` throwing
+        // ENOTSUP from multiple entries (or self-declared partial) downgrades `polyfill` to
+        // `partial` — the `@gjsify/https` shape: server throws, client goes via fetch.
         let browserSlot;
         if (NODE_API_NO_BROWSER_SENSE.has(pkgSubpath)) {
-            // cluster / inspector / readline / fs / net / tls / dgram / etc. —
-            // semantics have no browser pendant. The `globals.mjs` they ship is
-            // Node-only (`export * from 'node:cluster'`), so without this
-            // explicit carve-out the per-axis heuristic would suggest `polyfill`
-            // and produce false-positive drift on every CI run. The user-facing
-            // package.json keeps `browser:"none"` as the honest declaration.
+            // The `globals.mjs` these ship is Node-only (`export * from 'node:cluster'`),
+            // so without the carve-out the per-axis heuristic suggests `polyfill` and
+            // produces false-positive drift on every CI run against the honest
+            // `browser:"none"` in package.json.
             browserSlot = 'none';
         } else if (gjsDynamicOnly) {
             browserSlot = 'partial';
@@ -576,34 +461,24 @@ function suggestRuntimes(axis, signals, pkgSubpath) {
 }
 
 /**
- * Derive a default `nativescript` slot from an already-suggested
- * {gjs,node,browser} triplet + the source-tree signals. Foundation-time
- * heuristic; per-package Welle-5 PRs override with explicit declarations.
+ * Derive a default `nativescript` slot from an already-suggested {gjs,node,browser}
+ * triplet plus the source signals. A package may always override with an explicit
+ * declaration; `'none'` is the conservative fallback, so NS reach is opted INTO.
  *
- * Rules:
- * - GJS-bound (gi://, @girs/* value-import, imports.X) → 'none'.
- *   The package can't run on NS' V8 because it depends on GObject Introspection.
- * - Browser-native Web APIs that NS V8 also exposes (fetch, URL, WebSocket,
- *   crypto, etc.) → 'native'. Routed via /globals re-export on `--app nativescript`.
- * - Pure TS portable (slot=polyfill on >1 runtime) → 'polyfill'.
- *   Should run on NS V8 without modification; per-package Welle 5 confirms.
- * - DOM / framework-gjs → 'none'. NS has its own UI system; no DOM.
- * - Server-only Node-API (cluster, inspector, etc.) → 'none'.
- * - Fallback → 'none' (conservative default; consumers explicitly opt in).
+ * GJS-bound → `none`: GObject Introspection has no NS' V8 equivalent. DOM and
+ * framework-gjs → `none`: NS has its own UI system and no DOM. A browser-native Web API
+ * → `native`, since NS V8 ships fetch/URL/WebSocket/crypto and `--app nativescript`
+ * routes through the `/globals` re-export. A portable pure-TS Node-API shape →
+ * `polyfill`, except the server-only modules.
  */
 function deriveNativescriptSlot(axis, suggested, signals, pkgSubpath) {
     if (!suggested) return null;
-    // GJS-bound packages can't run on NS' V8
     if (signals.girs_value || signals.gi_url || signals.imports_legacy) return 'none';
-    // DOM/Framework are GJS+browser specific
     if (axis === 'dom' || axis === 'framework-gjs') return 'none';
-    // Browser-native Web APIs are typically also NS-native (NS V8 ships fetch/URL/WebSocket/crypto/…)
     if (axis === 'web-api' && suggested.browser === 'native') return 'native';
-    // Pure-TS Node-API polyfills with portable shapes → polyfill candidate
     if (axis === 'node-api') {
-        // Server-only modules → none
         if (NODE_API_NO_BROWSER_SENSE.has(pkgSubpath)) return 'none';
-        // If browser slot is polyfill/partial/native, we likely have a portable shape
+        // Any browser slot at all implies a portable shape.
         if (suggested.browser === 'polyfill' || suggested.browser === 'partial' || suggested.browser === 'native')
             return 'polyfill';
     }
@@ -612,50 +487,36 @@ function deriveNativescriptSlot(axis, suggested, signals, pkgSubpath) {
 
 // ─── Functional probes (opt-in via `--check --strict`) ─────────────────────
 //
-// The probes statically validate that the DECLARED `gjsify.runtimes` triplet
-// is backed by actual mechanics on disk — independent from the drift check,
-// which only compares the declared triplet against the signal-based suggestion.
-//
-// Three probe kinds today:
-//   - `globals-broken` (slot=`native` on node/browser): `globals.mjs` exists,
-//     parses, and every `export {…} from '<spec>'` re-export source is
-//     recognisable as a runtime-resolvable specifier (Node built-ins for
-//     `node` target, curated browser-native set for `browser`, plus
-//     `@gjsify/<X>/globals` self-delegation either way). NO runtime evaluation
-//     — we run inside Node and must not crash on a browser-only re-export.
-//   - `no-browser-test` (slot=`browser:"polyfill"`): a `src/test.browser.mts`
-//     or `src/test.browser.ts` entry exists so the package can be validated
-//     against Firefox/SpiderMonkey via the `tests/browser/` Playwright suite.
-//     NO actual build — too expensive for `--check`. The static existence of
-//     the entry is the contract.
-//
-// `BROWSER_NATIVE_RE_EXPORTS` is sourced from `BROWSER_NATIVE_IDENTS` in
-// `@gjsify/resolve-npm/globals-map` (T-Plan Sektion 5b-i landed via PR-G).
-// Each identifier doubles as the canonical bare specifier a `globals.mjs`
-// would re-export from on a browser target — `export { X } from 'X'` mirrors
-// the pattern used today on Node (`export { default as X } from 'node:X'`).
+// Do the DECLARED slots have the mechanics they claim, on disk? Independent of the drift
+// check, which only compares the declaration against the signal-based suggestion. Two
+// probes:
+//   - `globals-broken` (`native` on node/browser): `globals.mjs` exists, parses, and every
+//     `export {…} from '<spec>'` source is a specifier the target resolves — Node
+//     built-ins for `node`, the curated browser-native set for `browser`, plus
+//     `@gjsify/<X>/globals` self-delegation either way. NO runtime evaluation: we run
+//     inside Node and must not crash on a browser-only re-export.
+//   - `no-browser-test` (`browser:"polyfill"`): a `src/test.browser.{mts,ts}` entry exists
+//     so `tests/browser/`'s Playwright suite can validate the package against
+//     Firefox/SpiderMonkey. NO build — too expensive for `--check`; the entry's existence
+//     IS the contract.
 
 import { BROWSER_NATIVE_IDENTS } from '../packages/infra/resolve-npm/lib/globals-map.mjs';
 import { EXTERNALS_NODE } from '../packages/infra/resolve-npm/lib/index.mjs';
 
 /**
- * Curated set of bare specifiers that are safe to re-export from a
- * `globals.mjs` aimed at the browser target. Populated from
- * `BROWSER_NATIVE_IDENTS` (T-Plan Sektion 5b-i): every identifier the curated
- * map declares as browser-native is, by definition, a specifier the browser
- * resolves natively when a `globals.mjs` does `export { Foo } from 'Foo'`.
- * `@gjsify/<X>/globals` self-delegation chains are recognised separately in
- * `probeGlobalsExports`.
+ * Bare specifiers safe to re-export from a `globals.mjs` aimed at the browser. Every
+ * identifier `BROWSER_NATIVE_IDENTS` declares browser-native is by definition one the
+ * browser resolves when a `globals.mjs` writes `export { Foo } from 'Foo'` — the browser
+ * mirror of Node's `export { default as X } from 'node:X'`. `@gjsify/<X>/globals`
+ * self-delegation is recognised separately in `probeGlobalsExports`.
  */
 const BROWSER_NATIVE_RE_EXPORTS = new Set(BROWSER_NATIVE_IDENTS);
 
 /**
- * Statically extract every `export {…} from '<src>'` / `export * from
- * '<src>'` specifier from a `globals.mjs` file. Regex-based — no full ESM
- * parser. Conservative: anything ambiguous fails-open (the regex either
- * matches the canonical re-export form or it does not, the probe never
- * silently passes a malformed file because `existsSync` + `readFile` already
- * gate that).
+ * Statically extract every `export {…} from '<src>'` / `export * from '<src>'` specifier
+ * from a `globals.mjs`. Regex, not a full ESM parser: the pattern either matches the
+ * canonical re-export form or it does not, and `existsSync` + `readFile` already gate a
+ * malformed file, so nothing passes silently.
  */
 async function probeGlobalsExports(pkgDir, target) {
     const filePath = join(pkgDir, 'globals.mjs');
@@ -670,13 +531,13 @@ async function probeGlobalsExports(pkgDir, target) {
     }
     const reExports = [...src.matchAll(/export\s*(?:\*|\{[^}]*\})\s*from\s*['"]([^'"]+)['"]/g)].map((m) => m[1]);
     for (const spec of reExports) {
-        // `@gjsify/<X>/globals` self-delegation is always OK on either target —
-        // the chain terminates at a package that has its own probe applied.
+        // `@gjsify/<X>/globals` self-delegation is fine on either target: the chain
+        // terminates at a package that gets its own probe.
         if (spec.startsWith('@gjsify/') && spec.endsWith('/globals')) continue;
         if (target === 'node') {
-            // Node built-ins: either `node:*` prefix or bare specifier in the
-            // hardcoded EXTERNALS_NODE list (which mirrors the `module.builtinModules`
-            // surface that resolve-npm treats as native on Node).
+            // Node built-ins: a `node:*` prefix, or a bare specifier in EXTERNALS_NODE,
+            // which mirrors the `module.builtinModules` surface resolve-npm treats as
+            // native on Node.
             if (spec.startsWith('node:')) continue;
             if (EXTERNALS_NODE.includes(spec)) continue;
         }
@@ -689,21 +550,16 @@ async function probeGlobalsExports(pkgDir, target) {
 }
 
 /**
- * Static existence-only check for a browser test entry. NO actual build —
- * the bundle build is `--app browser` and prohibitively expensive for the
- * audit script. The presence of `src/test.browser.{mts,ts}` is the contract
- * between the package and the `tests/browser/` Playwright discovery.
+ * Existence only: the presence of `src/test.browser.{mts,ts}` is the contract between the
+ * package and `tests/browser/`'s Playwright discovery. No build — `--app browser` is
+ * prohibitively expensive for an audit script.
  */
 async function probeBrowserBuildable(pkgDir) {
-    // Carve-out: a `src/test.browser.{mts,ts}` mirrors the package's standard
-    // `src/test.{mts,ts}` suite. Packages that ship NO standard test entry have
-    // nothing to derive a browser test from, so the `no-browser-test` probe does
-    // not apply: dependency-only meta packages (`@gjsify/node-polyfills`,
-    // `@gjsify/browser-node-polyfills` — no `src/` at all) and design-asset
-    // packages (`@gjsify/adwaita-{fonts,icons,web}` — CSS / fonts / icons / Web
-    // Components, no `@gjsify/unit` test harness). Without this, flipping the
-    // default `--check` to strict would gate every CI run on test entries that
-    // cannot meaningfully exist.
+    // A browser test mirrors the package's standard `src/test.{mts,ts}` suite, so a package
+    // shipping no standard test has nothing to derive one from and the probe does not
+    // apply: dependency-only meta packages (no `src/` at all) and design-asset packages
+    // (CSS / fonts / icons / Web Components, no `@gjsify/unit` harness). Without this,
+    // strict-by-default would gate every CI run on test entries that cannot exist.
     const hasStandardTest = existsSync(join(pkgDir, 'src', 'test.mts')) || existsSync(join(pkgDir, 'src', 'test.ts'));
     if (!hasStandardTest) return { ok: true };
 
@@ -718,12 +574,11 @@ async function probeBrowserBuildable(pkgDir) {
 }
 
 /**
- * Run the probe set for a single row. Only the DECLARED triplet drives the
- * probe selection — drift (declared ≠ suggested) is reported separately by
- * `diffDeclared`. A row with no `declared` triplet skips probes entirely
- * (the missing-declaration path already surfaces the issue).
+ * Probe one row. Only the DECLARED triplet selects probes — drift is `diffDeclared`'s
+ * job — and a row with no declaration skips them, since the missing-declaration path
+ * already surfaces that.
  *
- * Returns an array of `{ slot, kind, detail }` failures (empty = ok).
+ * @returns `{ slot, kind, detail }` failures (empty = ok).
  */
 async function functionalProbe(row) {
     const failures = [];
@@ -759,109 +614,58 @@ async function runProbes(rows) {
 
 // ─── Cross-runtime reachability audit (ADR 0014) ────────────────────────────
 //
-// The probes above validate a slot's MECHANICS (does `globals.mjs` exist and
-// re-export something resolvable; is there a browser test entry). They say
-// nothing about what the slot's code actually REACHES — which is where the
-// latent class of bug this audit was extended for lives:
+// The probes above validate a slot's MECHANICS; they say nothing about what its code
+// REACHES. `@gjsify/os` declared `browser: "polyfill"` while `src/index.ts` statically
+// imported `@gjsify/utils`, whose `cli` / `getPathSeparator` helpers call
+// `GLib.spawn_command_line_sync` / `GLib.get_current_dir`. Nothing failed at build time —
+// the browser target's `gjsImportsEmptyPlugin` substitutes `{}` for `@girs/*` — so the
+// leak surfaced as a `TypeError` the first time a consumer CALLED `os.cpus()`.
 //
-//   `@gjsify/os` declared `browser: "polyfill"` while `src/index.ts`
-//   statically imported `@gjsify/utils`, a GJS-runtime package whose `cli` /
-//   `getPathSeparator` helpers call `GLib.spawn_command_line_sync` /
-//   `GLib.get_current_dir`. Nothing failed at build time: the browser target's
-//   `gjsImportsEmptyPlugin` substitutes `{}` for `@girs/*`, so the leak only
-//   surfaced as a `TypeError` the first time a consumer CALLED `os.cpus()`.
+// The invariant: a package declaring `polyfill` for a target must not, on that target,
+// resolve to code that reaches GLib/Gio — neither directly (`@girs/*` value import,
+// `gi://`, bare `imports.*`) nor transitively through a `@gjsify/*` package declared
+// `none` there. Part of EVERY `--check` rather than `--strict`, because it is
+// declaration-driven and cheap (a static import scan), it passes on the current tree, and
+// a guard that only runs in a mode CI does not use is not a guard.
 //
-// The invariant enforced here: **a package declaring `polyfill` for a target
-// must not, on that target, resolve to code that reaches GLib/Gio** — neither
-// directly (`@girs/*` value import / `gi://` / bare `imports.*`) nor
-// transitively through a `@gjsify/*` package declared `none` for that target.
+//   1. `gjs-only-reach` — the target-resolved source of a `polyfill` slot binds GJS
+//      directly, or imports a `@gjsify/*` package that is BOTH declared `none` for the
+//      target AND itself hard-bound. On a `partial` slot the same finding is REPORTED:
+//      `partial` promises only graceful degradation, and a structured failure inside a
+//      GJS-only path IS that contract (`resolve-npm/lib/runtime-aliases.mjs`).
 //
-// Why this is part of EVERY `--check` and not gated behind `--strict`: like
-// the tier and platform audits it is declaration-driven and cheap (no build,
-// no evaluation — a static import scan), it passes on the current tree, and a
-// guard that only runs in a mode CI does not use is not a guard.
+//      "Hard-bound" excludes the sanctioned degradation shape: `@gjsify/terminal-native`
+//      reaches GJS only through a guarded `globalThis.imports?.gi` probe and exports
+//      `null` elsewhere, so importing it from a `polyfill` slot is correct — the
+//      distinction `GJS_IMPORTS_GUARD_RE` / `DYNAMIC_GI_RE` already encode.
 //
-// Three checks:
+//      FATAL ON `browser` + `nativescript` ONLY, because that is where the failure mode
+//      is: there `gjsImportsEmptyPlugin` substitutes `{}` for `@girs/*` AND `gi://*`, so
+//      a leak stays SILENT until a consumer calls the helper. On `--app node`,
+//      `gjsGiNodePlugin` claims a `gi://` specifier first and rewrites it to `requireGi(…)`
+//      against the EXTERNAL `@gjsify/node-gi`, so the same leak either resolves through
+//      the supported axis-5 reverse bridge or fails LOUDLY at module load. A loud
+//      load-time failure needs no static guard; `node` findings are printed, not enforced.
+//   2. `platform-entry-unreachable` — `src/<target>.ts` exists but `exports` declares no
+//      `./<target>` subpath, so nothing can route to it and a dead variant reads as
+//      coverage that does not exist. FATAL.
+//   3. `platform-entry-parity` — where a slot ROUTES to `src/<target>.ts` (`polyfill` +
+//      declared subpath, ADR 0014), that entry must re-export every VALUE export of the
+//      root or the routed bundle dies with MISSING_EXPORT. FATAL. Type-only exports are
+//      unaffected: the `types` condition still points at the root `.d.ts`.
+//   4. `curated-alias-routing` — a curated alias in `ALIASES_NODE_FOR_BROWSER` may not
+//      resolve to the ROOT of a package shipping a `./browser` entry. FATAL; rationale at
+//      `auditCuratedAliasRouting`.
+//   5. `globals-entry-parity` — the `native` mirror of check 3: a `native` slot routes the
+//      package ROOT to `@gjsify/<X>/globals`, so `globals.mjs` must carry every VALUE
+//      export of the root. REPORTED, not fatal — see `nativeGlobalsGap` for why, and for
+//      which part of the gap a `globals.mjs` cannot close at all.
 //
-//   1. `gjs-only-reach`   — the target-resolved source of a `polyfill` slot
-//                           has a direct `@girs/*` / `gi://` / unguarded
-//                           `imports.*` binding, or imports a `@gjsify/*`
-//                           package that is BOTH declared `none` for the
-//                           target AND itself hard-bound to GJS. FATAL on
-//                           browser + nativescript (see below).
-//                           The same finding on a `partial` slot is REPORTED,
-//                           not fatal: `partial` explicitly promises only
-//                           graceful degradation, and a structured failure
-//                           inside a GJS-only code path IS that contract (see
-//                           the `none` rationale in
-//                           `resolve-npm/lib/runtime-aliases.mjs`).
-//
-//                           "Hard-bound" is load-bearing and excludes the
-//                           sanctioned graceful-degradation shape: a bridge
-//                           like `@gjsify/terminal-native` reaches GJS only
-//                           through a guarded `globalThis.imports?.gi` probe
-//                           and exports `null` off GJS. Importing it from a
-//                           `polyfill` slot is correct, not a leak — the same
-//                           distinction `scanSourceTree`'s
-//                           `GJS_IMPORTS_GUARD_RE` / `DYNAMIC_GI_RE` already
-//                           encode for the drift check.
-//
-//                           FATAL SCOPE — `browser` + `nativescript` only.
-//                           This is not squeamishness, it is the failure mode:
-//                           on those two targets `gjsImportsEmptyPlugin`
-//                           substitutes `{}` for `@girs/*` AND `gi://*`, so a
-//                           leak is SILENT until a consumer calls the helper
-//                           and gets a `TypeError` — precisely the bug class
-//                           this audit exists to kill. On `--app node` a
-//                           `gi://` specifier is claimed FIRST by
-//                           `gjsGiNodePlugin` and rewritten to `requireGi(…)`
-//                           against the EXTERNAL `@gjsify/node-gi`, so the
-//                           same leak either resolves through the supported
-//                           Axis-5 reverse bridge or fails LOUDLY at module
-//                           load. A loud load-time failure needs no static
-//                           guard; a silent call-time one does. `node`
-//                           findings are therefore printed on every run
-//                           instead of being enforced.
-//   2. `platform-entry-unreachable`
-//                         — `src/<target>.ts` exists but the `exports` map has
-//                           no `./<target>` subpath, so nothing can ever route
-//                           to it. A dead platform variant reads as coverage
-//                           that does not exist. FATAL.
-//   3. `platform-entry-parity`
-//                         — when a slot ROUTES to `src/<target>.ts`
-//                           (`polyfill` + declared subpath, per ADR 0014), the
-//                           platform entry must re-export every VALUE export
-//                           of the root entry, or the routed bundle dies with
-//                           MISSING_EXPORT. FATAL. Type-only exports are
-//                           ignored: the `types` condition still points at the
-//                           root `.d.ts`, so they are unaffected by routing.
-//   4. `curated-alias-routing`
-//                         — a curated bare-specifier alias in
-//                           `ALIASES_NODE_FOR_BROWSER` may not resolve to the
-//                           ROOT of a package that ships a `./browser` entry.
-//                           `partial` is not rewritten by the derived layer, so
-//                           such a value hands the bundler the GJS body and
-//                           `partial` silently means "crashes at first use"
-//                           instead of "degrades at call time". FATAL. Full
-//                           rationale at `auditCuratedAliasRouting`.
-//   5. `globals-entry-parity`
-//                         — the `native` mirror of check 3: a `native` slot
-//                           routes the package ROOT to `@gjsify/<X>/globals`, so
-//                           `globals.mjs` must carry every VALUE export of the
-//                           root entry or the routed bundle dies with
-//                           MISSING_EXPORT. REPORTED, not fatal — 23 packages
-//                           / 152 export names are narrower today. Rationale,
-//                           and which part of the gap a `globals.mjs` cannot
-//                           close at all: `nativeGlobalsGap`.
-//
-// Unrouted-but-exported platform entries (today: the ten `partial` packages)
-// are listed as an informational line on every run. Check 3 gates the
-// `partial` → `polyfill` promotion, but it is NECESSARY, NOT SUFFICIENT: eight
-// of those ten already pass it while remaining un-promotable because a named
-// export is unavailable on the browser platform itself (each package's row in
-// AGENTS.md names it). A green parity check is permission to look, not a
-// mandate to promote — a routed entry must also have no unconditionally
-// throwing value export.
+// Exported-but-unrouted platform entries are printed on every run. Check 3 gates the
+// `partial` → `polyfill` promotion but is NECESSARY, NOT SUFFICIENT: several entries pass
+// parity and stay un-promotable because a named export is unavailable on the browser
+// platform itself. A green parity check is permission to look, not a mandate to promote —
+// a routed entry must also have no unconditionally throwing value export.
 
 /** Targets that can carry a per-runtime platform entry. `gjs` never can. */
 const REACH_TARGETS = ['browser', 'nativescript', 'node'];
@@ -877,10 +681,9 @@ const REACH_FATAL_TARGETS = new Set(['browser', 'nativescript']);
 const REACH_FATAL_SLOT = 'polyfill';
 
 /**
- * Read the `gjsify` metadata this audit needs from every workspace package,
- * keyed by package name. Separate from `buildReport`'s rows because the
- * reachability audit must look up the slot of an IMPORTED package (and of an
- * imported SUBPATH), not just of the package being scanned.
+ * The `gjsify` metadata this audit needs, keyed by package name. Separate from
+ * `buildReport`'s rows because the reachability audit must look up the slot of an
+ * IMPORTED package, and of an imported SUBPATH — not only of the one being scanned.
  */
 async function collectReachMeta() {
     const pkgDirs = await findPackages(PACKAGES_DIR);
@@ -895,12 +698,11 @@ async function collectReachMeta() {
             continue;
         }
         if (typeof pkgJson.name !== 'string') continue;
-        // `hardGjs` reuses the drift check's own signal vocabulary: a package
-        // is hard-bound iff it takes a `@girs/*` VALUE import, a `gi://`
-        // import, or an UNGUARDED `imports.*` read. A package whose only GJS
-        // contact is the guarded `globalThis.imports?.gi` probe or a dynamic
-        // `await import('gi://…')` is a graceful-degradation bridge — it
-        // exports null/false off GJS and is safe to import from any slot.
+        // `hardGjs` reuses the drift check's signal vocabulary: hard-bound iff a `@girs/*`
+        // VALUE import, a `gi://` import, or an UNGUARDED `imports.*` read. A package
+        // whose only GJS contact is the guarded `globalThis.imports?.gi` probe or a
+        // dynamic `await import('gi://…')` is a degradation bridge — it exports
+        // null/false off GJS and is safe to import from any slot.
         const sig = await scanSourceTree(pkgDir);
         const hardGjs =
             sig.girs_value || sig.gi_url || (sig.imports_legacy && !sig.gjs_imports_guard && !sig.dynamic_gi);
@@ -910,9 +712,9 @@ async function collectReachMeta() {
             rel: toPosixRel(relative(PACKAGES_DIR, pkgDir)),
             runtimes: pkgJson.gjsify?.runtimes ?? null,
             subpaths: pkgJson.gjsify?.runtimeSubpaths ?? {},
-            // The headless audit needs the export TARGETS (not just the keys)
-            // to find the source behind `exports["."]` and to follow a
-            // workspace import into the subpath it actually resolves.
+            // The headless audit needs the export TARGETS, not just the keys: it has to
+            // find the source behind `exports["."]` and follow a workspace import into
+            // the subpath it actually resolves to.
             headless: pkgJson.gjsify?.headless,
             exports: pkgJson.exports && typeof pkgJson.exports === 'object' ? pkgJson.exports : null,
             hardGjs,
@@ -927,14 +729,13 @@ async function collectReachMeta() {
 /**
  * Resolve the slot a specifier presents on `target`.
  *
- * A subpath import is resolved against the imported package's
- * `gjsify.runtimeSubpaths` map first — that is how a GJS-runtime package can
- * expose a genuinely cross-runtime slice (`@gjsify/utils/core`) without the
- * whole package having to claim a slot it cannot keep. An undeclared subpath
- * falls back to the package-level slot, which is the conservative reading.
+ * A subpath import resolves against the imported package's `gjsify.runtimeSubpaths` map
+ * first — that is how a GJS-runtime package exposes a genuinely cross-runtime slice
+ * (`@gjsify/utils/core`) without the whole package claiming a slot it cannot keep. An
+ * undeclared subpath falls back to the package-level slot, the conservative reading.
  *
- * @returns {{slot:string|undefined, via:string}|null} `null` when the
- *          specifier is not a workspace `@gjsify/*` package (nothing to say).
+ * @returns {{slot:string|undefined, via:string}|null} `null` when the specifier is not a
+ *          workspace `@gjsify/*` package (nothing to say).
  */
 function slotOfSpecifier(spec, target, meta) {
     if (!spec.startsWith('@gjsify/')) return null;
@@ -955,10 +756,10 @@ function slotOfSpecifier(spec, target, meta) {
 /**
  * Run the reachability audit across the workspace.
  *
- * @param {Awaited<ReturnType<typeof collectReachMeta>>} meta — collected ONCE
- *        by the caller and shared with the headless audit; `collectReachMeta`
- *        runs `scanSourceTree` over every package, which is the bulk of what
- *        `--check` costs, and it is the same answer for both.
+ * @param {Awaited<ReturnType<typeof collectReachMeta>>} meta — collected ONCE by the
+ *        caller and shared with the headless audit: `collectReachMeta` runs
+ *        `scanSourceTree` over every package, the bulk of what `--check` costs, and both
+ *        want the same answer.
  * @returns {Promise<{failures:string[], warnings:string[], unrouted:string[],
  *                    aliasFailures:string[], checked:number}>}
  */
@@ -1044,9 +845,8 @@ async function auditReachability(meta) {
             for (const b of bare) {
                 const res = slotOfSpecifier(b.spec, target, meta);
                 if (!res || res.slot !== 'none') continue;
-                // A `none` slot alone is not a leak: `none` also covers the
-                // graceful-degradation bridges that export null off GJS. Only
-                // a HARD GJS binding actually reaches GLib/Gio.
+                // A `none` slot alone is not a leak — it also covers the degradation
+                // bridges that export null off GJS. Only a HARD binding reaches GLib/Gio.
                 if (!res.hardGjs) continue;
                 const key = `${b.spec}|${b.file}`;
                 if (reported.has(key)) continue;
@@ -1081,30 +881,26 @@ async function auditReachability(meta) {
 }
 
 /**
- * Check 5 — `globals-entry-parity`: the `native` mirror of `platform-entry-parity`.
+ * Check 5 — `globals-entry-parity`, the `native` mirror of `platform-entry-parity`.
  *
- * A `native` slot routes the package ROOT to `@gjsify/<X>/globals` (§ Slot
- * routing), exactly as `polyfill` + a declared subpath routes it to
- * `src/<target>.ts`. So the same invariant applies for the same reason: a name
- * the root entry exports and `globals.mjs` does not is a `MISSING_EXPORT` the
- * moment a consumer imports it on that target. It went unnoticed until a build of
- * `@gjsify/gamepad`'s OWN README example died with
- * `"hasGamepadBackend" is not exported by "packages/web/gamepad/globals.mjs"`,
- * because `probeGlobalsExports` (the `globals-broken` probe) only validates the
- * `export … from '<spec>'` SOURCES a `globals.mjs` names — a file that re-exports
- * nothing, like every hand-written `export const X = globalThis.X` one, passes it
- * vacuously.
+ * A `native` slot routes the package ROOT to `@gjsify/<X>/globals` (§ Slot routing) just
+ * as `polyfill` + a declared subpath routes it to `src/<target>.ts`, so the same
+ * invariant holds: a name the root entry exports and `globals.mjs` does not is a
+ * `MISSING_EXPORT` the moment a consumer imports it on that target. It went unnoticed
+ * until a build of `@gjsify/gamepad`'s OWN README example died with `"hasGamepadBackend"
+ * is not exported by "packages/web/gamepad/globals.mjs"` — because the `globals-broken`
+ * probe validates only the `export … from '<spec>'` SOURCES a file names, and a
+ * hand-written `export const X = globalThis.X` file names none and passes vacuously.
  *
- * REPORTED, not fatal — measured 2026-08-04 by this very check: 23 of the 40
- * comparable `native`-slot packages, 152 export names. Making it fatal is a
- * cross-cutting rewrite of all 152 (AGENTS.md exception (c): Plan + user confirm +
- * split PRs), and part of the gap is not closable in a
- * `globals.mjs` at ALL: no `globals.mjs` in the tree imports its own package body,
- * so a name with no runtime-native source needs a platform entry rather than a
- * re-export. Tracked in `status/open-todos.md`.
+ * REPORTED, not fatal: over half the comparable `native`-slot packages are narrower
+ * today, so making it fatal is a cross-cutting rewrite (AGENTS.md exception (c): Plan +
+ * user confirm + split PRs). Part of the gap is not closable in a `globals.mjs` at ALL —
+ * no `globals.mjs` in the tree imports its own package body, so a name with no
+ * runtime-native source needs a platform entry rather than a re-export. Tracked in
+ * `status/open-todos.md`.
  *
- * @returns {Promise<string[]|null>} the missing value exports, or `null` when the
- *          slot does not route here / there is nothing to compare.
+ * @returns {Promise<string[]|null>} the missing value exports, or `null` when the slot
+ *          does not route here / there is nothing to compare.
  */
 async function nativeGlobalsGap(rec, srcDir) {
     if (!rec.exportKeys.has('./globals')) return null;
@@ -1112,22 +908,18 @@ async function nativeGlobalsGap(rec, srcDir) {
     const rootEntry = join(srcDir, 'index.ts');
     if (!existsSync(globalsFile) || !existsSync(rootEntry)) return null;
     const globalsSrc = await readFile(globalsFile, 'utf8');
-    // A star re-export from a NON-relative specifier is not statically
-    // enumerable and must not be read as a gap. `@gjsify/util`'s globals.mjs is
-    // `export * from 'node:util'`: it surfaces the runtime's ENTIRE surface, so
-    // every root name it "does not name" is in fact present — and
-    // `tests/e2e/runtimes-routing` proves it by importing `format`/`inspect`
-    // through exactly that file. Counting those 20-odd packages as findings was
-    // the first version of this check crying wolf; a check nobody can trust is
-    // worse than no check. Skipped, and the skip is COUNTED and printed so it
-    // stays visible rather than becoming a silent carve-out.
+    // A star re-export from a NON-relative specifier is not statically enumerable and must
+    // not be read as a gap. `@gjsify/util`'s `export * from 'node:util'` surfaces the
+    // runtime's ENTIRE surface, so every root name it "does not name" is in fact present —
+    // `tests/e2e/runtimes-routing` proves it by importing `format`/`inspect` through that
+    // very file. Counting those packages as findings was the first version of this check
+    // crying wolf. The skip is COUNTED and printed rather than silent.
     //
-    // Residual blind spot, stated rather than hidden: a `globals.mjs` that stars
-    // a runtime module AND has a root export that module does not carry is skipped
-    // too, so its real gap is invisible here. Closing that means asking the
-    // runtime for the star target's export set — runtime EVALUATION, which this
-    // audit deliberately does not do (it must not crash on a browser-only
-    // re-export). Recorded in `status/open-todos.md`.
+    // Residual blind spot, stated rather than hidden: a `globals.mjs` that stars a runtime
+    // module AND has a root export that module does not carry is skipped too, so its real
+    // gap is invisible here. Closing it means asking the runtime for the star target's
+    // export set — runtime EVALUATION, which this audit must not do (it would crash on a
+    // browser-only re-export). Recorded in `status/open-todos.md`.
     if (/^export\s*\*\s*from\s*['"](?!\.)/m.test(globalsSrc)) return 'star';
     const rootExports = await collectValueExports(rootEntry);
     const globalsExports = await collectValueExports(globalsFile);
@@ -1137,25 +929,20 @@ async function nativeGlobalsGap(rec, srcDir) {
 
 // ─── Curated-alias routing (the `partial`-slot crash gap) ───────────────────
 //
-// `withDerivedSlotRouting` only rewrites a curated alias VALUE when the target
-// package's slot is `polyfill` (ADR 0014). A `partial` package therefore keeps
-// whatever the curated table names — and if that is the package ROOT, the
-// bundler is handed the GJS body, whose `@girs/*` imports `gjsImportsEmptyPlugin`
-// replaces with `{}`. The result is the silent `GLib.Checksum is not a
-// constructor` failure mode, i.e. `partial` means "crashes at first use" rather
-// than "degrades at call time". That is not a weaker promise, it is a false one.
+// `withDerivedSlotRouting` rewrites a curated alias VALUE only when the target package's
+// slot is `polyfill` (ADR 0014), so a `partial` package keeps whatever the curated table
+// names. If that is the package ROOT, the bundler gets the GJS body with `@girs/*`
+// replaced by `{}` — the silent `GLib.Checksum is not a constructor` failure, i.e.
+// `partial` means "crashes at first use" rather than "degrades at call time". Not a
+// weaker promise: a false one.
 //
-// Invariant: no curated bare-specifier alias may resolve to the ROOT of a
-// package that ships a `./<target>` platform entry. Either the slot is
-// `polyfill` (and the derived layer rewrites it for you) or the curated value
-// names the subpath explicitly. FATAL — this is a shipping-bug class, not a
-// style preference.
+// Invariant: no curated bare-specifier alias may resolve to the ROOT of a package that
+// ships a `./<target>` platform entry. Either the slot is `polyfill` and the derived
+// layer rewrites it, or the curated value names the subpath explicitly. FATAL.
 //
-// `browser` only today: it is the one target whose curated table is composed
-// through `withDerivedSlotRouting` (see the `ALIASES_NODE_FOR_NATIVESCRIPT`
-// note in resolve-npm — composing the NS table is blocked on the `native`-slot
-// vocabulary decision, so auditing it here would report a gap whose fix is not
-// available yet).
+// `browser` only, because it is the one target whose curated table is composed through
+// `withDerivedSlotRouting` — composing the NS table is blocked on the `native`-slot
+// vocabulary decision, so auditing it here would report a gap with no fix available.
 
 /**
  * @returns {Promise<string[]>} one failure line per offending alias entry.
@@ -1189,12 +976,11 @@ async function auditCuratedAliasRouting(meta) {
 }
 
 /**
- * Print the two informational sections of the reachability audit: `partial`
- * slots that reach GJS-only code (reported, never fatal) and platform entries
- * that exist + are exported but that no slot routes to. Both are deliberately
- * non-fatal, and both must stay VISIBLE on every run — a dead platform variant
- * that nobody prints is exactly how `src/browser.ts` sat unrouted for a whole
- * release cycle while reading as browser coverage.
+ * The reachability audit's informational sections: `partial` slots that reach GJS-only
+ * code, and platform entries that exist and are exported but that no slot routes to. Both
+ * are non-fatal and both must stay VISIBLE on every run — a dead platform variant nobody
+ * prints is how `src/browser.ts` sat unrouted for a whole release cycle while reading as
+ * browser coverage.
  */
 function renderReachabilityNotes(reach) {
     if (reach.warnings.length > 0) {
@@ -1240,15 +1026,13 @@ async function buildReport() {
     for (const pkgDir of pkgDirs) {
         const pkgJsonPath = join(pkgDir, 'package.json');
         const pkgJson = JSON.parse(await readFile(pkgJsonPath, 'utf8'));
-        // Per-target platform packages (ADR 0017) carry a binary and no
-        // JavaScript. The runtime quadruplet describes the cross-runtime reach of
-        // an API surface; a package with no source has none, and the path-based
-        // axis classifier would happily suggest one from the pillar directory
-        // alone — a suggestion nothing could satisfy and a declaration that would
-        // be a lie in whichever direction it was written. They are skipped on the
-        // manifest's own signature, the same predicate `status-data` and
-        // `platforms-ci` use, so all three cannot disagree about what a data
-        // package is.
+        // Per-target platform packages (ADR 0017) carry a binary and no JavaScript. The
+        // quadruplet describes an API surface's cross-runtime reach, and a package with no
+        // source has none — yet the path-based classifier would happily suggest one from
+        // the pillar directory alone, a suggestion nothing can satisfy and a declaration
+        // that would be false whichever way it was written. Skipped on the manifest's own
+        // signature, the same predicate `status-data` and `platforms-ci` use, so the three
+        // cannot disagree about what a data package is.
         if (isPlatformPackageManifest(pkgJson)) continue;
         const rel = toPosixRel(relative(PACKAGES_DIR, pkgDir));
         const signals = await scanSourceTree(pkgDir);
@@ -1256,9 +1040,6 @@ async function buildReport() {
         const subpath = rel.split('/')[1] ?? '';
         const suggested = suggestRuntimes(axis, signals, subpath);
         if (suggested) {
-            // Quadruplet: append the `nativescript` slot suggestion via the
-            // foundation-time heuristic (Welle 4-T). Per-package Welle-5 PRs
-            // override with explicit declarations.
             suggested.nativescript = deriveNativescriptSlot(axis, suggested, signals, subpath);
         }
         const declared = pkgJson.gjsify?.runtimes ?? null;
@@ -1326,11 +1107,9 @@ function renderJson(rows) {
 }
 
 /**
- * Compare declared vs suggested triplets and return a list of drifted rows.
- * Only rows where BOTH `declared` and `suggested` exist are checked; infra /
- * unknown axes (suggested === null) are skipped — the script has nothing to
- * say about them. A row where `declared` is missing but `suggested` exists is
- * also flagged (a new package landed without declaring its triplet).
+ * Compare declared vs suggested triplets. Infra / unknown axes (`suggested === null`) are
+ * skipped — the script has nothing to say about them. A row with a suggestion and no
+ * declaration is flagged too: a new package landed without declaring its triplet.
  */
 function diffDeclared(rows) {
     const drifted = [];
@@ -1342,21 +1121,16 @@ function diffDeclared(rows) {
             continue;
         }
         const slots = ['gjs', 'node', 'browser', 'nativescript'];
-        // A pure-TS contract (no `.imports?.gi` guard and none of the hard
-        // GJS-binding signals) is platform-agnostic: it runs unmodified on
-        // Node, the browser and NS' V8 (resolving to its real
-        // `lib/esm/index.js`), so it can legitimately opt the node / browser /
-        // nativescript slots INTO `"polyfill"` even though the conservative
-        // heuristic suggests `none`. Both `none` (opt-out, GJS-only) and
-        // `polyfill` (opt-in, cross-runtime) are honest for these slots — do
-        // not flag either as drift. The GJS slot stays enforced as usual;
-        // GJS-bound packages get no tolerance. Two axes carry this shape:
-        //   - framework-gjs: `@gjsify/stories` + `@gjsify/storybook-core`
-        //     (all-polyfill, shared by the GTK/browser/NS renderers).
-        //   - design-identity: `@gjsify/adwaita-core` (ADR 0004 — headless
-        //     widget behavior consumed by the web/NS renderers), recognised by
-        //     the standard cross-runtime test harness (`src/test.mts`), which
-        //     the design-ASSET packages (fonts/icons/web components) never ship.
+        // A pure-TS contract (no `.imports?.gi` guard, none of the hard GJS-binding
+        // signals) is platform-agnostic: it runs unmodified on Node, the browser and NS'
+        // V8, resolving to its real `lib/esm/index.js`. So it may opt the node / browser /
+        // nativescript slots INTO `"polyfill"` even though the conservative heuristic
+        // suggests `none` — both readings are honest and neither is drift. The GJS slot
+        // stays enforced, and GJS-bound packages get no tolerance at all. Two axes carry
+        // the shape: framework-gjs (the all-polyfill contracts the GTK/browser/NS
+        // renderers share) and design-identity (ADR 0004's headless widget behaviour),
+        // the latter recognised by the `src/test.mts` harness the design-ASSET packages
+        // never ship.
         const isPureTsContract =
             (r.axis === 'framework-gjs' || (r.axis === 'design-identity' && r.signals.has_test_entry)) &&
             !r.signals.gjs_imports_guard &&
@@ -1366,15 +1140,12 @@ function diffDeclared(rows) {
             !r.signals.dynamic_gi;
         const portableContractSlot = (s) => s === 'node' || s === 'browser' || s === 'nativescript';
         const mismatches = slots.filter((s) => {
-            // `nativescript` is a Foundation-time addition (Welle 4-T). Existing
-            // packages declared their triplet before NS was an axis; treat the
-            // 4th slot as OPTIONAL until per-package Welle-5 PRs backfill it.
-            // If the package doesn't declare `nativescript`, skip drift check
-            // on that slot (the suggestion is just a hint, not a hard target).
+            // The 4th slot is OPTIONAL: packages that declared their triplet before NS was
+            // an axis are backfilled opportunistically, so an undeclared `nativescript`
+            // makes the suggestion a hint rather than a target.
             if (s === 'nativescript' && r.declared[s] === undefined) return false;
-            // Pure-TS contract: `none` (opt-out) and `polyfill` (opt-in) are
-            // both valid choices for the portable node/browser/nativescript
-            // slots (see above) — neither drifts.
+            // Pure-TS contract: `none` and `polyfill` are both valid on the portable slots
+            // (see above), so neither drifts.
             if (
                 isPureTsContract &&
                 portableContractSlot(s) &&
@@ -1442,17 +1213,16 @@ async function apply(rows) {
 
 // ─── Rule registrations ─────────────────────────────────────────────────────
 //
-// The three checks below stay implemented in this file because they are
-// inseparable from the source-signal model above, and all three are REPO-SCOPED
-// for the same reason: they compare a declaration not to a fact but to a
-// re-derivation built out of THIS repository — path-based axis classification
-// (`packages/node/*`, `packages/web/adwaita*`), five curated `@gjsify/*`
-// package-name allowlists, and `@gjsify/resolve-npm`'s own alias tables. Run
-// against somebody else's package that derivation does not degrade, it lies.
+// These three stay in this file because they are inseparable from the source-signal model
+// above, and all three are REPO-SCOPED for one reason: they compare a declaration not to a
+// fact but to a re-derivation built out of THIS repository — path-based axis
+// classification, the curated `@gjsify/*` package-name allowlists, and
+// `@gjsify/resolve-npm`'s own alias tables. Against somebody else's package that
+// derivation does not degrade, it lies.
 //
-// Registering them means `field-coverage` can see that `gjsify.runtimes` and
-// `gjsify.runtimeSubpaths` have owners, and that a future declaration kind
-// cannot be added without one.
+// Registering them lets `field-coverage` see that `gjsify.runtimes` and
+// `gjsify.runtimeSubpaths` have owners, and that a future declaration kind cannot be added
+// without one.
 
 /** Cached across rules in a single run — `buildReport` is the expensive part. */
 let reportRows = null;
@@ -1547,53 +1317,38 @@ defineRule({
 /**
  * The rules `--check` selects.
  *
- * `package-outputs` and `refs-pin` are REGISTERED (so `field-coverage` sees the
- * fields they govern) but deliberately NOT selected here, because neither can
- * run in this job: `package-outputs` is a POST-condition on a built tree and
- * this workflow does no install and no build, and `refs-pin` needs initialised
- * `refs/` submodules and runs per-package inside `build:meson`. Selecting a
- * rule that cannot pass here would turn the gate into noise; leaving it
- * unregistered would hide its fields from coverage. Registration and selection
- * are separate on purpose.
+ * `package-outputs` and `refs-pin` are REGISTERED so `field-coverage` sees the fields
+ * they govern, but deliberately NOT selected: `package-outputs` is a POST-condition on a
+ * built tree and this job does no install and no build, and `refs-pin` needs initialised
+ * `refs/` submodules and runs per-package inside `build:meson`. Selecting a rule that
+ * cannot pass here would make the gate noise; leaving it unregistered would hide its
+ * fields from coverage. Registration and selection are separate on purpose.
  */
 const CHECK_RULES = [
     'runtimes-drift',
     'tier',
     'platforms-ci',
     'prebuild-artifacts',
-    // Runs in this job for the same reason `prebuild-artifacts` does: it reads
-    // COMMITTED binaries out of the tree, so it needs no install and no build.
-    // The libc flavour and the glibc floor come out of the ELF headers, which is
-    // also why it works for every architecture from a single x86-64 runner.
+    // Reads COMMITTED binaries out of the tree, so no install and no build — and the libc
+    // flavour and glibc floor come out of the ELF headers, which is why one x86-64 runner
+    // can answer for every architecture.
     'prebuild-libc',
     'platform-packages',
     'runtimes-reachability',
     'curated-alias-routing',
     'headless',
-    // Reads only `scripts` out of each manifest — no install, no build, no
-    // filesystem beyond the package.json this job already parses. It belongs in
-    // THIS job rather than a Windows leg precisely because the defect it guards
-    // is invisible on Linux: a script that shells out to `rm`/`cp` runs fine
-    // here and cannot run at all under cmd.exe.
+    // Reads only `scripts` out of each manifest. It belongs in THIS job rather than a
+    // Windows leg precisely because the defect it guards is invisible on Linux: a script
+    // shelling out to `rm`/`cp` runs fine here and cannot run at all under cmd.exe.
     'portable-scripts',
-    // ADR 0018. Reads each manifest plus the package's own shipping sources —
-    // no install, no build, no binaries — so it belongs in this job for the
-    // same reason `portable-scripts` does. It is also the one rule whose whole
-    // subject is the axis a Linux runner cannot exercise: it does not TEST any
-    // operating system, it holds the DECLARATION about all three, which is
-    // exactly the half a single-OS runner can be trusted with.
+    // ADR 0018. It does not TEST any operating system — it holds the DECLARATION about all
+    // three, which is exactly the half a single-OS runner can be trusted with.
     'os-axis',
     'storybook',
-    // Reads each manifest plus the package's own source tree — no install, no
-    // build — so it belongs here alongside `storybook`. It guards the axis a
-    // Linux runner is least able to exercise otherwise: there is no iOS CI
-    // anywhere in this repo, so "does the declared platform have an
-    // implementation at all" is the only half of that promise any machine here
-    // can hold.
+    // There is no iOS CI anywhere in this repo, so "does the declared platform have an
+    // implementation at all" is the only half of that promise any machine here can hold.
     'nativescript-platforms',
-    // Reads only manifests already parsed by this job — no install, no
-    // network. It guards the apps EXCLUDED from `workspaces`, which is exactly
-    // the set no other check can see.
+    // Guards the apps EXCLUDED from `workspaces` — the set no other check can see.
     'release-train',
     'field-coverage',
     'status-data',
@@ -1603,18 +1358,16 @@ const CHECK_RULES = [
 function repoContext() {
     return createContext({
         root: ROOT,
-        // `packages/node-gi/*` and `packages/napi/*` are deliberately NOT
-        // workspace members, yet `@gjsify/napi` declares `gjsify.platforms` +
-        // `gjsify.platformsUncommitted` and is audited. Scanning the subtree is
-        // what keeps them in scope; narrowing to the `workspaces` globs would
-        // drop that coverage with nothing to notice it.
+        // `packages/node-gi/*` and `packages/napi/*` are deliberately NOT workspace
+        // members, yet `@gjsify/napi` declares `gjsify.platforms` +
+        // `gjsify.platformsUncommitted` and is audited. Scanning the subtree keeps them in
+        // scope; narrowing to the `workspaces` globs would drop that coverage silently.
         discoveryRoots: ['packages'],
         extra: {
             fieldCoverage: 'enforce',
             uncheckedFields: UNCHECKED_FIELDS,
-            // The missing-`.gir` ledger. Injected here rather than declared in a
-            // manifest because the manifests it would live in are GENERATED from
-            // derived fields only — see the rule's header.
+            // Injected rather than declared in a manifest, because the manifests it would
+            // live in are GENERATED from derived fields only — see the rule's header.
             prebuildGirGaps: PREBUILD_GIR_GAPS,
         },
     });
@@ -1640,10 +1393,10 @@ async function main() {
     }
 
     if (PLATFORMS) {
-        // `matrixRows`, not `rows`: the per-target platform packages (ADR 0017)
-        // are audited but not TABULATED — see `creditPlatformPackages`. `--json`
-        // takes the same set so the machine-readable form and the table cannot
-        // describe different populations.
+        // `matrixRows`, not `rows`: the per-target platform packages (ADR 0017) are
+        // audited but not TABULATED (see `creditPlatformPackages`). `--json` takes the
+        // same set, so the machine-readable form and the table cannot describe different
+        // populations.
         const { matrixRows } = await platformRows(repoContext());
         if (FORMAT === 'json') {
             console.log(JSON.stringify(matrixRows, null, 2));
@@ -1663,10 +1416,9 @@ async function main() {
 
     if (CHECK) {
         const ctx = repoContext();
-        // The headless walk needs the same per-package metadata the
-        // reachability walk builds, and building it runs `scanSourceTree` over
-        // every package — the bulk of what `--check` costs. Collect ONCE and
-        // hand it to both.
+        // The headless walk needs the metadata the reachability walk builds, and building
+        // it runs `scanSourceTree` over every package — the bulk of what `--check` costs.
+        // Collect ONCE, hand it to both.
         ctx.options.headlessMeta = await reachMetaFor();
         const run = await runRules(selectRules({ only: CHECK_RULES }), ctx);
         const byId = new Map(run.results.map((r) => [r.rule.id, r.result]));
@@ -1686,13 +1438,11 @@ async function main() {
         const releaseTrain = byId.get('release-train');
         const coverage = byId.get('field-coverage');
         const statusData = byId.get('status-data');
-        // `platform-packages` is selected by CHECK_RULES, so its failures set the
-        // exit code — but it was never fetched here, in EITHER branch, so its
-        // findings were structurally unprintable and its summary printed on no
-        // run. That is what made the 2026-08-01 `commit-prebuilds` outage cost six
-        // main runs and ~41 hours: the gate said `DRIFT DETECTED.` and named
-        // nothing, because the only rule that could fail was the one rule with no
-        // print block. See the accountant at the end of this branch.
+        // Selected by CHECK_RULES, so its failures set the exit code — and once it was
+        // never fetched here in EITHER branch, making its findings structurally
+        // unprintable. That is what made the 2026-08-01 `commit-prebuilds` outage cost six
+        // main runs and ~41 hours: the gate said `DRIFT DETECTED.` and named nothing. See
+        // the accountant at the end of this branch.
         const platformPackages = byId.get('platform-packages');
         const reach = reachability.reach;
 

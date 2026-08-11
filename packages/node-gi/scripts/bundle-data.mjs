@@ -5,72 +5,38 @@
 //   1. it must be REAL FILES, not links into the machine that built it (findSymlinks);
 //   2. every data set the bundle DECLARES must actually be in it (verifyWindowingData).
 //
-// THE DEFECT THIS EXISTS FOR — measured on PR #977's own CI (node-gi.yml run
-// 30890804400, macos-gtk-windowing-runtime): the darwin `--windowing` bundle reported
-// `share/` at 0.2 MiB while the uploaded artifact of the same directory unpacked to
-// 22 MB. Both numbers were right. Homebrew links a keg's tree into `$(brew --prefix)`
-// by SYMLINK, `cpSync` defaults to `dereference: false`, so `share/icons/Adwaita`
-// was copied AS A LINK pointing back into `…/Cellar/adwaita-icon-theme/…`.
-// `actions/upload-artifact` follows symlinks, which is why the artifact looked
-// complete; `npm pack` does NOT, so the published tarball would have shipped a
-// dangling link — an icon theme that exists only on the build machine.
+// Rule 1 is why the builders copy with copyTreeDereferenced() below: Homebrew links a keg's tree
+// into `$(brew --prefix)` by SYMLINK, and `cpSync(…, { dereference: true })` DOES NOT dereference
+// it — measured on node 24.15 and on the macOS runner, the flag governs only the stat of the path
+// handed to `cpSync`, so every NESTED link stays a link (the first attempt at this fix passed it
+// and left 859 links under `share/icons/Adwaita` pointing into `…/Cellar/adwaita-icon-theme/…`).
+// `npm pack` archives a symlink as a symlink, so those ship dangling, while
+// `actions/upload-artifact`, `statSync` and `test -d` all FOLLOW links — which is why the
+// artifact, the manifest's size and the CI check all looked healthy over 0.2 MiB of links where
+// the icon theme is 22 MB of files.
 //
-// It stayed invisible for two reasons worth naming, because both are the same shape
-// as the rest of this PR: the size the manifest reported came from `statSync`, which
-// FOLLOWS links, so the number said 19.4 MiB and agreed with nobody; and the CI check
-// was `test -d "$B/share/icons"`, which a link to an existing directory satisfies on
-// the build host.
+// Rule 2 exists because every data step in both builders used to warn-and-continue, which is how
+// `"dataBytes": 0` reached npm in 0.27.1. The requirement is DERIVED, not a second list to
+// maintain: a set is required iff the bundle ships the namespace it belongs to (read off the
+// bundle's own typelib dir) — the data-side twin of the typelib/library rule in
+// typelib-backers.mjs. It cannot be dodged by declaring less, since `--windowing`'s namespace
+// floor (WINDOWING_REQUIRED_NAMESPACES) forces Adw + GtkSource and REQUIRED_NAMESPACES forces
+// Gio + Gtk. The display-free variant needs no relaxed copy of the gate: it declares no data at
+// all and the backer filter has already dropped the namespaces whose data would be required, so
+// the rule simply has no subject there.
 //
-// So the builders copy the data with copyTreeDereferenced() below, and this module
-// asserts the result: a windowing bundle contains NO symlinks at all. That is a
-// POSITIVE, checkable fact about portability — the same one `verifyRelocation`
-// establishes for the dylibs — and it cannot be satisfied vacuously, since the same
-// build also asserts the tree is present.
-//
-// AND `cpSync`'s `dereference: true` IS NOT THAT COPY. Measured (node 24.15, and on
-// the macOS runner): the flag only governs the stat of the path handed to `cpSync`,
-// so a nested link is still copied AS A LINK — the first attempt at this fix passed
-// `dereference: true` and the gate below still found 859 links under
-// `share/icons/Adwaita`, each pointing at `/opt/homebrew/Cellar/adwaita-icon-theme/…`.
-// The walk below uses `statSync` per entry, which follows, and `copyFileSync`, which
-// copies bytes.
-//
-// RULE 2 — AND THE DECLARED DATA MUST BE THERE. Every data step in both builders was
-// warn-and-continue: a missing tree in the source prefix printed `WARNING — … NOT
-// bundled` and the build went on to publish. That is exactly how `"dataBytes": 0`
-// reached npm in 0.27.1, so leaving it in place would let the defect this whole change
-// exists to close recur THROUGH the fix. verifyWindowingData() therefore re-reads the
-// finished bundle and FAILS the build when a declared set is absent or empty.
-//
-// The requirement is DERIVED, not a second list to maintain: a data set is required iff
-// the bundle actually ships the namespace it belongs to (read off the bundle's own
-// typelib dir). So it is the data-side twin of the typelib/library rule in
-// typelib-backers.mjs — "the bundle ships the closure of exactly what it ships" — and it
-// cannot be dodged by declaring less: `--windowing`'s namespace floor
-// (WINDOWING_REQUIRED_NAMESPACES) already forces Adw + GtkSource to be present, and
-// REQUIRED_NAMESPACES forces Gio + Gtk.
-//
-// WHY THE DISPLAY-FREE VARIANT IS NOT THE SAME CASE, and why it keeps no relaxed copy of
-// this gate: that bundle DECLARES no data. It writes no `share/` tree at all, its
-// manifest says `windowing: false, dataBytes: 0`, node-gi's loader keys the entire
-// windowing env on the `gschemas.compiled` marker and so wires none of it, and the
-// backer filter has already dropped the namespaces whose data would be required
-// (libadwaita/libgtksourceview are not in that closure, so Adw-1/GtkSource-5 are not in
-// that bundle). The rule "ship the data of the namespaces you ship" holds there too — it
-// simply has no subject. Under `--windowing` it always has one, which is why an empty
-// applied-set list is itself reported as a failure below.
+// Background: docs/node-gi-platform-notes.md.
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readlinkSync, realpathSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * Copy a directory tree so the RESULT contains no symlinks: every link is replaced by
- * the bytes (or the directory) it pointed at.
+ * Copy a directory tree so the RESULT contains no symlinks: every link is replaced by the bytes
+ * (or the directory) it pointed at.
  *
- * A DANGLING link in the source prefix is skipped and reported rather than fatal — it
- * cannot be shipped in any correct form (a broken icon alias in someone else's theme
- * is not this bundle's failure), and skipping it leaves one alias missing instead of
- * shipping a link that resolves nowhere. Directory cycles are impossible: a directory
- * is entered at most once per realpath.
+ * A DANGLING link in the source prefix is skipped and reported rather than fatal — it cannot be
+ * shipped in any correct form, and skipping it leaves one alias missing instead of a link that
+ * resolves nowhere. Directory cycles are impossible: a directory is entered at most once per
+ * realpath.
  * @param {string} src
  * @param {string} dest
  * @returns {{ files: number, dereferenced: number, dangling: string[] }}
@@ -107,9 +73,8 @@ export function copyTreeDereferenced(src, dest) {
 }
 
 /**
- * Walk `root` and return every symlink under it. After copyTreeDereferenced() the
- * result must be empty; a non-empty result means some part of the bundle resolves
- * only on the build machine.
+ * Walk `root` and return every symlink under it. After copyTreeDereferenced() the result must be
+ * empty; a non-empty result means some part of the bundle resolves only on the build machine.
  * @param {string} root
  * @returns {{ path: string, target: string }[]} bundle-relative paths + link targets
  */
@@ -155,29 +120,25 @@ export function formatSymlinkProblems(links, { root }) {
 }
 
 /**
- * The runtime data a `--windowing` bundle declares, keyed to the NAMESPACE whose
- * presence makes it required (read off the finished bundle's typelib dir, so a set
- * cannot be required for a namespace the bundle does not ship — and cannot be skipped
- * for one it does).
+ * The runtime data a `--windowing` bundle declares, keyed to the NAMESPACE whose presence makes it
+ * required (read off the finished bundle's typelib dir, so a set cannot be required for a
+ * namespace the bundle does not ship — and cannot be skipped for one it does).
  *
- * Only sets whose absence is SILENT belong here. `etc/fonts` deliberately does not: a
- * gvsbuild prefix without it means pango uses the win32/DirectWrite backend, which is
- * the normal configuration rather than a defect, and the builder logs "skipping" not a
- * warning.
+ * Only sets whose absence is SILENT belong here. `etc/fonts` deliberately does not: a gvsbuild
+ * prefix without it means pango uses the win32/DirectWrite backend, which is the normal
+ * configuration rather than a defect, and the builder logs "skipping" not a warning.
  *
- * The list is now PLATFORM-INDEPENDENT: the gdk-pixbuf loaders used to live in a
- * win32-only sibling array because the darwin builder did not bundle them, and "assert
- * what you ship" kept the gate honest instead of green-by-omission. That builder ships
- * them as of `build-gtk-runtime-darwin.mjs` § 2b, so the exception is gone — one list,
- * both builders, no asymmetry to remember.
+ * ONE list, BOTH builders, no platform exception: the gdk-pixbuf loaders lived in a win32-only
+ * sibling array while the darwin builder shipped none, which is how a bundle with a 22 MB icon
+ * theme and no decoder for any of it passed green.
  */
 export const WINDOWING_DATA_SETS = [
     {
         id: 'schemas',
         namespace: 'Gio',
         what: 'compiled GSettings schemas',
-        // Also the marker node-gi's loader keys the whole windowing env on, so its
-        // absence downgrades the bundle to display-free without saying so.
+        // Also the marker node-gi's loader keys the whole windowing env on, so its absence
+        // downgrades the bundle to display-free without saying so.
         why: 'Gio.Settings aborts the process when a schema is not installed; every GTK/Adwaita startup reads org.gnome.desktop.interface',
         requires: [{ file: 'share/glib-2.0/schemas/gschemas.compiled' }],
         remedy: 'install gsettings-desktop-schemas / glib into the build prefix and make sure glib-compile-schemas ran',
@@ -187,17 +148,16 @@ export const WINDOWING_DATA_SETS = [
         namespace: 'Gtk',
         what: 'at least one icon theme (Adwaita/hicolor)',
         why: 'GTK resolves every icon NAME through an icon theme; with none, lookups fail silently and widgets render blank',
-        // Both halves matter: a theme dir with an index and nothing in it would satisfy
-        // `test -d share/icons`, which is the check this replaces.
+        // Both halves matter: a theme dir with an index and nothing in it satisfies
+        // `test -d share/icons`.
         requires: [{ glob: 'share/icons/*/index.theme' }, { tree: 'share/icons' }],
         remedy: "brew install adwaita-icon-theme (darwin) / ship the prefix's share/icons (win32)",
     },
     {
-        // Directly after `icons`, because it is that set's DECODER: an icon theme without
-        // the loaders is 22 MB of files nothing in the bundle can read. Measured against
-        // the published @gjsify/gtk-runtime-darwin-x64@0.28.0 on a macOS x64 host:
-        // `GdkPixbuf.Pixbuf.new_from_file()` on that bundle's own
-        // share/icons/Adwaita/symbolic/actions/open-menu-symbolic.svg returned NULL.
+        // Directly after `icons`, because it is that set's DECODER: an icon theme without the
+        // loaders is 22 MB of files nothing in the bundle can read — measured on the published
+        // @gjsify/gtk-runtime-darwin-x64@0.28.0, where `GdkPixbuf.Pixbuf.new_from_file()` on that
+        // bundle's own `open-menu-symbolic.svg` returned NULL.
         id: 'pixbuf-loaders',
         namespace: 'GdkPixbuf',
         what: 'the gdk-pixbuf image loaders + their cache',
@@ -212,13 +172,11 @@ export const WINDOWING_DATA_SETS = [
         id: 'gtksource',
         namespace: 'GtkSource',
         what: "GtkSourceView's data tree (share/gtksourceview-5)",
-        // NB what this tree is and is NOT: GtkSourceView 5 compiles its built-in
-        // language-specs, styles and snippets into a GResource inside
-        // libgtksourceview-5.0 (measured: 198 resources via `gresource list`), so the
-        // built-in highlighting travels with the dylib. What `share/` carries is the
-        // RNG/DTD schemas that validate USER-supplied .lang/.snippets files plus
-        // BuilderBlocks.ttf — 4 files on both brew and gvsbuild. Small, and silently
-        // absent, which is exactly why it is asserted rather than warned about.
+        // What this tree is NOT: GtkSourceView 5 compiles its built-in language-specs, styles and
+        // snippets into a GResource inside libgtksourceview-5.0 (measured: 198 resources via
+        // `gresource list`), so the built-in highlighting travels with the dylib. `share/` carries
+        // only the RNG/DTD schemas validating USER-supplied .lang/.snippets files plus
+        // BuilderBlocks.ttf — 4 files on both brew and gvsbuild, small and silently absent.
         why: 'a bundle that advertises the GtkSource namespace must carry its data tree; a consumer .lang or .snippets file fails to validate without the RNG/DTD schemas',
         requires: [{ tree: 'share/gtksourceview-5' }],
         remedy: 'brew install gtksourceview5 (darwin) / use a gvsbuild prefix that ships share/gtksourceview-5 (win32)',
@@ -226,9 +184,8 @@ export const WINDOWING_DATA_SETS = [
 ];
 
 /**
- * Count the non-empty regular files under `dir`, recursively. A zero-byte file does not
- * count: a truncated `gschemas.compiled` or an empty theme dir is the same missing
- * signal as an absent one.
+ * Count the non-empty regular files under `dir`, recursively. A zero-byte file does not count: a
+ * truncated `gschemas.compiled` is the same missing signal as an absent one.
  * @param {string} dir
  * @returns {number}
  */
@@ -278,11 +235,10 @@ function matchGlob(root, pattern) {
 /**
  * Assert the DECLARED runtime data of a `--windowing` bundle, off the finished bundle.
  *
- * A set applies iff the bundle ships its namespace; an applied set must resolve every
- * one of its requirements to at least one non-empty file. An EMPTY applied list is
- * itself a problem — under `--windowing` the namespace floor guarantees subjects, so
- * "nothing applied" means the caller passed the wrong namespace list and the gate would
- * otherwise pass vacuously.
+ * A set applies iff the bundle ships its namespace; an applied set must resolve every one of its
+ * requirements to at least one non-empty file. An EMPTY applied list is itself a problem — under
+ * `--windowing` the namespace floor guarantees subjects, so "nothing applied" means the caller
+ * passed the wrong namespace list and the gate would otherwise pass vacuously.
  * @param {{ bundleDir: string, shippedNamespaces: string[], sets?: object[] }} opts
  * @returns {{ applied: {id: string, files: number}[], skipped: {id: string, namespace: string}[],
  *   problems: string[] }}

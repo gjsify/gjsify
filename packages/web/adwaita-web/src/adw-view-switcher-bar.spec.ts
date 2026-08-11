@@ -1,17 +1,13 @@
-// adw-view-switcher-bar visibility regression (browser axis). Guards that the
-// derived reveal state actually shows/hides the bar. The bar's base scss sets
-// `display: block`, an AUTHOR rule that would defeat the UA `[hidden]{display:none}`
-// the component relies on (cascade origin beats specificity) — so an unrevealed
-// bar rendered visible until scss/_view_switcher_bar.scss re-asserted
-// `&[hidden] { display: none }`. This test pins that fix.
+// That the derived reveal state actually shows and hides the bar. The bar's base scss
+// sets `display: block`, an AUTHOR rule that defeats the UA `[hidden]{display:none}` the
+// component relies on (cascade origin beats specificity), so
+// `scss/_view_switcher_bar.scss` has to re-assert `&[hidden] { display: none }`.
 //
-// It now stages the bar against a real two-page <adw-view-stack>, because the
-// request alone is no longer enough: `update_bar_revealed` reveals the bar only
-// when `reveal` is set AND MORE THAN ONE page is visible
-// (refs/libadwaita/src/adw-view-switcher-bar.c:104-126), a rule the port used to
-// skip entirely. The one-page case is asserted here too — it is the state the old
-// bar rendered as an empty strip. The full derivation is driven from the shared
-// conformance vectors in `view-switcher.spec.ts`.
+// Staged against a real two-page <adw-view-stack>, because the request alone is not
+// enough: `update_bar_revealed` (refs/libadwaita/src/adw-view-switcher-bar.c) reveals
+// the bar only when `reveal` is set AND MORE THAN ONE page is visible. The one-page case
+// is asserted here too. The full derivation is driven from the shared conformance
+// vectors in `view-switcher.spec.ts`.
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { AdwViewStack } from './elements/adw-view-stack.js';
@@ -66,7 +62,7 @@ export const AdwViewSwitcherBarTest = async () => {
         });
 
         await it('stays collapsed for a ONE-page stack, however loudly the layout asks', () => {
-            // `count > 1` (adw-view-switcher-bar.c:125). The old bar showed an
+            // `count > 1`. The old bar showed an
             // empty strip here because it never consulted the page count.
             const { bar, host } = mountBar(1);
             bar.reveal = true;

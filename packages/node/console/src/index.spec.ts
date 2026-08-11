@@ -167,8 +167,6 @@ export default async () => {
         });
     });
 
-    // ==================== behavioral tests ====================
-
     await describe('console: assert behavior', async () => {
         await it('should not throw on truthy assertion', async () => {
             expect(() => console.assert(true)).not.toThrow();

@@ -1,11 +1,7 @@
 /**
- * Re-exports native DOM Element globals for browser builds.
- *
- * On any browser these classes are part of the global DOM platform. The
- * resolver routes `@gjsify/dom-elements` here on `--app browser` because
- * `package.json#gjsify.runtimes.browser === "native"`.
- *
- * NOT used on Node (`runtimes.node` is `"none"` — Node has no DOM).
+ * Native DOM globals for browser builds: the resolver routes `@gjsify/dom-elements` here on
+ * `--app browser` because `package.json#gjsify.runtimes.browser` is `"native"`. There is no Node
+ * counterpart — `runtimes.node` is `"none"`, Node having no DOM.
  */
 
 export const Node = globalThis.Node;

@@ -1,53 +1,39 @@
 // Adwaita about-dialog derivations — headless (ADR 0004).
 //
-// `Adw.AboutDialog` looks like a widget made of layout, but four of its parts
-// are pure derivations over strings, and they are the four that decide what a
-// user actually sees: which licence text is shown, how a credit line is split
-// into a name and a link, which of the six pages exist at all, and how the
-// credit sections are assembled. The browser renderer had re-derived all four
-// by hand and diverged from the C on THIRTEEN counts — the largest single
-// divergence count in this widget set — so they are lifted here once, with a
-// vector table both renderers assert against (`conformance/about-dialog.ts`).
+// Four parts of `Adw.AboutDialog` are pure derivations over strings, and they decide
+// what a user sees: which licence text is shown, how a credit line splits into a name
+// and a link, which of the six pages exist at all, and how the credit sections are
+// assembled. Lifted once, with a vector table both renderers assert against
+// (`conformance/about-dialog.ts`).
 //
-// The credit parser is the instructive one. `parse_person` is 40 lines of
-// pointer arithmetic, and every simplification of it is wrong in a way that
-// only shows up on somebody's name:
+// `parse_person` is 40 lines of pointer arithmetic and every simplification of it is
+// wrong in a way that only shows up on somebody's name:
 //
-//   - it scans for the FIRST `<` ANYWHERE (:499); the port anchored the whole
-//     angle pair at the END of the string, so `"Ada <ada@x.org> (retired)"`
-//     rendered as one long unlinked title;
-//   - `is_email` is `*q1 == '<'` and NOTHING else (:521); the port invented an
-//     `@` test, so `"Ada <ada>"` — an intranet login, which GTK mails — became
-//     a bare non-mail URI;
-//   - the URL search is `strstr` (:501-502), which does not care what precedes
-//     it; the port demanded whitespace before the URL and the end of the string
-//     after it, so `"Ada(https://x)"` lost its link entirely;
-//   - only `http://` and `https://` are recognised (:501-502) — `mailto:` as a
-//     bare scheme is NOT a link in GTK, which the port accepted;
-//   - the URL ends at the first of ` `, `\n`, `\t`, `>` (:507) — `\r` is not in
-//     that set;
-//   - a URL INSIDE angle brackets wins over the brackets (:514, `r1 <= q1 + 1`)
-//     and leaves the `<` behind in the NAME, so `"Ada <https://x>"` is the
-//     person `"Ada <"`;
-//   - the name is stripped with `g_strstrip` (:533), which is ASCII-only — the
-//     same trap `avatar.ts` documents, so both now call {@link gStrStrip}.
+// - it scans for the FIRST `<` ANYWHERE, not an angle pair anchored at the END, so
+// `"Ada <ada@x.org> (retired)"` still has a link;
+// - `is_email` is `*q1 == '<'` and NOTHING else — no `@` test, so `"Ada <ada>"` (an
+// intranet login) is still mailed;
+// - the URL search is `strstr`: it does not care what precedes or follows it, so
+// `"Ada(https://x)"` has a link;
+// - only `http://` and `https://` are recognised — `mailto:` as a bare scheme is NOT
+// a link in GTK;
+// - the URL ends at the first of ` `, `\n`, `\t`, `>` — `\r` is not in that set;
+// - a URL INSIDE angle brackets wins over the brackets (`r1 <= q1 + 1`) and leaves
+// the `<` behind in the NAME, so `"Ada <https://x>"` is the person `"Ada <"`;
+// - the name is stripped with `g_strstrip`, which is ASCII-only — the same trap
+// `avatar.ts` documents, so both call {@link gStrStrip}.
 //
 // Every row of `CREDIT_PERSON_VECTORS` was produced by COMPILING the vendored
-// `parse_person` against real GLib and printing its output, not by reading it.
-// That is the only way to be sure a lift of pointer arithmetic is a lift and
-// not a second reading.
+// `parse_person` against real GLib and printing its output, not by reading it — the only
+// way to be sure a lift of pointer arithmetic is a lift and not a second reading.
 //
 // NOT lifted, deliberately:
-//   - `debug-info` is an app-supplied opaque string (:2836-2875), never
-//     assembled by the widget — there is nothing to derive.
-//   - there is NO URL validation anywhere in the C (`set_website` :2681-2693,
-//     `set_support_url` :2724-2737 both only guard against NULL), so none is
-//     invented here.
-//   - the AppStream release-notes parser (:1009-1100) IS portable, but neither
-//     renderer has the What's New page, so lifting it now would be the
-//     "while-I'm-here" sweep ADR 0004 rules out. `whatsNewRow` in the
-//     visibility table is derived from whether release notes are SET, which is
-//     all a renderer needs to know until the page exists.
+// - `debug-info` is an app-supplied opaque string, never assembled by the widget;
+// - there is NO URL validation anywhere in the C (`set_website` / `set_support_url`
+// only guard against NULL), so none is invented here;
+// - the AppStream release-notes parser IS portable, but no renderer has the What's New
+// page yet. `whatsNewRow` in the visibility table is derived from whether release
+// notes are SET, which is all a renderer needs until the page exists.
 //
 // PLATFORM-NEUTRAL: renders nothing, imports nothing, touches no global.
 //
@@ -57,9 +43,7 @@
 
 import { gStrStrip } from './glib.js';
 
-// --- The licence table (adw-about-dialog.c:205-267) --------------------------
-
-/** One `LicenseInfo` row — the struct at adw-about-dialog.c:206-210. */
+/** One `LicenseInfo` row — the struct. */
 export interface AdwLicenseInfo {
     /** The translatable licence name, `null` for `unknown` and `custom`. */
     name: string | null;
@@ -70,14 +54,11 @@ export interface AdwLicenseInfo {
 }
 
 /**
- * `GtkLicense` as the INDEX into {@link ADW_LICENSES}, which is what the C
- * actually uses it as (`gtk_license_info[license_type]`, :649-650).
- *
- * The order and the row contents come from the vendored table
- * (adw-about-dialog.c:215-252) plus its static assertion that the last index is
- * `GTK_LICENSE_0BSD` (:256). The member SPELLINGS come from the `Gtk.License`
- * enum in `@girs/gtk-4.0`, generated from the GTK GIR — `refs/gtk` is not
- * vendored in this repo, so there is no GTK C file to cite for them.
+ * `GtkLicense` as the INDEX into {@link ADW_LICENSES}, which is what the C uses it as
+ * (`gtk_license_info[license_type]`). Order and row contents come from the vendored table
+ * plus its static assertion that the last index is `GTK_LICENSE_0BSD`; the member
+ * SPELLINGS come from the `Gtk.License` enum in `@girs/gtk-4.0`, since `refs/gtk` is not
+ * vendored here.
  */
 export const GTK_LICENSE = {
     UNKNOWN: 0,
@@ -105,16 +86,14 @@ export const GTK_LICENSE = {
 export type AdwLicenseType = (typeof GTK_LICENSE)[keyof typeof GTK_LICENSE];
 
 /**
- * The 19 `gtk_license_info` rows in enum order (adw-about-dialog.c:215-252).
- *
- * Indices 0 and 1 are all-`null` on purpose: `unknown` shows nothing and
- * `custom` takes its text from the `license` property, so neither has a name,
- * a URL or an SPDX id to match. A renderer that skipped them would shift every
+ * The 19 `gtk_license_info` rows in enum order. Indices 0 and 1 are all-`null` on purpose:
+ * `unknown` shows nothing and `custom` takes its text from the `license` property, so
+ * neither has a name, a URL or an SPDX id to match — and skipping them would shift every
  * later licence by two.
  */
 export const ADW_LICENSES: ReadonlyArray<AdwLicenseInfo> = [
-    { name: null, url: null, spdxId: null }, // :216 GTK_LICENSE_UNKNOWN
-    { name: null, url: null, spdxId: null }, // :217 GTK_LICENSE_CUSTOM
+    { name: null, url: null, spdxId: null }, // GTK_LICENSE_UNKNOWN
+    { name: null, url: null, spdxId: null }, // GTK_LICENSE_CUSTOM
     {
         name: 'GNU General Public License, version 2 or later',
         url: 'https://www.gnu.org/licenses/old-licenses/gpl-2.0.html',
@@ -202,7 +181,7 @@ export const ADW_LICENSES: ReadonlyArray<AdwLicenseInfo> = [
     },
 ];
 
-/** One deprecated-SPDX alias — the `LicenseAlias` struct at :258-261. */
+/** One deprecated-SPDX alias — the `LicenseAlias` struct at:258-261. */
 export interface AdwLicenseAlias {
     /** The retired SPDX id apps still ship in their AppStream metadata. */
     spdxId: string;
@@ -211,7 +190,7 @@ export interface AdwLicenseAlias {
 }
 
 /**
- * The two deprecated SPDX ids (:264-267).
+ * The two deprecated SPDX ids.
  *
  * Both map to the `-only` variant, not the `-or-later` one — the bare
  * `GPL-2.0` predates the split and meant "version 2", so resolving it to
@@ -223,11 +202,11 @@ export const ADW_LICENSE_ALIASES: ReadonlyArray<AdwLicenseAlias> = [
 ];
 
 /**
- * The licence preamble (:648), with `%s` for the URL and `%s` for the name, in
+ * The licence preamble, with `%s` for the URL and `%s` for the name, in
  * that order.
  *
  * Translatable as a whole; the two `%s` are filled with a HARDCODED url and a
- * SEPARATELY translated name (:645-647). It contains Pango markup, which the
+ * SEPARATELY translated name. It contains Pango markup, which the
  * Legal page renders as such — a renderer that escapes it shows the user raw
  * `<a href=…>`.
  */
@@ -236,7 +215,7 @@ export const ADW_LICENSE_WARRANTY_TEMPLATE =
 
 /**
  * Whether `value` is inside the `gtk_license_info` bounds — the setter's
- * `g_return_if_fail` (:3401-3402).
+ * `g_return_if_fail`.
  *
  * The integer test has no counterpart in the C, where the parameter is already
  * a `GtkLicense`; here the value arrives from an attribute or JSON, and a
@@ -249,7 +228,7 @@ export function isLicenseType(value: number): value is AdwLicenseType {
 
 /**
  * The `GtkLicense` an AppStream `project_license` SPDX id resolves to, or
- * `null` when nothing matches — the two lookup loops at :1226-1239.
+ * `null` when nothing matches — the two lookup loops at:1226-1239.
  *
  * The exact-match loop runs over the WHOLE table including indices 0 and 1,
  * whose `spdxId` is `null` and therefore never equal to a real id. The alias
@@ -258,7 +237,7 @@ export function isLicenseType(value: number): value is AdwLicenseType {
  *
  * The caller's remaining step is NOT folded in here because it is stateful:
  * `populate_from_appdata` falls back to `custom` only when the dialog's licence
- * type is still `unknown` after both loops (:1241-1242), which depends on what
+ * type is still `unknown` after both loops, which depends on what
  * was set before, not on the id.
  */
 export function licenseTypeForSpdxId(spdxId: string): AdwLicenseType | null {
@@ -272,7 +251,7 @@ export function licenseTypeForSpdxId(spdxId: string): AdwLicenseType | null {
 }
 
 /**
- * `get_license_text` (:635-651) — the text the Legal page shows for a licence.
+ * `get_license_text` — the text the Legal page shows for a licence.
  *
  * Three cases, and the difference between the first two is what a renderer gets
  * wrong: `unknown` returns NULL, meaning the Legal page shows NO licence at all,
@@ -292,13 +271,13 @@ export function licenseText(licenseType: AdwLicenseType, license: string): strin
 
 /** The `license` / `license-type` pair, as a renderer holds it. */
 export interface AdwLicenseState {
-    /** `license` — the custom licence text. Empty string, never null (:2044). */
+    /** `license` — the custom licence text. Empty string, never null. */
     license: string;
     /** `license-type` — the `GtkLicense`. */
     licenseType: AdwLicenseType;
 }
 
-/** The `GParamSpec` defaults: `""` (:2044) and `unknown` (:2032). */
+/** The `GParamSpec` defaults: `""` and `unknown`. */
 export const ADW_LICENSE_DEFAULTS: Readonly<AdwLicenseState> = {
     license: '',
     licenseType: GTK_LICENSE.UNKNOWN,
@@ -320,13 +299,13 @@ export interface AdwLicenseTransition {
 const UNCHANGED = (state: AdwLicenseState): AdwLicenseTransition => ({ state, changed: false, notify: [] });
 
 /**
- * `adw_about_dialog_set_license_type` (:3396-3416).
+ * `adw_about_dialog_set_license_type`.
  *
  * Setting any type other than `custom` CLEARS the custom licence text to `""`
- * (:3407-3408) — the two properties are one state, not two. Both are notified
- * (:3414-3415) whether or not the string actually moved.
+ * — the two properties are one state, not two. Both are notified
+ * whether or not the string actually moved.
  *
- * An out-of-range value is rejected outright (`g_return_if_fail`, :3401-3402),
+ * An out-of-range value is rejected outright (`g_return_if_fail`),
  * which is a no-op, not a clamp: the state keeps whatever it had.
  */
 export function setLicenseType(state: AdwLicenseState, licenseType: number): AdwLicenseTransition {
@@ -344,10 +323,10 @@ export function setLicenseType(state: AdwLicenseState, licenseType: number): Adw
 }
 
 /**
- * `adw_about_dialog_set_license` (:3459-3480).
+ * `adw_about_dialog_set_license`.
  *
- * Setting a licence text forces the type to `custom` (:3472) — but only after
- * the early-out on an UNCHANGED string (:3466-3467), which makes the pair
+ * Setting a licence text forces the type to `custom` — but only after
+ * the early-out on an UNCHANGED string, which makes the pair
  * asymmetric in a way that is easy to miss: with the text already `""`, setting
  * `""` again does NOT switch the type to `custom`, so an app trying to clear a
  * `GPL-3.0` licence by assigning the empty string keeps the GPL text on screen.
@@ -362,8 +341,6 @@ export function setLicense(state: AdwLicenseState, license: string): AdwLicenseT
     };
 }
 
-// --- Credit parsing (adw-about-dialog.c:490-534, :571-580) -------------------
-
 /** One parsed credit line — `parse_person`'s three out-parameters, plus the URI. */
 export interface AdwCreditPerson {
     /** The displayed row title: everything before the link, `g_strstrip`ped. */
@@ -377,13 +354,13 @@ export interface AdwCreditPerson {
      * still makes the row an `AdwLinkRow`.
      */
     link: string | null;
-    /** `*q1 == '<'` (:521) — whether the link came out of angle brackets. */
+    /** `*q1 == '<'` — whether the link came out of angle brackets. */
     isEmail: boolean;
-    /** `add_credits_section`'s final URI (:571-580): `mailto:` + link, or the link. */
+    /** `add_credits_section`'s final URI: `mailto:` + link, or the link. */
     uri: string | null;
 }
 
-/** The `strpbrk` terminator set that ends a bare URL (:507). `\r` is not in it. */
+/** The `strpbrk` terminator set that ends a bare URL. `\r` is not in it. */
 const URL_TERMINATORS = ' \n\t>';
 
 /** `strpbrk (from, " \n\t>")` — the first terminator at or after `from`, or `-1`. */
@@ -395,7 +372,7 @@ function indexOfUrlEnd(person: string, from: number): number {
 }
 
 /**
- * `parse_person` (:490-534) — split one credit line into a name and a link.
+ * `parse_person` — split one credit line into a name and a link.
  *
  * Every index here is compared with `>= 0`, never for truthiness: a `<` or a
  * `http://` at position 0 is a valid non-NULL pointer in the C and a falsy `0`
@@ -403,11 +380,11 @@ function indexOfUrlEnd(person: string, from: number): number {
  * exactly where a truthiness port silently produces the unparsed line instead.
  */
 export function parseCreditPerson(person: string): AdwCreditPerson {
-    // q1/q2: the first `<` anywhere, and the first `>` at or after it (:499-500).
+    // q1/q2: the first `<` anywhere, and the first `>` at or after it.
     let q1 = person.indexOf('<');
     let q2 = q1 < 0 ? -1 : person.indexOf('>', q1);
 
-    // r1/r2: the earliest bare URL, and where it ends (:501-512). Only these two
+    // r1/r2: the earliest bare URL, and where it ends. Only these two
     // schemes are recognised — `mailto:` as a bare scheme is not a link in GTK.
     const httpAt = person.indexOf('http://');
     const httpsAt = person.indexOf('https://');
@@ -421,7 +398,7 @@ export function parseCreditPerson(person: string): AdwCreditPerson {
 
     // A bare URL beats the angle pair when there is no complete pair, or when
     // the URL starts AT or just after the `<` — i.e. the brackets contain the
-    // URL. The `<` then stays in the name, which is not a bug to fix here (:514).
+    // URL. The `<` then stays in the name, which is not a bug to fix here.
     // The C also tests `r2` there; it cannot be NULL once `r1` is set, because
     // the fallback is `strchr (r1, '\0')`, which always finds the terminator.
     if (r1 >= 0 && (q1 < 0 || q2 < 0 || r1 <= q1 + 1)) {
@@ -434,24 +411,22 @@ export function parseCreditPerson(person: string): AdwCreditPerson {
     let isEmail: boolean;
 
     if (q1 >= 0 && q2 >= 0) {
-        name = person.slice(0, q1); // :520
-        isEmail = person[q1] === '<'; // :521 — the ONLY test; there is no `@` test
-        link = isEmail ? person.slice(q1 + 1, q2) : person.slice(q1, q2); // :524, :526
+        name = person.slice(0, q1);
+        isEmail = person[q1] === '<'; // the ONLY test; there is no `@` test
+        link = isEmail ? person.slice(q1 + 1, q2) : person.slice(q1, q2);
     } else {
-        name = person; // :528-530
+        name = person;
         link = null;
         isEmail = false;
     }
 
-    name = gStrStrip(name); // :533 — ASCII whitespace only
+    name = gStrStrip(name); // ASCII whitespace only
 
     return { name, link, isEmail, uri: link === null ? null : isEmail ? `mailto:${link}` : link };
 }
 
-// --- Credit-section assembly (adw-about-dialog.c:536-633) --------------------
-
 /**
- * The two untranslated `translator-credits` sentinels (:604-605).
+ * The two untranslated `translator-credits` sentinels.
  *
  * Apps mark the literal string `"translator-credits"` as translatable and each
  * locale replaces it with its own translator list; in an untranslated locale it
@@ -462,14 +437,13 @@ export const ADW_TRANSLATOR_CREDITS_SENTINELS: ReadonlyArray<string> = ['transla
 
 /**
  * The translator names for a `translator-credits` value — `g_strsplit (…, "\n",
- * 0)` past the sentinel guard (:603-608).
+ * 0)` past the sentinel guard.
  *
  * `g_strsplit` returns an EMPTY vector for the empty string, where JS
  * `''.split('\n')` returns `['']`. The difference is visible: the C shows no
  * "Translated by" section at all, a `split()`-based port shows the section with
  * one blank row in it. Blank INTERIOR lines are kept, because `g_strsplit` keeps
- * them and `add_credits_section` only skips NULL pointers, not empty strings
- * (:557-558).
+ * them and `add_credits_section` only skips NULL pointers, not empty strings.
  */
 export function translatorCreditsPeople(value: string | null | undefined): string[] {
     if (value === null || value === undefined) return [];
@@ -478,7 +452,7 @@ export function translatorCreditsPeople(value: string | null | undefined): strin
     return value.split('\n');
 }
 
-/** The five built-in credit section titles, in `update_credits` order (:610-619). */
+/** The five built-in credit section titles, in `update_credits` order. */
 export const ADW_CREDITS_SECTION_TITLES = {
     developers: 'Code by',
     designers: 'Design by',
@@ -487,9 +461,9 @@ export const ADW_CREDITS_SECTION_TITLES = {
     translators: 'Translated by',
 } as const;
 
-/** An app-provided extra section (`add_credit_section`, :3239-3259). */
+/** An app-provided extra section (`add_credit_section`). */
 export interface AdwCreditsSectionInput {
-    /** The section heading. Nullable in the C signature (:3240). */
+    /** The section heading. Nullable in the C signature. */
     title: string | null;
     /** The raw credit lines, each in `parse_person` syntax. */
     people: ReadonlyArray<string>;
@@ -497,13 +471,13 @@ export interface AdwCreditsSectionInput {
 
 /** One assembled credits group. */
 export interface AdwCreditsSection {
-    /** The `AdwPreferencesGroup` title (:549). */
+    /** The `AdwPreferencesGroup` title. */
     title: string | null;
     /** The parsed rows, in source order. */
     people: ReadonlyArray<AdwCreditPerson>;
 }
 
-/** The credit inputs `update_credits` reads (:593-627). */
+/** The credit inputs `update_credits` reads. */
 export interface AdwCreditsInput {
     developers?: ReadonlyArray<string>;
     designers?: ReadonlyArray<string>;
@@ -511,26 +485,26 @@ export interface AdwCreditsInput {
     documenters?: ReadonlyArray<string>;
     /** The raw `translator-credits` string, sentinels and all. */
     translatorCredits?: string | null;
-    /** Extra sections, in `add_credit_section` call order (:3252). */
+    /** Extra sections, in `add_credit_section` call order. */
     creditSections?: ReadonlyArray<AdwCreditsSectionInput>;
 }
 
 /**
- * `update_credits` (:593-633) — the Credits page, as a list of groups.
+ * `update_credits` — the Credits page, as a list of groups.
  *
  * A section with no people is not "an empty group", it is NO group:
- * `add_credits_section` returns before creating one (:545-546). The order is
+ * `add_credits_section` returns before creating one. The order is
  * fixed — developers, designers, artists, documenters, translators, then the
  * app's own sections in the order they were added — and it is not alphabetical
  * or configurable.
  *
  * One C quirk is deliberately NOT reproduced: `add_credit_section` sets
- * `credits_box` visible unconditionally (:3256), even when the section it just
+ * `credits_box` visible unconditionally, even when the section it just
  * tried to add was empty and nothing was created — so an
  * `add_credit_section ("Backers", {NULL})` leaves GTK with a Credits row that
  * opens a blank page. That is an artefact of mutating a widget tree
  * incrementally, not a derivation; recomputing from the sections, as
- * `update_credits` itself does (:629-630), is the same rule without the stale
+ * `update_credits` itself does, is the same rule without the stale
  * flag.
  */
 export function creditsSections(input: AdwCreditsInput = {}): AdwCreditsSection[] {
@@ -548,8 +522,6 @@ export function creditsSections(input: AdwCreditsInput = {}): AdwCreditsSection[
         .map((section) => ({ title: section.title, people: section.people.map(parseCreditPerson) }));
 }
 
-// --- Page + row visibility (adw-about-dialog.c:480-487, :1102-1133) ----------
-
 /**
  * The row and page labels from the template, mnemonic markers intact.
  *
@@ -561,123 +533,123 @@ export function creditsSections(input: AdwCreditsInput = {}): AdwCreditsSection[
  *
  * `dialogTitle` is the one that gets invented: the main page's title is bound
  * to `AdwDialog:title`, whose template default is the bare word "About"
- * (adw-about-dialog.ui:6, :19) — not "About <app name>". The application NAME
- * appears separately, in the header revealer that fades in on scroll (:29-31).
+ * — not "About <app name>". The application NAME
+ * appears separately, in the header revealer that fades in on scroll.
  */
 export const ADW_ABOUT_DIALOG_LABELS = {
-    dialogTitle: 'About', // .ui:6
-    whatsNewRow: 'What’s _New', // .ui:102 (U+2019, not an ASCII apostrophe)
-    detailsRow: '_Details', // .ui:119
-    websiteRow: '_Website', // .ui:136 and :350 — the same title on both pages
-    supportRow: '_Support Questions', // .ui:152
-    issueRow: '_Report an Issue', // .ui:162
-    troubleshootingRow: '_Troubleshooting', // .ui:172
-    creditsRow: '_Credits', // .ui:193
-    legalRow: '_Legal', // .ui:210
-    acknowledgementsRow: '_Acknowledgements', // .ui:228
-    whatsNewPage: 'What’s New', // .ui:264
-    detailsPage: 'Details', // .ui:311
-    troubleshootingPage: 'Troubleshooting', // .ui:371
-    creditsPage: 'Credits', // .ui:507
-    legalPage: 'Legal', // .ui:539
-    acknowledgementsPage: 'Acknowledgements', // .ui:573
+    dialogTitle: 'About', //.ui
+    whatsNewRow: 'What’s _New', //.ui (U+2019, not an ASCII apostrophe)
+    detailsRow: '_Details', //.ui
+    websiteRow: '_Website', //.ui and:350 — the same title on both pages
+    supportRow: '_Support Questions', //.ui
+    issueRow: '_Report an Issue', //.ui
+    troubleshootingRow: '_Troubleshooting', //.ui
+    creditsRow: '_Credits', //.ui
+    legalRow: '_Legal', //.ui
+    acknowledgementsRow: '_Acknowledgements', //.ui
+    whatsNewPage: 'What’s New', //.ui
+    detailsPage: 'Details', //.ui
+    troubleshootingPage: 'Troubleshooting', //.ui
+    creditsPage: 'Credits', //.ui
+    legalPage: 'Legal', //.ui
+    acknowledgementsPage: 'Acknowledgements', //.ui
 } as const;
 
 /** Everything the visibility derivation reads. */
 export interface AdwAboutDialogProps {
-    /** `application-icon` (:2313-2314). */
+    /** `application-icon`. */
     applicationIcon: string;
-    /** `application-name` (:2376-2377). */
+    /** `application-name`. */
     applicationName: string;
-    /** `developer-name` (:2426-2427). */
+    /** `developer-name`. */
     developerName: string;
-    /** `version` (:2476). */
+    /** `version`. */
     version: string;
     /** `comments` — Details-page body text. */
     comments: string;
     /** `website` — shown on the MAIN page or the Details page, never both. */
     website: string;
-    /** `support-url` — a MAIN-page row (:1128). */
+    /** `support-url` — a MAIN-page row. */
     supportUrl: string;
-    /** `issue-url` — a MAIN-page row (:1129). */
+    /** `issue-url` — a MAIN-page row. */
     issueUrl: string;
-    /** `debug-info` — an app-supplied blob; only its emptiness is derived (:1126). */
+    /** `debug-info` — an app-supplied blob; only its emptiness is derived. */
     debugInfo: string;
-    /** `release-notes`; non-empty is the whole `whats_new_row` rule (:1020-1021). */
+    /** `release-notes`; non-empty is the whole `whats_new_row` rule. */
     releaseNotes: string;
-    /** Whether `add_link` was ever called (:2820). */
+    /** Whether `add_link` was ever called. */
     hasCustomLinks: boolean;
-    /** Whether `credits_box` ended up with children (:629-630). */
+    /** Whether `credits_box` ended up with children. */
     hasCredits: boolean;
-    /** Whether `legal_box` ended up with children (:745-746). */
+    /** Whether `legal_box` ended up with children. */
     hasLegal: boolean;
-    /** Whether `add_acknowledgement_section` was ever called (:3297). */
+    /** Whether `add_acknowledgement_section` was ever called. */
     hasAcknowledgements: boolean;
 }
 
 /** Which widgets `update_details`/`update_support`/`update_credits_legal_group` show. */
 export interface AdwAboutDialogVisibility {
-    /** Main page: the 128px app icon (:2313-2314). */
+    /** Main page: the 128px app icon. */
     appIcon: boolean;
-    /** Main page: the title-1 app name (:2376-2377). */
+    /** Main page: the title-1 app name. */
     appName: boolean;
-    /** Main page: the developer line (:2426-2427). */
+    /** Main page: the developer line. */
     developerName: boolean;
-    /** Main page: the version pill (:2476). */
+    /** Main page: the version pill. */
     version: boolean;
-    /** Main page: the first group (:1116-1118). */
+    /** Main page: the first group. */
     detailsGroup: boolean;
-    /** Main page: "What's New" (:1020-1021, :1087, :1099). */
+    /** Main page: "What's New". */
     whatsNewRow: boolean;
-    /** Main page: "Details", the row that pushes the subpage (:1115). */
+    /** Main page: "Details", the row that pushes the subpage. */
     detailsRow: boolean;
-    /** Main page: "Website", shown only when the Details page has nothing else (:1112). */
+    /** Main page: "Website", shown only when the Details page has nothing else. */
     websiteRow: boolean;
-    /** Main page: the support group (:1131-1132). */
+    /** Main page: the support group. */
     supportGroup: boolean;
-    /** Main page: "Support Questions" (:1128). */
+    /** Main page: "Support Questions". */
     supportRow: boolean;
-    /** Main page: "Report an Issue" (:1129). */
+    /** Main page: "Report an Issue". */
     issueRow: boolean;
-    /** Main page: "Troubleshooting" (:1130). */
+    /** Main page: "Troubleshooting". */
     troubleshootingRow: boolean;
-    /** Main page: the Credits/Legal/Acknowledgements group (:483-486). */
+    /** Main page: the Credits/Legal/Acknowledgements group. */
     creditsLegalGroup: boolean;
-    /** Main page: "Credits", bound to `credits_box` (.ui:198). */
+    /** Main page: "Credits", bound to `credits_box` (.ui). */
     creditsRow: boolean;
-    /** Main page: "Legal", bound to `legal_box` (.ui:215). */
+    /** Main page: "Legal", bound to `legal_box` (.ui). */
     legalRow: boolean;
-    /** Main page: "Acknowledgements", bound to `acknowledgements_box` (.ui:233). */
+    /** Main page: "Acknowledgements", bound to `acknowledgements_box` (.ui). */
     acknowledgementsRow: boolean;
-    /** Details page: the comments label (:1111). */
+    /** Details page: the comments label. */
     commentsLabel: boolean;
-    /** Details page: the links group (:1114). */
+    /** Details page: the links group. */
     linksGroup: boolean;
-    /** Details page: "Website", the other half of the either/or (:1113). */
+    /** Details page: "Website", the other half of the either/or. */
     detailsWebsiteRow: boolean;
 }
 
 /**
- * `update_details` (:1102-1119) + `update_support` (:1121-1133) +
- * `update_credits_legal_group` (:480-487), as one truth table.
+ * `update_details` + `update_support` +
+ * `update_credits_legal_group`, as one truth table.
  *
  * The three rules a port does not arrive at by guessing:
  *
- *  1. **Website is not a Details-page trigger.** `show_details` is
- *     `has_comments || has_custom_links` (:1108) — website is deliberately
- *     absent. A dialog with only a website and nothing else keeps the website
- *     on the MAIN page (:1112) and offers no Details row at all, because a
- *     subpage holding one link is worse than the link.
- *  2. **The website row exists twice**, once per page, and exactly one of the
- *     two is visible (:1112-1113). They are separate widgets in the template
- *     (`website_row` .ui:133, `details_website_row` .ui:347).
- *  3. **Support and issue links live on the MAIN page** (.ui:146-186, :1128-1129),
- *     not on Details. Only comments and links (website + `add_link`) are on the
- *     Details page. The browser renderer put all three link rows on Details,
- *     which buried the issue tracker one navigation step deeper than GTK.
+ * 1. **Website is not a Details-page trigger.** `show_details` is
+ * `has_comments || has_custom_links` — website is deliberately
+ * absent. A dialog with only a website and nothing else keeps the website
+ * on the MAIN page and offers no Details row at all, because a
+ * subpage holding one link is worse than the link.
+ * 2. **The website row exists twice**, once per page, and exactly one of the
+ * two is visible. They are separate widgets in the template
+ * (`website_row`.ui, `details_website_row`.ui).
+ * 3. **Support and issue links live on the MAIN page** (.ui),
+ * not on Details. Only comments and links (website + `add_link`) are on the
+ * Details page. The browser renderer put all three link rows on Details,
+ * which buried the issue tracker one navigation step deeper than GTK.
  *
  * `hasCustomLinks` is a latch in the C — `add_link` sets it and nothing clears
- * it (:2820) — so a renderer passes "has any extra link ever been added", not
+ * it — so a renderer passes "has any extra link ever been added", not
  * "does the links group currently have children".
  */
 export function aboutDialogVisibility(props: Partial<AdwAboutDialogProps> = {}): AdwAboutDialogVisibility {
@@ -686,8 +658,8 @@ export function aboutDialogVisibility(props: Partial<AdwAboutDialogProps> = {}):
     const hasReleaseNotes = (props.releaseNotes ?? '').length > 0;
     const hasCustomLinks = props.hasCustomLinks ?? false;
 
-    const showDetails = hasComments || hasCustomLinks; // :1108
-    const showLinks = (hasWebsite && hasComments) || hasCustomLinks; // :1109
+    const showDetails = hasComments || hasCustomLinks;
+    const showLinks = (hasWebsite && hasComments) || hasCustomLinks;
 
     const hasSupportUrl = (props.supportUrl ?? '').length > 0;
     const hasIssueUrl = (props.issueUrl ?? '').length > 0;
@@ -703,33 +675,33 @@ export function aboutDialogVisibility(props: Partial<AdwAboutDialogProps> = {}):
         developerName: (props.developerName ?? '').length > 0,
         version: (props.version ?? '').length > 0,
 
-        detailsGroup: hasWebsite || hasComments || showLinks || hasReleaseNotes, // :1116-1118
+        detailsGroup: hasWebsite || hasComments || showLinks || hasReleaseNotes,
         whatsNewRow: hasReleaseNotes,
-        detailsRow: hasComments || showLinks, // :1115
-        websiteRow: hasWebsite && !showDetails, // :1112
+        detailsRow: hasComments || showLinks,
+        websiteRow: hasWebsite && !showDetails,
 
-        supportGroup: hasSupportUrl || hasIssueUrl || hasDebugInfo, // :1131-1132
-        supportRow: hasSupportUrl, // :1128
-        issueRow: hasIssueUrl, // :1129
-        troubleshootingRow: hasDebugInfo, // :1130
+        supportGroup: hasSupportUrl || hasIssueUrl || hasDebugInfo,
+        supportRow: hasSupportUrl,
+        issueRow: hasIssueUrl,
+        troubleshootingRow: hasDebugInfo,
 
-        creditsLegalGroup: hasCredits || hasLegal || hasAcknowledgements, // :483-486
+        creditsLegalGroup: hasCredits || hasLegal || hasAcknowledgements,
         creditsRow: hasCredits,
         legalRow: hasLegal,
         acknowledgementsRow: hasAcknowledgements,
 
-        commentsLabel: hasComments, // :1111
-        linksGroup: showLinks, // :1114
-        detailsWebsiteRow: hasWebsite && showDetails, // :1113
+        commentsLabel: hasComments,
+        linksGroup: showLinks,
+        detailsWebsiteRow: hasWebsite && showDetails,
     };
 }
 
 /**
  * Whether the Legal page has anything on it — `append_legal_section`'s two
- * early-outs collapsed for the DEFAULT section (:666-671, :682-687).
+ * early-outs collapsed for the DEFAULT section.
  *
  * The section is dropped when the copyright is empty AND the licence text is
- * empty-or-absent; `force_title` is FALSE for the app's own section (:740), so
+ * empty-or-absent; `force_title` is FALSE for the app's own section, so
  * there is no title-only case here. Note the licence half goes through
  * {@link licenseText}, which means a `custom` type with an empty string
  * contributes nothing while a `GPL-3.0` type always does.

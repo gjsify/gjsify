@@ -7,8 +7,6 @@ import path from 'node:path';
 import process from 'node:process';
 
 export default async () => {
-    // ===== path.basename =====
-
     await describe('path.basename', async () => {
         await it('should return the last portion of a path', async () => {
             expect(path.basename('/foo/bar/baz.html')).toBe('baz.html');
@@ -73,8 +71,6 @@ export default async () => {
         });
     });
 
-    // ===== path.dirname =====
-
     await describe('path.dirname', async () => {
         await it('should return the directory of a path', async () => {
             expect(path.dirname('/foo/bar/baz.html')).toBe('/foo/bar');
@@ -102,8 +98,6 @@ export default async () => {
             expect(path.posix.dirname('foo')).toBe('.');
         });
     });
-
-    // ===== path.extname =====
 
     await describe('path.extname', async () => {
         await it('should return the extension of a path', async () => {
@@ -180,8 +174,6 @@ export default async () => {
             expect(path.extname('/.file.ext')).toBe('.ext');
         });
     });
-
-    // ===== path.join =====
 
     await describe('path.join', async () => {
         await it('should join path segments', async () => {
@@ -276,8 +268,6 @@ export default async () => {
         });
     });
 
-    // ===== path.normalize =====
-
     await describe('path.normalize', async () => {
         await it('should resolve .. and .', async () => {
             expect(path.posix.normalize('/foo/bar//baz/asdf/quux/..')).toBe('/foo/bar/baz/asdf');
@@ -338,8 +328,6 @@ export default async () => {
         });
     });
 
-    // ===== path.isAbsolute =====
-
     await describe('path.isAbsolute', async () => {
         await it('should return true for absolute paths', async () => {
             expect(path.isAbsolute('/foo/bar')).toBeTruthy();
@@ -387,8 +375,6 @@ export default async () => {
         });
     });
 
-    // ===== path.resolve =====
-
     await describe('path.resolve', async () => {
         await it('should resolve absolute path with relative segment', async () => {
             const result = path.posix.resolve('/foo/bar', './baz');
@@ -434,8 +420,6 @@ export default async () => {
             expect(path.isAbsolute(path.resolve('.'))).toBeTruthy();
         });
     });
-
-    // ===== path.relative =====
 
     await describe('path.relative', async () => {
         await it('should compute relative path', async () => {
@@ -492,8 +476,6 @@ export default async () => {
             expect(path.relative(cwd, cwd)).toBe('');
         });
     });
-
-    // ===== path.parse =====
 
     await describe('path.parse', async () => {
         await it('should parse a path into components', async () => {
@@ -645,8 +627,6 @@ export default async () => {
         });
     });
 
-    // ===== path.format =====
-
     await describe('path.format', async () => {
         await it('should format a path object', async () => {
             expect(
@@ -699,8 +679,6 @@ export default async () => {
         });
     });
 
-    // ===== path.sep and path.delimiter =====
-
     await describe('path.sep and path.delimiter', async () => {
         // The default export IS the host flavour — `path.win32` on Windows,
         // `path.posix` everywhere else — so neither of these is a constant.
@@ -732,8 +710,6 @@ export default async () => {
         });
     });
 
-    // ===== path.toNamespacedPath =====
-
     await describe('path.toNamespacedPath', async () => {
         await it('should be a no-op on POSIX', async () => {
             expect(path.posix.toNamespacedPath('/foo/bar')).toBe('/foo/bar');
@@ -751,8 +727,6 @@ export default async () => {
             expect(path.posix.toNamespacedPath('')).toBe('');
         });
     });
-
-    // ===== path.posix and path.win32 =====
 
     await describe('path.posix and path.win32', async () => {
         await it('should export posix sub-module', async () => {
@@ -799,8 +773,6 @@ export default async () => {
             expect(typeof path.win32.toNamespacedPath).toBe('function');
         });
     });
-
-    // ===== path.win32 specific tests =====
 
     await describe('path.win32', async () => {
         await it('win32.basename should handle backslashes', async () => {
@@ -901,8 +873,6 @@ export default async () => {
         });
     });
 
-    // ===== Edge cases: zero-length strings =====
-
     await describe('path zero-length strings', async () => {
         await it('join should return . for zero-length input', async () => {
             expect(path.posix.join('')).toBe('.');
@@ -927,8 +897,6 @@ export default async () => {
             expect(path.resolve('', '')).toBe(cwd);
         });
     });
-
-    // ===== Edge cases: misc =====
 
     await describe('path edge cases', async () => {
         await it('parse should have consistent dirname and basename', async () => {

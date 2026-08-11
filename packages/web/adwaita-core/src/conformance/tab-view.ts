@@ -7,15 +7,10 @@
 // `<adw-tab-view>`; the NativeScript suite replays it against the state the real
 // `AdwTabView` widget delegates to.
 //
-// This table is unusual in one way: it is not mostly a comparison of two
-// existing ports, because neither port HAD any of this. `close-page` meant three
-// different things (libadwaita removes non-pinned pages through a two-phase
-// confirm; web removed nothing, ever; NS removed immediately with no signal and
-// refused on the last tab), and the pinned partition, the parent-aware
-// successor, the reorder clamps and the keyboard model existed in neither. The
-// rows that ARE a comparison say so — those are the regression pins.
-//
-// Every row cites the C function it comes from.
+// Most rows are a NEW assertion rather than a pinned port behaviour: the two-phase
+// `close-page` confirm, the pinned partition, the parent-aware successor, the reorder
+// clamps and the keyboard model existed in neither renderer. The rows that ARE a
+// comparison say so — those are the regression pins.
 //
 // Reference: refs/libadwaita/src/adw-tab-view.c
 // Reference: refs/libadwaita/src/adw-tab-bar.c
@@ -79,11 +74,8 @@ export interface TabViewVectorSelection {
 
 /** One expected page-list notification. */
 export interface TabViewVectorPagesChange {
-    /** Which kind of change. */
     kind: 'attached' | 'detached' | 'reordered' | 'pinned' | 'updated';
-    /** The page it happened to. */
     id: string;
-    /** Its index after the change. */
     position: number;
     /** Its index before the change, `-1` for `'attached'`. */
     previousPosition: number;
@@ -93,19 +85,16 @@ export interface TabViewVectorPagesChange {
  * How the `close-page` handler behaves for the whole row.
  *
  * `'default'` reproduces libadwaita's own default handler, `close_page_cb`'s
- * `close_page_finish (self, page, !adw_tab_page_get_pinned (page))`
- * (adw-tab-view.c:1986-1993) — the suites install a RECORDING wrapper around it
- * so the close-attempt order is observable, and the core suite additionally
- * replays the row with NO handler at all to prove the built-in default agrees.
- * `'defer'` holds every page in the closing state so `closePageFinish` decides.
+ * `close_page_finish (self, page, !adw_tab_page_get_pinned (page))`; the suites wrap it
+ * in a RECORDER so the close-attempt order is observable, and the core suite also
+ * replays the row with NO handler to prove the built-in default agrees. `'defer'` holds
+ * every page in the closing state so `closePageFinish` decides.
  */
 export type TabViewVectorHandler = 'default' | 'defer';
 
 /** One end-to-end tab-view expectation. */
 export interface TabViewVector {
-    /** What this row pins down. */
     rule: string;
-    /** The C function + lines it is derived from. */
     derivedFrom: string;
     /** The pages, seeded in this order (pinned ones via appendPinnedPage, parented ones via addPage). */
     pages: readonly TabViewVectorPage[];
@@ -113,7 +102,6 @@ export interface TabViewVector {
     handler?: TabViewVectorHandler;
     /** Selection changes emitted WHILE the pages are seeded (the auto-select), in order. */
     setupChanges: readonly TabViewVectorSelection[];
-    /** Operations applied after the pages exist. */
     ops: readonly TabViewVectorOp[];
     /**
      * Return value of each op, in order — `null` for the ops that return nothing.
@@ -129,7 +117,6 @@ export interface TabViewVector {
     closeAttempts?: readonly string[];
     /** Final page order. */
     order: readonly string[];
-    /** Final pinned-prefix length. */
     nPinnedPages: number;
     /** Final selected id, `null` for none. */
     selectedId: string | null;
@@ -158,11 +145,10 @@ const AUTO_SELECT = (id: string): readonly TabViewVectorSelection[] => [
 /**
  * `Adw.TabView`'s selection, close protocol, partition and ordering, end to end.
  *
- * Read the `rule` of a row before changing it: most of them encode behaviour
- * NEITHER port had, and several encode behaviour a port had backwards.
+ * Read the `rule` of a row before changing it: most encode behaviour neither renderer had,
+ * and several encode behaviour a port had backwards.
  */
 export const TAB_VIEW_VECTORS: ReadonlyArray<TabViewVector> = [
-    // --- Closing: the successor rule ------------------------------------
     {
         rule: 'closing the selected page selects the NEXT one and removes it — web removed nothing at all, so every close was permanently denied',
         derivedFrom:
@@ -317,7 +303,6 @@ export const TAB_VIEW_VECTORS: ReadonlyArray<TabViewVector> = [
         closing: [],
     },
 
-    // --- Closing: the two-phase protocol --------------------------------
     {
         rule: 'a deferred close is re-entrant-safe: the second request is ignored and the handler does NOT run again — the seam that lets an app show "save before closing?"',
         derivedFrom:
@@ -363,7 +348,6 @@ export const TAB_VIEW_VECTORS: ReadonlyArray<TabViewVector> = [
         closing: [],
     },
 
-    // --- Closing: the batch walks ---------------------------------------
     {
         rule: 'closePagesAfter walks DESCENDING — the order is part of the spec, because each confirmed close shifts every later index',
         derivedFrom: '`for (i = self->n_pages - 1; i > pos; i--)` (adw-tab-view.c:4511)',
@@ -414,7 +398,6 @@ export const TAB_VIEW_VECTORS: ReadonlyArray<TabViewVector> = [
         selectedIndex: 0,
     },
 
-    // --- Pinning --------------------------------------------------------
     {
         rule: 'pinning moves the page to the end of the pinned prefix and grows the prefix',
         derivedFrom:
@@ -475,7 +458,6 @@ export const TAB_VIEW_VECTORS: ReadonlyArray<TabViewVector> = [
         selectedIndex: 0,
     },
 
-    // --- Insertion ------------------------------------------------------
     {
         rule: 'addPage inserts after the parent AND after every consecutive descendant of it, so links opened from one tab keep their order',
         derivedFrom:
@@ -598,7 +580,6 @@ export const TAB_VIEW_VECTORS: ReadonlyArray<TabViewVector> = [
         selectedIndex: 0,
     },
 
-    // --- Selection navigation -------------------------------------------
     {
         rule: 'selectFirst from the FIRST non-pinned tab hops the partition boundary into pinned territory',
         derivedFrom:
@@ -830,7 +811,6 @@ export const TAB_VIEW_VECTORS: ReadonlyArray<TabViewVector> = [
         diagnostics: ["adw_tab_view_set_selected_page: assertion 'ADW_IS_TAB_PAGE (selected_page)' failed"],
     },
 
-    // --- Reordering ------------------------------------------------------
     {
         rule: 'the first NON-pinned tab cannot be dragged backwards into pinned territory',
         derivedFrom:
@@ -920,7 +900,6 @@ export const TAB_VIEW_VECTORS: ReadonlyArray<TabViewVector> = [
         diagnostics: ["adw_tab_view_reorder_page: assertion 'position >= self->n_pinned_pages' failed"],
     },
 
-    // --- Detach + per-page properties ------------------------------------
     {
         rule: 'detaching a parent re-points its children at the GRANDparent, so the successor rule keeps working for them',
         derivedFrom:
@@ -992,17 +971,14 @@ export const TAB_VIEW_VECTORS: ReadonlyArray<TabViewVector> = [
 /**
  * The surface a vector driver needs.
  *
- * Deliberately STRUCTURAL and named exactly as `TabViewState` names things, so
- * all three suites hand their subject straight to {@link applyTabViewOp} with no
- * translation layer: the core suite passes a `TabViewState`, the NativeScript
- * suite passes the state its widget delegates to, and the browser suite passes
- * the `<adw-tab-view>` element itself. A renderer that cannot be passed here has
- * stopped being a thin adapter, which is the thing these vectors exist to catch.
+ * Deliberately STRUCTURAL and named exactly as `TabViewState` names things, so all
+ * three suites hand their subject straight to {@link applyTabViewOp} with no
+ * translation layer. A renderer that cannot be passed here has stopped being a
+ * thin adapter, which is the thing these vectors exist to catch.
  */
 export interface TabViewVectorTarget {
     /** The ordered pages — only the three fields a vector reads. */
     readonly pages: readonly { readonly id: string; readonly title: string; readonly pinned: boolean }[];
-    /** Length of the pinned prefix. */
     readonly nPinnedPages: number;
     /** Selected page id, `null` when the view is empty. */
     readonly selectedId: string | null;
@@ -1041,14 +1017,14 @@ export interface TabViewVectorTarget {
 }
 
 /**
- * Seed a vector's pages, choosing the insertion call each page's declaration
- * implies: a pinned page through `appendPinnedPage` (so the pinned prefix builds up
- * in declaration order), a parented one through `addPage` (so the position is
- * DERIVED, which is itself under test), everything else through `append`.
+ * Seed a vector's pages, choosing the insertion call each page's declaration implies: a
+ * pinned page through `appendPinnedPage` (so the pinned prefix builds up in declaration
+ * order), a parented one through `addPage` (so the position is DERIVED, which is itself
+ * under test), everything else through `appendPage`.
  *
- * Every vector's declared order is also the order this produces — the core suite
- * asserts that right after seeding, which is what turns the fixtures themselves
- * into a test of `adw_tab_view_add_page`'s position derivation.
+ * Every vector's declared order is also the order this produces, asserted right after
+ * seeding — which turns the fixtures into a test of `adw_tab_view_add_page`'s position
+ * derivation.
  */
 export function seedTabViewPages(target: TabViewVectorTarget, pages: readonly TabViewVectorPage[]): void {
     for (const page of pages) {
@@ -1139,22 +1115,18 @@ export function tabViewClosing(target: TabViewVectorTarget): string[] {
 
 /** One `successorAfterClose` expectation — the close-successor kernel on its own. */
 export interface TabSuccessorVector {
-    /** What this row pins down. */
     rule: string;
     /** The C lines it is derived from. */
     derivedFrom: string;
-    /** The page list. */
     pages: readonly TabViewVectorPage[];
-    /** The page being closed. */
     closingId: string;
-    /** The currently-selected id. */
     selectedId: string | null;
     /** Who ends up selected — `null` when the view empties. */
     successorId: string | null;
 }
 
 /**
- * `select_previous_page` (adw-tab-view.c:1857-1897) with no view around it.
+ * `select_previous_page` with no view around it.
  *
  * These are the same rules the end-to-end rows exercise, stated as pure inputs
  * so a failure names the RULE rather than the script that reached it.
@@ -1254,19 +1226,16 @@ export const TAB_SUCCESSOR_VECTORS: ReadonlyArray<TabSuccessorVector> = [
 
 /** One `isDescendantOfPage` expectation. */
 export interface TabDescendantVector {
-    /** What this row pins down. */
     rule: string;
-    /** The page list. */
     pages: readonly TabViewVectorPage[];
-    /** The candidate descendant. */
     pageId: string | null;
-    /** The candidate ancestor. */
     parentId: string;
-    /** Whether the walk reaches the ancestor. */
     descendant: boolean;
 }
 
-/** `is_descendant_of` (adw-tab-view.c:1735-1742).  *
+/**
+ * `is_descendant_of`.
+ *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (TAB_VIEW_VECTORS)
  */
 export const TAB_DESCENDANT_VECTORS: ReadonlyArray<TabDescendantVector> = [
@@ -1324,14 +1293,12 @@ export interface TabsRevealedVector {
     nPinnedPages: number;
     /** `adw_tab_view_get_is_transferring_page`. */
     isTransferringPage: boolean;
-    /** Whether the bar shows its tabs. */
     revealed: boolean;
-    /** What this row pins down. */
     rule: string;
 }
 
 /**
- * `update_autohide_cb` (adw-tab-bar.c:142-164), verbatim:
+ * `update_autohide_cb`, verbatim:
  * `!autohide || n_tabs > 1 || n_pinned_tabs >= 1 || is_transferring_page`.
  */
 export const TABS_REVEALED_VECTORS: ReadonlyArray<TabsRevealedVector> = [
@@ -1387,25 +1354,19 @@ export const TABS_REVEALED_VECTORS: ReadonlyArray<TabsRevealedVector> = [
 
 /** One `tabCloseVisible` expectation. */
 export interface TabCloseVisibleVector {
-    /** Pointer is over the tab. */
     hovering: boolean;
     /** The tab is not clipped by the bar's scroll region. */
     fullyVisible: boolean;
-    /** The tab is selected. */
     selected: boolean;
-    /** The tab is being dragged. */
     dragging: boolean;
-    /** The tab is pinned. */
     pinned: boolean;
-    /** Whether the close button shows. */
     visible: boolean;
-    /** What this row pins down. */
     rule: string;
 }
 
 /**
- * `update_state`'s `show_close` (adw-tab.c:124) plus the pinned gate applied at
- * construction (adw-tab.c:645-650). Each port shipped a different single term of
+ * `update_state`'s `show_close` plus the pinned gate applied at
+ * construction. Each port shipped a different single term of
  * this — web showed it always, NS only on the selected tab.
  */
 export const TAB_CLOSE_VISIBLE_VECTORS: ReadonlyArray<TabCloseVisibleVector> = [
@@ -1471,27 +1432,21 @@ export interface TabTooltipVector {
     tooltip: string;
     /** `AdwTabPage:title`. */
     title: string;
-    /** What the tab shows. */
     text: string;
     /** Whether that text is Pango markup rather than plain text. */
     markup: boolean;
-    /** What this row pins down. */
     rule: string;
 }
 
 /**
- * `update_tooltip` (adw-tab.c:137-146): a non-empty tooltip wins and is set as
+ * `update_tooltip`: a non-empty tooltip wins and is set as
  * MARKUP; an empty one falls back to the title, set as TEXT.
  *
- * WHO DRIVES THIS TABLE: only the core suite — and that is a GAP, not a reason.
- * "Neither port has tooltips at all" was true when this was written and is not
- * any more: the browser sets `tab.title = tabTooltip(page)`
- * (`elements/adw-tab-view.ts`) and NativeScript re-exports it as
- * `tabTooltipText` (`widgets/tab-view-state.ts`), so BOTH renderers consume
- * these rows today and neither is held to them. Both surfaces are readable from
- * their own suites, so wiring them is a loop, not new capability.
- *
- * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (TAB_VIEW_VECTORS — both ports consume the derivation, which this header once denied)
+ * CORE-ONLY: GAP, not a reason. Both renderers consume the derivation — the
+ * browser sets `tab.title = tabTooltip(page)` (`elements/adw-tab-view.ts`),
+ * NativeScript re-exports it as `tabTooltipText` (`widgets/tab-view-state.ts`) —
+ * and neither is held to these rows. Both surfaces are readable from their own
+ * suites, so wiring them is a loop, not new capability.
  */
 export const TAB_TOOLTIP_VECTORS: ReadonlyArray<TabTooltipVector> = [
     {
@@ -1538,17 +1493,13 @@ export interface TabIconStateVector {
     defaultIcon: string | null;
     /** The icon actually painted, `null` for none. */
     resolvedIcon: string | null;
-    /** Whether a spinner replaces the icon image. */
     spinner: boolean;
-    /** Whether the icon slot shows. */
     iconVisible: boolean;
-    /** Whether the indicator slot shows. */
     indicatorVisible: boolean;
-    /** What this row pins down. */
     rule: string;
 }
 
-/** `update_icons` (adw-tab.c:171-198). */
+/** `update_icons`. */
 export const TAB_ICON_STATE_VECTORS: ReadonlyArray<TabIconStateVector> = [
     {
         icon: 'text-x-generic',
@@ -1626,11 +1577,8 @@ export const TAB_ICON_STATE_VECTORS: ReadonlyArray<TabIconStateVector> = [
 
 /** One page-descriptor normalization expectation. */
 export interface TabPageDescriptorVector {
-    /** What this row pins down. */
     rule: string;
-    /** The C property it is derived from. */
     derivedFrom: string;
-    /** The declared page. */
     spec: {
         id: string;
         title?: string | null;
@@ -1640,11 +1588,9 @@ export interface TabPageDescriptorVector {
         loading?: boolean;
         needsAttention?: boolean;
     };
-    /** Resolved `title`. */
     title: string;
     /** Resolved `tooltip`. */
     tooltip: string;
-    /** Resolved `icon`. */
     icon: string | null;
     /** Resolved `indicatorIcon`. */
     indicatorIcon: string | null;
@@ -1658,7 +1604,7 @@ export interface TabPageDescriptorVector {
  * What a declared page resolves to.
  *
  * The `null → ''` coercions are `g_set_str (&self->title, title ? title : "")`
- * (adw-tab-view.c:3021) and its tooltip twin (:3064). The icon fields do NOT
+ * and its tooltip twin. The icon fields do NOT
  * coerce: "no icon" is a state `tabIconState` branches on, so `null` has to
  * survive.
  *

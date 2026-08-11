@@ -1,14 +1,12 @@
 // DOM-level tests for <adw-header-bar>'s title.
 //
-// `title` was read exactly once, in `connectedCallback`, and the element declared
-// no `observedAttributes` at all — so every later write was a silent no-op. A
-// header bar whose title tracks the open document kept whatever it was created
-// with, and nothing in the build was in a position to notice: the attribute was
-// still THERE, and the element still rendered A title.
+// `title` must be OBSERVED, not read once at `connectedCallback`: a header bar tracking
+// the open document keeps its construction-time title otherwise, and nothing notices
+// because the attribute is still there and A title still renders.
 //
 // `Adw.HeaderBar` builds its centre from `title`/`subtitle` through a derived
-// `AdwWindowTitle` bound to the properties, unless a `title-widget` replaces it
-// — which is the either/or the `slot="center"` case below asserts.
+// `AdwWindowTitle` bound to the properties, unless a `title-widget` replaces it — the
+// either/or the `slot="center"` case below asserts.
 
 import { describe, expect, it } from '@gjsify/unit';
 

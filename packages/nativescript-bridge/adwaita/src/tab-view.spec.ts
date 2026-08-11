@@ -2,22 +2,13 @@
 // the `<adw-tab-view>` browser suite assert against
 // (`@gjsify/adwaita-core/conformance`).
 //
-// IMPORTANT: this imports `./widgets/tab-view-state.js`, NOT the widget. A widget
-// module `extends GridLayout`, which evaluates the bare `@nativescript/core`
-// specifier at module-eval and is unresolvable on GJS/Node, so `adw-tab-view.ts`
-// cannot be loaded here. It is a thin `GridLayout` wrapper over exactly the
-// surface below: every accessor forwards to the state this file creates, the
-// page-list subscription inserts/removes/moves one chip, and the selection
-// subscription runs {@link applyTabViewVisibility} + {@link tabCloseVisibilities}
-// and notifies {@link tabViewNotifyPayload}.
-//
-// Nothing here is a mock of the widget. That distinction earned itself in the
-// view-stack lift, where a `MockViewStack` transcribed the widget's own guards
-// and therefore could not detect the drift it existed to catch — and in this
-// family the widget had no model to mock: `_closeTab` removed a page with no
-// signal and no confirm seam, refused on the last tab where libadwaita empties
-// the view, and inherited a `selected` setter that accepted a FRACTIONAL index,
-// stored it, and collapsed every page while still notifying `selected: 1.7`.
+// IMPORTANT: this imports `./widgets/tab-view-state.js`, NOT the widget — a widget module
+// `extends GridLayout`, which evaluates the bare `@nativescript/core` specifier at
+// module-eval. `adw-tab-view.ts` is a thin wrapper over exactly the surface below: every
+// accessor forwards to the state this file creates, the page-list subscription
+// inserts/removes/moves one chip, and the selection subscription runs
+// {@link applyTabViewVisibility} + {@link tabCloseVisibilities} and notifies
+// {@link tabViewNotifyPayload}. Nothing here is a mock of the widget.
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { TabViewVector, TabViewVectorPagesChange, TabViewVectorSelection } from '@gjsify/adwaita-core/conformance';

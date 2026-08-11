@@ -1,29 +1,21 @@
 // AdwOverlaySplitView — a Libadwaita-style overlay split view for NativeScript.
 //
-// Extends {@link AdwSplitViewBase}: when NOT collapsed it lays sidebar+content
-// side by side (like the navigation split view); when collapsed the sidebar
-// OVERLAYS the content rather than replacing it (`Adw.OverlaySplitView`'s defining
-// behaviour). The overlay is drawn on top of the content (NS paints children in
-// add order) with a dimmed, tap-to-dismiss SCRIM beneath it, and the show/hide
-// transition SLIDES the sidebar in/out + FADES the scrim. Mirrors it: `collapsed`,
-// `showSidebar`, `pinSidebar`, `notify::show-sidebar`, click-outside-to-close.
+// Extends {@link AdwSplitViewBase}: uncollapsed it lays sidebar+content side by side,
+// collapsed the sidebar OVERLAYS the content rather than replacing it, drawn on top of
+// it (NS paints children in add order) over a dimmed tap-to-dismiss SCRIM.
 //
 // The property interplay is NOT here — it is `NsOverlaySplitViewState`, over the
-// headless `OverlaySplitViewState` (ADR 0004). This file is only the view-tree
-// half: columns, paint order, `visibility`, the slide/fade animation, and the
-// `isUserInteractionEnabled` pair that keeps the off-screen pane out of the focus
-// and screen-reader order (`gtk_widget_set_can_focus`,
-// adw-overlay-split-view.c:330-331 / :1460-1461).
+// headless `OverlaySplitViewState` (ADR 0004). This file is the view-tree half only:
+// columns, paint order, `visibility`, the slide/fade animation, and the
+// `isUserInteractionEnabled` pair that keeps the off-screen pane out of the focus and
+// screen-reader order (GTK's `gtk_widget_set_can_focus`).
 //
-// FIDELITY: the slide + scrim fade run through the native `View.animate()` API
-// (a real per-property animation — NOT the CSS subset, which has no transform
-// transition), so the collapsed reveal matches Adwaita's ~200 ms motion and the
-// dim-to-dismiss backdrop. Off-screen (pre-load) or off-device (the mock view
-// tree in specs) it degrades to the instant `visibility` swap. The scrim + sidebar
-// are RE-RAISED above the content on every layout (content < scrim < sidebar) so
-// the overlay paints/hit-tests on top regardless of the order setContent /
-// setSidebar / collapsed were called in. What the CSS subset still can't do:
-// box-shadow and backdrop-blur — the scrim is a flat translucent fill, not a blur.
+// FIDELITY: the slide + scrim fade run through the native `View.animate()` API, not the
+// CSS subset (which has no transform transition), and degrade to an instant
+// `visibility` swap off-screen or off-device. The scrim + sidebar are RE-RAISED above
+// the content on every layout (content < scrim < sidebar) so the overlay
+// paints/hit-tests on top whatever order setContent / setSidebar / collapsed came in.
+// Still out of reach: box-shadow and backdrop-blur — the scrim is a flat fill.
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-overlay-split-view`.
 // Reference: refs/libadwaita/src/adw-overlay-split-view.c

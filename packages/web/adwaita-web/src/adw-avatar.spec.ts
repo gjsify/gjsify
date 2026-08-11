@@ -1,12 +1,10 @@
 // DOM-level conformance tests for <adw-avatar>, driven by the SAME vectors the
 // NativeScript renderer asserts against (`@gjsify/adwaita-core/conformance`).
 //
-// The two renderers used to carry independent copies of the initials + colour
-// derivation, and the copies had drifted apart AND away from libadwaita:
-// this element rendered "AD" for `text="Ada"` where GTK and NS render "A", and
-// both hashed UTF-16 code units where GLib hashes UTF-8 bytes, so every accented
-// name was painted the wrong colour. Nothing failed, because nothing compared
-// them. This suite is that comparison.
+// Two rules independent copies of the initials + colour derivation drifted from: GTK
+// takes ONE initial from a single-word `text`, and the colour hash runs over UTF-8 BYTES
+// as GLib's does — hashing UTF-16 code units paints every accented name the wrong
+// colour.
 import { describe, expect, it } from '@gjsify/unit';
 
 import { AVATAR_MODE_VECTORS } from '@gjsify/adwaita-core/conformance';

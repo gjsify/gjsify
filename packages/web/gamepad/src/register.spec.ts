@@ -2,26 +2,17 @@
 // navigator.getGamepads + GamepadEvent, and that the patched method survives a
 // host with no gamepad backend.
 //
-// ## Why the host globals are read through a typed VIEW and not as `globalThis.X`
-//
-// The `--globals auto` detector treats `globalThis.<KnownGlobal>` as a free
-// global (Pattern A in `detect-free-globals.ts`) and `navigator.getGamepads` as a
-// method marker, so an earlier version of this file — which probed
-// `(globalThis as any).GamepadEvent` and `(globalThis as any).navigator` directly
-// — made the CLI inject the GTK/GNOME-backed register set into the test bundle:
-//
-//     [gjsify] note: --globals auto injected GTK/GNOME-backed register(s) — this
-//     bundle now requires gi://Gdk, gi://GdkPixbuf, gi://Manette, gi://Pango,
-//     gi://PangoCairo at load. Triggered by: GamepadEvent, navigator.
-//
-// For the ONE package whose whole subject is "behave observably where Manette is
-// absent", a test bundle that announces a load-time Manette requirement is the
-// wrong artefact — and injection is redundant here anyway, because this file
-// imports `@gjsify/gamepad/register` EXPLICITLY. Reading the host through a local
-// alias removes the trigger at the source (no build flag, no `--exclude-globals`
-// to remember) and still asserts exactly what it did before: that the
-// side-effect import WROTE onto the host object. It also retires the file-level
-// `no-explicit-any` disable this file used to need.
+// The host globals are read through a typed VIEW, not as `globalThis.X`: the
+// `--globals auto` detector treats `globalThis.<KnownGlobal>` as a free global
+// (Pattern A in `detect-free-globals.ts`) and `navigator.getGamepads` as a method
+// marker, so probing them directly makes the CLI inject the GTK/GNOME-backed register
+// set — gi://Gdk, gi://GdkPixbuf, gi://Manette, gi://Pango, gi://PangoCairo at load —
+// into the test bundle. For the one package whose subject is "behave observably where
+// Manette is absent", a bundle announcing a load-time Manette requirement is the wrong
+// artefact, and the injection is redundant because this file imports
+// `@gjsify/gamepad/register` EXPLICITLY. The local alias removes the trigger at the
+// source, with no build flag to remember, and still asserts that the side-effect import
+// WROTE onto the host object.
 
 import { describe, expect, it } from '@gjsify/unit';
 

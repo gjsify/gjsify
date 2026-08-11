@@ -1,20 +1,16 @@
 // Carousel conformance vectors — the spec both renderers are held to.
 //
-// `Adw.Carousel` is arithmetic over one array of per-page reveal sizes, and the
-// two ports each re-derived a different, smaller version of it. Nothing compared
-// them, so nothing noticed that the web port's `allow-scroll-wheel` default was
-// inverted, that both resolved a half-way position to the WRONG page, that
-// `page-changed` was gated on an index change in one port and absent in the
-// other, or that `scrollToPage(NaN)` left the NativeScript port with a NaN
-// position and no active dot at all.
+// `Adw.Carousel` is arithmetic over one array of per-page reveal sizes, and the two ports
+// each re-derived a different, smaller version of it: an inverted `allow-scroll-wheel`
+// default, a half-way position resolved to the WRONG page in both, `page-changed` gated on
+// an index change in one and absent in the other, and `scrollToPage(NaN)` leaving a NaN
+// position with no active dot.
 //
-// Rows come in two shapes. The pure-function tables are single input/output
-// pairs. The state tables are SCRIPTS — a page list, a sequence of operations,
-// and the snapshot they must land in — because what is being pinned is a state
-// machine: which page is current, where the position ended up, and which
-// `page-changed` indices came out on the way. Every row cites the C function it
-// is derived from; where a row contradicts what a port shipped, the `rule` says
-// so, and that row is the regression pin.
+// Rows come in two shapes: the pure-function tables are single input/output pairs, the state
+// tables are SCRIPTS — a page list, a sequence of operations, and the snapshot they must
+// land in — because what is pinned is a state machine: which page is current, where the
+// position ended up, and which `page-changed` indices came out on the way. Where a row
+// contradicts what a port shipped, the `rule` says so, and that row is the regression pin.
 //
 // NOT covered here, and deliberately: the indicator metrics (per-dot progress
 // ramp, line lengths, measure/centering, the RTL draw flip). They consume widget
@@ -27,19 +23,18 @@
 
 import type { CarouselDirection, CarouselOrientation, CarouselScrollSource } from '../carousel.js';
 
-// --- snap points -----------------------------------------------------------
-
 /** One `carouselSnapPoints` expectation. */
 export interface CarouselSnapPointVector {
     /** Per-page reveal sizes: 0 while a page animates in, 1 once settled. */
     sizes: readonly number[];
     /** `snapPoint[i] = (Σ_{j≤i} size[j]) − 1`. */
     snapPoints: readonly number[];
-    /** Why this row exists. */
     rule: string;
 }
 
-/** `adw_carousel_size_allocate`'s accumulation (adw-carousel.c:777-789).  *
+/**
+ * `adw_carousel_size_allocate`'s accumulation.
+ *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (CAROUSEL_PAGE_LIST_VECTORS)
  */
 export const CAROUSEL_SNAP_POINT_VECTORS: ReadonlyArray<CarouselSnapPointVector> = [
@@ -61,14 +56,12 @@ export interface CarouselSizesFromSnapPointsVector {
     snapPoints: readonly number[];
     /** `sizes[0] = points[0] + 1`, `sizes[i] = points[i] − points[i−1]`. */
     sizes: readonly number[];
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * The inverse both indicators reconstruct sizes with
- * (adw-carousel-indicator-dots.c:189-191, :248-250) — the only channel through
- * which an indicator can learn per-page reveal state.
+ * The inverse both indicators reconstruct sizes with — the only channel through which an
+ * indicator can learn per-page reveal state.
  *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (CAROUSEL_PAGE_LIST_VECTORS)
  */
@@ -80,23 +73,21 @@ export const CAROUSEL_SIZES_FROM_SNAP_POINTS_VECTORS: ReadonlyArray<CarouselSize
     { snapPoints: [], sizes: [], rule: 'nothing in, nothing out' },
 ];
 
-// --- range / clamp ---------------------------------------------------------
-
 /** One `carouselRange` expectation. */
 export interface CarouselRangeVector {
-    /** The snap points the range is derived from. */
     snapPoints: readonly number[];
-    /** Pending `position_shift`, which C folds into the bound (:219). */
+    /** Pending `position_shift`, which C folds into the bound. */
     positionShift: number;
     /** Always 0. */
     lower: number;
     /** `MAX (0, positionShift + last snap point)`. */
     upper: number;
-    /** Why this row exists. */
     rule: string;
 }
 
-/** `get_range` (adw-carousel.c:207-220).  *
+/**
+ * `get_range`.
+ *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (CAROUSEL_PAGE_LIST_VECTORS)
  */
 export const CAROUSEL_RANGE_VECTORS: ReadonlyArray<CarouselRangeVector> = [
@@ -121,17 +112,16 @@ export const CAROUSEL_RANGE_VECTORS: ReadonlyArray<CarouselRangeVector> = [
 
 /** One `carouselClampPosition` expectation. */
 export interface CarouselClampVector {
-    /** The proposed position. */
     position: number;
-    /** The snap points defining the range. */
     snapPoints: readonly number[];
     /** `CLAMP (position, lower, upper)`. */
     clamped: number;
-    /** Why this row exists. */
     rule: string;
 }
 
-/** `set_position`'s guard (adw-carousel.c:269).  *
+/**
+ * `set_position`'s guard.
+ *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (CAROUSEL_PAGE_LIST_VECTORS)
  */
 export const CAROUSEL_CLAMP_VECTORS: ReadonlyArray<CarouselClampVector> = [
@@ -147,23 +137,18 @@ export const CAROUSEL_CLAMP_VECTORS: ReadonlyArray<CarouselClampVector> = [
     { position: 0, snapPoints: [0, 1, 2], clamped: 0, rule: 'an in-range position is untouched' },
 ];
 
-// --- page lookup -----------------------------------------------------------
-
 /** One `carouselPageAtPosition` expectation. */
 export interface CarouselPageAtPositionVector {
-    /** The scroll position to resolve. */
     position: number;
     /** The snap points of the pages that count. */
     snapPoints: readonly number[];
     /** The page index, `-1` when there are no pages. */
     page: number;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * `get_page_at_position` → `get_closest_child_at` (adw-carousel.c:222-239,
- * :180-205). The `.5` rows are the regression pins: C's comparison is a strict
+ * `get_page_at_position` → `get_closest_child_at` . The `.5` rows are the regression pins: C's comparison is a strict
  * `>`, so an equidistant LATER page never replaces the earlier one, while both
  * ports used `Math.round`, which rounds .5 up.
  */
@@ -195,24 +180,18 @@ export const CAROUSEL_PAGE_AT_POSITION_VECTORS: ReadonlyArray<CarouselPageAtPosi
     },
 ];
 
-// --- keynav ----------------------------------------------------------------
-
 /** One `carouselNavigateTarget` expectation. */
 export interface CarouselNavigateVector {
-    /** Current scroll position. */
     position: number;
-    /** Number of pages. */
     nPages: number;
-    /** Which way the key moves. */
     direction: CarouselDirection;
     /** The target page, `null` when C returns FALSE. */
     target: number | null;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * `navigate_to_direction` (adw-carousel.c:475-508).
+ * `navigate_to_direction`.
  *
  * The rounding here is C's `round()` — half AWAY FROM ZERO — and it is
  * deliberately not the half-down tie-break of
@@ -245,26 +224,22 @@ export const CAROUSEL_NAVIGATE_VECTORS: ReadonlyArray<CarouselNavigateVector> = 
     { position: 0, nPages: 1, direction: 'forward', target: null, rule: 'a single page is both bounds' },
 ];
 
-// --- scroll wheel ----------------------------------------------------------
-
 /** One `carouselWheelStep` expectation. */
 export interface CarouselWheelVector {
-    /** Horizontal delta. */
     deltaX: number;
-    /** Vertical delta. */
     deltaY: number;
-    /** The carousel's orientation. */
     orientation: CarouselOrientation;
     /** The `GdkInputSource` class of the event. */
     source: CarouselScrollSource;
     /** Pages to step; `0` means the event propagates. */
     step: -1 | 0 | 1;
-    /** Why this row exists. */
     rule: string;
 }
 
-/** `scroll_cb`'s axis/source rules (adw-carousel.c:537-559).  *
- * CORE-ONLY: GAP — the browser carousel handles `wheel` without routing it through `resolveCarouselWheel`, and the NativeScript one has no wheel at all. Tracked in #1072
+/**
+ * `scroll_cb`'s axis/source rules.
+ *
+ * CORE-ONLY: GAP — the browser carousel routes `wheel` through `CarouselState.handleWheel` but publishes no per-notch answer to assert, and the NativeScript one has no wheel at all. Tracked in #1072
  */
 export const CAROUSEL_WHEEL_VECTORS: ReadonlyArray<CarouselWheelVector> = [
     {
@@ -343,7 +318,6 @@ export interface CarouselWheelLockoutStep {
     deltaY: number;
     /** What `handleWheel` must return. */
     step: -1 | 0 | 1;
-    /** The position afterwards. */
     position: number;
 }
 
@@ -353,18 +327,15 @@ export interface CarouselWheelLockoutVector {
     pages: number;
     /** The events, in order, each with the clock reading it arrives at. */
     steps: readonly CarouselWheelLockoutStep[];
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * `SCROLL_TIMEOUT_DURATION` (adw-carousel.c:22) and the `scroll_timeout_id` gate
- * (:526, :571-574) — a wheel notch arms a 150 ms lockout during which further
- * notches propagate instead of paging.
+ * `SCROLL_TIMEOUT_DURATION` and the `scroll_timeout_id` gate — a wheel notch arms a 150 ms
+ * lockout during which further notches propagate instead of paging.
  *
- * The web port replaced this with a non-decaying delta accumulator, so +30 then
- * −30 cancelled out where libadwaita pages twice, and a slow wheel never
- * reached the threshold at all.
+ * A non-decaying delta accumulator is the wrong shape for this: +30 then −30 cancels out
+ * where libadwaita pages twice, and a slow wheel never reaches the threshold at all.
  *
  * CORE-ONLY: GAP — the lockout is a real elapsed-time rule and neither element has a clock seam to drive it with. Tracked in #1072
  */
@@ -396,25 +367,21 @@ export const CAROUSEL_WHEEL_LOCKOUT_VECTORS: ReadonlyArray<CarouselWheelLockoutV
     },
 ];
 
-// --- reorder ---------------------------------------------------------------
-
 /** One `carouselReorderShift` expectation. */
 export interface CarouselReorderShiftVector {
     /** Snap point of the page the carousel is closest to. */
     closestPoint: number;
-    /** Snap point the moved page had. */
     oldPoint: number;
-    /** Snap point it lands on. */
     newPoint: number;
-    /** The moved page's reveal size. */
     size: number;
     /** How far `position` must move so the visible page does not jump. */
     shift: number;
-    /** Why this row exists. */
     rule: string;
 }
 
-/** The three branches of `adw_carousel_reorder`'s compensation (adw-carousel.c:1488-1495).  *
+/**
+ * The three branches of `adw_carousel_reorder`'s compensation.
+ *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (CAROUSEL_PAGE_LIST_VECTORS)
  */
 export const CAROUSEL_REORDER_SHIFT_VECTORS: ReadonlyArray<CarouselReorderShiftVector> = [
@@ -460,15 +427,12 @@ export const CAROUSEL_REORDER_SHIFT_VECTORS: ReadonlyArray<CarouselReorderShiftV
     },
 ];
 
-// --- state machine ---------------------------------------------------------
-
 /**
  * One operation in a page-list script.
  *
- * `insert` and `remove` mean "and finish the reveal immediately", which is what
- * a carousel with the default `reveal-duration` of 0 (adw-carousel.c:1206) does
- * and what both renderers' page APIs do. The mid-animation states are pinned
- * separately by {@link CAROUSEL_REVEAL_VECTORS}.
+ * `insert` and `remove` mean "and finish the reveal immediately", which is what a carousel
+ * with the default `reveal-duration` of 0 does and what both renderers' page APIs do. The
+ * mid-animation states are pinned separately by {@link CAROUSEL_REVEAL_VECTORS}.
  */
 export type CarouselPageOp =
     | { readonly kind: 'insert'; readonly id: string; readonly position?: number }
@@ -486,9 +450,7 @@ export interface CarouselStateSnapshot {
     nPages: number;
     /** Reveal sizes of every TRACKED child, including ones being removed. */
     sizes: readonly number[];
-    /** Snap points of every tracked child. */
     snapPoints: readonly number[];
-    /** The clamped fractional position. */
     position: number;
     /** The current page index, `-1` when empty. */
     page: number;
@@ -498,25 +460,18 @@ export interface CarouselStateSnapshot {
 export interface CarouselPageListVector {
     /** Pages the carousel starts with, all settled at size 1. */
     pages: readonly string[];
-    /** The script, applied in order. */
     ops: readonly CarouselPageOp[];
     /** What each op returned (`settle` reports `true`). */
     opResults: readonly boolean[];
     /** The `page-changed` indices emitted while the script ran, in order. */
     pageChanged: readonly number[];
-    /** The state afterwards. */
     expected: CarouselStateSnapshot;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * Insert / remove / reorder ordering and the position compensation, on a
- * carousel whose reveals complete instantly — the shape both renderers expose.
- *
- * The whole family is new to both ports: the web port snapshotted its children
- * once in `connectedCallback` and never looked again, and the NS port had
- * `addPage` and nothing else.
+ * Insert / remove / reorder ordering and the position compensation, on a carousel whose
+ * reveals complete instantly — the shape both renderers expose.
  */
 export const CAROUSEL_PAGE_LIST_VECTORS: ReadonlyArray<CarouselPageListVector> = [
     {
@@ -751,21 +706,14 @@ export type CarouselRevealOp =
 export interface CarouselRevealVector {
     /** Pages the carousel starts with, all settled at size 1. */
     pages: readonly string[];
-    /** The script, applied in order. */
     ops: readonly CarouselRevealOp[];
-    /** The state afterwards. */
     expected: CarouselStateSnapshot;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * The reveal lifecycle: a page enters at size 0 and grows, leaves `n-pages`
- * before its geometry, and drags the position along whenever it sits at or
- * before the page on screen.
- *
- * Neither port has any of this — both treat the page list as fixed — so every
- * row is new behaviour rather than a regression pin.
+ * The reveal lifecycle: a page enters at size 0 and grows, leaves `n-pages` before its
+ * geometry, and drags the position along whenever it sits at or before the page on screen.
  */
 export const CAROUSEL_REVEAL_VECTORS: ReadonlyArray<CarouselRevealVector> = [
     {
@@ -879,25 +827,17 @@ export const CAROUSEL_REVEAL_VECTORS: ReadonlyArray<CarouselRevealVector> = [
     },
 ];
 
-// --- property defaults -----------------------------------------------------
-
 /** One property-default expectation. */
 export interface CarouselPropertyDefaultVector {
-    /** The `CarouselState` accessor. */
     property: 'orientation' | 'interactive' | 'allowScrollWheel' | 'allowLongSwipes' | 'spacing' | 'revealDuration';
-    /** What a freshly constructed carousel reports. */
     value: string | number | boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * The `AdwCarousel` property defaults. Two of them are regression pins:
- * `allow-scroll-wheel` is TRUE, which the web port inverted by reading a bare
- * attribute presence (so a plain `<adw-carousel>` ignored the wheel entirely
- * while its own header comment claimed the opposite), and `allow-long-swipes` is
- * FALSE, which the web port carried as a property whose two ternary branches
- * were identical.
+ * The `AdwCarousel` property defaults. Two are regression pins: `allow-scroll-wheel` is
+ * TRUE, which a bare attribute-presence read inverts (a plain `<adw-carousel>` then ignores
+ * the wheel entirely), and `allow-long-swipes` is FALSE.
  */
 export const CAROUSEL_PROPERTY_DEFAULT_VECTORS: ReadonlyArray<CarouselPropertyDefaultVector> = [
     { property: 'orientation', value: 'horizontal', rule: 'adw_carousel_init (:1205)' },

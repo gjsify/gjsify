@@ -7,25 +7,19 @@
 // `useUnderline`, `canShrink`, plus `iconColor` so the icon can match the
 // button's foreground (e.g. white on a `suggested-action` button).
 //
-// The derivations are headless and live in `@gjsify/adwaita-core` (ADR 0004),
-// reached through `button-content.ts`. THE STYLE CLASS IS WHY THIS WAS TOUCHED:
-// `AdwButtonContent` puts `image-text-button` on the button hosting it
-// (adw-button-content.c:115) and removes it on unroot (:126), the stylesheet
-// gives that class `padding-left/right: 9px` where a plain text button has 17px
-// (_buttons.scss:77-80 against :72-75), and `grep -rn "image-text-button"` over
-// this package used to return NOTHING. `use-underline` and `can-shrink` were
-// absent too, and the label view was parented whether or not it had any text.
+// The derivations are headless in `@gjsify/adwaita-core` (ADR 0004), reached through
+// `button-content.ts`. `AdwButtonContent` puts `image-text-button` on the button hosting
+// it and removes it on unroot; the stylesheet gives that class 9px horizontal padding
+// where a plain text button has 17px.
 //
-// NS has no rooting protocol, so the class is applied to whatever
-// {@link AdwButtonContent.hostButton} is set to. That is the seam the C gets for
-// free from `gtk_widget_get_ancestor` + the `AdwSplitButton` retarget
-// (:108-116); a caller that composes the button itself is the one that knows
-// which view plays that role, and core holds the retarget RULE
+// NS has no rooting protocol, so the class goes on whatever
+// {@link AdwButtonContent.hostButton} is set to — the seam the C gets for free from
+// `gtk_widget_get_ancestor` plus the `AdwSplitButton` retarget. A caller that composes
+// the button knows which view plays that role; core holds the retarget RULE
 // (`buttonContentStyleTargetIndex`) for a renderer that can walk its own tree.
 //
 // Reference: refs/libadwaita/src/adw-button-content.c (AdwButtonContent)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss
-//            (image-text-button :77-91 · buttoncontent :626-645)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { Label, StackLayout, type View } from '@nativescript/core';

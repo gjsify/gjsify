@@ -1,34 +1,27 @@
 /**
- * Rule `refs-pin` — REPO-SCOPED. A native bridge must be compiled against the
- * `refs/` submodule commit this repository PINS, never against whatever happens
- * to be checked out locally.
+ * Rule `refs-pin` — REPO-SCOPED. A native bridge must be compiled against the `refs/`
+ * submodule commit this repository PINS, never against whatever happens to be checked
+ * out locally.
  *
- * WHY REPO-SCOPED even though `gjsify.refsLockstep` is a documented manifest
- * field: the check derives the submodule set from a Cargo `path = "…/refs/<n>"`
- * dependency, i.e. it hard-codes both `refs/` as the vendoring directory and
- * Cargo as the build system, and it verifies them against THIS repository's git
- * index. The mechanism generalises; this implementation does not.
+ * REPO-SCOPED despite `gjsify.refsLockstep` being a documented manifest field: this
+ * implementation hard-codes `refs/` as the vendoring directory and Cargo as the build
+ * system, and verifies them against THIS repository's git index. The mechanism
+ * generalises; the implementation does not.
  *
- * The bridges under `packages/infra/*-native/` link upstream Rust crates by
- * Cargo *path* dependency into `refs/<name>/`. A `refs/` working copy that has
- * drifted forward (a `git submodule update --remote`, an `update-submodules`
- * sweep, a manual pull) silently changes what gets linked — and because the
- * resulting `.so` is a COMMITTED prebuild, that drift ships and then runs in
- * CI on every machine, while the npm engine everyone compares against stays on
- * the pinned line.
+ * A `refs/` working copy that has drifted forward (`git submodule update --remote`, an
+ * `update-submodules` sweep, a manual pull) silently changes what a Cargo *path*
+ * dependency links — and since the resulting `.so` is a COMMITTED prebuild, the drift
+ * ships and runs in CI everywhere while the npm engine everyone compares against stays
+ * on the pinned line. Measured: `@gjsify/rolldown-native` was once rebuilt against
+ * `refs/rolldown` v1.2.0-89 while the pin and the npm `rolldown` devDep were on
+ * v1.1.x. The drifted engine's reworked code-splitting path stopped collapsing dynamic
+ * imports under `codeSplitting: false`, so `gjsify build --app gjs --outfile …` failed
+ * with "When building multiple chunks, output.dir must be used" — for some packages
+ * only, which is what made it look like a source bug.
  *
- * That is not hypothetical: the `@gjsify/rolldown-native` prebuild was once
- * rebuilt against `refs/rolldown` v1.2.0-89 while the pin (and the npm
- * `rolldown` devDep) were on the v1.1.x line. The drifted engine had a
- * reworked code-splitting path, so `codeSplitting: false` stopped collapsing
- * dynamic imports into one chunk and `gjsify build --app gjs --outfile …`
- * failed with "When building multiple chunks, output.dir must be used" — for
- * some packages only, which is what made it look like a source bug.
- *
- * The set of submodules to verify is DERIVED from the package's own
- * `src/rust/Cargo.toml` path dependencies, so it cannot drift from what is
- * actually linked. A package with no `refs/` path deps (crates.io versions
- * only, e.g. `@gjsify/lightningcss-native`) passes trivially.
+ * The submodule set is DERIVED from the package's own `src/rust/Cargo.toml` path
+ * dependencies, so it cannot drift from what is actually linked. A package with no
+ * `refs/` path deps (crates.io versions only) passes trivially.
  */
 
 import { execFileSync } from 'node:child_process';
@@ -59,19 +52,15 @@ export function linkedRefsSubmodules(pkgDir) {
 }
 
 /**
- * Lockstep rule: the pinned commit must be the release tag of the npm package
- * that the *other* engine uses. `@gjsify/rolldown-native` and npm `rolldown`
- * are two builds of the same bundler; when they sit on different versions the
- * two engines disagree silently and only some inputs expose it. That is how
- * `@gjsify/vm`'s `--app gjs --outfile` build broke: the pin sat 41 commits past
- * `v1.1.5` while the npm devDep was `1.1.4`, and the range contained a
- * runtime-chunk change, so the native engine emitted two chunks where npm
- * emitted one.
+ * Lockstep rule: the pinned commit must be the release tag of the npm package the
+ * *other* engine uses. `@gjsify/rolldown-native` and npm `rolldown` are two builds of
+ * the same bundler, and on different versions they disagree silently on some inputs
+ * only — that is how `@gjsify/vm`'s `--app gjs --outfile` build broke, with the pin 41
+ * commits past `v1.1.5` against an npm devDep of `1.1.4` across a runtime-chunk change.
  *
  * Declared per package as
  * `gjsify.refsLockstep: { "refs/<name>": { npm: "<pkg>", tag: "v{version}" } }`.
  *
- * @param {string} pkgDir absolute path to the package
  * @returns {Record<string, {npm: string, tag: string}>}
  */
 export function lockstepRules(pkgDir) {
@@ -115,10 +104,9 @@ export function inspectRefsPin(repoRoot, pkgDir) {
     for (const sub of submodules) {
         const subDir = join(repoRoot, sub);
 
-        // Read the INDEX, not HEAD: a deliberate pin bump that has been `git add`ed
-        // is already the pin this build should honour, so staging it is enough —
-        // while forgetting to stage it still fails, which is the point.
-        // `git ls-files -s` prints `160000 <sha> 0\t<path>` for a gitlink.
+        // Read the INDEX, not HEAD: a deliberate pin bump that has been `git add`ed is
+        // already the pin this build should honour, while forgetting to stage it still
+        // fails. `git ls-files -s` prints `160000 <sha> 0\t<path>` for a gitlink.
         const pinned = git(repoRoot, ['ls-files', '-s', '--', sub]).split(/\s+/)[1];
         if (!pinned) {
             problems.push(`${sub}: not a submodule of this repository at HEAD.`);
@@ -183,12 +171,10 @@ export function inspectRefsPin(repoRoot, pkgDir) {
         validated.push(`${sub}@${actual}`);
     }
 
-    // A configured `build/` directory does not track the Cargo path-dependency
-    // sources: after swapping the submodule, `meson compile` reports
-    // "ninja: no work to do" and re-stages the OLD binary — so a maintainer who
-    // restores the pin and rebuilds gets a stale artifact and believes it is
-    // fixed. Stamp what the build dir was configured against, and turn a
-    // mismatch from silent into loud.
+    // A configured `build/` directory does not track the Cargo path-dependency sources:
+    // after swapping the submodule, `meson compile` reports "ninja: no work to do" and
+    // re-stages the OLD binary, so a maintainer who restores the pin and rebuilds gets
+    // a stale artifact and believes it is fixed. The stamp makes that loud.
     const stampNow = validated.join('\n');
     if (existsSync(stampFile)) {
         const recorded = readFileSync(stampFile, 'utf8').trim();

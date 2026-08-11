@@ -1,28 +1,20 @@
-// structuredClone polyfill for GJS
+// structuredClone polyfill for GJS, which has no native one.
 // Reference: HTML Living Standard §2.7.1 StructuredSerializeInternal
 // Reference: refs/deno/ext/web/02_structured_clone.js, refs/ungap-structured-clone/
-// Reimplemented for GJS using standard JavaScript (SpiderMonkey 140)
 //
-// Transfer-semantics extension (2026-05): the optional `transfer` array
-// detaches transferable objects from the sender and reattaches them on the
-// receiver. Currently supports `ArrayBuffer` (via SM140's native
-// `ArrayBuffer.prototype.transfer()`). `MessagePort` transfer is handled at
-// the consumer level (`@gjsify/worker_threads`) — the structured-clone layer
-// only encodes/decodes plain values.
+// The optional `transfer` array detaches transferable objects from the sender and
+// reattaches them on the receiver; only `ArrayBuffer` is handled here (via
+// `ArrayBuffer.prototype.transfer()`). `MessagePort` transfer belongs to the
+// consumer (`@gjsify/worker_threads`) — this layer only encodes plain values.
 
 const { toString } = Object.prototype;
 
-/**
- * Get the internal [[Class]] tag of a value via Object.prototype.toString.
- * Returns e.g. "Array", "Date", "RegExp", "Map", "Error", "Uint8Array", etc.
- */
+/** The internal [[Class]] tag: "Array", "Date", "Map", "Uint8Array", … */
 function classOf(value: unknown): string {
     return toString.call(value).slice(8, -1);
 }
 
-/**
- * Throw a DataCloneError. Uses DOMException if available, otherwise a plain Error.
- */
+/** Throw a DataCloneError: a `DOMException` where one exists, else a plain `Error`. */
 function throwDataCloneError(message: string): never {
     const DOMExceptionCtor = (globalThis as Record<string, unknown>).DOMException as
         | (new (message: string, name: string) => Error)
@@ -46,7 +38,7 @@ const ERROR_CONSTRUCTORS: Record<string, ErrorConstructor> = {
     URIError,
 };
 
-/** TypedArray constructors for reconstruction. */
+/** The TypedArray [[Class]] tags this clone can reconstruct. */
 const TYPED_ARRAY_TAGS = new Set([
     'Int8Array',
     'Uint8Array',
@@ -62,13 +54,10 @@ const TYPED_ARRAY_TAGS = new Set([
 ]);
 
 /**
- * Type marker for transferred entries — clones reuse the post-transfer
- * ArrayBuffer instead of doing a copy.
- *
- * `viewSnapshots` holds pre-detach metadata for TypedArray / DataView views
- * whose buffer is being transferred — once `ArrayBuffer.prototype.transfer()`
- * runs, the source views become detached and reading `byteOffset` / `length`
- * yields 0, so we must capture them before the transfer step.
+ * Pre-detach metadata for a TypedArray / DataView whose buffer is being
+ * transferred: once `ArrayBuffer.prototype.transfer()` runs the source view is
+ * detached and reading `byteOffset` / `length` yields 0, so both must be captured
+ * before the transfer step.
  */
 interface ViewSnapshot {
     byteOffset: number;
@@ -83,12 +72,10 @@ interface TransferContext {
 }
 
 /**
- * Internal recursive clone with circular/shared reference tracking.
- * The `seen` map stores original→clone mappings. It must be populated
- * with the clone BEFORE recursing into children to handle circular refs.
+ * Recursive clone. `seen` maps original→clone and MUST be populated with the clone
+ * before recursing into children, or a circular reference recurses forever.
  */
 function internalClone(value: unknown, seen: Map<object, unknown>, transfer?: TransferContext): unknown {
-    // Primitives (including null, undefined, boolean, number, string, bigint)
     if (value === null || value === undefined) return value;
     const type = typeof value;
     if (type === 'boolean' || type === 'number' || type === 'string' || type === 'bigint') {
@@ -103,32 +90,27 @@ function internalClone(value: unknown, seen: Map<object, unknown>, transfer?: Tr
 
     const obj = value as object;
 
-    // Circular / shared reference — return existing clone
     if (seen.has(obj)) return seen.get(obj);
 
     const tag = classOf(obj);
 
-    // --- Date ---
     if (tag === 'Date') {
         return new Date((obj as Date).getTime());
     }
 
-    // --- RegExp (lastIndex always 0 in clone per spec) ---
+    // Per spec, `lastIndex` is 0 in the clone.
     if (tag === 'RegExp') {
         return new RegExp((obj as RegExp).source, (obj as RegExp).flags);
     }
 
-    // --- Wrapper objects: Boolean, Number, String ---
     if (tag === 'Boolean') return Object((obj as object).valueOf());
     if (tag === 'Number') return Object((obj as object).valueOf());
     if (tag === 'String') return Object((obj as object).valueOf());
 
-    // --- BigInt wrapper object ---
     if (tag === 'BigInt') return Object(BigInt.prototype.valueOf.call(obj));
 
-    // --- Error types ---
-    // Note: Object.prototype.toString returns [object Error] for all error subtypes
-    // in SpiderMonkey and V8, so we use instanceof + constructor.name to detect the specific type.
+    // `Object.prototype.toString` returns [object Error] for every error subtype on
+    // SpiderMonkey and V8, so the subtype comes from instanceof + constructor.name.
     if (obj instanceof Error) {
         const src = obj;
         const ctorName = src.constructor?.name;
@@ -147,7 +129,6 @@ function internalClone(value: unknown, seen: Map<object, unknown>, transfer?: Tr
         return cloned;
     }
 
-    // --- DOMException ---
     if (tag === 'DOMException') {
         const DOMExceptionCtor = (globalThis as Record<string, unknown>).DOMException as
             | (new (message: string, name: string) => Error)
@@ -158,7 +139,6 @@ function internalClone(value: unknown, seen: Map<object, unknown>, transfer?: Tr
         }
     }
 
-    // --- ArrayBuffer ---
     if (tag === 'ArrayBuffer') {
         const src = obj as ArrayBuffer;
         // Transfer-list path: skip copy, reuse the already-transferred buffer.
@@ -179,19 +159,15 @@ function internalClone(value: unknown, seen: Map<object, unknown>, transfer?: Tr
         return cloned;
     }
 
-    // --- SharedArrayBuffer ---
     if (tag === 'SharedArrayBuffer') {
-        // SharedArrayBuffer clones share the backing store (same memory)
+        // A shared backing store means the same instance survives the "clone".
         return obj;
     }
 
-    // --- @gjsify/sab-native SharedBuffer ---
-    // Same pass-through semantics as SharedArrayBuffer: shared backing store
-    // means the same JS instance survives the "clone". Detected by constructor
-    // name to avoid a hard dep from @gjsify/utils on @gjsify/sab-native (utils
-    // sits lower in the dep graph). The worker_threads layer is responsible
-    // for actually transferring the underlying memfd across the IPC boundary;
-    // here we just keep the instance reference intact.
+    // `@gjsify/sab-native`'s SharedBuffer, same pass-through semantics. Detected by
+    // constructor name because `@gjsify/utils` sits below `@gjsify/sab-native` in the
+    // dep graph and may not import it. Moving the underlying memfd across the IPC
+    // boundary is the worker_threads layer's job.
     if (
         obj &&
         typeof obj === 'object' &&
@@ -200,7 +176,6 @@ function internalClone(value: unknown, seen: Map<object, unknown>, transfer?: Tr
         return obj;
     }
 
-    // --- DataView ---
     if (tag === 'DataView') {
         const src = obj as DataView;
         const snapshot = transfer?.viewSnapshots.get(obj);
@@ -212,7 +187,6 @@ function internalClone(value: unknown, seen: Map<object, unknown>, transfer?: Tr
         return cloned;
     }
 
-    // --- TypedArrays ---
     if (TYPED_ARRAY_TAGS.has(tag)) {
         const src = obj as {
             buffer: ArrayBuffer;
@@ -230,7 +204,6 @@ function internalClone(value: unknown, seen: Map<object, unknown>, transfer?: Tr
         return cloned;
     }
 
-    // --- Map ---
     if (tag === 'Map') {
         const cloned = new Map();
         seen.set(obj, cloned);
@@ -240,7 +213,6 @@ function internalClone(value: unknown, seen: Map<object, unknown>, transfer?: Tr
         return cloned;
     }
 
-    // --- Set ---
     if (tag === 'Set') {
         const cloned = new Set();
         seen.set(obj, cloned);
@@ -250,7 +222,8 @@ function internalClone(value: unknown, seen: Map<object, unknown>, transfer?: Tr
         return cloned;
     }
 
-    // --- Blob / File (use instanceof for cross-environment compatibility) ---
+    // Blob / File by instanceof: the constructors are host-provided, so a tag check
+    // would miss them wherever they are not spelled exactly.
     {
         const g = globalThis as Record<string, unknown>;
         const BlobCtor = g.Blob as
@@ -279,7 +252,6 @@ function internalClone(value: unknown, seen: Map<object, unknown>, transfer?: Tr
         }
     }
 
-    // --- Non-cloneable types ---
     if (obj instanceof WeakMap) throwDataCloneError('WeakMap cannot be cloned');
     if (obj instanceof WeakSet) throwDataCloneError('WeakSet cannot be cloned');
     if (obj instanceof WeakRef) throwDataCloneError('WeakRef cannot be cloned');
@@ -287,7 +259,6 @@ function internalClone(value: unknown, seen: Map<object, unknown>, transfer?: Tr
         throwDataCloneError('Promise cannot be cloned');
     }
 
-    // --- Array ---
     if (tag === 'Array') {
         const src = obj as unknown[];
         const cloned: unknown[] = [];
@@ -301,7 +272,7 @@ function internalClone(value: unknown, seen: Map<object, unknown>, transfer?: Tr
         return cloned;
     }
 
-    // --- Plain Object (or unknown object type — clone own enumerable string-keyed props) ---
+    // Plain or unknown object: own enumerable string keys only.
     if (tag === 'Object' || typeof obj === 'object') {
         const cloned: Record<string, unknown> = {};
         seen.set(obj, cloned);
@@ -317,22 +288,15 @@ function internalClone(value: unknown, seen: Map<object, unknown>, transfer?: Tr
 /**
  * structuredClone polyfill implementing the HTML structured clone algorithm.
  *
- * Supports: primitives (incl. -0, NaN, Infinity, BigInt), wrapper objects,
- * Date, RegExp, Error types, ArrayBuffer (with transfer), TypedArrays,
- * DataView, Map, Set, Blob, File, circular/shared references, plain objects
- * and arrays.
+ * Throws DataCloneError for functions, symbols, WeakMap, WeakSet, WeakRef and
+ * Promise; everything else the spec covers is cloned, circular and shared
+ * references included.
  *
- * Throws DataCloneError for: functions, symbols, WeakMap, WeakSet, WeakRef, Promise.
- *
- * Transfer semantics: any `ArrayBuffer` listed in `options.transfer` is
- * transferred to the clone via SM140's `ArrayBuffer.prototype.transfer()`
- * (zero-copy, sender becomes detached). Non-`ArrayBuffer` entries are
- * accepted but ignored — the caller (e.g. `MessagePort.postMessage`) is
- * responsible for handling transferable objects that aren't structured-clone
- * primitives (`MessagePort`, `ReadableStream`, …).
- *
- * @param value The value to clone
- * @param options Optional transfer list
+ * An `ArrayBuffer` in `options.transfer` is moved zero-copy via
+ * `ArrayBuffer.prototype.transfer()` and the sender's buffer becomes detached.
+ * Non-`ArrayBuffer` entries are accepted but IGNORED: transferables that are not
+ * structured-clone primitives (`MessagePort`, `ReadableStream`, …) are the caller's
+ * responsibility, e.g. `MessagePort.postMessage`.
  */
 export function structuredClone<T>(value: T, options?: { transfer?: unknown[] }): T {
     const transferList = options?.transfer;
@@ -340,8 +304,8 @@ export function structuredClone<T>(value: T, options?: { transfer?: unknown[] })
         return internalClone(value, new Map()) as T;
     }
 
-    // 1. Collect ArrayBuffers slated for transfer (validation deferred to caller
-    //    layer; detach-on-input still rejected here).
+    // Only an already-detached input is rejected here; the rest of the validation
+    // belongs to the caller layer.
     const arrayBuffersToTransfer = new Set<ArrayBuffer>();
     for (const item of transferList) {
         if (classOf(item) === 'ArrayBuffer') {
@@ -353,26 +317,22 @@ export function structuredClone<T>(value: T, options?: { transfer?: unknown[] })
         }
     }
 
-    // 2. Pre-walk `value` to snapshot byteOffset/length for any TypedArray/DataView
-    //    whose backing buffer is in the transfer list. After the transfer step,
-    //    those views are detached and reading their metadata yields 0.
+    // Snapshot view metadata BEFORE the transfer detaches the source views.
     const viewSnapshots = new Map<object, ViewSnapshot>();
     if (arrayBuffersToTransfer.size > 0) {
         snapshotViewsBackedByTransferredBuffers(value, arrayBuffersToTransfer, viewSnapshots, new Set());
     }
 
-    // 3. Perform the actual transfer (detaches source buffers).
+    // Detaches the source buffers.
     const transferred = new Map<ArrayBuffer, ArrayBuffer>();
     for (const buf of arrayBuffersToTransfer) {
         const ab = buf as ArrayBuffer & { transfer?: () => ArrayBuffer };
         if (typeof ab.transfer !== 'function') {
-            // SM140+ exposes ArrayBuffer.prototype.transfer; absence is a runtime config issue.
             throwDataCloneError('ArrayBuffer.prototype.transfer() not available — runtime is not SM140+');
         }
         transferred.set(buf, ab.transfer());
     }
 
-    // 4. Clone using the transfer context.
     return internalClone(value, new Map(), { transferred, viewSnapshots }) as T;
 }
 

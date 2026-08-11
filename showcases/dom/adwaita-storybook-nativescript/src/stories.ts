@@ -1,15 +1,11 @@
-// Aggregated story list for the NativeScript Adwaita storybook. Each *.ns.ts
-// shares its metadata with the GTK *.story.ts + browser *.web.ts twins (via the
-// GTK showcase's `@gjsify/example-gtk-adwaita-storybook/metas` barrel), so the
-// three targets render the SAME stories. Nothing COMPARES what they render — a
-// screenshot harness is not implemented (#1052); the parity that is held is
-// behavioural, via the @gjsify/adwaita-core/conformance vectors.
+// Each *.ns.ts shares its metadata with the GTK *.story.ts and browser *.web.ts twins through the
+// GTK showcase's `metas` barrel, so all three targets render the SAME stories. Parity is BEHAVIOURAL,
+// asserted against the @gjsify/adwaita-core/conformance vectors — nothing compares the rendering
+// (#1052).
 //
-// Order MIRRORS the native GTK sidebar exactly: the GTK storybook discovers
-// `*.story.ts` by path glob, so its category + story order is alphabetical by
-// `<category-dir>/<story-file>` — Buttons, Feedback, Layout, Navigation,
-// Presentation, Boxed Lists (rows/), View Switching. This array follows the same
-// order so the NS sidebar lists stories identically to the GTK one.
+// The array order must stay as it is: the GTK storybook discovers `*.story.ts` by path glob, making
+// its sidebar order alphabetical by `<category-dir>/<story-file>`, and this list reproduces that so
+// the NS sidebar matches.
 
 import type { NsStoryModule } from '@gjsify/storybook-nativescript';
 // Buttons

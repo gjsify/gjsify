@@ -2,15 +2,12 @@
 // vectors the NativeScript renderer asserts against
 // (`@gjsify/adwaita-core/conformance`).
 //
-// THE STYLE CLASS IS WHY THIS SUITE EXISTS. `AdwButtonContent` puts
-// `image-text-button` on the button hosting it (adw-button-content.c:115) and
-// removes it on unroot (:126); the stylesheet gives that class
-// `padding-left/right: 9px` where a plain text button has 17px
-// (_buttons.scss:77-80 against :72-75). `grep -rn "image-text-button"` over both
-// renderer trees returned NOTHING, so every icon+label button in this package
-// was drawn with the wrong horizontal padding for its whole life. `use-underline`
-// was absent, and an empty `icon-name` hid the image where the C sets
-// `image-missing` (:355-356).
+// The STYLE CLASS is why this suite exists: `AdwButtonContent` puts
+// `image-text-button` on the button hosting it and removes it on unroot, and
+// `_buttons.scss` gives that class 9px horizontal padding where a plain text button has
+// 17px — so a renderer that never sets the class draws every icon+label button with the
+// wrong padding. Also pinned: `use-underline`, and that an empty `icon-name` shows
+// `image-missing` rather than hiding the image.
 import { describe, expect, it } from '@gjsify/unit';
 
 import { BUTTON_CONTENT_DEFAULT_VECTORS } from '@gjsify/adwaita-core/conformance';
@@ -93,8 +90,8 @@ export const AdwButtonContentTest = async () => {
             host.appendChild(split);
 
             // The class goes on the `splitbutton` node, which is what
-            // `splitbutton.image-text-button > button` (:499-507) selects —
-            // a different declaration block from the plain-button one.
+            // `splitbutton.image-text-button > button` selects — a different declaration
+            // block from the plain-button one.
             expect(split.classList.contains(BUTTON_CONTENT_STYLE_CLASS)).toBe(true);
             expect(action.classList.contains(BUTTON_CONTENT_STYLE_CLASS)).toBe(false);
             // …and the padding lands on the INNER button, which is what that
@@ -134,7 +131,7 @@ export const AdwButtonContentTest = async () => {
                     maskName === '' ? 0 : 1,
                 );
                 // The image node is never hidden — `gtk_widget_set_visible` is
-                // called on the LABEL only (:300, :398).
+                // called on the LABEL only.
                 expect(icon.hidden).toBe(false);
                 host.remove();
             });

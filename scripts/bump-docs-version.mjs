@@ -4,22 +4,18 @@
 // Invoked from `.release-it.json` as:
 //   node scripts/bump-docs-version.mjs ${latestVersion} ${version}
 //
-// ANCHORED, not blunt. Each TARGETS entry bumps ONLY the version string that
-// immediately follows a distinctive anchor phrase (a known "current version"
-// spot). A blunt whole-file version replace is a footgun: it rewrites EVERY
-// past `vX` reference, corrupting historical prose. That is exactly what the
-// old version of this script did during the v0.7.3 release — it silently
-// rewrote 34 historical `v0.7.2` entries in the then-hand-written STATUS.md
-// and ~7 in AGENTS.md to `v0.7.3`, making the changelog claim things shipped
-// in a version they predate.
+// ANCHORED, not blunt: each TARGETS entry bumps ONLY the version string that
+// immediately follows a distinctive anchor phrase. A whole-file version replace
+// rewrites every PAST `vX` reference too — during v0.7.3 it silently turned 34
+// historical `v0.7.2` mentions into `v0.7.3`, making the log claim things shipped in
+// a version they predate.
 //
-// RULES (keep this script trustworthy):
-//   - NEVER list CHANGELOG.md here — it is a point-in-time log; its version
-//     mentions are history, never "current version". (STATUS.md is generated
-//     and untracked, so it cannot be listed at all.)
-//   - NEVER blunt-replace across a prose doc that carries version-tagged
-//     history (AGENTS.md). Anchor on a phrase that ONLY ever precedes the
-//     CURRENT version (e.g. the monorepo header `monorepo, v`).
+// RULES:
+//   - NEVER list CHANGELOG.md — a point-in-time log, whose version mentions are
+//     history, never "current version". (STATUS.md is generated and untracked, so it
+//     cannot be listed at all.)
+//   - NEVER blunt-replace across a prose doc carrying version-tagged history
+//     (AGENTS.md). Anchor on a phrase that ONLY precedes the CURRENT version.
 //   - Safe to re-run: if the anchored version is already current, no change.
 
 import { readFile, writeFile } from 'node:fs/promises';
@@ -44,11 +40,9 @@ if (latestVersion === nextVersion) {
 const TARGETS = [
     // AGENTS.md monorepo header: "...npm-workspaces monorepo, v0.7.3, ESM-only..."
     { file: 'AGENTS.md', anchor: 'monorepo, v' },
-    // The package-convention line used to carry a second copy ("`@gjsify/<name>`,
-    // v0.7.3, ...") and was listed here. #885 replaced it with "ONE workspace
-    // version (release train, ADR 0008)", which is both more informative and one
-    // fewer copy to keep in sync — so there is deliberately no entry for it. Do
-    // not re-add a version literal there just to give this script a second target.
+    // The package-convention line deliberately has NO entry: it states "ONE workspace
+    // version (release train, ADR 0008)" instead of a literal. Do not re-add a version
+    // literal there just to give this script a second target.
 ];
 
 const repoRoot = resolve(fileURLToPath(import.meta.url), '..', '..');
@@ -83,13 +77,11 @@ for (const { file, anchor } of TARGETS) {
         continue;
     }
 
-    // A miss used to print one warning covering three different states, so a DEAD
-    // entry — the anchored prose was rewritten and the version literal is simply
-    // gone — read exactly like a harmless re-run. That is how the package-convention
-    // entry above kept warning after #885 removed its version, silently bumping
-    // nothing. Separate them: absent anchor is a defect in THIS file, an anchor
-    // carrying an unexpected version means the docs and the release disagree, and
-    // only "already at nextVersion" is benign.
+    // Three distinct states, kept distinct: one shared warning let a DEAD entry (the
+    // prose rewritten, the version literal gone) read like a harmless re-run and bump
+    // nothing for releases. An absent anchor is a defect in THIS file, an anchor
+    // carrying an unexpected version means docs and release disagree, and only
+    // "already at nextVersion" is benign.
     if (!entry.content.includes(anchor)) {
         console.error(
             `[bump-docs-version] dead target: anchor "${anchor}" no longer occurs in ${file}. ` +
@@ -122,10 +114,9 @@ console.log(
         : `[bump-docs-version] updated ${changedFiles} file(s)`,
 );
 
-// Fail the cut rather than ship docs that quietly stopped tracking the version.
-// This runs in release-it's `after:bump`, so the cost of being wrong here is a
-// re-run; the cost of staying silent is a doc that claims the wrong version for
-// as long as nobody reads the log.
+// Fail the cut rather than ship docs that quietly stopped tracking the version: in
+// `after:bump` the cost of being wrong is a re-run, while the cost of silence is a
+// doc claiming the wrong version for as long as nobody reads the log.
 if (deadTargets > 0) {
     console.error(`[bump-docs-version] ${deadTargets} target(s) bumped nothing — see above.`);
     process.exit(1);

@@ -7,7 +7,7 @@
 // the core reasons over.
 //
 // Reference: refs/libadwaita/src/adw-preferences-dialog.c
-//   (adw_preferences_dialog_init's page/group/row model, :617-641)
+//   (adw_preferences_dialog_init's page/group/row model)
 // Reference: refs/libadwaita/src/adw-action-row.c, adw-entry-row.c,
 //   adw-expander-row.c, adw-button-row.c (which rows ARE action rows)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
@@ -22,16 +22,14 @@ import {
 } from '@gjsify/adwaita-core';
 
 /**
- * The rows that derive from `AdwActionRow` and therefore have their SUBTITLE
- * searched (`filter_search_results`, adw-preferences-dialog.c:140-146).
+ * The rows that derive from `AdwActionRow` and therefore have their SUBTITLE searched
+ * (`filter_search_results`).
  *
- * A tag-name set rather than an `instanceof` chain, because the browser
- * elements are all direct `HTMLElement` subclasses — the GObject hierarchy is
- * not reproduced in the DOM, so the distinction has to be stated. It is not
- * "has a subtitle": `adw-entry-row`, `adw-expander-row` and `adw-button-row`
- * all derive from `AdwPreferencesRow` in C (adw-entry-row.c:90,
- * adw-expander-row.c:72, adw-button-row.c:74), so the text typed into an entry
- * row is deliberately NOT searchable.
+ * A tag-name set rather than an `instanceof` chain, because the browser elements are all
+ * direct `HTMLElement` subclasses: the GObject hierarchy is not reproduced in the DOM, so
+ * the distinction has to be stated. The test is NOT "has a subtitle" —
+ * `adw-entry-row`, `adw-expander-row` and `adw-button-row` derive from
+ * `AdwPreferencesRow` in C, so text typed into an entry row is deliberately not searchable.
  */
 const ACTION_ROW_TAGS: ReadonlySet<string> = new Set([
     'adw-action-row',
@@ -42,11 +40,9 @@ const ACTION_ROW_TAGS: ReadonlySet<string> = new Set([
 
 /**
  * `ADW_IS_PREFERENCES_ROW` for the browser elements — the first clause of
- * `row_has_title` (adw-preferences-group.c:158-173).
- *
- * Spelled out rather than inferred from the `adw-` prefix, because a group's
- * boxed list legitimately holds other things: a bare `<adw-button>` dropped in
- * as a footer is not a preferences row and must not be searchable.
+ * `row_has_title`. Spelled out rather than inferred from the `adw-` prefix, because a
+ * group's boxed list legitimately holds other things: a bare `<adw-button>` dropped in as
+ * a footer is not a preferences row and must not be searchable.
  */
 const PREFERENCES_ROW_TAGS: ReadonlySet<string> = new Set([
     ...ACTION_ROW_TAGS,

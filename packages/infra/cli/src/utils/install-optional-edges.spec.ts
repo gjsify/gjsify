@@ -1,23 +1,19 @@
-// Unit tests for TRANSITIVE OPTIONALITY and what it means for the platform
-// verdict — `requiredDepEntries` + `computeOptionalFlags` + `applyPlatformFilter`
-// from install-backend-native.ts, plus `optionalDependencyNames` (the same rule at
-// the root edge) from commands/install.ts.
+// TRANSITIVE OPTIONALITY and what it means for the platform verdict.
 //
 // THE DEFECT THESE PIN: `@parcel/rust@2.16.4` declares all eight of its
-// per-platform napi packages in BOTH `dependencies` and `optionalDependencies`.
+// per-platform napi packages in BOTH `dependencies` and `optionalDependencies`, and
 // npm treats a name in both blocks as OPTIONAL ("entries in optionalDependencies
-// will override entries of the same name in dependencies") — measured: `npm
-// install` of a project whose only dependency is `@parcel/rust@2.16.4` exits 0,
-// installs `@parcel/rust-linux-x64-gnu`, and writes `"optional": true` for all
-// eight in its package-lock. `gjsify install` walked `dependencies` only, so
-// `@parcel/rust-darwin-x64` came out REQUIRED and every Linux install of any tree
-// containing parcel died with EBADPLATFORM.
+// will override entries of the same name in dependencies"). Measured: `npm install`
+// of a project depending only on `@parcel/rust@2.16.4` exits 0, installs
+// `@parcel/rust-linux-x64-gnu`, and writes `"optional": true` for all eight.
+// `gjsify install` walked `dependencies` only, so `@parcel/rust-darwin-x64` came
+// out REQUIRED and every Linux install of a tree containing parcel died with
+// EBADPLATFORM.
 //
-// INJECTED GRAPHS, NO REGISTRY. The two functions decide fatal-vs-inert in
-// composition, and the composition is what a fix can get half right: making the
-// optional case inert while quietly demoting the REQUIRED case is a silent
-// missing binary, which is the worse defect. So every row below states both
-// halves, and the `--force` asymmetry is asserted in both directions.
+// Injected graphs, no registry. fatal-vs-inert is decided in COMPOSITION, which is
+// what a fix can get half right: making the optional case inert while quietly
+// demoting the REQUIRED case is a silent missing binary, the worse defect. Every
+// row states both halves, and the `--force` asymmetry is asserted both ways.
 import { describe, it, expect } from '@gjsify/unit';
 
 import {
@@ -36,8 +32,8 @@ const DARWIN: PlatformDeclaration = { os: ['darwin'], cpu: ['x64'] };
 const LINUX: PlatformDeclaration = { os: ['linux'], cpu: ['x64'] };
 
 /**
- * Collecting logger — the skip is only ever reported through the debug log, so
- * the placeholders are substituted the way `makeLogger` does it.
+ * Collecting logger. The skip is only ever reported through the debug log, so the
+ * placeholders are substituted the way `makeLogger` does it.
  */
 function capture() {
     const lines: string[] = [];
@@ -125,15 +121,15 @@ export default async () => {
             // The parent is required; its platform children are not.
             expect(r.optional).toStrictEqual(['@parcel/rust-darwin-x64', '@parcel/rust-linux-x64-gnu']);
             expect(r.inert).toStrictEqual(['@parcel/rust-darwin-x64']);
-            // The matching sibling still installs — the point of the whole feature
-            // is that the tree gets THINNER, not that it loses its binary.
+            // The matching sibling still installs: the tree gets THINNER, it does not
+            // lose its binary.
             expect(r.installable).toStrictEqual(['@parcel/rust', '@parcel/rust-linux-x64-gnu']);
         });
 
         await it('an optional-block-only sibling behaves identically (the oxlint/rollup shape)', () => {
-            // Same tree, WITHOUT the `dependencies` duplication — this shape always
-            // worked, and it must keep answering the same thing, or the fix has
-            // just moved the asymmetry somewhere else.
+            // Same tree WITHOUT the `dependencies` duplication. This shape always
+            // worked; if it stops answering the same thing, the fix has moved the
+            // asymmetry rather than removed it.
             const nodes = [
                 node('oxlint', { optionalDependencies: { 'binding-darwin': '1', 'binding-linux': '1' } }),
                 node('binding-darwin', { platform: DARWIN }),
@@ -147,9 +143,8 @@ export default async () => {
         });
 
         await it('a REQUIRED incompatible dependency still raises EBADPLATFORM', () => {
-            // The honest half. A required dep the host cannot run is a broken
-            // install, not a smaller one — weakening this trades a loud failure for
-            // a silently missing binary.
+            // A required dep the host cannot run is a broken install, not a smaller
+            // one: weakening this trades a loud failure for a missing binary.
             const nodes = [node('app', { dependencies: { 'win-only': '1' } }), node('win-only', { platform: DARWIN })];
             let thrown: unknown;
             try {
@@ -163,7 +158,7 @@ export default async () => {
 
         await it('optionality is INHERITED: an optional parent makes its plain deps optional too', () => {
             // `fsevents`-shaped: the subtree under an optional edge is resolved on
-            // purpose (the lockfile must stay portable) but nothing in it may be
+            // purpose (the lockfile must stay portable), but nothing in it may be
             // fatal — including a grandchild reached through a REQUIRED edge.
             const nodes = [
                 node('watcher', { optionalDependencies: { 'darwin-only': '1' } }),
@@ -178,9 +173,9 @@ export default async () => {
         });
 
         await it('required wins over an optional edge to the SAME node, whatever the visit order', () => {
-            // The fixpoint's reason to exist, restated for the both-blocks rule: one
-            // requester declares the name optional, another requires it. The node is
-            // REQUIRED, so an incompatible platform must still fail loudly.
+            // Why the flags are a fixpoint: one requester declares the name optional,
+            // another requires it. The node is REQUIRED, so an incompatible platform
+            // must still fail loudly.
             const nodes = [
                 node('lenient', { dependencies: { shared: '1' }, optionalDependencies: { shared: '1' } }),
                 node('strict', { dependencies: { shared: '1' } }),
@@ -191,17 +186,17 @@ export default async () => {
         });
 
         await it('reports the skip through the debug log in the npm payload shape', () => {
-            // Silence is what made the original over-installation invisible; an
-            // absent package must always be recoverable from --verbose.
+            // Silence is what made the original over-installation invisible: an absent
+            // package must be recoverable from --verbose.
             const lines = classifyLogged(parcelTree(), ['@parcel/rust']);
             expect(lines.some((l) => l.startsWith('platform-skip: @parcel/rust-darwin-x64@1.0.0'))).toBeTruthy();
             expect(lines.some((l) => l.includes('{"os":"linux","cpu":"x64","libc":"glibc"}'))).toBeTruthy();
         });
 
         await it('credits a NESTED copy to the requester that nested it', () => {
-            // `findVisible` semantics: the hoisted copy is optional-only even though
-            // a required requester depends on the NAME, because that requester
-            // resolves to its own nested copy.
+            // `findVisible` semantics: the hoisted copy is optional-only even though a
+            // required requester depends on the NAME, because that requester resolves
+            // to its own nested copy.
             const nodes = [
                 node('opt-parent', { optionalDependencies: { dep: '^1' } }),
                 node('dep', { platform: DARWIN }),
@@ -221,8 +216,8 @@ export default async () => {
         });
 
         await it('does NOT lift the skip on an incompatible OPTIONAL dependency', () => {
-            // npm: "We ignore the --force and --engine-strict flags" for these, and
-            // it is right — forcing a binary that cannot load buys a download.
+            // npm: "We ignore the --force and --engine-strict flags" for these —
+            // forcing a binary that cannot load buys a download and nothing else.
             const nodes = parcelTree();
             const r = classify(nodes, ['@parcel/rust'], true);
             expect(r.inert).toStrictEqual(['@parcel/rust-darwin-x64']);
@@ -239,8 +234,8 @@ export default async () => {
         });
 
         await it('lets a REQUIRED edge in ANOTHER manifest win', () => {
-            // Two real edges in a workspace: if one member may not miss it, the
-            // install may not silently miss it.
+            // Two real edges in a workspace: if one member may not miss it, the install
+            // may not silently miss it.
             const names = optionalDependencyNames([
                 { name: 'a', version: '1', optionalDependencies: { shared: '^1' } },
                 { name: 'b', version: '1', dependencies: { shared: '^1' } },

@@ -3,7 +3,6 @@ import { createCipheriv, createDecipheriv, getCiphers } from 'node:crypto';
 import { Buffer } from 'node:buffer';
 
 export default async () => {
-    // --- getCiphers ---
     await describe('crypto.getCiphers', async () => {
         await it('should return an array of cipher names', async () => {
             const ciphers = getCiphers();
@@ -38,7 +37,6 @@ export default async () => {
         });
     });
 
-    // --- AES-256-CBC round-trip ---
     await describe('crypto.createCipheriv / createDecipheriv (AES-256-CBC)', async () => {
         const algorithm = 'aes-256-cbc';
         const key = Buffer.from('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef', 'hex');
@@ -145,7 +143,6 @@ export default async () => {
         });
     });
 
-    // --- AES-128-CBC round-trip ---
     await describe('crypto.createCipheriv / createDecipheriv (AES-128-CBC)', async () => {
         const algorithm = 'aes-128-cbc';
         const key = Buffer.from('0123456789abcdef0123456789abcdef', 'hex');
@@ -164,7 +161,6 @@ export default async () => {
         });
     });
 
-    // --- AES-256-CTR round-trip ---
     await describe('crypto.createCipheriv / createDecipheriv (AES-256-CTR)', async () => {
         const algorithm = 'aes-256-ctr';
         const key = Buffer.from('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef', 'hex');
@@ -192,7 +188,6 @@ export default async () => {
         });
     });
 
-    // --- AES-128-ECB ---
     await describe('crypto.createCipheriv / createDecipheriv (AES-128-ECB)', async () => {
         const algorithm = 'aes-128-ecb';
         const key = Buffer.from('0123456789abcdef0123456789abcdef', 'hex');
@@ -210,7 +205,6 @@ export default async () => {
         });
     });
 
-    // --- Known test vector: AES-128-CBC (NIST-like) ---
     await describe('crypto: known test vectors', async () => {
         await it('AES-128-CBC: should produce known ciphertext', async () => {
             // Key and IV from refs/node/test/parallel/test-crypto-padding.js
@@ -253,7 +247,6 @@ export default async () => {
         });
     });
 
-    // --- setAutoPadding ---
     await describe('crypto: setAutoPadding', async () => {
         await it('should support setAutoPadding(false) for block-aligned data', async () => {
             const key = Buffer.from('S3c.r.e.t.K.e.Y!', 'utf8');
@@ -277,7 +270,6 @@ export default async () => {
         });
     });
 
-    // --- Multiple update calls ---
     await describe('crypto: multiple update calls', async () => {
         await it('should handle multiple update() calls', async () => {
             const key = Buffer.from('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef', 'hex');
@@ -298,7 +290,6 @@ export default async () => {
         });
     });
 
-    // --- Unicode data ---
     await describe('crypto: Unicode data', async () => {
         await it('should handle Unicode text', async () => {
             const key = Buffer.from('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef', 'hex');
@@ -317,7 +308,6 @@ export default async () => {
         });
     });
 
-    // --- Base64 encoding ---
     await describe('crypto: base64 encoding', async () => {
         await it('should support base64 output encoding', async () => {
             const key = Buffer.from('0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef', 'hex');

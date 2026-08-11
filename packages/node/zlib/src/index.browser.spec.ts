@@ -56,7 +56,6 @@ const decode = (u8: Uint8Array): string => new TextDecoder().decode(u8);
 
 export default async () => {
     await describe('zlib (browser)', async () => {
-        // ==================== exports ====================
         await describe('exports', async () => {
             await it('should export the async codec surface as functions', async () => {
                 expect(typeof gzip).toBe('function');
@@ -85,7 +84,6 @@ export default async () => {
             });
         });
 
-        // ==================== deflate roundtrip ====================
         await describe('deflate roundtrip', async () => {
             await it('should deflate then inflate back to the original bytes', async () => {
                 const input = 'hello deflate browser roundtrip';
@@ -97,7 +95,6 @@ export default async () => {
             });
         });
 
-        // ==================== deflateRaw roundtrip ====================
         await describe('deflateRaw roundtrip', async () => {
             await it('should deflateRaw then inflateRaw back to the original bytes', async () => {
                 const input = 'hello deflateRaw browser roundtrip';
@@ -109,7 +106,6 @@ export default async () => {
             });
         });
 
-        // ==================== ENOTSUP: brotli / zstd (no Web codec) ====================
         await describe('brotli / zstd are ENOTSUP (no fake codec)', async () => {
             await it('should surface structured ENOTSUP from brotliCompress', async () => {
                 let code: string | undefined;
@@ -172,7 +168,6 @@ export default async () => {
             });
         });
 
-        // ==================== ENOTSUP: sync variants (API is async-only) ====================
         await describe('sync variants are ENOTSUP (Compression Streams is async-only)', async () => {
             await it('should throw structured ENOTSUP from gzipSync', async () => {
                 let code: string | undefined;

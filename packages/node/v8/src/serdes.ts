@@ -27,8 +27,6 @@ const kArrayBuffer = 0x42; // 'B'
 const kObjectReference = 0x5e; // '^' — backref, varint index
 const kHostObject = 0x5c; // '\' — host object (TypedArray/DataView/Buffer)
 
-// ─── varint helpers ───────────────────────────────────────────────────────────
-
 function writeVarint(buf: number[], n: number): void {
     n = n >>> 0;
     while (n >= 0x80) {
@@ -77,8 +75,6 @@ function isOneByte(s: string): boolean {
     }
     return true;
 }
-
-// ─── TypedArray type index (matching Node.js DefaultSerializer) ───────────────
 
 function typedArrayToIndex(abView: NodeJS.ArrayBufferView): number {
     const tag = Object.prototype.toString.call(abView);
@@ -131,8 +127,6 @@ function indexToTypedArray(index: number): TypedArrayCtor | undefined {
     }
     return undefined;
 }
-
-// ─── Serializer ───────────────────────────────────────────────────────────────
 
 export class Serializer {
     protected _bytes: number[] = [];
@@ -305,8 +299,6 @@ export class Serializer {
         }
     }
 }
-
-// ─── Deserializer ─────────────────────────────────────────────────────────────
 
 export class Deserializer {
     protected _pos = 0;
@@ -533,8 +525,6 @@ export class Deserializer {
     }
 }
 
-// ─── RegExp flags encoding ────────────────────────────────────────────────────
-
 // Matches V8's RegExpFlags enum bit layout
 function regExpFlagsToInt(re: RegExp): number {
     let flags = 0;
@@ -561,8 +551,6 @@ function intToRegExpFlags(bits: number): string {
     if (bits & (1 << 7)) flags += 'v';
     return flags;
 }
-
-// ─── DefaultSerializer / DefaultDeserializer ─────────────────────────────────
 
 export class DefaultSerializer extends Serializer {
     constructor() {

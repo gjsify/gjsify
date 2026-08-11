@@ -1,49 +1,26 @@
 // What THIS process is — its pid, its parent, the interpreter that started it
 // and how much memory it holds — asked in ONE place.
 //
-// WHY THIS MODULE EXISTS
+// Sibling of `host-os.ts`. It exists because the tree answered "what is this
+// process" by reading `/proc`, in two packages, with no fallback — and `/proc` is
+// a LINUX filesystem. On macOS (gjs 1.88.1) every one of those readers returned
+// `0` for pid, ppid and rss while all checks stayed green. `0` is not a degraded
+// reading: it is a valid pid, so every consumer that forwards it — a lock file, a
+// log line, a `kill` — is wrong in a way nothing reports. Here each reader either
+// answers or says it cannot; none invents a plausible number.
 //
-// Sibling of `host-os.ts`, and it exists for the mirror-image reason. That one
-// was written because the tree spelled "which OS am I on" nine ways; this one
-// is written because the tree answered "what is this process" by reading
-// `/proc`, in two packages, with no fallback — and `/proc` is a LINUX
-// filesystem. Measured on macOS 15.7.8 / gjs 1.88.1, against a `main` every
-// check called green:
+// Readers are keyed on what the host HAS (`/proc/self/status` readable? `ps(1)` on
+// PATH?), never on the platform name: a Linux host can legitimately lack procfs,
+// and `@gjsify/v8`'s heap reader was rewritten this way after a procfs-masked
+// container reported plausible-looking zeros.
 //
-//   process.pid                 0      (`/proc/self/stat`   — absent)
-//   process.ppid                0      (`/proc/self/status` — absent)
-//   process.memoryUsage().rss   0      (`/proc/self/status` — absent)
-//   process.execPath            the SCRIPT path, on every platform
+// Functions, not module-eval constants: under GJS this module is evaluated while
+// `@gjsify/process` is still installing its singleton, so a module-eval probe runs
+// before the host is assembled. The pid is memoized on FIRST CALL instead.
 //
-// A pid of `0` is not a degraded reading. It is a valid pid (the kernel
-// scheduler on Linux, the kernel task on Darwin), so every consumer that
-// forwards it — a lock file, a log line, a `kill` — is wrong in a way nothing
-// reports. That is the failure mode this module removes: each reader either
-// answers or says it cannot, and none of them invents a plausible number.
-//
-// WHY CAPABILITY DETECTION AND NOT `hostOs()`
-//
-// The readers are keyed on what the host actually HAS (`/proc/self/status`
-// readable? `ps(1)` on PATH?), never on the platform name. Two reasons, both
-// paid for already: `@gjsify/v8`'s heap reader was written this way after a
-// procfs-masked Linux container reported plausible-looking zeros, and a Linux
-// host CAN legitimately lack procfs while a Darwin host never gains it. The OS
-// name is a proxy for the capability; the capability is the thing.
-//
-// WHY FUNCTIONS AND NOT MODULE-EVAL CONSTANTS
-//
-// Same reason `host-os.ts` gives, plus one of its own: under GJS this module is
-// evaluated while `@gjsify/process` is still installing its singleton, so a
-// module-eval probe would run before the host is fully assembled. The pid is
-// memoized on FIRST CALL instead — it cannot change for the life of a process,
-// and paying one subprocess for it is the point of caching it.
-//
-// WHY A GUARDED `globalThis.imports` READ
-//
-// This module belongs to the `/core` half (see `core.ts`), which must be
-// well-defined on every runtime including the browser. It is the GJS-GUARDED
-// membership class: it probes for the GJS host and has a documented answer when
-// there is none — `undefined` / `null`, never a fabricated value.
+// The guarded `globalThis.imports` read is the GJS-GUARDED membership shape of the
+// `/core` half (see `core.ts`): off GJS it answers `undefined` / `null`, never a
+// fabricated value.
 
 /** The GJS bootstrap object, as much of it as this module reads. */
 interface GjsGlibImports {
@@ -98,10 +75,10 @@ function readText(GLib: HostGlib, path: string): string | null {
  * Run `commandLine` and return its trimmed stdout, or `null` on any failure.
  *
  * `g_spawn_command_line_sync()` and not `Gio.Subprocess`: this module is in the
- * `/core` half and may not take a `@girs/gio-2.0` value import. The command
- * lines below are CONSTANTS with no interpolated user data — the one exception
- * to "pass an argv array, never a command line" that the anti-pattern rule
- * allows, and the reason each caller passes a literal.
+ * `/core` half and may not take a `@girs/gio-2.0` value import. The exception the
+ * "argv array, never a command line" anti-pattern rule allows requires that no
+ * user data reaches the string — every caller here passes a literal except
+ * {@link hostPpid}, which interpolates a pid this module parsed itself.
  */
 function shellOut(GLib: HostGlib, commandLine: string): string | null {
     try {
@@ -129,7 +106,9 @@ export function hasProcfs(): boolean {
 let cachedPid: number | null = null;
 
 /**
- * This process's own pid, or `undefined` where nothing can answer.
+ * This process's own pid, or `undefined` where nothing can answer. Never `0` —
+ * that is a real pid, and returning it as "unknown" hands the caller a number
+ * that looks answered.
  *
  * Two readers, capability-selected:
  *
@@ -137,12 +116,8 @@ let cachedPid: number | null = null;
  *      subprocess.
  *   2. `sh -c 'echo $PPID'` — the shell's PARENT is us, because
  *      `g_spawn_command_line_sync()` forks this process and execs the shell in
- *      the child. This is the same trick `@gjsify/v8`'s darwin heap reader has
- *      used since it was written, and it is portable to every POSIX host that
- *      has no procfs.
- *
- * Never `0`. `0` is a real pid, so returning it as "unknown" would hand every
- * caller a number that looks answered.
+ *      the child (same trick as `@gjsify/v8`'s darwin heap reader; portable to
+ *      every POSIX host without procfs).
  */
 export function hostPid(): number | undefined {
     if (cachedPid !== null) return cachedPid > 0 ? cachedPid : undefined;
@@ -195,20 +170,17 @@ export function hostPpid(): number | undefined {
  * The absolute path of the INTERPRETER running this process — what Node calls
  * `process.execPath` — or `undefined` where nothing can answer.
  *
- * NOT `imports.system.programInvocationName`. That is the SCRIPT, and reporting
- * it as `execPath` is a defect with teeth: `spawn(process.execPath, […])` is the
- * documented portable way to start a second copy of the current runtime, and
- * against a script path it fails `ENOENT` — or worse, `g_spawn` retries a
- * non-executable text file through `/bin/sh` and the shell begins interpreting
- * a bundle.
+ * NOT `imports.system.programInvocationName`: that is the SCRIPT, and reporting it
+ * as `execPath` breaks `spawn(process.execPath, […])` — the portable way to start
+ * a second copy of the runtime — with `ENOENT`, or worse, `g_spawn` retries the
+ * non-executable text file through `/bin/sh` and the shell interprets a bundle.
  *
  *   1. `/proc/self/exe` — a symlink to the running binary, exact by
  *      construction.
- *   2. `g_find_program_in_path(g_get_prgname())` — the PATH lookup for the name
- *      this process was invoked under (`gjs`). Honest but not exact: a host with
- *      two gjs installations can resolve the other one. That is why it is the
- *      fallback and not the primary, and why nothing here defaults to a
- *      hardcoded `/usr/bin/gjs` — a path that does not exist on macOS at all.
+ *   2. `g_find_program_in_path(g_get_prgname())` — honest but not exact, since a
+ *      host with two gjs installations can resolve the other one; hence the
+ *      fallback position. Nothing defaults to a hardcoded `/usr/bin/gjs`, a path
+ *      that does not exist on macOS at all.
  */
 export function hostExecPath(): string | undefined {
     const GLib = hostGlib();
@@ -251,11 +223,9 @@ export interface ProcessMemory {
 /**
  * This process's memory figures, or `null` when no reader applies.
  *
- * DEGRADED CONTRACT off procfs: `ps(1)` reports only `rss` and `vsz`, so `data`
- * and `peak` stay `0` there. That is the same shape the Linux reader already
- * produced for a procfs it could not parse, so no consumer meets a new one —
- * but it is a real difference and `@gjsify/v8` documents it in
- * `getHeapStatistics()`'s own contract.
+ * Degraded off procfs: `ps(1)` reports only `rss` and `vsz`, so `data` and `peak`
+ * stay `0` — the same shape the Linux reader already produced for a procfs it
+ * could not parse.
  *
  * Both `ps` columns are in KiB on Linux and on macOS (POSIX mandates KiB for
  * `rss`; BSD `vsz` follows), so one multiply serves both.

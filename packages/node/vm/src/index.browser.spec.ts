@@ -28,7 +28,6 @@ import vm, {
 
 export default async () => {
     await describe('vm (browser)', async () => {
-        // ==================== exports ====================
         await describe('exports', async () => {
             await it('should export the public surface as functions', async () => {
                 expect(typeof runInThisContext).toBe('function');
@@ -51,7 +50,6 @@ export default async () => {
             });
         });
 
-        // ==================== runInThisContext (eval sandbox) ====================
         await describe('runInThisContext', async () => {
             await it('should evaluate expressions via the eval sandbox', async () => {
                 expect(runInThisContext('1 + 1')).toBe(2);
@@ -70,7 +68,6 @@ export default async () => {
             });
         });
 
-        // ==================== runInNewContext (Function sandbox) ====================
         await describe('runInNewContext', async () => {
             await it('should expose context object properties as locals', async () => {
                 expect(runInNewContext('a + b', { a: 10, b: 20 })).toBe(30);
@@ -93,7 +90,6 @@ export default async () => {
             });
         });
 
-        // ==================== runInContext / createContext / isContext ====================
         await describe('runInContext + createContext', async () => {
             await it('should run code against a created context object', async () => {
                 const ctx = createContext({ x: 10 });
@@ -120,7 +116,6 @@ export default async () => {
             });
         });
 
-        // ==================== compileFunction ====================
         await describe('compileFunction', async () => {
             await it('should compile a callable function with params', async () => {
                 const fn = compileFunction('return a + b', ['a', 'b']);
@@ -133,7 +128,6 @@ export default async () => {
             });
         });
 
-        // ==================== Script ====================
         await describe('Script', async () => {
             await it('should evaluate cached code in this/new context', async () => {
                 const script = new Script('x * y');
@@ -153,7 +147,6 @@ export default async () => {
             });
         });
 
-        // ==================== ENOTSUP: module classes have no browser equivalent ====================
         await describe('ENOTSUP stubs', async () => {
             await it('should throw structured ENOTSUP from vm.Module', async () => {
                 let caught: (Error & { code?: string }) | undefined;

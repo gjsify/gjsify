@@ -1,19 +1,8 @@
-// StorybookController — the renderer-agnostic app state machine.
-//
-// Original implementation, extracting the shared controller logic from the
-// three app classes:
-//   - @gjsify/storybook            StorybookWindow
-//   - @gjsify/adwaita-storybook    StorybookWebApp
-//   - @gjsify/storybook-nativescript  StorybookNativeApp
-//
-// All three owned a StoryRegistry, registered + instantiated modules, grouped
-// stories by their `Category/Name` title prefix, showed a selected story, wired
-// its controls (refreshers + an `onArgsChanged` subscription, unsubscribing the
-// previous), and exposed the SAME MCP/devtools surface
-// (`activeStory`/`listStories`/`openStoryByTitle`/`getCurrentStory`/`setActiveArg`).
-// The only differences were the widget toolkit and the breakpoint/fold — both
-// adapter-owned. This controller owns everything else; the renderer supplies a
-// {@link StorybookView} (render seams) + a `buildControls` builder.
+// StorybookController — the renderer-agnostic app state machine: it owns the
+// StoryRegistry, groups stories by their `Category/Name` prefix, shows the selected one,
+// wires its controls, and exposes the MCP/devtools surface. Everything a renderer differs
+// in is the toolkit and the breakpoint/fold, so the renderer supplies only a
+// {@link StorybookView} (render seams) plus a `buildControls` builder.
 
 import type { StoryArgs, StoryArgValue, StoryControl } from '@gjsify/stories';
 import type { ControlRow } from './controls.js';
@@ -46,10 +35,8 @@ export interface StorySummary {
 }
 
 /**
- * The render seams the controller drives — each is a renderer-specific view
- * operation. The breakpoint/fold is NOT here (adapter-owned).
- *
- * @typeParam TInstance the renderer's story-instance type.
+ * The renderer-specific view operations the controller drives. The breakpoint/fold is
+ * adapter-owned and deliberately not among them.
  */
 export interface StorybookView<TInstance> {
     /** Build the category-grouped story list; `onSelect(instance)` selects a story. */
@@ -65,10 +52,8 @@ export interface StorybookView<TInstance> {
 }
 
 /**
- * Drives a storybook: registers + instantiates modules, groups them, shows a
- * story and wires its controls, and exposes the MCP/devtools control surface.
- *
- * @typeParam TInstance the renderer's story-instance type.
+ * Drives a storybook: registers and instantiates modules, groups them, shows a story and
+ * wires its controls, and exposes the MCP/devtools control surface.
  */
 export class StorybookController<TInstance extends StoryInstanceLike> {
     private _registry = new StoryRegistry<TInstance>();

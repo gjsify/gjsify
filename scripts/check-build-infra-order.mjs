@@ -7,54 +7,29 @@
 // bundler engine. Under GJS, `gjsify build` cannot run before it exists — the
 // engine is the thing being built, and the npm `rolldown` fallback is a Rust napi
 // crate GJS cannot load. So every clause BEFORE that script must get by on `tsc`
-// alone. Everything after it may use the bundler freely.
-//
-// The invariant is not written down anywhere the chain itself can be checked
-// against, which is how it was lost.
+// alone; everything after it may use the bundler freely.
 //
 // THE INCIDENT
 //
-// #1031 ("make the macOS and Windows suites green") promoted the CLI's four
-// link-time runtime deps — `semver`, `npm-registry`, `tar`, `workspace` — from
-// `build:types` to `build`, for a real reason recorded in its own table:
-//
-//   | 5 | both | `build:infra` left the CLI's own four runtime deps at
-//   |          | `build:types` — no `lib/esm` — so the parallel sweep was
-//   |          | *creating* them while another package's build imported them. |
-//
-// But each of those four has `"build": "gjsify run build:gjsify && …"`, and
-// `build:gjsify` is `gjsify build --library`. The promotion therefore made
-// clauses 7-10 the FIRST bundler consumers in the chain — five clauses ahead of
-// the facade that the bundler needs. Under Node it is invisible, because there
-// the npm `rolldown` engine loads and all four pass. Only the GJS path can see
-// it, and the GJS path only runs on a COLD tree (`main.yml` skips `build:infra`
-// entirely on a warm cache), so CI stayed green for a day.
-//
-// It surfaced on the v0.31.0 publish. `publish-napi` runs on a cold tree by
-// design; `bootstrap-native-facades.mjs` found no Node CLI entry (untracked
-// since ADR 0002 / #1019), took its documented escape of running
-// `gjsify run build:infra`, and that resolved `gjsify` to the GJS-first shim:
-//
-//   gjsify build: no usable bundler engine under GJS — `@gjsify/rolldown-native`
-//     is not loadable …
-//   [@gjsify/semver] gjsify run build exited with code 1
-//   [bootstrap-native-facades] `gjsify run build:infra` failed (exit 1).
-//
-// `@gjsify/napi` and its two platform packages did not publish.
-//
-// The fix keeps BOTH properties: the four are declared with `build:types` before
-// the CLI (whose `tsc` needs their declarations) and fully built right AFTER the
-// facade — so they still leave `build:infra` with a finished Rolldown `lib/esm`,
-// which is what #1031 was after.
+// #1031 promoted the CLI's four link-time runtime deps (`semver`, `npm-registry`,
+// `tar`, `workspace`) from `build:types` to `build` to stop a parallel sweep from
+// creating `lib/esm` while another package's build imported it. But each of those
+// four builds via `gjsify build --library`, which made them the first bundler
+// consumers in the chain, five clauses ahead of the facade they need. Under Node
+// it is invisible (the npm `rolldown` engine loads), and the GJS path only runs on
+// a COLD tree — `main.yml` skips `build:infra` entirely on a warm cache — so CI
+// stayed green for a day. It surfaced on the v0.31.0 publish, where `publish-napi`
+// runs cold by design: `@gjsify/napi` and its two platform packages did not
+// publish. The fix keeps BOTH properties — `build:types` before the CLI (whose
+// `tsc` needs their declarations), full build right after the facade.
 //
 // WHAT IT CHECKS
 //
 // For every `gjsify workspace <pkg> <script>` clause before the facade clause,
-// resolve that package's script — following `gjsify run <other>` one package
-// deep, since that is how these chains are written — and fail if any resolved
-// command invokes `gjsify build`. Derived from the manifests, so a package that
-// grows a bundler step in its `build` is caught by the change itself rather than
-// by someone remembering this rule.
+// resolve that package's script — following `gjsify run <other>` one package deep
+// — and fail if any resolved command invokes `gjsify build`. Derived from the
+// manifests, so a package that grows a bundler step is caught by the change
+// itself rather than by someone remembering this rule.
 //
 // Usage: node scripts/check-build-infra-order.mjs [--root <dir>]
 
@@ -100,31 +75,22 @@ const BUNDLER_CALL = /(?:^|&&|\|\||;)\s*gjsify\s+build(?=\s|$)/;
  * bundler, and is nonetheless allowed in the pre-facade prefix.
  *
  * There is no `node` to spawn there, so `ensureGjsifyShimOnPath()` puts one on
- * PATH that re-enters the CLI as `gjsify run --node-script <file>` — which
- * bundles the script before running it. The distinction from the shape that
- * broke is WHICH ENGINE satisfies the bundle:
+ * PATH that re-enters the CLI as `gjsify run --node-script <file>`, bundling the
+ * script first. What separates it from the shape that broke is WHICH ENGINE
+ * serves the bundle: `gjsify build --library` for a WORKSPACE package needs
+ * `@gjsify/rolldown-native`'s facade, the artifact the chain has not built yet,
+ * whereas the shim is served by the engine the CLI itself carries
+ * (`installGjsEnginePackages()` put it in the global prefix), reachable with
+ * nothing built in the workspace at all.
  *
- *   `gjsify build --library` for a WORKSPACE package can only be served by
- *   `@gjsify/rolldown-native`'s facade — the very artifact the chain has not
- *   built yet. That is the incident this guard exists for.
- *
- *   The shim is served by whatever engine the CLI ITSELF carries: the built copy
- *   `installGjsEnginePackages()` put in the global prefix beside it. That is
- *   reachable at the first clause with nothing built in the workspace at all — a
- *   property this repo only acquired when `@gjsify/module`'s `resolveModulePath`
- *   stopped handing back the unloadable workspace symlink as a successful
- *   resolve.
- *
- * Reported separately rather than folded into `cleared`, because a summary that
- * calls these clauses "tsc-only" is FALSE on the one host the guard is about —
- * and a comfortable false fact is how the original invariant got lost.
+ * Reported separately rather than folded into `cleared`: a summary calling these
+ * clauses "tsc-only" is FALSE on the one host the guard is about.
  */
 const NODE_SCRIPT_CALL = /(?:^|&&|\|\||;)\s*node\s+\S+\.mjs(?=\s|$)/;
 
 /**
  * Every command a package script runs, following `gjsify run <script>` within the
- * same package. Depth-limited by the visited set, so a script that references
- * itself terminates instead of hanging.
+ * same package. The visited set is what makes a self-referencing script terminate.
  */
 function commandsOf(pkg, scriptName, seen = new Set()) {
     if (seen.has(scriptName)) return [];

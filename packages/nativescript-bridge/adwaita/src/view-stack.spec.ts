@@ -2,21 +2,13 @@
 // the `<adw-view-stack>` browser suite assert against
 // (`@gjsify/adwaita-core/conformance`).
 //
-// IMPORTANT: this imports `./widgets/view-stack-state.js`, NOT the widget. A
-// widget module `extends GridLayout`, which evaluates the bare
-// `@nativescript/core` specifier at module-eval and is unresolvable on GJS/Node,
-// so `adw-view-stack.ts` cannot be loaded here. It is a thin `GridLayout`
-// wrapper over exactly the surface below: `add()` forwards to
-// `state.addPage({ name, title, icon, content })`, every accessor forwards to
-// the same state, and the subscription applies {@link applyViewStackVisibility}
-// and notifies {@link viewStackNotifyPayload}.
-//
-// The suite this replaces was a `MockViewStack` in `index.spec.ts` that
-// transcribed the widget's own guards — the same `Number.isFinite` check, the
-// same `findIndex`, the same `?? ''`. A test that re-implements the code under
-// test cannot detect the drift it exists to catch, and in this family it did
-// not: the mock, the web port and the NS port all accepted a fractional index
-// and all lacked the per-page `visible` flag.
+// IMPORTANT: this imports `./widgets/view-stack-state.js`, NOT the widget — a widget
+// module `extends GridLayout`, which evaluates the bare `@nativescript/core` specifier at
+// module-eval. `adw-view-stack.ts` is a thin wrapper over exactly the surface below:
+// `add()` forwards to `state.addPage(...)`, every accessor forwards to the same state,
+// and the subscription applies {@link applyViewStackVisibility} and notifies
+// {@link viewStackNotifyPayload}. Two rules covered here that a mock written from a port
+// tends to miss: a FRACTIONAL index is refused, and each page has its own `visible` flag.
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { ViewStackVectorChange, ViewStackVectorOp, ViewStackVectorPage } from '@gjsify/adwaita-core/conformance';

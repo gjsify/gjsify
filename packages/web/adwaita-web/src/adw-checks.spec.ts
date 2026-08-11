@@ -1,17 +1,15 @@
 // DOM-level tests for <adw-checkbox> and <adw-radio>, plus the browser side of
 // the `RADIO_GROUP_VECTORS` conformance table.
 //
-// THE ONE CLAIM WORTH THE MOST HERE: the browser's native radio exclusivity is
-// NOT enough. `<input type="radio" name="g">` unchecks its sibling INPUT and
-// stops there — the sibling `<adw-radio>` HOST keeps its `checked` attribute,
-// which is the element's published state AND the selector `_checks.scss` paints
-// from, so a group left to the browser draws two selected radios. Every vector
-// below reads back the HOST attribute of every member for exactly that reason.
+// The browser's native radio exclusivity is NOT enough: `<input type="radio" name="g">`
+// unchecks its sibling INPUT and stops there, while the sibling `<adw-radio>` HOST keeps
+// its `checked` attribute — the element's published state and the selector
+// `_checks.scss` paints from — so a group left to the browser draws two selected radios.
+// Every vector below reads back the HOST attribute of every member for that reason.
 //
-// The vectors run under a per-scenario group-name prefix: `RadioGroupState` is
-// document-global by design (as a bare `<input type=radio name=x>` outside a
-// form is), so two scenarios sharing the literal name `colour` would share a
-// selection. The prefix is the isolation, not a change to what is being tested.
+// The vectors run under a per-scenario group-name prefix because `RadioGroupState` is
+// document-global by design (as a bare `<input type=radio name=x>` outside a form is),
+// so two scenarios sharing the literal name `colour` would share a selection.
 
 import { describe, expect, it } from '@gjsify/unit';
 import { RADIO_GROUP_VECTORS } from '@gjsify/adwaita-core/conformance';
@@ -60,12 +58,11 @@ export const AdwChecksTest = async () => {
             expect(input).toBeTruthy();
             expect(input.type).toBe('checkbox');
             expect(indicator).toBeTruthy();
-            // The focus ring is `input:focus-visible ~ .adw-check-indicator`, so
-            // the input MUST precede the indicator.
+            // The focus ring is `input:focus-visible ~ .adw-check-indicator`, so the
+            // input MUST precede the indicator.
             expect(input.nextElementSibling).toBe(indicator);
             expect(el.checked).toBe(false);
             expect(input.getAttribute('aria-checked')).toBe('false');
-            // An empty label takes no space.
             expect(label.hidden).toBe(true);
             parent.remove();
         });
@@ -110,9 +107,8 @@ export const AdwChecksTest = async () => {
         });
 
         await it('a click on the hidden input toggles exactly once', () => {
-            // The input is 0x0 so a pointer never reaches it, but keyboard
-            // activation and `input.click()` do — and the host listener must not
-            // toggle a second time on the way out.
+            // The input is 0x0 so a pointer never reaches it, but keyboard activation and
+            // `input.click()` do — and the host listener must not toggle a second time.
             const { el, parent } = mountCheckbox();
             const events = record(el, 'notify::checked');
             parts(el).input.click();
@@ -143,18 +139,17 @@ export const AdwChecksTest = async () => {
             el.checked = true;
             el.indeterminate = true;
             const { input } = parts(el);
-            // HTML has a native mixed CHECKBOX, and an explicit aria-checked so
-            // the radio (which has no native mixed) reads the same way.
+            // HTML has a native mixed CHECKBOX; the radio has none, so an explicit
+            // aria-checked makes it read the same way.
             expect(input.indeterminate).toBe(true);
             expect(input.getAttribute('aria-checked')).toBe('mixed');
             parent.remove();
         });
 
         await it('draws the dash even when also checked', () => {
-            // `check, radio { &:indeterminate { … dash.svg } }`
-            // (_checks.scss:79-81) is re-declared AFTER both `:checked` rules at
-            // equal specificity, so the dash wins. Comparing the three states
-            // against each other proves the cascade, not just that a mask exists.
+            // In `_checks.scss` the `:indeterminate` glyph is re-declared AFTER both
+            // `:checked` rules at equal specificity, so the dash wins. Comparing all
+            // three states proves the cascade, not just that a mask exists.
             const parent = host();
             const make = (attrs: string[]) => {
                 const el = document.createElement('adw-checkbox') as AdwCheckbox;
@@ -173,7 +168,7 @@ export const AdwChecksTest = async () => {
 
         await it('activating an indeterminate checkbox clears it and checks', () => {
             // HTML's pre-click activation steps, not a reading of
-            // GtkCheckButton:inconsistent — GTK's is not verifiable in this tree.
+            // GtkCheckButton:inconsistent, which is not verifiable in this tree.
             const { el, parent } = mountCheckbox();
             el.indeterminate = true;
             el.click();
@@ -192,33 +187,31 @@ export const AdwChecksTest = async () => {
 
             for (const el of [check, radio]) {
                 const style = getComputedStyle(parts(el).indicator);
-                // GTK sizes the CONTENT box at 14px and grows the drawn control
-                // with `padding: 3px` (_checks.scss:22-26) — content-box, not
-                // the ADR-0010 descendant border-box pin.
+                // GTK sizes the CONTENT box at 14px and grows the drawn control with
+                // `padding: 3px` — content-box, not the ADR-0010 border-box pin.
                 expect(style.width).toBe('14px');
                 expect(style.height).toBe('14px');
                 expect(style.paddingTop).toBe('3px');
             }
 
-            // `check { border-radius: 6px }` (:67-68) vs
-            // `radio { border-radius: 100% }` (:73-74).
+            // `check { border-radius: 6px }` vs
+            // `radio { border-radius: 100% }`.
             expect(getComputedStyle(parts(check).indicator).borderTopLeftRadius).toBe('6px');
             expect(getComputedStyle(parts(radio).indicator).borderTopLeftRadius).toContain('%');
             parent.remove();
         });
 
         await it('a checked radio FILLS, with the SAME accent background as a checked check', () => {
-            // refs/adwaita-web's `_radio.scss:22-33` colours only the border and
-            // the dot, leaving the indicator on the view background; libadwaita
-            // fills the whole control from the block it SHARES with the checkbox
-            // (:52-60). libadwaita wins — so the two fills must be identical.
+            // refs/adwaita-web's `_radio.scss` colours only the border and the dot,
+            // leaving the indicator on the view background; libadwaita fills the whole
+            // control from the block it SHARES with the checkbox, and libadwaita wins —
+            // so the two fills must be identical.
             //
-            // THREE elements rather than one flipped in place: the indicator
-            // TRANSITIONS `background`, so a computed read taken right after
-            // `checked = true` returns the INTERPOLATED colour — still the old
-            // one. Declaring the state before insertion leaves no transition to
-            // be part-way through. The names are distinct so seeding one group
-            // cannot reach the reference radio.
+            // THREE elements rather than one flipped in place: the indicator TRANSITIONS
+            // `background`, so a computed read right after `checked = true` returns the
+            // INTERPOLATED colour. Declaring the state before insertion leaves no
+            // transition part-way through, and distinct names keep seeding one group from
+            // reaching the reference radio.
             const parent = host();
             const plain = document.createElement('adw-radio') as AdwRadio;
             plain.setAttribute('name', 'fill-plain');
@@ -243,8 +236,6 @@ export const AdwChecksTest = async () => {
         for (const [index, vector] of RADIO_GROUP_VECTORS.entries()) {
             await it(`${vector.name} — ${vector.rule}`, () => {
                 const parent = host();
-                // Per-scenario prefix: the registry is document-global, so two
-                // scenarios sharing a literal group name would share a selection.
                 const scope = (name: string) => `v${index}-${name}`;
 
                 const members = vector.members.map(([name, value]) => {
@@ -272,9 +263,8 @@ export const AdwChecksTest = async () => {
                     expect(parts(el).input.checked).toBe(shouldHold);
                 }
 
-                // Every emitted change repaints the winner, and the loser too
-                // when there was one — that second repaint is the whole reason
-                // the group state exists.
+                // Every emitted change repaints the winner AND the loser when there was
+                // one; that second repaint is why the group state exists.
                 const expectedEvents = vector.emitted.reduce(
                     (total, change) => total + (change.deselected === null ? 1 : 2),
                     0,
@@ -327,10 +317,9 @@ export const AdwChecksTest = async () => {
         });
 
         await it('a NAMELESS radio is not in a group', () => {
-            // HTML forms a radio button group only from a non-empty `name`.
-            // Without that rule every nameless radio in the document would land
-            // in one `''` group and fight over it — which is exactly what a
-            // registry keyed by name does if nothing guards the empty key.
+            // HTML forms a radio group only from a non-empty `name`; without that rule
+            // every nameless radio lands in one `''` group and fights over it, which is
+            // what a registry keyed by name does unless it guards the empty key.
             const parent = host();
             const first = document.createElement('adw-radio') as AdwRadio;
             const second = document.createElement('adw-radio') as AdwRadio;

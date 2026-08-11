@@ -1,11 +1,9 @@
-// matchMedia stub for GJS — used by Excalibur and other libraries to monitor
-// devicePixelRatio changes. Returns a minimal MediaQueryList-compatible object.
+// matchMedia stub for GJS — libraries such as Excalibur use it to watch devicePixelRatio changes.
 // Reference: https://developer.mozilla.org/en-US/docs/Web/API/Window/matchMedia
 //
-// NOTE: imports EventTarget directly from @gjsify/dom-events rather than
-// using the global, because dom-elements/register runs BEFORE
-// dom-events/register in the inject order — so `globalThis.EventTarget` may
-// not yet exist when this class is defined at module load time.
+// EventTarget comes from the @gjsify/dom-events package rather than `globalThis`: the register that
+// installs the global need not have run when this module is evaluated, and the class is defined at
+// module-load time.
 
 import { EventTarget } from '@gjsify/dom-events';
 

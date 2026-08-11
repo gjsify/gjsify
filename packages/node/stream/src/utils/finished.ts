@@ -116,8 +116,6 @@ export function addAbortSignal<T extends AnyStream>(signal: AbortSignal, stream:
     return stream;
 }
 
-// ---- Utility functions ----
-
 export function isReadable(stream: unknown): boolean {
     if (stream == null) return false;
     const s = stream as Record<string, unknown>;

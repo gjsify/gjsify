@@ -10,15 +10,13 @@
 //   `Adw.NavigationPage:tag`.
 // Slots: slot="sidebar", slot="content".
 //
-// The element used to toggle two CSS classes and nothing else, so THREE rules
-// from the C had no expression here at all: the navigation-stack ordering table
-// (a LONE child stays visible whatever `show-content` says; with
-// `sidebar-position: end` the CONTENT is the root page), the duplicate-tag
-// guard, and the `navigation.push` / `navigation.pop` routing that lets a nested
-// split view forward a push outwards. All three are `NavigationSplitViewState`
-// in `@gjsify/adwaita-core`, held to NAVIGATION_STACK_VECTORS,
-// NAVIGATION_SPLIT_VIEW_CRITICALS and NAVIGATION_ACTION_VECTORS — the last of
-// which had no consumer at all before this.
+// THREE rules from the C are not expressible as CSS classes and live in
+// `NavigationSplitViewState` (`@gjsify/adwaita-core`), held to NAVIGATION_STACK_VECTORS,
+// NAVIGATION_SPLIT_VIEW_CRITICALS and NAVIGATION_ACTION_VECTORS: the navigation-stack
+// ordering table (a LONE child stays visible whatever `show-content` says; with
+// `sidebar-position: end` the CONTENT is the root page), the duplicate-tag guard, and
+// the `navigation.push` / `navigation.pop` routing that lets a nested split view
+// forward a push outwards.
 //
 // Reference: refs/adwaita-web/adwaita-web/docs/widgets/navigationsplitview.md
 // Reference: refs/libadwaita/src/adw-navigation-split-view.c
@@ -94,18 +92,16 @@ export class AdwNavigationSplitView extends HTMLElement {
         this.setAttribute('sidebar-position', value);
     }
 
-    /** The sidebar page's tag of record, or `null`. */
     get sidebarTag(): string | null {
         return this._state.sidebarTag;
     }
 
-    /** The content page's tag of record, or `null`. */
     get contentTag(): string | null {
         return this._state.contentTag;
     }
 
     /**
-     * `navigation.push` with `tag` — `navigation_push_cb` (:644-685).
+     * `navigation.push` with `tag` — `navigation_push_cb`.
      *
      * An unmatched tag DELEGATES to the parent before it may become a critical,
      * which is how nested split views forward a push outwards; on this port that
@@ -116,7 +112,7 @@ export class AdwNavigationSplitView extends HTMLElement {
         return this._state.push(tag);
     }
 
-    /** `navigation.pop` — `navigation_pop_cb` (:687-702). */
+    /** `navigation.pop` — `navigation_pop_cb`. */
     pop(): NavigationActionResult {
         return this._state.pop();
     }
@@ -138,16 +134,16 @@ export class AdwNavigationSplitView extends HTMLElement {
 
         this.replaceChildren(this._sidebarEl, this._contentEl);
 
-        // Parse-time attributes are the CONSTRUCTION properties, for the same
-        // reason the overlay view treats them so: applying them as sequential
-        // setters would emit a transition for a state the markup simply declared.
+        // Parse-time attributes are the CONSTRUCTION properties, as in the overlay view:
+        // applying them as sequential setters emits a transition for a state the markup
+        // simply declared.
         this._state = new NavigationSplitViewState({
             sidebarPosition: this.sidebarPosition,
             collapsed: this.hasAttribute('collapsed'),
             showContent: this.hasAttribute('show-content'),
-            // `g_critical` has no browser counterpart that a consumer can see;
-            // `console.error` is the one a developer reads, and the TEXT is the
-            // C's verbatim so a GTK bug report and a browser one say the same.
+            // `g_critical` has no browser counterpart a consumer can see; `console.error`
+            // is the one a developer reads, and the TEXT is C's verbatim so a GTK bug
+            // report and a browser one say the same.
             onCritical: (message) => console.error(message),
             onDelegate: (action, tag) => {
                 const detail: NavigationDelegateDetail = { tag, handled: false };
@@ -155,10 +151,9 @@ export class AdwNavigationSplitView extends HTMLElement {
                 return detail.handled;
             },
         });
-        // Which children EXIST decides the stack, so the panes are mounted into
-        // the state, not merely into the DOM — a lone child stays visible
-        // whatever `show-content` says (:389-401), which two CSS classes cannot
-        // express.
+        // Which children EXIST decides the stack, so the panes are mounted into the state
+        // and not merely into the DOM — a lone child stays visible whatever
+        // `show-content` says, which two CSS classes cannot express.
         this._state.setSidebar(sidebarChildren.length > 0 ? { tag: this._tagOf(sidebarChildren) } : null);
         this._state.setContent(contentChildren.length > 0 ? { tag: this._tagOf(contentChildren) } : null);
         this._state.subscribe(() => {
@@ -181,11 +176,10 @@ export class AdwNavigationSplitView extends HTMLElement {
     }
 
     /**
-     * Mirror the state's `showContent` onto the attribute, so the DOM keeps
-     * telling the truth after a `navigation.push` moved it.
-     *
-     * Guarded the way the overlay view's reflection is: writing the attribute
-     * re-enters `attributeChangedCallback`, which without the flag is a loop.
+     * Mirror the state's `showContent` onto the attribute, so the DOM keeps telling the
+     * truth after a `navigation.push` moved it. Guarded like the overlay view's
+     * reflection: writing the attribute re-enters `attributeChangedCallback`, which
+     * without the flag is a loop.
      */
     private _reflectShowContent() {
         if (this._reflecting) return;
@@ -231,11 +225,9 @@ export class AdwNavigationSplitView extends HTMLElement {
             this._sidebarEl.style.maxWidth = '';
             return;
         }
-        // An ABSENT attribute used to mean "no bound at all", where
-        // Adw.NavigationSplitView always has 180 / 280
-        // (adw-navigation-split-view.c min-sidebar-width / max-sidebar-width).
-        // The core also normalises the pair — libadwaita never lets max fall
-        // below min, and CSS resolves that conflict the other way round.
+        // An ABSENT attribute is NOT "no bound at all": Adw.NavigationSplitView always
+        // has 180 / 280. The core also normalises the pair — libadwaita never lets max
+        // fall below min, and CSS resolves that conflict the other way round.
         const bounds = resolveSidebarBounds(
             {
                 minSidebarWidth: this._widthAttr('min-sidebar-width', DEFAULT_MIN_SIDEBAR_WIDTH),
@@ -248,7 +240,6 @@ export class AdwNavigationSplitView extends HTMLElement {
         this._sidebarEl.style.maxWidth = `${bounds.max}px`;
     }
 
-    /** A pixel attribute, falling back to the widget's own default. */
     private _widthAttr(name: string, fallback: number): number {
         const raw = this.getAttribute(name);
         if (raw === null) return fallback;
@@ -256,7 +247,7 @@ export class AdwNavigationSplitView extends HTMLElement {
         return Number.isFinite(value) ? value : fallback;
     }
 
-    /** The reading direction `start` / `end` resolve against (`get_start_or_end`, :220-227). */
+    /** The reading direction `start` / `end` resolve against (`get_start_or_end`). */
     private get _direction(): AdwTextDirection {
         return getComputedStyle(this).direction === 'rtl' ? 'rtl' : 'ltr';
     }
@@ -273,27 +264,24 @@ export class AdwNavigationSplitView extends HTMLElement {
             isSidebarAtVisualStart(state.sidebarPosition, this._direction),
         );
 
-        // THE PANE STYLE CLASSES, and only while docked. libadwaita builds the
-        // two `.sidebar-pane` / `.content-pane` bins in the UNCOLLAPSED branch
-        // alone (:583-608); collapsed, both pages move into one AdwNavigationView
-        // and neither bin exists (:552-568) — so a collapsed sidebar is a full
-        // window page on the WINDOW background, not a sidebar-coloured one.
-        // Painting it `--sidebar-bg-color` at every width, as this did, is the
-        // same defect the overlay view has with `.overlay-pane`.
+        // THE PANE STYLE CLASSES, and only while docked: libadwaita builds the two
+        // `.sidebar-pane` / `.content-pane` bins in the UNCOLLAPSED branch alone, and
+        // collapsed both pages move into one AdwNavigationView where neither bin exists.
+        // A collapsed sidebar is therefore a full window page on the WINDOW background,
+        // so painting it `--sidebar-bg-color` at every width is wrong.
         this._sidebarEl?.classList.toggle('sidebar-pane', !state.collapsed);
         this._contentEl?.classList.toggle('content-pane', !state.collapsed);
 
-        // The STACK, not the two flags: `update_navigation_stack` (:342-405)
-        // keeps a LONE child visible whatever `show-content` says, and with
-        // `sidebar-position: end` the CONTENT is the root page — so the sidebar
-        // is PUSHED ON TOP of it rather than replacing it.
+        // The STACK, not the two flags: `update_navigation_stack` keeps a LONE child
+        // visible whatever `show-content` says, and with `sidebar-position: end` the
+        // CONTENT is the root page — so the sidebar is PUSHED ON TOP of it rather than
+        // replacing it.
         const { stack } = state.stack;
         const visible = stack[stack.length - 1] ?? null;
         if (this._sidebarEl) this._sidebarEl.dataset.paneVisible = String(!state.collapsed || visible === 'sidebar');
         if (this._contentEl) this._contentEl.dataset.paneVisible = String(!state.collapsed || visible === 'content');
     }
 
-    /** (Re)bind the `breakpoint` condition to `collapsed`. */
     private _syncBreakpoint() {
         this._disposeBreakpoint?.();
         this._disposeBreakpoint = bindBreakpointSetter(this, this.getAttribute('breakpoint'), (active) => {

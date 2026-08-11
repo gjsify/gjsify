@@ -3,9 +3,7 @@
 // `flex-wrap: wrap` with a gap). Mirrors Adw.WrapBox.
 //
 // Attributes — all fourteen of the widget's properties, each with a
-// `notify::<property>` (adw-wrap-box.c:284-497). The element used to carry nine
-// attributes and notify for two, so a consumer binding to any of the other
-// twelve was listening to a signal that could not fire.
+// `notify::<property>`:
 //
 //   child-spacing / line-spacing        (int >= 0, default 0) -> column-gap / row-gap
 //   child-spacing-unit / line-spacing-unit ("px" | "pt" | "sp", default "px")
@@ -19,10 +17,9 @@
 //   wrap-policy      ("minimum" | "natural", default "natural")
 //   natural-line-length (int >= -1, default -1 = unset) + -unit
 //
-// The property CONTRACT — the normalisers and the justify/align/last-line
-// decision — is `@gjsify/adwaita-core`'s `wrap-box.ts`, held to
-// `WRAP_BOX_LINE_VECTORS` and friends, which the NativeScript suite drives too.
-// This element used to carry its own copy of all of it.
+// The property CONTRACT — the normalisers and the justify/align/last-line decision —
+// is `@gjsify/adwaita-core`'s `wrap-box.ts`, held to `WRAP_BOX_LINE_VECTORS` and
+// friends, which the NativeScript suite drives too.
 //
 // Reference: refs/libadwaita/src/adw-wrap-box.c / adw-wrap-layout.c (Adw.WrapBox)
 // Reference: refs/adwaita-web/adwaita-web/scss/_wrap_box.scss
@@ -72,12 +69,10 @@ const PROPERTY_ATTRIBUTES = [
 type PropertyValue = string | number | boolean;
 
 /**
- * `align` as a `justify-content` keyword.
- *
- * C offsets the whole line block by `roundf (length_delta * align)` — a
- * continuum. Flexbox has three main-axis positions, so the nearest one is taken;
- * that is the renderer's approximation, not libadwaita's rule, which is why it
- * lives here and not in the conformance table.
+ * `align` as a `justify-content` keyword. C offsets the whole line block by
+ * `roundf (length_delta * align)` — a continuum — while flexbox has three main-axis
+ * positions, so the nearest one is taken. That approximation is the renderer's, not
+ * libadwaita's rule, which is why it lives here and not in the conformance table.
  */
 function alignToJustifyContent(align: number): string {
     if (align < 0.25) return 'flex-start';
@@ -92,8 +87,6 @@ export class AdwWrapBox extends HTMLElement {
         return [...PROPERTY_ATTRIBUTES];
     }
 
-    // --- properties ---
-
     /** Spacing between children on the same line, in `child-spacing-unit`. */
     get childSpacing(): number {
         return normalizeWrapBoxSpacing(this.getAttribute('child-spacing'));
@@ -103,7 +96,6 @@ export class AdwWrapBox extends HTMLElement {
         this.setAttribute('child-spacing', String(value));
     }
 
-    /** The unit `child-spacing` is written in. Defaults to `px`, as in C. */
     get childSpacingUnit(): AdwLengthUnit {
         return normalizeWrapBoxLengthUnit(this.getAttribute('child-spacing-unit'));
     }
@@ -121,7 +113,6 @@ export class AdwWrapBox extends HTMLElement {
         this.setAttribute('line-spacing', String(value));
     }
 
-    /** The unit `line-spacing` is written in. Defaults to `px`, as in C. */
     get lineSpacingUnit(): AdwLengthUnit {
         return normalizeWrapBoxLengthUnit(this.getAttribute('line-spacing-unit'));
     }
@@ -139,7 +130,6 @@ export class AdwWrapBox extends HTMLElement {
         this.setAttribute('align', String(value));
     }
 
-    /** Whether and how each line is stretched to fill the widget. */
     get justify(): 'none' | 'fill' | 'spread' {
         return normalizeWrapBoxJustify(this.getAttribute('justify'));
     }
@@ -166,7 +156,6 @@ export class AdwWrapBox extends HTMLElement {
         this.setAttribute('wrap-policy', value);
     }
 
-    /** The direction children are packed in each line. */
     get packDirection(): 'start-to-end' | 'end-to-start' {
         return normalizeWrapBoxPackDirection(this.getAttribute('pack-direction'));
     }
@@ -184,7 +173,6 @@ export class AdwWrapBox extends HTMLElement {
         this.toggleAttribute('wrap-reverse', !!value);
     }
 
-    /** Whether every line takes the same amount of space. */
     get lineHomogeneous(): boolean {
         return this.hasAttribute('line-homogeneous');
     }
@@ -202,7 +190,6 @@ export class AdwWrapBox extends HTMLElement {
         this.setAttribute('natural-line-length', String(value));
     }
 
-    /** The unit `natural-line-length` is written in. Defaults to `px`, as in C. */
     get naturalLineLengthUnit(): AdwLengthUnit {
         return normalizeWrapBoxLengthUnit(this.getAttribute('natural-line-length-unit'));
     }
@@ -211,7 +198,6 @@ export class AdwWrapBox extends HTMLElement {
         this.setAttribute('natural-line-length-unit', value);
     }
 
-    /** The axis children are packed along. */
     get orientation(): 'horizontal' | 'vertical' {
         return this.getAttribute('orientation') === 'vertical' ? 'vertical' : 'horizontal';
     }
@@ -220,37 +206,31 @@ export class AdwWrapBox extends HTMLElement {
         this.setAttribute('orientation', value);
     }
 
-    // --- child list (adw_wrap_box_insert_child_after / reorder / remove_all) ---
-    //
-    // `adw_wrap_box_append`, `_prepend` and `_remove` are deliberately NOT
-    // redeclared: `ParentNode.append` / `.prepend` and `Node.removeChild` are
-    // those three, with the same semantics, and shadowing them would give this
-    // element two spellings of one operation. Only the three the DOM has no
-    // counterpart for are added.
+    // `adw_wrap_box_append`, `_prepend` and `_remove` are deliberately NOT redeclared:
+    // `ParentNode.append` / `.prepend` and `Node.removeChild` ARE those three, with the
+    // same semantics, and shadowing them would give this element two spellings of one
+    // operation. Only the three the DOM has no counterpart for are added.
 
-    /** The element children, which are what the layout actually lays out. */
     private get _children(): Element[] {
         return [...this.children];
     }
 
     /**
-     * `adw_wrap_box_insert_child_after` (adw-wrap-box.c:1283-1300).
-     *
-     * A NULL/absent `sibling` inserts at the FIRST position, not the last —
-     * `gtk_widget_insert_after`'s documented rule, pinned by
-     * `WRAP_BOX_CHILD_ORDER_VECTORS`. Returns whether the insert happened; a
-     * refusal is where C would have hit a `g_return_if_fail`.
+     * `adw_wrap_box_insert_child_after`. A NULL/absent `sibling` inserts at the FIRST
+     * position, not the last — `gtk_widget_insert_after`'s documented rule, pinned by
+     * `WRAP_BOX_CHILD_ORDER_VECTORS`. Returns whether the insert happened; a refusal is
+     * where C would have hit a `g_return_if_fail`.
      */
     insertChildAfter(child: Element, sibling: Element | null = null): boolean {
         return this._applyOrder('insert-after', child, sibling);
     }
 
-    /** `adw_wrap_box_reorder_child_after` (adw-wrap-box.c:1315-1332). Same NULL rule. */
+    /** `adw_wrap_box_reorder_child_after`. Same NULL rule. */
     reorderChildAfter(child: Element, sibling: Element | null = null): boolean {
         return this._applyOrder('reorder-after', child, sibling);
     }
 
-    /** `adw_wrap_box_remove_all` (adw-wrap-box.c:1406-1414). */
+    /** `adw_wrap_box_remove_all`. */
     removeAll(): void {
         for (const child of this._children) this.removeChild(child);
     }
@@ -267,8 +247,6 @@ export class AdwWrapBox extends HTMLElement {
         return true;
     }
 
-    // --- lifecycle ---
-
     connectedCallback() {
         if (this._initialized) return;
         this._initialized = true;
@@ -278,10 +256,9 @@ export class AdwWrapBox extends HTMLElement {
     attributeChangedCallback(name: string, old: string | null, value: string | null) {
         if (!this._initialized) return;
         this._sync();
-        // C compares AFTER normalising and returns early when nothing changed
-        // (adw-wrap-box.c:592-593), so `child-spacing="-5"` on a box already at 0
-        // notifies nobody. The same gate applies to every property, not just the
-        // two spacings this element used to special-case.
+        // C compares AFTER normalising and returns early when nothing changed, so
+        // `child-spacing="-5"` on a box already at 0 notifies nobody. The gate applies to
+        // EVERY property, not just the two spacings.
         const next = this._normalized(name, value);
         if (next === this._normalized(name, old)) return;
         this.dispatchEvent(new CustomEvent(`notify::${name}`, { bubbles: true, detail: { [name]: next } }));
@@ -319,7 +296,6 @@ export class AdwWrapBox extends HTMLElement {
         const style = this.style;
         const vertical = this.orientation === 'vertical';
 
-        // Main axis is the packing direction; lines wrap along the cross axis.
         const direction = vertical ? 'column' : 'row';
         style.flexDirection = this.packDirection === 'end-to-start' ? `${direction}-reverse` : direction;
         style.flexWrap = this.wrapReverse ? 'wrap-reverse' : 'wrap';
@@ -345,14 +321,13 @@ export class AdwWrapBox extends HTMLElement {
         const justifyLastLine = this.justifyLastLine;
         const align = this.align;
 
-        // A flex container has ONE `justify-content` and applies it to every
-        // line, so it carries the COMPLETE-line rule; the final-line rule is
-        // published beside it for the stylesheet, which reaches that line through
-        // the only two selectors CSS offers — `:only-child` (a box with one child
-        // has one line, and it is the last) and the generated `::after` filler.
-        // The pair is deliberately never collapsed into one attribute: flexbox
-        // cannot express "every line but the last", and pretending otherwise is
-        // what made `justify-last-line` a no-op in the first place.
+        // A flex container has ONE `justify-content` and applies it to every line, so it
+        // carries the COMPLETE-line rule; the final-line rule is published beside it for
+        // the stylesheet, which reaches that line through the only two selectors CSS
+        // offers — `:only-child` (a box with one child has one line, and it is the last)
+        // and the generated `::after` filler. Never collapse the pair into one attribute:
+        // flexbox cannot express "every line but the last", and pretending it can is what
+        // makes `justify-last-line` a no-op.
         const line = resolveWrapBoxLine({ justify, justifyLastLine, align, lastLine: false, childrenInLine: 2 });
         const lastLine = resolveWrapBoxLine({ justify, justifyLastLine, align, lastLine: true, childrenInLine: 2 });
         this.dataset.lineJustify = line.justify;
@@ -367,12 +342,11 @@ export class AdwWrapBox extends HTMLElement {
         // flexbox approximates by stretching the lines across the cross axis.
         style.alignContent = this.lineHomogeneous ? 'stretch' : 'flex-start';
 
-        // `wrap-policy` decides whether an overflowing line squeezes its children
-        // or lets them spill. CSS defaults `flex-shrink` to 1, i.e. to
-        // ADW_WRAP_MINIMUM — the value libadwaita does NOT default to, so an
-        // unset policy has been drawing the wrong one on every wrap box. What
-        // flexbox cannot do either way is pack MORE children onto a line, since
-        // line breaking runs on hypothetical sizes; see `wrapPolicyFlexShrink`.
+        // `wrap-policy` decides whether an overflowing line squeezes its children or lets
+        // them spill. CSS defaults `flex-shrink` to 1, i.e. to ADW_WRAP_MINIMUM — which is
+        // NOT libadwaita's default, so the policy has to be written out explicitly. What
+        // flexbox cannot do either way is pack MORE children onto a line, since line
+        // breaking runs on hypothetical sizes; see `wrapPolicyFlexShrink`.
         style.setProperty('--adw-wrap-box-child-shrink', String(wrapPolicyFlexShrink(this.wrapPolicy)));
 
         // DELIBERATE DEVIATION: libadwaita's `natural-line-length` caps the box's

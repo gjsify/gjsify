@@ -117,8 +117,8 @@ export default async () => {
         }
 
         await it('round-trips through the indicator inverse', () => {
-            // The two are used at opposite ends of the same wire: the carousel
-            // publishes snap points, the indicator reconstructs sizes from them.
+            // Opposite ends of the same wire: the carousel publishes snap points, the
+            // indicator reconstructs sizes from them.
             for (const { sizes } of CAROUSEL_SNAP_POINT_VECTORS) {
                 const recovered = carouselSizesFromSnapPoints(carouselSnapPoints(sizes));
                 recovered.forEach((size, index) => expect(size).toBeCloseTo(sizes[index]!, 12));
@@ -149,8 +149,8 @@ export default async () => {
         }
 
         await it('folds a pending position_shift into the bound it clamps against', () => {
-            // get_range adds the shift (adw-carousel.c:219), so the clamp a
-            // mid-animation set_position sees is not the settled one.
+            // `get_range` adds the shift, so the clamp a mid-animation `set_position` sees
+            // is not the settled one.
             expect(carouselClampPosition(3, [0, 1, 2], 1)).toBe(3);
             expect(carouselClampPosition(3, [0, 1, 2], -1)).toBe(1);
         });
@@ -164,9 +164,8 @@ export default async () => {
         }
 
         await it('resolves every tie DOWNWARDS, where Math.round resolves up', () => {
-            // One assertion instead of a row per boundary: report every position
-            // where the two rules disagree, so a "simplification" back to
-            // Math.round fails here naming the inputs.
+            // One assertion instead of a row per boundary: every position where the two
+            // rules disagree, so a "simplification" to Math.round fails naming the input.
             const points = [0, 1, 2, 3];
             const disagreements: number[] = [];
             for (let half = 0; half < 3; half++) {
@@ -191,9 +190,9 @@ export default async () => {
         }
 
         await it('does NOT share a rounding rule with the page lookup', () => {
-            // adw-carousel.c:486 uses C round() (half away from zero) while
-            // :198-201 resolves a tie downwards. Merging the two would silently
-            // change one of them; this is the assertion that they differ.
+            // `adw-carousel.c` uses C round() (half away from zero) where the lookup
+            // resolves a tie DOWNWARDS: merging the two would silently change one, so this
+            // asserts they differ.
             const points = [0, 1, 2];
             expect(carouselPageAtPosition(0.5, points)).toBe(0);
             expect(carouselNavigateTarget(0.5, 3, 'back')).toBe(0);
@@ -219,7 +218,7 @@ export default async () => {
         }
 
         await it('compares snap points with an epsilon, not with ===', () => {
-            // G_APPROX_VALUE (adw-carousel.c:1488): snap points are accumulated
+            // G_APPROX_VALUE: snap points are accumulated
             // sums, so "the same point" differs in the last bit for real.
             const drifted = 0.1 + 0.2 - 0.3; // ~5.5e-17, below DBL_EPSILON
             expect(carouselReorderShift({ closestPoint: drifted, oldPoint: 0, newPoint: 2, size: 1 })).toBe(2);
@@ -362,7 +361,7 @@ export default async () => {
         });
 
         await it('notifies on a position write that changed nothing', () => {
-            // g_object_notify_by_pspec at adw-carousel.c:281 is unconditional;
+            // g_object_notify_by_pspec is unconditional;
             // the NS port suppressed the no-op and a bound indicator went stale.
             const state = seeded(['a', 'b']);
             let notifications = 0;
@@ -428,7 +427,7 @@ export default async () => {
         });
 
         await it('skips a removing page when it resolves an index', () => {
-            // get_nth_link walks past removing children (adw-carousel.c:170-171),
+            // get_nth_link walks past removing children,
             // so index 1 is `c` while `b` is still shrinking.
             const state = seeded(['a', 'b', 'c']);
             state.removePage('b');

@@ -1,26 +1,13 @@
 // AdwCarousel's NativeScript-specific half — the parts that are not the
 // position arithmetic.
 //
-// Everything about WHERE the carousel is — snap points, the range and its clamp,
-// which page a fractional position settles on, the wheel rules, the keynav step,
-// and the insert/reorder/remove ordering with its position compensation — is
-// HEADLESS and lives in `@gjsify/adwaita-core` as `CarouselState` (ADR 0004),
-// shared with `@gjsify/adwaita-web` and pinned by the conformance vectors. What
-// is NativeScript-specific is only how a position becomes pixels: NS has no
-// paging `ScrollView`, so a page index is converted to a horizontal offset
+// Everything about WHERE the carousel is — snap points, the clamped range, which page
+// a fractional position settles on, the wheel rules, the keynav step, the
+// insert/reorder/remove position compensation — is HEADLESS in `@gjsify/adwaita-core`
+// as `CarouselState` (ADR 0004). NativeScript-specific is how a position becomes
+// pixels: NS has no paging `ScrollView`, so a page index becomes a horizontal offset
 // against a consumer-supplied page width, and the dots are `Label`s whose class
-// carries the selection.
-//
-// This module imports only TYPES from `@nativescript/core` — like `icon-path.ts`,
-// `row-press.ts`, `avatar-color.ts` and `view-stack-state.ts` — so it carries no
-// runtime `@nativescript/core` value import and is unit-testable off-device.
-// `adw-carousel.ts` cannot serve that role: it `extends GridLayout`, which
-// evaluates the bare specifier at module-eval and is unresolvable on GJS/Node.
-// The suite this enables replaces a `MockCarousel` that transcribed the widget's
-// own clamp and dot loop — a test that re-implements the code under test cannot
-// detect the drift it exists to catch, and here it did not: the mock, like the
-// widget, clamped `scrollToPage(NaN)` to NaN and marked its dots off an integer
-// position.
+// carries the selection. TYPE-only NS imports, so specs run off-device (AGENTS.md).
 //
 // Reference: refs/libadwaita/src/adw-carousel.c (Adw.Carousel)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
@@ -30,10 +17,9 @@ import { CAROUSEL_SETTLE_EPSILON, CarouselState } from '@gjsify/adwaita-core';
 import type { CarouselScrollRequest, CarouselStateChange } from '@gjsify/adwaita-core';
 
 /**
- * Default page width (DIPs) used for offset math until the consumer sets
- * `pageWidth`. libadwaita MEASURES its pages (adw-carousel.c:739-765); NS gives
- * a widget no size before its first layout pass, so a plausible phone-width
- * default keeps the offsets sane until the consumer supplies the real one.
+ * Default page width (DIPs) for the offset math until the consumer sets `pageWidth`.
+ * libadwaita MEASURES its pages; NS gives a widget no size before its first layout
+ * pass, so a plausible phone width keeps the offsets sane until then.
  */
 export const DEFAULT_CAROUSEL_PAGE_WIDTH = 320;
 
@@ -48,11 +34,10 @@ export interface NsCarouselStateOptions {
 /**
  * The state machine an `AdwCarousel` delegates to.
  *
- * `animateScroll` is FALSE: the `ScrollView` animates the pixels, but it reports
- * nothing until it has, and on an untested platform it may report nothing at
- * all. Keeping the model authoritative means a `scrollToPage` is correct the
- * instant it is called, which is also what the port did before the lift —
- * {@link CarouselScrollSync} is what keeps the two from fighting.
+ * `animateScroll` is FALSE: the `ScrollView` animates the pixels but reports nothing
+ * until it has, and on an untested platform it may report nothing at all. Keeping the
+ * model authoritative makes a `scrollToPage` correct the instant it is called;
+ * {@link CarouselScrollSync} keeps the two from fighting.
  */
 export function createCarouselState(options: NsCarouselStateOptions = {}): CarouselState {
     return new CarouselState({ ...options, animateScroll: false });
@@ -63,7 +48,7 @@ export function normalizeCarouselPageWidth(value: number): number {
     return Number.isFinite(value) && value > 0 ? value : DEFAULT_CAROUSEL_PAGE_WIDTH;
 }
 
-/** The horizontal scroll offset in DIPs for a position — `distance * position` (adw-carousel.c:797-801). */
+/** The horizontal scroll offset in DIPs for a position — `distance * position`. */
 export function carouselScrollOffset(position: number, distance: number): number {
     return position * distance;
 }
@@ -76,15 +61,14 @@ export function carouselPositionAtOffset(offset: number, distance: number): numb
 /**
  * Keeps the model in step with a `ScrollView` that animates its own scrolls.
  *
- * Without this the two fight: the widget moves the model the moment
- * `scrollToPage` is called, then the animation replays every intermediate offset
- * back at it, so the dots would run backwards to where the scroll STARTED and
- * crawl forward again, emitting a second `page-changed` on arrival.
+ * Without this the two fight: the widget moves the model the moment `scrollToPage`
+ * is called, then the animation replays every intermediate offset back at it, so the
+ * dots run backwards to where the scroll STARTED and crawl forward again, emitting a
+ * second `page-changed` on arrival.
  *
- * So a programmatic scroll declares its destination with {@link expect}, and
- * every offset before that destination is ignored. A scroll nobody declared is a
- * user swipe and drives the model directly — which is how a free flick gets a
- * fractional position at all, something the port had no way to observe.
+ * So a programmatic scroll declares its destination with {@link expect} and every
+ * offset before it is ignored. A scroll nobody declared is a user swipe and drives the
+ * model directly — which is how a free flick gets a fractional position.
  */
 export class CarouselScrollSync {
     /** Position a programmatic scroll is animating towards, `null` while idle. */

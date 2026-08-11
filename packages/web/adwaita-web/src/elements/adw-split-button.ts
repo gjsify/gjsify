@@ -20,26 +20,14 @@
 //                       in libadwaita's emission order.
 //   `menu-activated`  — a menu entry was chosen (detail.label / .action / .index).
 //
-// All of the behavior above lives in `@gjsify/adwaita-core` (ADR 0004) as
-// {@link SplitButtonState}; this element only paints it and translates DOM
-// events into state calls. It used to carry its own copy, and that copy rendered
-// the label AND the icon together (libadwaita clears whichever slot it is not
-// using), could not clear the label at all, hardcoded "Menu" as the dropdown's
-// accessible name, and opened an empty popover when there was no menu. The
-// shared vectors in `@gjsify/adwaita-core/conformance` now pin this element to
-// the C source — see `src/split-button.spec.ts`.
-//
-// The last piece of that copy to go was the direction→arrow table, which
-// outlived the lift and drew the `open-menu` hamburger for `direction="none"`.
-// Only the glyph→mask-class mapping is a renderer concern; see ARROW_MASK_CLASSES.
-//
-// THE POPOVER WENT THE SAME WAY, and it was the worst of the three copies: a
-// 9px (`--button-radius`) surface where libadwaita's is 15px, under a two-layer
-// shadow nothing in the vendored stylesheet has, with NO Escape dismissal and NO
-// arrow-key navigation at all — a menu you could open with the keyboard and then
-// only leave with the mouse. It is now `<adw-popover>`, so those two behaviours
-// arrive with the surface rather than having to be written a third time; the
-// spec cases for exactly them are in `src/split-button.spec.ts`.
+// All of the behaviour above lives in `@gjsify/adwaita-core` (ADR 0004) as
+// {@link SplitButtonState}; this element only paints it and translates DOM events
+// into state calls, pinned to the C source by the shared vectors in
+// `@gjsify/adwaita-core/conformance` (see `src/split-button.spec.ts`). Of the
+// element's own former copies only the glyph→mask-class mapping is a renderer
+// concern — see ARROW_MASK_CLASSES. The menu surface is `<adw-popover>`, which is
+// what brings the 15px radius, Escape dismissal and arrow-key navigation; do not
+// hand-roll a surface here instead.
 //
 // Reference: refs/libadwaita/src/adw-split-button.c (AdwSplitButton)
 // Reference: refs/adwaita-web/adwaita-web/scss/_split_button.scss
@@ -78,19 +66,17 @@ const VARIANT_CLASSES: Record<string, string> = {
 
 /**
  * libadwaita's arrow GLYPH NAMES mapped onto the mask classes
- * `_icons.generated.scss` actually ships. Renderer-specific by nature: the icon
- * set here is the `go-*` family, so no `pan-*` mask exists to map onto.
+ * `_icons.generated.scss` actually ships. Renderer-specific by nature: the icon set
+ * here is the `go-*` family, so no `pan-*` mask exists to map onto, and
+ * `pan-up-symbolic` reuses `go-down` flipped by the caller rather than drawing a blank
+ * arrow.
  *
- * WHICH glyph a direction gets is NOT decided here — {@link splitButtonArrowIcon}
- * owns that, and this table is keyed by its output rather than by direction. That
- * split is the point: keying by direction is how this element came to draw the
- * `open-menu` hamburger for `direction="none"`, where a split button draws the
- * down caret (`splitbutton > menubutton > button > arrow.none`,
- * _buttons.scss:621-623). The mask mapping is a fact about our asset set; the
- * glyph choice is a fact about libadwaita, and only one of them lives here.
- *
- * `pan-up-symbolic` has no mask at all, so it reuses `go-down` flipped by the
- * caller — the alternative is a blank arrow.
+ * WHICH glyph a direction gets is NOT decided here — {@link splitButtonArrowIcon} owns
+ * that, and this table is keyed by its OUTPUT rather than by direction. Keying by
+ * direction is how this element came to draw the `open-menu` hamburger for
+ * `direction="none"`, where a split button draws the down caret
+ * (`splitbutton > menubutton > button > arrow.none`). The mask mapping is a fact about
+ * our asset set, the glyph choice a fact about libadwaita.
  */
 const ARROW_MASK_CLASSES: Readonly<Record<AdwArrowIcon, string>> = {
     'open-menu-symbolic': 'open-menu',
@@ -100,11 +86,9 @@ const ARROW_MASK_CLASSES: Readonly<Record<AdwArrowIcon, string>> = {
     'pan-end-symbolic': 'go-next',
 };
 
-// The `-symbolic` strip AND the token guard that used to live here — as
-// `iconClass`, the ONLY copy of the guard in the package — are
-// `normalizeIconName`'s now, applied by <adw-icon>. Five other places built the
-// same class without the guard; keeping the correct one private is what let
-// them stay wrong.
+// The `-symbolic` strip and the single-CSS-token guard belong to `normalizeIconName`,
+// applied by <adw-icon>: never rebuild the mask class by hand, which is how five sites
+// in this package shipped without the guard.
 
 /**
  * Direction → the CSS axis `<adw-popover>` places the surface on. WHICH
@@ -147,7 +131,6 @@ export class AdwSplitButton extends HTMLElement {
         ];
     }
 
-    /** Whether the dropdown menu is currently open. */
     get active(): boolean {
         return this._state.open;
     }
@@ -164,8 +147,8 @@ export class AdwSplitButton extends HTMLElement {
 
     set label(value: string) {
         this.setAttribute('label', value ?? '');
-        // Setting the label clears the icon (adw-split-button.c:658-659); mirror
-        // that in the DOM so the attributes never contradict the state.
+        // Setting the label clears the icon; mirror that in the DOM so the
+        // attributes never contradict the state.
         this.removeAttribute('icon-name');
     }
 
@@ -179,7 +162,6 @@ export class AdwSplitButton extends HTMLElement {
         this.removeAttribute('label');
     }
 
-    /** The dropdown menu entries. */
     get menuItems(): readonly AdwMenuEntry[] {
         return this._state.menuModel ?? [];
     }
@@ -198,7 +180,6 @@ export class AdwSplitButton extends HTMLElement {
         this.setAttribute('dropdown-tooltip', value ?? '');
     }
 
-    /** The direction the popup opens in, and the arrow points. */
     get direction(): SplitButtonDirection {
         return this._state.direction;
     }
@@ -207,7 +188,6 @@ export class AdwSplitButton extends HTMLElement {
         this.setAttribute('direction', value);
     }
 
-    /** Whether an underline in the label marks a mnemonic. */
     get useUnderline(): boolean {
         return this._state.useUnderline;
     }
@@ -252,8 +232,8 @@ export class AdwSplitButton extends HTMLElement {
         this._menuEl = document.createElement('adw-popover') as AdwPopover;
         this._menuEl.classList.add('adw-split-button-menu');
         this._menuEl.setAttribute('role', 'menu');
-        // The dropdown half IS a GtkMenuButton (adw-split-button.c:997 passes
-        // straight through to it), so its popover is a `popover.menu`.
+        // The dropdown half IS a GtkMenuButton (the C passes straight through to
+        // one), so its popover is a `popover.menu`.
         this._menuEl.setAttribute('menu', '');
         this._menuEl.setAttribute('align', 'end');
 
@@ -315,12 +295,11 @@ export class AdwSplitButton extends HTMLElement {
         this._render();
     }
 
-    /** Seed label/icon/menu/direction/tooltip from the attributes present at connect time. */
     private _syncStateFromAttributes(): void {
         const label = this.getAttribute('label') ?? (this._inlineLabel.length > 0 ? this._inlineLabel : null);
         const iconName = this.getAttribute('icon-name');
         // With both present the icon wins — exactly where `set_label();
-        // set_icon_name();` leaves the widget (adw-split-button.c:749-771).
+        // set_icon_name();` leaves the widget.
         if (label !== null) this._state.setLabel(label);
         if (iconName !== null) this._state.setIconName(iconName);
 
@@ -334,14 +313,12 @@ export class AdwSplitButton extends HTMLElement {
     }
 
     /**
-     * Route a `label` / `icon-name` attribute mutation into the content machine.
-     *
-     * C has no independent "unset" for either slot — clearing one is a side
-     * effect of setting another — so a REMOVED attribute falls back to whichever
-     * sibling is still present, and to the empty child otherwise. That fallback
-     * is what makes `removeAttribute('label')` actually drop the label; it used
-     * to be a silent no-op, so the storybook's icon-only mode rendered the icon
-     * next to a stale "Save".
+     * Route a `label` / `icon-name` attribute mutation into the content machine. C has no
+     * independent "unset" for either slot — clearing one is a side effect of setting
+     * another — so a REMOVED attribute falls back to whichever sibling is still present,
+     * and to the empty child otherwise. Without that fallback
+     * `removeAttribute('label')` is a silent no-op and an icon-only button keeps a stale
+     * label beside its icon.
      */
     private _applyContentAttribute(name: 'label' | 'icon-name', value: string | null): void {
         if (value !== null) {
@@ -366,8 +343,7 @@ export class AdwSplitButton extends HTMLElement {
         }
         this._render();
         // Focus lands in the menu on open, AFTER _render has built the rows —
-        // without it the arrow keys the popover now provides would have nothing
-        // to move from, which is half of why this element had none.
+        // otherwise the popover's arrow keys have nothing to move from.
         if (opened) this._menuEl.items[0]?.focus();
     }
 
@@ -375,9 +351,8 @@ export class AdwSplitButton extends HTMLElement {
         const disabled = this.hasAttribute('disabled');
         this.classList.toggle('disabled', disabled);
         this._actionEl.disabled = disabled;
-        // With neither a menu model nor a popover the dropdown is INSENSITIVE
-        // (adw-split-button.c:376-378, :394-396) — it must not open an empty
-        // popover, which is what the old unguarded click handler did.
+        // With neither a menu model nor a popover the dropdown is INSENSITIVE: it must
+        // not open an empty popover.
         this._dropdownEl.disabled = disabled || !this._state.dropdownEnabled;
 
         this.classList.remove('flat', 'suggested-action', 'destructive-action');
@@ -390,12 +365,10 @@ export class AdwSplitButton extends HTMLElement {
         this._renderMenu();
     }
 
-    /** The action half + the root style classes libadwaita derives from it. */
     private _renderContent(): void {
         const { mode, label, iconName, styleClasses } = this._state;
 
-        // `splitbutton[.image-button][.text-button]` — the documented CSS node
-        // contract (adw-split-button.c:32-50, :145-165).
+        // `splitbutton[.image-button][.text-button]` — the documented CSS node contract.
         this.classList.toggle('image-button', styleClasses.includes('image-button'));
         this.classList.toggle('text-button', styleClasses.includes('text-button'));
 
@@ -417,7 +390,6 @@ export class AdwSplitButton extends HTMLElement {
         else this._actionEl.removeAttribute('aria-label');
     }
 
-    /** The dropdown half: arrow glyph, tooltip/accessible name, expanded state. */
     private _renderDropdown(): void {
         const { direction, open } = this._state;
         const glyph = splitButtonArrowIcon(direction);
@@ -425,18 +397,18 @@ export class AdwSplitButton extends HTMLElement {
         // No pan-up mask ships yet, so it is the down arrow turned over. Keyed off
         // the GLYPH, not the direction: the flip belongs to the mask substitution.
         this._arrowEl.style.transform = glyph === 'pan-up-symbolic' ? 'rotate(180deg)' : '';
-        // Where the popup goes is core's call (`none` → `down`); only the
-        // direction → CSS-axis mapping is ours.
+        // Where the popup goes is core's call (`none` → `down`); only the direction →
+        // CSS-axis mapping is ours.
         this._menuEl.position = POPOVER_POSITIONS[splitButtonPopupDirection(direction)];
 
-        // An empty value RESTORES the translated default (adw-split-button.c:1044-1051)
-        // instead of leaving the button without an accessible name.
+        // An empty value RESTORES the translated default instead of leaving the button
+        // without an accessible name.
         const { text } = resolveDropdownTooltip(this._state.dropdownTooltip);
         this._dropdownEl.title = text;
         this._dropdownEl.setAttribute('aria-label', text);
         this._dropdownEl.setAttribute('aria-expanded', String(open));
 
-        // update_state folds both halves onto the root (adw-split-button.c:118-143).
+        // update_state folds both halves onto the root.
         // The browser gives the ACTIVE half of that fold for free — CSS `:active`
         // matches the ancestors of the pressed element — so only CHECKED, which
         // the arrow half carries while the menu is open, has to be applied here.
@@ -450,7 +422,6 @@ export class AdwSplitButton extends HTMLElement {
         this.classList.toggle('active', open);
     }
 
-    /** The popover contents, one button per menu entry, dispatched BY POSITION. */
     private _renderMenu(): void {
         this._menuEl.replaceChildren();
         this._menuEl.open = this._state.open;
@@ -458,16 +429,15 @@ export class AdwSplitButton extends HTMLElement {
         for (const [index, entry] of (this._state.menuModel ?? []).entries()) {
             const item = document.createElement('button');
             item.type = 'button';
-            // `.adw-popover-item` is what makes the row navigable: it is the
-            // selector `<adw-popover>` walks for arrow/Home/End/Enter, which this
-            // element never had.
+            // `.adw-popover-item` is what makes the row navigable: it is the selector
+            // `<adw-popover>` walks for arrow/Home/End/Enter.
             item.className = 'adw-popover-item adw-split-button-menu-item';
             item.setAttribute('role', 'menuitem');
             item.tabIndex = -1;
             item.textContent = entry.label;
             item.addEventListener('click', () => {
-                // By position, never by label: two entries called "Copy" are
-                // legal and must dispatch their own action (c:385-388).
+                // By position, never by label: two entries called "Copy" are legal
+                // and must each dispatch their own action.
                 const activated = this._state.activateMenuEntry(index);
                 if (activated === null) return;
                 this.dispatchEvent(

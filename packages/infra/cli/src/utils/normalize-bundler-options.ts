@@ -1,16 +1,12 @@
-// One-release deprecation shim: maps the legacy `esbuild?: BuildOptions`
-// field on `.gjsifyrc.js` / `package.json#gjsify` into the equivalent
-// `bundler?: RolldownOptions` shape. Logs a single warning per build.
+// Deprecation shim: maps the legacy `esbuild?: BuildOptions` field on `.gjsifyrc.js` /
+// `package.json#gjsify` into the equivalent `bundler?: RolldownOptions` shape, warning once per
+// build. It was slated for removal in 0.5.0 and is still here at 0.35.0 — the warning text it
+// prints still names 0.5.0, so removing the shim means fixing that string too.
 //
-// Also handles the top-level `bundler.define` alias: Rolldown reads
-// `transform.define`, not a top-level `define`. A user who flat-renames
-// `esbuild: { define: {...} }` → `bundler: { define: {...} }` puts `define`
-// at the top level where Rolldown silently ignores it, causing
-// `ReferenceError: <TOKEN> is not defined` at GJS load time. We auto-map
-// top-level `bundler.define` into `bundler.transform.define` and emit a
-// one-time warning so the user can correct their config.
-//
-// Drop `esbuild` shim in 0.5.0; the `bundler.define` alias is permanent.
+// Also handles the top-level `bundler.define` alias, which is PERMANENT: Rolldown reads
+// `transform.define`, so a user who flat-renames `esbuild: { define }` → `bundler: { define }`
+// lands `define` at the top level where Rolldown silently ignores it, producing
+// `ReferenceError: <TOKEN> is not defined` at GJS load time.
 
 import type { OutputOptions } from 'rolldown';
 import type { ConfigData, BundlerOptions, LegacyEsbuildOptions } from '../types/config-data.js';
@@ -21,10 +17,8 @@ let warnedDefineOnce = false;
 export function normalizeBundlerOptions(configData: ConfigData): BundlerOptions {
     const raw = (configData.bundler ?? {}) as BundlerOptions & { define?: Record<string, string> };
 
-    // --- Top-level bundler.define alias ------------------------------------------
-    // Rolldown only reads `transform.define`; a top-level `define` key is silently
-    // ignored. Detect it, warn once, and move it into `transform.define` so the
-    // user's flat esbuild→bundler rename of `define` Just Works.
+    // Rolldown reads only `transform.define`, so a top-level `define` is moved there (warning
+    // once) rather than being silently ignored — see the header.
     let fromBundler: BundlerOptions = raw;
     if (
         typeof (raw as Record<string, unknown>)['define'] === 'object' &&
@@ -63,11 +57,9 @@ export function normalizeBundlerOptions(configData: ConfigData): BundlerOptions 
     }
 
     const fromEsbuild = legacyEsbuildToRolldown(configData.esbuild);
-    // Plain user-config merge — we deliberately do NOT call
-    // `mergeBundlerOptions` here, because that function strips `input` and
-    // `external` from its overrides arg (it assumes the *orchestrator* is
-    // the override source and the user the base). Here both inputs are
-    // user-provided config and `input` must survive the merge.
+    // Deliberately NOT `mergeBundlerOptions`: that strips `input`/`external` from its overrides
+    // arg because it assumes the ORCHESTRATOR is the override source. Here both sides are user
+    // config, and `input` must survive the merge.
     const out: BundlerOptions = { ...fromEsbuild, ...fromBundler };
     if (fromEsbuild.output || fromBundler.output) {
         out.output = { ...fromEsbuild.output, ...fromBundler.output };
@@ -119,34 +111,24 @@ function legacyEsbuildToRolldown(esb: LegacyEsbuildOptions): BundlerOptions {
     if (Object.keys(transform).length > 0) out.transform = transform;
     if (Object.keys(resolve).length > 0) out.resolve = resolve;
 
-    // Discarded (handled elsewhere):
-    //   esb.inject  — esbuild's array-of-side-effect-files; surfaced at the
-    //                 CLI layer instead, via input expansion.
-    //   esb.loader  — replaced by top-level `gjsify.loaders` (see ConfigData);
-    //                 migration: `esbuild.loader: { '.png': 'dataurl', '.glsl': 'text' }`
-    //                 → `loaders: { '.png': 'dataurl', '.glsl': 'text' }`.
+    // Discarded, handled elsewhere: `esb.inject` (surfaced at the CLI layer via input
+    // expansion) and `esb.loader` (replaced by top-level `gjsify.loaders`, see ConfigData).
     return out;
 }
 
 /**
- * Shallow merge with deep-merge of `output`, `transform`, and `resolve`. The
- * second argument wins on conflicts, matching `merge(target, ...sources)`
- * semantics from `@gjsify/rolldown-plugin-gjsify/utils/merge`.
+ * Shallow merge with deep-merge of `output`, `transform` and `resolve`; `overrides` wins,
+ * matching `merge(target, ...sources)` from `@gjsify/rolldown-plugin-gjsify/utils/merge`. `base`
+ * is the orchestrator's Rolldown-generic shape, `overrides` the user's config plus CLI flags.
  *
- * `base` is typically the Rolldown-generic shape returned by the orchestrator;
- * `overrides` is the user's `BundlerOptions` from `.gjsifyrc.js` plus CLI
- * flag merges. Single-output assumption matches `BundlerOptions['output']`.
- *
- * The orchestrator-side `input` is authoritative — it's the post-glob-expansion
- * value. Overriding it with the user's raw glob string would re-introduce
- * unresolved glob patterns into the final Rolldown call. Same for `external`,
- * which the orchestrator concatenates with platform defaults already.
+ * The orchestrator's `input` is authoritative because it is the post-glob-expansion value —
+ * taking the user's raw glob string would re-introduce unresolved patterns into the Rolldown
+ * call. Same for `external`, which the orchestrator has already concatenated with the platform
+ * defaults.
  */
 export function mergeBundlerOptions(base: BundlerOptions, overrides: BundlerOptions): BundlerOptions {
-    // Strip fields the orchestrator owns authoritatively — the user has
-    // already had their say via the orchestrator's `userExternal` / input
-    // expansion; merging the raw values back on top would clobber the
-    // post-processing.
+    // Strip the fields the orchestrator owns: the user already had their say through
+    // `userExternal` / input expansion, and merging the raw values back would clobber it.
     const { input: _ignoredInput, external: _ignoredExternal, ...overridesRest } = overrides;
     const out: BundlerOptions = { ...base, ...overridesRest };
     if (base.output || overrides.output) {

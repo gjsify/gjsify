@@ -2,7 +2,6 @@
 import { describe, it, expect } from '@gjsify/unit';
 
 export default async () => {
-    // --- global / globalThis ---
     await describe('global', async () => {
         await it('should be the same as globalThis', async () => {
             expect((globalThis as any).global).toBe(globalThis);
@@ -13,7 +12,6 @@ export default async () => {
         });
     });
 
-    // --- process ---
     await describe('process', async () => {
         await it('should be defined on globalThis', async () => {
             expect(typeof (globalThis as any).process).toBe('object');
@@ -40,7 +38,6 @@ export default async () => {
         });
     });
 
-    // --- Buffer ---
     await describe('Buffer', async () => {
         await it('should be defined on globalThis', async () => {
             expect(typeof (globalThis as any).Buffer).toBe('function');
@@ -60,7 +57,6 @@ export default async () => {
         });
     });
 
-    // --- setImmediate / clearImmediate ---
     await describe('setImmediate', async () => {
         await it('should be a function', async () => {
             expect(typeof setImmediate).toBe('function');
@@ -97,7 +93,6 @@ export default async () => {
         });
     });
 
-    // --- setTimeout / clearTimeout ---
     await describe('setTimeout (global)', async () => {
         await it('should be a function', async () => {
             expect(typeof setTimeout).toBe('function');
@@ -117,7 +112,6 @@ export default async () => {
         });
     });
 
-    // --- setInterval / clearInterval ---
     await describe('setInterval (global)', async () => {
         await it('should be a function', async () => {
             expect(typeof setInterval).toBe('function');
@@ -130,7 +124,6 @@ export default async () => {
         });
     });
 
-    // --- queueMicrotask ---
     await describe('queueMicrotask', async () => {
         await it('should be a function', async () => {
             expect(typeof queueMicrotask).toBe('function');
@@ -144,7 +137,6 @@ export default async () => {
         });
     });
 
-    // --- structuredClone ---
     // Ported from refs/wpt/html/webappapis/structured-clone/structured-clone-battery-of-tests.js
     // Original: 3-Clause BSD license, web-platform-tests contributors.
     // Ported from refs/node-test/parallel/test-structuredClone-global.js
@@ -154,7 +146,6 @@ export default async () => {
             expect(typeof structuredClone).toBe('function');
         });
 
-        // --- Primitives ---
         await describe('primitives', async () => {
             await it('should clone undefined', async () => {
                 expect(structuredClone(undefined)).toBeUndefined();
@@ -207,7 +198,6 @@ export default async () => {
             });
         });
 
-        // --- Wrapper objects ---
         await describe('wrapper objects', async () => {
             await it('should clone Boolean objects', async () => {
                 const original = new Boolean(true);
@@ -255,7 +245,6 @@ export default async () => {
             });
         });
 
-        // --- Date ---
         await describe('Date', async () => {
             await it('should clone Date objects', async () => {
                 const original = new Date(1609459200000);
@@ -276,7 +265,6 @@ export default async () => {
             });
         });
 
-        // --- RegExp ---
         await describe('RegExp', async () => {
             await it('should clone RegExp preserving flags', async () => {
                 const original = /foo/gim;
@@ -314,7 +302,6 @@ export default async () => {
             });
         });
 
-        // --- Error types ---
         await describe('Error', async () => {
             await it('should clone empty Error', async () => {
                 const cloned = structuredClone(new Error());
@@ -356,7 +343,6 @@ export default async () => {
             });
         });
 
-        // --- ArrayBuffer ---
         await describe('ArrayBuffer', async () => {
             await it('should clone ArrayBuffer', async () => {
                 const original = new ArrayBuffer(16);
@@ -381,7 +367,6 @@ export default async () => {
             });
         });
 
-        // --- TypedArrays ---
         await describe('TypedArrays', async () => {
             await it('should clone Uint8Array', async () => {
                 const original = new Uint8Array([1, 2, 3, 4]);
@@ -428,7 +413,6 @@ export default async () => {
             });
         });
 
-        // --- DataView ---
         await describe('DataView', async () => {
             await it('should clone DataView', async () => {
                 const buf = new ArrayBuffer(8);
@@ -443,7 +427,6 @@ export default async () => {
             });
         });
 
-        // --- Map ---
         await describe('Map', async () => {
             await it('should clone Map with entries', async () => {
                 const original = new Map([
@@ -467,7 +450,6 @@ export default async () => {
             });
         });
 
-        // --- Set ---
         await describe('Set', async () => {
             await it('should clone Set with values', async () => {
                 const original = new Set([1, 'two', 3]);
@@ -490,7 +472,6 @@ export default async () => {
             });
         });
 
-        // --- Blob and File ---
         await describe('Blob and File', async () => {
             await it('should clone Blob preserving type and size', async () => {
                 if (typeof Blob === 'undefined') return; // skip if Blob not available
@@ -514,7 +495,6 @@ export default async () => {
             });
         });
 
-        // --- Circular and shared references ---
         await describe('circular and shared references', async () => {
             await it('should handle self-referencing object', async () => {
                 const original: any = { name: 'self' };
@@ -553,7 +533,6 @@ export default async () => {
             });
         });
 
-        // --- Prototype and property behavior ---
         await describe('prototype and property behavior', async () => {
             await it('should not clone prototype properties', async () => {
                 class Foo {
@@ -593,7 +572,6 @@ export default async () => {
             });
         });
 
-        // --- Non-cloneable types (DataCloneError) ---
         await describe('non-cloneable types', async () => {
             await it('should throw for functions', async () => {
                 let threw = false;
@@ -651,7 +629,6 @@ export default async () => {
             });
         });
 
-        // --- Complex nested structures ---
         await describe('nested structures', async () => {
             await it('should clone Maps containing Sets', async () => {
                 const original = new Map([['items', new Set([1, 2, 3])]]);
@@ -685,7 +662,6 @@ export default async () => {
         });
     });
 
-    // --- TextEncoder / TextDecoder ---
     await describe('TextEncoder', async () => {
         await it('should be a function', async () => {
             expect(typeof TextEncoder).toBe('function');
@@ -711,7 +687,6 @@ export default async () => {
         });
     });
 
-    // --- atob / btoa ---
     await describe('atob / btoa', async () => {
         await it('btoa should be a function', async () => {
             expect(typeof btoa).toBe('function');
@@ -728,7 +703,6 @@ export default async () => {
         });
     });
 
-    // --- URL / URLSearchParams ---
     await describe('URL (global)', async () => {
         await it('should be a function', async () => {
             expect(typeof URL).toBe('function');
@@ -747,7 +721,6 @@ export default async () => {
         });
     });
 
-    // --- Error.captureStackTrace ---
     await describe('Error.captureStackTrace', async () => {
         await it('should be a function', async () => {
             expect(typeof (Error as any).captureStackTrace).toBe('function');
@@ -760,7 +733,6 @@ export default async () => {
         });
     });
 
-    // --- console ---
     await describe('console (global)', async () => {
         await it('should be an object', async () => {
             expect(typeof console).toBe('object');

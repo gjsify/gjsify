@@ -3,33 +3,29 @@
 //
 // THE INCIDENT
 //
-// `$adw-components` in `packages/web/adwaita-web/scss/_reset.scss` is the list
-// of custom-element tags the ADR-0010 boundary reset applies to: the rule that
-// re-roots Adwaita typography and the box model at each widget boundary, so a
-// host page's inherited `font-family` / `color` / `letter-spacing` and its
-// `* { box-sizing }` reset stop there. A tag missing from the list gets no
-// floor — it renders in the host's font, in the host's colour, and nothing
-// fails. The list is hand-written; the truth is 58 `customElements.define`
-// calls spread over 45 files, several of which define two or three tags.
+// `$adw-components` in `packages/web/adwaita-web/scss/_reset.scss` is the list of
+// custom-element tags the ADR-0010 boundary reset applies to: it re-roots Adwaita
+// typography and the box model at each widget boundary, so a host page's inherited
+// `font-family`/`color`/`letter-spacing` and its `* { box-sizing }` reset stop
+// there. A tag missing from the list gets no floor — it renders in the host's font
+// and colour, and nothing fails. The list is hand-written, while the truth is
+// dozens of `customElements.define` calls scattered over as many files, several
+// defining two or three tags each.
 //
-// It had already drifted. `adw-source-view` (src/source-view/adw-source-view.ts)
-// was defined for its whole life and never listed. The regression test ADR 0010
-// points at as the guard — `src/style-isolation.spec.ts` — only ever
-// instantiates `adw-switch-row`, so it proves the reset works for exactly one
-// element and says nothing about the other 57. A per-element spec would be 58
-// specs to forget to write; this compares the two lists instead.
+// It had already drifted: `adw-source-view` was defined for its whole life and
+// never listed. The regression test ADR 0010 points at as the guard,
+// `src/style-isolation.spec.ts`, instantiates only `adw-switch-row` — so it proves
+// the reset for exactly one element. A per-element spec would be one more spec per
+// element to forget; this compares the two lists instead.
 //
 // WHAT IT CHECKS, both directions
 //
 //   1. a `customElements.define('adw-…')` with no `$adw-components` entry  → FAIL
 //      (the incident: the element silently loses the isolation floor)
 //   2. an entry with no `define` behind it                                 → FAIL
-//      (a stale entry, i.e. a renamed or deleted element whose selector now
-//      matches nothing — harmless to render, but it is the list lying about
-//      what exists, which is how (1) goes unnoticed)
-//
-// Plain Node over the repo's own files — no install, no build, no SCSS compile —
-// so it runs in `audit-runtimes.yml` next to the other repo-scoped guards.
+//      (a renamed or deleted element whose selector now matches nothing —
+//      harmless to render, but it is the list lying about what exists, which is
+//      how (1) goes unnoticed)
 //
 // Usage: node scripts/check-adwaita-reset-components.mjs [--root <dir>]
 
@@ -50,7 +46,7 @@ function fail(lines) {
     process.exit(1);
 }
 
-/** Every `.ts` under `src/`, recursively — elements live in `elements/` AND `source-view/`. */
+/** Every `.ts` under `src/` — elements live outside `elements/` too (`source-view/`). */
 function sourceFiles(dir) {
     const found = [];
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -61,8 +57,8 @@ function sourceFiles(dir) {
     return found;
 }
 
-// `customElements.define('adw-foo', …)`. Both quote styles; the formatter uses
-// single, but a matcher that only sees one is a matcher that misses a rename.
+// Both quote styles: the formatter uses single, but a matcher that only sees one
+// is a matcher that misses a rename.
 const DEFINE_PATTERN = /customElements\s*\.\s*define\(\s*['"](adw-[a-z0-9-]+)['"]/g;
 
 /** tag → the file that defines it, so a failure can name the file to open. */

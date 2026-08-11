@@ -1,23 +1,13 @@
 /**
- * The unchecked-field ledger.
+ * The unchecked-field ledger — the honest escape from `field-coverage`, which derives
+ * the `gjsify.*` declaration kinds this tree uses and fails on any key no rule claims.
+ * A declaration nobody verifies is a promise that can be false while every build exits
+ * 0, and a guard with no escape gets routed around instead.
  *
- * `field-coverage` derives the set of `gjsify.*` declaration kinds this tree
- * actually uses and fails on any key no rule claims. That guard is the reason
- * this whole package exists — a declaration nobody verifies is a promise that
- * can be false while every build exits 0, which is how every incident behind
- * these checks started.
- *
- * A guard with no honest escape gets routed around, so this is the escape:
- * "declared, deliberately not checked yet, and here is why". It is modelled on
- * `gjsify.platformsUncommitted` and is awkward to abuse in the same three ways —
- * the reason is mandatory, every entry is PRINTED on every run, and an entry
+ * Modelled on `gjsify.platformsUncommitted` and awkward to abuse in the same three
+ * ways: the reason is mandatory, every entry is PRINTED on every run, and an entry
  * becomes a FAILURE the moment a rule claims the key or the field stops being
- * declared. It cannot ossify past its cause.
- *
- * Everything below is a FINDING, not a decision: these are declaration kinds
- * that were already unchecked before the consolidation and were deliberately
- * NOT fixed while restructuring, so that this change stays a refactor with
- * identical outcomes. Each entry is a candidate for its own follow-up.
+ * declared. Each entry is a candidate for its own follow-up, never a decision.
  */
 
 export const UNCHECKED_FIELDS = {

@@ -3,48 +3,18 @@
 // Reference: https://developer.mozilla.org/en-US/docs/Web/API/CanvasRenderingContext2D
 // Reference: refs/node-canvas — Cairo-backed Canvas 2D for Node.js.
 //
-// Composition layout (see each module's header for details):
-//   - canvas-rendering-context-2d.ts (this file): class shell + fields +
-//                                                 constructor + the
-//                                                 _apply* / _ensureSurface
-//                                                 / _hasShadow /
-//                                                 _deviceToUserDistance
-//                                                 helpers + ALL accessors
-//                                                 (state-style) + save /
-//                                                 restore + _toDataURL +
-//                                                 _dispose.
-//   - context/transforms.ts        — translate / rotate / scale / transform
-//                                     / setTransform / getTransform /
-//                                     resetTransform.
-//   - context/path-ops.ts          — beginPath / moveTo / lineTo / closePath
-//                                     / bezier+quadraticCurveTo / arc / arcTo
-//                                     / ellipse / rect / roundRect.
-//   - context/drawing.ts           — fill / stroke / fillRect / strokeRect /
-//                                     clearRect / clip / isPointInPath /
-//                                     isPointInStroke / drawImage.
-//   - context/pixels.ts            — createImageData / getImageData /
-//                                     putImageData (ImageData pixel ops).
-//   - context/text-rendering.ts    — fillText / strokeText / measureText
-//                                     (PangoCairo-backed text).
-//   - context/factories.ts         — createLinearGradient /
-//                                     createRadialGradient / createPattern.
+// This file holds the class shell, fields, accessors and internal helpers; the drawing operations
+// are installed onto the prototype from ./context/, one module per method group.
 
 import Cairo from 'cairo';
-// `gi://`, not the legacy `imports.gi` global — the portable spelling that also
-// resolves on the `--app node` reverse bridge (AGENTS.md § The legacy imports.*
-// object is NOT an API).
+// `gi://`, not the legacy `imports.gi` global: the portable spelling also resolves on the
+// `--app node` reverse bridge (AGENTS.md § The legacy imports.* object is NOT an API).
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
-// HTMLCanvasElement type is provided by the DOM lib.
-// Our @gjsify/dom-elements HTMLCanvasElement satisfies this interface.
 
-// Eagerly import the method-group modules for their `declare module`
-// augmentations. tsc preserves bare side-effect imports in the emitted
-// .d.ts (the named `installAllContextMethods` import at the bottom is
-// stripped because it has only value-level usage). Without this line,
-// downstream consumers of @gjsify/canvas2d-core's .d.ts wouldn't see the
-// transforms / path / drawing / pixels / text / factory methods on the
-// `CanvasRenderingContext2D` interface.
+// Bare side-effect import so the method groups' `declare module` augmentations survive into the
+// emitted .d.ts — tsc keeps bare imports but strips the value-only one at the bottom, and without
+// this line consumers see none of the drawing methods on the interface.
 import './context/index.js';
 
 import { asCairoPattern } from './cairo-types.js';
@@ -67,17 +37,12 @@ export interface CanvasRenderingContext2DInit {
     willReadFrequently?: boolean;
 }
 
-/**
- * CanvasRenderingContext2D backed by Cairo.ImageSurface.
- * Implements the Canvas 2D API for GJS.
- */
+/** The Canvas 2D API backed by a `Cairo.ImageSurface`. */
 export class CanvasRenderingContext2D {
     readonly canvas: CanvasLike;
 
-    // Fields are intentionally public (no `private` modifier) so that the
-    // method-group modules in `./context/*` can reach them via `this._ctx` /
-    // `this._state`. The leading-underscore convention marks them as
-    // implementation-internal; consumers should not rely on these.
+    // Public without a `private` modifier so the method-group modules in ./context/ can reach them;
+    // the leading underscore marks them implementation-internal.
     _surface: Cairo.ImageSurface;
     _ctx: Cairo.Context;
     _state: CanvasState;
@@ -94,9 +59,7 @@ export class CanvasRenderingContext2D {
         this._state = createDefaultState();
     }
 
-    // ---- Internal helpers (called from split modules) ----
-
-    /** Ensure the surface matches the current canvas dimensions. Recreate if resized. */
+    /** Recreate the surface when the canvas dimensions changed. */
     _ensureSurface(): void {
         const w = this.canvas.width || 300;
         const h = this.canvas.height || 150;
@@ -107,23 +70,20 @@ export class CanvasRenderingContext2D {
             this._surfaceHeight = h;
             this._surface = new Cairo.ImageSurface(Cairo.Format.ARGB32, w, h);
             this._ctx = new Cairo.Context(this._surface);
-            // Preserve the current drawing state (fillStyle, strokeStyle, font, etc.) across
-            // surface recreations triggered by widget resize. Only reset the save/restore stack
-            // because the old Cairo context is gone and saved state is invalid.
-            // NOTE: If app code wants a true canvas reset (spec: canvas.width = X resets context),
-            // it should call _resetState() explicitly. We do not reset here because _ensureSurface()
-            // is called internally from drawing operations, not from app-level canvas.width assignments.
+            // The drawing state survives a widget resize; only the save/restore stack is dropped,
+            // since its entries belong to the destroyed Cairo context. The spec's "canvas.width = X
+            // resets the context" is deliberately NOT done here — this runs from drawing operations,
+            // not from an app-level width assignment, so a true reset is `_resetState()`.
             this._stateStack = [];
         }
     }
 
-    /** Reset drawing state to defaults (called when canvas dimensions are explicitly reset). */
+    /** Called when canvas dimensions are explicitly reset. */
     _resetState(): void {
         this._state = createDefaultState();
         this._stateStack = [];
     }
 
-    /** Apply the current fill style (color, gradient, or pattern) to the Cairo context. */
     _applyFillStyle(): void {
         const style = this._state.fillStyle;
         if (typeof style === 'string') {
@@ -138,7 +98,6 @@ export class CanvasRenderingContext2D {
         }
     }
 
-    /** Apply the current stroke style to the Cairo context. */
     _applyStrokeStyle(): void {
         const style = this._state.strokeStyle;
         if (typeof style === 'string') {
@@ -154,10 +113,9 @@ export class CanvasRenderingContext2D {
     }
 
     /**
-     * Apply the current imageSmoothingEnabled + imageSmoothingQuality state
-     * to the currently installed Cairo source pattern. Per Canvas 2D spec,
-     * the filter is read from the context at *draw* time, not at pattern
-     * creation — so we re-apply it on every fill/stroke.
+     * Push imageSmoothing{Enabled,Quality} onto the installed Cairo source pattern. Re-applied on
+     * every fill/stroke because the spec reads the filter from the context at draw time, not at
+     * pattern creation.
      */
     _applyPatternFilter(): void {
         const pat = asCairoPattern(this._ctx.getSource?.());
@@ -173,7 +131,6 @@ export class CanvasRenderingContext2D {
         pat.setFilter(filter);
     }
 
-    /** Apply line properties to the Cairo context. */
     _applyLineStyle(): void {
         this._ctx.setLineWidth(this._state.lineWidth);
         this._ctx.setLineCap(LINE_CAP_MAP[this._state.lineCap] as Cairo.LineCap);
@@ -182,7 +139,6 @@ export class CanvasRenderingContext2D {
         this._ctx.setDash(this._state.lineDash, this._state.lineDashOffset);
     }
 
-    /** Apply compositing operator. */
     _applyCompositing(): void {
         const op = COMPOSITE_OP_MAP[this._state.globalCompositeOperation];
         if (op !== undefined) {
@@ -190,12 +146,10 @@ export class CanvasRenderingContext2D {
         }
     }
 
-    /** Get the Cairo ImageSurface (used by other contexts like drawImage). */
     _getSurface(): Cairo.ImageSurface {
         return this._surface;
     }
 
-    /** Check if shadow rendering is needed. */
     _hasShadow(): boolean {
         if (this._state.shadowBlur === 0 && this._state.shadowOffsetX === 0 && this._state.shadowOffsetY === 0) {
             return false;
@@ -205,13 +159,10 @@ export class CanvasRenderingContext2D {
     }
 
     /**
-     * Convert a distance from device pixels to Cairo user space by inverting
-     * the linear part of the current CTM (translation doesn't affect distances).
-     *
-     * Canvas 2D spec: shadowOffsetX/Y are in CSS pixels and are NOT scaled by
-     * the current transform. This helper converts them to user-space offsets so
-     * that `ctx.moveTo(x + sdx, y + sdy)` produces the correct pixel offset
-     * regardless of any ctx.scale() or ctx.rotate() in effect.
+     * Convert a device-pixel distance to Cairo user space by inverting the linear part of the CTM
+     * (translation does not affect distances). Needed because the spec says shadowOffsetX/Y are CSS
+     * pixels and are NOT scaled by the current transform, so they must be converted before use in
+     * user space under an active scale() or rotate().
      */
     _deviceToUserDistance(dx: number, dy: number): [number, number] {
         const origin = this._ctx.userToDevice(0, 0);
@@ -227,25 +178,13 @@ export class CanvasRenderingContext2D {
     }
 
     /**
-     * Shadow rendering is intentionally a no-op.
-     *
-     * Proper Canvas 2D shadows require a Gaussian blur pass on an isolated
-     * temporary surface, which cannot be emulated reliably without a full
-     * Path2D replay or pixel-level manipulation. The previous implementation
-     * attempted to use a temp surface but never replayed the path onto it
-     * (because `drawOp` closes over the main context), leaving the shadow
-     * surface empty while still leaking memory.
-     *
-     * Excalibur and most 2D game engines bake glow/outline effects into
-     * sprites rather than relying on canvas shadows, so this no-op does not
-     * affect the showcase. A correct implementation is tracked as a
-     * separate Canvas 2D Phase-5 enhancement.
+     * A no-op on purpose. Canvas 2D shadows need a Gaussian blur pass on an isolated surface, and
+     * `drawOp` closes over the main context — so a temp surface cannot receive the path at all
+     * without a full Path2D replay, and drawing to one only leaks memory while staying empty. 2D
+     * game engines generally bake glow and outline effects into sprites instead. Text is the
+     * exception: ./context/text-rendering.ts approximates its shadow with a 5-tap kernel.
      */
-    _renderShadow(_drawOp: () => void): void {
-        // Intentionally empty. See the doc-comment above.
-    }
-
-    // ---- State (save / restore) ----
+    _renderShadow(_drawOp: () => void): void {}
 
     save(): void {
         this._ensureSurface();
@@ -261,8 +200,6 @@ export class CanvasRenderingContext2D {
             this._ctx.restore();
         }
     }
-
-    // ---- Style properties (state accessors) ----
 
     get fillStyle(): string | CanvasGradient | CanvasPattern {
         return this._state.fillStyle;
@@ -361,9 +298,8 @@ export class CanvasRenderingContext2D {
         }
     }
 
-    // Line dash
     setLineDash(segments: number[]): void {
-        // Per spec, ignore if any value is negative or non-finite
+        // Per spec, ignore the call outright if any value is negative or non-finite.
         if (segments.some((v) => v < 0 || !isFinite(v))) return;
         this._state.lineDash = [...segments];
     }
@@ -379,7 +315,7 @@ export class CanvasRenderingContext2D {
         if (isFinite(value)) this._state.lineDashOffset = value;
     }
 
-    // ---- Shadow properties (stored in state, rendering in text-rendering.ts) ----
+    // Shadow and text properties are state-only here; the rendering is in ./context/.
     get shadowColor(): string {
         return this._state.shadowColor;
     }
@@ -405,7 +341,6 @@ export class CanvasRenderingContext2D {
         if (isFinite(value)) this._state.shadowOffsetY = value;
     }
 
-    // ---- Text properties (state-only — rendering lives in text-rendering.ts) ----
     get font(): string {
         return this._state.font;
     }
@@ -431,20 +366,15 @@ export class CanvasRenderingContext2D {
         this._state.direction = value;
     }
 
-    // ---- toDataURL/toBlob support ----
-
-    /**
-     * Write the canvas surface to a PNG file and return as data URL.
-     * Used by HTMLCanvasElement.toDataURL() when a '2d' context is active.
-     */
+    /** Backs `HTMLCanvasElement.toDataURL()` while a '2d' context is active. */
     _toDataURL(type?: string, _quality?: number): string {
         if (type && type !== 'image/png') {
-            // Cairo only supports PNG natively
-            // For other formats, return PNG anyway (per spec, PNG is the required format)
+            // Every requested type yields PNG: Cairo encodes nothing else, and PNG is the one
+            // format the spec requires.
         }
         this._surface.flush();
 
-        // Write to a temp file, read back as base64
+        // Cairo can only encode to a file, so the bytes come back via a temp file.
         const [, tempPath] = GLib.file_open_tmp('canvas-XXXXXX.png');
         try {
             this._surface.writeToPNG(tempPath);
@@ -453,15 +383,11 @@ export class CanvasRenderingContext2D {
             const base64 = GLib.base64_encode(contents);
             return `data:image/png;base64,${base64}`;
         } finally {
-            // `GLib.unlink` returns 0/-1 and is not `throws` in the GIR, so the
-            // try/catch that used to sit here could never fire. Best-effort
-            // cleanup is expressed by ignoring the RETURN value, not by
-            // wrapping a non-throwing call in a swallowing catch.
+            // No try/catch: `GLib.unlink` returns 0/-1 and is not `throws` in the GIR, so
+            // best-effort cleanup means ignoring the RETURN value.
             GLib.unlink(tempPath);
         }
     }
-
-    // ---- Cleanup ----
 
     /** Release native Cairo resources. Call when the canvas is discarded. */
     _dispose(): void {

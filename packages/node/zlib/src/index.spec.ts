@@ -24,7 +24,6 @@ import { pipeline } from 'node:stream';
 import { Buffer } from 'node:buffer';
 
 export default async () => {
-    // --- Function exports ---
     await describe('zlib exports', async () => {
         await it('should export async compression functions', async () => {
             expect(typeof gzip).toBe('function');
@@ -55,7 +54,6 @@ export default async () => {
         });
     });
 
-    // --- Constants ---
     await describe('zlib.constants', async () => {
         await it('should export constants object', async () => {
             expect(typeof constants).toBe('object');
@@ -97,7 +95,6 @@ export default async () => {
         });
     });
 
-    // --- gzip/gunzip round-trip ---
     await describe('zlib: gzip/gunzip round-trip', async () => {
         await it('should compress and decompress simple string', async () => {
             const input = Buffer.from('Hello, World!');
@@ -161,7 +158,6 @@ export default async () => {
         });
     });
 
-    // --- deflate/inflate round-trip ---
     await describe('zlib: deflate/inflate round-trip', async () => {
         await it('should compress and decompress', async () => {
             const input = Buffer.from('Deflate test data');
@@ -189,7 +185,6 @@ export default async () => {
         });
     });
 
-    // --- deflateRaw/inflateRaw round-trip ---
     await describe('zlib: deflateRaw/inflateRaw round-trip', async () => {
         await it('should compress and decompress', async () => {
             const input = Buffer.from('Raw deflate data');
@@ -217,7 +212,6 @@ export default async () => {
         });
     });
 
-    // --- Empty input ---
     await describe('zlib: empty input', async () => {
         await it('should handle empty buffer with gzip', async () => {
             const input = Buffer.alloc(0);
@@ -253,7 +247,6 @@ export default async () => {
         });
     });
 
-    // --- Binary data ---
     await describe('zlib: binary data', async () => {
         await it('should handle binary data with all byte values', async () => {
             const input = Buffer.alloc(256);
@@ -272,7 +265,6 @@ export default async () => {
         });
     });
 
-    // --- Options parameter ---
     await describe('zlib: options parameter', async () => {
         await it('should accept options as second parameter for gzip', async () => {
             const input = Buffer.from('options test');
@@ -297,7 +289,6 @@ export default async () => {
         });
     });
 
-    // --- Cross-format errors ---
     await describe('zlib: cross-format decompression errors', async () => {
         await it('should fail to inflate gzipped data', async () => {
             const input = Buffer.from('gzip data');
@@ -332,7 +323,6 @@ export default async () => {
         });
     });
 
-    // --- Gzip header ---
     await describe('zlib: gzip format', async () => {
         await it('should produce output starting with gzip magic bytes', async () => {
             const input = Buffer.from('magic bytes test');
@@ -345,7 +335,6 @@ export default async () => {
         });
     });
 
-    // --- Double compression ---
     await describe('zlib: double compression', async () => {
         await it('should handle compressing already-compressed data', async () => {
             const input = Buffer.from('double compress');
@@ -366,7 +355,6 @@ export default async () => {
         });
     });
 
-    // --- Sync round-trip tests ---
     await describe('zlib: sync gzipSync/gunzipSync round-trip', async () => {
         await it('should round-trip with gzipSync/gunzipSync', async () => {
             const input = Buffer.from('sync gzip test');
@@ -397,7 +385,6 @@ export default async () => {
         });
     });
 
-    // --- Sync functions should accept string input ---
     await describe('zlib: sync functions with string input', async () => {
         await it('gzipSync should accept string input', async () => {
             const compressed = gzipSync('string input gzip');
@@ -414,7 +401,6 @@ export default async () => {
         });
     });
 
-    // --- Async callback API ---
     await describe('zlib: async callback gzip', async () => {
         await it('gzip should accept callback (async API)', async () => {
             const result = await new Promise<boolean>((resolve, reject) => {
@@ -437,7 +423,6 @@ export default async () => {
         });
     });
 
-    // --- Stream creator function exports ---
     await describe('zlib: stream creator exports', async () => {
         await it('createGzip should be a function', async () => {
             expect(typeof zlib.createGzip === 'function' || typeof zlib.createGzip === 'undefined').toBe(true);
@@ -456,7 +441,6 @@ export default async () => {
         });
     });
 
-    // --- Constants completeness ---
     // Ported from refs/node-test/parallel/test-zlib-const.js
     // Original: MIT license, Node.js contributors
     await describe('zlib.constants completeness', async () => {
@@ -508,7 +492,6 @@ export default async () => {
         });
     });
 
-    // --- Large data tests ---
     // Ported from refs/node-test/parallel/test-zlib-convenience-methods.js
     // Original: MIT license, Node.js contributors
     await describe('zlib: large data compression', async () => {
@@ -571,7 +554,6 @@ export default async () => {
         });
     });
 
-    // --- deflateRaw/inflateRaw extended ---
     // Ported from refs/node-test/parallel/test-zlib-convenience-methods.js
     // Original: MIT license, Node.js contributors
     await describe('zlib: deflateRaw/inflateRaw extended', async () => {
@@ -630,7 +612,6 @@ export default async () => {
         });
     });
 
-    // --- Sync empty buffer round-trip for all formats ---
     // Ported from refs/node-test/parallel/test-zlib-empty-buffer.js
     // Original: MIT license, Node.js contributors
     await describe('zlib: sync empty buffer all formats', async () => {
@@ -656,7 +637,6 @@ export default async () => {
         });
     });
 
-    // --- Cross-format errors extended ---
     // Ported from refs/node-test/parallel/test-zlib-invalid-input.js
     // Original: MIT license, Node.js contributors
     await describe('zlib: cross-format errors extended', async () => {
@@ -742,7 +722,6 @@ export default async () => {
         });
     });
 
-    // --- Gzip header format details ---
     // Ported from refs/node-test/parallel/test-zlib-from-string.js
     // Original: MIT license, Node.js contributors
     await describe('zlib: gzip format details', async () => {
@@ -773,7 +752,6 @@ export default async () => {
         });
     });
 
-    // --- Uint8Array and ArrayBuffer input ---
     // Ported from refs/node-test/parallel/test-zlib-convenience-methods.js
     // Original: MIT license, Node.js contributors
     await describe('zlib: TypedArray and ArrayBuffer input', async () => {
@@ -803,7 +781,6 @@ export default async () => {
         });
     });
 
-    // --- Double compression for all formats ---
     await describe('zlib: double compression all formats', async () => {
         await it('should handle double deflate/inflate', async () => {
             const input = Buffer.from('double deflate test');
@@ -824,7 +801,6 @@ export default async () => {
         });
     });
 
-    // --- Sync with repeated string content ---
     // Ported from refs/node-test/parallel/test-zlib-convenience-methods.js
     // Original: MIT license, Node.js contributors
     await describe('zlib: sync convenience round-trip with repeated data', async () => {
@@ -850,7 +826,6 @@ export default async () => {
         });
     });
 
-    // --- From string: long string with special characters ---
     // Ported from refs/node-test/parallel/test-zlib-from-string.js
     // Original: MIT license, Node.js contributors
     await describe('zlib: string compression from-string pattern', async () => {
@@ -897,7 +872,6 @@ export default async () => {
         });
     });
 
-    // --- Binary data with specific patterns ---
     await describe('zlib: binary data patterns', async () => {
         await it('should handle all-zeros buffer', async () => {
             const input = Buffer.alloc(1024, 0);
@@ -952,7 +926,6 @@ export default async () => {
         });
     });
 
-    // --- Truncated data errors ---
     // Ported from refs/node-test/parallel/test-zlib-truncated.js
     // Original: MIT license, Node.js contributors
     await describe('zlib: truncated compressed data', async () => {
@@ -1016,7 +989,6 @@ export default async () => {
         });
     });
 
-    // --- Concatenated gzip members ---
     // Ported from refs/node-test/parallel/test-zlib-from-concatenated-gzip.js
     // Original: MIT license, Node.js contributors
     await describe('zlib: concatenated gzip members', async () => {
@@ -1083,7 +1055,6 @@ export default async () => {
         });
     });
 
-    // --- Sync functions with empty string ---
     await describe('zlib: sync with empty string', async () => {
         await it('gzipSync should handle empty string', async () => {
             const compressed = gzipSync('');
@@ -1104,7 +1075,6 @@ export default async () => {
         });
     });
 
-    // --- Idempotence: compressing same data multiple times ---
     await describe('zlib: idempotence', async () => {
         await it('gzipSync should produce consistent decompression', async () => {
             const input = Buffer.from('idempotent test gzip');
@@ -1139,7 +1109,6 @@ export default async () => {
         });
     });
 
-    // --- Async callback: deflateRaw/inflateRaw ---
     await describe('zlib: async callback deflateRaw/inflateRaw', async () => {
         await it('deflateRaw should accept callback', async () => {
             const result = await new Promise<boolean>((resolve, reject) => {
@@ -1203,7 +1172,6 @@ export default async () => {
         });
     });
 
-    // --- Transform stream API ---
     await describe('zlib Transform streams', async () => {
         await it('exports createGzip, createGunzip, etc. as functions', async () => {
             expect(typeof createGzip).toBe('function');

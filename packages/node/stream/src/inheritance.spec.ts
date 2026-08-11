@@ -17,9 +17,7 @@ import { inherits } from 'node:util';
 import cjsInterop from './cjs-interop.fixture.cjs';
 
 export default async () => {
-    // -------------------------------------------------------------------------
     // instanceof hierarchy
-    // -------------------------------------------------------------------------
     await describe('stream inheritance: instanceof checks', async () => {
         await it('Readable is instanceof Readable only', async () => {
             const r = new Readable({ read() {} });
@@ -82,9 +80,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // Object.setPrototypeOf-based subclass
-    // -------------------------------------------------------------------------
     await describe('stream inheritance: Object.setPrototypeOf subclassing', async () => {
         await it('subclass via setPrototypeOf is instanceof parent', async () => {
             function CustomWritable(this: any) {}
@@ -123,9 +119,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // util.inherits — single and multi-level
-    // -------------------------------------------------------------------------
     await describe('util.inherits: single-level inheritance', async () => {
         await it('sets B.super_ to A', async () => {
             function A(this: any) {
@@ -292,9 +286,7 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // util.inherits + stream classes — integration
-    // -------------------------------------------------------------------------
     await describe('util.inherits + stream: practical subclassing', async () => {
         await it('function-based Readable subclass via inherits works', async () => {
             function NumberSource(this: any, numbers: number[]) {
@@ -371,10 +363,8 @@ export default async () => {
         });
     });
 
-    // -------------------------------------------------------------------------
     // CJS `require('stream')` / `require('events')` interop — the bundler
     // `__toCommonJS` + `"module.exports"` string-export path (regression guard).
-    // -------------------------------------------------------------------------
     await describe('CJS require() interop: class extends require("stream")/("events")', async () => {
         await it('require("stream") yields the callable Stream constructor', async () => {
             expect(typeof cjsInterop.Stream).toBe('function');

@@ -23,8 +23,6 @@ const { isDestroyed, isDisturbed, isErrored } = Stream as any;
 // Original: MIT license, Node.js contributors
 
 export default async () => {
-    // ==================== Stream base ====================
-
     await describe('Stream', async () => {
         await it('should create an instance', async () => {
             const stream = new Stream();
@@ -38,8 +36,6 @@ export default async () => {
             expect(typeof stream.removeListener).toBe('function');
         });
     });
-
-    // ==================== Readable ====================
 
     await describe('Readable: properties', async () => {
         await it('should create an instance', async () => {
@@ -372,8 +368,6 @@ export default async () => {
         });
     });
 
-    // ==================== Writable ====================
-
     await describe('Writable: properties', async () => {
         await it('should create an instance', async () => {
             const writable = new Writable({
@@ -688,8 +682,6 @@ export default async () => {
         });
     });
 
-    // ==================== Duplex ====================
-
     await describe('Duplex', async () => {
         await it('should create an instance', async () => {
             const duplex = new Duplex({
@@ -761,8 +753,6 @@ export default async () => {
             expect(duplex.writableCorked).toBe(1);
         });
     });
-
-    // ==================== Transform ====================
 
     await describe('Transform', async () => {
         await it('should create an instance', async () => {
@@ -855,8 +845,6 @@ export default async () => {
         });
     });
 
-    // ==================== PassThrough ====================
-
     await describe('PassThrough', async () => {
         await it('should create an instance', async () => {
             const pt = new PassThrough();
@@ -893,8 +881,6 @@ export default async () => {
             expect(chunks.length).toBe(3);
         });
     });
-
-    // ==================== pipe ====================
 
     await describe('Stream.pipe', async () => {
         await it('should emit pipe event on destination', async () => {
@@ -966,8 +952,6 @@ export default async () => {
         });
     });
 
-    // ==================== pipeline ====================
-
     await describe('pipeline', async () => {
         await it('should pipe through a transform', async () => {
             const readable = new Readable({
@@ -1026,8 +1010,6 @@ export default async () => {
             expect(err.message).toBe('read error');
         });
     });
-
-    // ==================== finished ====================
 
     await describe('finished', async () => {
         await it('should callback on writable finish', async () => {
@@ -1098,7 +1080,6 @@ export default async () => {
         });
     });
 
-    // ==================== addAbortSignal ====================
     await describe('addAbortSignal', async () => {
         await it('should destroy stream when signal aborts', async () => {
             const ac = new AbortController();
@@ -1155,8 +1136,6 @@ export default async () => {
             expect(writable.destroyed).toBeTruthy();
         });
     });
-
-    // ==================== Utility functions ====================
 
     await describe('isReadable', async () => {
         await it('should return true for a readable stream', async () => {
@@ -1268,8 +1247,6 @@ export default async () => {
         });
     });
 
-    // ==================== getDefaultHighWaterMark / setDefaultHighWaterMark ====================
-
     await describe('getDefaultHighWaterMark / setDefaultHighWaterMark', async () => {
         await it('should return a positive number for non-object mode by default', async () => {
             const hwm = getDefaultHighWaterMark(false);
@@ -1294,8 +1271,6 @@ export default async () => {
             expect(() => setDefaultHighWaterMark(false, NaN)).toThrow();
         });
     });
-
-    // ==================== Writable (backpressure & state) ====================
 
     await describe('Writable (backpressure)', async () => {
         await it('write should return false when HWM reached', async () => {
@@ -1373,8 +1348,6 @@ export default async () => {
         });
     });
 
-    // ==================== Transform (objectMode) ====================
-
     await describe('Transform (objectMode)', async () => {
         await it('should pass objects through in objectMode', async () => {
             const transform = new Transform({
@@ -1407,8 +1380,6 @@ export default async () => {
         });
     });
 
-    // ==================== Readable (objectMode) ====================
-
     await describe('Readable (objectMode)', async () => {
         await it('should read objects in objectMode', async () => {
             const objects = [{ a: 1 }, { b: 2 }, { c: 3 }];
@@ -1440,8 +1411,6 @@ export default async () => {
             expect(readable.readableObjectMode).toBe(false);
         });
     });
-
-    // ==================== Destroy behavior ====================
 
     await describe('Stream destroy', async () => {
         await it('destroy should be idempotent', async () => {
@@ -1482,8 +1451,6 @@ export default async () => {
             expect(closed).toBe(true);
         });
     });
-
-    // ==================== Stream.pipe error handling ====================
 
     await describe('Stream.pipe (error handling)', async () => {
         await it('pipe should not destroy writable on readable error by default', async () => {
@@ -1526,8 +1493,6 @@ export default async () => {
         });
     });
 
-    // ==================== stream/promises ====================
-
     await describe('stream/promises', async () => {
         await it('pipeline should return a promise', async () => {
             // Import dynamically to test the sub-module
@@ -1566,7 +1531,6 @@ export default async () => {
         });
     });
 
-    // ==================== Readable: readable event ====================
     // Ported from refs/node-test/parallel/test-stream-readable-event.js
     // Original: MIT license, Node.js contributors
 
@@ -1614,8 +1578,6 @@ export default async () => {
         });
     });
 
-    // ==================== Readable: read() method ====================
-
     await describe('Readable: read(size)', async () => {
         await it('should read specific number of bytes', async () => {
             const r = new Readable({ read() {} });
@@ -1641,7 +1603,6 @@ export default async () => {
         });
     });
 
-    // ==================== Readable.from variants ====================
     // Ported from refs/node-test/parallel/test-stream-readable-from.js
     // Original: MIT license, Node.js contributors
 
@@ -1703,7 +1664,6 @@ export default async () => {
         });
     });
 
-    // ==================== Readable: async iterator (extended) ====================
     // Ported from refs/node-test/parallel/test-stream-readable-async-iterators.js
     // Original: MIT license, Node.js contributors
 
@@ -1760,7 +1720,6 @@ export default async () => {
         });
     });
 
-    // ==================== Pipeline (extended) ====================
     // Ported from refs/node-test/parallel/test-stream-pipeline.js
     // Original: MIT license, Node.js contributors
 
@@ -1901,7 +1860,6 @@ export default async () => {
         });
     });
 
-    // ==================== Duplex (extended) ====================
     // Ported from refs/node-test/parallel/test-stream-duplex.js
     // Original: MIT license, Node.js contributors
 
@@ -2000,8 +1958,6 @@ export default async () => {
         });
     });
 
-    // ==================== Transform (extended) ====================
-
     await describe('Transform (extended)', async () => {
         await it('should handle objectMode with falsey values', async () => {
             const transform = new Transform({
@@ -2079,7 +2035,6 @@ export default async () => {
         });
     });
 
-    // ==================== Writable: _final (extended) ====================
     // Ported from refs/node-test/parallel/test-stream-writable-final-async.js
     // Original: MIT license, Node.js contributors
 
@@ -2137,8 +2092,6 @@ export default async () => {
         });
     });
 
-    // ==================== Pipe backpressure ====================
-
     await describe('Pipe backpressure', async () => {
         await it('should respect writable backpressure during pipe', async () => {
             let writeCount = 0;
@@ -2184,7 +2137,6 @@ export default async () => {
         });
     });
 
-    // ==================== Uint8Array handling ====================
     // Ported from refs/node-test/parallel/test-stream-uint8array.js
     // Original: MIT license, Node.js contributors
 
@@ -2232,7 +2184,6 @@ export default async () => {
         });
     });
 
-    // ==================== Destroy event order ====================
     // Ported from refs/node-test/parallel/test-stream-destroy-event-order.js
     // Original: MIT license, Node.js contributors
 
@@ -2294,8 +2245,6 @@ export default async () => {
         });
     });
 
-    // ==================== Readable: readableLength ====================
-
     await describe('Readable: readableLength', async () => {
         await it('should track buffered bytes', async () => {
             const readable = new Readable({ read() {} });
@@ -2319,8 +2268,6 @@ export default async () => {
             expect(readable.readableLength).toBe(2);
         });
     });
-
-    // ==================== Writable: encoding ====================
 
     await describe('Writable: encoding', async () => {
         await it('should pass encoding to _write when decodeStrings=false', async () => {
@@ -2389,8 +2336,6 @@ export default async () => {
         });
     });
 
-    // ==================== finished (extended) ====================
-
     await describe('finished (extended)', async () => {
         await it('should work with already-destroyed stream', async () => {
             const readable = new Readable({ read() {} });
@@ -2449,8 +2394,6 @@ export default async () => {
             expect(err.message).toBe('duplex error');
         });
     });
-
-    // ==================== PassThrough (extended) ====================
 
     await describe('PassThrough (extended)', async () => {
         await it('should preserve encoding', async () => {

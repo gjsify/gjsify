@@ -1,13 +1,10 @@
 // DOM-level conformance tests for <adw-banner>, driven by the SAME vectors the
 // NativeScript renderer asserts against (`@gjsify/adwaita-core/conformance`).
 //
-// The two renderers carried independent banner logic and had drifted apart AND
-// away from libadwaita: `revealed` was opt-in here (right) and initialised TRUE
-// on NativeScript with no `visibility` written at all (wrong), `use-markup` was
-// opt-in in both with a comment here asserting that WAS the C default (it is
-// TRUE, adw-banner.c:422-425), `button-style` was in neither, and the mnemonic
-// marker the template pins onto the button (adw-banner.ui:33) was painted as a
-// literal underscore. Nothing failed, because nothing compared them.
+// The defaults independent banner logic drifted from, all of them in
+// `ADW_BANNER_DEFAULTS`: `revealed` is FALSE, `use-markup` is TRUE (opting it in inverts
+// the C), `button-style` exists, and the mnemonic marker the template pins onto the
+// button is a marker, not a literal underscore to paint.
 import { describe, expect, it } from '@gjsify/unit';
 
 import { ADW_BANNER_DEFAULTS } from '@gjsify/adwaita-core';
@@ -64,7 +61,7 @@ export const AdwBannerTest = async () => {
     });
 
     await describe('adw-banner use-markup — a DELIBERATE departure from the C default', async () => {
-        // The C default is unambiguously TRUE (adw-banner.c:422-425) and core
+        // The C default is unambiguously TRUE and core
         // carries it as the spec value. This renderer does NOT adopt it: Pango
         // markup is not HTML, and defaulting a `title` attribute to `innerHTML`
         // would make an injection sink out of a widget that is not one in GTK.

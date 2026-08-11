@@ -31,107 +31,35 @@ const spritesheet = ex.SpriteSheet.fromImageSource({
 });
 
 export default class Player extends PhysicsActor {
-    /* Constants */
-
-    /**
-     * The amount of gravity to apply to the player when they are jumping.
-     */
     JUMP_GRAVITY = GRAVITY.y * 0.5;
-
-    /**
-     * The amount of gravity to apply to the player when they are near the apex of their jump.
-     */
     APEX_GRAVITY = GRAVITY.y * 0.3;
-
-    /**
-     * The maximum speed the player can fall at.
-     */
     MAX_FALL_SPEED = 270;
-
-    /**
-     * The speed at which the player slides down a wall.
-     */
     WALL_SLIDE_SPEED = 80;
-
-    /**
-     * The speed at which the player can climb ladders.
-     */
     LADDER_CLIMB_SPEED = 75;
-
-    /**
-     * The amount of acceleration to apply to the player when they are walking or running.
-     */
     ACCELERATION = 300;
 
-    /**
-     * The amount of deceleration to apply to the player when they are stopping (i.e not hold any movement keys)
-     */
+    /** Applied when no movement key is held. */
     STOP_DECELERATION = this.ACCELERATION;
-
-    /**
-     * The amount of deceleration to apply to the player when they are turning around on the ground.
-     */
     GROUND_TURN_DECELERATION = this.ACCELERATION * 4;
-
-    /**
-     * The amount of deceleration to apply to the player when they are turning around in the air.
-     */
     AIR_TURN_DECELERATION = this.ACCELERATION * 7;
 
-    /**
-     * The maximum velocity the player can walk at.
-     */
     WALK_MAX_VELOCITY = 90;
-
-    /**
-     * The maximum velocity the player can run at.
-     */
     RUN_MAX_VELOCITY = 150;
-
-    /**
-     * The maximum velocity the player can sprint at (triggers when running for a while)
-     */
     SPRINT_MAX_VELOCITY = 210;
 
-    /**
-     * The amount of time the player must be running before they can sprint.
-     */
+    /** How long the player must run before sprinting starts, in ms. */
     SPRINT_TRIGGER_TIME = 1000;
 
-    /**
-     * The amount of force to apply to the player when they jump while standing still or walking
-     */
     JUMP_FORCE = 300;
-
-    /**
-     * The amount of force to apply to the player when they jump while running
-     */
     RUN_JUMP_FORCE = this.JUMP_FORCE * 1.1;
-
-    /**
-     * The amount of force to apply to the player when they jump while sprinting
-     */
     SPRINT_JUMP_FORCE = this.JUMP_FORCE * 1.2;
 
-    /**
-     * The distance in pixels the player will move away from the wall when wall jumping
-     */
+    /** Pixels pushed away from the wall on a wall jump, and for how many ms. */
     WALL_JUMP_X_DISTANCE = 4;
-
-    /**
-     * The duration of how long the player will move away from the wall when wall jumping
-     */
     WALL_JUMP_DURATION = 70;
 
-    /**
-     * The amount of squish to apply to the player when they jump or land.
-     *
-     * Doing an even number divided by sprite width will ensure the player
-     * squishes to a whole number of pixels.
-     */
+    /** An EVEN numerator keeps the squish a whole number of pixels wide. */
     FX_SQUISH_AMOUNT = 8 / SPRITE_WIDTH;
-
-    /* Components */
 
     animation = new AnimationComponent({
         idle: ex.Animation.fromSpriteSheet(spritesheet, [0, 1, 2, 3], 140),
@@ -160,22 +88,11 @@ export default class Player extends PhysicsActor {
         },
     });
 
-    /* State */
-
-    /**
-     * True while the user is holding the jump button or reached the
-     * apex of their jump before releasing the jump button.
-     */
+    /** Set while the jump button is held, and once the apex is reached even after release. */
     isUsingJumpGravity = false;
 
-    /**
-     * The direction the player is facing.
-     */
     facing: 'left' | 'right' = 'right';
 
-    /**
-     * True if the player is currently on a ladder.
-     */
     isClimbingLadder = false;
 
     isSlidingOnWall = false;
@@ -316,7 +233,6 @@ export default class Player extends PhysicsActor {
     }
 
     onPreUpdate(engine: ex.Engine, elapsed: number): void {
-        // reset some flags when we're on the ground
         if (this.isOnGround) {
             this.isUsingJumpGravity = false;
             this.isWallJumping = false;
@@ -339,16 +255,13 @@ export default class Player extends PhysicsActor {
     update(engine: ex.Engine<any>, elapsed: number): void {
         let useApexGravity = false;
 
-        // if we're jumping use our jump gravity
         if (this.vel.y < 0) {
             this.isUsingJumpGravity = this.controls.isHeld('Jump');
         }
-        // if we're near the apex of our jump, use apex gravity
         if (this.isUsingJumpGravity && this.vel.y > -10 && this.vel.y < 10) {
             useApexGravity = true;
         }
 
-        // apply gravity and reset X acceleration
         if (useApexGravity) {
             this.acc.setTo(0, this.APEX_GRAVITY);
         } else if (this.isUsingJumpGravity) {
@@ -372,7 +285,6 @@ export default class Player extends PhysicsActor {
 
     onPostUpdate(_engine: ex.Engine, _elapsed: number): void {
         const { isBeingKnockedBack } = this.get(DamageableComponent);
-        // speed up the animation the faster we're moving
         this.animation.speed = Math.min(
             // increase anim speed exponentially up to 3x
             1 + Math.pow(Math.abs(this.vel.x) / 200, 2) * 3,
@@ -414,9 +326,7 @@ export default class Player extends PhysicsActor {
         ) {
             const wasInAir = this.oldVel.y > 0;
 
-            // player landed on the ground
             if (side === ex.Side.Bottom && wasInAir) {
-                // stop moving if we landed on a bouncepad
                 if (other.owner instanceof Bouncepad) {
                     this.vel.x = 0;
                 }
@@ -426,9 +336,6 @@ export default class Player extends PhysicsActor {
         }
     }
 
-    /**
-     * Process user input to control the character
-     */
     handleInput(_engine: ex.Engine, _elapsed: number) {
         const jumpPressed = this.controls.wasPressed('Jump');
         const jumpHeld = this.controls.isHeld('Jump');
@@ -439,7 +346,6 @@ export default class Player extends PhysicsActor {
         const isCloseToLeftWall = this.isOnWall('left', 4);
         const isCloseToRightWall = this.isOnWall('right', 4);
 
-        // move left or right
         if (heldXDirection && this.isXMovementAllowed) {
             const direction = heldXDirection === 'Left' ? -1 : 1;
             const accel = this.ACCELERATION * direction;
@@ -448,7 +354,6 @@ export default class Player extends PhysicsActor {
 
             this.acc.x += accel;
 
-            // wall slide
             if (!this.isOnGround && this.vel.y > 0) {
                 const isOnRightWall = this.isOnWall('right');
                 const isOnLeftWall = this.isOnWall('left');
@@ -463,13 +368,11 @@ export default class Player extends PhysicsActor {
             this.isSlidingOnWall = false;
         }
 
-        // climb ladder
         if (heldYDirection) {
             this.climbLadder();
         }
 
         if (jumpPressed) {
-            // jump or fall off ladder
             if (this.isClimbingLadder) {
                 this.isClimbingLadder = false;
 
@@ -477,9 +380,7 @@ export default class Player extends PhysicsActor {
                 if (heldYDirection !== 'Down') {
                     this.jump();
                 }
-            }
-            // normal jump
-            else if (this.isOnGround || this.coyote.allow('jump')) {
+            } else if (this.isOnGround || this.coyote.allow('jump')) {
                 this.jump();
             } else if (isCloseToLeftWall || isCloseToRightWall) {
                 this.wallJump(isCloseToLeftWall ? 'left' : 'right');
@@ -493,9 +394,6 @@ export default class Player extends PhysicsActor {
         }
     }
 
-    /**
-     * Sets the player's animation based on their current state.
-     */
     handleAnimation() {
         const currentFrameIndex = this.animation.current.currentFrameIndex;
         const currentFrameTimeLeft = this.animation.current.currentFrameTimeLeft;
@@ -544,12 +442,10 @@ export default class Player extends PhysicsActor {
                     this.animation.set('idle');
                 }
             }
-            // if we're not moving, play the idle animation
             if (Math.round(this.vel.x) === 0) {
                 this.animation.set('idle');
             }
         } else {
-            // set jump/fall animation if we're in the air
             if (this.vel.y !== 0) {
                 if (this.vel.y < 0) {
                     this.animation.set('jump');
@@ -559,7 +455,6 @@ export default class Player extends PhysicsActor {
             }
         }
 
-        // apply a stretch animation when jumping
         if (this.animation.is('jump') && this.oldVel.y >= 0 && this.vel.y < 0) {
             ex.coroutine(
                 this.scene!.engine,
@@ -571,7 +466,6 @@ export default class Player extends PhysicsActor {
 
                     let elapsed = 0;
 
-                    // stretch player graphic while jumping
                     while (this.vel.y < force * 0.25) {
                         elapsed += yield 1;
 
@@ -582,7 +476,6 @@ export default class Player extends PhysicsActor {
 
                     elapsed = 0;
 
-                    // un-stretch player graphic while jumping
                     while (!this.touching.bottom.size) {
                         elapsed += yield 1;
 
@@ -606,7 +499,6 @@ export default class Player extends PhysicsActor {
             scale: ex.vec(0.5, 0.5),
         });
 
-        // apply a squish animation when landing
         const duration = 70;
         const scaleTo = 1 - this.FX_SQUISH_AMOUNT;
         const easing = ex.EasingFunctions.EaseOutCubic;
@@ -616,7 +508,6 @@ export default class Player extends PhysicsActor {
             function* (this: Player): ReturnType<ex.CoroutineGenerator> {
                 let elapsed = 0;
 
-                // animate squish as long as we're on the ground
                 while (elapsed < duration && this.isOnGround) {
                     elapsed += yield 1;
 
@@ -641,7 +532,7 @@ export default class Player extends PhysicsActor {
         const heldYDirection = this.controls.getHeldYDirection();
 
         if (this.isTouchingLadder) {
-            // it's possible to be touching multiple ladder tiles at once - find the closet one
+            // Multiple ladder tiles can be touched at once; take the closest.
             const ladder = Array.from(this.touching.ladders)
                 .sort((a, b) => {
                     return (
@@ -657,21 +548,17 @@ export default class Player extends PhysicsActor {
 
             const toTile = (n: number) => Math.floor(Math.round(n) / 16);
 
-            // if we're in the same tile as the ladder
             const isOccupyingSameTile = toTile(this.collider.bounds.bottom) === toTile(ladder!.collider.bounds.bottom);
 
-            // climb on to the ladder
             if (heldYDirection === 'Up' && !this.isClimbingLadder && isOccupyingSameTile && isCloseEnoughOnX) {
                 this.isClimbingLadder = true;
             }
 
-            // apply climbing speed
             if (this.isClimbingLadder) {
                 this.pos.x = ladder!.center.x;
                 this.vel.y = this.LADDER_CLIMB_SPEED * dir;
                 this.vel.x = 0;
 
-                // if we're on the ground, exit the ladder
                 if (this.isOnGround && heldYDirection === 'Down') {
                     this.isClimbingLadder = false;
                 }
@@ -682,16 +569,12 @@ export default class Player extends PhysicsActor {
         }
     }
 
-    /**
-     * Applies a jump force to the player.
-     */
     jump(force?: number, playSfx = true) {
-        // this will be correctly set at the beginning of each frame, but we want to update it for the remainder
-        // of this frame incase any logic depends on it (e.g. animations)
+        // Set here as well as at the start of each frame, so logic later in THIS frame (animations)
+        // sees it.
         this.isOnGround = false;
         this.coyote.reset('jump');
 
-        // if we're on a bouncepad, trigger it to release immediately
         if (this.bouncepad) {
             this.bouncepad.release();
             return;
@@ -756,7 +639,6 @@ export default class Player extends PhysicsActor {
         killable.kill('stomp');
         AudioManager.playSfx(Resources.sfx.stomp);
 
-        // use a higher jump force unless we're sprinting
         const force = !this.controls.isSprinting ? this.RUN_JUMP_FORCE : this.SPRINT_JUMP_FORCE;
 
         this.jump(force, false);
@@ -770,49 +652,35 @@ export default class Player extends PhysicsActor {
         return hits.length > 0;
     }
 
-    /**
-     * Applies ground friction to the player's velocity.
-     */
     applyDeceleration() {
         const isOnGround = this.isOnGround;
         const isOverMaxXVelocity = Math.abs(this.vel.x) > this.maxXVelocity;
 
-        // ground deceleration
         if (isOnGround) {
-            // apply turn deceleration if we're turning
             if (this.controls.isTurning) {
                 this.acc.x = -this.GROUND_TURN_DECELERATION * Math.sign(this.vel.x);
-            }
-            // decelerate if we're over the max velocity or stopped walking
-            else if (!this.controls.isMoving || isOverMaxXVelocity) {
+            } else if (!this.controls.isMoving || isOverMaxXVelocity) {
                 if (this.vel.x !== 0) {
                     this.acc.x = -this.STOP_DECELERATION * Math.sign(this.vel.x);
                 }
             }
-        }
-        // air deceleration
-        else {
+        } else {
             if (this.controls.isTurning) {
                 this.acc.x = -this.AIR_TURN_DECELERATION * Math.sign(this.vel.x);
             } else if (isOverMaxXVelocity) {
-                // in air, clamp to max velocity
                 this.vel.x = ex.clamp(this.vel.x, -this.maxXVelocity, this.maxXVelocity);
                 this.acc.x = 0;
             }
         }
 
         const isDecelerating = Math.sign(this.vel.x) !== 0 && Math.sign(this.vel.x) !== Math.sign(this.acc.x);
-        // clamp to 0 if we're close enough
         if (isDecelerating && Math.abs(this.vel.x) < 1) {
             this.vel.x = 0;
             this.acc.x = 0;
         }
     }
 
-    /**
-     * Squishes the player's graphic by a scale factor. If below 1, it will
-     * squash the player, if above 1, it will stretch the player.
-     */
+    /** Below 1 squashes, above 1 stretches; the other axis compensates so area stays roughly equal. */
     squishGraphic(scale: number) {
         const y = scale;
         const x = 2 - y;
@@ -851,11 +719,8 @@ export default class Player extends PhysicsActor {
 }
 
 /**
- * Handles user input for the player, adding some extra helper methods
- * to get the intent of movement via input.
- *
- * For example, `isMoving` returns true if the player is holding left or right, but
- * does not necessarily mean the player is actually moving.
+ * Player input, exposing INTENT rather than state: `isMoving` is true while left or right is held,
+ * whether or not the player actually moves.
  */
 class PlayerControlsComponent extends ControlsComponent {
     declare owner: Player;
@@ -865,7 +730,6 @@ class PlayerControlsComponent extends ControlsComponent {
     onAdd(owner: Player): void {
         super.onAdd?.(owner);
 
-        // increment the sprint timer to toggle sprinting if we're running for SPRINT_TRIGGER_TIME
         owner.on('postupdate', ({ elapsed }) => {
             const isOnGround = this.owner.isOnGround;
             const jumpedBeforeSprinting = !isOnGround && !this.isSprinting;
@@ -873,9 +737,7 @@ class PlayerControlsComponent extends ControlsComponent {
 
             if (this.isRunning && isOnGround && !isTurningOnGround) {
                 this.sprintTimer = Math.min(this.sprintTimer + elapsed, this.owner.SPRINT_TRIGGER_TIME);
-            }
-            // reset the sprint timer if we're not running
-            else if (!this.isRunning || isTurningOnGround || jumpedBeforeSprinting) {
+            } else if (!this.isRunning || isTurningOnGround || jumpedBeforeSprinting) {
                 this.sprintTimer = 0;
             }
         });

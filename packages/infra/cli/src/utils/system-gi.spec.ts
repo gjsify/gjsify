@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: MIT
-// Unit tests for `utils/system-gi.ts` — WHERE the host's GI shared libraries are.
 //
-// Runs on EVERY platform (no GI, no addon, no display): the whole reason
-// `systemGiLibraryDirs()` takes its host facts as parameters is that the darwin
-// branch is verifiable from a Linux host, exactly like `resolvePrebuildDirName()`
-// and `buildNativeEnv()` next door. Nothing here reads `process.platform`,
-// `process.env` or the real filesystem.
+// Runs on EVERY platform (no GI, no addon, no display): `systemGiLibraryDirs()`
+// takes its host facts as parameters so the darwin branch is verifiable from a
+// Linux host. Nothing here reads `process.platform`, `process.env` or the real
+// filesystem.
 //
 // The FUNCTIONAL half — that these directories actually make a bare-leaf `dlopen`
-// succeed under `gjs` — can only be proved on a real Mac, and is not a unit test.
-// It was measured on the macOS 15.7.8 x86_64 test VM: with the directories on the
-// child's `DYLD_FALLBACK_LIBRARY_PATH`, `gjsify run` loads `Gtk` and `Adw`; without
-// them the same command dies in `g_module_open`. Trace in `system-gi.ts`.
+// succeed under `gjs` — is provable only on a real Mac. Measured on the macOS
+// 15.7.8 x86_64 test VM: with them on the child's `DYLD_FALLBACK_LIBRARY_PATH`,
+// `gjsify run` loads `Gtk` and `Adw`; without them it dies in `g_module_open`.
+// Trace in `system-gi.ts`.
 //
 // The last suite is the AGREEMENT check that keeps this module a mirror rather
 // than a fork — see `system-gi.ts`'s "A DELIBERATE MIRROR" header.
@@ -20,12 +18,10 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import { pathCovers, splitSearchPath, systemGiLibraryDirs, type SystemGiOptions } from './system-gi.js';
 
-// The ORIGINAL, reached across the repo by relative path. A spec may do this
-// where the shipped module may not: `src/*.spec.ts` is bundled only into
-// `dist/test.node.mjs`, never into the published `lib/`, so this import creates
-// no `dependencies` edge and ADR 0005 Decision 2 is untouched (the rule that
-// enforces it, `scripts/manifest-conformance/rules/tier.mjs`, reads manifest
-// fields — the isolation it protects is about what a CONSUMER installs).
+// The ORIGINAL, reached across the repo by relative path. A spec may do this where
+// the shipped module may not: `src/*.spec.ts` is bundled only into
+// `dist/test.node.mjs`, never into the published `lib/`, so this import creates no
+// `dependencies` edge and ADR 0005 Decision 2 is untouched.
 import * as nodeGi from '../../../../node-gi/node-gi/system-gi.js';
 
 /** A `pkg-config` stub: no spawn, so the spec never depends on the host having it. */
@@ -41,15 +37,15 @@ export default async () => {
         await it('yields nothing off darwin — a statement about LOADERS', async () => {
             // Linux resolves typelib backers through ld.so's system-wide configured
             // cache (/etc/ld.so.conf.d), which a package install populates; Windows
-            // re-reads its DLL search path at every LoadLibrary. dyld is the only
-            // loader that consults neither a system config nor a post-launch change,
-            // which is why exactly one platform is listed in PROBED_GI_LIBDIRS.
+            // re-reads its DLL search path at every LoadLibrary. dyld consults
+            // neither a system config nor a post-launch change — why exactly one
+            // platform is listed in PROBED_GI_LIBDIRS.
             for (const platform of ['linux', 'freebsd', 'android']) {
                 expect(
                     systemGiLibraryDirs({
                         platform,
-                        // Everything an answer could be derived from is present and
-                        // still yields nothing — the platform gate is first.
+                        // Everything an answer could derive from is present and still
+                        // yields nothing — the platform gate is first.
                         env: { GI_TYPELIB_PATH: '/usr/local/lib/girepository-1.0' },
                         existsDir: () => true,
                         searchDirs: () => ['/usr/local/lib/pkgconfig'],
@@ -61,9 +57,9 @@ export default async () => {
         await it('yields nothing on win32, deliberately rather than by proof', async () => {
             // Windows is ABSENT from the table on purpose: `PATH` is the DLL search
             // path, a Windows GTK distribution puts its own `bin` on it, and
-            // `LoadLibrary` re-reads it per call — so if a system GTK ever turns out
-            // not to be reachable there, the repair is a PATH prepend (which
-            // `buildNativeEnv` already does for prebuilds), not a second variable.
+            // `LoadLibrary` re-reads it per call — so an unreachable system GTK is
+            // repaired by a PATH prepend (as `buildNativeEnv` already does for
+            // prebuilds), not by a second variable.
             expect(
                 systemGiLibraryDirs({
                     platform: 'win32',
@@ -76,8 +72,8 @@ export default async () => {
 
         await it('finds the Homebrew x64 prefix by its girepository-1.0 marker', async () => {
             // The measured host: GI stack under /usr/local, GI_TYPELIB_PATH unset, no
-            // pkg-config. `/usr/local/lib` is the directory that resolves every leaf,
-            // because it is the UNION every Homebrew keg is symlinked into.
+            // pkg-config. `/usr/local/lib` resolves every leaf because it is the UNION
+            // every Homebrew keg is symlinked into.
             expect(
                 systemGiLibraryDirs({
                     platform: 'darwin',
@@ -109,10 +105,8 @@ export default async () => {
         });
 
         await it('does NOT believe a guessed prefix that lacks the marker', async () => {
-            // A bare /usr/local/lib with no GI installed must not be added. The
-            // marker is what separates "a GI stack lives here" from "this path
-            // exists" — and putting a non-GI system libdir on a loader search path
-            // is not free.
+            // The marker separates "a GI stack lives here" from "this path exists",
+            // and putting a non-GI system libdir on a loader search path is not free.
             expect(
                 systemGiLibraryDirs({
                     platform: 'darwin',
@@ -124,10 +118,10 @@ export default async () => {
         });
 
         await it('lets pkg-config find a prefix nobody hardcoded', async () => {
-            // The GENERAL mechanism: pkg-config's own pc_path names
-            // <libdir>/pkgconfig, so a jhbuild or otherwise bespoke prefix is
-            // discovered without being listed anywhere. Note the share/ entry is
-            // dropped — only a `pkgconfig` basename whose parent holds the marker.
+            // pkg-config's own pc_path names <libdir>/pkgconfig, so a jhbuild or
+            // otherwise bespoke prefix is discovered without being listed anywhere.
+            // The share/ entry is dropped: only a `pkgconfig` basename whose parent
+            // holds the marker counts.
             expect(
                 systemGiLibraryDirs({
                     platform: 'darwin',
@@ -140,8 +134,8 @@ export default async () => {
 
         await it('reads PKG_CONFIG_PATH through the same source', async () => {
             // `pkgConfigSearchDirs` prepends $PKG_CONFIG_PATH to pkg-config's own
-            // pc_path, so a user-pointed prefix is source 2 as well. Injected here
-            // via the real splitting rule rather than a hand-built array.
+            // pc_path, so a user-pointed prefix is source 2 as well. Injected via the
+            // real splitting rule rather than a hand-built array.
             const env = { PKG_CONFIG_PATH: '/opt/custom/lib/pkgconfig' };
             expect(
                 systemGiLibraryDirs({
@@ -154,9 +148,9 @@ export default async () => {
         });
 
         await it('accepts GI_TYPELIB_PATH on directory existence ALONE', async () => {
-            // An explicit host statement is not second-guessed with the marker
-            // probe: a relocated bundle's typelib dir is not named
-            // `girepository-1.0`, and requiring the marker would reject it.
+            // An explicit host statement is not second-guessed with the marker probe:
+            // a relocated bundle's typelib dir is not named `girepository-1.0`, and
+            // requiring the marker would reject it.
             const dirs = systemGiLibraryDirs({
                 platform: 'darwin',
                 env: { GI_TYPELIB_PATH: '/opt/mystack/lib/typelibs' },
@@ -167,8 +161,8 @@ export default async () => {
         });
 
         await it('ranks the three sources most-specific-first', async () => {
-            // Precedence, all three sources live at once: GI_TYPELIB_PATH (in its
-            // own given order) → pkg-config → probed prefixes.
+            // All three sources live at once: GI_TYPELIB_PATH (in its own given
+            // order) → pkg-config → probed prefixes.
             const dirs = systemGiLibraryDirs({
                 platform: 'darwin',
                 env: { GI_TYPELIB_PATH: '/opt/mystack/lib/typelibs:/opt/second/lib/girepository-1.0' },
@@ -186,9 +180,9 @@ export default async () => {
         await it('deduplicates, and never yields the filesystem root', async () => {
             const dirs = systemGiLibraryDirs({
                 platform: 'darwin',
-                // A one-segment typelib path would make dirname() the root — never
-                // useful, and adding "/" to a loader search path is actively hostile.
-                // /usr/local/lib arrives from BOTH source 1 and source 3 here.
+                // A one-segment typelib path makes dirname() the root, and adding "/"
+                // to a loader search path is actively hostile. /usr/local/lib arrives
+                // from BOTH source 1 and source 3 here.
                 env: { GI_TYPELIB_PATH: '/girepository-1.0:/usr/local/lib/girepository-1.0' },
                 existsDir: dirsExist(['/', '/usr/local/lib', '/usr/local/lib/girepository-1.0']),
                 searchDirs: () => ['/usr/local/lib/pkgconfig'],
@@ -215,21 +209,14 @@ export default async () => {
         });
     });
 
-    // -----------------------------------------------------------------------
-    // The agreement
-    // -----------------------------------------------------------------------
-    //
     // `system-gi.ts` is a PINNED PORT of `packages/node-gi/node-gi/system-gi.js`,
-    // because ADR 0005 Decision 2 forbids `@gjsify/cli` (Tier 1) taking a
-    // dependency edge on `@gjsify/node-gi`. A copy with no check is a fork with a
-    // comment claiming otherwise; this is what makes it a mirror. Same shape as
-    // `impliedExampleNodeEntry()` in `@gjsify/manifest-conformance` versus
-    // `resolveNodeEntry()` here: "this is the check, that is the consumer".
+    // because ADR 0005 Decision 2 forbids `@gjsify/cli` (Tier 1) taking a dependency
+    // edge on `@gjsify/node-gi`. A copy with no check is a fork with a comment
+    // claiming otherwise; this suite is what makes it a mirror.
     //
-    // Comparing OUTPUTS over a table, not source text: the port is TypeScript with
-    // typed options and an eager `node:child_process` import, so the files cannot
-    // be identical — what has to hold is that they answer the same question the
-    // same way.
+    // It compares OUTPUTS over a table, not source text: the port is TypeScript with
+    // typed options and an eager `node:child_process` import, so the files cannot be
+    // identical — what must hold is that they answer the same question the same way.
     await describe('agreement with @gjsify/node-gi’s system-gi.js', async () => {
         const cases: { why: string; opts: SystemGiOptions }[] = [
             {

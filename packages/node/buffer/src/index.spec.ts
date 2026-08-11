@@ -421,11 +421,9 @@ export default async () => {
         });
     });
 
-    // =========================================================================
     // New tests below — ported from refs/node/test/parallel/test-buffer-*.js
     // and refs/node-test/parallel/test-buffer-*.js
     // Original: MIT license, Node.js contributors
-    // =========================================================================
 
     await describe('Buffer.from with various string encodings', async () => {
         await it('should create buffer from latin1 string', async () => {

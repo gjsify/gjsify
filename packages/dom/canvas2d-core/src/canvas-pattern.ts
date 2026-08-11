@@ -7,15 +7,12 @@ import { asCairoPattern, type CairoPattern } from './cairo-types.js';
 import { isPixbufImageSource, isCanvasImageSource } from './dom-types.js';
 import { getCanvasPixelBridge } from './pixel-bridge.js';
 
-/**
- * CanvasPattern wrapping a Cairo SurfacePattern.
- */
 export class CanvasPattern {
     private _pattern: CairoPattern;
 
     private constructor(surface: Cairo.ImageSurface, repetition: string | null) {
         const raw = new Cairo.SurfacePattern(surface);
-        // setExtend is missing from the GIR types; asCairoPattern narrows.
+        // `setExtend` is unreachable through the base `Cairo.Pattern` type; narrow to reach it.
         const pat = asCairoPattern(raw);
         if (!pat) {
             throw new TypeError(

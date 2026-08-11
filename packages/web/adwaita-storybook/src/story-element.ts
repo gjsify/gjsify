@@ -1,15 +1,9 @@
-// StoryElement — base class for browser story implementations. The web
-// counterpart of @gjsify/storybook's StoryWidget (which extends Adw.Bin): it
-// builds DOM with @gjsify/adwaita-web components instead of GTK widgets, but
-// exposes the same authoring surface (getMetadata, initialize, updateArgs,
-// teardown, addContent, meta/story/args) so a story is a near-1:1 port of its
-// GTK twin. That is a claim about the story SOURCE, which is readable here; that
-// the two then render identically is not measured anywhere (#1052).
+// The web counterpart of `@gjsify/storybook`'s `StoryWidget` (an `Adw.Bin`): same
+// authoring surface, DOM instead of GTK widgets, so a story is a near-1:1 port of its
+// GTK twin in SOURCE. Whether the two then render identically is not measured (#1052).
 //
-// Thin DOM adapter over @gjsify/storybook-core's StoryViewBase: the
-// renderer-agnostic state (meta/story/args, onArgsChanged/setArg, the
-// initialize/updateArgs/teardown/addContent surface) lives in the base; this
-// class supplies ONLY the @gjsify/adwaita-web DOM chrome via createChrome().
+// Thin DOM adapter over `StoryViewBase`, which owns the renderer-agnostic state; this
+// class supplies ONLY the `@gjsify/adwaita-web` DOM chrome, via `createChrome()`.
 
 import type { StoryArgs, StoryMeta } from '@gjsify/stories';
 import { type StoryChrome, StoryViewBase } from '@gjsify/storybook-core';
@@ -20,17 +14,13 @@ export type StoryArgsListener = (args: StoryArgs) => void;
 /**
  * Base class for browser story elements.
  *
- * Provides default chrome — a clamped boxed group with a title + description
- * above a centered, dashed-framed preview stage — built programmatically. Simple
- * stories compose their preview by calling {@link addContent}; a subclass that
- * needs a bespoke layout passes its own root element to the constructor (then
- * {@link addContent} is a no-op).
+ * Provides default chrome — a clamped boxed group with a title + description above a
+ * centered, dashed-framed preview stage. Simple stories compose their preview by
+ * calling {@link addContent}; a subclass needing a bespoke layout passes its own root
+ * element to the constructor, and {@link addContent} is then a no-op.
  */
 export class StoryElement extends StoryViewBase<HTMLElement> {
     /**
-     * @param meta       The story's metadata (the same renderer-agnostic object
-     *                   its GTK twin uses).
-     * @param story      Variant name (defaults to "Default").
      * @param customRoot Opt out of the default chrome by supplying a root element.
      */
     constructor(meta: StoryMeta, story = 'Default', customRoot?: HTMLElement) {
@@ -38,10 +28,7 @@ export class StoryElement extends StoryViewBase<HTMLElement> {
         this.initBase(meta, story, customRoot);
     }
 
-    /**
-     * The root node inserted into the storybook's preview area. Alias for the
-     * base's {@link root} getter — kept because consumers reference `.element`.
-     */
+    /** Alias for the base's {@link root} getter — kept because consumers use `.element`. */
     get element(): HTMLElement {
         return this.root;
     }
@@ -77,9 +64,8 @@ export class StoryElement extends StoryViewBase<HTMLElement> {
         descEl.className = 'sb-story-group-description';
         header.append(titleEl, descEl);
 
-        // Subtle dashed frame so the preview's bounds stay locatable even when
-        // the widget is transparent or in an empty state (mirrors the native
-        // .story-stage in @gjsify/storybook).
+        // Dashed frame so the preview's bounds stay locatable even when the widget is
+        // transparent or empty (mirrors the native `.story-stage`).
         const stage = document.createElement('div');
         stage.className = 'story-stage';
 

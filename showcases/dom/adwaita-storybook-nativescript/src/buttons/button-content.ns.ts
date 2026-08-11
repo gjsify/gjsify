@@ -1,12 +1,9 @@
-// NativeScript port of the Button Content story. Shares metadata with the GTK
-// button-content.story.ts and browser button-content.web.ts (imported from the
-// GTK showcase's renderer-agnostic *.meta.ts barrel).
+// NativeScript port of the Button Content story, sharing its metadata with the GTK and browser twins
+// through the renderer-agnostic *.meta.ts barrel.
 //
-// The native/browser twins place an AdwButtonContent (icon + label) inside a
-// suggested-action pill button. NS AdwButton extends a text-only Button and
-// cannot host a child content widget, so — like the browser twin, which uses a
-// plain element carrying the `adw-button suggested-action pill` classes — the
-// content is wrapped in a StackLayout styled with those same classes.
+// Those twins put an AdwButtonContent inside a pill button. NS AdwButton extends a text-only Button
+// and cannot host a child widget, so the content goes in a StackLayout carrying the same classes —
+// the same workaround the browser twin uses.
 
 import { StoryView, type StoryArgs, type StoryMeta, type NsStoryModule } from '@gjsify/storybook-nativescript';
 import { AdwButtonContent } from '@gjsify/adwaita-nativescript';
@@ -16,8 +13,8 @@ import { starredSymbolic } from '@gjsify/adwaita-icons/status';
 import { StackLayout } from '@nativescript/core';
 import { buttonContentMeta } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
-// GTK symbolic name → a REAL Adwaita symbolic SVG string (rasterised natively by
-// AdwButtonContent's AdwIcon), matching Adw.ButtonContent — not an emoji glyph.
+// GTK symbolic name → a real Adwaita symbolic SVG, rasterised natively by AdwIcon. NOT an emoji
+// glyph, so this matches Adw.ButtonContent.
 const ICON_SVGS: Record<string, string> = {
     'folder-download-symbolic': folderDownloadSymbolic,
     'list-add-symbolic': listAddSymbolic,

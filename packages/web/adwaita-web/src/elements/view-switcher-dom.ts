@@ -9,11 +9,8 @@
 // NAME turned into a CSS mask class, an indicator span, and a `setTimeout`
 // wrapped in the scheduler seam the core takes for the drag-hover dwell.
 //
-// Shared by all three switcher elements because it was three copies before:
-// `<adw-view-switcher>`, `<adw-inline-view-switcher>` and
-// `<adw-view-switcher-bar>` each built their own icon span and their own page
-// parsing, and the copies had already drifted (a titleless page rendered `''` in
-// one and `page-<index>` in another).
+// Shared by `<adw-view-switcher>`, `<adw-inline-view-switcher>` and
+// `<adw-view-switcher-bar>`, so their icon nodes and page parsing cannot drift apart.
 //
 // Reference: refs/libadwaita/src/adw-view-switcher.c
 // Reference: refs/libadwaita/src/adw-indicator-bin.c
@@ -26,11 +23,9 @@ import type { AdwViewSwitcherPageInit, ViewSwitcherScheduler, ViewSwitcherTimerH
 import { type AdwIcon, createAdwIcon } from './adw-icon.js';
 
 /**
- * The browser's timer behind the core's scheduler seam.
- *
- * One shared instance rather than one per element: it holds no state, and the
- * seam exists so the CORE stays free of a global timer, not so each element
- * invents its own.
+ * The browser's timer behind the core's scheduler seam. One shared instance rather than
+ * one per element: it holds no state, and the seam exists so the CORE stays free of a
+ * global timer, not so each element invents its own.
  */
 export const domViewSwitcherScheduler: ViewSwitcherScheduler = {
     schedule(callback: () => void, ms: number): ViewSwitcherTimerHandle {
@@ -62,19 +57,17 @@ export function applySwitcherIcon(icon: AdwIcon, iconName: string): void {
 /**
  * Read a declared page element into the core's page init.
  *
- * `getAttribute` returns `null` for an absent attribute, which is EXACTLY C's
- * NULL — so the values are passed through unchanged rather than defaulted to
- * `''`. That `?? ''` is what made the button-visibility rule unimplementable in
- * the old code: once an absent title has become the empty string, "the page has
- * no title" is no longer expressible.
+ * `getAttribute` returns `null` for an absent attribute, which is EXACTLY C's NULL, so
+ * values are passed through unchanged rather than defaulted to `''`. Do not add a
+ * `?? ''`: once an absent title has become the empty string, "the page has no title" is
+ * no longer expressible and the button-visibility rule cannot be implemented.
  */
 export function readSwitcherPage(element: Element): AdwViewSwitcherPageInit {
     const badge = Number.parseInt(element.getAttribute('badge-number') ?? '', 10);
     return {
-        // A page with no `name` is the page named '' — the same choice
-        // `<adw-view-stack>` made, and for the same reason: C stores the name
-        // verbatim (adw-view-stack.c:1170) and an invented `page-<index>` is
-        // addressable by a name the author never wrote.
+        // A page with no `name` is the page named '', as in `<adw-view-stack>`: C stores
+        // the name verbatim, and an invented `page-<index>` would be addressable by a
+        // name the author never wrote.
         name: element.getAttribute('name') ?? '',
         title: element.getAttribute('title'),
         iconName: element.getAttribute('icon-name'),
@@ -88,8 +81,8 @@ export function readSwitcherPage(element: Element): AdwViewSwitcherPageInit {
 
 /**
  * Paint `AdwIndicatorBin`'s badge/dot onto a span: the badge text when there is
- * one, a bare dot when only `needs-attention` is set, nothing otherwise
- * (adw-indicator-bin.c:58-68 + the `.needs-attention` style class).
+ * one, a bare dot when only `needs-attention` is set, nothing otherwise — C's
+ * `AdwIndicatorBin` plus the `.needs-attention` style class.
  */
 export function applyIndicator(indicator: HTMLElement, badgeLabel: string, needsAttention: boolean): void {
     indicator.textContent = badgeLabel;
@@ -100,7 +93,7 @@ export function applyIndicator(indicator: HTMLElement, badgeLabel: string, needs
 /**
  * Mirror the derived screen-reader description onto the element, REMOVING the
  * attribute when there is none — `update_description_cb` resets the accessible
- * property rather than setting it to `""` (adw-view-switcher-button.c:104-113).
+ * property rather than setting it to `""`.
  */
 export function applyDescription(element: HTMLElement, description: string): void {
     if (description) element.setAttribute('aria-description', description);

@@ -1,13 +1,6 @@
-// `--app gjs` Rolldown configuration factory.
-//
-// Mirrors the esbuild predecessor's `setupForGjs` exactly in terms of the
-// effective build behaviour: same externals, same alias map, same target
-// (firefox140 for JS, firefox60 for CSS), same console-shim injection,
-// same process-stub banner, same `random-access-file` fs-backed-fallback.
-//
-// Returns a partial `RolldownOptions` template plus the plugin array the
-// caller should compose with their user-supplied options. Library mode is
-// handled separately by `setupLib`.
+// `--app gjs` Rolldown configuration factory: returns a partial
+// `RolldownOptions` template plus the plugin array the caller composes with
+// their user options. Library mode is `setupLib`.
 
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -36,31 +29,23 @@ const _shimDir = dirname(fileURLToPath(import.meta.url));
 /**
  * Resolve one of this package's bundled shims to an absolute path.
  *
- * `createRequire` is a NAMED IMPORT from `node:module`, never a bare
- * `require(...)` — this source is ESM (see AGENTS.md "Our source is ESM —
- * no bare `require`"). It is used here for its RESOLVER, which is
- * `exports`-map aware, and only to answer "where does this subpath live";
- * nothing is loaded through it.
+ * `createRequire` is used only for its `exports`-map-aware RESOLVER; nothing is
+ * loaded through it (this source is ESM — see AGENTS.md "no bare `require`").
  */
 function resolveShim(shimName: string): string {
-    // Preferred: relative to this module's directory. Works under the
-    // normal Node consumer flow where `_shimDir` = `<pkg>/lib/app/`.
+    // Normal Node consumption: `_shimDir` = `<pkg>/lib/app/`.
     const relative = resolve(_shimDir, `../shims/${shimName}.js`);
     if (existsSync(relative)) return relative;
-    // Fallback: when the orchestrator is bundled into a single .mjs
-    // (GJS-CLI self-host loop) `_shimDir` collapses to the bundle's
-    // own directory and the relative lookup misses. The published subpath
-    // export `./shims/<name>` resolves under both Node and GJS without
-    // further walking. Each shim MUST be a `./shims/<name>` subpath export
-    // in package.json for this fallback to resolve.
+    // Fallback for the bundled-orchestrator case (GJS-CLI self-host loop):
+    // `_shimDir` collapses to the bundle's own directory and the relative lookup
+    // misses. Every shim MUST therefore be a `./shims/<name>` subpath export in
+    // package.json.
     try {
         return createRequire(import.meta.url).resolve(`@gjsify/rolldown-plugin-gjsify/shims/${shimName}`);
     } catch (cause) {
-        // Both lookups failed — the shim is genuinely absent. Returning the
-        // unverified `relative` here would hand a non-existent path to the
-        // alias map, and the failure would resurface much later as an
-        // unrelated "could not resolve" naming a path nobody wrote. Name the
-        // actual problem, at the site that knows what it was looking for.
+        // Throw rather than return the unverified `relative`: a non-existent
+        // path in the alias map resurfaces much later as an unrelated "could not
+        // resolve" naming a path nobody wrote.
         throw new Error(
             `@gjsify/rolldown-plugin-gjsify: cannot locate the "${shimName}" shim. ` +
                 `Tried ${relative} and the "./shims/${shimName}" subpath export.`,
@@ -99,22 +84,16 @@ export interface GjsFactoryInput {
 
 export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfig> => {
     const userExternal = input.userExternal ?? [];
-    // Externals policy — enforced in TWO serializable forms so it is
-    // identical under npm rolldown (Node) AND `@gjsify/rolldown-native`
-    // (the GJS-default engine, which JSON.stringify's its options to the
-    // Rust core and silently DROPS function values — the bug class that
-    // already shipped via app/node.ts and library/lib.ts predicates):
-    //
-    //   1. `options.external` = a plain string array of EXACT names
-    //      (`cairo`/`gettext`/`system` + user `bundler.external` entries).
-    //      Arrays serialize fine on both engines.
-    //   2. `externalsPlugin(external)` in the plugin chain for the SHAPE
-    //      rules an exact array can't express (`gi://` prefix match) —
-    //      a resolveId hook returning `{ external: true }` is honoured by
-    //      both engines via `normalizeResolveIdResult`.
-    //
-    // `exactExternal` filters out register subpaths so a user external
-    // entry can never override the force-inline carve-out below.
+    // Externals policy in TWO forms, because `@gjsify/rolldown-native` (the
+    // GJS-default engine) JSON.stringify's its options to the Rust core and
+    // silently DROPS function values:
+    //   1. `options.external` = a plain string array of EXACT names — arrays
+    //      serialize on both engines.
+    //   2. `externalsPlugin(external)` for the SHAPE rules an exact array can't
+    //      express (`gi://` prefix) — a resolveId `{ external: true }` is
+    //      honoured by both engines.
+    // `exactExternal` filters out register subpaths so a user external entry can
+    // never override the force-inline carve-out below.
     const exactExternal = [
         'cairo',
         'gettext',
@@ -127,12 +106,9 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
     const exclude = input.pluginOptions.exclude ?? [];
     const entryPoints = await globToEntryPoints(input.input, exclude);
 
-    // unicorn-magic gates its full API behind the "node" conditional
-    // exports. We deliberately omit `node` from conditionNames (some
-    // packages ship genuinely Node-only code there — see comment
-    // around `conditionNames` below). Route the package to our
-    // bundled shim so the API is reachable under --app gjs without
-    // turning on the node condition globally.
+    // unicorn-magic gates its full API behind the "node" condition, which we
+    // deliberately omit globally (see `conditionNames` below). Route it to our
+    // bundled shim instead of turning the condition on for every package.
     const unicornMagicShim = resolveShim('unicorn-magic');
 
     const aliasMap = {
@@ -144,23 +120,15 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
 
     // The console shim replaces all `console` references with print()/printerr()-
     // based implementations that bypass GLib.log_structured() — no prefix,
-    // ANSI codes work. Disabled via `pluginOptions.consoleShim === false`.
-    //
-    // Path resolution: `resolve(_shimDir, '../shims/...')` works in normal
-    // Node consumption (_shimDir = `<pkg>/lib/app/`). When the CLI is
-    // bundled into a single .mjs (e.g. the GJS-CLI self-host loop),
-    // `import.meta.url` collapses to the bundle's path and the relative
-    // resolution lands at a non-existent location. Walk up via
-    // createRequire's node_modules-aware resolver as a fallback.
+    // ANSI codes work.
     const consoleShimEnabled = input.pluginOptions.consoleShim !== false;
     const consoleShimPath = consoleShimEnabled ? resolveShim('console-gjs') : null;
 
-    // The auto-globals inject stub (when present) is side-effect-imported
-    // via a virtual entry — its register modules write to globalThis, so
-    // the import chain matters but no name binding does. We can't use
-    // Rolldown's `inject` for this because the auto-globals invariant
-    // forbids source-AST rewrites for global identifiers (false positives
-    // from isomorphic guards / bracket access — see AGENTS.md).
+    // The auto-globals inject stub is side-effect-imported via a virtual entry:
+    // its register modules write to globalThis, so the import chain matters but
+    // no name binding does. Rolldown's `inject` is not usable here — the
+    // auto-globals invariant forbids source-AST rewrites for global identifiers
+    // (see AGENTS.md § `--globals` modes).
     const sideEffectImports: string[] = [];
     if (input.pluginOptions.autoGlobalsInject) sideEffectImports.push(input.pluginOptions.autoGlobalsInject);
 
@@ -172,61 +140,47 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
     const options: RolldownOptions = {
         input: finalInput,
         platform: 'neutral',
-        // EXACT names only — the `gi://` prefix + register-subpath shape
-        // rules live in `externalsPlugin` below (see the policy note at
-        // the top of this function). A function predicate here would be
-        // silently dropped by the native engine's JSON options boundary.
+        // EXACT names only — see the externals policy note above.
         external: exactExternal,
-        // 'browser' field is needed so packages like create-hash, create-hmac,
-        // randombytes use their pure-JS browser entry instead of index.js
-        // (which does require('crypto') and causes circular dependencies via
-        // the crypto → @gjsify/crypto alias).
+        // 'browser' first so packages like create-hash/create-hmac/randombytes
+        // take their pure-JS browser entry instead of an index.js that
+        // `require('crypto')`s and cycles back through the @gjsify/crypto alias.
         resolve: {
             mainFields: format === 'esm' ? ['browser', 'module', 'main'] : ['browser', 'main', 'module'],
             // ESM: omit 'require' — packages listing 'require' before 'import'
             // would silently route through their CJS entry.
             //
-            // We deliberately do NOT add `'node'` here. Per Node's exports-map
-            // spec the resolver iterates keys in DECLARATION ORDER and picks
-            // the first one whose name is in `conditionNames` — the order of
-            // conditionNames itself is irrelevant. Packages like
-            // `cross-fetch-ponyfill` declare `"node"` first in their exports
-            // map and ship a Node-only entry that imports `blobFrom`/
-            // `fileFrom` (from native `node:fetch`). With `node` enabled,
-            // the resolver picks that branch over `browser` and the bundle
-            // breaks at link time. Packages that genuinely need their `node`
-            // export under GJS (rare — only one known case so far,
-            // `unicorn-magic`'s `traversePathUp`) are handled with explicit
-            // resolve aliases instead.
+            // `'node'` is deliberately absent. The exports-map resolver iterates
+            // the PACKAGE's keys in declaration order and takes the first one
+            // present in `conditionNames` (our order is irrelevant), so enabling
+            // `node` hands `cross-fetch-ponyfill` its Node-only entry — it
+            // imports `blobFrom`/`fileFrom` and the bundle breaks at link time.
+            // Packages that genuinely need their `node` export under GJS (so far
+            // only `unicorn-magic`'s `traversePathUp`) get an explicit alias.
             conditionNames: format === 'esm' ? ['browser', 'import'] : ['browser', 'require', 'import'],
         },
         transform: {
-            // Compile target: GJS 1.86 / SpiderMonkey 140 ≈ firefox140.
+            // GJS 1.86 / SpiderMonkey 140 ≈ firefox140.
             target: 'firefox140',
             define: {
                 global: 'globalThis',
                 window: 'globalThis',
                 'process.env.READABLE_STREAM': '"disable"',
             },
-            // Console shim: rewrite bare `console` references to a named
-            // import from our shim module. We use Rolldown's `inject`
-            // (Oxc-driven, lives under `transform`) because:
-            //   1. `globalThis.console` is non-configurable on SpiderMonkey
-            //      128 so a register-style global write throws.
-            //   2. We're replacing console unconditionally — there's no
-            //      tree-shake-aware detection concern that motivated the
-            //      auto-globals invariant.
+            // Rewrite bare `console` to a named import from our shim. Rolldown's
+            // `inject` (not a register-style global write) because GJS defines
+            // `globalThis.console` non-writable + non-configurable, so assigning
+            // to it silently no-ops. Safe here where the auto-globals invariant
+            // forbids AST rewrites: console is replaced unconditionally, so there
+            // is no tree-shake-aware detection to defeat.
             ...(consoleShimPath ? { inject: { console: [consoleShimPath, 'console'] } } : {}),
         },
         output: {
             ...input.output,
             format,
             sourcemap: false,
-            // App builds emit a single bundle file. Disable code-splitting
-            // so dynamic imports get inlined and the entire program lands
-            // in one chunk that matches `gjsify build --outfile foo.js`.
-            // (`codeSplitting: false` replaces the deprecated
-            // `inlineDynamicImports: true` in Rolldown ≥ 1.0-rc.18.)
+            // App builds emit a single bundle file: dynamic imports inline and
+            // the whole program lands in one chunk matching `--outfile`.
             codeSplitting: false,
         },
         treeshake: true,
@@ -246,32 +200,26 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         // Virtual-entry plugin runs FIRST so its resolveId/load match the
         // synthetic input ids that `wrapInputWithSideEffects` produces.
         ...(virtualEntries.plugin ? [virtualEntries.plugin] : []),
-        // Strip leading #! from any input module BEFORE bundling — otherwise
-        // a shebang in e.g. the CLI's own entry file ends up embedded
-        // mid-chunk after our process-stub banner, and acorn (auto-globals
-        // detector) rejects the `#` byte. Final-output shebang is composed
-        // by shebangPlugin's renderChunk hook.
+        // Strip leading #! from every input module BEFORE bundling: a shebang in
+        // e.g. the CLI's own entry would end up mid-chunk after the process-stub
+        // banner, and acorn (the auto-globals detector) rejects the `#` byte.
+        // The final-output shebang is composed by shebangPlugin's renderChunk.
         inputShebangStripPlugin(),
-        // random-access-file's 'browser' field maps to a throwing stub; force
-        // the fs-backed Node entry. Implemented via the gjsify alias plugin
-        // as a direct entry-table override.
+        // random-access-file's 'browser' field maps to a throwing stub; the alias
+        // table forces the fs-backed Node entry.
         aliasPlugin({ entries: aliasEntries }),
-        // Transparent N-API `.node`-addon loader — the forward mirror of
-        // `gjsGiNodePlugin`. Its `order:'pre'` resolveId claims a native-addon
-        // acquisition (`bindings`/`node-gyp-build`/a direct `.node`/a napi-rs
-        // platform sibling) and rewrites it to a virtual module returning
-        // `loadAddon('<abs .node>')` from `@gjsify/napi`. Placed AFTER aliasPlugin
-        // (so a user alias that pins an addon's native entry applies first) and
-        // BEFORE externalsPlugin (so the addon acquisition is claimed before the
-        // externals policy sees it). `@gjsify/napi` is BUNDLED, not external.
-        // Inert unless such a specifier is in the graph — every other id passes
-        // through. Always-on for `--app gjs`; never registered for node/browser/ns.
+        // Transparent N-API `.node`-addon loader (the forward mirror of
+        // `gjsGiNodePlugin`): claims a native-addon acquisition
+        // (`bindings`/`node-gyp-build`/a direct `.node`/a napi-rs platform
+        // sibling) and rewrites it to a virtual module returning `loadAddon()`
+        // from `@gjsify/napi`, which is BUNDLED, not external. Order matters:
+        // after aliasPlugin so a user alias pinning an addon's native entry wins,
+        // before externalsPlugin so the acquisition is claimed first. Inert
+        // otherwise; `--app gjs` only.
         napiNodeAddonPlugin(),
-        // Enforce the full `--app gjs` externals policy (gi:// prefix,
-        // exact names, register-subpath force-inline) via resolveId —
-        // the only form BOTH engines honour (the native engine drops
-        // function `external` options at its JSON boundary). Runs after
-        // the alias plugin's `pre`-order resolveId so aliases apply first.
+        // Externals policy as a resolveId hook — the only form BOTH engines
+        // honour. Runs after the alias plugin's `pre` resolveId so aliases apply
+        // first.
         externalsPlugin(external, { name: 'gjsify-gjs-externalize' }),
         blueprintPlugin() as RolldownPluginOption,
         deepkitPlugin({ reflection: input.pluginOptions.reflection }),
@@ -282,29 +230,26 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         cssAsStringPlugin({ targets: { firefox: 60 << 16 } }),
         nodeModulesPathRewritePlugin({ bundleDir, runtimeResolve: format === 'esm' }),
         processStubPlugin({ userBanner: input.userBanner, captureBundleUrl: format === 'esm' }),
-        // resolveShebangLine returns null when disabled (false/undefined) and
-        // the resolved line otherwise — also handles `${env:…}` expansion.
+        // resolveShebangLine returns null when disabled, else the resolved line
+        // with `${env:…}` expanded.
         (() => {
             const line = resolveShebangLine(input.shebang);
             return shebangPlugin({ enabled: line !== null, line: line ?? undefined });
         })(),
-        // LAST claim on an id nothing else wanted (`order: 'post'`): a
-        // `@gjsify/*` substitution that cannot be resolved is a build ERROR, not
-        // a silent external. Without it Rolldown externalises the ORIGINAL
-        // specifier, exits 0, and writes a bundle stock GJS aborts on at load
-        // (`ImportError: Unsupported URI scheme for importing: node`) — the
-        // failure `utils/gjs-bundle-guard.ts` catches at emit time, caught here
-        // at its source instead, with the importer and the cause named.
+        // LAST claim on an id nothing else wanted (`order: 'post'`): an
+        // unresolvable `@gjsify/*` substitution is a build ERROR, not a silent
+        // external. Otherwise Rolldown externalises the ORIGINAL specifier, exits
+        // 0, and writes a bundle stock GJS aborts on at load (`ImportError:
+        // Unsupported URI scheme for importing: node`) — the same failure
+        // `utils/gjs-bundle-guard.ts` catches at emit time, caught here at its
+        // source with the importer and cause named.
         unresolvedWorkspaceImportPlugin({ target: 'gjs', aliases: aliasEntries, isExternal: external }),
     ];
 
     return { options, plugins };
 };
 
-/**
- * Flatten the legacy `Record<string, string>` alias map into the
- * `@rollup/plugin-alias` `entries` array shape, dropping empty values.
- */
+/** Copy the alias map, dropping entries with an empty target. */
 function flattenAliases(map: Record<string, string>): Record<string, string> {
     const out: Record<string, string> = {};
     for (const [from, to] of Object.entries(map)) {
@@ -314,28 +259,19 @@ function flattenAliases(map: Record<string, string>): Record<string, string> {
 }
 
 /**
- * Build the canonical `--app gjs` externals predicate:
+ * The canonical `--app gjs` externals predicate — used both for the in-process
+ * alias layer and as the predicate behind `externalsPlugin`. Pinned by
+ * `packages/infra/cli/src/auto-globals.spec.ts`.
  *
- *   - `@gjsify/<pkg>/register[/<feature>]` (and the bare `<pkg>/register`
- *     form) MUST NEVER be externalized — these are the side-effect entry
- *     points `--globals auto` injects to wire up
- *     `globalThis.{Buffer,fetch,…}`. GJS's native ESM loader has no
- *     node_modules walker AND does not follow `package.json#exports` maps
- *     for bare specifiers, so an externalized
- *     `import '@gjsify/buffer/register/buffer'` throws `Module not found`
- *     at runtime even when the file is on disk via the exports map.
- *     Inlining is the only safe option — the exclusion is by SHAPE
- *     (`isRegisterSubpath`), not an explicit package list, so it scales
- *     to every package added by the tree-shakeable-globals convention.
- *     It short-circuits BEFORE the user-external check so `bundler.external`
- *     can never override it. See AGENTS.md §Tree-shakeable globals.
- *   - `gi://*` URIs are external by prefix (GJS-native imports).
- *   - `cairo`/`gettext`/`system` + user externals match by exact name.
- *
- * Used by `setupForGjs` for the in-process alias layer AND as the
- * predicate behind `externalsPlugin` (resolveId `{ external: true }`,
- * honoured by both bundler engines). Exported for the regression tests
- * in `auto-globals.spec.ts` — canonical contract, change-detector status.
+ *   - `<pkg>/register[/<feature>]` MUST NEVER be externalized: GJS's ESM loader
+ *     has no node_modules walker and does not follow `exports` maps for bare
+ *     specifiers, so an externalized `import '@gjsify/buffer/register/buffer'`
+ *     throws `Module not found` at runtime even with the file on disk. Matched by
+ *     SHAPE (`isRegisterSubpath`) so it scales to every package following the
+ *     tree-shakeable-globals convention, and short-circuited BEFORE the
+ *     user-external check so `bundler.external` cannot override it.
+ *   - `gi://*` external by prefix; `cairo`/`gettext`/`system` + user externals by
+ *     exact name.
  */
 export function createGjsExternalsPredicate(userExternal: string[] = []): (id: string) => boolean {
     const exact = ['cairo', 'gettext', 'system', ...userExternal];
@@ -348,27 +284,17 @@ export function createGjsExternalsPredicate(userExternal: string[] = []): (id: s
 }
 
 /**
- * Recognize the shims this plugin INJECTS into a `--app gjs` bundle
- * (`shims/module-resolve`, `shims/console-gjs`, `shims/unicorn-magic`, …), in
- * both bare-specifier and resolved-disk-path form.
+ * Recognize the shims this plugin INJECTS into a `--app gjs` bundle, in both
+ * bare-specifier and resolved-disk-path form.
  *
- * They must be force-inlined for exactly the reason `/register` subpaths are,
- * and the failure is the same one: GJS has no `require` and its ESM loader has
- * neither a node_modules walker nor `exports`-map support, so an EXTERNALIZED
- * shim aborts the program at load:
- *
- *   Error: Calling `require` for
- *   "@gjsify/rolldown-plugin-gjsify/shims/module-resolve" in an environment
- *   that doesn't expose the `require` function
- *
- * The shim is not optional — the bundler injected it because the bundle needs
- * it — so externalizing it can only ever produce an unloadable artifact. The
- * carve-out short-circuits BEFORE the user-external check so `bundler.external`
- * cannot override it, and it matches by SHAPE rather than an explicit list, so
- * a shim added later is covered without touching this predicate.
- *
- * Scope is deliberately narrow: only OUR shim directory. A consumer package
- * that happens to have a `shims/` folder is unaffected.
+ * Force-inlined for the same reason `/register` subpaths are, with the same
+ * failure: GJS has no `require` and its ESM loader follows neither node_modules
+ * nor `exports` maps, so an externalized shim aborts at load with `Calling
+ * \`require\` for "…/shims/module-resolve" in an environment that doesn't expose
+ * the \`require\` function`. The shim is never optional — the bundler injected it
+ * because the bundle needs it. Short-circuits BEFORE the user-external check, and
+ * matches by SHAPE so a later shim is covered without touching this predicate.
+ * Deliberately scoped to OUR shim directory only.
  */
 export function isGjsifyShim(id: string): boolean {
     // Bare/fully-qualified: `@gjsify/rolldown-plugin-gjsify/shims/<name>`.
@@ -378,45 +304,24 @@ export function isGjsifyShim(id: string): boolean {
 }
 
 /**
- * Recognize the `/register` and `/register/<feature>` subpath shapes that
- * `--globals auto` injects into the bundle as side-effect imports.
+ * Recognize the `/register[/<feature>]` subpath shapes `--globals auto` injects
+ * as side-effect imports, in bare, fully-qualified and resolved-disk-path form.
  *
- * Matches every shape that goes through the alias layer + Rolldown
- * resolution chain to a `@gjsify/<pkg>/register*` target:
- *   - bare:           `<pkg>/register`, `<pkg>/register/<feature>`
- *   - fully qualified `@gjsify/<pkg>/register`, `@gjsify/<pkg>/register/<feature>`
- *   - resolved disk paths under a real `node_modules/<scope>/<pkg>/lib/esm/register*`
- *
- * Used by the `--app gjs` externals predicate to force-inline these even
- * when the user passes them via `bundler.external`. Exported for direct
- * use by the regression test in `auto-globals.spec.ts`; this is the
- * canonical contract — change-detector status. Keep in sync with the
- * `AGENTS.md` §Tree-shakeable globals subpath convention.
+ * Used by the `--app gjs` externals predicate to force-inline these even when the
+ * user lists them in `bundler.external`. Pinned by
+ * `packages/infra/cli/src/auto-globals.spec.ts`; keep in sync with AGENTS.md
+ * § Tree-shakeable globals.
  */
 export function isRegisterSubpath(id: string): boolean {
-    // Source-shape: a bare or fully-qualified specifier ending in
-    // `/register` or `/register/<feature>`. The leading `/` rules out
-    // false positives like `register` (the bare word) or
-    // `@scope/unregister`.
-    //
-    //   ✓ `fetch/register`
-    //   ✓ `@gjsify/buffer/register`
-    //   ✓ `@gjsify/node-globals/register/buffer`
-    //   ✗ `register`        (no `/` prefix)
-    //   ✗ `@scope/unregister`  (the `/` is followed by `un`, not `register`)
-    //   ✗ `foo/register.js?query=1`  (query-suffix → treat as resolved-path,
-    //                                  caught by the second branch only when
-    //                                  the file extension is intact)
+    // Source shape. The required leading `/` rules out the bare word `register`
+    // and `@scope/unregister`.
     if (/\/register(?:\/[^?]*)?$/.test(id)) {
         return true;
     }
-    // Resolved disk-path shape — Rolldown sees these after the alias
-    // plugin + node_modules resolver run. Matches both ESM build output
-    // (`lib/esm/register/<feature>.js`) and any future TS-direct setup
-    // that points the export at `src/register/<feature>.ts`. Strictly
-    // requires the file extension at the end — a Rolldown synthetic-id
-    // suffix like `?query=1` therefore does NOT match (those callers
-    // expect to flow through the normal externals path).
+    // Resolved disk-path shape (post alias plugin + node_modules resolver), for
+    // both `lib/esm/register/<feature>.js` and a TS-direct `src/register/<feature>.ts` export. The
+    // extension is required, so a Rolldown synthetic-id suffix (`?query=1`) falls
+    // through to the normal externals path on purpose.
     if (/[/\\]register(?:[/\\][^/\\]+)?\.(?:[mc]?js|ts)$/.test(id)) {
         return true;
     }

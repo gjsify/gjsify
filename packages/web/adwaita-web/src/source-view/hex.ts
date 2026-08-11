@@ -8,13 +8,10 @@
 export const HEX_ADDRESS_STRIDE = 16;
 
 /**
- * Format a 1-based CodeMirror line number as a 4-digit uppercase hex address,
- * the way the native GtkSourceView hex gutter renders monitor/hexdump rows:
- * each row advances the address by `stride` bytes from `start`.
- *
- * @param lineNo 1-based line number (CodeMirror's `formatNumber` contract).
- * @param start  base address of the first row (e.g. 0x0600 for a 6502 program).
- * @param stride bytes per row (default 16 — one hexdump row).
+ * Format a 1-based CodeMirror line number as a 4-digit uppercase hex address, the way the
+ * native GtkSourceView hex gutter renders monitor/hexdump rows: each row advances the
+ * address by `stride` bytes from `start` (the base address of the first row, e.g. 0x0600
+ * for a 6502 program). `lineNo` is 1-based, per CodeMirror's `formatNumber` contract.
  */
 export function formatHexAddress(lineNo: number, start: number, stride: number = HEX_ADDRESS_STRIDE): string {
     const address = start + (lineNo - 1) * stride;
@@ -22,12 +19,9 @@ export function formatHexAddress(lineNo: number, start: number, stride: number =
 }
 
 /**
- * Format a 1-based CodeMirror line number for the normal (decimal) gutter,
- * offset by `start` so a pane can begin numbering at an arbitrary value —
- * the web twin of the native renderer's `line + startValue`.
- *
- * @param lineNo 1-based line number.
- * @param start  value shown on the first line (default 1 → identity).
+ * Format a 1-based CodeMirror line number for the normal (decimal) gutter, offset so
+ * `start` is the value shown on the first line — the web twin of the native renderer's
+ * `line + startValue`.
  */
 export function formatLineNumber(lineNo: number, start: number = 1): string {
     return String(lineNo - 1 + start);

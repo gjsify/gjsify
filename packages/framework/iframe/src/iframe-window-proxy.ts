@@ -1,4 +1,4 @@
-// IFrameWindowProxy for GJS — lightweight Window proxy for iframe contentWindow
+// The Window proxy behind `HTMLIFrameElement.contentWindow`.
 // Reference: https://developer.mozilla.org/en-US/docs/Web/API/Window/postMessage
 // Reference: refs/happy-dom/packages/happy-dom/src/window/CrossOriginBrowserWindow.ts
 
@@ -8,17 +8,8 @@ import type { MessageBridge } from './message-bridge.js';
 import type { MessagePort } from '@gjsify/message-channel';
 
 /**
- * Lightweight Window-like proxy returned by `HTMLIFrameElement.contentWindow`.
- *
- * Supports the subset of the Window API needed for cross-origin iframe communication:
- * - `postMessage()` for sending messages to the iframe content
- * - `addEventListener('message', ...)` for receiving messages from the iframe content
- * - `location` (read-only) reflecting the current URI
- * - `parent` reference to the host window
- * - `closed` status
- *
- * This is intentionally NOT a full BrowserWindow — just enough for standard
- * postMessage-based communication patterns.
+ * Deliberately NOT a full BrowserWindow: only the subset of the Window API that
+ * postMessage-based iframe communication needs.
  */
 export class IFrameWindowProxy extends EventTarget {
     private _bridge: MessageBridge;
@@ -30,46 +21,34 @@ export class IFrameWindowProxy extends EventTarget {
     }
 
     /**
-     * Send a message to the iframe content.
+     * Send a message to the iframe content. `message` must be JSON-serialisable, plus the
+     * binary types `@gjsify/iframe/serialize` can base64-encode.
      *
-     * @param message - Data to send (must be JSON-serializable + base64-encodable
-     *   binaries — see @gjsify/iframe/serialize for supported binary types).
-     * @param targetOrigin - Target origin for the message. Default: '*'.
-     * @param transfer - Optional list of `MessagePort` instances to
-     *   transfer. Each transferred port is detached locally; its surviving
-     *   partner becomes the GJS-side endpoint of a bidirectional channel
-     *   routed through the bridge. The WebView receives proxy ports under
-     *   `MessageEvent.data` wherever the original ports appeared in `message`.
+     * Each port in `transfer` is detached locally and its surviving partner becomes the
+     * GJS-side endpoint of a bidirectional channel routed through the bridge; the WebView
+     * receives proxy ports wherever the originals appeared in `message`.
      */
     postMessage(message: unknown, targetOrigin = '*', transfer?: MessagePort[]): void {
         if (this._closed) return;
         this._bridge.sendToWebView(message, targetOrigin, transfer);
     }
 
-    /**
-     * Read-only location reflecting the current WebView URI.
-     */
+    /** Read-only location reflecting the current WebView URI. */
     get location(): { href: string; origin: string } {
         return this._bridge.getLocation();
     }
 
-    /**
-     * Reference to the host (parent) window — in GJS this is globalThis.
-     */
+    /** The host window — `globalThis` on GJS. */
     get parent(): typeof globalThis {
         return globalThis;
     }
 
-    /**
-     * Reference to the top-level window — in GJS this is globalThis.
-     */
+    /** The top-level window — `globalThis` on GJS. */
     get top(): typeof globalThis {
         return globalThis;
     }
 
-    /**
-     * The window itself (self-reference per spec).
-     */
+    /** Self-reference, per spec. */
     get self(): IFrameWindowProxy {
         return this;
     }
@@ -82,7 +61,7 @@ export class IFrameWindowProxy extends EventTarget {
         return this._closed;
     }
 
-    /** @internal Mark as closed when the WebView is destroyed */
+    /** @internal Called when the WebView is destroyed. */
     _close(): void {
         this._closed = true;
     }

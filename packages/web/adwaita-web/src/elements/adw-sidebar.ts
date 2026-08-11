@@ -7,16 +7,15 @@
 // chevron arrow on each row (the AdwPreferencesPage look the native widget
 // switches to when collapsed).
 //
-// The BEHAVIOUR — the flat index space, the out-of-range rule, which section
-// headers render, the selection-vs-activation split, the filter and the empty
-// state — is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as
-// {@link SidebarState}; this element only builds DOM for it and re-emits its
-// changes as events. It used to carry its own copy, which clamped an
-// out-of-range `selected` to the LAST row where libadwaita drops the selection
-// entirely, keyed section headers off the DECLARATION index instead of the rows
-// that actually render, and froze the row list after the first connect. The
-// shared vectors in `@gjsify/adwaita-core/conformance` now pin this element to
-// the C source — see `src/adw-sidebar.spec.ts`.
+// The BEHAVIOUR — the flat index space, the out-of-range rule, which section headers
+// render, the selection-vs-activation split, the filter and the empty state — is
+// HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as {@link SidebarState}; this
+// element only builds DOM for it and re-emits its changes as events, pinned to the C
+// source by the shared vectors in `@gjsify/adwaita-core/conformance` (see
+// `src/adw-sidebar.spec.ts`). Three rules a hand-written copy gets wrong: an
+// out-of-range `selected` DROPS the selection rather than clamping to the last row,
+// section headers are keyed off the rows that actually RENDER and not the declaration
+// index, and the row list stays live after the first connect.
 //
 // Sub-elements (declared as children, consumed at connect time — mirrors
 // adw-tab-page in adw-tab-view):
@@ -59,12 +58,10 @@ import {
 
 import { createAdwIcon } from './adw-icon.js';
 
-// The sidebar consumes its declared children and drops them from the tree, so a
-// later `setAttribute` on one cannot find its sidebar with `closest()`. These
-// keep the link — the web stand-in for the `g_object_bind_property` /
-// `notify::icon-name` bindings that keep a live AdwSidebarItem's labels in sync
-// (adw-sidebar.c:1393-1421). Before this, `observedAttributes` was declared on
-// both child elements and no `attributeChangedCallback` existed to answer it.
+// The sidebar consumes its declared children and drops them from the tree, so a later
+// `setAttribute` on one cannot find its sidebar with `closest()`. These keep the link —
+// the web stand-in for the `g_object_bind_property` / `notify::icon-name` bindings that
+// keep a live AdwSidebarItem's labels in sync.
 const itemBindings = new WeakMap<AdwSidebarItem, { sidebar: AdwSidebar; spec: AdwSidebarItemSpec }>();
 const sectionBindings = new WeakMap<AdwSidebarSection, { sidebar: AdwSidebar; spec: AdwSidebarSectionSpec }>();
 
@@ -116,7 +113,6 @@ export class AdwSidebar extends HTMLElement {
         return ['mode', 'selected'];
     }
 
-    /** Zero-based flat index of the selected item, or -1 for no selection. */
     get selected(): number {
         return this._state.selected;
     }
@@ -130,7 +126,6 @@ export class AdwSidebar extends HTMLElement {
         return this._state.selectedItem;
     }
 
-    /** 'sidebar' (flat navigation list) or 'page' (boxed lists). */
     get mode(): 'sidebar' | 'page' {
         return this._state.mode;
     }
@@ -171,10 +166,10 @@ export class AdwSidebar extends HTMLElement {
         // asked to hear about, and `setSections` runs the 0 → n auto-select.
         this._state.setSections(this._readDeclaredSections());
         this._state.setMode(this._readModeAttr());
-        // A declared `selected` wins over that auto-select. libadwaita would let
-        // the auto-select clobber a builder-set property (items arrive after
-        // properties, and items_changed_cb then selects 0); for a declarative
-        // element the authored attribute has to survive its own children.
+        // A declared `selected` wins over that auto-select. libadwaita lets the
+        // auto-select clobber a builder-set property (items arrive after properties, and
+        // `items_changed_cb` then selects 0); for a declarative element the authored
+        // attribute has to survive its own children.
         if (this.hasAttribute('selected')) this._state.setSelected(this._readSelectedAttr());
 
         this._state.subscribe((change) => this._onSelectionChanged(change));
@@ -190,8 +185,8 @@ export class AdwSidebar extends HTMLElement {
 
         if (name === 'selected') {
             this._state.setSelected(this._readSelectedAttr());
-            // Normalise even when nothing moved, so `selected="5"` on a 3-item
-            // sidebar does not keep claiming 5 while the property reads -1.
+            // Normalise even when nothing moved, so `selected="5"` on a 3-item sidebar
+            // does not keep claiming 5 while the property reads -1.
             this._reflectSelected();
             return;
         }
@@ -202,9 +197,9 @@ export class AdwSidebar extends HTMLElement {
     }
 
     /**
-     * Re-derive after a declared `<adw-sidebar-item>` / `<adw-sidebar-section>`
-     * attribute changed. The item model keeps its shape, so the selection cannot
-     * move — exactly like the GObject property bindings this stands in for.
+     * Re-derive after a declared `<adw-sidebar-item>` / `<adw-sidebar-section>` attribute
+     * changed. The item model keeps its shape, so the selection cannot move — exactly
+     * like the GObject property bindings this stands in for.
      */
     refresh(): void {
         if (!this._initialized) return;
@@ -212,7 +207,6 @@ export class AdwSidebar extends HTMLElement {
         this._rebuild();
     }
 
-    /** Snapshot the declared children into specs, and bind them for live updates. */
     private _readDeclaredSections(): AdwSidebarSectionSpec[] {
         const sections: AdwSidebarSectionSpec[] = [];
 
@@ -245,8 +239,8 @@ export class AdwSidebar extends HTMLElement {
 
     /**
      * `parseFloat`, not `parseInt`: the core rejects a fractional position, and
-     * truncating `"1.5"` to row 1 here would hide that from it. An unparseable
-     * value is NaN, which the core turns into "no selection".
+     * truncating `"1.5"` to row 1 here would hide that from it. An unparseable value is
+     * NaN, which the core turns into "no selection".
      */
     private _readSelectedAttr(): number {
         return Number.parseFloat(this.getAttribute('selected') ?? '');
@@ -269,13 +263,11 @@ export class AdwSidebar extends HTMLElement {
         );
     }
 
-    /** Click handler — the core applies the selection, then `activated` fires. */
     private _activate(index: number): void {
         if (!this._state.activate(index).activated) return;
         this.dispatchEvent(new CustomEvent('activated', { bubbles: true, detail: { index } }));
     }
 
-    /** Rebuild the rendered rows + headers from the core's derived model. */
     private _rebuild(): void {
         const headers = new Map<number, SidebarHeaderSpec>();
         for (const header of this._state.headers) headers.set(header.sectionIndex, header);
@@ -335,9 +327,9 @@ export class AdwSidebar extends HTMLElement {
         row.type = 'button';
         row.className = 'adw-sidebar-item';
         row.setAttribute('role', 'option');
-        // `visible` / `enabled` are bound to the row's `visible` / `sensitive`
-        // in create_row (adw-sidebar.c:1382-1383): the row still EXISTS and still
-        // owns its flat index, it just does not show or respond.
+        // `visible` / `enabled` are bound to the row's `visible` / `sensitive` in
+        // `create_row`: the row still EXISTS and still owns its flat index, it just does
+        // not show or respond.
         row.hidden = item.visible === false;
         row.disabled = item.enabled === false;
 
@@ -362,8 +354,8 @@ export class AdwSidebar extends HTMLElement {
 
         row.appendChild(textEl);
 
-        // Page mode adds a trailing chevron on every row, the way the
-        // boxed-list AdwActionRow carries a `go-next-symbolic` arrow.
+        // Page mode adds a trailing chevron on every row, the way the boxed-list
+        // AdwActionRow carries a `go-next-symbolic` arrow.
         row.appendChild(createAdwIcon('go-next', 'adw-sidebar-item-arrow'));
 
         row.addEventListener('click', () => this._activate(flat.index));
@@ -379,8 +371,8 @@ export class AdwSidebar extends HTMLElement {
 
     private _applySelection(): void {
         const selected = this._state.selected;
-        // Page mode tracks the selection but never paints it (adw-sidebar.c:2948-2951):
-        // its rows are plain boxed-list AdwActionRows with no selected state.
+        // Page mode tracks the selection but never paints it: its rows are plain
+        // boxed-list AdwActionRows with no selected state.
         const paint = this._state.selectionVisible;
 
         this._rows.forEach((row, position) => {

@@ -1,24 +1,21 @@
 // View-stack conformance vectors — the spec all three implementations are held to.
 //
-// Each row is a small SCRIPT rather than a single input/output pair, because the
-// behaviour being pinned is a state machine: a page list, a sequence of
-// operations, and the exact sequence of change notifications those produce. The
-// core suite replays a row against `ViewStackState`; the web suite replays the
-// SAME row against a mounted `<adw-view-stack>`; the NativeScript suite replays
-// it against the state the real `AdwViewStack` widget delegates to. A renderer
-// that quietly re-implements any clause — the guard on a fractional index, the
-// first-VISIBLE-page auto-pick, the silent `null` name, the no-notify on remove
-// — fails the moment it drifts.
+// Each row is a small SCRIPT rather than a single input/output pair, because the behaviour
+// pinned is a state machine: a page list, a sequence of operations, and the exact sequence
+// of change notifications those produce. All three suites replay the SAME row — the core
+// against `ViewStackState`, the web against a mounted `<adw-view-stack>`, NativeScript
+// against the state its real widget delegates to — so a renderer that quietly
+// re-implements any clause (the guard on a fractional index, the first-VISIBLE-page
+// auto-pick, the silent `null` name, the no-notify on remove) fails when it drifts.
 //
-// Every row cites the C function it comes from. Where a row contradicts what
-// both ports shipped, the `rule` says so: those are the regression pins.
+// Every row cites the C function it comes from; where a row contradicts what a port
+// shipped, the `rule` says so, and that row is a regression pin.
 //
 // Reference: refs/libadwaita/src/adw-view-stack.c
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 /** A page as a vector declares it — the input half of `AdwViewStackPageSpec`. */
 export interface ViewStackVectorPage {
-    /** The page name. */
     name: string;
     /** Explicit title; omitted means "fall back to the name". */
     title?: string;
@@ -49,15 +46,12 @@ export interface ViewStackVectorChange {
 
 /** One end-to-end view-stack expectation. */
 export interface ViewStackVector {
-    /** What this row pins down. */
     rule: string;
-    /** The C function + lines it is derived from. */
     derivedFrom: string;
     /** The pages, added in this order. */
     pages: readonly ViewStackVectorPage[];
     /** Changes emitted WHILE the pages are added (the auto-pick), in order. */
     setupChanges: readonly ViewStackVectorChange[];
-    /** Operations applied after the pages exist. */
     ops: readonly ViewStackVectorOp[];
     /**
      * Return value of each op, in order. Asserted by the core suite only — the
@@ -73,7 +67,6 @@ export interface ViewStackVector {
     visibleName: string;
     /** Final selected title, `''` for none. */
     visibleTitle: string;
-    /** Final page count. */
     count: number;
     /** Expected `duplicateNames`, when the row exercises them. */
     duplicateNames?: readonly string[];
@@ -526,15 +519,10 @@ export const VIEW_STACK_VECTORS: ReadonlyArray<ViewStackVector> = [
 
 /** One page-descriptor normalization expectation. */
 export interface ViewStackPageDescriptorVector {
-    /** What this row pins down. */
     rule: string;
-    /** The C property it is derived from. */
     derivedFrom: string;
-    /** The declared page. */
     page: ViewStackVectorPage;
-    /** Resolved `title`. */
     title: string;
-    /** Resolved `icon`. */
     icon: string;
     /** Resolved `visible`. */
     visible: boolean;
@@ -620,9 +608,7 @@ export const VIEW_STACK_PAGE_VECTORS: ReadonlyArray<ViewStackPageDescriptorVecto
 export interface ViewStackIconNameVector {
     /** The declared `icon-name`. */
     icon: string | null | undefined;
-    /** The normalized result. */
     normalized: string;
-    /** What this row pins down. */
     rule: string;
 }
 
@@ -655,7 +641,6 @@ export const VIEW_STACK_ICON_NAME_VECTORS: ReadonlyArray<ViewStackIconNameVector
         rule: 'exactly ONE suffix is stripped, not repeated',
     },
     { icon: 'symbolic', normalized: 'symbolic', rule: 'the separating hyphen is part of the suffix' },
-    // --- the token guard ---
     { icon: 'a b', normalized: '', rule: 'a SPACE is two class tokens — the second one used to be injected' },
     {
         icon: 'go-next-symbolic evil',

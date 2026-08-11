@@ -1,11 +1,7 @@
-// Browser variant — Adwaita-styled chrome built from @gjsify/adwaita-web custom
-// elements, driving a real <iframe>. The structure mirrors the native GJS/GTK
-// chrome (src/gjs/gjs.ts) so the two targets look identical: an Adwaita window
-// with a header bar (linked-free flat nav buttons + a URL entry title-widget +
-// a home button), a demo-page quick-nav, the web content, and a status line.
-//
-// Exposes `mount(container, options?)` so the website slideshow can embed the
-// showcase. Standalone runs through `browser-main.ts` (`mount(document.body)`).
+// Browser variant: Adwaita-styled chrome from @gjsify/adwaita-web custom elements driving a real
+// <iframe>, structured to match the native GTK chrome in src/gjs/gjs.ts so both targets look alike.
+// `mount(container, options?)` is what lets the website slideshow embed the showcase; standalone goes
+// through browser-main.ts.
 
 import '@gjsify/adwaita-web'; // registers the custom elements + self-injects the stylesheet
 import type { AdwEntry, AdwHeaderBar } from '@gjsify/adwaita-web';
@@ -25,8 +21,8 @@ export interface ShowcaseHandle {
     navigate(url: string): void;
 }
 
-// Layout chrome that isn't a reusable Adwaita component — kept tiny and driven
-// by the adwaita-web CSS custom properties so it follows the active theme.
+// Layout chrome only, no reusable component: driven by the adwaita-web CSS custom properties so it
+// follows the active theme.
 const SHOWCASE_CSS = `
 .mb-window { height: 100%; width: 100%; overflow: hidden; }
 .mb-url { max-width: 720px; }
@@ -75,11 +71,9 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     const homeUrl = options?.homeUrl ?? DEFAULT_HOME_URL;
     ensureStyles();
 
-    // Adwaita window frame.
     const win = document.createElement('adw-window');
     win.classList.add('mb-window');
 
-    // Header bar + the static body (quick-nav, content iframe, status).
     const header = document.createElement('adw-header-bar') as AdwHeaderBar;
 
     const quicknav = document.createElement('div');
@@ -96,7 +90,6 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     win.append(header, quicknav, iframe, status);
     container.appendChild(win); // connects every custom element + creates header sections
 
-    // Header navigation cluster (start): back / forward / reload.
     const backBtn = iconButton('go-previous', 'Back');
     const forwardBtn = iconButton('go-next', 'Forward');
     const reloadBtn = iconButton('view-refresh', 'Reload');
@@ -104,18 +97,15 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     forwardBtn.setAttribute('disabled', '');
     header.startSection?.append(backBtn, forwardBtn, reloadBtn);
 
-    // Header title-widget (center): the URL entry.
     const urlEntry = document.createElement('adw-entry') as AdwEntry;
     urlEntry.classList.add('mb-url');
     urlEntry.setAttribute('placeholder', 'Search or enter address');
     urlEntry.setAttribute('value', homeUrl);
     header.centerSection?.appendChild(urlEntry);
 
-    // Header end: home.
     const homeBtn = iconButton('go-home', 'Home');
     header.endSection?.appendChild(homeBtn);
 
-    // Quick-nav: built-in demo pages as flat buttons.
     const quickLabel = document.createElement('span');
     quickLabel.className = 'mb-quicknav-label';
     quickLabel.textContent = 'Demo pages';
@@ -128,18 +118,13 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
         quicknav.appendChild(b);
     }
 
-    // Wire the shared navigation core. The built-in `page:*` documents announce
-    // themselves with `window.parent.postMessage(...)` — which, in a real
-    // browser, dispatches the `message` event on the HOST window, NOT on the
-    // iframe's own `contentWindow`. And because the iframe is a sandboxed
-    // (allow-scripts, no allow-same-origin) cross-origin frame, even *reading*
-    // `iframe.contentWindow.addEventListener` throws a SecurityError. So instead
-    // of handing `BrowserCore` the raw iframe (whose `contentWindow` is the
-    // wrong, inaccessible target), we wrap it in an `IFrameHandle` whose
-    // `contentWindow.addEventListener` subscribes on `window`, filtered to
-    // messages originating from this iframe. The GJS variant doesn't need this:
-    // its `IFrameBridge.iframeElement.contentWindow` is a same-process proxy that
-    // bridges WebKit's script-message-handler, so listening there is correct.
+    // BrowserCore cannot be handed the raw iframe here. `window.parent.postMessage(...)` from a
+    // page dispatches `message` on the HOST window, not on the iframe's `contentWindow`, and since
+    // this iframe is sandboxed cross-origin (allow-scripts without allow-same-origin) even READING
+    // `iframe.contentWindow.addEventListener` throws a SecurityError. So the handle subscribes on
+    // `window`, filtered to this iframe. The GJS variant needs none of it: its
+    // `IFrameBridge.iframeElement.contentWindow` is a same-process proxy over WebKit's
+    // script-message-handler, so listening there is already correct.
     const iframeHandle: IFrameHandle = {
         get src() {
             return iframe.src;
@@ -157,9 +142,8 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
             return {
                 addEventListener(_type: 'message', listener: (event: { data: unknown }) => void): void {
                     window.addEventListener('message', (event) => {
-                        // Identity-compare the source WindowProxy (allowed even
-                        // for cross-origin frames; reading its properties is not)
-                        // so we only surface messages from our own iframe.
+                        // Identity-comparing the source WindowProxy is allowed even cross-origin;
+                        // reading its properties is not.
                         if (event.source === iframe.contentWindow) listener(event);
                     });
                 },

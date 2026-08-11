@@ -46,8 +46,6 @@ const gjsHttp2 = http2 as unknown as {
     connect(authority: string): ClientHttp2Session;
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function withServer(
     handler: (req: Http2ServerRequest, res: Http2ServerResponse) => void,
 ): Promise<{ server: Http2Server; port: number }> {
@@ -70,8 +68,6 @@ function collectBody(stream: ClientHttp2Stream): Promise<string> {
         stream.on('error', reject);
     });
 }
-
-// ─── Tests ────────────────────────────────────────────────────────────────────
 
 export default async () => {
     await on('Gjs', async () => {
@@ -324,7 +320,6 @@ export default async () => {
             });
         });
 
-        // ─── Phase 2: respondWithFile / respondWithFD ────────────────────────────
         // Ported from refs/node-test/parallel/test-http2-respond-file.js
         //              refs/node-test/parallel/test-http2-respond-file-fd.js
         // Original: Copyright (c) Node.js contributors. MIT.
@@ -462,7 +457,6 @@ export default async () => {
             });
         });
 
-        // ─── Phase 2: pushStream ─────────────────────────────────────────────────
         // Ported from refs/node-test/parallel/test-http2-server-push-stream.js
         // Original: Copyright (c) Node.js contributors. MIT.
         //

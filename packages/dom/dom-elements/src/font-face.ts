@@ -1,12 +1,7 @@
-// FontFace implementation for GJS — registers custom TTF fonts in PangoCairo
-// so that Canvas2D fillText uses the correct font family.
-//
-// Flow (Excalibur): XHR(blob) → /tmp/gjsify-blob-N.ttf → createObjectURL →
-//   new FontFace(family, 'url(file:///tmp/gjsify-blob-N.ttf)') → face.load()
-// The file is already on disk when load() is called; we just tell PangoCairo
-// about it via font_map_get_default().add_font_file(path).
-//
-// Node.js: dynamic gi:// import fails gracefully → status='loaded' still set.
+// Registers custom TTF fonts with PangoCairo so Canvas2D fillText picks up the right family. The
+// font file is already on disk by the time load() runs (the blob URL path writes it), so load()
+// only has to hand PangoCairo the path. On Node the dynamic gi:// import fails and status still
+// becomes 'loaded'.
 // Reference: https://developer.mozilla.org/en-US/docs/Web/API/FontFace
 
 export class FontFace {
@@ -32,7 +27,6 @@ export class FontFace {
     private _extractFilePath(): string | null {
         const m = this.source.match(/url\s*\(\s*["']?(file:\/\/\/[^"')]+)["']?\s*\)/i);
         if (!m) return null;
-        // Strip file:// prefix → /path/to/file.ttf
         return m[1].replace(/^file:\/\//, '');
     }
 
@@ -41,13 +35,12 @@ export class FontFace {
         const filePath = this._extractFilePath();
         if (filePath) {
             try {
-                // gi:// only available in GJS — fails gracefully on Node.js
-                // @ts-ignore
+                // @ts-ignore — `gi://` specifiers exist only under GJS, so TS cannot resolve this.
                 const { default: PangoCairo } = await import('gi://PangoCairo?version=1.0');
                 PangoCairo.font_map_get_default().add_font_file(filePath);
             } catch {
-                // Not in GJS, or font file not found — fall through to loaded
-                // Canvas fillText will use system font fallback (acceptable)
+                // Not GJS, or the file is gone: fall through to 'loaded' and let fillText use the
+                // system font fallback.
             }
         }
         this.status = 'loaded';
@@ -56,13 +49,10 @@ export class FontFace {
 }
 
 /**
- * FontFaceSet — tracks loaded FontFace objects and exposes them to consumers.
+ * Tracks loaded FontFace objects and exposes them to consumers.
  *
- * Intentionally does NOT extend EventTarget. The dom-elements /register module
- * runs before dom-events/register in the inject order, so EventTarget may not
- * yet exist when this class is defined at module load time. All event methods
- * are provided as no-ops; consumers that call addEventListener('loadingdone')
- * etc. will silently receive nothing.
+ * Does not extend EventTarget: the event methods are no-ops, so a consumer listening for
+ * 'loadingdone' silently receives nothing.
  */
 export class FontFaceSet {
     status: 'loading' | 'loaded' = 'loaded';

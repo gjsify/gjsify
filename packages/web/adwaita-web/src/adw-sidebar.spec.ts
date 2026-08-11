@@ -1,13 +1,10 @@
 // DOM-level conformance tests for <adw-sidebar>, driven by the SAME vectors the
 // NativeScript renderer asserts against (`@gjsify/adwaita-core/conformance`).
 //
-// The two renderers used to carry independent selection logic, and it had
-// drifted apart AND away from libadwaita: `selected = 5` on a 3-item sidebar
-// gave "no selection" in GTK, `2` here (it clamped to the last row) and `0` on
-// NativeScript (it dropped the write). This element also keyed section headers
-// off the DECLARATION index, so an empty leading section drew a stray separator
-// and cost the next section its `.first` flush-to-top padding. Nothing failed,
-// because nothing compared them. This suite is that comparison.
+// Two rules independent selection logic drifted from: an out-of-range `selected` means
+// NO selection in GTK, not a clamp to the last row and not a dropped write; and section
+// headers key off the RENDERED index, not the declaration index, or an empty leading
+// section draws a stray separator and costs the next section its `.first` padding.
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { AdwSidebarItemSpec, AdwSidebarSectionSpec } from '@gjsify/adwaita-core';
@@ -22,9 +19,8 @@ import {
 import type { AdwSidebar } from './elements/adw-sidebar.js';
 
 /**
- * Mount a sidebar built from DECLARED children, the way an author writes it —
- * the element consumes them at connect time, so they all have to exist before
- * the host is appended.
+ * Mount a sidebar from DECLARED children, the way an author writes it: the element
+ * consumes them at connect time, so they must all exist before the host is appended.
  */
 function mountSidebar(
     sections: ReadonlyArray<AdwSidebarSectionSpec>,
@@ -144,8 +140,8 @@ export const AdwSidebarTest = async () => {
         }
 
         await it('draws no section container for a section that renders no rows', () => {
-            // The old element appended a header AND an empty `.adw-sidebar-section`
-            // per DECLARED section, which in page mode is a visible empty card.
+            // A header plus an empty `.adw-sidebar-section` per DECLARED section is a
+            // visible empty card in page mode.
             const { sidebar, host } = mountSidebar([{ title: 'Empty', items: [] }, { items: [{ title: 'A' }] }]);
             expect(sidebar.querySelectorAll('.adw-sidebar-section')).toHaveLength(1);
             expect(headersOf(sidebar)).toHaveLength(0);
@@ -303,10 +299,9 @@ export const AdwSidebarTest = async () => {
         });
 
         await it('follows a declared item attribute change without touching the selection', () => {
-            // <adw-sidebar-item> declared `observedAttributes` with no
-            // attributeChangedCallback behind it, so every post-construction
-            // change was silently lost. The declared element is detached once
-            // consumed, so the link back to its spec cannot be a DOM lookup.
+            // `observedAttributes` with no attributeChangedCallback behind it loses every
+            // post-construction change. The declared element is detached once consumed, so
+            // the link back to its spec cannot be a DOM lookup.
             const declared = createItem({ title: 'A' });
             const sectionEl = document.createElement('adw-sidebar-section');
             sectionEl.append(declared, createItem({ title: 'B' }));
@@ -330,15 +325,13 @@ export const AdwSidebarTest = async () => {
         });
     });
 
-    // A row's own box, which nothing had ever measured.
+    // A row's own BOX, which asking what a row contains never measures.
     //
-    // `.adw-sidebar-item` carried `width: 100%` ON TOP of `margin: 0 6px 2px`.
-    // The list is a column flex container, so a row already stretches to it and
-    // stretching subtracts margins; `width: 100%` resolves against the
-    // containing block instead, which does not, so every row came out 12px too
-    // wide — inset on the left, hanging past the right edge with its rounded
-    // corners clipped away. Every earlier test asked what a row CONTAINED, so
-    // all of them passed.
+    // `width: 100%` on top of `margin: 0 6px 2px` makes a row 12px too wide: the list is a
+    // column flex container, so the row already stretches to it and stretching subtracts
+    // margins, while `width: 100%` resolves against the containing block, which does not —
+    // leaving the row inset on the left and hanging past the right edge with its rounded
+    // corners clipped.
     await describe('a sidebar row sits inside its list, not over its edge', async () => {
         await it('leaves the same margin on both sides', async () => {
             const { sidebar, host } = mountSidebar([{ items: [{ title: 'Inbox' }, { title: 'Starred' }] }], {

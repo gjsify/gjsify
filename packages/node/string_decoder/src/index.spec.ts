@@ -48,8 +48,6 @@ function testEnd(encoding: Encoding, incomplete: Buffer, next: Buffer, expected:
 }
 
 export default async () => {
-    // ==================== constructor ====================
-
     await describe('StringDecoder: constructor', async () => {
         await it('should create a utf8 decoder by default', async () => {
             const decoder = new StringDecoder();
@@ -86,8 +84,6 @@ export default async () => {
             expect(decoder.encoding).toBe('utf16le');
         });
     });
-
-    // ==================== UTF-8 basic ====================
 
     await describe('StringDecoder: utf8 basic', async () => {
         await it('should decode ASCII ($)', async () => {
@@ -129,8 +125,6 @@ export default async () => {
             expect(decoder.write(new Uint8Array(0))).toBe('');
         });
     });
-
-    // ==================== UTF-8 invalid sequences ====================
 
     await describe('StringDecoder: utf8 invalid sequences', async () => {
         await it('should handle C9B5A941 → \\u0275\\ufffdA', async () => {
@@ -184,8 +178,6 @@ export default async () => {
         });
     });
 
-    // ==================== UTF-8 streaming edge cases ====================
-
     await describe('StringDecoder: utf8 streaming', async () => {
         await it('should buffer incomplete E1 and output replacement on end()', async () => {
             const decoder = new StringDecoder('utf8');
@@ -225,8 +217,6 @@ export default async () => {
         });
     });
 
-    // ==================== UTF-16LE ====================
-
     await describe('StringDecoder: utf16le', async () => {
         await it('should decode UCS-2 text', async () => {
             expect(testDecode('ucs2', Buffer.from('ababc', 'ucs2'), 'ababc')).toBeTruthy();
@@ -264,8 +254,6 @@ export default async () => {
         });
     });
 
-    // ==================== latin1 ====================
-
     await describe('StringDecoder: latin1', async () => {
         await it('should decode latin1 buffer', async () => {
             const decoder = new StringDecoder('latin1');
@@ -278,8 +266,6 @@ export default async () => {
         });
     });
 
-    // ==================== hex ====================
-
     await describe('StringDecoder: hex', async () => {
         await it('should decode buffer as hex', async () => {
             const decoder = new StringDecoder('hex');
@@ -287,16 +273,12 @@ export default async () => {
         });
     });
 
-    // ==================== ascii ====================
-
     await describe('StringDecoder: ascii', async () => {
         await it('should decode ASCII buffer', async () => {
             const decoder = new StringDecoder('ascii');
             expect(decoder.write(new Uint8Array([72, 101, 108, 108, 111]))).toBe('Hello');
         });
     });
-
-    // ==================== base64 ====================
 
     await describe('StringDecoder: base64', async () => {
         await it('should encode single byte on end()', async () => {
@@ -324,8 +306,6 @@ export default async () => {
             expect(decoder.end()).toBe('YQ==');
         });
     });
-
-    // ==================== end() behavior ====================
 
     await describe('StringDecoder: end()', async () => {
         await it('should accept buffer in end()', async () => {
@@ -401,8 +381,6 @@ export default async () => {
             expect(testEnd('base64', Buffer.of(0x61, 0x61, 0x61), Buffer.of(0x61), 'YWFhYQ==')).toBeTruthy();
         });
     });
-
-    // ==================== byte-at-a-time fuzz ====================
 
     await describe('StringDecoder: byte-at-a-time consistency', async () => {
         const encodings = ['hex', 'utf8', 'utf16le', 'latin1', 'ascii'];

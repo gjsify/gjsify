@@ -2,18 +2,10 @@ import { EventEmitter } from 'excalibur';
 
 let coins = 3;
 
-/**
- * A general manager for game state
- */
 export abstract class GameManager {
     static events = new EventEmitter<GameManagerEvents>();
 
-    /**
-     * The amount of coins collected
-     *
-     * Coins act as health for the player. When the player is hit
-     * they lose coins. If they have 0 coins, they die.
-     */
+    /** Coins ARE health: a hit costs coins, and reaching 0 kills the player. */
     static get coins() {
         return coins;
     }

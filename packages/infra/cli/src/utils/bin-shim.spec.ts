@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Unit tests for the Windows bin-shim builders + the platform-injectable
-// `.bin` writer.
 //
-// These assert the Windows branch from a Linux host by passing
-// `platform: 'win32'` explicitly. What that covers: which files are written,
-// and that their contents name the right interpreter, the right target and the
-// right search-path syntax. What it CANNOT cover (CI-only, on a real Windows
-// runner): that cmd.exe/pwsh actually execute the emitted scripts, and that
-// `CreateSymbolicLink` really fails unprivileged — the failure mode this
-// replaces.
+// The Windows branch is asserted from a Linux host by passing `platform:
+// 'win32'` explicitly: which files get written, and whether their contents name
+// the right interpreter, target and search-path syntax. NOT coverable off-host
+// (CI-only, real Windows runner): that cmd.exe/pwsh actually execute the emitted
+// scripts, and that `CreateSymbolicLink` really fails unprivileged — the failure
+// mode this replaces.
 
 import { describe, it, expect } from '@gjsify/unit';
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -61,19 +58,18 @@ export default async () => {
     await describe('buildCmdShim', async () => {
         await it('produces the three files npm writes, driven by the shebang', async () => {
             const { sh, cmd, ps1 } = buildCmdShim('../@scope/pkg/bin/tool.js', parseShebang('#!/usr/bin/env node'));
-            // Batch: interpreter resolved with the local-`node.exe`-first
-            // fallback, target as a backslash path relative to %dp0%.
+            // Batch: interpreter resolved local-`node.exe`-first, target as a
+            // backslash path relative to %dp0%.
             expect(cmd).toContain('IF EXIST "%dp0%\\node.exe"');
             expect(cmd).toContain('"%dp0%\\..\\@scope\\pkg\\bin\\tool.js"');
             // The PATHEXT scrub + `endLocal` trick suppress cmd.exe's
             // "Terminate Batch Job?" prompt (npm/cli#969).
             expect(cmd).toContain('set PATHEXT=%PATHEXT:;.JS;=;%');
-            // sh: used from git-bash/MSYS/WSL, so it needs the Windows-shaped
-            // $basedir_win for the interpreter's script argument.
+            // The `sh` member runs from git-bash/MSYS/WSL, so it needs the
+            // Windows-shaped $basedir_win for the interpreter's script argument.
             expect(sh.startsWith('#!/bin/sh\n')).toBe(true);
             expect(sh).toContain('basedir_win=');
             expect(sh).toContain('"$basedir_win/../@scope/pkg/bin/tool.js"');
-            // pwsh
             expect(ps1).toContain('$exe=".exe"');
             expect(ps1).toContain('"$basedir/node$exe"');
         });
@@ -122,9 +118,9 @@ export default async () => {
         });
 
         await it('PREPENDS to search-path variables instead of clobbering them', async () => {
-            // Clobbering PATH on Windows would nuke the process's entire
-            // command + DLL search path — and PATH is exactly where the
-            // prebuild dirs have to go, since Windows has no DYLD/LD analogue.
+            // Clobbering PATH on Windows nukes the process's entire command + DLL
+            // search path, and PATH is exactly where the prebuild dirs have to go
+            // — Windows has no DYLD/LD analogue.
             const { cmd, ps1 } = buildLauncherShims({
                 interpreter: 'gjs',
                 interpreterArgs: ['-m'],
@@ -142,9 +138,8 @@ export default async () => {
             expect(ps1.includes('$env:')).toBe(false);
         });
 
-        // Windows is the majority no-`gjs` host, and these two members are the ones
-        // cmd.exe and pwsh actually reach — the extension-less `sh` member only ever
-        // runs under git-bash/MSYS/WSL.
+        // Windows is the majority no-`gjs` host, and .cmd/.ps1 are the members
+        // cmd.exe and pwsh actually reach.
         await it('falls back to a second interpreter when the first is absent', async () => {
             const { cmd, ps1 } = buildLauncherShims({
                 interpreter: 'gjs',
@@ -190,26 +185,24 @@ export default async () => {
     // The `sh` preamble every GJS launcher carries so `imports.gi.X` resolves
     // against the installed `@gjsify/*` prebuilds.
     //
-    // The regression these pin down (v0.24.1): the preamble used to EMBED the
-    // directories found at install time, so a scan that came back empty — for
-    // any reason, at that one moment — produced a launcher with no preamble at
-    // all and nothing said so. `gjsify build` then died with "no usable bundler
-    // engine under GJS" in an unrelated project, which reads as a broken
-    // install rather than a stale launcher. So the assertions are about SHAPE:
-    // the launcher must name WHERE to look, not WHAT was there once.
+    // The regression these pin down: the preamble used to EMBED the directories
+    // found at install time, so a scan that came back empty at that one moment
+    // produced a launcher with no preamble and nothing said so — `gjsify build`
+    // then died with "no usable bundler engine under GJS", which reads as a broken
+    // install rather than a stale launcher. Hence assertions about SHAPE: the
+    // launcher must name WHERE to look, not WHAT was there once.
     await describe('buildNativeEnvPreamble', async () => {
         await it('derives the env from disk at launch time, not from a baked list', async () => {
             const sh = buildNativeEnvPreamble('/opt/prefix', [], { platform: 'linux', arch: 'x64' });
 
-            // Scoped + unscoped, which is what makes a package installed LATER
-            // visible without re-linking the launcher.
+            // Scoped + unscoped is what makes a package installed LATER visible
+            // without re-linking the launcher.
             expect(sh).toContain(`'/opt/prefix'/node_modules/@*/*/prebuilds/linux-x64`);
             expect(sh).toContain(`'/opt/prefix'/node_modules/*/prebuilds/linux-x64`);
             expect(sh).toContain('for gjsify_d in');
             expect(sh).toContain('[ -d "$gjsify_d" ] || continue');
             expect(sh).toContain('export GI_TYPELIB_PATH LD_LIBRARY_PATH');
-            // Nothing found at write time must NOT collapse to "no preamble" —
-            // that is exactly the failure mode being removed.
+            // Nothing found at write time must NOT collapse to "no preamble".
             expect(sh.length > 0).toBe(true);
         });
 
@@ -220,10 +213,10 @@ export default async () => {
 
         await it('takes a directory only when it holds a typelib', async () => {
             // `prebuilds/<os>-<arch>/` is ALSO the prebuildify convention, so a
-            // plain directory match sweeps in `bare-fs` & co — no typelib, and
-            // a directory of foreign shared objects ahead of the system ones on
-            // the loader path. `detectNativePackages` never returned those (it
-            // keys on `gjsify.prebuilds`); this restores that from disk alone.
+            // plain directory match sweeps in `bare-fs` & co: no typelib, and
+            // foreign shared objects ahead of the system ones on the loader path.
+            // `detectNativePackages` excluded those by keying on `gjsify.prebuilds`;
+            // the typelib probe restores that from disk alone.
             const sh = buildNativeEnvPreamble('/opt/prefix', [], { platform: 'linux', arch: 'x64' });
             expect(sh).toContain('"$gjsify_d"/*.typelib');
             expect(sh).toContain('if [ -f "$gjsify_t" ]');
@@ -237,12 +230,12 @@ export default async () => {
 
         await it('exports the loader variable the HOST consults', async () => {
             const mac = buildNativeEnvPreamble('/opt/prefix', [], { platform: 'darwin', arch: 'arm64' });
-            // dyld never reads LD_LIBRARY_PATH — exporting it on a Mac left
-            // every darwin-arm64 prebuild unloadable.
+            // dyld never reads LD_LIBRARY_PATH — exporting it on a Mac left every
+            // darwin-arm64 prebuild unloadable.
             expect(mac).toContain('export GI_TYPELIB_PATH DYLD_LIBRARY_PATH');
             expect(mac).toContain('/prebuilds/darwin-arm64');
-            // `DYLD_LIBRARY_PATH` CONTAINS `LD_LIBRARY_PATH`, so the ELF
-            // variable has to be looked for with its own name freed of it.
+            // `DYLD_LIBRARY_PATH` CONTAINS `LD_LIBRARY_PATH` as a substring, so the
+            // ELF variable must be searched for with the darwin one stripped out.
             expect(mac.split('DYLD_LIBRARY_PATH').join('').includes('LD_LIBRARY_PATH')).toBe(false);
         });
 
@@ -250,11 +243,11 @@ export default async () => {
             const sh = buildNativeEnvPreamble(
                 '/opt/prefix',
                 [
-                    // Inside the scan root — the loop finds it; embedding it
-                    // would reintroduce the snapshot it replaces.
+                    // Inside the scan root — the loop finds it, and embedding it
+                    // would reintroduce the snapshot this replaces.
                     '/opt/prefix/node_modules/@gjsify/rolldown-native/prebuilds/linux-x64',
-                    // In an ANCESTOR's node_modules (hoisted layout): the walk
-                    // in `detectNativePackages` finds it, a one-root scan cannot.
+                    // In an ANCESTOR's node_modules (hoisted): `detectNativePackages`
+                    // walks up to it, a one-root scan cannot.
                     '/opt/node_modules/@gjsify/webgl/prebuilds/linux-x64',
                 ],
                 { platform: 'linux', arch: 'x64' },
@@ -268,9 +261,9 @@ export default async () => {
                 platform: 'win32',
                 arch: 'x64',
             });
-            // The real Windows launchers are the .cmd/.ps1 companions built
-            // from the same list; this `sh` file is only reachable from
-            // git-bash, and `PATH` (`;`-separated) is the loader variable there.
+            // The real Windows launchers are the .cmd/.ps1 companions built from the
+            // same list; this `sh` file is only reachable from git-bash, where
+            // `PATH` (`;`-separated) is the loader variable.
             expect(win).toContain('export GI_TYPELIB_PATH PATH');
             expect(win).toContain(';');
             expect(win.includes('for gjsify_d in')).toBe(false);
@@ -297,11 +290,10 @@ export default async () => {
                 expect(existsSync(base)).toBe(true);
                 expect(existsSync(`${base}.cmd`)).toBe(true);
                 expect(existsSync(`${base}.ps1`)).toBe(true);
-                // Not a symlink — the old code path produced one (or an
-                // unrunnable copy), and Windows can execute neither.
+                // Not a symlink: Windows can execute neither a symlink nor a copy.
                 expect(lstatSync(base).isSymbolicLink()).toBe(false);
-                // The shebang was read off the real file, so the shims know to
-                // run it with node.
+                // The shebang is read off the real file, so the shims know to run
+                // it with node.
                 expect(readFileSync(`${base}.cmd`, 'utf8')).toContain('node.exe');
                 expect(readFileSync(`${base}.cmd`, 'utf8')).toContain('tool\\bin\\tool.js');
             });
@@ -333,11 +325,10 @@ export default async () => {
         }
     });
 
-    // ADR 0017 moved each prebuild into a per-target package, so on a musl host
-    // the directory to find is `prebuilds/linux-arm64-musl/` — a name the
-    // launcher never globbed, because the preamble dropped `libc` on the way to
-    // `prebuildDirCandidates` while `detectNativePackages` kept it. Same
-    // question, two answers.
+    // ADR 0017 moved each prebuild into a per-target package, so on a musl host the
+    // directory to find is `prebuilds/linux-arm64-musl/`. The preamble used to drop
+    // `libc` on the way to `prebuildDirCandidates` while `detectNativePackages` kept
+    // it — one question, two answers.
     await describe('buildNativeEnvPreamble — libc', async () => {
         /** The prebuild-dir names the `for` line globs, in order. */
         const globbedDirs = (sh: string): string[] => {
@@ -352,7 +343,7 @@ export default async () => {
             const dirs = globbedDirs(
                 buildNativeEnvPreamble('/opt/p', [], { platform: 'linux', arch: 'arm64', libc: 'musl' }),
             );
-            // most-specific first, and the plain token stays as the fallback
+            // Most-specific first; the plain token stays as the fallback.
             expect(dirs[0]).toBe('linux-arm64-musl');
             expect(dirs.includes('linux-arm64')).toBe(true);
             expect(dirs.indexOf('linux-arm64-musl')).toBeLessThan(dirs.indexOf('linux-arm64'));
@@ -391,8 +382,7 @@ export default async () => {
 
         // The regression: `@gjsify/cli` declares BOTH, and the npm map used to be
         // discarded — so a host without `gjs` got `exec gjs -m …` = exit 127 while a
-        // working Node entry sat in the same package. Red on macOS AND Windows for
-        // v0.27.1, v0.28.0 and v0.29.0.
+        // working Node entry sat in the same package.
         await it('carries the npm map alongside when a package declares both', async () => {
             const picked = pickBinMap('@gjsify/cli', {
                 bin: { gjsify: 'lib/index.js' },
@@ -446,11 +436,11 @@ export default async () => {
             expect(sh).toContain('command -v gjs');
             expect(sh).toContain(`exec gjs -m '/opt/p/dist/cli.gjs.mjs' "$@"`);
             expect(sh).toContain(`exec node '/opt/p/lib/index.js' "$@"`);
-            // gjs stays FIRST — which runtime wins on a host carrying both is a
+            // gjs stays FIRST: which runtime wins on a host carrying both is a
             // separate decision from making the shim runnable at all.
             expect(sh.indexOf('exec gjs')).toBeLessThan(sh.indexOf('exec node'));
-            // The preamble configures the GI search path only, so it belongs in
-            // the gjs branch; around a Node exec it would be inert and misleading.
+            // The preamble configures the GI search path only, so it belongs in the
+            // gjs branch; around a Node exec it would be inert and misleading.
             expect(sh.indexOf('GI_TYPELIB_PATH')).toBeGreaterThan(sh.indexOf('command -v gjs'));
         });
 
@@ -473,10 +463,11 @@ export default async () => {
     });
 
     // Regression: a Node-LESS GJS host (postmarketOS/aarch64, gjs 1.88, no node)
-    // got `env: can't execute 'node'` from `.bin/gjsify`, because `linkBins`
-    // linked the npm `bin` (a `#!/usr/bin/env node` script) and ignored
-    // `gjsify.bin`. That launcher is also the only place GI_TYPELIB_PATH can be
-    // exported, so the dead shim took `gjsify build` down with it.
+    // got `env: can't execute 'node'` from `.bin/gjsify`, because `linkBins` linked
+    // the npm `bin` (a `#!/usr/bin/env node` script) and ignored `gjsify.bin` — and
+    // the dead shim took `gjsify build` down with it. A Node-less host still needs a
+    // runnable bin; the launcher is no longer the only GI_TYPELIB_PATH exporter
+    // (ADR 0021 moved in-process resolution into `activateNativePrebuilds`).
     await describe('writeBinEntry — gjs bins', async () => {
         const root = mkdtempSync(join(tmpdir(), 'gjsify-binentry-gjs-'));
         try {

@@ -6,7 +6,6 @@ import { describe, it, expect } from '@gjsify/unit';
 import * as net from 'node:net';
 
 export default async () => {
-    // ===================== Socket destroy idempotency =====================
     await describe('net.Socket destroy', async () => {
         await it('should be safe to call destroy() multiple times', async () => {
             const socket = new net.Socket();
@@ -44,7 +43,6 @@ export default async () => {
         });
     });
 
-    // ===================== Server getConnections =====================
     await describe('net.Server.getConnections', async () => {
         await it('should return 0 when no connections', async () => {
             const server = net.createServer();
@@ -83,7 +81,6 @@ export default async () => {
         });
     });
 
-    // ===================== Server maxConnections =====================
     await describe('net.Server.maxConnections', async () => {
         await it('should accept maxConnections property', async () => {
             const server = net.createServer();
@@ -95,7 +92,6 @@ export default async () => {
 
     // Connection refused is already tested in index.spec.ts and server.spec.ts
 
-    // ===================== Socket address =====================
     await describe('net.Socket address info', async () => {
         await it('should have correct address info after connect', async () => {
             const server = net.createServer();
@@ -118,7 +114,6 @@ export default async () => {
         });
     });
 
-    // ===================== Server close without listening =====================
     await describe('net.Server close edge cases', async () => {
         await it('should handle closing a non-listening server', async () => {
             const server = net.createServer();
@@ -140,7 +135,6 @@ export default async () => {
         });
     });
 
-    // ===================== Socket bytesRead/bytesWritten =====================
     await describe('net.Socket bytes tracking', async () => {
         await it('should track bytesWritten and bytesRead', async () => {
             const server = net.createServer((socket) => {

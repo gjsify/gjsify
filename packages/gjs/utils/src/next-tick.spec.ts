@@ -1,7 +1,6 @@
-// Tests for packages/gjs/utils/src/next-tick.ts
-// Regression: nextTick on GJS must route through GLib.idle_add(PRIORITY_HIGH_IDLE)
-// instead of queueMicrotask, so GTK events (PRIORITY_DEFAULT = 0) can interleave
-// between stream operations and prevent window freezes under heavy I/O.
+// Invariant: on GJS nextTick routes through the GLib main context rather than the JS
+// microtask queue, so GTK events interleave between stream operations instead of the
+// window freezing under heavy I/O. Mechanism and priority rationale: `./next-tick.ts`.
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import { nextTick, __resetBurstStateForTests } from './next-tick.js';
@@ -25,9 +24,7 @@ export default async () => {
             nextTick(() => {
                 scheduled = true;
             });
-            // nextTick callback must not have run before this line
             ranBeforeReturn = scheduled;
-            // Wait for callback
             await new Promise<void>((resolve) => nextTick(resolve));
             expect(ranBeforeReturn).toBeFalsy();
             expect(scheduled).toBeTruthy();
@@ -50,48 +47,34 @@ export default async () => {
                     resolve();
                 });
             });
-            // Additional tick so all three have fired
+            // One more tick, so all three have fired.
             await new Promise<void>((resolve) => nextTick(resolve));
             expect(order[0]).toBe(1);
             expect(order[1]).toBe(2);
             expect(order[2]).toBe(3);
         });
 
-        // GJS-specific: nextTick must use GLib.idle_add so that GLib I/O callbacks
-        // (PRIORITY_DEFAULT = 0) can fire between nextTick callbacks (PRIORITY_HIGH_IDLE = 100).
-        // We verify that a resolved Promise (microtask, highest priority) fires before
-        // a nextTick, whereas a GLib.idle_add at PRIORITY_DEFAULT fires before one at PRIORITY_HIGH_IDLE.
         await on('Gjs', async () => {
             await it('GJS: nextTick does not block GLib I/O callbacks (priority ordering)', async () => {
-                // A Promise.resolve microtask fires before any GLib idle (same GLib dispatch).
-                // A nextTick (GLib idle 100) must not block a higher-priority GLib source (priority 0).
-                // We test indirectly: schedule two nextTick callbacks and one via Promise.resolve().
-                // The Promise.resolve microtask runs within the current GLib dispatch (before the idle).
+                // A nextTick goes to the GLib main context, so a `Promise.resolve()`
+                // microtask scheduled beside it runs first — within the current
+                // dispatch. Both must still fire; on Node the order is the other way
+                // round, which is why neither is asserted as first.
                 const order: string[] = [];
                 await new Promise<void>((resolve) => {
-                    // Schedule nextTick (GLib idle priority 100 on GJS)
                     nextTick(() => {
                         order.push('tick');
                         resolve();
                     });
-                    // Schedule a microtask (Promise.resolve runs in current dispatch, before idle)
                     Promise.resolve().then(() => order.push('microtask'));
                 });
-                // On GJS: microtask fires before GLib idle, so 'microtask' comes first
-                // On Node.js: nextTick fires before Promise.resolve microtasks by spec
                 expect(order).toContain('tick');
                 expect(order).toContain('microtask');
             });
 
-            // Burst-yield behavior. When hundreds of nextTicks fire in a tight
-            // loop (webtorrent DHT bootstrap, streamx pipe bursts, …) GLib
-            // dispatches the whole batch at PRIORITY_DEFAULT before coming back
-            // to collect GTK input events — the window appears frozen. After
-            // BURST_YIELD_THRESHOLD consecutive calls within BURST_IDLE_MS, the
-            // scheduler switches to delay=1ms timeouts, forcing a main-loop
-            // iteration between bursts so GTK events can drain. Normal,
-            // non-bursty code pays zero latency because the counter resets on
-            // any gap > BURST_IDLE_MS.
+            // A tight burst (webtorrent DHT bootstrap, streamx pipe bursts) is the case
+            // the chunked drainer in `./next-tick.ts` exists for: it must still deliver
+            // every callback across the 1 ms yield points it inserts.
             await it('GJS: a tight burst of 256 nextTicks still completes', async () => {
                 __resetBurstStateForTests();
                 let fired = 0;

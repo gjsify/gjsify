@@ -2,18 +2,15 @@
 // Shared filesystem primitives for `gjsify install`'s on-disk caches and its
 // lockfile writer.
 //
-// Both the content-addressable tarball cache (install-tarball-cache.ts) and the
-// packument metadata cache (install-packument-cache.ts) need the same three
-// things: an `XDG_CACHE_HOME`-honouring cache root, an atomic write (so a
-// concurrent install never observes a half-written entry), and a read that
-// treats a missing / zero-byte / unreadable file as a MISS. Centralising them
-// here keeps the two caches byte-for-byte consistent. The lockfile writer
-// (`gjsify-lock.json`) shares the same tmp+rename pattern via the strict
-// variant so an interrupted install can never leave a torn lockfile behind.
+// The tarball cache (install-tarball-cache.ts) and the packument metadata cache
+// (install-packument-cache.ts) need the same three things: an `XDG_CACHE_HOME`-honouring
+// root, an atomic write (so a concurrent install never observes a half-written entry), and a
+// read treating missing / zero-byte / unreadable as a MISS. The `gjsify-lock.json` writer
+// shares the tmp+rename pattern via the strict variant, so an interrupted install cannot
+// leave a torn lockfile.
 //
-// Out of scope: the dlx cache (`dlx-cache.ts`) has a different layout
-// (`gjsify/dlx`, sha256 + symlink-swap) and its own TTL/prepare-dir concerns —
-// it is a precedent for the XDG helper, not a reuse target.
+// Out of scope: the dlx cache (`dlx-cache.ts`) has a different layout (`gjsify/dlx`, sha256 +
+// symlink-swap) and its own TTL concerns — a precedent for the XDG helper, not a reuse target.
 
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -32,11 +29,9 @@ export function gjsifyCacheRoot(kind: string, layoutVersion: string): string {
 }
 
 /**
- * Write `bytes` to `path` atomically: write a `<path>.tmp.<pid>` sibling, then
- * `rename` it into place, so a concurrent reader never observes a half-written
- * file. Creates the parent directory. Best-effort — any failure (read-only /
- * out-of-disk cache volume) is swallowed so a cache hiccup never breaks the
- * install; the caller proceeds with its in-memory copy.
+ * Write `bytes` to `path` atomically via a `<path>.tmp.<pid>` sibling + `rename`. Best-effort:
+ * any failure (read-only / out-of-disk cache volume) is swallowed so a cache hiccup never
+ * breaks the install — the caller proceeds with its in-memory copy.
  */
 export function atomicWrite(path: string, bytes: Uint8Array | string): void {
     try {
@@ -47,12 +42,10 @@ export function atomicWrite(path: string, bytes: Uint8Array | string): void {
 }
 
 /**
- * Strict sibling of {@link atomicWrite}: identical tmp+`rename` pattern, but
- * failures PROPAGATE to the caller. Use for files whose corruption/loss must
- * abort the operation (the `gjsify-lock.json` writer) rather than degrade
- * silently like a cache entry. `rename` over the destination is atomic on
- * POSIX, so a concurrent reader (or a crash mid-write) sees either the old
- * complete file or the new complete file — never a torn one.
+ * Strict sibling of {@link atomicWrite}: same tmp+`rename` pattern, but failures PROPAGATE.
+ * Use for files whose loss must abort the operation (the `gjsify-lock.json` writer) rather
+ * than degrade silently like a cache entry. `rename` over the destination is atomic on POSIX,
+ * so a concurrent reader — or a crash mid-write — sees the old or the new file, never a torn one.
  */
 export function atomicWriteStrict(path: string, bytes: Uint8Array | string): void {
     mkdirSync(join(path, '..'), { recursive: true });
@@ -62,10 +55,9 @@ export function atomicWriteStrict(path: string, bytes: Uint8Array | string): voi
 }
 
 /**
- * Read a cache file, returning its bytes on a HIT or `null` on a MISS. A
- * missing file, a zero-byte file (an interrupted previous write), or any read
- * error are all treated as a MISS — the file is left untouched so a follow-up
- * writer's atomic rename isn't disturbed.
+ * Read a cache file: bytes on a HIT, `null` on a MISS. Missing, zero-byte (an interrupted
+ * previous write) and unreadable all count as a MISS, and the file is left untouched so a
+ * follow-up writer's atomic rename isn't disturbed.
  */
 export function readCacheFile(path: string): Buffer | null {
     if (!existsSync(path)) return null;

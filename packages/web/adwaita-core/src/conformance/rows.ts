@@ -1,68 +1,42 @@
 // Row state-machine conformance vectors — the spec both renderers are held to.
 //
-// `ComboState` (rows.ts) is shared by FOUR widgets across the two ports: the
-// browser's `<adw-combo-row>` and `<adw-drop-down>`, and NativeScript's
-// `AdwComboRow` and `AdwDropDown`. Every one of them was exercised by a spec
-// before this file existed, and no two of those specs asserted the same thing:
-// the browser suite drove real elements through `adw-row-state.spec.ts`, the
-// NativeScript suite smoke-tested the re-exported class in `index.spec.ts`, and
-// the core drove the class directly in `rows.spec.ts`. Three readings of one
-// state machine, agreeing by luck. This table is the reading.
+// `ComboState` (rows.ts) is shared by FOUR widgets across the two ports — the browser's
+// `<adw-combo-row>` and `<adw-drop-down>`, NativeScript's `AdwComboRow` and `AdwDropDown`
+// — each of which had its own spec asserting its own reading. This table is the reading.
 //
-// TWO PLACES WHERE THE PORTS DIVERGE FROM THE C, RECORDED RATHER THAN ENCODED
-// SILENTLY:
+// TWO DELIBERATE DIVERGENCES FROM THE C, recorded rather than encoded silently:
 //
-//   1. The `interactive` flag is OURS, not GTK's. `row_activated_cb` routes the
-//      popup's position through the SAME `adw_combo_row_set_selected` a
-//      programmatic set uses (adw-combo-row.c:209), and every real change
-//      reaches `g_object_notify_by_pspec (…, PROP_SELECTED)` (:154) — so in GTK
-//      `notify::selected` fires on a programmatic set too. Both ports re-emit
-//      their `notify::selected` event only for a user pick and refresh the
-//      display silently otherwise; `rows.ts:21-27` states that as a deliberate
-//      port rule. The vectors carry the flag so a renderer that mixes the two
-//      paths up fails a test, and this note so nobody reads the flag as GTK's.
+//   1. The `interactive` flag is OURS, not GTK's. `row_activated_cb` routes the popup's
+//      position through the SAME `adw_combo_row_set_selected` a programmatic set uses, so
+//      in GTK `notify::selected` fires on a programmatic set too. Both ports re-emit only
+//      for a user pick and refresh the display silently otherwise; `rows.ts` states that
+//      as the port rule. The flag is here so a renderer that mixes the two paths up fails
+//      a test — do not read it as GTK's.
 //
-//   2. "Nothing is selected" IS represented, as `ADW_COMBO_NO_SELECTION` (-1) —
-//      the TS spelling of `GTK_INVALID_LIST_POSITION` (= G_MAXUINT, :593-596;
-//      :809-810 returns it when there is no selection model at all), matching
-//      `ADW_SIDEBAR_NO_SELECTION`. It did not used to be: both ports reported
-//      index 0 with an empty `selectedValue`, so an EMPTY model and a model
-//      whose first item has an empty label were the same state, and a renderer
-//      wanting to draw a placeholder had nothing to test. What is still ours is
-//      that an index PAST the end is accepted rather than folded onto the
-//      sentinel — `setSelectedIndex` mirrors a guint property that takes any
-//      position, and `ComboState.hasIndex` is where each renderer states its own
-//      policy.
+//   2. "Nothing is selected" is `ADW_COMBO_NO_SELECTION` (-1), the TS spelling of
+//      `GTK_INVALID_LIST_POSITION` (= G_MAXUINT), matching `ADW_SIDEBAR_NO_SELECTION`.
+//      Still ours: an index PAST the end is accepted rather than folded onto the
+//      sentinel — `setSelectedIndex` mirrors a guint property that takes any position,
+//      and `ComboState.hasIndex` is where each renderer states its own policy.
 //
-// WHO DRIVES THIS TABLE
+// `<adw-combo-row>` composes the same `ComboState` but CANNOT drive this table: two of the
+// four step ops have no DOM spelling there — its options arrive through the `items`
+// attribute at connect time only (`items` is not in `observedAttributes`) and it publishes
+// no select-by-value setter. The day it grows either, it inherits these rows.
 //
-// All three suites: the core (`rows.spec.ts`) against `ComboState` itself, the
-// NativeScript one (`drop-down.spec.ts`) likewise — its widgets cannot be
-// imported outside a NativeScript runtime and hold no logic beyond the
-// subscriber — and the browser one against a REAL `<adw-drop-down>`
-// (`adw-drop-down.spec.ts`), replaying each step through the element's public
-// API and reading back the painted label.
-//
-// `<adw-combo-row>` composes the same `ComboState` but is NOT a driver, and
-// cannot be one: two of the four step ops have no DOM spelling there. Its
-// options arrive through the `items` attribute at connect time only (`items` is
-// not in `observedAttributes`), and it publishes no select-by-value setter. The
-// day it grows either, it inherits these rows rather than a second reading.
-//
-// One row, `an index past the end`, is driven against `<adw-drop-down>`'s own
-// answer instead of the state's: the element REJECTS an out-of-range set, as its
-// published `selected` docs promise, where `setSelectedIndex` accepts it. That
-// split is deliberate and lives in `ComboState.hasIndex`'s doc comment — the
-// bounds predicate is shared, the policy is each renderer's.
+// The `an index past the end` row is driven against `<adw-drop-down>`'s own answer instead
+// of the state's: the element REJECTS an out-of-range set, as its published `selected`
+// docs promise, where `setSelectedIndex` accepts it. The bounds predicate is shared, the
+// policy is each renderer's.
 //
 // What the C DOES settle, and what the rows are derived from:
-//   - the no-op guard: the setter returns before touching the selection when
-//     the position already holds (:785-786), so no notify;
-//   - the notify itself: `selection_changed` (:136-155) re-emits `selected`
-//     whenever the underlying `GtkSingleSelection` moves;
-//   - `selection_item_changed` (:157-185) refreshes the ITEM-derived output —
-//     the accessible value text and, with `use-subtitle`, the row subtitle —
-//     which is why replacing the model at an unchanged index must still repaint.
+//   - the no-op guard: the setter returns before touching the selection when the position
+//     already holds, so no notify;
+//   - the notify: `selection_changed` re-emits `selected` whenever the underlying
+//     `GtkSingleSelection` moves;
+//   - `selection_item_changed` refreshes the ITEM-derived output — the accessible value
+//     text and, with `use-subtitle`, the row subtitle — which is why replacing the model
+//     at an unchanged index must still repaint.
 //
 // Reference: refs/libadwaita/src/adw-combo-row.c
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
@@ -82,9 +56,7 @@ export type ComboSelectionStep =
 
 /** One combo-selection scenario. */
 export interface ComboSelectionVector {
-    /** Short scenario name. */
     name: string;
-    /** The mutations, applied in order to a fresh state. */
     steps: readonly ComboSelectionStep[];
     /** `selectedIndex` afterwards. */
     selected: number;
@@ -98,7 +70,6 @@ export interface ComboSelectionVector {
      * gated on `interactive`.
      */
     emitted: ReadonlyArray<ComboStateChange>;
-    /** Why this row exists — the rule or edge case it pins down. */
     rule: string;
 }
 
@@ -108,8 +79,8 @@ const AB: ReadonlyArray<AdwComboOption> = [
 ];
 
 /**
- * `adw_combo_row_set_selected` (adw-combo-row.c:772-789) and the notify chain it
- * drives (:136-155, :157-185), plus the two port answers the C leaves open (see
+ * `adw_combo_row_set_selected` and the notify chain it
+ * drives, plus the two port answers the C leaves open (see
  * the module header).
  *
  * Note that EVERY scenario starts with a `setOptions`, which is itself an
@@ -328,27 +299,23 @@ export const COMBO_SELECTION_VECTORS: ReadonlyArray<ComboSelectionVector> = [
     },
 ];
 
-// --- The chooser predicate (model_changed, adw-combo-row.c:187-195) -----------
+// --- The chooser predicate (model_changed) -----------
 
 /** One `presentsChooser` expectation. */
 export interface ComboChooserVector {
-    /** How many options the model holds. */
     count: number;
     /** Whether the arrow is drawn and the row is activatable. */
     presentsChooser: boolean;
-    /** The rule this row pins down. */
     rule: string;
 }
 
 /**
- * `model_changed` (adw-combo-row.c:187-195) — one predicate, `n_items > 1`,
+ * `model_changed` — one predicate, `n_items > 1`,
  * driving BOTH `gtk_widget_set_visible (arrow_box, …)` and
  * `gtk_list_box_row_set_activatable (row, …)`.
  *
- * A row with one option or none has nothing to choose, so it stops presenting
- * itself as a chooser. Neither port did this: a NativeScript `AdwComboRow` with
- * a single option still showed its chevron and opened an `action()` sheet with
- * one entry, and the browser element behaved the same way.
+ * A row with one option or none has nothing to choose, so it stops presenting itself as a
+ * chooser: no chevron, and no sheet with a single entry in it.
  *
  * `Gtk.DropDown` is deliberately NOT covered — it keeps its arrow at any count,
  * which is why this lives on the combo ROW rather than in the shared chooser.

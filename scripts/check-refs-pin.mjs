@@ -3,13 +3,12 @@
  * Build-step entry: verify ONE package's `refs/` provenance before it produces
  * a prebuild.
  *
- * The check lives in the `refs-pin` rule
- * (`scripts/manifest-conformance/rules/refs-pin.mjs`) together with its full
- * rationale; it is registered in the conformance registry so `field-coverage`
- * can see that `gjsify.refsLockstep` has an owner. This file stays because the
- * check has a SECOND job the registry run does not do: it is wired into every
- * `build:meson`, where it must run for one package, before the build, and write
- * the build-directory stamp that makes a stale `build/` loud instead of silent.
+ * The check and its rationale live in the `refs-pin` rule
+ * (`scripts/manifest-conformance/rules/refs-pin.mjs`), registered so
+ * `field-coverage` sees an owner for `gjsify.refsLockstep`. This file stays for the
+ * SECOND job the registry run does not do: wired into every `build:meson`, it runs
+ * for one package before the build and writes the build-directory stamp that makes a
+ * stale `build/` loud instead of silent.
  *
  * Usage:  node scripts/check-refs-pin.mjs <package-dir>
  * Escape: GJSIFY_ALLOW_REFS_DRIFT=1 — for a DELIBERATE upstream bump, where

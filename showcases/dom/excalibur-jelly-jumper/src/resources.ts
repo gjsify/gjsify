@@ -1,16 +1,13 @@
 import { TiledResource } from '@excaliburjs/plugin-tiled';
 import * as ex from 'excalibur';
 
-// All resources use root-relative paths. The browser serves assets from
-// dist/res/* via http-server. For GJS, the XHR/HTMLImageElement stubs
-// resolve root-relative URLs against the program directory.
+// Paths are root-relative: the browser serves them from dist/res/*, and on GJS the
+// XHR/HTMLImageElement stubs resolve root-relative URLs against the program directory.
 //
-// NOTE: Module-level `Resources` is intentional — actors like player.ts,
-// bird.ts, spider.ts, bouncepad.ts, moving-platform.ts, smoke.ts call
-// `SpriteSheet.fromImageSource({ image: Resources.img.X })` at module load
-// time, capturing references. Any factory that swaps `Resources` after
-// import breaks those captured references → "ImageSource not yet loaded"
-// warnings at runtime.
+// `Resources` must stay a module-level constant. Actors call
+// `SpriteSheet.fromImageSource({ image: Resources.img.X })` at module-load time and capture the
+// reference, so anything that swaps `Resources` after import leaves them pointing at an unloaded
+// ImageSource.
 
 export const Resources = {
     img: {
@@ -57,27 +54,18 @@ export const Resources = {
     },
 } as const;
 
-// DevLoader starts the game immediately once loading completes, skipping
-// Excalibur's play button overlay (which we replace with Excalibur's own
-// suppressPlayButton: false for the audio-unlock user gesture).
+// Starts the game as soon as loading finishes, with no play-button overlay.
 class DevLoader extends ex.Loader {
     /**
-     * Skip the whole "wait for the player" step, not just its button.
+     * Skips the whole "wait for the player" step, not just its button.
      *
-     * `Loader.onUserAction()` is `delay(200, engine.clock)` followed by
-     * `showPlayButton()`. Overriding only the button left the delay, and that
-     * delay is scheduled on the EXCALIBUR CLOCK, whose time advances per frame
-     * rather than per millisecond — with a spiral-of-death guard that clamps
-     * `elapsed` to 1 ms for ANY frame that took longer than 200 ms. So on a host
-     * slower than 5 fps a 200 ms cosmetic pause silently becomes 200 FRAMES:
-     * measured at 1.1 s per frame on a GPU-less macOS VM, the loader sat there
-     * for ~4 minutes with nothing drawn, nothing rejected and nothing logged —
-     * the window looked frozen, and `game.start()` simply never resolved
-     * (gjsify#1107).
-     *
-     * There is nothing to wait for here: the pause exists to let a player see
-     * the progress bar finish, and this loader draws no progress bar. Removing
-     * it makes loading depend on the resources alone, on every host.
+     * `Loader.onUserAction()` is `delay(200, engine.clock)` then `showPlayButton()`, and overriding
+     * only the button leaves the delay — which is scheduled on the EXCALIBUR CLOCK, advancing per
+     * frame, with a spiral-of-death guard that clamps `elapsed` to 1 ms for any frame over 200 ms.
+     * Below 5 fps the 200 ms cosmetic pause therefore becomes 200 FRAMES: at 1.1 s per frame on a
+     * GPU-less macOS VM the loader sat for ~4 minutes, nothing drawn, nothing logged, `game.start()`
+     * never resolving (gjsify#1107). Nothing here needs waiting for — the pause exists to let a
+     * player watch a progress bar finish, and this loader draws none.
      */
     onUserAction() {
         return Promise.resolve();
@@ -90,25 +78,16 @@ class DevLoader extends ex.Loader {
 }
 
 /**
- * Make an `ex.Sound` non-fatal when the host cannot decode or play it.
+ * Makes an `ex.Sound` non-fatal when the HOST cannot decode or play it — a missing codec plugin, no
+ * audio sink, a container with no sound device. Not a runtime fallback: `@gjsify/webaudio`'s
+ * GStreamer decode and playback work on gjs and on all three reverse-bridge runtimes, so where audio
+ * works the `catch` never fires.
  *
- * Audio is NOT a GJS-only capability here: `@gjsify/webaudio`'s GStreamer decode
- * (`decodebin`) and playback (`autoaudiosink`) run on gjs AND on the `--app node`
- * reverse bridge — node, bun and deno alike, verified against PipeWire rather
- * than against the absence of an error. So this wrapper is a fallback for a HOST
- * that lacks the pieces (no `gst-plugins-good/bad` for the codec, no audio sink,
- * a container with no sound device), not for a runtime.
- *
- * It exists because Excalibur's `Loader` aborts the WHOLE load on the first
- * resource rejection: a `Sound.load()` that rejects races scene init ahead of the
- * still-loading `TiledResource`, and the level then has no `Player` for camera
- * setup to follow. So on failure we both (a) resolve the load, keeping the loader
- * waiting for the VISUAL resources so the game still renders, and (b) neutralize
- * `play()` so later `AudioManager` calls cannot reach a pipeline that was never
- * built. The game runs silent instead of not running.
- *
- * Platform-agnostic: wherever audio works — gjs, the reverse-bridge runtimes, the
- * browser — the `catch` never fires and this is a no-op.
+ * Needed because Excalibur's `Loader` aborts the WHOLE load on the first rejection, and a rejected
+ * `Sound.load()` races scene init ahead of the still-loading `TiledResource`, leaving the level with
+ * no `Player` for the camera to follow. So failure resolves the load (the loader keeps waiting for
+ * the VISUAL resources, and the game renders) and neutralizes `play()`, since later `AudioManager`
+ * calls must not reach a pipeline that was never built. Silent beats not running.
  */
 function tolerateAudioFailure(sound: ex.Sound): ex.Sound {
     const load = sound.load.bind(sound);

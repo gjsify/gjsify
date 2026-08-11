@@ -27,9 +27,7 @@ function uid(prefix = 'test') {
 
 export default async () => {
     await describe('diagnostics_channel', async () => {
-        // ---------------------------------------------------------------
         // channel() factory
-        // ---------------------------------------------------------------
         await describe('channel() factory', async () => {
             await it('should return a Channel instance', async () => {
                 const ch = channel(uid());
@@ -71,9 +69,7 @@ export default async () => {
             });
         });
 
-        // ---------------------------------------------------------------
         // hasSubscribers (module-level)
-        // ---------------------------------------------------------------
         await describe('hasSubscribers()', async () => {
             await it('should return false for unknown channel', async () => {
                 expect(hasSubscribers(uid('unknown'))).toBe(false);
@@ -95,9 +91,7 @@ export default async () => {
             });
         });
 
-        // ---------------------------------------------------------------
         // Channel: subscribe / unsubscribe / hasSubscribers lifecycle
-        // ---------------------------------------------------------------
         await describe('Channel subscribe/unsubscribe lifecycle', async () => {
             await it('should track hasSubscribers correctly through add/remove', async () => {
                 const ch = channel(uid('lifecycle'));
@@ -150,9 +144,7 @@ export default async () => {
             });
         });
 
-        // ---------------------------------------------------------------
         // Channel: publish
-        // ---------------------------------------------------------------
         await describe('Channel publish', async () => {
             await it('should publish messages to subscribers', async () => {
                 const ch = channel(uid('pub'));
@@ -232,9 +224,7 @@ export default async () => {
             });
         });
 
-        // ---------------------------------------------------------------
         // Unsubscribe during publish (copy-on-write safety)
-        // ---------------------------------------------------------------
         await describe('unsubscribe during publish', async () => {
             await it('should not crash when a subscriber unsubscribes during publish', async () => {
                 const name = uid('sync-unsub');
@@ -256,9 +246,7 @@ export default async () => {
             });
         });
 
-        // ---------------------------------------------------------------
         // subscribe/unsubscribe module-level functions
-        // ---------------------------------------------------------------
         await describe('subscribe/unsubscribe module-level functions', async () => {
             await it('should subscribe and receive messages via module functions', async () => {
                 const name = uid('modsub');
@@ -283,9 +271,7 @@ export default async () => {
             });
         });
 
-        // ---------------------------------------------------------------
         // Error handling in subscribers
-        // ---------------------------------------------------------------
         await describe('subscriber error handling', async () => {
             await it('should continue notifying remaining subscribers when one throws', async () => {
                 const ch = channel(uid('err'));
@@ -329,9 +315,7 @@ export default async () => {
             });
         });
 
-        // ---------------------------------------------------------------
         // TracingChannel: creation and structure
-        // ---------------------------------------------------------------
         await describe('TracingChannel creation', async () => {
             await it('should create a tracing channel with all sub-channels', async () => {
                 const tc = tracingChannel(uid('trace'));
@@ -374,9 +358,7 @@ export default async () => {
             });
         });
 
-        // ---------------------------------------------------------------
         // TracingChannel: hasSubscribers
-        // ---------------------------------------------------------------
         await describe('TracingChannel hasSubscribers', async () => {
             await it('should be false initially', async () => {
                 const tc = tracingChannel(uid('tc-hassub'));
@@ -411,9 +393,7 @@ export default async () => {
             });
         });
 
-        // ---------------------------------------------------------------
         // TracingChannel: subscribe/unsubscribe
-        // ---------------------------------------------------------------
         await describe('TracingChannel subscribe/unsubscribe', async () => {
             await it('should subscribe handlers to respective channels', async () => {
                 const tc = tracingChannel(uid('tc-sub'));
@@ -463,9 +443,7 @@ export default async () => {
             });
         });
 
-        // ---------------------------------------------------------------
         // TracingChannel: traceSync
-        // ---------------------------------------------------------------
         await describe('TracingChannel traceSync', async () => {
             await it('should publish start and end on success', async () => {
                 const tc = tracingChannel(uid('ts-ok'));
@@ -625,9 +603,7 @@ export default async () => {
             });
         });
 
-        // ---------------------------------------------------------------
         // TracingChannel: traceSync early exit (subscribe during trace)
-        // ---------------------------------------------------------------
         await describe('TracingChannel traceSync early exit', async () => {
             await it('should not fire end/error if subscribed during traceSync with no prior subscribers', async () => {
                 // When traceSync is called with no subscribers, it takes the fast path
@@ -657,9 +633,7 @@ export default async () => {
             });
         });
 
-        // ---------------------------------------------------------------
         // TracingChannel: tracePromise (success)
-        // ---------------------------------------------------------------
         await describe('TracingChannel tracePromise', async () => {
             await it('should publish start, end, asyncStart, asyncEnd on success', async () => {
                 const tc = tracingChannel(uid('tp-ok'));
@@ -718,9 +692,7 @@ export default async () => {
             });
         });
 
-        // ---------------------------------------------------------------
         // TracingChannel: tracePromise (error)
-        // ---------------------------------------------------------------
         await describe('TracingChannel tracePromise error', async () => {
             await it('should publish error, asyncStart, asyncEnd on rejection', async () => {
                 const tc = tracingChannel(uid('tp-err'));
@@ -770,9 +742,7 @@ export default async () => {
             });
         });
 
-        // ---------------------------------------------------------------
         // TracingChannel: traceCallback
-        // ---------------------------------------------------------------
         await describe('TracingChannel traceCallback', async () => {
             await it('should publish start, end, asyncStart, asyncEnd on success callback', async () => {
                 const tc = tracingChannel(uid('tc-cb-ok'));
@@ -855,9 +825,7 @@ export default async () => {
             });
         });
 
-        // ---------------------------------------------------------------
         // Edge cases
-        // ---------------------------------------------------------------
         await describe('edge cases', async () => {
             await it('should handle empty string channel name', async () => {
                 const ch = channel('');
@@ -966,9 +934,7 @@ export default async () => {
             });
         });
 
-        // ---------------------------------------------------------------
         // Interaction between module-level and Channel-level APIs
-        // ---------------------------------------------------------------
         await describe('module-level and Channel-level API interaction', async () => {
             await it('subscribe via module function, publish via Channel instance', async () => {
                 const name = uid('cross');

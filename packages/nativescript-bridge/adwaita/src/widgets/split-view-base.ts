@@ -2,17 +2,15 @@
 //
 // `Adw.NavigationSplitView` and `Adw.OverlaySplitView` both pair a sidebar with a
 // content pane and collapse on narrow widths; they differ only in HOW the sidebar
-// behaves when collapsed (the navigation split-view swaps the visible pane like a
-// nav stack; the overlay split-view slides the sidebar OVER the content). This base
-// captures the shared sidebar/content slots and the view-tree half of `collapsed` /
-// `showSidebar`; the subclasses override `_applyLayout()` for their collapse
-// behaviour.
+// behaves when collapsed (navigation swaps the visible pane like a nav stack;
+// overlay slides the sidebar OVER the content). This base holds the shared
+// sidebar/content slots and the view-tree half of `collapsed` / `showSidebar`; the
+// subclasses override `_applyLayout()` for their collapse behaviour.
 //
 // The STATE behind those two properties is not here: each subclass hands `super()`
 // its adapter from `split-view-state.ts`, which holds the matching
 // `@gjsify/adwaita-core` state machine (ADR 0004) and calls back through
-// {@link NsSplitViewHost}. This class keeps no `collapsed`/`showSidebar` field of
-// its own, so there is nothing left to drift from libadwaita.
+// {@link NsSplitViewHost}. This class keeps no `collapsed`/`showSidebar` field.
 //
 // FIDELITY: approximated. NS has no responsive two-pane container and no automatic
 // width breakpoint, so `collapsed` is a manual flag the consumer toggles (e.g.
@@ -46,7 +44,6 @@ export const NOTIFY_SHOW_SIDEBAR = 'notify::show-sidebar';
 
 /** Payload of the `notify::show-sidebar` event. */
 export interface NotifyShowSidebarEventData extends EventData {
-    /** Whether the sidebar is currently shown. */
     showSidebar: boolean;
     /** Whether the view is in its collapsed (narrow) mode. */
     collapsed: boolean;
@@ -83,31 +80,23 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
         // post-layout size is the size source — the same one `addBreakpoints`
         // binds breakpoints to.
         this.addEventListener('layoutChanged', () => this._applySidebarWidth());
-        // Two columns; the SIDEBAR column is fixed-width ('auto', sized to the pane)
-        // and the CONTENT column expands ('star'). _syncColumns places them per
-        // sidebarPosition so a trailing (end) sidebar sits flush to the right edge.
         this._syncColumns();
     }
 
     /**
-     * (Re)declare the two columns so the sidebar's column is fixed-width ('auto')
-     * and the content's is expanding ('star'), ordered by {@link sidebarPosition}:
-     * `start` → [sidebar auto, content star]; `end` → [content star, sidebar auto].
-     * Without this an `end` sidebar would land in the expanding column and float
-     * away from the right edge (leaving a gap), with the content squeezed.
+     * (Re)declare the two columns so the sidebar's is fixed-width (`'auto'`, sized to
+     * the pane) and the content's expands (`'star'`), ordered by the side the sidebar
+     * is DRAWN on. Without this an `end` sidebar lands in the expanding column and
+     * floats away from the edge, with the content squeezed.
      *
      * `splitViewColumns()` is the other half of the same rule — which column each
-     * PANE is written into. The two must agree, or an `end` sidebar ends up in the
-     * expanding column with the content squeezed into the fixed one.
+     * PANE is written into — and both must agree.
      */
     protected _syncColumns(): void {
         this.removeColumns();
-        // The leading column is column 0, so the question is which side the
-        // sidebar is DRAWN on, not which side it is packed on — under RTL a
-        // `start` sidebar is drawn on the right (`get_start_or_end`,
-        // adw-overlay-split-view.c:227-234). `splitViewColumns` is that
-        // predicate; this method used to test `sidebarPosition` literally and
-        // laid every RTL device out as if it were LTR.
+        // Column 0 is the LEADING column, so the question is which side the sidebar
+        // is drawn on, not which side it is packed on: under RTL a `start` sidebar is
+        // drawn on the right. `splitViewColumns` is that predicate.
         const columns = splitViewColumns(this._state.sidebarPosition, this.textDirection);
         if (columns.sidebar === 0) {
             this.addColumn(new ItemSpec(1, 'auto')); // col 0: sidebar
@@ -120,9 +109,9 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
 
     /**
      * Publish which visual side the pane is on, so the theme can put the divider
-     * there — the CSS counterpart to `_sidebars.scss`'s `:dir()` x `.end`
-     * product. A fixed `border-right` drew it on the wrong edge for an `end`
-     * sidebar and for every RTL layout.
+     * there — the CSS counterpart to `_sidebars.scss`'s `:dir()` × `.end` product. A
+     * fixed `border-right` draws it on the wrong edge for an `end` sidebar and for
+     * every RTL layout.
      */
     protected _syncSidebarSide(view: View | null = this._sidebar): void {
         if (!view) return;
@@ -160,23 +149,19 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
     /** Subclass-specific layout application for the current collapsed/show state. */
     protected abstract _applyLayout(): void;
 
-    /** Apply a user-initiated show/hide toggle. The default is an instant re-layout;
-     *  the subclasses override this to slide the panes (and, for the overlay, fade a
-     *  scrim) when collapsed. Kept separate from {@link _applyLayout} so structural
-     *  re-layouts (setSidebar/collapsed/position changes) stay instant — only an
-     *  on-screen `showSidebar` toggle animates. */
+    /** Apply a user-initiated show/hide toggle. Separate from {@link _applyLayout} so
+     *  structural re-layouts stay instant — only an on-screen `showSidebar` toggle
+     *  animates; the subclasses override this to slide the panes. */
     protected _transitionSidebar(): void {
         this._applyLayout();
     }
-
-    // --- shared animation plumbing (used by both split-view subclasses) ---
 
     /** In-flight animations, cancelled when a new transition supersedes them. */
     protected _pending: Cancelable[] = [];
 
     /** Whether to run a real animation now: native `animate()` present AND on-screen.
-     *  Off-device (the mock view tree in specs) or pre-load it returns false, so the
-     *  caller falls back to an instant `visibility` swap. */
+     *  False off-device or pre-load, so the caller falls back to an instant
+     *  `visibility` swap. */
     protected _shouldAnimate(): boolean {
         const probe = (this._sidebar ?? this._content ?? this) as unknown as { animate?: unknown };
         return typeof probe.animate === 'function' && this.isLoaded === true;
@@ -271,9 +256,9 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
     }
 
     /**
-     * The sidebar pane width in DIPs, DERIVED from the container size unless a
-     * caller assigned one. `Adw.OverlaySplitView` has no stored width — see
-     * `split-view-width.ts` for why the old fixed 240 could not be right.
+     * The sidebar pane width in DIPs, DERIVED from the container size unless a caller
+     * assigned one — `Adw.OverlaySplitView` stores no width; see
+     * `split-view-width.ts` for the rule.
      */
     get sidebarWidth(): number {
         return (
@@ -332,17 +317,14 @@ export abstract class AdwSplitViewBase<TState extends NsSplitViewState = NsSplit
         const size = this.getActualSize?.();
         if (size && size.width > 0) this._measuredWidth = size.width;
         if (!this._sidebar) return;
-        // The rule lives in the pure sibling so a spec can pin it: this class
-        // `extends GridLayout`, so no test can import it. Writing the derived
-        // width unconditionally undid the collapsed pane's `'auto'` ONE FRAME
-        // LATER, and nothing was positioned to notice.
+        // Guarded: writing the derived width unconditionally undoes a collapsed pane's
+        // `'auto'` one frame later. The rule lives in the pure sibling so a spec can
+        // pin it — this class `extends GridLayout`, which no test can import.
         if (!appliesDerivedSidebarWidth(this._state.collapsed, this._widthRule)) return;
         this._sidebar.width = this.sidebarWidth;
     }
 
-    /** Which side the sidebar sits on — `'start'` (leading / left) or `'end'`
-     *  (trailing / right). Mirrors `Adw.OverlaySplitView`'s `sidebar-position`
-     *  (the storybook controls overlay uses `'end'`). */
+    /** `Adw.OverlaySplitView:sidebar-position` — `'start'` (leading) or `'end'`. */
     get sidebarPosition(): AdwPackType {
         return this._state.sidebarPosition;
     }

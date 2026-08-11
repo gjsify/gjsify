@@ -454,7 +454,6 @@ export default async () => {
         });
     });
 
-    // ==================== auth option ====================
     await describe('http.request auth option', async () => {
         await it('should set Authorization header from auth option', async () => {
             const req = http.request({ hostname: 'localhost', port: 1, path: '/', auth: 'user:pass' });
@@ -489,7 +488,6 @@ export default async () => {
         });
     });
 
-    // ==================== Agent improvements ====================
     await describe('http.Agent constructor options', async () => {
         await it('should accept keepAlive option', async () => {
             const agent = new http.Agent({ keepAlive: true });
@@ -538,7 +536,6 @@ export default async () => {
         });
     });
 
-    // ==================== signal option ====================
     await describe('http.request signal option', async () => {
         await it('should support signal option in request', async () => {
             if (typeof AbortController === 'undefined') return; // skip if not available

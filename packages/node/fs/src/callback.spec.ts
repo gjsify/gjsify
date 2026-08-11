@@ -29,7 +29,6 @@ const TEST_DIR = './test-callback-' + Date.now();
 
 export default async () => {
     await describe('fs callback API', async () => {
-        // ==================== stat / lstat ====================
         await describe('stat', async () => {
             await it('should stat current directory', async () => {
                 await new Promise<void>((resolve, reject) => {
@@ -69,7 +68,6 @@ export default async () => {
             });
         });
 
-        // ==================== readdir ====================
         await describe('readdir', async () => {
             await it('should list files in current directory', async () => {
                 await new Promise<void>((resolve, reject) => {
@@ -83,7 +81,6 @@ export default async () => {
             });
         });
 
-        // ==================== mkdir / rmdir ====================
         await describe('mkdir and rmdir', async () => {
             await it('should create and remove a directory', async () => {
                 const dir = TEST_DIR + '-mkdir';
@@ -103,7 +100,6 @@ export default async () => {
             });
         });
 
-        // ==================== writeFile / readFile ====================
         await describe('writeFile and readFile', async () => {
             await it('should write and read a file', async () => {
                 const path = TEST_DIR + '-rw.txt';
@@ -152,7 +148,6 @@ export default async () => {
             });
         });
 
-        // ==================== open / write / read / close ====================
         await describe('open, write, read, close', async () => {
             await it('should open, write, read, and close a file', async () => {
                 const path = TEST_DIR + '-open.txt';
@@ -177,7 +172,6 @@ export default async () => {
             });
         });
 
-        // ==================== access ====================
         await describe('access', async () => {
             await it('should succeed for existing file', async () => {
                 const path = TEST_DIR + '-access.txt';
@@ -203,7 +197,6 @@ export default async () => {
             });
         });
 
-        // ==================== appendFile ====================
         await describe('appendFile', async () => {
             await it('should append to a file', async () => {
                 const path = TEST_DIR + '-append.txt';
@@ -223,7 +216,6 @@ export default async () => {
             });
         });
 
-        // ==================== rename ====================
         await describe('rename', async () => {
             await it('should rename a file', async () => {
                 const oldPath = TEST_DIR + '-rename-old.txt';
@@ -244,7 +236,6 @@ export default async () => {
             });
         });
 
-        // ==================== copyFile ====================
         await describe('copyFile', async () => {
             await it('should copy a file', async () => {
                 const src = TEST_DIR + '-copy-src.txt';
@@ -265,7 +256,6 @@ export default async () => {
             });
         });
 
-        // ==================== truncate ====================
         await describe('truncate', async () => {
             await it('should truncate a file', async () => {
                 const path = TEST_DIR + '-truncate.txt';
@@ -285,7 +275,6 @@ export default async () => {
             });
         });
 
-        // ==================== chmod ====================
         await describe('chmod', async () => {
             await it.failing(
                 'should change file mode',

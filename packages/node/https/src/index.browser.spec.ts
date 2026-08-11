@@ -32,7 +32,6 @@ import { request as httpRequest, ClientRequest as HttpClientRequest } from '@gjs
 
 export default async () => {
     await describe('https (browser)', async () => {
-        // ==================== exports ====================
         await describe('exports', async () => {
             await it('should export request/get/createServer as functions', async () => {
                 expect(typeof request).toBe('function');
@@ -99,7 +98,6 @@ export default async () => {
             });
         });
 
-        // ==================== get: request + end shape ====================
         await describe('get', async () => {
             await it('should return a ClientRequest (request followed by end)', async () => {
                 const req = get({ host: 'example.com', path: '/g' });
@@ -112,7 +110,6 @@ export default async () => {
             });
         });
 
-        // ==================== ENOTSUP: server paths ====================
         await describe('server paths are ENOTSUP (no listening socket in a browser)', async () => {
             await it('should throw structured ENOTSUP from new Server()', async () => {
                 let code: string | undefined;

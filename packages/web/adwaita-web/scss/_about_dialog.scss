@@ -89,8 +89,9 @@ adw-about-dialog {
     min-height: 47px;
   }
 
-  // The close button — a flat circular button drawing a "×" glyph (no
-  // window-close symbolic icon ships in @gjsify/adwaita-icons).
+  // The close button — a flat circular button drawing a "×" glyph: the generated
+  // `.adw-icon--<name>` mask classes come from the ICONS map in scripts/build-scss.mjs,
+  // which has no window-close entry (the SVG itself does exist in @gjsify/adwaita-icons).
   .adw-about-dialog-close {
     width: 34px;
     height: 34px;

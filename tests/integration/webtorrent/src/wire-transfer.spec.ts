@@ -4,11 +4,10 @@
 // Simulates the exact data path webtorrent uses for peer-to-peer transfers:
 //   @gjsify/net.Socket → streamx.pipeline → bittorrent-protocol Wire → @gjsify/net.Socket
 //
-// Regression guard: when process.nextTick used GLib.idle_add(priority=100), streamx
-// fell back to nextTick as its internal scheduler (queueMicrotask absent on SM128),
-// which caused the entire bittorrent-protocol Wire pipeline to stall and transfer
-// rates to drop to 0 B/s. The fix (nextTick → microtask semantics) must keep this
-// test green on both Node.js and GJS.
+// Regression guard: GJS has no `queueMicrotask`, so streamx falls back to
+// `process.nextTick` as its scheduler. While nextTick used
+// `GLib.idle_add(priority=100)` the whole Wire pipeline stalled at 0 B/s. The fix
+// (nextTick → microtask semantics) must keep this green on both Node.js and GJS.
 //
 // See: refs/webtorrent/lib/peer.js:72 (onConnect) for the exact connection setup pattern.
 
@@ -716,12 +715,11 @@ export default async () => {
         );
 
         await it('queueMicrotask or process.nextTick is available for streamx scheduler', async () => {
-            // streamx picks its scheduler at module load time:
+            // streamx picks its scheduler once, at module load:
             //   typeof queueMicrotask !== 'undefined' ? queueMicrotask : (fn) => global.process.nextTick(fn)
-            // Node.js: queueMicrotask always available.
-            // GJS/SM128: queueMicrotask absent → streamx uses process.nextTick.
-            // After fixing nextTick to use microtask semantics, both schedulers work correctly.
-            // oxlint-disable-next-line typescript/no-explicit-any -- queueMicrotask may be absent in GJS/SM128; runtime availability check
+            // So Node takes queueMicrotask and GJS, which has none, takes nextTick.
+            // Both work now that nextTick has microtask semantics.
+            // oxlint-disable-next-line typescript/no-explicit-any -- queueMicrotask is absent under GJS; this is the runtime availability check
             const hasMicrotask = typeof (globalThis as any).queueMicrotask === 'function';
             const hasNextTick = typeof process !== 'undefined' && typeof process.nextTick === 'function';
             expect(hasMicrotask || hasNextTick).toBeTruthy();

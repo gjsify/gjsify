@@ -1,24 +1,17 @@
 // DOM-level conformance tests for <adw-wrap-box>, driven by the SAME tables the
 // NativeScript renderer asserts against (`@gjsify/adwaita-core/conformance`).
 //
-// There were no wrap-box specs at all, which is how sixteen divergences from
-// `Adw.WrapBox` sat untouched (issue #1048). Three of them were wrong answers to
-// the one question that IS portable — where a line's leftover space goes:
+// The portable question is where a line's leftover space goes, and three `Adw.WrapBox`
+// rules answer it: `align` is a MAIN-axis offset of the whole line block, not
+// `align-items` on the cross axis (writing it there pushes children DOWN); `fill` grows
+// the CHILDREN where `spread` grows the GAPS, so they are not both `space-between`; and
+// `justify-last-line` governs the final line, whose C default is NOT justified.
 //
-//   - `align` was written to `align-items`, the CROSS axis, where libadwaita
-//     applies it as a MAIN-axis offset of the whole line block
-//     (adw-wrap-layout.c:717-725), so `align="1"` pushed children DOWN;
-//   - `JUSTIFY_MAP` mapped `fill` and `spread` to the same `space-between`,
-//     where C grows the CHILDREN for one and the GAPS for the other
-//     (adw-wrap-layout.c:317-341);
-//   - `justify-last-line` was observed and never read, so the final line was
-//     always justified — the opposite of the C default (adw-wrap-box.c:379-381).
-//
-// The element publishes its resolved decision as `data-line-justify` (what
-// governs a complete line) and `data-last-line-justify` (what governs the final
-// one), which is both what the stylesheet keys off and what these vectors read:
-// the rendered `justify-content` / `flex-grow` are asserted alongside, so a
-// correct data attribute with a stylesheet that ignores it still fails.
+// The element publishes its resolved decision as `data-line-justify` (complete lines)
+// and `data-last-line-justify` (the final one) — what the stylesheet keys off and what
+// these vectors read. The rendered `justify-content` / `flex-grow` are asserted
+// alongside, so a correct data attribute with a stylesheet that ignores it still
+// fails.
 
 import { describe, expect, it } from '@gjsify/unit';
 
@@ -61,10 +54,9 @@ function label(value: unknown): string {
 /**
  * `justify-content` for an un-justified line at `align`.
  *
- * C offsets the line block by `roundf (length_delta * align)`, a continuum;
- * flexbox has three positions, so the port takes the nearest one. That
- * approximation lives here rather than in the vectors because it is the browser
- * renderer's, not libadwaita's.
+ * C offsets the line block by `roundf (length_delta * align)`, a continuum, where
+ * flexbox has three positions — so the port takes the nearest. The approximation lives
+ * here rather than in the vectors because it is the browser renderer's, not libadwaita's.
  */
 function expectedJustifyContent(align: number): string {
     if (align < 0.25) return 'flex-start';
@@ -82,10 +74,9 @@ export const AdwWrapBoxTest = async () => {
             await it(`${title}: ${vector.rule}`, () => {
                 const attrs: Record<string, string> = { justify: vector.justify, align: String(vector.align) };
                 if (vector.justifyLastLine) attrs['justify-last-line'] = '';
-                // A box with ONE child has exactly one line, and that line is the
-                // final one — the only line membership CSS can know without a
-                // layout pass, and the reason the stylesheet has an `:only-child`
-                // rule at all.
+                // A box with ONE child has exactly one line and it is the final one — the
+                // only line membership CSS can know without a layout pass, and why the
+                // stylesheet has an `:only-child` rule.
                 const childCount = vector.childrenInLine === 1 ? 1 : 3;
                 const { box, children } = mountWrapBox(attrs, childCount);
 
@@ -93,9 +84,8 @@ export const AdwWrapBoxTest = async () => {
                 expect(resolved).toBe(vector.layout.justify);
 
                 if (!vector.lastLine && vector.childrenInLine > 1) {
-                    // `justify-content` is the container knob, and a flex
-                    // container applies it to every line — so it carries the
-                    // COMPLETE-line rule.
+                    // `justify-content` is the container knob and a flex container applies
+                    // it to every line, so it carries the COMPLETE-line rule.
                     expect(getComputedStyle(box).justifyContent).toBe(
                         vector.layout.growGaps ? 'space-between' : expectedJustifyContent(vector.layout.align),
                     );
@@ -114,7 +104,7 @@ export const AdwWrapBoxTest = async () => {
             const style = getComputedStyle(box);
             expect(style.justifyContent).toBe('flex-end');
             // The cross axis is libadwaita's `h = line_size` — every child takes
-            // the full line extent (adw-wrap-layout.c:746-751).
+            // the full line extent.
             expect(style.alignItems).toBe('stretch');
             unmountAll();
         });
@@ -134,9 +124,8 @@ export const AdwWrapBoxTest = async () => {
 
         await it('a spread box whose last line is not justified gets the filler that packs it', () => {
             const { box } = mountWrapBox({ justify: 'spread' });
-            // The only per-line hook flexbox offers: a generated flex item on the
-            // final line that absorbs its leftover, so the line packs at the start
-            // the way an un-justified line does.
+            // The only per-line hook flexbox offers: a generated flex item on the final
+            // line absorbs its leftover, so the line packs at the start.
             expect(getComputedStyle(box, '::after').flexGrow).toBe('1');
             unmountAll();
 
@@ -216,8 +205,8 @@ export const AdwWrapBoxTest = async () => {
         });
 
         for (const { value, unit, dpi, px, rule } of WRAP_BOX_LENGTH_VECTORS) {
-            // The element resolves at the default dpi; the scaled rows are the
-            // core suite's, since a browser has no `gtk-xft-dpi` to report.
+            // The element resolves at the default dpi; the scaled rows are the core
+            // suite's, since a browser has no `gtk-xft-dpi` to report.
             if (dpi !== 96 || value < 0) continue;
             await it(`child-spacing ${value}${String(unit)} → ${px}px: ${rule}`, () => {
                 const attrs: Record<string, string> = { 'child-spacing': String(value) };
@@ -314,8 +303,8 @@ export const AdwWrapBoxTest = async () => {
                     return view;
                 };
                 for (const id of children) box.appendChild(make(id));
-                // The child being placed may be one of the mounted ones (a
-                // reorder, or the "already parented" refusal) or a fresh one.
+                // The child placed may be one of the mounted ones (a reorder, or the
+                // "already parented" refusal) or a fresh one.
                 const target = byId.get(child) ?? make(child);
                 // A sibling the box does not have still has to be a real element.
                 const after = sibling === null ? null : (byId.get(sibling) ?? make(sibling));

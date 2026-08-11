@@ -1,15 +1,12 @@
-// Unit spec for `checkTypeSkew` — the @girs-types-vs-installed-library comparison.
-//
-// The defect it exists for, measured on a maintainer workstation 2026-08-04: host
+// The defect `checkTypeSkew` exists for, measured on a maintainer workstation: host
 // GTK 4.22.4, `@girs/gtk-4.0@4.1.0` generated from GTK 4.23.0. `gjsify tsc` exits 0
 // on `Gtk.RestoreReason.RECOVER` (`@since 4.24`) and the same line throws
 // `TypeError: … Gtk.RestoreReason is undefined` at runtime, while `gjsify
 // system-check` prints `✓ GTK4 (4.22.4)` and says nothing. GIRepository cannot catch
 // it either: it matches the API version (`4.0`) only.
 //
-// Every case here drives INJECTED readers rather than the host, because the whole
-// point is the skew branches — a host that happens to match exercises none of them,
-// and the maintainer's host exercises exactly the two it happens to have.
+// Every case drives INJECTED readers rather than the host, because a host that
+// happens to match exercises none of the skew branches.
 
 import { describe, it, expect } from '@gjsify/unit';
 import type { DepCheck } from './check-system-deps.js';
@@ -32,16 +29,15 @@ function readers(declared: Record<string, string>, installed: Record<string, str
 }
 
 export default async () => {
-    // The declaration invariant, not a restatement of the table. A package's dep
-    // list is a list of IDS; an id with no OPTIONAL_DEPS entry is not an error at
-    // runtime — `runOptionalChecks` simply has nothing to look up, so the dependency
-    // is silently never checked. That is how @gjsify/rolldown-native's json-glib
-    // could be missing entirely: nothing forced the two tables to agree.
+    // An id with no OPTIONAL_DEPS entry is not a runtime error: `runOptionalChecks`
+    // has nothing to look up, so the dependency is silently never checked. That is
+    // how @gjsify/rolldown-native's json-glib could be missing entirely — nothing
+    // forced the two tables to agree.
     await describe('dependency declarations', async () => {
         await it('every id a package names exists in OPTIONAL_DEPS', async () => {
-            // `gwebgl` is deliberately absent: it is an npm package, checked by
-            // `checkGwebgl` rather than pkg-config, and mapped here only so that its
-            // presence in a project's dep tree triggers that check.
+            // `gwebgl` is deliberately absent: an npm package, checked by
+            // `checkGwebgl` rather than pkg-config, and mapped only so its presence
+            // in a project's dep tree triggers that check.
             const NPM_HANDLED = new Set(['gwebgl']);
             const unknown: string[] = [];
             for (const [pkg, ids] of Object.entries(PACKAGE_DEPS)) {
@@ -62,23 +58,21 @@ export default async () => {
 
         await it('the bundler engine declares its load-time library', async () => {
             // Measured on fedora:43 with a consumer baseline (gjs + libsoup3 only):
-            // libjson-glib-1.0.so.0 does not resolve, libgjsifyrolldown.so therefore
-            // does not load, and construction dies with "Unsupported type void,
-            // deriving from fundamental void" while install said "System dependencies
-            // OK." Without this declaration `gjsify build` is unusable and unexplained.
+            // libjson-glib-1.0.so.0 does not resolve, so libgjsifyrolldown.so does
+            // not load and construction dies with "Unsupported type void, deriving
+            // from fundamental void" — while install said "System dependencies OK."
             expect(PACKAGE_DEPS['@gjsify/rolldown-native']?.includes('json-glib')).toBe(true);
             expect(OPTIONAL_DEPS['json-glib']?.pkgName).toBe('json-glib-1.0');
         });
 
         await it('every package manager can spell the engine library', async () => {
-            // A declaration a consumer cannot ACT on is not a declaration. The
-            // previous `detectPackageManager()` probed with `which`(1), which the
-            // Fedora minimal containers do not ship — so it answered `unknown`,
+            // A declaration a consumer cannot ACT on is not a declaration.
+            // `detectPackageManager()` used to probe with `which`(1), which the Fedora
+            // minimal containers do not ship — so it answered `unknown`,
             // `buildInstallCommand` returned null, and the hint printed NOTHING on
             // exactly the hosts that had to find the library by hand (ts-for-gir#437
-            // json-glib, bauplaner#40 libsoup3, both 2026-08-05). This row is the
-            // check that was missing: each of the six real managers must produce a
-            // command, and `unknown` must keep producing none.
+            // json-glib, bauplaner#40 libsoup3). Each of the six real managers must
+            // produce a command; `unknown` must keep producing none.
             const missing: DepCheck[] = [{ id: 'json-glib', name: 'JSON-GLib', found: false, severity: 'optional' }];
             const silent: string[] = [];
             for (const pm of ['apt', 'dnf', 'pacman', 'zypper', 'apk', 'brew'] as const) {
@@ -90,19 +84,17 @@ export default async () => {
 
         await it('missingSystemDepsFor answers nothing for a package it cannot know', async () => {
             // The caller is `diagnoseNativeEngine()`, which runs while explaining
-            // ANOTHER failure — so "no declared deps" and "package not in the
-            // table" must both come back as an empty list rather than as a throw
-            // or as a fabricated finding. A probe that dies there replaces the
-            // diagnosis with its own stack.
+            // ANOTHER failure: a probe that throws there replaces the diagnosis with
+            // its own stack, so both "no declared deps" and "package not in the
+            // table" must come back as an empty list.
             expect(missingSystemDepsFor('@gjsify/not-a-real-package').length).toBe(0);
             // `@gjsify/fs` is real and declares no optional system deps.
             expect(missingSystemDepsFor('@gjsify/fs').length).toBe(0);
         });
 
         await it('missingSystemDepsFor only ever reports declared ids', async () => {
-            // Whatever this host has installed, every entry it returns must be one
-            // the package actually declared — the function must not invent a
-            // library, because its output is printed as a MEASURED cause.
+            // Its output is printed as a MEASURED cause, so it must not invent a
+            // library the package never declared.
             const declared = new Set(PACKAGE_DEPS['@gjsify/rolldown-native'] ?? []);
             const undeclared = missingSystemDepsFor('@gjsify/rolldown-native')
                 .map((d) => d.id)
@@ -111,12 +103,11 @@ export default async () => {
         });
 
         await it('every package manager can spell blueprint-compiler', async () => {
-            // A `.blp` build that cannot find the compiler used to rethrow execa's
-            // error, which names the command that failed and nothing to install.
-            // Measured on the win11-gjsify VM 2026-08-10, that was read as
-            // "blueprint-compiler is a GNOME Python tool, so it is unavailable on
-            // Windows" — a wrong conclusion that reached a docs file. It is pure
-            // Python and MSYS2 ships it prebuilt; only PyGObject (no Windows
+            // A `.blp` build that could not find the compiler rethrew execa's error,
+            // which names the failed command and nothing to install; on the
+            // win11-gjsify VM that was read as "blueprint-compiler is a GNOME Python
+            // tool, unavailable on Windows" — wrong, and it reached a docs file. It is
+            // pure Python and MSYS2 ships it prebuilt; only PyGObject (no Windows
             // wheel) makes plain pip impossible.
             const missing: DepCheck[] = [
                 { id: 'blueprint-compiler', name: 'blueprint-compiler', found: false, severity: 'optional' },
@@ -129,10 +120,9 @@ export default async () => {
         });
 
         await it('the win32 blueprint hint is MSYS2, never a winget package', async () => {
-            // winget has no blueprint-compiler and cannot usefully get one, so the
-            // hint must not be `winget install`-shaped. This asserts the standalone
-            // branch instead of the PM_PACKAGES table — putting it in the table
-            // would print a line that looks right and installs nothing.
+            // winget has no blueprint-compiler, so the hint must not be `winget
+            // install`-shaped: putting it in the PM_PACKAGES table would print a line
+            // that looks right and installs nothing.
             if (process.platform !== 'win32') return;
             const missing: DepCheck[] = [
                 { id: 'blueprint-compiler', name: 'blueprint-compiler', found: false, severity: 'optional' },
@@ -143,10 +133,9 @@ export default async () => {
         });
 
         await it('the blueprint check agrees with the resolver the BUILD uses', async () => {
-            // The two must not be able to disagree. On win32 the compiler is
-            // normally an MSYS2 script deliberately kept OFF PATH, so a PATH-only
-            // check would report "missing" on a host where every `.blp` builds —
-            // a check failing for the wrong reason.
+            // On win32 the compiler is normally an MSYS2 script deliberately kept OFF
+            // PATH, so a PATH-only check would report "missing" on a host where every
+            // `.blp` builds.
             const check = checkBlueprintCompiler(['@gjsify/vite-plugin-blueprint']);
             expect(check.id).toBe('blueprint-compiler');
             expect(check.severity).toBe('optional');
@@ -171,8 +160,8 @@ export default async () => {
         });
 
         await it('stays silent when only the micro version differs', async () => {
-            // The real glib case: `@girs/glib-2.0` declares 2.88.0, the host has
-            // 2.88.2. Same API set — reporting it would train people to ignore output.
+            // The real glib case: declared 2.88.0, host 2.88.2. Same API set, and
+            // reporting it would train people to ignore output.
             const found = checkTypeSkew('/p', readers({ '@girs/glib-2.0': '2.88.0' }, { 'glib-2.0': '2.88.2' }));
             expect(found.length).toBe(0);
         });
@@ -183,10 +172,10 @@ export default async () => {
         });
 
         await it('skips ts-for-gir’s namespace-version fallback', async () => {
-            // `@girs/gdk-4.0` declares `4.0.0` because GDK's GIR carries no
-            // `<package version>` — it ships INSIDE GTK. Comparing that against a host
-            // GTK 4.22.4 would report an 18-minor skew that does not exist. Measured:
-            // 17 of 32 installed @girs packages carry this degenerate value.
+            // `@girs/gdk-4.0` declares `4.0.0` because GDK's GIR carries no `<package
+            // version>` — it ships INSIDE GTK — so comparing it against a host GTK
+            // 4.22.4 reports an 18-minor skew that does not exist. Measured: 17 of 32
+            // installed @girs packages carry this degenerate value.
             const found = checkTypeSkew(
                 '/p',
                 readers(
@@ -215,8 +204,8 @@ export default async () => {
         });
 
         await it('finds every skewed binding, not just the first', async () => {
-            // Both of these are real on the measured host, and the second was
-            // invisible until the check existed.
+            // Both are real on the measured host; the second was invisible until the
+            // check existed.
             const found = checkTypeSkew(
                 '/p',
                 readers(

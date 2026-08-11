@@ -1,11 +1,8 @@
-// Spinner animation specs — the arithmetic both renderers draw from.
-//
-// Written against PROPERTIES of the curve rather than against copied radians: a
-// vector that restates `adwLerp(MIN, MAX, easeInOutSine(t)) - drift` would be the
-// same reading as the implementation and could only catch a typo. What is worth
-// asserting is what the C's constants were CHOSEN to make true — the arc never
-// leaves its declared range, the animation loops without a jump, the resting
-// pose is the documented one — because those are the things a port gets wrong.
+// The spinner arithmetic both renderers draw from, asserted as PROPERTIES of the curve
+// rather than copied radians: a vector restating `adwLerp(MIN, MAX, easeInOutSine(t)) -
+// drift` reads the implementation back and catches only a typo. What the C's constants
+// were CHOSEN to make true is what a port gets wrong — the arc never leaves its declared
+// range, the animation loops without a jump, the resting pose is the documented one.
 
 import { describe, expect, it } from '@gjsify/unit';
 
@@ -55,8 +52,7 @@ export default async () => {
         await it('easeOutCubic is the clamp layout curve, pinned at its ends', () => {
             expect(easeOutCubic(0)).toBe(0);
             expect(easeOutCubic(1)).toBe(1);
-            // Its whole point is that it is fast first: half the time, most of
-            // the distance.
+            // The point of the curve: fast first — half the time, most of the distance.
             expect(easeOutCubic(0.5)).toBeGreaterThan(0.8);
         });
 
@@ -110,8 +106,7 @@ export default async () => {
         for (const { phase, rule } of SPINNER_ARC_PHASE_VECTORS) {
             await it(`phase ${phase} — ${rule}`, () => {
                 const { start, end, length } = spinnerArc(phase * ADW_SPINNER_CYCLE_LENGTH);
-                // Both ends are on the circle, and the drawn segment is a real
-                // arc rather than a degenerate point.
+                // Both ends are on the circle and the segment is a real arc, not a point.
                 expect(start).toBeGreaterThanOrEqual(0);
                 expect(start).toBeLessThanOrEqual(Math.PI * 2);
                 expect(end).toBeGreaterThanOrEqual(0);
@@ -122,10 +117,10 @@ export default async () => {
         }
 
         await it('BREATHES between 2.7 and 102.8 degrees — the drawn envelope, not the constants', () => {
-            // The browser port drew a FIXED 90 degrees, i.e. an envelope of one
-            // value. And the upper end is NOT `MAX_ARC_LENGTH`: both arc ends
-            // lerp towards it and then subtract the same drift term, so 162
-            // degrees is the lerp target and 102.8 is what reaches the screen.
+            // The upper end is NOT `MAX_ARC_LENGTH`: both arc ends lerp towards it and
+            // then subtract the same drift term, so 162 degrees is the lerp target and
+            // 102.8 is what reaches the screen. A fixed 90 degrees is an envelope of one
+            // value.
             const lengths: number[] = [];
             for (let i = 0; i < 20_000; i++) lengths.push(spinnerArc((i / 20_000) * ADW_SPINNER_CYCLE_LENGTH).length);
             expect(Math.abs(Math.min(...lengths) - SPINNER_ARC_ENVELOPE.min)).toBeLessThan(
@@ -147,9 +142,8 @@ export default async () => {
         });
 
         await it('carries START_ANGLE, which neither port had', () => {
-            // At progress 0 the arc's trailing end is MIN_ARC_LENGTH past the
-            // start angle, so the whole figure is rotated rather than beginning
-            // at 3 o'clock.
+            // At progress 0 the arc's trailing end is MIN_ARC_LENGTH past the start
+            // angle, so the figure is rotated rather than beginning at 3 o'clock.
             const { start } = spinnerArc(0);
             expect(Math.abs(start - (ADW_SPINNER_START_ANGLE + ADW_SPINNER_MIN_ARC_LENGTH))).toBeLessThan(1e-9);
         });

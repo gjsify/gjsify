@@ -2,23 +2,17 @@
 // the `<adw-carousel>` browser suite assert against
 // (`@gjsify/adwaita-core/conformance`).
 //
-// IMPORTANT: this imports `./widgets/carousel-state.js`, NOT the widget. A
-// widget module `extends GridLayout`, which evaluates the bare
-// `@nativescript/core` specifier at module-eval and is unresolvable on GJS/Node,
-// so `adw-carousel.ts` cannot be loaded here. It is a thin `GridLayout` wrapper
-// over exactly the surface below: `insertPage`/`removePage`/`reorderPage`
-// forward to the state, `scrollToPage` forwards to `state.scrollTo`, every
-// accessor reads the state, the subscription applies {@link applyCarouselDots}
-// and notifies {@link carouselNotifyPayload}, and the `ScrollView` listener
-// feeds offsets through {@link CarouselScrollSync}.
+// IMPORTANT: this imports `./widgets/carousel-state.js`, NOT the widget — a widget
+// module `extends GridLayout`, which evaluates the bare `@nativescript/core` specifier
+// at module-eval. `adw-carousel.ts` is a thin wrapper over exactly the surface below:
+// insert/remove/reorder forward to the state, `scrollToPage` to `state.scrollTo`, every
+// accessor reads the state, the subscription applies {@link applyCarouselDots} and
+// notifies {@link carouselNotifyPayload}, and the `ScrollView` listener feeds offsets
+// through {@link CarouselScrollSync}.
 //
-// The suite this replaces was a `MockCarousel` in `index.spec.ts` that
-// transcribed the widget's own clamp and dot loop. A test that re-implements the
-// code under test cannot detect the drift it exists to catch, and in this family
-// it did not: the mock, the widget and the web port all clamped instead of
-// refusing an out-of-range index (so `scrollToPage(NaN)` produced a NaN
-// position), and all three marked the current dot off an integer compare that
-// resolves a half-way position to the WRONG page.
+// Two rules easy to get wrong and covered here: an out-of-range index is REFUSED, not
+// clamped (or `scrollToPage(NaN)` yields a NaN position), and the current dot comes from
+// `pageAt`, which resolves a half-way position DOWN rather than by integer compare.
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { CarouselState } from '@gjsify/adwaita-core';

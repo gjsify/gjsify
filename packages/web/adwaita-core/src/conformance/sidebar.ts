@@ -1,14 +1,11 @@
 // Sidebar conformance vectors — the spec both renderers are held to.
 //
-// Every row is derived from a named function in the libadwaita C source. The
-// tables exist because the three implementations answered the SAME question
-// three different ways and nothing was in a position to notice: setting
-// `selected = 5` on a 3-item sidebar produced "no selection" in libadwaita, `2`
-// in `@gjsify/adwaita-web` (it clamped to the last row) and `0` in
-// `@gjsify/adwaita-nativescript` (it rejected the write and kept the old value).
-//
-// A renderer that re-implements any of this instead of driving
-// `@gjsify/adwaita-core`'s `SidebarState` fails these the moment it drifts.
+// Every row is derived from a named function in the libadwaita C source. The tables exist
+// because the three implementations answered the SAME question three different ways:
+// `selected = 5` on a 3-item sidebar meant "no selection" in libadwaita, `2` in
+// `@gjsify/adwaita-web` (clamped to the last row) and `0` in
+// `@gjsify/adwaita-nativescript` (write rejected, old value kept). A renderer that
+// re-implements any of this instead of driving `SidebarState` fails these when it drifts.
 //
 // Reference: refs/libadwaita/src/adw-sidebar.c
 // Reference: refs/libadwaita/src/adw-sidebar-item.c
@@ -25,20 +22,18 @@ export interface SidebarClampVector {
     count: number;
     /** What `selected` reads back as: the index itself, or `-1` for no selection. */
     selected: number;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * `adw_sidebar_set_selected` (adw-sidebar.c:3028-3029):
+ * `adw_sidebar_set_selected`:
  * `if (selected >= self->n_items) selected = GTK_INVALID_LIST_POSITION;`
  *
- * The negative rows are not a TS invention — `selected` is a `guint`, so `-7`
- * arrives as `4294967289`, which is `>= n_items`. The fractional/`NaN` rows are
- * the generalisation to values C cannot express: not a valid position is no
- * position. They are the inputs that used to be wrong — the web port truncated
- * `"1.5"` to row 1 and the NativeScript port stored `1.5` verbatim, highlighting
- * no row while reporting a selection.
+ * The negative rows are not a TS invention — `selected` is a `guint`, so `-7` arrives as
+ * `4294967289`, which is `>= n_items`. The fractional/`NaN` rows generalise to values C
+ * cannot express: not a valid position is no position. Both are the inputs a port gets
+ * wrong by truncating `"1.5"` to row 1, or by storing `1.5` verbatim and then reporting a
+ * selection while highlighting no row.
  */
 export const SIDEBAR_CLAMP_VECTORS: ReadonlyArray<SidebarClampVector> = [
     { index: 0, count: 3, selected: 0, rule: 'the first row is in range' },
@@ -69,12 +64,11 @@ export interface SidebarItemsChangedVector {
     added: number;
     /** `selected` after `items_changed_cb` has run. */
     expected: number;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * `items_changed_cb` (adw-sidebar.c:2246-2284) — the derivation NEITHER port had.
+ * `items_changed_cb`.
  *
  * The last row documents libadwaita's unsigned wraparound: with no selection,
  * `selected` is `G_MAXUINT`, so the "splice covers the selection" test can never
@@ -167,9 +161,7 @@ export const SIDEBAR_ITEMS_CHANGED_VECTORS: ReadonlyArray<SidebarItemsChangedVec
 
 /** One flattened-model expectation for a whole section list. */
 export interface SidebarModelVector {
-    /** Human-readable name, used as the test title. */
     name: string;
-    /** The declared sections. */
     sections: ReadonlyArray<AdwSidebarSectionSpec>;
     /** `n_items` — the size of the selection index space. */
     count: number;
@@ -179,19 +171,18 @@ export interface SidebarModelVector {
     flat: ReadonlyArray<{ index: number; sectionIndex: number; sectionItemIndex: number; title: string }>;
     /** The headers that get drawn, in render order. */
     headers: ReadonlyArray<SidebarHeaderSpec>;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * The flat index space (`items_changed_cb`'s section walk, adw-sidebar.c:2261-2267
- * + `adw_sidebar_item_get_index`, adw-sidebar-item.c:1040) and the header
- * derivation (`set_header_cb`/`create_header`, adw-sidebar.c:1532-1563, :1483-1530).
+ * The flat index space (`items_changed_cb`'s section walk plus
+ * `adw_sidebar_item_get_index`) and the header derivation
+ * (`set_header_cb`/`create_header`).
  *
- * The empty-leading-section rows are the ones the web port got wrong: it keyed
- * `.first` and the hidden-separator case off the DECLARATION index, so an empty
- * or fully-filtered first section drew a stray separator and cost section 1 the
- * flush-to-top padding `.header.first > .heading` prescribes.
+ * The empty-leading-section rows pin the trap: keying `.first` and the hidden-separator
+ * case off the DECLARATION index makes an empty or fully-filtered first section draw a
+ * stray separator and costs section 1 the flush-to-top padding
+ * `.header.first > .heading` prescribes.
  */
 export const SIDEBAR_MODEL_VECTORS: ReadonlyArray<SidebarModelVector> = [
     {
@@ -307,15 +298,13 @@ export const SIDEBAR_MODEL_VECTORS: ReadonlyArray<SidebarModelVector> = [
 
 /** One item-label-visibility expectation. */
 export interface SidebarItemFlagsVector {
-    /** The declared item. */
     item: AdwSidebarItemSpec;
-    /** `string_is_not_empty(title)` (adw-sidebar.c:1411-1412). */
+    /** `string_is_not_empty(title)`. */
     titleVisible: boolean;
-    /** `string_is_not_empty(subtitle)` (adw-sidebar.c:1420-1421). */
+    /** `string_is_not_empty(subtitle)`. */
     subtitleVisible: boolean;
-    /** `notify_icon_cb`'s `icon_name && *icon_name` (adw-sidebar.c:1303). */
+    /** `notify_icon_cb`'s `icon_name && *icon_name`. */
     iconVisible: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
@@ -371,13 +360,10 @@ export const SIDEBAR_ITEM_FLAG_VECTORS: ReadonlyArray<SidebarItemFlagsVector> = 
 
 /** One activation (row click) expectation. */
 export interface SidebarActivationVector {
-    /** Human-readable name, used as the test title. */
     name: string;
-    /** The declared sections. */
     sections: ReadonlyArray<AdwSidebarSectionSpec>;
     /** The selection to establish before clicking, applied through `setSelected`. */
     initialSelected: number;
-    /** The flat index that is clicked. */
     activate: number;
     /** Whether a row was actually activated — the `activated` signal. */
     activated: boolean;
@@ -385,19 +371,17 @@ export interface SidebarActivationVector {
     selectionChanged: boolean;
     /** `selected` afterwards. */
     selected: number;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
  * The selection/activation split: `row-selected` fires only on a real change,
- * `row-activated` fires on EVERY click (adw-sidebar.c:1585-1612), and page mode
- * does the same thing in one callback (`boxed_row_activated_cb`, :1662-1674).
+ * `row-activated` fires on EVERY click, and page mode
+ * does the same thing in one callback (`boxed_row_activated_cb`).
  *
- * The re-click row is the one that matters: it is the documented way to reveal
- * the content pane of a split view (adw-sidebar.c:73-75), and the NativeScript
- * port could not express it at all — its setter early-returned on an unchanged
- * index and it emitted no activation signal.
+ * The re-click row is the one that matters: it is the documented way to reveal the content
+ * pane of a split view, and a setter that early-returns on an unchanged index cannot
+ * express it.
  */
 export const SIDEBAR_ACTIVATION_VECTORS: ReadonlyArray<SidebarActivationVector> = [
     {
@@ -467,9 +451,7 @@ export const SIDEBAR_ACTIVATION_VECTORS: ReadonlyArray<SidebarActivationVector> 
 
 /** One filter / empty-state expectation. */
 export interface SidebarFilterVector {
-    /** Human-readable name, used as the test title. */
     name: string;
-    /** The declared sections. */
     sections: ReadonlyArray<AdwSidebarSectionSpec>;
     /** Item titles the filter keeps; the suites build `(item) => keepTitles.includes(item.title)`. */
     keepTitles: ReadonlyArray<string>;
@@ -481,17 +463,13 @@ export interface SidebarFilterVector {
     headers: ReadonlyArray<SidebarHeaderSpec>;
     /** The `.empty` / placeholder state — computed from the FILTERED count. */
     isEmpty: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * `adw_sidebar_set_filter` (adw-sidebar.c:3127-3139) feeds a `GtkFilterListModel`
- * that only the row list and the placeholder see; the selection index space stays
- * on the unfiltered `items_model` (adw-sidebar.c:2866 vs :2177-2180), and
- * `update_placeholder` counts the filtered one (adw-sidebar.c:1828, :1839-1842).
- *
- * Neither port had a filter or a placeholder at all.
+ * `adw_sidebar_set_filter` feeds a `GtkFilterListModel` that only the row list and the
+ * placeholder see: the selection index space stays on the UNFILTERED `items_model` while
+ * `update_placeholder` counts the filtered one.
  */
 export const SIDEBAR_FILTER_VECTORS: ReadonlyArray<SidebarFilterVector> = [
     {
@@ -555,21 +533,19 @@ export const SIDEBAR_FILTER_VECTORS: ReadonlyArray<SidebarFilterVector> = [
 
 /** One mode expectation. */
 export interface SidebarModeVector {
-    /** The mode being set. */
     mode: 'sidebar' | 'page';
     /** Whether the selection is PAINTED in that mode. */
     selectionVisible: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * `adw_sidebar_set_mode` (adw-sidebar.c:2960-2981) never touches `selected`:
+ * `adw_sidebar_set_mode` never touches `selected`:
  * "In this mode, the selection is invisible and only tracked to determine the
- * initially selected item once switched back to sidebar mode" (adw-sidebar.c:2948-2951).
+ * initially selected item once switched back to sidebar mode".
  *
  * The web port painted its `.selected` highlight in BOTH modes; page mode builds
- * plain `AdwActionRow`s in a boxed list (`create_boxed_row`, adw-sidebar.c:1676)
+ * plain `AdwActionRow`s in a boxed list (`create_boxed_row`)
  * and shows no selected row at all.
  */
 export const SIDEBAR_MODE_VECTORS: ReadonlyArray<SidebarModeVector> = [

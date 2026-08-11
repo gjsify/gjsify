@@ -1,58 +1,41 @@
 // SPDX-License-Identifier: MIT
-// @gjsify/node-gi/gi — the L1 GJS-compatibility layer over the native engine.
+// @gjsify/node-gi/gi — the L1 GJS-compatibility layer over the native engine: it turns
+// the engine primitives into a GJS-shaped namespace object, so `requireGi('Gio','2.0')`
+// gives the same surface as `import Gio from 'gi://Gio?version=2.0'` under GJS. This is
+// the seam the bundler's --app node target rewrites `gi://Ns?version=X` onto.
 //
-// Turns the low-level primitives (requireNamespace / findInfo / callFunction /
-// newObject / callMethod / get|setProperty / connect|emit|disconnectSignal) into
-// a GJS-shaped namespace object: `requireGi('Gio', '2.0')` returns an object
-// where `Gio.SomeFunction(...)` calls a namespace function, `new Gio.SomeClass({
-// prop: value })` constructs a GObject, and the instance exposes `.method(...)`,
-// `.prop` (property get/set) and `.connect()/.emit()/.disconnect()` — the same
-// surface `import Gio from 'gi://Gio?version=2.0'` gives under GJS.
-//
-// This is the seam the bundler's --app node target rewrites `gi://Ns?version=X`
-// onto. Reference: GJS's gi module (gjs/modules/esm/gi.js) for the require shape;
-// node-gtk (romgrk, MIT) for the binding lineage. Hand-authored JS (the package
-// ships no build step). Milestone 1 surfaces functions + GObject classes; enums,
-// flags, constants, structs/boxed, interface static methods and camelCase
-// aliases land in subsequent drops.
+// Reference: gjs/modules/esm/gi.js for the require shape; node-gtk (romgrk, MIT) for the
+// binding lineage. Hand-authored JS — the package ships no build step.
 import * as native from './index.js';
-// setImmediate is a Node global but NOT a Deno global (Deno requires the explicit
-// node:timers import; Bun/Node re-export it there too), so import it for the
-// macrotask-deferred runAsync to work on all three runtimes.
-//
-// setInterval/clearInterval come from here for a second, load-bearing reason:
-// the RUNTIME's timers, never `globalThis.setInterval`. A GJS source running
-// through the bridge routinely replaces the global timers with GLib-backed ones
-// (`@gjsify/node-globals/register` swaps them for `GLib.timeout_add` wrappers) —
-// driving the GLib pump off a GLib timeout is a deadlock: the timer that is
-// supposed to dispatch GLib sources is itself a GLib source nobody dispatches.
+// From node:timers, not the globals, for two reasons: setImmediate is a Node/Bun global
+// but Deno only exposes it here; and a GJS source running through the bridge routinely
+// replaces the global timers with GLib-backed ones (`@gjsify/node-globals/register`
+// swaps them for `GLib.timeout_add`), which deadlocks the pump — the timer meant to
+// dispatch GLib sources would itself be a GLib source nobody dispatches.
 import { setImmediate, setInterval, clearInterval } from 'node:timers';
 // Same reasoning for `process`: `globalThis.process` may be the `@gjsify/process`
-// polyfill, whose EventEmitter never emits the runtime's 'beforeExit'. The
-// loop-liveness hooks below must attach to the real one or they silently never fire.
+// polyfill, whose EventEmitter never emits the runtime's 'beforeExit', so the
+// loop-liveness hooks below would silently never fire.
 import runtimeProcess from 'node:process';
-// The GJS Gio DBus surface (Gio.DBus.session/system, own_name/watch_name,
-// Gio.DBusProxy.makeProxyWrapper, Gio.DBusExportedObject) — ported to the L1 model.
 import { createGioDBus } from './overrides/gio-dbus.js';
 
-// Symbol carrying the raw native GObject handle on a wrapped instance, so it can
-// be unwrapped again when passed back into the engine as a GI argument.
+// The raw native GObject handle on a wrapped instance, so it can be unwrapped again
+// when passed back into the engine as a GI argument.
 const HANDLE = Symbol('nodeGiHandle');
 
-// Symbol carrying the user-class prototype (a registerClass subclass) on a wrapped
-// instance. Stored on the target rather than captured in the proxy closure so a
-// later wrap with a userProto can UPGRADE an already-cached generic wrapper in
-// place (preserving identity + expandos) — see wrapInstance.
+// The user-class prototype (a registerClass subclass) on a wrapped instance. On the
+// target rather than in the proxy closure, so a later wrap carrying a userProto can
+// UPGRADE an already-cached generic wrapper in place, preserving identity + expandos.
 const USER_PROTO = Symbol('nodeGiUserProto');
 
-// JS-builtin / interop names that must NEVER be treated as a GI method or
-// property — otherwise awaiting, printing or inspecting a wrapper would call
-// into GObject (e.g. a stray `then` would make a wrapper look thenable).
+// Names that must NEVER be treated as a GI method or property — otherwise awaiting,
+// printing or inspecting a wrapper would call into GObject (a stray `then` alone would
+// make every wrapper look thenable).
 const RESERVED = new Set(['then', 'toString', 'valueOf', 'constructor', 'inspect']);
 
-// GJS accepts both snake_case and camelCase for methods/properties. Map a JS
-// accessor to the GI method name (snake_case) and to a GObject property name
-// (kebab-case); a name that is already in the target case passes through.
+// GJS accepts both snake_case and camelCase for methods/properties: map a JS accessor
+// to the GI method name (snake_case) and to a GObject property name (kebab-case); a
+// name already in the target case passes through.
 function camelToSnake(name) {
     return name.replace(/([A-Z])/g, '_$1').toLowerCase();
 }
@@ -64,20 +47,16 @@ function toKebab(name) {
         .toLowerCase();
 }
 
-// Per-user-function shim cache so repeated passes of the same callback marshal to
-// the SAME native-facing function (stable identity, one ffi/GClosure wrapper per
-// user fn per call site pattern).
+// Repeated passes of the same callback must marshal to the SAME native-facing function:
+// stable identity, one ffi/GClosure wrapper per user fn.
 const callbackShims = new WeakMap();
 
-// A JS function crossing INTO the engine (a GI callback arg, or a JS fn
-// marshalled as a GClosure IN-arg) is wrapped so that when C invokes it:
-//   • each native arg is marshalled through wrapReturn — a GObject handle becomes
-//    the cached chainable instance, a GVariant a GLib.Variant wrapper, a GParamSpec
-//    a ParamSpec wrapper — matching what GJS hands a callback;
-//   • the JS return is unwrapped back to its native handle (a GLib.Variant
-//     wrapper returned from e.g. a DBus get-property closure must reach the
-//     engine as the raw variant handle).
-// Primitives and plain objects pass through both directions untouched.
+// A JS function crossing INTO the engine (a GI callback arg, or a JS fn marshalled as a
+// GClosure IN-arg) is wrapped so C sees GJS's calling convention: each native arg goes
+// through wrapReturn (a GObject handle becomes the cached chainable instance, a GVariant
+// a GLib.Variant wrapper, …) and the JS return is unwrapped back to its native handle —
+// a GLib.Variant wrapper returned from e.g. a DBus get-property closure must reach the
+// engine as the raw variant handle.
 function wrapCallbackFn(fn) {
     let shim = callbackShims.get(fn);
     if (shim === undefined) {
@@ -99,45 +78,30 @@ function unwrapArgs(args) {
     return args.map(unwrapArg);
 }
 
-// Normalize a construct-property dict: each KEY to the GObject canonical (kebab)
-// property name and each VALUE unwrapped to its native handle. GJS accepts a
-// construct-prop key in camelCase, snake_case OR already-dashed form and maps it to
-// the GObject property; the native newObject/constructType layer below looks each
-// key up against the GParamSpec by its canonical dashed name, so `{maximumSize:400}`
-// would otherwise miss `maximum-size`. Reuse `toKebab` — the SAME normalization the
-// property getter/setter accessor path already applies (lines below: `x.maximumSize`
-// reads/writes `maximum-size`) — keeping a single source of truth, so construction
-// and accessor agree. Idempotent: an already-dashed (`maximum-size`) or snake_case
-// (`maximum_size`) key passes through unchanged (GObject canonicalizes `_`↔`-`).
-// This is the ONLY caller-facing construct path — newObject for an introspected
-// `new Ns.Class({...})`, and constructType for a registerClass'd subclass plus its
-// `super({...})` chain-up — so all three accept camelCase identically to GJS.
+// Normalize a construct-property dict: KEY to the GObject canonical (kebab) property
+// name, VALUE unwrapped to its native handle. GJS accepts camelCase, snake_case or
+// already-dashed keys, while the native layer looks each key up against the GParamSpec
+// by its canonical dashed name — `{maximumSize:400}` would otherwise miss
+// `maximum-size`. Reusing `toKebab` keeps construction and property accessors on one
+// normalization. Idempotent, since GObject canonicalizes `_`↔`-`.
 function unwrapProps(props) {
     const out = {};
     for (const key of Object.keys(props)) out[toKebab(key)] = unwrapArg(props[key]);
     return out;
 }
 
-// Symbol carrying an enum object's GError-domain descriptor ({ name, quark }) so
-// GLib.Error.prototype.matches can resolve an error-enum (e.g. Gio.IOErrorEnum)
-// to the domain it represents. Attached by makeEnum when the enum is registered
-// as a GError domain; read by errorDomainOf.
+// An enum object's GError-domain descriptor ({ name, quark }), so GLib.Error.matches
+// can resolve an error-enum (Gio.IOErrorEnum) to the domain it represents. Attached by
+// makeEnum when the enum is registered as a GError domain.
 const ERROR_DOMAIN = Symbol('nodeGiErrorDomain');
 
-// ---- GLib.Error (the GError surface, L1) ----
+// GLib.Error, L1: the engine throws one of these on a failed sync GI invoke (via the
+// builder registered below) and `requireGi('GLib').Error` is this constructor, so a
+// caught error is `instanceof GLib.Error` exactly as under GJS.
 //
-// A real Error subclass mirroring GJS's GLib.Error: `.domain`, `.code`,
-// `.message` plus `.matches(domain, code)` (the g_error_matches semantics — true
-// when the error's domain AND code both match). The engine throws an instance of
-// this on a failed sync GI invoke (via the builder registered below), and
-// `requireGi('GLib').Error` is this constructor, so a caught error is
-// `instanceof GLib.Error` exactly as under GJS.
-//
-// Divergence from GJS (documented): GJS's `.domain` is the numeric GQuark; here
-// `.domain` is the quark NAME string (more useful in a Node context, and the task
-// permits either). The numeric quark is kept on `.domainQuark`. `matches()`
-// accepts the domain as an error-enum object (Gio.IOErrorEnum), a name string, or
-// a numeric quark, so all the idiomatic call shapes work.
+// Deliberate divergence from GJS: `.domain` is the quark NAME string (GJS's is the
+// numeric GQuark), with the numeric quark on `.domainQuark`. `matches()` accepts the
+// domain as an error-enum object, a name string or a numeric quark.
 
 // Resolve a `matches` domain argument to a { name?, quark? } descriptor.
 function errorDomainOf(domain) {
@@ -149,8 +113,8 @@ function errorDomainOf(domain) {
 }
 
 class GLibError extends Error {
-    // GJS-shaped public constructor: `new GLib.Error(domain, code, message)` where
-    // `domain` may be an error-enum object, a quark name string, or a numeric quark.
+    // `new GLib.Error(domain, code, message)`, where `domain` may be an error-enum
+    // object, a quark name string, or a numeric quark.
     constructor(domain, code, message) {
         super(typeof message === 'string' ? message : '');
         this.name = 'GLib.Error';
@@ -161,8 +125,7 @@ class GLibError extends Error {
         this.code = code;
     }
 
-    // g_error_matches: true when the error's domain + code both match. Accepts the
-    // domain as an error-enum object / name string / numeric quark (errorDomainOf).
+    // g_error_matches: true when the error's domain AND code both match.
     matches(domain, code) {
         const d = errorDomainOf(domain);
         if (d === null) return false;
@@ -176,8 +139,7 @@ class GLibError extends Error {
     }
 }
 
-// The engine calls this on a failed GI invoke with the GError's authoritative
-// fields (quark name + numeric quark + code + message) to build the thrown error.
+// Called by the engine on a failed GI invoke, with the GError's authoritative fields.
 function buildGError(domainName, domainQuark, code, message) {
     const error = new GLibError(domainName, code, message);
     error.domain = domainName;
@@ -186,74 +148,53 @@ function buildGError(domainName, domainQuark, code, message) {
 }
 native.setErrorBuilder(buildGError);
 
-// Symbol stamping a makeClass prototype with its { namespace, typeName }, so
-// Gio._promisify can record WHICH introspected class a registration belongs to
-// (introspected instances have no live prototype chain to resolve by). Read in
-// _promisify; matched against the instance's GType via native.isInstanceOf.
+// Stamps a makeClass prototype with its { namespace, typeName } so Gio._promisify can
+// record WHICH introspected class a registration belongs to — introspected instances
+// have no live prototype chain to resolve by, so it is matched against the instance's
+// GType via native.isInstanceOf.
 const CLASS_INFO = Symbol('nodeGiClassInfo');
 
-// Promisified async methods, keyed by GI method name (snake_case) → an array of
-// registrations `{ namespace?, typeName?, wrapper }`. Introspected-class instances
-// resolve methods dynamically (no prototype chain), so the instance proxy consults
-// this registry. Usually one registration per name (fast path); when two classes
-// promisify the SAME method name, the instance proxy picks the registration whose
-// class the instance is-a (native.isInstanceOf). See _promisify / wrapInstance.
+// Promisified async methods: GI method name (snake_case) → registrations
+// `{ namespace?, typeName?, wrapper }`. Introspected-class instances resolve methods
+// dynamically (no prototype chain), so the instance proxy consults this registry;
+// when two classes promisify the SAME method name it picks the registration whose
+// class the instance is-a.
 const promisifiedMethods = new Map();
 
-// Object-typed return values become chainable instance proxies; boxed/struct
-// handles (e.g. GMainLoop) become method-routing proxies; everything else
-// (primitives, strings, null) passes through.
 function wrapReturn(value) {
     if (native.isGObjectHandle(value)) return wrapInstance(value);
-    // A GLib.Variant is ALSO a boxed handle (by tag), so it must be checked first
-    // to give it the Variant ergonomics rather than a plain method-routing proxy.
+    // A GLib.Variant is ALSO a boxed handle by tag, so it must be checked first to get
+    // the Variant ergonomics rather than a plain method-routing proxy.
     if (native.isVariantHandle(value)) return wrapVariant(value);
-    // A GParamSpec is a distinct GObject fundamental (tagged separately from boxed),
-    // surfaced with the GObject.ParamSpec ergonomics (name/value_type/get_name()/…).
+    // A GParamSpec is a distinct GObject fundamental, tagged separately from boxed.
     if (native.isParamSpecHandle(value)) return wrapParamSpec(value);
-    // A non-GObject GObject-fundamental (e.g. a GskRenderNode from Gtk.Snapshot.to_node):
-    // an opaque, round-trippable pass-through handle (see wrapFundamental).
     if (native.isFundamentalHandle(value)) return wrapFundamental(value);
     if (native.isBoxedHandle(value)) return wrapBoxed(value);
-    // A multi-value OUT tuple (return value + OUT params) — or a container OUT — is a
-    // plain JS Array whose ELEMENTS may themselves be GObject/boxed/variant handles
-    // (e.g. GLib.Regex.match → [matched, GLib.MatchInfo]; an array-of-objects OUT).
-    // Recurse so a handle sitting inside the tuple is wrapped into a usable proxy,
-    // not left as a raw External. A Node Buffer (byte array) is NOT Array.isArray, so
-    // it passes through untouched; primitives/strings map to themselves.
+    // A multi-value OUT tuple (return + OUT params), or a container OUT, is a plain
+    // Array whose ELEMENTS may themselves be handles (GLib.Regex.match → [matched,
+    // GLib.MatchInfo]), so recurse rather than leave a raw External. A Node Buffer is
+    // not Array.isArray, so byte arrays pass through untouched.
     if (Array.isArray(value)) return value.map(wrapReturn);
     return value;
 }
 
-// Wrap a user's signal callback so each native signal argument is passed through
-// {@link wrapReturn} — a GObject arg becomes a chainable instance, a GVariant
-// arg (e.g. the value on Gio.SimpleAction::change-state) becomes a GLib.Variant
-// wrapper, primitives/plain objects pass through. GJS parity: the engine prepends
-// the EMITTER (the object the signal fired on) as the first arg, so a positional
-// handler `(obj, …params) => …` binds correctly; the emitter is itself a GObject
-// arg, so wrapReturn turns it into the cached, toggle-ref-canonical instance. For
-// `notify::x` the args are (object, pspec).
+// GJS parity: the engine prepends the EMITTER as the first arg, so a positional handler
+// `(obj, …params) => …` binds correctly (for `notify::x` the args are (object, pspec)).
+// The emitter is itself a GObject arg, so wrapReturn turns it into the cached,
+// toggle-ref-canonical instance.
 function wrapSignalCallback(cb) {
     return (...args) => cb(...args.map(wrapReturn));
 }
 
-// Resolve a Gtk.Template `<signal handler="…">` handler NAME to a dispatcher that
-// calls the instance's bound JS method, for the native template-callback scope
-// (engine: NodeGiScopeCreateClosure via set_template_scope). Mirrors GJS's
-// `_createClosure` (refs/gjs/modules/core/overrides/Gtk.js).
+// Resolve a Gtk.Template `<signal handler="…">` handler NAME to a dispatcher calling the
+// instance's bound JS method, for the native template-callback scope. Mirrors GJS's
+// `_createClosure` in its Gtk override.
 //
 // LAZY by necessity: the engine resolves template signals during the C-side
-// constructType (init_template → create_closure), which runs BEFORE this layer
-// attaches the user-class prototype to the instance proxy. So the dispatcher
-// defers the method lookup to FIRE time, by which point the instance proxy is the
-// full, userProto-carrying, toggle-ref-canonical L1 wrapper. `this` inside the
-// handler is therefore the widget — the SAME cached proxy the user constructed
-// (wrapInstance is cached by the canonical handle). Native signal args are wrapped
-// (wrapReturn) into chainable instances, exactly like wrapSignalCallback. GJS
-// parity: the engine prepends the emitter at param 0, so a template handler
-// `on_click(button)` receives the emitter first, then the signal's own params. A
-// handler name with no matching user-prototype method throws a clear error when
-// the signal fires.
+// constructType (init_template → create_closure), which runs BEFORE this layer attaches
+// the user-class prototype to the instance proxy. Deferring the lookup to FIRE time
+// means `this` is the full userProto-carrying wrapper — the SAME cached proxy the user
+// constructed. Emitter at param 0, as in wrapSignalCallback.
 function resolveTemplateCallback(handle, handlerName) {
     return (...args) => {
         const proxy = wrapInstance(handle);
@@ -269,16 +210,14 @@ function resolveTemplateCallback(handle, handlerName) {
 }
 native.setTemplateCallbackResolver(resolveTemplateCallback);
 
-// Run a registered class's JS constructor for a GObject the ENGINE instantiated
-// from C — a GtkBuilder composite-template InternalChild is the common case. node-gi's
-// JS-`new` path runs the ctor via the makeClass super-substitution; a C-created
-// instance has no such driver, so NodeGiConstructor (the overridden `constructor`
-// vfunc) calls this with the instance's canonical handle + its GType name. We set
-// `adoptHandle` and Reflect.construct the class: its `super()` reaches the makeClass
-// base ctor, which adopts the handle (no second GObject) and returns the canonical
-// wrapper, so the ctor body runs against it (`this._x = …` become expandos on the
-// one wrapper GtkBuilder-fetched children later resolve to). GJS-faithful
-// (gjs_object_constructor's native-construction branch runs the JS constructor).
+// Run a registered class's JS constructor for a GObject the ENGINE instantiated from C
+// — typically a GtkBuilder composite-template InternalChild, which has no JS-`new` to
+// drive the ctor, so the overridden `constructor` vfunc calls this with the canonical
+// handle + GType name. Setting `adoptHandle` before Reflect.construct makes the
+// makeClass base ctor ADOPT that handle instead of creating a second GObject, so the
+// ctor body's `this._x = …` land as expandos on the one wrapper GtkBuilder-fetched
+// children later resolve to. GJS does the same in gjs_object_constructor's
+// native-construction branch.
 function runCtorForCObject(handle, gtypeName) {
     const cls = classesByGType.get(gtypeName);
     if (cls === undefined) return; // not a node-gi-registered class (shouldn't happen)
@@ -294,28 +233,22 @@ function runCtorForCObject(handle, gtypeName) {
 }
 native.setConstructCallback(runCtorForCObject);
 
-// Wrap a non-GObject GObject-fundamental (e.g. a GskRenderNode from
-// Gtk.Snapshot.to_node, a GdkEvent) as an OPAQUE, round-trippable handle. The
-// native tagged External already carries the raw pointer (its Data) + drops the
-// held ref on GC via the type's introspected unref func, so all L1 has to do is
-// expose it under HANDLE — then unwrapArg feeds it straight back into a
-// fundamental-typed IN arg (e.g. Gsk.Renderer.render_texture(node, …)), where the
-// OBJECT External branch reads the pointer. Method dispatch on fundamentals is a
-// documented follow-up; today they are pass-through intermediates (build → hand to
-// a consumer → drop), which is what the GSK screenshot/render path needs.
+// A non-GObject GObject-fundamental (GskRenderNode, GdkEvent) as an OPAQUE,
+// round-trippable handle: the native tagged External already carries the pointer and
+// drops the held ref on GC via the type's own unref func, so L1 need only expose it
+// under HANDLE for unwrapArg to feed back into a fundamental-typed IN arg. No method
+// dispatch — these are pass-through intermediates (build → hand to a consumer → drop),
+// which is what the GSK screenshot/render path needs.
 function wrapFundamental(handle) {
     return { [HANDLE]: handle, [Symbol.toStringTag]: 'GIFundamental' };
 }
 
-// Wrap a boxed/struct/union handle so its methods are callable GJS-style
-// (`mainLoop.run()`, snake_case or camelCase) AND its FIELDS are readable/writable
-// as plain properties (`simpleStruct.long_`, `union.long_ = 5`). Resolution rule
-// (VERIFIED against gjs 1.88 find_unique_js_field_name): a name that is BOTH a
-// method and a field resolves to the METHOD — gjs renames the colliding field to
-// `_name`. So the native boxedMemberKind checks methods first: 1 = method (a
-// callable dispatcher), 2 = field (read via getBoxedField / write via
-// setBoxedField), 0 = neither (fall back to a method dispatcher, so an unknown
-// name still throws a clear "no method" at call time — the pre-fields behaviour).
+// A boxed/struct/union handle: methods callable GJS-style (`mainLoop.run()`, snake_case
+// or camelCase) and FIELDS readable/writable as plain properties (`union.long_ = 5`).
+// Resolution rule, verified against gjs 1.88's find_unique_js_field_name: a name that is
+// BOTH resolves to the METHOD, and gjs renames the colliding field to `_name`. Hence
+// boxedMemberKind checks methods first — 1 = method, 2 = field, 0 = neither,
+// 3 = undecidable.
 function wrapBoxed(handle) {
     const target = { [HANDLE]: handle };
     const methodDispatch =
@@ -326,25 +259,22 @@ function wrapBoxed(handle) {
         get(t, prop) {
             if (prop === HANDLE) return handle;
             if (typeof prop !== 'string' || RESERVED.has(prop)) return t[prop];
-            // A field set through the set trap below is stored as an expando on the
-            // target (gjs allows writing a boxed field that GI declares unwritable to a
-            // JS expando); surface it back before consulting introspection.
+            // A field written through the set trap below lands as an expando on the
+            // target (gjs likewise allows writing a GI-unwritable boxed field to a JS
+            // expando); surface it before consulting introspection.
             if (Object.hasOwn(t, prop)) return t[prop];
-            // GBytes convenience: `.toArray()` → the raw bytes as a Uint8Array (Node
-            // Buffer). GBytes has no introspected `to_array`; gjs adds it to
-            // GLib.Bytes.prototype (imports._byteArrayNative.fromGBytes), so mirror it
-            // via the introspected get_data(). Gated on the boxed type so it never
-            // shadows a same-named method on some other struct.
+            // GBytes has no introspected `to_array`; gjs adds `toArray` to
+            // GLib.Bytes.prototype, so mirror it via the introspected get_data(). Gated
+            // on the boxed type so it never shadows a same-named method on another struct.
             if (prop === 'toArray' && native.boxedTypeName(handle) === 'GBytes') {
                 return () => wrapReturn(native.callBoxedMethod(handle, 'get_data', []));
             }
             const snake = camelToSnake(prop);
-            // boxedMemberKind: 0 = not a member (type info resolved) → `undefined`, so
-            // `typeof boxed.noSuchName === 'undefined'` matches gjs (a fabricated
-            // dispatcher would read `'function'` and break JS duck-typing such as
-            // `if (typeof value.toArray === 'function')`); 1 = method; 2 = field; 3 =
-            // undecidable (unregistered struct, no static info) → keep the dispatcher
-            // fallback so a genuine method still resolves + throws a clear error at call.
+            // kind 0 (type info resolved, not a member) must read `undefined` to match
+            // gjs: a fabricated dispatcher would make `typeof boxed.noSuchName` report
+            // 'function' and break duck-typing checks. Kind 3 (unregistered struct, no
+            // static info) keeps the dispatcher fallback, so a genuine method still
+            // resolves and an unknown one throws a clear error at call time.
             const kind = native.boxedMemberKind(handle, snake);
             if (kind === 2) return wrapReturn(native.getBoxedField(handle, snake));
             if (kind === 0) return undefined;
@@ -369,15 +299,10 @@ function wrapBoxed(handle) {
     });
 }
 
-// Wrap a GParamSpec handle (phase 2.7a) with the GJS-shaped GObject.ParamSpec
-// surface: `.name`/`.nick`/`.blurb`/`.flags`/`.value_type`/`.owner_type`/
-// `.default_value` getters + the `get_name()`/`get_nick()`/`get_blurb()`/
-// `get_default_value()` methods. This is what a `notify` handler's second arg and
-// a GParamSpec-typed value now surface as (fixing the old `{name, valueType}`
-// plain-object shape). Carries [HANDLE] so it can round-trip back into the engine
-// and so `instanceof GObject.ParamSpec` recognises it (Symbol.hasInstance below).
-// value_type/owner_type are native GType handles (like gjs's GType objects); the
-// GTypes' `.name` reads their type name via the introspected surface.
+// The GJS-shaped GObject.ParamSpec surface a `notify` handler's second arg and any
+// GParamSpec-typed value surface as. Carries [HANDLE] so it round-trips back into the
+// engine and `instanceof GObject.ParamSpec` recognises it. value_type/owner_type are
+// native GType handles, like gjs's GType objects.
 function wrapParamSpec(handle) {
     const prop = (which) => native.paramSpecProp(handle, which);
     const pspec = {
@@ -411,23 +336,14 @@ function wrapParamSpec(handle) {
     return pspec;
 }
 
-// ---- GLib.Variant ergonomics (the GJS GLib.Variant override, L1) ----
-//
-// Mirrors gjs/modules/core/overrides/GLib.js: `new GLib.Variant(sig, value)`
-// recursively packs (native variantNew), and the wrapper exposes `.unpack()`,
-// `.deepUnpack()`/`.deep_unpack`, `.recursiveUnpack()`, `.get_type_string()` and
-// the GJS toString, plus routing of any other GVariant method (n_children,
-// get_child_value, print, …) through the boxed-method engine. The deep-vs-
-// recursive distinction is honoured in the native unpacker (variantUnpack):
-//   unpack()           → variantUnpack(h, false, false): children stay Variants
-//   deepUnpack()       → variantUnpack(h, true,  false): one level; nested `v`
-//                        values (e.g. an a{sv} value) STAY Variants
-//   recursiveUnpack()  → variantUnpack(h, true,  true):  fully plain JS, no
-//                        Variants (discards `v` type info)
+// GLib.Variant ergonomics, mirroring GJS's GLib override. The three unpack depths the
+// native unpacker implements:
+//   unpack()          children stay Variants
+//   deepUnpack()      one level; nested `v` values (an a{sv} value) STAY Variants
+//   recursiveUnpack() fully plain JS, discarding the `v` type info
 
-// Re-wrap the result of variantUnpack: any GLib.Variant handle that the native
-// unpacker left in place (an `a{sv}` value under deepUnpack, every child under
-// unpack(), …) becomes a GLib.Variant wrapper; arrays/plain dicts are walked.
+// Re-wrap what variantUnpack left in place: any GLib.Variant handle still in the result
+// becomes a wrapper; arrays and plain dicts are walked.
 function wrapVariantResult(value) {
     if (value === null || typeof value !== 'object') return value;
     if (native.isVariantHandle(value)) return wrapVariant(value);
@@ -438,9 +354,8 @@ function wrapVariantResult(value) {
     return out;
 }
 
-// Wrap a boxed GLib.Variant handle with the GJS-shaped Variant surface. Carries
-// [HANDLE] so it round-trips back into the engine as a GVariant IN argument
-// (action.activate(variant), new_stateful state, change_state value, …).
+// Carries [HANDLE] so the wrapper round-trips back into the engine as a GVariant IN
+// argument (action.activate(variant), new_stateful state, change_state value, …).
 function wrapVariant(handle) {
     const target = { [HANDLE]: handle };
     const api = {
@@ -466,11 +381,8 @@ function wrapVariant(handle) {
     });
 }
 
-// Deep-unwrap a pack value so any nested GLib.Variant wrapper (carried at a `v`
-// position, e.g. an a{sv} value) reaches the native packer as its raw handle —
-// the native `v` case reads a raw boxed handle, not an L1 Proxy. Primitives,
-// byte arrays, plain arrays and dict objects are walked; HANDLE-carrying
-// wrappers collapse to their handle.
+// Deep-unwrap a pack value: the native `v` case reads a raw boxed handle, not an L1
+// Proxy, so a nested GLib.Variant wrapper must collapse to its handle before packing.
 function unwrapVariantValue(value) {
     if (value === null || typeof value !== 'object') return value;
     if (value[HANDLE] !== undefined) return value[HANDLE];
@@ -485,8 +397,6 @@ function packVariant(signature, value) {
     return wrapVariant(native.variantNew(signature, unwrapVariantValue(value)));
 }
 
-// `GLib.Variant` as a class-like object: `new GLib.Variant(sig, value)` and the
-// deprecated `GLib.Variant.new(sig, value)` both pack via the native engine.
 function makeVariantClass() {
     const ctor = function Variant(signature, value) {
         return packVariant(signature, value);
@@ -494,10 +404,10 @@ function makeVariantClass() {
     Object.defineProperty(ctor, 'name', { value: 'Variant', configurable: true });
     ctor.$gtypeName = 'GLib.Variant';
     ctor.new = (signature, value) => packVariant(signature, value);
-    // `value instanceof GLib.Variant` — a wrapped Variant is a Proxy over a bare
-    // `{[HANDLE]}` target (no class prototype), so the default instanceof always
-    // returned false. Recognise any wrapper whose [HANDLE] is a native GVariant
-    // boxed handle. Real GAction/GSettings/GLib.log_structured code branches on it.
+    // A wrapped Variant is a Proxy over a bare `{[HANDLE]}` target with no class
+    // prototype, so the default `value instanceof GLib.Variant` is always false —
+    // recognise any wrapper whose [HANDLE] is a native GVariant boxed handle instead.
+    // Real GAction/GSettings/GLib.log_structured code branches on it.
     Object.defineProperty(ctor, Symbol.hasInstance, {
         value(instance) {
             if (instance === null || typeof instance !== 'object') return false;
@@ -521,21 +431,14 @@ function makeVariantClass() {
 
 const variantClass = makeVariantClass();
 
-// ---- GObject.Value ergonomics (the GJS GObject.Value override, L1) ----
-//
-// gjs exposes `new GObject.Value()` (an empty GValue) + the convenience
-// `new GObject.Value(gtype, value)` (init + a set_* chosen by the value's type),
-// over the introspected GValue struct methods (.init/.set_*/.get_*/.copy/.reset/
-// .unset) + the static type_compatible/type_transformable —
-// refs/gjs/modules/core/overrides/GObject.js gValueConstructorFunc over the real
-// GValue class. node-gi has no g_value_new(), so construction goes through
-// native.newGValue (a zeroed G_TYPE_VALUE boxed handle) and the method surface then
-// routes through wrapBoxed's boxed-method dispatch (verified: init/set_int/get_int
-// resolve as GValue methods).
+// GObject.Value ergonomics, mirroring GJS's GObject override: `new GObject.Value()` and
+// the convenience `new GObject.Value(gtype, value)`. There is no g_value_new(), so
+// construction goes through native.newGValue (a zeroed G_TYPE_VALUE boxed handle) and
+// the .init/.set_*/.get_*/.copy/.reset/.unset surface routes through wrapBoxed's
+// boxed-method dispatch.
 
-// Fundamental GType name → GValue setter, for the `new GObject.Value(gtype, value)`
-// convenience. Non-primitive types (enum/flags/boxed/object/param/variant) are
-// matched by g_type_is_a below, exactly like gjs's default switch branch.
+// Fundamental GType name → GValue setter. Non-primitive types (enum/flags/boxed/object/
+// param/variant) are matched by g_type_is_a below, like gjs's default switch branch.
 const GVALUE_PRIMITIVE_SETTERS = {
     gboolean: 'set_boolean',
     gchar: 'set_schar',
@@ -554,9 +457,8 @@ const GVALUE_PRIMITIVE_SETTERS = {
     GParam: 'set_param',
 };
 
-// Pick the GValue setter for a (resolved) GType handle, mirroring gjs's constructor
-// switch: an exact fundamental → its setter, else g_type_is_a → flags/enum/boxed/…
-// (introspected GObject.type_name / type_is_a — both verified on node-gi).
+// Mirrors gjs's constructor switch: an exact fundamental → its setter, else g_type_is_a
+// → flags/enum/boxed/…
 function gvalueSetterFor(gt) {
     const G = requireGi('GObject', '2.0');
     const prim = GVALUE_PRIMITIVE_SETTERS[G.type_name(gt)];
@@ -570,17 +472,13 @@ function gvalueSetterFor(gt) {
     throw new TypeError(`Invalid type argument '${G.type_name(gt)}' to the GObject.Value constructor`);
 }
 
-// Build the empty/convenience GValue: a zeroed GValue boxed handle wrapped with the
-// GValue struct methods; the 2-arg form inits it to `gtype` (a class ctor's $gtype
-// or a GType handle) and sets `value` via the matching setter.
 function buildValue(args) {
     const v = wrapBoxed(native.newGValue());
     if (args.length >= 2) {
         const gt = resolveGTypeArg(args[0]);
         // Resolve the setter BEFORE init so an unsupported type throws a clean JS
-        // TypeError rather than driving g_value_init with a value-table-less type (a
-        // GLib-CRITICAL that would abort under G_DEBUG=fatal-criticals) — same net
-        // result as gjs's constructor, minus the noisy failed init.
+        // TypeError instead of driving g_value_init with a value-table-less type — a
+        // GLib-CRITICAL that aborts under G_DEBUG=fatal-criticals.
         const setter = gvalueSetterFor(gt);
         v.init(gt);
         v[setter](args[1]);
@@ -588,10 +486,8 @@ function buildValue(args) {
     return v;
 }
 
-// `GObject.Value` as a class-like object: `new GObject.Value()` /
-// `new GObject.Value(gtype, value)` construct via buildValue, static methods
-// (type_compatible / type_transformable + camelCase) route through the engine, and
-// `value instanceof GObject.Value` recognises any wrapper over a GValue boxed handle.
+// `instanceof GObject.Value` recognises any wrapper over a GValue boxed handle (same
+// prototype-less-Proxy reason as GLib.Variant above).
 function makeValueClass() {
     const ctor = function Value(...args) {
         return buildValue(args);

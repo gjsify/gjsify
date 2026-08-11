@@ -1,19 +1,12 @@
-// ResizeObserver polyfill for GJS — original implementation
+// ResizeObserver polyfill for GJS. There is no layout engine: sizes arrive from the framework
+// bridges that own the real GTK widget, via ./notify-resize.ts.
 // Reference (spec):   https://drafts.csswg.org/resize-observer/
 // Reference (Node refs): refs/happy-dom/packages/happy-dom/src/resize-observer/ResizeObserver.ts
 // Reference (browser): refs/jsdom/lib/jsdom/living/nodes/ResizeObserver-impl.js
-// Modifications: wired into the GJS bridge resize pipeline (see
-//                ./notify-resize.ts). No layout engine — sizes come from
-//                framework bridges that own the real GTK widget.
 //
-// Why a real implementation (not a stub):
-// Excalibur.js 0.32's `Screen._setResolutionAndViewportByDisplayMode()`
-// installs `ResizeObserver` on `canvas.parentElement` (typically
-// `document.body`) when `DisplayMode.FillContainer` is used. A stub would
-// never re-run that calculation when the GTK widget allocation changes,
-// stranding the rendered world at its initial resolution after every
-// window/sidebar resize. See `docs/reports/webgl-bridge-resize-observer.md`
-// for the full root-cause analysis.
+// A stub would not do: Excalibur's `Screen._setResolutionAndViewportByDisplayMode()` installs a
+// `ResizeObserver` on `canvas.parentElement` under `DisplayMode.FillContainer`, so with a stub the
+// rendered world stays at its initial resolution after every window or sidebar resize.
 
 import type { Element } from './element.js';
 
@@ -51,12 +44,10 @@ export interface ResizeObserverOptions {
 }
 
 /**
- * Cross-process queue of pending entries — flushed in a microtask so a
- * burst of resize notifications (e.g. one per ancestor in the parent
- * chain, or a synchronous GTK resize storm during application startup)
- * collapses into a single callback per observer with deduplicated
- * entries. Matches the spec's "deliver resize loop notifications"
- * semantics where each observation cycle batches into one delivery.
+ * Module-level queue of pending entries, flushed in a microtask so a burst of notifications (one
+ * per ancestor in the parent chain, or a synchronous GTK resize storm at startup) collapses into
+ * one callback per observer with deduplicated entries — the spec's "deliver resize loop
+ * notifications" batching.
  */
 const pendingDelivery: Set<ResizeObserver> = new Set();
 let flushScheduled = false;
@@ -75,22 +66,9 @@ function scheduleFlush(): void {
 }
 
 /**
- * `ResizeObserver` polyfill. Subscribes to bridge-reported GTK widget
- * resizes via `Element._onResize()` (see `./element.ts`). The bridge calls
- * `notifyElementResize()` from `./notify-resize.ts` which fires the
- * subscribers on the resized element and every ancestor.
- *
- * @example
- * ```ts
- * const observer = new ResizeObserver((entries) => {
- *   for (const entry of entries) {
- *     console.log(entry.target, entry.contentRect.width, entry.contentRect.height);
- *   }
- * });
- * observer.observe(canvas);  // canvas paired with a Gtk.GLArea by WebGLBridge
- * // resize the GTK widget → callback fires with the new dimensions
- * observer.disconnect();
- * ```
+ * `ResizeObserver` polyfill. Subscribes to bridge-reported GTK widget resizes through
+ * `Element._onResize()`; `notifyElementResize()` fires those subscribers on the resized element and
+ * every ancestor.
  */
 export class ResizeObserver {
     private readonly _callback: ResizeObserverCallback;
@@ -102,14 +80,10 @@ export class ResizeObserver {
     }
 
     /**
-     * Start observing `target`. Per spec, the first observation reports
-     * the target's current size — we honour this on a microtask so
-     * consumers that observe inside an initialisation routine receive
-     * the first measurement after their setup completes.
-     *
-     * `opts.box` is accepted for spec compatibility but does not change
-     * behaviour here — content-box, border-box, and device-pixel-content-box
-     * all map to the same single allocation reported by GTK.
+     * Start observing `target`. The spec's mandatory first observation of the current size is
+     * deferred to a microtask, so a consumer observing inside an init routine gets that measurement
+     * after its setup completes. `opts.box` is accepted for compatibility but changes nothing: all
+     * three box modes map to the single allocation GTK reports.
      */
     observe(target: Element, _opts?: ResizeObserverOptions): void {
         if (this._observed.has(target)) return;
@@ -117,7 +91,6 @@ export class ResizeObserver {
             this._enqueue(target, width, height);
         });
         this._observed.set(target, unsubscribe);
-        // Initial measurement, microtask-deferred to mirror spec timing.
         queueMicrotask(() => {
             if (!this._observed.has(target)) return; // unobserved meanwhile
             const rect = readClientRect(target);
@@ -176,11 +149,8 @@ export class ResizeObserver {
 }
 
 function readClientRect(target: Element): { width: number; height: number } {
-    // HTMLElement.getBoundingClientRect() exists on every element that ends
-    // up paired with a bridge (HTMLCanvasElement / HTMLVideoElement /
-    // HTMLIFrameElement all extend HTMLElement). Fall back to 0×0 for the
-    // rare case of an Element that doesn't expose it (e.g. an SVG root in
-    // older tests).
+    // Every bridge-paired element extends HTMLElement and so has getBoundingClientRect(); the 0×0
+    // fallback covers a bare `Element` that does not expose it.
     const fn = (
         target as Element & {
             getBoundingClientRect?: () => { width: number; height: number };

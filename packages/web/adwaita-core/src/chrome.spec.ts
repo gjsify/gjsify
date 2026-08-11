@@ -61,8 +61,7 @@ export default async () => {
         }
 
         await it('never hands the child MORE than the available size', () => {
-            // The invariant the NativeScript port broke with `view.width =
-            // maximumSize`: a 360 DIP phone was handed a 600 DIP child. One
+            // `view.width = maximumSize` hands a 360 DIP phone a 600 DIP child. One
             // assertion over the whole range, reporting every offender.
             const offenders: number[] = [];
             for (let available = 0; available <= 2000; available++) {
@@ -114,8 +113,8 @@ export default async () => {
         }
 
         await it('declares every class it can stamp, so a renderer can clear them all', () => {
-            // A derived class that is not in the list is one no renderer ever
-            // removes: it would stick to the child through every later pass.
+            // A derived class missing from the list is one no renderer ever removes: it
+            // sticks to the child through every later pass.
             const produced = new Set(CLAMP_ALLOCATE_VECTORS.map((v) => v.sizeClass));
             for (const cls of produced) expect(ADW_CLAMP_SIZE_CLASSES.includes(cls)).toBe(true);
             expect(ADW_CLAMP_SIZE_CLASSES).toStrictEqual(['small', 'medium', 'large']);

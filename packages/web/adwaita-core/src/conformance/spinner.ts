@@ -1,34 +1,21 @@
-// Spinner animation vectors — `AdwSpinnerPaintable`'s breathing arc.
+// Spinner ANIMATION vectors — `AdwSpinnerPaintable`'s breathing arc. The geometry
+// (`spinnerGeometry`, `resolveSpinnerSize`) lives in `conformance/chrome.ts`.
 //
-// The geometry (`spinnerGeometry`, `resolveSpinnerSize`) lives in
-// `conformance/chrome.ts` and predates this file; what is here is the ANIMATION,
-// which issue #1066 found to be a different animation on every renderer:
+// Issue #1066: every renderer animated differently — the divergences are the `rule`
+// column of `SPINNER_CONSTANT_VECTORS`. Two facts no row covers: the arc ends are
+// `GSK_LINE_CAP_ROUND`, not square-cut, and the C opts OUT of the animation setting
+// (`adw_animation_set_follow_enable_animations_setting (…, FALSE)`), so the spinner
+// keeps turning under `prefers-reduced-motion` — a frozen busy indicator reads as a
+// hang.
 //
-//   - the browser turned in 0.8s where the C turns in 1.2, so a spinner beside
-//     a GTK one ran 1.5x too fast;
-//   - it drew a FIXED 90-degree arc (`border-top-color`) where the C's arc
-//     breathes (see the envelope below);
-//   - its track was `rgba(127, 127, 127, 0.25)` where the C strokes the WIDGET's
-//     colour at 15%, so the track was too dark and lost its hue;
-//   - the arc ends were square-cut where GSK uses `GSK_LINE_CAP_ROUND`;
-//   - `START_ANGLE` was in neither port — a constant rotation error;
-//   - `prefers-reduced-motion` STOPPED it, where the C explicitly opts out of
-//     the animation setting (`adw_animation_set_follow_enable_animations_setting
-//     (…, FALSE)`, :537). A frozen busy indicator reads as a hang.
-//
-// A SETTLED CONTRADICTION, recorded because these rows sit on top of it
-//
-// `SPINNER_SIZE_VECTORS` says a 200px request yields a 200px BOX, with the rule
-// "an oversized box stays oversized — spinnerGeometry caps the RING, not the
-// box". Both renderer suites used to assert the opposite, because their element
-// and their view WERE the ring. The C settles it: `adw_spinner_measure`
-// (adw-spinner.c:78-81) reports MIN_SIZE as both minimum and natural and has no
-// upper bound at all — `MAX_SIZE` at :15 is defined and never referenced —
-// while `adw_spinner_snapshot` (:95-99) hands the widget's real width and height
-// to the paintable, which caps only `radius` (adw-spinner-paintable.c:343) and
-// still centres on the box (:349-351). So a 200px spinner occupies 200px of
-// layout and draws a 64px ring in the middle. The core table was right; both
-// renderers now separate the box from the ring.
+// SETTLED CONTRADICTION these rows sit on: a 200px request yields a 200px BOX, not a
+// 200px ring, because `spinnerGeometry` caps the RING. Both renderer suites asserted
+// the opposite, their element and their view having BEEN the ring. The C settles it:
+// `adw_spinner_measure` reports MIN_SIZE as both minimum and natural with no upper
+// bound (`MAX_SIZE` is defined and never referenced), while `adw_spinner_snapshot`
+// hands the widget's real width and height to the paintable, which caps only `radius`
+// and still centres on the box. So a 200px spinner occupies 200px of layout and draws
+// a 64px ring in the middle.
 //
 // Reference: refs/libadwaita/src/adw-spinner.c
 // Reference: refs/libadwaita/src/adw-spinner-paintable.c
@@ -41,16 +28,12 @@ export const SPINNER_ARC_TOLERANCE = 1e-9;
  * The arc lengths actually DRAWN, in radians — measured over one cycle at 200k
  * samples, not read off the constants.
  *
- * The distinction matters and is easy to get wrong: `MAX_ARC_LENGTH` is
- * `pi * 0.9` (162 degrees), and both `get_arc_start` and `get_arc_end` lerp
- * TOWARDS it — but each then subtracts the drift term
- * `angle * MAX_ARC_LENGTH / cycle_length`, which is what makes the figure
- * advance around the circle. The two ends drift together, so the visible arc
- * peaks at **102.8 degrees**, not 162. Reading the constant as the drawn length
- * is the obvious mistake; issue #1066 made it in its own summary table.
- *
- * The MINIMUM is exactly `MIN_ARC_LENGTH`, because the drift is zero at the
- * cycle boundary where the arc is shortest.
+ * `MAX_ARC_LENGTH` is `pi * 0.9` (162 degrees) and both `get_arc_start` and
+ * `get_arc_end` lerp TOWARDS it, but each then subtracts the drift term
+ * `angle * MAX_ARC_LENGTH / cycle_length` that advances the figure around the circle.
+ * The two ends drift together, so the visible arc peaks at 102.8 degrees, not 162 —
+ * reading the constant as the drawn length is the obvious mistake. The minimum is
+ * exactly `MIN_ARC_LENGTH`, the drift being zero at the cycle boundary.
  */
 export const SPINNER_ARC_ENVELOPE = {
     /** Exactly `MIN_ARC_LENGTH` — 2.7 degrees, at the cycle boundary. */
@@ -62,25 +45,24 @@ export const SPINNER_ARC_ENVELOPE = {
 } as const;
 
 /**
- * `get_arc_start` / `get_arc_end` (adw-spinner-paintable.c:109-145) at the four
- * corners of one cycle, plus the resting pose.
+ * One named moment of `get_arc_start` / `get_arc_end` within a cycle.
  *
- * The lengths are DERIVED from the C's own constants rather than typed in: the
- * point of the rows is which MOMENT each is, and a hand-copied radian would be a
- * second reading of the same arithmetic the implementation does. What they pin
- * is the shape — that the arc is shortest at the cycle boundary, longest around
- * the extend/contract handover, and never leaves `[MIN_ARC_LENGTH,
- * MAX_ARC_LENGTH]`.
+ * The rows name the MOMENT, not the length: lengths are derived from the C's own
+ * constants rather than typed in, so what they pin is the shape — arc shortest at the
+ * cycle boundary, longest around the extend/contract handover, never outside
+ * `[MIN_ARC_LENGTH, MAX_ARC_LENGTH]`.
  */
 export interface SpinnerArcShapeVector {
     /** Fraction of one arc cycle, 0..1. */
     phase: number;
-    /** What happens here. */
     rule: string;
 }
 
-/** The moments worth naming in one arc cycle.  *
- * CORE-ONLY: the arc is drawn per frame from `spinnerArc`, and a renderer can only show the RESULT — the browser suite asserts the drawn envelope and the round caps, which is the observable half
+/**
+ * The moments worth naming in one arc cycle.
+ *
+ * CORE-ONLY: the arc is drawn per frame from `spinnerArc` and a renderer can only show
+ * the RESULT — the browser suite asserts the drawn envelope and the round caps.
  */
 export const SPINNER_ARC_PHASE_VECTORS: ReadonlyArray<SpinnerArcShapeVector> = [
     { phase: 0, rule: 'the cycle boundary — the arc is at MIN_ARC_LENGTH, its shortest' },
@@ -102,14 +84,13 @@ export interface SpinnerConstantVector {
 }
 
 /**
- * The `#define`s at adw-spinner-paintable.c:18-33 and adw-spinner.c:14-15.
+ * The animation `#define`s plus `adw-spinner.c`'s own size constants.
  *
- * A constant table looks redundant next to the implementation until you read the
- * `rule` column: five of these seven were WRONG or absent in a shipping port,
- * and a table is what makes "the port picked its own number" fail a test rather
- * than look like a design choice.
+ * Four of these seven were wrong or absent in a shipping port; as a table, "the port
+ * picked its own number" fails a test instead of reading as a design choice.
  *
- * CORE-ONLY: a table OF constants: what a renderer can show is the geometry they produce, which the browser suite asserts through SPINNER_GEOMETRY/SIZE_VECTORS
+ * CORE-ONLY: a table OF constants — what a renderer can show is the geometry they
+ * produce, asserted by the browser suite through SPINNER_GEOMETRY/SIZE_VECTORS.
  */
 export const SPINNER_CONSTANT_VECTORS: ReadonlyArray<SpinnerConstantVector> = [
     {

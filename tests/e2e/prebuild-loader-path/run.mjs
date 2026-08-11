@@ -1,25 +1,18 @@
-// E2E test for `scripts/check-prebuild-loader-path.mjs` — the guard that a
-// shipped prebuild resolves its OWN sibling libraries from its own directory.
+// E2E test for `scripts/check-prebuild-loader-path.mjs` — the guard that a shipped prebuild
+// resolves its OWN sibling libraries from its own directory.
 //
-// The bug it exists to catch, in full: the `*-native` bridges ship TWO
-// libraries whose leaf names differ on purpose — `libgjsify<name>.{so,dylib}`
-// (the Vala library the typelib names) and `libgjsify_<name>.{so,dylib}` (the
-// cargo cdylib it links against, underscore). The typelib mentions only the
-// first, so nothing else in the pipeline names the second, and a `cp` list that
-// forgets it produces an artifact that builds green, uploads green, gets
-// committed to main — and dies at `dlopen` on a user's machine with
+// The bug it catches: the `*-native` bridges ship TWO libraries whose leaf names differ on
+// purpose — `libgjsify<name>.{so,dylib}` (the Vala library the typelib names) and
+// `libgjsify_<name>.{so,dylib}` (the cargo cdylib it links against, underscore). The typelib
+// mentions only the first, so nothing else in the pipeline names the second, and a `cp` list
+// that forgets it builds green, uploads green, lands on main and dies at `dlopen` on a
+// user's machine with `Library not loaded: @rpath/libgjsify_rolldown.dylib` — which reads
+// like a broken rpath and is a missing FILE. The darwin rolldown leg shipped exactly that.
 //
-//     Library not loaded: @rpath/libgjsify_rolldown.dylib
-//       Reason: tried: '…/prebuilds/darwin-arm64/libgjsify_rolldown.dylib' (no such file)
-//
-// which reads like a broken rpath and is a missing FILE. That is exactly what
-// the darwin rolldown leg shipped.
-//
-// The committed prebuilds are the fixtures ON PURPOSE: they are real linked
-// artifacts, and the darwin-arm64 ones give the Mach-O parser real coverage
-// from a Linux CI host that cannot run a single instruction of them — which is
-// the only way a committed macOS binary gets checked at all before someone with
-// a Mac tries to use it.
+// The committed prebuilds are the fixtures ON PURPOSE: they are real linked artifacts, and
+// the darwin ones give the Mach-O parser real coverage from a Linux CI host that cannot run
+// a single instruction of them — the only way a committed macOS binary gets checked before
+// someone with a Mac tries to use it.
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -39,22 +32,21 @@ import { fileURLToPath } from 'node:url';
 import { prebuildDir } from '../helpers.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-// tests/e2e/prebuild-loader-path/ → monorepo root is 3 levels up.
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const CHECKER = join(MONOREPO_ROOT, 'scripts', 'check-prebuild-loader-path.mjs');
 
 const { checkPrebuildDir, readLibrary, readTypelibSharedLibraries } = await import(`file://${CHECKER}`);
-// The libc-axis readers live in the SAME parser (AGENTS.md: extend `binary.mjs`,
-// never add a second) but are not part of the loader-path CLI's surface, so they
-// come from the package directly.
+// The libc-axis readers live in the SAME parser (AGENTS.md: extend `binary.mjs`, never add a
+// second) but are not on the loader-path CLI's surface, so they come from the package.
 const { readElfNeeded, readElfGlibcRequires, compareGlibcVersions } = await import(
     `file://${join(MONOREPO_ROOT, 'packages', 'infra', 'manifest-conformance', 'lib', 'binary.mjs')}`
 );
 
-/** The Vala+Rust pairs, with the leaf names that MUST stay in step. */
-// Since ADR 0017 there is no single parent `prebuilds/` to join a target onto —
-// each target lives in its own package — so a pair names its bridge and the
-// directory is resolved per target through the shared `prebuildDir()`.
+/**
+ * The Vala+Rust pairs, with the leaf names that MUST stay in step. Since ADR 0017 each
+ * target lives in its own package, so a pair names only its bridge and the directory is
+ * resolved per target through the shared `prebuildDir()`.
+ */
 const PAIRS = [
     { pillar: 'infra', bridge: 'rolldown-native', vala: 'libgjsifyrolldown', rust: 'libgjsify_rolldown' },
     { pillar: 'infra', bridge: 'oxfmt-native', vala: 'libgjsifyoxfmt', rust: 'libgjsify_oxfmt' },
@@ -67,15 +59,12 @@ const PAIRS = [
 ];
 
 /**
- * Every target token this suite knows how to inspect, in the CURRENT grammar
- * `<os>-<arch>[-musl]`.
+ * Every target token this suite can inspect, in the current `<os>-<arch>[-musl]` grammar.
  *
- * `linux-*-musl` is listed although nothing commits one yet: each loop below
- * skips a target whose library is absent, so the day a musl leg lands its
- * artifacts are checked with no fixture edit. Listing it is also the cheap half
- * of the standing "fixtures recompose the target name" item in
- * `status/open-todos.md` — the token shape appears once here instead of inline at
- * three loop heads.
+ * `linux-*-musl` is listed although nothing commits one yet: each loop below skips a target
+ * whose library is absent, so the day a musl leg lands its artifacts are checked with no
+ * fixture edit. One list also keeps the token shape out of three loop heads — the cheap half
+ * of the "fixtures recompose the target name" item in `status/open-todos.md`.
  */
 const TARGETS = ['linux-x64', 'linux-x64-musl', 'linux-arm64', 'linux-arm64-musl', 'darwin-arm64'];
 
@@ -94,9 +83,8 @@ describe('check-prebuild-loader-path: committed prebuilds', () => {
                 const info = readLibrary(join(staged, `${vala}${ext}`));
                 assert.ok(info, 'expected a parseable shared library');
                 const token = info.format === 'macho' ? '@loader_path' : '$ORIGIN';
-                // The Mach-O side carries the leaf behind `@rpath/`; the ELF side
-                // records the bare soname. Both must name the UNDERSCORE leaf —
-                // getting that spelling wrong is the other half of this trap.
+                // Mach-O carries the leaf behind `@rpath/`, ELF records the bare soname. Both
+                // must name the UNDERSCORE leaf — that spelling is the other half of the trap.
                 assert.ok(
                     info.needed.some((n) => n.endsWith(`${rust}${ext}`)),
                     `expected a dependency on ${rust}${ext}, got ${info.needed.join(', ')}`,
@@ -156,9 +144,9 @@ describe('check-prebuild-loader-path: failure modes', () => {
     });
 
     it('SKIPS a format it cannot parse rather than calling it broken', () => {
-        // A future win32 `.dll` is PE/COFF, which this parser does not speak.
-        // Claiming a platform is broken because the checker cannot read it would
-        // make the guard lie; the job's load test is the functional backstop.
+        // A future win32 `.dll` is PE/COFF, which this parser does not speak. Calling a
+        // platform broken because the checker cannot read it would make the guard lie; the
+        // job's load test is the functional backstop.
         const dir = mkdtempSync(join(tmpdir(), 'gjsify-loader-path-'));
         try {
             mkdirSync(dir, { recursive: true });
@@ -171,19 +159,15 @@ describe('check-prebuild-loader-path: failure modes', () => {
 });
 
 /**
- * The build-host leak (#1102): a Mach-O names each dependency by full install
- * path, so an unrelocated darwin prebuild carries the Homebrew prefix of the
- * runner that linked it — `/usr/local/…` from an Intel runner, `/opt/homebrew/…`
- * from an Apple-silicon one. Both published `@gjsify/webgl` darwin prebuilds did,
- * and so did all ten other darwin packages.
+ * The build-host leak (#1102): a Mach-O names each dependency by full install path, so an
+ * unrelocated darwin prebuild carries the Homebrew prefix of the runner that linked it —
+ * `/usr/local/…` from an Intel runner, `/opt/homebrew/…` from an Apple-silicon one.
  *
- * The fixtures are SYNTHESISED rather than produced with `install_name_tool`,
- * for the reason the whole suite is written the way it is: these tests have to
- * run on the Linux CI host that cannot execute — or edit — a Mach-O. A minimal
- * 64-bit image is a header plus load commands, which is exactly the part the
- * parser reads, so building one in-process gives real coverage of the failing
- * shape on every platform. Producing it with the real tool would have made the
- * one check that guards macOS runnable only ON macOS.
+ * The fixtures are SYNTHESISED rather than produced with `install_name_tool`, because these
+ * tests run on a Linux CI host that can neither execute nor edit a Mach-O. A minimal 64-bit
+ * image is a header plus load commands — exactly the part the parser reads — so building one
+ * in-process covers the failing shape on every platform, where the real tool would make the
+ * one check guarding macOS runnable only ON macOS.
  */
 describe('check-prebuild-loader-path: the build-host leak', () => {
     const MH_MAGIC_64 = 0xfeedfacf;
@@ -192,11 +176,7 @@ describe('check-prebuild-loader-path: the build-host leak', () => {
     const LC_LOAD_DYLIB = 0x0c;
     const LC_RPATH = 0x8000001c;
 
-    /**
-     * Build a thin 64-bit Mach-O carrying exactly the given load commands.
-     *
-     * @param {Array<{cmd: number, str: string}>} commands
-     */
+    /** @param {Array<{cmd: number, str: string}>} commands */
     function machO(commands) {
         const header = Buffer.alloc(32);
         header.writeUInt32LE(MH_MAGIC_64, 0);
@@ -204,10 +184,8 @@ describe('check-prebuild-loader-path: the build-host leak', () => {
         header.writeUInt32LE(commands.length, 16);
 
         const blocks = commands.map(({ cmd, str }) => {
-            // dylib_command is 24 bytes of fixed fields before the string;
-            // rpath_command is 12. Only the offset matters to the parser, so
-            // both are emitted with the string at a declared offset and the
-            // whole command padded to a 8-byte multiple, exactly as ld does.
+            // dylib_command has 24 bytes of fixed fields before the string, rpath_command 12.
+            // Padded to an 8-byte multiple exactly as ld does.
             const strOff = cmd === LC_RPATH ? 12 : 24;
             const size = Math.ceil((strOff + str.length + 1) / 8) * 8;
             const b = Buffer.alloc(size);
@@ -246,10 +224,9 @@ describe('check-prebuild-loader-path: the build-host leak', () => {
     });
 
     it('FAILS the Apple-silicon prefix too — the predicate is not a /usr/local grep', () => {
-        // The trap this guards: a hardcoded `/opt/homebrew` test is vacuously
-        // false on an Intel runner and a hardcoded `/usr/local` one is vacuously
-        // false on Apple silicon, so either alone passes green while proving
-        // nothing about the other arch.
+        // A hardcoded `/opt/homebrew` test is vacuously false on an Intel runner and a
+        // hardcoded `/usr/local` one on Apple silicon, so either alone passes green while
+        // proving nothing about the other arch.
         const dir = stage([{ cmd: LC_LOAD_DYLIB, str: '/opt/homebrew/opt/libepoxy/lib/libepoxy.0.dylib' }, SYSTEM]);
         try {
             assert.match(checkPrebuildDir(dir, { verbose: false }).join('\n'), /hard-links the build host/);
@@ -292,10 +269,9 @@ describe('check-prebuild-loader-path: the build-host leak', () => {
     });
 
     it('REPORTS an absolute rpath without failing it — a search path is not a requirement', () => {
-        // The asymmetry is the point: dyld ABORTS the load over a missing
-        // `LC_LOAD_DYLIB` and SKIPS a missing `LC_RPATH`, so keeping the
-        // Homebrew prefix as the last search entry is a working fallback. Failing
-        // it would refuse the artifact `relocate-macho.mjs` deliberately produces.
+        // dyld ABORTS the load over a missing `LC_LOAD_DYLIB` and SKIPS a missing
+        // `LC_RPATH`, so the Homebrew prefix as the last search entry is a working fallback —
+        // failing it would refuse the artifact `relocate-macho.mjs` deliberately produces.
         const dir = stage([
             { cmd: LC_LOAD_DYLIB, str: '@rpath/libglib-2.0.0.dylib' },
             SYSTEM,
@@ -310,22 +286,17 @@ describe('check-prebuild-loader-path: the build-host leak', () => {
     });
 
     it('gives every committed darwin prebuild the SAME rpath order', () => {
-        // The order IS the precedence policy — dyld expands `@rpath` against
-        // each `LC_RPATH` in the order recorded — so asserting the set would
-        // pass on the bug this exists to catch.
+        // The order IS the precedence policy — dyld expands `@rpath` against each `LC_RPATH`
+        // in the order recorded — so a set-equality assertion would pass on the bug this
+        // exists to catch: `relocate-macho.mjs` used to delete only the rpaths it did not
+        // want and append the rest, so an entry the linker had baked in kept its position. A
+        // freshly-linked `libgwebgl.dylib` carries `<brew>/lib` from the Homebrew link line,
+        // and CI's artifact therefore shipped the SYSTEM prefix ahead of the bundle,
+        // inverting ADR 0023's darwin policy.
         //
-        // What it caught: `relocate-macho.mjs` first deleted only the rpaths it
-        // did not want and appended the rest, so an entry the linker had already
-        // baked in kept its position. A freshly-linked `libgwebgl.dylib` carries
-        // `<brew>/lib` from the Homebrew link line, and CI's own artifact
-        // therefore shipped the SYSTEM prefix ahead of the bundle — inverting
-        // ADR 0023's darwin policy. The committed artifacts did not show it,
-        // because theirs were version-pinned Cellar paths that all got deleted.
-        // A set-equality assertion is blind to exactly that difference.
-        //
-        // Read from the file rather than recomputed from `darwinPrebuildRpaths`:
-        // the point is what the ARTIFACT records, and a shared helper would make
-        // the test agree with the generator by construction.
+        // Read from the FILE rather than recomputed from `darwinPrebuildRpaths`: the point is
+        // what the artifact records, and a shared helper would make the test agree with the
+        // generator by construction.
         for (const target of ['darwin-x64', 'darwin-arm64']) {
             const arch = target.slice('darwin-'.length);
             const prefix = arch === 'arm64' ? '/opt/homebrew' : '/usr/local';
@@ -335,8 +306,7 @@ describe('check-prebuild-loader-path: the build-host leak', () => {
                 if (!existsSync(dir)) continue;
                 for (const leaf of readdirSync(dir).filter((f) => f.endsWith('.dylib'))) {
                     const info = readLibrary(join(dir, leaf));
-                    // A library with no `@rpath/` dependency gets no rpaths at
-                    // all — that is deliberate, and it is the cdylibs.
+                    // The cdylibs have no `@rpath/` dependency and so get no rpaths at all.
                     if (!info?.needed.some((n) => n.startsWith('@rpath/'))) continue;
                     assert.deepEqual(
                         info.searchPaths,
@@ -377,14 +347,12 @@ describe('typelib shared-library records', () => {
     });
 
     it('reads a BIG-endian typelib — the s390x case', () => {
-        // A typelib is written in the byte order of the machine that compiled
-        // it and carries no endianness flag, so a `linux-s390x` one read from
-        // an x86-64 host is byte-swapped. Read little-endian it yields an
-        // out-of-range offset, which looks exactly like "this namespace names
-        // no library" — silently skipping the staged-leaf check on the one
-        // architecture we ship that is big-endian. Found against a real
-        // emulated s390x build; reproduced here by swapping the committed
-        // one's header so the suite needs no second binary fixture.
+        // A typelib is written in the byte order of the machine that compiled it and carries
+        // NO endianness flag, so a `linux-s390x` one read little-endian from an x86-64 host
+        // yields an out-of-range offset — which looks exactly like "this namespace names no
+        // library" and silently skips the staged-leaf check on the one big-endian arch we
+        // ship. Reproduced by swapping the committed typelib's header, so no second binary
+        // fixture is needed.
         const src = readFileSync(TERMINAL_LE);
         const swapped = Buffer.from(src);
         for (const offset of [40, 52]) swapped.writeUInt32BE(src.readUInt32LE(offset), offset);
@@ -411,25 +379,22 @@ describe('typelib shared-library records', () => {
 });
 
 describe('libc axis — DT_NEEDED, read from the committed binaries', () => {
-    // These two facts used to be hand-maintained (which is to say: absent). The
-    // readers exist so `libc` and `gjsify.glibcRequires` are MEASURED, and the
-    // committed prebuilds are the fixtures for the same reason the loader-path
-    // checks use them: real linked artifacts, on five architectures, two byte
+    // The readers exist so `libc` and `gjsify.glibcRequires` are MEASURED rather than
+    // hand-maintained, and the committed prebuilds are the fixtures for the same reason the
+    // loader-path checks use them: real linked artifacts on five architectures and two byte
     // orders, none of which this x86-64 host can execute.
     const TERMINAL = (target) => prebuildDir('node', 'terminal-native', target, 'libgjsifyterminal.so');
     const TLS = (target) => prebuildDir('node', 'tls-native', target, 'libgjsifytls.so');
 
     it('reports libc.so.6 for a bridge that links it — on every arch, both byte orders', () => {
-        // `linux-s390x` is the big-endian one. The ELF header carries its own
-        // byte order, so this is not a guess — but it IS the case a
-        // little-endian-only reader gets silently wrong, exactly as the typelib
-        // reader above did before it learned to probe.
+        // `linux-s390x` is the big-endian one. Unlike a typelib an ELF header carries its own
+        // byte order, so this is not a guess — but it is still the case a little-endian-only
+        // reader gets silently wrong.
         for (const target of ['linux-x64', 'linux-arm64', 'linux-ppc64', 'linux-s390x', 'linux-riscv64']) {
             const needed = readElfNeeded(TERMINAL(target));
             assert.ok(Array.isArray(needed), `${target}: expected a measurement, got null`);
             assert.ok(needed.includes('libc.so.6'), `${target}: expected libc.so.6, got ${needed.join(', ')}`);
-            // Leaf names, not raw strings — the question is always "does it need
-            // libc", which is a question about the leaf.
+            // Leaf names, not raw strings: "does it need libc" is a question about the leaf.
             assert.ok(
                 needed.every((n) => !n.includes('/')),
                 `${target}: expected leaf names, got ${needed.join(', ')}`,
@@ -438,10 +403,9 @@ describe('libc axis — DT_NEEDED, read from the committed binaries', () => {
     });
 
     it('reports NO libc soname for a bridge that reaches libc only through GLib', () => {
-        // `@gjsify/tls-native` on x64 calls into GLib/GIO/GnuTLS and nothing
-        // else, so it loads against whatever libc the host's GLib was built for.
-        // That third state — not glibc, not musl — is why an unsuffixed target
-        // means "default build" rather than "glibc build".
+        // `@gjsify/tls-native` on x64 calls into GLib/GIO/GnuTLS and nothing else, so it loads
+        // against whatever libc the host's GLib was built for. That third state — neither
+        // glibc nor musl — is why an unsuffixed target means "default build", not "glibc".
         const needed = readElfNeeded(TLS('linux-x64'));
         assert.ok(Array.isArray(needed));
         assert.ok(!needed.includes('libc.so.6'), `expected no libc.so.6, got ${needed.join(', ')}`);
@@ -459,9 +423,9 @@ describe('libc axis — DT_NEEDED, read from the committed binaries', () => {
     });
 
     it('returns NULL — not [] — for a file that is not an ELF at all', () => {
-        // The contract the whole audit rests on: null is "not measured", `[]` is
-        // "measured, records nothing". A caller that collapses them concludes
-        // "no libc.so.6, therefore musl-safe" about a file nobody parsed.
+        // The contract the whole audit rests on: null is "not measured", `[]` is "measured,
+        // records nothing". Collapsing them concludes "no libc.so.6, therefore musl-safe"
+        // about a file nobody parsed.
         const dir = mkdtempSync(join(tmpdir(), 'gjsify-elf-'));
         try {
             const file = join(dir, 'libnothing.so');
@@ -474,9 +438,8 @@ describe('libc axis — DT_NEEDED, read from the committed binaries', () => {
     });
 
     it('returns null rather than throwing on a Mach-O image', () => {
-        // The darwin artifacts are legitimate files this reader does not speak.
-        // Throwing would abort a whole audit run over a platform it never
-        // claimed to inspect.
+        // Throwing would abort a whole audit run over a platform this reader never claimed
+        // to inspect.
         const dylib = prebuildDir('infra', 'oxfmt-native', 'darwin-arm64', 'libgjsifyoxfmt.dylib');
         assert.equal(readElfNeeded(dylib), null);
         assert.equal(readElfGlibcRequires(dylib), null);
@@ -485,11 +448,9 @@ describe('libc axis — DT_NEEDED, read from the committed binaries', () => {
 
 describe('libc axis — the glibc floor, read from SHT_GNU_verneed', () => {
     it('reads the floor the dynamic linker will actually enforce', () => {
-        // Spot-checked against the two extremes in the tree. The low one is a
-        // pure-Vala bridge using only ancient symbols; the high one is a Rust
-        // cdylib and single-handedly sets this repo's Linux baseline
-        // (glibc 2.39 = Ubuntu 24.04 / Debian 13), which is precisely the fact
-        // no declaration revealed before it was measured.
+        // The two extremes in the tree: a pure-Vala bridge using only ancient symbols, and
+        // the Rust cdylib that single-handedly sets this repo's Linux baseline (glibc 2.39 =
+        // Ubuntu 24.04 / Debian 13) — the fact no declaration revealed before it was measured.
         assert.equal(
             readElfGlibcRequires(prebuildDir('node', 'terminal-native', 'linux-x64', 'libgjsifyterminal.so')),
             '2.2.5',
@@ -509,10 +470,9 @@ describe('libc axis — the glibc floor, read from SHT_GNU_verneed', () => {
     });
 
     it('reports null for a library that requires no versioned glibc symbol', () => {
-        // The Vala half of a Rust pair records no libc at all, so it has no
-        // floor. This is why the rule takes the MAXIMUM over the whole staged
-        // directory: reading only the typelib-named library would report "no
-        // glibc requirement" for the three packages with the highest floors.
+        // The Vala half of a Rust pair records no libc at all, hence no floor — which is why
+        // the rule takes the MAXIMUM over the whole staged directory. Reading only the
+        // typelib-named library reports "no glibc requirement" for the three highest floors.
         assert.equal(
             readElfGlibcRequires(prebuildDir('infra', 'lightningcss-native', 'linux-x64', 'libgjsifylightningcss.so')),
             null,
@@ -520,9 +480,9 @@ describe('libc axis — the glibc floor, read from SHT_GNU_verneed', () => {
     });
 
     it('compares versions numerically, so 2.9 does not outrank 2.34', () => {
-        // The one comparison a lexical sort gets wrong on the actual data — and
-        // it appears twice: picking the maximum inside a `.gnu.version_r` table,
-        // and comparing a measurement against a declared floor.
+        // The one comparison a lexical sort gets wrong on the actual data, and it appears
+        // twice: the maximum inside a `.gnu.version_r` table, and a measurement against a
+        // declared floor.
         assert.ok(compareGlibcVersions('2.34', '2.9') > 0);
         assert.ok(compareGlibcVersions('2.9', '2.34') < 0);
         assert.equal(compareGlibcVersions('2.34', '2.34.0'), 0);

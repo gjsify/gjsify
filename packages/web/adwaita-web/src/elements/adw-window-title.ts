@@ -9,11 +9,11 @@
 // `@gjsify/adwaita-nativescript` composes the same state, so both ports share one
 // behaviour. Three rules from adw-window-title.c that neither renderer had:
 //   - the TITLE label hides when the title is empty (C:207-208; the template even
-//     starts it `visible=False`, adw-window-title.ui:15). Only the subtitle was
+//     starts it `visible=False`). Only the subtitle was
 //     ever hidden here, so a header bar with a subtitle and no title reserved a
 //     blank title line above it.
-//   - setting the value it already has returns early (C:203-204, :244-245).
-//   - a real change notifies (C:210, :251).
+//   - setting the value it already has returns early (C:203-204).
+//   - a real change notifies (C:210).
 //
 // Reference: refs/adwaita-web/adwaita-web/docs/widgets/windowtitle.md
 // Reference: refs/libadwaita/src/adw-window-title.c, adw-window-title.ui
@@ -56,7 +56,7 @@ export class AdwWindowTitle extends HTMLElement {
         if (!this._initialized) return;
         const changed = name === 'title' ? this._state.setTitle(value) : this._state.setSubtitle(value);
         // The early-return is the whole point: re-setting the same value paints
-        // nothing and notifies nothing (C:203-204, :244-245).
+        // nothing and notifies nothing (C:203-204).
         if (!changed) return;
         this._render();
         this.dispatchEvent(

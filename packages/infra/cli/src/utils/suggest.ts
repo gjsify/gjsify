@@ -1,11 +1,9 @@
-// Small "did you mean …?" helper for CLI name typos (unknown workspace,
-// unknown script, …). Pure — no platform imports — so it is unit-testable
-// off any runtime and safe to pull into a GJS-bundled command.
+// "Did you mean …?" for CLI name typos (unknown workspace, unknown script, …).
+// Kept free of platform imports so it is safe to pull into a GJS-bundled command.
 
 /**
- * Levenshtein edit distance between two strings (classic DP, single-row
- * rolling buffer). Case-sensitive; callers lower-case first if they want a
- * case-insensitive match.
+ * Levenshtein edit distance. Case-SENSITIVE — callers lower-case first if they
+ * want otherwise.
  */
 export function editDistance(a: string, b: string): number {
     if (a === b) return 0;
@@ -30,10 +28,10 @@ export function editDistance(a: string, b: string): number {
 }
 
 /**
- * The closest candidate to `target` by edit distance, or `undefined` when no
- * candidate is close enough. "Close enough" scales with the target length so
- * a short name doesn't match everything and a long one tolerates a couple of
- * typos: `max(2, floor(len/3))`. Comparison is case-insensitive.
+ * The closest candidate to `target`, or `undefined` when none is close enough.
+ * The threshold `max(2, floor(len/3))` scales with target length so a short name
+ * does not match everything while a long one still tolerates a couple of typos.
+ * Comparison is case-insensitive.
  */
 export function suggestClosest(target: string, candidates: readonly string[]): string | undefined {
     if (candidates.length === 0) return undefined;

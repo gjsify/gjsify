@@ -322,17 +322,13 @@ const drawingMethods: DrawingMethods & ThisType<CanvasRenderingContext2D> = {
 
         getCanvasPixelBridge().setSourceImage(this._ctx, pixbuf, 0, 0);
 
-        // Apply Cairo interpolation filter based on imageSmoothingEnabled +
-        // imageSmoothingQuality. setSource installs a fresh SurfacePattern and
-        // resets any filter to Cairo's default (BILINEAR), so setFilter MUST
-        // be called between setSource and paint. Without this, Excalibur's
-        // pixel-art mode (imageSmoothingEnabled=false) renders blurry because
-        // Cairo uses bilinear interpolation by default.
+        // The bridge call above installs a fresh pattern carrying Cairo's default filter (GOOD, a
+        // smoothing one), so setFilter MUST come between it and paint — otherwise Excalibur's
+        // pixel-art mode (imageSmoothingEnabled=false) renders blurry.
         //
-        // Cairo.Filter values (verified runtime in GJS 1.86):
-        //   FAST=0  GOOD=1  BEST=2  NEAREST=3  BILINEAR=4  GAUSSIAN=5
-        // GIR typings are missing setFilter on Pattern — `asCairoPattern`
-        // narrows to the augmented shape (see cairo-types.ts).
+        // Cairo.Filter values: FAST=0 GOOD=1 BEST=2 NEAREST=3 BILINEAR=4 GAUSSIAN=5.
+        // `asCairoPattern` narrows because `getSource()` is typed as the method-less base
+        // `Pattern` (see cairo-types.ts).
         const pat = asCairoPattern(this._ctx.getSource?.());
         if (pat) {
             let filter: Cairo.Filter;

@@ -1,4 +1,4 @@
-// MutationObserver stub for GJS — original implementation
+// MutationObserver stub for GJS.
 // Reference: refs/happy-dom/packages/happy-dom/src/mutation-observer/MutationObserver.ts
 // Copyright (c) David Ortner (capricorn86). MIT license.
 // Modifications: Stub implementation — no actual mutation tracking
@@ -16,22 +16,17 @@ interface MutationObserverOptions {
 }
 
 /**
- * MutationObserver stub.
- * Many libraries check for MutationObserver existence; this prevents crashes.
- * Does not actually observe DOM mutations (no layout engine).
+ * Observes nothing — there is no layout engine to observe. It exists because many libraries check
+ * for `MutationObserver` and crash without it.
  *
  * Reference: https://developer.mozilla.org/en-US/docs/Web/API/MutationObserver
  */
 export class MutationObserver {
     constructor(_callback: (...args: unknown[]) => void) {}
 
-    observe(_target: Node, _options?: MutationObserverOptions): void {
-        // Stub — no actual mutation tracking
-    }
+    observe(_target: Node, _options?: MutationObserverOptions): void {}
 
-    disconnect(): void {
-        // Stub
-    }
+    disconnect(): void {}
 
     takeRecords(): unknown[] {
         return [];

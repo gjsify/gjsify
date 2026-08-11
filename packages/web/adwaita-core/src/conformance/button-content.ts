@@ -1,20 +1,19 @@
 // Button-content conformance vectors — the spec both renderers are held to.
 //
-// The style-class table is the important one. `AdwButtonContent` exists partly
-// to put `image-text-button` on its parent button (adw-button-content.c:115),
-// the stylesheet gives that class a DIFFERENT horizontal padding from a plain
-// text button (_buttons.scss:77-80 = 9px, against :72-75 = 17px), and
-// `grep -rn "image-text-button"` over both renderer trees returned nothing. The
-// only thing that could ever have noticed is a table like this one.
+// The style-class table is the important one, and the incident that produced it:
+// `AdwButtonContent` exists partly to put `image-text-button` on its parent button and
+// the stylesheet gives that class a different horizontal padding from a plain text
+// button (9px against 17px) — yet neither renderer stamped the class anywhere until
+// this table asserted it.
 //
-// CITE THE SELECTOR THAT WINS. The same block that declares the 9px padding also
-// declares `> box, > box > box { border-spacing: 4px }` (:82-84), and that half
-// does NOT apply here: the node tree is `button > buttoncontent > box`
-// (:47-52), so the button's direct child is `buttoncontent` and neither `> box`
-// nor `> box > box` matches through it. The icon↔label gap is the 6px from
-// `buttoncontent > box` (:626-628). Inside a split button the class sits on the
-// `splitbutton` node and `splitbutton.image-text-button > button` (:499-507)
-// wins instead — 9px on the INNER button, and 6px on its direct box.
+// WHICH SELECTOR WINS (the rule lives in ./index.ts): the same block that declares the
+// 9px padding also declares `> box, > box > box { border-spacing: 4px }`, and that half
+// does NOT apply here — the node tree is `button > buttoncontent > box`, so the
+// button's direct child is `buttoncontent` and neither `> box` nor `> box > box`
+// matches through it. The icon↔label gap is the 6px from `buttoncontent > box`. Inside
+// a split button the class sits on the `splitbutton` node and
+// `splitbutton.image-text-button > button` wins instead — 9px on the INNER button, 6px
+// on its direct box.
 //
 // Reference: refs/libadwaita/src/adw-button-content.c
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss
@@ -26,11 +25,10 @@ export interface ButtonContentDefaultVector {
     property: 'icon-name' | 'label' | 'use-underline' | 'can-shrink';
     /** The `GParamSpec` default. */
     value: string | boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
-/** The four `GParamSpec` defaults (adw-button-content.c:229-272). */
+/** The four `GParamSpec` defaults. */
 export const BUTTON_CONTENT_DEFAULT_VECTORS: ReadonlyArray<ButtonContentDefaultVector> = [
     { property: 'icon-name', value: '', rule: 'empty string (:229-232), matching `g_strdup ("")` in init (:284)' },
     { property: 'label', value: '', rule: 'empty (:239-242), so the label node starts hidden (:300)' },
@@ -40,28 +38,23 @@ export const BUTTON_CONTENT_DEFAULT_VECTORS: ReadonlyArray<ButtonContentDefaultV
 
 /** One icon-name resolution expectation. */
 export interface ButtonContentIconVector {
-    /** The `icon-name` value. */
     iconName: string;
-    /** The name the `GtkImage` is actually set from (:355-358). */
+    /** The name the `GtkImage` is actually set from. */
     resolved: string;
     /** Whether the resolved name is the empty-slot fallback rather than an app value. */
     isFallback: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * `adw_button_content_set_icon_name` (:355-358).
+ * `adw_button_content_set_icon_name`.
  *
- * THE DOCS AND THE CODE DISAGREE AND THIS TABLE FOLLOWS THE CODE. Both doc
- * comments say an empty `icon-name` means the icon "is not shown" (:228 on the
- * property, :343 on the setter). Nothing in the widget hides it:
- * `gtk_widget_set_visible` is called on the LABEL only (:300, :398), `init` sets
- * the image to `image-missing` while `icon_name` is still `""` (:284, :294), and
- * the setter re-applies that fallback for every empty value (:355-356). So a
- * default-constructed `AdwButtonContent` draws the broken-image glyph, and both
- * ports — which followed the prose and hid the icon — are the ones that diverge.
- * Encoding the prose would have pinned their guess under the word "conformance".
+ * The upstream docs and the code disagree and this table follows the CODE: both doc
+ * comments say an empty `icon-name` means the icon "is not shown", but nothing in the
+ * widget hides it — `gtk_widget_set_visible` is called on the LABEL only, `init` sets
+ * the image to `image-missing` while `icon_name` is still `""`, and the setter
+ * re-applies that fallback for every empty value. A default-constructed
+ * `AdwButtonContent` therefore draws the broken-image glyph.
  */
 export const BUTTON_CONTENT_ICON_VECTORS: ReadonlyArray<ButtonContentIconVector> = [
     {
@@ -92,18 +85,16 @@ export const BUTTON_CONTENT_ICON_VECTORS: ReadonlyArray<ButtonContentIconVector>
 
 /** One label-slot expectation. */
 export interface ButtonContentLabelVector {
-    /** The `label` value. */
     label: string;
-    /** Whether the label node is in the tree (:398). */
+    /** Whether the label node is in the tree. */
     visible: boolean;
-    /** Whether the icon takes the box's free space (:399). */
+    /** Whether the icon takes the box's free space. */
     iconExpands: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * `adw_button_content_set_label` (:398-399) — the two calls it makes, both keyed
+ * `adw_button_content_set_label` — the two calls it makes, both keyed
  * on `label[0]` and therefore exact complements.
  */
 export const BUTTON_CONTENT_LABEL_VECTORS: ReadonlyArray<ButtonContentLabelVector> = [
@@ -116,23 +107,18 @@ export const BUTTON_CONTENT_LABEL_VECTORS: ReadonlyArray<ButtonContentLabelVecto
 
 /** One label-text expectation. */
 export interface ButtonContentTextVector {
-    /** The `label` value. */
     label: string;
-    /** The `use-underline` value. */
     useUnderline: boolean;
     /** What a renderer without an accelerator layer paints. */
     text: string;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * `adw_button_content_set_use_underline` (:442) applied to the label.
- *
- * Absent from both ports, and it is the property the class docs single out —
- * "handles … connecting the mnemonic to the button automatically" (:42-43). The
- * default is FALSE (:253-256), so an underscore in an unconfigured button
- * content is a LITERAL, unlike the banner's action button.
+ * `adw_button_content_set_use_underline` applied to the label — the property the class
+ * docs single out ("handles … connecting the mnemonic to the button automatically").
+ * The default is FALSE, so an underscore in an unconfigured button content is a
+ * LITERAL, unlike the banner's action button.
  */
 export const BUTTON_CONTENT_TEXT_VECTORS: ReadonlyArray<ButtonContentTextVector> = [
     { label: '_Open', useUnderline: true, text: 'Open', rule: 'the marker is removed and marks the O' },
@@ -145,20 +131,15 @@ export const BUTTON_CONTENT_TEXT_VECTORS: ReadonlyArray<ButtonContentTextVector>
 
 /** One `can-shrink` expectation. */
 export interface ButtonContentEllipsizeVector {
-    /** The `can-shrink` value. */
     canShrink: boolean;
-    /** The label's `PangoEllipsizeMode` (:489-491). */
+    /** The label's `PangoEllipsizeMode`. */
     ellipsize: 'none' | 'end';
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * `adw_button_content_set_can_shrink` (:489-491), which the getter reads back as
- * `ellipsize != PANGO_ELLIPSIZE_NONE` (:462).
- *
- * The browser port had this; the NativeScript port had no such property, so the
- * shared story's `canShrink` control did nothing there.
+ * `adw_button_content_set_can_shrink`, which the getter reads back as
+ * `ellipsize != PANGO_ELLIPSIZE_NONE`.
  */
 export const BUTTON_CONTENT_ELLIPSIZE_VECTORS: ReadonlyArray<ButtonContentEllipsizeVector> = [
     { canShrink: false, ellipsize: 'none', rule: 'the default — the label forces the button wider (:269-272)' },
@@ -171,20 +152,16 @@ export interface ButtonContentStyleTargetVector {
     ancestors: ReadonlyArray<'button' | 'menu-button' | 'split-button' | 'other'>;
     /** Index into {@link ancestors} that receives `image-text-button`, or `null`. */
     target: number | null;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * `adw_button_content_root` (:108-116) — nearest `GtkButton`, then ONE
- * substitution: if that button's DIRECT parent is an `AdwSplitButton`, the class
- * moves to the split button (:112-113).
+ * `adw_button_content_root` — nearest `GtkButton`, then ONE substitution: if that
+ * button's DIRECT parent is an `AdwSplitButton`, the class moves to the split button.
  *
- * Neither renderer applied the class to anything at all, so every row here is a
- * new assertion rather than a pinned behaviour. The split-button row is the one
- * with a CSS consequence beyond padding: the class on the `splitbutton` node
- * selects `splitbutton.image-text-button > button` (_buttons.scss:499-507),
- * which is a different declaration block from the plain-button one.
+ * The split-button row is the one with a CSS consequence beyond padding: the class on
+ * the `splitbutton` node selects `splitbutton.image-text-button > button`, a different
+ * declaration block from the plain-button one.
  */
 export const BUTTON_CONTENT_STYLE_TARGET_VECTORS: ReadonlyArray<ButtonContentStyleTargetVector> = [
     { ancestors: ['button'], target: 0, rule: 'a plain Gtk.Button takes the class itself (:115)' },

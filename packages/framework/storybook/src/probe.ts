@@ -1,28 +1,16 @@
-// StorybookProbe — env-gated in-process self-verification of the storybook.
+// StorybookProbe — env-gated in-process self-verification of the storybook, installed by
+// {@link StorybookApplication} when `GJSIFY_STORYBOOK_PROBE` is truthy and a strict no-op
+// otherwise (as `installDevtools` is for `GJSIFY_DEVTOOLS`).
 //
-// When `GJSIFY_STORYBOOK_PROBE` is truthy, {@link StorybookApplication} installs
-// this probe after the window is populated + presented. It drives the storybook
-// HEADLESSLY and IN-PROCESS — NO DBus session bus (unlike the `@gjsify/devtools`
-// DBus surface), so it is robust on a CI runner with no session bus (windows-latest):
+// It drives the storybook HEADLESSLY and IN-PROCESS with no DBus session bus, which is
+// what makes it work on a runner that has none (windows-latest), and asserts four things:
+// the sidebar lists categories, the chrome is in the widget tree, a representative story
+// opens with its own non-trivial subtree, and the window rasterises through GSK to a
+// non-empty PNG. Result: a machine-readable `STORYBOOK PROBE: PASS|FAIL <json>` line,
+// the JSON written to `GJSIFY_STORYBOOK_PROBE_OUT`, then the app quits.
 //
-//   1. the sidebar lists the component categories (`controller.listStories()`),
-//   2. the storybook CHROME is present in the widget tree (DumpTree — the
-//      NavigationSplitView + the sidebar GtkListBox + the controls OverlaySplitView),
-//   3. a representative story opens + renders its OWN widget subtree (DumpTree of
-//      the active story, optionally asserting a specific widget type is present),
-//   4. the window rasterises through the GSK renderer to a non-empty PNG (the same
-//      in-process capture `@gjsify/devtools` `Screenshot` uses — render-to-texture,
-//      no visible desktop needed).
-//
-// It logs a machine-readable `STORYBOOK PROBE: PASS|FAIL <json>` line, writes the
-// JSON result to `GJSIFY_STORYBOOK_PROBE_OUT` when set, then quits the app (exit 0
-// on PASS, `process.exitCode = 1` on FAIL).
-//
-// A STRICT no-op unless `GJSIFY_STORYBOOK_PROBE` is set, so a production
-// `gjsify storybook` run is byte-unchanged (mirrors `installDevtools` /
-// `GJSIFY_DEVTOOLS`). This is how `gjsify storybook --runtime node` (node-gi consumer
-// #1) proves the full Adwaita gallery renders on Node — on Linux (system GTK) AND on
-// Windows (the batteries-included `--windowing` GTK bundle, no gvsbuild).
+// This is how `gjsify storybook --runtime node` proves the Adwaita gallery renders on
+// Node, on Linux with system GTK and on Windows with the `--windowing` GTK bundle.
 //
 // Reference: @gjsify/devtools screenshot.ts (captureWidgetPng) + widget-tree.ts
 // (dumpTree/widgetType); refs/libadwaita. Copyright (c) GNOME contributors, MIT/LGPL.
@@ -36,13 +24,13 @@ import type { StorybookWindow } from './window.js';
 /** Chrome widget types the storybook window always builds — the DumpTree floor. */
 const DEFAULT_REQUIRED_CHROME = ['AdwNavigationSplitView', 'GtkListBox', 'AdwOverlaySplitView'];
 
-/** Options for {@link installStorybookProbe} (env vars supply the CI-side defaults). */
+/** Options for {@link installStorybookProbe}; env vars carry the CI-side defaults. */
 export interface StorybookProbeOptions {
-    /** Story `Category/Name` title to open as the representative render. Default: `GJSIFY_STORYBOOK_PROBE_STORY`, else the first story. */
+    /** Story to open, by `Category/Name`. Default: `GJSIFY_STORYBOOK_PROBE_STORY`, else the first. */
     story?: string;
-    /** A widget type (e.g. `AdwSwitchRow`) that MUST appear in the opened story's subtree. Default: `GJSIFY_STORYBOOK_PROBE_STORY_WIDGET`. */
+    /** A widget type that MUST appear in the opened story's subtree. Default: `GJSIFY_STORYBOOK_PROBE_STORY_WIDGET`. */
     storyWidget?: string;
-    /** Chrome widget types required in the DumpTree. Default: NavigationSplitView + sidebar ListBox + controls OverlaySplitView. */
+    /** Chrome widget types required in the DumpTree. Default: {@link DEFAULT_REQUIRED_CHROME}. */
     requireChrome?: string[];
     /** Path to write the JSON result. Default: `GJSIFY_STORYBOOK_PROBE_OUT`. */
     out?: string;
@@ -50,7 +38,7 @@ export interface StorybookProbeOptions {
     timeoutMs?: number;
 }
 
-/** The result the probe logs + writes — the machine-readable proof record. */
+/** The machine-readable proof record the probe logs and writes. */
 export interface StorybookProbeResult {
     ok: boolean;
     reason?: string;
@@ -82,10 +70,9 @@ function collectTypes(node: NodeInfo, out: Set<string>): void {
 }
 
 /**
- * Install the storybook self-verification probe. A no-op unless it is called
- * (the caller gates on {@link probeEnabled}). Opens a representative story, then
- * polls for the GSK render, asserts the chrome + story subtree + a non-empty PNG,
- * logs `STORYBOOK PROBE: PASS|FAIL`, writes the JSON result, and quits the app.
+ * Open a representative story, poll for the GSK render, assert chrome + story subtree +
+ * a non-empty PNG, log `STORYBOOK PROBE: PASS|FAIL`, write the JSON result, quit the app.
+ * The caller gates the call on {@link probeEnabled}.
  */
 export function installStorybookProbe(
     app: Adw.Application,
@@ -97,22 +84,20 @@ export function installStorybookProbe(
     const timeoutMs = options.timeoutMs ?? 8000;
     const wantWidget = options.storyWidget ?? GLib.getenv('GJSIFY_STORYBOOK_PROBE_STORY_WIDGET') ?? undefined;
 
-    // --- Drive synchronously: pick + open the representative story -----------
     const stories = window.controller.listStories();
     const categories = [...new Set(stories.map((s) => s.category))];
     const target = options.story ?? GLib.getenv('GJSIFY_STORYBOOK_PROBE_STORY') ?? stories[0]?.title;
     const opened = target ? window.openStoryByTitle(target) : false;
     const active = window.activeStory;
 
-    // --- DumpTree the chrome (structural — valid before the surface realizes) -
+    // Structural, so it is valid before the surface realizes.
     const chromeTypes = new Set<string>();
     collectTypes(dumpTree(window, 60, 'toplevel:0'), chromeTypes);
     const missingChrome = requireChrome.filter((t) => !chromeTypes.has(t));
 
-    // --- DumpTree the opened story's OWN subtree -----------------------------
     const storyTypes = new Set<string>();
     if (active) collectTypes(dumpTree(active as unknown as Gtk.Widget, 60, 'story'), storyTypes);
-    // The story root itself counts as one; require MORE than the bare root.
+    // The story root counts as one, so the assertion below requires MORE than the root.
     const storySubtreeWidgets = storyTypes.size;
     const storyWidgetPresent = wantWidget ? storyTypes.has(wantWidget) : null;
 
@@ -122,9 +107,8 @@ export function installStorybookProbe(
             console.log(`STORYBOOK PROBE: PASS ${line}`);
         } else {
             console.error(`STORYBOOK PROBE: FAIL ${line}`);
-            // Node (the --app node target): a non-zero exit fails the CI step once
-            // runAsync resolves + the top-level await settles. Guarded — harmless
-            // where `process` is a stub.
+            // On the node target a non-zero exit fails the CI step once runAsync resolves
+            // and the top-level await settles. Guarded, since `process` may be a stub.
             try {
                 if (typeof process !== 'undefined') process.exitCode = 1;
             } catch {
@@ -141,7 +125,6 @@ export function installStorybookProbe(
         app.quit();
     };
 
-    // --- Poll for the GSK render, then assert (mirrors widgets.test.mjs) ------
     let waited = 0;
     const step = 100;
     GLib.timeout_add(GLib.PRIORITY_DEFAULT, step, () => {
@@ -149,13 +132,12 @@ export function installStorybookProbe(
         const windowPng = captureWidgetPng(window);
         const realized = window.get_width() > 0 && window.get_height() > 0;
         const timedOut = waited >= timeoutMs;
-        // Keep polling until a non-empty PNG is captured or the budget elapses.
         if (!windowPng && !timedOut) return GLib.SOURCE_CONTINUE;
 
         const storyPng = active ? captureWidgetPng(active as unknown as Gtk.Widget) : null;
 
-        // MINIMUM tier (display-independent): stories + categories + chrome + a
-        // representative story opened with a non-trivial subtree.
+        // Display-INDEPENDENT floor: stories, categories, chrome, and one story opened
+        // with a non-trivial subtree.
         let ok =
             stories.length >= 1 &&
             categories.length >= 1 &&
@@ -170,13 +152,12 @@ export function installStorybookProbe(
         else if (!opened || active == null) reason = `could not open story: ${target ?? '(none)'}`;
         else if (storySubtreeWidgets <= 1) reason = 'opened story rendered an empty subtree';
 
-        // A requested story-widget type must appear in the opened story's subtree.
         if (ok && wantWidget && !storyTypes.has(wantWidget)) {
             ok = false;
             reason = `story widget ${wantWidget} not found in the opened story subtree`;
         }
 
-        // STRONGER tier (when the surface realized): a non-empty GSK-rendered PNG.
+        // Only once the surface realized: a non-empty GSK-rendered PNG.
         if (ok && realized && (!windowPng || windowPng.length === 0)) {
             ok = false;
             reason = `window realized (${window.get_width()}x${window.get_height()}) but the GSK capture was empty`;

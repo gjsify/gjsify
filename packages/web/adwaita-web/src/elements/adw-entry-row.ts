@@ -16,12 +16,11 @@
 //   activatesDefault, editing.
 // Events:
 //   `changed` + `notify::text` — every buffer change. libadwaita implements
-//     GtkEditable through a delegate (adw-entry-row.c:87-93, :821-834) so it
-//     emits BOTH spellings; the two ports had each picked one and drifted, so
-//     this emits both and code written against either runs against the other.
-//   `notify::text-length` — on_length_changed (C:268-273).
-//   `apply` — the apply button, or Enter while it shows (C:240).
-//   `entry-activated` — Enter otherwise (C:256), AFTER the default was activated.
+//     GtkEditable through a delegate, so it emits BOTH spellings and so does this:
+//     code written against either runs against the other.
+//   `notify::text-length` — `on_length_changed`.
+//   `apply` — the apply button, or Enter while it shows.
+//   `entry-activated` — Enter otherwise, AFTER the default was activated.
 //
 // Reference: refs/libadwaita/src/adw-entry-row.c, adw-entry-row.ui
 // Reference: refs/adwaita-web/adwaita-web/docs/widgets/entryrow.md
@@ -41,13 +40,10 @@ import {
 import { type AdwIcon, createAdwIcon } from './adw-icon.js';
 
 /**
- * Show/hide a rendered part.
- *
- * `hidden` carries the semantics and is what the conformance suite reads, but
- * author CSS beats the UA `[hidden]` rule: `.adw-icon` already ships its own
- * `&[hidden] { display: none }` override in `_icon.scss` and `.adw-button`
- * does not, so a hidden apply button would still paint. The inline `display`
- * rides along until the entry-row SCSS pass lands.
+ * Show/hide a rendered part. `hidden` carries the semantics and is what the conformance
+ * suite reads, but author CSS beats the UA `[hidden]` rule: `.adw-icon` ships its own
+ * `&[hidden]` override in `_icon.scss` and `.adw-button` does not, so a hidden apply
+ * button would still paint without the inline `display`.
  */
 function setPartVisible(part: HTMLElement, visible: boolean): void {
     part.hidden = !visible;
@@ -93,7 +89,6 @@ export class AdwEntryRow extends HTMLElement {
         return 'adw-entry-row';
     }
 
-    /** The editable text. */
     get text(): string {
         return this._state.text;
     }
@@ -143,7 +138,6 @@ export class AdwEntryRow extends HTMLElement {
         this._state.setActivatesDefault(value);
     }
 
-    /** Whether the embedded entry currently has focus. */
     get editing(): boolean {
         return this._state.editing;
     }
@@ -166,7 +160,7 @@ export class AdwEntryRow extends HTMLElement {
         this._renderTitle();
 
         // Subclass parts first, THEN the author's children: `AdwPasswordEntryRow`
-        // installs its peek toggle from its own `init` (C:152), so a consumer
+        // installs its peek toggle from its own `init`, so a consumer
         // suffix lands after it and both remain.
         this._onConnected();
         this._adoptAuthored();
@@ -202,9 +196,9 @@ export class AdwEntryRow extends HTMLElement {
     }
 
     /**
-     * Add a widget after the editable area — `adw_entry_row_add_suffix`
-     * (adw-entry-row.c:885-899), which APPENDS into a box, so several suffixes
-     * coexist and the password row's own peek toggle survives a consumer's.
+     * Add a widget after the editable area — `adw_entry_row_add_suffix`, which APPENDS
+     * into a box, so several suffixes coexist and the password row's own peek toggle
+     * survives a consumer's.
      */
     addSuffix(node: Node): void {
         this._suffixes.append(node);
@@ -212,9 +206,9 @@ export class AdwEntryRow extends HTMLElement {
     }
 
     /**
-     * Add a widget before the editable area — `adw_entry_row_add_prefix`
-     * (C:864-880). PREPENDS, like the `gtk_box_prepend` it mirrors, so several
-     * prefixes stack in reverse call order exactly as they do in GTK.
+     * Add a widget before the editable area — `adw_entry_row_add_prefix`. PREPENDS, like
+     * the `gtk_box_prepend` it mirrors, so several prefixes stack in reverse call order
+     * exactly as they do in GTK.
      */
     addPrefix(node: Node): void {
         this._prefixes.prepend(node);
@@ -223,32 +217,32 @@ export class AdwEntryRow extends HTMLElement {
 
     /**
      * Drive the trailing indicator — `adw_entry_row_set_show_indicator`
-     * (adw-entry-row-private.h, C:1281-1296). Private-to-the-library upstream,
-     * public here because `<adw-password-entry-row>` is a separate custom element
-     * rather than a C subclass with access to the private header.
+     * (adw-entry-row-private.h). Private-to-the-library upstream, public here because
+     * `<adw-password-entry-row>` is a separate custom element rather than a C subclass
+     * with access to the private header.
      */
     setShowIndicator(show: boolean): void {
         this._state.setShowIndicator(show);
     }
 
-    /** `adw_entry_row_set_indicator_icon_name` (C:1263-1273). */
+    /** `adw_entry_row_set_indicator_icon_name`. */
     setIndicatorIconName(iconName: string): void {
         this._indicator.dataset.iconName = iconName;
     }
 
-    /** `adw_entry_row_set_indicator_tooltip` (C:1275-1279). */
+    /** `adw_entry_row_set_indicator_tooltip`. */
     setIndicatorTooltip(tooltip: string): void {
         this._indicator.title = tooltip;
         this._indicator.setAttribute('aria-label', tooltip);
     }
 
-    /** Apply the pending edit — the apply button click (C:229-241). */
+    /** Apply the pending edit — the apply button click. */
     apply(): void {
         this._state.apply();
         this.dispatchEvent(new CustomEvent('apply', { bubbles: true }));
     }
 
-    /** Focus the entry without selecting — `adw_entry_row_grab_focus_without_selecting` (C:1379-1389). */
+    /** Focus the entry without selecting — `adw_entry_row_grab_focus_without_selecting`. */
     grabFocusWithoutSelecting(): boolean {
         this._input.focus();
         return this._state.editing;
@@ -271,11 +265,11 @@ export class AdwEntryRow extends HTMLElement {
         this._suffixes = document.createElement('div');
         this._suffixes.className = `${prefix}-suffixes`;
 
-        // TWO title labels, exactly like adw-entry-row.ui: `empty_title` is the
-        // large placeholder shown while the row is empty, `title` the small label
-        // above the value. GTK cross-fades them over EMPTY_ANIMATION_DURATION_MS
-        // (C:433-439); until the SCSS pass lands this is a hard swap at the two
-        // animation endpoints, which is why the render reads `emptyTarget`.
+        // TWO title labels, exactly like adw-entry-row.ui: `empty_title` is the large
+        // placeholder shown while the row is empty, `title` the small label above the
+        // value. GTK cross-fades them over EMPTY_ANIMATION_DURATION_MS; here it is a hard
+        // swap at the two animation endpoints, which is why the render reads
+        // `emptyTarget`.
         this._emptyTitle = document.createElement('span');
         this._emptyTitle.className = `adw-row-title ${prefix}-empty-title`;
         this._title = document.createElement('span');
@@ -328,8 +322,8 @@ export class AdwEntryRow extends HTMLElement {
         this._editIcon = createAdwIcon('document-edit', 'adw-row-edit', `${prefix}-edit`);
         this._editIcon.dataset.iconName = ENTRY_ROW_EDIT_ICON_NAME;
 
-        // Snapshot order: indicator → apply → edit icon inside the editable area
-        // (C:429-431), with the prefixes/suffixes boxes outside it.
+        // Snapshot order: indicator → apply → edit icon inside the editable area, with
+        // the prefixes/suffixes boxes outside it.
         this.replaceChildren(
             this._prefixes,
             this._area,
@@ -345,9 +339,8 @@ export class AdwEntryRow extends HTMLElement {
     }
 
     /**
-     * Re-home the children the author wrote. libadwaita's buildable maps an
-     * untyped `<child>` to a suffix (C:796-812); `slot="prefix"` is the web
-     * spelling of its `type="prefix"`.
+     * Re-home the children the author wrote. libadwaita's buildable maps an untyped
+     * `<child>` to a suffix; `slot="prefix"` is the web spelling of `type="prefix"`.
      */
     private _adoptAuthored(): void {
         for (const node of this._authored) {
@@ -358,10 +351,10 @@ export class AdwEntryRow extends HTMLElement {
     }
 
     /**
-     * `pressed_cb` (C:201-227): a click landing on the row, the editable area,
-     * the indicator or either affordance box grabs focus; anything else (a suffix
-     * control, the apply button) is left alone. The pencil is `can-target=False`
-     * in the .ui, so a click on it picks the editable area — hence it focuses too.
+     * `pressed_cb`: a click landing on the row, the editable area, the indicator or
+     * either affordance box grabs focus; anything else (a suffix control, the apply
+     * button) is left alone. The pencil is `can-target=False` in the .ui, so a click on
+     * it picks the editable area — hence it focuses too.
      */
     private _maybeFocus(event: MouseEvent): void {
         const target = event.target;
@@ -379,15 +372,15 @@ export class AdwEntryRow extends HTMLElement {
         }
     }
 
-    /** `text_activated_cb` (C:243-266) — exactly one of the two signals. */
+    /** `text_activated_cb` — exactly one of the two signals. */
     private _activate(): void {
         const activation = this._state.activate();
         if (activation.signal === 'apply') {
             this.dispatchEvent(new CustomEvent('apply', { bubbles: true }));
             return;
         }
-        // C:253-256 — the default widget is activated BEFORE `entry-activated`.
-        // Implicit form submission is the web's default-widget activation.
+        // The default widget is activated BEFORE `entry-activated`; implicit form
+        // submission is the web's default-widget activation.
         if (activation.activateDefault) this.closest('form')?.requestSubmit();
         this.dispatchEvent(new CustomEvent('entry-activated', { bubbles: true }));
     }

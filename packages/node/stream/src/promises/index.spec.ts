@@ -8,7 +8,6 @@ import { pipeline, finished } from 'node:stream/promises';
 
 export default async () => {
     await describe('stream/promises', async () => {
-        // ==================== pipeline() ====================
         await describe('pipeline', async () => {
             await it('should pipe readable to writable', async () => {
                 const chunks: string[] = [];
@@ -81,7 +80,6 @@ export default async () => {
             });
         });
 
-        // ==================== finished() ====================
         await describe('finished', async () => {
             await it('should resolve when writable finishes', async () => {
                 const writable = new Writable({

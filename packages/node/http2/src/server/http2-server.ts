@@ -394,8 +394,6 @@ export class Http2Server extends EventEmitter {
     }
 }
 
-// ─── Http2SecureServer ────────────────────────────────────────────────────────
-
 export interface SecureServerOptions extends ServerOptions {
     cert?: string | Buffer | Array<string | Buffer>;
     key?: string | Buffer | Array<string | Buffer>;
@@ -439,8 +437,6 @@ export class Http2SecureServer extends Http2Server {
         }
     }
 }
-
-// ─── TLS-cert helpers ─────────────────────────────────────────────────────────
 
 function _toPemString(value: string | Buffer | Array<string | Buffer>): string {
     if (Array.isArray(value)) {

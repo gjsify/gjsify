@@ -1,57 +1,42 @@
 // Adwaita entry-row behaviour — headless (ADR 0004 — headless Adwaita core).
 //
-// `Adw.EntryRow` looks like a text field with a floating label, but almost none
-// of it is layout: `update_empty` (adw-entry-row.c:140-163) is a FIVE-output
-// truth table over four inputs (text length · editing · editable · a
-// `text_changed` latch, plus the private `show_indicator` hook), and it decides
-// whether the pencil shows, whether the pencil is sensitive, whether the
-// caps-lock indicator shows, whether the apply button shows, and whether the
-// title renders as a large placeholder or a small label. The latch itself has
-// two distinct reset paths and the <kbd>Enter</kbd> key dispatches to exactly
-// one of two signals depending on it.
+// `Adw.EntryRow` looks like a text field with a floating label, but almost none of it is
+// layout: `update_empty` is a FIVE-output truth table over four inputs (text length ·
+// editing · editable · a `text_changed` latch, plus the private `show_indicator` hook),
+// deciding whether the pencil shows, whether the pencil is sensitive, whether the caps-lock
+// indicator shows, whether the apply button shows, and whether the title renders as a large
+// placeholder or a small label. The latch has two distinct reset paths, and
+// <kbd>Enter</kbd> dispatches to exactly one of two signals depending on it. The corners
+// that get written wrong by hand are `!(focused && editable)` and
+// `editing && show_indicator`; `conformance/entry-row.ts` is the table both renderers are
+// held to.
 //
-// Neither renderer had ANY of that: both drew a permanently-small title, neither
-// had an apply button, and Enter did nothing — while the SHARED story metadata
-// already declares `showApplyButton: true`, so the parity harness was comparing a
-// GTK row that grows an apply button against two rows that structurally could
-// not. Implementing the table per renderer means writing it twice and getting
-// the `!(focused && editable)` and `editing && show_indicator` corners wrong
-// twice; `conformance/entry-row.ts` is the table both are now held to.
-//
-// NO `interactive` FLAG HERE, DELIBERATELY. `SpinState`/`ComboState` (rows.ts)
-// tag their changes with `interactive` because those widgets notify only on a
-// user-driven change. Entry rows do not make that distinction: `text_changed_cb`
-// (adw-entry-row.c:166-174) keys the latch off `show_apply_button && editing`
-// and never off the change's ORIGIN — a programmatic set while the entry is
-// focused latches exactly like a keystroke. Adding the flag would be an
-// abstraction that actively diverges from the C, so this family follows the
-// `ExpanderState`/`ToggleGroupState` shape instead (change carries no flag),
-// which rows.ts:26-27 already names as the second legitimate pattern.
+// NO `interactive` FLAG HERE, DELIBERATELY. `SpinState`/`ComboState` (rows.ts) tag their
+// changes with `interactive` because those widgets notify only on a user-driven change.
+// Entry rows do not make that distinction: `text_changed_cb` keys the latch off
+// `show_apply_button && editing` and never off the change's ORIGIN — a programmatic set
+// while the entry is focused latches exactly like a keystroke. So this family follows the
+// `ExpanderState`/`ToggleGroupState` shape (change carries no flag).
 //
 // Reference: refs/libadwaita/src/adw-entry-row.c, adw-entry-row.ui,
 //   adw-entry-row-private.h, adw-password-entry-row.c
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-/** How long the empty↔filled title transition runs — adw-entry-row.c:18. */
+/** How long the empty↔filled title transition runs — adw-entry-row.c. */
 export const EMPTY_ANIMATION_DURATION_MS = 150;
 
 /**
- * Gap between the shrunken title and the text baseline, in px —
- * adw-entry-row.c:19 (`TITLE_SPACING`), used in the vertical measure (C:318,320)
- * and in both the title offset and the baseline shift (C:384,407).
- *
- * Exported as DATA rather than applied here: the two renderers currently
- * hardcode `1px` (web `_entry_row.scss`) and `2` (NS `theme/adwaita.css`), and
- * neither knew it was meant to be the same number as the other's.
+ * Gap between the shrunken title and the text baseline, in px — `TITLE_SPACING`, used in
+ * the vertical measure and in both the title offset and the baseline shift. Exported as
+ * DATA rather than applied here, so the renderers' stylesheets stop hardcoding a private
+ * number each.
  */
 export const ENTRY_ROW_TITLE_SPACING = 3;
 
 /**
- * Upper bound of `Adw.EntryRow:max-length` / `:text-length`.
- *
- * `text-length` is declared `0, G_MAXUINT16, 0` (adw-entry-row.c:666-669) and
- * `max-length` runs `0..GTK_ENTRY_BUFFER_MAX_SIZE` (C:678-682) — the same 16-bit
- * ceiling. `0` means unlimited, so this is only the clamp for an absurd input.
+ * Upper bound of `Adw.EntryRow:max-length` / `:text-length`. `text-length` is declared
+ * `0, G_MAXUINT16, 0` and `max-length` runs `0..GTK_ENTRY_BUFFER_MAX_SIZE` — the same
+ * 16-bit ceiling. `0` means unlimited, so this is only the clamp for an absurd input.
  */
 export const ENTRY_ROW_MAX_LENGTH_LIMIT = 0xffff;
 
@@ -64,32 +49,30 @@ export const ENTRY_ROW_APPLY_ICON_NAME = 'adw-entry-apply-symbolic';
 /** Tooltip of the apply button — adw-entry-row.ui. */
 export const ENTRY_ROW_APPLY_TOOLTIP = 'Apply';
 
-/** Peek-button icon while the password is masked — adw-password-entry-row.c:74. */
+/** Peek-button icon while the password is masked — adw-password-entry-row.c. */
 export const PASSWORD_REVEAL_ICON_NAME = 'view-reveal-symbolic';
 
-/** Peek-button icon while the password is revealed — adw-password-entry-row.c:69. */
+/** Peek-button icon while the password is revealed — adw-password-entry-row.c. */
 export const PASSWORD_CONCEAL_ICON_NAME = 'view-conceal-symbolic';
 
-/** Peek-button tooltip while the password is masked — adw-password-entry-row.c:76. */
+/** Peek-button tooltip while the password is masked — adw-password-entry-row.c. */
 export const PASSWORD_REVEAL_LABEL = 'Show Password';
 
-/** Peek-button tooltip while the password is revealed — adw-password-entry-row.c:71. */
+/** Peek-button tooltip while the password is revealed — adw-password-entry-row.c. */
 export const PASSWORD_CONCEAL_LABEL = 'Hide Password';
 
-/** Caps-lock indicator icon — adw-password-entry-row.c:169. */
+/** Caps-lock indicator icon — adw-password-entry-row.c. */
 export const CAPS_LOCK_ICON_NAME = 'caps-lock-symbolic';
 
-/** Caps-lock indicator tooltip — adw-password-entry-row.c:171. */
+/** Caps-lock indicator tooltip — adw-password-entry-row.c. */
 export const CAPS_LOCK_TOOLTIP = 'Caps Lock is on';
 
 /**
- * The number of CHARACTERS in `text`, i.e. what `adw_entry_row_get_text_length`
- * reports ("The current number of characters in @self", adw-entry-row.c:1304).
+ * The number of CHARACTERS in `text`, i.e. what `adw_entry_row_get_text_length` reports.
  *
- * Code points, never UTF-16 units: a port that reaches for `.length` reports 3
- * for `'🔒é'` where GTK reports 2, and then truncates a surrogate pair in half.
- * This one function is why `max-length` and `text-length` cannot be left to the
- * renderers.
+ * Code points, never UTF-16 units: `.length` reports 3 for `'🔒é'` where GTK reports 2, and
+ * then truncates a surrogate pair in half. This is why `max-length` and `text-length`
+ * cannot be left to the renderers.
  */
 export function entryTextLength(text: string): number {
     // Spreading iterates whole CODE POINTS; `.length` would count UTF-16 units.
@@ -98,12 +81,9 @@ export function entryTextLength(text: string): number {
 
 /**
  * Truncate `text` to `maxLength` CHARACTERS, with `0` meaning unlimited —
- * `Adw.EntryRow:max-length` is documented as "Maximum number of characters for
- * the entry" and both its default and its range floor are `0`
- * (adw-entry-row.c:674 + :678-682).
- *
- * Split out of {@link EntryRowState} so a renderer can also apply it on an
- * IME/paste path before the state sees the value.
+ * `Adw.EntryRow:max-length` is "Maximum number of characters for the entry" and both its
+ * default and its range floor are `0`. Split out of {@link EntryRowState} so a renderer can
+ * also apply it on an IME/paste path before the state sees the value.
  */
 export function clampEntryText(text: string, maxLength: number): string {
     const source = text ?? '';
@@ -120,8 +100,8 @@ export function clampEntryText(text: string, maxLength: number): string {
 
 /**
  * The complete render snapshot of an entry row: the five outputs of
- * `update_empty` (adw-entry-row.c:149-154), the animation endpoint it drives
- * (C:158-161), and the inputs a renderer echoes into CSS classes.
+ * `update_empty`, the animation endpoint it drives
+ *, and the inputs a renderer echoes into CSS classes.
  *
  * ONE object rather than per-flag notifications so a renderer applies the whole
  * derivation in a single pass and can never apply half of it.
@@ -131,28 +111,28 @@ export interface EntryRowRenderState {
     text: string;
     /** {@link entryTextLength} of {@link text} — `Adw.EntryRow:text-length`. */
     textLength: number;
-    /** `empty && !(focused && editable) && !text_changed` — C:154. Drives the placeholder title. */
+    /** `empty && !(focused && editable) && !text_changed`. Drives the placeholder title. */
     empty: boolean;
-    /** Whether the embedded entry has focus — C:181. Renderers mirror it as the `focused` state class (C:183-186). */
+    /** Whether the embedded entry has focus. Renderers mirror it as the `focused` state class. */
     editing: boolean;
     /** Whether the embedded entry accepts edits (`GtkEditable:editable`). */
     editable: boolean;
-    /** The pending-apply latch — C:170-172. */
+    /** The pending-apply latch. */
     textChanged: boolean;
-    /** `!text_changed && (!editing || !editable)` — C:149. */
+    /** `!text_changed && (!editing || !editable)`. */
     editIconVisible: boolean;
-    /** `editable` — C:150. The pencil stays VISIBLE but goes insensitive on a read-only row. */
+    /** `editable`. The pencil stays VISIBLE but goes insensitive on a read-only row. */
     editIconSensitive: boolean;
-    /** `editing && show_indicator` — C:151. */
+    /** `editing && show_indicator`. */
     indicatorVisible: boolean;
-    /** `text_changed` — C:152. */
+    /** `text_changed`. */
     applyButtonVisible: boolean;
     /**
-     * Where the empty↔filled transition is headed: `0` while {@link empty}, `1`
-     * otherwise — C:160-161. The renderer animates its OWN progress toward this
-     * over {@link EMPTY_ANIMATION_DURATION_MS}, starting from wherever the
-     * progress currently is (C:158-159 sets `value_from` to the live value), so
-     * an interrupted transition resumes instead of restarting.
+     * Where the empty↔filled transition is headed: `0` while {@link empty}, `1` otherwise.
+     * The renderer animates its OWN progress toward this over
+     * {@link EMPTY_ANIMATION_DURATION_MS}, starting from wherever the progress currently is
+     * — the C sets `value_from` to the live value — so an interrupted transition resumes
+     * instead of restarting.
      */
     emptyTarget: 0 | 1;
 }
@@ -165,11 +145,9 @@ export interface EntryRowRenderState {
 export type EntryRowStateListener = (state: EntryRowRenderState) => void;
 
 /**
- * What <kbd>Enter</kbd> resolves to. A discriminated union because
- * `text_activated_cb` (adw-entry-row.c:243-266) emits exactly ONE of the two
- * signals, never both; `activateDefault` carries the ordering requirement that
- * the default widget is activated BEFORE `entry-activated` is emitted (the
- * `gtk_widget_activate_default` call is C:254, the `g_signal_emit` is C:256).
+ * What <kbd>Enter</kbd> resolves to. A discriminated union because `text_activated_cb`
+ * emits exactly ONE of the two signals, never both; `activateDefault` carries the ordering
+ * requirement that the default widget is activated BEFORE `entry-activated` is emitted.
  */
 export type EntryRowActivation = { signal: 'apply' } | { signal: 'entry-activated'; activateDefault: boolean };
 
@@ -179,11 +157,10 @@ export type EntryRowActivation = { signal: 'apply' } | { signal: 'entry-activate
  * max-length truncation, and the two-way <kbd>Enter</kbd> dispatch.
  *
  * The setter guards are NOT uniform, and that is faithful rather than sloppy:
- * {@link setShowApplyButton} early-outs on an unchanged value and retracts a
- * pending latch when turned off (C:982-995), while {@link setShowIndicator}
- * deliberately has NO equality guard and always re-derives (C:1281-1296) — it is
- * the private `adw-entry-row-private.h` hook the password row drives, not a
- * public property, which is why it returns `void`.
+ * {@link setShowApplyButton} early-outs on an unchanged value and retracts a pending latch
+ * when turned off, while {@link setShowIndicator} deliberately has NO equality guard and
+ * always re-derives — it is the private `adw-entry-row-private.h` hook the password row
+ * drives, not a public property, which is why it returns `void`.
  */
 export class EntryRowState {
     private _text = '';
@@ -216,8 +193,8 @@ export class EntryRowState {
     /** The current render snapshot — `update_empty`'s outputs, freshly derived. */
     get state(): EntryRowRenderState {
         const textLength = entryTextLength(this._text);
-        // C:154 — the `focused` term is `is_text_focused()`, the same source
-        // `priv->editing` is assigned from (C:181), so the two are one input here.
+        // The C's `focused` term is `is_text_focused()`, the same source `priv->editing` is
+        // assigned from, so the two are one input here.
         const empty = textLength === 0 && !(this._editing && this._editable) && !this._textChanged;
         return {
             text: this._text,
@@ -240,16 +217,14 @@ export class EntryRowState {
     }
 
     /**
-     * Set the contents (truncated to {@link maxLength}) and run the latch +
-     * derivation, exactly as the buffer's `changed` signal does — C:166-174.
+     * Set the contents (truncated to {@link maxLength}) and run the latch + derivation,
+     * exactly as the buffer's `changed` signal does. Returns whether the text changed.
      *
-     * Idempotent on an identical value. GTK routes this through GtkEntryBuffer,
-     * whose emission for a same-value set is a GtkText internal this checkout
-     * has no source for (`refs/gtk` is empty), so the headless contract is the
-     * house convention — and it is what a renderer's `input`/`textChange` event
-     * produces anyway, since neither platform fires one without a real edit.
-     *
-     * Returns whether the text changed.
+     * Idempotent on an identical value. GTK routes this through GtkEntryBuffer, whose
+     * emission for a same-value set is a GtkText internal this checkout has no source for
+     * (`refs/gtk` is empty), so the headless contract is the house convention — and it is
+     * what a renderer's `input`/`textChange` event produces anyway, since neither platform
+     * fires one without a real edit.
      */
     setText(text: string): boolean {
         const next = clampEntryText(text ?? '', this._maxLength);
@@ -259,30 +234,30 @@ export class EntryRowState {
         return true;
     }
 
-    /** `text_changed_cb` — latch iff the apply button is armed AND we are editing (C:170-171), then re-derive (C:173). */
+    /** `text_changed_cb` — latch iff the apply button is armed AND we are editing, then re-derive. */
     private _latchAndUpdate(): void {
         if (this._showApplyButton && this._editing) this._textChanged = true;
         this._update();
     }
 
-    /** {@link entryTextLength} of the contents — `Adw.EntryRow:text-length` (C:1308-1318). */
+    /** {@link entryTextLength} of the contents — `Adw.EntryRow:text-length`. */
     get textLength(): number {
         return entryTextLength(this._text);
     }
 
-    /** Maximum number of CHARACTERS, `0` = unlimited (C:674, :678-682). */
+    /** Maximum number of CHARACTERS, `0` = unlimited. */
     get maxLength(): number {
         return this._maxLength;
     }
 
     /**
-     * Set the maximum length, clamped into `[0, ENTRY_ROW_MAX_LENGTH_LIMIT]`
-     * (C:678-682). Over-long contents are truncated immediately, which runs the
-     * same latch + derivation a buffer edit does.
+     * Set the maximum length, clamped into `[0, ENTRY_ROW_MAX_LENGTH_LIMIT]`. Over-long
+     * contents are truncated immediately, which runs the same latch + derivation a buffer
+     * edit does.
      *
-     * Returns whether the property changed. Upstream emits NO `notify` here
-     * (there is no `g_object_notify_by_pspec` in C:1329-1343) — pinned by a
-     * vector so a port does not "helpfully" add one.
+     * Returns whether the property changed. Upstream emits NO `notify` here — its setter has
+     * no `g_object_notify_by_pspec` at all — and a vector pins that so a port does not
+     * "helpfully" add one.
      */
     setMaxLength(maxLength: number): boolean {
         const next = Number.isFinite(maxLength)
@@ -298,12 +273,12 @@ export class EntryRowState {
         return true;
     }
 
-    /** Whether the embedded entry has focus — `priv->editing` (C:181). */
+    /** Whether the embedded entry has focus — `priv->editing`. */
     get editing(): boolean {
         return this._editing;
     }
 
-    /** Feed the focus state in and re-derive — `text_state_flags_changed_cb` (C:176-189). Returns whether it changed. */
+    /** Feed the focus state in and re-derive — `text_state_flags_changed_cb`. Returns whether it changed. */
     setEditing(editing: boolean): boolean {
         const next = !!editing;
         if (next === this._editing) return false;
@@ -332,15 +307,14 @@ export class EntryRowState {
     }
 
     /**
-     * Arm/disarm the apply button (C:982-995). Turning it OFF retracts a pending
-     * apply (C:989-992); turning it ON changes no derived output, which is why
-     * the C re-derives only in the retract branch.
+     * Arm/disarm the apply button. Turning it OFF retracts a pending apply; turning it ON
+     * changes no derived output, which is why the C re-derives only in the retract branch.
      *
      * Returns whether the property changed — the caller's cue to re-emit
      * `notify::show-apply-button`.
      */
     setShowApplyButton(show: boolean): boolean {
-        // C:982 `show_apply_button = !!show_apply_button;` before the guard, so a
+        // The C normalises `show_apply_button = !!show_apply_button;` BEFORE its guard, so a
         // truthy non-boolean settles to `true` instead of sticking around as itself.
         const next = !!show;
         if (next === this._showApplyButton) return false;
@@ -354,12 +328,10 @@ export class EntryRowState {
 
     /**
      * The private indicator hook — `adw_entry_row_set_show_indicator`
-     * (adw-entry-row-private.h, C:1281-1296). `void` and UNGUARDED on purpose:
-     * the C assigns and calls `update_empty` unconditionally, with no equality
-     * check, so a redundant call still re-derives and still notifies.
-     *
-     * `Adw.PasswordEntryRow` is the only caller upstream; a renderer reaches it
-     * through {@link PasswordEntryRowState}.
+     * (adw-entry-row-private.h). `void` and UNGUARDED on purpose: the C assigns and calls
+     * `update_empty` unconditionally, with no equality check, so a redundant call still
+     * re-derives and still notifies. `Adw.PasswordEntryRow` is the only caller upstream; a
+     * renderer reaches it through {@link PasswordEntryRowState}.
      */
     setShowIndicator(show: boolean): void {
         this._showIndicator = !!show;
@@ -372,11 +344,9 @@ export class EntryRowState {
     }
 
     /**
-     * Set `activates-default` (C:1238-1253). Returns whether it changed — the
-     * caller's cue to re-emit `notify::activates-default`.
-     *
-     * The C compares the raw `gboolean` because GValue already normalised it;
-     * a JS caller has no such guarantee, so coerce first.
+     * Set `activates-default`. Returns whether it changed — the caller's cue to re-emit
+     * `notify::activates-default`. The C compares the raw `gboolean` because GValue already
+     * normalised it; a JS caller has no such guarantee, so coerce first.
      */
     setActivatesDefault(value: boolean): boolean {
         const next = !!value;
@@ -385,14 +355,14 @@ export class EntryRowState {
         return true;
     }
 
-    /** The pending-apply latch (C:170-172) — `true` while the apply button is showing. */
+    /** The pending-apply latch — `true` while the apply button is showing. */
     get textChanged(): boolean {
         return this._textChanged;
     }
 
     /**
-     * Clear the latch and re-derive — `apply_button_clicked_cb` (C:237-238). The
-     * renderer emits `apply` right after (C:240); focus handling (C:234-235) is
+     * Clear the latch and re-derive — `apply_button_clicked_cb`. The
+     * renderer emits `apply` right after; focus handling is
      * a platform concern and stays there.
      */
     apply(): void {
@@ -401,16 +371,13 @@ export class EntryRowState {
     }
 
     /**
-     * <kbd>Enter</kbd> — `text_activated_cb` (C:243-266). Dispatches to the
-     * apply path when the apply button is showing (C:248-249), otherwise reports
-     * `entry-activated` plus whether the default widget must be activated FIRST
-     * (C:253-256).
-     *
-     * The `GtkActionable` action fired afterwards (C:258-264) has no headless
+     * <kbd>Enter</kbd> — `text_activated_cb`. Dispatches to the apply path when the apply
+     * button is showing, otherwise reports `entry-activated` plus whether the default widget
+     * must be activated FIRST. The `GtkActionable` action fired afterwards has no headless
      * equivalent and stays with the renderer.
      */
     activate(): EntryRowActivation {
-        // C:248 reads the apply button's child-visibility, i.e. `text_changed`.
+        // The C branches on the apply button's child-visibility, i.e. `text_changed`.
         if (this._textChanged) {
             this.apply();
             return { signal: 'apply' };
@@ -421,26 +388,24 @@ export class EntryRowState {
 
 /**
  * The render snapshot of a password entry row: `notify_visibility_cb`'s icon +
- * tooltip pair (adw-password-entry-row.c:62-81) plus the caps-lock inputs, as
+ * tooltip pair plus the caps-lock inputs, as
  * data.
  *
- * The icon names and English strings are the literals from the C source, so the
- * two renderers stop inventing their own spellings (`revealed` vs `peeking`,
- * `view-reveal` vs `viewRevealSymbolic`) and a renderer can map ONE canonical
- * name onto whatever asset it actually ships.
+ * The icon names and English strings are the literals from the C source, so a renderer maps
+ * ONE canonical name onto whatever asset it actually ships instead of inventing a spelling.
  */
 export interface PasswordEntryRowRenderState {
     /** Whether the contents are shown in clear text (`GtkText:visibility`). */
     revealed: boolean;
     /** Whether the keyboard reports Caps Lock engaged (`gdk_device_get_caps_lock_state`). */
     capsLockOn: boolean;
-    /** Icon the peek button shows — C:68,73. */
+    /** Icon the peek button shows. */
     peekIconName: typeof PASSWORD_REVEAL_ICON_NAME | typeof PASSWORD_CONCEAL_ICON_NAME;
-    /** Tooltip/accessible label of the peek button — C:71,76. */
+    /** Tooltip/accessible label of the peek button. */
     peekLabel: typeof PASSWORD_REVEAL_LABEL | typeof PASSWORD_CONCEAL_LABEL;
-    /** Icon of the caps-lock indicator — C:169. Constant, exposed so a renderer reads one object. */
+    /** Icon of the caps-lock indicator. Constant, exposed so a renderer reads one object. */
     indicatorIconName: typeof CAPS_LOCK_ICON_NAME;
-    /** Tooltip of the caps-lock indicator — C:171. */
+    /** Tooltip of the caps-lock indicator. */
     indicatorTooltip: typeof CAPS_LOCK_TOOLTIP;
 }
 
@@ -456,12 +421,11 @@ export type PasswordEntryRowStateListener = (state: PasswordEntryRowRenderState)
  * `adw_entry_row_set_show_indicator` hook, not a protected field. Composition
  * also keeps `EntryRowState` usable on its own for a plain entry row.
  *
- * Every reveal/caps-lock change recomputes `!revealed && capsLockOn` and pushes
- * it into the entry (C:57-59) — which is why peeking makes the caps-lock warning
- * disappear. The second suppression is the entry's own (`editing && show_indicator`,
- * C:151): the warning only shows while the entry has focus. Focus changes
- * therefore need no push from here — they re-derive on the entry side, which is
- * what `notify_has_focus_cb` (C:83-88) achieves by re-running `update_caps_lock`.
+ * Every reveal/caps-lock change recomputes `!revealed && capsLockOn` and pushes it into the
+ * entry — which is why peeking makes the caps-lock warning disappear. The second suppression
+ * is the entry's own (`editing && show_indicator`): the warning only shows while the entry
+ * has focus, so focus changes need no push from here — they re-derive on the entry side,
+ * which is what `notify_has_focus_cb` achieves by re-running `update_caps_lock`.
  */
 export class PasswordEntryRowState {
     private readonly _entry: EntryRowState;
@@ -471,11 +435,10 @@ export class PasswordEntryRowState {
 
     constructor(entry: EntryRowState) {
         this._entry = entry;
-        // `adw_password_entry_row_init` starts masked (C:158) and calls
-        // `notify_visibility_cb` once (C:175) to seed the icon — but that
-        // callback only touches caps lock `if (self->keyboard)` (C:79-80), and
-        // there is no keyboard before realize. So nothing is pushed into the
-        // entry here: `show_indicator` is already false on both sides.
+        // `adw_password_entry_row_init` starts masked and calls `notify_visibility_cb` once to
+        // seed the icon — but that callback only touches caps lock `if (self->keyboard)`, and
+        // there is no keyboard before realize. So nothing is pushed into the entry here:
+        // `show_indicator` is already false on both sides.
     }
 
     /** Subscribe to peek/caps-lock changes. Returns an unsubscribe function. */
@@ -493,7 +456,7 @@ export class PasswordEntryRowState {
         for (const listener of [...this._listeners]) listener(snapshot);
     }
 
-    /** The current render snapshot — `notify_visibility_cb`'s derivation (C:62-81). */
+    /** The current render snapshot — `notify_visibility_cb`'s derivation. */
     get state(): PasswordEntryRowRenderState {
         return {
             revealed: this._revealed,
@@ -511,25 +474,22 @@ export class PasswordEntryRowState {
     }
 
     /**
-     * Set the peek state. Early-outs on an unchanged value — every settable
-     * property in this family does (C:984, :1198, :1247), which is why the web
-     * port's unguarded `notify::revealed` on a redundant `setAttribute` is a
-     * defect and not a style choice.
-     *
-     * Returns whether it changed.
+     * Set the peek state. Early-outs on an unchanged value — every settable property in this
+     * family does, so an unguarded `notify::revealed` on a redundant `setAttribute` is a
+     * defect, not a style choice. Returns whether it changed.
      */
     setRevealed(revealed: boolean): boolean {
         const next = !!revealed;
         if (next === this._revealed) return false;
         this._revealed = next;
-        // C:79-80 — the visibility notify re-runs update_caps_lock, so peeking
-        // retracts the warning in the same turn.
+        // The visibility notify re-runs update_caps_lock, so peeking retracts the warning in
+        // the same turn.
         this._pushIndicator();
         this._emit();
         return true;
     }
 
-    /** Flip masked↔revealed — `show_text_clicked_cb` (C:94-96). Returns whether it changed. */
+    /** Flip masked↔revealed — `show_text_clicked_cb`. Returns whether it changed. */
     togglePeek(): boolean {
         return this.setRevealed(!this._revealed);
     }
@@ -541,7 +501,7 @@ export class PasswordEntryRowState {
 
     /**
      * Feed the keyboard's caps-lock state in — the `notify::caps-lock-state`
-     * handler (C:111-115). Returns whether it changed.
+     * handler. Returns whether it changed.
      */
     setCapsLockOn(on: boolean): boolean {
         const next = !!on;
@@ -552,7 +512,7 @@ export class PasswordEntryRowState {
         return true;
     }
 
-    /** `update_caps_lock` — C:57-59. */
+    /** `update_caps_lock`. */
     private _pushIndicator(): void {
         this._entry.setShowIndicator(!this._revealed && this._capsLockOn);
     }

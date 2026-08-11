@@ -1,64 +1,44 @@
 // A runnable `gjsify` on PATH, for the two trees where the npm bin is not one.
 //
-// The CLI's npm bin (`node_modules/.bin/gjsify`) is a DISPATCHER written at
-// install time: it prefers `packages/infra/cli/dist/cli.gjs.mjs` on a host that
-// has `gjs`, and otherwise execs the Node entry `packages/infra/cli/lib/index.js`.
-// Multi-package orchestration and compound package scripts resolve `gjsify`
-// from PATH and go through it:
-//   - `gjsify workspace`/`foreach` spawn `<pm> run <script>` per package; under
-//     GJS the package manager is `gjsify` itself, and `spawn('gjsify', …)`
-//     searches PATH.
-//   - a compound script like `gjsify run a && gjsify run b` is executed via
-//     `/bin/sh -c …` (or `%COMSPEC% /c …`), and the shell resolves each
-//     `gjsify` from PATH.
+// The CLI's npm bin (`node_modules/.bin/gjsify`) is a DISPATCHER written at install
+// time: it prefers `packages/infra/cli/dist/cli.gjs.mjs` on a host with `gjs`, and
+// otherwise execs the Node entry `packages/infra/cli/lib/index.js`. Orchestration
+// goes through PATH to reach it — `gjsify workspace`/`foreach` spawn `<pm> run
+// <script>` per package (under GJS the package manager is `gjsify` itself), and a
+// compound script like `gjsify run a && gjsify run b` runs via `/bin/sh -c …`, whose
+// shell resolves each `gjsify` from PATH.
 //
-// Fix: write a tiny wrapper that re-invokes the RUNNING CLI, and prepend its
-// directory to `process.env.PATH` so every child process (and grandchild, via
-// the inherited `GJSIFY_SHIM_DIR` marker) resolves `gjsify` to a CLI that
-// actually exists.
+// So: write a wrapper that re-invokes the RUNNING CLI and prepend its directory to
+// `process.env.PATH`, so every child (and grandchild, via the inherited
+// `GJSIFY_SHIM_DIR` marker) resolves `gjsify` to a CLI that exists.
 //
 // TWO HOSTS NEED IT, FOR TWO DIFFERENT REASONS
 //
-// GJS — always. The npm bin is the NODE entry and is useless in a node-free
-// environment (the Flatpak sandbox has no Node): without the shim the failures
-// are `spawn npm ENOENT` and `gjsify: not found`.
+// GJS — always. The npm bin is the NODE entry, useless in a node-free environment
+// (the Flatpak sandbox has no Node): the failures are `spawn npm ENOENT` and
+// `gjsify: not found`.
 //
-// Node — only when the running CLI came from OUTSIDE the workspace, which is
-// exactly the cold-tree bootstrap (`npx @gjsify/cli@latest …`, or a global
-// install). ADR 0002 untracked BOTH bundles, so on a tree that is installed but
-// not yet built, `node_modules/.bin/gjsify` exists and everything it dispatches
-// to is missing. The bin shim is then a live landmine: it resolves, and then
-// dies with `Cannot find module …/packages/infra/cli/lib/index.js` on the FIRST
-// nested `gjsify` — which for `gjsify run build:infra` is its first clause,
-// `gjsify workspace @gjsify/vite-plugin-blueprint build`.
-//
-// THE INCIDENT, because a rule without it gets simplified back into the bug.
-//
-// `windows-suites.yml` (added #1021) and `macos-suites.yml` (#1022) both landed
-// during the 2026-08-06 GitHub Actions degradation with NO checks reported on
-// their PRs, and neither leg had ever been green. Both ordered the cold-tree
-// bootstrap as `run build:infra` BEFORE `install`, which cannot work either:
-// `@gjsify/vite-plugin-blueprint` declares `"types": ["node"]`, so with no
-// `node_modules` its `gjsify tsc` fails `TS2688: Cannot find type definition
-// file for 'node'`. Correcting the order to install-then-build then exposed
-// THIS gap, one step later.
-//
-// Reproduced on Linux at de7f5525 in a cold worktree — nothing about it is
-// Windows-specific:
+// Node — only when the running CLI came from OUTSIDE the workspace, i.e. the
+// cold-tree bootstrap (`npx @gjsify/cli@latest …`, or a global install). ADR 0002
+// untracked BOTH bundles, so on an installed-but-unbuilt tree
+// `node_modules/.bin/gjsify` exists and everything it dispatches to is missing: it
+// resolves, then dies with `Cannot find module …/lib/index.js` on the FIRST nested
+// `gjsify`. Reproducible on Linux in a cold worktree, nothing Windows-specific:
 //
 //   npx --yes @gjsify/cli@latest install --immutable   # ok
 //   npx --yes @gjsify/cli@latest run build:infra       # Cannot find module …
 //
-// Linux CI never saw it because its bootstrap runs `gjs -m <published bundle>
-// run build:infra` (`.github/actions/gjsify-setup`), which takes the GJS branch
-// above. Windows is simply the only leg with no `gjs` to fall back on, so it is
-// where the gap became load-bearing.
+// The bootstrap must therefore be ordered install-then-build, and the other order is
+// not an alternative: `@gjsify/vite-plugin-blueprint` declares `"types": ["node"]`,
+// so with no `node_modules` its `gjsify tsc` fails `TS2688: Cannot find type
+// definition file for 'node'`. Linux CI never saw the gap because its bootstrap runs
+// `gjs -m <published bundle> run build:infra` (`.github/actions/gjsify-setup`) and
+// takes the GJS branch; Windows is the only leg with no `gjs` to fall back on.
 //
-// Scoped to an outside-the-workspace CLI ON PURPOSE: when the invocation
-// already came through the workspace's own `node_modules/.bin/gjsify`, that
-// shim IS the CLI the tree wants, and today's dispatch (GJS bundle first on a
-// host with `gjs`) stays byte-for-byte unchanged. Widening this to every Node
-// invocation would silently move in-repo nested builds off the GJS bundle.
+// Scoped to an outside-the-workspace CLI ON PURPOSE: when the invocation already
+// came through the workspace's own `node_modules/.bin/gjsify`, that shim IS the CLI
+// the tree wants. Widening this to every Node invocation would silently move in-repo
+// nested builds off the GJS bundle.
 
 import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -77,21 +57,21 @@ let _selfShimActive = false;
  * a self-shim rather than through the workspace's `node_modules/.bin/gjsify`.
  *
  * `detectPackageManager()` reads this: a bootstrap CLI must run package scripts
- * ITSELF, because npm re-prepends `node_modules/.bin` for every lifecycle
- * script it starts — which puts the tree's dead shim back ahead of the shim dir
- * this module placed on PATH, and undoes the whole repair one level down.
+ * ITSELF, because npm re-prepends `node_modules/.bin` for every lifecycle script it
+ * starts — putting the tree's dead shim back ahead of this module's shim dir and
+ * undoing the repair one level down.
  */
 export function usingSelfShim(): boolean {
     return _selfShimActive;
 }
 
 /**
- * Does this invocation need its own `gjsify` on PATH, rather than the
- * workspace's npm bin?
+ * Does this invocation need its own `gjsify` on PATH, rather than the workspace's
+ * npm bin?
  *
- * Pure, and takes the host facts as PARAMETERS rather than reading them
- * ambiently — the same shape `platform-check.ts` documents, and what lets the
- * Windows-relevant branch be tested from a Linux host.
+ * Host facts are PARAMETERS rather than read ambiently — the shape
+ * `platform-check.ts` documents, and what lets the Windows branch be tested from
+ * a Linux host.
  *
  * @param gjs           running under GJS (the npm bin is the Node entry there)
  * @param selfEntry     absolute path of the CLI entry currently executing
@@ -99,9 +79,9 @@ export function usingSelfShim(): boolean {
  */
 export function needsSelfShim(opts: { gjs: boolean; selfEntry: string; workspaceRoot: string }): boolean {
     if (opts.gjs) return true;
-    // Outside the workspace ⇒ a bootstrap CLI (npx / global install), so the
-    // tree's own `.bin/gjsify` may well point at build outputs that do not
-    // exist yet. Inside ⇒ the tree's CLI is the one running; leave PATH alone.
+    // Outside the workspace ⇒ a bootstrap CLI (npx / global install), whose tree's
+    // own `.bin/gjsify` may point at build outputs that do not exist yet. Inside ⇒
+    // the tree's CLI is the one running; leave PATH alone.
     const rel = relative(opts.workspaceRoot, opts.selfEntry);
     return rel === '' || rel.startsWith('..') || isAbsolute(rel);
 }
@@ -115,9 +95,9 @@ export function ensureGjsifyShimOnPath(): void {
     if (_ensured) return;
     _ensured = true;
 
-    // A parent gjsify already created the shim — reuse it so nested
-    // orchestration doesn't pile up temp dirs / PATH entries. The
-    // extension-less member is written on every host, so it stays the probe.
+    // A parent gjsify already created the shim — reuse it so nested orchestration
+    // doesn't pile up temp dirs / PATH entries. The extension-less member is
+    // written on every host, so it stays the probe.
     const inherited = process.env.GJSIFY_SHIM_DIR;
     if (inherited && existsSync(join(inherited, 'gjsify'))) {
         _selfShimActive = true;
@@ -128,10 +108,9 @@ export function ensureGjsifyShimOnPath(): void {
     }
 
     const gjs = isGjs();
-    // Under GJS `import.meta.url` IS the entry — the whole CLI collapses into
-    // the single `cli.gjs.mjs` bundle, so this module's URL is it. Under Node
-    // this module is `lib/utils/gjsify-shim.js` and the npm bin is
-    // `lib/index.js` (package.json `bin`), one hop up.
+    // Under GJS the whole CLI collapses into one `cli.gjs.mjs` bundle, so
+    // `import.meta.url` IS the entry. Under Node this module is
+    // `lib/utils/gjsify-shim.js` and the npm bin is `lib/index.js`, one hop up.
     const selfEntry = gjs ? fileURLToPath(import.meta.url) : fileURLToPath(new URL('../index.js', import.meta.url));
     const workspaceRoot = findWorkspaceRoot(process.cwd()) ?? process.cwd();
     if (!needsSelfShim({ gjs, selfEntry, workspaceRoot })) return;
@@ -139,14 +118,10 @@ export function ensureGjsifyShimOnPath(): void {
     const dir = mkdtempSync(join(tmpdir(), 'gjsify-shim-'));
     const shim = join(dir, 'gjsify');
 
-    // The interpreter is named, not pathed, on every member — matching
-    // `buildShLauncher`'s `exec gjs` / `exec node` and `buildLauncherShims`'
-    // documented contract, so a missing interpreter fails the same way on every
-    // OS. `process.execPath` is deliberately NOT used: the batch member cannot
-    // quote an interpreter argument (`<interpreter> "<target>" %*`), so a path
-    // like `C:\Program Files\nodejs\node.exe` would split, and a trio whose
-    // members disagree about which interpreter they re-enter is worse than one
-    // name resolved consistently.
+    // The interpreter is NAMED, not pathed, matching `buildShLauncher` and
+    // `buildLauncherShims`, so a missing one fails the same way on every OS. Not
+    // `process.execPath`: the batch member cannot quote an interpreter argument
+    // (`<interpreter> "<target>" %*`), so `C:\Program Files\nodejs\node.exe` splits.
     const interpreter = gjs ? process.env.GJS_CONSOLE || 'gjs' : 'node';
     const interpreterArgs = gjs ? ['-m'] : [];
     const argv = interpreterArgs.length > 0 ? `${interpreterArgs.join(' ')} ` : '';
@@ -154,10 +129,9 @@ export function ensureGjsifyShimOnPath(): void {
     writeFileSync(shim, `#!/bin/sh\nexec "${interpreter}" ${argv}"${selfEntry}" "$@"\n`, { mode: 0o755 });
     chmodSync(shim, 0o755);
 
-    // cmd.exe and pwsh cannot run the extension-less member: it is not on
-    // PATHEXT and Windows has no shebang handling. npm's three-sibling answer
-    // is the de-facto standard, and `buildLauncherShims` is this repo's
-    // reviewed port of it — including the IF/ELSE ERRORLEVEL handling that
+    // cmd.exe and pwsh cannot run the extension-less member: not on PATHEXT, and
+    // Windows has no shebang handling. `buildLauncherShims` ports npm's
+    // three-sibling answer, including the IF/ELSE ERRORLEVEL handling that
     // `&&`/`||` chaining gets wrong.
     if (!gjs && process.platform === 'win32') {
         const { cmd, ps1 } = buildLauncherShims({ interpreter, interpreterArgs, target: selfEntry });
@@ -172,10 +146,7 @@ export function ensureGjsifyShimOnPath(): void {
     writeNodeShim(dir, gjs, selfEntry);
 }
 
-/**
- * Subdirectory holding the `node` shim. Deliberately NOT the shim dir itself —
- * see {@link nodeShimDir}.
- */
+/** Deliberately NOT the shim dir itself — see {@link nodeShimDir}. */
 const NODE_SHIM_SUBDIR = 'node-shim';
 
 /**
@@ -184,19 +155,16 @@ const NODE_SHIM_SUBDIR = 'node-shim';
  *
  * **It is NOT on `process.env.PATH`, and that is the whole point.** Only
  * `runScript` puts it on the PATH of a PACKAGE SCRIPT's child (`commands/run.ts`).
+ * Prepending it globally breaks the CLI's ability to SEE a missing Node: `gjsify
+ * tsc`'s Node fallback spawns a real `node` for typescript's CJS entry, and
+ * `tests/e2e/tsc-node-fallback` asserts that on a PATH without one it fails loudly
+ * naming the missing interpreter — an assertion that exists because a silent exit
+ * 0 there once let `set-bin-mode.mjs` run against a `lib/index.js` tsc never wrote.
  *
- * The first version did prepend it globally, and CI named the cost immediately:
- * `gjsify tsc`'s Node fallback spawns a real `node` to run typescript's CJS
- * entry, and `tests/e2e/tsc-node-fallback` asserts that on a PATH without one it
- * FAILS LOUDLY naming the missing interpreter — the assertion exists because a
- * silent exit 0 there once let `set-bin-mode.mjs` run against a `lib/index.js`
- * tsc never wrote. A global shim answered that spawn, so the CLI stopped being
- * able to see that Node was missing at all.
- *
- * The line the subdirectory draws: a PACKAGE SCRIPT saying `node x.mjs` means
- * "run this script", and gjsify can serve that. The CLI's own internals asking
- * for `node` mean "I need a real Node", and lying to them turns an honest
- * diagnosis into a confusing one two layers down.
+ * The line the subdirectory draws: a PACKAGE SCRIPT saying `node x.mjs` means "run
+ * this script", which gjsify can serve; the CLI's own internals asking for `node`
+ * mean "I need a real Node", and lying to them turns an honest diagnosis into a
+ * confusing one two layers down.
  */
 export function nodeShimDir(): string | null {
     const dir = process.env.GJSIFY_SHIM_DIR;
@@ -209,28 +177,21 @@ export function nodeShimDir(): string | null {
  * Write a `node` that runs the file through `gjsify run --node-script`, when the
  * host is GJS and there is NO REAL `node`.
  *
- * WHY A SHIM AND NOT A MANIFEST REWRITE
+ * A SHIM AND NOT A MANIFEST REWRITE. Every `node scripts/*.mjs` in this build chain
+ * imports only polyfilled `node:` builtins, so the sole blocker on a Node-less host
+ * is GJS's ESM loader being unable to resolve `node:` for a file on disk — which
+ * `--node-script` solves. Spelling that flag in `package.json` cannot work: CI
+ * bootstraps a cold tree with `gjs -m "$GJSIFY_BOOTSTRAP" run build:infra` where
+ * `$GJSIFY_BOOTSTRAP` is the PREVIOUS RELEASE's CLI
+ * (`.github/workflows/release-cut.yml` hits the same trap), so a manifest using a
+ * flag the last release does not know reds every cold-cache run until a release
+ * ships — and the release runs that chain to build itself.
  *
- * Every `node scripts/*.mjs` left in this repo's build chain imports nothing but
- * `node:fs` / `node:path` / `node:url`, all of which gjsify polyfills, so the
- * only thing stopping them on a Node-less host is that GJS's ESM loader cannot
- * resolve `node:` for a file on disk. `--node-script` solves that — but spelling
- * it in `package.json` does NOT work, for a structural reason rather than an
- * aesthetic one: CI bootstraps a cold tree with
- * `gjs -m "$GJSIFY_BOOTSTRAP" run build:infra`, and `$GJSIFY_BOOTSTRAP` is the
- * PREVIOUS RELEASE's CLI (`.github/workflows/release-cut.yml` documents the same
- * trap for its own step). A manifest using a flag the last release does not know
- * reds every cold-cache CI run until a release ships — and the release runs that
- * same chain to build itself.
+ * The shim leaves manifests saying `node scripts/x.mjs`, so an older CLI is
+ * unaffected, and covers what a per-script rewrite cannot: COMPOUND scripts go
+ * through `/bin/sh`, which resolves `node` from PATH, as does anything they spawn.
  *
- * A shim has neither problem. The manifests keep saying `node scripts/x.mjs`, so
- * an older CLI behaves exactly as it does today, and a Node-less host gets a
- * `node` that works. It also covers what a per-script rewrite cannot: COMPOUND
- * scripts (`gjsify tsc && node scripts/build-assets.mjs`) are executed through
- * `/bin/sh`, which resolves `node` from PATH — as does anything those scripts
- * spawn in turn.
- *
- * Two things keep it from shadowing anything: it is written only when `node`
+ * Two things keep it from shadowing a real Node: it is written only when `node`
  * resolves NOWHERE, and it is reachable only from a package script's PATH (see
  * {@link nodeShimDir}).
  */
@@ -241,13 +202,12 @@ function writeNodeShim(dir: string, gjs: boolean, selfEntry: string): void {
     if (resolveBinOnPath('node')) return; // a real Node is present — leave it alone
 
     const interpreter = process.env.GJS_CONSOLE || 'gjs';
-    // A leading FLAG is refused rather than forwarded. `node --test x.mjs` wants
-    // Node's own test runner and `node -e '…'` an eval; neither is something
-    // `--node-script` can honour, and yargs would silently take `--test` FOR the
-    // script path (`unknown-options-as-args` turns an unknown flag into a
-    // positional). A refusal naming the limit beats a mis-parse naming a file.
     mkdirSync(sub, { recursive: true });
     const shim = join(sub, 'node');
+    // A leading FLAG is refused rather than forwarded: `node --test x.mjs` wants
+    // Node's own test runner and `node -e '…'` an eval, neither of which
+    // `--node-script` can honour, and yargs would take `--test` FOR the script
+    // path (`unknown-options-as-args` turns an unknown flag into a positional).
     writeFileSync(
         shim,
         '#!/bin/sh\n' +

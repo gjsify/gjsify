@@ -1,23 +1,8 @@
-// GDK-backed implementation of the Canvas 2D pixel-interop seam.
-//
-// Reimplemented for GJS using Gdk 4 (`gdk_pixbuf_get_from_surface` /
-// `gdk_cairo_set_source_pixbuf`) and GdkPixbuf.
-//
-// This is the ONE module of `@gjsify/canvas2d-core` that touches GTK. It is
-// deliberately NOT reachable from `src/index.ts`: the package root stays
-// headless (Cairo + PangoCairo), and this file ships behind the dedicated
-// `@gjsify/canvas2d-core/gdk` subpath so pulling GTK in is an explicit,
-// greppable act by a package that already lives in a GTK process
-// (`@gjsify/dom-elements`' canvas register, `@gjsify/canvas2d`).
-//
-// Importing it registers the bridge as a side effect — mirroring the
-// `/register` subpath convention (AGENTS.md, "Tree-shakeable globals"), which
-// is why `package.json#sideEffects` lists the built file.
-//
-// Why GDK at all: GJS' `cairo` module binds no pixel accessor
-// (`refs/gjs/modules/cairo-image-surface.cpp` comments `getData` out of
-// `proto_funcs`), and `Gdk` is the only introspectable provider of the
-// Cairo⇄GdkPixbuf converters. See `./pixel-bridge.ts` for the full rationale.
+// GDK-backed implementation of the pixel-interop seam in ./pixel-bridge.ts, which explains why GDK
+// is the only option. The one module of this package that touches GTK, unreachable from
+// `src/index.ts` and shipped behind the `@gjsify/canvas2d-core/gdk` subpath so that pulling GTK in
+// stays an explicit, greppable act. Importing it registers the bridge, hence the entry in
+// `package.json#sideEffects` (AGENTS.md § Tree-shakeable globals).
 
 import Gdk from 'gi://Gdk?version=4.0';
 import GdkPixbuf from 'gi://GdkPixbuf';

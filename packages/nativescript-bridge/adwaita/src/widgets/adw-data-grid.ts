@@ -8,65 +8,44 @@
 // lists. Cell values are PRE-FORMATTED strings: the grid aligns, it never
 // formats or sorts.
 //
-// ONE GRID, CELLS AS DIRECT CHILDREN — the whole design decision
-//
-// The browser aligns columns with CSS `subgrid`: the table declares the tracks
-// and every row is a subgrid spanning them, so each row is a real element
-// (background, hairline rules, activation) while the columns stay shared.
-// NativeScript has no subgrid. The obvious transcription — a `StackLayout` of
-// per-row `GridLayout`s — cannot work: each row would resolve its own `auto`
-// tracks from its OWN content, so a long label in row 3 widens row 3's first
-// column alone and the figures stagger. That is precisely what subgrid exists to
-// prevent, and it would ban content-sized columns, which is the widget's reason
-// to exist over a boxed list.
-//
-// So this IS the grid: one `GridLayout`, one set of column tracks, every cell a
-// direct child. What the per-row element bought comes back for free, because
+// ONE GRID, CELLS AS DIRECT CHILDREN. The browser aligns columns with CSS
+// `subgrid`; NativeScript has none, and the obvious transcription — a
+// `StackLayout` of per-row `GridLayout`s — cannot work, because each row would
+// resolve its own `auto` tracks from its OWN content and the figures would
+// stagger. So this IS the grid: one `GridLayout`, one set of column tracks, every
+// cell a direct child. What the per-row element bought comes back because
 // NativeScript lets children share a cell: each row gets a full-width
 // `StackLayout` placed FIRST at the same row with `setColumnSpan(columns.length)`
 // — under the cells in paint order — carrying the background, the hairline rule
 // above a subtotal/total, the tap target and {@link attachRowPressFeedback}.
 //
-// UNVERIFIED ON DEVICE, and there is no device in this environment:
-//   - A tap that lands on a CELL is expected to reach the row background behind
-//     it, because neither platform stops at a view that declines the touch
-//     (Android continues its reverse-order child dispatch, iOS `hitTest:` skips
-//     a `UILabel` that has no interaction enabled). Every other activatable row
-//     in this package puts its listener on the ANCESTOR of its labels, so the
-//     SIBLING fall-through this widget relies on has no precedent here.
-//   - The caller is expected to wrap this in a HORIZONTAL `ScrollView` to mirror
-//     the browser's scroll container. A horizontal `ScrollView` nested inside the
-//     vertical one a page scrolls with is a known NativeScript gesture conflict;
-//     no widget in this package nests two, so nothing here establishes that it
-//     behaves.
+// UNVERIFIED ON DEVICE (no device in this environment):
+//   - a tap landing on a CELL is expected to fall through to the row background
+//     behind it; every other activatable row here puts its listener on the
+//     ANCESTOR of its labels, so this SIBLING fall-through has no precedent.
+//   - the caller is expected to wrap this in a HORIZONTAL `ScrollView`, nested
+//     inside the vertical one a page scrolls with — a known NativeScript gesture
+//     conflict that no other widget here exercises.
 //
-// WHAT THIS WIDGET IS NOT, AND WHY
-//   - No `caption`. On the browser the caption is a sibling of the SCROLL
-//     container, not part of the table — mapping it in would scroll it sideways
-//     with the columns, and as a spanning child it would also widen them, since
-//     NativeScript cannot exclude a child from track sizing. The caller owns the
-//     title above the `ScrollView`, the same way it owns the `ScrollView`.
-//   - `columns` / `rows` are set from CODE, not from XML markup. The element is
-//     registered so it can be PLACED in markup; structured data arrives from the
-//     code-behind, as it does for `AdwComboRow.options` and
-//     `AdwToggleGroup.options`.
+// No `caption`: as a spanning child it would widen the tracks, since NativeScript
+// cannot exclude a child from track sizing — the caller owns the title above the
+// `ScrollView`. `columns` / `rows` are set from CODE; the element is registered so
+// it can be PLACED in markup, structured data arrives from the code-behind, as for
+// `AdwComboRow.options`.
 //
-// FIDELITY: approximated in one respect, and it is typographic. libadwaita's
-// `.numeric` is `font-variant-numeric: tabular-nums` (_labels.scss:86-88) and the
-// NativeScript CSS subset has no font-feature property at all, so a numeric
-// column gets the right EDGE (the track alignment does that) but proportional
-// digits inside the number. `monospace: true` is the way to real tabular figures
-// here, and it is why the column property exists on this renderer.
+// FIDELITY: approximated, typographically. libadwaita's `.numeric` is
+// `font-variant-numeric: tabular-nums` and the NativeScript CSS subset has no
+// font-feature property, so a numeric column gets the right EDGE but proportional
+// digits. `monospace: true` is the way to real tabular figures here, which is why
+// the column property exists on this renderer.
 //
 // The derivations — which column is fixed, which absorbs the slack, what a cell
-// paints, which rows activate — are HEADLESS and live in `@gjsify/adwaita-core`
-// (ADR 0004), shared with the browser element and held to
-// `@gjsify/adwaita-core/conformance`'s `DATA_GRID_*_VECTORS`. The NativeScript
-// half of the mapping — `DataGridTrack` → `ItemSpec` numbers, the rebuild guard
-// keys, the row class — is in the pure sibling `data-grid-model.ts`, because
-// this class `extends GridLayout` and therefore cannot be imported by a spec.
+// paints, which rows activate — are HEADLESS in `@gjsify/adwaita-core` (ADR 0004),
+// held to its `DATA_GRID_*_VECTORS`. The NativeScript half of the mapping is in
+// the pure sibling `data-grid-model.ts`, because this class `extends GridLayout`
+// and therefore cannot be imported by a spec.
 //
-// Reference: refs/libadwaita/src/stylesheet/widgets/_labels.scss:81-88
+// Reference: refs/libadwaita/src/stylesheet/widgets/_labels.scss
 //            (`.monospace` / `.numeric { font-variant-numeric: tabular-nums }`)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: the grid itself is a @gjsify/adwaita-* widget, not a port.
@@ -100,7 +79,6 @@ export const ROW_ACTIVATED = 'row-activated';
 export interface RowActivatedEventData extends EventData {
     /** The row's index in the `rows` array. */
     index: number;
-    /** The row object that was activated. */
     row: AdwDataGridRow;
 }
 
@@ -166,8 +144,6 @@ export class AdwDataGrid extends GridLayout {
         this._paint();
     }
 
-    // --- internals ---------------------------------------------------------
-
     private _render(): void {
         this._syncColumns();
         this._syncNodes();
@@ -178,10 +154,7 @@ export class AdwDataGrid extends GridLayout {
      * (Re)declare the column tracks from the descriptors.
      *
      * Guarded on the derived tracks rather than run on every render: re-declaring
-     * invalidates the layout, and a data change must not move the columns. The
-     * precedent is `AdwViewSwitcherBar`, which rebuilds only when the page count
-     * moves; the key generalises that, because a column list can change without
-     * changing length (`data-grid-model.ts` says why).
+     * invalidates the layout, and a data change must not move the columns.
      */
     private _syncColumns(): void {
         const tracks = dataGridTracks(this._columns);
@@ -196,11 +169,9 @@ export class AdwDataGrid extends GridLayout {
     }
 
     /**
-     * Rebuild the cell views when the grid's SHAPE moves, and only then.
-     *
-     * A repaint keeps the views: replacing the row under the user's finger on
-     * every data update is what the view-switcher bar's count guard exists to
-     * avoid, and here it would also drop the press state mid-touch.
+     * Rebuild the cell views when the grid's SHAPE moves, and only then — replacing
+     * the row under the user's finger on every data update would drop the press
+     * state mid-touch.
      */
     private _syncNodes(): void {
         const columnCount = this._columns.length;
@@ -284,11 +255,10 @@ export class AdwDataGrid extends GridLayout {
             nodes.background.className = dataGridRowClass(variant, interactive);
 
             if (variant === 'section') {
-                // A section header spans all columns; its text is the FIRST
-                // column's value (the section title). The remaining cells are
-                // collapsed rather than removed, so the variant is a repaint —
-                // and a collapsed child is not measured, so they cannot widen a
-                // content-sized column with stale text.
+                // A section header spans all columns; its text is the FIRST column's
+                // value. The remaining cells are collapsed rather than removed so
+                // the variant stays a repaint — and a collapsed child is not
+                // measured, so stale text cannot widen a content-sized column.
                 const firstKey = this._columns[0]?.key ?? '';
                 nodes.cells.forEach((cell, column) => {
                     if (column === 0) {

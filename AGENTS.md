@@ -2,7 +2,7 @@
 
 IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.36.0, ESM-only, GNOME libs. Bootstraps from the PUBLISHED gjsify (ADR 0002): `gjs -m install.mjs` → `gjsify install --immutable` → `gjsify run build:infra`. No committed bundle, no yarn, no Node-only npm CLI. `dist/{cli,tsc}.gjs.mjs` are build outputs; only `dist/affected.gjs.mjs` is tracked. Pillars: **Node.js** `packages/node/` | **Web** `packages/web/` | **DOM** `packages/dom/` | **Framework** `packages/framework/` | **NativeScript bridge** `packages/nativescript-bridge/` | `packages/infra/` + `packages/gjs/` = supporting infra. Package counts, per-package status tables and metrics are DERIVED — authored status data in `status/`, rendered on demand by `npm run status:generate`, never here.
+Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.36.0, ESM-only, GNOME libs. Bootstraps from the PUBLISHED gjsify (ADR 0002): `gjs -m install.mjs` → `gjsify install --immutable` → `gjsify run build:infra`. No committed bundle, no yarn, no Node-only npm CLI. `dist/{cli,tsc}.gjs.mjs` are build outputs; only `dist/affected.gjs.mjs` is tracked. Five pillars — Node.js, Web, DOM, Framework, NativeScript bridge — over supporting infra in `packages/infra/` + `packages/gjs/`; paths in the table below. Counts, status tables and metrics are DERIVED, never here (§ Governance → status).
 
 ## Where the rules live — nearest AGENTS.md wins
 
@@ -68,9 +68,9 @@ The ONE model for "where does this code run and who checks the claim". Four orth
 
 ### The axes
 
-|**Runtime axis — `gjsify.runtimes`**: quadruplet `{gjs, node, browser, nativescript}`, each slot ∈ {`polyfill`, `native`, `partial`, `none`}. Declares which JS RUNTIMES a package serves and how; says NOTHING about operating systems. NativeScript is the 4th slot (V8 on Android/iOS, metadata-driven native bridge — conceptually GJS↔GNOME with `java.io.File`/`NSFileManager` instead of `Gio.File`); optional `gjsify.nativescriptPlatforms: ['ios','android']` (default both) narrows capability WITHIN the slot — iOS/Android are deliberately NOT separate slots (NS itself ships one core with internal platform branching; if divergence ever forces a quintuplet, `VALID_TARGETS` in `runtime-aliases.mjs` is a 1-line change). If a package doesn't declare `nativescript`, the drift check skips that slot (backfill is opportunistic).
+|**Runtime axis — `gjsify.runtimes`**: quadruplet `{gjs, node, browser, nativescript}`, each slot ∈ {`polyfill`, `native`, `partial`, `none`}. Declares which JS RUNTIMES a package serves and how; says NOTHING about operating systems. NativeScript is the 4th slot (V8 on Android/iOS, metadata-driven native bridge — conceptually GJS↔GNOME with `java.io.File`/`NSFileManager` instead of `Gio.File`); optional `gjsify.nativescriptPlatforms: ['ios','android']` (default both) narrows capability WITHIN the slot — iOS/Android are deliberately NOT separate slots, because NS ships one core with internal platform branching. If a package doesn't declare `nativescript`, the drift check skips that slot (backfill is opportunistic).
 |**OS axis — TWO declarations, one per question (ADR 0018)**: `gjsify.os` = what the CODE claims (`{linux,darwin,win32}` → `supported`/`partial`/`none`, below `supported` needs a PRINTED `gjsify.osNotes.<os>` reason), demanded only of pkgs BRANCHING on the OS in shipping source — DERIVED, so no OS-conditional code = nothing to declare; `gjsify.platforms` = the `<os>-<arch>` targets a pkg with a native build system (meson/node-gyp) or a prebuild dir PROMISES a prebuild for (a pure-TS pkg is legitimately `os.win32:"supported"` with no win32 in `platforms`). ONE spelling everywhere: `${process.platform}-${process.arch}` (`linux-x64`/`linux-arm64`/`darwin-arm64`/`win32-x64`; `ppc64`/`s390x`/`riscv64` identical in every vocabulary) — it is what a running process computes about itself, so resolution needs no translation. The retired uname spelling (`linux-x86_64`) is enforced OUT on every WRITE path and tolerated READ-only (`prebuildDirCandidates` probes declared → canonical → legacy) so pre-rename tarballs still load. The two axes are blind to each other BY DESIGN, and that blindness is measured: the whole native-bridge set stayed Linux-only while the project described itself as platform-independent, because `runtimes` says nothing about OSes. Never let one axis answer the other's question.
-|**Intra-GJS layering — `gjsify.headless`** (ADR 0015): a package that DOCUMENTS itself as headless declares either `true` (root entry reaches NO typelib: no `gi://`, no `@girs/*` value import, no bare `cairo`/`system`/`gettext`, no `imports.*`) or a LIST of forbidden typelib namespaces (`["Gdk","GdkPixbuf","Gsk","Gtk","Adw"]` — headless *of GTK*, Cairo/Pango still fine). `audit-runtimes --check` walks the ROOT import graph from `exports["."]` (relative imports AND `@gjsify/*` workspace edges) and fails on any forbidden reach. ROOT-ONLY IS THE POINT: a side-effect SUBPATH may legitimately reach them (`@gjsify/canvas2d-core/gdk`, imported explicitly by `dom-elements/register/canvas` + `canvas2d`) — scanning `src/**` would flag the fix itself. Why the axis exists: the runtime axis is structurally blind here — a `gi://Gdk` import is an INPUT to the drift check (it made the declaration agree BETTER), and the ADR-0014 reachability pass only visits `polyfill`/`partial` slots, which a `node:none`/`browser:native` package has none of. That blind spot is how `@gjsify/canvas2d-core` — split out of `@gjsify/canvas2d` precisely to be GTK-free — imported `gi://Gdk` (= `libgtk-4.so` in GTK4) at five call sites for its whole life. Declared today on `canvas2d-core` + `adwaita-core`; NOT on the pure-TS contracts (`stories`/`storybook-core`/`devtools-protocol`) whose all-`polyfill` slots ADR 0014 already enforces.
+|**Intra-GJS layering — `gjsify.headless`** (ADR 0015): a package that DOCUMENTS itself as headless declares either `true` (root entry reaches NO typelib: no `gi://`, no `@girs/*` value import, no bare `cairo`/`system`/`gettext`, no `imports.*`) or a LIST of forbidden typelib namespaces (`["Gdk","GdkPixbuf","Gsk","Gtk","Adw"]` — headless *of GTK*, Cairo/Pango still fine). `audit-runtimes --check` walks the ROOT import graph from `exports["."]` (relative imports AND `@gjsify/*` workspace edges) and fails on any forbidden reach. ROOT-ONLY IS THE POINT: a side-effect SUBPATH may legitimately reach them (`@gjsify/canvas2d-core/gdk`, imported explicitly by `dom-elements/register/canvas` + `canvas2d`) — scanning `src/**` would flag the fix itself. Why the axis exists: the runtime axis is structurally blind here — a `gi://Gdk` import is an INPUT to the drift check (it made the declaration agree BETTER), and the ADR-0014 reachability pass only visits `polyfill`/`partial` slots, which a `node:none`/`browser:native` package has none of. That blind spot is how `@gjsify/canvas2d-core` — split out of `@gjsify/canvas2d` precisely to be GTK-free — imported `gi://Gdk` (= `libgtk-4.so` in GTK4) at five call sites for its whole life. Not wanted on pure-TS contract packages: their all-`polyfill` slots already put ADR 0014 in charge.
 |**Build target — `--app gjs|node|browser|nativescript`**: how a BUILD selects a runtime; the alias layer routes each `@gjsify/<X>` per its declared slots (§ Slot routing). ONE `--app node` bundle serves node, bun AND deno (Node-API is their common ABI) — `--runtime <gjs|node|bun|deno>` on `gjsify showcase|run|storybook` selects the LAUNCHER, not a different bundle (shared map `packages/infra/cli/src/utils/runtimes.ts`). NB `gjsify.example.runtimes` (which runtimes a showcase SHIPS artifacts for, § Showcase) is a distinct field from `gjsify.runtimes` (slot routing).
 
 ## Don't patch — implement at the source
@@ -92,7 +92,7 @@ are in [docs/code-anti-patterns.md](docs/code-anti-patterns.md) — read them be
 
 |**try/catch around a call that cannot throw** — for GI calls read the GIR, only `throws="1"` raises. A kept catch must STATE ITS REASON; `eslint/no-empty` is `error`
 |**paranoid probes for what the workspace guarantees** — redundant `x?.m?.()` on our own classes hides real bugs as silent no-calls. Only the documented probes are sanctioned
-|**comments that restate the code** — comment WHY; a restating comment is a second copy that drifts
+|**comments that restate the code** — comment WHY; a restating comment is a second copy that drifts. Cut restatement, narrative history, upstream source coordinates; keep the incident, GI quirks, spec links, error text. A LIVE COUNT is restatement too, and drifts unseen (`224 packages` → 232, `~110` → 199): write what the number establishes, not the number. Per-tree volume gated against MEASURED ceilings by `scripts/check-comment-budget.mjs --check`
 |**duplication instead of a helper** — the SECOND copy is where you lift; the drifted copy fails in a CONSUMER while the owning package stays green
 |**scattered lifecycle** — cleanup beside creation, ownership in ONE place, wired to the exit the host actually has
 |**shelling out where an API exists** — pass an argv array (`Gio.Subprocess`), never an interpolated command line
@@ -130,17 +130,15 @@ Conventional commits `<type>[scope]: <description>`, imperative, ≤50-char subj
 
 ## PR size — prefer few large ones
 
-A full CI pass is ~25 minutes, and that cost is per PR, not per commit — which
-makes the arithmetic one-sided: **land one large feature PR rather than several
-small stacked ones.** The measurement behind it (four stacked PRs → three
-main-merge rounds and two bundle rebuilds before anything landed) is in
-[docs/governance.md](docs/governance.md).
+A full CI pass is ~25 minutes, and that cost is per PR, not per commit: **land one
+large feature PR rather than several small stacked ones.** The measurement (four
+stacked PRs → three main-merge rounds, two bundle rebuilds before anything landed)
+is in [docs/governance.md](docs/governance.md).
 
-**Do not idle on CI.** It starts on push and can be watched while work
-continues; a green run is a gate on MERGING, not on writing the next commit.
-Push, keep going, check back. Watch the WORKFLOW status rather than the check
-list — a workflow that has not spawned its jobs yet contributes zero checks, so
-"no pending checks" reads as green before anything has started.
+**Do not idle on CI.** A green run gates MERGING, not writing the next commit —
+push, keep going, check back. Watch the WORKFLOW status, not the check list: a
+workflow that has not spawned its jobs contributes zero checks, so "no pending
+checks" reads as green before anything has started.
 
 ## Constraints
 
@@ -162,15 +160,16 @@ axis 6 bundled toolchains → [docs/bundled-toolchains.md](docs/bundled-toolchai
 ## Writing agent context files
 
 **Budget first — an agent context file is loaded on EVERY turn, so its size is a permanent tax.**
-Root AGENTS.md ≤ 20 KB, any nested one ≤ 20 KB, and no single file over 32 KiB: that is
-`project_doc_max_bytes`, where Codex silently truncates the tail with no warning. This file was
-277 KB before it was split, reached one defensible paragraph at a time — the budget is the
-mechanism, not the intention.
+Every AGENTS.md ≤ 20 KB, nothing over 32 KiB: that is `project_doc_max_bytes`, where Codex
+silently truncates the tail with no warning. This file reached 277 KB before it was split, one
+defensible paragraph at a time. Held by `scripts/check-agent-context-size.mjs --check`: the 32 KiB
+cap plus a MEASURED per-file ceiling that only tightens. This file and `packages/framework/AGENTS.md`
+are over the 20 KB target, so the gate catches REGROWTH instead of claiming the target is met.
 
-**Where content goes.** A rule that is true repo-wide → this file. A rule scoped to one subtree →
-that subtree's AGENTS.md, which is authoritative there. The INCIDENT behind a rule, a lookup
-table, a procedure run a few times a year → `docs/`, linked from the rule. Growing a section past
-a screen is the signal to move its detail out and leave the rule plus one link, never to append.
+**Where content goes.** True repo-wide → this file. Scoped to one subtree → that subtree's
+AGENTS.md, authoritative there. The INCIDENT behind a rule, a lookup table, a rare procedure →
+`docs/`, linked from the rule. Growing a section past a screen is the signal to move its detail
+out and leave the rule plus one link, never to append.
 
 **Never compress away the INCIDENT that justifies a rule** — a rule without its reason gets
 "simplified" back into the bug. Moving it one hop into `docs/` preserves it; deleting it does not.

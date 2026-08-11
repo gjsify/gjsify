@@ -1,22 +1,15 @@
 // SPDX-License-Identifier: MIT
-// Unit tests for native-prebuild resolution across operating systems.
 //
-// The whole point of this file: the darwin, win32 AND musl branches are exercised
-// HERE, on a glibc Linux CI host, by injecting foreign `platform`/`arch`/`libc`
-// values into pure functions. Before the OS-axis fix these branches did not exist
-// — `checkPackage` interpolated a literal `linux-` prefix and `buildNativeEnv`
-// only ever emitted `LD_LIBRARY_PATH`, so the `darwin-arm64` prebuilds
-// `.github/workflows/prebuilds.yml` produces were unreachable. The libc axis has
-// the same shape and a sharper version of the same problem: there is no musl
-// runner in this repo's CI at all, so an injected `libc: 'musl'` is the ONLY way
-// its branch is ever executed.
+// The darwin, win32 and musl branches are exercised HERE, on a glibc Linux CI
+// host, by injecting foreign `platform`/`arch`/`libc` into pure functions. There
+// is no musl runner in this repo's CI at all, so an injected `libc: 'musl'` is
+// the ONLY way that branch ever executes.
 //
-// What is NOT covered here (and cannot be, off-host): whether `dyld` actually
-// honours the `DYLD_LIBRARY_PATH` / `DYLD_FALLBACK_LIBRARY_PATH` we emit, whether
-// Windows' `LoadLibrary` picks the DLL up off `PATH`, and whether a musl host's
-// dynamic loader accepts a `-musl` prebuild. Those are CI-only, on the real OS —
-// the fallback half was measured by hand on the macOS 15.7.8 x86_64 test VM (see
-// the `buildNativeEnv` rows near the bottom of this file).
+// NOT covered, and not coverable off-host: whether `dyld` honours the
+// `DYLD_LIBRARY_PATH` / `DYLD_FALLBACK_LIBRARY_PATH` we emit, whether Windows'
+// `LoadLibrary` picks the DLL up off `PATH`, and whether a musl loader accepts a
+// `-musl` prebuild. The darwin fallback half was measured by hand on the macOS
+// 15.7.8 x86_64 test VM.
 
 import { describe, it, expect } from '@gjsify/unit';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -42,9 +35,9 @@ function seedPackage(
     name: string,
     opts: { prebuildDirs: string[]; platforms?: string[]; nodeModulesOf?: string },
 ): void {
-    // `nodeModulesOf` seeds an ISOLATED layout: the package lands inside ANOTHER
-    // package's `node_modules`, which is where pnpm's virtual store puts a
-    // per-platform companion and where the CWD up-walk can never see it.
+    // `nodeModulesOf` seeds the ISOLATED layout — the package inside ANOTHER
+    // package's `node_modules`, where pnpm's virtual store puts a per-platform
+    // companion and where the CWD up-walk can never see it.
     const base = opts.nodeModulesOf ? join(root, 'node_modules', ...opts.nodeModulesOf.split('/')) : root;
     const pkgDir = join(base, 'node_modules', ...name.split('/'));
     mkdirSync(pkgDir, { recursive: true });
@@ -65,10 +58,10 @@ function seedPackage(
 export default async () => {
     await describe('canonicalPlatformToken', async () => {
         await it('folds the legacy uname arch onto the node spelling', async () => {
-            // Must stay in lockstep with `ARCH_ALIASES` in
-            // scripts/audit-runtimes.mjs — the platform-support audit
-            // canonicalises `gjsify.platforms` the same way, and a divergence
-            // would let a package pass the audit while the CLI misses its dir.
+            // Lockstep with `ARCH_ALIASES` in `@gjsify/manifest-conformance`
+            // (lib/platforms.mjs), which the platform audit canonicalises
+            // `gjsify.platforms` through: a divergence lets a package pass the
+            // audit while the CLI misses its directory.
             expect(canonicalPlatformToken('linux-x86_64')).toBe('linux-x64');
             expect(canonicalPlatformToken('linux-x64')).toBe('linux-x64');
             expect(canonicalPlatformToken('linux-aarch64')).toBe('linux-arm64');
@@ -78,21 +71,17 @@ export default async () => {
         });
 
         await it('carries the -musl suffix through, arch alias and all', async () => {
-            // The grammar is `<os>-<arch>[-musl]`, so canonicalisation must
-            // normalise the arch WITHOUT losing the libc half — folding
-            // `linux-x86_64-musl` down to `linux-x64` would make a musl
-            // declaration compare equal to the glibc one and silently resolve a
-            // glibc directory on a musl host.
+            // Grammar is `<os>-<arch>[-musl]`: normalise the arch WITHOUT losing
+            // the libc half, or a musl declaration compares equal to the glibc
+            // one and silently resolves a glibc directory on a musl host.
             expect(canonicalPlatformToken('linux-x64-musl')).toBe('linux-x64-musl');
             expect(canonicalPlatformToken('linux-x86_64-musl')).toBe('linux-x64-musl');
             expect(canonicalPlatformToken('linux-aarch64-musl')).toBe('linux-arm64-musl');
         });
 
         await it('does NOT drop a -musl suffix off a non-Linux token', async () => {
-            // `darwin-arm64-musl` is malformed, not exotic. Canonicalising it to
-            // a VALID token would hide it from the audit that rejects it — the
-            // same failure shape as folding the retired uname spelling on a
-            // write path.
+            // `darwin-arm64-musl` is malformed; canonicalising it to a VALID
+            // token would hide it from the audit that rejects it.
             expect(canonicalPlatformToken('darwin-arm64-musl')).toBe('darwin-arm64-musl');
             expect(canonicalPlatformToken('win32-x64-musl')).toBe('win32-x64-musl');
         });
@@ -102,9 +91,8 @@ export default async () => {
         await it('splits the three axes and only honours -musl on linux', async () => {
             expect(parsePlatformToken('linux-x64')).toStrictEqual({ os: 'linux', arch: 'x64', libc: null });
             expect(parsePlatformToken('linux-x64-musl')).toStrictEqual({ os: 'linux', arch: 'x64', libc: 'musl' });
-            // musl targets no other kernel, and npm's own `libc` field is
-            // documented Linux-only — so `libc` stays null and the caller
-            // reports the token instead of half-honouring it.
+            // npm's `libc` field is documented Linux-only, so `libc` stays null
+            // and the caller reports the token instead of half-honouring it.
             expect(parsePlatformToken('darwin-arm64-musl')).toStrictEqual({
                 os: 'darwin',
                 arch: 'arm64',
@@ -115,24 +103,22 @@ export default async () => {
 
     await describe('hostPlatformTokens', async () => {
         await it('prefers the -musl token on a musl host and keeps the plain one behind it', async () => {
-            // The unsuffixed directory is the DEFAULT build, and for the bridges
-            // that record no `libc.so.6` at all (tls-native, webrtc-native on
-            // most arches) it genuinely loads on musl — so it stays reachable as
-            // a fallback rather than being excluded.
+            // The unsuffixed directory is the DEFAULT build, and for bridges that
+            // record no `libc.so.6` at all (tls-native, webrtc-native on most
+            // arches) it genuinely loads on musl — hence a fallback, not an
+            // exclusion.
             expect(hostPlatformTokens('linux', 'x64', 'musl')).toStrictEqual(['linux-x64-musl', 'linux-x64']);
         });
 
         await it('never offers a -musl token on glibc', async () => {
             // A musl artifact cannot load against glibc, so probing for one can
-            // only ever produce a false positive.
+            // only produce a false positive.
             expect(hostPlatformTokens('linux', 'x64', 'glibc')).toStrictEqual(['linux-x64']);
             expect(hostPlatformTokens('linux', 'x64')).toStrictEqual(['linux-x64']);
             expect(hostPlatformTokens('linux', 'x64', null)).toStrictEqual(['linux-x64']);
         });
 
         await it('ignores a musl claim on an OS that has no musl', async () => {
-            // The caller's host facts do not get to invent a target the grammar
-            // does not have.
             expect(hostPlatformTokens('darwin', 'arm64', 'musl')).toStrictEqual(['darwin-arm64']);
             expect(hostPlatformTokens('win32', 'x64', 'musl')).toStrictEqual(['win32-x64']);
         });
@@ -144,8 +130,7 @@ export default async () => {
         });
 
         await it('falls back to the musl loader probe — the only one GJS can answer', async () => {
-            // Under the committed GJS bundle `@gjsify/process` has no `report`,
-            // so on this project's PRIMARY runtime the glibc probe never
+            // `@gjsify/process` has no `report`, so on GJS the glibc probe never
             // answers and this branch is the whole detection.
             expect(resolveHostLibc({ platform: 'linux', muslLoaderPresent: true })).toBe('musl');
             expect(resolveHostLibc({ platform: 'linux', muslLoaderPresent: false })).toBe('glibc');
@@ -161,9 +146,8 @@ export default async () => {
 
     await describe('platformPackageName', async () => {
         await it('derives the companion package name for a target', async () => {
-            // The `@gjsify/gtk-runtime-darwin-arm64` pattern, and napi-rs's
-            // `<pkg>-<triple>` siblings. ONE definition, shared by the sibling
-            // resolution and by the audit.
+            // The `@gjsify/gtk-runtime-darwin-arm64` / napi-rs `<pkg>-<triple>`
+            // pattern — ONE definition, shared by sibling resolution and the audit.
             expect(platformPackageName('@gjsify/rolldown-native', 'linux-x64')).toBe(
                 '@gjsify/rolldown-native-linux-x64',
             );
@@ -176,8 +160,7 @@ export default async () => {
 
     await describe('prebuildDirCandidates', async () => {
         await it('probes the canonical node spelling first on Linux', async () => {
-            // `${process.platform}-${process.arch}` — no translation needed.
-            // The uname spelling stays as a trailing compat probe for tarballs
+            // The uname spelling stays as a trailing compat probe, for tarballs
             // published before the rename.
             expect(prebuildDirCandidates('linux', 'x64')).toStrictEqual(['linux-x64', 'linux-x86_64']);
             expect(prebuildDirCandidates('linux', 'arm64')).toStrictEqual(['linux-arm64', 'linux-aarch64']);
@@ -191,8 +174,8 @@ export default async () => {
         });
 
         await it('probes node-style first on darwin (what CI actually stages)', async () => {
-            // prebuilds.yml stages `PREBUILD: darwin-arm64`; on Apple silicon
-            // `uname -m` also reports `arm64`, so node-style IS the native one.
+            // prebuilds.yml stages `PREBUILD: darwin-arm64`, and on Apple silicon
+            // `uname -m` also reports `arm64` — node-style IS the native spelling.
             expect(prebuildDirCandidates('darwin', 'arm64')).toStrictEqual(['darwin-arm64', 'darwin-aarch64']);
         });
 
@@ -201,15 +184,12 @@ export default async () => {
         });
 
         await it('puts a pre-rename package’s OWN declared spelling ahead of the canonical name', async () => {
-            // A tarball published before the rename declares AND ships
-            // `linux-x86_64`; probing its declaration first loads it without
-            // the CLI having to guess.
+            // A pre-rename tarball declares AND ships `linux-x86_64`; probing its
+            // declaration first loads it without the CLI having to guess.
             expect(prebuildDirCandidates('linux', 'x64', ['linux-x86_64', 'darwin-arm64'])).toStrictEqual([
                 'linux-x86_64',
                 'linux-x64',
             ]);
-            // A current declaration is already canonical — one candidate, plus
-            // the legacy compat probe behind it.
             expect(prebuildDirCandidates('linux', 'arm64', ['linux-x64', 'linux-arm64'])).toStrictEqual([
                 'linux-arm64',
                 'linux-aarch64',
@@ -232,10 +212,9 @@ export default async () => {
         });
 
         await it('never offers a -musl directory on glibc, however it is declared', async () => {
-            // Not merely "prefers the glibc one": a musl artifact CANNOT load
-            // against glibc, so the suffixed name must not appear at all — even
-            // when the package declares it, which it does on every dual-libc
-            // package.
+            // Not merely "prefers the glibc one": the suffixed name must not
+            // appear at all — even when the package declares it, which every
+            // dual-libc package does.
             expect(prebuildDirCandidates('linux', 'x64', ['linux-x64', 'linux-x64-musl'], 'glibc')).toStrictEqual([
                 'linux-x64',
                 'linux-x86_64',
@@ -247,11 +226,9 @@ export default async () => {
         });
 
         await it('keeps the libc preference ahead of the declaration probe', async () => {
-            // The declared-spelling probe exists for pre-rename tarballs, and
-            // within ONE host token it still wins (a tarball that declares AND
-            // ships `linux-x86_64` loads without the CLI guessing). What it must
-            // NOT be able to do is REORDER the libc axis: a musl host takes the
-            // musl directory before any spelling of the default build.
+            // The declared-spelling probe wins within ONE host token but must NOT
+            // reorder the libc axis: a musl host takes the musl directory before
+            // any spelling of the default build.
             expect(prebuildDirCandidates('linux', 'x64', ['linux-x86_64', 'linux-x64-musl'], 'musl')).toStrictEqual([
                 'linux-x64-musl',
                 'linux-x86_64',
@@ -280,8 +257,8 @@ export default async () => {
         });
 
         await it('still finds a pre-rename uname-style dir (undeclared tarball)', async () => {
-            // The compat probe: a tarball published before `gjsify.platforms`
-            // existed ships `linux-x86_64` and declares nothing.
+            // A tarball published before `gjsify.platforms` existed ships
+            // `linux-x86_64` and declares nothing.
             expect(
                 resolvePrebuildDirName({
                     platform: 'linux',
@@ -314,7 +291,7 @@ export default async () => {
         });
 
         await it('returns null when the host has no artifact', async () => {
-            // @gjsify/sab-native is Linux-only by design (ADR 0013) — a macOS
+            // `@gjsify/sab-native` is Linux-only by design (ADR 0013) — a macOS
             // host must get a clean "nothing here", not a bogus directory.
             expect(
                 resolvePrebuildDirName({
@@ -339,11 +316,11 @@ export default async () => {
         });
 
         await it('falls back to the default build on a musl host with no -musl artifact', async () => {
-            // Correct for the libc-AGNOSTIC bridges (no `libc.so.6` in
-            // DT_NEEDED at all), which is why the fallback exists rather than
-            // returning null. Whether a given package may be installed on musl
-            // is the `libc` manifest field's job, and `prebuild-libc` holds that
-            // field to what the binaries actually record.
+            // Correct for the libc-AGNOSTIC bridges (no `libc.so.6` in DT_NEEDED
+            // at all), which is why the fallback exists rather than returning
+            // null. Whether a package may be installed on musl is the `libc`
+            // manifest field's job; the `prebuild-libc` audit holds that field to
+            // what the binaries actually record.
             expect(
                 resolvePrebuildDirName({
                     platform: 'linux',
@@ -356,10 +333,9 @@ export default async () => {
         });
 
         await it('refuses a -musl directory on a glibc host', async () => {
-            // The one directional guarantee: a glibc host must never be handed a
-            // musl artifact. With only the musl build shipped the answer is
-            // "nothing here" — a clean miss, then the package's own graceful
-            // no-native path, never a library that cannot be dlopen'ed.
+            // The one directional guarantee. With only the musl build shipped the
+            // answer is a clean miss, then the package's own graceful no-native
+            // path — never a library that cannot be dlopen'ed.
             expect(
                 resolvePrebuildDirName({
                     platform: 'linux',
@@ -384,10 +360,10 @@ export default async () => {
     await describe('libraryPathVar', async () => {
         await it('maps each OS to the variable its loader actually reads', async () => {
             expect(libraryPathVar('linux')).toStrictEqual({ name: 'LD_LIBRARY_PATH', separator: ':' });
-            // dyld ignores LD_LIBRARY_PATH entirely — this is why every macOS
-            // gate step in .github/workflows/napi.yml sets DYLD_LIBRARY_PATH.
+            // dyld ignores LD_LIBRARY_PATH entirely — why every macOS gate step in
+            // .github/workflows/napi.yml sets DYLD_LIBRARY_PATH.
             expect(libraryPathVar('darwin')).toStrictEqual({ name: 'DYLD_LIBRARY_PATH', separator: ':' });
-            // Windows has no dedicated variable; LoadLibrary searches PATH.
+            // Windows has no dedicated variable; `LoadLibrary` searches PATH.
             expect(libraryPathVar('win32')).toStrictEqual({ name: 'PATH', separator: ';' });
         });
     });
@@ -398,12 +374,11 @@ export default async () => {
             { name: '@gjsify/http2-native', prebuildsDir: '/p/http2/prebuilds/X' },
         ];
 
-        // The HOST's GI libdirs are a third injected fact, for the same reason
-        // `platform` and `libc` are: the real derivation probes the running
-        // filesystem, so leaving it live would make the darwin rows below answer
-        // differently on a Linux CI box, a Mac, and a Mac without GTK. Its own
-        // branches are covered in `system-gi.spec.ts`; what these rows pin is what
-        // `buildNativeEnv` DOES with the answer.
+        // The HOST's GI libdirs are a third injected fact: the real derivation
+        // probes the running filesystem, so leaving it live would make the darwin
+        // rows below answer differently on a Linux CI box, a Mac, and a Mac
+        // without GTK. Its own branches live in `system-gi.spec.ts`; these rows
+        // pin what `buildNativeEnv` DOES with the answer.
         const noSystemGi = () => [];
         const brewX64 = () => ['/usr/local/lib'];
 
@@ -421,8 +396,8 @@ export default async () => {
         await it('emits DYLD_LIBRARY_PATH — and no LD_LIBRARY_PATH — on darwin', async () => {
             const env = buildNativeEnv(pkgs, { platform: 'darwin', env: {}, systemGiDirs: noSystemGi });
             expect(env.DYLD_LIBRARY_PATH).toBe('/p/tls/prebuilds/X:/p/http2/prebuilds/X');
-            // A dead LD_LIBRARY_PATH is exactly what shipped before: emitted,
-            // ignored by dyld, and the prebuild never loaded.
+            // A dead LD_LIBRARY_PATH once shipped here: emitted, ignored by dyld,
+            // prebuild never loaded.
             expect(env.LD_LIBRARY_PATH).toBeUndefined();
         });
 
@@ -438,9 +413,9 @@ export default async () => {
         });
 
         await it('reuses the host’s own PATH casing on win32', async () => {
-            // A stock Windows env block spells it `Path`. A plain JS object is
-            // case-sensitive, so writing `PATH` alongside it would hand a child
-            // process two competing entries.
+            // A stock Windows env block spells it `Path`, and a plain JS object is
+            // case-sensitive — writing `PATH` alongside it hands a child process
+            // two competing entries.
             const env = buildNativeEnv(pkgs, {
                 platform: 'win32',
                 env: { Path: 'C:\\Windows' },
@@ -460,44 +435,36 @@ export default async () => {
             expect(env.GI_TYPELIB_PATH).toBe('/p/tls/prebuilds/X');
         });
 
-        // -------------------------------------------------------------------
-        // The host's own GI libdirs (darwin only)
-        // -------------------------------------------------------------------
-        //
-        // Measured on the macOS 15.7.8 x86_64 VM: bare
-        // `gjs -c "imports.gi.Gtk; Gtk.init()"` — no gjsify in the process at all
-        // — dies in `g_module_open('libgtk-4.1.dylib')` because Homebrew's `gjs`
-        // has an rpath into GLIB's keg only and dyld's default fallback path holds
-        // neither `/usr/local/lib` nor `/opt/homebrew/lib`. So `gjsify showcase
-        // <anything GTK> --runtime gjs` was broken on macOS while `--runtime node`
-        // worked on the same host, because node-gi already repaired it for Node
-        // and nothing did for gjs. Full trace in `utils/system-gi.ts`.
+        // The host's own GI libdirs (darwin only). Measured on the macOS 15.7.8
+        // x86_64 VM: bare `gjs -c "imports.gi.Gtk; Gtk.init()"` dies in
+        // `g_module_open('libgtk-4.1.dylib')` because Homebrew's `gjs` has an
+        // rpath into GLib's keg only and dyld's default fallback path holds
+        // neither `/usr/local/lib` nor `/opt/homebrew/lib` — so GTK showcases were
+        // broken under `--runtime gjs` and fine under `--runtime node`, which
+        // node-gi had already repaired. Full trace in `utils/system-gi.ts`.
 
         await it('puts the host GI libdirs on DYLD_FALLBACK_LIBRARY_PATH on darwin', async () => {
             const env = buildNativeEnv(pkgs, { platform: 'darwin', env: {}, systemGiDirs: brewX64 });
-            // `/usr/lib` is APPENDED, not decoration: setting the variable REPLACES
-            // dyld's own default fallback list, so emitting only our dir would
-            // silently remove /usr/lib from the search.
+            // `/usr/lib` is APPENDED because setting the variable REPLACES dyld's
+            // own default fallback list — emitting only our dir would silently
+            // remove /usr/lib from the search.
             expect(env.DYLD_FALLBACK_LIBRARY_PATH).toBe('/usr/local/lib:/usr/lib');
         });
 
         await it('keeps DYLD_LIBRARY_PATH carrying ONLY the prebuild dirs', async () => {
             // The override variable wins by LEAF for every dylib in the process,
-            // including ones the host resolved correctly. A system libdir there
-            // would shadow the very libraries a prebuild links against — which is
-            // why the two variables have different jobs and the system dirs are
-            // never mixed into this one.
+            // including ones the host resolved correctly, so a system libdir here
+            // would shadow the very libraries a prebuild links against.
             const env = buildNativeEnv(pkgs, { platform: 'darwin', env: {}, systemGiDirs: brewX64 });
             expect(env.DYLD_LIBRARY_PATH).toBe('/p/tls/prebuilds/X:/p/http2/prebuilds/X');
-            // And GI finds the host's typelibs on its own search path already —
-            // only the loader was blind, so the typelib variable is untouched.
+            // GI finds the host's typelibs on its own search path already — only
+            // the loader was blind, so the typelib variable is untouched.
             expect(env.GI_TYPELIB_PATH).toBe('/p/tls/prebuilds/X:/p/http2/prebuilds/X');
         });
 
         await it('PREPENDS to an existing DYLD_FALLBACK_LIBRARY_PATH rather than replacing it', async () => {
-            // A CI job or launcher that already exported the variable must not lose
-            // it — and its entries must stay BEHIND ours, so a host that pointed at
-            // a specific stack does not out-rank the prefix we just verified.
+            // An inherited value must survive, and stay BEHIND ours so a host that
+            // pointed at a specific stack does not out-rank our prefix.
             const env = buildNativeEnv(pkgs, {
                 platform: 'darwin',
                 env: { DYLD_FALLBACK_LIBRARY_PATH: '/opt/ci/lib:/usr/lib' },
@@ -509,10 +476,9 @@ export default async () => {
         });
 
         await it('emits it with NO native packages at all — the gap is the host loader', async () => {
-            // The defect has nothing to do with gjsify prebuilds: a plain
-            // `gjsify run script.gjs.js` that touches GTK hits it too. If this row
-            // ever needs `packages` to be non-empty, the fix has been narrowed to
-            // the wrong thing.
+            // The defect has nothing to do with gjsify prebuilds — a plain
+            // `gjsify run script.gjs.js` touching GTK hits it too. If this row ever
+            // needs `packages` non-empty, the fix has been narrowed too far.
             const env = buildNativeEnv([], { platform: 'darwin', env: {}, systemGiDirs: brewX64 });
             expect(env.DYLD_FALLBACK_LIBRARY_PATH).toBe('/usr/local/lib:/usr/lib');
         });
@@ -520,8 +486,9 @@ export default async () => {
         await it('leaves the variable ALONE off darwin', async () => {
             // `systemGiLibraryDirs()` is itself `[]` on every other platform (ld.so's
             // configured cache on Linux; `LoadLibrary` re-reading PATH on Windows),
-            // so nothing here needs a second platform test. Asserted with a stub that
-            // WOULD answer, to prove the emptiness is not just the stub agreeing.
+            // so nothing here needs a second platform test. Note this row passes the
+            // EMPTY stub, so it cannot distinguish the platform gate from the stub
+            // agreeing — the row below covers the gate with the live derivation.
             for (const platform of ['linux', 'win32']) {
                 const env = buildNativeEnv(pkgs, { platform, env: {}, systemGiDirs: noSystemGi });
                 expect(env.DYLD_FALLBACK_LIBRARY_PATH).toBeUndefined();
@@ -529,18 +496,17 @@ export default async () => {
         });
 
         await it('leaves a Mac with no GI stack byte-unchanged', async () => {
-            // No bundle, no Homebrew, no MacPorts, no pkg-config: there is nothing to
-            // point at, and writing an empty variable would REPLACE dyld's default
-            // fallback list with nothing — strictly worse than not writing it.
+            // Nothing to point at, and writing an empty variable would REPLACE
+            // dyld's default fallback list with nothing — worse than not writing it.
             const env = buildNativeEnv(pkgs, { platform: 'darwin', env: {}, systemGiDirs: noSystemGi });
             expect(env.DYLD_FALLBACK_LIBRARY_PATH).toBeUndefined();
         });
 
         await it('uses the real derivation by default — no injection, no darwin, no variable', async () => {
-            // The default parameter is what production takes; the rows above would
-            // all still pass if it were wired to the stub and nothing else. This one
-            // exercises the live `systemGiLibraryDirs` and holds on any host: the
-            // function's own platform gate returns `[]` for `linux`/`win32`.
+            // The default parameter is what production takes; every row above would
+            // still pass if it were wired to a stub and nothing else. This one runs
+            // the live `systemGiLibraryDirs` and holds on any host, because its own
+            // platform gate returns `[]` for `linux`/`win32`.
             for (const platform of ['linux', 'win32']) {
                 const env = buildNativeEnv(pkgs, { platform, env: {} });
                 expect(env.DYLD_FALLBACK_LIBRARY_PATH).toBeUndefined();
@@ -551,10 +517,10 @@ export default async () => {
     await describe('detectNativePackages (foreign platform injected)', async () => {
         const root = mkdtempSync(join(tmpdir(), 'gjsify-detect-native-'));
         try {
-            // Mirrors the real tree: every bridge in the release train stages
-            // the node spelling, sab-native is Linux-only (ADR 0013), and
-            // `@gjsify/legacy-native` stands in for a tarball published before
-            // the rename — uname-style dirs, no `gjsify.platforms` at all.
+            // Mirrors the real tree: every bridge stages the node spelling,
+            // sab-native is Linux-only (ADR 0013), and `@gjsify/legacy-native`
+            // stands in for a pre-rename tarball — uname-style dirs, no
+            // `gjsify.platforms` at all.
             seedPackage(root, '@gjsify/tls-native', {
                 prebuildDirs: ['linux-x64', 'linux-arm64', 'darwin-arm64'],
                 platforms: ['linux-x64', 'linux-arm64', 'darwin-arm64'],
@@ -621,8 +587,6 @@ export default async () => {
             });
 
             await it('takes the -musl artifact on a musl host and the default build on glibc', async () => {
-                // Same tree, same walk, one injected host fact — the only way
-                // this branch runs at all, since there is no musl runner in CI.
                 seedPackage(root, '@gjsify/duallibc-native', {
                     prebuildDirs: ['linux-x64', 'linux-x64-musl'],
                     platforms: ['linux-x64', 'linux-x64-musl'],
@@ -643,12 +607,11 @@ export default async () => {
 
     await describe('detectNativePackages (per-platform companion packages)', async () => {
         // The layout a bridge SPLIT into per-platform npm packages produces: the
-        // depending package keeps the declaration and ships no binary, and
-        // `<name>-<token>` carries it. Seeded in the ISOLATED position — inside
-        // the depending package's OWN `node_modules` — because that is the case
-        // the CWD up-walk structurally cannot reach, and the reason the second
-        // pass exists at all. A hoisted layout needs no help: the up-walk lists
-        // the companion like any other package.
+        // depending package keeps the declaration and ships no binary,
+        // `<name>-<token>` carries it. Seeded in the ISOLATED position — inside the
+        // depending package's OWN `node_modules` — because that is the case the CWD
+        // up-walk structurally cannot reach, and the reason the second pass exists.
+        // A hoisted layout needs no help; the up-walk lists the companion normally.
         const root = mkdtempSync(join(tmpdir(), 'gjsify-detect-sibling-'));
         try {
             seedPackage(root, '@gjsify/split-native', { prebuildDirs: [], platforms: ['linux-x64', 'darwin-arm64'] });
@@ -673,17 +636,16 @@ export default async () => {
                 expect(found['@gjsify/split-native-linux-x64']).toBe(
                     nested('@gjsify/split-native-linux-x64', 'linux-x64'),
                 );
-                // The depending package itself contributes no directory — it has
-                // none, and inventing one would put a non-existent path on
-                // GI_TYPELIB_PATH.
+                // The depending package contributes no directory — it has none, and
+                // inventing one would put a non-existent path on GI_TYPELIB_PATH.
                 expect(found['@gjsify/split-native']).toBeUndefined();
             });
 
             await it('applies the libc preference to the companion NAME, not just the directory', async () => {
                 // The split moves the target into the package name, so the musl
-                // decision has to be made one level earlier. Getting this wrong
-                // is silent: the glibc companion resolves fine and then fails at
-                // `dlopen` on the user's Alpine box.
+                // decision happens one level earlier. Getting it wrong is silent:
+                // the glibc companion resolves fine, then fails at `dlopen` on the
+                // user's Alpine box.
                 const found = byName(detectNativePackages(root, { platform: 'linux', arch: 'x64', libc: 'musl' }));
                 expect(found['@gjsify/split-native-linux-x64-musl']).toBe(
                     nested('@gjsify/split-native-linux-x64-musl', 'linux-x64-musl'),
@@ -692,8 +654,8 @@ export default async () => {
             });
 
             await it('adds nothing for a host with no companion package', async () => {
-                // `darwin-arm64` is declared but no companion is installed —
-                // a macOS host must get a clean miss, not the linux artifact.
+                // Declared `darwin-arm64`, no companion installed — a macOS host
+                // must get a clean miss, not the linux artifact.
                 expect(detectNativePackages(root, { platform: 'darwin', arch: 'arm64' })).toStrictEqual([]);
             });
         } finally {

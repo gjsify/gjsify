@@ -1,35 +1,29 @@
 // Content-addressable tarball cache for `gjsify install`.
 //
-// Mirrors pnpm / yarn-berry's store layout: each tarball is stored once on
-// disk keyed by its SRI integrity hash (`sha512-…`). When the resolver hits
-// a node whose integrity is already cached, `fetchTarball` is skipped and
-// we read the bytes off the local filesystem instead.
+// Mirrors pnpm / yarn-berry's store layout: each tarball is stored once on disk
+// keyed by its SRI integrity hash (`sha512-…`), so a node whose integrity is
+// already cached skips `fetchTarball` and reads the bytes off local disk.
 //
-// Why this matters: a cold install on this monorepo (200+ workspaces,
-// 600+ transitive deps) spends ~20 minutes at 80% CPU. Most of that time is
-// re-downloading + re-extracting the SAME tarballs that just came down in
-// the previous run because there is no cache between runs. With this cache,
-// the second `gjsify install` on the same repo skips every tarball fetch
-// and just goes straight to extract → drops well below 1 minute in practice.
+// Measured on this monorepo (200+ workspaces, 600+ transitive deps): a cold
+// install spends ~20 minutes at 80% CPU, most of it re-downloading tarballs the
+// previous run had already fetched. With the cache the second `gjsify install`
+// goes straight to extract and drops well under a minute.
 //
-// Layout (matches the pnpm pattern so we stay forward-compatible with
-// `~/.cache/gjsify/store` if we eventually share a store across projects):
+// Layout, following the pnpm pattern:
 //
 //   $XDG_CACHE_HOME/gjsify/tarballs/v1/<hex-prefix-2>/<full-hex>.tgz
 //
-// The 2-byte prefix is a directory-sharding step so the leaf directory
-// never gets pathologically large — same pattern git's loose objects use.
-// `v1` is a layout version so we can change the file shape (e.g. add a
-// manifest sidecar) without invalidating the world.
+// The 2-byte prefix shards the directory so the leaf never gets pathologically
+// large (git's loose-object pattern). `v1` is a layout version, so the file shape
+// can change without invalidating the world.
 //
-// SRI integrity input → cache key:
+// SRI integrity → cache key, by hex-encoding the base64 digest:
 //
 //   "sha512-AbCd…=="   →  ("sha512", "ab/cdefg….tgz")
 //
-// We hex-encode the base64 SRI digest. Two integrities that produce the
-// same hex bytes share the same cache entry; that is the invariant pnpm
-// relies on too. Tarballs without an integrity hash (older registries)
-// fall through to a no-op cache and download every time.
+// Two integrities with the same hex bytes share an entry, the invariant pnpm relies
+// on too. Tarballs without an integrity hash (older registries) fall through to a
+// no-op cache and download every time.
 
 import { Buffer } from 'node:buffer';
 import { existsSync, statSync } from 'node:fs';
@@ -53,10 +47,9 @@ interface ParsedSri {
 }
 
 /**
- * Parse an SRI integrity string (`sha512-AbCd…=`) into its algorithm + hex
- * digest, or `null` for a missing / malformed value (caller falls back to a
- * fresh download). Shared by both the gjsify-store and npm-cacache path
- * derivations below — the base64→hex decode used to be inlined in each.
+ * Parse an SRI integrity string (`sha512-AbCd…=`) into its algorithm + hex digest,
+ * or `null` for a missing / malformed value (the caller falls back to a fresh
+ * download). Shared by the gjsify-store and npm-cacache path derivations below.
  */
 function parseSri(integrity: string | undefined): ParsedSri | null {
     if (!integrity) return null;
@@ -85,10 +78,9 @@ function pathFor(integrity: string | undefined): string | null {
 }
 
 /**
- * Read a cached tarball by SRI integrity. Returns the raw tarball bytes if
- * the cache has a HIT, `null` otherwise. A read failure (e.g. partial
- * write from an interrupted previous run) is treated as a MISS — the file
- * is left untouched so we don't trip a follow-up writer's atomic rename.
+ * Read a cached tarball by SRI integrity — raw bytes on a HIT, `null` otherwise. A
+ * read failure (e.g. a partial write from an interrupted run) is a MISS, and the
+ * file is left untouched so a follow-up writer's atomic rename is not tripped.
  */
 export function getCachedTarball(integrity: string | undefined): Uint8Array | null {
     const path = pathFor(integrity);
@@ -97,13 +89,11 @@ export function getCachedTarball(integrity: string | undefined): Uint8Array | nu
 }
 
 /**
- * Persist a tarball to the cache. Writes to a `<path>.tmp.<pid>` sibling
- * then atomically renames into place so concurrent installs can never
- * observe a half-written entry. No-op when:
- *   - `integrity` is missing / malformed (no cache key)
- *   - the destination already exists (idempotent — content-addressed)
- *   - the write fails (e.g. cache root is read-only) — silently degrade
- *     so a cache-volume issue doesn't break the install itself.
+ * Persist a tarball to the cache, via a `<path>.tmp.<pid>` sibling and an atomic
+ * rename so concurrent installs never observe a half-written entry. No-op when
+ * `integrity` is missing/malformed, when the destination already exists
+ * (content-addressed, so immutable), or when the write fails — a read-only cache
+ * volume must not break the install itself.
  */
 export function putCachedTarball(integrity: string | undefined, bytes: Uint8Array): void {
     const path = pathFor(integrity);
@@ -113,10 +103,7 @@ export function putCachedTarball(integrity: string | undefined, bytes: Uint8Arra
     atomicWrite(path, bytes);
 }
 
-/**
- * Best-effort cache stats for diagnostics. Returns `null` when the cache
- * root doesn't exist yet (first run).
- */
+/** The cache root, for diagnostics. Not probed — the directory may not exist yet. */
 export function cacheRootForLogging(): string {
     return cacheRoot();
 }
@@ -132,26 +119,21 @@ export function isCacheHit(integrity: string | undefined): boolean {
     }
 }
 
-// ---------------------------------------------------------------------------
 // Foreign cache interop — read npm's cacache content store.
 //
-// npm stores downloaded tarballs in a content-addressable store
-// (`cacache`) keyed by the SAME SRI integrity we key our own store on, and
-// holds the raw `.tgz` bytes verbatim. Layout (cacache `content-v2`):
+// npm keys its content-addressable store on the SAME SRI integrity as ours and
+// holds the raw `.tgz` bytes verbatim, so anyone who has run `npm install` already
+// has these tarballs on disk and reading them turns a cold `gjsify install` into a
+// near-warm one with no network round-trip. Layout (cacache `content-v2`):
 //
 //   <npm-cache>/_cacache/content-v2/<algo>/<hex[0:2]>/<hex[2:4]>/<hex[4:]>
 //
-// `<algo>` is the SRI algorithm (`sha512`), `<hex>` the hex-encoded digest —
-// identical derivation to our own `pathFor`, just a different root and no
-// `.tgz` extension. So anyone who has run `npm install` before already has
-// these tarballs on disk; reading them turns a cold `gjsify install` into a
-// near-warm one without a single network round-trip.
+// Identical derivation to our own `pathFor`, with a different root and no `.tgz`
+// extension.
 //
-// pnpm/yarn/bun stores are deliberately NOT read here: pnpm/bun store
-// *unpacked* per-file content (no tarball to hand to the extractor) and yarn
-// berry stores zip archives under its own (non-SRI) cache key — none map to a
-// tarball-by-integrity lookup the way npm's cacache does.
-// ---------------------------------------------------------------------------
+// pnpm/yarn/bun stores are deliberately NOT read: pnpm and bun store *unpacked*
+// per-file content (no tarball to hand the extractor) and yarn berry stores zips
+// under its own non-SRI key, so none map to a tarball-by-integrity lookup.
 
 /**
  * Resolve npm's `content-v2` directory, honouring `GJSIFY_NPM_CACHE`
@@ -184,11 +166,11 @@ function npmCachePathFor(integrity: string | undefined): string | null {
 }
 
 /**
- * Read a tarball from npm's cacache content store by SRI integrity. Returns
- * the raw `.tgz` bytes on a HIT, `null` on a MISS / disabled interop / read
- * failure. Like {@link getCachedTarball}, this trusts the content-addressed
- * path rather than re-hashing — the extractor surfaces any genuinely corrupt
- * tarball loudly, and cacache verified the bytes on write.
+ * Read a tarball from npm's cacache content store by SRI integrity — raw `.tgz`
+ * bytes on a HIT, `null` on a MISS, disabled interop or read failure. Like
+ * {@link getCachedTarball} it trusts the content-addressed path rather than
+ * re-hashing: cacache verified the bytes on write, and the extractor surfaces a
+ * genuinely corrupt tarball loudly.
  */
 export function getForeignCachedTarball(integrity: string | undefined): Uint8Array | null {
     const path = npmCachePathFor(integrity);

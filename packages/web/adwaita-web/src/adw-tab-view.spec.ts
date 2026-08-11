@@ -1,12 +1,9 @@
-// DOM-level behaviour tests for <adw-tab-view>. Runs in a real browser via the
-// @gjsify/adwaita-web browser test axis (the entry self-applies the compiled
-// stylesheet, so computed-style assertions are valid). Asserts page building,
-// selected↔click sync, notify/close events, and the expand-tabs / no-close
-// attributes — i.e. the DOM/CSS surface.
+// The DOM/CSS surface of <adw-tab-view>, in a real browser via the @gjsify/adwaita-web
+// test axis — the entry self-applies the compiled stylesheet, so computed-style
+// assertions are valid.
 //
-// The MODEL is asserted in `tab-view.spec.ts`, against the shared libadwaita
-// conformance vectors. Keep the split: this file is about markup and computed
-// style, that one is about behaviour both renderers must agree on.
+// Keep the split: the MODEL is asserted in `tab-view.spec.ts` against the shared
+// libadwaita conformance vectors, this file is markup and computed style only.
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { AdwTabView } from './elements/adw-tab-view.js';
@@ -65,10 +62,10 @@ export const AdwTabViewTest = async () => {
             expect(closed).toBe(1);
             // The element used to emit and remove NOTHING, so every close was
             // permanently denied; the default handler now confirms a non-pinned
-            // page (close_page_cb, adw-tab-view.c:1990-1991).
+            // page (close_page_cb).
             expect(view.querySelectorAll('.adw-tab').length).toBe(2);
             // Closing a page BEFORE the selection must not also select the tab,
-            // and must leave the selected PAGE selected (adw-tab-view.c:1864-1865).
+            // and must leave the selected PAGE selected.
             expect(view.selected).toBe(0);
             view.parentElement?.remove();
         });

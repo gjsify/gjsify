@@ -1,8 +1,8 @@
 // Adwaita symbolic-icon → native image rendering (base / unsupported platform).
 //
 // NativeScript's `Image` has no SVG decoder, so symbolic icons are rasterised per
-// platform: `icons.android.ts` draws the path data onto a `Bitmap`; an iOS variant
-// (`icons.ios.ts`) is a future hook. The gjsify NS build's `platformResolvePlugin`
+// platform: `icons.android.ts` draws the path data onto a `Bitmap`, `icons.ios.ts`
+// replays it into a `UIBezierPath`. The gjsify NS build's `platformResolvePlugin`
 // swaps this base module for the matching variant on-device. This base returns
 // `null` (off-device / unsupported), so callers fall back to no icon.
 //

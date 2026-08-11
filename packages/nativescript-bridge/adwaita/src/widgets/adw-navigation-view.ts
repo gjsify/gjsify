@@ -7,26 +7,14 @@
 // This file is only the view-tree half — grid children, `visibility`, and turning
 // stack changes into `notify()` events.
 //
-// That split is what closed the two bugs the previous copy carried: `push()` had
-// no already-in-stack guard, so `nav.push(v)` twice produced the stack `[v, v]`
-// and needed two pops to leave one page; and a dynamically-pushed page was never
-// destroyed, so it leaked and a later `push()` resurrected the old instance where
-// GTK treats it as a brand-new page. Both went unnoticed because the only test
-// asserted against a hand-written mock with different behaviour. The lift also
-// brings the half NS never had: `remove`, `pop_to_page`/`pop_to_tag`, `replace`/
-// `replace_with_tags`, `find_page`, `get_previous_page`, tags with uniqueness,
-// titles, `can-pop`, the back-button derivation, and the `pushed`/`popped`/
-// `replaced` signals.
-//
-// FIDELITY: approximated. An NS `Frame` gives real native push/pop with the
-// platform's slide animation but requires each page to be a `Page`/`Frame`-routed
-// module — too heavy for a drop-in widget and it imposes its own header chrome.
-// This instead overlays plain `View`s in a single `GridLayout`, showing the top
-// via `visibility` toggles. COMPROMISES: (1) no slide/back-swipe animation or
-// gesture (the CSS subset has no transition; a real app can wrap this in
-// `view.animate()` or use a `Frame` for gestures); (2) no automatic back button —
-// the consumer wires a button to `pop()`, using `canGoBack()` / `backButtonTooltip()`
-// for its visibility and label. The push/pop *stack semantics* are faithful.
+// FIDELITY: approximated. An NS `Frame` gives real native push/pop with the platform's
+// slide animation but requires each page to be a `Page`/`Frame`-routed module — too
+// heavy for a drop-in widget, and it imposes its own header chrome. This overlays plain
+// `View`s in one `GridLayout` and shows the top via `visibility`. COMPROMISES: (1) no
+// slide/back-swipe animation or gesture (the CSS subset has no transition; an app can
+// wrap this in `view.animate()` or use a `Frame`); (2) no automatic back button — the
+// consumer wires one to `pop()`, using `canGoBack()` / `backButtonTooltip()` for its
+// visibility and label. The push/pop STACK SEMANTICS are faithful.
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-navigation-view`.
 // Reference: refs/libadwaita/src/adw-navigation-view.c

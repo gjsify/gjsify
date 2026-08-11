@@ -1,5 +1,4 @@
 // https://github.com/stackgl/headless-gl/blob/master/src/javascript/utils.js
-// import { gl } from './native-gl.js';
 import { WebGLUniformLocation } from './webgl-uniform-location.js';
 import type { WebGLProgram } from './webgl-program.js';
 import GLib from '@girs/glib-2.0';

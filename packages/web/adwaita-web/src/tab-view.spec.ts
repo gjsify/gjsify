@@ -2,16 +2,12 @@
 // core suite and the NativeScript renderer assert against
 // (`@gjsify/adwaita-core/conformance`).
 //
-// This family is the one where the two renderers did not merely drift — they had
-// never implemented the model at all. `close-page` meant three different things
-// (libadwaita removes a non-pinned page through a two-phase confirm; this element
-// removed nothing, EVER, so every close was permanently denied; NS removed
-// immediately with no signal and refused on the last tab), out-of-range selection
-// was clamped here and ignored there, and the pinned partition, the parent-aware
-// close successor, the reorder clamps and the keyboard model existed in neither.
-// This suite is what makes the element a thin adapter over `TabViewState` instead
-// of a second implementation: the element is handed STRAIGHT to the shared vector
-// driver, so a method it re-implements fails here.
+// The element is a thin adapter over `TabViewState`, not a second implementation: it is
+// handed STRAIGHT to the shared vector driver, so a method it re-implements fails here.
+// Neither renderer had the model at all — `close-page` meant three different things,
+// out-of-range selection was clamped in one and ignored in the other, and the pinned
+// partition, the parent-aware close successor, the reorder clamps and the keyboard model
+// existed in neither.
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
@@ -38,12 +34,10 @@ interface MountedTabView {
 }
 
 /**
- * Mount an EMPTY view and record its events.
- *
- * Empty rather than markup-seeded: the vectors seed through the same
- * `seedTabViewPages` the other two suites use, which is what makes "the element
- * is the vector target" literal. The declarative path gets its own describe
- * block below.
+ * Mount an EMPTY view and record its events. Empty rather than markup-seeded: the
+ * vectors seed through the same `seedTabViewPages` the other two suites use, which is
+ * what makes "the element is the vector target" literal. The declarative path has its own
+ * describe block below.
  */
 function mountTabView(handler: 'default' | 'defer'): MountedTabView {
     const host = document.createElement('div');
@@ -126,11 +120,9 @@ export const AdwTabViewConformanceTest = async () => {
                 if (vector.closing) expect(tabViewClosing(view)).toStrictEqual([...vector.closing]);
                 if (vector.diagnostics) expect(view.diagnostics).toStrictEqual([...vector.diagnostics]);
 
-                // The DOM must agree with the model: one chip per page in model
-                // order, exactly the selected panel shown, and nothing at all
-                // when the view emptied. The old element built the bar once at
-                // connect and never touched it again, so a closed page kept its
-                // chip forever — this is the assertion that would have caught it.
+                // The DOM must agree with the model: one chip per page in model order,
+                // exactly the selected panel shown, and nothing when the view empties. A
+                // bar built once at connect keeps a closed page's chip forever.
                 expect(tabChips(view).map((tab) => tab.dataset.pageId)).toStrictEqual([...vector.order]);
                 const expectedShown = vector.order.map(() => false);
                 if (vector.selectedIndex >= 0) expectedShown[vector.selectedIndex] = true;
@@ -175,15 +167,15 @@ export const AdwTabViewConformanceTest = async () => {
             expect(view.pages[0]!.title).toBe('Renamed');
             expect(tabChips(view)[0]!.querySelector('.adw-tab-title')!.textContent).toBe('Renamed');
 
-            // `null` coerces to '' (adw-tab-view.c:3021), not to 'null'.
+            // `null` coerces to '', not to 'null'.
             page.removeAttribute('title');
             expect(view.pages[0]!.title).toBe('');
             host.remove();
         });
 
         await it('generates a distinct page id per declared page, and an explicit page-id wins', () => {
-            // An id stands in for the AdwTabPage POINTER, so two pages must never
-            // share one — a declared page without `page-id` still needs its own.
+            // An id stands in for the AdwTabPage POINTER, so two pages must never share
+            // one — a declared page without `page-id` still needs its own.
             const host = document.createElement('div');
             host.innerHTML = `<adw-tab-view>
                 <adw-tab-page title="One"></adw-tab-page>
@@ -221,15 +213,15 @@ export const AdwTabViewConformanceTest = async () => {
         });
 
         await it('IGNORES an out-of-range or unparseable index instead of clamping it', () => {
-            // The old `Number.isNaN(raw) ? 0 : Math.min(Math.max(raw, 0), max)`
-            // silently selected the last page for `99` and the first for `-1`
-            // and `oops`; libadwaita refuses all three (adw-tab-view.c:2145, :4133).
+            // A clamping `Number.isNaN(raw) ? 0 : Math.min(Math.max(raw, 0), max)` selects
+            // the last page for `99` and the first for `-1`/`oops`; libadwaita refuses all
+            // three.
             const { view, host } = mountThree();
             for (const value of ['99', '-1', 'oops']) {
                 view.setAttribute('selected', value);
                 expect(view.selectedIndex).toBe(0);
             }
-            // ...and the attribute is put back in sync rather than left lying.
+            //...and the attribute is put back in sync rather than left lying.
             view.setAttribute('selected', '1');
             expect(view.selectedIndex).toBe(1);
             expect(view.getAttribute('selected')).toBe('1');
@@ -237,8 +229,8 @@ export const AdwTabViewConformanceTest = async () => {
         });
 
         await it('notifies on a PROGRAMMATIC selection, not only on a click', () => {
-            // `view.selected = 2` used to change the visible page and fire
-            // nothing, while a tab click fired; C notifies on every path (:1854).
+            // C notifies on EVERY path: a programmatic `view.selected = 2` must notify as
+            // a tab click does.
             const { view, host } = mountThree();
             const seen: number[] = [];
             view.addEventListener('notify::selected-page', (event) =>
@@ -359,8 +351,8 @@ export const AdwTabViewConformanceTest = async () => {
 
         for (const vector of TAB_CLOSE_VISIBLE_VECTORS) {
             await it(`close visibility: ${vector.rule}`, () => {
-                // The renderer's gate IS the core predicate; asserting the table
-                // here keeps a future "simplify to `selected`" from passing.
+                // The renderer's gate IS the core predicate; the table here keeps a future
+                // "simplify to `selected`" from passing.
                 expect(
                     tabCloseVisible({
                         hovering: vector.hovering,
@@ -416,9 +408,8 @@ export const AdwTabViewConformanceTest = async () => {
         });
 
         await it('moves the roving tabindex with the selection, so inactive tabs stay reachable', () => {
-            // The old element set `tab.tabIndex = isActive ? 0 : -1` under
-            // role=tablist with NO key handler, so every inactive tab was
-            // keyboard-unreachable.
+            // `tab.tabIndex = isActive ? 0 : -1` under role=tablist needs a key handler,
+            // or every inactive tab is keyboard-unreachable.
             const { view, host } = mountFour();
             press(view, { key: 'ArrowRight' });
             expect(view.selectedId).toBe('b');

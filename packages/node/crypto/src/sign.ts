@@ -7,9 +7,7 @@ import { Hash } from './hash.js';
 import { parsePemKey, rsaKeySize } from './asn1.js';
 import { modPow, bigIntToBytes, bytesToBigInt } from './bigint-math.js';
 
-// ============================================================================
 // PKCS#1 v1.5 DigestInfo structures
-// ============================================================================
 
 /**
  * DigestInfo DER prefix bytes for each supported hash algorithm.
@@ -28,9 +26,7 @@ const DIGEST_INFO_PREFIX: Record<string, Uint8Array> = {
     ]),
 };
 
-// ============================================================================
 // Algorithm normalization
-// ============================================================================
 
 /**
  * Normalize algorithm strings like "RSA-SHA256", "SHA256", "sha256" to
@@ -48,9 +44,7 @@ function normalizeSignAlgorithm(algorithm: string): string {
     return alg;
 }
 
-// ============================================================================
 // Key extraction helpers
-// ============================================================================
 
 interface KeyInput {
     key: string;
@@ -74,9 +68,7 @@ function extractPem(key: string | Buffer | KeyInput): string {
     throw new TypeError('Invalid key argument');
 }
 
-// ============================================================================
 // Sign class
-// ============================================================================
 
 /**
  * The Sign class generates RSA PKCS#1 v1.5 signatures.
@@ -164,9 +156,7 @@ export class Sign {
     }
 }
 
-// ============================================================================
 // Verify class
-// ============================================================================
 
 /**
  * The Verify class verifies RSA PKCS#1 v1.5 signatures.
@@ -294,9 +284,7 @@ export class Verify {
     }
 }
 
-// ============================================================================
 // Factory functions
-// ============================================================================
 
 /**
  * Create and return a Sign object for the given algorithm.

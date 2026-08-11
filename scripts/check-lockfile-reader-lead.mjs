@@ -10,33 +10,22 @@
 // against this repo's `gjsify-lock.json`. That only works while the published
 // CLI can READ the lockfile format `main` uses.
 //
-// It is not a hypothetical. `LOCKFILE_VERSION` moved twice in four releases —
-// v0.26.1 wrote 2 and hard-rejected anything else (`if (parsed.lockfileVersion
-// !== LOCKFILE_VERSION) return null;`), v0.27/0.28 moved to 3, v0.29/0.30 to 4
-// — because a v2 entry carries no `os`/`cpu`/`optional` and the platform filter
-// had nothing to filter on (measured: 4935 MB → 1268 MB installed). The format
-// HAD to move. What must not happen is the writer moving first: for the whole
-// window between "main writes N+1" and "a release ships a CLI that reads N+1",
-// the documented Node-less bootstrap is dead, and it fails with a message about
-// a lockfile that plainly exists.
+// `LOCKFILE_VERSION` moved twice in four releases, so the ordering is live, not
+// hypothetical. The format may move; the WRITER must not move first — for the
+// whole window between "main writes N+1" and "a release ships a CLI that reads
+// N+1", the documented Node-less bootstrap is dead, and it fails with a message
+// about a lockfile that plainly exists. So: add N+1 to
+// `READABLE_LOCKFILE_VERSIONS`, cut a release, and only then raise
+// `LOCKFILE_VERSION`. ADR 0002 leaves this as prose; prose does not fail a PR.
 //
-// So the rule is an ORDERING, and this is the mechanism that holds it: bump
-// `READABLE_LOCKFILE_VERSIONS` to include N+1, cut a release, and only then
-// start writing N+1. ADR 0002 leaves this as prose ("the installer must be
-// same-commit"); prose does not fail a PR.
-//
-// WHY IT PARSES THE PUBLISHED TARBALL RATHER THAN TRUSTING A LEDGER
-//
-// A tracked "the last release reads {2,3,4}" file is a second copy of a fact
-// that lives in someone else's artifact, and it would be updated by the same
-// commit that breaks the property. The npm tarball is the artifact a user
-// actually gets, so it is the only honest source.
+// It parses the published tarball rather than a tracked ledger because a ledger
+// is a second copy of a fact living in someone else's artifact, updated by the
+// same commit that breaks the property.
 //
 // FAILURE POLICY, DELIBERATELY ASYMMETRIC
 //
 //   - contract unreadable (file moved, constants renamed) → HARD ERROR. A check
-//     that cannot find what it checks has stopped checking; passing would be a
-//     lie of exactly the kind this repo keeps paying for.
+//     that cannot find what it checks has stopped checking.
 //   - registry/network unreachable → WARN, exit 0. This runs on every PR with
 //     no `paths:` filter; an npm outage must not block the queue, and it cannot
 //     produce a false GREEN because the next reachable run re-checks.
@@ -63,10 +52,9 @@ const registry = value('registry') ?? 'https://registry.npmjs.org';
 const asJson = flag('json');
 
 /**
- * `{ writes, reads }` from either the TypeScript source or its `tsc` output —
- * the two constants survive compilation verbatim, so ONE parser serves both.
- * That matters: a separate parser per side could disagree about the very thing
- * being compared.
+ * `{ writes, reads }` from either the TypeScript source or its `tsc` output: the
+ * two constants survive compilation verbatim, so ONE parser serves both sides —
+ * a parser per side could disagree about the very thing being compared.
  *
  * `new Set([2, 3, LOCKFILE_VERSION])` keeps the identifier after compilation,
  * so the numeric constant is resolved first and substituted.
@@ -76,11 +64,9 @@ export function parseLockfileContract(text) {
     if (!writesMatch) return null;
     const writes = Number(writesMatch[1]);
     const readsMatch = text.match(/READABLE_LOCKFILE_VERSIONS\s*=\s*new Set\(\s*\[([^\]]*)\]/);
-    // No readable set is not an unparseable file — it is the PRE-v0.27 contract,
-    // whose reader was `if (parsed.lockfileVersion !== LOCKFILE_VERSION) return
-    // null`, i.e. exactly one accepted version. Reporting that as "cannot read
-    // the contract" would raise a tooling alarm for what is really the strictest
-    // possible answer, and the strictest answer is the one worth checking against.
+    // No readable set is not an unparseable file — it is the pre-v0.27 contract,
+    // which accepted exactly one version. Reporting that as "cannot read the
+    // contract" would raise a tooling alarm for the strictest possible answer.
     if (!readsMatch) return { writes, reads: [writes] };
     const reads = readsMatch[1]
         .split(',')

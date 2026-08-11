@@ -1,6 +1,4 @@
-// Canvas2DBridge — GTK container for HTMLCanvasElement (2D) backed by Cairo.
-// Provides a Gtk.DrawingArea subclass that handles Canvas 2D bootstrapping.
-// Pattern follows packages/dom/iframe/src/iframe-bridge.ts (IFrameBridge)
+// A Gtk.DrawingArea subclass carrying the Canvas 2D bootstrapping, Cairo-backed.
 
 import GObject from 'gi://GObject';
 import type Gdk from 'gi://Gdk?version=4.0';
@@ -8,19 +6,14 @@ import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import type Cairo from 'cairo';
 import { HTMLCanvasElement as GjsifyHTMLCanvasElement, notifyElementResize } from '@gjsify/dom-elements';
-// `_onDraw` calls `canvas.getContext('2d')`, so this widget REQUIRES the DOM
-// pillar's `'2d'` context factory to be registered. Per the framework-package
-// rule ("a framework pkg needing a global imports `@gjsify/<web-or-dom-pkg>/register`
-// explicitly") we depend on it here — in the module that needs it — rather than
-// re-registering the factory ourselves or relying on `--globals auto` happening
-// to detect `HTMLCanvasElement` in the consumer's bundle. Tree-shakes with the
-// bridge: a consumer importing only `Path2D` never pulls it.
+// `_onDraw` calls `canvas.getContext('2d')`, so the DOM pillar's `'2d'` factory must be
+// registered. Imported HERE, in the module that needs it, per the framework-package rule
+// — not re-registered locally and not left to `--globals auto` spotting
+// `HTMLCanvasElement` in the consumer's bundle. Tree-shakes with the bridge.
 import '@gjsify/dom-elements/register/canvas';
-// `@gjsify/canvas2d-core`'s root entry is headless (Cairo + PangoCairo only),
-// so its pixel interop — `getImageData` / `putImageData` / `drawImage` /
-// `createPattern` — is injected. This package already binds Gtk/Gdk, so it
-// supplies the GDK-backed implementation explicitly rather than inheriting it
-// from the DOM pillar's canvas register above. Idempotent side-effect module.
+// `@gjsify/canvas2d-core`'s root entry is headless (Cairo + PangoCairo only), so its
+// pixel interop is injected. This package already binds Gtk/Gdk, so it supplies the
+// GDK-backed implementation explicitly. Idempotent side-effect module.
 import '@gjsify/canvas2d-core/gdk';
 import { attachEventControllers } from '@gjsify/event-bridge';
 import type { CanvasRenderingContext2D } from '@gjsify/canvas2d-core';
@@ -29,33 +22,20 @@ import { Event } from '@gjsify/dom-events';
 type Canvas2DReadyCallback = (canvas: globalThis.HTMLCanvasElement, ctx: CanvasRenderingContext2D) => void;
 
 /**
- * A `Gtk.DrawingArea` subclass that handles Canvas 2D bootstrapping:
- * - Creates an `HTMLCanvasElement` + `CanvasRenderingContext2D` on first draw
- * - Blits the Canvas 2D Cairo.ImageSurface onto the DrawingArea each frame
- * - Fires `onReady()` callbacks with (canvas, ctx) once the context is available
- * - Provides `requestAnimationFrame()` backed by GTK frame clock (vsync)
- * - `installGlobals()` sets `globalThis.requestAnimationFrame` and `globalThis.performance`
+ * A `Gtk.DrawingArea` subclass that creates an `HTMLCanvasElement` +
+ * `CanvasRenderingContext2D` on first draw and blits its Cairo surface each frame.
  *
- * Usage:
+ * `installGlobals()` must run BEFORE the app code that expects the browser globals:
  * ```ts
  * const widget = new Canvas2DBridge();
- * widget.installGlobals();  // sets globalThis.requestAnimationFrame
- * widget.onReady((canvas, ctx) => {
- *     ctx.fillStyle = 'red';
- *     ctx.fillRect(0, 0, 100, 100);
- * });
+ * widget.installGlobals();
+ * widget.onReady((canvas, ctx) => { … });
  * window.set_child(widget);
  * ```
+ *
+ * No custom 'resize' signal: the one inherited from Gtk.Widget has the same shape as
+ * Gtk.GLArea's, so `widget.connect('resize', …)` is one pattern across both bridges.
  */
-// Gtk.DrawingArea inherits a 'resize' signal with signature
-// (widget: Drawable, width: int, height: int) from its ancestors (Gtk.Widget).
-// WebGLBridge uses Gtk.GLArea which has the same-shaped signal. We do
-// NOT register a custom signal — we piggyback on the inherited one so
-// consumers can use a single pattern on both widgets:
-//   widget.connect('resize', (w, width, height) => { ... })
-// In addition, _onDraw fires onResize(cb) callbacks and dispatches a DOM
-// 'resize' event on the canvas for browser-style listeners.
-
 export const Canvas2DBridge = GObject.registerClass(
     { GTypeName: 'GjsifyCanvas2DBridge' },
     class Canvas2DBridge extends Gtk.DrawingArea {
@@ -65,17 +45,15 @@ export const Canvas2DBridge = GObject.registerClass(
         _resizeCallbacks: ((w: number, h: number) => void)[] = [];
         _tickCallbackId: number | null = null;
         _frameCallback: FrameRequestCallback | null = null;
-        // Time origin in microseconds (GLib monotonic clock).
-        // Both requestAnimationFrame timestamps and performance.now() are
-        // relative to this origin, matching the browser DOMHighResTimeStamp spec.
+        // Origin for both rAF timestamps and `performance.now()`, per the browser
+        // DOMHighResTimeStamp spec.
         _timeOrigin: number = GLib.get_monotonic_time();
 
         constructor(params?: Partial<Gtk.DrawingArea.ConstructorProps>) {
             super(params);
             this.set_draw_func(this._onDraw.bind(this));
 
-            // Bridge GTK events → DOM events on the canvas element
-            // captureKeys: true prevents GTK focus traversal consuming arrow/Enter keys
+            // captureKeys: stops GTK focus traversal from consuming arrow/Enter keys.
             attachEventControllers(this, () => this._canvas, { captureKeys: true });
 
             this.connect('unrealize', () => {
@@ -93,16 +71,13 @@ export const Canvas2DBridge = GObject.registerClass(
 
         /** @internal Draw function called by GTK. Blits the Cairo surface to screen. */
         _onDraw(_area: Gtk.DrawingArea, cr: Cairo.Context, width: number, height: number): void {
-            // Lazy init: create canvas + 2D context on first draw.
-            // We do NOT sync dimensions after onReady fires: ready callbacks may set their
-            // own canvas dimensions (e.g. a static render at a fixed size). Syncing here
-            // would clear the surface they just drew into.
+            // Dimensions are NOT synced once onReady has fired: a ready callback may have
+            // set its own canvas size for a static render, and syncing would clear the
+            // surface it just drew into.
             if (!this._canvas) {
                 this._canvas = new GjsifyHTMLCanvasElement();
                 this._canvas.width = width;
                 this._canvas.height = height;
-                // The `@gjsify/dom-elements/register/canvas` import at the top of this
-                // module registers the '2d' factory, so getContext('2d') works.
                 this._ctx = this._canvas.getContext('2d') as unknown as CanvasRenderingContext2D;
                 if (this._ctx) {
                     for (const cb of this._readyCallbacks) {
@@ -111,16 +86,10 @@ export const Canvas2DBridge = GObject.registerClass(
                     this._readyCallbacks = [];
                 }
             } else if (this._canvas.width !== width || this._canvas.height !== height) {
-                // Subsequent draw: GTK widget was resized — sync canvas and notify listeners.
-                // NOTE: Gtk.DrawingArea itself emits the 'resize' GObject signal
-                // (inherited) when the allocation changes, so consumers can use
-                // widget.connect('resize', ...) without us emitting it here.
-                // We additionally dispatch a DOM 'resize' event on the canvas,
-                // notify any ResizeObserver subscribers (on the canvas or any
-                // ancestor — see notifyElementResize for why the ancestor walk
-                // matters for Excalibur.js's FillContainer mode), and fire
-                // onResize() callbacks for cross-widget API parity with
-                // WebGLBridge.
+                // The widget was resized. Gtk.DrawingArea already emits the inherited
+                // 'resize' signal itself; the DOM event, the ResizeObserver notification
+                // (ancestor walk included, for Excalibur's FillContainer mode) and the
+                // onResize callbacks are what this adds.
                 this._canvas.width = width;
                 this._canvas.height = height;
                 this._canvas.dispatchEvent(new Event('resize'));
@@ -130,7 +99,6 @@ export const Canvas2DBridge = GObject.registerClass(
                 }
             }
 
-            // Blit the Canvas 2D's Cairo.ImageSurface onto the DrawingArea
             if (this._ctx) {
                 const surface = this._ctx._getSurface();
                 cr.setSourceSurface(surface, 0, 0);
@@ -143,15 +111,12 @@ export const Canvas2DBridge = GObject.registerClass(
             return this._canvas as unknown as globalThis.HTMLCanvasElement | null;
         }
 
-        /** Get the 2D rendering context. Available after the first draw. */
+        /** The 2D rendering context; available after the first draw. */
         getContext(_id: '2d'): CanvasRenderingContext2D | null {
             return this._ctx;
         }
 
-        /**
-         * Register a callback to be invoked once the Canvas 2D context is ready.
-         * If the context is already available, the callback fires synchronously.
-         */
+        /** Runs `cb` once the 2D context is ready — synchronously if it already is. */
         onReady(cb: Canvas2DReadyCallback): void {
             if (this._canvas && this._ctx) {
                 cb(this._canvas as unknown as globalThis.HTMLCanvasElement, this._ctx);
@@ -161,34 +126,30 @@ export const Canvas2DBridge = GObject.registerClass(
         }
 
         /**
-         * Register a callback invoked whenever the GTK widget is resized.
-         * Canvas dimensions are already updated when the callback fires.
-         * Call `queue_draw()` after re-rendering to push the new surface to screen.
+         * Runs `cb` on every GTK resize, with the canvas dimensions already updated. Call
+         * `queue_draw()` after re-rendering to push the new surface to screen.
          */
         onResize(cb: (width: number, height: number) => void): void {
             this._resizeCallbacks.push(cb);
         }
 
         /**
-         * Schedules a single animation frame callback, matching the browser `requestAnimationFrame` API.
-         * Backed by GTK frame clock (vsync-synced, typically ~60 FPS).
-         * Returns 0 (handle — cancel not yet implemented).
+         * Browser `requestAnimationFrame`, driven by the vsync-synced GTK frame clock.
+         * Always returns 0: there is no `cancelAnimationFrame` here to hand a handle to.
          */
         requestAnimationFrame(cb: FrameRequestCallback): number {
             this._frameCallback = cb;
             if (this._tickCallbackId === null) {
                 this._tickCallbackId = this.add_tick_callback((_widget: Gtk.Widget, frameClock: Gdk.FrameClock) => {
                     this._tickCallbackId = null;
-                    // DOMHighResTimeStamp: ms since time origin, matching performance.now()
                     const time = (frameClock.get_frame_time() - this._timeOrigin) / 1000;
                     this._frameCallback?.(time);
                     this.queue_draw();
                     return GLib.SOURCE_REMOVE;
                 });
             }
-            // Ensure GTK schedules a new frame so the tick callback fires.
-            // Without this, requestAnimationFrame called during the paint phase
-            // (e.g. from onReady) may not trigger the frame clock to tick again.
+            // Without this, a rAF issued during the paint phase (e.g. from onReady) may
+            // never make the frame clock tick again.
             this.queue_draw();
             return 0;
         }
@@ -205,9 +166,8 @@ export const Canvas2DBridge = GObject.registerClass(
             const g = globalThis as unknown as _RafGlobals;
 
             g.requestAnimationFrame = (cb: FrameRequestCallback) => this.requestAnimationFrame(cb);
-            // Install performance.now() on the same time origin as rAF timestamps.
-            // Always override to ensure consistency — native GJS performance.now()
-            // may use a different time origin than the frame clock.
+            // Always overridden: GJS's own `performance.now()` may sit on a different time
+            // origin than the frame clock, and rAF timestamps must be comparable to it.
             const timeOrigin = this._timeOrigin;
             g.performance = {
                 now: () => (GLib.get_monotonic_time() - timeOrigin) / 1000,
@@ -217,5 +177,4 @@ export const Canvas2DBridge = GObject.registerClass(
     },
 );
 
-// Export the instance type so callers can type-annotate their Canvas2DBridge variables
 export type Canvas2DBridge = InstanceType<typeof Canvas2DBridge>;

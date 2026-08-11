@@ -1,16 +1,9 @@
 // Adwaita avatar derivation — headless.
 //
-// `Adw.Avatar` derives two things from the person's name, and both are pure
-// string functions with no rendering in them: the INITIALS shown in the circle
-// and the COLOUR the circle is painted in. Both are ported here from the C
-// source so every renderer produces the same avatar for the same name (ADR 0004).
-//
-// Both were previously duplicated in `@gjsify/adwaita-web` and
-// `@gjsify/adwaita-nativescript`, and the copies had already drifted: the web
-// copy returned TWO letters for a single-word name (`"Ada"` → `"AD"`) where
-// libadwaita and the NS copy return one (`"A"`). That is exactly the divergence
-// class this package exists to remove — see `conformance/avatar.ts` for the
-// vectors both renderers are now held to.
+// `Adw.Avatar` derives two things from the person's name, both pure string functions
+// with no rendering in them: the INITIALS shown in the circle and the COLOUR the circle
+// is painted in. Ported from the C so every renderer produces the same avatar for the
+// same name (ADR 0004); `conformance/avatar.ts` holds the vectors both are held to.
 //
 // Reference: refs/libadwaita/src/adw-avatar.c
 //   (`extract_initials_from_text`, `set_class_color`, NUMBER_OF_COLORS)
@@ -85,11 +78,10 @@ function* utf8Bytes(text: string): Generator<number> {
 /**
  * GLib's `g_str_hash` — the DJB2 variant `h = h * 33 + c`, as `guint32`.
  *
- * Two details decide whether the avatar colour matches GTK, and both were wrong
- * in the renderer copies this replaces: `c` is a **`signed char` of the UTF-8
- * encoding**, not a UTF-16 code unit, so bytes ≥ 0x80 contribute NEGATIVE values
- * (`"Jörg Schröder"` picked colour 5 instead of 13); and the C loop stops at the
- * first NUL byte, so an embedded `\0` truncates the input.
+ * Two details decide whether the avatar colour matches GTK: `c` is a **`signed char` of
+ * the UTF-8 encoding**, not a UTF-16 code unit, so bytes ≥ 0x80 contribute NEGATIVE
+ * values; and the C loop stops at the first NUL byte, so an embedded `\0` truncates the
+ * input.
  */
 export function gStrHash(text: string): number {
     let h = 5381;
@@ -101,17 +93,15 @@ export function gStrHash(text: string): number {
 }
 
 /**
- * The initials `Adw.Avatar` shows for `text`: the first character, plus the
- * character following the LAST space if there is one.
+ * The initials `Adw.Avatar` shows for `text`: the first character, plus the character
+ * following the LAST space if there is one.
  *
- * Mirrors `extract_initials_from_text` step for step — upcase, then strip, then
- * NFC-normalise, then take code points (never UTF-16 units, so an astral first
- * letter survives). Only a literal ASCII space separates the two initials, so
- * `"Ada\tLovelace"` yields `"A"`, exactly as GTK does.
+ * Mirrors `extract_initials_from_text` step for step — upcase, strip, NFC-normalise,
+ * then take code points (never UTF-16 units, so an astral first letter survives). Only a
+ * literal ASCII space separates the two initials, so `"Ada\tLovelace"` yields `"A"`.
  *
- * Returns `''` for a blank name. libadwaita instead emits a one-NUL-byte label
- * there, because its caller only guards the RAW text against being empty; an
- * empty string is the sane rendering of the same "no initials" state.
+ * Returns `''` for a blank name, where libadwaita emits a one-NUL-byte label because its
+ * caller only guards the RAW text against being empty.
  */
 export function avatarInitials(text: string): string {
     const normalized = gStrStrip((text ?? '').toUpperCase()).normalize('NFC');
@@ -127,10 +117,8 @@ export function avatarInitials(text: string): string {
 }
 
 /**
- * The leading code point of `text` as a string, or `''` when empty.
- *
- * `charAt(0)` would return half of a surrogate pair — `g_utf8_get_char` reads a
- * whole character, so an astral first letter must survive intact.
+ * The leading code point of `text` as a string, or `''` when empty. `charAt(0)` would
+ * return half of a surrogate pair, where `g_utf8_get_char` reads a whole character.
  */
 function firstCodePoint(text: string): string {
     const cp = text.codePointAt(0);
@@ -141,10 +129,9 @@ function firstCodePoint(text: string): string {
  * The 1-based colour class (`color1`…`color14`) `Adw.Avatar` assigns to `text`,
  * i.e. `set_class_color`'s `(g_str_hash (text) % NUMBER_OF_COLORS) + 1`.
  *
- * `null` for a blank name: libadwaita picks a RANDOM class there, so no value is
- * derivable from the name. A renderer that wants that behaviour calls
- * {@link randomAvatarColorClass}; one that paints nothing without initials — as
- * both current renderers do — can ignore the `null`.
+ * `null` for a blank name: libadwaita picks a RANDOM class there, so no value is derivable
+ * from the name. {@link randomAvatarColorClass} is that behaviour; a renderer that paints
+ * nothing without initials can ignore the `null`.
  */
 export function avatarColorClass(text: string): number | null {
     if (!text) return null;
@@ -175,13 +162,12 @@ export function avatarColor(text: string): AdwAvatarColor {
 export type AdwAvatarMode = 'image' | 'initials' | 'icon';
 
 /**
- * `update_visibility` (adw-avatar.c:117): a custom image wins outright,
- * otherwise initials show when they were asked for and the name is non-empty,
- * otherwise the fallback icon.
+ * `update_visibility`: a custom image wins outright, otherwise initials show when they
+ * were asked for and the name is non-empty, otherwise the fallback icon.
  *
- * The gate is the length of the TEXT, not of the derived initials — a
- * whitespace-only name is in `'initials'` mode with a blank label, where a
- * renderer keying on the initials would fall back to the icon instead.
+ * The gate is the length of the TEXT, not of the derived initials — a whitespace-only name
+ * is in `'initials'` mode with a blank label, where a renderer keying on the initials
+ * would fall back to the icon instead.
  */
 export function avatarMode(input: { hasCustomImage: boolean; showInitials: boolean; text: string }): AdwAvatarMode {
     if (input.hasCustomImage) return 'image';
@@ -190,14 +176,13 @@ export function avatarMode(input: { hasCustomImage: boolean; showInitials: boole
 
 /**
  * The largest font size that still fits the initials inside the circle
- * (`update_font_size`, adw-avatar.c:221-227): the biggest square inscribed in
- * the circle, `size / 1.4142`, less a size-proportional padding
- * `max(size * 0.4 - 5, 0)`.
+ * (`update_font_size`): the biggest square inscribed in the circle, `size / 1.4142`, less
+ * a size-proportional padding `max(size * 0.4 - 5, 0)`.
  *
- * Monotonically increasing in `size`. A renderer that cannot measure text can
- * use this alone and stay inside libadwaita's bound — which the browser
- * renderer's old `size * (size < 32 ? 0.5 : 0.4)` did not: at size 31 it asked
- * for 15.5px against a 14.5px cap, then DROPPED to 12.8px at size 32.
+ * Monotonically increasing in `size`, which a breakpoint-style approximation
+ * (`size * (size < 32 ? 0.5 : 0.4)`) is not — that one both exceeds the cap and DROPS as
+ * the avatar grows. A renderer that cannot measure text can use this alone and stay
+ * inside libadwaita's bound.
  */
 export function avatarMaxFontSize(size: number): number {
     const inscribedSquare = size / 1.4142;
@@ -209,12 +194,11 @@ export function avatarMaxFontSize(size: number): number {
  * The font size `Adw.Avatar` gives the initials label, given the label's
  * measured box: `height * (max / width)`, clamped to `[0, max]`.
  *
- * Text measurement is the one genuinely renderer-specific input, so it is
- * injected — the same seam style as `ToastScheduler`. Only the ASPECT RATIO of
- * the measurement matters (the formula scales it against the cap), so a renderer
- * may measure at any font size it likes, exactly as Pango's reset-then-measure
- * does. A non-positive width means "not laid out yet"; the cap is then the only
- * defensible answer.
+ * Text measurement is the one genuinely renderer-specific input, so it is injected (the
+ * `ToastScheduler` seam style). Only the ASPECT RATIO matters — the formula scales it
+ * against the cap — so a renderer may measure at any font size it likes, as Pango's
+ * reset-then-measure does. A non-positive width means "not laid out yet", and the cap is
+ * then the only defensible answer.
  */
 export function avatarFontSize(size: number, measured: { width: number; height: number }): number {
     const max = avatarMaxFontSize(size);

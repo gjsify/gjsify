@@ -10,7 +10,6 @@ import { Buffer } from 'node:buffer';
 
 export default async () => {
     await describe('net', async () => {
-        // ==================== isIP comprehensive tests ====================
         // Ported from refs/node-test/parallel/test-net-isip.js
         await describe('isIP', async () => {
             await it('should return 4 for valid IPv4 addresses', async () => {
@@ -136,7 +135,6 @@ export default async () => {
             });
         });
 
-        // ==================== Module exports ====================
         await describe('exports', async () => {
             await it('should export isIP, isIPv4, isIPv6', async () => {
                 expect(typeof isIP).toBe('function');
@@ -170,7 +168,6 @@ export default async () => {
             });
         });
 
-        // ==================== Socket (unit tests) ====================
         await describe('Socket', async () => {
             await it('should be constructable', async () => {
                 const socket = new Socket();
@@ -247,7 +244,6 @@ export default async () => {
             });
         });
 
-        // ==================== Server (unit tests) ====================
         await describe('Server', async () => {
             await it('should be constructable', async () => {
                 const server = new Server();
@@ -306,7 +302,6 @@ export default async () => {
             });
         });
 
-        // ==================== TCP connection tests ====================
         await describe('TCP connection', async () => {
             await it('should listen and connect', async () => {
                 const server = createServer((socket) => {
@@ -863,7 +858,6 @@ export default async () => {
                 });
             });
 
-            // ==================== TCP error handling ====================
             // Ported from refs/node-test/parallel/test-net-connect-error.js
             // Original: MIT license, Node.js contributors
 
@@ -1021,8 +1015,6 @@ export default async () => {
             });
         });
 
-        // ==================== Socket additional properties (cross-platform) ====================
-
         await describe('Socket additional properties', async () => {
             await it('should have ref/unref methods', async () => {
                 const socket = new Socket();
@@ -1061,8 +1053,6 @@ export default async () => {
                 expect(socket.readyState).toBeDefined();
             });
         });
-
-        // ==================== Server additional properties (cross-platform) ====================
 
         await describe('Server additional properties', async () => {
             await it('should have ref/unref methods', async () => {

@@ -1,13 +1,11 @@
 import { defineNativescriptConfig } from '@gjsify/nativescript-vite';
 
-// Whole Vite config for the NativeScript build. `defineNativescriptConfig`
-// composes @nativescript/vite, fixes the two constructs Vite 8 / Rolldown
-// reject, and layers gjsify's NativeScript transforms.
+// `defineNativescriptConfig` composes @nativescript/vite, layers gjsify's NativeScript transforms
+// and — on the 2.x line this showcase pins — fixes the two constructs Rolldown rejects.
 //
-// The second argument is merged in last: @nativescript/canvas-polyfill
-// `require()`s @nativescript/audio-context / @nativescript/canvas-media inside a
-// try/catch; a canvas/WebGL-only app like this teapot never executes them, so
-// mark them external to keep them out of the bundle.
+// The second argument merges in last. @nativescript/canvas-polyfill `require()`s
+// @nativescript/audio-context and @nativescript/canvas-media inside a try/catch, which a
+// canvas/WebGL-only app never executes, so they are external and stay out of the bundle.
 export default defineNativescriptConfig(
     {},
     {

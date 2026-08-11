@@ -1,15 +1,11 @@
-// <adw-combo-row> — Row with a title/subtitle and a dropdown select.
-// Attributes: title, subtitle, items (JSON string[]), selected (index number)
-// Events: notify::selected (CustomEvent, mirrors GJS GObject signal naming)
-// The native <select> is stretched invisibly over the row so clicking anywhere opens it.
+// <adw-combo-row> — row with a title/subtitle and a dropdown select. `items` is a JSON
+// `string[]`, `selected` an index, and the native <select> is stretched invisibly over the
+// row so clicking anywhere opens it.
 //
-// The SELECTION state machine (the options list, the two-way index↔value mapping,
-// the empty/out-of-range guards and the programmatic-vs-interactive notify split)
-// is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as {@link ComboState};
-// this element composes it and keeps only the DOM render half — the <select>, the
-// inline value label and the `notify::selected` event.
-// `@gjsify/adwaita-nativescript` composes the same state machine, so both ports
-// share one behaviour.
+// The SELECTION state machine (the options list, the two-way index↔value mapping, the
+// empty/out-of-range guards and the programmatic-vs-interactive notify split) is HEADLESS
+// and lives in `@gjsify/adwaita-core` (ADR 0004) as {@link ComboState}; this element keeps
+// only the DOM half — the <select>, the inline value label and `notify::selected`.
 //
 // Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
 // Copyright (c) 2025 csm. MIT License.
@@ -45,10 +41,9 @@ export class AdwComboRow extends HTMLElement {
         this._initialized = true;
 
         const items: string[] = JSON.parse(this.getAttribute('items') || '[]');
-        // Seed the headless state BEFORE subscribing, so building the initial DOM
-        // below is not driven by a change notification. The string→descriptor
-        // mapping is core's: `<adw-drop-down>` had its own, richer copy, so the
-        // two selectors accepted different option vocabularies.
+        // Seed the headless state BEFORE subscribing, so building the initial DOM below is
+        // not driven by a change notification. The string→descriptor mapping is core's, so
+        // this row and `<adw-drop-down>` accept one option vocabulary.
         this._state.setOptions(normalizeComboOptions(items));
         this._state.setSelectedIndex(parseInt(this.getAttribute('selected') || '0', 10));
         const selectedIdx = this._state.selectedIndex;
@@ -61,12 +56,10 @@ export class AdwComboRow extends HTMLElement {
         this._subtitleEl.className = 'adw-row-subtitle';
         text.append(this._titleEl, this._subtitleEl);
 
-        // Visible selected value display
         this._valueEl = document.createElement('span');
         this._valueEl.className = 'adw-row-value';
         this._valueEl.textContent = this._state.selectedLabel;
 
-        // Hidden select overlaying the entire row
         const select = document.createElement('select');
         items.forEach((item, i) => {
             const option = document.createElement('option');
@@ -118,13 +111,13 @@ export class AdwComboRow extends HTMLElement {
     }
 
     /**
-     * `model_changed` (adw-combo-row.c:187-195) — one option or none is not a
-     * choice, so the arrow goes and the row stops being activatable.
+     * `model_changed`: one option or none is not a choice, so the arrow goes and the row
+     * stops being activatable.
      *
-     * Both halves have to be expressed: `data-presents-chooser` gates the
-     * `.adw-row-value::after` mask in the stylesheet, and DISABLING the overlaid
-     * `<select>` is what makes the row inert — hiding the arrow alone would leave
-     * a row that still opens a one-entry popup on click.
+     * Both halves have to be expressed — `data-presents-chooser` gates the
+     * `.adw-row-value::after` mask in the stylesheet, and DISABLING the overlaid `<select>`
+     * is what makes the row inert. Hiding the arrow alone leaves a row that still opens a
+     * one-entry popup on click.
      */
     private _syncChooser() {
         const presents = this._state.presentsChooser;
@@ -133,8 +126,7 @@ export class AdwComboRow extends HTMLElement {
     }
 
     private _renderText() {
-        // The `string_is_not_empty` label rule, from core — this block was one of
-        // six hand-rolled copies, all of which omitted the TITLE half.
+        // The `string_is_not_empty` label rule, from core — it hides the TITLE too.
         const labels = deriveRowLabels({
             title: this.getAttribute('title'),
             subtitle: this.getAttribute('subtitle'),

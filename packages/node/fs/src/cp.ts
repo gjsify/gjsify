@@ -187,8 +187,6 @@ function cpSyncInternal(srcStr: string, destStr: string, opts: CpSyncOptions | C
     }
 }
 
-// ─── Public API ──────────────────────────────────────────────────────────────
-
 export function cpSync(src: PathLike, dest: PathLike, options?: CpSyncOptions): void {
     const srcStr = normalizePath(src);
     const destStr = normalizePath(dest);
@@ -271,8 +269,6 @@ export function cp(
         }
     });
 }
-
-// ─── promises.cp ─────────────────────────────────────────────────────────────
 
 async function cpPromisesDir(srcStr: string, destStr: string, opts: CpOptions): Promise<void> {
     const sep = srcStr.endsWith('/') ? '' : '/';

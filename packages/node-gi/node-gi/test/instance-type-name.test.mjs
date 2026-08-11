@@ -1,22 +1,15 @@
 // SPDX-License-Identifier: MIT
-// @gjsify/node-gi — the wrapper exposes an instance's concrete RUNTIME GType name.
+// @gjsify/node-gi — the instance getter `$typeName` reports the concrete RUNTIME GType name.
 //
-// node-gi hands JS a GENERIC wrapper for a GObject handle it gets back (it does
-// NOT downcast the wrapper to the instance's runtime GType), so the wrapper's
-// `constructor` is the plain proxy target's — `constructor.$gtype.name` is the
-// STATIC declared type, not the runtime one. GJS, by contrast, wraps a returned
-// GObject in its concrete class, so `constructor.$gtype.name` there IS the runtime
-// type. The L1 wrapper therefore surfaces the true runtime GType name on the
-// instance getter `$typeName` (g_type_name(G_OBJECT_TYPE(obj)) via the native
-// getTypeName), so a portable consumer (`@gjsify/devtools`' widget-tree DumpTree)
-// can read the concrete type on BOTH runtimes.
+// node-gi hands back a GENERIC wrapper for a returned GObject (no downcast to its runtime
+// GType), so `constructor.$gtype.name` is the STATIC declared type; GJS wraps a returned
+// GObject in its concrete class, so there the same expression IS the runtime type.
+// `$typeName` (g_type_name(G_OBJECT_TYPE(obj)) via the native getTypeName) closes that
+// divergence for portable consumers such as `@gjsify/devtools`' widget-tree DumpTree; the
+// asserted values are byte-equal to what `gjs -m` reports via `constructor.$gtype.name`.
+// Headless (GObject/Gio only, no Gtk.init) — runs in the fast `npm test` leg.
 //
-// Headless: only GObject/Gio types are constructed (no display / no Gtk.init), so
-// this runs in the fast `npm test` leg. The asserted values are byte-equal to what
-// `gjs -m` reports via `instance.constructor.$gtype.name`.
-//
-// Reference: refs/gjs gi/object.cpp (GJS wraps a returned GObject in its concrete
-// GType's class). GObject contributors, MIT/LGPLv2+.
+// Reference: refs/gjs gi/object.cpp. GObject contributors, MIT/LGPLv2+.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -27,15 +20,12 @@ const Gio = requireGi('Gio', '2.0');
 
 test('$typeName is the concrete runtime GType name of an introspected instance', () => {
     const action = new Gio.SimpleAction({ name: 'greet', enabled: true });
-    // Byte-equal to gjs `action.constructor.$gtype.name`.
     assert.equal(action.$typeName, 'GSimpleAction');
 });
 
 test('$typeName reports the RUNTIME type even for a generically-wrapped handle', () => {
-    // GObject.Object.new(gtype, props) constructs by GType and hands back a GENERIC
-    // wrapper (no concrete-class prototype) — exactly the DumpTree scenario where a
-    // widget arrives via get_first_child / get_item, un-downcast. The runtime type
-    // must still be concrete, not the generic 'GObject'.
+    // GObject.Object.new(gtype, props) constructs by GType and hands back a wrapper with no
+    // concrete-class prototype — the DumpTree case, a widget arriving via get_first_child.
     const made = GObject.Object.new(Gio.SimpleAction.$gtype, { name: 'made' });
     assert.equal(made.$typeName, 'GSimpleAction');
     assert.notEqual(made.$typeName, 'GObject');
@@ -49,16 +39,14 @@ test('$typeName is the registered GTypeName of a registerClass subclass instance
     const inst = new Sub({ name: 'x' });
     assert.equal(inst.$typeName, 'NodeGiTypeNameSub');
 
-    // The bug this fixes: a GENERICALLY re-wrapped instance of the subclass (as if
-    // returned from a list / signal) still reports the concrete registered type,
-    // whereas `constructor.$gtype.name` on the generic wrapper cannot.
+    // The bug: a generically re-wrapped subclass instance (as if returned from a list or
+    // signal) must still report the registered type, which `constructor.$gtype.name` cannot.
     const generic = GObject.Object.new(Sub.$gtype, { name: 'y' });
     assert.equal(generic.$typeName, 'NodeGiTypeNameSub');
 });
 
 test('the class-level $gtypeName stays the DECLARED namespaced string (unchanged)', () => {
-    // Guards the distinction: instance `$typeName` = raw runtime name ('GSimpleAction'),
-    // class `$gtypeName` = declared namespaced name ('Gio.SimpleAction'). They differ
-    // by design; adding the instance getter must not perturb the class accessor.
+    // The two differ by design: instance `$typeName` = raw runtime name, class
+    // `$gtypeName` = declared namespaced name. The instance getter must not perturb it.
     assert.equal(Gio.SimpleAction.$gtypeName, 'Gio.SimpleAction');
 });

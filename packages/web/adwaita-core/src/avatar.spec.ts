@@ -110,9 +110,7 @@ export default async () => {
 
         await it('scales by the measured aspect ratio, clamped to the cap', () => {
             const cap = avatarMaxFontSize(48);
-            // Square text: height/width === 1 -> exactly the cap.
             expect(avatarFontSize(48, { width: 20, height: 20 })).toBeCloseTo(cap, 6);
-            // Wide text (two letters) -> proportionally smaller.
             expect(avatarFontSize(48, { width: 40, height: 20 })).toBeCloseTo(cap / 2, 6);
             // Tall text would exceed the cap, so CLAMP holds it there.
             expect(avatarFontSize(48, { width: 10, height: 40 })).toBeCloseTo(cap, 6);

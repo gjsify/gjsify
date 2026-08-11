@@ -1,14 +1,13 @@
 // E2E guard for the per-package prebuild gate.
 //
-// `.github/prebuild-toolchain/changed-packages.mjs` decides which native
-// packages `prebuilds.yml` builds. It is the only thing standing between a
-// change set and a SKIPPED build, so its failure mode is the expensive one: a
-// wrong "build" costs minutes, a wrong "skip" ships a stale binary — the class
-// of defect that let x86-64 objects sit in ppc64 directories for weeks.
+// `.github/prebuild-toolchain/changed-packages.mjs` decides which native packages
+// `prebuilds.yml` builds, so its failure modes are asymmetric: a wrong "build"
+// costs minutes, a wrong "skip" ships a stale binary — the defect that let x86-64
+// objects sit in ppc64 directories for weeks.
 //
 // Everything here drives the REAL script against the REAL workflow file with
-// `--changed-from-stdin`, so a change to either that breaks the contract fails
-// here rather than on a 96-minute emulated leg.
+// `--changed-from-stdin`, so a contract-breaking change to either fails here
+// rather than on a 96-minute emulated leg.
 import { after, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -33,17 +32,14 @@ const workflow = fileURLToPath(new URL('../../../.github/workflows/prebuilds.yml
 
 const emulated = fileURLToPath(new URL('../../../.github/prebuild-toolchain/emulated-build.sh', import.meta.url));
 const muslScript = fileURLToPath(new URL('../../../.github/prebuild-toolchain/musl-build.sh', import.meta.url));
-// `release.yml` stages prebuilds too — its two `napi-prebuild-*` legs — and it was
-// the LAST pair outside this scan. They were exempt for no stated reason beyond
-// living in a different file, and the exemption is exactly the shape the rule
-// exists to prevent: the release path is where a hand-written `cp` list is least
-// recoverable, because its output is published before anything reads it. The
-// darwin-arm64 target is never committed at all (`gjsify.platformsUncommitted`),
-// so that leg's bytes have no second copy to compare against.
+// `release.yml` stages prebuilds too, in its two `napi-prebuild-*` legs. In scope
+// here because the release path is where a hand-written `cp` list is least
+// recoverable — its output is published before anything reads it, and its
+// darwin-arm64 target is never committed (`gjsify.platformsUncommitted`), so those
+// bytes have no second copy to compare against.
 const releaseWorkflow = fileURLToPath(new URL('../../../.github/workflows/release.yml', import.meta.url));
-// The two scripts `commit-prebuilds` runs. They hold shell that used to be inline
-// in the job, and they are in the hand-staging scan set below for exactly that
-// reason: moving shell out of the YAML must not move it out from under the ban.
+// The two scripts `commit-prebuilds` runs, in the hand-staging scan set below
+// because moving shell out of the YAML must not move it out from under the ban.
 const syncAndStage = fileURLToPath(new URL('../../../.github/prebuild-toolchain/sync-and-stage.sh', import.meta.url));
 const gatePushedTree = fileURLToPath(
     new URL('../../../.github/prebuild-toolchain/gate-pushed-tree.sh', import.meta.url),
@@ -55,18 +51,13 @@ after(() => rmSync(scratch, { recursive: true, force: true }));
 let outputSeq = 0;
 
 /**
- * Spawn the classifier with a `GITHUB_OUTPUT` THIS TEST OWNS.
+ * Spawn the classifier with a `GITHUB_OUTPUT` THIS TEST OWNS — never the runner's.
  *
- * Never inherit the runner's. `--format=github-actions` appends to whatever
- * `GITHUB_OUTPUT` names, and under `node --test` inside the CI container that
- * is the real `/__w/_temp/_runner_file_commands/set_output_*` file, which the
- * test user cannot write: `EACCES`, and ONLY in CI — locally the variable is
- * unset, so the branch is never taken and the suite passes on every machine
- * that is not the one that matters. Pointing it at our own file fixes the
- * cause AND makes the emitted key/value pairs assertable, which is stronger
- * than the stdout-only check this used to do.
- *
- * @returns {{stdout: string, stderr: string, status: number, outputFile: string}}
+ * `--format=github-actions` appends to whatever `GITHUB_OUTPUT` names, and under
+ * `node --test` in the CI container that is the real
+ * `/__w/_temp/_runner_file_commands/set_output_*`, which the test user cannot write:
+ * `EACCES`, and ONLY in CI, since locally the variable is unset and the branch is
+ * never taken. Our own file also makes the emitted key/value pairs assertable.
  */
 function runScript(args, { cwd = repoRoot, input, exe = script } = {}) {
     const outputFile = join(scratch, `out-${outputSeq++}.txt`);
@@ -100,19 +91,15 @@ function runAll() {
 
 /**
  * How many native packages the gate owns, DERIVED from the classifier's own
- * forced-everything key set — never written down.
+ * forced-everything key set — never written down. It was the literal `10` in four
+ * assertions; ADR 0022 added an eleventh package and all four kept the old number,
+ * so the suite went red on a COUNT rather than the contract — invisibly, because the
+ * E2E leg is path-filtered and skipped on the PR that caused it.
  *
- * It used to be the literal `10`, in four assertions. ADR 0022 added an
- * eleventh package and all four kept the old number, so this suite went red on
- * a COUNT rather than on the contract it exists to hold — and it went red
- * invisibly, because the E2E leg is path-filtered and skipped on the PR that
- * caused it.
- *
- * `--all` is a different code path from the change-driven classification every
- * caller below exercises, so this is a partition check ("the change-driven
- * answer covers the same set the forced one does"), not `f(x) === f(x)`. That
- * the key set itself matches the WORKFLOW is held separately, by
- * `— package discovery` above, which is where a genuinely missing bridge fails.
+ * `--all` is a different code path from the change-driven classification every caller
+ * below exercises, so this is a partition check, not `f(x) === f(x)`. That the key set
+ * matches the WORKFLOW is held separately by `— package discovery` below, which is
+ * where a genuinely missing bridge fails.
  */
 let packageCountCache;
 function packageCount() {
@@ -122,8 +109,6 @@ function packageCount() {
 
 /** Run the classifier over an explicit file list; returns its JSON report. */
 function classify(files) {
-    // `--format=json` — this helper needs no GitHub outputs, so it does not ask
-    // for them (the isolated GITHUB_OUTPUT above is belt and braces).
     const r = runScript(['--changed-from-stdin', '--format=json'], { input: `${files.join('\n')}\n` });
     assert.equal(r.status, 0, `classifier failed:\n${r.stderr}`);
     return JSON.parse(r.stdout);
@@ -132,28 +117,24 @@ function classify(files) {
 describe('prebuild change gate — package discovery', () => {
     it('derives its package set from the workflow, and that set is BRIDGES', () => {
         const text = readFileSync(workflow, 'utf8');
-        // Every package directory the workflow names a prebuild path for, in
-        // EITHER spelling — the bridge (`…/webgl/prebuilds/linux-x64/`, a build
-        // leg's scratch upload) or the per-target package
-        // (`…/webgl-linux-x64/prebuilds/linux-x64/`, what `commit-prebuilds`
-        // writes since ADR 0017).
+        // Both spellings the workflow names a prebuild path in: the bridge
+        // (`…/webgl/prebuilds/linux-x64/`, a build leg's scratch upload) and the
+        // per-target package (`…/webgl-linux-x64/…`, what `commit-prebuilds` writes
+        // since ADR 0017).
         const namedDirs = [...text.matchAll(/^\s*path:\s*packages\/([^\s/]+)\/([^\s/]+)\/prebuilds\/([^\s/]+)/gm)].map(
             ([, pillar, dir]) => ({ pillar, dir }),
         );
         assert.ok(namedDirs.length > 0, 'the workflow must name prebuild paths at all');
 
-        // An empty change set with no base is "nothing affected", so ask the
-        // forced path for the full key set.
+        // An empty change set with no base is "nothing affected", so ask the forced path.
         const all = JSON.parse(runAll());
 
         // DELIBERATELY not "re-run the parser and compare": that proves only
-        // f(x) === f(x), and a test that mirrors the derivation it checks drifts
-        // with it while both stay green — which is exactly what happened here
-        // when the download paths moved to the per-target packages and this
-        // test's own regex kept reading them at face value. Assert the PROPERTY
-        // the table must have instead: every key is a BRIDGE, a package with a
-        // native build system whose sources a change can touch. A per-target
-        // package has none — it is a re-tarballing of one directory.
+        // f(x) === f(x), and a test mirroring the derivation it checks drifts with it
+        // while both stay green — which is what happened when the download paths moved to
+        // the per-target packages and this test's regex kept reading them at face value.
+        // The PROPERTY instead: every key is a BRIDGE, a package with a native build
+        // system whose sources a change can touch. A per-target package has none.
         for (const key of all.build) {
             const hit = namedDirs.find(({ dir }) => dir === key || dir.startsWith(`${key}-`));
             assert.ok(hit, `${key} is not a package directory prebuilds.yml names`);
@@ -175,15 +156,14 @@ describe('prebuild change gate — package discovery', () => {
     });
 
     it('FAILS when the two `on: paths:` lists diverge', (t) => {
-        // The check that a UNION cannot make. prebuilds.yml carries two
-        // identical `paths:` blocks (push + pull_request) and says in a comment
-        // that they must stay identical; deleting `refs/oxc` from ONE of them
-        // left the union intact, so the gate-vs-trigger assertion passed while a
-        // pin bump could no longer start the workflow on that event.
+        // The check a UNION cannot make: prebuilds.yml carries two `paths:` blocks (push
+        // + pull_request) that must stay identical, and deleting `refs/oxc` from ONE left
+        // the union intact — the gate-vs-trigger assertion passed while a pin bump could
+        // no longer start the workflow on that event.
         //
-        // Driven on a COPY of the repo layout so the real workflow is never
-        // mutated — the script resolves the workflow relative to its own file,
-        // so the copy needs the same two-level structure.
+        // Driven on a COPY of the repo layout so the real workflow is never mutated; the
+        // script resolves the workflow relative to its own file, so the copy needs the
+        // same two-level structure.
         const tmp = mkdtempSync(join(tmpdir(), 'prebuild-gate-'));
         t.after(() => rmSync(tmp, { recursive: true, force: true }));
         mkdirSync(join(tmp, '.github', 'workflows'), { recursive: true });
@@ -197,11 +177,9 @@ describe('prebuild change gate — package discovery', () => {
         // The package/refs derivation reads real package dirs, so symlink them in.
         symlinkSync(join(repoRoot, 'packages'), join(tmp, 'packages'), 'dir');
 
-        // Through `runScript` so this spawn also gets its OWN GITHUB_OUTPUT —
-        // the format is json here, but a case that asserts "the classifier
-        // FAILED" must not be satisfiable by an unrelated EACCES on the
-        // runner's output file. Isolating the env keeps the non-zero exit
-        // attributable to the divergence and nothing else.
+        // Through `runScript` for its OWN GITHUB_OUTPUT: a case asserting "the classifier
+        // FAILED" must not be satisfiable by an unrelated EACCES on the runner's output
+        // file, which would make the non-zero exit unattributable.
         const r = runScript(['--all', '--format=json'], {
             cwd: tmp,
             exe: join(tmp, '.github', 'prebuild-toolchain', 'changed-packages.mjs'),
@@ -212,11 +190,9 @@ describe('prebuild change gate — package discovery', () => {
     });
 
     it('holds every package to a trigger under its own directory', () => {
-        // The invariant the script's own `selfCheck` enforces at CI time, and
-        // the reason a gate cannot silently outlive its trigger: a package with
-        // no `on: paths:` entry under its directory can never START this
-        // workflow from its own sources, so gating it would turn a latent bug
-        // into an invisible one.
+        // A gate must not outlive its trigger: a package with no `on: paths:` entry under
+        // its directory can never START this workflow from its own sources, so gating it
+        // turns a latent bug into an invisible one. Also `selfCheck`'s invariant at CI time.
         const text = readFileSync(workflow, 'utf8');
         for (const key of JSON.parse(runAll()).build) {
             const dirs = [...text.matchAll(/^\s*path:\s*(packages\/[^\s/]+\/[^\s/]+)\/prebuilds\//gm)]
@@ -238,12 +214,11 @@ describe('prebuild change gate — what counts as changed', () => {
     });
 
     it('derives the same refs/ set as the conformance rule that owns it', async () => {
-        // `changed-packages.mjs` reimplements `linkedRefsSubmodules` in six
-        // lines instead of importing it, ON PURPOSE: the `changes` job runs with
-        // nothing but `actions/checkout` + the runner's node, and gating must
-        // not acquire a module graph that can fail to load there. The
-        // duplication is therefore held to the original HERE — if #847's rule
-        // changes its derivation, this reds a 1-second test instead of silently
+        // `changed-packages.mjs` reimplements `linkedRefsSubmodules` in six lines instead
+        // of importing it ON PURPOSE: the `changes` job runs with nothing but
+        // `actions/checkout` + the runner's node, and gating must not acquire a module
+        // graph that can fail to load there. The duplication is held to the original HERE,
+        // so a change to the rule's derivation reds a 1-second test instead of silently
         // skipping a build.
         const { linkedRefsSubmodules } = await import(
             new URL('../../../scripts/manifest-conformance/rules/refs-pin.mjs', import.meta.url)
@@ -275,11 +250,10 @@ describe('prebuild change gate — what counts as changed', () => {
     });
 
     it('builds a package when its refs/ submodule PIN moves', () => {
-        // A gitlink change appears in a diff as the submodule path. Both
-        // relations must be honoured: rolldown-native DECLARES the lockstep,
-        // oxfmt-native only LINKS refs/oxc by Cargo path dependency (it has no
-        // `gjsify.refsLockstep` — tracked as task #59), and neither may mean
-        // "this package never rebuilds".
+        // A gitlink change appears in a diff as the submodule path. Both relations that can
+        // tie a bridge to a submodule must be honoured — a `gjsify.refsLockstep`
+        // declaration and a bare Cargo path dependency (`linkedRefsSubmodules`) — and
+        // neither may mean "this package never rebuilds".
         assert.deepEqual(classify(['refs/rolldown']).build, ['rolldown-native']);
         assert.deepEqual(classify(['refs/oxc']).build, ['oxfmt-native']);
     });
@@ -291,11 +265,9 @@ describe('prebuild change gate — what counts as changed', () => {
             'scripts/stage-prebuild.mjs',
             'scripts/check-refs-pin.mjs',
             'scripts/check-prebuild-loader-path.mjs',
-            // #847 moved the SUBSTANCE of the three scripts above into the
-            // conformance registry, leaving them as thin CLI entry points. A
-            // rule change alters what every build verifies, so the registry has
-            // to rebuild everything too — naming only the wrappers would let
-            // the check move out from under the gate.
+            // The three scripts above are thin CLI entry points; their substance lives in
+            // the conformance registry. A rule change alters what every build verifies, so
+            // naming only the wrappers would let the check move out from under the gate.
             'scripts/manifest-conformance/rules/refs-pin.mjs',
             'scripts/manifest-conformance/rules/platforms-ci.mjs',
             'scripts/manifest-conformance/unchecked-fields.mjs',
@@ -307,10 +279,10 @@ describe('prebuild change gate — what counts as changed', () => {
     });
 
     it('counts a package.json edit but never lets it start a run', () => {
-        // `gjsify.platforms` / `gjsify.refsLockstep` are build inputs, so a
-        // package.json edit rebuilds that package — but it is deliberately NOT
-        // in the trigger list, because release-it rewrites all of them on every
-        // release and that would run three emulated legs per version bump.
+        // `gjsify.platforms` / `gjsify.refsLockstep` are build inputs, so a package.json
+        // edit rebuilds that package — but it is deliberately NOT in the trigger list,
+        // because release-it rewrites all of them on every release and that would run three
+        // emulated legs per version bump.
         assert.deepEqual(classify(['packages/node/tls-native/package.json']).build, ['tls-native']);
         const text = readFileSync(workflow, 'utf8');
         assert.ok(
@@ -324,14 +296,11 @@ describe('prebuild change gate — what counts as changed', () => {
     });
 
     it('treats a committed Cargo.lock as a change to its bridge', () => {
-        // #852 commits `src/rust/Cargo.lock` for all three Rust bridges and adds
-        // it to meson's `rust_sources` — a lock bump then changes the binary, so
-        // it MUST rebuild that package. It already does: the per-package globs
-        // are derived from this workflow's `on: paths:` filter, and all three
-        // bridges are listed there as `<pkg>/src/**` rather than a narrower
-        // `src/vala/**`. Asserted rather than assumed, because narrowing any of
-        // those three entries would silently reopen exactly the registry-drift
-        // hole the lockfile is being committed to close.
+        // `src/rust/Cargo.lock` is committed for all three Rust bridges and is in meson's
+        // `rust_sources`, so a lock bump changes the binary and MUST rebuild the package.
+        // It does, via `on: paths:` entries spelled `<pkg>/src/**` rather than a narrower
+        // `src/vala/**` — asserted because narrowing any of the three would silently reopen
+        // the registry-drift hole the lockfile was committed to close.
         for (const pkg of ['lightningcss-native', 'oxfmt-native', 'rolldown-native']) {
             const { build } = classify([`packages/infra/${pkg}/src/rust/Cargo.lock`]);
             assert.deepEqual(build, [pkg], `${pkg}: a Cargo.lock change must rebuild it`);
@@ -350,8 +319,8 @@ describe('prebuild change gate — fail open', () => {
     });
 
     it('PUBLISHES the decision to $GITHUB_OUTPUT, not just stdout', () => {
-        // The `changes` job reads the FILE, so the file is what this asserts —
-        // stdout alone would pass even if the append were dropped entirely.
+        // The `changes` job reads the FILE: stdout alone would pass even with the append
+        // dropped entirely.
         const r = runScript(['--changed-from-stdin', '--format=github-actions'], {
             input: 'packages/node/terminal-native/src/vala/terminal.vala\n',
         });
@@ -362,25 +331,23 @@ describe('prebuild change gate — fail open', () => {
         assert.deepEqual(JSON.parse(outputs.build), ['terminal-native']);
         assert.equal(JSON.parse(outputs.skip).length, packageCount() - 1);
         assert.match(outputs.reason, new RegExp(`1 of ${packageCount()}`));
-        // `report` is what `prebuilds-summary` renders — it must be one line of
-        // parseable JSON covering every package with a per-package reason.
+        // `report` is what `prebuilds-summary` renders: one line of parseable JSON covering
+        // every package with a per-package reason.
         const report = JSON.parse(outputs.report);
         assert.equal(report.length, packageCount());
         assert.ok(report.every((e) => typeof e.key === 'string' && typeof e.why === 'string'));
         assert.equal(report.find((e) => e.key === 'terminal-native').build, true);
         assert.equal(report.find((e) => e.key === 'lightningcss-native').build, false);
-        // Every value is a SINGLE line — a `key=value` file has no multi-line
-        // form without a heredoc delimiter, so an embedded newline would
-        // silently truncate the output GitHub records.
+        // A `key=value` file has no multi-line form without a heredoc delimiter, so an
+        // embedded newline silently truncates the output GitHub records.
         for (const [k, v] of Object.entries(outputs)) {
             assert.ok(!v.includes('\n'), `${k} must be single-line`);
         }
 
-        // The gates are `!contains(needs.changes.outputs.skip, '"<key>"')` on
-        // the RAW string: an unset output is '', contains is false, and the
-        // package builds. That only holds if the keys are QUOTED in the output
-        // — the quoting is also what stops `"http2-native"` matching
-        // `"http2-native-x"`.
+        // The gates are `!contains(needs.changes.outputs.skip, '"<key>"')` on the RAW
+        // string: an unset output is '', contains is false, and the package builds. That
+        // holds only if the keys are QUOTED — which is also what stops `"http2-native"`
+        // matching `"http2-native-x"`.
         assert.ok(outputs.skip.includes('"lightningcss-native"'));
         assert.ok(!outputs.skip.includes('"terminal-native"'));
 
@@ -389,31 +356,28 @@ describe('prebuild change gate — fail open', () => {
     });
 
     it('FAILS LOUDLY when $GITHUB_OUTPUT is set but unwritable', () => {
-        // Silently continuing would leave every gate reading '' — which BUILDS
-        // everything, so it is safe, but it is a dead gate wearing a green
-        // tick and nothing would ever say so. A hard failure is still fail-open
-        // (the `changes` job's wrapper catches a non-zero exit and writes the
+        // Silently continuing leaves every gate reading '' — which BUILDS everything, so it
+        // is safe, but it is a dead gate wearing a green tick. A hard failure is still
+        // fail-open (the `changes` job's wrapper catches a non-zero exit and writes the
         // all-build fallback), it just refuses to be quiet.
         const dir = mkdtempSync(join(tmpdir(), 'prebuild-gate-ro-'));
         const r = spawnSync(process.execPath, [script, '--all', '--format=github-actions'], {
             cwd: repoRoot,
             encoding: 'utf8',
-            // A DIRECTORY can never be opened for append — portable across
-            // platforms and CI users, unlike chmod (root ignores mode bits).
+            // A DIRECTORY can never be opened for append — portable across platforms and CI
+            // users, unlike chmod (root ignores mode bits).
             env: { ...process.env, GITHUB_OUTPUT: dir },
         });
         rmSync(dir, { recursive: true, force: true });
         assert.notEqual(r.status, 0, 'an unpublishable decision must fail the step');
         assert.match(r.stderr, /cannot publish outputs to GITHUB_OUTPUT/);
-        // The decision still reached stdout, so the log says what it WOULD have
-        // published — that is the difference between diagnosable and a mystery.
+        // The decision still reaches stdout, so the log says what it WOULD have published.
         assert.match(r.stdout, /^skip=/m);
     });
 
     it('every workflow gate names a key the classifier actually emits', () => {
-        // A gate whose key the classifier never emits can never skip — safe —
-        // but it is dead, and a TYPO would read exactly like a deliberate
-        // always-build. Both are worth catching.
+        // A gate whose key the classifier never emits can never skip — safe, but dead, and
+        // a TYPO reads exactly like a deliberate always-build.
         const text = readFileSync(workflow, 'utf8');
         const keys = new Set(JSON.parse(runAll()).build);
         const gated = [...text.matchAll(/!contains\(needs\.changes\.outputs\.skip, '"([^"]+)"'\)/g)].map((m) => m[1]);
@@ -424,29 +388,25 @@ describe('prebuild change gate — fail open', () => {
     });
 
     it('gates every artifact step on its OWN package', () => {
-        // The asymmetry that would break `commit-prebuilds`: an upload gated on
-        // one decision and the matching download on another (or on none). A
-        // download with no artifact is a HARD FAILURE of that job —
-        // `download-artifact` throws `Artifact '<name>' not found` and has no
-        // `if-no-artifact-found` input — so upload and download must turn on and
-        // off together, per package, everywhere.
+        // The asymmetry that would break `commit-prebuilds`: an upload gated on one decision
+        // and the matching download on another (or none). A download with no artifact is a
+        // HARD FAILURE of that job — `download-artifact` throws `Artifact '<name>' not
+        // found` and has no `if-no-artifact-found` input — so the two must turn on and off
+        // together, per package, everywhere.
         //
-        // SCOPED TO THE AUTOMATIC LEGS, because the decision it enforces only
-        // exists there. A `workflow_dispatch`-only job is not in `needs: [changes]`
-        // — `needs.changes.outputs.skip` is not in scope inside it, so requiring
-        // the gate string would buy a dead `if:` that READS like a live decision,
-        // which is worse than none. It is also unnecessary: an exploratory leg
-        // uploads for a human to inspect, `commit-prebuilds` never downloads it,
-        // and an artifact nothing consumes cannot desync from anything.
+        // SCOPED TO THE AUTOMATIC LEGS: a `workflow_dispatch`-only job is not in
+        // `needs: [changes]`, so `needs.changes.outputs.skip` is out of scope there and
+        // requiring the gate string would buy a dead `if:` that READS like a live decision.
+        // It is also unnecessary — `commit-prebuilds` never downloads an exploratory leg's
+        // artifact, and an artifact nothing consumes cannot desync.
         //
-        // Pairs are matched by JOB SCOPE rather than by artifact name on purpose:
-        // uploads are matrix-parameterised (`…-prebuilds-linux-${{ matrix.arch }}`)
-        // while the downloads spell each arch out, so a name-level set comparison
-        // reports every automatic leg as unpaired — measured, and it is a property
-        // of the spelling, not of the workflow.
+        // Pairs are matched by JOB SCOPE, not artifact name: uploads are
+        // matrix-parameterised (`…-prebuilds-linux-${{ matrix.arch }}`) while downloads
+        // spell each arch out, so a name-level set comparison reports every automatic leg
+        // as unpaired — a property of the spelling, not of the workflow.
         const text = readFileSync(workflow, 'utf8');
-        // Two-space-indented `<name>:` on its own line = a job. `on:`'s children
-        // match too and contribute no artifact steps, which is harmless.
+        // Two-space-indented `<name>:` on its own line = a job. `on:`'s children match too
+        // and contribute no artifact steps, which is harmless.
         const jobs = text.split(/^ {2}(?=[a-z0-9-]+:\s*$)/m).slice(1);
         let checked = 0;
         let exempt = 0;
@@ -469,50 +429,35 @@ describe('prebuild change gate — fail open', () => {
                 );
             }
         }
-        // The exemption must stay a carve-out, not become the rule: the automatic
-        // legs are ~60 steps and every one of them is still held to the gate.
+        // The exemption must stay a carve-out, not become the rule.
         assert.ok(checked >= 60, `expected every automatic artifact step to be checked, saw ${checked}`);
         assert.ok(exempt < checked / 4, `too many artifact steps exempted as dispatch-only (${exempt})`);
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Staging goes through the SHARED stager — asserted on the workflow text.
+// Staging goes through the SHARED stager (AGENTS.md § Prebuilds: "never a hand-written
+// `cp`"), asserted on the workflow TEXT. The drift it caught: the linux `cp` lists for
+// `webgl` and `webrtc-native` omitted the `.gir` while darwin's included it, so ten of
+// the sixty per-target directories had a different file shape from every other one and
+// nothing said so.
 //
-// AGENTS.md § Prebuilds states it categorically ("never a hand-written `cp`"),
-// and the drift was already committed when this was written: ~19 `mkdir -p
-// …prebuilds/ && cp <named files>` bodies in `prebuilds.yml` against 30-odd
-// `stage-prebuild` references elsewhere. It cost exactly what the rule predicts —
-// the linux `cp` lists for `webgl` and `webrtc-native` omitted the `.gir` while
-// darwin's included it, so ten of the sixty per-target directories had a
-// different file shape from every other one, and nothing anywhere said so.
+// A hand-written body also skips everything the stager DOES: the target comes from the
+// package's own `gjsify.platforms` rather than a literal a job can get wrong, artifacts
+// are matched by EXTENSION (so a library renamed in `meson.build` cannot ship a stale
+// set), and it ends in `checkPrebuildDir()` — the staged-sibling +
+// `$ORIGIN`/`@loader_path` check that is the whole of #832.
 //
-// A hand-written body also skips everything the stager DOES: the target comes
-// from the package's own `gjsify.platforms` (not from a literal a job can get
-// wrong), artifacts are matched by EXTENSION (so a library renamed in
-// `meson.build` cannot ship a stale set), and it ends in `checkPrebuildDir()` —
-// the staged-sibling + `$ORIGIN`/`@loader_path` check that is the whole of #832.
-//
-// This lives in the e2e suite that already asserts things about `prebuilds.yml`'s
-// TEXT rather than in a conformance rule: `platforms-ci` reads the same file, but
-// its question is "which targets does CI build", and it is deliberately advisory
-// so an unparsed shape can never fail a package nobody touched. "Was this staged
-// by hand" is a HARD property of the file and belongs where a hard assertion can
-// live.
-// ─────────────────────────────────────────────────────────────────────────────
+// Here rather than in a conformance rule: `platforms-ci` reads the same file but asks
+// "which targets does CI build" and is deliberately advisory, so an unparsed shape can
+// never fail a package nobody touched. "Was this staged by hand" is a HARD property.
 describe('prebuild change gate — staging goes through the shared stager', () => {
     /**
      * The workflow's step bodies, with comment lines dropped.
      *
-     * Comments are stripped because several of them NAME the anti-pattern in
-     * order to explain why it is forbidden (the musl leg's header, the Linux
-     * leg's guard). A shell comment stages nothing, so reading one as a
-     * violation would make the rule unstatable in the very place it is
-     * justified — and a rule that cannot cite its incident gets simplified back
-     * into the bug.
-     *
-     * @param {string} text workflow YAML
-     * @returns {{name: string, body: string}[]}
+     * Comments are stripped because several of them NAME the anti-pattern in order to
+     * explain why it is forbidden (the musl leg's header, the Linux leg's guard). A shell
+     * comment stages nothing, so reading one as a violation would make the rule
+     * unstatable in the very place it is justified.
      */
     function stepBodies(text) {
         const steps = [];
@@ -527,10 +472,9 @@ describe('prebuild change gate — staging goes through the shared stager', () =
         return steps;
     }
 
-    // Both spellings of "make the directory and copy into it by hand". `mkdir -p`
-    // is the POSIX one every converted step used; `New-Item -ItemType Directory`
-    // is PowerShell's, and the win32 legs are written in pwsh — leaving it out
-    // would make "move the cp to Windows" the trivial escape.
+    // Both spellings of "make the directory and copy into it by hand": `mkdir -p` for
+    // POSIX and `New-Item -ItemType Directory` for pwsh, since the win32 legs are pwsh and
+    // leaving it out would make "move the cp to Windows" the trivial escape.
     const HAND_STAGING = [
         { label: 'mkdir -p …prebuilds/', re: /mkdir\s+-p\s+\S*prebuilds\// },
         { label: 'New-Item …prebuilds…', re: /New-Item[^\n]*prebuilds/i },
@@ -539,8 +483,8 @@ describe('prebuild change gate — staging goes through the shared stager', () =
     for (const file of [workflow, releaseWorkflow, emulated, muslScript, syncAndStage, gatePushedTree]) {
         it(`no step in ${file.split('/').pop()} stages a prebuild by hand`, () => {
             const text = readFileSync(file, 'utf8');
-            // `.sh` files are one body; `.yml` splits into steps. Either way the
-            // unit reported is what a reviewer would go and read.
+            // `.sh` files are one body; `.yml` splits into steps. Either way the unit
+            // reported is what a reviewer would go and read.
             const units = file.endsWith('.yml')
                 ? stepBodies(text)
                 : [{ name: file.split('/').pop(), body: text.replace(/^\s*#.*$/gm, '') }];
@@ -561,11 +505,10 @@ describe('prebuild change gate — staging goes through the shared stager', () =
     }
 
     it('every build leg that stages DOES call the shared stager', () => {
-        // The other direction, and it is not redundant: deleting a collect step
-        // outright also satisfies the ban above. A leg that compiles and stages
-        // nothing uploads an empty artifact, which `commit-prebuilds` would then
-        // commit as a deletion — the failure its own "Refuse to delete a
-        // committed prebuild" guard exists for, one job too late.
+        // The other direction, not redundant: deleting a collect step outright also
+        // satisfies the ban above, and a leg that stages nothing uploads an empty artifact
+        // that `commit-prebuilds` commits as a DELETION — the failure its own "Refuse to
+        // delete a committed prebuild" guard exists for, one job too late.
         const text = readFileSync(workflow, 'utf8');
         const collectSteps = stepBodies(text).filter((s) => s.name.startsWith('Collect @gjsify/'));
         assert.ok(collectSteps.length >= 18, `expected the per-package collect steps, saw ${collectSteps.length}`);
@@ -580,22 +523,17 @@ describe('prebuild change gate — staging goes through the shared stager', () =
         assert.match(readFileSync(emulated, 'utf8'), /scripts\/stage-prebuild\.mjs/);
     });
 
-    // The release path's own version of both directions, plus the one property
-    // `prebuilds.yml` gets for free and `release.yml` does not.
+    // The release path's own version of both directions, plus the property `prebuilds.yml`
+    // gets for free and `release.yml` does not: a prebuild never LOADED in CI is a prebuild
+    // nobody tested. These two legs ended at `cp` + `upload-artifact`, and their consumer
+    // `publish-napi` checks four files with `test -f` — which proves the bytes EXIST and
+    // nothing about whether they open. The gap widened when
+    // `packages/napi/napi-linux-x64/prebuilds/` stopped being committed:
+    // `prebuild-artifacts`' env-free dlopen was the one check that actually executed the
+    // artifact, and napi.yml's own gates load out of `build/`, not the staged path.
     //
-    // A prebuild never LOADED in CI is a prebuild nobody tested — AGENTS.md
-    // states it, `prebuilds.yml` ends every macOS job in a real load test, and
-    // these two legs ended at `cp` + `upload-artifact`. Their consumer
-    // `publish-napi` then checks four files with `test -f`, which proves the
-    // bytes EXIST and nothing about whether they open. That gap widened rather
-    // than closed when `packages/napi/napi-linux-x64/prebuilds/` stopped being
-    // committed: `prebuild-artifacts`' env-free dlopen was the one check that
-    // actually executed the artifact, and it no longer sees it. napi.yml's own
-    // gates load out of `build/`, not out of the staged prebuild path.
-    //
-    // Asserted per JOB rather than per step name so renaming a step cannot
-    // silently drop the gate — what must hold is that the job which BUILDS a
-    // prebuild also stages it through the stager and opens what it staged.
+    // Asserted per JOB rather than per step name, so renaming a step cannot silently drop
+    // the gate.
     it('both napi release legs stage through the stager and load-test what they ship', () => {
         const text = readFileSync(releaseWorkflow, 'utf8');
         for (const job of ['napi-prebuild-linux', 'napi-prebuild-darwin-arm64']) {
@@ -614,10 +552,9 @@ describe('prebuild change gate — staging goes through the shared stager', () =
                     "  package's own `gjsify.platforms`, matches artifacts by EXTENSION and runs\n" +
                     '  checkPrebuildDir() over what it wrote.',
             );
-            // `is_available()` and not merely `imports.gi.GjsifyNapi`: the
-            // namespace carries no GObject class, so resolving it proves only
-            // that the typelib was FOUND. Calling a function is what makes GI
-            // dlopen the library the typelib records.
+            // `is_available()` and not merely `imports.gi.GjsifyNapi`: the namespace carries
+            // no GObject class, so resolving it proves only that the typelib was FOUND.
+            // Calling a function is what makes GI dlopen the library the typelib records.
             assert.match(
                 body,
                 /GjsifyNapi[\s\S]*?is_available\(\)/,
@@ -631,17 +568,12 @@ describe('prebuild change gate — staging goes through the shared stager', () =
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The darwin verify steps read ONE table.
-//
-// `build-prebuilds-macos` verified its output through four steps, each with its
-// own hand-written package list — and they had drifted:
-// `packages/infra/rolldown-native` was in two of them and absent from the other
-// two, so the bridge whose #832 incident IS the reason the loader-path check
-// exists was the one bridge that check never opened. The table lives in
-// `.github/prebuild-toolchain/darwin-bridges.mjs`; what has to be held is that
-// the steps still read it and that it still matches the job.
-// ─────────────────────────────────────────────────────────────────────────────
+// The darwin verify steps read ONE table,
+// `.github/prebuild-toolchain/darwin-bridges.mjs`. `build-prebuilds-macos` used to verify
+// its output through four steps with four hand-written package lists, and they drifted:
+// `packages/infra/rolldown-native` was in two and absent from the other two, so the
+// bridge whose #832 incident IS the reason the loader-path check exists was the one
+// bridge that check never opened.
 describe('prebuild change gate — the darwin verify steps share one table', () => {
     const darwinTable = fileURLToPath(
         new URL('../../../.github/prebuild-toolchain/darwin-bridges.mjs', import.meta.url),
@@ -649,21 +581,19 @@ describe('prebuild change gate — the darwin verify steps share one table', () 
 
     it('the table covers exactly what the macOS job collects', () => {
         // The script's own `--check`, driven from here so a bridge promoted into
-        // `build-prebuilds-macos` without a table row reds a one-second test
-        // instead of shipping a prebuild whose typelib leaf, loader path, GI load
-        // and env-free dlopen were never checked.
+        // `build-prebuilds-macos` without a table row reds a one-second test instead of
+        // shipping a prebuild whose typelib leaf, loader path, GI load and env-free dlopen
+        // were never checked.
         const r = spawnSync(process.execPath, [darwinTable, '--check'], { encoding: 'utf8' });
         assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
         assert.match(r.stdout, /table matches `build-prebuilds-macos`/);
     });
 
     it('no step in the macOS job carries its own list of bridges', () => {
-        // Stated as a PROPERTY rather than a list of step names, because a list of
-        // step names is the same drift one level up. A step that iterates over the
-        // bridge set is exactly a step whose body names TWO OR MORE package
-        // directories; a per-package step names one (its `working-directory`), and
-        // a table-reading step names none. The four copies this replaced named 7,
-        // 7, 8 and 3.
+        // Stated as a PROPERTY, not a list of step names — a list of step names is the same
+        // drift one level up. A step that iterates over the bridge set is exactly a step
+        // whose body names TWO OR MORE package directories; a per-package step names one
+        // (its `working-directory`), a table-reading step none.
         const text = readFileSync(workflow, 'utf8');
         const jobs = text.slice(text.search(/^jobs:\s*$/m)).split(/^ {2}(?=[a-z0-9-]+:\s*$)/m);
         const job = jobs.find((j) => j.startsWith('build-prebuilds-macos:'));
@@ -673,8 +603,8 @@ describe('prebuild change gate — the darwin verify steps share one table', () 
         for (const step of job.split(/^ {6}- (?=name:|uses:|run:)/m).slice(1)) {
             const name = /^name:\s*(.+)$/m.exec(step)?.[1].trim() ?? '(unnamed)';
             if (/darwin-bridges\.mjs/.test(step)) readsTable++;
-            // Comment lines may still MENTION packages — they explain the
-            // incident. A shell line naming them is the copy.
+            // Comment lines may still MENTION packages — they explain the incident. A shell
+            // line naming them is the copy.
             const code = step
                 .split('\n')
                 .filter((l) => !/^\s*#/.test(l))
@@ -690,32 +620,23 @@ describe('prebuild change gate — the darwin verify steps share one table', () 
                     'a step that walks the bridge set must read `.github/prebuild-toolchain/darwin-bridges.mjs`',
             );
         }
-        // And the table is actually consumed by all four verify steps, so the ban
-        // above cannot be satisfied by deleting the verification instead.
+        // The table must actually be consumed by all four verify steps, or the ban above is
+        // satisfiable by deleting the verification instead.
         assert.equal(readsTable, 4, `expected 4 steps to read the darwin table, saw ${readsTable}`);
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// A macOS job's shell is bash 3.2, and `bash -n` on any Linux host says otherwise.
+// A macOS job's shell is bash 3.2, and `bash -n` on any Linux host says otherwise. Apple
+// ships no GPLv3 bash, so `/bin/bash` on every macos runner is 3.2.57 — and `shell: bash`
+// in Actions is `/bin/bash`, not the Homebrew bash 5 also on the image. A bash-4 builtin
+// therefore syntax-checks clean everywhere a developer or a Linux CI leg would test it and
+// dies at run time with `command not found`, exit 127: `mapfile -t dirs < <(…)` in
+// `build-prebuilds-macos`' loader-path step passed `bash -n` locally on bash 5.3 and failed
+// the darwin-arm64 leg at 127, skipping the GI load test, the env-free dlopen and all eight
+// uploads.
 //
-// Apple ships no GPLv3 bash, so `/bin/bash` on every macos runner is 3.2.57 —
-// and `shell: bash` in Actions is `/bin/bash` (not the Homebrew bash 5 that also
-// exists on the image). A bash-4 builtin therefore syntax-checks clean
-// everywhere a developer or a Linux CI leg would test it and dies at run time
-// with `command not found`, exit 127.
-//
-// Measured: `mapfile -t dirs < <(…)` in `build-prebuilds-macos`' loader-path step
-// passed `bash -n` locally on bash 5.3 and failed the darwin-arm64 leg at exit
-// 127, skipping the GI load test, the env-free dlopen and all eight uploads. Same
-// wrong-shell false-green class AGENTS.md records for git-bash on Windows — which
-// is why the answer is a check rather than a note.
-//
-// Scoped to the jobs that ACTUALLY run on macOS, derived from the workflow (a
-// `runs-on:`/`runner:` naming a `macos-*` image), because on a Linux leg these
-// builtins are perfectly fine and banning them everywhere would be a rule this
-// repo does not mean.
-// ─────────────────────────────────────────────────────────────────────────────
+// Scoped to jobs that ACTUALLY run on macOS (derived from a `runs-on:`/`runner:` naming a
+// `macos-*` image): on a Linux leg these builtins are fine.
 describe('prebuild change gate — macOS steps stay bash-3.2 clean', () => {
     // Each entry: what bash 4+ added, and the 3.2-safe spelling to use instead.
     const BASH4_ONLY = [
@@ -740,8 +661,7 @@ describe('prebuild change gate — macOS steps stay bash-3.2 clean', () => {
         let macosJobs = 0;
         for (const job of jobs) {
             const name = /^([a-z0-9-]+):/.exec(job)?.[1] ?? '(unnamed)';
-            // A job runs on macOS when it names a macos image as its runner —
-            // either directly or through a matrix `runner:` entry.
+            // Directly or through a matrix `runner:` entry.
             if (!/^\s*(runs-on|-?\s*runner):\s*\S*macos/m.test(job)) continue;
             macosJobs++;
             for (const step of job.split(/^ {6}- (?=name:|uses:|run:)/m).slice(1)) {
@@ -760,35 +680,24 @@ describe('prebuild change gate — macOS steps stay bash-3.2 clean', () => {
                 }
             }
         }
-        // The scan must have found the macOS jobs at all — a shape change that made
-        // the runner unrecognisable would otherwise turn this into a silent pass.
+        // A shape change that made the runner unrecognisable would turn this into a silent pass.
         assert.ok(macosJobs >= 2, `expected the macOS jobs to be recognised, saw ${macosJobs}`);
     });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // `commit-prebuilds` never merges a binary, and never pushes an ungated tree.
 //
-// MEASURED: prebuilds.yml run 30864276535 (push, head f7b9c46d9) failed in
-// "Commit prebuilds to repo". Its bot commit ba5ca42 was 26 files / 26848
-// insertions; then `git pull --rebase origin main` said
+// Its `git pull --rebase origin main` used to fail with `Cannot merge binary files:
+// …/darwin-x64/libgjsifytls.dylib` and push nothing. DETERMINISTIC, not a race between
+// runs: Mach-O output is not byte-reproducible, so every run rewrites all 16 committed
+// darwin dylibs, and git has no merge driver for a binary. Measured across two consecutive
+// bot commits: all 16 changed at identical size, and every differing byte on darwin-x64 is
+// the `LC_UUID` payload or an `N_OSO` debug-map stab's object-file mtime — zero bytes of
+// code.
 //
-//     warning: Cannot merge binary files: …/darwin-x64/libgjsifytls.dylib
-//     CONFLICT (content): Merge conflict in …libgjsifytls.dylib
-//     error: could not apply ba5ca42… chore: update native prebuilds [skip ci]
-//
-// and nothing was pushed. That is DETERMINISTIC, not a race between runs: Mach-O
-// output is not byte-reproducible, so every run rewrites all 16 committed darwin
-// dylibs, and git has no merge driver for a binary file. Measured across two
-// consecutive bot commits (7f4e81291 → a03206649): all 16 changed, every one at
-// an identical size, and on darwin-x64 every differing byte is the `LC_UUID`
-// payload or an `N_OSO` debug-map stab's object-file mtime — zero bytes of code.
-//
-// The repair is ordering: sync onto `origin/main` BEFORE staging, so no rebase
-// exists to conflict. These assertions hold the shape that repair depends on,
-// because "the steps are in the right order" is otherwise a property of a file
-// nothing reads back.
-// ─────────────────────────────────────────────────────────────────────────────
+// The repair is ordering: sync onto `origin/main` BEFORE staging, so no rebase exists to
+// conflict. These assertions hold that shape, because "the steps are in the right order" is
+// otherwise a property of a file nothing reads back.
 describe('prebuild change gate — commit-prebuilds never rebases, never pushes an ungated tree', () => {
     /** The `commit-prebuilds` job text, and the ordered names of its steps. */
     function commitJob() {
@@ -814,9 +723,8 @@ describe('prebuild change gate — commit-prebuilds never rebases, never pushes 
     }
 
     it('no step in the job rebases or pulls', () => {
-        // The whole defect in one line. A `git pull`/`git rebase` anywhere in this
-        // job is a request for git to merge whatever the run downloaded, and 16 of
-        // those files are unmergeable by construction on every single run.
+        // A `git pull`/`git rebase` anywhere in this job asks git to merge whatever the run
+        // downloaded, and 16 of those files are unmergeable by construction on every run.
         const { steps } = commitJob();
         for (const step of steps) {
             assert.ok(
@@ -830,9 +738,8 @@ describe('prebuild change gate — commit-prebuilds never rebases, never pushes 
     });
 
     it('the sync script fetches and resets BEFORE it stages anything', () => {
-        // Ordering inside the script, which is where it now lives. Asserted on
-        // POSITION rather than presence: both halves being in the file is exactly
-        // the state the old job was in, and it was the order that was wrong.
+        // Asserted on POSITION rather than presence: both halves being in the file is
+        // exactly the state the old job was in, and it was the ORDER that was wrong.
         const src = readFileSync(syncAndStage, 'utf8').replace(/^\s*#.*$/gm, '');
         const reset = src.search(/git reset .*--hard/);
         const firstAdd = src.search(/git add\b/);
@@ -843,8 +750,8 @@ describe('prebuild change gate — commit-prebuilds never rebases, never pushes 
             'sync-and-stage.sh stages before it syncs. The artifacts must be re-applied over a tree that is ' +
                 'ALREADY origin/main; staging first is what forced the rebase this job used to fail on.',
         );
-        // And the snapshot has to be re-applied after the reset, or the reset simply
-        // discards the downloads and the job commits main's own bytes.
+        // The snapshot must be re-applied after the reset, or the reset discards the
+        // downloads and the job commits main's own bytes.
         const restore = src.search(/tar -xf/);
         assert.ok(
             restore > reset && restore < firstAdd,
@@ -860,10 +767,10 @@ describe('prebuild change gate — commit-prebuilds never rebases, never pushes 
         const push = names.indexOf('Push');
         assert.ok(commit >= 0 && gate >= 0 && push >= 0, `missing one of the commit-path steps: ${names.slice(-6)}`);
         assert.ok(commit < gate && gate < push, `step order is ${names.slice(commit, push + 1).join(' -> ')}`);
-        // Position is the readable form; the STAMP is the enforced one. The gate
-        // writes the tree hash it audited and the push refuses anything else, so a
-        // future step that mutates the tree between them — which is precisely what
-        // the old `git pull --rebase` did — cannot go unnoticed again.
+        // Position is the readable form; the STAMP is the enforced one. The gate writes the
+        // tree hash it audited and the push refuses anything else, so a future step that
+        // mutates the tree between them — what the old `git pull --rebase` did — cannot go
+        // unnoticed.
         const gateBody = steps[gate].body;
         assert.match(gateBody, /gate-pushed-tree\.sh/, 'the gate step must run the gate script');
         assert.match(
@@ -881,10 +788,9 @@ describe('prebuild change gate — commit-prebuilds never rebases, never pushes 
     });
 
     it('the push RE-STAGES on retry and re-gates before every further push', () => {
-        // A retry of the push ALONE would push a tree built on a stale base — the
-        // same defect as the old rebase, one layer out. And a re-staged tree that
-        // the gate never read is the `[skip ci]` hole reopened, since nothing else
-        // runs on this commit.
+        // A retry of the push ALONE pushes a tree built on a stale base — the old rebase
+        // defect one layer out. And a re-staged tree the gate never read reopens the
+        // `[skip ci]` hole, since nothing else runs on this commit.
         const { steps } = commitJob();
         const push = steps.find((s) => s.name === 'Push');
         assert.ok(push, 'no Push step');
@@ -894,18 +800,16 @@ describe('prebuild change gate — commit-prebuilds never rebases, never pushes 
     });
 
     it('no job-level `env:` reads a context that only exists inside steps', () => {
-        // MEASURED, on this PR: `PREBUILD_SNAPSHOT: ${{ runner.temp }}/…` in
-        // `jobs.commit-prebuilds.env` made GitHub refuse to load the whole file —
-        // the `runner` context exists only in steps. The cost is the interesting
-        // part: an unloadable workflow is raised as a run with "This run likely
-        // failed because of a workflow file issue", attached to whatever event it
-        // could not filter (here a `push` on a branch this workflow's push trigger
-        // does not cover), and it is NOT a PR check. `gh pr checks` showed green.
-        // That is the standing hazard `status/open-todos.md` records, and a file
-        // that cannot be parsed cannot check itself — so the check lives here.
+        // MEASURED: `PREBUILD_SNAPSHOT: ${{ runner.temp }}/…` in `jobs.commit-prebuilds.env`
+        // made GitHub refuse to load the whole file — the `runner` context exists only in
+        // steps. The cost is the interesting part: an unloadable workflow surfaces as a run
+        // titled "This run likely failed because of a workflow file issue", attached to
+        // whatever event it could not filter, and it is NOT a PR check — `gh pr checks`
+        // showed green. The standing hazard `status/open-todos.md` records; a file that
+        // cannot be parsed cannot check itself, so the check lives here.
         //
-        // Scoped to job-level `env:` because that is where the mistake is
-        // available: step-level `env:` may read `runner` freely, and so may `run:`.
+        // Scoped to job-level `env:`, the only place the mistake is available: step-level
+        // `env:` and `run:` may read `runner` freely.
         const text = readFileSync(workflow, 'utf8');
         const jobs = text
             .slice(text.search(/^jobs:\s*$/m))
@@ -927,7 +831,7 @@ describe('prebuild change gate — commit-prebuilds never rebases, never pushes 
                     'step instead (`echo "K=$RUNNER_TEMP/…" >> "$GITHUB_ENV"`).',
             );
         }
-        // The scan must find something, or a shape change turns it into a pass.
+        // A shape change that found nothing would turn this into a pass.
         assert.ok(scanned >= 1, 'no job-level `env:` block was recognised — the parser no longer understands the file');
     });
 
@@ -936,9 +840,8 @@ describe('prebuild change gate — commit-prebuilds never rebases, never pushes 
             assert.ok(existsSync(script), `${script} is missing`);
             assert.equal(spawnSync('bash', ['-n', script]).status, 0, `${script} must parse under bash`);
         }
-        // `runs-on: ubuntu-latest`, so bash 5 builtins are fine here — the 3.2 ban
-        // is scoped to the macOS jobs. Asserted so a future reader does not "fix"
-        // the process substitution these use.
+        // `runs-on: ubuntu-latest`, so bash 5 builtins are fine here and the 3.2 ban above
+        // does not apply — asserted so nobody "fixes" the process substitution these use.
         const { job } = commitJob();
         assert.match(job, /runs-on: ubuntu-latest/);
     });
@@ -946,9 +849,8 @@ describe('prebuild change gate — commit-prebuilds never rebases, never pushes 
 
 describe('prebuild change gate — the emulated leg obeys the same decision', () => {
     it('skips a package in PREBUILD_SKIP and builds everything when it is unset', () => {
-        // The emulated build is a single `docker run`, so the decision travels
-        // into the container as an env var and the script filters on it. Drive
-        // the REAL helper out of the real file.
+        // The emulated build is a single `docker run`, so the decision travels into the
+        // container as an env var and the script filters on it.
         const src = readFileSync(emulated, 'utf8');
         const helper = src.slice(src.indexOf('should_build() {'), src.indexOf('# Does this leg build anything'));
         assert.ok(helper.includes('case "$PREBUILD_SKIP"'), 'should_build must key on PREBUILD_SKIP');
@@ -963,8 +865,7 @@ done`;
         assert.equal(skipping.status, 0, skipping.stderr);
         assert.match(skipping.stdout, /SKIP packages\/infra\/lightningcss-native/);
         assert.match(skipping.stdout, /SKIP packages\/node\/http2-native/);
-        // The near-miss the quoting exists for: http-soup-bridge is not
-        // http2-native, and neither contains the other's quoted key.
+        // The near-miss the quoting exists for: neither key contains the other's quoted form.
         assert.match(skipping.stdout, /BUILD packages\/node\/http-soup-bridge/);
 
         const unset = spawnSync('bash', ['-c', `PREBUILD_SKIP="\${PREBUILD_SKIP:-[]}"\n${probe}`], {
@@ -981,15 +882,13 @@ done`;
     });
 
     it('the musl leg\u2019s script parses under POSIX sh and is executable', () => {
-        // Checked with `sh -n`, not `bash -n`: it runs in `alpine:3.24`, whose
-        // only shell is busybox ash. A bashism would pass a bash check and then
-        // fail in the container, which is the one place this leg cannot be
-        // debugged cheaply — it is dispatch-only and main-only in effect.
+        // `sh -n`, not `bash -n`: it runs in `alpine:3.24`, whose only shell is busybox ash.
+        // A bashism passes a bash check and then fails in the container, the one place this
+        // leg cannot be debugged cheaply — it is dispatch-only in effect.
         assert.ok(existsSync(muslScript));
         assert.equal(spawnSync('sh', ['-n', muslScript]).status, 0, 'musl-build.sh must parse under POSIX sh');
-        // Mounted and invoked as `sh <script>`, so the bit is not strictly
-        // required — but its sibling has it, and a script a human is told to run
-        // by hand (see its header) should be runnable.
+        // Invoked as `sh <script>`, so the bit is not strictly required — but its header
+        // tells a human to run it by hand, and that should work.
         assert.ok(statSync(muslScript).mode & 0o111, 'musl-build.sh must be executable');
     });
 });

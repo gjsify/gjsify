@@ -1,25 +1,14 @@
 /**
- * Rule `platforms-ci` — REPO-SCOPED half of the OS axis.
+ * Rule `platforms-ci` — REPO-SCOPED half of the OS axis: the `<os>-<arch>` targets
+ * `gjsify.platforms` PROMISES, the committed prebuild directories and the CI matrix
+ * that builds them must not drift apart. Why the axis exists at all, and why
+ * `gjsify.runtimes` cannot answer for it: AGENTS.md § Runtime & platform model.
  *
- * `gjsify.runtimes` declares the RUNTIME reach of a package (gjs × node ×
- * browser × nativescript). It says nothing about OPERATING SYSTEMS — so a
- * package could declare `gjs: "polyfill"` and still have no loadable artifact
- * on macOS or Windows, because the native bridge it needs only ever built on
- * Linux. That blind spot is exactly how the whole native-bridge set stayed
- * Linux-only while the project described itself as platform-independent.
- *
- * `package.json#gjsify.platforms` closes it: the list of `<os>-<arch>` targets
- * a native package PROMISES a prebuild for. It is the OS-axis sibling of
- * `gjsify.runtimes`, and the checks below keep the promise, the committed
- * artifacts and the CI that produces them from drifting apart.
- *
- * WHY REPO-SCOPED, and why this is split from `prebuild-artifacts`:
- * the declared-vs-committed half is a fact about files and lives in the
- * portable `prebuild-artifacts` rule. THIS half reads
- * `.github/workflows/prebuilds.yml`'s matrix — this repository's own CI, by
- * filename, with a parser tuned to its job shapes. There is nothing to port:
- * a consumer's CI is not this one, and pretending to audit it would invent
- * platform support that does not exist.
+ * Split from the portable `prebuild-artifacts` rule because declared-vs-committed is
+ * a fact about files, while THIS half parses `.github/workflows/prebuilds.yml`'s
+ * matrix by filename with a parser tuned to this repo's job shapes. Nothing to port:
+ * a consumer's CI is not this one, and pretending to audit it would invent platform
+ * support that does not exist.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -49,26 +38,17 @@ export function osFromRunner(runsOn) {
 /**
  * The arch a runner LABEL implies, when the job declares no `arch:` matrix key.
  *
- * The default table above is keyed only by OS, which silently mis-attributes
- * every macOS runner that is not Apple silicon: `macos-15-intel` would be read
- * as `darwin-arm64`, so an Intel job would be credited with the arm64 target
- * and the declared-vs-built symmetry would hold while describing the wrong
- * artifact. That failure is invisible by construction — both sides agree, and
- * nothing goes red.
+ * The table above is keyed only by OS, which mis-attributes every macOS runner that
+ * is not Apple silicon: `macos-15-intel` reads as `darwin-arm64`, so an Intel job is
+ * credited with the arm64 target and declared-vs-built still agrees while describing
+ * the wrong artifact — invisible by construction, nothing goes red.
  *
- * GitHub's label vocabulary is deliberately checked in a specific order,
- * because two of its spellings differ by one character and mean opposite
- * architectures: `-xlarge` is Apple silicon, `-large` is Intel. Reading them
- * the other way round is the same silent mis-attribution with a longer fuse.
- *
- *   arm64 — `macos-14`, `macos-15`, `macos-latest`, `*-xlarge`,
- *           `ubuntu-24.04-arm`
+ * Label order matters: two spellings differ by one character and mean opposite
+ * architectures — `-xlarge` is Apple silicon, `-large` is Intel.
+ *   arm64 — `macos-14`, `macos-15`, `macos-latest`, `*-xlarge`, `ubuntu-24.04-arm`
  *   x64   — `macos-15-intel`, `macos-26-intel`, `*-large`
- *
- * `macos-15-intel` is the LAST x86_64 image Actions will offer (available
- * until August 2027, after which Apple's discontinuation of the architecture
- * ends GitHub's support for it) — so a `darwin-x64` promise necessarily has a
- * horizon, and the parser should be honest about which leg produced it.
+ * `macos-15-intel` is the last x86_64 image Actions will offer (until August 2027),
+ * so a `darwin-x64` promise has a horizon.
  */
 export function archFromRunner(runsOn, os = osFromRunner(runsOn)) {
     if (/-xlarge\b/.test(runsOn)) return 'arm64';
@@ -80,21 +60,18 @@ export function archFromRunner(runsOn, os = osFromRunner(runsOn)) {
 /**
  * The `strategy.matrix.include` entries of one job, as `{arch?, runner?}` PAIRS.
  *
- * `runs-on` is read literally, so a job whose runner comes from the matrix
- * (`runs-on: ${{ matrix.runner }}`) tells `osFromRunner` nothing — it falls
- * through to `linux`. That is right for the Linux legs BY ACCIDENT, and wrong
- * for any macOS or Windows matrix, which is why the OS-per-leg has to come
- * from the include entries rather than from the expression.
+ * `runs-on` is read literally, so `runs-on: ${{ matrix.runner }}` tells
+ * `osFromRunner` nothing and falls through to `linux` — right for the Linux legs BY
+ * ACCIDENT, wrong for any macOS or Windows matrix. Hence the OS-per-leg comes from
+ * the include entries, not from the expression.
  *
- * Pairing matters as much as reading: a job's `arch:` values and its `runner:`
- * values are not two independent sets — entry N's arch belongs to entry N's
- * runner. Collecting them into two flat sets would produce the CROSS product,
- * inventing targets no job builds the moment a matrix mixes operating systems.
+ * Entry N's arch belongs to entry N's runner: two flat sets would produce the CROSS
+ * product and invent targets no job builds, the moment a matrix mixes OSes.
  *
- * Deliberately the same lightweight structural read as the rest of this file
- * (no YAML dependency in a script that must run with NO install): find the
- * `matrix:` key, treat everything more-indented as its block, start a new entry
- * at each `- key: value`, and attach the sibling `key: value` lines to it.
+ * Lightweight structural read, like the rest of this file — no YAML dependency in a
+ * script that must run with NO install: find `matrix:`, treat everything
+ * more-indented as its block, start an entry at each `- key: value`, attach the
+ * sibling `key: value` lines to it.
  */
 export function parseMatrixIncludes(lines) {
     const unquote = (v) => v.replace(/^['"]|['"]$/g, '').trim();
@@ -138,30 +115,25 @@ export function splitSteps(lines) {
 }
 
 /**
- * Which `<os>-<arch>` targets CI actually produces, per package name.
+ * Which `<os>-<arch>` targets CI actually produces, per package name. Split `jobs:`
+ * into its 2-space-indented blocks, take each job's `runs-on` (→ OS) and `arch:`
+ * matrix entries (→ arch), attribute those targets to the packages the job PRODUCES
+ * an artifact for.
  *
- * Deliberately a lightweight structural read of the workflow files rather
- * than a full YAML parse: split `jobs:` into its 2-space-indented job blocks,
- * take each job's `runs-on` (→ OS) and any `arch:` matrix entries (→ arch),
- * and attribute those targets to the packages that job actually PRODUCES an
- * artifact for.
- *
- * "Produces" is deliberately narrow — a package name has to appear on a line
- * that also carries a production verb (build / collect / stage / prebuild /
- * upload). A bare mention does not count, because the workflows are full of
- * explanatory comments naming packages they merely depend on ("…whose
- * `gjsify build` needs `@gjsify/rolldown-native`"), and crediting those would
- * manufacture platform support that does not exist. Comment lines are dropped
- * outright for the same reason.
+ * "Produces" is narrow: the package name must appear in a step that also carries a
+ * production verb (build / collect / stage / prebuild / upload), and comment lines
+ * are dropped outright. The workflows are full of explanatory comments naming
+ * packages they merely depend on, and crediting those manufactures platform support
+ * that does not exist.
  *
  * Jobs gated on `github.event_name == 'workflow_dispatch'` are EXCLUDED: a
- * manually-dispatched exploratory job (today: napi's blocked Windows attempt)
- * is not a platform CI produces, and counting it would let a package declare
- * a target no user will ever receive.
+ * manually-dispatched exploratory job (today: napi's blocked Windows attempt) is not
+ * a platform CI produces, and counting it lets a package declare a target no user
+ * will ever receive.
  *
- * The result is ADVISORY — a package the parser finds no job for is reported
- * as unverified rather than failed, so a build wired up in a workflow shape
- * this parser does not understand can never produce a false CI failure.
+ * ADVISORY — a package the parser finds no job for is reported as unverified rather
+ * than failed, so a build wired up in a shape this parser cannot read never produces
+ * a false CI failure.
  */
 export async function parseCiPlatforms(
     root,
@@ -200,25 +172,22 @@ export async function parseCiPlatforms(
             const runsOn = /^\s*runs-on:\s*(.+?)\s*$/.exec(line);
             if (runsOn) current.runsOn = runsOn[1];
             const arch = /^\s*-?\s*arch:\s*['"]?([\w]+)['"]?\s*$/.exec(line);
-            // Only tokens that NAME a CPU count. `arch:` is a matrix key here,
-            // but it is also a common ACTION INPUT (it was one on the emulated
-            // legs until they stopped using `uraimo/run-on-arch-action`, whose
+            // Only tokens that NAME a CPU count: `arch:` is a matrix key here but
+            // also a common ACTION INPUT, and `uraimo/run-on-arch-action`'s
             // documented value alongside a custom `base_image` is the literal
-            // `none`). An unfiltered read turns any such value into a phantom
-            // target — `linux-none` — and fails the declared-vs-built contract
-            // for every package the job builds.
+            // `none`. Unfiltered, any such value becomes the phantom target
+            // `linux-none` and fails declared-vs-built for every package the job
+            // builds.
             if (arch && KNOWN_ARCH_TOKENS.has(arch[1])) current.archs.add(arch[1]);
             if (/^\s*if:\s*github\.event_name\s*==\s*'workflow_dispatch'/.test(line)) current.manualOnly = true;
         }
         for (const job of jobs) {
             if (job.manualOnly) continue;
             const os = osFromRunner(job.runsOn);
-            // Prefer the matrix's own (arch, runner) PAIRS: they carry a
-            // per-leg OS, which `runs-on: ${{ matrix.runner }}` cannot. Entries
-            // naming no runner fall back to the job's literal `runs-on` (the
-            // QEMU legs' shape), and a job with no matrix at all keeps the
-            // single-target path. `ubuntu-24.04-arm` / `macos-15-intel` and
-            // friends carry the arch in the label — see `archFromRunner`.
+            // Prefer the matrix's own (arch, runner) PAIRS: they carry a per-leg
+            // OS, which `runs-on: ${{ matrix.runner }}` cannot. Entries naming no
+            // runner fall back to the job's literal `runs-on` (the QEMU legs'
+            // shape); a job with no matrix keeps the single-target path.
             const includes = parseMatrixIncludes(job.body).filter((e) => e.arch || e.runner);
             const targets = new Set();
             if (includes.length > 0) {
@@ -233,45 +202,25 @@ export async function parseCiPlatforms(
                 const archs = job.archs.size > 0 ? [...job.archs] : [archFromRunner(job.runsOn, os)];
                 for (const arch of archs) targets.add(canonicalPlatform(`${os}-${arch}`));
             }
-            // A job that DOWNLOADS artifacts is consuming what another job
-            // produced, so nothing in it may be read as production — and this
-            // map means exactly "which targets does CI BUILD".
+            // This map means exactly "which targets does CI BUILD", so a job that
+            // only CONSUMES another job's artifacts must contribute nothing. The
+            // per-step verb test cannot see that alone: `commit-prebuilds`' steps
+            // are named "Download <pkg> <arch> prebuilds" and `publish-napi`'s
+            // "Confirm both prebuilds are STAGED" — production verbs in plain
+            // `ubuntu-latest` jobs with no arch matrix, so every package they
+            // mention got credited with `linux-x64` and failed the rule in BOTH
+            // directions at once.
             //
-            // The per-step verb test cannot make that distinction on its own:
-            // `commit-prebuilds`' steps are called "Download <pkg> <arch>
-            // prebuilds" and `publish-napi`'s is "Confirm both prebuilds are
-            // STAGED", both of which are production verbs, and both of which
-            // then contribute the CONSUMING job's own platform. It was harmless
-            // until ADR 0017 only because those steps named the BRIDGE, which
-            // the real build legs had already credited with the same targets —
-            // so the surplus attribution was invisible. Once they name the
-            // per-target package it is not: `commit-prebuilds` and
-            // `publish-napi` are plain `ubuntu-latest` jobs with no arch matrix,
-            // so every platform package they mention was credited with
-            // `linux-x64` and failed the rule in BOTH directions at once
-            // ("declares darwin-arm64, CI produces none" + "CI builds
-            // linux-x64, not declared").
+            // The test is downloads-AND-uploads-nothing, not downloads: `@gjsify/webgl`'s
+            // win32 artifact is built by a PAIR because valac cannot run on Windows,
+            // and the Windows half downloads the Linux half's generated C before
+            // compiling it. A job-level `downloads → skip` would credit that leg with
+            // nothing and read as "declares win32-x64 but no CI job produces it".
             //
-            // Keyed on the ACTIONS, not on a job-name pattern: a list of job
-            // names is a second copy of the workflow that drifts from it.
-            //
-            // "DOWNLOADS" IS NOT THE QUESTION — "produces nothing" is, and the
-            // difference has a counter-example in this very workflow. The
-            // sentence that used to stand here, "no producer downloads — the
-            // build legs compile from a checkout", was true until `@gjsify/webgl`
-            // gained a win32 target: valac cannot run on Windows, so that
-            // artifact is built by a PAIR, and the Windows half downloads the
-            // Linux half's generated C before compiling it. A job-level
-            // `downloads → skip` credited that leg with nothing, which would
-            // have failed the declared-vs-built invariant in the direction that
-            // reads "declares win32-x64 but no CI job produces it" — against a
-            // job that produces exactly it.
-            //
-            // So the test is downloads-AND-uploads-nothing, and the per-step
-            // exclusion below carries the rest. That exclusion is where the
-            // precision actually lives: a download step's `path:` is a
-            // DESTINATION, never something the job built, and crediting it is
-            // what once credited every platform package with `linux-x64`.
+            // Keyed on the ACTIONS, never on a job-name pattern: a list of job names
+            // is a second copy of the workflow that drifts from it. The per-step
+            // exclusion below carries the rest of the precision — a download step's
+            // `path:` is a DESTINATION, never something the job built.
             const bodyText = job.body.join('\n');
             const downloads = /uses:\s*actions\/download-artifact/.test(bodyText);
             const uploads = /uses:\s*actions\/upload-artifact/.test(bodyText);
@@ -297,34 +246,25 @@ export async function parseCiPlatforms(
 /**
  * Is every DEFERRED missing `.gir` actually on its way?
  *
- * The missing-`.gir` ledger (`scripts/manifest-conformance/prebuild-gir-gaps.mjs`)
- * excuses a committed directory that holds no `.gir`, on one stated promise: "the
- * next `prebuilds.yml` run that rebuilds this target lands the file". That promise
- * has two ways to be false, and the ledger could not see either of them.
- *
- *   1. The build stops emitting the `.gir`. Caught at the moment of truth by
- *      `scripts/stage-prebuild.mjs`, which refuses to stage a `.typelib` with no
- *      `.gir` beside it — in the build leg, with the build log in front of whoever
- *      reads it.
- *   2. NOTHING EVER REBUILDS THE TARGET. That is this function. A deferral for a
- *      target no CI leg produces cannot clear, ever: the ledger entry keeps
- *      passing, the audit keeps printing its reason, and a gap the tree describes
- *      as transient is permanent with nothing anywhere saying so. Which is the
- *      failure class the ledger was introduced to replace, one level up.
+ * The ledger (`scripts/manifest-conformance/prebuild-gir-gaps.mjs`) excuses a
+ * committed directory holding no `.gir` on one promise: "the next `prebuilds.yml`
+ * run that rebuilds this target lands the file". Two ways for that to be false, and
+ * the ledger sees neither. That the build STOPS EMITTING the `.gir` is caught at the
+ * moment of truth by `scripts/stage-prebuild.mjs`, which refuses to stage a
+ * `.typelib` with no `.gir` beside it. That NOTHING EVER REBUILDS THE TARGET is this
+ * function: such a deferral can never clear, so the entry keeps passing, the audit
+ * keeps printing its reason, and a gap the tree calls transient is permanent with
+ * nothing saying so — the failure class the ledger replaced, one level up.
  *
  * So a deferral must name a package `prebuilds.yml` BUILDS, for the target whose
- * directory is short a file. That is checkable from the workflow this file already
- * parses, which is why it lives in the repo-scoped rule rather than in the portable
- * `prebuild-artifacts` one: a consumer's CI is not this one.
+ * directory is short a file — checkable from the workflow this file already parses,
+ * hence repo-scoped rather than in portable `prebuild-artifacts`.
  *
- * ADVISORY WHEN THE PARSER IS BLIND, deliberately: if the coverage map is empty,
- * the workflow shape (not the ledger) is what this could not read, and turning a
- * parser gap into a red `main` for every open PR is the incident this whole gate
- * exists to stop. An empty map therefore yields a note, never a failure — while a
- * map that credits OTHER packages and not this one is a real answer.
+ * ADVISORY WHEN THE PARSER IS BLIND: an empty coverage map means the workflow shape
+ * was unreadable, not that the ledger is wrong, and turning a parser gap into a red
+ * `main` for every open PR is the incident this gate exists to stop. A map that
+ * credits OTHER packages and not this one is a real answer.
  *
- * @param {Array<object>} nativePkgs rows from `collectNativePackages()`
- * @param {Map<string, Set<string>>} prebuildCi coverage parsed from `prebuilds.yml`
  * @param {Record<string, string>} [girGaps] the ledger, `ctx.options.prebuildGirGaps`
  * @returns {{failures: string[], notes: string[]}}
  */
@@ -343,9 +283,9 @@ export function auditGirGapArrival(nativePkgs, prebuildCi, girGaps = {}) {
     const byName = new Map(nativePkgs.map((p) => [p.name, p]));
     for (const name of deferred) {
         const pkg = byName.get(name);
-        // An entry naming a package this tree does not audit is already a failure
-        // in `prebuild-artifacts` (nothing matched it). Reporting it twice, from a
-        // rule that would have to guess what was meant, adds noise and no signal.
+        // An entry naming a package this tree does not audit already fails in
+        // `prebuild-artifacts`; reporting it twice from a rule that would have to
+        // guess what was meant is noise.
         if (!pkg) continue;
         const built = prebuildCi.get(name) ?? new Set();
         const orphaned = (pkg.declared ?? []).filter((target) => !built.has(target));
@@ -392,10 +332,9 @@ export function auditPlatforms(nativePkgs, ciPlatforms) {
         }
         const declaredCanon = new Set(pkg.declared.map(canonicalPlatform));
 
-        // A committed artifact nobody declared: either the declaration is
-        // stale or the artifact is. Both are silent-wrongness risks — a
-        // consumer resolving `prebuilds/<p>/` finds something the package
-        // does not promise to keep working.
+        // A committed artifact nobody declared: either the declaration or the
+        // artifact is stale, and a consumer resolving `prebuilds/<p>/` finds
+        // something the package does not promise to keep working.
         for (const shipped of pkg.shipped) {
             if (!declaredCanon.has(canonicalPlatform(shipped))) {
                 failures.push(
@@ -404,13 +343,10 @@ export function auditPlatforms(nativePkgs, ciPlatforms) {
             }
         }
 
-        // The promise and the build must agree in BOTH directions, so that
-        // whoever changes one is forced to change the other:
+        // BOTH directions, so whoever changes one is forced to change the other:
         //   declared ⊄ CI  → a platform users are promised but never receive
-        //   CI ⊄ declared  → a platform CI pays to build that nothing claims,
-        //                    and that no consumer-facing document mentions
-        // Only enforced when the parser found CI jobs for this package at all
-        // — see parseCiPlatforms' contract.
+        //   CI ⊄ declared  → a platform CI pays to build that nothing claims
+        // Only when the parser found CI jobs for this package — see parseCiPlatforms.
         if (ci) {
             for (const declared of pkg.declared) {
                 if (!ci.has(canonicalPlatform(declared))) {
@@ -427,11 +363,9 @@ export function auditPlatforms(nativePkgs, ciPlatforms) {
                 }
             }
         } else if (pkg.shipped.length > 0) {
-            // Committed binaries that no workflow reproduces. They were built
-            // by hand once and drift silently from their sources forever after
-            // — nothing rebuilds them when the Vala/Rust changes, and nothing
-            // proves they still match. Wire the package into a prebuild
-            // workflow, or stop shipping the artifact.
+            // Committed binaries no workflow reproduces: built by hand once, and
+            // nothing rebuilds them when the Vala/Rust changes or proves they still
+            // match.
             failures.push(
                 `${pkg.name} (${pkg.path}): ships prebuilds (${pkg.shipped.join(', ')}) but no CI job produces any of them — a hand-built binary nothing reproduces. Wire it into .github/workflows/prebuilds.yml.`,
             );
@@ -444,11 +378,10 @@ export function auditPlatforms(nativePkgs, ciPlatforms) {
  * The OS × package matrix — the honest answer to "where does this run?".
  *
  * Takes rows that have been through {@link creditPlatformArtifacts} and REFUSES
- * anything else. Every glyph below except `·` turns on where the artifact for a
- * cell is, and since ADR 0017 that fact lives on a package this table does not
- * have a row for; a renderer that reads it off the bridge alone cannot fail, it
- * just quietly answers a different question — which is the whole defect this
- * signature exists to make unrepeatable.
+ * anything else: every glyph but `·` turns on where the artifact for a cell is, and
+ * since ADR 0017 that fact lives on a package this table has no row for. A renderer
+ * reading it off the bridge alone cannot fail — it quietly answers a different
+ * question, which this signature exists to make unrepeatable.
  */
 export function renderPlatformMatrix(rows, { markdown = false } = {}) {
     const uncredited = rows.filter((r) => r.artifacts == null || typeof r.artifacts !== 'object');
@@ -470,28 +403,17 @@ export function renderPlatformMatrix(rows, { markdown = false } = {}) {
     const mark = (r, p) => {
         const declared = (r.declared ?? []).some((d) => canonicalPlatform(d) === p);
         const built = (r.ci ?? []).some((c) => canonicalPlatform(c) === p);
-        // "Is there a committed artifact for this cell ANYWHERE in this repo",
-        // asked of the credit map rather than of this row's own `prebuilds/`.
-        // A declared target with no committed artifact is a distinct state from
-        // one with — the matrix is the document people read to answer "can I
-        // install this there?", and collapsing the two is how "declared" came to
-        // look like "delivered" in the first place.
+        // "Is there a committed artifact for this cell ANYWHERE in this repo", asked
+        // of the credit map rather than of this row's own `prebuilds/`. A declared
+        // target with no committed artifact is a DISTINCT state from one with: this
+        // table is rendered into the website's Platform Support page, where readers
+        // answer "can I install this there?", and collapsing the two is how
+        // "declared" came to look like "delivered".
         //
-        // The previous spelling read `r.shipped`/`r.uncommitted` off the row and
-        // gated the exemption on OWNERSHIP rather than on `gjsify.prebuilds` —
-        // both correct as far as they went, and both blind to WHERE the state
-        // moved. ADR 0017 put it on the per-target CHILD packages, which
-        // `matrixRows` filters out of this table, so on a bridge row `shipped` is
-        // always `[]` and `uncommitted` always `null`: the `○` and `⚠` branches
-        // became unreachable and every declared target a CI job builds rendered
-        // `✓` "artifact committed". Measured on 0.27.0: `@gjsify/napi` claimed a
-        // committed artifact on both its targets while its two children defer
-        // BOTH via `gjsify.platformsUncommitted` (the linux-x64 directory was
-        // deleted in #960 precisely so the only loadable copy is one CI just
-        // built), and `@gjsify/node-gi` claimed one on all five while building
-        // with node-gyp at install time and committing nothing anywhere. This
-        // table is rendered into the website's Platform Support page, so that
-        // cell is exactly the documentation lie it exists to prevent.
+        // Reading `r.shipped`/`r.uncommitted` off the row cannot work: ADR 0017 moved
+        // that state onto the per-target CHILD packages, which `matrixRows` filters
+        // out, so on a bridge row `shipped` is always `[]` — the `○` and `⚠` branches
+        // go unreachable and every CI-built declared target renders `✓`.
         const artifact = r.artifacts[p];
         if (declared && artifact?.committed === true) return built ? '✓' : '⚠'; // ⚠ committed, nothing rebuilds it
         if (declared && built) return '○'; // built, but no artifact committed here
@@ -499,10 +421,9 @@ export function renderPlatformMatrix(rows, { markdown = false } = {}) {
         if (artifact?.committed === true || built) return '?'; // produced, never promised
         return '·';
     };
-    // "a CI job targets it", not "a green build exists": this is parsed out of
-    // the workflow YAML, which knows nothing about run results. Saying "built"
-    // would claim more than the data supports — the failure mode this whole
-    // audit exists to remove.
+    // "a CI job targets it", not "a green build exists": this is parsed out of the
+    // workflow YAML, which knows nothing about run results, so saying "built" would
+    // claim more than the data supports.
     const legendParts = [
         '✓ declared, a CI job targets it, artifact committed',
         '○ declared, a CI job targets it, artifact NOT committed here',
@@ -533,30 +454,26 @@ export function renderPlatformMatrix(rows, { markdown = false } = {}) {
 }
 
 /**
- * The declared targets whose artifact this repository never commits, so the only
- * way one can reach a consumer is inside the tarball a `release.yml` job stages.
+ * The declared targets whose artifact this repository never commits, so the only way
+ * one reaches a consumer is inside the tarball a `release.yml` job stages.
  *
- * `auditPlatforms` above compares a declaration against the UNION of every
- * workflow, which answers "does CI build this?" and deliberately says nothing
- * about who SHIPS it. For a package whose binary is committed here that is the
- * whole story — the normal `publish` job packs the checked-out directory. For a
- * package that commits nothing it is only half of one, and the missing half is
- * where both node-gi platform gaps came from: `win32-x64`/`darwin-arm64` in
- * 0.26.0 and `darwin-x64` right after #921 added it. Each time the union was
- * green because `node-gi.yml` genuinely builds the target on every node-gi PR,
- * and each time the published tarball had no such binary in it.
+ * `auditPlatforms` compares a declaration against the UNION of every workflow, which
+ * answers "does CI build this?" and says nothing about who SHIPS it. For a package
+ * whose binary is committed here that is the whole story (the normal `publish` job
+ * packs the checked-out directory); for one that commits nothing it is half, and the
+ * missing half is where both node-gi platform gaps came from — `win32-x64`/`darwin-arm64`
+ * in 0.26.0 and `darwin-x64` right after #921 added it. Each time the union was green
+ * because `node-gi.yml` genuinely builds the target, and each time the published
+ * tarball had no such binary in it.
  *
- * The three ownership states (`prebuildOwnership`) answer this exactly:
- *   · `install-time` — nothing is committed here for ANY target, so every
- *     declared one needs a release leg. Today `@gjsify/node-gi`.
- *   · `committed-here` — the committed directories ship themselves; only the
- *     targets the package itself records as NOT committed
- *     (`gjsify.platformsUncommitted`) need one. Today `@gjsify/napi`'s two
- *     per-target packages, whose exemption reasons name these very legs.
- *   · `split` — SKIPPED. The parent holds the declaration but owns no artifact;
- *     each per-target child is its own row here and answers for its own target.
+ * The three `prebuildOwnership` states answer this exactly:
+ *   · `install-time` — nothing committed here for ANY target, so every declared one
+ *     needs a release leg. Today `@gjsify/node-gi`.
+ *   · `committed-here` — committed directories ship themselves; only targets the
+ *     package records as NOT committed (`gjsify.platformsUncommitted`) need one.
+ *   · `split` — SKIPPED: the parent holds the declaration but owns no artifact, and
+ *     each per-target child is its own row answering for its own target.
  *
- * @param {object} pkg a row from `collectNativePackages()`
  * @returns {string[]} canonical targets, possibly empty
  */
 export function releaseOnlyTargets(pkg) {
@@ -571,24 +488,19 @@ export function releaseOnlyTargets(pkg) {
 /**
  * Hold `release.yml` to every target that can only ship from it.
  *
- * WHY `prebuildsCi` IS SUBTRACTED and not merely ignored: a target that
- * `prebuilds.yml` builds is on its way to being COMMITTED — `commit-prebuilds`
- * lands the directory and `clear-committed-platform-exemptions.mjs` deletes the
- * exemption in the same commit. That is the TEMPORARY half of the exemption
- * contract (§ Runtime & platform model), and it is the NORMAL state of a
- * newly-added target: for the days between "the leg is green" and "the artifact
- * is committed", the package legitimately declares a target with no artifact and
- * no release leg. Without this subtraction the rule would demand a release leg
- * for every such target — a leg that must not exist — and the next exotic-arch
- * addition would have to route around the check to land at all.
+ * WHY `prebuildsCi` IS SUBTRACTED rather than ignored: a target `prebuilds.yml`
+ * builds is on its way to being COMMITTED — `commit-prebuilds` lands the directory and
+ * `clear-committed-platform-exemptions.mjs` deletes the exemption in the same commit.
+ * That is the TEMPORARY half of the exemption contract (§ Runtime & platform model)
+ * and the NORMAL state of a newly-added target: between "the leg is green" and "the
+ * artifact is committed" the package legitimately declares a target with no artifact
+ * and no release leg. Without the subtraction the rule demands a release leg that must
+ * not exist, and the next exotic-arch addition has to route around the check to land.
  *
- * ADVISORY-SAFE in the same way as `auditPlatforms`: a package the parser found
- * no release coverage for at all still fails, because for these packages "no
- * release leg" IS the defect. There is nothing here that a workflow shape the
- * parser misunderstands could turn into a false pass — an unrecognised leg reads
- * as absent, which is the failing direction, so the message names the parser.
+ * ADVISORY-SAFE like `auditPlatforms`, in the other direction: for these packages "no
+ * release leg" IS the defect, so an unrecognised leg reads as absent — the failing
+ * direction — and the message names the parser.
  *
- * @param {Array<object>} nativePkgs rows from `collectNativePackages()`
  * @param {Map<string, Set<string>>} releaseCi coverage parsed from `release.yml` alone
  * @param {Map<string, Set<string>>} prebuildsCi coverage parsed from `prebuilds.yml` alone
  * @returns {string[]} failure lines (empty = ok)
@@ -613,25 +525,21 @@ export function auditReleaseCoverage(nativePkgs, releaseCi, prebuildsCi) {
  * Credit each per-target platform package (ADR 0017) with its PARENT's CI
  * coverage, narrowed to its own target.
  *
- * A platform package is a re-tarballing of one directory the parent's build
- * produced; no workflow mentions it by name, and nothing should — the job that
- * produces the binary is the parent's, identified by the parent's name and path.
- * Without this the `platforms-ci` rule reaches its last branch for all 51 of them
- * ("ships prebuilds but no CI job produces any of them — a hand-built binary
- * nothing reproduces"), which is exactly backwards: the artifact is the single
- * most reproducible thing in the tree.
+ * A platform package is a re-tarballing of one directory the parent's build produced;
+ * no workflow mentions it by name, and nothing should — the job that produces the
+ * binary is the parent's, identified by the parent's name and path. Without this,
+ * every one of them reaches this rule's last branch ("ships prebuilds but no CI job
+ * produces any of them — a hand-built binary nothing reproduces"), exactly backwards
+ * for the most reproducible artifact in the tree.
  *
- * NARROWED, not inherited wholesale, because the rule checks CI coverage in both
- * directions and an unnarrowed set would report `@gjsify/webgl-linux-x64` as
- * building four targets it does not declare. Narrowing makes the child's own
- * ci-vs-declared check vacuous — deliberately: the child's declaration is
- * GENERATED from the parent's list and audited against it by the
- * `platform-packages` rule, while the parent keeps the full both-directions
- * contract against the workflow matrix. Coverage moves, it does not disappear.
+ * NARROWED, not inherited wholesale: the rule checks CI coverage in both directions,
+ * and an unnarrowed set would report `@gjsify/webgl-linux-x64` as building targets it
+ * does not declare. That makes the child's own ci-vs-declared check vacuous by
+ * design — the child's declaration is GENERATED from the parent's list and audited
+ * against it by the `platform-packages` rule, while the parent keeps the full
+ * both-directions contract against the workflow matrix.
  *
- * @param {Array<object>} nativePkgs rows from `collectNativePackages()`
  * @param {Map<string, Set<string>>} byPackage from {@link parseCiPlatforms}
- * @param {import('../../../packages/infra/manifest-conformance/lib/context.mjs').ConformanceContext} ctx
  */
 export function creditPlatformPackages(nativePkgs, byPackage, ctx) {
     for (const pkg of nativePkgs) {
@@ -639,9 +547,9 @@ export function creditPlatformPackages(nativePkgs, byPackage, ctx) {
         if (!record || !isPlatformPackageManifest(record.manifest)) continue;
         if (byPackage.has(pkg.name)) continue; // a workflow named it explicitly — take it at its word
         const target = record.manifest.gjsify.platforms[0];
-        // Find the bridge this package belongs to by the ONE naming derivation,
-        // rather than by string-stripping the suffix here: the parent is whichever
-        // native package the derivation reproduces this name from.
+        // Find the bridge by the ONE naming derivation rather than string-stripping
+        // the suffix here: the parent is whichever native package the derivation
+        // reproduces this name from.
         const parent = nativePkgs.find((p) => platformPackageName(p.name, target) === pkg.name);
         const parentCi = parent ? byPackage.get(parent.name) : undefined;
         if (!parentCi) continue;
@@ -654,30 +562,26 @@ export function creditPlatformPackages(nativePkgs, byPackage, ctx) {
 /**
  * Credit each bridge with the artifact state its per-target packages hold.
  *
- * The MIRROR IMAGE of `creditPlatformPackages` above, along the same single
- * naming derivation and for the same reason: ADR 0017 records a fact about a
- * bridge's binaries on a DIFFERENT package than the one a reader asks about.
- * That function moves CI coverage DOWN to the children so each answers for its
- * own target; this one moves the ARTIFACT state UP to the bridge, because the
- * matrix has exactly one row per bridge and none for its children — and every
- * glyph but `·` turns on where the artifact for that cell is.
+ * MIRROR IMAGE of `creditPlatformPackages`, along the same naming derivation and for
+ * the same reason: ADR 0017 records a fact about a bridge's binaries on a DIFFERENT
+ * package than the one a reader asks about. That function moves CI coverage DOWN to
+ * the children; this one moves ARTIFACT state UP to the bridge, because the matrix has
+ * one row per bridge and none for its children.
  *
- * NOT folded into `collectNativePackages()`: that row is the input to the
- * FAILURE set (`prebuild-artifacts` holds each tarball to the directories IT
- * contains, `releaseOnlyTargets` asks what THIS package commits), and a row
- * whose `shipped` silently included a sibling's directories would make both ask
- * the wrong question. The credit is additive and derived, so it goes in a field
- * of its own, on a copy, at the point of RENDERING.
+ * NOT folded into `collectNativePackages()`: that row feeds the FAILURE set
+ * (`prebuild-artifacts` holds each tarball to the directories IT contains,
+ * `releaseOnlyTargets` asks what THIS package commits), and a row whose `shipped`
+ * silently included a sibling's directories would make both ask the wrong question.
+ * The credit is additive and derived, so it lives in its own field, on a copy, at the
+ * point of RENDERING.
  *
- * A record per target rather than a flat set of tokens, because the bridge does
- * not contain the artifact: `package` names the tarball the binary is really in,
- * which is what a reader needs in order to go and check it, and a row claiming
- * `shipped: ['linux-x64']` would replace one wrong answer with another.
+ * A record per target rather than a flat set of tokens, because the bridge does not
+ * contain the artifact: `package` names the tarball the binary is really in, which is
+ * what a reader needs in order to check it.
  *
- * OWN state wins over a child's. A bridge that still names its own
- * `gjsify.prebuilds` is legal (none today) and then IS the owner; a child could
- * only contradict it, and picking the child would make the state depend on row
- * order.
+ * OWN state wins over a child's — a bridge still naming its own `gjsify.prebuilds` is
+ * legal (none today) and then IS the owner; picking the child would make the state
+ * depend on row order.
  *
  * @param {Array<object>} rows rows from {@link auditPlatforms}, children INCLUDED
  * @returns {Array<object>} copies carrying
@@ -690,9 +594,9 @@ export function creditPlatformArtifacts(rows) {
         const artifacts = byName.get(owner);
         if (artifacts && !(target in artifacts)) artifacts[target] = state;
     };
-    // Raw on purpose — `prebuild-artifacts` validates the shape and names the
-    // package when it is wrong. A reporter must not crash on data a rule is
-    // already failing, so a malformed value reads here as "no exemption".
+    // Raw on purpose: `prebuild-artifacts` validates the shape and names the package
+    // when it is wrong, and a reporter must not crash on data a rule is already
+    // failing — so a malformed value reads here as "no exemption".
     const deferrals = (row) =>
         row.uncommitted != null && typeof row.uncommitted === 'object' && !Array.isArray(row.uncommitted)
             ? Object.entries(row.uncommitted)
@@ -708,10 +612,9 @@ export function creditPlatformArtifacts(rows) {
         for (const target of new Set(own)) record(row.name, target, stateOf(row, target));
     }
     for (const child of rows) {
-        // A row is a bridge's per-target package when the ONE derivation
-        // reproduces its name from that bridge's name plus its single declared
-        // target — the same test `creditPlatformPackages` applies in the other
-        // direction, rather than string-stripping the suffix here.
+        // A row is a bridge's per-target package when the ONE derivation reproduces
+        // its name from that bridge's name plus its single declared target — the same
+        // test `creditPlatformPackages` applies in the other direction.
         const declared = child.declared ?? [];
         if (declared.length !== 1) continue;
         const parent = rows.find(
@@ -732,23 +635,19 @@ export async function platformRows(ctx) {
         creditPlatformPackages(nativePkgs, await parseCiPlatforms(ctx.root, nativePkgs, files), ctx);
     const ciPlatforms = await coverage(undefined); // the union — every workflow
     const { failures, rows } = auditPlatforms(nativePkgs, ciPlatforms);
-    // Two extra single-file passes, deliberately not folded into the union: the
-    // union answers "does CI build it", these answer "who SHIPS it" and "is it on
-    // its way to being committed", and collapsing three different questions into
-    // one map is what let a promise pass for a delivery twice. Each pass is a
-    // regex sweep over one already-read workflow file — microseconds, no install.
+    // Two extra single-file passes, not folded into the union: the union answers "does
+    // CI build it", these answer "who SHIPS it" and "is it on its way to being
+    // committed", and collapsing the three into one map is what let a promise pass for
+    // a delivery twice. Each is a regex sweep over an already-read file.
     const prebuildCi = await coverage(['prebuilds.yml']);
     failures.push(...auditReleaseCoverage(nativePkgs, await coverage(['release.yml']), prebuildCi));
-    // A THIRD question over the same map: not "does CI build what is promised" but
-    // "can the thing a deferral is waiting for ever arrive". Same pass, so it costs
-    // nothing beyond the comparison.
+    // A third question over the same map: can the thing a deferral waits for arrive.
     const arrival = auditGirGapArrival(nativePkgs, prebuildCi, ctx.options?.prebuildGirGaps ?? {});
     failures.push(...arrival.failures);
-    // BEFORE the `matrixRows` filter, which is the whole ordering constraint: the
-    // artifact state of a split bridge lives on the children the filter removes,
-    // so crediting afterwards would find nothing to credit and every declared,
-    // CI-targeted cell would render `✓` — see `renderPlatformMatrix`. Reporting
-    // only; the failure set above is computed from the uncredited rows.
+    // BEFORE the `matrixRows` filter — the ordering constraint: a split bridge's
+    // artifact state lives on the children the filter removes, so crediting afterwards
+    // finds nothing and every declared, CI-targeted cell renders `✓` (see
+    // `renderPlatformMatrix`). Reporting only; failures come from the uncredited rows.
     const credited = creditPlatformArtifacts(rows);
     return {
         failures,
@@ -756,14 +655,13 @@ export async function platformRows(ctx) {
         // The positive half of the arrival check, so a passing run SAYS which
         // deferrals have a leg that will end them rather than only going quiet.
         girArrivalNotes: arrival.notes,
-        // How many declared targets ship ONLY from a release job, so the summary
-        // states what was checked rather than implying the whole tree was.
+        // How many declared targets ship ONLY from a release job, so the summary states
+        // what was checked rather than implying the whole tree was.
         releaseOnly: nativePkgs.reduce((n, pkg) => n + releaseOnlyTargets(pkg).length, 0),
-        // The MATRIX answers "can I install this bridge there?" — one row per
-        // bridge. 51 single-cell platform-package rows would say nothing the
-        // parent's row does not already say and would bury the twelve rows a
-        // reader came for, so they are filtered from the report while staying
-        // fully in the failure set above.
+        // The MATRIX answers "can I install this bridge there?" — one row per bridge.
+        // The single-cell platform-package rows say nothing the parent's row does not
+        // and would bury the handful a reader came for, so they are filtered from the
+        // report while staying fully in the failure set above.
         matrixRows: credited.filter((r) => {
             const record = ctx.get(r.name);
             return !record || !isPlatformPackageManifest(record.manifest);
@@ -790,8 +688,7 @@ export const platformsCiRule = defineRule({
                     `${releaseOnly > 0 ? `; ${releaseOnly} target(s) that ship only from a release job have a release.yml leg` : ''}` +
                     `${unverified > 0 ? ` (${unverified} package(s) had no CI job the parser recognised — reported, not enforced)` : ''}.`,
                 // Printed, not merely counted: a deferral is acceptable only while
-                // something is on its way to ending it, so the run that tolerates
-                // one should name the leg that will.
+                // something is on its way to ending it, so name the leg that will.
                 ...girArrivalNotes.map((n) => `  · ${n}`),
             ].join('\n'),
         };

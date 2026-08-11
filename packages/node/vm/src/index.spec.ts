@@ -14,7 +14,6 @@ import vm, {
 
 export default async () => {
     await describe('vm', async () => {
-        // ==================== exports ====================
         await describe('exports', async () => {
             await it('should export runInThisContext', async () => {
                 expect(typeof runInThisContext).toBe('function');
@@ -55,7 +54,6 @@ export default async () => {
             });
         });
 
-        // ==================== runInThisContext ====================
         await describe('runInThisContext', async () => {
             await it('should evaluate arithmetic', async () => {
                 expect(runInThisContext('1 + 1')).toBe(2);
@@ -193,7 +191,6 @@ export default async () => {
             });
         });
 
-        // ==================== runInNewContext ====================
         await describe('runInNewContext', async () => {
             await it('should access sandbox variables', async () => {
                 const result = runInNewContext('a + b', { a: 10, b: 20 });
@@ -329,7 +326,6 @@ export default async () => {
             });
         });
 
-        // ==================== runInContext ====================
         await describe('runInContext', async () => {
             await it('should run in a created context', async () => {
                 const ctx = createContext({ x: 10 });
@@ -385,7 +381,6 @@ export default async () => {
             });
         });
 
-        // ==================== createContext / isContext ====================
         await describe('createContext', async () => {
             await it('should return an object', async () => {
                 const ctx = createContext();
@@ -457,7 +452,6 @@ export default async () => {
             });
         });
 
-        // ==================== compileFunction ====================
         await describe('compileFunction', async () => {
             await it('should compile a function with no params', async () => {
                 const fn = compileFunction('return 42');
@@ -550,7 +544,6 @@ export default async () => {
             });
         });
 
-        // ==================== Script ====================
         await describe('Script', async () => {
             await it('should be constructable', async () => {
                 const script = new Script('1 + 2');
@@ -682,7 +675,6 @@ export default async () => {
             });
         });
 
-        // ==================== error cases ====================
         await describe('error cases', async () => {
             await it('should propagate SyntaxError from runInThisContext', async () => {
                 let caught = false;
@@ -775,7 +767,6 @@ export default async () => {
             });
         });
 
-        // ==================== edge cases ====================
         await describe('edge cases', async () => {
             await it('should handle code returning 0', async () => {
                 expect(runInThisContext('0')).toBe(0);

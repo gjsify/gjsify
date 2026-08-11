@@ -1,15 +1,10 @@
-// <adw-spin-row> — Row with a title/subtitle and a numeric spin control (+/− buttons).
-// Attributes: title, subtitle, min, max, step, value
-// Events: notify::value (CustomEvent, mirrors GJS GObject signal naming)
+// <adw-spin-row> — row with a title/subtitle and a numeric spin control (+/− buttons).
 //
-// The ADJUSTMENT state machine (value/min/max/step plus the clamp-on-every-
-// mutation and the change detection) is HEADLESS and lives in
-// `@gjsify/adwaita-core` (ADR 0004) as {@link SpinState}; this element composes it
-// and keeps only the DOM render half — the −/input/+ control, the step-precision
-// display (the `Adw.SpinRow:digits` concern, which belongs to the widget, not to
-// the adjustment) and the `notify::value` event.
-// `@gjsify/adwaita-nativescript` composes the same state machine, so both ports
-// share one behaviour.
+// The ADJUSTMENT state machine (value/min/max/step plus the clamp-on-every-mutation and
+// the change detection) is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as
+// {@link SpinState}; this element keeps only the DOM half — the −/input/+ control, the
+// step-precision display (the `Adw.SpinRow:digits` concern, which belongs to the widget
+// rather than to the adjustment) and the `notify::value` event.
 //
 // Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
 // Copyright (c) 2025 csm. MIT License.
@@ -61,7 +56,6 @@ export class AdwSpinRow extends HTMLElement {
         this._subtitleEl.className = 'adw-row-subtitle';
         text.append(this._titleEl, this._subtitleEl);
 
-        // Spin control container
         const control = document.createElement('div');
         control.className = 'adw-spin-control';
 
@@ -123,8 +117,7 @@ export class AdwSpinRow extends HTMLElement {
     }
 
     private _renderText() {
-        // The `string_is_not_empty` label rule, from core — this block was one of
-        // six hand-rolled copies, all of which omitted the TITLE half.
+        // The `string_is_not_empty` label rule, from core — it hides the TITLE too.
         const labels = deriveRowLabels({
             title: this.getAttribute('title'),
             subtitle: this.getAttribute('subtitle'),

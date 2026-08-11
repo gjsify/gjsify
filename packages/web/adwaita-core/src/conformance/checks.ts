@@ -1,30 +1,20 @@
 // Radio-group conformance vectors — the exclusivity spec both renderers are held to.
 //
-// WHY A TABLE FOR SOMETHING THE BROWSER DOES FOR FREE
+// The browser does NOT do this for free at the level that matters: `<input type="radio"
+// name="g">` unchecks its sibling INPUT and stops there, so the sibling `<adw-radio>` HOST
+// keeps its `checked` attribute — the element's published state and the selector the
+// stylesheet paints from — and a group left to the browser draws two selected radios.
+// `@gjsify/adwaita-nativescript` has no exclusivity at all, so both ports carry the rule.
 //
-// It does not do it for free at the level that matters. `<input type="radio"
-// name="g">` unchecks its sibling INPUT, and stops there: the sibling
-// `<adw-radio>` HOST keeps its `checked` attribute — which is the element's
-// published state and the selector the stylesheet paints from — so a group left
-// to the browser draws two selected radios. `@gjsify/adwaita-nativescript` has
-// no exclusivity at all. Both ports therefore carry the same rule, and this is
-// the reading of it.
+// WHAT THE SOURCE DOES NOT SETTLE: `GtkCheckButton` is a GTK widget and libadwaita vendors
+// no `adw-checkbox.c`, so `gtk_check_button_set_group`'s semantics cannot be cited from
+// `refs/libadwaita`. Every row is instead derived from observable HTML radio behaviour,
+// which both ports must not contradict, and says so in its `rule` — none claims a C line
+// it cannot cite.
 //
-// WHAT THE SOURCE DOES AND DOES NOT SETTLE
-//
-// `GtkCheckButton` is a GTK widget: `refs/gtk` is EMPTY in this tree and
-// libadwaita vendors no `adw-checkbox.c`, so `gtk_check_button_set_group`'s
-// semantics are NOT verifiable here. The rows below are therefore derived from
-// what IS observable — HTML radio behaviour, which both ports must not
-// contradict — and every one of them says so in its `rule`. None of them claims
-// a C line it cannot cite.
-//
-// WHO DRIVES THIS TABLE
-//
-// The core (`checks.spec.ts`) against `RadioGroupState` itself, and the browser
-// suite (`adw-checks.spec.ts`) against real `<adw-radio>` elements, replaying
-// each step as a click and reading back the `checked` ATTRIBUTE of every member
-// — which is precisely the state the browser's own exclusivity leaves stale.
+// The browser suite drives these against real `<adw-radio>` elements by reading back the
+// `checked` ATTRIBUTE of every member, which is precisely the state the browser's own
+// exclusivity leaves stale.
 //
 // Reference: refs/libadwaita/src/stylesheet/widgets/_checks.scss (the styling that renders the state)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
@@ -39,23 +29,19 @@ export interface RadioGroupStep {
     op: 'select';
     /** The group name — what `name` scopes in HTML, and what the state keys on. */
     name: string;
-    /** The member's value. */
     value: string;
 }
 
 /** One radio-group scenario. */
 export interface RadioGroupVector {
-    /** Short scenario name. */
     name: string;
     /** The members that exist, as `[group, value]` pairs — what the renderer mounts. */
     members: ReadonlyArray<readonly [string, string]>;
-    /** The mutations, applied in order to a fresh state. */
     steps: readonly RadioGroupStep[];
     /** `selected(group)` afterwards, one entry per group in {@link members}. */
     selected: ReadonlyArray<readonly [string, string | null]>;
     /** Every change the state emits, in order. This IS the renderer's repaint feed. */
     emitted: ReadonlyArray<RadioGroupChange>;
-    /** Why this row exists — the rule or edge case it pins down. */
     rule: string;
 }
 

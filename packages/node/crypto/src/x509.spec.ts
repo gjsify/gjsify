@@ -26,8 +26,6 @@ const _TEST_CERT = [
 ].join('\n');
 
 export default async () => {
-    // ==================== X509Certificate class ====================
-
     await describe('X509Certificate', async () => {
         await it('should be exported from crypto', async () => {
             expect(typeof X509Certificate).toBe('function');
@@ -38,8 +36,6 @@ export default async () => {
             expect(typeof X509Certificate.prototype.toString).toBe('function');
         });
     });
-
-    // ==================== X509Certificate properties ====================
 
     await describe('X509Certificate properties', async () => {
         await it('should expose serialNumber', async () => {
@@ -104,8 +100,6 @@ export default async () => {
             expect(desc).toBeDefined();
         });
     });
-
-    // ==================== JWK export/import (KeyObject) ====================
 
     await describe('KeyObject JWK export', async () => {
         const testPrivateKeyPem = [

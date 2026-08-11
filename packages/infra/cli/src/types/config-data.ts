@@ -3,13 +3,11 @@ import type { App } from '@gjsify/rolldown-plugin-gjsify';
 import type { ConfigDataLibrary, ConfigDataTypescript } from './index.js';
 
 /**
- * Plugin entry resolvable by package name from the project's `node_modules`.
- * Lets users describe the plugin chain in `package.json#gjsify` without
- * dropping to a JS-form config file. The CLI imports the named module,
- * picks the chosen export (defaults to `default`), and calls it with
- * `options`.
+ * Plugin entry resolvable by package name from the project's `node_modules`, so
+ * the plugin chain can be described in `package.json#gjsify` without dropping to
+ * a JS-form config file. The CLI imports the named module, picks `export`
+ * (default: `default`), and calls it with `options`.
  *
- * Example:
  * ```jsonc
  * { "name": "@gjsify/vite-plugin-blueprint", "options": { "minify": true } }
  * { "name": "@gjsify/vite-plugin-gettext", "export": "msgfmtPlugin", "options": { ... } }
@@ -22,18 +20,14 @@ export interface BundlerPluginByName {
 }
 
 /**
- * Subset of `RolldownOptions` accepted in `.gjsifyrc.js`. Mirrors the legacy
- * `esbuild?: BuildOptions` field — a thin pass-through. The orchestrator
- * applies platform defaults on top of these, so most projects only need
- * `output.file` / `output.dir` here.
+ * Subset of `RolldownOptions` accepted in `.gjsifyrc.js`, a thin pass-through:
+ * the orchestrator applies platform defaults on top, so most projects only set
+ * `output.file` / `output.dir`.
  *
- * `output` is constrained to a single `OutputOptions` object (Rolldown also
- * accepts an array for multi-output builds, but the CLI surface targets the
- * single-output use case).
- *
- * `plugins` is widened to also accept `BundlerPluginByName` entries — these
- * are resolved by the CLI from the project's `node_modules` before the
- * Rolldown call.
+ * `output` is a single `OutputOptions` object — Rolldown also accepts an array
+ * for multi-output builds, but this CLI surface targets the single-output case.
+ * `plugins` additionally accepts {@link BundlerPluginByName} entries, resolved
+ * from `node_modules` before the Rolldown call.
  */
 export type BundlerOptions = Omit<RolldownOptions, 'output' | 'plugins'> & {
     output?: OutputOptions;
@@ -41,11 +35,9 @@ export type BundlerOptions = Omit<RolldownOptions, 'output' | 'plugins'> & {
 };
 
 /**
- * Legacy `esbuild?: BuildOptions` shape — kept as a compatibility shim for
- * one minor release. Setting it logs a deprecation warning; the supported
- * subset of fields is mapped into `bundler` at config-load time.
- *
- * Drop in 0.5.0.
+ * Legacy `esbuild?: BuildOptions` shape, still read as a compatibility shim.
+ * Setting it logs a deprecation warning; `legacyEsbuildToRolldown` maps the
+ * supported subset into `bundler` at config-load time.
  */
 export interface LegacyEsbuildOptions {
     outfile?: string;
@@ -65,26 +57,22 @@ export interface LegacyEsbuildOptions {
 }
 
 export interface ConfigData {
-    /** Switch on the verbose mode */
     verbose?: boolean;
     /**
-     * The build target for an application build (`gjs` | `node` | `browser` |
-     * `nativescript`). Resolved in `Config.forBuild` as CLI flag (`--app`) >
-     * `package.json#gjsify.app` > host-runtime default (`gjs` when the CLI runs
-     * under gjs, `node` when it runs under node/bun/deno). Consumed by the build
-     * handler and passed to `BuildAction.start`.
+     * Build target for an application build. Resolved in `Config.forBuild` as CLI
+     * flag (`--app`) > `package.json#gjsify.app` > host-runtime default (`gjs` when
+     * the CLI runs under gjs, `node` under node/bun/deno).
      */
     app?: App;
     /**
-     * Bundler-level options forwarded to Rolldown. Replaces the legacy
-     * `esbuild` field. The orchestrator applies platform-specific defaults
-     * on top — most projects only need to set `output.file` / `output.dir`.
+     * Bundler-level options forwarded to Rolldown. The orchestrator applies
+     * platform-specific defaults on top — most projects only set `output.file` /
+     * `output.dir`.
      */
     bundler?: BundlerOptions;
     /**
-     * @deprecated Use `bundler` instead. Will be removed in 0.5.0. The shim
-     * maps the supported subset of esbuild fields into the equivalent
-     * Rolldown shape and logs a deprecation warning.
+     * @deprecated Use `bundler`. The shim maps the supported subset of esbuild
+     * fields into the equivalent Rolldown shape and logs a deprecation warning.
      */
     esbuild?: LegacyEsbuildOptions;
     library?: ConfigDataLibrary;
@@ -92,126 +80,88 @@ export interface ConfigData {
     /** An array of glob patterns to exclude matches and aliases */
     exclude?: string[];
     /**
-     * Inject a console shim into GJS builds for clean output (no GLib prefix, ANSI colors work).
-     * Only applies to GJS app builds. Default: true.
+     * Inject a console shim into GJS app builds for clean output (no GLib prefix,
+     * working ANSI colors). Default: true.
      */
     consoleShim?: boolean;
-    /**
-     * Comma-separated list of global identifiers to register in the bundle.
-     * See CliBuildOptions for format.
-     */
+    /** Comma-separated global identifiers to register. Format: see CliBuildOptions. */
     globals?: string;
     /**
      * Prepend a shebang to the output bundle and mark it executable.
      *
-     *   `true`  → use the default `#!/usr/bin/env -S gjs -m` line
+     *   `true`  → the default `#!/usr/bin/env -S gjs -m` line
      *   `false` → no shebang (default)
-     *   `"…"`   → custom line. Supports `${env:NAME}` and `${env:NAME:-default}`
-     *             placeholders against `process.env`. The leading `#!` is
-     *             added automatically if omitted. Useful when an outer
-     *             build tool (Meson, Flatpak) exports the GJS interpreter
-     *             path as `GJS_CONSOLE` (e.g. `/usr/bin/gjs-console`).
-     *
-     * Example: `"shebang": "${env:GJS_CONSOLE:-/usr/bin/env -S gjs} -m"`
-     *
-     * See also `CliBuildOptions.shebang`.
+     *   `"…"`   → custom line, supporting `${env:NAME}` and `${env:NAME:-default}`
+     *             placeholders against `process.env`; a leading `#!` is added if
+     *             omitted. For outer build tools (Meson, Flatpak) that export the
+     *             interpreter path, e.g.
+     *             `"${env:GJS_CONSOLE:-/usr/bin/env -S gjs} -m"`.
      */
     shebang?: boolean | string;
-    /**
-     * Extra module aliases layered on top of the built-in alias map.
-     * Comes from `gjsify build --alias FROM=TO`.
-     */
+    /** Extra module aliases layered on the built-in map (`build --alias FROM=TO`). */
     aliases?: Record<string, string>;
     /**
-     * Global identifiers to remove from the auto-detected set before writing
-     * the inject stub. Useful for false positives from dead browser-compat
-     * code in npm dependencies whose polyfills require unavailable native libs.
-     * Example: `["fetch", "XMLHttpRequest"]` excludes the HTTP polyfill stack.
+     * Global identifiers to remove from the auto-detected set before writing the
+     * inject stub — for false positives from dead browser-compat code in npm deps
+     * whose polyfills need unavailable native libs. `["fetch", "XMLHttpRequest"]`
+     * excludes the HTTP polyfill stack.
      */
     excludeGlobals?: string[];
     /**
-     * Compile-time defines populated from `package.json` fields. Each entry
-     * maps a JS identifier (the define key) to a dotted package.json path.
-     * Values are JSON-stringified before merging into `bundler.transform.define`.
+     * Compile-time defines from `package.json` fields: JS identifier → dotted
+     * package.json path. Values are JSON-stringified before merging into
+     * `bundler.transform.define`.
      *
-     * Example:
      * ```jsonc
      * "defineFromPackageJson": {
      *   "__PACKAGE_VERSION__": { "field": "version" },
      *   "__PACKAGE_NAME__":    { "field": "name" }
      * }
      * ```
-     *
-     * Replaces the wrapper-script pattern (`spawnSync('gjsify', ['build',
-     * '--define', '__VERSION__=' + JSON.stringify(pkg.version)])`) used by
-     * `@ts-for-gir/cli` before this option existed.
      */
     defineFromPackageJson?: Record<string, { field: string }>;
     /**
-     * Compile-time defines populated from `process.env` at config-load time.
-     * Each entry maps a JS identifier to an environment variable name with an
-     * optional default. Values are JSON-stringified before merging into
-     * `bundler.transform.define`. When the variable is unset and no default
-     * is provided, the identifier is replaced with the literal `undefined`
-     * so consumer code can safely guard with `typeof X === 'undefined'` or
-     * `X ?? fallback`.
+     * Compile-time defines from `process.env` at config-load time, for projects
+     * whose build is driven by an outer tool (Meson, Make, CI) that exports
+     * variables. Values are JSON-stringified into `bundler.transform.define`; an
+     * unset variable with no `default` becomes the literal `undefined`, so consumers
+     * can guard with `typeof X === 'undefined'` or `X ?? fallback`.
      *
-     * Example:
      * ```jsonc
      * "defineFromEnv": {
      *   "__APPLICATION_ID__": { "env": "APPLICATION_ID", "default": "org.example.App" },
      *   "__PREFIX__":         { "env": "PREFIX" }
      * }
      * ```
-     *
-     * Designed for projects whose build is driven by an outer tool (Meson,
-     * Make, CI) that exports environment variables — avoids a wrapper script
-     * just to thread them through to the bundler.
      */
     defineFromEnv?: Record<string, { env: string; default?: string }>;
     /**
-     * Extension → loader-kind map for files Rolldown does not classify
-     * natively. Replaces the legacy esbuild `loader: { '.ui': 'text', '.png': 'dataurl' }`
-     * pattern.
+     * Extension → loader-kind map for files Rolldown does not classify natively,
+     * e.g. `{ ".ui": "text", ".glsl": "text", ".png": "dataurl" }`.
      *
-     * Loader kinds:
-     *   `'text'`    — file contents as a JS string default export
-     *                 (`export default "<source>"`). Good for GLSL shaders,
-     *                 `.ui` GtkBuilder XML, `.asm`, etc.
-     *   `'dataurl'` — `data:<mime>;base64,<b64>` string default export.
-     *                 MIME is inferred from the extension (.png → image/png,
-     *                 .jpg → image/jpeg, .gif → image/gif, .svg → image/svg+xml,
-     *                 .webp → image/webp, fallback application/octet-stream).
-     *                 Good for Excalibur's `ImageSource` and any library that
-     *                 accepts a data: URL rather than a separate asset file.
+     *   `'text'`    — contents as a JS string default export. GLSL shaders, `.ui`
+     *                 GtkBuilder XML, `.asm`.
+     *   `'dataurl'` — `data:<mime>;base64,<b64>` string default export, MIME inferred
+     *                 from the extension (fallback `application/octet-stream`). For
+     *                 anything accepting a data: URL rather than a separate asset,
+     *                 e.g. Excalibur's `ImageSource`.
      *
-     * Example:
-     * ```jsonc
-     * "loaders": { ".ui": "text", ".glsl": "text", ".png": "dataurl" }
-     * ```
-     *
-     * Lives at the top level (not under `bundler`) so it doesn't leak into
-     * Rolldown's options on pass-through; the CLI converts it into a plugin
-     * prepended to the bundler's plugin chain.
+     * Top-level rather than under `bundler` so it does not leak into Rolldown's
+     * options on pass-through; the CLI turns it into a plugin prepended to the chain.
      */
     loaders?: Record<string, 'text' | 'dataurl'>;
     /**
-     * Flatpak-related configuration consumed by `gjsify flatpak <sub>`.
-     * Lives in its own top-level namespace so the bundler config doesn't
-     * accumulate concerns and `flatpak init` / `flatpak ci` can read defaults
-     * declaratively. CLI flags override these values.
+     * Config for `gjsify flatpak <sub>`, in its own namespace so the bundler config
+     * does not accumulate concerns and `flatpak init` / `flatpak ci` can read
+     * defaults declaratively. CLI flags override these.
      */
     flatpak?: ConfigDataFlatpak;
     /**
-     * Format/lint config consumed by `gjsify format` / `gjsify lint` /
-     * `gjsify fix`. Thin shell — oxc's own `.oxfmtrc.json` / `.oxlintrc.json`
-     * are the real configuration files; we only need a pointer here.
+     * Config for `gjsify format` / `lint` / `fix`. A thin shell: oxc's own
+     * `.oxfmtrc.json` / `.oxlintrc.json` are the real configuration files.
      */
     format?: ConfigDataFormat;
-    /**
-     * Test-runner configuration consumed by `gjsify test`. CLI flags
-     * (--entry, --outdir, --runtime) override these values.
-     */
+    /** Config for `gjsify test`. `--entry`, `--outdir`, `--runtime` override these. */
     test?: ConfigDataTest;
 }
 
@@ -225,10 +175,7 @@ export interface ConfigDataFormat {
     configPath?: string;
 }
 
-/**
- * `gjsify test` configuration. All fields optional — sensible defaults
- * apply when missing.
- */
+/** `gjsify test` configuration. */
 export interface ConfigDataTest {
     /** Path to the test entry. Default: `src/test.mts`. */
     entry?: string;
@@ -238,10 +185,7 @@ export interface ConfigDataTest {
     runtimes?: Array<'gjs' | 'node'>;
 }
 
-/**
- * Flatpak-toolchain config consumed by the `gjsify flatpak` subcommand
- * group. All fields optional — sensible defaults apply when missing.
- */
+/** Flatpak-toolchain config for the `gjsify flatpak` subcommand group. */
 export interface ConfigDataFlatpak {
     /** Reverse-DNS app id, e.g. `eu.jumplink.Learn6502`. Defaults to `package.json#name` if it looks like a reverse-DNS id. */
     appId?: string;
@@ -254,14 +198,11 @@ export interface ConfigDataFlatpak {
     /** Runtime/SDK version, e.g. `'50'` for GNOME or `'24.08'` for Freedesktop. */
     runtimeVersion?: string;
     /**
-     * Extra SDK extensions to include in the manifest, e.g.
-     * `['org.freedesktop.Sdk.Extension.llvm17']` for projects with native
-     * code that needs a specific toolchain. Leave empty (the default) for
-     * pure gjsify projects — the GNOME runtime already ships GJS + GLib
-     * + libsoup, and `gjsify build` produces a self-contained bundle that
-     * needs no build-time Node anymore. (Before Phase D-3 we added
-     * `org.freedesktop.Sdk.Extension.node24` here by default for the
-     * yarn-install + esbuild build step — that's no longer required.)
+     * Extra SDK extensions for the manifest, e.g.
+     * `['org.freedesktop.Sdk.Extension.llvm17']` for native code needing a specific
+     * toolchain. Leave empty for pure gjsify projects: the GNOME runtime already
+     * ships GJS + GLib + libsoup and `gjsify build` produces a self-contained bundle
+     * that needs no build-time Node.
      */
     sdkExtensions?: string[];
     /** Path components prepended to PATH inside the build sandbox. */
@@ -273,10 +214,9 @@ export interface ConfigDataFlatpak {
     /** Extra Flatpak modules prepended before the app's own meson/simple module (e.g. `blueprint-compiler` build). */
     extraModules?: unknown[];
     /**
-     * Full replacement for the manifest's `modules` array. When set, neither
-     * `extraModules` nor the meson default get added — the array is used
-     * verbatim. Right shape for CLI tools that ship a pre-built bundle and
-     * install via shell commands (`buildsystem: simple`) instead of meson.
+     * Full replacement for the manifest's `modules` array: used verbatim, with
+     * neither `extraModules` nor the meson default added. For CLI tools that ship a
+     * pre-built bundle and install via shell commands (`buildsystem: simple`).
      */
     modules?: unknown[];
     /** Cleanup glob patterns applied to the final manifest, e.g. `['/include', '/lib/pkgconfig']`. */
@@ -284,39 +224,33 @@ export interface ConfigDataFlatpak {
     /** Source-of-truth lockfile for `gjsify flatpak deps` — `yarn.lock` or `package-lock.json`. */
     lockfile?: string;
     /**
-     * GitHub-Actions container image override for `gjsify flatpak ci`.
-     * Default derived from runtime + runtimeVersion:
-     *   gnome+50 → `ghcr.io/flathub-infra/flatpak-github-actions:gnome-50`
+     * GitHub-Actions container image override for `gjsify flatpak ci`. Default is
+     * derived from runtime + runtimeVersion, e.g. gnome+50 →
+     * `ghcr.io/flathub-infra/flatpak-github-actions:gnome-50`.
      */
     ciContainer?: string;
     /** Branches the generated workflow triggers on. Default `['main']`. */
     ciBranches?: string[];
 
-    // ─── Phase F.9: MetaInfo / .desktop / flathub.json scaffolding ─────────
-
     /**
-     * App kind. `'app'` (default) → desktop-application MetaInfo, GUI
-     * finish-args, .desktop + icon required. `'cli'` → console-application
-     * MetaInfo with `<provides><binary>`, no .desktop, flathub.json sets
-     * `skip-icons-check`. Supersedes the older `--cli-only` flag on
-     * `gjsify flatpak init`.
+     * `'app'` (default) → desktop-application MetaInfo, GUI finish-args, .desktop +
+     * icon required. `'cli'` → console-application MetaInfo with
+     * `<provides><binary>`, no .desktop, and `skip-icons-check` in flathub.json.
+     * Supersedes the older `--cli-only` flag on `gjsify flatpak init`.
      */
     kind?: 'app' | 'cli';
     /**
-     * App display name (`.desktop` `Name=` + MetaInfo `<name>`). Defaults
-     * to a friendly derivation of `package.json#name` — that works when
-     * `name` is the reverse-DNS app id, but breaks when it's an npm
-     * package name like `learn6502`. Set this explicitly to the
-     * human-readable name shown in app stores (e.g. `"Learn 6502 Assembly"`).
+     * App display name (`.desktop` `Name=` + MetaInfo `<name>`). The default derives
+     * it from `package.json#name`, which works when that is the reverse-DNS app id
+     * and breaks when it is an npm name like `learn6502` — set it explicitly to the
+     * human-readable store name, e.g. `"Learn 6502 Assembly"`.
      */
     name?: string;
     /**
-     * Developer attribution required by Flathub. `id` must be reverse-DNS.
-     * `email` (optional) becomes `<email>` inside `<developer>`.
-     * `nameTranslatable: false` (default) emits `translate="no"` on the
-     * `<name>` tag — recommended for personal/brand names that should not
-     * be translated. Set to `true` if the name is a descriptive phrase
-     * that translators should localise.
+     * Developer attribution required by Flathub; `id` must be reverse-DNS.
+     * `nameTranslatable: false` (default) emits `translate="no"` on `<name>`, right
+     * for personal/brand names; set it `true` for a descriptive phrase translators
+     * should localise.
      */
     developer?: {
         id: string;
@@ -325,23 +259,17 @@ export interface ConfigDataFlatpak {
         nameTranslatable?: boolean;
     };
     /**
-     * One-line summary, ≤80 chars, no trailing period (Flathub rule).
-     * Translatable — gettext's `msgfmt --xml --template` substitutes
-     * `<summary>` from `.po` files at build time. Set
-     * `summaryTranslatorHint` to emit a `<!-- TRANSLATORS: ... -->`
-     * comment before the tag.
+     * One-line summary, ≤80 chars, no trailing period (Flathub rule). Translatable:
+     * gettext's `msgfmt --xml --template` substitutes `<summary>` from `.po` files
+     * at build time.
      */
     summary?: string;
     /** Translator hint emitted as `<!-- TRANSLATORS: ... -->` before `<summary>`. */
     summaryTranslatorHint?: string;
     /**
-     * Long description. Two forms:
-     * - **String** — split on blank lines into `<p>` blocks. Best for
-     *   simple descriptions without bullet lists.
-     * - **Block array** — explicit blocks (`{p:..., translatorHint?:...}`
-     *   for paragraphs or `{ul:[...], translatorHint?:...}` for bullet
-     *   lists). Each block can carry its own translator hint. Use this
-     *   form when you need bullet lists or per-string translator context.
+     * Long description, either a string split on blank lines into `<p>` blocks, or
+     * an explicit {@link DescriptionBlock} array when you need bullet lists or
+     * per-string translator context.
      */
     description?: string | DescriptionBlock[];
     /** Project homepage URL. Recommended; required for Flathub submission. */
@@ -353,20 +281,15 @@ export interface ConfigDataFlatpak {
     /** Donation URL (e.g. OpenCollective / GitHub Sponsors). */
     donationUrl?: string;
     /**
-     * License SPDX identifiers. `project` is the project's source license
-     * (mandatory). `metadata` is the license under which the MetaInfo XML
-     * is distributed (default `'CC0-1.0'`).
+     * License SPDX identifiers: `project` is the source license (mandatory),
+     * `metadata` the license the MetaInfo XML ships under (default `'CC0-1.0'`).
      */
     license?: { metadata?: string; project: string };
     /**
-     * Content-rating policy. Two forms:
-     * - **String** — just the spec keyword (default `'oars-1.1'`), emits
-     *   an empty `<content_rating type="..."/>` block.
-     * - **Object** — keyword + `attributes` map. Each attribute is an
-     *   OARS key (`violence-cartoon`, `social-info`, etc.) → severity
-     *   (`none`, `mild`, `moderate`, `intense`). Flathub recommends
-     *   declaring attributes explicitly even when they're `none` so the
-     *   rating audit is auditable.
+     * Content-rating policy: either the bare spec keyword (default `'oars-1.1'`,
+     * emitting an empty `<content_rating type="…"/>`), or keyword + an `attributes`
+     * map of OARS key → severity. Flathub recommends declaring attributes explicitly
+     * even when they are `none`, so the rating stays auditable.
      */
     contentRating?:
         | string
@@ -379,11 +302,9 @@ export interface ConfigDataFlatpak {
     /** Search keywords for app stores. */
     keywords?: string[];
     /**
-     * Release history. Most recent first. Each entry produces a
-     * `<release version=… date=…>` block. `description` accepts the
-     * same string-or-block-array shape as the top-level `description`
-     * field — use the array form for release notes with bullet lists
-     * or per-string translator hints.
+     * Release history, most recent first; each entry produces a
+     * `<release version=… date=…>` block. `description` takes the same
+     * string-or-block-array shape as the top-level `description`.
      */
     releases?: Array<{
         version: string;
@@ -391,11 +312,9 @@ export interface ConfigDataFlatpak {
         description?: string | DescriptionBlock[];
     }>;
     /**
-     * Screenshots for app-stores. `url` is an absolute HTTPS URL to a PNG.
-     * `caption` is optional and translatable — set `captionTranslatorHint`
-     * for a `<!-- TRANSLATORS: ... -->` hint. `environment` is one of
-     * `'plasma'|'gnome'|'cli'` — Flathub uses it to group by desktop.
-     * First entry defaults to `type="default"`; override with `type`.
+     * App-store screenshots. `url` must be an absolute HTTPS URL to a PNG;
+     * `environment` lets Flathub group by desktop; the first entry defaults to
+     * `type="default"`.
      */
     screenshots?: Array<{
         url: string;
@@ -407,58 +326,43 @@ export interface ConfigDataFlatpak {
     /** Light/dark accent colours (hex `#rrggbb`) — emit `<branding>` block. */
     branding?: { accentLight: string; accentDark: string };
     /**
-     * Path to a scalable SVG icon. Flathub requires SVG (`/app/share/icons/
-     * hicolor/scalable/apps/<app-id>.svg`). When set, init verifies the file
-     * exists; when unset on `--kind app`, init prints a Flathub hint.
+     * Path to a scalable SVG icon; Flathub requires SVG
+     * (`/app/share/icons/hicolor/scalable/apps/<app-id>.svg`). When set, init
+     * verifies the file exists; when unset on `--kind app`, init prints a hint.
      */
     icon?: string;
 
-    // ─── Phase F.9.6: Rich AppStream surface ───────────────────────────────
-
-    /**
-     * Remote-hosted icon URL — emitted as `<icon type="remote">`. Useful
-     * for the Flathub app-store thumbnail before the local SVG ships.
-     */
+    /** Remote-hosted icon URL, emitted as `<icon type="remote">`. */
     iconRemote?: string;
     /**
-     * Translation platform URL (Weblate, Crowdin, Transifex, etc.).
-     * Emitted as `<url type="translate">`. Set this when your app accepts
-     * community translation contributions through a hosted platform.
+     * Translation-platform URL (Weblate, Crowdin, …), emitted as
+     * `<url type="translate">`.
      */
     translateUrl?: string;
     /**
-     * AppStream kudos — Flathub recognises a fixed set of "well-behaved"
-     * markers. Common values: `ModernToolkit`, `HiDpiIcon`,
-     * `TouchscreenSupport`, `UserDocs`, `HighContrast`, `Notifications`,
-     * `SearchProvider`. Full list at
+     * AppStream kudos — a fixed set of "well-behaved" markers, e.g.
+     * `ModernToolkit`, `HiDpiIcon`, `TouchscreenSupport`, `UserDocs`.
      * https://www.freedesktop.org/software/appstream/docs/sect-Metadata-DesktopApps.html#tag-dapp-kudos
      */
     kudos?: string[];
     /**
-     * Things this app provides to the system. `<binary>` is auto-included
-     * with the value of `command` when omitted (apps + CLIs both need
-     * this for AppStream to register the binary correctly).
+     * What this app provides to the system. `<binary>` is auto-included with the
+     * value of `command` when omitted — AppStream needs it to register the binary
+     * for both apps and CLIs.
      */
     provides?: {
         binaries?: string[];
         mimetypes?: string[];
         dbus?: Array<{ type: 'user' | 'system'; id: string }>;
     };
-    /**
-     * Hardware controls the app supports (best-effort declaration —
-     * AppStream `<supports>`). Common values:
-     * `keyboard`, `pointing`, `touch`, `gamepad`, `tablet`, `console`,
-     * `vision`.
-     */
+    /** Best-effort hardware-support declaration — AppStream `<supports>`. */
     supports?: {
         controls?: Array<'keyboard' | 'pointing' | 'touch' | 'gamepad' | 'tablet' | 'console' | 'vision'>;
-        /** Internet connectivity requirement. */
         internet?: 'always' | 'offline-only' | 'first-run';
     };
     /**
-     * Hard requirements — AppStream `<requires>`. App won't function
-     * without these. `displayLengthMin` is the minimum display length in
-     * pixels (logical units) — typical phone-portrait minimum is 360.
+     * Hard requirements — AppStream `<requires>`; the app will not function without
+     * them. `displayLengthMin` is in logical pixels (phone-portrait minimum: 360).
      */
     requires?: {
         displayLengthMin?: number;
@@ -466,29 +370,25 @@ export interface ConfigDataFlatpak {
         controls?: Array<'keyboard' | 'pointing' | 'touch' | 'gamepad' | 'tablet' | 'console'>;
     };
     /**
-     * Soft recommendations — AppStream `<recommends>`. App works better
-     * with these but functions without them. `displayLengthMin` typical
-     * tablet-min recommendation is 480.
+     * Soft recommendations — AppStream `<recommends>`; the app works better with
+     * them but functions without. Typical tablet `displayLengthMin`: 480.
      */
     recommends?: {
         displayLengthMin?: number;
         controls?: Array<'keyboard' | 'pointing' | 'touch' | 'gamepad' | 'tablet' | 'console'>;
     };
     /**
-     * Flathub tracking-repo override for `gjsify flatpak sync-flathub` /
-     * `gjsify flatpak diff`. Default: `flathub/<appId>` (e.g.
-     * `flathub/eu.jumplink.Learn6502`). Set this when the upstream repo
-     * deviates from that convention.
+     * Flathub tracking-repo override for `gjsify flatpak sync-flathub` / `diff`.
+     * Default `flathub/<appId>`; set when the upstream repo deviates.
      */
     flathubRepo?: string;
 }
 
 /**
- * A single block inside a MetaInfo `<description>`. Either a paragraph
- * (`{p}`) or a bullet list (`{ul}`). Each block can carry an optional
- * `translatorHint` that becomes a `<!-- TRANSLATORS: ... -->` comment
- * before the block in the emitted `.metainfo.xml.in` template — gives
- * translators context when the string lands in their `.po` file.
+ * One block inside a MetaInfo `<description>`: a paragraph (`{p}`) or a bullet
+ * list (`{ul}`). An optional `translatorHint` becomes a `<!-- TRANSLATORS: … -->`
+ * comment before the block in the emitted `.metainfo.xml.in`, giving translators
+ * context once the string lands in their `.po` file.
  */
 export type DescriptionBlock =
     | { p: string; translatorHint?: string }

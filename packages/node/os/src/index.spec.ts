@@ -18,8 +18,6 @@ import process, { platform } from 'node:process';
 const IS_WIN32 = platform === 'win32';
 
 export default async () => {
-    // ==================== basic return types ====================
-
     await describe('os: basic return types', async () => {
         await it('homedir() should return a non-empty string', async () => {
             const home = os.homedir();
@@ -108,8 +106,6 @@ export default async () => {
         });
     });
 
-    // ==================== endianness ====================
-
     await describe('os: endianness', async () => {
         await it('should return BE or LE', async () => {
             const endianness = os.endianness();
@@ -118,15 +114,11 @@ export default async () => {
         });
     });
 
-    // ==================== EOL ====================
-
     await describe('os: EOL', async () => {
         await it('should be the host line ending', async () => {
             expect(os.EOL).toBe(IS_WIN32 ? '\r\n' : '\n');
         });
     });
-
-    // ==================== cpus ====================
 
     await describe('os: cpus', async () => {
         await it('should return a non-empty array', async () => {
@@ -172,8 +164,6 @@ export default async () => {
         );
     });
 
-    // ==================== memory ====================
-
     await describe('os: memory', async () => {
         await it('freemem() should return a positive number', async () => {
             const free = os.freemem();
@@ -200,8 +190,6 @@ export default async () => {
         });
     });
 
-    // ==================== loadavg ====================
-
     await describe('os: loadavg', async () => {
         await it('should return an array with 3 elements', async () => {
             const avg = os.loadavg();
@@ -224,8 +212,6 @@ export default async () => {
         });
     });
 
-    // ==================== uptime ====================
-
     await describe('os: uptime', async () => {
         await it('should return a positive number', async () => {
             const uptime = os.uptime();
@@ -238,8 +224,6 @@ export default async () => {
             expect(os.uptime() < tenYearsInSeconds).toBeTruthy();
         });
     });
-
-    // ==================== version ====================
 
     await describe('os: version', async () => {
         await it('should return a non-empty string', async () => {
@@ -254,8 +238,6 @@ export default async () => {
             expect(version.length > 2).toBeTruthy();
         });
     });
-
-    // ==================== machine ====================
 
     await describe('os: machine', async () => {
         await it('should return a non-empty string', async () => {
@@ -299,15 +281,11 @@ export default async () => {
         });
     });
 
-    // ==================== devNull ====================
-
     await describe('os: devNull', async () => {
         await it('should be the host null device', async () => {
             expect(os.devNull).toBe(IS_WIN32 ? '\\\\.\\nul' : '/dev/null');
         });
     });
-
-    // ==================== availableParallelism ====================
 
     await describe('os: availableParallelism', async () => {
         await it('should return a positive number', async () => {
@@ -316,8 +294,6 @@ export default async () => {
             expect(n > 0).toBeTruthy();
         });
     });
-
-    // ==================== userInfo ====================
 
     await describe('os: userInfo', async () => {
         await it('should return an object', async () => {
@@ -374,8 +350,6 @@ export default async () => {
             expect(info.username.includes(' ')).toBe(false);
         });
     });
-
-    // ==================== networkInterfaces ====================
 
     await describe('os: networkInterfaces', async () => {
         await it('should return an object', async () => {
@@ -448,8 +422,6 @@ export default async () => {
             }
         });
     });
-
-    // ==================== constants ====================
 
     await describe('os: constants', async () => {
         await it('should have signals object', async () => {

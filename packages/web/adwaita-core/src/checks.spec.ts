@@ -18,7 +18,7 @@ export default async () => {
         });
 
         await it('indeterminate outranks checked', () => {
-            // _checks.scss:79-81 re-declares the glyph for `:indeterminate` after
+            // _checks.scss re-declares the glyph for `:indeterminate` after
             // both `:checked` rules at equal specificity, so the dash wins.
             expect(resolveCheckState(true, true)).toBe('indeterminate');
         });

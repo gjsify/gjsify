@@ -7,38 +7,25 @@
 // `AdwToolbarView`'s BOTTOM slot while the stack fills the content slot — the
 // canonical Adwaita phone shell.
 //
-// The derivations are HEADLESS and live in `@gjsify/adwaita-core` (ADR 0004):
-// the per-button model (`buildViewSwitcherButtons`, so this bar and the header
-// switcher cannot disagree about what a page looks like) and — the rule this
-// port was missing entirely — `ViewSwitcherBarState`, which is `reveal` AND MORE
-// THAN ONE VISIBLE PAGE (`update_bar_revealed`, adw-view-switcher-bar.c:104-126).
+// The derivations are HEADLESS in `@gjsify/adwaita-core` (ADR 0004): the per-button
+// model (`buildViewSwitcherButtons`, so this bar and the header switcher cannot
+// disagree about what a page looks like) and `ViewSwitcherBarState`, whose reveal rule
+// is `reveal` AND MORE THAN ONE VISIBLE PAGE — a one-page stack keeps the bar
+// collapsed, and `reveal` itself defaults to FALSE.
 //
-// What the lift fixed here, all of it C-derived:
-//   - `revealed` started as TRUE and the constructor never touched `visibility`,
-//     so a freshly built bar covered the screen bottom until someone set it
-//     false; `PROP_REVEAL` defaults to FALSE and `init` runs the derivation
-//     immediately (:256-259, :277).
-//   - the page count was never consulted, so a bar bound to a one-page stack
-//     showed an empty strip libadwaita keeps collapsed (:125).
-//   - a page with no icon rendered no icon (`image-missing`, :399-405 of
-//     adw-view-switcher-button.c) and a page with neither title nor icon still
-//     got a tappable button (adw-view-switcher.c:178).
-//   - the `NOTIFY_VISIBLE_CHILD` listener registered in `setStack` was never
-//     released; it is now dropped on `unloaded` and re-taken on `loaded`, which
-//     is where C's dispose-only teardown lands in a widget that really is
-//     detached and re-attached.
+// The `notify::visible-child` listener is dropped on `unloaded` and re-taken on
+// `loaded`, which is where C's dispose-only teardown lands in a widget that really is
+// detached and re-attached.
 //
-// Each button is a REAL tappable `StackLayout` (icon over label); press feedback
-// is wired with {@link attachRowPressFeedback} (NS only auto-highlights
-// `Button`). The active button's label is accent-coloured via CSS; its icon stays
-// theme-coloured (the CSS subset can't recolour a rasterised icon per-state
-// without re-pinning it off the light/dark scheme — a documented, minor fidelity
-// gap).
+// Each button is a REAL tappable `StackLayout` (icon over label); press feedback needs
+// {@link attachRowPressFeedback} because NS only auto-highlights `Button`. The active
+// button's label is accent-coloured via CSS while its icon stays theme-coloured — the
+// CSS subset cannot recolour a rasterised icon per state without re-pinning it off the
+// light/dark scheme.
 //
-// FIDELITY: approximated. Pages swap by `visibility` toggle in the bound stack
-// (no cross-fade), and the bar rebuilds from the stack's pages on every
-// `notify::visible-child` plus an explicit `refresh()` — the NS stack has no
-// `items-changed` signal for C's rebuild-on-page-add (adw-view-switcher.c:258-263).
+// FIDELITY: approximated. Pages swap by `visibility` toggle in the bound stack (no
+// cross-fade), and the bar rebuilds on every `notify::visible-child` plus an explicit
+// `refresh()` — the NS stack has no `items-changed` for C's rebuild-on-page-add.
 //
 // Reference: refs/libadwaita/src/adw-view-switcher-bar.c (AdwViewSwitcherBar)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_view-switcher.scss (viewswitcherbar)

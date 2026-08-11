@@ -1,12 +1,9 @@
 // @gjsify/devtools-protocol — instance label → DBus bus name + object path routing.
-// Original implementation.
 
 /**
- * Coerce a free-form instance label into a valid app-id segment
- * (letter-led, lowercase alphanumeric). Shared by the in-app adapter and
- * the MCP bridge so both derive the SAME per-instance bus name — replacing
- * the byte-identical hand-maintained duplication the map-editor needed when
- * its bridge was dependency-free.
+ * Coerce a free-form instance label into a valid app-id segment (letter-led, lowercase
+ * alphanumeric). Shared by the in-app adapter and the MCP bridge, so both derive the
+ * SAME per-instance bus name.
  */
 export function sanitizeInstanceId(label: string): string {
     const cleaned = label.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -20,16 +17,14 @@ export interface BusAddress {
 }
 
 /**
- * Resolve an instance label to its DBus bus name + devtools object path,
- * given the app's base id (e.g. `"org.example.App"`). The default instance
- * keeps the bare base; a named instance gets a `.<segment>` bus-name suffix
- * and a `/<segment>` path segment, so the bridge dials the right process
- * when several run side by side.
+ * Resolve an instance label to its DBus bus name + devtools object path, given the app's
+ * base id. The default instance keeps the bare base; a named instance gets a
+ * `.<segment>` bus-name suffix and a `/<segment>` path segment, so the bridge dials the
+ * right process when several run side by side.
  *
- * Mirrors `Gio.Application`'s own object-path derivation (id dots → slashes,
- * leading slash) plus a trailing `/devtools` leaf. The in-app adapter should
- * prefer the authoritative `app.get_dbus_object_path() + '/devtools'`; this
- * helper lets the bridge predict the same address for the dotted-id case.
+ * Mirrors `Gio.Application`'s own path derivation (id dots → slashes, leading slash) plus
+ * a `/devtools` leaf. The in-app adapter should prefer the authoritative
+ * `app.get_dbus_object_path() + '/devtools'`; this only lets the bridge PREDICT it.
  *
  * - `("org.example.App")` → `org.example.App` @ `/org/example/App/devtools`
  * - `("org.example.App", "host")` → `org.example.App.host` @ `/org/example/App/host/devtools`
@@ -43,21 +38,17 @@ export function resolveBusAddress(base: string, label?: string): BusAddress {
     return { busName: `${base}.${seg}`, objectPath: `${basePath}/${seg}/devtools`, instance: seg };
 }
 
-// --- environment contract -------------------------------------------------
-// Named HERE, in the contract both sides import, so the in-app adapter and the
-// MCP bridge cannot disagree about a variable name. They previously lived as
-// string literals inside `@gjsify/devtools`, which was harmless while only the
-// app side read them — `GJSIFY_DEVTOOLS_ADDRESS` is read by BOTH.
+// The env-var names live HERE, in the contract both sides import, so the in-app adapter
+// and the MCP bridge cannot disagree about one: `GJSIFY_DEVTOOLS_ADDRESS` is read by both.
 
 /** Env var enabling the control plane at all (any value except ``, `0`, `false`). */
 export const DEVTOOLS_ENABLE_ENV = 'GJSIFY_DEVTOOLS';
 /** Env var carrying the per-instance label for side-by-side apps. */
 export const DEVTOOLS_INSTANCE_ENV = 'GJSIFY_DEVTOOLS_INSTANCE';
 /**
- * Env var carrying a D-Bus address for the BUS-LESS peer-to-peer transport.
- * On the app side it is the address to LISTEN on (`unix:tmpdir=/tmp`,
- * `unix:path=…`, `nonce-tcp:host=127.0.0.1`); on the bridge side it is the
- * address to DIAL. It exists because macOS and Windows have no session bus.
+ * D-Bus address for the BUS-LESS peer transport, which exists because macOS and Windows
+ * have no session bus. The app LISTENS on it (`unix:tmpdir=/tmp`, `unix:path=…`,
+ * `nonce-tcp:host=127.0.0.1`), the bridge DIALS it.
  */
 export const DEVTOOLS_ADDRESS_ENV = 'GJSIFY_DEVTOOLS_ADDRESS';
 
@@ -72,21 +63,19 @@ export function isDevtoolsEnabledValue(value: string | null | undefined): boolea
 export const DEVTOOLS_ADDRESS_DIR = 'gjsify-devtools';
 
 /**
- * Path of the file an app on the peer transport writes its concrete CLIENT
- * address into, so a bridge can find it with no environment at all. This is the
- * bus-less analogue of `DBUS_SESSION_BUS_ADDRESS`: a peer socket has no
- * well-known name to look up, so the address itself has to be discoverable.
+ * Path of the file an app on the peer transport writes its concrete CLIENT address into,
+ * so a bridge can find it with no environment at all — the bus-less analogue of
+ * `DBUS_SESSION_BUS_ADDRESS`, since a peer socket has no well-known name to look up.
  *
- * `runtimeDir` is passed IN rather than probed, keeping this package free of
- * platform imports (both sides pass `GLib.get_user_runtime_dir()`).
- *
- * The name derives from the SAME bus name {@link resolveBusAddress} derives, so
- * an instance label routes both transports identically:
+ * `runtimeDir` is passed IN rather than probed, which keeps this package free of platform
+ * imports (both sides pass `GLib.get_user_runtime_dir()`). The name derives from the SAME
+ * bus name {@link resolveBusAddress} does, so one instance label routes both transports
+ * identically:
  * - `(dir, "org.example.App")` → `<dir>/gjsify-devtools/org.example.App.address`
  * - `(dir, "org.example.App", "host")` → `<dir>/gjsify-devtools/org.example.App.host.address`
  *
- * Forward slashes unconditionally: GLib/GIO accept them as separators on win32
- * too, and a per-platform separator would need a platform probe in a pure module.
+ * Forward slashes unconditionally: GLib/GIO accept them on win32 too, and a per-platform
+ * separator would need a platform probe in a pure module.
  */
 export function devtoolsAddressFilePath(runtimeDir: string, base: string, label?: string): string {
     const { busName } = resolveBusAddress(base, label);

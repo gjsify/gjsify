@@ -8,7 +8,6 @@ import { describe, it, expect } from '@gjsify/unit';
 import * as net from 'node:net';
 
 export default async () => {
-    // ===================== isIP comprehensive =====================
     await describe('net.isIP comprehensive', async () => {
         // Valid IPv4
         await it('should return 4 for 0.0.0.0', async () => {
@@ -102,7 +101,6 @@ export default async () => {
         });
     });
 
-    // ===================== isIPv4 comprehensive =====================
     await describe('net.isIPv4 comprehensive', async () => {
         await it('should return true for valid IPv4', async () => {
             expect(net.isIPv4('127.0.0.1')).toBe(true);
@@ -125,7 +123,6 @@ export default async () => {
         });
     });
 
-    // ===================== isIPv6 comprehensive =====================
     await describe('net.isIPv6 comprehensive', async () => {
         await it('should return true for valid IPv6', async () => {
             expect(net.isIPv6('::1')).toBe(true);
@@ -148,7 +145,6 @@ export default async () => {
         });
     });
 
-    // ===================== Socket extended =====================
     await describe('net.Socket extended', async () => {
         await it('should be constructable without args', async () => {
             const socket = new net.Socket();
@@ -294,7 +290,6 @@ export default async () => {
         });
     });
 
-    // ===================== Server extended =====================
     await describe('net.Server extended', async () => {
         await it('should be constructable', async () => {
             const server = new net.Server();
@@ -360,7 +355,6 @@ export default async () => {
         });
     });
 
-    // ===================== Module exports =====================
     await describe('net module exports', async () => {
         await it('should export Socket', async () => {
             expect(typeof net.Socket).toBe('function');
@@ -388,7 +382,6 @@ export default async () => {
         });
     });
 
-    // ===================== createServer =====================
     await describe('net.createServer', async () => {
         await it('should return a Server', async () => {
             const server = net.createServer();

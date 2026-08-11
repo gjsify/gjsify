@@ -170,7 +170,6 @@ export class TLSSocket extends Socket {
         return proto || false;
     }
 
-    // ──── Phase 2: session resumption + channel binding ────
     //
     // Surface mirrors Node's `tls.TLSSocket`. Each getter follows the
     // same pattern: gate on `hasTlsSessionAccess()` (returns `undefined`
@@ -279,8 +278,6 @@ export class TLSSocket extends Socket {
         }
     }
 }
-
-// ─── Phase 2 helpers ──────────────────────────────────────────────────────
 
 /**
  * Coerce a value returned by the native bridge (GLib.Bytes, raw

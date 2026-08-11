@@ -2,16 +2,11 @@
 // the core suite and the NativeScript renderer assert against
 // (`@gjsify/adwaita-core/conformance`).
 //
-// The two renderers used to carry independent copies of the selection logic —
-// the same four-clause index guard, the same `findIndex` by name, the same
-// `?? ''` fallbacks — and both had drifted away from libadwaita in the same
-// ways: `visibleChildIndex = 1.5` passed the `Number.isFinite` guard and blanked
-// the entire stack, the per-page `visible` flag did not exist so the auto-pick
-// took the first page ADDED instead of the first VISIBLE one, an empty
-// `visible-child-name` was treated as "no name" by the declarative path but as a
-// legal lookup by the property path, and the auto-pick notified nothing so a
-// bound switcher needed a manual `refresh()`. Nothing failed, because nothing
-// compared them. This suite is that comparison.
+// The rules it pins, each of which both renderers had drifted from while carrying
+// independent copies of the selection logic: a non-integer index is REFUSED, not merely
+// finite-checked; the auto-pick takes the first VISIBLE page, not the first added; an
+// empty `visible-child-name` means the same thing to the declarative and the property
+// path; and the auto-pick NOTIFIES, so a bound switcher needs no manual `refresh()`.
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { ViewStackVectorChange, ViewStackVectorOp, ViewStackVectorPage } from '@gjsify/adwaita-core/conformance';
@@ -33,12 +28,10 @@ interface MountedStack {
 /**
  * Mount a stack whose pages are DECLARED as markup, driving the attribute path.
  *
- * Attributes are set through `setAttribute` rather than an HTML string on
- * purpose: several vectors hinge on an exact name — the empty string, the NFD
- * spelling of `Übersicht` — which an attribute value in parsed markup is not a
- * reliable carrier for. The change listener is attached BEFORE the element is
- * connected so the auto-pick notification is observable, which is the whole
- * point of the fix that made it fire at all.
+ * Attributes go through `setAttribute` rather than an HTML string: several vectors hinge
+ * on an exact name — the empty string, the NFD spelling of `Übersicht` — which parsed
+ * markup is not a reliable carrier for. The change listener is attached BEFORE connect,
+ * so the auto-pick notification is observable at all.
  */
 function mountStack(pages: readonly ViewStackVectorPage[], visibleChildName?: string): MountedStack {
     const host = document.createElement('div');
@@ -110,10 +103,9 @@ export const AdwViewStackTest = async () => {
                 expect(stack.pages.length).toBe(vector.count);
                 expect(stack.pages[stack.visibleChildIndex]?.title ?? '').toBe(vector.visibleTitle);
 
-                // The DOM must agree with the model: exactly the selected page is
-                // shown, and nothing at all when the selection is -1. A stack that
-                // stored an unreachable index (the 1.5 bug) showed NOTHING while
-                // still reporting a selection.
+                // The DOM must agree with the model: exactly the selected page is shown,
+                // and nothing at all when the selection is -1. A stack storing an
+                // unreachable index shows NOTHING while still reporting a selection.
                 const expectedShown = vector.pages.map(() => false).slice(0, vector.count);
                 if (vector.visibleIndex >= 0) expectedShown[vector.visibleIndex] = true;
                 expect(shownPages(stack)).toStrictEqual(expectedShown);
@@ -160,11 +152,10 @@ export const AdwViewStackTest = async () => {
 
     await describe('adw-view-stack imperative pages (Adw.ViewStack.add)', async () => {
         await it('keeps pages added BEFORE the stack enters the document', () => {
-            // The regression: connectedCallback used to overwrite the page list
-            // with whatever <adw-view-stack-page> children it found — none, for
-            // imperative use — and then replaceChildren() the subtree away, so
-            // this exact order silently destroyed the caller's element.
-            // libadwaita has no parse-once phase (adw-view-stack.c:2160-2251).
+            // connectedCallback must not overwrite the page list from whatever
+            // <adw-view-stack-page> children it finds — none, for imperative use — and
+            // then replaceChildren() the subtree away, destroying the caller's element.
+            // libadwaita has no parse-once phase.
             const stack = document.createElement('adw-view-stack') as AdwViewStack;
             const content = document.createElement('div');
             content.textContent = 'learn body';
@@ -221,10 +212,9 @@ export const AdwViewStackTest = async () => {
         });
 
         await it('treats an EMPTY declared name as a legal lookup, not as "no name"', () => {
-            // The declarative path used `initialName ? … : -1`, so an explicit
-            // empty name fell through to page 0 while the PROPERTY path matched
-            // the page named '' — one port, two answers for one input.
-            // g_strcmp0("", "") is 0 (adw-view-stack.c:901).
+            // A declarative `initialName ? … : -1` sends an explicit empty name to page 0
+            // while the PROPERTY path matches the page named '' — two answers, one input.
+            // g_strcmp0("", "") is 0.
             const { stack, host } = mountStack([{ name: 'a' }, { name: '' }], '');
             expect(stack.visibleChildIndex).toBe(1);
             expect(shownPages(stack)).toStrictEqual([false, true]);
@@ -235,8 +225,7 @@ export const AdwViewStackTest = async () => {
             const { stack, host } = mountStack([{ name: 'a' }, { name: '' }]);
             expect(stack.getAttribute('visible-child-name')).toBe('a');
             stack.visibleChildIndex = 1;
-            // The old reflection was guarded by `if (current && …)`, so a stack of
-            // nameless pages never reflected its selection at all.
+            // Reflection guarded by `if (current && …)` never fires for nameless pages.
             expect(stack.getAttribute('visible-child-name')).toBe('');
             host.remove();
         });
@@ -259,9 +248,9 @@ export const AdwViewStackTest = async () => {
         });
 
         await it('does not bounce the selection back when a duplicate name is reflected', () => {
-            // Reflection writes the attribute, which re-enters
-            // attributeChangedCallback; with duplicate names a naive re-lookup
-            // would resolve to the FIRST match and undo the selection.
+            // Reflection writes the attribute and re-enters attributeChangedCallback;
+            // with duplicate names a naive re-lookup resolves to the FIRST match and
+            // undoes the selection.
             const { stack, host } = mountStack([{ name: 'dup' }, { name: 'dup' }]);
             stack.visibleChildIndex = 1;
             expect(stack.visibleChildIndex).toBe(1);

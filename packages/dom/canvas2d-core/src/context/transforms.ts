@@ -1,6 +1,5 @@
 // Affine-transform methods for CanvasRenderingContext2D.
 // Reference: refs/node-canvas — Canvas 2D affine transform semantics.
-// Original: see canvas-rendering-context-2d.ts pre-split.
 
 import type { CanvasRenderingContext2D } from '../canvas-rendering-context-2d.js';
 import type { CanvasGlobalThis, DOMMatrix2DLike } from '../dom-types.js';
@@ -20,16 +19,12 @@ declare module '../canvas-rendering-context-2d.js' {
     interface CanvasRenderingContext2D extends TransformMethods {}
 }
 
-// Every one of these forwards to a Cairo call that POISONS the context when it
-// is handed something Cairo cannot represent: a non-finite value or a transform
-// that is not invertible both raise `invalid matrix (not invertible)`, and from
-// then on every call on that Cairo.Context throws — including the ones that
-// would have recovered it. Canvas 2D has neither failure mode: the spec makes a
-// non-finite argument a silent no-op, and a zero scale simply draws nothing.
-//
-// So nothing below reaches Cairo unless it is representable. Measured: Excalibur
-// scales entities to zero during normal play, which took down the whole 2D
-// renderer on the first frame after a fallback (gjsify#1107).
+// Nothing below reaches Cairo unless Cairo can represent it, because a non-finite value or a
+// non-invertible transform poisons the context permanently: it raises `invalid matrix (not
+// invertible)` and every later call on that Cairo.Context throws, including the ones that would
+// have recovered it. Canvas 2D has neither failure mode — a non-finite argument is a silent no-op
+// and a zero scale just draws nothing. Excalibur scales entities to zero during normal play, which
+// took down the whole 2D renderer on the first frame after a fallback (gjsify#1107).
 
 const transformMethods: TransformMethods & ThisType<CanvasRenderingContext2D> = {
     translate(this: CanvasRenderingContext2D, x: number, y: number): void {
@@ -63,8 +58,6 @@ const transformMethods: TransformMethods & ThisType<CanvasRenderingContext2D> = 
      */
     transform(this: CanvasRenderingContext2D, a: number, b: number, c: number, d: number, e: number, f: number): void {
         this._ensureSurface();
-        // Guard against NaN / undefined / Infinity — Cairo will hard-crash
-        // on invalid matrix values.
         if (
             !Number.isFinite(a) ||
             !Number.isFinite(b) ||
@@ -75,17 +68,11 @@ const transformMethods: TransformMethods & ThisType<CanvasRenderingContext2D> = 
         ) {
             return;
         }
-        // Cairo.Context in GJS does NOT expose a generic `transform(matrix)` /
-        // `setMatrix()` call — only `translate()`, `rotate()`, `scale()` and
-        // `identityMatrix()`. So we decompose the affine 2D matrix
-        //   [a c e]
-        //   [b d f]
-        //   [0 0 1]
-        // into translate + rotate + scale (ignoring shear, which Excalibur /
-        // three.js 2D users don't rely on). Shear would require a combined
-        // matrix multiply, which isn't available in this binding.
-        // A zero determinant is the matrix form of `scale(0, …)`: representable
-        // in Canvas 2D, not in Cairo. Same treatment.
+        // GJS' Cairo.Context exposes no generic `transform(matrix)` or `setMatrix()`, only
+        // translate/rotate/scale/identityMatrix, so the matrix is decomposed into those. Shear is
+        // dropped: expressing it needs the combined matrix multiply this binding lacks.
+        // A zero determinant is the matrix form of `scale(0, …)` — representable in Canvas 2D, not
+        // in Cairo, so it gets the same treatment.
         if (a * d - b * c === 0) {
             this._state.transformIsSingular = true;
             return;
@@ -100,9 +87,7 @@ const transformMethods: TransformMethods & ThisType<CanvasRenderingContext2D> = 
         if (sx !== 1 || sy !== 1) this._ctx.scale(sx, sy);
     },
 
-    /**
-     * Reset the transform to identity, then apply the given matrix.
-     */
+    /** Resets to identity, then applies the given matrix. */
     setTransform(
         this: CanvasRenderingContext2D,
         a?: number | DOMMatrix2DInit,
@@ -135,21 +120,16 @@ const transformMethods: TransformMethods & ThisType<CanvasRenderingContext2D> = 
         }
     },
 
-    /**
-     * Return the current transformation matrix as a DOMMatrix-like object.
-     */
     getTransform(this: CanvasRenderingContext2D): DOMMatrix {
-        // Cairo.Context in GJS doesn't expose `getMatrix()`, but it does
-        // expose `userToDevice(x, y)`. We reconstruct the current affine
-        // matrix [a,b,c,d,e,f] by transforming three reference points:
+        // GJS' Cairo.Context exposes no `getMatrix()`, so [a,b,c,d,e,f] is reconstructed from three
+        // userToDevice probes:
         //   userToDevice(0, 0) = (e,     f)      — translation
         //   userToDevice(1, 0) = (a + e, b + f)  — first basis vector
         //   userToDevice(0, 1) = (c + e, d + f)  — second basis vector
-        // Cairo holds the last INVERTIBLE matrix, so while the canvas transform
-        // is singular the reconstruction below would report a matrix that still
-        // draws — the opposite of what is in effect. Report the collapse
-        // instead. Only the zero determinant is preserved, not which singular
-        // matrix it was: Cairo cannot hold one, so there is nothing to read back.
+        // Cairo holds the last INVERTIBLE matrix, so under a singular canvas transform that
+        // reconstruction would report a matrix that still draws — the opposite of what is in effect.
+        // Hence the collapse is reported instead; which singular matrix it was cannot be recovered,
+        // Cairo never held it.
         if (this._state.transformIsSingular) {
             const t = this._ctx.userToDevice(0, 0);
             return makeMatrix(0, 0, 0, 0, t[0] ?? 0, t[1] ?? 0);

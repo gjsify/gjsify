@@ -1,16 +1,12 @@
-// DOM-level behaviour tests for <adw-toast-overlay>. Runs in a real browser via
-// the @gjsify/adwaita-web browser test axis.
+// DOM-level behaviour tests for <adw-toast-overlay>, in a real browser via the
+// @gjsify/adwaita-web browser test axis.
 //
-// The regression these guard: the overlay used to append EVERY toast as its own
-// strip the moment `addToast()` was called, so three calls stacked three visible
-// toasts and each ran its own timer. `Adw.ToastOverlay` shows exactly ONE toast
-// at a time and queues the rest FIFO, advancing only when the visible one is
-// dismissed (manually or by its timeout) — the policy `AdwToastQueue` in
-// `@gjsify/adwaita-core` owns and this element now composes.
+// `Adw.ToastOverlay` shows exactly ONE toast at a time and queues the rest FIFO,
+// advancing only when the visible one is dismissed (manually or by its timeout) — the
+// policy `AdwToastQueue` owns in `@gjsify/adwaita-core` and this element composes.
 //
-// Timing is driven through core's injected `ToastScheduler` seam (a virtual
-// clock), so the auto-dismiss lifecycle is asserted deterministically with no
-// real timers.
+// Timing runs through core's injected `ToastScheduler` seam (a virtual clock), so the
+// auto-dismiss lifecycle is deterministic with no real timers.
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { AdwToastOverlay, ToastScheduler, ToastTimerHandle } from './elements/adw-toast-overlay.js';

@@ -1,20 +1,14 @@
-// DOM-level tests for <adw-switch>, plus the REGRESSION PROOF that lifting it
-// out of <adw-switch-row> and <adw-expander-row> left both rows working.
+// DOM-level tests for <adw-switch>, plus the proof that both <adw-switch-row> and
+// <adw-expander-row> still work now that the switch is lifted out of them. Two
+// invariants:
 //
-// What the extraction removed: `_expander_row.scss:73-121` was a
-// character-for-character copy of `_switch_row.scss:15-63` (same 44×24 box, same
-// hidden input, same 20px knob, same `translateX(20px)`, same focus ring),
-// because `_switch_row.scss:9` opened `adw-switch-row {` and nested `.adw-switch`
-// inside it — so the class did not exist anywhere else and the expander row could
-// not reuse it. Two consequences this suite pins down:
-//
-//   - the GEOMETRY now comes from ONE unscoped partial. `measure()` compares the
-//     computed box of the row's switch against the expander's; before the lift
-//     they were two independently-maintained blocks that happened to agree, and
-//     deleting either one silently unstyled its widget.
-//   - the EVENTS are unchanged. Both rows compose an element that emits its own
-//     `notify::active`, so each row stops it at the switch and publishes its own
-//     name — a row listener must still see exactly one event per toggle.
+//   - the GEOMETRY comes from ONE unscoped partial, so `measure()` compares the
+//     computed box of the row's switch against the expander's. Scoping `.adw-switch`
+//     inside `adw-switch-row {` is what forced the expander row to keep a duplicate
+//     block, where deleting either copy silently unstyled its widget.
+//   - the EVENTS are unchanged: both rows compose an element emitting its own
+//     `notify::active`, so each row stops it at the switch and publishes under its own
+//     name — a row listener must see exactly one event per toggle.
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { AdwExpanderRow } from './elements/adw-expander-row.js';
@@ -59,7 +53,7 @@ export const AdwSwitchTest = async () => {
             expect(el.active).toBe(false);
             expect(input).toBeTruthy();
             expect(input.checked).toBe(false);
-            // The focus ring is `input:focus-visible + .adw-switch-slider`, so the
+            // The focus ring is `input:focus-visible +.adw-switch-slider`, so the
             // slider MUST be the input's immediate next sibling.
             expect(input.nextElementSibling).toBe(slider);
             expect(el.classList.contains('adw-switch')).toBe(true);

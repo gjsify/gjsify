@@ -1,17 +1,14 @@
 // Split-view conformance vectors — the spec both renderers are held to.
 //
-// Every row is derived from a named function in the libadwaita C source and cites
-// it, so a renderer that re-implements the arithmetic instead of calling
-// `@gjsify/adwaita-core` fails the moment it drifts — naming the exact input.
+// Every row is derived from a named function in the libadwaita C source and cites it, so a
+// renderer that re-implements the arithmetic instead of calling `@gjsify/adwaita-core` fails
+// the moment it drifts, naming the exact input.
 //
-// The rows that matter most are the ones neither port could produce before:
-//   - the same sizing input answered DIFFERENTLY by the two widgets (180 vs 100),
-//   - inverted clamp bounds, which GLib resolves to `low` and JS's usual
-//     `Math.min(max, Math.max(min, x))` resolves to `high`,
-//   - a collapsed split view with only ONE child, which both ports rendered blank,
-//   - `sidebar-position: end`, where the CONTENT becomes the root page,
-//   - RTL, where `start` is the RIGHT edge,
-//   - and the unpinned collapse coupling both STORYBOOKS had to hand-roll.
+// The rows that matter most: the same sizing input answered DIFFERENTLY by the two widgets
+// (180 vs 100); inverted clamp bounds, which GLib resolves to `low` where JS's usual
+// `Math.min(max, Math.max(min, x))` resolves to `high`; a collapsed split view with only ONE
+// child; `sidebar-position: end`, where the CONTENT becomes the root page; RTL, where `start`
+// is the RIGHT edge; and the unpinned collapse coupling.
 //
 // Reference: refs/libadwaita/src/adw-navigation-split-view.c
 // Reference: refs/libadwaita/src/adw-overlay-split-view.c
@@ -29,21 +26,19 @@ import type {
     SplitViewPaneRect,
 } from '../split-view.js';
 
-// --- Length units ---
-
 /** One `adwLengthToPx` expectation. */
 export interface AdwLengthUnitVector {
     unit: AdwLengthUnit;
     value: number;
     /** The `gtk-xft-dpi` in play. */
     dpi: number;
-    /** The resulting pixel length. */
     px: number;
-    /** Why this row exists. */
     rule: string;
 }
 
-/** `adw_length_unit_to_px` (adw-length-unit.c:72-81).  *
+/**
+ * `adw_length_unit_to_px`.
+ *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (SIDEBAR_BOUNDS_VECTORS, which both renderers drive)
  */
 export const ADW_LENGTH_UNIT_VECTORS: ReadonlyArray<AdwLengthUnitVector> = [
@@ -56,14 +51,11 @@ export const ADW_LENGTH_UNIT_VECTORS: ReadonlyArray<AdwLengthUnitVector> = [
     { unit: 'sp', value: 0, dpi: 120, px: 0, rule: '0 is a legal min/max width and survives conversion' },
 ];
 
-// --- GLib CLAMP ---
-
 /** One `glibClamp` expectation. */
 export interface GlibClampVector {
     x: number;
     low: number;
     high: number;
-    /** What GLib's CLAMP returns. */
     clamped: number;
     rule: string;
 }
@@ -87,8 +79,6 @@ export const GLIB_CLAMP_VECTORS: ReadonlyArray<GlibClampVector> = [
     { x: 280, low: 180, high: 280, clamped: 280, rule: 'exactly high' },
 ];
 
-// --- Sidebar bounds ---
-
 /** One `resolveSidebarBounds` expectation. */
 export interface SidebarBoundsVector {
     spec: SidebarWidthSpec;
@@ -102,9 +92,8 @@ export interface SidebarBoundsVector {
 }
 
 /**
- * The `MAX (…, adw_length_unit_to_px (…))` pair both widgets open with —
- * allocate flavour at adw-navigation-split-view.c:292-300 /
- * adw-overlay-split-view.c:452-460, measure flavour at :251-256 / :545-550.
+ * The `MAX (…, adw_length_unit_to_px (…))` pair both widgets open with, in both the
+ * allocate and the measure flavour.
  */
 export const SIDEBAR_BOUNDS_VECTORS: ReadonlyArray<SidebarBoundsVector> = [
     {
@@ -158,8 +147,6 @@ export const SIDEBAR_BOUNDS_VECTORS: ReadonlyArray<SidebarBoundsVector> = [
     },
 ];
 
-// --- Allocated sidebar width ---
-
 /** One allocated-sidebar-width expectation. */
 export interface SidebarWidthVector {
     /** Which widget's rule applies — they answer the same input differently. */
@@ -172,14 +159,13 @@ export interface SidebarWidthVector {
     sidebarChildMin: number;
     /** Overlay only: collapsed ignores the fraction and clamps the VIEW width. */
     collapsed: boolean;
-    /** The allocated sidebar width. */
     width: number;
     rule: string;
 }
 
 /**
- * `allocate_uncollapsed` (adw-navigation-split-view.c:292-304) versus
- * `get_sidebar_width` + `allocate_uncollapsed` (adw-overlay-split-view.c:441-466, :585).
+ * `allocate_uncollapsed` versus
+ * `get_sidebar_width` + `allocate_uncollapsed`.
  *
  * The 300px pair is the reason this table keys on `widget`: identical input, 180 in
  * the navigation split view and 100 in the overlay, because one caps the BOUND and
@@ -338,8 +324,6 @@ export const SIDEBAR_WIDTH_VECTORS: ReadonlyArray<SidebarWidthVector> = [
     },
 ];
 
-// --- Natural sidebar width ---
-
 /** One `resolveNaturalSidebarWidth` expectation. */
 export interface NaturalSidebarWidthVector {
     contentNatural: number;
@@ -351,8 +335,7 @@ export interface NaturalSidebarWidthVector {
 }
 
 /**
- * `measure_uncollapsed`'s sidebar estimate (adw-navigation-split-view.c:260-262,
- * adw-overlay-split-view.c:554-556) — the sidebar's OWN natural width is ignored.
+ * `measure_uncollapsed`'s sidebar estimate  — the sidebar's OWN natural width is ignored.
  *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (SIDEBAR_WIDTH_VECTORS)
  */
@@ -386,8 +369,6 @@ export const NATURAL_SIDEBAR_WIDTH_VECTORS: ReadonlyArray<NaturalSidebarWidthVec
     },
 ];
 
-// --- Container measure ---
-
 /** One `measureSplitViewHorizontal` expectation. */
 export interface SplitViewMeasureVector {
     min: number;
@@ -402,11 +383,10 @@ export interface SplitViewMeasureVector {
 }
 
 /**
- * `measure_uncollapsed` (adw-overlay-split-view.c:558-563; the navigation variant at
- * adw-navigation-split-view.c:264-267 is the same rule at progress 1).
+ * `measure_uncollapsed`; the navigation variant is the same rule at progress 1.
  *
- * This is the container minimum neither renderer had — which is why in both of them
- * the content pane shrinks to nothing instead of the window refusing to get narrower.
+ * Without this container minimum the content pane shrinks to nothing instead of the window
+ * refusing to get narrower.
  *
  * CORE-ONLY: the container minimum lands as `min-width: min-content` on the content pane, which is CSS’s own spelling of the same rule — there is no computed number of ours to compare. Asserted in the renderer as "the pane is not crushable" instead
  */
@@ -457,8 +437,6 @@ export const SPLIT_VIEW_MEASURE_VECTORS: ReadonlyArray<SplitViewMeasureVector> =
     },
 ];
 
-// --- Navigation pane geometry ---
-
 /** One `layoutNavigationSplitView` expectation. */
 export interface NavigationLayoutVector {
     totalWidth: number;
@@ -470,7 +448,7 @@ export interface NavigationLayoutVector {
     rule: string;
 }
 
-/** `allocate_uncollapsed` (adw-navigation-split-view.c:306-316). */
+/** `allocate_uncollapsed`. */
 export const NAVIGATION_SPLIT_VIEW_LAYOUT_VECTORS: ReadonlyArray<NavigationLayoutVector> = [
     {
         totalWidth: 1000,
@@ -510,8 +488,6 @@ export const NAVIGATION_SPLIT_VIEW_LAYOUT_VECTORS: ReadonlyArray<NavigationLayou
     },
 ];
 
-// --- Overlay pane geometry ---
-
 /** One `layoutOverlaySplitView` expectation. */
 export interface OverlayLayoutVector {
     totalWidth: number;
@@ -526,11 +502,10 @@ export interface OverlayLayoutVector {
 }
 
 /**
- * `allocate_uncollapsed` (adw-overlay-split-view.c:572-610) and `allocate_collapsed`
- * (:653-703), plus `update_shield` (:249-256) and the snapshot gate (:757).
+ * `allocate_uncollapsed` and `allocate_collapsed`,
+ * plus `update_shield` and the snapshot gate.
  *
- * `shadowProgress` is inverted relative to the reveal — 1 means NO shadow
- * (adw-shadow-helper.c:234-249).
+ * `shadowProgress` is inverted relative to the reveal — 1 means NO shadow.
  */
 export const OVERLAY_SPLIT_VIEW_LAYOUT_VECTORS: ReadonlyArray<OverlayLayoutVector> = [
     {
@@ -688,8 +663,6 @@ export const OVERLAY_SPLIT_VIEW_LAYOUT_VECTORS: ReadonlyArray<OverlayLayoutVecto
     },
 ];
 
-// --- Tags ---
-
 /** One `tagsConflict` expectation. */
 export interface TagsConflictVector {
     sidebarTag: string | null;
@@ -698,7 +671,9 @@ export interface TagsConflictVector {
     rule: string;
 }
 
-/** `tags_equal` (adw-navigation-split-view.c:413-429).  *
+/**
+ * `tags_equal`.
+ *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (the tag guard, driven through NAVIGATION_ACTION_VECTORS and the refusal tests in both renderer suites)
  */
 export const TAGS_CONFLICT_VECTORS: ReadonlyArray<TagsConflictVector> = [
@@ -726,8 +701,6 @@ export const TAGS_CONFLICT_VECTORS: ReadonlyArray<TagsConflictVector> = [
     },
 ];
 
-// --- Navigation stack ---
-
 /** One `resolveNavigationStack` expectation. */
 export interface NavigationStackVector {
     hasSidebar: boolean;
@@ -741,7 +714,7 @@ export interface NavigationStackVector {
 }
 
 /**
- * `update_navigation_stack` (adw-navigation-split-view.c:342-405).
+ * `update_navigation_stack`.
  *
  * The lone-child rows are the ones both renderers fail: their CSS / `visibility`
  * tables key on `show-content` alone, so a collapsed split view holding only a
@@ -867,8 +840,6 @@ export const NAVIGATION_STACK_VECTORS: ReadonlyArray<NavigationStackVector> = [
     },
 ];
 
-// --- navigation.push / navigation.pop ---
-
 /** One `resolveNavigationAction` expectation. */
 export interface NavigationActionVector {
     action: 'push' | 'pop';
@@ -887,8 +858,8 @@ export interface NavigationActionVector {
 }
 
 /**
- * `navigation_push_cb` (adw-navigation-split-view.c:644-685) and `navigation_pop_cb`
- * (:687-702) — documented as working even when NOT collapsed (:124-132).
+ * `navigation_push_cb` and `navigation_pop_cb`
+ * — documented as working even when NOT collapsed.
  */
 export const NAVIGATION_ACTION_VECTORS: ReadonlyArray<NavigationActionVector> = [
     {
@@ -990,8 +961,6 @@ export const NAVIGATION_ACTION_VECTORS: ReadonlyArray<NavigationActionVector> = 
     },
 ];
 
-// --- Overlay collapse coupling ---
-
 /** The observable state of an `OverlaySplitViewState`. */
 export interface OverlaySplitViewSnapshot {
     showSidebar: boolean;
@@ -1004,13 +973,10 @@ export interface OverlaySplitViewSnapshot {
 
 /** One collapse-coupling expectation. */
 export interface OverlayCollapseVector {
-    /** Constructor options. */
     initial: { collapsed?: boolean; showSidebar?: boolean; pinSidebar?: boolean };
-    /** State right after construction. */
     before: OverlaySplitViewSnapshot;
     /** The `collapsed` value to set. */
     setCollapsed: boolean;
-    /** State after the change. */
     after: OverlaySplitViewSnapshot;
     /** Which `notify::*` properties fire, in order. */
     notifications: ReadonlyArray<'show-sidebar' | 'collapsed'>;
@@ -1018,8 +984,8 @@ export interface OverlayCollapseVector {
 }
 
 /**
- * `adw_overlay_split_view_init` (:1106-1116) + `set_collapsed` (:1439-1481) +
- * the can-focus pair (:330-331).
+ * `adw_overlay_split_view_init` + `set_collapsed` +
+ * the can-focus pair.
  *
  * `if (!self->pin_sidebar) set_show_sidebar (self, !self->collapsed, FALSE, 0);` is
  * the single rule BOTH storybooks re-implemented by hand because neither widget
@@ -1117,8 +1083,6 @@ export const OVERLAY_COLLAPSE_VECTORS: ReadonlyArray<OverlayCollapseVector> = [
     },
 ];
 
-// --- Swipe gestures ---
-
 /** One `resolveSwipeSnapPoints` expectation. */
 export interface SwipeSnapPointVector {
     showProgress: number;
@@ -1129,7 +1093,7 @@ export interface SwipeSnapPointVector {
     rule: string;
 }
 
-/** `adw_overlay_split_view_get_snap_points` (adw-overlay-split-view.c:1214-1243). */
+/** `adw_overlay_split_view_get_snap_points`. */
 export const OVERLAY_SWIPE_SNAP_POINT_VECTORS: ReadonlyArray<SwipeSnapPointVector> = [
     {
         showProgress: 0,
@@ -1176,7 +1140,7 @@ export interface SwipeStartVector {
     rule: string;
 }
 
-/** `prepare_cb` (adw-overlay-split-view.c:362-387). */
+/** `prepare_cb`. */
 export const OVERLAY_SWIPE_START_VECTORS: ReadonlyArray<SwipeStartVector> = [
     {
         showProgress: 1,
@@ -1236,7 +1200,7 @@ export interface SwipeReleaseVector {
     rule: string;
 }
 
-/** `end_swipe_cb` (adw-overlay-split-view.c:414-429). */
+/** `end_swipe_cb`. */
 export const OVERLAY_SWIPE_RELEASE_VECTORS: ReadonlyArray<SwipeReleaseVector> = [
     {
         to: 1,
@@ -1275,7 +1239,7 @@ export interface SwipeCancelVector {
     rule: string;
 }
 
-/** `adw_overlay_split_view_get_cancel_progress` (adw-overlay-split-view.c:1253-1258). */
+/** `adw_overlay_split_view_get_cancel_progress`. */
 export const OVERLAY_SWIPE_CANCEL_VECTORS: ReadonlyArray<SwipeCancelVector> = [
     { showProgress: 0.5, cancelProgress: 1, rule: 'C round() is half-AWAY-from-zero' },
     { showProgress: 0.4999, cancelProgress: 0, rule: 'just below the half' },
@@ -1302,8 +1266,8 @@ export interface SwipeAreaVector {
 }
 
 /**
- * `adw_overlay_split_view_get_swipe_area` (adw-overlay-split-view.c:1261-1290);
- * `ADW_SWIPE_BORDER` is 32 (adw-swipe-tracker-private.h:17).
+ * `adw_overlay_split_view_get_swipe_area`;
+ * `ADW_SWIPE_BORDER` is 32.
  */
 export const OVERLAY_SWIPE_AREA_VECTORS: ReadonlyArray<SwipeAreaVector> = [
     {

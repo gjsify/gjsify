@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Safety contract for `gjsify clear`'s target resolution.
 //
-// `gjsify clear` replaces `rm -rf` in 224 package `clear` scripts, so the paths
-// it deletes come from config files rather than from a human at a prompt. The
+// `gjsify clear` replaced `rm -rf` in hundreds of package `clear` scripts — none is
+// left — so the paths it deletes come from config files, not from a human at a prompt. The
 // tests that matter most are therefore the REFUSALS — and they are only testable
 // at all because `readdir` is injected: proving that `../../sibling` is rejected
 // must not involve creating anything outside the working directory.
@@ -73,8 +73,8 @@ export default async () => {
         });
 
         await it('names the offending path in the error', () => {
-            // The message is the whole value of a refusal during a `foreach`
-            // sweep over 224 packages.
+            // The message is the whole value of a refusal during a workspace-wide
+            // `foreach` sweep.
             let message = '';
             try {
                 resolveClearTargets(['../sibling'], ctx());

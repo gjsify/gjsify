@@ -1,41 +1,31 @@
 // SPDX-License-Identifier: MIT
-// Boxed/struct IN-argument TRANSFER handling for @gjsify/node-gi — the
-// ownership half of the boxed marshalling contract (the OUT half lives in
-// `boxed-out.test.mjs`). Cross-runtime safe: headless, no display, no test
-// typelib (GLib + Pango only; Pango is already a CI dependency of the unit job
-// because the caller-alloc-struct-out conformance programs need it).
+// Boxed/struct IN-argument TRANSFER handling — the ownership half of the boxed
+// marshalling contract (the OUT half is `boxed-out.test.mjs`). Headless, GLib +
+// Pango only, so it runs on every runtime leg.
 //
 // Regression for a double-free: `JsToGIArgument` handed the callee the very
 // pointer the JS boxed handle still owned, ignoring the argument's
-// `(transfer full)` annotation. The callee frees it, then the handle's
-// finalizer frees it again — `free(): invalid pointer` / SIGSEGV, raised
-// asynchronously from the napi finalizer queue long after the call.
+// `(transfer full)` annotation. The callee frees it, then the handle's finalizer
+// frees it again — `free(): invalid pointer` / SIGSEGV, raised asynchronously
+// from the napi finalizer queue long after the call. Found via `@gjsify/webrtc`,
+// which passes an SDPMessage obtained `(transfer full)` straight into a
+// `(transfer full)` IN arg; GStreamer is not a node-gi test dependency, so the
+// same shape is reproduced with Pango (`pango_attr_size_new()` returns
+// `(transfer full)`, `pango_attr_list_insert()` takes its `attr` the same way).
 //
-// Found via `@gjsify/webrtc` on the node-gi reverse bridge: `RTCSessionDescription
-// .toGstDesc()` does
-//
-//   const [ret, sdp] = GstSdp.SDPMessage.new_from_text(text);      // OUT (transfer full)
-//   GstWebRTC.WebRTCSessionDescription.new(type, sdp);             // IN  (transfer full)
-//
-// so `gst_webrtc_session_description_free` and the SDPMessage handle's own
-// finalizer both freed the same `GstSDPMessage`. GStreamer is not a node-gi test
-// dependency, so the same shape is reproduced here with Pango:
-// `pango_attr_size_new()` returns `(transfer full)` and `pango_attr_list_insert()`
-// takes its `attr` `(transfer full)`.
-//
-// gjs is the reference behaviour: refs/gjs/gi/wrapperutils.h
-// `GIWrapperBase::transfer_to_gi_argument` COPIES on a transferring IN arg
-// (`Instance::copy_ptr` → `g_boxed_copy`, or `g_variant_ref` for GVariant), so
-// the callee and the JS wrapper own independent instances.
+// gjs is the reference: `GIWrapperBase::transfer_to_gi_argument`
+// (refs/gjs/gi/wrapperutils.h) COPIES on a transferring IN arg — `g_boxed_copy`,
+// or `g_variant_ref` for GVariant — so callee and JS wrapper own independent
+// instances.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { requireGi } from '../gi.js';
 
 /**
- * Drain the napi finalizer queue: the boxed handles' finalizers run off the
- * GC's callback queue on a later event-loop turn, so a double free only aborts
- * after both a collection AND a turn of the loop.
+ * Drain the napi finalizer queue: boxed finalizers run off the GC's callback
+ * queue on a later loop turn, so a double free only aborts after both a
+ * collection AND a turn of the loop.
  */
 async function collect() {
     for (let i = 0; i < 2; i++) {
@@ -53,9 +43,7 @@ test('a (transfer full) boxed IN arg is copied, not surrendered: Pango.AttrList.
         const list = Pango.AttrList.new();
         // (transfer full) RETURN → the handle owns this PangoAttribute.
         const attr = Pango.AttrSize.new(12 * 1024);
-        // `attr` is (transfer full): the list ADOPTS it and destroys it with the
-        // list. Pre-fix this handed over the handle's own pointer, so the
-        // finalizer destroyed an already-destroyed attribute.
+        // `attr` is (transfer full) too: the list ADOPTS it and destroys it with the list.
         list.insert(attr);
     }
 
@@ -70,8 +58,7 @@ test('a (transfer full) boxed IN arg is copied, not surrendered: Pango.AttrList.
 test('a (transfer none) boxed IN arg is still a plain borrow: GLib.DateTime.difference', async () => {
     const GLib = requireGi('GLib', '2.0');
 
-    // The unchanged side of the contract: no copy, no ownership move — the
-    // handle stays valid and keeps owning its instance across the call.
+    // No copy, no ownership move: the handle keeps owning its instance across the call.
     const a = GLib.DateTime.new_from_unix_utc(1136214245);
     const b = a.add_hours(1);
     for (let i = 0; i < 200; i++) assert.equal(b.difference(a), 3600000000);

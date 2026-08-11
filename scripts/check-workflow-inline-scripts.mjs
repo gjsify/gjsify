@@ -4,27 +4,20 @@
 //
 // THE INCIDENT
 //
-// `release.yml`'s two GTK-runtime verify steps each ended with
+// `release.yml`'s two GTK-runtime verify steps put a `'` inside a SINGLE-QUOTED
+// `node -e '…'`. The shell closed the string there, node got a truncated program and
+// died on a SyntaxError before evaluating one assertion — so all three v0.28.0 bundle
+// publish legs failed while every bundle they gated was correct, and the three
+// `@gjsify/gtk-runtime-*` packages stayed at 0.27.1, the exact version whose defects
+// that gate had just been written to prevent. It survived review twice because the
+// quote is visually inert (the JS reads correctly; only the shell layer disagrees) and
+// `release.yml` triggers on `release`/`workflow_dispatch` only, so no PR ever ran it.
 //
-//     … data sets ${verified.map((v) => v.id).join('+')}`);
-//
-// inside a SINGLE-QUOTED `node -e '…'`. The shell closes the string at the quote
-// before `+`; node received `join(+)` and died with `SyntaxError: Unexpected token
-// ')'` before evaluating one assertion. All three v0.28.0 bundle publish legs failed
-// there while every bundle they gated was correct, so `@gjsify/cli`/`node-gi`/`napi`
-// went out at 0.28.0 and the three `@gjsify/gtk-runtime-*` packages stayed at 0.27.1
-// — the exact version whose defects that gate had just been written to prevent.
-//
-// It survived review twice (once per shell) because the quote is visually inert: the
-// JS reads correctly, and only the shell layer between the YAML and node disagrees.
-// And nothing ran it before the release — `release.yml` triggers on `release` /
-// `workflow_dispatch` only, so no PR ever executed either block.
-//
-// This is the same class as `assertShellSafeWorkspaceName` in the affected-classifier
-// transport, and it was settled there in the same terms: pre-quoting for unknown
-// nesting cannot work, emitting text that needs no quoting can. The primary fix is
-// therefore to move the body into a script file (`packages/node-gi/scripts/
-// verify-bundle-manifest.mjs`); this check is what stops the shape from regrowing.
+// Same class as `assertShellSafeWorkspaceName` in the affected-classifier transport,
+// settled in the same terms: pre-quoting for unknown nesting cannot work, emitting
+// text that needs no quoting can. The primary fix is to move the body into a script
+// file (`packages/node-gi/scripts/verify-bundle-manifest.mjs`); this check stops the
+// shape from regrowing.
 //
 // WHAT IT CHECKS — deliberately only the MULTI-LINE form
 //
@@ -33,20 +26,16 @@
 // shell string an unescaped q cannot be body text — it IS the close — so any
 // occurrence is the defect, with no judgement call.
 //
-// Single-line invocations are deliberately NOT checked. There, q legitimately recurs
-// as part of an enclosing construct — `echo "… $(node -p "require('./p.json').v")"`
-// is correct and a counting rule flags it. A first draft of this check did exactly
-// that: 23 findings, 21 of them false, including the correct
-// `cli-cross-platform.yml:193` block. A check with false positives gets disabled, and
-// then it protects nothing.
+// Single-line invocations are deliberately NOT checked: there q legitimately recurs
+// inside an enclosing construct — `echo "… $(node -p "require('./p.json').v")"` is
+// correct, and a counting rule flags it. A first draft did exactly that: 23 findings,
+// 21 false. A check with false positives gets disabled, and then protects nothing.
 //
-// The body's end is the first line whose trimmed text STARTS WITH q — not one equal
-// to q. `release.yml` closed on a bare `'`, `cli-cross-platform.yml` on `')"`; the
-// stricter equality read past the real end and flagged every apostrophe in the
-// comments below it.
+// The body's end is the first line whose trimmed text STARTS WITH q, not one equal to
+// q: real closes include a bare `'` and `')"`, and the stricter equality read past the
+// end and flagged every apostrophe below it.
 //
-// It does NOT parse YAML or lex the shell. It does not need to: the defect is
-// lexical, one quote character in the wrong place.
+// No YAML parsing, no shell lexing: the defect is lexical, one quote in the wrong place.
 //
 // Usage: node scripts/check-workflow-inline-scripts.mjs [--root <dir>]
 // Exits 1 and names file:line + the offending text on any finding.
@@ -97,7 +86,7 @@ function checkFile(path) {
             if (rest.trim() !== '') continue;
 
             // The close is the first line whose trimmed text STARTS WITH the quote:
-            // a bare `'` in release.yml, `')"` where the body feeds a substitution.
+            // a bare `'`, or `')"` where the body feeds a substitution.
             let close = -1;
             for (let j = i + 1; j < lines.length; j++) {
                 if (lines[j].trim().startsWith(quote)) {

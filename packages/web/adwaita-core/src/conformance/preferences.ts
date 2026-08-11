@@ -2,19 +2,17 @@
 //
 // Two families of rows, matching the two halves lifted into `preferences.ts`:
 //
-//   - the GROUP HEADER derivation, where both ports had half the rules and
-//     neither had `single-line` or hide-the-listbox-when-empty. The rows that
-//     used to be wrong are marked in their `rule`;
-//   - the SEARCH pipeline, which neither port had at all. Its rows are the
-//     expensive ones: the case fold that a `toLowerCase()` port fails only in
-//     German and Greek, the fold-THEN-parse order, and the three-filter corpus
-//     whose clauses live in three different C files.
+//   - the GROUP HEADER derivation, including `single-line` and
+//     hide-the-listbox-when-empty; rows that pin a past divergence say so in their
+//     `rule`;
+//   - the SEARCH pipeline, whose expensive rows are the case fold a `toLowerCase()`
+//     port fails only in German and Greek, the fold-THEN-parse order, and the
+//     three-filter corpus whose clauses live in three different C files.
 //
-// `PREFERENCES_SEARCH_PAGES` is deliberately a renderer-free TREE rather than a
-// list of expectations: each renderer materialises it into its own widgets —
-// DOM elements on web, native views on NativeScript — and then asserts the same
-// `PREFERENCES_SEARCH_VECTORS` results against it. That is what makes the
-// suites comparable rather than merely similar.
+// `PREFERENCES_SEARCH_PAGES` is a renderer-free TREE rather than a list of expectations:
+// each renderer materialises it into its own widgets and then asserts the same
+// `PREFERENCES_SEARCH_VECTORS` results against it, which is what makes the suites
+// comparable rather than merely similar.
 //
 // Reference: refs/libadwaita/src/adw-preferences-group.c
 // Reference: refs/libadwaita/src/adw-preferences-page.c
@@ -31,10 +29,6 @@ import type {
     SearchRowSubtitleInput,
 } from '../preferences.js';
 
-// ---------------------------------------------------------------------------
-// Group header
-// ---------------------------------------------------------------------------
-
 /** One `derivePreferencesGroupHeader` expectation. */
 export interface PreferencesGroupHeaderVector {
     /** The group's title / description / suffix / row count. */
@@ -49,14 +43,12 @@ export interface PreferencesGroupHeaderVector {
      * markup-rendering gap is what retires the flag.
      */
     dependsOnMarkup?: boolean;
-    /** Why this row exists — the rule or the regression it pins down. */
     rule: string;
 }
 
 /**
  * `update_title_visibility` / `update_description_visibility` /
- * `update_listbox_visibility` / `is_single_line` / `update_header_visibility`
- * (adw-preferences-group.c:91-156).
+ * `update_listbox_visibility` / `is_single_line` / `update_header_visibility`.
  */
 export const PREFERENCES_GROUP_HEADER_VECTORS: ReadonlyArray<PreferencesGroupHeaderVector> = [
     {
@@ -210,24 +202,18 @@ export const PREFERENCES_GROUP_HEADER_VECTORS: ReadonlyArray<PreferencesGroupHea
     },
 ];
 
-// ---------------------------------------------------------------------------
-// Case folding
-// ---------------------------------------------------------------------------
-
 /** One `defaultCaseFolder` expectation. */
 export interface CaseFoldVector {
-    /** The string being folded. */
     text: string;
     /** `g_utf8_casefold(text)` — Unicode FULL case folding. */
     folded: string;
     /** What a bare `toLowerCase()` returns, kept in the table as the trap. */
     naiveLowerCase: string;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * `g_utf8_casefold` (adw-preferences-dialog.c:101, :133).
+ * `g_utf8_casefold`.
  *
  * Every row where `folded !== naiveLowerCase` is a query a `toLowerCase()` port
  * silently fails to match — in German, Greek and any text with a typographic
@@ -268,23 +254,17 @@ export const CASE_FOLD_VECTORS: ReadonlyArray<CaseFoldVector> = [
     },
 ];
 
-// ---------------------------------------------------------------------------
-// Markup + mnemonics
-// ---------------------------------------------------------------------------
-
 /** One `stripMarkup` expectation. */
 export interface StripMarkupVector {
     /** The (already folded, in the real pipeline) markup string. */
     markup: string;
     /** The plain text, or `null` when `pango_parse_markup` fails. */
     plain: string | null;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * `pango_parse_markup (…, accel_marker 0, …)` as `make_comparable` calls it
- * (adw-preferences-dialog.c:104-114).
+ * `pango_parse_markup (…, accel_marker 0, …)` as `make_comparable` calls it.
  *
  * `null` is not an error case to be smoothed over: it is the branch where C
  * logs a `g_critical` and KEEPS the unparsed string, so every `null` row below
@@ -332,12 +312,11 @@ export interface StripMnemonicVector {
     text: string;
     /** What `adw_strip_mnemonic` returns. */
     stripped: string;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * `adw_strip_mnemonic` (adw-widget-utils.c:685-703) — `g_markup_escape_text`
+ * `adw_strip_mnemonic` — `g_markup_escape_text`
  * followed by `pango_parse_markup` with `accel_marker = '_'`.
  *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (PREFERENCES_SEARCH_VECTORS)
@@ -358,10 +337,6 @@ export const STRIP_MNEMONIC_VECTORS: ReadonlyArray<StripMnemonicVector> = [
     },
 ];
 
-// ---------------------------------------------------------------------------
-// make_comparable
-// ---------------------------------------------------------------------------
-
 /** One `makeComparable` expectation. */
 export interface MakeComparableVector {
     /** The raw title or subtitle. */
@@ -370,15 +345,14 @@ export interface MakeComparableVector {
     options: MakeComparableOptions;
     /** What the search compares against. */
     comparable: string;
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
- * `make_comparable` (adw-preferences-dialog.c:96-123).
+ * `make_comparable`.
  *
  * The defaults matter as much as the rows: `use-markup` defaults to TRUE
- * (adw-preferences-row.c:185-188) and `use-underline` to FALSE (:155-158), so
+ * and `use-underline` to FALSE, so
  * an ordinary row's title IS markup-parsed and is NOT mnemonic-stripped.
  *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (PREFERENCES_SEARCH_VECTORS)
@@ -443,23 +417,18 @@ export const MAKE_COMPARABLE_VECTORS: ReadonlyArray<MakeComparableVector> = [
     },
 ];
 
-// ---------------------------------------------------------------------------
-// filter_search_results
-// ---------------------------------------------------------------------------
-
 /** One `rowMatchesQuery` expectation. */
 export interface RowMatchVector {
-    /** The row being tested. */
     row: PreferencesSearchRow;
-    /** What the user typed into the search entry. */
     query: string;
     /** Whether `filter_search_results` keeps the row. */
     matches: boolean;
-    /** Why this row exists. */
     rule: string;
 }
 
-/** `filter_search_results` (adw-preferences-dialog.c:125-153).  *
+/**
+ * `filter_search_results`.
+ *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (PREFERENCES_SEARCH_VECTORS)
  */
 export const ROW_MATCH_VECTORS: ReadonlyArray<RowMatchVector> = [
@@ -539,25 +508,19 @@ export const ROW_MATCH_VECTORS: ReadonlyArray<RowMatchVector> = [
     },
 ];
 
-// ---------------------------------------------------------------------------
-// The corpus
-// ---------------------------------------------------------------------------
-
 /** One `collectSearchRows` expectation. */
 export interface SearchCorpusVector {
-    /** The page tree being indexed. */
     pages: readonly PreferencesSearchPage[];
     /** The row titles the corpus contains, in order. */
     titles: readonly string[];
-    /** Why this row exists. */
     rule: string;
 }
 
 /**
  * The three-filter chain: `adw_preferences_dialog_init`'s visible-page filter
- * (:632-641) over `adw_preferences_page_get_rows`' `is_visible_group`
- * (adw-preferences-page.c:831-834) over `adw_preferences_group_get_rows`'
- * `row_has_title` (adw-preferences-group.c:736-740).
+ * over `adw_preferences_page_get_rows`' `is_visible_group`
+ * over `adw_preferences_group_get_rows`'
+ * `row_has_title`.
  *
  * Dropping any clause is invisible — nothing errors, the search just quietly
  * indexes the wrong set — which is why these rows are separate from the
@@ -618,21 +581,18 @@ export const SEARCH_CORPUS_VECTORS: ReadonlyArray<SearchCorpusVector> = [
     },
 ];
 
-// ---------------------------------------------------------------------------
-// create_search_row_subtitle
-// ---------------------------------------------------------------------------
-
 /** One `createSearchRowSubtitle` expectation. */
 export interface SearchRowSubtitleVector {
     /** The matched row's ancestors, plus the visible-page count. */
     input: SearchRowSubtitleInput;
     /** The second line of the result row, `null` for none. */
     subtitle: string | null;
-    /** Why this row exists. */
     rule: string;
 }
 
-/** `create_search_row_subtitle` (adw-preferences-dialog.c:168-234).  *
+/**
+ * `create_search_row_subtitle`.
+ *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (PREFERENCES_SEARCH_VECTORS)
  */
 export const SEARCH_ROW_SUBTITLE_VECTORS: ReadonlyArray<SearchRowSubtitleVector> = [
@@ -693,10 +653,6 @@ export const SEARCH_ROW_SUBTITLE_VECTORS: ReadonlyArray<SearchRowSubtitleVector>
     },
 ];
 
-// ---------------------------------------------------------------------------
-// End to end
-// ---------------------------------------------------------------------------
-
 /**
  * The page tree both renderer suites materialise into real widgets.
  *
@@ -756,17 +712,14 @@ export const PREFERENCES_SEARCH_PAGES: ReadonlyArray<PreferencesSearchPage> = [
 export interface PreferencesSearchExpectation {
     /** The result row's title — copied verbatim from the matched row. */
     title: string;
-    /** The result row's subtitle. */
     subtitle: string | null;
 }
 
 /** One end-to-end `searchPreferences` expectation over {@link PREFERENCES_SEARCH_PAGES}. */
 export interface PreferencesSearchVector {
-    /** What the user typed. */
     query: string;
     /** The results, in corpus order. */
     results: readonly PreferencesSearchExpectation[];
-    /** Why this row exists. */
     rule: string;
 }
 

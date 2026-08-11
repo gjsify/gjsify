@@ -2,20 +2,14 @@
 //
 // Two-step flow, mirroring `refs/npm-cli/lib/utils/oidc.js`:
 //
-//   1. Request a GitHub Actions OIDC ID token (JWT) from the runner.
-//      Requires `permissions: id-token: write` in the calling workflow.
-//      GitHub provides `ACTIONS_ID_TOKEN_REQUEST_URL` and
-//      `ACTIONS_ID_TOKEN_REQUEST_TOKEN` env vars; we GET the URL with
-//      the runner-provided audience (`npm:registry.npmjs.org`).
+//   1. GET a GitHub Actions OIDC ID token (JWT) from the runner, at
+//      `ACTIONS_ID_TOKEN_REQUEST_URL` with the audience `npm:registry.npmjs.org`. Requires
+//      `permissions: id-token: write` in the calling workflow.
+//   2. Exchange that JWT at `/-/npm/v1/oidc/token/exchange/package/<name>` for a short-lived
+//      (~5 min) npm publish token; npm verifies it against the package's Trusted Publisher
+//      (repository + workflow filename + optional environment).
 //
-//   2. Exchange that JWT at npm's `/-/npm/v1/oidc/token/exchange/package/<name>`
-//      endpoint for a short-lived (~5 min) npm publish token. npm verifies
-//      the JWT against the package's configured Trusted Publisher
-//      (repository + workflow filename + optional environment) and either
-//      issues a token or rejects with an explanatory error.
-//
-// The token returned by step 2 is used for the publish PUT in the same
-// way the long-lived NPM_TOKEN would have been — drop-in replacement.
+// The resulting token is a drop-in replacement for a long-lived NPM_TOKEN on the publish PUT.
 //
 // Reference: refs/npm-cli/lib/utils/oidc.js
 // Original: Copyright (c) npm contributors. Artistic-2.0.
@@ -28,14 +22,12 @@ interface OidcExchangeOptions {
     /** Optional verbose logger — receives single-line strings. */
     log?: (msg: string) => void;
     /**
-     * Max retries on a TRANSIENT exchange failure (5xx / 429 / network error).
-     * Default 3. A transient npm-side blip (e.g. a 503 Service Unavailable on a
-     * single package mid-release) used to fall straight through to token auth,
-     * which in OIDC-only CI has no token → a 404 that broke the release while
-     * the workflow stayed green (the `@gjsify/process@0.7.3` v0.7.3 incident).
-     * Retrying the exchange keeps the publish on the OIDC path. Non-transient
-     * statuses (404 "package not found", 401/403 misconfig) are NOT retried —
-     * they're surfaced immediately so `--tolerate-untrusted-new` etc. still work.
+     * Max retries on a TRANSIENT exchange failure (5xx / 429 / network error), default 3. A
+     * single npm-side 503 mid-release used to fall straight through to token auth, which in
+     * OIDC-only CI has no token → a 404 that broke the release while the workflow stayed green
+     * (hit on `@gjsify/process` during v0.7.3). Retrying keeps the publish on the OIDC path.
+     * Non-transient statuses (404 "package not found", 401/403 misconfig) are NOT retried, so
+     * `--tolerate-untrusted-new` and the misconfig hints still fire on the first response.
      */
     maxRetries?: number;
     /** Base backoff in ms for transient retries; doubles each attempt (capped 8s). Default 1000. Tests pass 0. */
@@ -71,10 +63,9 @@ export class OidcExchangeError extends Error {
         public readonly body: string,
         public readonly packageName: string,
         /**
-         * The non-secret claims decoded from the GitHub OIDC JWT that npm
-         * rejected — `repository`, `workflow_ref`, `environment`, … These are
-         * exactly what npm matches a Trusted Publisher config against, so on a
-         * 401/403 they tell you precisely which fields the config must carry.
+         * Non-secret claims decoded from the rejected JWT (`repository`, `workflow_ref`,
+         * `environment`, …) — exactly what npm matches a Trusted Publisher config against, so on
+         * a 401/403 they name which fields the config must carry.
          */
         public readonly claims?: Record<string, unknown>,
     ) {
@@ -84,11 +75,9 @@ export class OidcExchangeError extends Error {
 }
 
 /**
- * Decode the (non-secret) payload of a JWT — the middle base64url segment.
- * A GitHub OIDC id-token's payload is public metadata about the workflow run
- * (`repository`, `repository_owner`, `workflow_ref`, `job_workflow_ref`,
- * `ref`, `environment`, `sub`, …); the SIGNATURE is what makes it trustworthy.
- * Returns null if the token isn't a well-formed three-part JWT.
+ * Decode the non-secret payload of a JWT — the middle base64url segment. A GitHub OIDC
+ * id-token's payload is public metadata about the workflow run; the SIGNATURE is what makes it
+ * trustworthy. Null when the token isn't a well-formed three-part JWT.
  */
 export function decodeJwtPayload(jwt: string): Record<string, unknown> | null {
     const parts = jwt.split('.');
@@ -103,18 +92,16 @@ export function decodeJwtPayload(jwt: string): Record<string, unknown> | null {
 }
 
 /**
- * Probe whether OIDC publishing is available in the current process —
- * cheap env-var check, no network access. Used by `gjsify publish` to
- * decide between OIDC and token-based auth in auto-detect mode.
+ * Whether OIDC publishing is available in this process — a cheap env-var check with no network
+ * access, used by `gjsify publish` to choose between OIDC and token auth in auto-detect mode.
  */
 export function hasGithubOidcEnv(): boolean {
     return Boolean(process.env.ACTIONS_ID_TOKEN_REQUEST_URL && process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN);
 }
 
 /**
- * Request a GitHub Actions OIDC ID token for the given audience.
- * Throws `OidcUnavailableError` when the required env vars are missing
- * (caller can fall back to token auth) or when GitHub rejects the request.
+ * Request a GitHub Actions OIDC ID token for `audience`. Throws `OidcUnavailableError` when the
+ * env vars are missing (the caller can fall back to token auth) or GitHub rejects the request.
  */
 export async function fetchGithubOidcToken(audience: string, log?: (msg: string) => void): Promise<string> {
     const url = process.env.ACTIONS_ID_TOKEN_REQUEST_URL;
@@ -127,15 +114,11 @@ export async function fetchGithubOidcToken(audience: string, log?: (msg: string)
         );
     }
 
-    // Append the audience by STRING CONCATENATION, mirroring @actions/core's
-    // getIDToken (`${runtimeUrl}&audience=${encodeURIComponent(aud)}`) and the
-    // raw-curl probe that returns HTTP 201. Do NOT use `URL.searchParams.set` +
-    // `.href`: under GJS that serialization dropped the `audience` query param,
-    // so GitHub issued an id-token with the DEFAULT audience (the repo API URL)
-    // instead of `npm:registry.npmjs.org`. npm then rejected the otherwise-valid
-    // token with 401 "unauthorized" — the JWT's repository/workflow_ref/sub
-    // claims all matched the Trusted Publisher, only `aud` was wrong, which is
-    // exactly the failure we saw (curl from the same workflow → 201).
+    // Append the audience by STRING CONCATENATION, as @actions/core's getIDToken does. Do NOT
+    // use `URL.searchParams.set` + `.href`: under GJS that serialization dropped the `audience`
+    // param, so GitHub issued an id-token with the DEFAULT audience (the repo API URL) and npm
+    // rejected an otherwise-valid token with 401 — repository/workflow_ref/sub all matched the
+    // Trusted Publisher, only `aud` was wrong.
     const sep = url.includes('?') ? '&' : '?';
     const requestUrl = `${url}${sep}audience=${encodeURIComponent(audience)}`;
 
@@ -166,12 +149,9 @@ export async function fetchGithubOidcToken(audience: string, log?: (msg: string)
 }
 
 /**
- * Exchange a GitHub OIDC JWT for a short-lived npm publish token at
- * `/-/npm/v1/oidc/token/exchange/package/<escaped-name>`. The npm
- * registry validates the JWT against the package's Trusted Publisher
- * config — if no Trusted Publisher is configured, or the JWT comes from
- * a repo/workflow that doesn't match, the exchange returns a 4xx with
- * a descriptive body which we propagate as `OidcExchangeError`.
+ * Exchange a GitHub OIDC JWT for a short-lived npm publish token. A missing or non-matching
+ * Trusted Publisher config comes back as a 4xx with a descriptive body, propagated as
+ * `OidcExchangeError`.
  */
 export async function exchangeOidcForNpmToken(args: OidcExchangeOptions & { idToken: string }): Promise<string> {
     const { packageName, registry, idToken, log } = args;
@@ -203,8 +183,7 @@ export async function exchangeOidcForNpmToken(args: OidcExchangeOptions & { idTo
                     'Content-Type': 'application/json',
                     Accept: 'application/json',
                 },
-                // npm's exchange endpoint accepts an empty JSON body — the JWT
-                // is the proof, no additional claims needed from us.
+                // Empty JSON body: the JWT is the proof, no additional claims are needed.
                 body: '{}',
             });
         } catch (netErr) {
@@ -229,10 +208,7 @@ export async function exchangeOidcForNpmToken(args: OidcExchangeOptions & { idTo
         const text = await res.text().catch(() => '');
 
         if (!res.ok) {
-            // Retry only TRANSIENT npm-side failures; surface everything else
-            // (404/401/403 etc.) immediately so the caller's diagnostics —
-            // `--tolerate-untrusted-new`, Trusted-Publisher misconfig hints —
-            // still fire on the first response.
+            // Only TRANSIENT npm-side failures retry — see `maxRetries`.
             if (TRANSIENT_EXCHANGE_STATUSES.has(res.status) && attempt < maxRetries) {
                 const delay = Math.min(retryBaseMs * 2 ** attempt, 8000);
                 log?.(
@@ -275,10 +251,7 @@ export async function exchangeOidcForNpmToken(args: OidcExchangeOptions & { idTo
     }
 }
 
-/**
- * End-to-end: probe env → fetch id-token → exchange for npm token.
- * One-shot convenience for `gjsify publish` and the verification command.
- */
+/** End-to-end: probe env → fetch id-token → exchange for an npm token. */
 export async function getNpmTrustedToken(opts: OidcExchangeOptions): Promise<OidcExchangeResult> {
     const audience = `npm:${new URL(opts.registry).hostname}`;
     const idToken = await fetchGithubOidcToken(audience, opts.log);

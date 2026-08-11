@@ -32,7 +32,6 @@ type ZlibCallback = (error: Error | null, result: Uint8Array) => void;
 
 const hasWebCompression = typeof globalThis.CompressionStream !== 'undefined';
 
-// ---- Gio-based decompression for GJS ----
 // The Gio codec primitives (shared with the streaming classes in
 // transform-streams.ts, incl. the bounded-slice gzip member walk) live in
 // gio-codec.ts — see the performance contract documented there.
@@ -44,8 +43,6 @@ function decompressWithGio(data: Uint8Array, format: GioFormat): Uint8Array {
     // Gzip: handle concatenated members (Node.js gunzip behavior).
     return gunzipWithGio(data);
 }
-
-// ---- Compression helpers using Web Compression API ----
 
 // Drive a (de)compression Transform by piping a single-chunk source through it
 // and draining the result. Using `pipeThrough` (rather than a manual
@@ -93,8 +90,6 @@ async function decompressWithWeb(data: Uint8Array, format: CompressionFormat): P
     return runWebTransform(data, new DecompressionStream(format) as ReadableWritablePair<Uint8Array, Uint8Array>);
 }
 
-// ---- Unified compress/decompress ----
-
 async function compress(data: Uint8Array, format: GioFormat): Promise<Uint8Array> {
     if (hasWebCompression) {
         return compressWithWeb(data, format as CompressionFormat);
@@ -118,8 +113,6 @@ function toUint8Array(data: string | Uint8Array | ArrayBuffer): Uint8Array {
     }
     return data;
 }
-
-// ---- Callback-based API ----
 
 export function gzip(data: string | Uint8Array | ArrayBuffer, callback: ZlibCallback): void;
 export function gzip(data: string | Uint8Array | ArrayBuffer, options: ZlibOptions, callback: ZlibCallback): void;
@@ -205,8 +198,6 @@ export function inflateRaw(
     );
 }
 
-// ---- Sync API (uses Gio.ZlibCompressor / Gio.ZlibDecompressor) ----
-
 export function gzipSync(data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
     return compressWithGio(toUint8Array(data), 'gzip');
 }
@@ -230,8 +221,6 @@ export function deflateRawSync(data: string | Uint8Array | ArrayBuffer, _options
 export function inflateRawSync(data: string | Uint8Array | ArrayBuffer, _options?: ZlibOptions): Uint8Array {
     return decompressWithGio(toUint8Array(data), 'deflate-raw');
 }
-
-// ---- Brotli (not available in GJS — stubs throw at call time) ----
 
 // Node's CompressCallback signature requires a `result: Uint8Array` even on
 // the error path; convention is to pass an empty buffer when reporting an
@@ -309,8 +298,6 @@ export function zstdDecompressSync(_data: string | Uint8Array | ArrayBuffer, _op
     throw err;
 }
 
-// ---- Constants ----
-
 export const constants = {
     Z_NO_FLUSH: 0,
     Z_PARTIAL_FLUSH: 1,
@@ -339,8 +326,6 @@ export const constants = {
     Z_DEFAULT_STRATEGY: 0,
     Z_DEFLATED: 8,
 };
-
-// ---- Default export ----
 
 import {
     Gzip,

@@ -1,20 +1,13 @@
-// <adw-toggle-group> — A linked set of toggle buttons where exactly one is
-// active at a time (the web counterpart of Adw.ToggleGroup). Toggles are
-// declared as <adw-toggle> children with `label` and/or `icon-name` attributes;
-// the group renders them inside an inner container, tracks the active index, and
-// recolors the active toggle with the Adwaita active-toggle accent.
-// Attributes: active (zero-based index of the active toggle, default 0), and the
-//   style flags flat / round (mirroring the Adw.ToggleGroup `.flat` / `.round`
-//   style classes).
-// Events: `notify::active` (CustomEvent, bubbles, `detail = { active }`) when the
-//   active toggle changes — mirrors the Adw.ToggleGroup `active` GObject property.
+// <adw-toggle-group> — the web counterpart of Adw.ToggleGroup: a linked set of toggle
+// buttons where exactly one is active. Toggles are `<adw-toggle>` children carrying
+// `label` and/or `icon-name`, and the `flat` / `round` attributes mirror the upstream
+// `.flat` / `.round` style classes. `notify::active` (CustomEvent, bubbles, detail
+// `{ active }`) mirrors the `active` GObject property.
 //
-// The SELECTION state machine (the segment list plus the guarded, no-op-on-same
-// active index) is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as
-// {@link ToggleGroupState}; this element composes it and keeps only the DOM render
-// half — building the buttons, the active pill / `aria-pressed` reflection, and
-// the `notify::active` event. `@gjsify/adwaita-nativescript` composes the same
-// state machine, so both ports share one behaviour.
+// The SELECTION state machine (the segment list plus the guarded, no-op-on-same active
+// index) is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as
+// {@link ToggleGroupState}; this element keeps only the DOM half — the buttons, the active
+// pill / `aria-pressed` reflection and the event.
 //
 // Reference: refs/libadwaita/src/adw-toggle-group.c (AdwToggleGroup behaviour)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_toggle-group.scss

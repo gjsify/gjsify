@@ -3,8 +3,8 @@
 // Original: Copyright (c) Anthropic, PBC. MIT.
 // Rewritten for @gjsify/unit — behavior preserved, assertion dialect adapted.
 //
-// Streamable HTTP transport end-to-end tests.
-// Tests @gjsify/http Server + @gjsify/fetch client + @gjsify/streams ReadableStream + SSE.
+// Streamable HTTP transport end-to-end: @gjsify/http Server + @gjsify/fetch client +
+// @gjsify/web-streams ReadableStream + SSE.
 
 import { describe, it, expect } from '@gjsify/unit';
 import { createServer } from 'node:http';

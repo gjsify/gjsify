@@ -21,8 +21,6 @@ export function deserialize(buffer: NodeJS.ArrayBufferView | ArrayBuffer): unkno
     return des.readValue();
 }
 
-// ─── Stubs — no GJS equivalent ────────────────────────────────────────────────
-
 export interface HeapSpaceInfo {
     space_name: string;
     space_size: number;
@@ -66,8 +64,6 @@ export function isStringOneByteRepresentation(content: string): boolean {
     return true;
 }
 
-// ─── GCProfiler ───────────────────────────────────────────────────────────────
-
 export class GCProfiler {
     #running = false;
     #startTime = 0;
@@ -100,8 +96,6 @@ export class GCProfiler {
     }
 }
 
-// ─── SyncCPUProfileHandle / startCpuProfile ───────────────────────────────────
-
 export class SyncCPUProfileHandle {
     stop(): undefined {
         return undefined;
@@ -114,8 +108,6 @@ export class SyncCPUProfileHandle {
 export function startCpuProfile(): SyncCPUProfileHandle {
     return new SyncCPUProfileHandle();
 }
-
-// ─── default export ───────────────────────────────────────────────────────────
 
 export default {
     getHeapStatistics,

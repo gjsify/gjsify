@@ -48,7 +48,6 @@ const validateHeaderName = gjsHttp.validateHeaderName;
 const validateHeaderValue = gjsHttp.validateHeaderValue;
 
 export default async () => {
-    // --- validateHeaderName ---
     await describe('http.validateHeaderName', async () => {
         await it('should be a function', async () => {
             expect(typeof validateHeaderName).toBe('function');
@@ -107,7 +106,6 @@ export default async () => {
         });
     });
 
-    // --- validateHeaderValue ---
     await describe('http.validateHeaderValue', async () => {
         await it('should be a function', async () => {
             expect(typeof validateHeaderValue).toBe('function');
@@ -133,7 +131,6 @@ export default async () => {
         });
     });
 
-    // --- STATUS_CODES ---
     await describe('http.STATUS_CODES', async () => {
         await it('should be an object', async () => {
             expect(typeof http.STATUS_CODES).toBe('object');
@@ -209,7 +206,6 @@ export default async () => {
         });
     });
 
-    // --- METHODS ---
     await describe('http.METHODS', async () => {
         await it('should be an array', async () => {
             expect(Array.isArray(http.METHODS)).toBe(true);
@@ -261,7 +257,6 @@ export default async () => {
         });
     });
 
-    // --- Module exports ---
     await describe('http module exports', async () => {
         await it('should export maxHeaderSize', async () => {
             expect(http.maxHeaderSize).toBe(16384);
@@ -326,7 +321,6 @@ export default async () => {
         });
     });
 
-    // --- OutgoingMessage ---
     await describe('http.OutgoingMessage', async () => {
         await it('should be constructable', async () => {
             const OutgoingMessage = gjsHttp.OutgoingMessage;
@@ -470,7 +464,6 @@ export default async () => {
         });
     });
 
-    // --- Agent ---
     await describe('http.Agent', async () => {
         await it('should be constructable', async () => {
             const agent = new http.Agent();
@@ -519,7 +512,6 @@ export default async () => {
         });
     });
 
-    // --- globalAgent ---
     await describe('http.globalAgent', async () => {
         await it('should be an instance of Agent', async () => {
             expect(http.globalAgent instanceof http.Agent).toBe(true);
@@ -542,7 +534,6 @@ export default async () => {
         });
     });
 
-    // --- IncomingMessage standalone ---
     await describe('http.IncomingMessage standalone', async () => {
         await it('should be constructable', async () => {
             // Node.js requires a socket arg; GJS does not — gjsHttp.IncomingMessage's
@@ -635,7 +626,6 @@ export default async () => {
         });
     });
 
-    // --- Server round-trip ---
     await describe('http.createServer round-trip', async () => {
         await it('should create a server and handle a GET request', async () => {
             const server = http.createServer((req, res) => {
@@ -801,7 +791,6 @@ export default async () => {
         });
     });
 
-    // --- Server-side request headers ---
     //
     // Regression guard for a SILENT header loss: the client sent its headers on the
     // wire correctly, but the server-side `IncomingMessage` came up completely empty
@@ -899,7 +888,6 @@ export default async () => {
         });
     });
 
-    // --- ServerResponse API ---
     await describe('ServerResponse API', async () => {
         await it('should support setHeader/getHeader/hasHeader/removeHeader', async () => {
             const server = http.createServer((req, res) => {
@@ -1110,7 +1098,6 @@ export default async () => {
         });
     });
 
-    // --- Server lifecycle ---
     await describe('http.Server lifecycle', async () => {
         await it('should emit listening event', async () => {
             const server = http.createServer();
@@ -1204,7 +1191,6 @@ export default async () => {
         });
     });
 
-    // --- Server properties ---
     await describe('http.Server properties', async () => {
         await it('should have timeout properties', async () => {
             const server = http.createServer();
@@ -1282,7 +1268,6 @@ export default async () => {
         });
     });
 
-    // --- IncomingMessage via server ---
     await describe('http.IncomingMessage', async () => {
         await it('should have httpVersion', async () => {
             const server = http.createServer((req, res) => {
@@ -1369,7 +1354,6 @@ export default async () => {
         });
     });
 
-    // --- Server.address() details ---
     await describe('http.Server address', async () => {
         await it('should return object with port, family, address', async () => {
             const server = http.createServer();
@@ -1398,7 +1382,6 @@ export default async () => {
         });
     });
 
-    // --- ServerResponse writeHead variants ---
     await describe('ServerResponse writeHead', async () => {
         await it('should accept statusCode only', async () => {
             const server = http.createServer((req, res) => {
@@ -1488,7 +1471,6 @@ export default async () => {
         });
     });
 
-    // --- ServerResponse default statusCode ---
     await describe('ServerResponse statusCode default', async () => {
         await it('should default statusCode to 200', async () => {
             const server = http.createServer((req, res) => {

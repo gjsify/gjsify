@@ -2,56 +2,36 @@
 /**
  * CI entry: every entry point a workspace DECLARES must be in its TARBALL.
  *
- * The sibling `verify-package-outputs.mjs` asks whether a declared path exists
- * in the REPO after a build. That question is structurally blind to the one a
- * consumer actually feels, because in this tree `lib/` always exists: a package
- * can declare `main: "lib/esm/index.js"`, build it, pass that check — and still
- * publish a tarball without the file, because `lib/` is a gitignored build
- * output and `files` never named it (with no `files` field npm falls back to
- * gitignore semantics, so the build output is excluded). The declaration is then
- * a dangling pointer for everyone who installs it, and nothing in the repo can
- * tell.
+ * The sibling `verify-package-outputs.mjs` asks whether a declared path exists in
+ * the REPO after a build, which is blind to what a consumer feels: `lib/` always
+ * exists here, so a package can declare `main: "lib/esm/index.js"`, build it, pass
+ * that check and still publish a tarball without the file, because `lib/` is a
+ * gitignored build output `files` never named (absent `files`, npm falls back to
+ * gitignore semantics). `@gjsify/xmlhttprequest@0.23.0` shipped that shape, and so
+ * did the packer-glob incident (v0.4.37–0.7.2), where `@gjsify/tsc`'s libs were on
+ * disk at pack time and absent from the tarball for a whole release window.
  *
- * That is not hypothetical. It is the shape `@gjsify/xmlhttprequest@0.23.0`
- * shipped (declared `lib/types/*.d.ts` its tsconfig never produced), and it is
- * the shape of the packer-glob incident (v0.4.37–0.7.2): `@gjsify/tsc`'s libs
- * were on disk at pack time and absent from the tarball, for a whole release
- * window, because `gjsify publish` did not expand `files` globs. The lesson
- * recorded from that was an instruction to a HUMAN — "after adding committed
- * data files, verify they are in the tarball (`gjsify pack` + `tar tzf`), never
- * assume a `files` glob ships them". This script is that instruction, executed.
+ * Both oracles are IMPORTED, never reimplemented — `declaredPaths()` for what is
+ * declared, `collectPackedFiles()` from `gjsify pack` for what is packed (asking
+ * `npm pack --dry-run` would be a second packer, which is what the incident above
+ * cost). Rationale: docs/build-artifacts.md § Build outputs.
  *
- * TWO ORACLES, EACH IMPORTED RATHER THAN REIMPLEMENTED — the whole point:
+ * IT ONLY FIRES ON THE UNAMBIGUOUS MISMATCH — a declared path PRESENT on disk yet
+ * absent from the packed set. A path that does not exist at all is
+ * `verify-package-outputs.mjs`'s finding, and claiming it here would red-line every
+ * unbuilt dev tree.
  *
- *   - WHAT IS DECLARED: `declaredPaths()` from the portable `package-outputs`
- *     rule, the same collector `verify-package-outputs.mjs` uses. Both checks
- *     therefore agree by construction about what a manifest promises; only the
- *     question differs (on disk vs in the tarball).
- *   - WHAT IS PACKED: `collectPackedFiles()` from `gjsify pack` itself. Asking
- *     `npm pack --dry-run` instead would be a SECOND packer, and the incident
- *     above is exactly what that costs — npm expanded the glob, gjsify did not,
- *     so an npm-based check would have been green while the published tarball
- *     was broken. gjsify's packer produces these tarballs, so gjsify's packer
- *     is the only honest answer.
+ * A SCRIPT AND NOT A PACKER ASSERTION: `gjsify pack` already refuses to pack a
+ * `types`/`typings` file it can see but would not ship
+ * (`assertTypeDeclarationsShipped`, the #655 guard) — the right place, but only the
+ * type fields. Widening it needs `declaredPaths()` from `@gjsify/manifest-
+ * conformance`, which is `private: true`, so a published `@gjsify/cli` depending on
+ * it would 406 every consumer install until it is npm-bootstrapped
+ * (`status/open-todos.md` § Manifest-conformance follow-ups). The superset runs
+ * here at repo scope; the packer keeps its narrower guard for consumer trees.
  *
- * IT ONLY FIRES ON THE UNAMBIGUOUS MISMATCH — a declared path that is PRESENT
- * on disk yet absent from the packed set. A declared path that does not exist
- * at all is `verify-package-outputs.mjs`'s finding, and treating it as one here
- * would make every unbuilt dev tree red for the wrong reason.
- *
- * WHY A SCRIPT AND NOT A PACKER ASSERTION: `gjsify pack` already refuses to
- * pack a `types`/`typings` file it can see but would not ship
- * (`assertTypeDeclarationsShipped`, the #655 guard) — the right place, but it
- * covers only the type fields. Widening it to every declared entry point wants
- * `declaredPaths()`, which lives in `@gjsify/manifest-conformance`, and that
- * package is `private: true`: making the published `@gjsify/cli` depend on it
- * would 406 every consumer install until it is npm-bootstrapped (tracked under
- * "Manifest-conformance follow-ups"). So the superset runs here, at repo scope,
- * where importing both oracles costs nothing — and the packer keeps its own
- * narrower guard for consumer trees. See `status/open-todos.md`.
- *
- * Needs a BUILT tree (it reads the CLI's `lib/`), so it is a post-condition,
- * placed next to `verify-package-outputs.mjs`.
+ * Needs a BUILT tree (it reads the CLI's `lib/`), so it is a post-condition placed
+ * next to `verify-package-outputs.mjs`.
  *
  * Usage:
  *   node scripts/verify-tarball-outputs.mjs
@@ -73,9 +53,8 @@ import { collectPackedFiles } from '../packages/infra/cli/lib/commands/pack.js';
 const argv = process.argv.slice(2);
 const args = new Set(argv);
 const scriptRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-// `--root`, like its sibling's, exists so the guard can be exercised against
-// fixture trees instead of only against the repo it lives in. The two oracles
-// stay repo-resident either way — a fixture is only a tree to ask about.
+// `--root`, like its sibling's, lets the guard be exercised against fixture trees.
+// The two oracles stay repo-resident — a fixture is only a tree to ask about.
 const rootFlag = argv.indexOf('--root');
 const repoRoot = rootFlag === -1 ? scriptRoot : resolve(argv[rootFlag + 1]);
 const inActions = Boolean(process.env.GITHUB_ACTIONS);
@@ -90,11 +69,10 @@ if (!['core', 'examples', 'all'].includes(scope)) {
 }
 
 /**
- * The same carve-outs `verify-package-outputs.mjs` spells out, and for the same
- * reason: `@girs/*` are generated, the website is an Astro app, and the
- * examples build only when one is in the CI closure. Kept in step with that
- * file deliberately — two checks over the same package set must not disagree
- * about which packages they are.
+ * The same carve-outs `verify-package-outputs.mjs` spells out: `@girs/*` are
+ * generated, the website is an Astro app, and the examples build only when one is in
+ * the CI closure. Kept in step with that file — two checks over the same package set
+ * must not disagree about which packages those are.
  */
 const EXCLUDED_NAME_PATTERNS = [/^@girs\//, /^@gjsify\/website$/, /^@gjsify\/example-/];
 const EXAMPLE_ONLY_PATTERNS = [/^(?!@gjsify\/example-).*$/];
@@ -113,10 +91,9 @@ function fail(msg) {
 /**
  * Is `value` (a declared, workspace-relative path) satisfied by the packed set?
  *
- * A concrete path must be packed verbatim. A subpath PATTERN (`./assets/*`) has
- * no single target, so the promise it can be held to is the same one
- * `verify-package-outputs.mjs` holds it to — that the directory it globs into
- * ships at all, i.e. at least one packed file lives under its static prefix.
+ * A concrete path must be packed verbatim. A subpath PATTERN (`./assets/*`) has no
+ * single target, so it is held to the same promise `verify-package-outputs.mjs`
+ * uses: at least one packed file under its static prefix.
  */
 function isSatisfied(value, packedSet, packedList) {
     const rel = value.replace(/^\.\//, '');
@@ -169,9 +146,8 @@ for (const record of ctx.packages) {
     const unshipped = [];
     for (const { field, value } of declaredPaths(manifest)) {
         if (isSatisfied(value, packedSet, packedList)) continue;
-        // Present-but-unpacked is THIS check's finding. Absent-on-disk is
-        // verify-package-outputs.mjs's, and claiming it here would red-line
-        // every unbuilt tree for a reason this script cannot fix.
+        // Present-but-unpacked is THIS check's finding; absent-on-disk is
+        // verify-package-outputs.mjs's.
         if (!existsOnDisk(pkgDir, value)) continue;
         unshipped.push({ field, value });
     }
@@ -210,7 +186,7 @@ if (!asJson) {
         `${totalUnshipped} declared entry point(s) across ${broken.length} package(s) exist in the repo but would not ` +
             'be published. The file is built, so nothing in this tree is broken — only the tarball is, and only for ' +
             'consumers. Name the built output in package.json "files" (a plain directory entry such as "lib" is ' +
-            'safest — see the packer-glob lesson in AGENTS.md), then re-run. Inspect one with: ' +
+            'safest — see the packer-glob lesson in docs/bundled-toolchains.md), then re-run. Inspect one with: ' +
             '`cd <pkg> && gjsify pack && tar tzf *.tgz`.',
     );
 }

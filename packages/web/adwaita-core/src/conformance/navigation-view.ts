@@ -1,11 +1,8 @@
 // Navigation-view conformance vectors — the spec both renderers are held to.
 //
-// Unlike the avatar family, this behaviour is a STATE MACHINE, so a vector is not
-// one input and one output: it is a SCRIPT of mutations plus the state that must
-// hold once the script has run. Every row cites the C function and line it was
-// derived from.
-//
-// HOW A SUITE DRIVES THESE
+// This behaviour is a STATE MACHINE, so a vector is not one input and one output: it is a
+// SCRIPT of mutations plus the state that must hold once the script has run. Every row
+// cites the C function it was derived from.
 //
 // Pages are referred to by opaque {@link NavigationPageId} labels. A driver keeps
 // its own `id → page handle` map and creates a handle the first time an id is
@@ -24,11 +21,9 @@
 // to observe a page surviving until then carries an explicit `finishTransition` step
 // and asserts the state after it.
 //
-// These vectors are the payload of the lift: they are what makes a renderer that
-// quietly re-implements the stack machine fail a test. Four of them fail against
-// the pre-lift ports — `pop-ignores-can-pop` (web), `repeated-push-never-duplicates`
-// (NS), `replace-keeps-a-dynamic-page-in-the-new-stack` (web) and
-// `pop-to-tag-pops-atomically-past-a-can-pop-false-page` (web).
+// Four rows are the ones a hand-rolled stack machine gets wrong: `pop-ignores-can-pop`,
+// `repeated-push-never-duplicates`, `replace-keeps-a-dynamic-page-in-the-new-stack` and
+// `pop-to-tag-pops-atomically-past-a-can-pop-false-page`.
 //
 // Reference: refs/libadwaita/src/adw-navigation-view.c
 // Reference: refs/libadwaita/src/adw-back-button.c
@@ -126,13 +121,9 @@ export interface NavigationExpectation {
 export interface NavigationVector {
     /** Stable name — also the test title. */
     name: string;
-    /** What rule the row pins down. */
     rule: string;
-    /** The mutations to run, in order. */
     steps: readonly NavigationStep[];
-    /** What must hold afterwards. */
     expect: NavigationExpectation;
-    /** The C function + line the row is derived from. */
     derivedFrom: string;
 }
 
@@ -255,7 +246,6 @@ export const NAVIGATION_VIEW_VECTORS: ReadonlyArray<NavigationVector> = [
         derivedFrom: 'adw_navigation_view_add:2725-2730 — the remove_on_pop + parent == self + in-stack shortcut',
     },
 
-    // --- find_page (:2774) ---
     {
         name: 'find-page-accepts-the-empty-string-as-a-tag',
         rule: "'' is a legal g_hash_table key; only a NULL tag is skipped",
@@ -285,7 +275,6 @@ export const NAVIGATION_VIEW_VECTORS: ReadonlyArray<NavigationVector> = [
         derivedFrom: 'adw_navigation_view_init:2147 (g_str_hash/g_str_equal) + find_page:2780',
     },
 
-    // --- push / push_by_tag (:2800, :2829) ---
     {
         name: 'push-registers-an-unknown-page-as-dynamic',
         rule: 'a page push() has to register is destroyed again when it is popped',
@@ -393,7 +382,6 @@ export const NAVIGATION_VIEW_VECTORS: ReadonlyArray<NavigationVector> = [
         derivedFrom: 'push_to_stack:943-949 (use_tag_for_errors) ← adw_navigation_view_push_by_tag:2845',
     },
 
-    // --- pop (:2869) ---
     {
         name: 'pop-refuses-at-the-root-page',
         rule: 'the root page has no previous page, so there is nothing to pop to',
@@ -578,7 +566,6 @@ export const NAVIGATION_VIEW_VECTORS: ReadonlyArray<NavigationVector> = [
         derivedFrom: 'switch_page:860-873 — the pending hiding_page is resolved when a new transition begins',
     },
 
-    // --- pop_to_page / pop_to_tag (:2913, :2958) ---
     {
         name: 'pop-to-page-pops-every-page-above-it-in-one-step',
         rule: 'ONE splice, ONE visible-page change, popped reported TOP-FIRST',
@@ -725,7 +712,6 @@ export const NAVIGATION_VIEW_VECTORS: ReadonlyArray<NavigationVector> = [
         derivedFrom: 'adw_navigation_view_pop_to_tag:2966-2972',
     },
 
-    // --- replace / replace_with_tags (:3002, :3124) ---
     {
         name: 'replace-with-an-empty-array-empties-the-view',
         rule: 'n_pages == 0 leaves no visible page; the added pages stay registered',
@@ -1151,7 +1137,6 @@ export const NAVIGATION_VIEW_VECTORS: ReadonlyArray<NavigationVector> = [
         derivedFrom: 'switch_page:857-858 — `if (!prev_page) animate = FALSE;`',
     },
 
-    // --- remove (:2750) ---
     {
         name: 'remove-off-the-stack-is-immediate-and-frees-the-tag',
         rule: 'an unstacked page is unregistered at once and stops answering find_page',
@@ -1188,7 +1173,6 @@ export const NAVIGATION_VIEW_VECTORS: ReadonlyArray<NavigationVector> = [
         derivedFrom: 'adw_navigation_view_remove:2755 g_return_if_fail (parent == self)',
     },
 
-    // --- page properties (:2437, :2508, :2569) ---
     {
         name: 'set-tag-rejects-a-tag-another-page-owns',
         rule: 'the reject happens BEFORE the old tag is dropped, so the page keeps it',
@@ -1386,7 +1370,6 @@ export const NAVIGATION_VIEW_VECTORS: ReadonlyArray<NavigationVector> = [
         derivedFrom: 'adw_navigation_view_get_visible_page_tag:3203-3208',
     },
 
-    // --- get_previous_page (:3228) ---
     {
         name: 'previous-page-is-null-at-the-root-and-off-the-stack',
         rule: 'not-found and pos == 0 are both NULL',
@@ -1530,7 +1513,6 @@ export const NAVIGATION_VIEW_VECTORS: ReadonlyArray<NavigationVector> = [
     },
 ];
 
-// --- The shared driver -------------------------------------------------------
 //
 // Three suites (core, web, NativeScript) run the SAME scripts against three very
 // different widgets. Written out three times, the script interpreter is exactly

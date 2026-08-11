@@ -1,43 +1,27 @@
-// <adw-icon> — the symbolic icon node, as an element instead of a shape you
-// retype. Every icon in this package is a CSS-masked box whose glyph comes from
-// a generated `.adw-icon--<name>` class and whose colour is `currentColor`, so
-// it themes with whatever contains it.
-//
-// WHY IT EXISTS: `<span class="adw-icon adw-icon--<name>" aria-hidden="true">`
-// was built by hand at TWENTY-THREE sites across SEVENTEEN files, NINE of which
-// re-derived the name (`name.replace(/-symbolic$/, '')`) on the spot — one of
-// them unanchored. Exactly ONE site (`<adw-split-button>`) also checked the
-// result was a single CSS token. The others did not, so `icon-name="a b"`
-// interpolated into `class="adw-icon adw-icon--a b"` and shipped a stray `b`
-// class; that was live on `<adw-menu-button>`, for its own icon and for every
-// JSON menu entry's. The derivation now happens once, in
-// `@gjsify/adwaita-core`'s {@link normalizeIconName} (guard included), and the
-// markup happens once, here.
+// <adw-icon> — the symbolic icon node as an element. Every icon in this package is a
+// CSS-masked box whose glyph comes from a generated `.adw-icon--<name>` class and
+// whose colour is `currentColor`, so it themes with whatever contains it. The name
+// derivation and its guard live once in `@gjsify/adwaita-core`'s
+// {@link normalizeIconName}, the markup once here.
 //
 // Attributes:
-//   icon-name — symbolic name, with or without the `-symbolic` suffix. A name
-//               that is not a single CSS token (a space, a quote, a
-//               reverse-DNS application id) resolves to NO icon rather than to
-//               injected markup — see `normalizeIconName`.
-//   size      — the rendered edge length in px. Absent leaves the stylesheet's
-//               16px in charge; a context that sizes its own icons through CSS
-//               (`.adw-about-dialog-icon`, the split button's 14px arrows) keeps
-//               doing exactly that and should NOT set this.
-// Properties:
-//   iconName         — the declared name (get/set; reflects to the attribute).
-//   resolvedIconName — what actually reached the mask class ('' = no icon).
-//   size             — the px size, or null when the stylesheet decides (get/set).
+//   icon-name — symbolic name, with or without the `-symbolic` suffix. A name that is
+//               not a single CSS token (a space, a quote, a reverse-DNS application
+//               id) resolves to NO icon rather than to injected markup.
+//   size      — rendered edge length in px. Absent leaves the stylesheet's 16px in
+//               charge; a context that sizes its own icons through CSS
+//               (`.adw-about-dialog-icon`, the split button's 14px arrows) keeps doing
+//               exactly that and should NOT set this.
 //
-// THE ELEMENT *IS* THE ICON BOX — it carries `.adw-icon` itself rather than
-// wrapping a span. A wrapper would have inserted a layout node into flex rows,
-// button interiors and absolutely-positioned arrows that were all measured
-// against the icon box directly; carrying the class keeps every existing
-// class-scoped rule (`.adw-drop-down-arrow`, `.adw-tab-icon`, `.adw-row-edit`, …)
-// matching the same node it always matched.
+// THE ELEMENT *IS* THE ICON BOX — it carries `.adw-icon` itself rather than wrapping a
+// span, because a wrapper would insert a layout node into flex rows, button interiors
+// and absolutely-positioned arrows that are all measured against the icon box, and
+// would stop every class-scoped rule (`.adw-drop-down-arrow`, `.adw-tab-icon`, …)
+// matching the node it matches today.
 //
-// Reference: refs/libadwaita/src/stylesheet/_common.scss:34-41 — `.normal-icons`
-//   / `.large-icons` set `-gtk-icon-size`; libadwaita has NO `_icon.scss`, the
-//   icon is a GtkImage and its size is a GTK property, not a stylesheet rule.
+// Reference: refs/libadwaita/src/stylesheet/_common.scss — `.normal-icons` /
+//   `.large-icons` set `-gtk-icon-size`; libadwaita has NO `_icon.scss`, the icon is a
+//   GtkImage and its size is a GTK property, not a stylesheet rule.
 // Reference: refs/adwaita-web/adwaita-web/scss/_icon.scss — the vendored web
 //   port's `.adw-icon` (an inline-flex SVG holder; this package masks instead).
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
@@ -93,25 +77,20 @@ export class AdwIcon extends HTMLElement {
         this._render();
     }
 
-    // ── internals ──────────────────────────────────────────────────────────
-
     private _render(): void {
         this.classList.add('adw-icon');
 
-        // Swap ONLY the mask class: the callers put their own positioning class
-        // on the same node (`adw-drop-down-arrow`, `adw-sidebar-item-arrow`, …),
-        // and a `className =` assignment here would take those with it. The list
-        // is collected BEFORE removing — `classList` is live, so removing while
-        // iterating it would skip the entry after each hit.
+        // Swap ONLY the mask class: callers put their own positioning class on the same
+        // node, and a `className =` assignment would take those with it. The list is
+        // collected BEFORE removing — `classList` is live, so removing while iterating it
+        // would skip the entry after each hit.
         const stale = [...this.classList].filter((existing) => existing.startsWith(MASK_CLASS_PREFIX));
         this.classList.remove(...stale);
         const name = this.resolvedIconName;
         if (name !== '') this.classList.add(`${MASK_CLASS_PREFIX}${name}`);
 
-        // A masked box has no text, so assistive tech has nothing to announce —
-        // the accessible name belongs to the control that HOSTS the icon. Every
-        // hand-rolled copy that thought about it said the same thing; the ones
-        // that did not were the inconsistency, not the intent.
+        // A masked box has no text, so assistive tech has nothing to announce — the
+        // accessible name belongs to the control that HOSTS the icon.
         this.setAttribute('aria-hidden', 'true');
 
         const size = this.size;
@@ -124,8 +103,8 @@ export class AdwIcon extends HTMLElement {
             const px = `${size}px`;
             this.style.width = px;
             this.style.height = px;
-            // The box and the mask scale together — sizing only the box leaves a
-            // 16px glyph floating in the middle of it.
+            // The box and the mask scale together: sizing only the box leaves a 16px glyph
+            // floating in the middle of it.
             this.style.setProperty('mask-size', px);
             this.style.setProperty('-webkit-mask-size', px);
         }
@@ -133,10 +112,8 @@ export class AdwIcon extends HTMLElement {
 }
 
 /**
- * Build one icon node: the three lines every caller would otherwise write.
- *
- * `extraClasses` are the caller's own positioning/context classes, added
- * alongside the managed `.adw-icon` + mask class rather than replacing them.
+ * Build one icon node. `extraClasses` are the caller's own positioning/context
+ * classes, added alongside the managed `.adw-icon` + mask class, not replacing them.
  */
 export function createAdwIcon(iconName: string | null, ...extraClasses: string[]): AdwIcon {
     const icon = document.createElement('adw-icon') as AdwIcon;

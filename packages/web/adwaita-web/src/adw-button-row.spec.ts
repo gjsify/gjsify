@@ -36,17 +36,15 @@ export const AdwButtonRowTest = async () => {
 
             expect(errors.length).toBe(0);
             expect(row.textContent).toContain('Add account');
-            // The start icon span carries the adw-icon class derived from the name.
             expect(row.querySelector('.adw-icon--list-add') !== null).toBe(true);
-            // Activatable by default.
             expect(row.classList.contains('activatable')).toBe(true);
             host.remove();
         });
 
         // DELETED: `honours activatable="false"`. It was green, and what it
         // pinned was an INVENTION — `Adw.ButtonRow` is always activatable
-        // (`<property name="activatable">True</property>`, adw-button-row.ui:5;
-        // "AdwButtonRow is always activatable.", adw-button-row.c:31), and the
+        // (`<property name="activatable">True</property>`, adw-button-row.ui;
+        // "AdwButtonRow is always activatable."), and the
         // class exposes no property, no setter and no getter for it. The opt-out
         // also gave one markup two opposite meanings inside one package, because
         // <adw-action-row> reads `activatable` by PRESENCE — so

@@ -1,46 +1,28 @@
 /**
  * Rule `release-train` (ADR 0008) — REPO-SCOPED.
  *
- * Every `@gjsify/*` package moves as ONE version, and ADR 0008 is explicit that
- * compatibility is guaranteed only WITHIN a release. Workspace members get that
- * for free — they resolve through the workspace. The packages that do NOT are
- * the NativeScript apps under `showcases/`, which are deliberately EXCLUDED from
- * `workspaces` (they carry their own `node_modules` and their own NS toolchain),
- * so their `@gjsify/*` ranges are ordinary npm ranges that nothing keeps current.
+ * Every `@gjsify/*` package moves as ONE version and ADR 0008 guarantees
+ * compatibility only WITHIN a release. Workspace members get that for free through the
+ * workspace; the NativeScript apps under `showcases/` do not — they are deliberately
+ * excluded from `workspaces` (own `node_modules`, own NS toolchain), so their
+ * `@gjsify/*` ranges are ordinary npm ranges nothing keeps current. Nothing installs
+ * those apps in CI either, and being outside the workspace they are invisible to
+ * `gjsify upgrade --check`, so a stale range there has no other signal. The incident
+ * behind that is in the failure message below.
  *
- * THE INCIDENT. `showcases/dom/adwaita-storybook-nativescript` asked for
- * `@gjsify/example-gtk-adwaita-storybook: ^0.11.0`. That package's FIRST publish
- * was 0.19.0, so the range was unsatisfiable and `npm install` in that showcase
- * failed with ETARGET — for however long it had been that way. Nothing noticed,
- * because nothing installs those apps in CI: they are excluded from the
- * workspace, so `gjsify upgrade --check` (which holds the TypeScript pin across
- * every workspace member) never sees them either. Two sibling showcases had
- * quietly drifted to `^0.11.0` and `^0.4.36` against a workspace at 0.31.0 —
- * installable, but mixing releases across exactly the boundary ADR 0008 says
- * carries no compatibility promise.
+ * WHO KEEPS IT TRUE ACROSS A CUT. `@release-it/bumper` globs these manifests but
+ * rewrites only `version`, never a dependency RANGE — so the moment release-it bumps
+ * the workspace, every range here names the PREVIOUS version and this rule fails
+ * inside the `after:bump` hook. The other half is
+ * `scripts/bump-release-train-ranges.mjs`, which runs earlier in that hook and
+ * rewrites the edges `trainEdges()` selects — the SAME selection this rule grades,
+ * shared rather than reimplemented. It is fail-closed on `gjsify pack`'s contract, so
+ * a finding here on a bumped tree means the hook did not run, not that it gave up.
  *
- * WHO KEEPS IT TRUE ACROSS A RELEASE. `@release-it/bumper` globs these same
- * manifests, but it rewrites only their `version` field — never a dependency
- * RANGE. So the moment release-it bumped the workspace to the next version,
- * every range here named the PREVIOUS one and this rule failed inside the
- * `after:bump` hook: unsatisfiable during a cut from the day it was added, and
- * the v0.32.0 attempt was the first cut since, which is where it surfaced (11
- * findings across the three NativeScript apps). The missing half is
- * `scripts/bump-release-train-ranges.mjs`, which runs earlier in that same hook
- * and rewrites the edges `trainEdges()` selects — the SAME selection this rule
- * grades, shared rather than reimplemented, for the reason on that generator.
- * That script is fail-closed on `gjsify pack`'s contract (substitute correctly
- * or refuse; never write a range nothing verified), so a finding here on a
- * bumped tree means the hook did not run, not that it gave up quietly.
- *
- * Why repo-scoped: it compares against THIS repo's own version and reads only
- * `@gjsify/*` edges in paths this repo lays out. In a consumer's tree it would
- * be meaningless.
- *
- * What it deliberately does NOT do: reach the network. An unsatisfiable range is
- * caught here as a side effect of requiring the CURRENT version, without asking
- * npm what exists — a conformance rule that needs a registry is a rule that
- * fails when the registry is down.
+ * Repo-scoped: it compares against THIS repo's version and reads `@gjsify/*` edges in
+ * paths this repo lays out. It never reaches the network — an unsatisfiable range is
+ * caught as a side effect of requiring the CURRENT version, and a conformance rule
+ * that needs a registry is one that fails when the registry is down.
  */
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -61,18 +43,15 @@ function readManifest(path) {
 }
 
 /**
- * Every directory under `showcases/` and `examples/` that carries its own
- * `package.json` — the workspace-excluded apps among them are what this rule is
- * for, and including the rest costs nothing because they resolve identically.
+ * Every directory under `showcases/` and `examples/` carrying its own `package.json`.
+ * The workspace-excluded apps among them are what this rule is for; including the rest
+ * costs nothing because they resolve identically.
  *
- * A manifest that EXISTS but does not parse is returned separately rather than
- * dropped. Dropping it is the failure this rule is about, one level up: an
- * unreadable file has no ranges, so it passes every check by having nothing to
- * check — a manifest that looks authoritative and is not. An ABSENT
- * `package.json` is ordinary (most directories under a pillar are not apps) and
- * is simply skipped.
+ * A manifest that EXISTS but does not parse is returned separately rather than dropped:
+ * an unreadable file has no ranges, so dropping it passes every check by having nothing
+ * to check — a manifest that looks authoritative and is not. An ABSENT `package.json`
+ * is ordinary and simply skipped.
  *
- * @param {string} root
  * @returns {{apps: Array<{rel: string, manifest: Record<string, unknown>}>, unreadable: string[]}}
  */
 export function collectStandaloneApps(root) {
@@ -106,14 +85,12 @@ export function trainRange(version) {
 /**
  * THE ONE definition of "which dependency edges ride the release train".
  *
- * It is a generator rather than an inlined loop because a SECOND consumer needs
- * exactly this set: `scripts/bump-release-train-ranges.mjs`, the release hook
- * that rewrites these ranges to the version being cut. A rewriter with its own
- * copy of the skip list would "fix" an edge this rule deliberately allows (or
- * miss one it does not), and the two would disagree — inside the few seconds of
- * a bumped tree, where the only symptom is a failed cut.
+ * A generator rather than an inlined loop because a SECOND consumer needs exactly this
+ * set: `scripts/bump-release-train-ranges.mjs`, the release hook that rewrites these
+ * ranges. A rewriter with its own copy of the skip list would "fix" an edge this rule
+ * allows, or miss one it does not, and the two would disagree inside the few seconds of
+ * a bumped tree — where the only symptom is a failed cut.
  *
- * @param {Record<string, unknown>} manifest
  * @returns {Generator<{block: string, name: string, range: string}>}
  */
 export function* trainEdges(manifest) {
@@ -122,14 +99,13 @@ export function* trainEdges(manifest) {
         if (!deps || typeof deps !== 'object') continue;
         for (const [name, range] of Object.entries(deps)) {
             if (!name.startsWith('@gjsify/')) continue;
-            // A workspace protocol or a local path is already pinned to this
-            // checkout — it cannot drift, so it is not this rule's business.
+            // A workspace protocol or local path is already pinned to this checkout, so
+            // it cannot drift.
             if (typeof range !== 'string') continue;
             if (range.startsWith('workspace:') || range.startsWith('file:') || range.startsWith('link:')) continue;
-            // `*` / `latest` cannot LAG — they always resolve to the newest
-            // publish, which is the failure mode this rule exists for. They
-            // are loose about the future rather than stale about the past,
-            // and `examples/*` uses that deliberately for dev-only tooling.
+            // `*` / `latest` cannot LAG — they always resolve to the newest publish,
+            // which is the failure mode this rule exists for. Loose about the future
+            // rather than stale about the past, used deliberately by `examples/*`.
             if (range === '*' || range === 'latest') continue;
             yield { block, name, range };
         }

@@ -11,58 +11,42 @@ import { MONOREPO_ROOT, HOST_TARGET, registryOnlyDependencies } from './workspac
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Re-exported, not re-derived: `pack.mjs` reads the same two from
-// `workspaces.mjs`, and what a suite packs must be described by the same
-// constants as what it asserts about.
+// Re-exported, not re-derived: `pack.mjs` reads the same two from `workspaces.mjs`,
+// and what a suite packs must be described by the same constants as what it asserts.
 export { MONOREPO_ROOT, HOST_TARGET };
 
 /**
- * The `lockfileVersion` a FRESH resolve writes — READ FROM THE WRITER, never
- * restated here.
+ * The `lockfileVersion` a FRESH resolve writes — READ FROM THE WRITER, never restated.
  *
- * Four suites hardcoded `3` and each carried its own rationale string ("v3
- * (path-keyed + platform fields)", "valid v3 JSON (no torn writes)"). Bumping the
- * format to 4 turned all four red at once and, worse, made those rationales
- * wrong: the version is not the point of any of those tests, it is a
- * precondition they assert in passing. Same failure shape `prebuildDir()` above
- * exists for — a fact repeated per call site gets swept by hand, and one copy
- * gets missed.
+ * Four suites hardcoded `3`, each with its own rationale string ("v3 (path-keyed +
+ * platform fields)"). The bump to 4 turned all four red at once and made those
+ * rationales wrong — the version is a precondition they assert in passing, not their
+ * point. A parse failure THROWS: a helper that guessed would turn every one of those
+ * preconditions into a test that cannot fail.
  *
- * Derived, so the next bump needs no sweep at all: a version the writer records
- * and the suites read cannot disagree. The e2e suites pack THIS workspace, so the
- * source read here is the same code under test. A parse failure THROWS — a helper
- * that silently guessed a version would turn every one of these preconditions
- * into a test that cannot fail.
- *
- * The reader itself lives in `scripts/check-lockfile-current.mjs`, which asserts
- * the TRACKED lockfile carries current data and needs the same number. Two
- * readers of one declaration is the very duplication this constant exists to
- * prevent, so this imports rather than re-implements.
+ * The reader is imported from `scripts/check-lockfile-current.mjs` (which needs the same
+ * number for the TRACKED lockfile) rather than re-implemented.
  *
  * Deliberately NOT for fixtures: a suite that writes an OLD lockfile on purpose
- * (backwards-compat, torn-write recovery) keeps its literal, because that number
- * is the input being tested, not the current format.
+ * (backwards-compat, torn-write recovery) keeps its literal, because that number is the
+ * input being tested.
  */
 export const LOCKFILE_VERSION = readLockfileVersion();
 
 /**
- * The directory holding a bridge's committed prebuild for one target.
+ * The directory holding a bridge's committed prebuild for one target — since ADR 0017 a
+ * per-target package `<bridge>-<target>/`, not a directory inside the bridge.
  *
- * ONE definition, imported — not composed at each call site. `status/open-todos.md`
- * has recorded the cost of the alternative since the `<os>-<arch>` unification:
- * nine fixtures built this path themselves, all nine had to be swept by hand, and
- * one was missed *because a composed string never appears as a literal to grep
- * for*. ADR 0017 then moved the directory out of the bridge altogether — into the
- * per-target package `<bridge>-<target>/` — and the same fixtures broke again, in
- * two suites the first sweep's grep could not see for exactly that reason.
+ * ONE definition, imported, never composed at each call site: nine fixtures built this
+ * path themselves through the `<os>-<arch>` unification, all nine needed a hand sweep,
+ * and one was missed *because a composed string never appears as a literal to grep for*
+ * (`status/open-todos.md`). The same fixtures then broke again on the ADR 0017 split, in
+ * two suites the first sweep's grep could not see.
  *
- * So the path gets a single callable definition here. The naming rule it encodes
- * (`<bridge-dir>-<target>`) belongs to `platformPackageDirName()` in
- * `@gjsify/manifest-conformance`, which is what generates these directories.
+ * The naming rule it encodes belongs to `platformPackageDirName()` in
+ * `@gjsify/manifest-conformance`, which generates these directories.
  *
  * @param {string} pillar `node` | `web` | `framework` | `infra`
- * @param {string} bridge the bridge's directory name, e.g. `oxfmt-native`
- * @param {string} target `<os>-<arch>`, e.g. `linux-x64`
  * @param {...string} rest optional leaf segments inside the directory
  */
 export function prebuildDir(pillar, bridge, target, ...rest) {
@@ -70,24 +54,15 @@ export function prebuildDir(pillar, bridge, target, ...rest) {
 }
 
 /**
- * The same directory as an INSTALLED package resolves it, under a node_modules
- * tree — `@gjsify/<bridge>-<target>/prebuilds/<target>/`. A consumer installs
- * only their own target's package (that IS the split), so `target` defaults to
- * this host's.
- *
- * @param {string} nodeModulesDir path to a `node_modules` directory
- * @param {string} bridge unscoped bridge name, e.g. `rolldown-native`
- * @param {string} [target]
- * @param {...string} rest
+ * The same directory as an INSTALLED package resolves it, under a node_modules tree.
+ * A consumer installs only their own target's package (that IS the split), so `target`
+ * defaults to this host's.
  */
 export function installedPrebuildDir(nodeModulesDir, bridge, target = HOST_TARGET, ...rest) {
     return join(nodeModulesDir, '@gjsify', `${bridge}-${target}`, 'prebuilds', target, ...rest);
 }
 
-/**
- * Pack all workspace tarballs via pack.mjs into tarballsDir.
- * Returns { "@gjsify/foo": "@gjsify-foo.tgz", ... } map.
- */
+/** Pack all workspace tarballs via pack.mjs; returns `{ "@gjsify/foo": "…foo.tgz" }`. */
 export function packWorkspaces(tarballsDir) {
     const stdout = execFileSync('node', [join(__dirname, 'pack.mjs'), tarballsDir], {
         cwd: MONOREPO_ROOT,
@@ -98,10 +73,6 @@ export function packWorkspaces(tarballsDir) {
     return JSON.parse(stdout);
 }
 
-/**
- * Create a temporary directory for an E2E test.
- * Returns { tmpDir, tarballsDir, tarballMap }.
- */
 export function createTestEnvironment(prefix = 'gjsify-e2e-') {
     const tmpDir = mkdtempSync(join(tmpdir(), prefix));
     const tarballsDir = join(tmpDir, 'tarballs');
@@ -114,9 +85,7 @@ export function createTestEnvironment(prefix = 'gjsify-e2e-') {
     return { tmpDir, tarballsDir, tarballMap };
 }
 
-/**
- * Clean up a temporary directory unless GJSIFY_E2E_KEEP_TEMP is set.
- */
+/** Clean up a temporary directory unless GJSIFY_E2E_KEEP_TEMP is set. */
 export function cleanupTestEnvironment(tmpDir) {
     if (process.env.GJSIFY_E2E_KEEP_TEMP) {
         console.log(`  keeping tmp dir: ${tmpDir}`);
@@ -125,9 +94,7 @@ export function cleanupTestEnvironment(tmpDir) {
     }
 }
 
-/**
- * Build an npm `overrides` object pointing all @gjsify/* packages to local tarballs.
- */
+/** Build an npm `overrides` object pointing all @gjsify/* packages to local tarballs. */
 export function buildOverrides(tarballsDir, tarballMap) {
     const overrides = {};
     for (const [name, filename] of Object.entries(tarballMap)) {
@@ -136,9 +103,7 @@ export function buildOverrides(tarballsDir, tarballMap) {
     return overrides;
 }
 
-/**
- * Convert a package name to its tarball file: reference, or return undefined.
- */
+/** A package name as a tarball `file:` reference, or `undefined` if not packed. */
 export function toFileRef(name, tarballsDir, tarballMap) {
     const filename = tarballMap[name];
     if (!filename) return undefined;
@@ -150,10 +115,7 @@ function sleepSync(ms) {
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
-/**
- * Heuristic: did this `npm install` failure look like a transient registry /
- * network hiccup (vs a deterministic dependency error worth surfacing)?
- */
+/** Heuristic: a transient registry/network hiccup vs a deterministic dependency error. */
 function isTransientInstallError(err) {
     const text = `${err?.message ?? ''}\n${err?.stdout ?? ''}\n${err?.stderr ?? ''}`;
     return /E404|ETARGET|ENOTFOUND|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|socket hang up|network|registry\.npmjs\.org|\b(?:429|500|502|503|504)\b|Not Found|could not be found/i.test(
@@ -162,16 +124,13 @@ function isTransientInstallError(err) {
 }
 
 /**
- * Run `npm install` in `projectDir`, retrying on transient failures. E2E
- * templates pull heavy `@girs/*` tarballs from the public registry in parallel;
- * the registry intermittently returns a transient 404 / network error for a
- * tarball that genuinely exists (observed: Fedora 43 passes while Fedora 44
- * fails on the identical commit). Retry with backoff so a registry hiccup
- * doesn't red a PR.
+ * Run `npm install` in `projectDir`, retrying on transient failures. E2E templates pull
+ * heavy `@girs/*` tarballs from the public registry in parallel and the registry
+ * intermittently 404s a tarball that genuinely exists (observed: Fedora 43 passes while
+ * Fedora 44 fails on the identical commit).
  *
- * Only the install is retried — callers' build/check steps stay deterministic
- * so a real regression still fails on the first attempt rather than being
- * masked by a retry.
+ * Only the install is retried — callers' build/check steps stay deterministic so a real
+ * regression fails on the first attempt rather than being masked.
  */
 export function npmInstallWithRetry(projectDir, { label = 'project', attempts = 3, timeoutMs = 5 * 60 * 1000 } = {}) {
     for (let attempt = 1; ; attempt++) {
@@ -189,11 +148,8 @@ export function npmInstallWithRetry(projectDir, { label = 'project', attempts = 
     }
 }
 
-/**
- * Write a package.json, install deps, and return the project dir.
- */
+/** Write a package.json with all `@gjsify/*` deps pointed at local tarballs, then install. */
 export function setupProject(projectDir, pkg, tarballsDir, tarballMap) {
-    // Patch all @gjsify/* deps to local tarballs
     for (const field of ['dependencies', 'devDependencies']) {
         if (!pkg[field]) continue;
         for (const name of Object.keys(pkg[field])) {
@@ -202,7 +158,7 @@ export function setupProject(projectDir, pkg, tarballsDir, tarballMap) {
         }
     }
 
-    // Add overrides for transitive deps
+    // Overrides cover the transitive deps `dependencies` patching cannot reach.
     pkg.overrides = buildOverrides(tarballsDir, tarballMap);
 
     writeFileSync(join(projectDir, 'package.json'), JSON.stringify(pkg, null, 2) + '\n');
@@ -214,7 +170,7 @@ export function setupProject(projectDir, pkg, tarballsDir, tarballMap) {
 
 /**
  * Build a Yarn `resolutions` map redirecting all @gjsify/* requests to local tarballs.
- * Used together with `nodeLinker: pnp` to simulate an external npm-installed consumer.
+ * Used with `nodeLinker: pnp` to simulate an external npm-installed consumer.
  */
 export function buildYarnResolutions(tarballsDir, tarballMap) {
     const resolutions = {};
@@ -225,28 +181,22 @@ export function buildYarnResolutions(tarballsDir, tarballMap) {
 }
 
 /**
- * Which of the packages a packed tree must fetch from npm the registry cannot
- * supply at this workspace's version — i.e. which ones a Yarn-PnP install here
- * is going to fail on.
+ * Which packages a packed tree must fetch from npm that the registry cannot supply at
+ * this workspace's version — i.e. what a Yarn-PnP install here is going to fail on.
  *
- * `pack.mjs` deliberately leaves the foreign-target platform packages out of the
- * tarball set (see `isForeignPlatformPackage`), so `resolutions` never covers
- * them and Yarn goes to npm. npm's node-modules linker drops an unresolvable
- * OPTIONAL dependency silently, which is why the npm-based suites never noticed;
- * PnP resolves the whole graph up front and stops:
+ * `pack.mjs` deliberately omits the foreign-target platform packages (see
+ * `isForeignPlatformPackage`), so `resolutions` never covers them and Yarn goes to npm.
+ * npm's node-modules linker drops an unresolvable OPTIONAL dependency silently, which is
+ * why the npm-based suites never noticed; PnP resolves the whole graph up front and stops
+ * with `YN0082: … No candidates found`.
  *
- *     ➤ YN0082: @gjsify/http-soup-bridge-darwin-arm64@npm:0.31.0: No candidates found
+ * That is the suite asking for a version not published yet, in exactly one window: after
+ * `release-cut.yml` bumped every workspace and before `release.yml` published. In that
+ * window an external consumer cannot install the version either, so the scenario these
+ * suites reconstruct is not merely untested, it is not constructible.
  *
- * That is not a defect in what these suites test — it is the suite asking the
- * registry for a version that does not exist there yet. It happens in exactly one
- * window: after `release-cut.yml` has bumped every workspace to the new version
- * and before `release.yml` has published it. In that window an external consumer
- * cannot install the version either, so the scenario the suites reconstruct is
- * not merely untested, it is not constructible.
- *
- * Fails OPEN. A probe that cannot reach the registry reports nothing missing, so
- * a network problem yields the same honest red as before rather than silently
- * disarming the suite.
+ * Fails OPEN: a probe that cannot reach the registry reports nothing missing, so a network
+ * problem yields the same honest red as before rather than disarming the suite.
  *
  * @returns {Promise<string[]>} `name@version` for each package npm 404s on
  */
@@ -260,8 +210,8 @@ export async function unpublishedRegistryDependencies({ timeoutMs = 30_000 } = {
 
     await Promise.all(
         wanted.map(async ({ name, version }) => {
-            // `<registry>/<name>/<version>` returns that single version's
-            // manifest (a few KB) or 404 — no packument download.
+            // `<registry>/<name>/<version>` returns that one version's manifest (a few KB)
+            // or 404 — no packument download.
             const url = `${registry}/${name.replace('/', '%2f')}/${encodeURIComponent(version)}`;
             let res;
             try {
@@ -269,8 +219,8 @@ export async function unpublishedRegistryDependencies({ timeoutMs = 30_000 } = {
             } catch {
                 return; // unreachable registry — fail open
             }
-            // Drain: an unconsumed undici body holds its socket open and would
-            // keep the test process alive past the last assertion.
+            // An unconsumed undici body holds its socket open and keeps the test process
+            // alive past the last assertion.
             await res.body?.cancel().catch(() => {});
             if (res.status === 404) missing.push(`${name}@${version}`);
         }),
@@ -300,19 +250,16 @@ export async function pnpRegistryGapSkipReason() {
 }
 
 /**
- * Write a Yarn-PnP-flavoured project, install deps, and return the project dir.
+ * Write a Yarn-PnP-flavoured project and install deps.
  *
- * Distinct from setupProject (which uses npm + node-modules linker): this
- * exercises the gjsify CLI under Yarn 4 with `nodeLinker: pnp`, the same
- * setup external consumers like ts-for-gir use. It validates that the
- * two-hop PnP relay in @gjsify/cli's build action resolves transitive
- * @gjsify/* polyfills (fs, path, child_process, ...) without each one
- * needing to be a direct devDep.
+ * Distinct from `setupProject` (npm + node-modules linker): this exercises the gjsify CLI
+ * under Yarn 4 with `nodeLinker: pnp`, the setup external consumers like ts-for-gir use.
+ * It validates that the PnP relay in `@gjsify/cli`'s build action resolves transitive
+ * `@gjsify/*` polyfills without each one being a direct devDep.
  *
- * Requires `yarn` (>= 4) on PATH. The test skips itself if yarn is missing.
+ * Requires `yarn` (>= 4) on PATH; the test skips itself if yarn is missing.
  */
 export function setupProjectYarnPnp(projectDir, pkg, tarballsDir, tarballMap) {
-    // Patch direct @gjsify/* deps to tarball file: refs.
     for (const field of ['dependencies', 'devDependencies']) {
         if (!pkg[field]) continue;
         for (const name of Object.keys(pkg[field])) {
@@ -321,10 +268,9 @@ export function setupProjectYarnPnp(projectDir, pkg, tarballsDir, tarballMap) {
         }
     }
 
-    // Yarn `resolutions` is the PnP equivalent of npm `overrides` — pins every
-    // transitive @gjsify/* (e.g. @gjsify/fs reached through @gjsify/node-polyfills)
-    // to the same local tarball, so the test validates relay behavior, not registry
-    // version skew.
+    // Yarn `resolutions` is the PnP equivalent of npm `overrides`: pinning every transitive
+    // `@gjsify/*` to the local tarball is what makes this test measure relay behaviour
+    // rather than registry version skew.
     pkg.resolutions = buildYarnResolutions(tarballsDir, tarballMap);
     pkg.packageManager = 'yarn@4.14.1';
 
@@ -337,13 +283,10 @@ export function setupProjectYarnPnp(projectDir, pkg, tarballsDir, tarballMap) {
     );
 
     console.log('  running yarn install (PnP)...');
-    // `stdio: 'pipe'` is deliberate — yarn is chatty — but on FAILURE it makes
-    // the reason invisible: execFileSync's Error carries stdout/stderr as
-    // Buffers, and a test reporter prints those as `<Buffer 1b 5b …>`. Both
-    // failures this helper has produced were diagnosed from a single line that
-    // happened to reach the log, and the second one (an empty stderr with the
-    // whole story in stdout) could not be diagnosed at all. Re-throwing with the
-    // captured output decoded costs nothing on the happy path.
+    // `stdio: 'pipe'` is deliberate — yarn is chatty — but on FAILURE it hides the reason:
+    // execFileSync's Error carries stdout/stderr as Buffers and a test reporter prints those
+    // as `<Buffer 1b 5b …>`. Re-throwing with the captured output decoded costs nothing on
+    // the happy path.
     try {
         runYarnInstall(projectDir);
     } catch (err) {
@@ -365,31 +308,22 @@ function runYarnInstall(projectDir) {
         env: {
             ...process.env,
             YARN_ENABLE_HARDENED_MODE: '0',
-            // `packageManager: yarn@4.14.1` above makes Corepack fetch that exact
-            // Yarn, and Corepack ASKS before downloading. There is no TTY here, so
-            // the prompt is not a pause — it is an immediate exit 1 whose only
-            // trace is the line "Corepack is about to download …". The suite then
-            // reports its own tests as failures, naming the polyfills it never got
-            // to build rather than the install that never happened.
-            //
-            // Not a regression in this repo: nothing here has ever set it. It stays
-            // invisible for as long as the runner image happens to carry that Yarn
-            // in Corepack's cache, and reddens the moment the image, the pinned
-            // Yarn or Corepack's default moves — which is exactly how it surfaced,
-            // on two shards of two different branches at once.
+            // The `packageManager` field above makes Corepack fetch that exact Yarn, and
+            // Corepack ASKS before downloading. With no TTY the prompt is not a pause but an
+            // immediate exit 1, whose only trace is "Corepack is about to download …" — the
+            // suite then reports its own tests as failures, naming the polyfills it never got
+            // to build rather than the install that never happened. It stays invisible for as
+            // long as the runner image happens to carry that Yarn in Corepack's cache.
             COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
         },
     });
 }
 
 /**
- * True when the given executable is on PATH. Walks `process.env.PATH`
- * directly via `fs.existsSync` instead of shelling out to `which`(1):
- * the Fedora 43/44 minimal containers used by CI ship without `which`
- * installed (only `which-2.x` rpm provides it), so any `which`-based
- * check silently returns false on EVERY command and turns this helper
- * into a permanent "tool missing" gate. The PATH walk has zero
- * external-binary dependencies — works on any POSIX-shaped env.
+ * True when the given executable is on PATH. Walks `process.env.PATH` via `existsSync`
+ * rather than shelling out to `which`(1): the minimal Fedora containers CI uses ship
+ * without `which`, so a `which`-based check returns false for EVERY command and turns this
+ * helper into a permanent "tool missing" gate.
  */
 export function hasCommand(cmd) {
     const path = process.env.PATH;

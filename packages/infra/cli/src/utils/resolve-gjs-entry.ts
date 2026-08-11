@@ -1,20 +1,8 @@
-// Resolve the GJS entry point of an installed package.
-//
-// Per the `gjsify` field convention (see CLI reference):
-//
-//   {
-//     "gjsify": {
-//       "main": "dist/gjs.js",
-//       "bin":  { "name-a": "dist/a.js", "name-b": "dist/b.js" }
-//     }
-//   }
-//
-// Resolution order:
-//   1. user-supplied bin name + `gjsify.bin[name]`     → that path
-//   2. single-entry `gjsify.bin`                       → the only path
-//   3. `gjsify.main`                                   → that path
-//   4. fallback: `package.json#main`                   → that path (advisory warning)
-//   5. otherwise: hard-fail with a fix hint
+// Resolve the GJS entry point of an installed package, per the `gjsify` field
+// convention. In order: a requested `gjsify.bin[name]`, a single-entry
+// `gjsify.bin`, `gjsify.main`, then `package.json#main` — the last flagged
+// `fromFallback` so the caller can warn (`commands/dlx.ts` does). No entry at all,
+// or several bins with none named, hard-fails with a fix hint.
 
 import { readFileSync } from 'node:fs';
 import { existsSync } from 'node:fs';
@@ -90,14 +78,11 @@ export function resolveGjsEntry(pkgDir: string, binName: string | null): Resolve
 }
 
 /**
- * Resolve the `--app node` bundle of a package for the non-gjs runtimes
- * (node/bun/deno all consume it). Resolution order:
- *   1. explicit `gjsify.example.node` (a package can name its node bundle)
- *   2. convention: the node twin of the GJS entry — swap the `<name>.gjs.<ext>`
- *      infix to `<name>.node.<ext>` and probe `.node.{mjs,js,cjs}` (gjsify's
- *      `build:node → dist/<name>.node.mjs` convention; the GJS entry is
- *      `dist/<name>.gjs.js`, so the extension can differ).
- * Hard-fails with an actionable hint when neither is found.
+ * Resolve the `--app node` bundle, which node/bun/deno all consume. An explicit
+ * `gjsify.example.node` wins; otherwise the node twin of the GJS entry is derived by
+ * swapping the `.gjs.<ext>` infix for `.node.<ext>` and probing `mjs`/`js`/`cjs` —
+ * the extension can differ, since `build:node` emits `dist/<name>.node.mjs` while the
+ * GJS entry is `dist/<name>.gjs.js`.
  */
 export function resolveNodeEntry(pkgDir: string): string {
     const pkgJsonPath = join(pkgDir, 'package.json');
@@ -106,7 +91,6 @@ export function resolveNodeEntry(pkgDir: string): string {
     }
     const pkg = JSON.parse(readFileSync(pkgJsonPath, 'utf-8')) as PackageJson;
 
-    // 1. Explicit declaration wins.
     const explicit = pkg.gjsify?.example?.node;
     if (explicit) {
         const p = resolve(pkgDir, explicit);
@@ -116,7 +100,6 @@ export function resolveNodeEntry(pkgDir: string): string {
         return p;
     }
 
-    // 2. Derive from the GJS entry.
     const gjsEntry = pkg.gjsify?.main ?? (pkg.gjsify?.bin ? Object.values(pkg.gjsify.bin)[0] : undefined) ?? pkg.main;
     if (!gjsEntry) {
         throw new Error(

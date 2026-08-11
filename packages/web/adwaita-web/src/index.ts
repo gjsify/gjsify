@@ -8,11 +8,10 @@
 import '@gjsify/adwaita-fonts'; // Registers @font-face (fontsource pattern)
 import { ADWAITA_WEB_CSS } from './styles.generated.js';
 
-// Self-apply the compiled stylesheet on import. This makes `import
-// '@gjsify/adwaita-web'` enough to style the components under ANY bundler —
+// Self-applied so `import '@gjsify/adwaita-web'` styles the components under ANY bundler:
 // a separate `import '@gjsify/adwaita-web/style.css'` is a no-op under a gjsify
-// `--app browser` build (css-as-string yields a string a side-effect import
-// discards), which used to leave consumers unstyled. Idempotent + browser-only.
+// `--app browser` build, where css-as-string yields a string a side-effect import
+// discards and the consumer ends up unstyled. Idempotent + browser-only.
 if (typeof document !== 'undefined' && !document.getElementById('adwaita-web-style')) {
     const style = document.createElement('style');
     style.id = 'adwaita-web-style';
@@ -24,7 +23,6 @@ if (typeof document !== 'undefined' && !document.getElementById('adwaita-web-sty
 // `AdwBreakpoint`, and the `breakpoint="…"` attribute wiring the split views use.
 export { addBreakpoints, bindBreakpointSetter } from './breakpoints.js';
 
-// Register custom elements (side-effect imports)
 export { AdwAvatar } from './elements/adw-avatar.js';
 export { AdwBanner } from './elements/adw-banner.js';
 export { AdwCard } from './elements/adw-card.js';
@@ -43,26 +41,23 @@ export { AdwHeaderBar } from './elements/adw-header-bar.js';
 export { AdwWindowTitle } from './elements/adw-window-title.js';
 export { AdwButton } from './elements/adw-button.js';
 export { AdwButtonContent } from './elements/adw-button-content.js';
-// The ONE symbolic-icon node and the ONE toggle. Exported before the widgets
-// that build them so the barrel's definition order matches theirs; each host
-// ALSO imports them directly, which is what actually guarantees the tags are
-// defined before a server-rendered host upgrades.
+// The ONE symbolic-icon node and the ONE toggle, exported before the widgets that build
+// them so the barrel's definition order matches theirs. Each host ALSO imports them
+// directly, which is what actually guarantees the tags are defined before a
+// server-rendered host upgrades.
 export { AdwIcon, createAdwIcon } from './elements/adw-icon.js';
 export { AdwSwitch } from './elements/adw-switch.js';
 // The two form-control primitives. ONE module, because upstream merges their
 // stylesheet (`_checks.scss`; there is no `_radio.scss` in libadwaita) and
 // everything but the corner radius, the glyph and the group is shared.
 export { AdwCheckbox, AdwRadio } from './elements/adw-checks.js';
-// The determinate progress indicator — <adw-spinner> covers only the
-// indeterminate case.
+// The determinate progress indicator — <adw-spinner> covers only the indeterminate case.
 export { AdwProgressBar } from './elements/adw-progress-bar.js';
 // A keyboard shortcut, drawn as keycaps. The accelerator GRAMMAR lives in
 // @gjsify/adwaita-core; this element only builds the nodes.
 export { AdwShortcutLabel } from './elements/adw-shortcut-label.js';
-// The ONE popover surface. Exported before its three hosts so the barrel's own
-// definition order matches theirs; each host ALSO imports it directly, which is
-// what actually guarantees `adw-popover` is defined before a server-rendered
-// host upgrades and builds one.
+// The ONE popover surface, exported before its three hosts for the same reason as
+// <adw-icon> above.
 export { AdwPopover } from './elements/adw-popover.js';
 export type { AdwPopoverAlign, AdwPopoverPosition, AdwPopoverRole } from './elements/adw-popover.js';
 export { AdwSplitButton } from './elements/adw-split-button.js';

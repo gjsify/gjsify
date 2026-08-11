@@ -4,17 +4,15 @@ interface CoyoteAction {
     time: number;
 
     /**
-     * Called on the owner's preupdate. If it returns true, it will
-     * set the action counter to the time. If it returns false, it will
+     * Called on the owner's preupdate. True refills this action's counter to `time`; false counts it
+     * down by the elapsed milliseconds.
      */
     condition: (dt: number) => boolean;
 }
 
 /**
- * Tracks a grace period for certain actions. Typically jumping, for example if you
- * want to allow a player to jump for a few frames after they've
- * walked off a ledge. However this component can be used for any
- * action that needs a grace period.
+ * A grace period for any action — canonically jumping, so a player who has just walked off a ledge
+ * can still jump for a few frames.
  */
 export class CoyoteComponent<T extends Record<string, CoyoteAction>> extends ex.Component {
     actions: T;
@@ -43,16 +41,10 @@ export class CoyoteComponent<T extends Record<string, CoyoteAction>> extends ex.
         }
     }
 
-    /**
-     * Returns true if the action is allowed
-     */
     allow(action: keyof T) {
         return this.counter[action] > 0;
     }
 
-    /**
-     * Resets the counter for the given action
-     */
     reset(action: keyof T) {
         this.counter[action] = 0;
     }

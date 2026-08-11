@@ -6,86 +6,53 @@
 //   - @gjsify/rolldown-native    (packages/infra/rolldown-native/lib/)
 //   - @gjsify/lightningcss-native (packages/infra/lightningcss-native/lib/)
 //
-// Why this script exists, and why it takes a different route per host:
+// The route differs per host:
 //
 //   Under NODE, `gjsify build --library` in the WORKSPACE would need the native
-//   bundler engine — whose JS facade (`lib/esm/`) is itself a build artifact.
-//   Building the facade needs a bundler → circular. The Node CLI
-//   (`packages/infra/cli/lib/index.js`) uses npm `rolldown` instead, so it
-//   can build the facades without the facades existing. Spawning
-//   `node <cli>/lib/index.js` directly (NOT `gjsify workspace … build`)
-//   matters: the inner script chain would resolve `gjsify` from PATH = the
-//   GJS-first bin shim, recreating the circularity. Same pattern + rationale
-//   as `packages/infra/tsc/scripts/build-bundle.mjs` (commit 857e34742).
+//   bundler engine, whose JS facade is itself a build artifact → circular. The
+//   Node CLI (`packages/infra/cli/lib/index.js`) uses npm `rolldown` instead, so
+//   it builds the facades without them existing. It is spawned as
+//   `node <cli>/lib/index.js` and NOT as `gjsify workspace … build` because the
+//   inner script chain would resolve `gjsify` from PATH = the GJS-first bin
+//   shim, recreating the circularity. Same pattern as
+//   `packages/infra/tsc/scripts/build-bundle.mjs`.
 //
-//   Under GJS there is no npm crate and no Node entry — and no circularity
-//   either. The `gjsify` on PATH there was installed by `gjs -m install.mjs`
-//   into its OWN prefix, where `installGjsEnginePackages()` put a built
-//   `@gjsify/rolldown-native` beside it, so it can bundle from the first
-//   moment. See `HOST_IS_GJS` below for what used to break that and where the
-//   fix lives. This is why `node` is NO LONGER a requirement of root
-//   `build:infra`: the whole chain is reachable from a host that has only gjs.
+//   Under GJS there is no npm crate, no Node entry and no circularity: the
+//   `gjsify` on PATH was installed by `gjs -m install.mjs` into its OWN prefix,
+//   where `installGjsEnginePackages()` put a built `@gjsify/rolldown-native`
+//   beside it. This is why `node` is not a requirement of root `build:infra`.
 //
-//   BUT that Node CLI is the `lib/**` half of a DUAL-ENTRY package (see
-//   AGENTS.md "Bundled-artifact dependency classification"): unlike the
-//   committed `dist/cli.gjs.mjs` bundle it is NOT self-contained — it
-//   `import`s its runtime deps from node_modules at ESM LINK time. Four of
-//   them (`@gjsify/{workspace,semver,npm-registry,tar}`) are built by
-//   `build:infra` with `build:types` only, which is `emitDeclarationOnly`
-//   and therefore emits `lib/types` but NOT `lib/esm`. On a warm tree
-//   `lib/esm` came from the build cache, so this stayed invisible; on a
-//   COLD one `node <cli> build --library` died at link time with a raw
-//   `ERR_MODULE_NOT_FOUND: …/@gjsify/workspace/lib/esm/index.js` — and
-//   because the build then failed, CI never saved a cache, so the next run
-//   was cold again. Self-sustaining.
+//   That Node CLI entry is the non-self-contained half of a dual-entry package
+//   (docs/bundled-toolchains.md § Bundled-artifact dependency classification):
+//   it `import`s its runtime deps from node_modules at ESM LINK time, and four
+//   of them (`@gjsify/{workspace,semver,npm-registry,tar}`) are built by
+//   `build:infra` with `build:types`, i.e. `emitDeclarationOnly` — `lib/types`
+//   but no `lib/esm`. A warm tree hid this behind the build cache; a COLD one
+//   died at link time with `ERR_MODULE_NOT_FOUND:
+//   …/@gjsify/workspace/lib/esm/index.js`, and since the build failed CI never
+//   saved a cache, so the next run was cold again. Self-sustaining.
 //
-//   Both escapes from that cycle presuppose their own output: those four
-//   packages' `build:gjsify` is `gjsify build --library`, which under GJS
-//   needs the very facade this script produces, and the Node CLI that could
-//   build the facade cannot link without those four. So the cycle is broken
-//   with the ONE emitter that needs neither: plain `tsc`. That is not a new
-//   tool here — it is what `build:infra` ALREADY uses for every other
-//   link-time dep of the Node CLI entry (`@gjsify/create-app`,
-//   `@gjsify/rolldown-plugin-{gjsify,pnp}`, whose `build` script is literally
-//   `tsc`) and for the CLI itself. The four are simply the outliers that were
-//   wired to `build:types` instead of a full emit; `buildCliRuntimeDeps()`
-//   below restores the symmetry.
+//   Both obvious escapes presuppose their own output — those four build with
+//   `gjsify build --library`, which under GJS needs the facade this script
+//   produces, and the Node CLI that could build the facade cannot link without
+//   the four. `buildCliRuntimeDeps()` breaks the cycle with the one emitter that
+//   needs neither: plain `tsc`, already used for every other link-time dep.
+//   Its `lib/esm` is a BOOTSTRAP artifact — root `build` re-emits it with
+//   Rolldown afterwards, the only delta being the compile-time
+//   `__PACKAGE_VERSION__` define that `@gjsify/npm-registry` reads defensively,
+//   so bootstrap output runs and just reports the dev user-agent.
 //
-//   The tsc-emitted `lib/esm` is a BOOTSTRAP artifact, not the shipped one:
-//   root `build` runs `gjsify foreach build` after `build:infra`, and these
-//   four are not excluded there, so their `build:gjsify` re-emits `lib/esm`
-//   with Rolldown. The only behavioural delta in between is the compile-time
-//   `__PACKAGE_VERSION__` define Rolldown applies to `@gjsify/npm-registry`,
-//   which its source already reads defensively
-//   (`typeof __PACKAGE_VERSION__ === 'string' ? … : '0.0.0-dev'`), so the
-//   bootstrap output runs — it just reports the dev user-agent until the
-//   real build re-emits.
+// Ordering inside root `build:infra` — after `gjsify workspace @gjsify/cli
+// build`, before the first `gjsify build --library` consumer — is MACHINE-CHECKED
+// by `scripts/check-build-infra-order.mjs`, because prose did not hold it:
+// promoting the four from `build:types` to `build` silently moved the first
+// bundler consumer five clauses ahead of this script, invisible under Node and on
+// a warm cache, and surfaced as v0.31.0 failing to publish `@gjsify/napi`.
 //
-// Wired into root package.json `build:infra` right after
-// `gjsify workspace @gjsify/cli build` (which produces the Node CLI entry
-// via plain tsc) and before the first `gjsify build --library` consumer —
-// today `@gjsify/semver`, the first of the four this script also emits.
-//
-// That ordering is now MACHINE-CHECKED by `scripts/check-build-infra-order.mjs`,
-// because this comment was the only thing holding it and prose does not hold.
-// #1031 promoted those four from `build:types` to `build` for a real reason,
-// which silently moved the first bundler consumer FIVE clauses ahead of this
-// script. Invisible under Node (the npm rolldown engine loads there) and on a
-// warm cache (`build:infra` is skipped entirely), so it surfaced as v0.31.0
-// failing to publish `@gjsify/napi`. Both properties are kept now: the four are
-// declared with `build:types` before the CLI, and fully built immediately after
-// this script.
-//
-// Skips a facade (and a CLI runtime dep) when its lib/ output already exists
-// AND is newer than everything under its src/ — a full rebuild is only
-// ~10-20 s, but skipping keeps warm-cache `build:infra` runs fast.
-//
-// SELF-SUFFICIENT ON A COLD TREE. The Node CLI entry it spawns is itself a
-// build output, so on a fresh clone / a CI job that only installed, this script
-// first runs `gjsify run build:infra` to produce it rather than telling the
-// caller to (see `ensureNodeCliEntry`). That is not a convenience: a script
-// whose whole purpose is bootstrapping a cold tree must not have a
-// precondition that only a cold tree can fail.
+// SELF-SUFFICIENT ON A COLD TREE: the Node CLI entry it spawns is itself a build
+// output, so this script runs `gjsify run build:infra` to produce it rather than
+// telling the caller to (`ensureNodeCliEntry`) — a script for bootstrapping a
+// cold tree must not have a precondition only a cold tree can fail.
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, statSync, readdirSync, rmSync } from 'node:fs';
@@ -100,48 +67,34 @@ const cliEntry = join(root, 'packages', 'infra', 'cli', 'lib', 'index.js');
 const nodeRequire = createRequire(import.meta.url);
 
 /**
- * Which host is executing this script — it takes two different routes to the
- * same three build steps.
+ * Which host is executing this script — the two routes are described in the
+ * header.
  *
- * Under NODE the circularity described in the header is real: `gjsify build`
- * would need the very facade this script produces, so it spawns the CLI's plain
- * Node entry, which uses the npm `rolldown` crate instead.
- *
- * Under GJS there is no Node entry to spawn and no npm crate to fall back on —
- * but there is also no circularity, because the CLI running us is not the
- * workspace one. `gjs -m install.mjs` installs `@gjsify/cli` into its own prefix
- * together with the engine packages (`installGjsEnginePackages()`), and that
- * copy carries a BUILT `@gjsify/rolldown-native`. So the GJS branch simply asks
- * `gjsify` to do the builds. What kept that from working was a resolution bug,
- * not the layout: the workspace's own unbuilt `node_modules/@gjsify/
- * rolldown-native` symlink SHADOWED the working copy, because `require.resolve`
- * handed back the package DIRECTORY instead of failing. Fixed at the root in
- * `@gjsify/module` (`resolveModulePath`) — that fix is what lets this branch
- * find an engine at all.
+ * The GJS branch depends on `@gjsify/module`'s `resolveModulePath` refusing a
+ * package DIRECTORY: the workspace's own unbuilt `node_modules/@gjsify/
+ * rolldown-native` symlink otherwise SHADOWS the built copy in the global prefix.
  *
  * The probe is INLINE rather than imported from
- * `@gjsify/rolldown-plugin-gjsify/runtime` on purpose: that package's `lib/` is
- * a build output, and an ESM import of one fails at LINK time — before a single
- * statement of this script runs. This script documents itself as self-sufficient
- * on a cold tree, and a cold tree is exactly where that import would not
- * resolve.
+ * `@gjsify/rolldown-plugin-gjsify/runtime` on purpose: that package's `lib/` is a
+ * build output and an ESM import of one fails at LINK time, before a single
+ * statement of this script runs — on precisely the cold tree this script exists
+ * to serve.
  */
 const HOST_IS_GJS = typeof globalThis.imports?.gi !== 'undefined';
 
 const FACADES = ['rolldown-native', 'lightningcss-native'];
 
-// `packages/infra/<name>` packages that the Node CLI entry imports STATICALLY
-// (so they must exist as `lib/esm/**` before `node <cli> …` can even link) and
-// that `build:infra` builds with `build:types` (declarations only) beforehand.
-// Every OTHER link-time dep of the CLI entry is already fully tsc-built by an
-// earlier `build:infra` step. Drift is caught by `ensureCliEntryLinks()`.
+// `packages/infra/<name>` packages the Node CLI entry imports STATICALLY (so they
+// must exist as `lib/esm/**` before `node <cli> …` can link) and that `build:infra`
+// only declaration-builds beforehand. Every other link-time dep of the CLI entry
+// is already fully tsc-built earlier; drift is caught by `ensureCliEntryLinks()`.
 const CLI_RUNTIME_DEPS = ['workspace', 'semver', 'npm-registry', 'tar'];
 
 // `--print-plan` reports the cold/warm decision and exits WITHOUT spawning
-// anything. The cold branch runs a multi-minute `build:infra`, so this is how
-// the e2e suite pins the decision (and the recursion guard) down cheaply —
-// pointing the script at a fixture root by copying it to `<fixture>/scripts/`,
-// since `root` is derived from the script's own location.
+// anything: the cold branch runs a multi-minute `build:infra`, so this is how the
+// e2e suite pins the decision and the recursion guard down cheaply. It points the
+// script at a fixture root by copying it to `<fixture>/scripts/`, since `root` is
+// derived from the script's own location.
 const printPlanOnly = process.argv.includes('--print-plan');
 
 // Set on the `build:infra` child this script may spawn below, so the nested
@@ -150,48 +103,29 @@ const printPlanOnly = process.argv.includes('--print-plan');
 const NO_RECURSE_ENV = 'GJSIFY_BOOTSTRAP_NO_BUILD_INFRA';
 
 /**
- * Resolve the `gjsify` bin for a spawn: the workspace-local shim first (it is
- * the version this tree pins), PATH second (a fresh clone whose install has not
- * written `.bin` yet), the committed GJS bundle last (works with nothing
- * installed at all, which is the case this whole script exists for).
+ * Resolve the `gjsify` bin for a spawn — rungs and their Windows handling live in
+ * `scripts/resolve-gjsify.mjs`, shared with `verify-committed-bundles.mjs`.
  *
- * Shared with `verify-committed-bundles.mjs` — see
- * `scripts/resolve-gjsify.mjs`. This site is the one that hurt on Windows:
- * `existsSync` says yes to `node_modules/.bin/gjsify`, which is the sh member of
- * npm's shim trio and the one Windows cannot execute, so `spawnSync` returned
- * ENOENT with a NULL status and the guard below reported "`gjsify run
- * build:infra` failed (exit null)" — naming a build that never started, on the
- * documented recovery path for a cold tree.
+ * Under GJS, PATH beats the workspace shim (`preferPath`): the CLI this tree pins
+ * resolves its bundler engine FROM this tree, and on a cold tree that engine is
+ * the artifact we are here to build. The global one brought its own.
  */
 function resolveGjsifyCommand(argv) {
-    // Under GJS, PATH beats the workspace shim — see `preferPath` in
-    // `scripts/resolve-gjsify.mjs`. The short version: the CLI this tree pins
-    // resolves its bundler engine FROM this tree, and on a cold tree that engine
-    // is the artifact we are here to build. The global one brought its own.
     return resolveGjsifySpawn(root, argv, { preferPath: HOST_IS_GJS }) ?? { cmd: 'gjsify', args: [...argv] };
 }
 
 /**
- * Make sure the Node CLI entry this script SPAWNS actually exists.
+ * Make sure the Node CLI entry this script SPAWNS actually exists, building it
+ * here rather than telling the caller to.
  *
- * `packages/infra/cli/lib/index.js` is a build output, so on a COLD tree —
- * fresh clone, or a CI job that only ran `gjsify install --immutable` — it is
- * absent and this script used to exit 1 with "run `gjsify workspace @gjsify/cli
- * build` first". That instruction is correct and was still a defect: the script
- * documents itself as the fresh-clone bootstrap, and every caller that reached
- * it on a cold tree had to know to run something else first. One did not — the
- * release workflow's `publish-napi` job — so `@gjsify/napi` was the single
- * package the v0.24.1 release failed to publish, on a job that had just done a
- * clean checkout + install by design.
+ * Exiting with "run `gjsify workspace @gjsify/cli build` first" was correct and
+ * still a defect: every caller reaching a cold tree had to know that. The release
+ * workflow's `publish-napi` job did not, which is why `@gjsify/napi` was the one
+ * package the v0.24.1 release failed to publish after a clean checkout + install.
  *
- * `verify-committed-bundles.mjs` already carried exactly this fallback in its
- * own preflight. Having it HERE is the difference between one caller being
- * correct and every caller being correct.
- *
- * `build:infra` is the documented cold-tree chain and ends by running this very
- * script, so the recursion is cut two ways: the child is marked (a nested run
- * refuses to spawn again) and by the time the child reaches its own bootstrap
- * step, `gjsify workspace @gjsify/cli build` has already produced the entry.
+ * `build:infra` ends by running this very script, so the recursion is cut two
+ * ways: the child is marked (a nested run refuses to spawn again), and by the time
+ * it reaches its own bootstrap step the CLI build has already produced the entry.
  */
 function ensureNodeCliEntry() {
     // Under GJS the Node entry is not the tool being used — `run()` and
@@ -274,13 +208,12 @@ function isFresh(out, srcDir) {
 }
 
 /**
- * Emit `lib/esm` (+ `lib/types`) for the CLI's link-time runtime deps with
- * plain `tsc`, so the Node CLI entry spawned below can actually link.
+ * Emit `lib/esm` (+ `lib/types`) for the CLI's link-time runtime deps with plain
+ * `tsc`, so the Node CLI entry spawned below can link.
  *
- * `tsconfig.build.json` is `emitDeclarationOnly` on purpose — `lib/esm` is the
- * bundler's to own in a normal build — so the flag is overridden here rather
- * than in the config: this is the bootstrap emit, and the real `build:gjsify`
- * overwrites it later in root `build`.
+ * `tsconfig.build.json` stays `emitDeclarationOnly` — `lib/esm` is the bundler's
+ * to own in a normal build — so the flag is overridden on the command line here,
+ * for this bootstrap emit only.
  */
 function buildCliRuntimeDeps() {
     let tscBin = null;
@@ -294,9 +227,9 @@ function buildCliRuntimeDeps() {
         }
 
         // Under GJS the compiler is `gjsify tsc` (see runTsc), which needs no
-        // resolved bin — and `typescript/bin/tsc` is a Node CJS entry that could
-        // not be spawned there even when the package IS installed, so probing for
-        // it would turn a working host into a hard exit.
+        // resolved bin — and `typescript/bin/tsc` is a Node CJS entry that cannot
+        // be spawned there even when installed, so probing for it would turn a
+        // working host into a hard exit.
         if (tscBin === null && !HOST_IS_GJS) {
             try {
                 tscBin = nodeRequire.resolve('typescript/bin/tsc');
@@ -315,15 +248,12 @@ function buildCliRuntimeDeps() {
         console.log(`[bootstrap-native-facades] building @gjsify/${name} lib/esm via tsc…`);
         runTsc(tscBin, pkgDir, name);
 
-        // POST-CONDITION, not decoration. An exit code of 0 does not mean tsc
-        // WROTE anything: with `composite`/`incremental`, a `.tsbuildinfo` that
-        // outlived its emit tree makes tsc consider the project up to date, so
-        // it prints nothing, emits nothing and exits 0. This script's whole job
-        // is to make the Node CLI entry linkable, and that failure mode reports
-        // "done" while leaving it unlinkable — the caller then dies much later
-        // with a bare `ERR_MODULE_NOT_FOUND` naming a path nothing explains.
-        // Same class `verify-package-outputs.mjs` exists to catch, checked here
-        // because this runs long before that post-build sweep.
+        // An exit code of 0 does not mean tsc WROTE anything: with
+        // `composite`/`incremental`, a `.tsbuildinfo` that outlived its emit tree
+        // makes tsc consider the project up to date — it prints nothing, emits
+        // nothing, exits 0, and the caller dies much later with a bare
+        // `ERR_MODULE_NOT_FOUND`. Same class `verify-package-outputs.mjs` catches,
+        // checked here because this runs long before that post-build sweep.
         if (!existsSync(libEntry)) {
             const stale = buildInfoFiles(pkgDir);
             if (stale.length === 0) {
@@ -353,14 +283,13 @@ function buildCliRuntimeDeps() {
 
 /** Run the bootstrap `tsc` emit for one package, exiting on a non-zero status. */
 function runTsc(tscBin, pkgDir, name) {
-    // `--emitDeclarationOnly false` overrides tsconfig.build.json so JS is
-    // emitted too; declarations are re-emitted identically (harmless).
+    // `--emitDeclarationOnly false` overrides tsconfig.build.json so JS is emitted
+    // too; declarations are re-emitted identically (harmless).
     //
     // The compiler differs per host but the EMIT does not: under GJS this goes
     // through `gjsify tsc`, the bundled TypeScript whose output is verified
-    // byte-identical to the npm `tsc` per package. `typescript/bin/tsc` is a
-    // Node CJS entry and cannot be spawned under GJS at all, so this is not a
-    // preference — it is the only compiler available there.
+    // byte-identical to the npm `tsc` per package — and the only one available
+    // there, since `typescript/bin/tsc` is a Node CJS entry.
     const tscArgs = ['-p', 'tsconfig.build.json', '--emitDeclarationOnly', 'false'];
     const { cmd, args, windowsVerbatimArguments } = HOST_IS_GJS
         ? resolveGjsifyCommand(['tsc', ...tscArgs])
@@ -381,12 +310,9 @@ function runTsc(tscBin, pkgDir, name) {
 }
 
 /**
- * Every `.tsbuildinfo` a package's bootstrap emit could be skipping on.
- *
- * The four CLI runtime deps put theirs in `lib/`, but TypeScript's default
- * derivation (`outDir` + `rootDir`) lands it in the package root and 18 other
- * workspaces point it at `tmp/`, so all three are swept rather than assuming
- * one layout.
+ * Every `.tsbuildinfo` a package's bootstrap emit could be skipping on. Three
+ * layouts are in use across the workspaces — `lib/`, `tmp/`, and TypeScript's
+ * default derivation into the package root — so all three are swept.
  */
 function buildInfoFiles(pkgDir) {
     const found = [];
@@ -408,12 +334,10 @@ function buildInfoFiles(pkgDir) {
 /**
  * Probe that the Node CLI entry can be LINKED before spawning it for real.
  *
- * Without this, a runtime dep that `CLI_RUNTIME_DEPS` doesn't cover surfaces as
- * a raw `ERR_MODULE_NOT_FOUND` stack from deep inside Node's ESM resolver,
- * attributed to whatever `gjsify build` invocation happened to run first — the
- * exact failure this script now exists to prevent. Runs once, and only on the
- * path that is about to spawn the CLI anyway (~0.3 s), so a fully-warm
- * `build:infra` never pays for it.
+ * Without this, a runtime dep `CLI_RUNTIME_DEPS` doesn't cover surfaces as a raw
+ * `ERR_MODULE_NOT_FOUND` from inside Node's ESM resolver, attributed to whatever
+ * `gjsify build` ran first. Runs once, only on the path about to spawn the CLI
+ * anyway (~0.3 s), so a fully-warm `build:infra` never pays for it.
  */
 let cliEntryChecked = false;
 function ensureCliEntryLinks() {
@@ -454,14 +378,11 @@ function ensureCliEntryLinks() {
  * Run one CLI invocation. Returns `true` on success; on failure it reports,
  * schedules the exit, and returns `false` so the CALLER stops.
  *
- * The boolean is not decoration. Under GJS `process.exit()` SCHEDULES the
- * syscall on a GLib idle source and RETURNS (`@gjsify/process`'s `exitProcess`),
- * so the bare exit that used to end this function did not end anything: on a
- * cold-tree run whose facade build failed, the loop below carried straight on to
- * print "@gjsify/rolldown-native done in 3.09s" and then attempted the second
- * facade. The exit CODE was right and every line after the failure was a lie.
- * The general divergence is recorded in `status/open-todos.md`; this is the
- * local repair, and it costs one `if`.
+ * The boolean is load-bearing: under GJS `process.exit()` SCHEDULES the syscall on
+ * a GLib idle source and RETURNS (`@gjsify/process`'s `exitProcess`), so a bare
+ * exit here stopped nothing — a failed facade build still printed "done in 3.09s"
+ * and attempted the second facade. Right exit code, every following line a lie.
+ * The general divergence is in `status/open-todos.md`; this is the local repair.
  */
 function run(args, cwd) {
     ensureCliEntryLinks();

@@ -1,17 +1,14 @@
-// DOM-level behaviour tests for <adw-drop-down>. Runs in a real browser via the
-// @gjsify/adwaita-web browser test axis. Asserts option parsing, selected↔value
-// sync, notify-on-change semantics, popover open/close, item selection, search
-// filtering and the disabled guard.
+// DOM-level behaviour tests for <adw-drop-down>, in a real browser via the
+// @gjsify/adwaita-web browser test axis.
 //
-// The SELECTION half is driven by the SAME table the NativeScript renderer
-// asserts against (`COMBO_SELECTION_VECTORS`, `@gjsify/adwaita-core/conformance`)
-// — replayed against the real element through the API a consumer would use, and
-// read back as what a user would see: the button label, `selected`/`selectedValue`
-// and the `change` stream. `<adw-combo-row>` composes the same `ComboState` but
-// cannot drive the table, because two of its four step ops have no DOM spelling:
-// its options come from the `items` attribute at connect time only (`items` is not
-// even observed), and it publishes no select-by-value setter. So this element is
-// the browser's driver for both.
+// The SELECTION half is driven by the SAME table the NativeScript renderer asserts
+// against (`COMBO_SELECTION_VECTORS`, `@gjsify/adwaita-core/conformance`), replayed
+// through the API a consumer would use and read back as what a user would see: the
+// button label, `selected`/`selectedValue` and the `change` stream. `<adw-combo-row>`
+// composes the same `ComboState` but cannot drive the table — two of its four step ops
+// have no DOM spelling, since its options come from the `items` attribute at connect
+// time only (`items` is not observed) and it publishes no select-by-value setter. So
+// this element is the browser's driver for both.
 import { describe, it, expect } from '@gjsify/unit';
 
 import { COMBO_SELECTION_VECTORS } from '@gjsify/adwaita-core/conformance';
@@ -53,9 +50,8 @@ function applyStep(dd: AdwDropDown, step: ComboSelectionStep): void {
         case 'select':
             openChooser(dd);
             if (step.index < 0) {
-                // The dismissed chooser: the popover closes with nothing picked,
-                // which here is an outside pointerdown rather than a cancelled
-                // native sheet.
+                // The dismissed chooser: the popover closes with nothing picked — here an
+                // outside pointerdown rather than a cancelled native sheet.
                 document.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
                 return;
             }
@@ -65,13 +61,12 @@ function applyStep(dd: AdwDropDown, step: ComboSelectionStep): void {
 }
 
 /**
- * The ONE row this element answers differently, and does so on purpose: its
- * published `selected` contract REJECTS an out-of-range set (`_selectIndex` gates
- * on `ComboState.hasIndex`), where the core state accepts it and reports an empty
- * value — the split `ComboState.hasIndex`'s doc comment records and
- * `<adw-combo-row>` takes the other side of. The row is still driven below,
- * against the element's answer rather than the state's, so neither policy can
- * change silently.
+ * The ONE row this element answers differently, on purpose: its published `selected`
+ * contract REJECTS an out-of-range set (`_selectIndex` gates on `ComboState.hasIndex`)
+ * where the core state accepts it and reports an empty value — the split
+ * `ComboState.hasIndex`'s doc records and `<adw-combo-row>` takes the other side of. The
+ * row is still driven below, against the element's answer, so neither policy can change
+ * silently.
  */
 const DROP_DOWN_REJECTS = 'an index past the end';
 
@@ -102,10 +97,9 @@ export const AdwDropDownTest = async () => {
                 expect(dd.selected).toBe(vector.selected);
                 expect(dd.selectedValue).toBe(vector.value);
                 expect(labelText(dd)).toBe(vector.label);
-                // `change` is this element's DOM spelling of the `interactive`
-                // flag: it fires for a user pick and never for a programmatic
-                // set, so the interactive frames of the emission stream ARE the
-                // events a listener sees.
+                // `change` is this element's DOM spelling of the `interactive` flag: it
+                // fires for a user pick and never for a programmatic set, so the
+                // interactive frames of the stream ARE the events a listener sees.
                 expect(changes).toStrictEqual(
                     vector.emitted
                         .filter((change) => change.interactive)
@@ -119,11 +113,10 @@ export const AdwDropDownTest = async () => {
             const vector = vectorNamed(DROP_DOWN_REJECTS);
             const { dd, changes } = mountRecording();
 
-            // Everything up to the out-of-range set…
             for (const step of vector.steps.slice(0, -1)) applyStep(dd, step);
             const before = { selected: dd.selected, value: dd.selectedValue, label: labelText(dd) };
-            // …and then the set itself, which the core state would accept and
-            // report as nothing-to-draw (`value`/`label` both empty below).
+            // The out-of-range set itself, which the core state would accept and report
+            // as nothing-to-draw (`value`/`label` both empty below).
             expect(vector.value).toBe('');
             expect(vector.label).toBe('');
             applyStep(dd, vector.steps[vector.steps.length - 1]);
@@ -210,8 +203,8 @@ export const AdwDropDownTest = async () => {
         });
 
         await it('setting options + selected before connect does not crash + applies on connect', async () => {
-            // Regression: the property setters ran before connectedCallback built
-            // the DOM, so _updateLabel touched an undefined label element.
+            // The property setters can run BEFORE connectedCallback builds the DOM, where
+            // _updateLabel would touch an undefined label element.
             const dd = document.createElement('adw-drop-down') as AdwDropDown;
             dd.options = ['a', 'b', 'c'];
             dd.selected = 2;

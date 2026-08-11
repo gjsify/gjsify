@@ -1,16 +1,6 @@
-// StoryViewBase — renderer-agnostic base for a single story's view.
-//
-// Original implementation, extracted from the three renderer story bases:
-//   - @gjsify/storybook            StoryWidget   (GTK, extends Adw.Bin)
-//   - @gjsify/adwaita-storybook    StoryElement  (browser, DOM)
-//   - @gjsify/storybook-nativescript  StoryView  (NativeScript, extends StackLayout)
-//
-// All three carried the identical authoring surface — `meta`/`story`/`args`
-// getters, an `args` setter that fires `updateArgs` + notifies listeners,
-// `onArgsChanged`/`setArg`, overridable `initialize`/`updateArgs`/`teardown`,
-// `addContent`, and a `_refreshChromeText` that formats `"<title> — <story>"`.
-// This base owns that surface; each renderer supplies only the platform-specific
-// chrome via {@link StoryViewBase.createChrome}.
+// StoryViewBase — the authoring surface a story's view has on every renderer (GTK
+// `StoryWidget`, browser `StoryElement`, NativeScript `StoryView`). Each renderer
+// supplies only its platform-specific chrome, via {@link StoryViewBase.createChrome}.
 
 import { argsFromControls, type StoryArgs, type StoryArgValue, type StoryMeta } from '@gjsify/stories';
 
@@ -35,11 +25,10 @@ export interface StoryChrome<TNode> {
 }
 
 /**
- * Base class for a single story's view, parameterised by the renderer's node
- * type. A renderer's story base (`StoryWidget` / `StoryElement` / `StoryView`)
- * extends this, implements {@link createChrome}, and calls {@link initBase} from
- * its own constructor (a base constructor cannot call an abstract method before
- * the subclass's field initialisers have run, so init is explicit).
+ * Base class for a single story's view. A renderer extends it, implements
+ * {@link createChrome} and calls {@link initBase} from its own constructor — init is
+ * explicit because a base constructor cannot call an abstract method before the
+ * subclass's field initialisers have run.
  *
  * @typeParam TNode the renderer's view-node type.
  */
@@ -59,9 +48,8 @@ export abstract class StoryViewBase<TNode> {
     protected abstract createChrome(meta: StoryMeta, customRoot?: TNode): StoryChrome<TNode>;
 
     /**
-     * Initialise the base state + chrome. Call from the subclass constructor
-     * (NOT the base constructor — an abstract `createChrome` must not run before
-     * the subclass's own fields are initialised).
+     * Initialise base state + chrome from the SUBCLASS constructor: an abstract
+     * `createChrome` must not run before the subclass's own fields exist.
      */
     protected initBase(meta: StoryMeta, story: string, customRoot?: TNode): void {
         this._meta = meta;
@@ -96,9 +84,8 @@ export abstract class StoryViewBase<TNode> {
     }
 
     /**
-     * Notify args listeners. Overridable so a renderer can ALSO fire its own
-     * change signal (e.g. the GTK adapter's GObject `notify('args')`) in the
-     * same path.
+     * Notify args listeners. Overridable so a renderer can fire its own change signal
+     * (the GTK adapter's GObject `notify('args')`) in the same path.
      */
     protected emitArgs(value: StoryArgs): void {
         for (const listener of this._listeners) listener(value);

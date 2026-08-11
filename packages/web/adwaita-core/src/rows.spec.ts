@@ -1,13 +1,9 @@
-// Ported from `@gjsify/adwaita-nativescript`'s index.spec.ts alongside the row
-// state-machine move (ADR 0004) — the NS package keeps only the widget render and
-// pins the moved surface with re-export smoke specs. Extended here with the full
-// clamp/step-edge, empty/out-of-range, index↔value-sync, toggle-idempotence and
-// notify-only-on-change matrix the NS mocks could not exercise.
+// The row state machines (ADR 0004): the full clamp/step-edge, empty/out-of-range,
+// index↔value-sync, toggle-idempotence and notify-only-on-change matrix.
 //
-// `ComboState`'s scenario matrix is no longer written out here: it is
-// `COMBO_SELECTION_VECTORS` (conformance/rows.ts), driven below and by both
-// renderer suites, so a divergence fails a test naming the input rather than
-// three suites agreeing by luck.
+// `ComboState`'s scenario matrix lives in `COMBO_SELECTION_VECTORS` (conformance/rows.ts)
+// instead, driven below and by both renderer suites, so a divergence fails a test naming
+// the input rather than three suites agreeing by luck.
 
 import { describe, it, expect } from '@gjsify/unit';
 
@@ -102,17 +98,17 @@ export default async () => {
                 expect(state.selectedIndex).toBe(vector.selected);
                 expect(state.selectedValue).toBe(vector.value);
                 expect(state.selectedLabel).toBe(vector.label);
-                // The whole feed, not just its last frame: a renderer repaints
-                // from every change, so a swallowed or duplicated one is a bug
-                // even when the end state is right.
+                // The whole feed, not just its last frame: a renderer repaints from every
+                // change, so a swallowed or duplicated one is a bug even when the end
+                // state is right.
                 expect(changes).toStrictEqual([...vector.emitted]);
             });
         }
     });
 
-    // What the vectors above do NOT carry: every mutator's "did it change" return
-    // value — which is what each renderer gates its `notify::*` re-emit on — and
-    // the guards that have no scenario of their own.
+    // What the vectors do NOT carry: every mutator's "did it change" return value, which
+    // is what each renderer gates its `notify::*` re-emit on, plus the guards that have no
+    // scenario of their own.
     await describe('ComboState selection contract (Adw.ComboRow)', async () => {
         const twoOptions = (): ComboState => {
             const state = new ComboState();
@@ -138,8 +134,8 @@ export default async () => {
             expect(state.count).toBe(0);
             expect(state.selectedValue).toBe('');
             expect(state.select(0)).toBe(false); // nothing to interactively pick
-            // GTK_INVALID_LIST_POSITION, not index 0: an empty model and a model
-            // whose first label is empty used to be the same state.
+            // GTK_INVALID_LIST_POSITION, not index 0 — an empty model and a model whose
+            // first label is empty are different states.
             expect(state.selectedIndex).toBe(ADW_COMBO_NO_SELECTION);
         });
 
@@ -152,9 +148,8 @@ export default async () => {
         });
 
         await it('setSelectedIndex returns whether it changed', () => {
-            // The return IS the notify gate: `<adw-drop-down>` fires
-            // `notify::selected` off it rather than keeping a second copy of the
-            // index to compare against.
+            // The return IS the notify gate: `<adw-drop-down>` fires `notify::selected`
+            // off it rather than keeping a second copy of the index to compare.
             const state = twoOptions();
             expect(state.setSelectedIndex(1)).toBe(true);
             expect(state.setSelectedIndex(1)).toBe(false); // already there → no-op

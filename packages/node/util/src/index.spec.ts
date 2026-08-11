@@ -20,8 +20,6 @@ function stripColor(string: string): string {
 }
 
 export default async () => {
-    // ==================== format — no args / single values ====================
-
     await describe('util.format: basic', async () => {
         await it('should return empty string with no args', async () => {
             expect(util.format()).toBe('');
@@ -57,16 +55,12 @@ export default async () => {
         });
     });
 
-    // ==================== format — %% (literal percent) ====================
-
     await describe('util.format: %%', async () => {
         await it('should handle %% with args', async () => {
             expect(util.format('%% %s', 'foo')).toBe('% foo');
             expect(util.format('%%', 'x')).toBe('% x');
         });
     });
-
-    // ==================== format — %d (number) ====================
 
     await describe('util.format: %d', async () => {
         await it('should format integers', async () => {
@@ -105,8 +99,6 @@ export default async () => {
         });
     });
 
-    // ==================== format — %i (integer) ====================
-
     await describe('util.format: %i', async () => {
         await it('should truncate to integer', async () => {
             expect(util.format('%i', 42)).toBe('42');
@@ -126,8 +118,6 @@ export default async () => {
         });
     });
 
-    // ==================== format — %f (float) ====================
-
     await describe('util.format: %f', async () => {
         await it('should format numbers', async () => {
             expect(util.format('%f', 42)).toBe('42');
@@ -142,8 +132,6 @@ export default async () => {
             expect(util.format('%f', 5n)).toBe('5');
         });
     });
-
-    // ==================== format — %s (string) ====================
 
     await describe('util.format: %s', async () => {
         await it('should format primitives', async () => {
@@ -175,8 +163,6 @@ export default async () => {
         });
     });
 
-    // ==================== format — %j (JSON) ====================
-
     await describe('util.format: %j', async () => {
         await it('should format objects as JSON', async () => {
             expect(util.format('%j', { foo: 'bar' })).toBe('{"foo":"bar"}');
@@ -188,8 +174,6 @@ export default async () => {
             expect(util.format('%j', obj)).toBe('[Circular]');
         });
     });
-
-    // ==================== inspect ====================
 
     await describe('util.inspect', async () => {
         await it('should inspect objects', async () => {
@@ -213,8 +197,6 @@ export default async () => {
             expect(util.inspect(obj)).toBe('custom output');
         });
     });
-
-    // ==================== promisify ====================
 
     await describe('util.promisify', async () => {
         await it('should promisify a callback function', async () => {
@@ -254,8 +236,6 @@ export default async () => {
         });
     });
 
-    // ==================== callbackify ====================
-
     await describe('util.callbackify', async () => {
         await it('should throw on non-function', async () => {
             expect(() => util.callbackify('not a function' as any)).toThrow();
@@ -269,8 +249,6 @@ export default async () => {
             expect(typeof callbacked).toBe('function');
         });
     });
-
-    // ==================== inherits ====================
 
     await describe('util.inherits', async () => {
         await it('should set up prototype chain', async () => {
@@ -326,8 +304,6 @@ export default async () => {
             ).toThrow();
         });
     });
-
-    // ==================== types ====================
 
     await describe('util.types', async () => {
         await it('isDate', async () => {
@@ -422,8 +398,6 @@ export default async () => {
         });
     });
 
-    // ==================== isDeepStrictEqual ====================
-
     await describe('util.isDeepStrictEqual', async () => {
         await it('should compare primitives', async () => {
             expect(util.isDeepStrictEqual(1, 1)).toBeTruthy();
@@ -460,8 +434,6 @@ export default async () => {
         });
     });
 
-    // ==================== TextEncoder / TextDecoder ====================
-
     await describe('util.TextEncoder/TextDecoder', async () => {
         await it('TextEncoder should be available', async () => {
             expect(util.TextEncoder === TextEncoder).toBeTruthy();
@@ -471,8 +443,6 @@ export default async () => {
             expect(util.TextDecoder === TextDecoder).toBeTruthy();
         });
     });
-
-    // ==================== isArray ====================
 
     await describe('util.isArray', async () => {
         await it('should detect arrays', async () => {

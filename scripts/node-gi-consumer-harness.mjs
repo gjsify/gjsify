@@ -1,39 +1,32 @@
 #!/usr/bin/env node
-// Cross-runtime node-gi CONSUMER harness — generalizes the proven
-// `@gjsify/sqlite` "run its GJS test suite on Node via @gjsify/node-gi" leg
-// (packages/node/sqlite `test:gjs-on-node`) into a reusable survey tool.
+// Cross-runtime node-gi CONSUMER harness: runs a gjsify package's own GJS test
+// suite on Node/Bun/Deno through `@gjsify/node-gi`, generalizing the
+// `@gjsify/sqlite` `test:gjs-on-node` leg into a survey tool. Mechanism:
+// packages/node-gi/AGENTS.md § Axis 5. Findings:
+// docs/reports/node-gi-consumer-survey.md.
 //
-// For a given gjsify package it:
-//   1. Picks a node-gi test ENTRY: a committed `src/test.node-gi.mts` (a proof
-//      leg, hand-written like sqlite's) if present, else GENERATES a temporary
-//      one from the package's `src/test.mts` — prepending a bare `print(...)`
-//      call. That bare GJS ambient global is the genuine-GJS-source signal the
-//      CLI's `detectNodeGiGlobals` looks for: it flips `nodeGiGlobalsInject`, so
-//      `@gjsify/node-gi/globals` is auto-injected AND `@girs/*` value imports
-//      resolve to their real bodies whose inner `gi://Ns?version=X` are rewritten
-//      to `requireGi('Ns','X')` by the L2 `gjsGiNodePlugin` (see AGENTS.md
-//      "Axis 5 active track"). Same mechanism sqlite's `test.node-gi.mts` uses.
-//   2. Builds that entry `gjsify build --app node --alias node:<name>=@gjsify/<name>`
-//      (the sqlite `--alias` pattern — the specs' `node:<name>` import is
-//      retargeted onto the libgda/GLib-backed POLYFILL under test, not Node's
-//      own builtin) under Node via a Node-runnable `gjsify` (npm rolldown).
-//      The build ALSO forces every `runtimes.node === "native"` @gjsify/*
-//      package in the target's transitive workspace-dep closure onto its
-//      POLYFILL body (`--alias @gjsify/<dep>=<abs lib/esm/index.js>`): the
-//      standard node routing rewrites those onto `<dep>/globals` native
-//      re-exports, which lack the polyfill-only surface the polyfill under
-//      test imports (the survey's P4/P7 — `@gjsify/buffer`'s
-//      normalizeEncoding/checkEncoding helpers, `@gjsify/message-channel`'s
-//      CONSTRUCTIBLE MessagePort vs Node's non-constructible global). Forcing
-//      the closure reproduces the graph the suite runs against on gjs — the
-//      thing this harness exists to measure.
-//   3. Runs the ONE `--app node` bundle on node, and — reusing example/harness.mjs's
-//      RUNTIMES map + PATH-skip — on bun and deno too (Node-API is their common ABI).
-//   4. Captures build ok/fail, run exit code, the `@gjsify/unit` summary counts
-//      (`✔ [rt] M completed` / `❌ [rt] N of M tests failed`), and the first error
-//      lines, then GROUPS the failure reason (needs-GTK-display / missing-typelib /
-//      marshalling / mainloop-hang / build-error / …) — from the FAILED tests'
-//      messages ONLY, never the whole stdout (see `REASON_RULES`).
+//   1. Entry: a committed `src/test.node-gi.mts` if present, else a temporary one
+//      GENERATED from `src/test.mts` with a bare `print(...)` prepended. That bare
+//      GJS ambient global is the genuine-GJS-source signal `detectNodeGiGlobals`
+//      looks for; it flips `nodeGiGlobalsInject`, so `@gjsify/node-gi/globals` is
+//      auto-injected and `@girs/*` value imports resolve to their real bodies,
+//      whose inner `gi://Ns?version=X` the L2 `gjsGiNodePlugin` rewrites to
+//      `requireGi('Ns','X')`.
+//   2. Builds it `--app node --alias node:<name>=@gjsify/<name>` (the sqlite
+//      pattern: the specs' `node:<name>` import is retargeted onto the POLYFILL
+//      under test, not Node's builtin). It ALSO forces every
+//      `runtimes.node === "native"` `@gjsify/*` in the transitive workspace-dep
+//      closure onto its POLYFILL body, because the standard node routing rewrites
+//      those onto `<dep>/globals` native re-exports which lack polyfill-only
+//      surface (`@gjsify/buffer`'s normalizeEncoding/checkEncoding,
+//      `@gjsify/message-channel`'s CONSTRUCTIBLE MessagePort vs Node's
+//      non-constructible global). Forcing the closure reproduces the graph the
+//      suite runs against on gjs — the thing this harness measures.
+//   3. Runs the ONE `--app node` bundle on node, bun and deno (Node-API is their
+//      common ABI), reusing example/harness.mjs's RUNTIMES map + PATH-skip.
+//   4. Captures build/run outcome and the `@gjsify/unit` counts, then groups the
+//      failure reason from the FAILED tests' messages ONLY, never the whole
+//      stdout (see `REASON_RULES`).
 //
 // TOLERATES failures — captures them. Emits a structured JSON report + a table.
 //
@@ -43,11 +36,11 @@
 //   node scripts/node-gi-consumer-harness.mjs --list <file.json>   # {"packages":["@gjsify/crypto",…]}
 //   Flags: --runtimes node,bun,deno  --timeout <ms>  --out <report.json>  --keep  --quiet
 //
-// Requires: a Node-runnable `gjsify` on PATH / node_modules/.bin (npm rolldown
-// engine — the committed GJS bundle needs @gjsify/rolldown-native), each target
-// package's `lib/` (+ transitive workspace-dep libs) already built (build them
-// with `gjsify workspace @gjsify/<name> build:gjsify --with-dependencies`), and
-// the `@gjsify/node-gi` addon built (packages/node-gi/node-gi, `npm install`).
+// Requires: a Node-runnable `gjsify` on PATH / node_modules/.bin (the npm rolldown
+// engine — the GJS bundle route needs @gjsify/rolldown-native), each target
+// package's `lib/` plus its transitive workspace-dep libs built (`gjsify workspace
+// @gjsify/<name> build:gjsify --with-dependencies`), and the `@gjsify/node-gi`
+// addon built (packages/node-gi/node-gi, `npm install`).
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync, writeFileSync, unlinkSync, mkdirSync, symlinkSync } from 'node:fs';
@@ -57,19 +50,15 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '..');
 
-// ── native typelib env (survey P5 fix) ───────────────────────────────────────
 // A Vala-bridge consumer built `--app node` has a static `gi://GjsifyWebrtc` /
-// `gi://GjsifyHttpSoupBridge` / `gi://Gwebgl` import; that typelib lives in a
-// package's own (or a SIBLING bridge package's) `prebuilds/linux-<arch>/`, which
-// is NOT on `GI_TYPELIB_PATH` by default → the gi:// load fails. `gjsify run`
-// (via detectNativePackages) and `gjsify run/showcase --runtime node` (via
-// runRuntimeBundle → computeNativeEnvForBundle) already prepend those dirs; this
-// standalone harness did not (the survey's P5 gap). Reuse the SAME CLI walker so
-// the transitive case works (@gjsify/http's typelib lives in
-// @gjsify/http-soup-bridge, @gjsify/webrtc's in @gjsify/webrtc-native). Scan from
-// ROOT — the workspace node_modules holds every @gjsify/* prebuild package.
-// Degrades to the plain env if the CLI lib isn't built (the harness needs the CLI
-// to build bundles anyway, so this only bites in a half-built tree).
+// `gi://GjsifyHttpSoupBridge` / `gi://Gwebgl` import whose typelib lives in the
+// package's own or a SIBLING bridge package's `prebuilds/linux-<arch>/`, which is
+// NOT on `GI_TYPELIB_PATH` by default → the gi:// load fails. Reuse the CLI's own
+// walker (as `gjsify run` does) so the transitive case works: @gjsify/http's
+// typelib lives in @gjsify/http-soup-bridge, @gjsify/webrtc's in
+// @gjsify/webrtc-native. Scan from ROOT — the workspace node_modules holds every
+// @gjsify/* prebuild package. Degrades to the plain env when the CLI lib isn't
+// built, which only bites in a half-built tree.
 let NATIVE_ENV = process.env;
 try {
     const { detectNativePackages, buildNativeEnv } = await import(
@@ -83,9 +72,8 @@ try {
     );
 }
 
-// ── runtimes — mirror packages/node-gi/example/harness.mjs ───────────────────
-// gjs runs the native `--app gjs` bundle (not used here — we build `--app node`);
-// node/bun/deno all run the SAME `--app node` node-gi bundle.
+// Mirrors packages/node-gi/example/harness.mjs. node/bun/deno all run the SAME
+// `--app node` node-gi bundle.
 const RUNTIMES = {
     node: { probe: 'node', on: (entry) => ['node', [entry]] },
     bun: { probe: 'bun', on: (entry) => ['bun', [entry]] },
@@ -103,7 +91,6 @@ function isOnPath(cmd) {
     }
 }
 
-// ── package discovery ────────────────────────────────────────────────────────
 const PKG_ROOTS = [
     'packages/node',
     'packages/web',
@@ -174,21 +161,17 @@ function enumerateGjsOnly() {
     return out.sort();
 }
 
-// ── forced sibling-polyfill aliases (survey P4/P7 fix) ───────────────────────
-// The `--alias node:<self>=@gjsify/<self>` retarget bundles the POLYFILL under
-// test, but its sibling `@gjsify/*` imports still get the standard node-target
-// routing: a `runtimes.node === "native"` sibling rewrites to its
-// `<pkg>/globals` native re-export. That mixed polyfill/native graph is NOT the
-// graph the suite exercises on gjs, and it demonstrably lacks polyfill-only
-// surface — `@gjsify/buffer/globals` (= `node:buffer`) has no
-// normalizeEncoding/checkEncoding (broke crypto 526/570 + string_decoder 0/…),
-// and `@gjsify/message-channel/globals` re-exports Node's NON-CONSTRUCTIBLE
-// global MessagePort (broke worker_threads 0/… with "Constructor cannot be
-// called"). So: walk the target's transitive workspace-dep closure
-// (dependencies + optionalDependencies) and force every native-slot @gjsify/*
-// member onto its polyfill entry via a user alias (user aliases override the
-// derived runtime-aliases map). Only built entries are forced — an unbuilt
-// sibling keeps the default routing rather than a dead path.
+// Forced sibling-polyfill aliases. The self-retarget bundles the POLYFILL under
+// test, but its sibling `@gjsify/*` imports still get the standard node routing,
+// so a `runtimes.node === "native"` sibling rewrites to its `<pkg>/globals` native
+// re-export. That mixed graph is not the one the suite exercises on gjs and lacks
+// polyfill-only surface: `@gjsify/buffer/globals` (= `node:buffer`) has no
+// normalizeEncoding/checkEncoding, and `@gjsify/message-channel/globals`
+// re-exports Node's NON-CONSTRUCTIBLE global MessagePort. So walk the transitive
+// workspace-dep closure and force every native-slot member onto its polyfill entry
+// via a user alias (user aliases override the derived runtime-aliases map). Only
+// built entries are forced — an unbuilt sibling keeps the default routing rather
+// than a dead path.
 const pkgJsonCache = new Map();
 function readPkgJson(dir) {
     if (!pkgJsonCache.has(dir)) {
@@ -233,25 +216,16 @@ function collectForcedPolyfillAliases(startDir) {
     return aliases;
 }
 
-// ── test assets ──────────────────────────────────────────────────────────────
-// A suite that touches on-disk assets resolves them RELATIVE TO THE BUNDLE —
-// `new URL('./fixtures/…', import.meta.url)` or `join(__dirname, 'test/…')`.
-// The package's own test bundle lives at the PACKAGE ROOT, so those paths land
-// on `<pkg>/fixtures` / `<pkg>/test`; this harness builds into `<pkg>/dist`, so
-// the same paths land on `<pkg>/dist/…` and the asset is simply not there.
+// A suite that touches on-disk assets resolves them RELATIVE TO THE BUNDLE, and
+// the package's own test bundle sits at the PACKAGE ROOT while this harness builds
+// into `<pkg>/dist` — so `join(__dirname, 'test/…')` lands on `<pkg>/dist/test`
+// and the asset is not there. That is a HARNESS artifact, never a defect in the
+// package under test: bridging only `fixtures/` recorded `@gjsify/fs` as a hard
+// fail (survey gap 7), so every asset dir is bridged rather than one name at a
+// time.
 //
-// That is a HARNESS artifact, never a defect in the package under test, and it
-// has produced at least one false negative in the committed survey: `@gjsify/fs`
-// was recorded as a hard fail purely because `sync.spec.ts` writes its watch
-// scratch file to `join(__dirname, 'test/watch.js')` and only `fixtures/` was
-// bridged (survey gap 7). So bridge every on-disk asset dir the same way,
-// rather than one name at a time — a suite is not a node-gi finding until its
-// assets are where the bundle expects them.
-//
-// Bridged as symlinks (not copies): the suites WRITE into these dirs
-// (`writeFileSync(watchMe)`, `unlinkSync(watchMe)`), so a copy would diverge
-// from the tree the package's own `test:gjs` run uses and could leave the two
-// runs disagreeing about what is on disk.
+// Symlinks, not copies: the suites WRITE into these dirs, and a copy would leave
+// the harness run and the package's own `test:gjs` run disagreeing about disk.
 const STAGED_ASSET_DIRS = ['fixtures', 'test'];
 
 function stageTestAssets(dir, distDir, gjsify, timeout) {
@@ -271,31 +245,25 @@ function stageTestAssets(dir, distDir, gjsify, timeout) {
     }
 }
 
-// ── failure-reason grouping ──────────────────────────────────────────────────
-// PRECEDENCE IS THE ARRAY ORDER — first match wins, and the order is the
-// statement of intent: a NAMED typelib beats the generic "typelib" catch-all,
-// an engine marshalling error beats the generic TypeError shape, a timed-out
-// test beats an assertion (it never reached its assertion). It is an ordered
-// ARRAY, never an object, so precedence can never drift with key-insertion
-// order; `tests/e2e/node-gi-consumer-harness/run.mjs` pins both the order and
-// the scope below.
+// PRECEDENCE IS THE ARRAY ORDER — first match wins: a NAMED typelib beats the
+// generic "typelib" catch-all, an engine marshalling error beats the generic
+// TypeError shape, a timed-out test beats an assertion (it never reached its
+// assertion). An ordered ARRAY and never an object, so precedence cannot drift
+// with key-insertion order; `tests/e2e/node-gi-consumer-harness/run.mjs` pins the
+// order and the scope.
 //
-// SCOPE — a rule is matched against the FAILURE REGION ONLY: the messages of
-// the tests that actually failed, or (when a run produced no per-test markers
-// at all) the error lines of the build/load failure. It is NOT matched against
-// the run's whole stdout. A suite that is 95% green prints hundreds of PASSING
-// test names, and any one of them mentioning "microtask" / "assert" /
-// "typelib" would otherwise decide the bucket for the handful of tests that
-// did fail — that is how `@gjsify/node-globals` (three `structuredClone`
-// assertion failures) landed under `mainloop-drain` in the committed survey.
-// The failing test's own NAME is user prose for the same reason, so it is used
-// only when the failure carried no message; `@gjsify/unit`'s TimeoutError
-// quotes the name into its message (`Timeout: "<name>" exceeded 5000ms`), so
-// double-quoted spans are blanked before matching.
+// SCOPE — matched against the FAILURE REGION ONLY (the failed tests' messages, or
+// the build/load error lines when a run produced no per-test markers), never the
+// whole stdout: a 95%-green suite prints hundreds of PASSING test names, and one
+// mentioning "microtask"/"assert"/"typelib" decides the bucket for the few that
+// did fail — that is how `@gjsify/node-globals`'s three `structuredClone`
+// assertion failures landed under `mainloop-drain`. The failing test's NAME is
+// user prose for the same reason, so it is a last resort, and double-quoted spans
+// are blanked because `@gjsify/unit`'s TimeoutError quotes the name into its
+// message.
 //
-// A real process timeout is NOT here — it is detected from the spawn error
-// (`ETIMEDOUT`) and reported as its own `timeout` status, so a test merely
-// NAMED "timeout" can't mis-bucket.
+// A real process timeout is NOT here — it comes from the spawn error (`ETIMEDOUT`)
+// as its own `timeout` status, so a test merely NAMED "timeout" cannot mis-bucket.
 const REASON_RULES = [
     [
         /Typelib file for namespace '?(Gtk|Gdk|Adw|Gsk)'?|namespace (Gtk|Gdk|Adw)|cannot open display|GDK_BACKEND|Gtk-WARNING|gtk_init|could not (find|open) display/i,
@@ -323,13 +291,12 @@ const REASON_RULES = [
         'runtime-typeerror-or-unimpl',
     ],
     [
-        // `Timeout: "<test>" exceeded <n>ms` is `@gjsify/unit`'s TimeoutError —
-        // the P1 signature (nothing pumps the default GLib main context in a
-        // bare `node bundle.mjs`), i.e. the same root cause as the wall-clock
-        // `timeout` status, only per-test. It has to be listed EXPLICITLY: the
-        // old whole-stdout haystack caught these packages by accident (via an
-        // unrelated `MainLoop`/`microtask` mention elsewhere in the log), and
-        // scoping to the failure region would otherwise drop them to `other`.
+        // `Timeout: "<test>" exceeded <n>ms` is `@gjsify/unit`'s TimeoutError:
+        // nothing pumps the default GLib main context in a bare `node bundle.mjs`,
+        // the same root cause as the wall-clock `timeout` status but per-test. It
+        // must be listed EXPLICITLY — the whole-stdout haystack used to catch these
+        // by accident via an unrelated `MainLoop`/`microtask` mention, so scoping to
+        // the failure region would drop them to `other`.
         /Timeout:[^\n]*exceeded \d+\s*ms|hang|did not exit|still running after|deadlock|main-?loop|MainLoop|g_main|microtask|promise.*not.*drain/i,
         'mainloop-drain',
     ],
@@ -343,21 +310,17 @@ const REASON_RULES = [
 // oxlint-disable-next-line eslint/no-control-regex -- matching the ESC control character IS the point: this strips ANSI SGR colour codes from a runtime's captured output
 const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*m/g, '');
 
-// `@gjsify/unit`'s SUMMARY line also starts with ❌ (`❌ [rt] N of M tests
-// failed`). It is a counter, not a failure — `parseSummary` already reads it —
-// so it must not enter the failure region it would otherwise pollute.
+// `@gjsify/unit`'s SUMMARY line also starts with ❌. It is a counter, not a
+// failure, so it must not enter the failure region.
 const SUMMARY_MARKER = /^(?:\[[^\]]*\]\s*)?\d+\s+of\s+\d+\s+tests failed/;
 
 /**
  * Pull up to `max` structured FAILURE records — the failure region of a run.
  *
- * Each failing `it()` prints `  ❌ <name>` (or `⏱ <name>` for a timeout) and
- * the error message on the next line (see `@gjsify/unit`'s reporter), so a
- * record is `{ name, message }`. When a run produced no per-test markers at
- * all (a build or load failure), the error-ish lines ARE the failure — they
- * become records with an empty `name`.
- *
- * @returns {{ name: string, message: string }[]}
+ * `@gjsify/unit`'s reporter prints `❌ <name>` (or `⏱ <name>` on timeout) with the
+ * message on the next line, so a record is `{ name, message }`. When a run produced
+ * no per-test markers at all (build or load failure), the error-ish lines ARE the
+ * failure and become records with an empty `name`.
  */
 function collectFailures(text, max = 4) {
     const lines = text.split('\n').map(stripAnsi);
@@ -388,17 +351,15 @@ function collectFailures(text, max = 4) {
 /** Render a failure record the way the report stores it. */
 const formatFailure = (f) => (f.name && f.message ? `${f.name} — ${f.message}` : f.name || f.message);
 
-// What a rule is matched against: the failure's MESSAGE (the name only as a
-// last resort, when the failure carried none), with double-quoted spans blanked
-// so a test NAME quoted into a message — `Timeout: "should assert …" exceeded
-// 5000ms` — cannot decide the bucket.
+// The failure's MESSAGE (name only as a last resort), with double-quoted spans
+// blanked so a test NAME quoted into a message cannot decide the bucket.
 const signatureOf = (f) => (f.message || f.name).replace(/"[^"\n]*"/g, '""');
 
 /**
- * Bucket a failure by root cause. Matched ONLY against the failure records the
- * report also stores next to the reason, so an attribution is verifiable by
- * eye: if none of the printed samples carries the signature, the bucket is
- * wrong. First rule in `REASON_RULES` order wins.
+ * Bucket a failure by root cause, first `REASON_RULES` match winning. Matched ONLY
+ * against the failure records the report stores next to the reason, so an
+ * attribution is verifiable by eye: if no printed sample carries the signature,
+ * the bucket is wrong.
  *
  * @param {{ name: string, message: string }[]} failures
  */
@@ -408,13 +369,12 @@ function classify(failures) {
     return 'other';
 }
 
-// Parse the @gjsify/unit summary line for pass/fail counts.
 function parseSummary(out) {
     const clean = stripAnsi(out);
     let m = clean.match(/❌\s*(?:\[[^\]]*\]\s*)?(\d+)\s+of\s+(\d+)\s+tests failed/);
     if (m) {
         // `failed` can EXCEED `total` when @gjsify/unit also counts assertions that
-        // fired outside any it() (leaked timers / a broken constructor spamming a
+        // fired outside any it() (leaked timers, a broken constructor spamming a
         // loop) — so clamp `passed` at 0 rather than report a negative.
         const total = +m[2];
         const failed = +m[1];
@@ -425,21 +385,14 @@ function parseSummary(out) {
     return null;
 }
 
-// ── build + run one package ──────────────────────────────────────────────────
-//
-// KNOWN-WRONG ON WINDOWS, deliberately left. `node_modules/.bin/gjsify` exists
-// there too — it is the `sh` member of npm's shim trio, and the one member
-// Windows cannot execute — so `existsSync` answering yes says nothing about
-// spawnability, and `execFileSync` returns ENOENT.
-//
-// `scripts/resolve-gjsify.mjs` is the fix, but applying it here is not a
-// one-line change: the cmd.exe form embeds the arguments INSIDE the quoted
-// `/c "…"` line, so the resolved command cannot be threaded through this file
-// as the bare string every `exec(gjsify, …)` call site currently passes around.
-// This harness drives `@gjsify/node-gi`, which needs GObject-Introspection and
-// so is Linux-only in practice — there is no Windows run to fix. Rewriting the
-// threading blind, on a harness this host cannot exercise, would trade a known
-// unreachable bug for an unmeasured change. Recorded in `status/open-todos.md`.
+// KNOWN-WRONG ON WINDOWS, deliberately left: `existsSync` hits the `sh` member of
+// npm's shim trio, the one member Windows cannot execute, so `execFileSync` gets
+// ENOENT. `scripts/resolve-gjsify.mjs` is the fix but not a one-line change here —
+// the cmd.exe form embeds the arguments inside the quoted `/c "…"` line, so the
+// resolved command cannot be threaded through as the bare string every
+// `exec(gjsify, …)` site passes around. Left because the harness needs
+// GObject-Introspection and is Linux-only in practice. Recorded in
+// `status/open-todos.md`.
 function resolveGjsify() {
     const local = join(ROOT, 'node_modules', '.bin', 'gjsify');
     if (existsSync(local)) return local;
@@ -465,11 +418,9 @@ function exec(cmd, args, opts) {
             stderr: (err.stderr || '').toString(),
             // A wall-clock kill by `execFileSync`'s own `timeout` does NOT set
             // `killed` — Node reports `code:'ETIMEDOUT'`, `signal:'SIGTERM'`,
-            // `status:null` (measured). Keying only on `killed` made the
-            // `timeout` status unreachable, so every genuine hang was recorded
-            // as a plain `fail` and then bucketed by whatever its output
-            // happened to say — which is exactly how a suite that PASSES and
-            // then never exits gets filed under a failure reason.
+            // `status:null`. Keying only on `killed` made the `timeout` status
+            // unreachable, so a suite that PASSES and then never exits was recorded
+            // as a plain `fail` and bucketed by whatever its output said.
             timedOut: err.code === 'ETIMEDOUT' || !!err.killed,
         };
     }
@@ -517,20 +468,13 @@ function runPackage(name, { runtimes, timeout, keep, gjsify }) {
         // sibling-polyfill closure (see collectForcedPolyfillAliases above).
         const relEntry = entrySrc.replace(dir + '/', '');
         const forcedAliases = collectForcedPolyfillAliases(dir);
-        // The self-retarget must name the POLYFILL BODY, not the package, when
-        // the package under test declares `node: "native"` itself. Aliasing
-        // `node:<bare>` to `@gjsify/<bare>` there routes straight back through
-        // the slot rule to `<pkg>/globals`, whose whole job is to re-export
-        // `node:<bare>` — a cycle the bundler reports as
-        // `[CIRCULAR_REEXPORT] '<Name>' ... references itself` (or, with the
-        // `export *` spelling globals.mjs actually uses, as the more cryptic
-        // `[MISSING_EXPORT] "<Name>" is not exported by "globals.mjs"`).
-        // @gjsify/string_decoder is the case that surfaced it: BUILD-FAIL, which
-        // `--require-pass` then reported as "did not PASS on node".
-        //
-        // This is the SAME rule collectForcedPolyfillAliases already applies to
-        // every `native`-slotted sibling — it simply never applied it to the
-        // package being tested, whose own slot is the one the retarget targets.
+        // When the package under test declares `node: "native"` itself, the
+        // self-retarget must name the POLYFILL BODY rather than the package:
+        // aliasing `node:<bare>` to `@gjsify/<bare>` routes back through the slot
+        // rule to `<pkg>/globals`, whose job is to re-export `node:<bare>` — a cycle
+        // the bundler reports as `[CIRCULAR_REEXPORT]`, or with globals.mjs's
+        // `export *` spelling as the more cryptic `[MISSING_EXPORT]`. Same rule
+        // `collectForcedPolyfillAliases` applies to every native-slotted sibling.
         const selfPkg = readPkgJson(dir);
         const selfEntry = selfPkg?.gjsify?.runtimes?.node === 'native' ? polyfillEntryOf(dir, selfPkg) : null;
         const selfTarget = selfEntry ?? name;
@@ -610,7 +554,6 @@ function runPackage(name, { runtimes, timeout, keep, gjsify }) {
     return result;
 }
 
-// ── cli ──────────────────────────────────────────────────────────────────────
 function parseArgs(argv) {
     const o = {
         packages: [],
@@ -666,7 +609,6 @@ function main() {
     }
     if (!opts.quiet) process.stderr.write('\n');
 
-    // ── table ──
     const cols = opts.runtimes;
     const pad = (s, n) => String(s).padEnd(n);
     console.log('\n' + pad('package', 30) + pad('build', 12) + cols.map((c) => pad(c, 18)).join('') + 'reason');
@@ -684,7 +626,6 @@ function main() {
         console.log(pad(r.name, 30) + pad(build, 12) + cells.join('') + reason);
     }
 
-    // ── grouped summary ──
     const groups = {};
     for (const r of results) {
         const rep = !r.build?.ok

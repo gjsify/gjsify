@@ -108,8 +108,9 @@ adw-dialog {
     padding: 0 6px;
   }
 
-  // Round flat close button drawing a CSS "×" glyph (no window-close symbolic
-  // ships in @gjsify/adwaita-icons — same approach as <adw-preferences-dialog>).
+  // Round flat close button drawing a CSS "×" glyph: `windowCloseSymbolic` exists in
+  // @gjsify/adwaita-icons, but the generated `.adw-icon--<name>` mask classes come from
+  // the ICONS map in scripts/build-scss.mjs, which has no window-close entry.
   .adw-dialog-close {
     appearance: none;
     border: none;

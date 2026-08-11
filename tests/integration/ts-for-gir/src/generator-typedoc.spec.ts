@@ -143,9 +143,11 @@ export default async () => {
         );
     });
 
-    // HTML generation uses TypeDoc's shiki syntax highlighter which requires
-    // WebAssembly Promise APIs. GJS/SpiderMonkey 128 does not support WASM,
-    // so HTML generation only works on Node. Tracked: status/open-todos.md.
+    // HTML generation goes through TypeDoc's shiki highlighter, which calls the
+    // WebAssembly Promise APIs. GJS ships those as throwing stubs — only the
+    // synchronous `WebAssembly.{Module,Instance}` constructors work — so this leg
+    // is Node-only until the suite registers `@gjsify/webassembly`, which exists
+    // to wrap those constructors into the Promise API.
     await on('Node.js', async () => {
         await describe('@ts-for-gir/generator-html-doc — HtmlDocGenerator', async () => {
             await it(

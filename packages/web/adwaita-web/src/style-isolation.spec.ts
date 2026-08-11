@@ -1,14 +1,11 @@
-// Style-isolation regression test (browser axis). Guards the boundary reset
-// (scss/_reset.scss, ADR 0010): a host page's inherited typography must not leak
-// into an adwaita-web widget. It also guards that the widget's tag is listed in
-// the reset's `$adw-components` — if it weren't, the reset wouldn't apply and
-// these assertions would fail.
+// The boundary reset (scss/_reset.scss, ADR 0010): a host page's inherited typography must
+// not leak into an adwaita-web widget. Also guards that the widget's tag is listed in the
+// reset's `$adw-components` — without it the reset would not apply and these fail.
 import { describe, expect, it } from '@gjsify/unit';
 
 export const AdwStyleIsolationTest = async () => {
     await describe('style isolation (boundary reset)', async () => {
         await it('re-roots typography so a host font does not inherit into a widget', async () => {
-            // A container styled like a hostile host theme.
             const host = document.createElement('div');
             host.style.fontFamily = 'Georgia, "Times New Roman", serif';
             host.style.color = 'rgb(255, 0, 255)';

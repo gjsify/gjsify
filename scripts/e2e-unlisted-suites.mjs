@@ -1,24 +1,14 @@
 // Suite directory → WHY it is deliberately absent from `package.json#scripts.test:e2e`.
 //
-// `scripts/e2e-shard.mjs` parses that script rather than globbing `tests/e2e/*`, and
-// that is correct: a suite can need setup the standard e2e environment does not do, and
-// a glob would run it anyway. What was missing is the other half — a record of WHICH
-// omissions are deliberate.
+// `scripts/e2e-shard.mjs` parses that script rather than globbing `tests/e2e/*`, which is
+// correct — a suite can need setup the shared batch does not do — but left no record of
+// which omissions were meant: 12 of 112 suites ran nowhere, eleven by oversight, among
+// them `release-bundle-gate`, written to cover the gate that let v0.28.0 publish half its
+// packages and named by no script at all.
 //
-// Without it, 12 of 112 suites ran nowhere and were indistinguishable from each other:
-// eleven were oversights (all eleven pass unchanged; they are listed now) and exactly
-// one was intentional. Among the eleven were `gjs-less-host` — the Node-free host path,
-// which is where a released regression in `gjsify lint` had just been found — and
-// `release-bundle-gate`, written days earlier to cover the release gate that let
-// v0.28.0 publish half its packages. Its PR body claimed the suite WAS the pre-release
-// coverage. It was in no script.
-//
-// So an omission now costs a sentence. `scripts/check-e2e-suite-coverage.mjs` fails on a
-// suite that is neither listed nor named here, on an entry that IS listed (self-retiring
-// — the deferral cannot outlive its cause), and on an entry whose directory is gone.
-// Same shape as `scripts/manifest-conformance/unchecked-fields.mjs` and
-// `PREBUILD_GIR_GAPS`, for the same reason: an honest "not covered" must be available,
-// a silent one must not.
+// Enforced by `scripts/check-e2e-suite-coverage.mjs` (see its header); same shape as
+// `scripts/manifest-conformance/unchecked-fields.mjs` and `PREBUILD_GIR_GAPS` — an honest
+// "not covered" must be available, a silent one must not.
 //
 // The reason must say what the suite NEEDS that `test:e2e` does not provide — not that
 // it is slow, and not that it fails. A failing suite is a finding, not an exemption.

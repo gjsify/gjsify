@@ -9,7 +9,6 @@ import { describe, it, expect } from '@gjsify/unit';
 import * as http from 'node:http';
 
 export default async () => {
-    // ===================== STATUS_CODES comprehensive =====================
     await describe('http.STATUS_CODES comprehensive', async () => {
         await it('should be a non-empty object', async () => {
             expect(typeof http.STATUS_CODES).toBe('object');
@@ -179,7 +178,6 @@ export default async () => {
         });
     });
 
-    // ===================== METHODS comprehensive =====================
     await describe('http.METHODS comprehensive', async () => {
         await it('should be an array', async () => {
             expect(Array.isArray(http.METHODS)).toBe(true);
@@ -245,7 +243,6 @@ export default async () => {
         });
     });
 
-    // ===================== validateHeaderName =====================
     await describe('http.validateHeaderName extended', async () => {
         await it('should accept standard header names', async () => {
             const valid = [
@@ -299,7 +296,6 @@ export default async () => {
         });
     });
 
-    // ===================== validateHeaderValue =====================
     await describe('http.validateHeaderValue extended', async () => {
         await it('should accept normal string values', async () => {
             expect(() => http.validateHeaderValue('Content-Type', 'text/html')).not.toThrow();
@@ -335,7 +331,6 @@ export default async () => {
         });
     });
 
-    // ===================== maxHeaderSize =====================
     await describe('http.maxHeaderSize', async () => {
         await it('should be a number', async () => {
             expect(typeof http.maxHeaderSize).toBe('number');
@@ -350,7 +345,6 @@ export default async () => {
         });
     });
 
-    // ===================== Agent extended =====================
     await describe('http.Agent extended', async () => {
         await it('should be constructable', async () => {
             const agent = new http.Agent();
@@ -409,7 +403,6 @@ export default async () => {
         });
     });
 
-    // ===================== globalAgent =====================
     await describe('http.globalAgent extended', async () => {
         await it('should be defined', async () => {
             expect(http.globalAgent).toBeDefined();
@@ -428,7 +421,6 @@ export default async () => {
         });
     });
 
-    // ===================== OutgoingMessage properties =====================
     await describe('http.OutgoingMessage extended', async () => {
         await it('should export OutgoingMessage class', async () => {
             expect(typeof http.OutgoingMessage).toBe('function');
@@ -551,7 +543,6 @@ export default async () => {
         });
     });
 
-    // ===================== IncomingMessage properties =====================
     await describe('http.IncomingMessage', async () => {
         await it('should export IncomingMessage class', async () => {
             expect(typeof http.IncomingMessage).toBe('function');
@@ -566,7 +557,6 @@ export default async () => {
         });
     });
 
-    // ===================== createServer =====================
     await describe('http.createServer extended', async () => {
         await it('should be a function', async () => {
             expect(typeof http.createServer).toBe('function');

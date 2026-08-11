@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-// @gjsify/gtk-runtime-darwin-arm64 — path helpers for the relocated GTK runtime
-// bundle. @gjsify/node-gi resolves this package (optional, os/cpu-gated) to find
-// the bundled typelib + dylib dirs when no Homebrew GTK is present. The heavy
-// `gtk/` payload is produced by scripts/build-gtk-runtime.mjs on a macOS runner.
+// @gjsify/gtk-runtime-darwin-arm64 — path helpers for the relocated GTK runtime bundle.
+// @gjsify/node-gi resolves this package (optional, os/cpu-gated) to find the bundled typelib +
+// dylib dirs when no Homebrew GTK is present. The heavy `gtk/` payload is produced by
+// ../scripts/build-gtk-runtime-darwin.mjs on an Apple-silicon macOS runner.
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';

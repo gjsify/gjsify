@@ -1,15 +1,13 @@
 // @gjsify/devtools — the app-specific extension + install option types.
-// Original implementation.
 
 import type Gio from '@girs/gio-2.0';
 import type { MethodKind } from '@gjsify/devtools-protocol';
 
 /**
- * App-specific extension of the devtools control plane. The host contributes
- * extra DBus methods (e.g. the map-editor's PaintTile) without forking the
- * generic core: the `<method>` XML is merged into `org.gjsify.Devtools`, the
- * handlers are attached as concrete methods (positional DBus args), and each
- * carries a pause classification the guard enforces.
+ * App-specific extension of the devtools control plane: extra DBus methods (the
+ * map-editor's PaintTile, say) without forking the generic core. The `<method>` XML is
+ * merged into `org.gjsify.Devtools`, the handlers attach as concrete methods taking
+ * positional DBus args, and each carries a pause classification the guard enforces.
  */
 export interface DevtoolsExtension {
     /** `<method>…</method>` XML fragments merged into the interface. */

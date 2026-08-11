@@ -1,46 +1,34 @@
-// GLib MainLoop management for GJS — original implementation
-// Provides an implicit event loop analogous to Node.js's built-in event loop.
+// GLib MainLoop management: an implicit event loop analogous to Node's.
 
 import type GLib from '@girs/glib-2.0';
 
-/** Sentinel to prevent double-start (a second runAsync() would reject — its main-loop hook is already registered). */
+/** Guards double-start: a second `runAsync()` rejects, its hook is already registered. */
 let _started = false;
 
-/** The singleton MainLoop instance, if created. */
 let _loop: GLib.MainLoop | null = null;
 
-/**
- * Ensure a GLib MainLoop is running for async I/O dispatch (Soup.Server,
- * Gio.SocketService, etc.). No-op on Node.js. Idempotent.
- *
- * - Called automatically by `http.Server.listen()`, `net.Server.listen()`,
- *   `dgram.Socket.bind()` etc.
- * - GTK apps should NOT call this — they use `Gtk.Application.runAsync()` instead.
- *
- * ## Teardown hazard with top-level `await`
- *
- * This registers a main-loop hook via `runAsync()` → `setMainLoopHook`. With a
- * hook set, GJS's `eval_module` drives the hook's *blocking* `loop.run()`. If
- * the entry module also has a pending top-level `await`, terminating the
- * process with a **bare `imports.system.exit()` from an async/Promise
- * continuation deadlocks**: `system.exit()` only sets GJS's internal exit flag,
- * it does not call `loop.quit()`, so the parked `loop.run()` never returns and
- * `eval_module` never reaches the real `::exit()`. Microtask draining itself is
- * unaffected (the promise-job dispatcher GSource keeps draining); only the exit
- * hangs. See `docs/poc/tla-microtask-draining.md`.
- *
- * Safe teardown: exit through `process.exit()` (which idle-schedules
- * `quitMainLoop()` + `system.exit()` — see `@gjsify/process`'s `exitProcess`)
- * or call {@link quitMainLoop} yourself before exiting. For a long-running
- * server entry, prefer a `main().catch(…)` body over a top-level `await`.
- *
- * @returns The MainLoop instance on GJS, or `undefined` on Node.js.
- */
 /** GJS runtime bootstrap shape we read here. Pre-dates `@girs/*` resolution. */
 interface _GjsImports {
     imports?: { gi?: { GLib?: typeof GLib } };
 }
 
+/**
+ * Ensure a GLib MainLoop is running for async I/O dispatch (Soup.Server,
+ * Gio.SocketService, …). No-op on Node.js. Idempotent.
+ *
+ * Called automatically by `http.Server.listen()`, `net.Server.listen()`,
+ * `dgram.Socket.bind()`. GTK apps must NOT call it — they use
+ * `Gtk.Application.runAsync()` instead.
+ *
+ * Teardown hazard: with a main-loop hook set, GJS's `eval_module` drives the
+ * hook's *blocking* `loop.run()`, so terminating from an async continuation with
+ * a bare `imports.system.exit()` DEADLOCKS — it only sets GJS's internal exit
+ * flag, never calls `loop.quit()`, so the parked `loop.run()` never returns.
+ * Microtask draining is unaffected; only the exit hangs
+ * (`docs/poc/tla-microtask-draining.md`). Exit through `process.exit()` (which
+ * idle-schedules `quitMainLoop()` + `system.exit()`) or call {@link quitMainLoop}
+ * yourself first.
+ */
 export function ensureMainLoop(): GLib.MainLoop | undefined {
     const gjsImports = (globalThis as unknown as _GjsImports).imports;
     if (!gjsImports) return undefined; // Not GJS
@@ -51,20 +39,15 @@ export function ensureMainLoop(): GLib.MainLoop | undefined {
     _loop = new GLibModule.MainLoop(null, false);
     _started = true;
 
-    // Only call runAsync() if no mainloop is currently running on the default
-    // context. If one is already running (e.g., test runner's mainloop.run()
-    // or Gtk.Application.runAsync()), async I/O already works through the
-    // shared default context — calling runAsync() would register a
-    // setMainLoopHook whose loop.run() blocks forever after tests quit it
-    // (g_main_loop_run resets the quit flag on entry).
+    // A loop already running on the default context (test runner's
+    // `mainloop.run()`, `Gtk.Application.runAsync()`) already dispatches our async
+    // I/O; adding a setMainLoopHook on top gives a `loop.run()` that blocks
+    // forever once tests quit it, because g_main_loop_run resets the quit flag on
+    // entry.
     if (GLibModule.main_depth() === 0) {
-        // GIR types `runAsync(): Promise<void>` since GJS 1.86; the promise
-        // settles when the loop quits. GJS's override arms `setMainLoopHook`
-        // INSIDE the Promise executor, so a hook that is already registered
-        // (e.g. Gtk.Application.runAsync()) surfaces as a REJECTION of this
-        // promise — never as a synchronous throw. Swallow exactly that case:
-        // an existing hook means async I/O already dispatches, no action
-        // needed. Cancellation is via `quitMainLoop()`.
+        // GJS arms `setMainLoopHook` INSIDE the Promise executor, so an
+        // already-registered hook surfaces as a REJECTION here, never as a
+        // synchronous throw. Swallow exactly that: async I/O already dispatches.
         _loop.runAsync().catch(() => {
             /* main-loop hook already registered — nothing to do */
         });

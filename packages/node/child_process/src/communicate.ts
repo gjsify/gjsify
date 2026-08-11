@@ -4,7 +4,6 @@
 // `ETIMEDOUT` + the child killed with `options.killSignal`).
 //
 // WHY THIS EXISTS
-// ---------------
 // `Gio.Subprocess.communicate()` blocks the calling thread and never iterates a
 // GLib main context, so a `GLib.timeout_add()` armed around it can never fire.
 // The previous implementation worked around that by prepending the GNU

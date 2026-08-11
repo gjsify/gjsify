@@ -1,4 +1,4 @@
-// IntersectionObserver stub for GJS — original implementation
+// IntersectionObserver stub for GJS.
 // Reference: refs/happy-dom/packages/happy-dom/src/intersection-observer/IntersectionObserver.ts
 // Copyright (c) David Ortner (capricorn86). MIT license.
 // Modifications: Stub implementation — no actual intersection tracking
@@ -6,8 +6,8 @@
 import type { Element } from './element.js';
 
 /**
- * IntersectionObserver stub.
- * Many libraries check for IntersectionObserver existence; this prevents crashes.
+ * Tracks no intersections. It exists because many libraries check for `IntersectionObserver` and
+ * crash without it.
  *
  * Reference: https://developer.mozilla.org/en-US/docs/Web/API/IntersectionObserver
  */
@@ -25,17 +25,11 @@ export class IntersectionObserver {
         this.thresholds = Array.isArray(options?.threshold) ? options.threshold : [options?.threshold ?? 0];
     }
 
-    observe(_target: Element): void {
-        // Stub
-    }
+    observe(_target: Element): void {}
 
-    unobserve(_target: Element): void {
-        // Stub
-    }
+    unobserve(_target: Element): void {}
 
-    disconnect(): void {
-        // Stub
-    }
+    disconnect(): void {}
 
     takeRecords(): unknown[] {
         return [];

@@ -1,19 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Node-version preflight for the native install backend.
 //
-// The native backend composes native deps whose prebuilt binaries are ABI-locked
-// to the Node line gjsify targets (see `.nvmrc`). On an older Node major they load
-// a mismatched ABI and SIGSEGV mid-install instead of failing cleanly — a
-// confusing crash with no actionable message (observed: Node 22 in a Fedora
-// container segfaults `gjsify install --backend native` during download/extract).
-// This preflight turns that into a clear, actionable error.
+// Its prebuilt binaries are ABI-locked to the Node line gjsify targets (`.nvmrc`).
+// On an older major they load a mismatched ABI and SIGSEGV mid-install instead of
+// failing cleanly — measured: Node 22 in a Fedora container segfaults
+// `gjsify install --backend native` during download/extract. This turns that into
+// an actionable error.
 
 import { isNode, gjsSystemVersion } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
-/**
- * Minimum Node.js major the native install backend supports — its prebuilt native
- * modules are ABI-locked to this line (kept in sync with `.nvmrc`).
- */
+/** Minimum Node major the native install backend supports — keep in sync with `.nvmrc`. */
 export const MIN_NODE_MAJOR = 24;
 
 /** Parse the major from a `process.versions.node`-style string (`'24.18.0'` → 24). */
@@ -22,11 +18,9 @@ export function parseNodeMajor(version: string): number {
 }
 
 /**
- * The preflight verdict for the native install backend, factored out so it can be
- * unit-tested without spawning a foreign Node. Returns an error message when the
- * runtime is real Node older than {@link MIN_NODE_MAJOR}, else `null` — i.e. on a
- * supported Node, on GJS (which fakes `process.versions.node` and does not use
- * these prebuilds), or on a version string that does not parse.
+ * The preflight verdict, factored out so it can be unit-tested without spawning a
+ * foreign Node. `null` (pass) on a supported Node, under GJS, and on a version
+ * string that does not parse — an unparseable version must not block an install.
  */
 export function nativeBackendNodeError(version: string, onRealNode: boolean): string | null {
     if (!onRealNode) return null;
@@ -39,21 +33,18 @@ export function nativeBackendNodeError(version: string, onRealNode: boolean): st
     );
 }
 
-/** True when the CLI runs on real Node — NOT GJS, which fakes `process.versions.node`. */
+/**
+ * True when the CLI runs on real Node. GJS must be ruled out FIRST: `@gjsify/process`
+ * fakes `process.versions.node = '20.0.0'` for compat, so reading that field would
+ * be a false Node positive there (and a false preflight failure, since 20 < 24).
+ */
 function onRealNode(): boolean {
-    // GJS exposes `imports.system.version`; @gjsify/process fakes
-    // `process.versions.node = '20.0.0'` for compat, so check GJS FIRST — a plain
-    // `process.versions.node` read would be a false Node positive under GJS.
     const sysVersion = gjsSystemVersion();
     if (sysVersion !== undefined) return false;
     return isNode();
 }
 
-/**
- * Guard the native install backend: throw a clear error on an unsupported Node
- * major instead of letting the ABI-mismatched prebuilds SIGSEGV mid-install.
- * No-op under GJS and on supported Node.
- */
+/** Throw the preflight verdict as an error; no-op under GJS and on a supported Node. */
 export function assertNativeBackendNodeVersion(): void {
     const message = nativeBackendNodeError(process.versions.node, onRealNode());
     if (message) throw new Error(message);

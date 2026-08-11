@@ -1,39 +1,33 @@
 // @gjsify/adwaita-core/conformance — the cross-renderer spec, as data.
 //
-// WHY THIS IS A SEPARATE SUBPATH, AND WHY IT IS DATA
-//
 // `@gjsify/adwaita-core` holds the behavior; this subpath holds the EXPECTATIONS
-// that behavior is judged against, derived row by row from the libadwaita C
-// source. Both renderers — `@gjsify/adwaita-web` (Custom Elements) and
+// it is judged against, derived row by row from the libadwaita C source. Both
+// renderers — `@gjsify/adwaita-web` (Custom Elements) and
 // `@gjsify/adwaita-nativescript` (native NS views) — import these tables into
-// their own spec suites and drive their real widgets with them.
+// their own spec suites and drive their real widgets with them, so a renderer
+// that re-implements a derivation instead of delegating fails a unit test naming
+// the exact input that drifted.
 //
-// That is the point: a renderer which quietly re-implements a derivation instead
-// of delegating to core does not fail "eventually, in a screenshot diff" — it
-// fails a unit test, on the machine, in CI, naming the exact input that drifted.
-// The avatar family is why this exists: the two ports carried near-identical
-// copies of the initials + colour derivation, one of them had silently drifted
-// to two-letter initials for single-word names, and BOTH hashed UTF-16 code
-// units where GLib hashes UTF-8 bytes — so every accented name got the wrong
-// colour in both. Nothing in the build was in a position to notice.
+// The avatar family is why this exists: the two ports carried near-identical copies of the
+// initials + colour derivation, one had drifted to two-letter initials for single-word
+// names, and BOTH hashed UTF-16 code units where GLib hashes UTF-8 bytes — so every
+// accented name got the wrong colour in both, and nothing was in a position to notice.
 //
-// WRITING A VECTOR: CITE THE SELECTOR THAT WINS THE CASCADE
+// EVERY VECTOR CARRIES A `rule`: the C function, selector or edge case that row pins down,
+// and why it is a row at all. It is also the test title, so it is what a failure names.
 //
-// A vector derived from the same reading of the source as the implementation
-// cannot catch a MISREADING of that source — it only pins the misreading down, and
-// then ships it under the word "conformance". So a `rule` that cites CSS must name
-// the most SPECIFIC selector that applies to the widget under test, and say so
-// when a less specific one is being beaten.
-//
-// The incident: `SPLIT_BUTTON_DIRECTION_VECTORS` pinned `direction="none"` to
-// `open-menu-symbolic`, citing `_buttons.scss:451-453`. That is the PLAIN
-// `menubutton arrow` block. 167 lines further down, inside `splitbutton { … }`,
-// `> menubutton > button > arrow.none` re-declares the glyph as
-// `pan-down-symbolic` (:621-623) — four element selectors plus a class, against
-// two plus a class, so the split button never drew the hamburger in GTK. Both
-// renderers drew it anyway, for the whole life of the module, and the vector
-// asserted they were right. Grep the whole stylesheet for the node you are
-// citing, not just the block you found it in first.
+// WRITING A VECTOR: CITE THE SELECTOR THAT WINS THE CASCADE. A vector derived from the same
+// reading of the source as the implementation cannot catch a MISREADING — it pins the
+// misreading down and ships it under the word "conformance". So a `rule` citing CSS must
+// name the most SPECIFIC selector that applies to the widget under test, and say when a
+// less specific one is beaten. The incident: `SPLIT_BUTTON_DIRECTION_VECTORS` pinned
+// `direction="none"` to `open-menu-symbolic`, citing the PLAIN `menubutton arrow` block of
+// `_buttons.scss`; further down, inside `splitbutton { … }`,
+// `> menubutton > button > arrow.none` re-declares the glyph as `pan-down-symbolic` — four
+// element selectors plus a class against two plus a class, so the split button never drew
+// the hamburger in GTK. Both renderers drew it anyway and the vector asserted they were
+// right. Grep the whole stylesheet for the node you are citing, not just the block you
+// found it in first.
 //
 // Vectors are opt-in via this subpath rather than the package root so shipping
 // applications never bundle the test corpus.
@@ -432,7 +426,6 @@ export type {
     StripMnemonicVector,
 } from './preferences.js';
 
-// --- Clamp / spinner / toolbar-view arithmetic vectors ---
 export {
     CLAMP_ALLOCATE_VECTORS,
     CLAMP_CHILD_SIZE_VECTORS,

@@ -1,11 +1,8 @@
 // <adw-popover> — the elevated surface that pops up next to an anchor, the web
-// counterpart of GtkPopover as libadwaita styles it. It is the ONE popover in
-// this package: `<adw-menu-button>`, `<adw-drop-down>` and `<adw-split-button>`
-// each used to build their own, and no two agreed. The surface disagreed (12px /
-// 12px / 9px radius against libadwaita's 15px; two correct three-layer shadows
-// and one invented two-layer one) and so did the behaviour — the split button
-// had neither Escape dismissal nor arrow-key navigation, while the other two
-// spelled the same wrap arithmetic out twice.
+// counterpart of GtkPopover as libadwaita styles it. It is the ONE popover in this
+// package: `<adw-menu-button>`, `<adw-drop-down>` and `<adw-split-button>` all use it
+// rather than building their own, which is what keeps the 15px radius, the
+// three-layer shadow, Escape dismissal and the wrap arithmetic in one place.
 //
 // The dismissal + keyboard state machine lives in `@gjsify/adwaita-core`
 // ({@link PopoverState}, {@link resolvePopoverKey}, ADR 0004); this element owns
@@ -19,23 +16,20 @@
 //
 // Attributes:
 //   open      — boolean; reflects (and drives) the visible state.
-//   position  — bottom | top | start | end (default bottom) — which side of the
-//               anchor the surface sits on. `GtkPopover:position`'s own
-//               autohide/has-arrow semantics are NOT verifiable in this tree
-//               (refs/gtk is empty, libadwaita vendors no adw-popover.c), so only
-//               the placement axis is modelled.
+//   position  — bottom | top | start | end (default bottom) — which side of the anchor
+//               the surface sits on. Only the placement axis is modelled:
+//               `GtkPopover:position`'s autohide/has-arrow semantics belong to GTK,
+//               which libadwaita does not vendor, so they are not guessed at.
 //   align     — start | end (default start) — which edge it lines up with.
 //   role      — menu | listbox (default menu) — the ARIA role of the surface.
 //               An a11y fact ONLY; it does not pick the surface variant, see
 //               `menu` below.
-//   menu      — boolean; libadwaita's `.menu` STYLE CLASS on the popover node
-//               (0 padding on the contents, `$menu_margin` on the item box —
-//               _menus.scss:58-66), opt-in exactly as it is in GTK.
-//               DO NOT infer it from `role`: `GtkDropDown`'s popover is a
-//               `popover.menu` too (`dropdown { popover.menu { … } }`,
-//               _dropdowns.scss:22) while its rows are `option`s, not
-//               `menuitem`s. Tying the surface to the role gets that backwards
-//               and pads the drop-down like a bare content popover.
+//   menu      — boolean; libadwaita's `.menu` STYLE CLASS on the popover node (0
+//               padding on the contents, `$menu_margin` on the item box), opt-in
+//               exactly as it is in GTK. DO NOT infer it from `role`: `GtkDropDown`'s
+//               popover is a `popover.menu` too (`dropdown { popover.menu { … } }`)
+//               while its rows are `option`s, not `menuitem`s, so tying the surface to
+//               the role pads the drop-down like a bare content popover.
 // Properties:
 //   open      — whether the popover is showing (get/set).
 //   anchor    — the element the surface is positioned against and returns focus
@@ -49,8 +43,8 @@
 //   `popover-item-activated` (CustomEvent, bubbles, detail = { index }) — a row
 //     was chosen by keyboard. Click activation stays the row's own listener.
 //
-// Reference: refs/libadwaita/src/stylesheet/widgets/_popovers.scss:7-28 (popover > contents)
-// Reference: refs/libadwaita/src/stylesheet/widgets/_menus.scss:58-66, :134-156 (popover.menu, modelbutton)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_popovers.scss (popover > contents)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_menus.scss (popover.menu, modelbutton)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
@@ -82,16 +76,16 @@ export class AdwPopover extends HTMLElement {
     private _onDocumentPointerDown = (event: Event): void => {
         const target = event.target as Node;
         if (this.contains(target)) return;
-        // A click on the anchor is the anchor's own toggle — closing here too
-        // would close and immediately reopen (or reopen and immediately close).
+        // A click on the anchor is the anchor's own toggle — closing here too would close
+        // and immediately reopen (or reopen and immediately close).
         if (this.anchor?.contains(target) === true) return;
         this._state.dismiss();
     };
 
     private _onDocumentKeyDown = (event: KeyboardEvent): void => {
         if (event.key !== 'Escape') return;
-        // Captured at the document, so a nested popover's Escape does not also
-        // close its parent.
+        // Captured at the document, so a nested popover's Escape does not also close its
+        // parent.
         event.stopPropagation();
         this._state.dismiss();
         this.anchor?.focus();
@@ -101,7 +95,6 @@ export class AdwPopover extends HTMLElement {
         return ['open', 'position', 'align', 'role', 'menu'];
     }
 
-    /** Whether the popover is showing. */
     get open(): boolean {
         return this._state.open;
     }
@@ -112,9 +105,8 @@ export class AdwPopover extends HTMLElement {
     }
 
     /**
-     * The element the surface is positioned against and hands focus back to.
-     * Defaults to `parentElement`, which is the common case: the popover is the
-     * last child of the widget that owns it.
+     * The element the surface is positioned against and hands focus back to. Defaults to
+     * `parentElement`: the popover is normally the last child of the widget that owns it.
      */
     get anchor(): HTMLElement | null {
         return this._anchor ?? this.parentElement;
@@ -124,7 +116,6 @@ export class AdwPopover extends HTMLElement {
         this._anchor = value;
     }
 
-    /** Which side of the anchor the surface sits on. */
     get position(): AdwPopoverPosition {
         const value = this.getAttribute('position');
         return POSITIONS.includes(value as AdwPopoverPosition) ? (value as AdwPopoverPosition) : 'bottom';
@@ -134,7 +125,6 @@ export class AdwPopover extends HTMLElement {
         this.setAttribute('position', value);
     }
 
-    /** Which edge of the anchor the surface lines up with. */
     get align(): AdwPopoverAlign {
         const value = this.getAttribute('align');
         return ALIGNS.includes(value as AdwPopoverAlign) ? (value as AdwPopoverAlign) : 'start';
@@ -144,7 +134,6 @@ export class AdwPopover extends HTMLElement {
         this.setAttribute('align', value);
     }
 
-    /** The surface's ARIA role. */
     get popoverRole(): AdwPopoverRole {
         const value = this.getAttribute('role');
         return ROLES.includes(value as AdwPopoverRole) ? (value as AdwPopoverRole) : 'menu';
@@ -176,10 +165,8 @@ export class AdwPopover extends HTMLElement {
 
         this.classList.add('adw-popover');
         if (!this.hasAttribute('role')) this.setAttribute('role', 'menu');
-        // The `menu` variant is NOT defaulted or inferred here — it is GTK's
-        // `.menu` style class, and the widget that owns the popover is what adds
-        // it, as in the C. See the attribute docs above for why role is the
-        // wrong thing to key it off.
+        // The `menu` variant is NOT defaulted or inferred here — it is GTK's `.menu`
+        // style class, added by the widget that owns the popover, as in the C.
 
         this.addEventListener('keydown', (event) => this._onKeyDown(event));
         this._state.subscribe((change) => this._onStateChange(change.open));
@@ -202,15 +189,13 @@ export class AdwPopover extends HTMLElement {
             return;
         }
         if (name === 'role' && value === null) {
-            // A removed role falls back to the default rather than leaving the
-            // surface unlabelled to assistive tech.
+            // A removed role falls back to the default rather than leaving the surface
+            // unlabelled to assistive tech.
             this.setAttribute('role', 'menu');
             return;
         }
         this._render();
     }
-
-    // ── internals ──────────────────────────────────────────────────────────
 
     private _onStateChange(open: boolean): void {
         if (open) this._bindDocument();
@@ -269,9 +254,8 @@ export class AdwPopover extends HTMLElement {
             return;
         }
         if (action === 'activate') {
-            // preventDefault BEFORE the synthetic click: a focused <button>
-            // activates natively on Enter (keydown) and Space (keyup), so
-            // without it the row would fire twice.
+            // preventDefault BEFORE the synthetic click: a focused <button> activates
+            // natively on Enter (keydown) and Space (keyup), so the row would fire twice.
             event.preventDefault();
             items[index]?.click();
             this.dispatchEvent(new CustomEvent('popover-item-activated', { bubbles: true, detail: { index } }));

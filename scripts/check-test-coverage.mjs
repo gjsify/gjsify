@@ -7,9 +7,8 @@
 //   (b) some sibling `*.spec.ts` imports the impl file with one of
 //       `from './<name>'` / `from './<name>.js'`.
 //
-// This is intentionally a structural check — it does NOT measure assertion
-// coverage / branch coverage. The goal is to catch impl files that were
-// added without any spec, not to enforce specific test depth.
+// Structural on purpose: it catches an impl file added with no spec at all, and
+// says nothing about assertion or branch coverage.
 //
 // Usage:
 //   node scripts/check-test-coverage.mjs              # per-package summary
@@ -68,10 +67,7 @@ function shouldSkip(filename) {
     return SKIP_FILE_PATTERNS.some((re) => re.test(filename));
 }
 
-/**
- * Probe whether `implPath` is referenced by any sibling spec file's imports.
- * Reads each spec only once via the `specCache` map.
- */
+/** Whether any sibling spec imports `implPath`. `specCache` reads each spec once. */
 async function isCoveredByImport(implPath, siblingSpecs, specCache) {
     const name = basename(implPath, '.ts');
     const needles = [`./${name}'`, `./${name}.js'`, `./${name}"`, `./${name}.js"`];

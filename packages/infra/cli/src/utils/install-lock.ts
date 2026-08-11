@@ -1,48 +1,36 @@
 // SPDX-License-Identifier: MIT
 // Cross-process install lock for `gjsify install` (ADR 0001, step 2).
 //
-// WHAT is locked: mutation of ONE install prefix — its `node_modules/` tree,
-// its `gjsify-lock.json`, and (through the same code path) the user-global
-// prefix that `gjsify install -g` extracts into. Two processes installing
-// into the SAME prefix used to interleave `rmSync` + extract on the same
-// destination directories (corrupt trees, spurious ENOENT mid-extract) and
-// tear the lockfile. The lock serializes them. Installs into DIFFERENT
-// prefixes stay fully concurrent.
+// LOCKED: mutation of ONE install prefix — its `node_modules/` tree, its `gjsify-lock.json`, and
+// the user-global prefix `gjsify install -g` extracts into. Two processes installing into the
+// SAME prefix interleaved `rmSync` + extract on the same destinations (corrupt trees, spurious
+// ENOENT mid-extract) and tore the lockfile. Different prefixes stay fully concurrent.
 //
-// WHAT is deliberately NOT locked: the shared XDG caches
-// (`$XDG_CACHE_HOME/gjsify/{tarballs,metadata}`). Those are content-addressed
-// and written via atomic tmp+`rename` (`install-cache-fs.ts`), so concurrent
-// writers are already safe lock-free — identical-content last-rename-wins.
+// NOT LOCKED: the shared XDG caches (`$XDG_CACHE_HOME/gjsify/{tarballs,metadata}`) — they are
+// content-addressed and written via atomic tmp+`rename` (`install-cache-fs.ts`), so concurrent
+// writers are already safe lock-free.
 //
-// Mechanism: `mkdir` of `<prefix>/node_modules/.gjsify-install-lock` is the
-// atomic acquire. mkdir has exclusive-create semantics on every runtime we
-// target: Node's `mkdirSync` throws EEXIST, and the GJS fs polyfill maps
-// Gio's G_IO_ERROR_EXISTS to the same code. (A lock FILE with `flag: 'wx'`
-// would NOT work — the GJS `writeFileSync` polyfill ignores open flags and
-// happily overwrites.) An `owner.json` inside the dir records pid + start
-// time for staleness checks and diagnostics.
+// Mechanism: `mkdir` of `<prefix>/node_modules/.gjsify-install-lock` is the atomic acquire, with
+// exclusive-create semantics on every runtime targeted (Node's `mkdirSync` throws EEXIST; the
+// GJS fs polyfill maps Gio's G_IO_ERROR_EXISTS to the same code). A lock FILE with `flag: 'wx'`
+// would NOT work — the GJS `writeFileSync` polyfill ignores open flags and overwrites. An
+// `owner.json` inside records pid + start time for staleness checks.
 //
-// Staleness: a crashed install cannot release its lock, so contenders steal
-// when
-//   (a) the owner pid is provably dead (`/proc/<pid>` on Linux — readable
-//       under both Node and GJS; a kill(0) probe covers non-/proc Nodes), or
-//   (b) the lock outlives GJSIFY_INSTALL_LOCK_STALE_MS (default 35 min —
-//       just above the 30-min overall install budget, so a budget-bound
-//       install always times out and exits before its lock can be stolen
-//       out from under it), or
-//   (c) `mkdir` succeeded but `owner.json` never appeared within a short
-//       grace period (the owner died between the two steps).
-// The steal itself is race-free: the stale dir is claimed via an atomic
-// `rename` to a unique sibling name — exactly one contender's rename
-// succeeds; losers see ENOENT and simply retry the acquire loop.
+// Staleness — a crashed install cannot release its lock, so contenders steal when
+//   (a) the owner pid is provably dead (`/proc/<pid>` on Linux, readable under Node and GJS
+//       alike; a kill(0) probe covers non-/proc Nodes), or
+//   (b) the lock outlives GJSIFY_INSTALL_LOCK_STALE_MS (default 35 min — just above the 30-min
+//       install budget, so a budget-bound install always exits before its lock can be stolen out
+//       from under it), or
+//   (c) `mkdir` succeeded but `owner.json` never appeared within a short grace period.
+// The steal is race-free: the stale dir is claimed by an atomic `rename` to a unique sibling, so
+// exactly one contender wins and losers see ENOENT and retry the acquire loop.
 //
-// Re-entrant per process: `workspaceInstall` holds the root-prefix lock for
-// the whole workspace flow while the inner `installPackagesNative` calls
-// re-acquire the same prefix — those just bump a refcount.
+// Re-entrant per process: `workspaceInstall` holds the root-prefix lock for the whole workspace
+// flow while inner `installPackagesNative` calls re-acquire the same prefix and just refcount.
 //
-// Escape hatch: GJSIFY_INSTALL_LOCK=0 disables locking entirely (e.g. for a
-// network filesystem with broken rename/mkdir atomicity, or an outer tool
-// that already serializes installs).
+// GJSIFY_INSTALL_LOCK=0 disables locking entirely — for a network filesystem with broken
+// rename/mkdir atomicity, or an outer tool that already serializes installs.
 
 import {
     existsSync,
@@ -100,18 +88,15 @@ function lockingDisabled(): boolean {
 /**
  * Is `pid` a live process on this machine?
  *
- * `/proc/<pid>` is the reliable cross-runtime probe on Linux (the primary
- * target): it works identically under Node and GJS. Elsewhere fall back to a
- * signal-0 probe — ESRCH means dead, EPERM means alive-but-foreign. The GJS
- * `process.kill` polyfill shells out and cannot report ESRCH, but GJS only
- * runs on /proc platforms in practice, so the fallback branch is Node's.
- * Unknown outcomes are treated as ALIVE (conservative — never steal a lock
- * we cannot prove abandoned; the mtime staleness budget still applies).
+ * `/proc/<pid>` is the reliable cross-runtime probe on Linux, identical under Node and GJS;
+ * elsewhere a signal-0 probe (ESRCH dead, EPERM alive-but-foreign). The GJS `process.kill`
+ * polyfill shells out and cannot report ESRCH, but GJS only runs on /proc platforms in practice,
+ * so the fallback branch is Node's. Unknown outcomes count as ALIVE — never steal a lock that
+ * cannot be proven abandoned; the mtime staleness budget still applies.
  */
 function isPidAlive(pid: number): boolean {
-    // `existsSync` never throws by contract: Node returns false on any error,
-    // and the GJS shim is a typeof guard + Gio `query_exists` (both without a
-    // throw path in the GIR). Off Linux the `if` is simply false.
+    // `existsSync` never throws by contract: Node returns false on any error, and the GJS shim is
+    // a typeof guard + Gio `query_exists`, neither with a throw path in the GIR.
     if (existsSync('/proc/self')) return existsSync(`/proc/${pid}`);
     try {
         process.kill(pid, 0);
@@ -151,9 +136,8 @@ function assessLock(lockDir: string): LockVerdict {
         }
         const started = typeof owner.startedAt === 'number' ? owner.startedAt : mtimeMs(ownerPath);
         if (started !== null && now - started > staleMs()) {
-            // Alive but far beyond any plausible install duration — the
-            // observed 0%-CPU hung-install shape. Steal so one wedged
-            // process can't block every future install of this prefix.
+            // Alive but far beyond any plausible install duration — the observed 0%-CPU
+            // hung-install shape. Steal, so one wedged process cannot block this prefix forever.
             return {
                 stale: true,
                 reason: `owner pid ${owner.pid} exceeded the ${staleMs()}ms staleness budget`,
@@ -162,8 +146,8 @@ function assessLock(lockDir: string): LockVerdict {
         }
         return { stale: false, ownerPid: owner.pid };
     }
-    // No readable owner.json: the winner may be between mkdir and the owner
-    // write — give it a grace period, then treat the dir as abandoned.
+    // No readable owner.json: the winner may be between mkdir and the owner write, so allow a
+    // grace period before treating the dir as abandoned.
     const dirMtime = mtimeMs(lockDir);
     if (dirMtime === null) return { stale: false }; // vanished — retry mkdir
     if (now - dirMtime > ACQUIRE_GRACE_MS) {
@@ -173,9 +157,8 @@ function assessLock(lockDir: string): LockVerdict {
 }
 
 /**
- * Atomically claim + remove a stale lock dir. Returns `true` when THIS
- * process won the claim (the rename succeeded), `false` when another
- * contender got there first — the caller just retries its acquire loop.
+ * Atomically claim + remove a stale lock dir. `true` when THIS process won the claim, `false`
+ * when another contender got there first — the caller just retries its acquire loop.
  */
 function stealStaleLock(lockDir: string): boolean {
     const claimed = `${lockDir}.stale-${process.pid}-${++stealCounter}`;
@@ -231,8 +214,8 @@ function makeHandle(lockDir: string): InstallLockHandle {
             entry.count--;
             if (entry.count > 0) return;
             held.delete(lockDir);
-            // Only remove the on-disk dir when it is still OURS — a staleness
-            // steal could have handed the path to another process meanwhile.
+            // Only remove the on-disk dir when it is still OURS — a staleness steal could have
+            // handed the path to another process meanwhile.
             try {
                 const owner = JSON.parse(readFileSync(join(lockDir, OWNER_FILE), 'utf-8')) as OwnerInfo;
                 if (owner.nonce !== undefined && owner.nonce !== entry.nonce) return;
@@ -249,12 +232,11 @@ function makeHandle(lockDir: string): InstallLockHandle {
 }
 
 /**
- * Acquire the cross-process install lock for `prefix`. Resolves once this
- * process may mutate `<prefix>/node_modules` + `<prefix>/gjsify-lock.json`;
- * the caller MUST `release()` in a `finally`. Waits (with backoff) while a
- * live concurrent install holds the lock; steals provably-stale locks (dead
- * owner pid / exceeded staleness budget). `signal` aborts the wait — wired
- * to the overall install budget so a waiter never outlives its own timeout.
+ * Acquire the cross-process install lock for `prefix`, resolving once this process may mutate
+ * `<prefix>/node_modules` + `<prefix>/gjsify-lock.json`. The caller MUST `release()` in a
+ * `finally`. Waits with backoff while a live install holds the lock, and steals provably-stale
+ * ones. `signal` aborts the wait — wired to the install budget so a waiter never outlives its
+ * own timeout.
  */
 export async function acquireInstallLock(
     prefix: string,
@@ -267,8 +249,7 @@ export async function acquireInstallLock(
             },
         };
     }
-    // Canonicalize so two spellings of the same prefix (symlink, relative
-    // path) share one re-entrancy slot.
+    // Canonicalize so two spellings of one prefix (symlink, relative path) share a re-entrancy slot.
     let canonicalPrefix: string;
     try {
         canonicalPrefix = realpathSync(prefix);

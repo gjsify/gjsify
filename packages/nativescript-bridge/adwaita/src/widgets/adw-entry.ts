@@ -6,31 +6,25 @@
 // `AdwEntryRow` is the row form and keeps its floating title, pencil and apply
 // button; none of that applies here.
 //
-// NO CORE STATE MACHINE, DELIBERATELY. `EntryRowState` models `Adw.EntryRow`:
-// its render state is row-shaped (`titleAsPlaceholder`, `showEdit`, `showApply`,
-// the `text_changed` apply latch), and a bare entry has none of those. What the
-// two DO share is the character arithmetic, which is where a port actually goes
-// wrong — `clampEntryText` and `entryTextLength` count CODE POINTS, so `'🔒é'`
-// is two characters and a truncation never splits a surrogate pair. Those come
-// from `@gjsify/adwaita-core` (ADR 0004), whose closing note is that a widget
-// with genuinely trivial behaviour does not need a core class of its own.
+// NO CORE STATE MACHINE, DELIBERATELY: `EntryRowState`'s render state is row-shaped
+// (`titleAsPlaceholder`, `showEdit`, `showApply`, the apply latch) and a bare entry has
+// none of it. What the two share is the character arithmetic, which is where a port
+// actually goes wrong: `clampEntryText` and `entryTextLength` count CODE POINTS, so
+// `'🔒é'` is two characters and a truncation never splits a surrogate pair. Both come
+// from `@gjsify/adwaita-core` (ADR 0004).
 //
-// STRUCTURE: a box around a `TextField` rather than a `TextField` subclass,
-// because the two halves of the appearance have to be set in different places.
-// Android's Material `EditText` draws a bottom underline that Adwaita has
-// nowhere; the entry row already established that stripping it takes an inline
-// `backgroundColor: 'transparent'` + `borderWidth: 0` on the field itself. An
-// inline value is not overridable from CSS, so the field can no longer carry the
-// Adwaita FILL — the box does, out of `theme/adwaita.css`, where a `.ns-dark`
-// rule can answer the light/dark question the inline value could not.
+// STRUCTURE: a box around a `TextField`, not a `TextField` subclass, because the two
+// halves of the appearance are set in different places. Android's Material `EditText`
+// draws a bottom underline Adwaita has nowhere, and stripping it takes an INLINE
+// `backgroundColor: 'transparent'` + `borderWidth: 0` on the field. An inline value is
+// not overridable from CSS, so the field cannot also carry the Adwaita FILL — the box
+// does, out of `theme/adwaita.css`, where a `.ns-dark` rule can answer the light/dark
+// question an inline value could not.
 //
-// NOT VERIFIABLE IN THIS TREE: `Gtk.Entry:activates-default` (the entry that
-// pressing Enter activates the window's default widget through) — `refs/gtk` is
-// EMPTY and libadwaita vendors no `adw-entry.c`, so the property is left out
-// rather than guessed at. `AdwEntryRow` carries an `activatesDefault` because
-// `Adw.EntryRow` IS vendored and states its semantics (adw-entry-row.c:243-266).
-// The `max-length` ceiling below is likewise taken from the vendored
-// `Adw.EntryRow` declaration, not from an assumption about `Gtk.Entry`.
+// `Gtk.Entry:activates-default` is deliberately absent: libadwaita vendors no
+// `adw-entry.c`, so it would be a guess. `AdwEntryRow` carries an `activatesDefault`
+// because `Adw.EntryRow` IS vendored and states its semantics, and the `max-length`
+// ceiling below comes from that same vendored declaration.
 //
 // Reference: refs/libadwaita/src/stylesheet/widgets/_entries.scss (the `entry`
 //   surface: min-height 34, 9px horizontal padding, `$button_color` fill)

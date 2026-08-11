@@ -3,19 +3,18 @@
  * CI entry: after a build, every file a workspace package DECLARES must exist.
  *
  * The check itself is the PORTABLE `package-outputs` rule in
- * `@gjsify/manifest-conformance` — it reads nothing but manifests and the
- * filesystem, so the same code backs `gjsify manifest-check` in a consumer's
- * tree. Its full rationale (why `gjsify tsc` can exit 0 having written
- * nothing, why the build cache calls a tree missing a unit a hit, why
- * `gjsify pack`'s type guard deliberately does not fire) lives with the rule.
+ * `@gjsify/manifest-conformance`, which reads nothing but manifests and the
+ * filesystem so it can also run in a consumer's tree. Its full rationale (why
+ * `gjsify tsc` can exit 0 having written nothing, why the build cache calls a tree
+ * missing a unit a hit, why `gjsify pack`'s type guard deliberately does not fire)
+ * lives with the rule.
  *
- * What stays HERE is only what is specific to this repository: which workspace
- * names are out of scope, and the rendering of `--json`, which other tooling
- * may consume.
+ * What stays HERE is repository-specific: which workspace names are out of scope,
+ * and the `--json` rendering other tooling may consume.
  *
  * Usage:
  *   node scripts/verify-package-outputs.mjs                 # non-private workspaces
- *   node scripts/verify-package-outputs.mjs --scope examples  # the showcases only
+ *   node scripts/verify-package-outputs.mjs --scope examples  # `@gjsify/example-*` only
  *   node scripts/verify-package-outputs.mjs --scope all
  *   node scripts/verify-package-outputs.mjs --include-private
  *   node scripts/verify-package-outputs.mjs --allow-unbuilt # warn, don't fail
@@ -42,9 +41,8 @@ const inActions = Boolean(process.env.GITHUB_ACTIONS);
 const includePrivate = args.has('--include-private');
 const allowUnbuilt = args.has('--allow-unbuilt');
 const asJson = args.has('--json');
-// `--only <name>` (repeatable) narrows the sweep to named packages. CI never
-// passes it — the whole point of the guard is that its package set is derived,
-// not curated — but it makes a single package inspectable while iterating.
+// `--only <name>` (repeatable) narrows the sweep. CI never passes it — the point of
+// the guard is that its package set is derived, not curated.
 const only = argv.flatMap((a, i) => (a === '--only' && argv[i + 1] ? [argv[i + 1]] : []));
 const scopeFlag = argv.indexOf('--scope');
 const scope = scopeFlag === -1 ? 'core' : (argv[scopeFlag + 1] ?? 'core');
@@ -54,36 +52,28 @@ if (!['core', 'examples', 'all'].includes(scope)) {
 }
 
 /**
- * Workspaces this check does not own.
+ * Workspaces this check does not own: `@girs/*` are generated type packages,
+ * `@gjsify/website` is an Astro site, and `@gjsify/example-*` build only when an
+ * example is in the CI closure — the carve-outs the root `build` script spells out.
  *
- * `@girs/*` are generated type packages, `@gjsify/website` is an Astro site and
- * `@gjsify/example-*` build only when an example is in the CI closure — the same
- * carve-outs the root `build` script already spells out. Anything else is in.
- *
- * This list is the ONE piece of repository knowledge in the whole check, which
- * is why it is passed IN to the rule rather than living inside it: a consumer's
- * tree has no `@girs/*`, and a rule that carried this list would be quietly
- * repo-shaped while claiming to be portable.
+ * Passed IN to the rule rather than living inside it, because it is the ONE piece of
+ * repository knowledge in the check: a consumer's tree has no `@girs/*`, and a rule
+ * carrying this list would be repo-shaped while claiming to be portable.
  */
 const EXCLUDED_NAME_PATTERNS = [/^@girs\//, /^@gjsify\/website$/, /^@gjsify\/example-/];
 
 /**
- * `--scope examples` INVERTS that carve-out: it checks the `@gjsify/example-*`
- * packages and nothing else.
+ * `--scope examples` INVERTS that carve-out: the `@gjsify/example-*` packages and
+ * nothing else.
  *
- * The examples are excluded from the default sweep for a real reason — they are
- * built by a separate step (`build:examples`) that CI runs only when one is in
- * the affected closure, so checking them in the main pass would fail on a tree
- * where they were never built. But "not checked in that pass" silently became
- * "not checked anywhere", and a published showcase is exactly as broken to a
- * user as a published library: `@gjsify/example-dom-excalibur-jelly-jumper@0.23.0`
- * declared four runtimes, shipped only the GJS bundle, and `deno run
- * npm:@gjsify/cli showcase excalibur-jelly-jumper` failed on the promised file.
- *
- * So the scope is a SECOND invocation, placed where the examples are known to
- * be built: after `build:examples` in root `npm:publish` (the release path,
- * which cannot skip it) and in the example-gated CI step. Same rule, same
- * derivation, different moment.
+ * They are excluded from the default sweep because `build:examples` runs only when
+ * one is in the affected closure, so the main pass would fail on a tree where they
+ * were never built — but "not checked in that pass" became "not checked anywhere",
+ * and a published showcase is as broken to a user as a published library:
+ * `@gjsify/example-dom-excalibur-jelly-jumper@0.23.0` declared four runtimes and
+ * shipped only the GJS bundle. So this scope is a SECOND invocation placed where the
+ * examples are known to be built: after `build:examples` in root `npm:publish` (the
+ * release path, which cannot skip it) and in the example-gated CI step.
  */
 const EXAMPLE_ONLY_PATTERNS = [/^(?!@gjsify\/example-).*$/];
 

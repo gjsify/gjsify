@@ -7,7 +7,6 @@ import { text, json, buffer, arrayBuffer, blob } from 'node:stream/consumers';
 
 export default async () => {
     await describe('stream/consumers', async () => {
-        // ==================== text() ====================
         await describe('text', async () => {
             await it('should consume stream as text', async () => {
                 const stream = Readable.from(['Hello', ' ', 'World']);
@@ -28,7 +27,6 @@ export default async () => {
             });
         });
 
-        // ==================== json() ====================
         await describe('json', async () => {
             await it('should consume stream as JSON', async () => {
                 const stream = Readable.from(['{"key":', '"value"}']);
@@ -51,7 +49,6 @@ export default async () => {
             });
         });
 
-        // ==================== buffer() ====================
         await describe('buffer', async () => {
             await it('should consume stream as Uint8Array', async () => {
                 const stream = Readable.from(['Hello']);
@@ -68,7 +65,6 @@ export default async () => {
             });
         });
 
-        // ==================== arrayBuffer() ====================
         await describe('arrayBuffer', async () => {
             await it('should consume stream as ArrayBuffer', async () => {
                 const stream = Readable.from(['Hello']);
@@ -86,7 +82,6 @@ export default async () => {
             });
         });
 
-        // ==================== blob() ====================
         await describe('blob', async () => {
             await it('should consume stream as Blob', async () => {
                 const stream = Readable.from(['Hello Blob']);

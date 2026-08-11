@@ -6,7 +6,6 @@ import { describe, it, expect } from '@gjsify/unit';
 import * as crypto from 'node:crypto';
 
 export default async () => {
-    // ===================== Module exports =====================
     await describe('crypto module exports', async () => {
         await it('should export createHash', async () => {
             expect(typeof crypto.createHash).toBe('function');
@@ -73,7 +72,6 @@ export default async () => {
         });
     });
 
-    // ===================== getHashes =====================
     await describe('crypto.getHashes', async () => {
         await it('should return an array', async () => {
             const hashes = crypto.getHashes();
@@ -112,7 +110,6 @@ export default async () => {
         });
     });
 
-    // ===================== getCiphers =====================
     await describe('crypto.getCiphers', async () => {
         await it('should return an array', async () => {
             const ciphers = crypto.getCiphers();
@@ -133,7 +130,6 @@ export default async () => {
         });
     });
 
-    // ===================== getCurves =====================
     await describe('crypto.getCurves', async () => {
         await it('should return an array', async () => {
             const curves = crypto.getCurves();
@@ -154,7 +150,6 @@ export default async () => {
         });
     });
 
-    // ===================== Hash extended =====================
     await describe('crypto.createHash extended', async () => {
         await it('sha384 should produce 48-byte digest', async () => {
             const hash = crypto.createHash('sha384').update('test').digest();
@@ -226,7 +221,6 @@ export default async () => {
         });
     });
 
-    // ===================== HMAC extended =====================
     await describe('crypto.createHmac extended', async () => {
         await it('HMAC-SHA256 should produce 32-byte digest', async () => {
             const hmac = crypto.createHmac('sha256', 'key').update('data').digest();
@@ -286,7 +280,6 @@ export default async () => {
         });
     });
 
-    // ===================== randomBytes extended =====================
     await describe('crypto.randomBytes extended', async () => {
         await it('should return Buffer of requested size', async () => {
             const buf = crypto.randomBytes(32);
@@ -316,7 +309,6 @@ export default async () => {
         });
     });
 
-    // ===================== randomUUID extended =====================
     await describe('crypto.randomUUID extended', async () => {
         await it('should return a v4 UUID string', async () => {
             const uuid = crypto.randomUUID();
@@ -346,7 +338,6 @@ export default async () => {
         });
     });
 
-    // ===================== randomInt extended =====================
     await describe('crypto.randomInt extended', async () => {
         await it('should return integer in [0, max)', async () => {
             for (let i = 0; i < 20; i++) {
@@ -383,7 +374,6 @@ export default async () => {
         });
     });
 
-    // ===================== timingSafeEqual extended =====================
     await describe('crypto.timingSafeEqual extended', async () => {
         await it('should return true for equal arrays', async () => {
             const a = new Uint8Array([104, 101, 108, 108, 111]);
@@ -422,7 +412,6 @@ export default async () => {
         });
     });
 
-    // ===================== constants =====================
     await describe('crypto.constants', async () => {
         await it('should be an object', async () => {
             expect(typeof crypto.constants).toBe('object');

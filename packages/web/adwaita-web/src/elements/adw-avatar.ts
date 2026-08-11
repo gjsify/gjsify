@@ -9,20 +9,15 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
 // fallback icon node is <adw-icon>.
 //
-// The two derivations — initials from the name, and the palette colour the name
-// hashes to — are HEADLESS and live in `@gjsify/adwaita-core` (ADR 0004) as
-// {@link avatarInitials} / {@link avatarColor}; this element only paints them.
-// They used to be a local copy that had drifted from both libadwaita and the
-// NativeScript renderer (single-word names rendered TWO letters here and one
-// there, and accented names picked the wrong colour in both). The shared
-// vectors in `@gjsify/adwaita-core/conformance` now pin this element to the C
-// source — see `src/adw-avatar.spec.ts`.
+// The two derivations — initials from the name, and the palette colour the name hashes to
+// — are HEADLESS and live in `@gjsify/adwaita-core` (ADR 0004) as {@link avatarInitials} /
+// {@link avatarColor}; this element only paints them. The shared vectors in
+// `@gjsify/adwaita-core/conformance` pin it to the C source — see `src/adw-avatar.spec.ts`.
 //
-// `custom-image` was UNPORTED here until #1049's follow-up: this element passed
-// `hasCustomImage: false` unconditionally, so the `image` branch of
-// `update_visibility` (adw-avatar.c:117-125) — the branch that wins over both
-// others — could not be reached, and the vector row covering it had nothing to
-// drive.
+// `custom-image` was UNPORTED until #1049's follow-up: this element passed
+// `hasCustomImage: false` unconditionally, so the `image` branch of `update_visibility`
+// (adw-avatar.c:117-125) — the branch that wins over both others — could not be reached,
+// and the vector row covering it had nothing to drive.
 
 import { avatarColor, avatarFontSize, avatarInitials, avatarMaxFontSize, avatarMode } from '@gjsify/adwaita-core';
 

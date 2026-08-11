@@ -2,22 +2,13 @@
 // driven by the SAME vectors the core suite and the browser suite assert against
 // (`@gjsify/adwaita-core/conformance`).
 //
-// IMPORTANT: this imports `./widgets/view-switcher-model.js`, NOT the widgets. A
-// widget module `extends GridLayout`, which evaluates the bare
-// `@nativescript/core` specifier at module-eval and is unresolvable on GJS/Node.
-// The model module is the whole non-NS-core half the widgets delegate to:
-// `setViews` forwards to `state.setPages(viewSwitcherPageSpecs(pages))`, the
+// IMPORTANT: this imports `./widgets/view-switcher-model.js`, NOT the widgets — a widget
+// module `extends GridLayout`, which evaluates the bare `@nativescript/core` specifier
+// at module-eval. The model module is the whole non-NS-core half the widgets delegate
+// to: `setViews` forwards to `state.setPages(viewSwitcherPageSpecs(pages))`, the
 // `selected` accessors forward to the same state, `_applySelection` paints
-// `buildViewSwitcherButtons(state.pages, state.selected, policy)` and pushes
-// `applyViewSwitcherVisibility`, and the bar's `revealed` is
-// `ViewSwitcherBarState`.
-//
-// The suite deliberately does NOT hand-roll a stand-in for any of that: a test
-// that transcribes the code under test cannot detect the drift it exists to
-// catch, and in this family it would not have — the button-visibility rule, the
-// `image-missing` fallback, the bar's page-count gate and the two inline index
-// spaces were absent from BOTH ports, so any mock written from the port would
-// have been just as wrong.
+// `buildViewSwitcherButtons(...)` and pushes `applyViewSwitcherVisibility`, and the
+// bar's `revealed` is `ViewSwitcherBarState`. Nothing here is a stand-in for any of it.
 import { describe, expect, it } from '@gjsify/unit';
 
 import {

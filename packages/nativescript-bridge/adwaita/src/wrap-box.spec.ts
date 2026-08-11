@@ -1,24 +1,14 @@
 // Wrap-box layout for NativeScript, against the shared conformance vectors.
 //
-// The widget class cannot be imported here (`extends FlexboxLayout` evaluates
-// the bare `@nativescript/core` specifier at module-eval, which is unresolvable
-// off NativeScript), so this suite drives `widgets/wrap-box-layout.ts` — the
-// SHIPPING pure half the widget itself calls, never a transcription of it.
+// The widget class cannot be imported here (`extends FlexboxLayout` evaluates the bare
+// `@nativescript/core` specifier at module-eval), so this suite drives
+// `widgets/wrap-box-layout.ts` — the SHIPPING pure half the widget calls.
 //
-// What it holds the port to: the property contract libadwaita declares and the
-// port invented its own answers to. Both spacings defaulted to 6 DIPs against a
-// C default of 0 (adw-wrap-box.c:285-287, :393-395), so the same markup was
-// looser on a phone than in the browser — and with the equally invented
-// `.adw-wrap-box { margin: 6 }` in the theme, an EMPTY wrap box already occupied
-// 12 DIPs. A negative value was passed straight through where C clamps it, and
-// the clamp is what makes the "did anything change" comparison meaningful: on
-// this port that comparison decides whether every child's margin is rewritten.
-//
-// The justify / align / justify-last-line table IS driven from here now. It was
-// not, on the grounds that "NS `WrapLayout` exposes `orientation`, `itemWidth`
-// and `itemHeight` and nothing else, so there is no knob for the decision to
-// land on". NativeScript also ships `FlexboxLayout`; the widget switched to it,
-// and the decision it lands is the browser element's, from `@gjsify/adwaita-core`.
+// Invariants held: both spacings default to libadwaita's 0, a negative value is
+// CLAMPED (which is what makes the "did anything change" comparison meaningful — it
+// decides whether every child's margin is rewritten), and the justify / align /
+// justify-last-line table resolves through `@gjsify/adwaita-core`, so this port and the
+// browser element land the same decision.
 
 import { describe, expect, it } from '@gjsify/unit';
 

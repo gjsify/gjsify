@@ -1,21 +1,17 @@
 // SPDX-License-Identifier: MIT
-// Unit tests for the `gjsify dlx` cache — the cache behind
-// `npx @gjsify/cli@latest showcase <name>`.
 //
-// WHY THIS FILE EXISTS. The cache had no tests at all, and the thing it does on
-// the SECOND run — swap the live `pkg` link to a freshly prepared tree — is
-// where both Windows defects lived: a directory *symlink* Windows refuses
-// without elevation (EPERM), and a rename-over-existing that Windows performs
+// Both Windows defects lived in what the cache does on the SECOND run — swap the
+// live `pkg` link to a freshly prepared tree: a directory *symlink* Windows
+// refuses without elevation (EPERM), and a rename-over-existing Windows performs
 // for files but not for directories, which made the swap silently return the OLD
-// target instead of failing. The second one is the dangerous shape: not a crash,
-// a cache that never refreshes.
+// target instead of failing. The second is the dangerous shape — not a crash, a
+// cache that never refreshes.
 //
-// So the Windows ORDERING is executed here, on Linux, by injecting
-// `{ junctions: true }` — the same trick `dir-link.spec.ts` and
-// `detect-native-packages.spec.ts` use, and the only way that branch is ever run
-// by a repo whose CI has no Windows leg. What is NOT covered, and cannot be
-// off-host: whether Windows accepts the junction and whether `MoveFileEx`
-// behaves as assumed. What IS covered is that the swap REFRESHES on both paths.
+// The Windows ORDERING therefore runs here, on Linux, by injecting
+// `{ junctions: true }`, the only way that branch executes in a repo whose CI has
+// no Windows leg. NOT coverable off-host: whether Windows accepts the junction and
+// whether `MoveFileEx` behaves as assumed. What IS covered is that the swap
+// REFRESHES on both paths.
 
 import { describe, it, expect } from '@gjsify/unit';
 import {
@@ -42,15 +38,13 @@ import {
 
 /** A cache dir plus two prepared trees, each tagged so we can tell them apart. */
 function fixture() {
-    // `realpathSync` is load-bearing, not tidiness. `prepare()` below returns a
-    // CANONICAL path, while `os.tmpdir()` on macOS is `/var/folders/…` and
-    // `/var` is a symlink to `/private/var`. Mixing the two spaces breaks the
-    // link `symlinkSwap` writes: POSIX dir links are deliberately RELATIVE
-    // (`dirLinkTarget`), computed from the link's own directory, so a relative
-    // path from `/var/…/cachekey` to `/private/var/…/cachekey/tree-a` resolves
-    // from the link's REAL parent and lands nowhere — `realpathSync(linkPath)`
-    // then throws ENOENT out of `symlinkSwap`. Canonicalising the root puts
-    // both sides in one space; a no-op wherever `/tmp` is already real.
+    // `realpathSync` is load-bearing. `prepare()` returns a CANONICAL path, while
+    // `os.tmpdir()` on macOS is `/var/folders/…` and `/var` symlinks to
+    // `/private/var`. POSIX dir links are deliberately RELATIVE (`dirLinkTarget`),
+    // computed from the link's own directory, so mixing the two spaces makes the
+    // relative path resolve from the link's REAL parent and land nowhere —
+    // `realpathSync(linkPath)` then throws ENOENT out of `symlinkSwap`.
+    // Canonicalising the root is a no-op wherever `/tmp` is already real.
     const root = realpathSync(mkdtempSync(join(tmpdir(), 'gjsify-dlx-cache-')));
     const cacheDir = join(root, 'cachekey');
     mkdirSync(cacheDir, { recursive: true });
@@ -72,9 +66,9 @@ export default async () => {
         });
 
         await it('separates the gjs tree from the node tree', async () => {
-            // `showcase --runtime node` adds `@gjsify/node-gi` via `extraSpecs`,
-            // which is part of the key precisely so the two trees never collide
-            // (a gjs-only tree has no bridge and would fail the node launch).
+            // `showcase --runtime node` adds `@gjsify/node-gi` via `extraSpecs`, which
+            // is part of the key so the two trees never collide — a gjs-only tree has
+            // no bridge and would fail the node launch.
             const gjsTree = createCacheKey({ packages: ['@gjsify/example-x@1.0.0'] });
             const nodeTree = createCacheKey({ packages: ['@gjsify/example-x@1.0.0', '@gjsify/node-gi@1.0.0'] });
             expect(gjsTree).not.toBe(nodeTree);
@@ -112,28 +106,21 @@ export default async () => {
                     cleanup();
                 }
             },
-            // `junctions: false` FORCES the POSIX strategy, and what this row
-            // asserts is the atomic rename-over-an-existing-symlink that POSIX
-            // guarantees — the very guarantee whose absence on Windows the
-            // junction row below exists to pin. Forced onto win32 the rename
-            // fails, the catch reads it as "race lost", and the OLD target comes
-            // back: measured on the Windows leg as `tree-a` where `tree-b` was
-            // expected.
-            //
-            // Declared rather than skipped and rather than guarded away. The
-            // combination never occurs in production — the CLI picks junctions
-            // on win32, which the next row covers — but the assertion still RUNS
-            // there and will fail the day Windows honours it.
+            // `junctions: false` FORCES the POSIX strategy, whose atomic
+            // rename-over-an-existing-symlink win32 does not provide: there the rename
+            // fails, the catch reads it as "race lost", and the OLD target comes back
+            // (measured on the Windows leg as `tree-a` where `tree-b` was expected).
+            // Declared rather than skipped or guarded: the combination never occurs in
+            // production — the CLI picks junctions on win32 — but the assertion still
+            // RUNS there and fails the day Windows honours it.
             'the POSIX rename-over-existing-symlink refresh is not a guarantee win32 makes for a directory entry',
             { when: process.platform === 'win32' },
         );
 
         await it('REFRESHES an existing `pkg` on the WINDOWS path (junctions forced)', async () => {
-            // The regression pin. With the unlink omitted, the rename-over-existing
-            // that POSIX guarantees is not one Windows makes for a directory: the
-            // rename failed, the catch read EPERM as "race lost", and the function
-            // returned the OLD target — a cache that never refreshed, for as long
-            // as the 7-day TTL. Asserting the SECOND swap wins is what catches it.
+            // The regression pin: with the unlink omitted the rename failed, the catch
+            // read EPERM as "race lost", and the function returned the OLD target — a
+            // cache that never refreshed for the whole 7-day TTL.
             const { cacheDir, prepare, cleanup } = fixture();
             try {
                 const first = prepare('tree-a');
@@ -148,10 +135,9 @@ export default async () => {
         });
 
         await it('leaves no `pkg.tmp-…` link behind on either path', async () => {
-            // A leaked tmp link is not inert, and nothing else removes it:
-            // `cleanupStalePrepareDirs` deliberately skips `pkg.tmp-…` names,
-            // because a name matching a concurrent swap mid-flight is the one
-            // thing a sweeper must not touch.
+            // Nothing else removes a leaked tmp link: `cleanupStalePrepareDirs`
+            // deliberately skips `pkg.tmp-…`, because a name matching a concurrent
+            // swap mid-flight is the one thing a sweeper must not touch.
             const { cacheDir, prepare, cleanup } = fixture();
             try {
                 for (const junctions of [false, true]) {
@@ -235,10 +221,9 @@ export default async () => {
         });
 
         await it('never removes the LIVE target, however old it is', async () => {
-            // The whole point of a cache hit: an entry still pointed at by `pkg`
-            // ages past any TTL precisely BECAUSE it keeps being reused. Deleting
-            // it would turn a warm cache into a guaranteed miss plus a dangling
-            // link.
+            // An entry still pointed at by `pkg` ages past any TTL precisely BECAUSE
+            // it keeps being reused; deleting it turns a warm cache into a guaranteed
+            // miss plus a dangling link.
             const { cacheDir, cleanup } = fixture();
             try {
                 const live = makePrepareDir(cacheDir);
@@ -253,10 +238,9 @@ export default async () => {
         });
 
         await it('touches nothing whose name it did not create', async () => {
-            // The name-shape guard. `pkg` is the live link, `pkg.tmp-…` is a
-            // concurrent swap mid-flight, and `tree-a` stands for anything a
-            // future version might put in this directory — a stale-by-mtime
-            // sweep with no guard would take all three.
+            // `pkg` is the live link, `pkg.tmp-…` a concurrent swap mid-flight, and
+            // `tree-a` anything a future version might put here — a stale-by-mtime
+            // sweep with no name guard would take all three.
             const { cacheDir, prepare, cleanup } = fixture();
             try {
                 const foreign = prepare('tree-a');
@@ -273,8 +257,7 @@ export default async () => {
         });
 
         await it('is silent on a cache dir that does not exist', async () => {
-            // Housekeeping on a best-effort path must never fail the command the
-            // user actually ran.
+            // Best-effort housekeeping must never fail the command the user ran.
             cleanupStalePrepareDirs(join(tmpdir(), 'gjsify-dlx-cache-absent-xyz'), 60);
         });
     });

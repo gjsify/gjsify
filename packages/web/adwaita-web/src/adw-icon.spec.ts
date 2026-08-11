@@ -1,16 +1,11 @@
-// DOM-level tests for <adw-icon>, driven by the SAME `normalizeIconName` vectors
-// the core suite asserts against (`@gjsify/adwaita-core/conformance`), plus the
-// REGRESSION PROOF for the drift the element was extracted to close.
+// DOM-level tests for <adw-icon>, driven by the SAME `normalizeIconName` vectors the
+// core suite asserts against (`@gjsify/adwaita-core/conformance`).
 //
-// The drift: `<span class="adw-icon adw-icon--<name>" aria-hidden="true">` was
-// built by hand at twenty-three sites across seventeen files, nine of them
-// re-deriving `name.replace(/-symbolic$/, '')` on the spot. Exactly ONE site —
-// `<adw-split-button>` — also checked the result was a single CSS token. So
-// `icon-name="a b"` interpolated into `class="adw-icon adw-icon--a b"` and shipped
-// a stray `b` class through `<adw-menu-button>`, for its own icon AND for every
-// JSON menu entry's, while the one element that guarded kept passing its spec.
-// The vectors below now run against the ELEMENT, so a renderer that starts
-// building the class by hand again fails naming the input.
+// The icon-name class must never be built by hand: a name is only usable once it is
+// known to be a SINGLE CSS token, and hand-built spans skipped that check, so
+// `icon-name="a b"` interpolated a stray second class and shipped it through
+// `<adw-menu-button>` for its own icon and for every JSON menu entry's. The vectors run
+// against the ELEMENT, so hand-building the class again fails naming the input.
 import { describe, expect, it } from '@gjsify/unit';
 
 import { VIEW_STACK_ICON_NAME_VECTORS } from '@gjsify/adwaita-core/conformance';
@@ -39,13 +34,11 @@ export const AdwIconTest = async () => {
                 el.iconName = icon ?? null;
 
                 expect(el.resolvedIconName).toBe(normalized);
-                // The base class is unconditional — a nameless icon is still an
-                // icon box, which is what `<adw-status-page>` hides rather than
-                // omits.
+                // The base class is unconditional: a nameless icon is still an icon box,
+                // which `<adw-status-page>` hides rather than omits.
                 expect(el.classList.contains('adw-icon')).toBe(true);
-                // …and NOTHING else is on the node. This is the assertion the
-                // hand-rolled copies could not make: `icon-name="a b"` used to
-                // leave a stray `b` here.
+                // …and NOTHING else is on the node — the assertion a hand-rolled copy
+                // cannot make, where `icon-name="a b"` leaves a stray `b`.
                 expect(extraClasses(el)).toStrictEqual(normalized === '' ? [] : [`adw-icon--${normalized}`]);
                 host.remove();
             });
@@ -66,8 +59,8 @@ export const AdwIconTest = async () => {
             expect(extraClasses(el)).toStrictEqual(['adw-drop-down-arrow', 'adw-icon--go-down', 'start']);
 
             el.iconName = 'go-next';
-            // Exactly one mask class at a time, and the caller's are untouched —
-            // a `className =` assignment would have taken them with it.
+            // Exactly one mask class at a time, and the caller's are untouched: a
+            // `className =` assignment would take them with it.
             expect(extraClasses(el)).toStrictEqual(['adw-drop-down-arrow', 'adw-icon--go-next', 'start']);
 
             el.iconName = null;
@@ -86,10 +79,9 @@ export const AdwIconTest = async () => {
             const styled = getComputedStyle(el);
             expect(styled.width).toBe('32px');
             expect(styled.height).toBe('32px');
-            // Sizing only the box would leave a 16px glyph floating in it. Only
-            // the axis we set is asserted: `mask-size: 32px` means "32px wide,
-            // height from the aspect ratio", and the CSSOM re-serializes the
-            // omitted half (Firefox reports `32px auto`, in the inline style too).
+            // Sizing only the box leaves a 16px glyph floating in it. Only the axis set is
+            // asserted: `mask-size: 32px` means "32px wide, height from the aspect ratio",
+            // and the CSSOM re-serializes the omitted half (Firefox reports `32px auto`).
             expect(styled.maskSize.split(' ')[0]).toBe('32px');
             expect(styled.webkitMaskSize.split(' ')[0]).toBe('32px');
 
@@ -99,10 +91,10 @@ export const AdwIconTest = async () => {
         });
 
         await it('paints in the INHERITED colour, not the boundary reset colour', () => {
-            // `.adw-icon` masks with `currentColor`, and <adw-icon> is a custom
-            // element — so the ADR-0010 `$adw-components` reset re-roots `color`
-            // on it. Without `color: inherit` in `_icon.scss` every icon would
-            // repaint in `--window-fg-color` regardless of the button it sits in.
+            // `.adw-icon` masks with `currentColor` and <adw-icon> is a custom element, so
+            // the ADR-0010 `$adw-components` reset re-roots `color` on it: without
+            // `color: inherit` in `_icon.scss` every icon repaints in `--window-fg-color`
+            // regardless of the button it sits in.
             const { el: box, host } = mount<HTMLElement>('div');
             box.style.color = 'rgb(255, 0, 0)';
             const icon = document.createElement('adw-icon') as AdwIcon;
@@ -142,10 +134,9 @@ export const AdwIconTest = async () => {
         });
 
         await it('every icon in the package is an <adw-icon>', () => {
-            // The point of the extraction, asserted structurally: build a page of
-            // the widgets that draw icons and check no bare span carries the
-            // base class. A new hand-rolled `<span class="adw-icon …">` fails
-            // here even if it happens to guard its own name correctly.
+            // Asserted structurally: a page of every icon-drawing widget, and no bare span
+            // carrying the base class — so a new hand-rolled `<span class="adw-icon …">`
+            // fails here even when it guards its own name correctly.
             const { el: page, host } = mount<HTMLElement>('div');
             page.innerHTML = `
                 <adw-button icon="go-next" label="Next"></adw-button>

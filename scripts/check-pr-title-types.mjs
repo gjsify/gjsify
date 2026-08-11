@@ -1,20 +1,16 @@
 #!/usr/bin/env node
 // Hold the PR-title linter's implicit type list to the one commitlint enforces.
 //
-// WHY A CHECK RATHER THAN A SECOND LIST. With squash merges, what lands on
-// `main` is the PR TITLE, not the commits — and `commitlint.yml` lints the
-// COMMITS. So the string that becomes history is the one string nothing looks
-// at: #849 merged as "Run the transparent addon matrix in CI (#849)" with no
-// conventional prefix and is therefore absent from the v0.26.1 CHANGELOG
-// entirely. The work shipped with no release note.
+// WHY A CHECK RATHER THAN A SECOND LIST. With squash merges what lands on `main`
+// is the PR TITLE, while `commitlint.yml` lints the COMMITS — so the string that
+// becomes history is the one string nothing looks at. #849 merged as "Run the
+// transparent addon matrix in CI (#849)" with no conventional prefix and is absent
+// from the v0.26.1 CHANGELOG entirely.
 //
-// The title step fixes that, and it needs a type list. Passing one would put a
-// SECOND copy of `type-enum` in a workflow file, where it drifts silently — the
-// failure mode this repo keeps paying for. It happens that our list is exactly
-// the conventional-commit default, so the step passes NO `types` input and
-// inherits it. That is only safe while the two agree, which is what this
-// asserts: add a type to commitlint.config.cjs and this fails, telling you to
-// make the workflow's list explicit instead of letting the two diverge unseen.
+// The title step needs a type list, and passing one would put a SECOND copy of
+// `type-enum` in a workflow file to drift silently. Our list happens to be exactly
+// the conventional-commit default, so the step passes NO `types` input and inherits
+// it — safe only while the two agree, which is what this asserts.
 //
 // Usage: node scripts/check-pr-title-types.mjs
 

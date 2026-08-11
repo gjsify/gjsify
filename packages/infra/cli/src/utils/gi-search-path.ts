@@ -1,9 +1,8 @@
 // Make the native prebuilds this process can see resolvable to the RUNNING GJS
 // process, with nothing exported into the environment beforehand. ADR 0021.
 //
-// THE MEASUREMENT (gjs 1.88.1 / GLib 2.88.3, importing `gi://GjsifyRolldown`
-// from a bare `gjs -m`) — there are TWO lookups, not one, and they fail
-// differently:
+// There are TWO lookups, not one, and they fail differently (measured on gjs
+// 1.88.1 / GLib 2.88.3, importing `gi://GjsifyRolldown` from a bare `gjs -m`):
 //
 //   neither var       "Typelib file for namespace 'GjsifyRolldown' (any
 //                      version) not found"
@@ -12,30 +11,22 @@
 //                      "Unsupported type void, deriving from fundamental void"
 //   both              loads
 //
-// The received answer was "the typelib lookup happens inside the GJS runtime,
-// so those must be set BEFORE the process starts — the CLI cannot repair it
-// from the inside". Half of that is permanently true: `LD_LIBRARY_PATH` cannot
-// be changed in-process because ld.so freezes its search path at startup, which
-// is an OS property and is why the `gjsify` launcher still exists for user
-// bundles.
-//
-// It is the wrong frame, because girepository delegates NEITHER lookup to the
-// loader's environment. It keeps a typelib search path AND a library search
-// path of its own, consults both before falling back to the system loader, and
-// both are writable at runtime. `prepend_library_path()` is the half nobody
-// went looking for: `LD_LIBRARY_PATH` was assumed to BE the mechanism when it
-// is only girepository's fallback — which is exactly what the middle row above
+// girepository delegates NEITHER lookup to the loader's environment: it keeps a
+// typelib search path AND a library search path of its own, consults both before
+// falling back to the system loader, and both are writable at runtime.
+// `LD_LIBRARY_PATH` is only girepository's fallback — which the middle row above
 // proves, since girepository's own library path starts empty and no environment
-// variable seeds it.
+// variable seeds it. That variable genuinely cannot be changed in-process (ld.so
+// freezes its search path at startup), which is why the `gjsify` launcher still
+// exists for user bundles — but it is not this lookup's mechanism.
 //
-// NOT an rpath problem, and the rpath is not the fix. `libgjsifyrolldown.so`
-// already carries `RUNPATH=$ORIGIN` (every bridge's `meson.build` sets it so
-// the Vala library finds the Rust cdylib shipped beside it — on macOS nothing
-// sets `DYLD_LIBRARY_PATH`, so it is the only thing that does). It structurally
-// cannot help gjs FIND `libgjsifyrolldown.so` itself: the typelib names it by
-// bare SONAME, and `dlopen()` of a bare name searches the RPATH/RUNPATH of the
-// CALLING object — libgirepository, whose `$ORIGIN` is /usr/lib64. An rpath on
-// the callee is never consulted to find the callee, so no artifact changes.
+// NOT an rpath problem, and the rpath is not the fix. `libgjsifyrolldown.so` already
+// carries `RUNPATH=$ORIGIN` (every bridge's `meson.build` sets it so the Vala library
+// finds the Rust cdylib beside it). That structurally cannot help gjs FIND
+// `libgjsifyrolldown.so` itself: the typelib names it by bare SONAME, and `dlopen()`
+// of a bare name searches the RPATH/RUNPATH of the CALLING object — libgirepository,
+// whose `$ORIGIN` is /usr/lib64. An rpath on the callee is never consulted to find
+// the callee, so no artifact changes.
 
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -51,18 +42,15 @@ interface GiRepository {
  * girepository's process-global default repository — the one GJS's own `gi://`
  * importer resolves against — or `null` when there is none to write to.
  *
- * `globalThis.imports?.gi` is both the GJS probe (`.oxlintrc.json` sanctions
- * exactly this spelling for a runtime probe) and the correct CONDITION, which
- * is why there is no `isGjs()` beside it: the question is "is there a
- * GIRepository to prepend to", and a Node host answers no all by itself. That
- * is the required no-op — on Node the CLI uses the npm `rolldown` crate and
- * never wants a prebuild.
+ * `globalThis.imports?.gi` is both the sanctioned GJS probe spelling
+ * (`.oxlintrc.json`) and the correct CONDITION, so no `isGjs()` beside it: the
+ * question is "is there a GIRepository to prepend to", and a Node host answers
+ * no by itself — the required no-op, since on Node the CLI uses the npm
+ * `rolldown` crate and never wants a prebuild.
  *
- * `dup_default()` is GLib >= 2.86. A capability probe rather than a try/catch
- * because this is a KNOWN host property with a defined answer, not an
- * exceptional one: an older GLib simply keeps today's behaviour (the launcher's
- * environment, or an unchanged diagnosis), so the change cannot make any host
- * worse than it is.
+ * `dup_default()` is GLib >= 2.86, probed as a capability rather than caught:
+ * an older GLib simply keeps today's behaviour (the launcher's environment, or
+ * an unchanged diagnosis), so no host can be made worse.
  */
 function defaultRepository(): GiRepository | null {
     const gi = (
@@ -81,42 +69,33 @@ let activated: readonly NativePackage[] | null = null;
  * Put every detected prebuild directory on girepository's typelib AND library
  * search paths. Idempotent — the first call decides, later ones return it.
  *
- * This is THE LAUNCHER'S ENVIRONMENT, APPLIED TO THE PROCESS THAT IS ALREADY
- * RUNNING: it feeds on the same `detectNativePackages()` whose output the
- * `gjsify` bin turns into `GI_TYPELIB_PATH` + the host library-path variable
- * (`buildNativeEnv`), so the two mechanisms cannot resolve different sets. That
- * symmetry is also why this is not per-bridge: there is no list of covered
- * engines to maintain, and a bridge added later is covered without touching
- * this file. Today it covers all three the CLI loads in-process —
- * `rolldown-native`, `lightningcss-native` (via the `css-as-string` plugin) and
- * `oxfmt-native`.
+ * The launcher's environment applied to the already-running process: it feeds on
+ * the same `detectNativePackages()` whose output the `gjsify` bin turns into
+ * `GI_TYPELIB_PATH` + the host library-path variable (`buildNativeEnv`), so the two
+ * mechanisms cannot resolve different sets and a bridge added later needs no change
+ * here.
  *
- * TWO ANCHORS, merged first-wins exactly as `computeNativeEnvForBundle()` does
- * it: the cwd, and the directory this module itself lives in. The second is not
- * redundant — with a GLOBAL CLI the engine sits next to the bundle while the cwd
- * is an unrelated project, which is the same case `tryLoadNative()` documents
- * needing its `bundleUrl` anchor for. After bundling, every CLI module collapses
- * into `dist/cli.gjs.mjs`, so `import.meta.url` is the bundle's own URL, which
- * is precisely the "where does the CLI live" question being asked.
+ * TWO ANCHORS, merged first-wins as `computeNativeEnvForBundle()` does: the cwd, and
+ * this module's own directory. The second is not redundant — with a GLOBAL CLI the
+ * engine sits next to the bundle while the cwd is an unrelated project (the case
+ * `tryLoadNative()` needs its `bundleUrl` anchor for), and after bundling
+ * `import.meta.url` is the bundle's own URL.
  *
- * Called from the native-load paths, which are themselves memoized, so the
- * node_modules sweep (~65 ms per anchor on this 960-workspace tree, far less in
- * a consumer) is paid at most once per process and only by a command that
- * actually wants an engine. Deliberately NOT skipped when the launcher already
- * exported the same directories: that check can be wrong, prepending a
- * directory that already resolves changes nothing, and a guard whose job is
- * watching another mechanism is the shape `docs/governance.md` § simplicity
- * warns about.
+ * Callers are memoized, so the node_modules sweep (~65 ms per anchor on this
+ * 960-workspace tree) is paid at most once per process, by a command that wants an
+ * engine. Deliberately NOT skipped when the launcher already exported the same
+ * directories: that check can be wrong, prepending an already-resolving directory
+ * changes nothing, and a guard watching another mechanism is the shape
+ * `docs/governance.md` § simplicity warns about.
  *
  * @returns the packages activated — empty when there is no repository to write
  *   to (Node, or GLib < 2.86), which every caller reads as "carry on".
  */
 export function activateNativePrebuilds(): readonly NativePackage[] {
     if (activated) return activated;
-    // Memoized BEFORE the work, so every outcome — including a throw — is
-    // decided once and every later caller gets an answer instead of a repeat
-    // attempt. `diagnoseNativeEngine()` depends on exactly that: it documents
-    // that nothing it calls may throw while explaining a failure.
+    // Memoized BEFORE the work, so every outcome — including a throw — is decided
+    // once. `diagnoseNativeEngine()` depends on that: nothing it calls may throw
+    // while explaining a failure.
     activated = [];
 
     try {
@@ -134,26 +113,19 @@ export function activateNativePrebuilds(): readonly NativePackage[] {
         }
         activated = packages;
     } catch {
-        // TWO REAL THROW PATHS, named because a catch without one is the
-        // anti-pattern this repo measures:
-        //
-        //   1. `imports.gi.GIRepository` LOADS the namespace. GJS raises
-        //      "Requiring GIRepository, version none: Typelib file for namespace
-        //      'GIRepository' (any version) not found" when that typelib is
-        //      absent — verified by probe. It is a SEPARATE FILE from the
-        //      girepository library GJS links against, and distributions split
-        //      them (Debian ships `gir1.2-girepository-3.0` apart from
+        // Two real throw paths:
+        //   1. `imports.gi.GIRepository` LOADS the namespace, and that typelib is
+        //      a SEPARATE FILE from the girepository library GJS links against —
+        //      distributions split them (Debian's `gir1.2-girepository-3.0` vs
         //      `libgirepository-2.0-0`), so a lean host can have the second
-        //      without the first.
-        //   2. The two `detectNativePackages()` walks are filesystem I/O and can
-        //      raise (EACCES on an unreadable node_modules, a dir removed
-        //      mid-walk).
+        //      without the first and GJS raises "Typelib file for namespace
+        //      'GIRepository' (any version) not found".
+        //   2. The two `detectNativePackages()` walks are filesystem I/O (EACCES
+        //      on an unreadable node_modules, a dir removed mid-walk).
         //
-        // Both mean the same thing — no activation — and swallowing is the
-        // CORRECT handling rather than a hidden failure: the caller ends up
-        // exactly where it was before this function existed (the launcher's
-        // environment, and the unchanged diagnosis if that is absent too), so
-        // no host can be made worse by it.
+        // Both mean no activation, and swallowing leaves the caller exactly where
+        // it was before this function existed (the launcher's environment, or the
+        // unchanged diagnosis), so no host can be made worse by it.
     }
     return activated;
 }

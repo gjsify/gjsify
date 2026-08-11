@@ -6,8 +6,6 @@
 // individually small (<60 LoC) and they share the "thin Node-API shim"
 // character — none need a dedicated file.
 
-// ---- promisify / callbackify ----
-
 const kCustomPromisify = Symbol.for('nodejs.util.promisify.custom');
 
 export function promisify<T extends (...args: unknown[]) => void>(fn: T): (...args: unknown[]) => Promise<unknown> {
@@ -59,8 +57,6 @@ export function callbackify(fn: (...args: unknown[]) => Promise<unknown>): (...a
     };
 }
 
-// ---- deprecate ----
-
 export function deprecate<T extends (...args: unknown[]) => unknown>(fn: T, msg: string, code?: string): T {
     let warned = false;
     function deprecated(this: unknown, ...args: unknown[]): unknown {
@@ -74,8 +70,6 @@ export function deprecate<T extends (...args: unknown[]) => unknown>(fn: T, msg:
     Object.setPrototypeOf(deprecated, fn);
     return deprecated as unknown as T;
 }
-
-// ---- debuglog ----
 
 export function debuglog(section: string): (...args: unknown[]) => void {
     let debug: ((...args: unknown[]) => void) | undefined;
@@ -97,8 +91,6 @@ export function debuglog(section: string): (...args: unknown[]) => void {
         debug(...args);
     };
 }
-
-// ---- inherits ----
 
 interface ErrnoBrand {
     code?: string;
@@ -123,8 +115,6 @@ export function inherits(ctor: Function, superCtor: Function): void {
     Object.defineProperty(ctor, 'super_', { value: superCtor, writable: true, configurable: true });
     Object.setPrototypeOf(ctor.prototype, superCtor.prototype);
 }
-
-// ---- isDeepStrictEqual ----
 
 export function isDeepStrictEqual(a: unknown, b: unknown): boolean {
     if (Object.is(a, b)) return true;
@@ -165,8 +155,6 @@ export function isDeepStrictEqual(a: unknown, b: unknown): boolean {
     return true;
 }
 
-// ---- toUSVString ----
-
 export function toUSVString(string: string): string {
     if (typeof (string as unknown as { toWellFormed?: () => string }).toWellFormed === 'function') {
         return (string as unknown as { toWellFormed: () => string }).toWellFormed();
@@ -174,8 +162,6 @@ export function toUSVString(string: string): string {
     // Fallback
     return string.replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, '�');
 }
-
-// ---- aborted ----
 
 /**
  * Returns a Promise that resolves once `signal` aborts. The optional

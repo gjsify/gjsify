@@ -2,21 +2,16 @@
 /**
  * CLI entry: verify staged prebuild DIRECTORIES.
  *
- * The parsers and the directory check now live in
- * `@gjsify/manifest-conformance` (`lib/binary.mjs`) so that this CLI,
- * `scripts/stage-prebuild.mjs`, the workspace audit and `gjsify manifest-check`
- * all read a prebuild exactly one way. The full rationale for what is checked
- * and why both binary formats are parsed by hand lives there.
+ * The parsers and the directory check live in `@gjsify/manifest-conformance`
+ * (`lib/binary.mjs`), so this CLI, `scripts/stage-prebuild.mjs` and the workspace
+ * audit all read a prebuild exactly one way; the rationale for what is checked
+ * and why both binary formats are parsed by hand lives there, and the parsers are
+ * re-exported here because `stage-prebuild.mjs` imports them from this path.
  *
- * This file stays because the thing it takes is a DIRECTORY, not a manifest:
- * `stage-prebuild.mjs` calls it on the directory it has just written, before
- * any package declares anything about it. That is a different question from
- * "does this package's declaration have a body", which is the
+ * What this takes is a DIRECTORY, not a manifest: `stage-prebuild.mjs` calls it on
+ * what it has just written, before any package declares anything about it — a
+ * different question from "does this declaration have a body", which is the
  * `prebuild-artifacts` rule.
- *
- * The named exports are re-exported for backwards compatibility: existing
- * importers (`scripts/stage-prebuild.mjs`, and anything else reaching for the
- * parsers) keep working unchanged.
  *
  * Usage: node scripts/check-prebuild-loader-path.mjs <dir> [<dir> …]
  *        node scripts/check-prebuild-loader-path.mjs packages/infra/oxfmt-native-darwin-arm64/prebuilds/darwin-arm64

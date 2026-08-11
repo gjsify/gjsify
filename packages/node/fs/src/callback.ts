@@ -41,8 +41,6 @@ import { normalizePath } from './utils.js';
 
 import type { OpenFlags } from './types/index.js';
 
-// --- helpers ---
-
 /**
  * The handle behind `fd`, or `null` after handing EBADF to `deliver`.
  *
@@ -101,8 +99,6 @@ function statImpl(
     });
 }
 
-// --- stat / lstat ---
-
 export function stat(path: PathLike, callback: (err: NodeJS.ErrnoException | null, stats: Stats) => void): void;
 export function stat(
     path: PathLike,
@@ -133,8 +129,6 @@ export function lstat(
     statImpl(path, Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS, 'lstat', options, callback);
 }
 
-// --- readdir ---
-
 export function readdir(path: PathLike, callback: (err: NodeJS.ErrnoException | null, files: string[]) => void): void;
 export function readdir(
     path: PathLike,
@@ -161,8 +155,6 @@ export function readdir(
     });
 }
 
-// --- realpath ---
-
 export function realpath(
     path: PathLike,
     callback: (err: NodeJS.ErrnoException | null, resolvedPath: string) => void,
@@ -188,8 +180,6 @@ export function realpath(
         }
     });
 }
-
-// --- symlink ---
 
 export function symlink(target: PathLike, path: PathLike, callback: NoParamCallback): void;
 export function symlink(target: PathLike, path: PathLike, type: string | null, callback: NoParamCallback): void;
@@ -613,8 +603,6 @@ export function rm(path: PathLike, ...args: (RmOptions | NoParamCallback)[]): vo
         });
 }
 
-// --- rename ---
-
 export function rename(oldPath: PathLike, newPath: PathLike, callback: NoParamCallback): void {
     Promise.resolve().then(() => {
         try {
@@ -625,8 +613,6 @@ export function rename(oldPath: PathLike, newPath: PathLike, callback: NoParamCa
         }
     });
 }
-
-// --- copyFile ---
 
 export function copyFile(src: PathLike, dest: PathLike, callback: NoParamCallback): void;
 export function copyFile(src: PathLike, dest: PathLike, mode: number, callback: NoParamCallback): void;
@@ -648,8 +634,6 @@ export function copyFile(
     });
 }
 
-// --- access ---
-
 export function access(path: PathLike, callback: NoParamCallback): void;
 export function access(path: PathLike, mode: number, callback: NoParamCallback): void;
 export function access(path: PathLike, modeOrCb: number | NoParamCallback, maybeCb?: NoParamCallback): void {
@@ -664,8 +648,6 @@ export function access(path: PathLike, modeOrCb: number | NoParamCallback, maybe
         }
     });
 }
-
-// --- appendFile ---
 
 export function appendFile(path: PathLike, data: string | Uint8Array, callback: NoParamCallback): void;
 export function appendFile(
@@ -691,8 +673,6 @@ export function appendFile(
         }
     });
 }
-
-// --- readlink ---
 
 export function readlink(
     path: PathLike,
@@ -722,8 +702,6 @@ export function readlink(
     });
 }
 
-// --- truncate ---
-
 export function truncate(path: PathLike, callback: NoParamCallback): void;
 export function truncate(path: PathLike, len: number, callback: NoParamCallback): void;
 export function truncate(path: PathLike, lenOrCb: number | NoParamCallback, maybeCb?: NoParamCallback): void {
@@ -739,8 +717,6 @@ export function truncate(path: PathLike, lenOrCb: number | NoParamCallback, mayb
     });
 }
 
-// --- chmod ---
-
 export function chmod(path: PathLike, mode: Mode, callback: NoParamCallback): void {
     Promise.resolve().then(() => {
         try {
@@ -752,8 +728,6 @@ export function chmod(path: PathLike, mode: Mode, callback: NoParamCallback): vo
     });
 }
 
-// --- chown ---
-
 export function chown(path: PathLike, uid: number, gid: number, callback: NoParamCallback): void {
     Promise.resolve().then(() => {
         try {
@@ -764,8 +738,6 @@ export function chown(path: PathLike, uid: number, gid: number, callback: NoPara
         }
     });
 }
-
-// --- mkdir (callback) ---
 
 export function mkdir(path: PathLike, callback: NoParamCallback): void;
 export function mkdir(path: PathLike, options: MakeDirectoryOptions | Mode, callback: NoParamCallback): void;
@@ -786,8 +758,6 @@ export function mkdir(
     });
 }
 
-// --- rmdir (callback) ---
-
 export function rmdir(path: PathLike, callback: NoParamCallback): void;
 export function rmdir(path: PathLike, options: RmDirOptions, callback: NoParamCallback): void;
 export function rmdir(path: PathLike, optsOrCb: RmDirOptions | NoParamCallback, maybeCb?: NoParamCallback): void {
@@ -802,8 +772,6 @@ export function rmdir(path: PathLike, optsOrCb: RmDirOptions | NoParamCallback, 
         }
     });
 }
-
-// --- readFile (callback) ---
 
 export function readFile(path: PathLike, callback: (err: NodeJS.ErrnoException | null, data: Buffer) => void): void;
 export function readFile(
@@ -840,8 +808,6 @@ export function readFile(
         }
     });
 }
-
-// --- writeFile (callback) ---
 
 export function writeFile(path: PathLike, data: string | Uint8Array, callback: NoParamCallback): void;
 export function writeFile(
@@ -881,8 +847,6 @@ export function writeFile(
     });
 }
 
-// --- link (callback) ---
-
 export function link(existingPath: PathLike, newPath: PathLike, callback: NoParamCallback): void {
     // Delegate to linkSync — the canonical impl (argv-array spawn, Node
     // ENOENT/EEXIST semantics). The former inline copy shelled out with
@@ -896,8 +860,6 @@ export function link(existingPath: PathLike, newPath: PathLike, callback: NoPara
         }
     });
 }
-
-// --- unlink (callback) ---
 
 export function unlink(path: PathLike, callback: NoParamCallback): void {
     const pathStr = normalizePath(path);

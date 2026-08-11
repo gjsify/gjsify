@@ -1,28 +1,21 @@
 // Split-button plumbing for NativeScript — the pure half.
 //
 // The split button's BEHAVIOUR is headless and lives in `@gjsify/adwaita-core`
-// (ADR 0004). What is NativeScript-specific is only the platform seam: there is
-// no popover in the NS subset, so the dropdown opens a `Dialogs.action()` sheet,
-// which takes a list of STRINGS and reports back the chosen STRING; and the
-// action half's icon is an SVG string rather than an icon-theme name.
+// (ADR 0004). NativeScript-specific is the platform seam: the NS subset has no
+// popover, so the dropdown opens a `Dialogs.action()` sheet, which takes a list of
+// STRINGS and reports back the chosen STRING; and the action half's icon is an SVG
+// string rather than an icon-theme name.
 //
-// That round trip is where the port used to lose information. `indexOf(chosen)`
-// on the raw labels meant two entries called `Copy` always dispatched the first,
-// and an entry called `Cancel` was indistinguishable from dismissing the sheet —
-// dismissing it fired a spurious activation of entry 0. A `GMenuModel` addresses
-// its items BY POSITION (adw-split-button.c:385-388), so the sheet is fed
-// strings that are unique by construction and the answer maps back to exactly
-// one position.
+// A `GMenuModel` addresses its items BY POSITION, so that string round trip must not
+// lose information: the sheet is fed strings unique by construction
+// ({@link menuSheetActions}) and the answer maps back to exactly one position.
 //
-// This module is deliberately FREE of `@nativescript/core` value imports — like
-// `icon-path.ts`, `row-press.ts` and `avatar-color.ts` — so the spec suite can
-// exercise the real code off-device. `adw-split-button.ts` cannot serve that
-// role: it `extends GridLayout`, which evaluates the bare `@nativescript/core`
-// specifier at module-eval and is unresolvable on GJS/Node.
+// Free of `@nativescript/core` value imports so the spec suite can exercise the real
+// code off-device; `adw-split-button.ts` cannot, because `extends GridLayout`
+// evaluates the bare specifier at module-eval.
 //
 // Reference: refs/libadwaita/src/adw-split-button.c (AdwSplitButton)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss
-//            (menubutton arrow :451-469 — and the splitbutton override at :621-623)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { splitButtonArrowIcon } from '@gjsify/adwaita-core';
@@ -30,28 +23,23 @@ import type { AdwArrowIcon, AdwMenuEntry, SplitButtonDirection, SplitButtonState
 import { openMenuSymbolic } from '@gjsify/adwaita-icons/actions';
 import { panDownSymbolic, panEndSymbolic, panStartSymbolic, panUpSymbolic } from '@gjsify/adwaita-icons/ui';
 
-// Re-exported so `adw-split-button.ts` and its consumers get both halves from
-// one place, the way `avatar-color.ts` re-exports `avatarInitials`.
+// Re-exported so `adw-split-button.ts` and its consumers get both halves from one place.
 export type { AdwMenuEntry, SplitButtonDirection };
 
 /** Text of the sheet's dismiss button. */
 export const MENU_CANCEL_LABEL = 'Cancel';
 
 /**
- * Zero-width space, appended to make a colliding sheet entry unique.
- *
- * Invisible in the platform sheet and not announced by TalkBack/VoiceOver, so
- * two entries that read `Copy` still read `Copy` — they are just no longer the
- * same STRING, which is what lets the answer resolve to one position.
+ * Zero-width space, appended to make a colliding sheet entry unique. Invisible in the
+ * platform sheet and not announced by TalkBack/VoiceOver, so two entries that read
+ * `Copy` still read `Copy` while no longer being the same STRING.
  */
 const DISAMBIGUATOR = '\u200B';
 
 /**
- * The libadwaita arrow glyph names mapped to real Adwaita symbolic SVGs.
- *
- * Keyed by {@link AdwArrowIcon} and therefore TOTAL: which glyph a direction gets
- * is decided in core, and a glyph this table has no SVG for is a compile error
- * rather than a fallback arrow.
+ * The libadwaita arrow glyph names mapped to real Adwaita symbolic SVGs. Keyed by
+ * {@link AdwArrowIcon} and therefore TOTAL: which glyph a direction gets is decided in
+ * core, and a glyph with no SVG here is a compile error rather than a fallback arrow.
  */
 export const ARROW_SVGS: Readonly<Record<AdwArrowIcon, string>> = {
     'open-menu-symbolic': openMenuSymbolic,
@@ -62,11 +50,8 @@ export const ARROW_SVGS: Readonly<Record<AdwArrowIcon, string>> = {
 };
 
 /**
- * Normalise a menu assigned from XML or app code into entries.
- *
- * A bare `string[]` is accepted because that is what `AdwSplitButton.menu` used
- * to be and what the storybook still passes; it widens to the shared
- * {@link AdwMenuEntry} without breaking a caller.
+ * Normalise a menu assigned from XML or app code into entries. A bare `string[]` is
+ * accepted (the storybook passes one) and widens to the shared {@link AdwMenuEntry}.
  */
 export function toMenuEntries(value: readonly (string | AdwMenuEntry)[] | null | undefined): AdwMenuEntry[] {
     if (!Array.isArray(value)) return [];
@@ -79,11 +64,10 @@ export function toMenuEntries(value: readonly (string | AdwMenuEntry)[] | null |
 }
 
 /**
- * The strings handed to `Dialogs.action()`, one per entry and each unique.
- *
- * A label that collides with another entry — or with the dismiss button — gets
- * zero-width spaces appended until it is distinct. Nothing changes on screen;
- * what changes is that {@link resolveMenuChoice} can now tell the entries apart.
+ * The strings handed to `Dialogs.action()`, one per entry and each unique: a label
+ * that collides with another entry — or with the dismiss button — gets zero-width
+ * spaces appended until it is distinct, so {@link resolveMenuChoice} can tell them
+ * apart.
  */
 export function menuSheetActions(entries: readonly AdwMenuEntry[], cancelLabel: string = MENU_CANCEL_LABEL): string[] {
     // Seeding with the cancel text is what makes a menu entry literally called
@@ -100,37 +84,26 @@ export function menuSheetActions(entries: readonly AdwMenuEntry[], cancelLabel: 
 }
 
 /**
- * The position the user chose, or `-1` when the sheet was dismissed.
- *
- * Feed it the SAME array {@link menuSheetActions} produced: the strings are
- * unique there, so the lookup is a position and not a guess.
+ * The position the user chose, or `-1` when the sheet was dismissed. Feed it the SAME
+ * array {@link menuSheetActions} produced, or the lookup is a guess.
  */
 export function resolveMenuChoice(sheetActions: readonly string[], chosen: string | null | undefined): number {
     if (typeof chosen !== 'string') return -1;
     return sheetActions.indexOf(chosen);
 }
 
-/**
- * The arrow SVG for a direction, keyed off the SPLIT BUTTON's glyph map — so
- * `none` is the down caret (_buttons.scss:621-623), not the hamburger this widget
- * used to render for it.
- */
+/** The arrow SVG for a direction; the split button's `none` is the down caret, not a hamburger. */
 export function splitButtonArrowSvg(direction: SplitButtonDirection): string {
     return ARROW_SVGS[splitButtonArrowIcon(direction)];
 }
 
 /**
- * Apply `AdwSplitButton.actionIcon = svg` to the content machine.
+ * Apply `AdwSplitButton.actionIcon = svg` to the content machine. The SVG string IS
+ * the icon identity on NativeScript, so it goes where GTK puts the icon NAME.
  *
- * The SVG string IS the icon identity on NativeScript (no icon theme is
- * resolved), so it goes in where GTK puts the icon NAME. Clearing it is the
- * mapping worth having in one place: C offers no "unset the icon", only the
- * side effect of filling another slot (adw-split-button.c:749-771), so an empty
- * SVG clears the content and lets the label half take over again — which is what
- * every caller assigning `actionIcon` from a nullable lookup expects.
- *
- * Lives here rather than in the widget so it is unit-testable off-device: the
- * widget module `extends GridLayout` and cannot be imported on GJS/Node.
+ * C offers no "unset the icon", only the side effect of filling another slot, so an
+ * empty SVG clears the content and lets the label half take over again — what a
+ * caller assigning `actionIcon` from a nullable lookup expects.
  */
 export function setActionIcon(state: SplitButtonState, svg: string | null | undefined): void {
     const next = svg ?? '';

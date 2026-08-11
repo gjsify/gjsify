@@ -1,17 +1,11 @@
 #!/usr/bin/env node
 // Install the gjsify git hooks by pointing `core.hooksPath` at `.githooks/`.
 //
-// Why a plain script instead of husky/lefthook
-// --------------------------------------------
-// The workspace charter (AGENTS.md / `Constraints`) bans introducing new
-// runtime/build deps without an actual need, and the gjsify project is
-// migrating AWAY from third-party tooling — having to install a Node devDep
-// just to set one git config key is the wrong tradeoff. `git config
-// core.hooksPath .githooks` is one line, ESM-pure, works inside the
-// gjsify-installed workspace, and re-applies cleanly on every install.
-//
-// Idempotent: re-running it is a no-op if the config already points at the
-// right path. Safe to call repeatedly from `gjsify install`.
+// A plain script rather than husky/lefthook: a Node devDep to set one git config
+// key is the wrong trade for a project migrating AWAY from third-party tooling.
+// `git config core.hooksPath .githooks` is ESM-pure, works inside the
+// gjsify-installed workspace, and re-applies cleanly on every install — so this is
+// safe to call repeatedly from `gjsify install`.
 //
 // Usage:
 //   node scripts/install-git-hooks.mjs            # install
@@ -60,11 +54,6 @@ if (!existsSync(resolve(ROOT, '.git'))) {
     process.exit(0);
 }
 
-// Reading via `git rev-parse --git-dir` is more robust than `existsSync('.git')`
-// for git-worktree layouts where `.git` is a regular file pointing at the
-// real gitdir under the parent's `.git/worktrees/<name>/`. But the existence
-// check above is enough as a fast skip-path.
-
 function gitConfig(args) {
     try {
         return execFileSync('git', ['config', ...args], { cwd: ROOT, encoding: 'utf-8' }).trim();
@@ -110,15 +99,11 @@ if (missingHooks.length > 0) {
     process.exit(1);
 }
 
-// Apply each config key on its own and KEEP GOING.
-//
-// This used to `process.exit(0)` right here when `core.hooksPath` already
-// matched, which made everything below unreachable on exactly the clones that
-// need it most: an existing clone has the key set, so any git config the
-// project adds after this point would only ever land on FRESH clones, and the
-// difference is invisible — the script prints "nothing to do" and exits 0 in
-// both cases. Idempotency is a property of each individual write, not a licence
-// to abandon the rest of the script.
+// Apply each config key on its own and KEEP GOING. An early `process.exit(0)`
+// here on a matching `core.hooksPath` makes everything below unreachable on the
+// clones that need it most — an existing clone has the key set, so a later config
+// key would only ever land on FRESH clones, invisibly. Idempotency is a property
+// of each individual write, not a licence to abandon the rest of the script.
 const current = gitConfig(['--get', 'core.hooksPath']);
 if (current === HOOKS_DIR_RELATIVE) {
     log(`core.hooksPath already set to ${HOOKS_DIR_RELATIVE}.`);

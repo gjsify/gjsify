@@ -2,14 +2,11 @@
 // vectors the NativeScript renderer and the headless core assert against
 // (`@gjsify/adwaita-core/conformance`).
 //
-// The two renderers used to carry independent copies of the whole stack machine,
-// and both had drifted away from libadwaita in different directions. Four rows in
-// the shared table fail against the pre-lift code here: `pop()` refused a
-// `can-pop="false"` page (the C documents the opposite), `replace(['some-tag'])`
-// blanked the view when the tag belonged to a dynamically-pushed page,
-// `popToTag()` stopped early at a `can-pop="false"` page and emitted N separate
-// transitions instead of one, and a duplicate `tag` was accepted silently.
-// Nothing failed, because nothing compared them. This suite is that comparison.
+// Four rows of the shared table are the ones independent copies of the stack machine got
+// wrong: a programmatic `pop()` IGNORES `can-pop` (which gates only the back button and
+// the shortcut pops), `replace(['some-tag'])` resolves a tag belonging to a
+// dynamically-pushed page, `popToTag()` pops in ONE atomic splice emitting one
+// transition rather than N, and a duplicate `tag` is refused, not silently accepted.
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
@@ -269,7 +266,7 @@ export const AdwNavigationViewTest = async () => {
             expect(backButton(view)).toBe(null);
             view.pushByTag('detail');
             // The old element hardcoded "Back" here, where the C uses the title of
-            // the page the button reveals (adw-back-button.c query_tooltip:411-417).
+            // the page the button reveals (adw-back-button.c query_tooltip).
             expect(backButton(view)?.getAttribute('tooltip')).toBe('Home');
 
             view.pop();
@@ -406,7 +403,7 @@ export const AdwNavigationViewTest = async () => {
 
         await it('stops Alt+Left WITHOUT popping a can-pop="false" page', () => {
             // GDK_EVENT_STOP so the key never reaches an enclosing navigation view
-            // (pop_shortcut_cb:1150-1152).
+            // (pop_shortcut_cb).
             const { adapter, view, host, page } = mountView();
             adapter.add(page('root'));
             adapter.add(page('detail'));

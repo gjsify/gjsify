@@ -4,59 +4,20 @@
 // runtime data-file reads (a dep loading its own i18n JSON, `package.json`,
 // templates, …) still resolve.
 //
-// Cases, each with its own strategy:
+// Four cases, dispatched in `rewriteContents`; each strategy's rationale sits on its
+// `rewrite*` function:
 //
-//   1. on-disk ESM, runtime-resolve (`import.meta.url` present, not zip-resident,
-//      `format === 'esm'`)
-//      → rewrite to RUNTIME resolution via the `module-resolve` shim. The shim
-//        resolves the file's `<pkg>/<subpath>` from the bundle's actual location
-//        at run time, so the bundle works wherever it ends up — crucially, after
-//        being PUBLISHED in an npm package (where it sits at a different
-//        `node_modules` depth than at build time). See module-resolve.ts. Relies
-//        on the bundle-URL banner (bundle-url-banner.ts) having captured the
-//        anchor, hence the `runtimeResolve` gate.
+//   1. on-disk ESM + `runtimeResolve` → resolve at RUNTIME via the module-resolve shim
+//      (location-independent, survives publishing). Needs the bundle-URL banner, hence
+//      the gate.
+//   2. on-disk ESM, non-ESM output (no banner) → legacy path relative to the bundle's
+//      BUILD location.
+//   3. PnP zip-resident → `import.meta.url` stays the bundle's own URL.
+//   4. CJS (no `import.meta.url`) → 4a runtime-resolve when the banner is available AND
+//      the file is a genuinely installed package, else 4b baked absolute path.
 //
-//   2. on-disk ESM, legacy (same, but a non-ESM output format where the banner
-//      can't run)
-//      → the original behavior: rewrite to a path relative to the bundle's BUILD
-//        location. Correct only while bundle ↔ node_modules keep their build-time
-//        arrangement; preserved unchanged for the rare `--format iife|cjs` app
-//        build that can't host the `import.meta.url` anchor banner.
-//
-//   3. PnP zip-resident (`import.meta.url`, path inside a `.zip/`)
-//      → the file lives inside a Yarn-PnP zip; `import.meta.url` stays the
-//        bundle's own URL and `__dirname`/`__filename` derive from it.
-//
-//   4. CJS (`__dirname`/`__filename` only, no `import.meta.url`)
-//      → case 4a (runtime-resolve) when `runtimeResolve` is on (ESM output +
-//        bundle-URL banner present) AND the file is a genuinely resolvable
-//        installed package (`isRuntimeResolvable`). Declares `__dirname`/
-//        `__filename` from the RUNTIME module-resolve shim — the same
-//        location-independent strategy as case (1), so the bundle works after
-//        being published/relocated. This is what lets `@gjsify/tsc` find its
-//        `lib.*.d.ts` files relative to the INSTALLED bundle (via
-//        `getExecutingFilePath()` → `__filename`) instead of the build
-//        machine's `node_modules` path. The shim functions are pulled in with a
-//        CJS `require(...)`, NOT an ESM `import` header: Rolldown classifies a
-//        node_modules file by its own heuristics, and a genuine CommonJS file
-//        (a `.cjs`, or a `.js` with `module.exports` like `typescript/lib/
-//        _tsc.js`) is parsed as a CJS script — a prepended ESM `import` there
-//        throws `Cannot use import statement outside a module`. `require(...)`
-//        is the native CJS idiom Rolldown resolves + links to the bundled shim.
-//      → case 4b (legacy baked absolute path) otherwise: when `runtimeResolve`
-//        is OFF (the rare `--format iife|cjs` build that can't host the
-//        bundle-URL banner) OR the file is NOT a resolvable installed package
-//        (a relative-imported module under a `node_modules`-named dir that the
-//        package manager — Yarn PnP especially — does not resolve). Runtime
-//        resolution of such a file would collapse `__filename` to the bundle's
-//        own location, so the build-time absolute path is the correct value for
-//        an in-place run. Build-location-coupled — shares the "breaks when
-//        published" class of bug, but a non-installed file can't be published
-//        as a package anyway.
-//
-// Hosting: a Rolldown `transform(code, id)` hook with `order: 'post'` — runs
-// after deepkit/blueprint/css pre-transforms but still during module loading,
-// before chunking.
+// Hosted as a `transform(code, id)` hook with `order: 'post'`: after the
+// deepkit/blueprint/css pre-transforms, still during module loading, before chunking.
 
 import { createRequire } from 'node:module';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -68,17 +29,13 @@ export const REWRITE_FILTER = /\.(m?js|cjs|[cm]?tsx?)$/;
 const DIRNAME_DECL_RE = /(?:var|let|const)\s+__dirname\b|export\s+(?:var|let|const)\s+__dirname\b/;
 const FILENAME_DECL_RE = /(?:var|let|const)\s+__filename\b|export\s+(?:var|let|const)\s+__filename\b/;
 
-// Bare specifier of the runtime module-path resolver shim (see module-resolve.ts).
-// No `.js` — must match the package's `exports` subpath key (exports maps are
-// exact-match), mirroring the `./shims/console-gjs` convention.
+// No `.js`: must match the package's `exports` subpath key, which is exact-match.
 const MODULE_RESOLVE_SHIM = '@gjsify/rolldown-plugin-gjsify/shims/module-resolve';
 
-// Our own shims (module-resolve, console-gjs) get bundled into user output, so
-// they live in `node_modules/@gjsify/rolldown-plugin-gjsify/{lib,src}/shims/`
-// when consumed — but they must NEVER be rewritten. In particular the
-// module-resolve shim DECLARES `__gjsifyModule*` and its comments mention
-// `import.meta.url`; the naive token check below would otherwise treat that as
-// a rewrite target and prepend a self-import that collides with its exports.
+// Our own shims are bundled into user output and so live under a `node_modules/…/shims/`
+// path when consumed, but must NEVER be rewritten: the module-resolve shim DECLARES
+// `__gjsifyModule*` and mentions `import.meta.url`, so the token check below would
+// prepend a self-import that collides with its own exports.
 const GJSIFY_SHIM_RE = /[\\/]rolldown-plugin-gjsify[\\/](?:lib|src)[\\/]shims[\\/]/;
 
 /** True when the rewriter wants to look at this path — node_modules + supported ext. */
@@ -88,11 +45,7 @@ export function shouldRewrite(path: string): boolean {
     return true;
 }
 
-/**
- * Compute the directory the bundle's outfile lives in (used for the zip-resident
- * check and the legacy relative paths). Both `output.file` and `output.dir` are
- * accepted.
- */
+/** The directory the bundle's outfile lives in, from `output.file` or `output.dir`. */
 export function getBundleDirFromOutput(opts: { file?: string; dir?: string }): string {
     const outFile = opts.file ?? join(opts.dir ?? '.', 'bundle.mjs');
     return dirname(resolve(outFile));
@@ -105,35 +58,19 @@ function moduleTypeForPath(path: string): 'ts' | 'js' {
 }
 
 /**
- * The package-qualified spec for a node_modules file: everything after the LAST
- * `node_modules/` segment. This is what the runtime resolver feeds to
- * `createRequire(...).resolve` (via the package root).
+ * The package-qualified spec for a node_modules file — everything after the LAST
+ * `node_modules/` segment, which is what the runtime resolver feeds to
+ * `createRequire(...).resolve`. Always a module SPECIFIER, so always `/`-separated:
  *
- *   ".../node_modules/typedoc/dist/lib/app.js"   → "typedoc/dist/lib/app.js"
  *   ".../node_modules/@scope/name/sub.js"        → "@scope/name/sub.js"
  *   ".../node_modules/a/node_modules/b/file.js"  → "b/file.js"
  *
- * The result is a module SPECIFIER, not a path, so it is always `/`-separated.
- *
- * On win32 the incoming path is `C:\…\node_modules\typescript\lib\_tsc.js` and
- * the `node_modules/` marker never matched, so this returned the ABSOLUTE
- * BUILD-MACHINE PATH unchanged — and `shouldRewrite` above tests
- * `includes('node_modules')` without a separator, so the rewriter still fired
- * and baked that path into the bundle as the runtime resolve spec. Measured on
- * win32 x64 building `@gjsify/tsc`:
- *
- *   linux:  To(`typescript/lib/_tsc.js`)                        → retargets
- *   win32:  To(`C:\\src\\werkstatt\\gjsify\\gjsify\\node_mod…`) → unshippable
- *
- * `@gjsify/tsc`'s `scripts/build-bundle.mjs` caught it ("expected runtime
- * path-rewrite spec … not found in bundle — has the node-modules path rewriter
- * changed?") and refused to ship, which is why this surfaced as a build failure
- * rather than as a bundle that resolves nothing on someone else's machine.
- *
- * The conversion is win32-ONLY: on POSIX a backslash is a legitimate FILENAME
- * character, so rewriting it there would corrupt a real path. `platform` is
- * injected so both branches are unit-testable from either host — the same shape
- * `utils/entry-points.ts` and `cli/src/utils/win32-command.ts` use.
+ * The separator conversion is win32-ONLY (on POSIX a backslash is a legitimate FILENAME
+ * character). Without it a win32 path never matched the `node_modules/` marker and this
+ * returned the absolute BUILD-MACHINE path — which `shouldRewrite`, testing
+ * `includes('node_modules')` with no separator, still let through into the bundle as
+ * the runtime resolve spec. `platform` is injected so both branches are unit-testable
+ * from either host.
  */
 export function extractPackageSpec(path: string, platform: string = process.platform): string {
     const normalized = platform === 'win32' ? path.replaceAll('\\', '/') : path;
@@ -154,26 +91,19 @@ function packageNameOf(spec: string): string {
 }
 
 /**
- * Whether the runtime module-resolve shim can actually resolve this file's
- * package at runtime — i.e. it is a genuinely *installed*, resolvable package
- * rather than a file that merely lives under a `node_modules`-named directory.
+ * Can the runtime module-resolve shim actually resolve this file's package — is it a
+ * genuinely INSTALLED package rather than a file merely living under a
+ * `node_modules`-named directory?
  *
- * The CJS runtime-resolve (case 4a) resolves `__dirname`/`__filename` by
- * resolving the dep's package root from the bundle's location. That only works
- * for a real installed package (`typescript`, `@gjsify/tsc`, a normal npm dep).
- * A file reached via a RELATIVE import into a `node_modules`-named folder that
- * is NOT a resolvable package (e.g. a test fixture at
- * `fixtures/node_modules/fake-cjs/index.cjs`, or any dir not in the
- * package manager's resolution graph — Yarn PnP especially rejects these)
- * would resolve to the bundle's own location at runtime → wrong `__filename`.
- * For those we fall back to the legacy baked-absolute-path rewrite (case 4b),
- * which is build-location-coupled but correct for an in-place run.
+ * Case 4a resolves `__dirname`/`__filename` through the dep's package root, which only
+ * works for a real installed package. A file reached by a relative import into a
+ * `node_modules`-named folder outside the package manager's resolution graph (a test
+ * fixture; Yarn PnP especially rejects these) would resolve to the BUNDLE's own location
+ * at runtime, so those take the build-location-coupled case 4b instead.
  *
- * Probed at BUILD time with `createRequire(<file>).resolve("<pkg>/package.json")`
- * anchored at the file itself — succeeds iff the package is installed and
- * reachable (honours node_modules walking AND Yarn PnP, since the build runs
- * under the consumer's loader). Best-effort: any throw → treat as not
- * resolvable (fall back to the absolute rewrite, never crash the build).
+ * Probed at BUILD time via `createRequire(<file>).resolve(...)` anchored at the file, so
+ * it honours node_modules walking AND Yarn PnP. Best-effort: any throw counts as not
+ * resolvable rather than crashing the build.
  */
 function isRuntimeResolvable(path: string): boolean {
     const pkg = packageNameOf(extractPackageSpec(path));
@@ -183,8 +113,8 @@ function isRuntimeResolvable(path: string): boolean {
         return true;
     } catch {
         try {
-            // Some strict `exports` maps block `<pkg>/package.json` — fall back
-            // to resolving the package's main entry, which is always exported.
+            // Some strict `exports` maps block `<pkg>/package.json`; the main entry is
+            // always exported.
             createRequire(path).resolve(pkg);
             return true;
         } catch {
@@ -220,16 +150,14 @@ function withPreamble(src: string, lines: string[], importHeader?: string): stri
 }
 
 /**
- * Case 1 — on-disk ESM, runtime-resolve. Rewrite the file to resolve its own
- * location at runtime via the module-resolve shim — location-independent, so it
- * survives being published/relocated. The fix for the "works in the workspace,
- * crashes once installed" class of bug.
+ * Case 1 — on-disk ESM, runtime-resolve. The file resolves its own location at runtime
+ * via the module-resolve shim, so it survives being published or relocated: the fix for
+ * the "works in the workspace, crashes once installed" class of bug.
  */
 function rewriteOnDiskEsm(src: string, path: string, flags: TokenFlags): RewriteResult {
     const spec = JSON.stringify(extractPackageSpec(path));
 
-    // Collect only the named imports we actually use — tree-shaking has nothing
-    // to prune and the import line stays honest.
+    // Import only what is used, so tree-shaking has nothing to prune.
     const used = ['__gjsifyModuleUrl'];
     const preamble: string[] = [];
     if (needsDirnameDecl(src, flags)) {
@@ -247,8 +175,9 @@ function rewriteOnDiskEsm(src: string, path: string, flags: TokenFlags): Rewrite
 }
 
 /**
- * Case 2 — on-disk ESM, legacy. Original build-relative behavior, kept for the
- * rare non-ESM output format that can't host the bundle-URL anchor banner.
+ * Case 2 — on-disk ESM, build-relative. Only correct while bundle ↔ node_modules keep
+ * their build-time arrangement; used for the non-ESM output formats that cannot host
+ * the bundle-URL anchor banner.
  */
 function rewriteOnDiskEsmLegacy(src: string, path: string, bundleDir: string, flags: TokenFlags): RewriteResult {
     const relPath = relative(bundleDir, path);
@@ -284,23 +213,16 @@ function rewriteZipResident(src: string, path: string, flags: TokenFlags): Rewri
 }
 
 /**
- * Case 4a — CJS, runtime-resolve. Declare `__dirname`/`__filename` from the
- * module-resolve shim so they point at the file's location relative to the
- * INSTALLED bundle, not the build machine. Location-independent — the fix for
- * the "works in the workspace, crashes once published" class of bug for CJS
- * deps (e.g. `@gjsify/tsc`'s `typescript/lib/_tsc.js` resolving its sibling
- * `lib.*.d.ts` files). Mirrors `rewriteOnDiskEsm` minus the `import.meta.url`
- * rewrite (a CJS file has none).
+ * Case 4a — CJS, runtime-resolve. `__dirname`/`__filename` come from the module-resolve
+ * shim, so they point at the file's location relative to the INSTALLED bundle rather
+ * than the build machine — what lets `@gjsify/tsc` find its `lib.*.d.ts` files beside
+ * the shipped `typescript/lib/_tsc.js`. Mirrors `rewriteOnDiskEsm` minus the
+ * `import.meta.url` rewrite (a CJS file has none).
  *
- * Unlike the ESM case we pull the shim functions in via a CJS `require(...)`,
- * NOT an ESM `import { … } from …` header. Rolldown classifies a `node_modules`
- * file by its own heuristics (extension + `module.exports`/`require` content),
- * and a genuine CommonJS file — a `.cjs`, or a `.js` with `module.exports` like
- * `typescript/lib/_tsc.js` — is parsed as a CJS script. Prepending an ESM
- * `import` statement there makes Rolldown's parser throw
- * `[PARSE_ERROR] Cannot use import statement outside a module`. `require(...)`
- * is the native CJS idiom Rolldown resolves + links to the bundled shim, so the
- * preamble parses in either classification.
+ * The shim comes in via a CJS `require(...)`, NOT an ESM `import` header: Rolldown
+ * classifies a node_modules file by its own heuristics, and a genuine CommonJS file is
+ * parsed as a script, where a prepended `import` throws `[PARSE_ERROR] Cannot use import
+ * statement outside a module`. `require(...)` parses under either classification.
  */
 function rewriteCjsRuntime(src: string, path: string, flags: TokenFlags): RewriteResult {
     const spec = JSON.stringify(extractPackageSpec(path));
@@ -321,9 +243,8 @@ function rewriteCjsRuntime(src: string, path: string, flags: TokenFlags): Rewrit
 }
 
 /**
- * Case 4b — CJS, legacy. Declare `__dirname`/`__filename` from the absolute
- * build path. Build-location-coupled — see file header note. Used only for the
- * non-ESM output formats that can't host the bundle-URL anchor banner.
+ * Case 4b — CJS, baked absolute build path. Build-location-coupled, but correct for an
+ * in-place run, and a file that is not an installed package cannot be published anyway.
  */
 function rewriteCjsAbsolute(src: string, path: string, flags: TokenFlags): RewriteResult {
     const preamble: string[] = [];
@@ -337,12 +258,8 @@ function rewriteCjsAbsolute(src: string, path: string, flags: TokenFlags): Rewri
 }
 
 /**
- * Pure rewriter. Returns the rewritten code (and module type for re-parsing) or
- * `null` if the file references none of the patterns we care about.
- *
- * @param runtimeResolve  When true (ESM output, banner present), on-disk ESM
- *   files resolve their location at runtime (case 1). When false, they fall back
- *   to the legacy build-relative rewrite (case 2).
+ * Pure rewriter: the rewritten code plus the module type to re-parse it with, or `null`
+ * when the file references none of the tokens.
  */
 export function rewriteContents(
     args: { path: string },
@@ -352,7 +269,6 @@ export function rewriteContents(
 ): RewriteResult | null {
     if (!shouldRewrite(args.path)) return null;
 
-    // Step 1: inline statically-resolvable filesystem reads.
     const inlined = inlineStaticReads(srcInput, args.path);
     const src = inlined.contents;
 

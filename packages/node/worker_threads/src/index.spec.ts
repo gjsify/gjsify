@@ -38,8 +38,6 @@ type MessagePortW3C = MessagePort & {
 };
 
 export default async () => {
-    // --- Module exports ---
-
     await describe('worker_threads exports', async () => {
         await it('should export isMainThread as true', async () => {
             expect(isMainThread).toBe(true);
@@ -95,8 +93,6 @@ export default async () => {
             expect(SHARE_ENV.toString().includes('SHARE_ENV')).toBe(true);
         });
     });
-
-    // --- MessageChannel ---
 
     await describe('MessageChannel', async () => {
         await it('should create port1 and port2 as MessagePort instances', async () => {
@@ -320,8 +316,6 @@ export default async () => {
         });
     });
 
-    // --- MessagePort ---
-
     await describe('MessagePort', async () => {
         await it('should auto-start when on("message") is called', async () => {
             const channel = new MessageChannel();
@@ -532,8 +526,6 @@ export default async () => {
         });
     });
 
-    // --- receiveMessageOnPort ---
-
     await describe('receiveMessageOnPort', async () => {
         await it('should return undefined when no messages queued', async () => {
             const channel = new MessageChannel();
@@ -636,8 +628,6 @@ export default async () => {
             channel.port2.close();
         });
     });
-
-    // --- BroadcastChannel ---
 
     await describe('BroadcastChannel', async () => {
         await it('should create a channel with a name', async () => {
@@ -858,8 +848,6 @@ export default async () => {
         });
     });
 
-    // --- Environment Data ---
-
     await describe('environmentData', async () => {
         await it('should store and retrieve data', async () => {
             setEnvironmentData('testKey', 'testValue');
@@ -927,8 +915,6 @@ export default async () => {
         });
     });
 
-    // --- Utility functions ---
-
     await describe('utility functions', async () => {
         await it('markAsUntransferable should not throw', async () => {
             markAsUntransferable({});
@@ -952,7 +938,6 @@ export default async () => {
         });
     });
 
-    // --- BroadcastChannel.addEventListener ---
     // Ported from refs/node-test/parallel/test-worker-broadcastchannel.js
 
     await describe('BroadcastChannel.addEventListener', async () => {
@@ -1025,8 +1010,6 @@ export default async () => {
             bc.close();
         });
     });
-
-    // --- MessagePort.addEventListener ---
 
     await describe('MessagePort.addEventListener', async () => {
         await it('should receive messages via addEventListener', async () => {
@@ -1103,8 +1086,6 @@ export default async () => {
             channel.port2.close();
         });
     });
-
-    // --- MessageChannel structured clone edge cases ---
 
     await describe('MessageChannel clone edge cases', async () => {
         await it('should clone -0 as -0', async () => {
@@ -1242,8 +1223,6 @@ export default async () => {
             channel.port1.close();
         });
     });
-
-    // --- Structured clone (deep clone) ---
 
     await describe('MessageChannel structured clone', async () => {
         await it('should clone Date objects', async () => {
@@ -1522,8 +1501,6 @@ export default async () => {
         });
     });
 
-    // --- Worker class ---
-
     await describe('Worker class', async () => {
         await it('Worker constructor should be a function', async () => {
             expect(typeof Worker).toBe('function');
@@ -1555,8 +1532,6 @@ export default async () => {
         });
     });
 
-    // --- Worker file resolution ---
-
     await describe('Worker file resolution', async () => {
         await it('Worker should accept URL object', async () => {
             // Just verify the constructor doesn't throw for URL type
@@ -1568,8 +1543,6 @@ export default async () => {
             expect(typeof Worker).toBe('function');
         });
     });
-
-    // --- Worker error handling ---
 
     await describe('Worker error handling', async () => {
         await it('should emit error for non-existent file on GJS', async () => {
@@ -1611,8 +1584,6 @@ export default async () => {
     // which handle GJS subprocess timing constraints. The eval+IPC round-trip
     // requires subprocess spawning which is timing-sensitive in the test runner.
 
-    // --- Worker threadId ---
-
     await describe('Worker threadId', async () => {
         await it('each Worker should get a unique threadId', async () => {
             const w1 = new Worker('parentPort.postMessage(threadId);', { eval: true });
@@ -1635,7 +1606,6 @@ export default async () => {
         });
     });
 
-    // --- transferList: ArrayBuffer transfer ---
     // SPDX-License-Identifier: MIT
     // Ported from refs/node-test/parallel/test-worker-message-port-arraybuffer.js
     // Original: Copyright (c) Node.js contributors. MIT.
@@ -1763,7 +1733,6 @@ export default async () => {
         });
     });
 
-    // --- transferList: MessagePort transfer ---
     // SPDX-License-Identifier: MIT
     // Ported from refs/node-test/parallel/test-worker-message-port-message-port-transferring.js
     //                refs/node-test/parallel/test-worker-message-port-transfer-closed.js
@@ -1854,7 +1823,6 @@ export default async () => {
         });
     });
 
-    // --- SharedArrayBuffer support ---
     // SPDX-License-Identifier: MIT
     // Ported from refs/node-test/parallel/test-worker-message-channel-sharedarraybuffer.js
     // Original: Copyright (c) Node.js contributors. MIT.

@@ -1,9 +1,6 @@
 import * as ex from 'excalibur';
 
-/**
- * Allows you to set the animations on the actor by key, adjust the speed of the animations,
- * and get the current animation.
- */
+/** Keyed animations for an actor, with a speed multiplier applied across their frames. */
 export class AnimationComponent<Keys extends string> extends ex.Component {
     declare owner: ex.Entity & { graphics: ex.GraphicsComponent };
 
@@ -18,15 +15,11 @@ export class AnimationComponent<Keys extends string> extends ex.Component {
         this._animations = animations;
     }
 
-    /**
-     * Sets the current animation starting from the beginning. If the animation is already playing,
-     * it will not be restarted. Optionally provide a duration left
-     */
+    /** Starts the named animation from the beginning, or does nothing if it is already playing. */
     set(name: Keys, startFromFrame = 0, durationLeft?: number) {
         const prevAnim = this.owner.graphics.current;
         const anim = this._animations[name];
 
-        // return if the animation is already playing
         if (this.is(name)) return;
 
         if (startFromFrame) {
@@ -35,7 +28,7 @@ export class AnimationComponent<Keys extends string> extends ex.Component {
             anim.reset();
         }
 
-        // carry over scale from the previous graphic
+        // Scale and opacity carry over so a mid-jump squish is not lost on an animation switch.
         if (prevAnim) {
             anim.scale.setTo(prevAnim.scale.x, prevAnim.scale.y);
             anim.opacity = prevAnim.opacity;
@@ -44,23 +37,18 @@ export class AnimationComponent<Keys extends string> extends ex.Component {
         this.owner.graphics.use(anim);
     }
 
-    /**
-     * Returns the animation by name.
-     */
     get(name: Keys) {
         return this._animations[name];
     }
 
-    /**
-     * Sets the speed of the animation. 1 is normal speed, 2 is double speed, etc.
-     */
+    /** 1 is normal, 2 is double. Frame durations are divided by it. */
     set speed(value: number) {
         this._speed = value;
 
         if (value === 0) return;
 
         this.current.frames.forEach((frame) => {
-            // store the initial duration of the frame
+            // The FIRST duration seen is the baseline; dividing the live one would compound.
             if (!this._frameDurations.has(frame)) {
                 this._frameDurations.set(frame, frame.duration ?? 0);
             }
@@ -70,16 +58,10 @@ export class AnimationComponent<Keys extends string> extends ex.Component {
         });
     }
 
-    /**
-     * Returns the speed of the animation.
-     */
     get speed() {
         return this._speed;
     }
 
-    /**
-     * Returns the current animation.
-     */
     get current() {
         return this.owner.graphics.current as ex.Animation;
     }
