@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.36.0](https://github.com/gjsify/gjsify/compare/v0.35.0...v0.36.0) (2026-08-11)
+
+### Features
+
+* **cli:** add `gjsify run --node-script` ([5cafbb1](https://github.com/gjsify/gjsify/commit/5cafbb16bfe3820a7b3d632620dcc8b58162d475))
+* **cli:** shim `node` where the host has none ([3cef61c](https://github.com/gjsify/gjsify/commit/3cef61c0654b32ad44cc27545d15b786d52d718c))
+* **showcase:** promote the LDraw viewer to a showcase ([72fcb7c](https://github.com/gjsify/gjsify/commit/72fcb7cbe1515513b2d924b114e60b118e9d51cf))
+* **webgl:** ship a win32-x64 prebuild ([d57e26f](https://github.com/gjsify/gjsify/commit/d57e26f0c53da6cd43f8d8980662fb31b7fb7926)), closes [#1097](https://github.com/gjsify/gjsify/issues/1097)
+
+### Bug Fixes
+
+* **bootstrap:** build the facades through gjsify under GJS ([88a8df1](https://github.com/gjsify/gjsify/commit/88a8df12622d6c7b0fcbb9286c819d5976e3b17d))
+* **cli:** keep the node shim off the CLI's own PATH ([27e70c1](https://github.com/gjsify/gjsify/commit/27e70c15c102d2722edaf7dfdf0dbeb216c7d116))
+* **fetch:** hand back one stable body stream ([e424c7e](https://github.com/gjsify/gjsify/commit/e424c7e59a08fb53e91bd9bf7a143a770d75017e))
+* **module:** fail resolve on a missing package entry ([c961371](https://github.com/gjsify/gjsify/commit/c96137184899608ebd37531e107be2ba56a6dcf1))
+* mount the LDraw showcase, from one registry ([#1121](https://github.com/gjsify/gjsify/issues/1121)) ([eaea70c](https://github.com/gjsify/gjsify/commit/eaea70c9d59e39c3533c9368a037cea4d2a5b058))
+* **node-gi:** relocate the darwin addon to @rpath ([#1119](https://github.com/gjsify/gjsify/issues/1119)) ([7c81f8e](https://github.com/gjsify/gjsify/commit/7c81f8eb26dbbec6ad158d3c9af89d76c67aaaba)), closes [#1102](https://github.com/gjsify/gjsify/issues/1102) [#1120](https://github.com/gjsify/gjsify/issues/1120) [#1120](https://github.com/gjsify/gjsify/issues/1120)
+* **vite-plugin-blueprint:** declare the OS axis it now reads ([1052b79](https://github.com/gjsify/gjsify/commit/1052b796cef2de729c0057c84da8efd5d694fc0f))
+* **vite-plugin-blueprint:** find the compiler, or say how ([50d816d](https://github.com/gjsify/gjsify/commit/50d816d26a592b001c3fcbdf01e4a8dbed1b1b01))
+* **webgl:** stop dropping instanced and half-float work ([7e3f423](https://github.com/gjsify/gjsify/commit/7e3f4231c71020cd4d32c1ea5b12a806082dcbe8))
+
+### Documentation
+
+* **e2e:** say what the node-script suite actually holds ([5d6641d](https://github.com/gjsify/gjsify/commit/5d6641d3c98afbe4aea5b5076c14c3d5a63ea7c1))
+* record the Node-less bootstrap, and what is left ([16c40ff](https://github.com/gjsify/gjsify/commit/16c40ff4a5b612a40970aff5ffd9ead1eeca7067)), closes [#1053](https://github.com/gjsify/gjsify/issues/1053)
+* record why win32-arm64 cannot follow x64 ([dabf239](https://github.com/gjsify/gjsify/commit/dabf239da78314d6f237476a30846d4c8440afbf))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([5912bf9](https://github.com/gjsify/gjsify/commit/5912bf918782322ffd4f38f62ff97dd752fe246d))
+* update native prebuilds [skip ci] ([6a9fa66](https://github.com/gjsify/gjsify/commit/6a9fa668613ecc2f42dae19d81b5422018a2db34))
+
 ## [0.35.0](https://github.com/gjsify/gjsify/compare/v0.34.0...v0.35.0) (2026-08-10)
 
 ### Features
