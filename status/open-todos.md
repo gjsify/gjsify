@@ -1454,6 +1454,56 @@ package carries a `gjsify.platformsUncommitted` exemption that
 `clear-committed-platform-exemptions.mjs` drops the moment `commit-prebuilds`
 lands the directory.
 
+### `win32-arm64` is blocked UPSTREAM, not on effort — measured
+
+Asked directly after the `win32-x64` promotion landed, on the reasonable
+assumption that a second Windows arch is the same change with one token
+swapped. It is not, and the blocker is one project we do not own.
+
+**gvsbuild has no arm64 target.** Measured 2026-08-11 against
+`wingtk/gvsbuild`: the last five releases (`2026.3.0` … `2026.8.0`, the newest)
+publish exactly two assets each — `GTK3_Gvsbuild_<v>_x64.zip` and
+`GTK4_Gvsbuild_<v>_x64.zip` — and `gvsbuild/utils/base_project.py` hardcodes
+`self.platform = "x64"`. There is no arm64 ZIP to download and no `--platform`
+to ask for one. The 14 issues matching `arm64` in that repository are all
+dependabot noise; nobody is asking for it there either.
+
+Everything Windows in this repository stands on that ZIP, so the consequence is
+not "webgl needs a leg":
+
+- there is no GTK4/GLib/gdk-pixbuf/**epoxy** to compile `gwebgl.dll` against, and
+  no `.pc` files for meson to resolve;
+- there is no `g-ir-compiler.exe` to turn valac's GIR into a typelib;
+- there is nothing to build `@gjsify/gtk-runtime-win32-arm64` OUT OF — and on
+  Windows that bundle is the only GTK there is, so even a hypothetical artifact
+  would have nothing to load next to;
+- `@gjsify/node-gi` declares `win32-x64` only, so `gi://` does not resolve on
+  Windows/ARM at all, with or without webgl.
+
+**Do NOT add the token to unblock work.** `win32-arm64` is a valid
+`PLATFORM_RE` token, so it would go in cleanly and then fail
+`audit-runtimes --check` in the direction that reads "declares `win32-arm64`
+but no CI job produces that target" — correctly, and that failure is the guard
+working. An exploratory dispatch-only leg is the sanctioned way to prove a new
+target first, but one CANNOT be written here: its first step downloads a ZIP
+that does not exist, so it would be red by construction, which is worse than
+absent (the `--require-gl` note above is the same shape).
+
+**The one known route, and why it is a DECISION rather than a leg.** MSYS2 ships
+a `CLANGARM64` environment with mingw-w64 GTK4, which is the only Windows/ARM
+GTK anyone builds today. Taking it means the whole stack goes MinGW — GTK,
+`gwebgl.dll` AND the node-gyp addon — because a MinGW DLL against MSVC-ABI GLib
+mixes CRTs while GLib routinely allocates what the consumer frees. That is the
+ABI hazard `prebuilds.yml`'s win32 header and `napi.yml`'s `windows` job both
+record, and it is the reason the x64 leg is MSVC end to end. So a Windows/ARM
+port is not this pair plus a runner label; it is a second, parallel toolchain
+for one architecture, and it starts at `@gjsify/node-gi`, not at webgl.
+
+Revisit when gvsbuild publishes an arm64 ZIP — at that point the split-build
+shape transfers unchanged, since nothing in it is arch-specific: the Linux half
+emits arch-independent C + GIR, and the Windows half needs only a
+`windows-11-arm` runner and an arm64 prefix. Tracked as #1117.
+
 ### The GTK bundles declare `license: MIT` while shipping an LGPL closure
 
 `@gjsify/gtk-runtime-{darwin-arm64,darwin-x64,win32-x64}` each carry 37–45
