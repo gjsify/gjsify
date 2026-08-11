@@ -131,21 +131,39 @@ function buildSwatch(cssClasses: readonly string[], label: string, group: Gtk.Ch
     return swatch;
 }
 
-/** A centred, wrapping row of swatches. */
-function buildSwatchRow(): Gtk.FlowBox {
-    const row = new Gtk.FlowBox({
-        selection_mode: Gtk.SelectionMode.NONE,
-        homogeneous: true,
-        halign: Gtk.Align.CENTER,
-        row_spacing: 8,
-        column_spacing: 8,
+/**
+ * A `.card` holding a centred, wrapping row of swatches.
+ *
+ * THE CARD IS NOT DECORATION. In the dark scheme the "dark" swatch is a
+ * near-black circle on a near-black dialog and is effectively invisible; the card
+ * is a lighter surface behind it, which is what makes all three legible.
+ * Learn6502 answers the same problem the same way
+ * (`views/preferences.dialog.blp:26-28`).
+ *
+ * Centring happens INSIDE a full-width card through `WrapBox:align`, not by
+ * giving the container `halign: CENTER` — that shrinks the container to its
+ * content, so the card hugs the swatches and the row reads as left-aligned under
+ * the group title.
+ *
+ * @param attached Square the top corners so this card joins the row above it into
+ *   one boxed list rather than two stacked cards with a seam between them.
+ */
+function buildSwatchCard(attached = false): { card: Adw.Bin; row: Adw.WrapBox } {
+    const row = new Adw.WrapBox({
+        align: 0.5,
+        child_spacing: 8,
+        line_spacing: 8,
         margin_top: 12,
         margin_bottom: 12,
         margin_start: 12,
         margin_end: 12,
-        max_children_per_line: 9,
     });
-    return row;
+
+    const card = new Adw.Bin({ child: row, hexpand: true });
+    card.add_css_class('card');
+    if (attached) card.add_css_class('storybook-card-attached');
+
+    return { card, row };
 }
 
 /**
@@ -161,7 +179,7 @@ export function buildAppearanceDialog(appearance: StorybookAppearance): Adw.Pref
 
     // --- Colour scheme ---
     const schemeGroup = new Adw.PreferencesGroup({ title: 'Style' });
-    const schemeRow = buildSwatchRow();
+    const { card: schemeCard, row: schemeRow } = buildSwatchCard();
     let schemeGroupLeader: Gtk.CheckButton | null = null;
     const schemeSwatches = new Map<string, Gtk.CheckButton>();
 
@@ -179,7 +197,7 @@ export function buildAppearanceDialog(appearance: StorybookAppearance): Adw.Pref
         schemeSwatches.set(scheme, swatch);
         schemeRow.append(swatch);
     }
-    schemeGroup.add(schemeRow);
+    schemeGroup.add(schemeCard);
     page.add(schemeGroup);
 
     // --- Accent ---
@@ -191,7 +209,9 @@ export function buildAppearanceDialog(appearance: StorybookAppearance): Adw.Pref
     });
     accentGroup.add(accentSwitch);
 
-    const accentRow = buildSwatchRow();
+    // Attached, so the switch row and the palette read as one boxed list — the
+    // palette belongs to the switch above it rather than standing on its own.
+    const { card: accentCard, row: accentRow } = buildSwatchCard(true);
     let accentGroupLeader: Gtk.CheckButton | null = null;
     const accentSwatches = new Map<string, Gtk.CheckButton>();
 
@@ -218,7 +238,7 @@ export function buildAppearanceDialog(appearance: StorybookAppearance): Adw.Pref
     accentSwitch.connect('notify::active', () => {
         settings.accentMode = accentSwitch.get_active() ? 'custom' : 'system';
     });
-    accentGroup.add(accentRow);
+    accentGroup.add(accentCard);
     page.add(accentGroup);
 
     // Keep the controls honest when the settings move from anywhere else — a

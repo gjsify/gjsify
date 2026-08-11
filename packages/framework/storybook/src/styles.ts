@@ -57,6 +57,12 @@ export const STORYBOOK_CSS = `
 .storybook-swatch.storybook-scheme-dark {
     background-color: #241f31;
 }
+/* Squares the top corners so a swatch card sits flush under the row it belongs to,
+   instead of the two reading as separate cards with a seam between them. */
+.storybook-card-attached {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
 
 /* Range-control card in the controls sidebar — keeps the label + description
    from being squashed into a single column when the sidebar is narrow. */
