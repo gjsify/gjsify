@@ -6,6 +6,7 @@
 
 import '@gjsify/adwaita-web';
 import '@gjsify/adwaita-web/style.css';
+import type { AdwOverlaySplitView } from '@gjsify/adwaita-web';
 import { start, MODEL_LIST, DEFAULT_MODEL_INDEX, type LDrawDemo } from '../three-demo.js';
 
 export interface MountOptions {
@@ -34,14 +35,28 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     const headerBar = document.createElement('adw-header-bar');
     headerBar.setAttribute('title', 'LDraw Loader');
 
-    const body = document.createElement('div');
-    body.className = 'adw-window-body';
+    // OverlaySplitView — sidebar + content, same shell as the teapot showcase.
+    //
+    // This used to be a hand-rolled `.adw-window-body` / `.adw-sidebar` /
+    // `#gl-area-container` flex row whose ENTIRE layout lived in
+    // `browser/webgl.css` — a stylesheet only the standalone `index.html`
+    // loads. Embedded in the website, none of those rules applied: the sidebar
+    // stretched to full width and the canvas collapsed to its intrinsic 150px
+    // at the bottom of the frame. A showcase has two hosts, so its browser UI
+    // has to carry its own layout.
+    const splitView = document.createElement('adw-overlay-split-view') as AdwOverlaySplitView;
+    splitView.setAttribute('min-sidebar-width', '280');
+    splitView.setAttribute('max-sidebar-width', '400');
+    splitView.setAttribute('sidebar-width-fraction', '0.30');
+    splitView.setAttribute('show-sidebar', '');
 
-    // Sidebar
-    const sidebar = document.createElement('div');
-    sidebar.className = 'adw-sidebar';
+    // Sidebar content — inline styles for the same reason as the GL container
+    // below: the standalone page and the website embed must lay out alike, and
+    // only one of them loads `webgl.css`.
     const sidebarContent = document.createElement('div');
+    sidebarContent.setAttribute('slot', 'sidebar');
     sidebarContent.className = 'adw-sidebar-content';
+    sidebarContent.style.cssText = 'padding:12px;display:flex;flex-direction:column;gap:12px';
 
     // Model group
     const modelGroup = document.createElement('adw-preferences-group');
@@ -92,21 +107,21 @@ export function mount(container: HTMLElement, options?: MountOptions): ShowcaseH
     displayGroup.append(buildingStepRow, displayLinesRow, conditionalLinesRow);
 
     sidebarContent.append(modelGroup, renderGroup, displayGroup);
-    sidebar.append(sidebarContent);
 
-    // Separator + WebGL canvas
-    const separator = document.createElement('div');
-    separator.className = 'adw-separator-vertical';
-
+    // GL container (content slot) — inline styles so the showcase
+    // is self-contained and works regardless of host CSS.
     const glContainer = document.createElement('div');
+    glContainer.setAttribute('slot', 'content');
     glContainer.id = 'gl-area-container';
+    glContainer.style.cssText = 'flex:1;position:relative;min-width:0;min-height:0';
 
     const canvas = document.createElement('canvas');
     canvas.id = 'webgl-canvas';
+    canvas.style.cssText = 'display:block;width:100%;height:100%;position:absolute;inset:0';
     glContainer.append(canvas);
 
-    body.append(sidebar, separator, glContainer);
-    win.append(headerBar, body);
+    splitView.append(sidebarContent, glContainer);
+    win.append(headerBar, splitView);
     container.append(win);
 
     // Sync canvas size

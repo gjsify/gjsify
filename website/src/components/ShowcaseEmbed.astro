@@ -4,8 +4,9 @@
 // Mirrors the slot styling used by the home-page slideshow
 // (`ShowcaseSlideshow.astro`): a dark-tinted, rounded, drop-shadowed container
 // that frames the showcase's `mount()` output as if it were an Adwaita window.
-// Each embed lazy-imports `@gjsify/example-dom-<name>/browser` on first paint
-// and forwards an optional `mountOpts` payload (typically `{ assetBase }`).
+// Each embed lazy-imports its showcase's `./browser` entry on first paint via
+// the shared registry (`showcase-mounts.ts`) and forwards an optional
+// `mountOpts` payload (typically `{ assetBase }`).
 //
 // CSS is duplicated from the slideshow on purpose — extracting it would touch
 // the slideshow's working visual stack. Both components must stay in sync; if
@@ -14,69 +15,37 @@
 // `.sl-markdown-content` content-flow margins, which apply only on the doc
 // pages that host this embed, never on the (non-Starlight) home-page slideshow.
 
-interface MountOpts {
-  assetBase?: string;
-  startMuted?: boolean;
-  title?: string;
-  homeUrl?: string;
-  enablePerf?: boolean;
-}
+import {
+  showcaseMountOpts,
+  type ShowcaseMountOpts,
+  type ShowcaseName,
+} from './showcase-registry.ts';
 
 interface Props {
-  /**
-   * Showcase identifier. Most map to `@gjsify/example-dom-<name>` and a
-   * directory under `showcases/dom/<name>/`; `adwaita-storybook` is the one
-   * GTK-category showcase (`@gjsify/example-gtk-adwaita-storybook`, under
-   * `showcases/gtk/`). Each must be a dependency of @gjsify/website and export
-   * `./browser` with a named `mount()` function.
-   */
-  name:
-    | 'three-postprocessing-pixel'
-    | 'three-geometry-teapot'
-    | 'three-loader-ldraw'
-    | 'excalibur-jelly-jumper'
-    | 'canvas2d-fireworks'
-    | 'minimalist-browser'
-    | 'webrtc-loopback'
-    | 'adwaita-storybook';
+  /** Showcase identifier — see `SHOWCASE_NAMES` in `showcase-registry.ts`. */
+  name: ShowcaseName;
   /**
    * DOM id for the mount container. Defaults to the showcase name. Override
    * if a single page renders multiple embeds of the same showcase.
    */
   slideId?: string;
   /**
-   * Forwarded verbatim to `mount(container, mountOpts)`. Only the keys the
-   * specific showcase understands are read; extras are ignored.
+   * Layered over the showcase's registry defaults and forwarded to
+   * `mount(container, mountOpts)`. Only the keys the specific showcase
+   * understands are read; extras are ignored.
    */
-  mountOpts?: MountOpts;
+  mountOpts?: ShowcaseMountOpts;
 }
 
 const { name, slideId, mountOpts } = Astro.props;
 const id = slideId ?? name;
 
-// Auto-derive assetBase for showcases that ship runtime assets via
-// `website/scripts/copy-showcase-assets.mjs` so callers don't have to repeat
-// the convention on every page. Honours an explicit `mountOpts.assetBase`.
-const ASSET_BASE_BY_NAME: Record<string, string | undefined> = {
-  'three-postprocessing-pixel': 'demos/pixel/',
-  'three-geometry-teapot': 'demos/teapot/',
-  'three-loader-ldraw': 'demos/ldraw/',
-  'excalibur-jelly-jumper': 'demos/jelly-jumper/',
-};
+// `assetBase` and friends come from the registry, so a page only has to name
+// its showcase. Resolved here rather than in the client script because
+// `import.meta.env.BASE_URL` is a build-time constant on both sides, and one
+// fully-resolved payload beats shipping a placeholder the client has to expand.
+const resolvedMountOpts = showcaseMountOpts(name, import.meta.env.BASE_URL, mountOpts);
 
-const defaultStartMuted = name === 'excalibur-jelly-jumper' ? true : undefined;
-
-const resolvedMountOpts: MountOpts = {
-  ...(ASSET_BASE_BY_NAME[name]
-    ? { assetBase: `__BASE__${ASSET_BASE_BY_NAME[name]}` }
-    : {}),
-  ...(defaultStartMuted !== undefined ? { startMuted: defaultStartMuted } : {}),
-  ...mountOpts,
-};
-
-// Serialise mount opts for the client script. `__BASE__` is a placeholder that
-// the client replaces with `import.meta.env.BASE_URL` so the URL respects
-// Astro's `base` config (e.g. `/gjsify/demos/pixel/` in production).
 const mountOptsJson = JSON.stringify(resolvedMountOpts);
 ---
 
@@ -90,120 +59,33 @@ const mountOptsJson = JSON.stringify(resolvedMountOpts);
 </div>
 
 <script>
-  // Lazy-mount each showcase embed when it first scrolls into view. Same
-  // import shape as the slideshow's `mountSlide()` so the bundler shares the
-  // chunks (`@gjsify/example-dom-<name>/browser`).
-  interface ShowcaseHandle {
-    pause?: () => void;
-    resume?: () => void;
-    readonly isPaused?: boolean;
-  }
-
-  type ShowcaseName =
-    | 'three-postprocessing-pixel'
-    | 'three-geometry-teapot'
-    | 'three-loader-ldraw'
-    | 'excalibur-jelly-jumper'
-    | 'canvas2d-fireworks'
-    | 'minimalist-browser'
-    | 'webrtc-loopback'
-    | 'adwaita-storybook';
+  // Lazy-mount each showcase embed when it first scrolls into view. Goes
+  // through the same registry as the slideshow's `mountSlide()`, so the two
+  // hosts share both the chunk split and the list of what can be mounted.
+  import { mountShowcase, type ShowcaseHandle } from './showcase-mounts.ts';
+  import type { ShowcaseMountOpts } from './showcase-registry.ts';
 
   const mounted = new WeakSet<Element>();
   const handles = new WeakMap<Element, ShowcaseHandle>();
-  const base = import.meta.env.BASE_URL;
 
-  function resolveOpts(raw: string | null | undefined): Record<string, unknown> {
+  function resolveOpts(raw: string | null | undefined): ShowcaseMountOpts {
     if (!raw) return {};
-    let parsed: Record<string, unknown>;
     try {
-      parsed = JSON.parse(raw) as Record<string, unknown>;
+      return JSON.parse(raw) as ShowcaseMountOpts;
     } catch {
       return {};
     }
-    // Expand the `__BASE__` placeholder so the URL respects Astro's base path.
-    for (const key of Object.keys(parsed)) {
-      const value = parsed[key];
-      if (typeof value === 'string' && value.startsWith('__BASE__')) {
-        parsed[key] = base + value.slice('__BASE__'.length);
-      }
-    }
-    return parsed;
   }
 
   async function doMount(root: HTMLElement): Promise<void> {
     if (mounted.has(root)) return;
     mounted.add(root);
 
-    const name = root.dataset.showcaseName as ShowcaseName | undefined;
+    const name = root.dataset.showcaseName;
     const container = root.querySelector<HTMLElement>('.showcase-embed-window');
     if (!name || !container) return;
 
-    const opts = resolveOpts(root.dataset.mountOpts);
-
-    let handle: ShowcaseHandle | undefined;
-    switch (name) {
-      case 'three-postprocessing-pixel': {
-        const { mount } = await import(
-          '@gjsify/example-dom-three-postprocessing-pixel/browser'
-        );
-        handle = mount(container, opts as { assetBase?: string });
-        break;
-      }
-      case 'three-geometry-teapot': {
-        const { mount } = await import(
-          '@gjsify/example-dom-three-geometry-teapot/browser'
-        );
-        handle = mount(container, opts as { assetBase?: string });
-        break;
-      }
-      case 'three-loader-ldraw': {
-        const { mount } = await import(
-          '@gjsify/example-dom-three-loader-ldraw/browser'
-        );
-        handle = mount(container, opts as { assetBase?: string });
-        break;
-      }
-      case 'excalibur-jelly-jumper': {
-        const { mount } = await import(
-          '@gjsify/example-dom-excalibur-jelly-jumper/browser'
-        );
-        handle = mount(
-          container,
-          opts as { assetBase?: string; startMuted?: boolean; enablePerf?: boolean },
-        );
-        break;
-      }
-      case 'canvas2d-fireworks': {
-        const { mount } = await import(
-          '@gjsify/example-dom-canvas2d-fireworks/browser'
-        );
-        handle = mount(container);
-        break;
-      }
-      case 'minimalist-browser': {
-        const { mount } = await import(
-          '@gjsify/example-dom-minimalist-browser/browser'
-        );
-        handle = mount(container, opts as { title?: string; homeUrl?: string });
-        break;
-      }
-      case 'webrtc-loopback': {
-        const { mount } = await import(
-          '@gjsify/example-dom-webrtc-loopback/browser'
-        );
-        handle = mount(container, opts as { title?: string });
-        break;
-      }
-      case 'adwaita-storybook': {
-        const { mount } = await import(
-          '@gjsify/example-gtk-adwaita-storybook/browser'
-        );
-        handle = mount(container, opts as { title?: string });
-        break;
-      }
-    }
-
+    const handle = await mountShowcase(name, container, resolveOpts(root.dataset.mountOpts));
     if (handle) handles.set(root, handle);
   }
 

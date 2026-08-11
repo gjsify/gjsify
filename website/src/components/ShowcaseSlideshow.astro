@@ -7,6 +7,7 @@ import CommandTabs from './CommandTabs.astro';
 import { goPreviousSymbolic, goNextSymbolic } from '@gjsify/adwaita-icons/actions';
 import DemoArrow from '../assets/demo-arrow.svg?raw';
 import DemoArrowTerminal from '../assets/demo-arrow-terminal.svg?raw';
+import { isShowcaseName, SHOWCASE_NAMES } from './showcase-registry.ts';
 
 // The runtimes a showcase can be launched on. A slide shows a runtime tab only
 // when that showcase genuinely runs there, because the CLI enforces it:
@@ -107,6 +108,14 @@ interface Annotation {
 
 interface Slide {
   id: string;
+  /**
+   * The showcase this slide is about — the id the CLI takes, and for
+   * `interactive` slides the key the browser mount is looked up under. It is
+   * deliberately NOT typed as `ShowcaseName`: a `terminal` slide names a
+   * showcase that has no browser build at all (express-webserver). The check
+   * that an interactive slide names something mountable therefore runs below,
+   * at build time.
+   */
   name: string;
   title: string;
   github: string;
@@ -338,6 +347,28 @@ app.connect('activate', () => {
 });`,
   },
 ];
+
+// Every interactive slide must name a showcase the browser can actually mount.
+//
+// This is the check that was missing when the LDraw slide shipped: it was added
+// to `slides` and to the docs-page embed, but the mount lookup this file used to
+// keep — a private `switch` with no arm for it and no exhaustiveness check —
+// silently fell through, so the landing page rendered the slide's code panel,
+// terminal and annotation around a demo frame that stayed on its placeholder
+// colour forever. Nothing failed; it just looked broken. Failing the build is
+// the point: `docs-deploy` runs `astro build` on every pull request, so a slide
+// added without a mount reachable from `SHOWCASE_MOUNTS` cannot reach the site.
+for (const slide of slides) {
+  if ((slide.variant ?? 'interactive') !== 'interactive') continue;
+  if (!isShowcaseName(slide.name)) {
+    throw new Error(
+      `ShowcaseSlideshow: slide "${slide.id}" is interactive but "${slide.name}" is not a ` +
+        'mountable showcase, so its demo window would render empty. Add it to SHOWCASE_NAMES ' +
+        'in showcase-registry.ts and to SHOWCASE_MOUNTS in showcase-mounts.ts, or give the ' +
+        `slide \`variant: 'terminal'\`. Known showcases: ${SHOWCASE_NAMES.join(', ')}`,
+    );
+  }
+}
 ---
 
 <div class="slideshow" data-slide-count={slides.length}>
@@ -363,6 +394,7 @@ app.connect('activate', () => {
               <div
                 class="slide-demo focusable"
                 id={`demo-${slide.id}`}
+                data-showcase-name={slide.name}
                 tabindex="0"
                 style="background-color:#222226"
               ></div>
@@ -455,15 +487,11 @@ app.connect('activate', () => {
 </script>
 
 <script>
-  // Lazy-mount showcases on first view.
-  // Structural subset of the `ShowcaseHandle` type returned by each mount();
-  // methods are optional so slides that don't provide them (Terminal variants
-  // like express-webserver, or any future non-rendering showcase) don't error.
-  interface ShowcaseHandle {
-    pause?: () => void;
-    resume?: () => void;
-    readonly isPaused?: boolean;
-  }
+  // Lazy-mount showcases on first view, through the registry the docs-page
+  // embed also uses — so a showcase is wired up in exactly one place and the
+  // two hosts cannot disagree about what exists.
+  import { mountShowcase, type ShowcaseHandle } from './showcase-mounts.ts';
+  import { showcaseMountOpts, type ShowcaseName } from './showcase-registry.ts';
 
   const mounted = new Set<string>();
   const handles = new Map<string, ShowcaseHandle>();
@@ -474,42 +502,19 @@ app.connect('activate', () => {
     mounted.add(id);
 
     // Non-interactive slides (variant='terminal') render their content
-    // statically during SSR — nothing to mount.
+    // statically during SSR — nothing to mount, and no `data-showcase-name`.
     const container = document.getElementById(`demo-${id}`);
-    if (!container) return;
+    const name = container?.dataset.showcaseName;
+    if (!container || !name) return;
 
-    switch (id) {
-      case 'storybook': {
-        const { mount } = await import('@gjsify/example-gtk-adwaita-storybook/browser');
-        const handle = mount(container);
-        if (handle) handles.set(id, handle);
-        break;
-      }
-      case 'pixel': {
-        const { mount } = await import('@gjsify/example-dom-three-postprocessing-pixel/browser');
-        const handle = mount(container, { assetBase: `${base}demos/pixel/` });
-        if (handle) handles.set(id, handle);
-        break;
-      }
-      case 'teapot': {
-        const { mount } = await import('@gjsify/example-dom-three-geometry-teapot/browser');
-        const handle = mount(container, { assetBase: `${base}demos/teapot/` });
-        if (handle) handles.set(id, handle);
-        break;
-      }
-      case 'jelly-jumper': {
-        const { mount } = await import('@gjsify/example-dom-excalibur-jelly-jumper/browser');
-        const handle = mount(container, { assetBase: `${base}demos/jelly-jumper/`, startMuted: true });
-        if (handle) handles.set(id, handle);
-        break;
-      }
-      case 'fireworks': {
-        const { mount } = await import('@gjsify/example-dom-canvas2d-fireworks/browser');
-        const handle = mount(container);
-        if (handle) handles.set(id, handle);
-        break;
-      }
-    }
+    // Safe as a `ShowcaseName`: the frontmatter refuses to build a slide whose
+    // name is not one, so anything reaching here has already been checked.
+    const handle = await mountShowcase(
+      name,
+      container,
+      showcaseMountOpts(name as ShowcaseName, base),
+    );
+    if (handle) handles.set(id, handle);
   }
 
   // Slideshow navigation with sliding animation
