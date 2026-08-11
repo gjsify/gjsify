@@ -20,6 +20,12 @@
             "description": "Three.js Utah teapot"
         },
         {
+            "name": "three-loader-ldraw",
+            "category": "dom",
+            "package": "@gjsify/example-dom-three-loader-ldraw",
+            "description": "Three.js LDraw viewer — loads packed .mpd models over fetch and steps through their building instructions"
+        },
+        {
             "name": "three-postprocessing-pixel",
             "category": "dom",
             "package": "@gjsify/example-dom-three-postprocessing-pixel",

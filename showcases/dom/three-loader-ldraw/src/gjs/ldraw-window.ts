@@ -5,7 +5,6 @@
 // This software uses the LDraw Parts Library (http://www.ldraw.org), CC BY 2.0.
 
 import GObject from 'gi://GObject?version=2.0';
-import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
 import { WebGLBridge } from '@gjsify/webgl';
@@ -76,9 +75,13 @@ export class LDrawWindow extends Adw.ApplicationWindow {
         });
 
         glArea.onReady((canvas) => {
-            // Resolve asset base to file:// URI relative to the GJS bundle location
-            const bundleDir = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
-            const assetBase = `file://${bundleDir}/`;
+            // The bundle's own directory, derived in URI SPACE rather than by
+            // pasting `file://` onto a native path. `GLib.filename_from_uri()`
+            // hands back a PLATFORM path, which on win32 is `C:\…\dist` — and
+            // `file://${that}/` makes `C:` the URI hostname, so every model
+            // fetch is refused for an invalid host. Same defect the pixel
+            // showcase paid for in ce4eb6aa1; keep the two spellings identical.
+            const assetBase = new URL('./', import.meta.url).href;
 
             const demo = start(canvas, { assetBase }, (numSteps) => {
                 // Update building step range on model load

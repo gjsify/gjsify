@@ -1,20 +1,29 @@
 {
   "name": "@gjsify/example-dom-three-loader-ldraw",
-  "description": "Three.js LDraw loader example ported from refs/three/examples/webgl_loader_ldraw.html with Adwaita controls",
+  "version": "0.35.0",
+  "description": "Three.js LDraw loader showcase ported from refs/three/examples/webgl_loader_ldraw.html with Adwaita controls",
   "main": "dist/gjs.js",
   "type": "module",
+  "files": [
+    "dist",
+    "src"
+  ],
   "exports": {
     "./browser": "./src/browser/browser.ts",
     "./three-demo": "./src/three-demo.ts",
+    "./models": "./src/models.ts",
+    "./assets/*": "./src/assets/*",
     "./package.json": "./package.json"
   },
   "scripts": {
     "clear": "gjsify clear dist tsconfig.tsbuildinfo",
     "check": "gjsify tsc --noEmit --skipLibCheck --strictNullChecks false --noImplicitAny false",
     "start": "gjsify run dist/gjs.js",
+    "start:node": "gjsify run dist/gjs.node.mjs --runtime node",
     "start:browser": "http-server dist",
-    "build": "gjsify run build:gjs && gjsify run build:browser && gjsify run build:assets",
+    "build": "gjsify run build:gjs && gjsify run build:node && gjsify run build:browser && gjsify run build:assets",
     "build:gjs": "gjsify build src/gjs/gjs.ts --app gjs --outfile dist/gjs.js",
+    "build:node": "gjsify build src/gjs/gjs.ts --app node --outfile dist/gjs.node.mjs --globals auto,dom,fetch,XMLHttpRequest,ProgressEvent,MouseEvent,PointerEvent,KeyboardEvent,WheelEvent",
     "build:browser": "gjsify build src/browser/browser-main.ts --app browser --outfile dist/browser.js",
     "build:assets": "gjsify copy src/browser/index.html src/browser/webgl.css src/assets dist/"
   },
@@ -29,6 +38,8 @@
     "@girs/gtk-4.0": "^4.1.0",
     "@gjsify/adwaita-web": "workspace:^",
     "@gjsify/cli": "workspace:^",
+    "@gjsify/devtools": "workspace:^",
+    "@gjsify/node-gi": "file:../../../packages/node-gi/node-gi",
     "@gjsify/vite-plugin-blueprint": "workspace:^",
     "@types/node": "^25.9.2",
     "@types/three": "^0.185.0",
@@ -38,6 +49,26 @@
   },
   "author": "Pascal Garber <pascal@artandcode.studio>",
   "license": "MIT",
-  "private": true,
-  "version": "0.35.0"
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gjsify/gjsify.git",
+    "directory": "showcases/dom/three-loader-ldraw"
+  },
+  "bugs": {
+    "url": "https://github.com/gjsify/gjsify/issues"
+  },
+  "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/dom/three-loader-ldraw#readme",
+  "gjsify": {
+    "main": "dist/gjs.js",
+    "tier": 2,
+    "example": {
+      "runtimes": [
+        "gjs",
+        "node",
+        "bun",
+        "deno"
+      ],
+      "node": "dist/gjs.node.mjs"
+    }
+  }
 }

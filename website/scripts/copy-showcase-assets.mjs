@@ -35,6 +35,19 @@ const showcases = [
         ],
     },
     {
+        // The whole LDraw library, because the model dropdown IS the demo:
+        // copying only the default model would leave fifteen of the sixteen
+        // entries 404-ing in the browser embed.
+        dest: 'public/demos/ldraw',
+        assets: [
+            {
+                src: '@gjsify/example-dom-three-loader-ldraw/assets/models',
+                dest: 'assets/models',
+                recursive: true,
+            },
+        ],
+    },
+    {
         dest: 'public/demos/jelly-jumper',
         assets: [{ src: '@gjsify/example-dom-excalibur-jelly-jumper/assets', dest: 'res', recursive: true }],
     },

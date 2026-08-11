@@ -1,0 +1,63 @@
+---
+title: "Three.js LDraw Viewer"
+description: Three.js LDraw model viewer — sixteen packed .mpd models streamed over fetch, with per-step building instructions, on GJS and in the browser.
+---
+
+import ShowcaseEmbed from '../../../components/ShowcaseEmbed.astro';
+
+Sixteen LDraw models rendered with [Three.js](https://threejs.org/) and its `LDrawLoader`, with live Adwaita-styled controls for model selection, flat colours, geometry merging, smooth normals, building step, and the two line layers. Ported from [`refs/three/examples/webgl_loader_ldraw.html`](https://github.com/gjsify/gjsify/tree/main/refs/three/examples/webgl_loader_ldraw.html).
+
+## Live demo
+
+<ShowcaseEmbed name="three-loader-ldraw" />
+
+## What it exercises
+
+This is the first showcase whose **scene arrives from disk rather than from code**: `LDrawLoader` fetches a packed `.mpd`, reads it through `Response.body`, and parses ~250 KB of LDraw commands into 62 meshes and 124 line objects before anything is drawn.
+
+| Pillar | What Three.js needs |
+|---|---|
+| [`@gjsify/fetch`](https://github.com/gjsify/gjsify/tree/main/packages/web/fetch) | `fetch` over `file://`, `Request`/`Headers`, `AbortSignal.any`, and a `Response.body` stream that survives a feature guard reading it more than once |
+| [`@gjsify/webgl`](https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl) | Full WebGL 2.0 surface — VAOs, uniform buffer objects, `texStorage2D` with sized internal formats, `drawElementsInstanced`. All routed through the [`gwebgl` Vala bridge](https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl) → libepoxy → GLES 3.2. |
+| [`@gjsify/streams`](https://github.com/gjsify/gjsify/tree/main/packages/web/streams) | `ReadableStream` — the loader re-wraps the response body to report download progress |
+| [`@gjsify/dom-events`](https://github.com/gjsify/gjsify/tree/main/packages/web/dom-events) | `ProgressEvent`, dispatched per chunk while the model downloads |
+| [`@gjsify/dom-elements`](https://github.com/gjsify/gjsify/tree/main/packages/dom/dom-elements) | `HTMLCanvasElement`, `requestAnimationFrame`, `OrbitControls` mouse events |
+| `@gjsify/adwaita-web` | Browser embed's control panel styling |
+| Adwaita widgets (GJS) | `Adw.ComboRow` + `Adw.SwitchRow` + `Adw.SpinRow` for the same controls |
+
+## Run it on GJS
+
+```bash
+gjsify showcase three-loader-ldraw
+```
+
+A GTK4 window opens with a sidebar of Adwaita preference groups next to the WebGL canvas. Pick a model from the dropdown, drag to orbit, scroll to zoom. **Building Step** walks the model through its assembly instructions one step at a time; **Display Lines** and **Conditional Lines** toggle the two edge layers `LDrawLoader` builds alongside the geometry.
+
+## Run it off GJS
+
+```bash
+gjsify showcase three-loader-ldraw --runtime node   # or bun / deno
+```
+
+Same source, same GTK4 window, a different JS engine underneath — through the [`@gjsify/node-gi`](/gjsify/projects/node-gi/) reverse bridge.
+
+## Run it in the browser
+
+```ts
+import { mount } from '@gjsify/example-dom-three-loader-ldraw/browser';
+mount(document.getElementById('app')!);
+```
+
+Same shared scene logic. The browser embed renders the same controls through `@gjsify/adwaita-web`'s custom elements so the visual story is identical.
+
+## Source
+
+[`showcases/dom/three-loader-ldraw/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/three-loader-ldraw)
+
+- `src/three-demo.ts` — the Three.js scene + LDraw loading (shared between targets, no GJS-specific imports)
+- `src/models.ts` — the model catalog both targets read
+- `src/gjs/gjs.ts` — `Adw.Application` entry point that boots the window
+- `src/gjs/ldraw-window.ts` + `src/gjs/ldraw-window.blp` — `Adw.ApplicationWindow` with Blueprint UI definitions
+- `src/browser/browser.ts` — DOM mount + Adwaita-web wiring
+- `src/browser/browser-main.ts` — standalone browser entry point (fullscreen demo)
+- `src/assets/models/ldraw/officialLibrary/` — packed LDraw models from the [LDraw Parts Library](http://www.ldraw.org), CC BY 2.0 (shipped as npm assets via `exports['./assets/*']`)

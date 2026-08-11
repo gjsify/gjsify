@@ -28,6 +28,11 @@ export interface LDrawDemo {
     reloadObject(resetCamera: boolean): void;
     updateVisibility(): void;
     numBuildingSteps: number;
+    /** Stop the render loop — the website embed calls this when it scrolls out of view. */
+    pause(): void;
+    /** Restart the render loop after `pause()`. */
+    resume(): void;
+    readonly isPaused: boolean;
 }
 
 export interface StartOptions {
@@ -44,7 +49,17 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
     // oxlint-disable-next-line typescript/no-explicit-any -- THREE.WebGLRenderer canvas option expects OffscreenCanvas; GJS canvas type is incompatible
     const renderer = new THREE.WebGLRenderer({ canvas: canvas as any, antialias: true });
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.setSize(canvas.width, canvas.height);
+    // Pass updateStyle=false: the canvas CSS width/height are owned by the host
+    // container (GTK allocation / browser flex layout), we only size the
+    // drawing buffer.
+    renderer.setSize(canvas.width, canvas.height, false);
+    // Track the size we last handed the renderer. `renderer.domElement` IS this
+    // canvas, so the obvious `renderer.domElement.width !== w` compares a value
+    // with itself and is never true — the resize branch in animate() would be
+    // dead and the camera aspect would stay frozen at the first allocation.
+    // (Same shape as the teapot / pixel showcases; keep the three aligned.)
+    let prevW = canvas.width;
+    let prevH = canvas.height;
 
     // Scene
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
@@ -106,50 +121,61 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
         (lDrawLoader as any).smoothNormals = effectController.smoothNormals && !effectController.flatColors;
         lDrawLoader.setPath(ldrawPath);
 
-        lDrawLoader.load(entry.file, (group2: THREE.Group) => {
-            if (model) scene.remove(model);
+        lDrawLoader.load(
+            entry.file,
+            (group2: THREE.Group) => {
+                if (model) scene.remove(model);
 
-            model = group2;
+                model = group2;
 
-            // Flat colors: convert to MeshBasicMaterial (LEGO instruction look)
-            if (effectController.flatColors) {
-                // oxlint-disable-next-line typescript/no-explicit-any -- THREE.Object3D.traverse callback; LDraw-specific isMesh/material not guaranteed typed
-                model.traverse((c: any) => {
-                    if (c.isMesh) {
-                        if (Array.isArray(c.material)) {
-                            c.material = c.material.map(convertMaterial);
-                        } else {
-                            c.material = convertMaterial(c.material);
+                // Flat colors: convert to MeshBasicMaterial (LEGO instruction look)
+                if (effectController.flatColors) {
+                    // oxlint-disable-next-line typescript/no-explicit-any -- THREE.Object3D.traverse callback; LDraw-specific isMesh/material not guaranteed typed
+                    model.traverse((c: any) => {
+                        if (c.isMesh) {
+                            if (Array.isArray(c.material)) {
+                                c.material = c.material.map(convertMaterial);
+                            } else {
+                                c.material = convertMaterial(c.material);
+                            }
                         }
-                    }
-                });
-            }
+                    });
+                }
 
-            // Merge geometries by material
-            if (effectController.mergeModel) model = LDrawUtils.mergeObject(model);
+                // Merge geometries by material
+                if (effectController.mergeModel) model = LDrawUtils.mergeObject(model);
 
-            // Convert from LDraw coordinates: rotate 180 degrees around OX
-            model.rotation.x = Math.PI;
-            scene.add(model);
+                // Convert from LDraw coordinates: rotate 180 degrees around OX
+                model.rotation.x = Math.PI;
+                scene.add(model);
 
-            numBuildingSteps = ((model.userData as Record<string, unknown>).numBuildingSteps as number) ?? 1;
-            effectController.buildingStep = numBuildingSteps - 1;
+                numBuildingSteps = ((model.userData as Record<string, unknown>).numBuildingSteps as number) ?? 1;
+                effectController.buildingStep = numBuildingSteps - 1;
 
-            updateObjectsVisibility();
+                updateObjectsVisibility();
 
-            // Adjust camera
-            const bbox = new THREE.Box3().setFromObject(model);
-            const size = bbox.getSize(new THREE.Vector3());
-            const radius = Math.max(size.x, Math.max(size.y, size.z)) * 0.5;
+                // Adjust camera
+                const bbox = new THREE.Box3().setFromObject(model);
+                const size = bbox.getSize(new THREE.Vector3());
+                const radius = Math.max(size.x, Math.max(size.y, size.z)) * 0.5;
 
-            if (resetCamera) {
-                controls.target0.copy(bbox.getCenter(new THREE.Vector3()));
-                controls.position0.set(-2.3, 1, 2).multiplyScalar(radius).add(controls.target0);
-                controls.reset();
-            }
+                if (resetCamera) {
+                    controls.target0.copy(bbox.getCenter(new THREE.Vector3()));
+                    controls.position0.set(-2.3, 1, 2).multiplyScalar(radius).add(controls.target0);
+                    controls.reset();
+                }
 
-            onModelLoaded?.(numBuildingSteps);
-        });
+                onModelLoaded?.(numBuildingSteps);
+            },
+            undefined,
+            (error: unknown) => {
+                // Upstream's example passes an onError; dropping it in the port made
+                // every load failure invisible — LDrawLoader routes them into a
+                // promise chain, so without this handler a failed model is a silently
+                // rejected promise and the viewer just shows the empty background.
+                console.error(`[ldraw] loading ${ldrawPath}${entry.file} failed:`, error);
+            },
+        );
     }
 
     function convertMaterial(material: THREE.Material): THREE.MeshBasicMaterial {
@@ -170,10 +196,13 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
     function animate() {
         controls.update();
 
-        // Handle resize
+        // Handle resize — canvas.width/height are the host-owned drawing buffer
+        // (GJS: GTK allocation, browser: ResizeObserver on the parent).
         const w = canvas.width;
         const h = canvas.height;
-        if (renderer.domElement.width !== w || renderer.domElement.height !== h) {
+        if (w !== prevW || h !== prevH) {
+            prevW = w;
+            prevH = h;
             renderer.setSize(w, h, false);
             camera.aspect = w / h;
             camera.updateProjectionMatrix();
@@ -184,8 +213,9 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
 
     // Animation loop — use requestAnimationFrame directly (GTK frame clock compatible)
     let animPending = false;
+    let paused = false;
     function scheduleFrame() {
-        if (animPending) return;
+        if (animPending || paused) return;
         animPending = true;
         requestAnimationFrame(() => {
             animPending = false;
@@ -202,6 +232,17 @@ export function start(canvas: HTMLCanvasElement, options?: StartOptions, onModel
         effectController,
         reloadObject,
         updateVisibility: updateObjectsVisibility,
+        pause() {
+            paused = true;
+        },
+        resume() {
+            if (!paused) return;
+            paused = false;
+            scheduleFrame();
+        },
+        get isPaused() {
+            return paused;
+        },
         get numBuildingSteps() {
             return numBuildingSteps;
         },

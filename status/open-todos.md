@@ -575,6 +575,16 @@ ONE shared OTP). The package itself, its builder and both CI chains are in place
 
 Same mechanism as the `gtk-runtime-darwin-x64` entry above, three names at once: `@gjsify/webkit-native`, `@gjsify/webkit-native-darwin-x64` and `@gjsify/webkit-native-darwin-arm64` are all published (none is `private`), all new as of ADR 0022, and none exists on npm. Trusted Publishing cannot CREATE a package, so an unbootstrapped name 404s the OIDC exchange and stalls every alphabetically-later package — the v0.4.20 incident left 60+ at 0.4.19, and `webkit-*` sits ahead of `websocket`, `webstorage` and `xmlhttprequest`. One `gjsify onboard` run covers all three (it probes per package and publishes only the gaps, one shared OTP).
 
+### `gjsify onboard` for `@gjsify/example-dom-three-loader-ldraw` — required before the release that ships it
+
+Same mechanism as the two entries above, one name. The LDraw viewer moved from
+`examples/` to `showcases/` and lost its `"private": true` in the process, so the
+publish sweep now includes it and the name does not exist on npm. It sorts
+between `example-dom-three-geometry-teapot` and
+`example-dom-three-postprocessing-pixel`, i.e. an unbootstrapped name would stall
+both the pixel showcase and every `@gjsify/*` after it. One `gjsify onboard` run
+covers it.
+
 ### `@gjsify/webgl` renders on darwin-x64, but no WebGL2 CONTENT can
 
 First rendering proof on darwin, measured 2026-08-03 on the Intel macOS 15.7.8 test VM

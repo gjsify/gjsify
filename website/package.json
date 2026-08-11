@@ -21,6 +21,7 @@
     "@gjsify/example-dom-excalibur-jelly-jumper": "workspace:^",
     "@gjsify/example-dom-minimalist-browser": "workspace:^",
     "@gjsify/example-dom-three-geometry-teapot": "workspace:^",
+    "@gjsify/example-dom-three-loader-ldraw": "workspace:^",
     "@gjsify/example-dom-three-postprocessing-pixel": "workspace:^",
     "@gjsify/example-dom-webrtc-loopback": "workspace:^",
     "@gjsify/example-gtk-adwaita-storybook": "workspace:^",
