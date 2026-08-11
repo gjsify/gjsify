@@ -5,10 +5,10 @@
 //   node scripts/bump-release-train-ranges.mjs ${latestVersion} ${version}
 //
 // WHY IT EXISTS. `@release-it/bumper` globs the app manifests but rewrites
-// exactly one thing in each: the `version` field, never dependency RANGES. Three
+// exactly one thing in each: the `version` field, never dependency RANGES. Two
 // apps under `showcases/` are `!`-negated out of the root `workspaces` globs
-// (`adwaita-storybook-nativescript`, `adwaita-widgets-nativescript`,
-// `three-geometry-teapot-nativescript` — own `node_modules`, own NS toolchain), so
+// (`adwaita-storybook-nativescript` and `three-geometry-teapot-nativescript` — own
+// `node_modules`, own NS toolchain), so
 // their `@gjsify/*` deps are ordinary npm ranges resolved through the registry.
 // Nothing kept those current, so the instant release-it bumped the workspace they
 // all named the previous version and the `release-train` rule failed inside the

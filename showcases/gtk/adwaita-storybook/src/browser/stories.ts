@@ -7,6 +7,7 @@
 // Lists, Buttons, …).
 
 import type { WebStoryModule } from '@gjsify/adwaita-storybook';
+import { OverviewWidgetsWebStories } from './overview/widgets.web.js';
 import { AvatarWebStories } from './presentation/avatar.web.js';
 import { BannerWebStories } from './presentation/banner.web.js';
 import { ShortcutLabelWebStories } from './presentation/shortcut-label.web.js';
@@ -45,6 +46,7 @@ import { PreferencesDialogWebStories } from './feedback/preferences-dialog.web.j
 import { ToastWebStories } from './feedback/toast.web.js';
 
 export const stories: WebStoryModule[] = [
+    OverviewWidgetsWebStories,
     AvatarWebStories,
     BannerWebStories,
     ShortcutLabelWebStories,

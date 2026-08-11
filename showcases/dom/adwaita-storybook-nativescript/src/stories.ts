@@ -29,6 +29,8 @@ import { NavigationSplitViewNsStories } from './navigation/navigation-split-view
 import { NavigationViewNsStories } from './navigation/navigation-view.ns.js';
 import { OverlaySplitViewNsStories } from './navigation/overlay-split-view.ns.js';
 import { SidebarNsStories } from './navigation/sidebar.ns.js';
+// Overview
+import { OverviewWidgetsNsStories } from './overview/widgets.ns.js';
 // Presentation
 import { AvatarNsStories } from './presentation/avatar.ns.js';
 import { BannerNsStories } from './presentation/banner.ns.js';
@@ -74,6 +76,8 @@ export const stories: NsStoryModule[] = [
     NavigationViewNsStories,
     OverlaySplitViewNsStories,
     SidebarNsStories,
+    // Overview — sorts between navigation/ and presentation/ in the GTK glob order
+    OverviewWidgetsNsStories,
     // Presentation
     AvatarNsStories,
     BannerNsStories,

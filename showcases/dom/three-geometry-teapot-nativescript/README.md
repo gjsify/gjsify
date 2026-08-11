@@ -69,7 +69,6 @@ vite.config.ts         @gjsify/nativescript-vite defineNativescriptConfig()
 
 - [`three-geometry-teapot`](../three-geometry-teapot) — the GNOME + browser teapot and the canonical `start(canvas)` logic
 - [`@gjsify/nativescript-vite`](../../../packages/infra/nativescript-vite) — the Vite 8 / Rolldown NativeScript build
-- [`adwaita-widgets-nativescript`](../adwaita-widgets-nativescript) — the native Adwaita widget path on NativeScript
 - [`adwaita-storybook-nativescript`](../adwaita-storybook-nativescript) — the full Adwaita storybook on NativeScript
 
 ## License
