@@ -617,6 +617,21 @@ static void NodeGiClassInit(gpointer g_class, gpointer class_data) {
       // init_template. Independent of the child binding above — Children /
       // InternalChildren behaviour is unchanged.
       NodeGiInstallTemplateScopeOnClass(cd, g_class);
+    } else if (widgetType == 0) {
+      // GtkWidget is not registered in the type registry THIS addon calls into. The
+      // class in hand descends from one (registerClass resolved its parent), so the
+      // honest reading is not "your class is wrong" but "there are two GObject copies
+      // in this process" — the addon bound one libgobject and GTK registered its types
+      // in another. Reported separately because the subclass wording below sent #1120
+      // hunting a JS bug for a dyld one: an unrelocated darwin prebuild kept the build
+      // host's absolute Homebrew paths and bound Homebrew's libgobject while the
+      // batteries-included bundle's libgtk used its own.
+      g_warning(
+          "node-gi: GtkWidget is not registered in this process's GObject type registry, "
+          "so the Template on %s cannot be installed. This means TWO GLib/GObject copies "
+          "are loaded — check that the addon and GTK resolve to the same libgobject "
+          "(otool -L on the addon; DYLD_PRINT_LIBRARIES=1 to list what loaded)",
+          g_type_name(G_TYPE_FROM_CLASS(g_class)));
     } else if (!isWidget) {
       g_warning(
           "node-gi: a Template was set on %s, which is not a Gtk.Widget subclass — "

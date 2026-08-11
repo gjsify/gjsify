@@ -97,6 +97,19 @@ an accident nobody chose. Only the *default* has to refuse it.
   silently flip Linux to bundle-first the day someone builds a Linux bundle
   (Flatpak, a CI image). Stating each default means a new bundle cannot move an
   existing platform.
+- **On darwin the policy is only as good as the addon's own linkage** (#1120,
+  found after this ADR shipped). `decideGtkSource()` returning `bundle` sets
+  `DYLD_FALLBACK_LIBRARY_PATH`, and dyld consults that ONLY for a dependency path
+  that fails to resolve. The published `node_gi.node` still carried the build
+  runner's absolute `/usr/local/opt/glib/...`, which resolves on any Homebrew
+  Mac — so the addon stayed on Homebrew's libgobject while the bundle's
+  libgtk/libadwaita used the bundle's, giving two GObject type registries in one
+  process and NULL from every `g_object_class_find_property`. The decision here
+  is unchanged; what was missing is that node-gi's own `stage-prebuild.mjs` never
+  relocated the addon to `@rpath` the way `scripts/relocate-macho.mjs` does for
+  every other darwin prebuild. See `docs/prebuilds.md` § the node-gi addon.
+  **Reading for the next such change: a preference expressed in environment
+  variables cannot override a Mach-O load command that resolves.**
 - A load failure is now diagnosed (`load-diagnostics.js`) instead of surfacing a
   raw OS string. That module is separate from `index.js` on purpose: `index.js`
   loads the addon at evaluation time, so anything living there is reachable only
