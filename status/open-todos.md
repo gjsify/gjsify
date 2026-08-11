@@ -150,102 +150,106 @@ Linux never needed either lever: its bootstrap runs the published GJS bundle,
 where `detectPackageManager()` already returns `gjsify`. That is also why a
 Linux-only pipeline could not see this — the same shape ADR 0018 § 5 predicts.
 
-### A Node-less host cannot bootstrap a fresh CLONE — five `node scripts/*.mjs` calls remain
+### `@gjsify/adwaita-web`'s `build:scss` is the last `node` in `build` and `check` (#1053)
 
-Measured on a postmarketOS/aarch64 phone (musl, gjs 1.88.1, no node/npm/git) and
-reproduced locally by removing the only `node` from `PATH`: on a fresh clone
-`gjsify install` succeeds (982 packages, all 10 native prebuild packages
-detected, `linux-arm64` selected) and `gjsify build` then fails with "no usable
-bundler engine under GJS", because `@gjsify/rolldown-native`'s JS facade is a
-build output a clone does not carry.
+The bootstrap chain itself is closed: `gjsify run --node-script <file>` bundles an
+unbundled `.mjs` that imports `node:*` and runs it, `ensureGjsifyShimOnPath()`
+puts a `node` on PATH that re-enters it when the host has none, and `build:infra`
+now goes end to end with no `node` at all — measured by putting `node`/`npm`/`npx`
+on PATH that exit 127 and announce themselves, then running the whole chain under
+`gjs -m …/cli.gjs.mjs`: exit 0 warm, and exit 0 COLD with both native facades
+deleted, which rebuilt them through the global CLI's own engine.
+`process-template.mjs`, `set-bin-mode.mjs`, `build-assets.mjs` and
+`bootstrap-native-facades.mjs` all run there now. The manifests still spell
+`node scripts/x.mjs` deliberately — `writeNodeShim` records why a NEW flag in a
+manifest cannot be bootstrapped by the previous release's CLI.
 
-**CORRECTED 2026-08-06 — the conclusion below was wrong, and the two halves are
-about different things.** What this entry established is still true: the
-published `@gjsify/rolldown-native` TARBALL is fine (verified against 0.26.1: 27
-files, `package/lib/esm/index.js` present), and inside a clone it is the
-workspace symlink that shadows it. What it then CONCLUDED — "a consumer install
-is NOT affected … a repo-development limitation, not a shipped defect" — is
-false, and #1005 measured it from the outside (ts-for-gir run 31027844989): a
-consumer install lays down no engine AT ALL, because `@gjsify/rolldown-native`
-is an optional PEER dependency and the native install backend never resolves
-peerDependencies. `installGjsEnginePackages()` is wired into `install -g` and
-`self-update` only. So the tarball is sound and never arrives, and under GJS
-there is no npm `rolldown` to degrade to. A sound artifact that no install path
-delivers is still a shipped defect — see #1005, which owns that half.
+`packages/web/adwaita-web/scripts/build-scss.mjs` does NOT run under GJS, and it
+is reached from `build`, `check` and `build:test:browser` — so on a Node-less
+host the shim turns those from "fails at `node`" into "fails inside dart-sass".
+Same outcome, better message; what is still missing is the port itself.
 
-`build:infra` no longer dies at its FIRST entry: the nine bare `tsc` calls now go
-through `gjsify tsc` (byte-identical emit, verified per package against the npm
-`tsc`), which carries the first five entries. It now dies at the sixth,
-`@gjsify/create-app`, exit 127 on `node scripts/process-template.mjs`. Four
-`node` invocations remain IN THAT CHAIN:
-`create-gjsify/scripts/process-template.mjs` (151 LOC),
-`create-gjsify/scripts/set-bin-mode.mjs` (35), `cli/scripts/build-assets.mjs`
-(49) and `scripts/bootstrap-native-facades.mjs` itself. All four import only
-`node:fs`/`node:path`/`node:url` — every one of which gjsify polyfills — so
-nothing about them is intrinsically Node-bound; what is missing is a way to RUN
-an unbundled `.mjs` that imports `node:*` under GJS, since GJS's ESM loader
-cannot resolve those specifiers. Closing it means either bundling each to a
-committed `dist/*.gjs.mjs` (more artifacts under the committed-bundle
-freshness gate — the expensive option) or a `gjsify run --node-script <file>`
-mode that bundles-and-runs on the fly (one mechanism, no new artifacts — the
-better option, and it would serve every repo script, not just these).
+**Measured, so the next attempt does not start from a guess.** With the script
+bundled `--app gjs` and run under gjs it dies at load:
 
-The mechanism is less new than it reads: `BuildAction.bundleFileForGjsCached`
-(`packages/infra/cli/src/actions/build.ts:513`) already bundles a single file for
-GJS and is already called from two places. `--node-script` is CLI wiring on top
-of it, not machinery to invent.
+```
+JS ERROR: Error: Calling `require` for "url" in an environment that doesn't
+expose the `require` function.
+  __require@…/node-scripts/build-scss.mjs-20a74433.mjs:114:8
+  _cliPkgExports$1.load@…:13496:95
+```
 
-**A FIFTH call, and it is NOT equivalent to the other four (#1053).**
-`packages/web/adwaita-web/scripts/build-scss.mjs` — reached from adwaita-web's
-`check`, `build` and `build:test:browser`. The postmarketOS measurement never saw
-it because that run stopped at `build:infra`, and this script sits outside that
-chain; the enumeration above is of the bootstrap chain, not of the repo.
+That is dart-sass's own `library.load({…})` — the same call the previous entry
+identified as populating `self.fs`, one level deeper than expected: it reaches a
+bare CJS `require`, not just an `fs` global, so supplying `fs` alone would not
+have been enough. The API swap to `compileString` (done earlier, byte-identical
+CSS + source map) was necessary and is not sufficient.
 
-The distinction matters, because "port all five when `--node-script` lands" is
-wrong. The other four needed no change at all. This one did: dart-sass gates its
-four FILE-PATH entry points — `compile`, `compileAsync`, `render`, `renderSync` —
-behind a runtime `isNodeJs()` test and throws "The compile() method is only
-available in Node.js."; `compileString`/`compileStringAsync` carry no such test.
-A `--app gjs` bundle omits the `node` export condition by design
-(`packages/infra/rolldown-plugin-gjsify/src/app/gjs.ts:201`), so the script would
-have built GREEN and thrown at the first compile. It is on `compileString` now
-(byte-identical CSS and source map, verified against the previous output).
+A second thing surfaces in the same run and needs a decision, not just a fix:
+`--globals auto` injects `document`, `navigator`, `HTMLElement`,
+`HTMLCanvasElement`, `MutationObserver`, `Path2D`, `location` for this bundle —
+dart-sass's browser half — so the artifact demands `gi://Gdk`, `gi://GdkPixbuf`,
+`gi://Pango`, `gi://PangoCairo` at load. A build script must not need a display
+stack; an explicit `--globals` allowlist (or `--exclude-globals`) belongs in
+whatever closes this.
 
-What is still open there is the FILE READS, and it is the same shape one level
-down: `sass.node.js` populates the global `self.fs` that dart-sass reads every
-file through (`fs: require("fs")` in its `library.load({…})`), while
-`sass.default.js` loads with `{immutable}` only. On a non-Node runtime that
-global is undefined, so sass can open nothing — neither its own filesystem
-importer nor the `file:` URL a `FileImporter` hands back. Resolution is routed
-through an explicit importer in the script for exactly that reason: finishing the
-port is swapping that one object for an `Importer` whose `canonicalize`/`load`
-supply CONTENTS through `node:fs`, with nothing else in the file changing.
+Finishing it is what the previous entry described: an `Importer` whose
+`canonicalize`/`load` supply CONTENTS through `node:fs`, so nothing inside
+dart-sass ever opens a file — plus a `require` that the bundle can actually
+serve, or an entry that never calls one.
 
-**2026-08-06 — `--node-script` is viable, and the circularity has a documented
-exit.** `scripts/bootstrap-native-facades.mjs` states the trap in its own header:
-under GJS `gjsify build` needs the native engine, whose JS facade is itself a
-build artifact, so building the facade needs a bundler. A bundle-and-run mode
-therefore cannot bootstrap THAT script from a cold clone using the WORKSPACE CLI.
+### `process.exit()` under GJS SCHEDULES the exit and RETURNS, so the next line still runs
 
-What breaks the cycle is where the engine is resolved from. The published
-`@gjsify/rolldown-native` tarball carries a real `lib/esm/index.js`; only inside
-a clone does the workspace symlink shadow it. And `installGjsEnginePackages()`
-IS wired into `install -g` — so a gjsify installed the Node-less way
-(`gjs -m install.mjs`, the path CI now uses too) has a working engine, while the
-workspace CLI in a clone does not. So `gjsify run --node-script` works today when
-driven by the GLOBAL CLI, which is exactly the host that needs it; inside a clone
-the Node entry exists anyway. The residual gap is #1005 (a plain workspace
-install lays down no engine because the peer is never resolved), not this.
+Measured while adding `tests/e2e/node-script`. A script whose body is
 
-Scope note when building it: it is ONE mechanism serving every script and every
-consumer. Hand-porting these scripts to `gi://` instead is N pieces of work
-AND makes each one Node-incompatible — motion without deletion (AGENTS.md
-§ Governance, `simplicity`). The fifth script above shows the other half of the
-same rule: it needed a real change, and that change was an API swap INSIDE the
-script, not a `gi://` rewrite of it.
+```js
+console.log('ARGS:' + args.join(','));
+if (args.includes('--fail')) process.exit(3);
+console.log('OK');
+```
 
-Until then the engine diagnostic says the limitation out loud rather than
-recommending two commands that cannot work there; that wording is already fixed.
+prints `OK` under GJS and then exits 3. The exit CODE is right; the control flow
+is not. `@gjsify/process`'s `exitProcess` (`src/internal/exit.ts`) schedules
+`system.exit()` on a `GLib.idle_add` source and returns a forever-pending Promise
+cast to `never` — which parks an `await`ing caller, but a SYNCHRONOUS caller
+simply carries on.
+
+This is why the repo's own CLI code is written `return process.exit(…)`
+everywhere, and that discipline works. What it does not cover is a plain script
+run through `gjsify run --node-script`: those are written for Node, where
+`process.exit()` never returns, and the four in the bootstrap chain all end their
+error paths with a bare `process.exit(code)` followed by the caller continuing.
+Today that costs extra work and confusing output after a fatal error, not a wrong
+exit code (the first scheduled exit wins).
+
+The plausible fix is a direct `system.exit(code)` when no main loop is parked —
+`GLib.main_depth() === 0`, which `ensureMainLoop()` already reads for a related
+decision — keeping the idle path only for the parked-loop case the current
+implementation exists for. It is NOT done here because it changes the exit path
+of every gjsify program, and the claim "system.exit terminates immediately when
+no loop is running" is an assumption in the current source
+(`exitProcess`'s no-GLib fallback comment), not something anyone has measured.
+Measure it first.
+
+### Which `node scripts/*.mjs` calls are UNMEASURED on a Node-less host
+
+The shim is indiscriminate by design: on a host with no `node`, EVERY
+`node <file>.mjs` in every package script now re-enters the CLI. That is right
+for the build chain, whose four scripts are measured. It says nothing about the
+rest, and some of them cannot work there at all:
+
+| Call site | Expectation |
+|---|---|
+| `scripts/stage-prebuild.mjs` (13 sites), `scripts/check-refs-pin.mjs` (3) | plain `node:fs`/`node:path` — should work; reached only from `build:prebuilds` / `build:meson`, which need meson + a compiler anyway, so nobody has run them on such a host |
+| `packages/node-gi/**` `scripts/{install,stage-prebuild,gimarshalling,conformance,cross-runtime}.mjs`, `packages/napi/napi/test/*-gate.mjs` | CANNOT work, and should not: they drive node-gyp or EXIST to exercise node/bun/deno. The shim will bundle them and they will fail further in — a worse message than "no node" |
+| `packages/node-gi/gtk-runtime-*/scripts/build-gtk-runtime*.mjs` | assemble the darwin/win32 GTK bundles; those hosts have Node |
+| root `install-git-hooks` | runs on a fresh clone BEFORE the CLI exists, so the shim is not on PATH yet either way |
+| `.release-it.json` hooks | release-it is a Node program; its hooks run inside it |
+
+Worth deciding rather than discovering: whether the shim should REFUSE for the
+second row (a name-based deny-list is ugly; a `gjsify.nodeOnly` manifest flag is
+honest) or whether "fails further in" is acceptable. Nobody has hit it yet
+because every host that runs those has Node.
 
 ### Every DISPLAY-gated GTK test silently skips on macOS, so the darwin GTK path is near-uncovered
 
