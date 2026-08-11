@@ -48,6 +48,35 @@ export default async () => {
         });
     });
 
+    await describe('StorybookSettings accent mode', async () => {
+        await it('follows the environment by default and applies nothing', () => {
+            // The desktop owns the accent (`StyleManager:accent-color` is
+            // read-only), so a storybook that overrode it out of the box would
+            // discard the user's choice on every start.
+            const settings = new StorybookSettings();
+            expect(settings.accentMode).toBe('system');
+            expect(settings.resolvedAccent).toBe(null);
+        });
+
+        await it('applies the chosen accent only once the mode is custom', () => {
+            const settings = new StorybookSettings();
+
+            settings.accent = 'purple';
+            // Picking a swatch must NOT switch the mode on: a disabled-but-visible
+            // selector still reports its current value, and flipping the mode there
+            // would apply an accent nobody enabled.
+            expect(settings.resolvedAccent).toBe(null);
+
+            settings.accentMode = 'custom';
+            expect(settings.resolvedAccent).toBe('purple');
+
+            settings.accentMode = 'system';
+            expect(settings.resolvedAccent).toBe(null);
+            // …and the choice survives the round trip, so re-enabling restores it.
+            expect(settings.accent).toBe('purple');
+        });
+    });
+
     await describe('StorybookSettings notification', async () => {
         await it('notifies on a change and not on a repeat', () => {
             const settings = new StorybookSettings();

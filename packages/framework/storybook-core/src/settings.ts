@@ -29,11 +29,24 @@ export type StorybookColorScheme = 'system' | 'light' | 'dark';
 /** Every colour-scheme choice, in the order a selector should offer them. */
 export const STORYBOOK_COLOR_SCHEMES: readonly StorybookColorScheme[] = ['system', 'light', 'dark'];
 
+/**
+ * Whether the accent is the environment's or the storybook's own.
+ *
+ * `'system'` is the default and it is not a formality: `Adw.StyleManager:accent-color`
+ * is READ-ONLY because the desktop owns the accent, so an app that always
+ * overrode it would ignore the user's choice the moment it started. The override
+ * exists to PREVIEW the other eight, which is a storybook's job and not a
+ * default.
+ */
+export type StorybookAccentMode = 'system' | 'custom';
+
 /** A snapshot of the appearance settings. */
 export interface StorybookSettingsState {
     /** The colour-scheme PREFERENCE, not the resolved value. */
     readonly colorScheme: StorybookColorScheme;
-    /** The accent the storybook overrides the desktop's with. */
+    /** Whether {@link accent} is applied at all. */
+    readonly accentMode: StorybookAccentMode;
+    /** The accent to override with while {@link accentMode} is `'custom'`. */
     readonly accent: AdwAccentColorName;
 }
 
@@ -50,6 +63,7 @@ export type SystemDarkQuery = () => boolean;
  */
 export class StorybookSettings {
     private _colorScheme: StorybookColorScheme = 'system';
+    private _accentMode: StorybookAccentMode = 'system';
     private _accent: AdwAccentColorName = 'blue';
     private readonly _listeners = new Set<(state: StorybookSettingsState) => void>();
     private readonly _systemDark: SystemDarkQuery;
@@ -73,6 +87,22 @@ export class StorybookSettings {
         this._notify();
     }
 
+    get accentMode(): StorybookAccentMode {
+        return this._accentMode;
+    }
+
+    set accentMode(value: StorybookAccentMode) {
+        if (value === this._accentMode) return;
+        this._accentMode = value;
+        this._notify();
+    }
+
+    /**
+     * The custom accent. Setting it does NOT switch {@link accentMode} on — a
+     * selector left visible-but-disabled still reports which swatch is current,
+     * and flipping the mode as a side effect of that would apply an accent the
+     * user never enabled.
+     */
     get accent(): AdwAccentColorName {
         return this._accent;
     }
@@ -83,6 +113,11 @@ export class StorybookSettings {
         this._notify();
     }
 
+    /** The accent to apply, or `null` to leave the environment's alone. */
+    get resolvedAccent(): AdwAccentColorName | null {
+        return this._accentMode === 'custom' ? this._accent : null;
+    }
+
     /** Whether dark is actually on screen — the preference, resolved. */
     get resolvedDark(): boolean {
         if (this._colorScheme === 'dark') return true;
@@ -91,7 +126,7 @@ export class StorybookSettings {
     }
 
     get state(): StorybookSettingsState {
-        return { colorScheme: this._colorScheme, accent: this._accent };
+        return { colorScheme: this._colorScheme, accentMode: this._accentMode, accent: this._accent };
     }
 
     /**

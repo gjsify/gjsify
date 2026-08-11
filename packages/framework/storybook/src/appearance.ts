@@ -73,19 +73,31 @@ export class StorybookAppearance {
                       ? Adw.ColorScheme.FORCE_DARK
                       : Adw.ColorScheme.DEFAULT,
             );
-            this._applyAccent(state.accent);
+            this._applyAccent(this.settings.resolvedAccent);
         } finally {
             this._applying = false;
         }
     }
 
-    private _applyAccent(accent: AdwAccentColorName): void {
+    /**
+     * @param accent The accent to force, or `null` to hand the choice back to the
+     *   desktop. Clearing has to EMPTY the provider rather than skip the call: a
+     *   stale override would otherwise keep winning over `StyleManager` forever,
+     *   which is the failure that makes a "follow system" switch do nothing.
+     */
+    private _applyAccent(accent: AdwAccentColorName | null): void {
         const display = Gdk.Display.get_default();
         if (!display) return;
 
         if (!this._provider) {
+            if (!accent) return;
             this._provider = new Gtk.CssProvider();
             Gtk.StyleContext.add_provider_for_display(display, this._provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION);
+        }
+
+        if (!accent) {
+            this._provider.load_from_string('');
+            return;
         }
 
         // Both properties, from core — the standalone one depends on the RESOLVED
@@ -98,88 +110,133 @@ export class StorybookAppearance {
 }
 
 /**
- * The appearance popover: the scheme choice and the nine accents.
+ * One round swatch: a grouped `Gtk.CheckButton` whose fill IS the choice.
  *
- * A plain `Gtk.Popover` built in a function rather than a registered GObject
- * subclass — it holds no properties or signals of its own, and a subclass would
- * only add a GType to collide with.
+ * A CheckButton rather than a ToggleButton because grouping gives radio
+ * behaviour — exactly one selected, and clicking the selected one cannot
+ * deselect it, which a ToggleButton group allows.
  */
-export function buildAppearanceMenu(appearance: StorybookAppearance): Gtk.Popover {
-    const box = new Gtk.Box({
-        orientation: Gtk.Orientation.VERTICAL,
-        spacing: 12,
+function buildSwatch(cssClasses: readonly string[], label: string, group: Gtk.CheckButton | null): Gtk.CheckButton {
+    const swatch = new Gtk.CheckButton({
+        tooltip_text: label,
+        halign: Gtk.Align.CENTER,
+        valign: Gtk.Align.CENTER,
+        focus_on_click: false,
+    });
+    for (const cssClass of cssClasses) swatch.add_css_class(cssClass);
+    // The tooltip is not an accessible name, and a coloured circle has no text of
+    // its own — without this a screen reader reads nine unnamed radio buttons.
+    swatch.update_property([Gtk.AccessibleProperty.LABEL], [label]);
+    if (group) swatch.set_group(group);
+    return swatch;
+}
+
+/** A centred, wrapping row of swatches. */
+function buildSwatchRow(): Gtk.FlowBox {
+    const row = new Gtk.FlowBox({
+        selection_mode: Gtk.SelectionMode.NONE,
+        homogeneous: true,
+        halign: Gtk.Align.CENTER,
+        row_spacing: 8,
+        column_spacing: 8,
         margin_top: 12,
         margin_bottom: 12,
         margin_start: 12,
         margin_end: 12,
+        max_children_per_line: 9,
     });
+    return row;
+}
 
-    const schemeLabel = new Gtk.Label({ label: 'Appearance', xalign: 0 });
-    schemeLabel.add_css_class('heading');
-    box.append(schemeLabel);
+/**
+ * The appearance dialog: the colour scheme, and the accent behind a switch.
+ *
+ * An `Adw.PreferencesDialog` rather than a popover — the palette is nine swatches
+ * plus a switch row, which a popover squeezes, and the sections need headings to
+ * say which choice is which.
+ */
+export function buildAppearanceDialog(appearance: StorybookAppearance): Adw.PreferencesDialog {
+    const settings = appearance.settings;
+    const page = new Adw.PreferencesPage();
 
-    // Linked toggles, grouped so exactly one is active — the shape GNOME's own
-    // appearance switcher uses.
-    const schemeRow = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, homogeneous: true });
-    schemeRow.add_css_class('linked');
-    let schemeGroup: Gtk.ToggleButton | null = null;
-    const schemeButtons = new Map<string, Gtk.ToggleButton>();
+    // --- Colour scheme ---
+    const schemeGroup = new Adw.PreferencesGroup({ title: 'Style' });
+    const schemeRow = buildSwatchRow();
+    let schemeGroupLeader: Gtk.CheckButton | null = null;
+    const schemeSwatches = new Map<string, Gtk.CheckButton>();
 
     for (const scheme of STORYBOOK_COLOR_SCHEMES) {
-        const button = new Gtk.ToggleButton({ label: SCHEME_LABELS[scheme] });
-        if (schemeGroup) button.set_group(schemeGroup);
-        else schemeGroup = button;
-        button.set_active(appearance.settings.colorScheme === scheme);
-        button.connect('toggled', () => {
-            if (button.get_active()) appearance.settings.colorScheme = scheme;
-        });
-        schemeButtons.set(scheme, button);
-        schemeRow.append(button);
-    }
-    box.append(schemeRow);
-
-    const accentLabel = new Gtk.Label({ label: 'Accent colour', xalign: 0 });
-    accentLabel.add_css_class('heading');
-    box.append(accentLabel);
-
-    // A grid of swatches. Each carries its own colour as inline CSS, so the row
-    // shows the palette instead of nine identical buttons with names on them.
-    const grid = new Gtk.Grid({ row_spacing: 6, column_spacing: 6 });
-    let accentGroup: Gtk.ToggleButton | null = null;
-
-    for (const [index, accent] of ADW_ACCENT_COLOR_NAMES.entries()) {
-        const swatch = new Gtk.ToggleButton({
-            tooltip_text: ACCENT_LABELS[accent],
-            width_request: 28,
-            height_request: 28,
-        });
-        swatch.update_property([Gtk.AccessibleProperty.LABEL], [ACCENT_LABELS[accent]]);
-        if (accentGroup) swatch.set_group(accentGroup);
-        else accentGroup = swatch;
-        swatch.set_active(appearance.settings.accent === accent);
-
-        const provider = new Gtk.CssProvider();
-        provider.load_from_string(
-            `button { background-image: none; background-color: ${adwaitaAccentBgColor(accent)}; }`,
+        const swatch = buildSwatch(
+            ['storybook-swatch', 'storybook-scheme-swatch', `storybook-scheme-${scheme}`],
+            SCHEME_LABELS[scheme],
+            schemeGroupLeader,
         );
+        schemeGroupLeader ??= swatch;
+        swatch.set_active(settings.colorScheme === scheme);
+        swatch.connect('toggled', () => {
+            if (swatch.get_active()) settings.colorScheme = scheme;
+        });
+        schemeSwatches.set(scheme, swatch);
+        schemeRow.append(swatch);
+    }
+    schemeGroup.add(schemeRow);
+    page.add(schemeGroup);
+
+    // --- Accent ---
+    const accentGroup = new Adw.PreferencesGroup({ title: 'Accent colour' });
+    const accentSwitch = new Adw.SwitchRow({
+        title: 'Use a custom accent colour',
+        subtitle: 'Off follows the desktop, which owns the accent',
+        active: settings.accentMode === 'custom',
+    });
+    accentGroup.add(accentSwitch);
+
+    const accentRow = buildSwatchRow();
+    let accentGroupLeader: Gtk.CheckButton | null = null;
+    const accentSwatches = new Map<string, Gtk.CheckButton>();
+
+    for (const accent of ADW_ACCENT_COLOR_NAMES) {
+        const swatch = buildSwatch(['storybook-swatch'], ACCENT_LABELS[accent], accentGroupLeader);
+        accentGroupLeader ??= swatch;
+        swatch.set_active(settings.accent === accent);
+
+        // The fill comes from core, per swatch, rather than from a stylesheet class
+        // per accent — one source of truth for the nine colours, and adding a tenth
+        // upstream would not need a CSS edit here.
+        const provider = new Gtk.CssProvider();
+        provider.load_from_string(`checkbutton { background-color: ${adwaitaAccentBgColor(accent)}; }`);
         swatch.get_style_context().add_provider(provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION);
 
         swatch.connect('toggled', () => {
-            if (swatch.get_active()) appearance.settings.accent = accent;
+            if (swatch.get_active()) settings.accent = accent;
         });
-
-        grid.attach(swatch, index % 5, Math.floor(index / 5), 1, 1);
+        accentSwatches.set(accent, swatch);
+        accentRow.append(swatch);
     }
-    box.append(grid);
 
-    const popover = new Gtk.Popover({ child: box });
+    accentRow.set_sensitive(settings.accentMode === 'custom');
+    accentSwitch.connect('notify::active', () => {
+        settings.accentMode = accentSwitch.get_active() ? 'custom' : 'system';
+    });
+    accentGroup.add(accentRow);
+    page.add(accentGroup);
 
-    // Keep the toggles honest if the settings are changed from elsewhere (a
-    // devtools call, a future keyboard shortcut) rather than only from this menu.
-    appearance.settings.subscribe((state) => {
-        const active = schemeButtons.get(state.colorScheme);
-        if (active && !active.get_active()) active.set_active(true);
+    // Keep the controls honest when the settings move from anywhere else — a
+    // devtools call, a keyboard shortcut, a future persisted value. Written as a
+    // one-way sync FROM the model, so the dialog has no second copy of the state.
+    settings.subscribe((state) => {
+        const scheme = schemeSwatches.get(state.colorScheme);
+        if (scheme && !scheme.get_active()) scheme.set_active(true);
+
+        const accent = accentSwatches.get(state.accent);
+        if (accent && !accent.get_active()) accent.set_active(true);
+
+        const custom = state.accentMode === 'custom';
+        if (accentSwitch.get_active() !== custom) accentSwitch.set_active(custom);
+        accentRow.set_sensitive(custom);
     });
 
-    return popover;
+    const dialog = new Adw.PreferencesDialog({ title: 'Appearance' });
+    dialog.add(page);
+    return dialog;
 }
