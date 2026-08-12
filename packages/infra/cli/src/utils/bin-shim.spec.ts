@@ -239,6 +239,32 @@ export default async () => {
             expect(mac.split('DYLD_LIBRARY_PATH').join('').includes('LD_LIBRARY_PATH')).toBe(false);
         });
 
+        await it('puts dyld’s own default fallback back, on darwin only', async () => {
+            // The macOS blocker, measured on the 15.7.9 x86_64 VM against the
+            // published 0.37.0 — without this, EVERY `gjsify` command died in
+            // `dlopen(libsoup-3.0.0.dylib)` before downloading anything, because
+            // `/usr/local/lib` was missing from the search list. It must be
+            // exported HERE: SIP strips `DYLD_*` at the protected `/bin/sh`, so a
+            // user-exported value is already gone. Full note in `bin-shim.ts`.
+            const mac = buildNativeEnvPreamble('/opt/prefix', [], { platform: 'darwin', arch: 'x64' });
+            expect(mac).toContain('export DYLD_FALLBACK_LIBRARY_PATH');
+            expect(mac).toContain('/usr/local/lib');
+            // `$HOME` UNEXPANDED: the launcher resolves it at launch rather than
+            // baking the writing machine's home directory into every shim.
+            expect(mac).toContain('$HOME/lib');
+            // An inherited value keeps priority; the defaults are only ever added.
+            expect(mac).toContain('${DYLD_FALLBACK_LIBRARY_PATH:+$DYLD_FALLBACK_LIBRARY_PATH:}');
+        });
+
+        await it('leaves the fallback variable alone off darwin', async () => {
+            // `ld.so` has no such variable, and on Windows `PATH` is the DLL
+            // search path — writing it there is noise a reader has to explain away.
+            for (const platform of ['linux', 'win32']) {
+                const sh = buildNativeEnvPreamble('/opt/prefix', ['/baked/prebuilds/x'], { platform, arch: 'x64' });
+                expect(sh.includes('DYLD_FALLBACK_LIBRARY_PATH')).toBe(false);
+            }
+        });
+
         await it('embeds only the hits a single-root scan cannot see', async () => {
             const sh = buildNativeEnvPreamble(
                 '/opt/prefix',

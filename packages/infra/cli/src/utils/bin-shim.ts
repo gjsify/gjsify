@@ -26,6 +26,7 @@
 // both work without the caller knowing which it is.
 
 import { detectHostLibc, type HostLibc, libraryPathVar, prebuildDirCandidates } from './detect-native-packages.js';
+import { dyldDefaultFallbackDirs } from './system-gi.js';
 
 /** The three sibling files a Windows bin entry consists of. */
 export interface WindowsShimFiles {
@@ -398,31 +399,16 @@ function shQuote(s: string): string {
  * script chain: the self-relative `@loader_path` rpath that
  * `check-prebuild-loader-path.mjs` enforces is what actually has to carry it.
  *
- * NOT EXTENDED WITH THE HOST'S GI LIBDIRS — a decision, not an oversight.
- * `buildNativeEnv()` now puts `systemGiLibraryDirs()` on the gjs CHILD's
- * `DYLD_FALLBACK_LIBRARY_PATH`, which repairs every command that goes through this
- * CLI. A launcher that `exec`s a GJS bundle DIRECTLY — `gjsify install -g` on a
- * package whose `gjsify.bin` is a GTK app — has no CLI in the loop and still
- * carries the gap.
- *
- * The MECHANISM would work, and that was measured on the macOS 15.7.8 VM rather
- * than assumed. It is a finer point than the caveat above: what SIP strips is an
- * INHERITED `DYLD_*` at the `/bin/sh` exec, so a value this preamble exports
- * ITSELF survives the following `exec gjs` (an unprotected Homebrew binary) and
- * `Gtk.init()` then succeeds. What is missing is a shape worth having:
- *
- *   - BAKING `systemGiLibraryDirs()` in at write time reintroduces precisely the
- *     snapshot this function exists to remove — a launcher is routinely written
- *     BEFORE `brew install gtk4`, and would bake nothing while saying nothing.
- *   - RE-DERIVING it in shell means a THIRD copy of a rule that already has two,
- *     pinned in agreement by `system-gi.spec.ts` — and shell can express only one
- *     of its three sources (the probed prefixes; `pkg-config` would be a spawn on
- *     every launch), so that copy would be knowingly partial, in the one language
- *     nothing here type-checks.
- *
- * So the gap is recorded in `status/open-todos.md` with the measurement attached
- * instead of being closed by a mechanism that drifts. Closing it properly means
- * teaching such a launcher to defer to the CLI, not to re-derive.
+ * IT DOES export dyld's own default fallback list on darwin — see
+ * {@link dyldFallbackPreamble}. That is a CONSTANT, so it carries none of the
+ * staleness that rules out the alternatives: BAKING `systemGiLibraryDirs()` in
+ * at write time reintroduces the snapshot this function exists to remove (a
+ * launcher is routinely written BEFORE `brew install gtk4`), and RE-DERIVING it
+ * in shell would be a knowingly partial THIRD copy of a two-copy rule, in the
+ * one language nothing here type-checks. The REMAINING gap — a host GI stack
+ * under a prefix dyld never defaulted to, `/opt/homebrew/lib` on Apple silicon —
+ * stays in `status/open-todos.md`, to be closed by teaching such a launcher to
+ * defer to the CLI rather than to re-derive.
  *
  * @param scanRoot Directory whose `node_modules` is globbed at launch time.
  * @param bakedDirs Prebuild dirs found at write time; entries outside `scanRoot`
@@ -501,7 +487,48 @@ export function buildNativeEnvPreamble(
         `  ${libVar}="$gjsify_np\${${libVar}:+${separator}$${libVar}}"\n` +
         `  export GI_TYPELIB_PATH ${libVar}\n` +
         `fi\n` +
-        `unset gjsify_np gjsify_d gjsify_t\n`
+        `unset gjsify_np gjsify_d gjsify_t\n` +
+        dyldFallbackPreamble(platform)
+    );
+}
+
+/**
+ * The darwin half of {@link buildNativeEnvPreamble}: put dyld's OWN default
+ * fallback list back, from inside the launcher.
+ *
+ * MEASURED on the macOS 15.7.9 x86_64 VM against the published 0.37.0: every
+ * `gjsify` command died in `dlopen(libsoup-3.0.0.dylib)` — before downloading
+ * anything, the CLI's own npm fetcher going through Soup — with a dyld search
+ * list that ended at `/usr/lib` and never held `/usr/local/lib`, where Homebrew
+ * puts every GTK library on Intel macOS. Exporting these four directories here
+ * makes the same command resolve, download and render (`OpenGL 4.1`).
+ *
+ * WHY HERE, and not the caller's job: SIP strips every `DYLD_*` variable when a
+ * PROTECTED binary is exec'd, and `/bin/sh` — this script — is protected. A
+ * value the USER exports is already gone by the time the preamble runs
+ * (measured: exporting the identical value around `gjsify showcase` changes
+ * nothing), while one the preamble exports ITSELF survives the following
+ * `exec gjs`, Homebrew's gjs being unprotected. This is the last hop that can.
+ *
+ * A CONSTANT is safe here only because it is dyld's DOCUMENTED DEFAULT: it
+ * cannot go stale the way baking `systemGiLibraryDirs()` in would (a launcher is
+ * routinely written before `brew install gtk4`), and it re-derives nothing —
+ * four literals from `dyld(1)`, shared with {@link dyldDefaultFallbackDirs}.
+ * An inherited value stays AHEAD of it; the export only ADDS BACK what dyld
+ * would have searched on its own.
+ *
+ * NOT the host's GI libdirs: `/opt/homebrew/lib` was never in dyld's default
+ * either, so an ARM Mac has that gap with or without gjsify —
+ * `status/open-todos.md`.
+ */
+export function dyldFallbackPreamble(platform: string): string {
+    if (platform !== 'darwin') return '';
+    // `HOME: '$HOME'` on purpose — the shim must expand it at LAUNCH, not bake
+    // the writing machine's home directory into every launcher.
+    const dirs = dyldDefaultFallbackDirs({ HOME: '$HOME' }).join(':');
+    return (
+        `DYLD_FALLBACK_LIBRARY_PATH="\${DYLD_FALLBACK_LIBRARY_PATH:+$DYLD_FALLBACK_LIBRARY_PATH:}${dirs}"\n` +
+        `export DYLD_FALLBACK_LIBRARY_PATH\n`
     );
 }
 
