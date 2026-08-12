@@ -220,3 +220,34 @@
 .ns-dark .story-stage {
     border-color: rgba(255, 255, 255, 0.28);
 }
+
+/* ===== Appearance dialog swatches =====
+ * Round accent swatches. NS has no radio input and no `:checked`, so selection is a
+ * class the dialog maintains and the ring is a border — `border-radius`,
+ * `border-width` and `opacity` are all in the NS CSS subset, which is what a circle
+ * with a ring needs. The unavailable state is the ROW's opacity, since the subset has
+ * no `:disabled` either. */
+.sb-swatch-row {
+    margin: 12;
+    horizontal-align: center;
+}
+
+/* The ring is ALWAYS 3 wide and only its colour changes. Toggling `border-width`
+ * between 0 and 3 changes the box geometry, and NS then renders the rounded fill
+ * clipped — it looked like a circle with a bite taken out of it. */
+.sb-swatch {
+    width: 28;
+    height: 28;
+    border-radius: 14;
+    margin: 4;
+    border-width: 3;
+    border-color: transparent;
+}
+
+.sb-swatch.selected {
+    border-color: rgba(0, 0, 0, 0.5);
+}
+
+.ns-dark .sb-swatch.selected {
+    border-color: #ffffff;
+}

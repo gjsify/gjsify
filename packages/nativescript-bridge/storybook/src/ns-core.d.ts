@@ -87,6 +87,16 @@ declare module '@nativescript/core' {
     export type GridUnitType = 'auto' | 'star' | 'pixel';
 
     /** Grid of children addressed by row/column — `<GridLayout>`. */
+    /**
+     * Layout that flows children onto as many lines as they need — `<WrapLayout>`.
+     *
+     * Declared because a StackLayout does NOT wrap: nine accent swatches overflow one
+     * dialog-width line and the last two and a half were clipped off the edge.
+     */
+    export class WrapLayout extends LayoutBase {
+        orientation: 'horizontal' | 'vertical';
+    }
+
     export class GridLayout extends LayoutBase {
         addColumn(itemSpec: ItemSpec): void;
         addRow(itemSpec: ItemSpec): void;

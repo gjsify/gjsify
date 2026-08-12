@@ -40,6 +40,7 @@
     ],
     "dependencies": {
         "@gjsify/adwaita-icons": "workspace:^",
+        "@gjsify/adwaita-core": "workspace:^",
         "@gjsify/adwaita-nativescript": "workspace:^",
         "@gjsify/devtools-nativescript": "workspace:^",
         "@gjsify/stories": "workspace:^",
