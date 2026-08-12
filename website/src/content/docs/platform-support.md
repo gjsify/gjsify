@@ -79,7 +79,24 @@ inside `gtk-4-1.dll` — a crash with a plausible stack and no hint of the real
 cause, which reads like a gjsify defect and is not one. Re-run as an interactive
 scheduled task in the logged-on session, the same commands render. Anyone
 automating Windows checks for this project needs the interactive session, or the
-results will be confidently wrong.
+results will be confidently wrong:
+
+```powershell
+schtasks /create /tn gjsifyTest /tr "%USERPROFILE%\test\run.cmd" `
+         /sc once /st 23:59 /ru %USERNAME% /it /f
+schtasks /run /tn gjsifyTest
+```
+
+Write output under `%USERPROFILE%` — an unelevated task may not write to `C:\`.
+
+The second trap is the CLI's own version. A run that reported every WebGL
+showcase failing under deno with `Failed to require Gwebgl 0.1: Typelib file for
+namespace 'Gwebgl' (any version) not found` was measured against the box's
+npm-global gjsify **0.33.0**. Re-measured on 0.37.0 in an interactive session,
+all four WebGL showcases reach the GL bridge under **both** deno and bun
+(`three-geometry-teapot` at `Context version: OpenGL 4.6`), and that error does
+not occur at all. Check the `[gjsify x.y.z]` version the command prints before
+believing a Windows result.
 
 What a Windows checkout cannot do is anything that ends in a `gjs` process:
 `--app gjs` bundles, `test:gjs`, and the showcases and examples built around
