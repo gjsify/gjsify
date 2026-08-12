@@ -12,7 +12,7 @@ import {
     detectNodeGiGlobals,
 } from '@gjsify/rolldown-plugin-gjsify/globals';
 import { pnpPlugin } from '@gjsify/rolldown-plugin-pnp';
-import { dirname, extname, join, resolve } from 'node:path';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chmod, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { normalizeBundlerOptions, mergeBundlerOptions } from '../utils/normalize-bundler-options.js';
@@ -558,7 +558,20 @@ export class BuildAction {
             opts.globals === undefined && opts.excludeGlobals === undefined
                 ? inputPath
                 : `${inputPath} ${JSON.stringify([opts.globals ?? null, opts.excludeGlobals ?? null])}`;
-        const outfile = join(cacheDir, `${safeName}-${shortHash(cacheKey)}.mjs`);
+        // THE HASH GOES IN THE DIRECTORY, THE FILE KEEPS THE SOURCE'S NAME. It used to be
+        // `<name>-<hash>.mjs`, and that quietly broke every script guarding its body with the
+        // standard "am I the entry point" test: `scripts/audit-runtimes.mjs` asks whether
+        // `process.argv[1]` ENDS WITH `audit-runtimes.mjs`, the bundle was called
+        // `audit-runtimes.mjs-178ec388.mjs`, so the guard was false and
+        // `gjsify run --node-script scripts/audit-runtimes.mjs --platforms` printed NOTHING
+        // and exited 0. `import.meta.url` was already repaired by a define for the same
+        // reason (the bundle does not live where the source lives); `process.argv[1]` is the
+        // other half, and a name is cheaper to keep right than an argv to rewrite.
+        const outfile = join(
+            cacheDir,
+            `${safeName}-${shortHash(cacheKey)}`,
+            `${basename(inputPath).replace(/\.[cm]?[jt]sx?$/i, '')}.mjs`,
+        );
 
         const cacheDisabled =
             opts.cache === false || (opts.noCacheEnv ? isTruthyEnv(process.env[opts.noCacheEnv]) : false);
@@ -568,7 +581,7 @@ export class BuildAction {
         }
 
         if (opts.verbose) console.debug(`[gjsify] bundling ${inputPath} for GJS → ${outfile}`);
-        await mkdir(cacheDir, { recursive: true });
+        await mkdir(dirname(outfile), { recursive: true });
         await new BuildAction({
             verbose: opts.verbose,
             ...(opts.globals !== undefined ? { globals: opts.globals } : {}),

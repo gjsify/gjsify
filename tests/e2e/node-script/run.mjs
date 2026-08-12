@@ -69,13 +69,14 @@ const SKIP_SHIM = SKIP || !canDropNodeKeepingGjs();
  * off `process.argv`, and an exit code the caller must see.
  */
 const PROBE = `import { writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
 
 writeFileSync(join(here, 'sibling.marker'), here + '\\n');
+console.log('ENTRY:' + basename(process.argv[1]));
 console.log('ARGS:' + args.join(','));
 if (args.includes('--fail')) process.exit(3);
 console.log('OK');
@@ -214,6 +215,17 @@ describe('gjsify run --node-script on a Node-less GJS host', { skip: SKIP, timeo
         assert.ok(!/FAKE (node|npm) CALLED/.test(output), `Node/npm was spawned:\n${output}`);
         assert.match(output, /ARGS:alpha,beta/, `argv was not forwarded:\n${output}`);
         assert.match(output, /\bOK\b/, `script did not reach its end:\n${output}`);
+    });
+
+    it('keeps the SOURCE basename on the bundle, so an is-entry guard still fires', () => {
+        // `process.argv[1]` is the second half of "the bundle does not live where the source
+        // lives", and it was missed when `import.meta.url` got its define. The standard entry
+        // guard — `scripts/audit-runtimes.mjs` asks whether `process.argv[1]` ENDS WITH
+        // `audit-runtimes.mjs` — was false against a bundle named `<name>.mjs-<hash>.mjs`, so
+        // `gjsify run --node-script scripts/audit-runtimes.mjs --platforms` printed NOTHING
+        // and exited 0. The hash moved into the DIRECTORY; the file keeps the source's name.
+        const { output } = runInFixture(['run', '--node-script', 'scripts/probe.mjs']);
+        assert.match(output, /ENTRY:probe\.mjs\b/, `the entry name did not survive bundling:\n${output}`);
     });
 
     it("resolves import.meta.url to the SOURCE file, not the bundle's cache dir", () => {

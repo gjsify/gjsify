@@ -114,6 +114,6 @@ export async function runNodeScript(
     }
 
     // Quiet for the same reason as the node path above; the bundle's location is
-    // deterministic (`node_modules/.cache/gjsify/node-scripts/<name>-<hash>.mjs`).
+    // deterministic (`node_modules/.cache/gjsify/node-scripts/<name>-<hash>/<name>.mjs`).
     await runGjsBundle(bundlePath, extraArgs, { exitOnSuccess: options.exitOnSuccess, quiet: true });
 }
