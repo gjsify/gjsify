@@ -150,7 +150,7 @@ Linux never needed either lever: its bootstrap runs the published GJS bundle,
 where `detectPackageManager()` already returns `gjsify`. That is also why a
 Linux-only pipeline could not see this — the same shape ADR 0018 § 5 predicts.
 
-### `@gjsify/adwaita-web`'s `build:scss` is the last `node` in `build` and `check` (#1053)
+### sass under GJS: the SCRIPT path is closed, the BUNDLER path is not (#1053)
 
 The bootstrap chain itself is closed: `gjsify run --node-script <file>` bundles an
 unbundled `.mjs` that imports `node:*` and runs it, `ensureGjsifyShimOnPath()`
@@ -164,13 +164,14 @@ deleted, which rebuilt them through the global CLI's own engine.
 `node scripts/x.mjs` deliberately — `writeNodeShim` records why a NEW flag in a
 manifest cannot be bootstrapped by the previous release's CLI.
 
-`packages/web/adwaita-web/scripts/build-scss.mjs` does NOT run under GJS, and it
-is reached from `build`, `check` and `build:test:browser` — so on a Node-less
-host the shim turns those from "fails at `node`" into "fails inside dart-sass".
-Same outcome, better message; what is still missing is the port itself.
+**RESOLVED for the script path** (2026-08-12). `build:scss` runs under GJS and emits a
+byte-identical `dist/adwaita-web.css`, `.css.map` and `src/styles.generated.ts` —
+compared against the Node run of the same commit. Both the diagnosis below and the
+remedy it proposed were wrong, so both are kept: the `require` wall was real, but it
+was never the cause, and clearing it needed no `require` at all.
 
-**Measured, so the next attempt does not start from a guess.** With the script
-bundled `--app gjs` and run under gjs it dies at load:
+**What the earlier measurement saw.** With the script bundled `--app gjs` and run
+under gjs it died at load:
 
 ```
 JS ERROR: Error: Calling `require` for "url" in an environment that doesn't
@@ -179,11 +180,36 @@ expose the `require` function.
   _cliPkgExports$1.load@…:13496:95
 ```
 
-That is dart-sass's own `library.load({…})` — the same call the previous entry
-identified as populating `self.fs`, one level deeper than expected: it reaches a
-bare CJS `require`, not just an `fs` global, so supplying `fs` alone would not
-have been enough. The API swap to `compileString` (done earlier, byte-identical
-CSS + source map) was necessary and is not sufficient.
+**Why that line ran at all.** `sass.dart.js` opens with
+
+```js
+var dartNodeIsActuallyNode = typeof process !== "undefined" && (process.versions || {}).hasOwnProperty('node');
+```
+
+and the `require("url")` sits inside `if (dartNodeIsActuallyNode)`. `@gjsify/process`
+answers that test with `node: '20.0.0'` — on purpose, and documented, for the npm
+packages that gate an API LEVEL on it (`packages/node/process/src/internal/detect.ts`).
+dart-sass gates its HOST STRATEGY on the same key. Believed, it takes a Node path a
+bundled ESM artifact cannot serve; not believed, it takes the browser path, which is
+pure computation. Three further walls stood behind it, each only visible once the one
+in front fell:
+
+- `document.scripts` — dart2js probes for its own `<script>` element unconditionally,
+  and the injected `document` polyfill has no `scripts`. Registering no `document` is
+  what makes it take the `typeof document === "undefined"` branch instead.
+- `Uri.base` — Dart reads `location` for it, so `location` must STAY registered. The
+  build-time note recommending the opposite is over-broad (see the entry below).
+- `fileExists() is only supported on Node.js` — sass resolves relative loads from a
+  `file:`-canonical stylesheet through its OWN filesystem importer, so a custom
+  importer on a `file:` entry is never asked. It was dead code under Node too, which
+  is why swapping it in changed no byte. Canonical URLs in a private scheme
+  (`gjsify-fs:`) are what force every load back through `load()`; `sourceMapUrl` hands
+  the real `file:` URL back so the map still names the sources by their real paths.
+
+So the fix is: an Importer supplying CONTENTS (as this entry always said), plus a
+globals policy — `package.json#gjsify.nodeScript.excludeGlobals`, honoured by
+`gjsify run --node-script` via `Config.forNodeScript`. No global `require`, and no
+change to what `@gjsify/process` reports by default.
 
 **The bundler's own sass path fails too, EARLIER and for a different reason —
 measured 2026-08-12, and it was never written down.** An ordinary
@@ -200,18 +226,36 @@ itself. `tests/e2e/scss-under-gjs` now holds both halves: the Node case asserts 
 compiled output, the GJS case asserts the exact failure shape and goes RED the day
 it starts working.
 
-A second thing surfaces in the same run and needs a decision, not just a fix:
-`--globals auto` injects `document`, `navigator`, `HTMLElement`,
-`HTMLCanvasElement`, `MutationObserver`, `Path2D`, `location` for this bundle —
-dart-sass's browser half — so the artifact demands `gi://Gdk`, `gi://GdkPixbuf`,
-`gi://Pango`, `gi://PangoCairo` at load. A build script must not need a display
-stack; an explicit `--globals` allowlist (or `--exclude-globals`) belongs in
-whatever closes this.
+**What remains, and what it would cost.** Making `import './x.scss'` work under GJS
+means the CLI's own GJS bundle carrying dart-sass INLINED — there is no runtime
+resolve that can work, because `sass.default.js` itself imports a bare `immutable`.
+Measured: a minimal `--app gjs` bundle of nothing but `import('sass')` is 3.6 MB
+minified, against a 6.6 MB `cli.gjs.mjs`. That is a >50% growth of an artifact loaded
+on every GJS invocation, to serve a file type most builds never import — so it wants
+a lazy, separately-published carrier (the shape `@gjsify/lightningcss-native` already
+has for CSS), not an unconditional inline. Until then the tripwire holds the current
+answer and reports the day it changes.
 
-Finishing it is what the previous entry described: an `Importer` whose
-`canonicalize`/`load` supply CONTENTS through `node:fs`, so nothing inside
-dart-sass ever opens a file — plus a `require` that the bundle can actually
-serve, or an entry that never calls one.
+### The GI-backed globals note over-claims for a GRANULAR register subpath
+
+`describeGiBackedInjection` decides which `gi://` namespaces an injected register
+drags in by PREFIX-matching `GJS_GI_BACKED_REGISTERS`, and its own docstring calls
+that deliberate: "one entry per package covers every granular subpath". That was true
+when only whole-package registers existed. It is not true now.
+
+Measured 2026-08-12 while porting `build-scss.mjs`: a bundle whose only DOM register
+is `@gjsify/dom-elements/register/location` is announced as requiring `gi://Gdk`,
+`gi://GdkPixbuf`, `gi://Pango`, `gi://PangoCairo` at load — and imports NONE of them
+(the bundle's only `gi://` imports are GLib, Gio, GioUnix), and runs. The note then
+advises dropping `location`, which is the one global dart-sass genuinely needs there
+(Dart's `Uri.base` reads it). Following the tree's own advice breaks the build.
+
+`@gjsify/dom-elements` exposes nine `./register*` subpaths and the table declares one
+answer for all nine. What is missing is not the entries but the MEASUREMENT: a gate
+that bundles each declared register on its own and compares the `gi://` imports it
+actually emits against what the table claims, so the answer is checked rather than
+asserted. Longest-prefix matching (a specific subpath overriding its package) is the
+mechanical part; deciding it per subpath needs that measurement first.
 
 ### `build:infra`'s order is hand-maintained, and only a cold OS leg checks it
 

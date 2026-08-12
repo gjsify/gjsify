@@ -396,8 +396,13 @@ async function compileSass(filename: string): Promise<string> {
         // Measured on 0.37.0: under GJS it rejects with `Module not found: sass`,
         // because a BARE specifier resolved at RUNTIME is what GJS's ESM loader
         // cannot do, so `import './x.scss'` fails there with UNLOADABLE_DEPENDENCY.
-        // Why bundling dart-sass in does not fix it: status/open-todos.md (#1053).
-        // `tests/e2e/scss-under-gjs` holds both halves and reds the day it works.
+        // Resolving the specifier to a file first (the trick `tryLoadNativeBundler`
+        // above uses) does not help either: `sass.default.js` then imports a bare
+        // `immutable` of its own. Only inlining dart-sass would work, and at 3.6 MB
+        // minified on a 6.6 MB CLI bundle that is a carrier-package decision, not a
+        // line here — status/open-todos.md (#1053). dart-sass itself DOES run under
+        // GJS (`adwaita-web`'s `build:scss` does, byte-identically); what is missing
+        // is a way to get it there. `tests/e2e/scss-under-gjs` reds the day this works.
         _sassPromise = import(/* @vite-ignore */ 'sass') as unknown as Promise<SassSurface>;
     }
     try {
