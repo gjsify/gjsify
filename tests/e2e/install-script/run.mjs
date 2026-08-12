@@ -330,8 +330,17 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
         // request — a proxy, a 404, a captive portal — silently downgraded the
         // install to no verification at all, while the bundle fetch itself
         // succeeded. Opting out must be an explicit act, never a fetch failure.
+        //
+        // Its own EMPTY cache, and that is the claim getting sharper rather than
+        // weaker: with a verified bundle in the cache an unreachable digest now falls
+        // back to it (nothing unverified, older at worst — see the case below), so
+        // "unreachable digest ⇒ refusal" is precisely the NO-CACHE statement. Sharing
+        // the suite's cache would have this case answered by another case's leftovers.
+        const cache = join(tmpRoot, 'unreachable-digest-cache');
+        mkdirSync(cache, { recursive: true });
         const r = await runBootstrap([], {
             GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL: `file://${join(tmpRoot, 'does-not-exist.sha256')}`,
+            GJSIFY_INSTALL_BOOTSTRAP_CACHE: cache,
         });
         assert.notEqual(r.status, 0, `expected a hard failure, got status=${r.status}`);
         assert.match(
