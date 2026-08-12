@@ -299,20 +299,14 @@ Napi::Value PrependSearchPath(const Napi::CallbackInfo& info) {
 // The LIBRARY twin of PrependSearchPath: where GI looks for the shared object a
 // typelib names, as opposed to where it looks for the typelib itself.
 //
-// Why it has to be native rather than `requireGi('GIRepository').…`: the bundled
-// runtime ships GIRepository **3.0**, whose `Repository` this bridge exposes
-// neither as constructible nor with a `get_default()` static — measured, both
-// spellings throw. The C entry point has no such gap, and it is the same
-// `DupDefaultRepository()` handle the search-path twin already uses.
+// Native rather than `requireGi('GIRepository').…` because the bundled runtime
+// ships GIRepository 3.0, whose `Repository` this bridge exposes neither as
+// constructible nor with a `get_default()` static — measured, both throw. The C
+// entry point has no such gap and reuses the same `DupDefaultRepository()` handle.
 //
-// WHAT IT FIXES, measured on the macOS 15.7.9 x86_64 VM: a typelib names its
-// backer by BARE LEAF (`libgtk-4.1.dylib`), and for a RELOCATED bundle that leaf
-// sits in the bundle's own `lib` dir, which is on no loader search path. Node
-// papers over it by re-execing with `DYLD_FALLBACK_LIBRARY_PATH` set; that
-// re-exec reconstructs a Node-shaped argv and is skipped on bun and deno, so
-// those two got no repair at all and died at the first widget. This is the
-// env-free repair the package aims at — it needs no variable, no re-exec, and
-// behaves identically on all three runtimes.
+// It is the env-free repair for a typelib backer named by BARE LEAF: no variable,
+// no re-exec, identical on node, bun and deno. See `gtk-runtime.js`
+// (`activateGiLibraryPath`) for the incident.
 Napi::Value PrependLibraryPath(const Napi::CallbackInfo& info) {
   Napi::Env env = info.Env();
   if (info.Length() < 1 || !info[0].IsString()) {

@@ -468,26 +468,22 @@ let libraryPathActivated = false;
  * THE GAP THIS CLOSES. A typelib records its backer as `libgtk-4.1.dylib`, and on
  * macOS neither a relocated bundle's `lib` dir nor Homebrew's `/usr/local/lib` is
  * on dyld's search path. Node papers over it in {@link maybeReexecForGtkRuntime}
- * by re-execing with `DYLD_FALLBACK_LIBRARY_PATH` set — and that re-exec is
- * Node-shaped (it reconstructs `execPath + execArgv + argv`), so it returns early
- * on bun and deno. Those two therefore got NO loader repair at all, and every GTK
- * showcase died at the first widget. None of the three errors names the loader:
- * `GtkWidget is not registered in this process's GObject type registry`,
- * `Adw.Application has no property 'application-id'`, `Gtk.GLArea is not a
- * subclassable GObject type` — all downstream of one `g_module_open` that found
- * nothing, measured on the macOS 15.7.9 x86_64 VM.
+ * by re-execing with `DYLD_FALLBACK_LIBRARY_PATH` set — a Node-shaped re-exec, so
+ * it returns early on bun and deno, which got NO loader repair and died at the
+ * first widget behind three errors that all point elsewhere (`GtkWidget is not
+ * registered…`, `Adw.Application has no property 'application-id'`, `Gtk.GLArea is
+ * not a subclassable GObject type`). Measured on the macOS 15.7.9 x86_64 VM.
  *
- * `gi_repository_prepend_library_path()` is GI's own answer to this question, so
- * nothing is captured at process launch: identical on node, bun and deno, no
- * re-exec, and the process environment is left alone. The env paths elsewhere in
- * this module stay — they still cover a dylib pulled in by ANOTHER dylib's link
- * closure, which never passes through GI.
+ * `gi_repository_prepend_library_path()` is GI's own answer, so nothing is
+ * captured at process launch: identical on node, bun and deno, no re-exec, and the
+ * environment is left alone. The env paths elsewhere in this module stay — they
+ * still cover a dylib pulled in by ANOTHER dylib's link closure, which never
+ * passes through GI.
  *
- * The dirs come from `gtkSource()`'s decision, not a second opinion: the bundle's
- * `libDir` for `bundle`, `systemGiLibraryDirs()` for `system` — the identical
- * pair the re-exec composes. Mixing them is the two-copies hazard #920 records,
- * so the choice keeps one owner. Idempotent, and never fatal: an addon predating
- * the binding leaves behaviour exactly as it was.
+ * The dirs come from `gtkSource()`, not a second opinion: the bundle's `libDir`
+ * for `bundle`, `systemGiLibraryDirs()` for `system` — the pair the re-exec
+ * composes. Mixing them is the two-copies hazard #920 records. Idempotent, and
+ * never fatal: an addon predating the binding changes nothing.
  * @param {{ prependLibraryPath?: (p: string) => void }} native the loaded addon
  * @returns {string[]} the directories handed to GI (empty when there was nothing to add)
  */

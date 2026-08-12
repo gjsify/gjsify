@@ -2,28 +2,21 @@
 // @gjsify/node-gi — `activateGiLibraryPath()`: telling GI where the shared library
 // a typelib names by BARE LEAF actually is, without an environment variable.
 //
-// THE DEFECT UNDER TEST, measured on the macOS 15.7.9 x86_64 VM against the
-// published 0.37.0. `maybeReexecForGtkRuntime()` repairs the loader path by
-// re-execing with `DYLD_FALLBACK_LIBRARY_PATH` set — and that re-exec reconstructs
-// a Node-shaped `execPath + execArgv + argv`, so it returns early on bun and deno.
-// Those two got NO loader repair at all, and every GTK showcase died at the first
-// widget in three ways that all point away from the loader:
-//
-//   node-gi: GtkWidget is not registered in this process's GObject type registry
-//   TypeError: Adw.Application has no property 'application-id'
-//   TypeError: Gtk.GLArea is not a subclassable GObject type
-//
-// `DYLD_PRINT_LIBRARIES=1` refuted the duplicate-GLib reading that first warning
-// offers: exactly ONE GLib was loaded, and what failed was a `g_module_open` of
-// `libgtk-4.1.dylib` that found nothing. A/B through the real teapot showcase on
-// bun with every DYLD variable unset: 2 loader errors before, 0 after, plus
-// `GtkWidget registered: true` and a constructed `Adw.Application` on bun AND deno.
+// THE DEFECT UNDER TEST, measured on the macOS 15.7.9 x86_64 VM against 0.37.0.
+// `maybeReexecForGtkRuntime()` repairs the loader path by re-execing with
+// `DYLD_FALLBACK_LIBRARY_PATH` set, and that re-exec reconstructs a Node-shaped
+// argv — so it returns early on bun and deno, which got no repair at all and died
+// at the first widget with `GtkWidget is not registered in this process's GObject
+// type registry`, `Adw.Application has no property 'application-id'` and
+// `Gtk.GLArea is not a subclassable GObject type`. `DYLD_PRINT_LIBRARIES=1`
+// refuted the duplicate-GLib reading the first one offers: ONE GLib was loaded,
+// and what failed was a `g_module_open` of `libgtk-4.1.dylib`. A/B on the real
+// teapot showcase with every DYLD variable unset: 2 loader errors before, 0 after.
 //
 // ASSERTED HERE is the platform-agnostic half — the DECISION: which directories
-// are handed to GI, that they come from `gtkSource()` rather than a second
-// opinion, the prepend ORDER, idempotence, and that an addon without the binding
-// changes nothing. That GI then resolves the leaf is provable only on a real
-// macOS host, and is what the A/B above did.
+// go to GI, that they come from `gtkSource()` rather than a second opinion, the
+// prepend ORDER, idempotence, and the older-addon no-op. That GI then resolves the
+// leaf is provable only on a real macOS host, which is what the A/B did.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { activateGiLibraryPath, resetGiLibraryPathForTests } from '../gtk-runtime.js';
