@@ -5,7 +5,7 @@
 // Copyright (c) 2025 csm (adwaita-web). MIT License.
 // Modifications: Subset adapted for @gjsify/adwaita-web Web Components.
 
-:root {
+@mixin light-theme {
   // Window
   --window-bg-color: #fafafb;
   --window-fg-color: rgba(0, 0, 6, 0.8);
@@ -148,6 +148,14 @@
   --document-font-size: var(--font-size-base);
   --monospace-font-family: 'Adwaita Mono', ui-monospace, 'SF Mono', 'Menlo', monospace;
   --monospace-font-size: var(--font-size-base);
+}
+
+// The tokens above are a MIXIN rather than a bare `:root` block so `.theme-light`
+// can include them too (see `_theme.scss`). A light opt-out that exists only as
+// `:not(.theme-light)` on the media query cannot serve a SUBTREE: on a dark system
+// the root stays dark, and a container asking for light matches no rule at all.
+:root {
+  @include light-theme;
 }
 
 // High contrast moves the three opacity tokens, and only those — every colour

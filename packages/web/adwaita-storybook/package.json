@@ -29,6 +29,7 @@
         "browser"
     ],
     "dependencies": {
+        "@gjsify/adwaita-core": "workspace:^",
         "@gjsify/adwaita-web": "workspace:^",
         "@gjsify/stories": "workspace:^",
         "@gjsify/storybook-core": "workspace:^"

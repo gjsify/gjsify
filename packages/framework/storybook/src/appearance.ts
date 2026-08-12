@@ -202,6 +202,10 @@ export function buildAppearanceDialog(appearance: StorybookAppearance): Adw.Pref
 
     // --- Accent ---
     const accentGroup = new Adw.PreferencesGroup({ title: 'Accent colour' });
+    // Squares the boxed-list's BOTTOM corners. The attached card squares its top,
+    // but without this the row above keeps its round bottom and the two meet with a
+    // notch at each end.
+    accentGroup.add_css_class('storybook-attached-group');
     const accentSwitch = new Adw.SwitchRow({
         title: 'Use a custom accent colour',
         subtitle: 'Off follows the desktop, which owns the accent',

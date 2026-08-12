@@ -49,10 +49,10 @@ export const STORYBOOK_CSS = `
 /* "Follow system" is drawn as the two schemes meeting on a diagonal, so the option
    looks like what it does instead of needing a word for it. */
 .storybook-swatch.storybook-scheme-system {
-    background-image: linear-gradient(to bottom right, #ffffff 49.99%, #241f31 50.01%);
+    background-image: linear-gradient(to bottom right, #f6f5f4 49.99%, #241f31 50.01%);
 }
 .storybook-swatch.storybook-scheme-light {
-    background-color: #ffffff;
+    background-color: #f6f5f4;
 }
 .storybook-swatch.storybook-scheme-dark {
     background-color: #241f31;
@@ -62,6 +62,17 @@ export const STORYBOOK_CSS = `
 .storybook-card-attached {
     border-top-left-radius: 0;
     border-top-right-radius: 0;
+}
+/* …and the OTHER half, which squaring only the card cannot do: the row above lives
+   in the group's .boxed-list, whose own bottom corners are still round, so the two
+   met with a notch at each end. Both sides have to be squared for the join to read
+   as one list. The transparent bottom border keeps the boxed-list's height where it
+   was, so squaring it does not shift the card up by a pixel.
+   Adapted from Learn6502's views/preferences.dialog.css (JumpLink/easy6502, MIT). */
+.storybook-attached-group .boxed-list {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-bottom: 1px solid transparent;
 }
 
 /* Range-control card in the controls sidebar — keeps the label + description
