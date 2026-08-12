@@ -1,7 +1,7 @@
 {
     "packages/infra/cli": 0.422,
-    "packages/infra": 0.449,
-    "packages/node-gi": 0.431,
+    "packages/infra": 0.45,
+    "packages/node-gi": 0.432,
     "packages/napi": 0.352,
     "packages/node": 0.186,
     "packages/web": 0.292,
@@ -13,5 +13,5 @@
     "scripts": 0.583,
     "examples": 0.182,
     "showcases": 0.158,
-    "website": 0.16
+    "website": 0.17
 }

@@ -197,24 +197,11 @@ export function pathCovers(wanted: readonly string[], current: readonly string[]
 }
 
 /**
- * dyld's OWN default fallback list, verbatim from `dyld(1)`:
- * `$HOME/lib:/usr/local/lib:/lib:/usr/lib`.
- *
- * Load-bearing because `DYLD_FALLBACK_LIBRARY_PATH` REPLACES this list instead
- * of extending it. Every composition for that variable must therefore carry the
- * list as a tail, or setting it SUBTRACTS search paths from the child that the
- * same child would have had with the variable unset.
- *
- * MEASURED, and it cost a whole platform: both writers used to append a bare
- * `/usr/lib`, so `/usr/local/lib` — where every Homebrew GTK library lives on
- * Intel macOS — dropped out of the search. Every `gjsify` gjs command on such a
- * Mac then died in `dlopen(libsoup-3.0.0.dylib)` before it had even downloaded
- * anything (the CLI's own fetcher goes through Soup), and so did the Node-free
- * bootstrap the Getting Started page prints — leaving no documented route to
- * install gjsify on a Mac at all. The tell that it was ours: plain
- * `gjs -c 'imports.gi.Soup'` loads fine with no DYLD variable set, because
- * Homebrew's rpath already resolves it. The failure only appears once something
- * SETS the variable.
+ * dyld's OWN default fallback list, verbatim from `dyld(1)`. Setting
+ * `DYLD_FALLBACK_LIBRARY_PATH` REPLACES it, so anything composed for that
+ * variable must carry it as a tail. The incident that bought this rule is in the
+ * ORIGINAL (`packages/node-gi/node-gi/system-gi.js`); the mirror does not
+ * restate it.
  */
 export function dyldDefaultFallbackDirs(env: Record<string, string | undefined> = process.env): string[] {
     const home = env['HOME'];
@@ -222,22 +209,13 @@ export function dyldDefaultFallbackDirs(env: Record<string, string | undefined> 
 }
 
 /**
- * Compose a `DYLD_FALLBACK_LIBRARY_PATH` value: `wanted` first, then whatever
- * the launching environment already asked for, then {@link dyldDefaultFallbackDirs}.
- *
- * The default tail is appended UNCONDITIONALLY, including when the host exported
- * a value of its own. A host-set value is an addition to the host's search, but
- * this composition targets a CHILD, and the invariant that matters there is that
- * launching through gjsify never searches LESS than launching without it.
- *
- * Deduplicated, and not for tidiness: `systemGiLibraryDirs()` accepts a libdir
- * stated outright through `GI_TYPELIB_PATH` on directory existence alone, so a
- * host naming `/usr/lib/girepository-1.0` there puts `/usr/lib` in `wanted` —
- * which the tail then repeated. A search path listing the same directory twice
- * asks the loader to stat it twice for every miss, and it makes the value the
- * `$ …` echo prints read as though the CLI had composed something it did not.
- * First occurrence wins in every loader, so dropping later repeats is
- * behaviour-preserving.
+ * Compose a `DYLD_FALLBACK_LIBRARY_PATH` value: `wanted`, then the launching
+ * environment's own value, then {@link dyldDefaultFallbackDirs} —
+ * unconditionally, so a child launched through gjsify never searches LESS than
+ * one launched without it. Deduplicated: `systemGiLibraryDirs()` can legitimately
+ * yield a directory the tail also names, and a repeated entry costs the loader a
+ * second stat on every miss. First occurrence wins everywhere, so dropping later
+ * repeats is behaviour-preserving.
  */
 export function composeDyldFallback(
     wanted: readonly string[],

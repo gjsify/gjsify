@@ -206,14 +206,10 @@ export function impliedExampleNodeEntry(pkg) {
 
 /**
  * A static `import … from 'node:x'` — the one thing a `--app gjs` bundle can
- * never contain.
- *
- * Not a style preference: GJS has no resolver for that URI scheme, so the module
- * dies at LOAD with `ImportError: Unsupported URI scheme for importing: node`,
- * before a line of program code runs. The gjs target aliases every `node:`
- * builtin to its `@gjsify/*` implementation, so a correct bundle carries none —
- * measured across the published showcases, where the only artifact holding one
- * was the broken one.
+ * never contain: GJS has no resolver for that URI scheme, so the module dies at
+ * LOAD with `ImportError: Unsupported URI scheme for importing: node`. The gjs
+ * target aliases every `node:` builtin to its `@gjsify/*` implementation, so a
+ * correct bundle carries none.
  */
 const NODE_SPECIFIER_IMPORT = /(?:^|[\s;}])(?:import|export)[\s\S]{0,200}?from\s*["'`]node:[a-z_/]+["'`]/;
 
@@ -224,18 +220,14 @@ const NODE_SPECIFIER_IMPORT = /(?:^|[\s;}])(?:import|export)[\s\S]{0,200}?from\s
  * `dist/gjs.js` byte-identical to its `dist/gjs.node.mjs`: `build:gjs` ran
  * `gjsify storybook --build-only --out dist/gjs.js` with no `--runtime`, and
  * that flag defaults to the runtime the CLI is EXECUTING IN — node, in the
- * release job. So a script named `build:gjs` produced an `--app node` bundle,
- * wrote it to the GJS path and exited 0. The homepage's storybook slide then
- * died on every Linux and arm64 gjs tab with `ImportError: Unsupported URI
- * scheme for importing: node`, while the tarball, the manifest and the build
- * all looked correct.
+ * release job. A script named `build:gjs` therefore produced an `--app node`
+ * bundle, wrote it to the GJS path and exited 0; the homepage's storybook slide
+ * died on every Linux and arm64 gjs tab while the tarball, the manifest and the
+ * build all looked correct. Nothing else could catch it — existence was checked,
+ * the artifact was never compared against the TARGET it was named for.
  *
- * Nothing else could catch it: `package-outputs` proves the file EXISTS, the
- * build cache restores it per unit, and no check compared an artifact against
- * the TARGET it was named for. This states that contract — an artifact declared
- * for `gjs` must be a gjs bundle — and stays cause-agnostic like the existence
- * half above: a missing `--runtime`, a copied file, a build script wired to the
- * wrong target all land here without it knowing which happened.
+ * Cause-agnostic like the existence half: a missing `--runtime`, a copied file
+ * and a mis-wired build script all land here without it knowing which happened.
  *
  * @returns `null` when the file is a plausible gjs bundle, otherwise why not.
  */
@@ -244,8 +236,8 @@ export function inspectGjsArtifact(abs, nodeAbs) {
     try {
         source = readFileSync(abs, 'utf8');
     } catch {
-        // Unreadable is the EXISTENCE half's finding, not this one's — reporting
-        // it twice would make one defect read as two.
+        // Unreadable belongs to the EXISTENCE half; reporting it twice would make
+        // one defect read as two. Same for the node entry below.
         return null;
     }
     if (NODE_SPECIFIER_IMPORT.test(source)) {
@@ -257,8 +249,7 @@ export function inspectGjsArtifact(abs, nodeAbs) {
                 return 'is byte-identical to the declared `--app node` bundle';
             }
         } catch {
-            // Same reasoning: the node entry's readability belongs to the
-            // existence half.
+            /* see above */
         }
     }
     return null;

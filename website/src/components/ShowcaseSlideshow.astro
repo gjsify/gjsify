@@ -15,10 +15,7 @@ import { isShowcaseName, SHOWCASE_NAMES } from './showcase-registry.ts';
 // declare `bun`, so an advertised tab that does not work is a documented command
 // that fails. The set is read from each showcase's own manifest — see
 // `declaredRuntimes` below for why it is derived rather than listed per slide.
-//
-// HOW each runtime invokes the toolchain lives in `runtime-invocations.ts`, one
-// definition for the whole site: this map used to be a private copy here, and
-// the deno line drifted out of step with what the CLI itself recommends.
+// HOW each runtime invokes the toolchain: `runtime-invocations.ts`.
 import { RUNTIME_INVOCATION, RUNTIME_TAB, type Runtime } from './runtime-invocations.ts';
 
 // The runtimes a showcase is verified on, READ FROM ITS OWN MANIFEST rather than
