@@ -11,6 +11,7 @@ import { hostTarget, nativeCandidates, packageRoot } from './native-paths.js';
 import { describeAddonLoadFailure } from './load-diagnostics.js';
 import {
     activateBundledGtkRuntime,
+    activateGiLibraryPath,
     maybePrependGtkRuntimeDllPath,
     maybeReexecForGtkRuntime,
     maybeWireGtkWindowingEnv,
@@ -123,6 +124,16 @@ try {
     // Never fatal: a missing/partial bundle just leaves the host GTK in charge.
 }
 
+// And where the LIBRARIES those typelibs name actually live. Separate from the
+// call above because it is not about a bundle: it applies to whichever GTK the
+// policy chose, and it is the only loader repair bun and deno get on macOS —
+// the re-exec above is Node-shaped and skips them.
+try {
+    activateGiLibraryPath(native);
+} catch {
+    // Same contract as above: never fatal.
+}
+
 // Cross-runtime microtask checkpoint (Bun/Deno only). Node's napi_make_callback runs
 // the nextTick + microtask checkpoint when its callback scope closes, so promise
 // continuations queued by a loop-dispatched GLib→JS callback drain at the callback
@@ -182,6 +193,7 @@ export const getEnumValues = native.getEnumValues;
 export const getErrorDomain = native.getErrorDomain;
 export const setErrorBuilder = native.setErrorBuilder;
 export const prependSearchPath = native.prependSearchPath;
+export const prependLibraryPath = native.prependLibraryPath;
 export const callFunction = native.callFunction;
 export const callMethod = native.callMethod;
 export const hasMethod = native.hasMethod;

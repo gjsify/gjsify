@@ -550,6 +550,7 @@ Napi::Value GetEnumValues(const Napi::CallbackInfo& info);
 Napi::Value GetErrorDomain(const Napi::CallbackInfo& info);
 Napi::Value SetErrorBuilder(const Napi::CallbackInfo& info);
 Napi::Value PrependSearchPath(const Napi::CallbackInfo& info);
+Napi::Value PrependLibraryPath(const Napi::CallbackInfo& info);
 
 // calls.cc
 Napi::Value CallFunction(const Napi::CallbackInfo& info);

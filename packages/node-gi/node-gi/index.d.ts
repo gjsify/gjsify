@@ -65,6 +65,8 @@ export function setErrorBuilder(
 
 /** Prepend a directory to the GIRepository typelib search path. */
 export function prependSearchPath(path: string): void;
+/** Prepend a directory GI searches for the SHARED LIBRARY a typelib names. */
+export function prependLibraryPath(path: string): void;
 
 /**
  * Invoke a namespace-level GObject-Introspection function (not an instance
@@ -519,6 +521,7 @@ declare const native: {
     getErrorDomain: typeof getErrorDomain;
     setErrorBuilder: typeof setErrorBuilder;
     prependSearchPath: typeof prependSearchPath;
+    prependLibraryPath: typeof prependLibraryPath;
     callFunction: typeof callFunction;
     callMethod: typeof callMethod;
     hasMethod: typeof hasMethod;

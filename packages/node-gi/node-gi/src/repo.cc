@@ -295,4 +295,30 @@ Napi::Value PrependSearchPath(const Napi::CallbackInfo& info) {
   return env.Undefined();
 }
 
+// prependLibraryPath(path: string) -> void
+// The LIBRARY twin of PrependSearchPath: where GI looks for the shared object a
+// typelib names, as opposed to where it looks for the typelib itself.
+//
+// Native rather than `requireGi('GIRepository').…` because the bundled runtime
+// ships GIRepository 3.0, whose `Repository` this bridge exposes neither as
+// constructible nor with a `get_default()` static — measured, both throw. The C
+// entry point has no such gap and reuses the same `DupDefaultRepository()` handle.
+//
+// It is the env-free repair for a typelib backer named by BARE LEAF: no variable,
+// no re-exec, identical on node, bun and deno. See `gtk-runtime.js`
+// (`activateGiLibraryPath`) for the incident.
+Napi::Value PrependLibraryPath(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsString()) {
+    Napi::TypeError::New(env, "prependLibraryPath(path: string)")
+        .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  std::string path = info[0].As<Napi::String>().Utf8Value();
+  GIRepository* repo = DupDefaultRepository();
+  gi_repository_prepend_library_path(repo, path.c_str());
+  g_object_unref(repo);
+  return env.Undefined();
+}
+
 }  // namespace nodegi
