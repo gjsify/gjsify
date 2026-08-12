@@ -103,13 +103,21 @@ export function packageTarball(files) {
  * Split a version entry into the `package.json` it becomes and the extra files
  * that ship beside it.
  *
- * `files` is the only reserved key: everything else is a manifest field, so a
- * fixture reads as the package.json it produces.
+ * Everything is a manifest field, so a fixture reads as the package.json it
+ * produces — EXCEPT an OBJECT under `files`, which is the tarball's file map.
+ * The type is what disambiguates, and it has to: `files` is also a real npm
+ * manifest field, and there it is an ARRAY of publish globs. Reserving the key
+ * outright would silently swallow that array out of any fixture that declares
+ * one, which is the manifest half of what `install-workspace-source-safety`
+ * exists to test.
  */
 function splitVersionSpec(name, version, spec) {
-    const { files = {}, ...manifest } = spec ?? {};
+    const { files, ...rest } = spec ?? {};
+    const isFileMap = files !== undefined && !Array.isArray(files) && typeof files === 'object';
+    const manifest = isFileMap ? rest : (spec ?? {});
+    const extra = isFileMap ? files : {};
     const pkgJson = { name, version, ...manifest };
-    return { pkgJson, files: { 'package.json': JSON.stringify(pkgJson, null, 2) + '\n', ...files } };
+    return { pkgJson, files: { 'package.json': JSON.stringify(pkgJson, null, 2) + '\n', ...extra } };
 }
 
 /**

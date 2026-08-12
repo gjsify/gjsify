@@ -441,7 +441,8 @@ if (bad.length > 0) {
 if (errored.length === 0 && live.length > 0 && notLive.length > 0) {
     problems.push(
         `${notLive.length} of ${candidates.length} package(s) this train meant to publish are NOT on ${registry} ` +
-            `at ${version}: ${notLive.join(', ')}. Each one declares ${version} in its own manifest, so the ` +
+            `at ${version}: ${notLive.slice(0, 20).join(', ')}${notLive.length > 20 ? `, … (+${notLive.length - 20})` : ''}` +
+            `. Each one declares ${version} in its own manifest, so the ` +
             'release intended to publish it. A package with no incoming manifest edge (`@gjsify/napi`, ' +
             '`@gjsify/node-gi`, the `@gjsify/gtk-runtime-*` bundles) has its own publish job as its ONLY guard, ' +
             'and a skipped job is neither red nor examined. Re-run the release workflow: `gjsify publish ' +
