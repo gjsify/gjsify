@@ -321,7 +321,7 @@ const GL_CONSTANT_NAMES = [
 ];
 
 export default async () => {
-    await on('Display', async () => {
+    await on('Gl', async () => {
         Gtk.init();
 
         let glArea!: WebGLBridge;
@@ -1145,5 +1145,5 @@ export default async () => {
 
         // All tests complete. Destroy the window to release the GL context and remove it from screen.
         win.destroy();
-    }); // on('Display')
+    }); // on('Gl')
 };

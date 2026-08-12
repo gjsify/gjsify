@@ -4,5 +4,6 @@ import spyTestSuite from './spy.spec.js';
 import vitestCompatSuite from './vitest-compat.spec.js';
 import itFailingSuite from './it-failing.spec.js';
 import callbackAssertionSuite from './callback-assertion.spec.js';
+import capabilitiesSuite from './capabilities.spec.js';
 
-run({ indexTestSuite, spyTestSuite, vitestCompatSuite, itFailingSuite, callbackAssertionSuite });
+run({ indexTestSuite, spyTestSuite, vitestCompatSuite, itFailingSuite, callbackAssertionSuite, capabilitiesSuite });

@@ -1,6 +1,7 @@
 // Excalibur engine boot test — verifies ex.Engine initializes without throwing on GJS/WebGL.
 // Pattern: GTK Window + WebGLBridge + GLib.MainLoop (same as packages/dom/webgl/src/ts/webgl1.spec.ts:18-50)
-// Only runs when DISPLAY is available (on('Display', ...)).
+// Only runs where a GL context is realizable (on('Gl', …)) — Excalibur boots its
+// WebGL renderer, so a realizable window alone is not the requirement.
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import * as ex from 'excalibur';
@@ -10,7 +11,7 @@ import GLib from '@girs/glib-2.0';
 import Gtk from '@girs/gtk-4.0';
 
 export default async () => {
-    await on('Display', async () => {
+    await on('Gl', async () => {
         Gtk.init();
 
         await describe('ex.Engine', async () => {

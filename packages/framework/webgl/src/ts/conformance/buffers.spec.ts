@@ -9,7 +9,7 @@ import { makeProgram, makeTestFBO, destroyTestFBO, readPixel, pixelClose } from 
 import { createGLSetup } from './setup.js';
 
 export default async () => {
-    await on('Display', async () => {
+    await on('Gl', async () => {
         const setup = createGLSetup();
         if (!setup) {
             console.warn('WebGL context not available — skipping conformance/buffers tests');

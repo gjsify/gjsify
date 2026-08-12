@@ -21,7 +21,7 @@ import GLib from '@girs/glib-2.0';
 import Gtk from '@girs/gtk-4.0';
 
 export default async () => {
-    await on('Display', async () => {
+    await on('Gl', async () => {
         Gtk.init();
 
         let glArea!: WebGLBridge;
@@ -1915,5 +1915,5 @@ export default async () => {
 
         // All WebGL2 tests complete.
         win.destroy();
-    }); // on('Display')
+    }); // on('Gl')
 };

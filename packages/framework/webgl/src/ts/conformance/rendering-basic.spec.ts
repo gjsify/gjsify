@@ -15,7 +15,7 @@ const FS_GREEN = `
     void main() { gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0); }`;
 
 export default async () => {
-    await on('Display', async () => {
+    await on('Gl', async () => {
         const setup = createGLSetup();
         if (!setup) {
             console.warn('WebGL context not available — skipping conformance/rendering-basic tests');

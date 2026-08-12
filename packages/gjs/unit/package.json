@@ -61,11 +61,17 @@
         "@gjsify/dom-exception": "workspace:^",
         "@gjsify/node-globals": "workspace:^",
         "@gjsify/process": "workspace:^",
+        "@gjsify/runtime": "workspace:^",
         "@gjsify/utils": "workspace:^",
         "@gjsify/web-globals": "workspace:^",
         "@gjsify/web-streams": "workspace:^"
     },
     "gjsify": {
-        "tier": 1
+        "tier": 1,
+        "os": {
+            "linux": "supported",
+            "darwin": "supported",
+            "win32": "supported"
+        }
     }
 }
