@@ -47,6 +47,9 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
     }
 
     let server, registryUrl, tmpRoot;
+    /** Request counters for the two digest routes the retry cases use. */
+    let flakyHits = 0;
+    let goneHits = 0;
     // Path to the freshly-built gjs bundle we ship as the "bootstrap" asset.
     // In production this would be the GitHub-release-download URL.
     const cliBundlePath = fileURLToPath(new URL('../../../packages/infra/cli/dist/cli.gjs.mjs', import.meta.url));
@@ -154,6 +157,26 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
             try {
                 const url = req.url ?? '';
                 if (process.env.GJSIFY_E2E_DEBUG) console.error(`[mock-registry] GET ${url}`);
+                // Two digest routes for the retry cases at the bottom of this file. They
+                // COUNT their hits, because "did it retry" and "did it stop retrying" are
+                // both statements about the number of requests, which no exit code shows.
+                if (url === '/flaky.sha256') {
+                    flakyHits++;
+                    // A DROPPED CONNECTION, not an HTTP status — the shape GitHub's release
+                    // CDN produced (`HTTP/2 Error: NO_ERROR`) when this was written.
+                    if (flakyHits === 1) {
+                        req.socket.destroy();
+                        return;
+                    }
+                    res.writeHead(200, { 'content-type': 'text/plain' });
+                    res.end(`${cliBundleSha256}\n`);
+                    return;
+                }
+                if (url === '/gone.sha256') {
+                    goneHits++;
+                    res.writeHead(404).end('not found');
+                    return;
+                }
                 // Tarball: exact-path lookup (avoids regex pain with scoped paths)
                 const tarball = tarballRoutes.get(url);
                 if (tarball) {
@@ -337,5 +360,48 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
         const second = await runBootstrap(['--tag', '0.0.99-test'], env);
         assert.match(second.stdout, /Reusing verified bootstrap/, 'second run did not hit the cache');
         assert.doesNotMatch(second.stdout, /Downloading bootstrap from/, 'second run re-downloaded the bundle');
+    });
+    // A DROPPED CONNECTION IS A HICCUP; AN HTTP ANSWER IS AN ANSWER.
+    //
+    // The incident these two hold: on 2026-08-12 GitHub's release CDN dropped HTTP/2
+    // connections for a stretch and took four CI jobs across two PRs with it, each dying
+    // inside `gjsify-setup` before a line of the change under test ran. Measured from a
+    // workstation in the same window, one `curl` in three returned "Connection died".
+    // Single-shot fetching turned that into "Refusing to install an UNVERIFIED bootstrap
+    // bundle" — the one message that must never be a false alarm, because the documented
+    // response to it is to switch verification OFF.
+    //
+    // Both cases assert the REQUEST COUNT, not just the exit code: "it retried" and "it
+    // stopped retrying" are statements about how many requests were made, and an exit code
+    // shows neither.
+
+    it('retries a dropped connection instead of calling the digest unfetchable', async () => {
+        flakyHits = 0;
+        const r = await runBootstrap(['--tag', '0.0.99-test'], {
+            GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL: `${registryUrl}flaky.sha256`,
+        });
+        const out = r.stderr + r.stdout;
+        // Scoped to the FETCH, deliberately, rather than to `r.status`: whether the install
+        // then completes is what the cases above hold, and hanging it here would make this
+        // case fail for every unrelated reason a full install can fail for.
+        assert.equal(flakyHits, 2, `expected one retry after the drop, saw ${flakyHits} request(s):\n${out}`);
+        assert.doesNotMatch(
+            out,
+            /Refusing to install an UNVERIFIED bootstrap bundle/,
+            'a single dropped connection was reported as an unverifiable digest',
+        );
+        assert.match(out, /retry 2\/3/, 'the retry happened but was not announced');
+    });
+
+    it('does NOT retry a 404 — the registry answered', async () => {
+        goneHits = 0;
+        const r = await runBootstrap([], {
+            GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL: `${registryUrl}gone.sha256`,
+        });
+        assert.notEqual(r.status, 0, 'a missing digest must still be fatal');
+        assert.match(r.stderr + r.stdout, /Refusing to install an UNVERIFIED bootstrap bundle/);
+        // Retrying a 404 would only delay the same answer while making a real outage look
+        // like a hang — and this is the path a user is told to reach for the opt-out on.
+        assert.equal(goneHits, 1, `a 404 must not be retried, saw ${goneHits} request(s)`);
     });
 });

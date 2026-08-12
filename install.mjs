@@ -134,6 +134,49 @@ function checkGjsVersion() {
     }
 }
 
+/** Total attempts per URL, and the wait before each retry. Override for tests / slow links. */
+const FETCH_ATTEMPTS = Number(GLib.getenv('GJSIFY_INSTALL_FETCH_ATTEMPTS') || '3');
+const RETRY_BACKOFF_MS = [500, 1500];
+
+function sleepMs(ms) {
+    return new Promise((resolve) => {
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
+            resolve();
+            return GLib.SOURCE_REMOVE;
+        });
+    });
+}
+
+async function fetchOnce(session, url) {
+    const message = Soup.Message.new('GET', url);
+    message.request_headers.append('User-Agent', USER_AGENT);
+    const bytes = await session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null);
+    const status = message.get_status();
+    if (status !== Soup.Status.OK) {
+        const err = new Error(`HTTP ${status} from ${url}`);
+        err.httpStatus = status;
+        throw err;
+    }
+    return bytes.get_data();
+}
+
+/**
+ * A dropped connection is a HICCUP; an HTTP answer is an ANSWER.
+ *
+ * THE INCIDENT. `https://github.com/gjsify/gjsify/releases/latest/download/…` dropped
+ * HTTP/2 connections for a stretch on 2026-08-12 and took four CI jobs across two PRs
+ * with it, each dying in `gjsify-setup` before a line of the change under test ran.
+ * Measured from a workstation during the same window: one in three `curl` attempts
+ * returned `Connection died, tried 5 times before giving up`. A single-shot fetch turns
+ * that into "Refusing to install an UNVERIFIED bootstrap bundle", which reads like the
+ * digest is missing or hostile — the one message that must never be a false alarm, since
+ * the correct response to it is to disable verification.
+ *
+ * So retries are scoped to what CANNOT be an answer: a transport failure (no status at
+ * all), plus 429 and 5xx. A 404 is the registry saying the asset does not exist and a 403
+ * is it saying no; retrying either would only delay the same result while making a real
+ * outage look like a hang.
+ */
 async function fetchBytes(session, url) {
     if (url.startsWith('file://')) {
         const path = url.slice('file://'.length);
@@ -141,14 +184,22 @@ async function fetchBytes(session, url) {
         const [, bytes] = file.load_contents(null);
         return bytes;
     }
-    const message = Soup.Message.new('GET', url);
-    message.request_headers.append('User-Agent', USER_AGENT);
-    const bytes = await session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null);
-    const status = message.get_status();
-    if (status !== Soup.Status.OK) {
-        throw new Error(`HTTP ${status} from ${url}`);
+    const attempts = Number.isFinite(FETCH_ATTEMPTS) && FETCH_ATTEMPTS >= 1 ? FETCH_ATTEMPTS : 1;
+    let lastErr = null;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+        try {
+            return await fetchOnce(session, url);
+        } catch (err) {
+            lastErr = err;
+            const status = err.httpStatus;
+            const retriable = status === undefined || status === 429 || status >= 500;
+            if (!retriable || attempt === attempts) break;
+            const wait = RETRY_BACKOFF_MS[Math.min(attempt - 1, RETRY_BACKOFF_MS.length - 1)];
+            info(`Fetch of ${url} failed (${err.message}) — retry ${attempt + 1}/${attempts} in ${wait}ms`);
+            await sleepMs(wait);
+        }
     }
-    return bytes.get_data();
+    throw lastErr;
 }
 
 function sha256Hex(bytes) {
