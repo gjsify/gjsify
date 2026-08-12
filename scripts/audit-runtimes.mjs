@@ -81,6 +81,7 @@ import './manifest-conformance/rules/refs-pin.mjs';
 import './manifest-conformance/rules/status-data.mjs';
 import './manifest-conformance/rules/platform-packages.mjs';
 import './manifest-conformance/rules/release-train.mjs';
+import './manifest-conformance/rules/node-script-globals.mjs';
 
 // Re-exported for `tests/e2e/prebuild-declaration-invariant`, which drives the prebuild
 // invariant against SYNTHETIC packages: proving that a MISSING prebuild directory fails
