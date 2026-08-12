@@ -3,6 +3,86 @@
 // adwaita-web CSS custom properties, so it follows the active light/dark theme.
 
 export const STORYBOOK_WEB_CSS = `
+/* Appearance dialog — round swatches with a selection ring. The web twin of the GTK
+   renderer's rules, themselves adapted from Learn6502.
+
+   The CARD is not decoration: in the dark scheme the "dark" swatch is a near-black
+   circle on a near-black dialog and is invisible without a lighter surface behind
+   it. Centring happens INSIDE the full-width card, so the row does not read as
+   left-aligned under the group title. */
+.sb-swatch-card {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+}
+/* Squaring the card's top alone leaves a notch: the row above lives in the group's
+   own rounded list, so BOTH sides have to be squared for the join to read as one
+   list. The attached card and the group rule below are the two halves of that. */
+.sb-swatch-card--attached {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+}
+.sb-attached-group .boxed-list {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+}
+/* Desaturated rather than merely dimmed: while the accent follows the desktop the
+   palette must read as unavailable, not as nine slightly faded choices. */
+.sb-swatch-card--disabled {
+    filter: saturate(0.4) brightness(1.05);
+    opacity: 0.7;
+}
+/* A radio input, so grouping and arrow-key navigation are the platform's. Its own
+   glyph is switched off because the swatch IS the indicator — a dot drawn on a
+   colour competes with the ring that already says which one is selected. */
+.sb-swatch {
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 9999px;
+    box-shadow: 0 0 0 3px transparent;
+    cursor: pointer;
+    /* A hairline on the fill itself. Without it the LIGHT scheme swatch is a
+       near-white circle on a near-white card and vanishes — the exact mirror of the
+       dark swatch on a dark dialog, and a card alone only fixes one direction.
+       --border-color is a currentColor mix, so it holds in both schemes. */
+    border: 1px solid var(--border-color);
+}
+.sb-swatch:checked {
+    box-shadow: 0 0 0 3px var(--accent-bg-color);
+}
+.sb-swatch:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 3px;
+}
+.sb-swatch:disabled {
+    cursor: default;
+}
+/* The scheme swatches are larger — they are the dialog's primary choice. */
+.sb-swatch--scheme {
+    width: 44px;
+    height: 44px;
+}
+/* "Follow system" is the two schemes meeting on a diagonal, so the option looks like
+   what it does instead of needing a word for it. */
+/* light_2 / dark_4 from libadwaita's palette (_palette.scss:37,44), which is what
+   Learn6502's selector uses. NOT light_1 (#ffffff): pure white is invisible against
+   a light card even with the hairline, and light_2 is the shade the palette offers
+   for exactly this. */
+.sb-swatch--scheme-system {
+    background: linear-gradient(to bottom right, #f6f5f4 49.99%, #241f31 50.01%);
+}
+.sb-swatch--scheme-light {
+    background-color: #f6f5f4;
+}
+.sb-swatch--scheme-dark {
+    background-color: #241f31;
+}
+
 .sb-window {
     width: 100%;
     height: 100%;

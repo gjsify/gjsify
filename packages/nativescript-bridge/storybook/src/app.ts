@@ -20,6 +20,7 @@ import {
     type StorySummary,
 } from '@gjsify/storybook-core';
 import {
+    type AdwPreferencesDialog,
     AdwBreakpoint,
     AdwHeaderBar,
     AdwImageButton,
@@ -32,11 +33,12 @@ import {
     attachRowPressFeedback,
     setAdwaitaColorScheme,
 } from '@gjsify/adwaita-nativescript';
-import { goPreviousSymbolic, sidebarShowRightSymbolic } from '@gjsify/adwaita-icons/actions';
+import { colorSelectSymbolic, goPreviousSymbolic, sidebarShowRightSymbolic } from '@gjsify/adwaita-icons/actions';
 import { Label, Screen, ScrollView, StackLayout, type View } from '@nativescript/core';
 
 /** The GTK storybook's own breakpoint: below it phone layout, at or above it three panes. */
 const COLLAPSE_CONDITION = 'max-width: 720sp';
+import { buildAppearanceDialog, installAppearanceDialog, StorybookNsAppearance } from './appearance.js';
 import { createControlRow } from './controls.js';
 import type { StoryView } from './story-view.js';
 import type { NsStoryModule } from './types.js';
@@ -85,6 +87,9 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
     private _controlsSplit!: AdwOverlaySplitView;
     /** Back button (visible only in collapsed/phone layout). */
     private _backButton!: AdwImageButton;
+    /** Accent for the whole storybook, not for one story. */
+    private _appearance = new StorybookNsAppearance();
+    private _appearanceDialog: AdwPreferencesDialog | null = null;
 
     private _rowByTitle = new Map<string, StackLayout>();
 
@@ -115,7 +120,19 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         this._controller.mount(this._options.stories, this._options.openFirst !== false);
         this._wireColorScheme();
         this._wireBreakpoint();
+
+        // The dialog must already BE in the tree: `present()` only flips its own
+        // visibility. Installed ONCE — `mount()` runs on every `onNavigatingTo`, and
+        // adding it twice re-parents a view NS refuses to re-parent.
+        if (!this._appearanceDialog) {
+            this._appearanceDialog = buildAppearanceDialog(this._appearance);
+            installAppearanceDialog(this.root, this._appearanceDialog);
+        }
         return this.root;
+    }
+
+    private _presentAppearance(): void {
+        this._appearanceDialog?.present();
     }
 
     /** Driven by the root view's post-layout width; seeds immediately so the first paint is correct. */
@@ -311,6 +328,13 @@ export class StorybookNativeApp implements StorybookView<StoryView> {
         controlsToggle.addEventListener('tap', () => {
             this._controlsSplit.showSidebar = !this._controlsSplit.showSidebar;
         });
+        // Appearance belongs to the STORYBOOK, so it sits in the chrome next to the
+        // controls toggle rather than in any story's controls.
+        const appearance = new AdwImageButton();
+        appearance.icon = colorSelectSymbolic;
+        appearance.className = `${appearance.className} sb-appearance-button`.trim();
+        appearance.addEventListener('tap', () => this._presentAppearance());
+        header.packEnd(appearance);
         header.packEnd(controlsToggle);
         detail.addTopBar(header);
 

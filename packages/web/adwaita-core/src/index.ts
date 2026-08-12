@@ -137,6 +137,21 @@ export type {
     BreakpointSize,
 } from './breakpoint.js';
 
+// --- Accent colours (AdwAccentColor + the OkLab standalone derivation) ---
+export {
+    ADW_ACCENT_BG_COLORS,
+    ADW_ACCENT_COLOR_NAMES,
+    ADW_DEFAULT_ACCENT_COLOR,
+    adwaitaAccent,
+    adwaitaAccentBgColor,
+    adwaitaAccentColor,
+    adwaitaStandaloneColor,
+    isAdwAccentColorName,
+    onAdwaitaAccentChanged,
+    setAdwaitaAccent,
+} from './accent.js';
+export type { AdwAccentColorName } from './accent.js';
+
 // --- Color scheme (light/dark) ---
 export {
     DEFAULT_ICON_COLOR,

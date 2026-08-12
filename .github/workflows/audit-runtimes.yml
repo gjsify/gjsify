@@ -215,6 +215,14 @@ jobs:
       - name: Check the NativeScript theme styles every class its widgets emit
         run: node scripts/check-nativescript-theme-classes.mjs
 
+      # The NS theme inlines the accent as a literal in every rule that uses it (the
+      # CSS subset has no custom properties), so a runtime accent is a generated
+      # override of those exact selectors. A table with nothing checking it drifts:
+      # add a themed rule and that widget silently keeps painting the default blue,
+      # which reads as "the accent almost works" and is invisible in a diff.
+      - name: Check the NativeScript accent override covers the theme
+        run: node scripts/check-nativescript-accent-rules.mjs
+
       # A lockfile whose FORMAT lags the installer is silent: `--immutable` accepts old
       # versions on purpose, so every install still succeeds — just without the platform
       # fields the filter reads. That is how this repo installed every platform's
@@ -476,6 +484,14 @@ jobs:
       # spec cannot see it — it reads the same constant the widget writes.
       - name: Check the NativeScript theme styles every class its widgets emit
         run: node scripts/check-nativescript-theme-classes.mjs
+
+      # The NS theme inlines the accent as a literal in every rule that uses it (the
+      # CSS subset has no custom properties), so a runtime accent is a generated
+      # override of those exact selectors. A table with nothing checking it drifts:
+      # add a themed rule and that widget silently keeps painting the default blue,
+      # which reads as "the accent almost works" and is invisible in a diff.
+      - name: Check the NativeScript accent override covers the theme
+        run: node scripts/check-nativescript-accent-rules.mjs
 
       # A lockfile whose FORMAT lags the installer is silent: `--immutable` accepts old
       # versions on purpose, so every install still succeeds — just without the platform

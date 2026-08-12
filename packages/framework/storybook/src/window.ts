@@ -28,6 +28,7 @@ import {
     StorybookController,
     type StorybookView,
 } from '@gjsify/storybook-core';
+import { buildAppearanceDialog, StorybookAppearance } from './appearance.js';
 import type { StoryModule, StoryWidget } from './story-widget.js';
 import type { StoryRow } from './types.js';
 
@@ -282,6 +283,8 @@ export class StorybookWindow extends Adw.ApplicationWindow implements StorybookV
     private _control_panel!: Adw.PreferencesGroup;
     private _preview_title!: Adw.WindowTitle;
     private _show_controls_button!: Gtk.ToggleButton;
+    /** Colour scheme + accent for the whole storybook, not for one story. */
+    private _appearance = new StorybookAppearance();
     private _controls_split_view!: Adw.OverlaySplitView;
     private _main_split_view!: Adw.NavigationSplitView;
 
@@ -390,6 +393,17 @@ export class StorybookWindow extends Adw.ApplicationWindow implements StorybookV
         });
         const previewHeader = new Adw.HeaderBar({ title_widget: this._preview_title });
         previewHeader.pack_end(this._show_controls_button);
+        // Appearance is a property of the storybook, so it belongs in its chrome
+        // rather than in a story's controls — every story is previewed under it.
+        const appearanceButton = new Gtk.Button({
+            icon_name: 'applications-graphics-symbolic',
+            tooltip_text: 'Appearance',
+        });
+        // Built fresh per press rather than held: an Adw.Dialog is presented and
+        // closed, and a reused instance that was closed with the window manager
+        // refuses to present again.
+        appearanceButton.connect('clicked', () => buildAppearanceDialog(this._appearance).present(this));
+        previewHeader.pack_end(appearanceButton);
         // Flat top bar so the preview header shares the window (story)
         // background instead of a distinct headerbar shade.
         const previewToolbar = new Adw.ToolbarView({

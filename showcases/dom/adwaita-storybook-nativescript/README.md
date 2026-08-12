@@ -76,7 +76,6 @@ src/
 - [`@gjsify/storybook-core`](../../../packages/framework/storybook-core) — the renderer-free storybook logic all three targets share
 - [`@gjsify/stories`](../../../packages/framework/stories) — the pure-TS story contract
 - [`adwaita-storybook`](../../gtk/adwaita-storybook) — the GTK + browser targets and the shared `*.meta.ts` source
-- [`adwaita-widgets-nativescript`](../adwaita-widgets-nativescript) — the smaller de-risking spike for the same widget set
 
 ## License
 

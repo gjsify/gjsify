@@ -5,6 +5,12 @@
 
 ## Example convention (GTK + browser)
 
+`examples/gtk/` is currently EMPTY. Its last occupant, `adwaita-reference`, existed to
+show a page of Adwaita widgets together; that is now the storybook's
+`Overview/Widgets` story, which does the same job on all three renderers and is held
+by the story-parity gate. The convention below is what a NEW dual-target example
+should follow — not a description of something that exists.
+
 Dual-target with Adwaita UI: `examples/gtk/<name>/src/` = shared platform-agnostic `.ts` (constants/logic — both targets import; no duplication in HTML) + `gjs/` (Adw.Application, .blp) + `browser/` (adwaita-web UI, index.html) + `assets/`. Scripts: `build:gjs`→`gjsify build src/gjs/gjs.ts --app gjs` | `build:browser` | `start`→`gjsify run dist/gjs.js` | `start:browser`. NO explicit `/register` imports in example/showcase source (§ Tree-shakeable globals rule 6 — use `--globals auto,<extra>` in the build script if auto misses). `examples/` = `"private":true`, not published, not in the CLI.
 
 ## Showcase — `gjsify showcase`

@@ -24,11 +24,13 @@ import statusPageNsTestSuite from './status-page.spec.js';
 import bannerNsTestSuite from './banner.spec.js';
 import buttonContentNsTestSuite from './button-content.spec.js';
 import shortcutLabelNsTestSuite from './shortcut-label.spec.js';
+import accentThemeNsTestSuite from './accent-theme.spec.js';
 
 run({
     bannerNsTestSuite,
     buttonContentNsTestSuite,
     shortcutLabelNsTestSuite,
+    accentThemeNsTestSuite,
     adwaitaNativescriptTestSuite,
     svgPathTestSuite,
     splitViewWidthTestSuite,

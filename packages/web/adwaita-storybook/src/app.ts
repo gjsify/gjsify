@@ -16,6 +16,7 @@ import {
     type StorybookView,
     type StorySummary,
 } from '@gjsify/storybook-core';
+import { buildAppearanceDialog, StorybookWebAppearance } from './appearance.js';
 import { createControlRow } from './controls.js';
 import type { StoryElement } from './story-element.js';
 import { injectStorybookStyles } from './styles.js';
@@ -57,6 +58,15 @@ export class StorybookWebApp implements StorybookView<StoryElement> {
     private _controller = new StorybookController<StoryElement>(this, (story) => this._buildControls(story));
     private _options: StorybookWebOptions;
     private _container: HTMLElement;
+    /**
+     * Colour scheme + accent for the whole storybook, not for one story.
+     *
+     * Scoped to the storybook's own container rather than `documentElement`: this
+     * app is EMBEDDED by the website, and stamping `.theme-dark` on the document
+     * would re-theme the host page around it. `_theme.scss` scopes on the class
+     * wherever it sits, so a subtree works.
+     */
+    private _appearance: StorybookWebAppearance;
 
     private _listEl!: HTMLElement;
     private _previewEl!: HTMLElement;
@@ -71,6 +81,7 @@ export class StorybookWebApp implements StorybookView<StoryElement> {
     constructor(container: HTMLElement, options: StorybookWebOptions) {
         this._container = container;
         this._options = options;
+        this._appearance = new StorybookWebAppearance(container);
     }
 
     /** Build the UI, instantiate stories, and select the first one. */
@@ -256,7 +267,29 @@ export class StorybookWebApp implements StorybookView<StoryElement> {
                 controlsSplit as HTMLElement & { showSidebar: boolean }
             ).showSidebar;
         });
-        const previewHeader = h('adw-header-bar', { slot: 'top' }, [this._backBtn, this._previewTitle, toggleControls]);
+        // Appearance is a property of the STORYBOOK, not of any story — every story
+        // is previewed under it — so it belongs in the chrome, not in the controls.
+        const appearanceBtn = h('button', {
+            class: 'adw-header-btn sb-appearance-btn',
+            slot: 'end',
+            title: 'Appearance',
+            'aria-label': 'Appearance',
+        });
+        appearanceBtn.append(h('span', { class: 'adw-icon adw-icon--preferences-system' }));
+        const appearanceDialog = buildAppearanceDialog(this._appearance);
+        appearanceBtn.addEventListener('click', () => {
+            // Mounted on first press: a dialog nobody opens should not sit in the
+            // tree of every storybook that never asks for it.
+            if (!appearanceDialog.isConnected) this._container.append(appearanceDialog);
+            appearanceDialog.toggleAttribute('open', true);
+        });
+
+        const previewHeader = h('adw-header-bar', { slot: 'top' }, [
+            this._backBtn,
+            this._previewTitle,
+            appearanceBtn,
+            toggleControls,
+        ]);
 
         const contentPane = h('div', { slot: 'content', class: 'sb-content-pane' }, [
             h('adw-toolbar-view', {}, [previewHeader, controlsSplit]),

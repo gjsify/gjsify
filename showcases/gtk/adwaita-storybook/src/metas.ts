@@ -21,6 +21,7 @@ export * from './navigation/navigation-split-view.meta.js';
 export * from './navigation/navigation-view.meta.js';
 export * from './navigation/overlay-split-view.meta.js';
 export * from './navigation/sidebar.meta.js';
+export * from './overview/widgets.meta.js';
 export * from './presentation/avatar.meta.js';
 export * from './presentation/banner.meta.js';
 export * from './presentation/shortcut-label.meta.js';

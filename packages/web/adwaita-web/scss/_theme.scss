@@ -4,6 +4,10 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
 
+// `light-theme` lives in _variables.scss; @use makes it reachable (the skin uses
+// the module system, so a mixin there is namespaced rather than global).
+@use 'variables';
+
 @mixin dark-theme {
   --window-bg-color: #222226;
   --window-fg-color: #ffffff;
@@ -64,7 +68,21 @@
   }
 }
 
-// Manual override
-:root.theme-dark {
+// Manual override, on ANY element rather than only on `:root`.
+//
+// It was `:root.theme-dark`, which silently does nothing unless the class lands on
+// `<html>` — so an EMBEDDED consumer could not give its own subtree a scheme without
+// re-theming the host page around it. The storybook is exactly that case: it scopes
+// to its own container, the class was present, the tokens never changed, and nothing
+// reported a problem. Custom properties resolve per element, so an element-level
+// selector overrides the inherited values for its subtree and for nothing else.
+.theme-dark {
   @include dark-theme;
+}
+
+// The light counterpart, for the same reason: on a dark system a subtree has to be
+// able to ask for light, which `:root:not(.theme-light)` on the media query above
+// cannot give it once the class sits anywhere but the root.
+.theme-light {
+  @include variables.light-theme;
 }
