@@ -5,25 +5,15 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { writeFileSync, mkdirSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { runCliSync } from '../mock-registry.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const CLI_ENTRY = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js');
-
-function runCli(args, opts = {}) {
-    return execFileSync('node', [CLI_ENTRY, ...args], {
-        stdio: opts.stdio ?? 'pipe',
-        timeout: opts.timeout ?? 60 * 1000,
-        cwd: opts.cwd,
-        env: opts.env ?? process.env,
-        encoding: 'utf8',
-    });
-}
 
 describe('CLI flatpak diff E2E', { timeout: 5 * 60 * 1000 }, () => {
     let tmpDir;
@@ -49,7 +39,9 @@ describe('CLI flatpak diff E2E', { timeout: 5 * 60 * 1000 }, () => {
             commit: '1111111111111111111111111111111111111111',
         });
 
-        const out = runCli(['flatpak', 'diff', '--version', 'v1.0.0', '--against', flathubPath], { cwd: dir });
+        const out = runCliSync(CLI_ENTRY, ['flatpak', 'diff', '--version', 'v1.0.0', '--against', flathubPath], {
+            cwd: dir,
+        });
 
         assert.match(out, /flathub: tag=v1\.0\.0/);
         assert.match(out, /local:.*tag=v1\.0\.0/);
@@ -67,7 +59,7 @@ describe('CLI flatpak diff E2E', { timeout: 5 * 60 * 1000 }, () => {
         let exitCode = 0;
         let out = '';
         try {
-            runCli(['flatpak', 'diff', '--version', 'v1.0.0', '--against', flathubPath], {
+            runCliSync(CLI_ENTRY, ['flatpak', 'diff', '--version', 'v1.0.0', '--against', flathubPath], {
                 cwd: dir,
             });
         } catch (e) {
@@ -87,9 +79,13 @@ describe('CLI flatpak diff E2E', { timeout: 5 * 60 * 1000 }, () => {
             commit: '3333333333333333333333333333333333333333',
         });
 
-        const out = runCli(['flatpak', 'diff', '--version', 'v0.5.0', '--against', flathubPath, '--detail'], {
-            cwd: dir,
-        });
+        const out = runCliSync(
+            CLI_ENTRY,
+            ['flatpak', 'diff', '--version', 'v0.5.0', '--against', flathubPath, '--detail'],
+            {
+                cwd: dir,
+            },
+        );
         assert.match(out, /flathub manifest source:/);
         assert.match(out, /"tag": "v0\.5\.0"/);
     });
@@ -100,9 +96,13 @@ describe('CLI flatpak diff E2E', { timeout: 5 * 60 * 1000 }, () => {
         let exitCode = 0;
         let err = '';
         try {
-            runCli(['flatpak', 'diff', '--version', 'v0.1.0', '--against', join(tmpDir, 'does-not-exist.json')], {
-                cwd: dir,
-            });
+            runCliSync(
+                CLI_ENTRY,
+                ['flatpak', 'diff', '--version', 'v0.1.0', '--against', join(tmpDir, 'does-not-exist.json')],
+                {
+                    cwd: dir,
+                },
+            );
         } catch (e) {
             exitCode = e.status ?? -1;
             err = `${e.stdout ?? ''}${e.stderr ?? ''}`;

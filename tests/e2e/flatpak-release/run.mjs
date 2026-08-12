@@ -8,25 +8,15 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { writeFileSync, mkdirSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { runCliSync } from '../mock-registry.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const CLI_ENTRY = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js');
-
-function runCli(args, opts = {}) {
-    return execFileSync('node', [CLI_ENTRY, ...args], {
-        stdio: opts.stdio ?? 'pipe',
-        timeout: opts.timeout ?? 60 * 1000,
-        cwd: opts.cwd,
-        env: opts.env ?? process.env,
-        encoding: 'utf8',
-    });
-}
 
 describe('CLI flatpak release E2E', { timeout: 5 * 60 * 1000 }, () => {
     let tmpDir;
@@ -48,7 +38,7 @@ describe('CLI flatpak release E2E', { timeout: 5 * 60 * 1000 }, () => {
         const dir = join(tmpDir, 'plan');
         scaffold(dir, { appId: 'org.example.ReleasePlan' });
 
-        const out = runCli(['flatpak', 'release', 'v0.6.6', '--dry-run'], { cwd: dir });
+        const out = runCliSync(CLI_ENTRY, ['flatpak', 'release', 'v0.6.6', '--dry-run'], { cwd: dir });
 
         assert.match(out, /starting release of v0\.6\.6/);
         assert.match(out, /init: node .* flatpak init --force/);
@@ -61,9 +51,13 @@ describe('CLI flatpak release E2E', { timeout: 5 * 60 * 1000 }, () => {
         const dir = join(tmpDir, 'plan-min');
         scaffold(dir, { appId: 'org.example.ReleaseMin' });
 
-        const out = runCli(['flatpak', 'release', 'v0.7.0', '--dry-run', '--skip-init', '--skip-check', '--skip-tag'], {
-            cwd: dir,
-        });
+        const out = runCliSync(
+            CLI_ENTRY,
+            ['flatpak', 'release', 'v0.7.0', '--dry-run', '--skip-init', '--skip-check', '--skip-tag'],
+            {
+                cwd: dir,
+            },
+        );
 
         assert.doesNotMatch(out, /init:/);
         assert.doesNotMatch(out, /check:/);
@@ -75,7 +69,8 @@ describe('CLI flatpak release E2E', { timeout: 5 * 60 * 1000 }, () => {
         const dir = join(tmpDir, 'forward-repo');
         scaffold(dir, { appId: 'org.example.ReleaseRepo' });
 
-        const out = runCli(
+        const out = runCliSync(
+            CLI_ENTRY,
             ['flatpak', 'release', 'v0.5.0', '--dry-run', '--flathub-repo', 'flathub/org.example.ReleaseRepo'],
             { cwd: dir },
         );
@@ -90,7 +85,7 @@ describe('CLI flatpak release E2E', { timeout: 5 * 60 * 1000 }, () => {
         let exitCode = 0;
         let err = '';
         try {
-            runCli(['flatpak', 'release'], { cwd: dir });
+            runCliSync(CLI_ENTRY, ['flatpak', 'release'], { cwd: dir });
         } catch (e) {
             exitCode = e.status ?? -1;
             err = `${e.stdout ?? ''}${e.stderr ?? ''}`;

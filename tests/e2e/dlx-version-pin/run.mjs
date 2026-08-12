@@ -29,62 +29,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
-import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { pathToFileURL, fileURLToPath } from 'node:url';
-
-// ---------------------------------------------------------------------------
-// Tar helpers — assemble a ustar archive with multiple files.
-// ---------------------------------------------------------------------------
-
-const BLOCK = 512;
-
-function tarHeader(name, size, type = '0') {
-    const buf = Buffer.alloc(BLOCK);
-    buf.write(name, 0, Math.min(name.length, 100));
-    buf.write('0000644', 100, 7);
-    buf[107] = 0;
-    buf.write('0000000', 108, 7);
-    buf[115] = 0;
-    buf.write('0000000', 116, 7);
-    buf[123] = 0;
-    buf.write(size.toString(8).padStart(11, '0'), 124, 11);
-    buf[135] = 0;
-    buf.write('0'.repeat(11), 136, 11);
-    buf[147] = 0;
-    buf.fill(0x20, 148, 156);
-    buf.write(type, 156, 1);
-    buf.write('ustar\0', 257, 6);
-    buf.write('00', 263, 2);
-    let sum = 0;
-    for (let i = 0; i < BLOCK; i++) sum += buf[i];
-    buf.write(sum.toString(8).padStart(6, '0'), 148, 6);
-    buf[154] = 0;
-    buf[155] = 0x20;
-    return buf;
-}
-
-function tarFile(name, contents) {
-    const body = Buffer.isBuffer(contents) ? contents : Buffer.from(contents);
-    const padded = Buffer.alloc(Math.ceil(body.length / BLOCK) * BLOCK);
-    body.copy(padded);
-    return Buffer.concat([tarHeader(name, body.length, '0'), padded]);
-}
-
-/** Build a tarball whose entries are `{ "package/<rel>": Buffer | string }`. */
-function buildMultiFileTar(entries) {
-    const chunks = [];
-    for (const [name, contents] of Object.entries(entries)) {
-        chunks.push(tarFile(name, contents));
-    }
-    chunks.push(Buffer.alloc(BLOCK * 2));
-    return Buffer.concat(chunks);
-}
-
-function sriSha512(bytes) {
-    return `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
-}
+import { packageTar, sriSha512 } from '../mock-registry.mjs';
 
 // ---------------------------------------------------------------------------
 // Process helper.
@@ -152,27 +100,27 @@ describe('gjsify dlx version-pinned cache + transitive native deps', { timeout: 
                 '0.0.1': {
                     dependencies: {},
                     files: {
-                        'package/package.json': JSON.stringify({
+                        'package.json': JSON.stringify({
                             name: '@synthetic/showcase',
                             version: '0.0.1',
                             type: 'module',
                             gjsify: { main: 'dist/bundle.mjs' },
                             dependencies: {},
                         }),
-                        'package/dist/bundle.mjs': "console.log('synthetic showcase v0.0.1');\n",
+                        'dist/bundle.mjs': "console.log('synthetic showcase v0.0.1');\n",
                     },
                 },
                 '0.0.2': {
                     dependencies: { '@synthetic/bridge': '^0.0.1' },
                     files: {
-                        'package/package.json': JSON.stringify({
+                        'package.json': JSON.stringify({
                             name: '@synthetic/showcase',
                             version: '0.0.2',
                             type: 'module',
                             gjsify: { main: 'dist/bundle.mjs' },
                             dependencies: { '@synthetic/bridge': '^0.0.1' },
                         }),
-                        'package/dist/bundle.mjs': "console.log('synthetic showcase v0.0.2');\n",
+                        'dist/bundle.mjs': "console.log('synthetic showcase v0.0.2');\n",
                     },
                 },
             },
@@ -182,14 +130,14 @@ describe('gjsify dlx version-pinned cache + transitive native deps', { timeout: 
                 '0.0.1': {
                     dependencies: {},
                     files: {
-                        'package/package.json': JSON.stringify({
+                        'package.json': JSON.stringify({
                             name: '@synthetic/bridge',
                             version: '0.0.1',
                             type: 'module',
                             gjsify: { prebuilds: 'prebuilds' },
                         }),
-                        [`package/prebuilds/linux-${linuxArch}/Synthetic.typelib`]: Buffer.from('typelib stub'),
-                        [`package/prebuilds/linux-${linuxArch}/libsynthetic.so`]: Buffer.from('so stub'),
+                        [`prebuilds/linux-${linuxArch}/Synthetic.typelib`]: Buffer.from('typelib stub'),
+                        [`prebuilds/linux-${linuxArch}/libsynthetic.so`]: Buffer.from('so stub'),
                     },
                 },
             },
@@ -203,7 +151,7 @@ describe('gjsify dlx version-pinned cache + transitive native deps', { timeout: 
             index[name] = { name, 'dist-tags': {}, versions: {} };
             let lastVersion = '';
             for (const [version, body] of Object.entries(info.versions)) {
-                const tar = buildMultiFileTar(body.files);
+                const tar = packageTar(body.files);
                 const tgz = gzipSync(tar);
                 index[name].versions[version] = {
                     name,

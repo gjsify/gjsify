@@ -26,86 +26,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
-import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { LOCKFILE_VERSION } from '../helpers.mjs';
-
-// ----- tar helpers (ustar v0 with arbitrary file entries) -----
-const BLOCK = 512;
-function tarHeader(name, size, type = '0') {
-    const buf = Buffer.alloc(BLOCK);
-    buf.write(name, 0, Math.min(name.length, 100));
-    buf.write('0000644', 100, 7);
-    buf[107] = 0;
-    buf.write('0000000', 108, 7);
-    buf[115] = 0;
-    buf.write('0000000', 116, 7);
-    buf[123] = 0;
-    buf.write(size.toString(8).padStart(11, '0'), 124, 11);
-    buf[135] = 0;
-    buf.write('0'.repeat(11), 136, 11);
-    buf[147] = 0;
-    buf.fill(0x20, 148, 156);
-    buf.write(type, 156, 1);
-    buf.write('ustar\0', 257, 6);
-    buf.write('00', 263, 2);
-    let sum = 0;
-    for (let i = 0; i < BLOCK; i++) sum += buf[i];
-    buf.write(sum.toString(8).padStart(6, '0'), 148, 6);
-    buf[154] = 0;
-    buf[155] = 0x20;
-    return buf;
-}
-function fileEntry(name, body) {
-    const padded = Buffer.alloc(Math.ceil(body.length / BLOCK) * BLOCK);
-    body.copy(padded);
-    return Buffer.concat([tarHeader(name, body.length), padded]);
-}
-function buildPackageTar(files) {
-    const parts = [tarHeader('package/', 0, '5')];
-    for (const [name, body] of Object.entries(files)) {
-        parts.push(fileEntry(`package/${name}`, Buffer.from(body)));
-    }
-    parts.push(Buffer.alloc(BLOCK * 2));
-    return Buffer.concat(parts);
-}
-function sriSha512(bytes) {
-    return `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
-}
-
-function runCli(cliEntry, args, { cwd, env, timeoutMs = 30_000 } = {}) {
-    return new Promise((resolve, reject) => {
-        const child = spawn(process.execPath, [cliEntry, ...args], {
-            cwd,
-            env,
-            stdio: ['ignore', 'pipe', 'pipe'],
-        });
-        let stdout = '';
-        let stderr = '';
-        child.stdout.setEncoding('utf-8');
-        child.stderr.setEncoding('utf-8');
-        child.stdout.on('data', (c) => {
-            stdout += c;
-        });
-        child.stderr.on('data', (c) => {
-            stderr += c;
-        });
-        const kill = setTimeout(() => {
-            // ChildProcess.kill with a known signal never throws — failure
-            // to deliver just returns false (the process already exited).
-            child.kill('SIGKILL');
-        }, timeoutMs);
-        child.on('close', (code) => {
-            clearTimeout(kill);
-            resolve({ status: code, stdout, stderr });
-        });
-        child.on('error', (e) => {
-            clearTimeout(kill);
-            reject(e);
-        });
-    });
-}
+import { packageTar, runCli, sriSha512 } from '../mock-registry.mjs';
 
 describe('gjsify install — nested-node_modules version conflict (Phase D.7b)', { timeout: 90_000 }, () => {
     let server, registryUrl, projectDir, cliEntry, envForCli;
@@ -193,7 +117,7 @@ describe('gjsify install — nested-node_modules version conflict (Phase D.7b)',
             index[name] = { name, 'dist-tags': {}, versions: {} };
             let last = '';
             for (const [version, body] of Object.entries(info.versions)) {
-                const tar = buildPackageTar(body.files);
+                const tar = packageTar(body.files);
                 const tgz = gzipSync(tar);
                 index[name].versions[version] = {
                     name,

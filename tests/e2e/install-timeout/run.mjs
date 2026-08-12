@@ -19,41 +19,8 @@ import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
-import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-
-function runCli(cliEntry, args, { cwd, env, timeoutMs = 30_000 } = {}) {
-    return new Promise((resolve, reject) => {
-        const child = spawn(process.execPath, [cliEntry, ...args], {
-            cwd,
-            env,
-            stdio: ['ignore', 'pipe', 'pipe'],
-        });
-        let stdout = '';
-        let stderr = '';
-        child.stdout.setEncoding('utf-8');
-        child.stderr.setEncoding('utf-8');
-        child.stdout.on('data', (c) => {
-            stdout += c;
-        });
-        child.stderr.on('data', (c) => {
-            stderr += c;
-        });
-        const kill = setTimeout(() => {
-            // ChildProcess.kill with a known signal never throws — failure
-            // to deliver just returns false (the process already exited).
-            child.kill('SIGKILL');
-        }, timeoutMs);
-        child.on('close', (code) => {
-            clearTimeout(kill);
-            resolve({ status: code, stdout, stderr });
-        });
-        child.on('error', (e) => {
-            clearTimeout(kill);
-            reject(e);
-        });
-    });
-}
+import { runCli } from '../mock-registry.mjs';
 
 describe('gjsify install --timeout — slow-registry safety net', { timeout: 60_000 }, () => {
     let server, registryUrl, cliEntry, envForCli;

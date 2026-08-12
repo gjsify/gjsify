@@ -29,81 +29,19 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
-import { createHash } from 'node:crypto';
-import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { packageTar, runCli, sriSha512 } from '../mock-registry.mjs';
 
-// ----- tar helpers (ustar v0, a single package.json entry) -----
-const BLOCK = 512;
-function tarHeader(name, size, type = '0') {
-    const buf = Buffer.alloc(BLOCK);
-    buf.write(name, 0, Math.min(name.length, 100));
-    buf.write('0000644', 100, 7);
-    buf.write('0000000', 108, 7);
-    buf.write('0000000', 116, 7);
-    buf.write(size.toString(8).padStart(11, '0'), 124, 11);
-    buf.write('0'.repeat(11), 136, 11);
-    buf.fill(0x20, 148, 156);
-    buf.write(type, 156, 1);
-    buf.write('ustar\0', 257, 6);
-    buf.write('00', 263, 2);
-    let sum = 0;
-    for (let i = 0; i < BLOCK; i++) sum += buf[i];
-    buf.write(sum.toString(8).padStart(6, '0'), 148, 6);
-    buf[154] = 0;
-    buf[155] = 0x20;
-    return buf;
-}
-function fileEntry(name, body) {
-    const padded = Buffer.alloc(Math.ceil(body.length / BLOCK) * BLOCK);
-    body.copy(padded);
-    return Buffer.concat([tarHeader(name, body.length), padded]);
-}
-function buildPackageTar(files) {
-    const parts = [tarHeader('package/', 0, '5')];
-    for (const [name, body] of Object.entries(files)) {
-        parts.push(fileEntry(`package/${name}`, Buffer.from(body)));
-    }
-    parts.push(Buffer.alloc(BLOCK * 2));
-    return Buffer.concat(parts);
-}
-function sriSha512(bytes) {
-    return `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
-}
 function versionEntry(name, version, dependencies = {}) {
     const files = {
         'package.json': JSON.stringify({ name, version, main: 'index.js', dependencies }),
         'index.js': `module.exports = ${JSON.stringify({ name, version })};\n`,
     };
-    const tgz = gzipSync(buildPackageTar(files));
+    const tgz = gzipSync(packageTar(files));
     return { name, version, dependencies, tgz, integrity: sriSha512(tgz) };
 }
 
 /** Run the CLI under Node without blocking the in-process mock-registry loop. */
-function runCli(cliEntry, args, { cwd, env, timeoutMs = 60_000 } = {}) {
-    return new Promise((resolve, reject) => {
-        const child = spawn(process.execPath, [cliEntry, ...args], { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
-        let stdout = '';
-        let stderr = '';
-        child.stdout.setEncoding('utf-8');
-        child.stderr.setEncoding('utf-8');
-        child.stdout.on('data', (c) => (stdout += c));
-        child.stderr.on('data', (c) => (stderr += c));
-        const kill = setTimeout(() => {
-            // ChildProcess.kill with a known signal never throws — failure
-            // to deliver just returns false (the process already exited).
-            child.kill('SIGKILL');
-        }, timeoutMs);
-        child.on('close', (code) => {
-            clearTimeout(kill);
-            resolve({ status: code, stdout, stderr });
-        });
-        child.on('error', (e) => {
-            clearTimeout(kill);
-            reject(e);
-        });
-    });
-}
 
 const MARKER = '.gjsify-e2e-marker';
 
@@ -205,7 +143,7 @@ describe('gjsify install — incremental extraction (skip already-extracted)', {
     });
 
     it('initial install extracts the full tree', async () => {
-        const r = await runCli(cliEntry, ['install'], { cwd: projectDir, env: envForCli });
+        const r = await runCli(cliEntry, ['install'], { timeoutMs: 60_000, cwd: projectDir, env: envForCli });
         assert.equal(r.status, 0, `install failed: ${r.stderr}\n${r.stdout}`);
         for (const name of ['root', 'mid', 'leaf']) {
             assert.ok(
@@ -223,7 +161,7 @@ describe('gjsify install — incremental extraction (skip already-extracted)', {
         pkg.dependencies.extra = '^1.0.0';
         writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
 
-        const r = await runCli(cliEntry, ['install'], { cwd: projectDir, env: envForCli });
+        const r = await runCli(cliEntry, ['install'], { timeoutMs: 60_000, cwd: projectDir, env: envForCli });
         assert.equal(r.status, 0, `install failed: ${r.stderr}\n${r.stdout}`);
 
         // The unchanged packages must NOT have been re-extracted — their
@@ -249,7 +187,7 @@ describe('gjsify install — incremental extraction (skip already-extracted)', {
         // the extract phase is a full no-op. Re-mark `extra` first so all four
         // packages carry a sentinel.
         markPackages(projectDir, ['extra']);
-        const r = await runCli(cliEntry, ['install'], { cwd: projectDir, env: envForCli });
+        const r = await runCli(cliEntry, ['install'], { timeoutMs: 60_000, cwd: projectDir, env: envForCli });
         assert.equal(r.status, 0, `install failed: ${r.stderr}\n${r.stdout}`);
         for (const name of ['root', 'mid', 'leaf', 'extra']) {
             assert.ok(
@@ -264,6 +202,7 @@ describe('gjsify install — incremental extraction (skip already-extracted)', {
         // every package dir, so all sentinels must be GONE afterwards — proves
         // the skip is an opt-out fast-path, not an unconditional bypass.
         const r = await runCli(cliEntry, ['install'], {
+            timeoutMs: 60_000,
             cwd: projectDir,
             env: { ...envForCli, GJSIFY_INSTALL_FORCE_EXTRACT: '1' },
         });

@@ -14,11 +14,12 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runCli } from '../mock-registry.mjs';
 
 const cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
 
@@ -28,35 +29,6 @@ function onPath(cmd) {
     } catch {
         return false;
     }
-}
-
-function runCli(args, { cwd, timeoutMs = 30_000, env } = {}) {
-    return new Promise((resolve, reject) => {
-        const child = spawn(process.execPath, [cliEntry, ...args], {
-            cwd,
-            env,
-            stdio: ['ignore', 'pipe', 'pipe'],
-        });
-        let stdout = '';
-        let stderr = '';
-        child.stdout.setEncoding('utf-8');
-        child.stderr.setEncoding('utf-8');
-        child.stdout.on('data', (c) => (stdout += c));
-        child.stderr.on('data', (c) => (stderr += c));
-        const kill = setTimeout(() => {
-            // ChildProcess.kill with a known signal never throws — failure
-            // to deliver just returns false (the process already exited).
-            child.kill('SIGKILL');
-        }, timeoutMs);
-        child.on('close', (code) => {
-            clearTimeout(kill);
-            resolve({ status: code, stdout, stderr });
-        });
-        child.on('error', (e) => {
-            clearTimeout(kill);
-            reject(e);
-        });
-    });
 }
 
 describe('gjsify run --runtime', { timeout: 120_000 }, () => {
@@ -90,7 +62,7 @@ describe('gjsify run --runtime', { timeout: 120_000 }, () => {
 
     it('rejects a runtime the example does not declare with a clean error', async () => {
         writePkg(['gjs']);
-        const r = await runCli(['run', '--runtime', 'node', './dist/app.node.mjs'], { cwd: dir });
+        const r = await runCli(cliEntry, ['run', '--runtime', 'node', './dist/app.node.mjs'], { cwd: dir });
         assert.equal(r.status, 1);
         assert.match(r.stderr, /does not support --runtime node/);
         assert.match(r.stderr, /Declared runtimes: gjs/);
@@ -98,7 +70,7 @@ describe('gjsify run --runtime', { timeout: 120_000 }, () => {
 
     it('runs the bundle on node when declared', async () => {
         writePkg(['gjs', 'node', 'bun', 'deno']);
-        const r = await runCli(['run', '--runtime', 'node', './dist/app.node.mjs'], { cwd: dir });
+        const r = await runCli(cliEntry, ['run', '--runtime', 'node', './dist/app.node.mjs'], { cwd: dir });
         assert.equal(r.status, 0, r.stderr);
         assert.match(r.stdout, /ran-on:node/);
     });
@@ -110,7 +82,7 @@ describe('gjsify run --runtime', { timeout: 120_000 }, () => {
                 return;
             }
             writePkg(['gjs', 'node', 'bun', 'deno']);
-            const r = await runCli(['run', '--runtime', rt, './dist/app.node.mjs'], { cwd: dir });
+            const r = await runCli(cliEntry, ['run', '--runtime', rt, './dist/app.node.mjs'], { cwd: dir });
             assert.equal(r.status, 0, r.stderr);
             assert.match(r.stdout, new RegExp(`ran-on:${rt}`));
         });
@@ -118,14 +90,14 @@ describe('gjsify run --runtime', { timeout: 120_000 }, () => {
 
     it('errors when --runtime is given a non-file target', async () => {
         writePkg(['gjs', 'node']);
-        const r = await runCli(['run', '--runtime', 'node', 'somescriptname'], { cwd: dir });
+        const r = await runCli(cliEntry, ['run', '--runtime', 'node', 'somescriptname'], { cwd: dir });
         assert.equal(r.status, 1);
         assert.match(r.stderr, /needs a bundle FILE/);
     });
 
     it('permits any runtime when the example declares none', async () => {
         writeFileSync(join(dir, 'package.json'), JSON.stringify({ name: 'no-decl', private: true }, null, 2) + '\n');
-        const r = await runCli(['run', '--runtime', 'node', './dist/app.node.mjs'], { cwd: dir });
+        const r = await runCli(cliEntry, ['run', '--runtime', 'node', './dist/app.node.mjs'], { cwd: dir });
         assert.equal(r.status, 0, r.stderr);
         assert.match(r.stdout, /ran-on:node/);
     });
@@ -148,7 +120,7 @@ describe('gjsify showcase --runtime', { timeout: 120_000 }, () => {
     }
 
     it('rejects --runtime node for a showcase declaring only gjs', async (t) => {
-        const r = await runCli(['showcase', 'webrtc-loopback', '--runtime', 'node']);
+        const r = await runCli(cliEntry, ['showcase', 'webrtc-loopback', '--runtime', 'node']);
         if (skipIfMissingSystemDeps(t, r)) return;
         assert.equal(r.status, 1, r.stderr);
         // The ACTIONABLE message ("this showcase is GJS-only"), not the
@@ -161,7 +133,7 @@ describe('gjsify showcase --runtime', { timeout: 120_000 }, () => {
     });
 
     it('rejects --runtime bun for a showcase declaring only gjs', async (t) => {
-        const r = await runCli(['showcase', 'minimalist-browser', '--runtime', 'bun']);
+        const r = await runCli(cliEntry, ['showcase', 'minimalist-browser', '--runtime', 'bun']);
         if (skipIfMissingSystemDeps(t, r)) return;
         assert.equal(r.status, 1, r.stderr);
         assert.match(r.stderr, /does not support --runtime bun/);
@@ -226,7 +198,7 @@ describe('gjsify showcase --runtime', { timeout: 120_000 }, () => {
         try {
             // No `cwd`: the showcase dir resolves through `createRequire`
             // relative to the CLI's own lib, never through the caller's cwd.
-            const r = await runCli(['showcase', 'webrtc-loopback', '--runtime', 'node'], {
+            const r = await runCli(cliEntry, ['showcase', 'webrtc-loopback', '--runtime', 'node'], {
                 env: { ...process.env, PATH: emptyBin },
             });
             assert.doesNotMatch(r.stderr, /Missing system dependencies/);

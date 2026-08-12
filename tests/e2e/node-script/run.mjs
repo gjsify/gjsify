@@ -108,7 +108,7 @@ describe('gjsify run --node-script on a Node-less GJS host', { skip: SKIP, timeo
      * only faithful way to be a Node-less host — and it is why `gjs` has to be
      * re-checked afterwards (see `noNodePath`).
      */
-    function runCli(argv, { expectFail = false, path = 'sabotaged' } = {}) {
+    function runInFixture(argv, { expectFail = false, path = 'sabotaged' } = {}) {
         const opts = {
             cwd: projectDir,
             stdio: 'pipe',
@@ -180,7 +180,7 @@ describe('gjsify run --node-script on a Node-less GJS host', { skip: SKIP, timeo
     });
 
     it('runs the script, forwards argv, and never touches Node', () => {
-        const { output } = runCli(['run', '--node-script', 'scripts/probe.mjs', 'alpha', 'beta']);
+        const { output } = runInFixture(['run', '--node-script', 'scripts/probe.mjs', 'alpha', 'beta']);
 
         assert.ok(!/FAKE (node|npm) CALLED/.test(output), `Node/npm was spawned:\n${output}`);
         assert.match(output, /ARGS:alpha,beta/, `argv was not forwarded:\n${output}`);
@@ -197,19 +197,19 @@ describe('gjsify run --node-script on a Node-less GJS host', { skip: SKIP, timeo
     });
 
     it('propagates a non-zero exit code', () => {
-        const { status, output } = runCli(['run', '--node-script', 'scripts/probe.mjs', '--fail'], {
+        const { status, output } = runInFixture(['run', '--node-script', 'scripts/probe.mjs', '--fail'], {
             expectFail: true,
         });
         assert.equal(status, 3, `expected the script's own exit code to survive:\n${output}`);
     });
 
     it('reports a missing script instead of bundling nothing', () => {
-        const { output } = runCli(['run', '--node-script', 'scripts/does-not-exist.mjs'], { expectFail: true });
+        const { output } = runInFixture(['run', '--node-script', 'scripts/does-not-exist.mjs'], { expectFail: true });
         assert.match(output, /no such file/i, output);
     });
 
     it('rejects --node-script combined with --runtime', () => {
-        const { output } = runCli(['run', '--node-script', '--runtime', 'node', 'scripts/probe.mjs'], {
+        const { output } = runInFixture(['run', '--node-script', '--runtime', 'node', 'scripts/probe.mjs'], {
             expectFail: true,
         });
         assert.match(output, /cannot be combined with --runtime/, output);
@@ -222,13 +222,13 @@ describe('gjsify run --node-script on a Node-less GJS host', { skip: SKIP, timeo
     // is the one that matters: it goes through `/bin/sh`, which no per-command
     // rewrite inside the CLI would ever see.
     it('runs `node <file>` from a package script through the PATH shim', { skip: SKIP_SHIM }, () => {
-        const { output } = runCli(['run', 'build'], { path: 'no-node' });
+        const { output } = runInFixture(['run', 'build'], { path: 'no-node' });
         assert.match(output, /ARGS:from-script/, output);
         assert.match(output, /\bOK\b/, output);
     });
 
     it('runs `node <file>` inside a COMPOUND script (`a && node b`)', { skip: SKIP_SHIM }, () => {
-        const { output } = runCli(['run', 'build:compound'], { path: 'no-node' });
+        const { output } = runInFixture(['run', 'build:compound'], { path: 'no-node' });
         assert.match(output, /step-one/, output);
         assert.match(output, /ARGS:compound/, output);
     });
@@ -236,7 +236,7 @@ describe('gjsify run --node-script on a Node-less GJS host', { skip: SKIP, timeo
     it('refuses `node <flag>` with a message instead of mis-parsing it', { skip: SKIP_SHIM }, () => {
         // `node --test x.mjs` wants Node's own test runner. Forwarding the flag
         // would make yargs take `--test` FOR the script path.
-        const { output } = runCli(['run', 'build:nodeflag'], { expectFail: true, path: 'no-node' });
+        const { output } = runInFixture(['run', 'build:nodeflag'], { expectFail: true, path: 'no-node' });
         assert.match(output, /runs a SCRIPT FILE only/, output);
     });
 });

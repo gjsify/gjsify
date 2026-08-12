@@ -14,25 +14,15 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { writeFileSync, readFileSync, mkdirSync, chmodSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { runCliSync } from '../mock-registry.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const CLI_ENTRY = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js');
-
-function runCli(args, opts = {}) {
-    return execFileSync('node', [CLI_ENTRY, ...args], {
-        stdio: opts.stdio ?? 'pipe',
-        timeout: opts.timeout ?? 60 * 1000,
-        cwd: opts.cwd,
-        env: opts.env ?? process.env,
-        encoding: 'utf8',
-    });
-}
 
 describe('CLI flatpak sync-flathub E2E', { timeout: 5 * 60 * 1000 }, () => {
     let tmpDir;
@@ -54,7 +44,8 @@ describe('CLI flatpak sync-flathub E2E', { timeout: 5 * 60 * 1000 }, () => {
         const projectDir = join(tmpDir, 'dry');
         scaffoldProject(projectDir, { appId: 'org.example.SyncDry' });
 
-        const out = runCli(
+        const out = runCliSync(
+            CLI_ENTRY,
             [
                 'flatpak',
                 'sync-flathub',
@@ -118,7 +109,8 @@ describe('CLI flatpak sync-flathub E2E', { timeout: 5 * 60 * 1000 }, () => {
         const xdgCache = join(tmpDir, 'xdg-real');
         mkdirSync(xdgCache, { recursive: true });
 
-        runCli(
+        runCliSync(
+            CLI_ENTRY,
             [
                 'flatpak',
                 'sync-flathub',
@@ -204,7 +196,8 @@ describe('CLI flatpak sync-flathub E2E', { timeout: 5 * 60 * 1000 }, () => {
         const xdgCache = join(tmpDir, 'xdg-pr');
         mkdirSync(xdgCache, { recursive: true });
 
-        runCli(
+        runCliSync(
+            CLI_ENTRY,
             ['flatpak', 'sync-flathub', '--version', 'v0.6.0', '--commit', 'cafef00d0000000000000000000000000000bbbb'],
             {
                 cwd: projectDir,
@@ -266,7 +259,8 @@ describe('CLI flatpak sync-flathub E2E', { timeout: 5 * 60 * 1000 }, () => {
         const xdgCache = join(tmpDir, 'xdg-idem');
         mkdirSync(xdgCache, { recursive: true });
 
-        const out = runCli(
+        const out = runCliSync(
+            CLI_ENTRY,
             ['flatpak', 'sync-flathub', '--version', 'v1.0.0', '--commit', 'feedfacefeedfacefeedfacefeedfacefeedface'],
             {
                 cwd: projectDir,

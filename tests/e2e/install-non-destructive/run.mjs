@@ -30,52 +30,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
-import { createHash } from 'node:crypto';
-import { spawn, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-
-const BLOCK = 512;
-
-function tarHeader(name, size, type = '0') {
-    const buf = Buffer.alloc(BLOCK);
-    buf.write(name, 0, Math.min(name.length, 100));
-    buf.write('0000644', 100, 7);
-    buf[107] = 0;
-    buf.write('0000000', 108, 7);
-    buf[115] = 0;
-    buf.write('0000000', 116, 7);
-    buf[123] = 0;
-    buf.write(size.toString(8).padStart(11, '0'), 124, 11);
-    buf[135] = 0;
-    buf.write('0'.repeat(11), 136, 11);
-    buf[147] = 0;
-    buf.fill(0x20, 148, 156);
-    buf.write(type, 156, 1);
-    buf.write('ustar\0', 257, 6);
-    buf.write('00', 263, 2);
-    let sum = 0;
-    for (let i = 0; i < BLOCK; i++) sum += buf[i];
-    buf.write(sum.toString(8).padStart(6, '0'), 148, 6);
-    buf[154] = 0;
-    buf[155] = 0x20;
-    return buf;
-}
-
-function buildTar(files) {
-    const parts = [tarHeader('package/', 0, '5')];
-    for (const [fname, content] of Object.entries(files)) {
-        const body = Buffer.from(content);
-        const padded = Buffer.alloc(Math.ceil(body.length / BLOCK) * BLOCK);
-        body.copy(padded);
-        parts.push(tarHeader('package/' + fname, body.length), padded);
-    }
-    parts.push(Buffer.alloc(BLOCK * 2));
-    return Buffer.concat(parts);
-}
-
-function sriSha512(bytes) {
-    return `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
-}
+import { packageTar, runCli, sriSha512 } from '../mock-registry.mjs';
 
 // Two independent registry packages, each a trivial CJS module. `@fixture/dep`
 // is the baseline dependency committed into every fixture; `@fixture/other` is
@@ -83,7 +40,7 @@ function sriSha512(bytes) {
 function makeRegistry() {
     const pkg = (name, version) => {
         const tar = gzipSync(
-            buildTar({
+            packageTar({
                 'package.json': JSON.stringify({ name, version, main: 'index.js' }),
                 'index.js': `module.exports = ${JSON.stringify(name)};\n`,
             }),
@@ -142,35 +99,6 @@ function makeRegistry() {
         }
     });
     return server;
-}
-
-function runCli(cliEntry, args, { cwd, env, timeoutMs = 60_000 } = {}) {
-    return new Promise((resolveP, reject) => {
-        const child = spawn(process.execPath, [cliEntry, ...args], {
-            cwd,
-            env,
-            stdio: ['ignore', 'pipe', 'pipe'],
-        });
-        let stdout = '';
-        let stderr = '';
-        child.stdout.setEncoding('utf-8');
-        child.stderr.setEncoding('utf-8');
-        child.stdout.on('data', (c) => (stdout += c));
-        child.stderr.on('data', (c) => (stderr += c));
-        const kill = setTimeout(() => {
-            // ChildProcess.kill with a known signal never throws — failure
-            // to deliver just returns false (the process already exited).
-            child.kill('SIGKILL');
-        }, timeoutMs);
-        child.on('close', (code) => {
-            clearTimeout(kill);
-            resolveP({ status: code, stdout, stderr });
-        });
-        child.on('error', (e) => {
-            clearTimeout(kill);
-            reject(e);
-        });
-    });
 }
 
 // Committed build-artifact markers — if an install deletes or rewrites either,
@@ -318,7 +246,7 @@ describe('gjsify install — non-destructive (ADR 0001)', { timeout: 120_000 }, 
     }
 
     async function seedInstallAndCommit(root, env) {
-        const seed = await runCli(cliEntry, ['install'], { cwd: root, env });
+        const seed = await runCli(cliEntry, ['install'], { timeoutMs: 60_000, cwd: root, env });
         assert.equal(seed.status, 0, `seed install failed: ${seed.stderr}\n${seed.stdout}`);
         assert.ok(existsSync(join(root, 'gjsify-lock.json')), 'seed install must produce a lockfile');
         git(root, ['init', '-q'], env);
@@ -332,7 +260,7 @@ describe('gjsify install — non-destructive (ADR 0001)', { timeout: 120_000 }, 
         const { root, env } = scaffoldCommitted('gjsify-e2e-nondestr-reinstall-');
         await seedInstallAndCommit(root, env);
 
-        const r = await runCli(cliEntry, ['install'], { cwd: root, env });
+        const r = await runCli(cliEntry, ['install'], { timeoutMs: 60_000, cwd: root, env });
         assert.equal(r.status, 0, `install failed: ${r.stderr}\n${r.stdout}`);
 
         assertMarkers(markerChecks(root));
@@ -347,7 +275,7 @@ describe('gjsify install — non-destructive (ADR 0001)', { timeout: 120_000 }, 
         const { root, env } = scaffoldCommitted('gjsify-e2e-nondestr-immutable-');
         await seedInstallAndCommit(root, env);
 
-        const r = await runCli(cliEntry, ['install', '--immutable'], { cwd: root, env });
+        const r = await runCli(cliEntry, ['install', '--immutable'], { timeoutMs: 60_000, cwd: root, env });
         assert.equal(r.status, 0, `--immutable install failed: ${r.stderr}\n${r.stdout}`);
 
         assertMarkers(markerChecks(root));
@@ -358,7 +286,7 @@ describe('gjsify install — non-destructive (ADR 0001)', { timeout: 120_000 }, 
         const { root, env } = scaffoldCommitted('gjsify-e2e-nondestr-add-');
         await seedInstallAndCommit(root, env);
 
-        const r = await runCli(cliEntry, ['install', '@fixture/other@^1.0.0'], { cwd: root, env });
+        const r = await runCli(cliEntry, ['install', '@fixture/other@^1.0.0'], { timeoutMs: 60_000, cwd: root, env });
         assert.equal(r.status, 0, `add-package install failed: ${r.stderr}\n${r.stdout}`);
 
         // Build artifacts + source are untouched...
@@ -381,7 +309,7 @@ describe('gjsify install — non-destructive (ADR 0001)', { timeout: 120_000 }, 
         const { root, env } = scaffoldCommitted('gjsify-e2e-nondestr-workspace-', { workspace: true });
         await seedInstallAndCommit(root, env);
 
-        const r = await runCli(cliEntry, ['install'], { cwd: root, env });
+        const r = await runCli(cliEntry, ['install'], { timeoutMs: 60_000, cwd: root, env });
         assert.equal(r.status, 0, `workspace install failed: ${r.stderr}\n${r.stdout}`);
 
         assertMarkers(markerChecks(join(root, 'packages', 'a'), 'packages/a/'));

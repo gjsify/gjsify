@@ -49,85 +49,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve, relative } from 'node:path';
 import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
-import { createHash } from 'node:crypto';
-import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-
-const BLOCK = 512;
-
-function tarHeader(name, size, type = '0') {
-    const buf = Buffer.alloc(BLOCK);
-    buf.write(name, 0, Math.min(name.length, 100));
-    buf.write('0000644', 100, 7);
-    buf[107] = 0;
-    buf.write('0000000', 108, 7);
-    buf[115] = 0;
-    buf.write('0000000', 116, 7);
-    buf[123] = 0;
-    buf.write(size.toString(8).padStart(11, '0'), 124, 11);
-    buf[135] = 0;
-    buf.write('0'.repeat(11), 136, 11);
-    buf[147] = 0;
-    buf.fill(0x20, 148, 156);
-    buf.write(type, 156, 1);
-    buf.write('ustar\0', 257, 6);
-    buf.write('00', 263, 2);
-    let sum = 0;
-    for (let i = 0; i < BLOCK; i++) sum += buf[i];
-    buf.write(sum.toString(8).padStart(6, '0'), 148, 6);
-    buf[154] = 0;
-    buf[155] = 0x20;
-    return buf;
-}
-
-function buildTar(files) {
-    const parts = [tarHeader('package/', 0, '5')];
-    for (const [fname, content] of Object.entries(files)) {
-        const body = Buffer.from(content);
-        const padded = Buffer.alloc(Math.ceil(body.length / BLOCK) * BLOCK);
-        body.copy(padded);
-        parts.push(tarHeader('package/' + fname, body.length), padded);
-    }
-    parts.push(Buffer.alloc(BLOCK * 2));
-    return Buffer.concat(parts);
-}
-
-function sriSha512(bytes) {
-    return `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
-}
-
-function runCli(cliEntry, args, { cwd, env, timeoutMs = 30_000 } = {}) {
-    return new Promise((resolveP, reject) => {
-        const child = spawn(process.execPath, [cliEntry, ...args], {
-            cwd,
-            env,
-            stdio: ['ignore', 'pipe', 'pipe'],
-        });
-        let stdout = '';
-        let stderr = '';
-        child.stdout.setEncoding('utf-8');
-        child.stderr.setEncoding('utf-8');
-        child.stdout.on('data', (c) => {
-            stdout += c;
-        });
-        child.stderr.on('data', (c) => {
-            stderr += c;
-        });
-        const kill = setTimeout(() => {
-            // ChildProcess.kill with a known signal never throws — failure
-            // to deliver just returns false (the process already exited).
-            child.kill('SIGKILL');
-        }, timeoutMs);
-        child.on('close', (code) => {
-            clearTimeout(kill);
-            resolveP({ status: code, stdout, stderr });
-        });
-        child.on('error', (e) => {
-            clearTimeout(kill);
-            reject(e);
-        });
-    });
-}
+import { packageTar, runCli, sriSha512 } from '../mock-registry.mjs';
 
 const SOURCE_MARKER = 'export const SOURCE = "WORKSPACE_SOURCE_PRESERVED";\n';
 
@@ -139,13 +62,13 @@ const SOURCE_MARKER = 'export const SOURCE = "WORKSPACE_SOURCE_PRESERVED";\n';
 // though a registry consumer pulls it into the resolved tree.
 function makeRegistry() {
     const libTar = gzipSync(
-        buildTar({
+        packageTar({
             'package.json': JSON.stringify({ name: '@fixture/lib', version: '9.9.9', main: 'dist/index.js' }),
             'dist/index.js': 'module.exports = "PUBLISHED_TARBALL";\n',
         }),
     );
     const appTar = gzipSync(
-        buildTar({
+        packageTar({
             'package.json': JSON.stringify({
                 name: '@fixture/app',
                 version: '1.0.0',

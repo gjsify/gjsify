@@ -9,25 +9,15 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { writeFileSync, mkdirSync, existsSync, statSync, utimesSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { runCliSync } from '../mock-registry.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const CLI_ENTRY = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js');
-
-function runCli(args, opts = {}) {
-    return execFileSync('node', [CLI_ENTRY, ...args], {
-        stdio: opts.stdio ?? 'pipe',
-        timeout: opts.timeout ?? 60 * 1000,
-        cwd: opts.cwd,
-        env: opts.env ?? process.env,
-        encoding: 'utf8',
-    });
-}
 
 describe('CLI test runner E2E', { timeout: 5 * 60 * 1000 }, () => {
     let tmpDir;
@@ -51,7 +41,7 @@ describe('CLI test runner E2E', { timeout: 5 * 60 * 1000 }, () => {
             test: 'process.stdout.write("[suite] passed\\n");\nprocess.exit(0);\n',
         });
 
-        const out = runCli(['test', '--runtime', 'node', '--verbose'], { cwd: dir });
+        const out = runCliSync(CLI_ENTRY, ['test', '--runtime', 'node', '--verbose'], { cwd: dir });
 
         assert.match(out, /\[suite\] passed/);
         assert.match(out, /✅ node \(/);
@@ -67,7 +57,7 @@ describe('CLI test runner E2E', { timeout: 5 * 60 * 1000 }, () => {
         let exitCode = 0;
         let out = '';
         try {
-            runCli(['test', '--runtime', 'node'], { cwd: dir });
+            runCliSync(CLI_ENTRY, ['test', '--runtime', 'node'], { cwd: dir });
         } catch (e) {
             exitCode = e.status ?? -1;
             out = `${e.stdout ?? ''}${e.stderr ?? ''}`;
@@ -82,7 +72,7 @@ describe('CLI test runner E2E', { timeout: 5 * 60 * 1000 }, () => {
             test: 'console.log("[v1]");\nprocess.exit(0);\n',
         });
 
-        runCli(['test', '--runtime', 'node'], { cwd: dir });
+        runCliSync(CLI_ENTRY, ['test', '--runtime', 'node'], { cwd: dir });
         const outfile = join(dir, 'dist', 'test.node.mjs');
         const firstMtime = statSync(outfile).mtimeMs;
 
@@ -92,7 +82,7 @@ describe('CLI test runner E2E', { timeout: 5 * 60 * 1000 }, () => {
         utimesSync(outfile, future, future);
         const bumpedMtime = statSync(outfile).mtimeMs;
 
-        runCli(['test', '--runtime', 'node', '--rebuild'], { cwd: dir });
+        runCliSync(CLI_ENTRY, ['test', '--runtime', 'node', '--rebuild'], { cwd: dir });
         const finalMtime = statSync(outfile).mtimeMs;
 
         assert.notEqual(finalMtime, bumpedMtime, '--rebuild should rewrite the bundle');
@@ -108,11 +98,11 @@ describe('CLI test runner E2E', { timeout: 5 * 60 * 1000 }, () => {
         });
 
         // First build it.
-        runCli(['test', '--runtime', 'node'], { cwd: dir });
+        runCliSync(CLI_ENTRY, ['test', '--runtime', 'node'], { cwd: dir });
         const before = statSync(join(dir, 'dist', 'test.node.mjs')).mtimeMs;
 
         // Now --no-build must not re-build.
-        const out = runCli(['test', '--runtime', 'node', '--no-build'], { cwd: dir });
+        const out = runCliSync(CLI_ENTRY, ['test', '--runtime', 'node', '--no-build'], { cwd: dir });
         assert.match(out, /\[no-build\]/);
         const after = statSync(join(dir, 'dist', 'test.node.mjs')).mtimeMs;
         assert.equal(after, before, '--no-build should not rewrite the bundle');
@@ -123,7 +113,7 @@ describe('CLI test runner E2E', { timeout: 5 * 60 * 1000 }, () => {
         let exitCode = 0;
         let err = '';
         try {
-            runCli(['test', '--runtime', 'node', '--no-build'], { cwd: dir2 });
+            runCliSync(CLI_ENTRY, ['test', '--runtime', 'node', '--no-build'], { cwd: dir2 });
         } catch (e) {
             exitCode = e.status ?? -1;
             err = `${e.stdout ?? ''}${e.stderr ?? ''}`;
@@ -144,7 +134,7 @@ describe('CLI test runner E2E', { timeout: 5 * 60 * 1000 }, () => {
         let exitCode = 0;
         let err = '';
         try {
-            runCli(['test', '--runtime', 'node'], { cwd: dir });
+            runCliSync(CLI_ENTRY, ['test', '--runtime', 'node'], { cwd: dir });
         } catch (e) {
             exitCode = e.status ?? -1;
             err = `${e.stdout ?? ''}${e.stderr ?? ''}`;

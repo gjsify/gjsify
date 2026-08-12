@@ -23,159 +23,40 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { createServer } from 'node:http';
-import { gzipSync } from 'node:zlib';
-import { createHash } from 'node:crypto';
-import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-
-const BLOCK = 512;
-
-function tarHeader(name, size, type = '0') {
-    const buf = Buffer.alloc(BLOCK);
-    buf.write(name, 0, Math.min(name.length, 100));
-    buf.write('0000644', 100, 7);
-    buf[107] = 0;
-    buf.write('0000000', 108, 7);
-    buf[115] = 0;
-    buf.write('0000000', 116, 7);
-    buf[123] = 0;
-    buf.write(size.toString(8).padStart(11, '0'), 124, 11);
-    buf[135] = 0;
-    buf.write('0'.repeat(11), 136, 11);
-    buf[147] = 0;
-    buf.fill(0x20, 148, 156);
-    buf.write(type, 156, 1);
-    buf.write('ustar\0', 257, 6);
-    buf.write('00', 263, 2);
-    let sum = 0;
-    for (let i = 0; i < BLOCK; i++) sum += buf[i];
-    buf.write(sum.toString(8).padStart(6, '0'), 148, 6);
-    buf[154] = 0;
-    buf[155] = 0x20;
-    return buf;
-}
-
-function buildPackageTar(pkgJson) {
-    const body = Buffer.from(JSON.stringify(pkgJson, null, 2) + '\n');
-    const padded = Buffer.alloc(Math.ceil(body.length / BLOCK) * BLOCK);
-    body.copy(padded);
-    return Buffer.concat([
-        tarHeader('package/', 0, '5'),
-        tarHeader('package/package.json', body.length),
-        padded,
-        Buffer.alloc(BLOCK * 2),
-    ]);
-}
-
-function sriSha512(bytes) {
-    return `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
-}
-
-function runCli(cliEntry, args, { cwd, env, timeoutMs = 30_000 } = {}) {
-    return new Promise((resolve, reject) => {
-        const child = spawn(process.execPath, [cliEntry, ...args], {
-            cwd,
-            env,
-            stdio: ['ignore', 'pipe', 'pipe'],
-        });
-        let stdout = '';
-        let stderr = '';
-        child.stdout.setEncoding('utf-8');
-        child.stderr.setEncoding('utf-8');
-        child.stdout.on('data', (c) => {
-            stdout += c;
-        });
-        child.stderr.on('data', (c) => {
-            stderr += c;
-        });
-        const kill = setTimeout(() => {
-            // ChildProcess.kill with a known signal never throws — failure
-            // to deliver just returns false (the process already exited).
-            child.kill('SIGKILL');
-        }, timeoutMs);
-        child.on('close', (code) => {
-            clearTimeout(kill);
-            resolve({ status: code, stdout, stderr });
-        });
-        child.on('error', (e) => {
-            clearTimeout(kill);
-            reject(e);
-        });
-    });
-}
+import { runCli, startMockRegistry } from '../mock-registry.mjs';
 
 describe('gjsify install — workspace-aware (Phase D.3)', { timeout: 60_000 }, () => {
-    let server, registryUrl, root, cliEntry, envForCli;
+    let registry, root, cliEntry, envForCli;
     // When true, the mock registry 404s every tarball download — used to
     // simulate an install whose download/extract phase fails mid-way.
     let failTarballs = false;
 
     const PACKAGES = {
-        'lib-ext': { versions: { '4.5.0': { dependencies: {} } } },
-        'mid-ext': { versions: { '2.0.0': { dependencies: { 'lib-ext': '^4.0.0' } } } },
+        'lib-ext': { '4.5.0': { dependencies: {} } },
+        'mid-ext': { '2.0.0': { dependencies: { 'lib-ext': '^4.0.0' } } },
     };
 
     before(async () => {
-        const index = {};
-        for (const [name, info] of Object.entries(PACKAGES)) {
-            index[name] = { name, 'dist-tags': {}, versions: {} };
-            let last = '';
-            for (const [version, body] of Object.entries(info.versions)) {
-                const tar = buildPackageTar({ name, version, ...body });
-                const tgz = gzipSync(tar);
-                index[name].versions[version] = {
-                    name,
-                    version,
-                    dependencies: body.dependencies ?? {},
-                    dist: { tarball: `__BASE__/-/${name}/${version}.tgz`, integrity: sriSha512(tgz) },
-                    _tgz: tgz,
-                };
-                last = version;
-            }
-            index[name]['dist-tags'].latest = last;
-        }
-
-        server = createServer((req, res) => {
-            try {
-                const url = req.url ?? '';
-                const tarMatch = url.match(/^\/-\/([^/]+)\/([^/]+)\.tgz$/);
-                if (tarMatch) {
-                    const v = index[tarMatch[1]]?.versions[tarMatch[2]];
-                    if (!v || failTarballs) {
-                        res.writeHead(404).end('not found');
-                        return;
-                    }
-                    res.writeHead(200, { 'content-type': 'application/octet-stream' });
-                    res.end(v._tgz);
-                    return;
-                }
-                const pkgName = decodeURIComponent(url.replace(/^\//, ''));
-                const p = index[pkgName];
-                if (!p) {
+        registry = await startMockRegistry(PACKAGES, {
+            // The failure this suite needs the registry to produce: every tarball
+            // 404s while the index still resolves, so the install gets past
+            // resolution and dies in download/extract.
+            onRequest: (req, res) => {
+                if (failTarballs && (req.url ?? '').endsWith('.tgz')) {
                     res.writeHead(404).end('not found');
-                    return;
+                    return true;
                 }
-                const baseUrl = `http://127.0.0.1:${server.address().port}`;
-                const wire = JSON.parse(JSON.stringify(p, (k, v) => (k === '_tgz' ? undefined : v)));
-                for (const v of Object.values(wire.versions)) {
-                    v.dist.tarball = v.dist.tarball.replace('__BASE__', baseUrl);
-                }
-                res.writeHead(200, { 'content-type': 'application/json' });
-                res.end(JSON.stringify(wire));
-            } catch (e) {
-                res.writeHead(500).end(String(e));
-            }
+                return false;
+            },
         });
-        await new Promise((r) => server.listen(0, '127.0.0.1', r));
-        registryUrl = `http://127.0.0.1:${server.address().port}/`;
 
         root = mkdtempSync(join(tmpdir(), 'gjsify-e2e-ws-install-'));
         cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
         envForCli = {
             ...process.env,
             GJSIFY_INSTALL_BACKEND: 'native',
-            npm_config_registry: registryUrl,
+            npm_config_registry: registry.url,
             // Isolate the gjsify tarball/packument cache — the `failTarballs`
             // tests below must actually hit the mock registry, not a warm
             // user-level cache.
@@ -197,7 +78,7 @@ describe('gjsify install — workspace-aware (Phase D.3)', { timeout: 60_000 }, 
                 2,
             ) + '\n',
         );
-        writeFileSync(join(root, '.npmrc'), `registry=${registryUrl}\n`);
+        writeFileSync(join(root, '.npmrc'), `registry=${registry.url}\n`);
 
         // utils — leaf workspace, no deps.
         mkdirSync(join(root, 'packages', 'utils'), { recursive: true });
@@ -266,8 +147,8 @@ describe('gjsify install — workspace-aware (Phase D.3)', { timeout: 60_000 }, 
         );
     });
 
-    after(() => {
-        if (server) server.close();
+    after(async () => {
+        await registry?.close();
         if (root) rmSync(root, { recursive: true, force: true });
         if (envForCli?.XDG_CACHE_HOME) rmSync(envForCli.XDG_CACHE_HOME, { recursive: true, force: true });
     });
@@ -454,7 +335,7 @@ describe('gjsify install — workspace-aware (Phase D.3)', { timeout: 60_000 }, 
                     2,
                 ) + '\n',
             );
-            writeFileSync(join(failRoot, '.npmrc'), `registry=${registryUrl}\n`);
+            writeFileSync(join(failRoot, '.npmrc'), `registry=${registry.url}\n`);
             mkdirSync(join(failRoot, 'packages', 'tools'), { recursive: true });
             writeFileSync(
                 join(failRoot, 'packages', 'tools', 'package.json'),
@@ -515,7 +396,7 @@ describe('gjsify install — workspace-aware (Phase D.3)', { timeout: 60_000 }, 
                     2,
                 ) + '\n',
             );
-            writeFileSync(join(failRoot, '.npmrc'), `registry=${registryUrl}\n`);
+            writeFileSync(join(failRoot, '.npmrc'), `registry=${registry.url}\n`);
             // A leaf workspace with no external deps — the symlink target.
             mkdirSync(join(failRoot, 'packages', 'lib'), { recursive: true });
             writeFileSync(
