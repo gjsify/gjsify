@@ -265,6 +265,41 @@ function pruneCache(dir, keepBasename) {
 }
 
 /**
+ * The newest cached bootstrap whose CONTENTS hash to the digest in its own name, or
+ * null. Re-hashing is the whole point: the filename is a claim, and a truncated entry
+ * keeps its name — the same reason the warm-cache path below re-hashes rather than
+ * trusting it.
+ */
+function newestCachedBootstrap(dir) {
+    let best = null;
+    let children;
+    try {
+        children = Gio.File.new_for_path(dir).enumerate_children(
+            'standard::name,time::modified',
+            Gio.FileQueryInfoFlags.NONE,
+            null,
+        );
+    } catch {
+        // No cache directory yet — `enumerate_children` is `throws="1"`.
+        return null;
+    }
+    for (;;) {
+        const entry = children.next_file(null);
+        if (entry === null) break;
+        const name = entry.get_name();
+        if (!name.startsWith(CACHE_PREFIX) || !name.endsWith(CACHE_SUFFIX)) continue;
+        const claimed = name.slice(CACHE_PREFIX.length, name.length - CACHE_SUFFIX.length).toLowerCase();
+        if (!/^[0-9a-f]{64}$/.test(claimed)) continue;
+        const path = GLib.build_filenamev([dir, name]);
+        const bytes = readBytesOrNull(path);
+        if (!bytes || sha256Hex(bytes).toLowerCase() !== claimed) continue;
+        const mtime = entry.get_modification_date_time()?.to_unix() ?? 0;
+        if (!best || mtime > best.mtime) best = { path, basename: name, mtime };
+    }
+    return best;
+}
+
+/**
  * Resolve a VERIFIED bootstrap bundle and return its path.
  *
  * Fetching the digest BEFORE the bundle, and keying the cache by it, is the
@@ -286,6 +321,26 @@ async function resolveBootstrap(session, bootstrapUrl, sha256Url) {
         try {
             sumBytes = await fetchBytes(session, sha256Url);
         } catch (err) {
+            // Before refusing: a bundle already in the cache carries its own digest in
+            // its NAME, and re-hashing the bytes proves the name. Those bytes were
+            // verified against a digest that WAS fetched, on an earlier run — so reusing
+            // them installs nothing unverified. That is a different thing from the defect
+            // this function's header records, where a failed digest fetch waved a FRESH
+            // download through with no digest at all.
+            //
+            // What it does concede is FRESHNESS: someone who can block the network can
+            // hold you on the release you already have. So it is loud, it names the
+            // digest, and it only ever runs after the retries above are exhausted — which
+            // on 2026-08-12 was a GitHub release CDN dropping every connection from the
+            // CI runners for over an hour, with a warm cache sitting right there, unusable
+            // because the digest fetch comes first.
+            const cached = newestCachedBootstrap(cacheDir());
+            if (cached) {
+                error(`Could not fetch ${sha256Url}: ${err.message}`);
+                info(`Falling back to the cached bootstrap verified earlier: ${cached.basename}`);
+                info('It may be OLDER than `latest` — re-run once the network recovers.');
+                return cached.path;
+            }
             error(`Could not fetch ${sha256Url}: ${err.message}`);
             error('Refusing to install an UNVERIFIED bootstrap bundle.');
             error("To bootstrap without verification, set GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL='' explicitly.");

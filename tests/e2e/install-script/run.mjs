@@ -13,7 +13,7 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, readdirSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
@@ -393,10 +393,51 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
         assert.match(out, /retry 2\/5/, 'the retry happened but was not announced');
     });
 
-    it('does NOT retry a 404 — the registry answered', async () => {
+    it('falls back to a cached, self-verifying bundle when the digest is unreachable', async () => {
+        // A bundle in the cache carries its digest in its NAME and is re-hashed to prove
+        // it, so reusing it installs nothing unverified — the concession is FRESHNESS, not
+        // verification. The case that forced it: a release CDN dropping every connection
+        // from the CI runners for over an hour, with a warm cache sitting there unusable
+        // because the digest fetch comes first.
         goneHits = 0;
+        const cache = join(tmpRoot, 'fallback-cache');
+        mkdirSync(cache, { recursive: true });
+        writeFileSync(join(cache, `cli-${cliBundleSha256}.gjs.mjs`), cliBundleBytes);
+        const r = await runBootstrap(['--tag', '0.0.99-test'], {
+            GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL: `${registryUrl}gone.sha256`,
+            GJSIFY_INSTALL_BOOTSTRAP_CACHE: cache,
+        });
+        const out = r.stderr + r.stdout;
+        assert.match(out, /Falling back to the cached bootstrap/, out);
+        assert.doesNotMatch(out, /Refusing to install an UNVERIFIED bootstrap bundle/, out);
+    });
+
+    it('still refuses when the digest is unreachable and the cache holds a CORRUPT entry', async () => {
+        // The name is a claim; the bytes are the evidence. An entry whose contents do not
+        // hash to the digest in its own name must not be a fallback — otherwise the
+        // fallback would be the hole the digest-first design closed.
+        const cache = join(tmpRoot, 'corrupt-cache');
+        mkdirSync(cache, { recursive: true });
+        writeFileSync(join(cache, `cli-${cliBundleSha256}.gjs.mjs`), 'not the bundle\n');
         const r = await runBootstrap([], {
             GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL: `${registryUrl}gone.sha256`,
+            GJSIFY_INSTALL_BOOTSTRAP_CACHE: cache,
+        });
+        assert.notEqual(r.status, 0);
+        assert.match(r.stderr + r.stdout, /Refusing to install an UNVERIFIED bootstrap bundle/);
+    });
+
+    it('does NOT retry a 404 — the registry answered', async () => {
+        goneHits = 0;
+        // An EMPTY cache dir of its own, and that is not tidiness: `runBootstrap` points
+        // every case at one shared cache, so by the time this runs an earlier case has
+        // warmed it — and the fallback above would then answer the 404 instead of the
+        // refusal this case is about. Isolating the cache keeps the two claims separable.
+        const cache = join(tmpRoot, 'no-fallback-cache');
+        mkdirSync(cache, { recursive: true });
+        const r = await runBootstrap([], {
+            GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL: `${registryUrl}gone.sha256`,
+            GJSIFY_INSTALL_BOOTSTRAP_CACHE: cache,
         });
         assert.notEqual(r.status, 0, 'a missing digest must still be fatal');
         assert.match(r.stderr + r.stdout, /Refusing to install an UNVERIFIED bootstrap bundle/);
