@@ -558,15 +558,12 @@ export class BuildAction {
             opts.globals === undefined && opts.excludeGlobals === undefined
                 ? inputPath
                 : `${inputPath} ${JSON.stringify([opts.globals ?? null, opts.excludeGlobals ?? null])}`;
-        // THE HASH GOES IN THE DIRECTORY, THE FILE KEEPS THE SOURCE'S NAME. It used to be
-        // `<name>-<hash>.mjs`, and that quietly broke every script guarding its body with the
-        // standard "am I the entry point" test: `scripts/audit-runtimes.mjs` asks whether
-        // `process.argv[1]` ENDS WITH `audit-runtimes.mjs`, the bundle was called
-        // `audit-runtimes.mjs-178ec388.mjs`, so the guard was false and
-        // `gjsify run --node-script scripts/audit-runtimes.mjs --platforms` printed NOTHING
-        // and exited 0. `import.meta.url` was already repaired by a define for the same
-        // reason (the bundle does not live where the source lives); `process.argv[1]` is the
-        // other half, and a name is cheaper to keep right than an argv to rewrite.
+        // THE HASH GOES IN THE DIRECTORY, THE FILE KEEPS THE SOURCE'S NAME. As
+        // `<name>-<hash>.mjs` it broke every script guarding its body with the standard
+        // is-entry test: `audit-runtimes.mjs` asks whether `process.argv[1]` ENDS WITH its
+        // own name, so `--node-script` ran it, printed NOTHING and exited 0. Same cause the
+        // `import.meta.url` define exists for — the bundle does not live where the source
+        // does — and a name is cheaper to keep right than an argv to rewrite.
         const outfile = join(
             cacheDir,
             `${safeName}-${shortHash(cacheKey)}`,
