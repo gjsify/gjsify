@@ -17,10 +17,9 @@
 //                            injects the globals the script reads, and resolves bare
 //                            specifiers), then run the bundle.
 //
-// "the globals the script reads" is auto-detection, and it is a syntactic answer to a
-// runtime question — it cannot see that a branch is dead. The script's own package overrides
-// it through `gjsify.nodeScript` / `gjsify.globals` (`Config.forNodeScript`), which is where
-// the declaration has to live because the shim path has no command line to put a flag on.
+// "the globals the script reads" is auto-detection: a syntactic answer to a runtime question,
+// blind to a dead branch. The script's own package overrides it through `gjsify.nodeScript` /
+// `gjsify.globals` (`Config.forNodeScript`) — the shim path has no command line for a flag.
 //
 // `import.meta.url` is the whole trick: the bundle does not live where the source lives, and
 // a script's own location is how it finds what it operates on — all four scripts this was
@@ -93,14 +92,6 @@ export async function runNodeScript(
     // Dynamic import keeps the bundler machinery out of the eager module graph
     // of every `gjsify run`, matching how config.ts pulls it.
     const { BuildAction } = await import('../actions/build.js');
-    // Anchored at the SCRIPT, not at the cwd: during a monorepo build the cwd is the repo
-    // root, and the policy that matters belongs to the package the script lives in. Without
-    // it a script only gets `--globals auto`, which reads what the bundled code REFERENCES
-    // and cannot tell a live branch from a dead one — `@gjsify/adwaita-web`'s stylesheet
-    // build is the case that proves the difference: auto-detection saw dart-sass's browser
-    // half, injected the DOM registers, and the resulting bundle both demanded `gi://Gdk`
-    // and reported `process.versions.node`, which sent dart-sass down a Node path that a
-    // bundled ESM artifact cannot serve.
     const { globals, excludeGlobals } = await new Config().forNodeScript(scriptPath);
     let bundlePath: string;
     try {

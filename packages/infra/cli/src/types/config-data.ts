@@ -108,17 +108,12 @@ export interface ConfigData {
      */
     excludeGlobals?: string[];
     /**
-     * Overrides for the ad-hoc bundle that `gjsify run --node-script <file>`
-     * builds when the host is GJS — for a package whose own artifact needs a
-     * different set of globals than its build SCRIPTS do.
-     *
-     * Unset keys fall through to the package-level `globals` / `excludeGlobals`
-     * above, so the common case needs only those. `@gjsify/adwaita-web` is what
-     * forced the split: its browser bundle wants the DOM registers, while the
-     * script that COMPILES its stylesheet must not have them — dart-sass ships a
-     * browser half whose dead code auto-detection sees, and injecting those
-     * registers is what made the bundle demand `gi://Gdk` and believe it was
-     * running on Node.
+     * Overrides for the ad-hoc bundle `gjsify run --node-script <file>` builds under
+     * GJS. Unset keys fall through to the package-level `globals` / `excludeGlobals`
+     * above, so most packages need only those. `@gjsify/adwaita-web` forced the split:
+     * its browser bundle wants the DOM registers, while the script that COMPILES its
+     * stylesheet must not have them — injecting them made that bundle demand `gi://Gdk`
+     * and believe it was running on Node (#1053).
      */
     nodeScript?: {
         globals?: string;

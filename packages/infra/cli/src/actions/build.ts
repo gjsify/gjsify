@@ -539,10 +539,9 @@ export class BuildAction {
              */
             preserveDefaultExport?: boolean;
             /**
-             * The globals policy for this bundle, when the caller has one to
-             * apply (`Config.forNodeScript` resolves it from the package that
-             * owns the entry). Left unset the nested build keeps `--globals
-             * auto`, which is what the plugin and config loaders want.
+             * The globals policy for this bundle, when the caller has one
+             * (`Config.forNodeScript`). Unset keeps `--globals auto`, which is what
+             * the plugin and config loaders want.
              */
             globals?: string;
             excludeGlobals?: string[];
@@ -552,9 +551,9 @@ export class BuildAction {
         const cacheDir = join(cwd, 'node_modules', '.cache', 'gjsify', opts.cacheSubdir);
         const safeName = opts.label.replace(/[^a-zA-Z0-9._-]/g, '_');
         // The policy belongs in the cache KEY, not only in the build: one file under two
-        // globals policies is two artifacts, and the freshness check below (entry mtime +
-        // lockfile) cannot see the `package.json` edit that changed one. Callers without a
-        // policy keep their existing cache filenames.
+        // policies is two artifacts, and the freshness check below (entry mtime + lockfile)
+        // cannot see the `package.json` edit that changed one. Callers without a policy keep
+        // their existing cache filenames.
         const cacheKey =
             opts.globals === undefined && opts.excludeGlobals === undefined
                 ? inputPath

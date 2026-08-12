@@ -393,16 +393,13 @@ async function compileSass(filename: string): Promise<string> {
         // is actually imported (mirrors the lazy lightningcss backend).
         //
         // NODE ONLY — this comment used to claim "loads under GJS + Node alike".
-        // Measured on 0.37.0: under GJS it rejects with `Module not found: sass`,
-        // because a BARE specifier resolved at RUNTIME is what GJS's ESM loader
-        // cannot do, so `import './x.scss'` fails there with UNLOADABLE_DEPENDENCY.
-        // Resolving the specifier to a file first (the trick `tryLoadNativeBundler`
-        // above uses) does not help either: `sass.default.js` then imports a bare
-        // `immutable` of its own. Only inlining dart-sass would work, and at 3.6 MB
-        // minified on a 6.6 MB CLI bundle that is a carrier-package decision, not a
-        // line here — status/open-todos.md (#1053). dart-sass itself DOES run under
-        // GJS (`adwaita-web`'s `build:scss` does, byte-identically); what is missing
-        // is a way to get it there. `tests/e2e/scss-under-gjs` reds the day this works.
+        // Measured on 0.37.0: under GJS it rejects with `Module not found: sass` — a
+        // BARE specifier resolved at RUNTIME is what GJS's ESM loader cannot do, so
+        // `import './x.scss'` fails with UNLOADABLE_DEPENDENCY. Resolving it to a file
+        // first (`tryLoadNativeBundler`'s trick) does not help: `sass.default.js` then
+        // imports a bare `immutable`. Only INLINING dart-sass works, and 3.6 MB minified
+        // onto a 6.6 MB CLI bundle is a carrier-package decision — status/open-todos.md
+        // (#1053). dart-sass DOES run under GJS: `adwaita-web`'s `build:scss` does.
         _sassPromise = import(/* @vite-ignore */ 'sass') as unknown as Promise<SassSurface>;
     }
     try {
