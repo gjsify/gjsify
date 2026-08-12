@@ -213,6 +213,40 @@ Finishing it is what the previous entry described: an `Importer` whose
 dart-sass ever opens a file — plus a `require` that the bundle can actually
 serve, or an entry that never calls one.
 
+### `build:infra`'s order is hand-maintained, and only a cold OS leg checks it
+
+`build:infra` names 21 workspace builds in a fixed order, and each one compiles
+against whatever the ones BEFORE it produced — nothing else has run yet. #1133 gave
+`@gjsify/unit` a dependency on `@gjsify/runtime`, which `build:infra` does not build
+(`foreach build` does, afterwards), and `gjsify workspace @gjsify/unit build` then
+died with `TS2307: Cannot find module '@gjsify/runtime'`. Fixed by building it one
+step earlier — the interesting part is who noticed.
+
+**Linux was green and the defect is host-independent.** Reproduced locally by moving
+`packages/gjs/runtime/lib` aside: `@gjsify/unit build` fails on any host. What made
+the Linux leg pass is that it runs `build:infra` only on a cold tree ("Bootstrap the
+build toolchain (cold trees only)"), so a warm cache walks straight past the step
+that breaks. The macOS and Windows suites bootstrap from a published CLI every time,
+so they are the only legs that exercise it — and they do not run on pull requests.
+Same shape as ADR 0018 § 5, one layer lower: not "Linux cannot see this OS's bug"
+but "the warm leg cannot see the cold path".
+
+**Why no gate ships with the fix, measured rather than assumed.** Two candidate
+rules were run against today's tree:
+
+- manifest-level — "every `workspace:` dependency of a package `build:infra` builds
+  must be built earlier" — reports 4 packages, `@gjsify/unit` alone missing 8, all
+  of which build fine today: a dependency only has to EXIST if something in the
+  compiled sources imports it;
+- import-level — the same rule scanning `src/**` minus spec files — still reports 6,
+  including `@gjsify/utils -> @gjsify/unit`, because each package's build has its own
+  include/exclude globs that neither rule knows.
+
+A gate that cries wolf six times teaches people to silence it. The honest options
+are a rule that reads each package's actual build inputs, or making the order
+DERIVED (`foreach build --with-dependencies -t` over the infra set) instead of
+hand-listed — both more than a red-main fix should carry.
+
 ### `process.exit()` under GJS SCHEDULES the exit and RETURNS, so the next line still runs
 
 Measured while adding `tests/e2e/node-script`. A script whose body is
