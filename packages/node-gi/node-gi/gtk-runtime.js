@@ -459,6 +459,61 @@ function gstScannerLeaf() {
     return process.platform === 'win32' ? 'gst-plugin-scanner.exe' : 'gst-plugin-scanner';
 }
 
+let libraryPathActivated = false;
+
+/**
+ * Tell GI where the shared libraries its typelibs name by BARE LEAF actually are
+ * — for whichever GTK the policy chose, and WITHOUT an environment variable.
+ *
+ * THE GAP THIS CLOSES. A typelib records its backer as `libgtk-4.1.dylib`, and on
+ * macOS neither a relocated bundle's `lib` dir nor Homebrew's `/usr/local/lib` is
+ * on dyld's search path. Node papers over it in {@link maybeReexecForGtkRuntime}
+ * by re-execing with `DYLD_FALLBACK_LIBRARY_PATH` set — and that re-exec is
+ * Node-shaped (it reconstructs `execPath + execArgv + argv`), so it returns early
+ * on bun and deno. Those two therefore got NO loader repair at all, and every GTK
+ * showcase died at the first widget. None of the three errors names the loader:
+ * `GtkWidget is not registered in this process's GObject type registry`,
+ * `Adw.Application has no property 'application-id'`, `Gtk.GLArea is not a
+ * subclassable GObject type` — all downstream of one `g_module_open` that found
+ * nothing, measured on the macOS 15.7.9 x86_64 VM.
+ *
+ * `gi_repository_prepend_library_path()` is GI's own answer to this question, so
+ * nothing is captured at process launch: identical on node, bun and deno, no
+ * re-exec, and the process environment is left alone. The env paths elsewhere in
+ * this module stay — they still cover a dylib pulled in by ANOTHER dylib's link
+ * closure, which never passes through GI.
+ *
+ * The dirs come from `gtkSource()`'s decision, not a second opinion: the bundle's
+ * `libDir` for `bundle`, `systemGiLibraryDirs()` for `system` — the identical
+ * pair the re-exec composes. Mixing them is the two-copies hazard #920 records,
+ * so the choice keeps one owner. Idempotent, and never fatal: an addon predating
+ * the binding leaves behaviour exactly as it was.
+ * @param {{ prependLibraryPath?: (p: string) => void }} native the loaded addon
+ * @returns {string[]} the directories handed to GI (empty when there was nothing to add)
+ */
+export function activateGiLibraryPath(native) {
+    if (libraryPathActivated) return [];
+    libraryPathActivated = true;
+    if (typeof native?.prependLibraryPath !== 'function') return [];
+
+    const source = gtkSource();
+    const dirs =
+        source === 'bundle' ? [resolveGtkRuntimeBundle()?.libDir] : source === 'system' ? systemGiLibraryDirs() : [];
+    const applied = [];
+    // LAST wins with a prepend, so walking in reverse leaves the array's own
+    // order intact in GI's search path.
+    for (const dir of dirs.filter(Boolean).reverse()) {
+        native.prependLibraryPath(dir);
+        applied.unshift(dir);
+    }
+    return applied;
+}
+
+/** TEST-ONLY: allow a spec to run the activation again. */
+export function resetGiLibraryPathForTests() {
+    libraryPathActivated = false;
+}
+
 let activated = null; // memoize: the activation result (idempotent)
 
 /**

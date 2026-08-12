@@ -295,4 +295,36 @@ Napi::Value PrependSearchPath(const Napi::CallbackInfo& info) {
   return env.Undefined();
 }
 
+// prependLibraryPath(path: string) -> void
+// The LIBRARY twin of PrependSearchPath: where GI looks for the shared object a
+// typelib names, as opposed to where it looks for the typelib itself.
+//
+// Why it has to be native rather than `requireGi('GIRepository').…`: the bundled
+// runtime ships GIRepository **3.0**, whose `Repository` this bridge exposes
+// neither as constructible nor with a `get_default()` static — measured, both
+// spellings throw. The C entry point has no such gap, and it is the same
+// `DupDefaultRepository()` handle the search-path twin already uses.
+//
+// WHAT IT FIXES, measured on the macOS 15.7.9 x86_64 VM: a typelib names its
+// backer by BARE LEAF (`libgtk-4.1.dylib`), and for a RELOCATED bundle that leaf
+// sits in the bundle's own `lib` dir, which is on no loader search path. Node
+// papers over it by re-execing with `DYLD_FALLBACK_LIBRARY_PATH` set; that
+// re-exec reconstructs a Node-shaped argv and is skipped on bun and deno, so
+// those two got no repair at all and died at the first widget. This is the
+// env-free repair the package aims at — it needs no variable, no re-exec, and
+// behaves identically on all three runtimes.
+Napi::Value PrependLibraryPath(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsString()) {
+    Napi::TypeError::New(env, "prependLibraryPath(path: string)")
+        .ThrowAsJavaScriptException();
+    return env.Undefined();
+  }
+  std::string path = info[0].As<Napi::String>().Utf8Value();
+  GIRepository* repo = DupDefaultRepository();
+  gi_repository_prepend_library_path(repo, path.c_str());
+  g_object_unref(repo);
+  return env.Undefined();
+}
+
 }  // namespace nodegi

@@ -74,6 +74,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("getErrorDomain", Napi::Function::New(env, GetErrorDomain));
   exports.Set("setErrorBuilder", Napi::Function::New(env, SetErrorBuilder));
   exports.Set("prependSearchPath", Napi::Function::New(env, PrependSearchPath));
+  exports.Set("prependLibraryPath", Napi::Function::New(env, PrependLibraryPath));
   exports.Set("callFunction", Napi::Function::New(env, CallFunction));
   exports.Set("callMethod", Napi::Function::New(env, CallMethod));
   exports.Set("hasMethod", Napi::Function::New(env, HasMethod));

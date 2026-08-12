@@ -533,23 +533,11 @@ The five standalone declaration-vs-reality scripts are now one rule registry (`@
 
 `nodeGiGlobalsInject` keys on BARE ambient globals (`print`/`imports`/`ARGV`), so a genuine GJS source that uses `gi://` but logs via `console.log` — and passes no explicit `--globals` — is not recognised: its `@girs/*` value imports are emptied (`class extends undefined`) **and** its `/register` imports route to `@gjsify/empty`. Verified with both probes. This pre-dates ADR 0012 and hits `@girs/*` and registers equally; ADR 0012 only brought the two into parity via the single `isGjsSourceBuild` gate in `app/node.ts`. Fix by widening the SIGNAL itself — e.g. treat "a `gi://` specifier survived in the bundled graph" as a reverse-bridge build — which closes both at once.
 
-### bun and deno never get the BUNDLED GTK runtime on the loader path (macOS, and win32 by construction)
+### The darwin loader repair still leans on an env variable outside GI's reach
 
-ROOT CAUSE MEASURED on the macOS 15.7.9 x86_64 VM (Homebrew GTK, bun 1.3.14, deno 2.9.5), against the published 0.37.0 driven through the real `gjsify showcase … --runtime bun`. It is ONE defect, not the two the symptoms suggest, and none of the three visible errors names it:
+`activateGiLibraryPath()` now tells GI itself where a typelib's bare-leaf backer lives, which is what makes bun and deno work on macOS at all. It cannot cover everything: a dylib pulled in by ANOTHER dylib's own link closure never passes through GI, so `maybeReexecForGtkRuntime()` (Node) and the launcher preamble (`bin-shim.ts`, every runtime) stay as the belt for that class.
 
-- `node-gi: GtkWidget is not registered in this process's GObject type registry … This means TWO GLib/GObject copies are loaded`
-- `TypeError: Adw.Application has no property 'application-id'`
-- `TypeError: Gtk.GLArea is not a subclassable GObject type`
-
-`DYLD_PRINT_LIBRARIES=1` refutes the duplicate-GLib story: exactly ONE `libglib-2.0`/`libgobject-2.0` is loaded, the BUNDLE's (`@gjsify/gtk-runtime-darwin-x64/gtk/lib`), pulled in by the addon's own link closure. What fails is `libgtk-4.1.dylib`, which the typelib names by BARE LEAF and which lives in that same bundle `lib` dir — on no search path. So no `gtk_*_get_type` ever registers, and every layer above reports a type-system problem.
-
-**The remedy is one directory** and is proven: with `DYLD_FALLBACK_LIBRARY_PATH=<bundle>/gtk/lib:…` the identical bundle renders on bun (`Context version: OpenGL 4.1`, zero warnings). Node never hits this because `maybeReexecForGtkRuntime()` re-execs with exactly that value — and that re-exec returns early for bun/deno, whose argv it cannot reconstruct. Its own comment already says the repair belongs to whoever LAUNCHES the process, one hop earlier.
-
-WHAT BLOCKS THE OBVIOUS FIX, so the next attempt does not repeat it: putting it in the CLI's `runRuntimeBundle` needs `gtkSource()` + `resolveGtkRuntimeBundle()`, and **importing them from node-gi does not work when the CLI runs under gjs** — `gtk-runtime.js` imports `node:fs`/`node:path`, which only the BUNDLER aliases; a runtime `import()` of an external file gets no such treatment. Tried and reverted: it silently returned `{}` and left bun exactly as broken, which is worse than not trying. Reimplementing the policy CLI-side is a third copy of a decision that reads the addon's provenance, and #920 is the incident for getting that ordering wrong.
-
-Two shapes worth weighing, neither guessed at here: (a) node-gi publishes its decision as DATA the CLI can read without executing `node:`-importing code — a tiny `gtk-runtime.json` beside the bundle, written at install time; (b) a bun/deno-shaped re-exec inside node-gi — cheap on bun, but Deno's `process.argv` omits the deno FLAGS (`-A`, `--node-modules-dir=manual`), so a naive re-exec drops the permissions the launcher granted.
-
-The ordering, whichever shape wins: the bundle's libDir goes FIRST, ahead of the system dirs. The addon already resolves to the bundle's GLib, so its typelib backers must come from the same tree — a Homebrew `libgtk-4` over the bundle's `libglib` is the real two-copies failure that warning describes.
+Two consequences worth closing later, neither blocking: the Node re-exec is now redundant for everything GI resolves and could be narrowed to the closure case once a darwin CI leg proves it; and `hostGtkIsWorthTrying()` on an Apple-silicon host still answers from `systemGiLibraryDirs()`, whose `/opt/homebrew/lib` probe was never in dyld's default fallback — measured only on x86_64 so far.
 
 ### `@gjsify/node-gi` — a pointer struct FIELD whose length lives in a sibling field marshals EMPTY
 
