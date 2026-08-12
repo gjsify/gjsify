@@ -36,19 +36,12 @@ Matchers: `toBe|toEqual|toBeTruthy|toBeFalsy|toBeNull|toBeDefined|toBeUndefined|
 ### E2E tests — `tests/e2e/`
 
 One suite per directory (`run.mjs`, `node:test`), driving the built CLI from OUTSIDE. Two shared
-modules, and NEITHER may be re-implemented in a suite: `helpers.mjs` (repo paths, workspace
-packing, project setup) and **`mock-registry.mjs`** — the npm harness: `packageTar(files)` /
-`packageTarball(files)` / `sriSha512(bytes)`, `startMockRegistry(packages, {onRequest, distTags})`,
-and the CLI runners `runCli` (async, resolves with the exit code) / `runCliSync` (throws on
-non-zero, returns stdout). A registry that must MISBEHAVE — stall, truncate, 404 selectively —
-uses the `onRequest` hook rather than a private server.
-
-`scripts/check-e2e-harness-duplication.mjs` fails on a private copy, because fifteen suites had
-already grown one and the tar writer alone had drifted into nine variants — a fix to it reached
-one suite in fifteen. A suite-specific POLICY on top of a shared runner is fine and stays local
-(see `build-cache`'s hermetic-env wrapper); a second implementation of the mechanism is not.
-`runCli`'s shared default is 30 s: a suite needing longer passes `timeoutMs` AT THE CALL SITE, so
-the number is where the reader is.
+modules, NEITHER re-implementable in a suite: `helpers.mjs` (repo paths, packing, project setup) and
+`mock-registry.mjs` — the npm harness (`packageTar` · `packageTarball` · `sriSha512` ·
+`startMockRegistry` · `runCli`/`runCliSync`). A registry that must MISBEHAVE uses `onRequest`, never
+a private server. `scripts/check-e2e-harness-duplication.mjs` fails on a private copy and holds the
+incident. A suite-specific POLICY over the shared runner stays local (`build-cache`'s hermetic env);
+a second implementation does not. `runCli` defaults to 30 s — longer goes at the CALL SITE.
 
 ### Browser tests — `tests/browser/` (Playwright, Firefox/SpiderMonkey)
 

@@ -3,28 +3,19 @@
 //
 // THE INCIDENT
 //
-// A hand-written ustar tarball writer, its SRI integrity helper and a `spawn the
-// CLI` runner were copy-pasted into fifteen `tests/e2e/*/run.mjs`. They had drifted
-// into nine distinct variants of the writer alone — some emitting the explicit NUL
-// terminators, some not; some taking a `package.json` object, some a file map — and
-// `runCli` existed in eight different signatures. A correction to the writer
-// therefore landed in one suite of fifteen, and the fourteen keeping the old bytes
-// were the ones still asserting against them. `tests/e2e/helpers.mjs` had been the
-// shared home the whole time and exported none of it.
+// A hand-written ustar tarball writer, its SRI integrity helper and a spawn-the-CLI
+// runner were copy-pasted into fifteen `tests/e2e/*/run.mjs`. They had drifted into
+// nine distinct variants of the writer alone — some emitting the explicit NUL
+// terminators, some not; some taking a `package.json` object, some a file MAP — and
+// `runCli` existed in eight signatures. A correction to the writer therefore landed
+// in one suite of fifteen, and the fourteen keeping the old bytes were the ones
+// still asserting against them. `tests/e2e/helpers.mjs` had been the shared home the
+// whole time and exported none of it.
 //
-// The lift is only half a fix: nothing stopped the sixteenth copy. This is the
-// other half — the harness now has ONE home (`tests/e2e/mock-registry.mjs`) and a
-// new private copy fails here, naming it.
-//
-// WHAT IT CHECKS
-//
-//   1. a suite containing a tar-format literal (`ustar`)            → FAIL
-//   2. a suite computing an npm `sha512-…` integrity string         → FAIL
-//   3. a suite declaring its own `function runCli(`                 → FAIL
-//   4. an ALLOWED entry that no longer matches                      → FAIL (self-retiring)
-//
-// (4) is what keeps the allowlist from becoming where duplication goes to die: an
-// entry cannot outlive its cause, and every entry is PRINTED on every run.
+// The lift is only half a fix: nothing stopped the sixteenth copy. This is the other
+// half — the harness has ONE home (`tests/e2e/mock-registry.mjs`) and a new private
+// copy fails here, naming it. `ALLOWED` is self-retiring: an entry whose suite no
+// longer trips its rule FAILS, so an exemption cannot outlive its cause.
 //
 // Usage: node scripts/check-e2e-harness-duplication.mjs [--root <dir>]
 
@@ -49,7 +40,6 @@ const SHARED_MODULE = 'mock-registry.mjs';
  */
 const ALLOWED = [];
 
-/** Each rule names what it recognises and what to do instead. */
 const RULES = [
     {
         id: 'tar-writer',
