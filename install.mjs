@@ -135,8 +135,8 @@ function checkGjsVersion() {
 }
 
 /** Total attempts per URL, and the wait before each retry. Override for tests / slow links. */
-const FETCH_ATTEMPTS = Number(GLib.getenv('GJSIFY_INSTALL_FETCH_ATTEMPTS') || '3');
-const RETRY_BACKOFF_MS = [500, 1500];
+const FETCH_ATTEMPTS = Number(GLib.getenv('GJSIFY_INSTALL_FETCH_ATTEMPTS') || '5');
+const RETRY_BACKOFF_MS = [1000, 2000, 4000, 8000];
 
 function sleepMs(ms) {
     return new Promise((resolve) => {
@@ -147,9 +147,15 @@ function sleepMs(ms) {
     });
 }
 
-async function fetchOnce(session, url) {
+async function fetchOnce(session, url, { forceHttp1 = false } = {}) {
     const message = Soup.Message.new('GET', url);
     message.request_headers.append('User-Agent', USER_AGENT);
+    // The failure this retries against announces its own protocol — libsoup reports it
+    // verbatim as `HTTP/2 Error: NO_ERROR`, a stream closed mid-response. Retrying over
+    // HTTP/1.1 sidesteps the multiplexing that produces it, so the first attempt keeps the
+    // faster protocol and every retry drops to the one that cannot fail that way. Guarded:
+    // `set_force_http1` is libsoup 3.4+, and this script must still run on older hosts.
+    if (forceHttp1 && typeof message.set_force_http1 === 'function') message.set_force_http1(true);
     const bytes = await session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null);
     const status = message.get_status();
     if (status !== Soup.Status.OK) {
@@ -176,6 +182,13 @@ async function fetchOnce(session, url) {
  * all), plus 429 and 5xx. A 404 is the registry saying the asset does not exist and a 403
  * is it saying no; retrying either would only delay the same result while making a real
  * outage look like a hang.
+ *
+ * FIVE attempts, not three, and the numbers come from a run rather than a preference:
+ * with three the CI log showed `retry 2/3` and `retry 3/3` and still failed, because each
+ * attempt takes ~20 s to give up — so the 500ms/1500ms backoff was noise beside it and the
+ * whole sequence covered barely 40 s of a longer wobble. 1/2/4/8 s over five attempts
+ * covers about two minutes. Beyond that it is an outage, not a hiccup, and waiting longer
+ * only turns a clear failure into a hang.
  */
 async function fetchBytes(session, url) {
     if (url.startsWith('file://')) {
@@ -188,7 +201,7 @@ async function fetchBytes(session, url) {
     let lastErr = null;
     for (let attempt = 1; attempt <= attempts; attempt++) {
         try {
-            return await fetchOnce(session, url);
+            return await fetchOnce(session, url, { forceHttp1: attempt > 1 });
         } catch (err) {
             lastErr = err;
             const status = err.httpStatus;

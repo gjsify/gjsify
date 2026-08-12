@@ -390,7 +390,7 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
             /Refusing to install an UNVERIFIED bootstrap bundle/,
             'a single dropped connection was reported as an unverifiable digest',
         );
-        assert.match(out, /retry 2\/3/, 'the retry happened but was not announced');
+        assert.match(out, /retry 2\/5/, 'the retry happened but was not announced');
     });
 
     it('does NOT retry a 404 — the registry answered', async () => {
