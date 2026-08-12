@@ -14,33 +14,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-
-function runCli(cliEntry, args, { cwd, env, timeoutMs = 30_000 } = {}) {
-    return new Promise((resolve, reject) => {
-        const child = spawn(process.execPath, [cliEntry, ...args], { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
-        let stdout = '';
-        let stderr = '';
-        child.stdout.setEncoding('utf-8');
-        child.stderr.setEncoding('utf-8');
-        child.stdout.on('data', (c) => (stdout += c));
-        child.stderr.on('data', (c) => (stderr += c));
-        const kill = setTimeout(() => {
-            // ChildProcess.kill with a known signal never throws — failure
-            // to deliver just returns false (the process already exited).
-            child.kill('SIGKILL');
-        }, timeoutMs);
-        child.on('close', (code) => {
-            clearTimeout(kill);
-            resolve({ status: code, stdout, stderr });
-        });
-        child.on('error', (e) => {
-            clearTimeout(kill);
-            reject(e);
-        });
-    });
-}
+import { runCli } from '../mock-registry.mjs';
 
 // A dependency-free workspace pinning @gjsify/cli at `pinnedVersion` under
 // node_modules — so the install itself is a no-op ("nothing to do") and the

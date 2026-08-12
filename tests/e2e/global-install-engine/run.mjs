@@ -36,9 +36,9 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
-import { createHash } from 'node:crypto';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { packageTar, sriSha512 } from '../mock-registry.mjs';
 
 const execFileAsync = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -51,61 +51,23 @@ const INSTALL_GLOBAL_JS = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib',
 const ARCH = process.arch;
 const PREBUILD_REL = `prebuilds/linux-${ARCH}`;
 
-// ── ustar tar builder supporting multiple files (incl. a prebuild file) ──────
-const BLOCK = 512;
-
-function tarHeader(name, size, type = '0') {
-    const buf = Buffer.alloc(BLOCK);
-    buf.write(name, 0, Math.min(name.length, 100));
-    buf.write('0000644', 100, 7);
-    buf[107] = 0;
-    buf.write('0000000', 108, 7);
-    buf[115] = 0;
-    buf.write('0000000', 116, 7);
-    buf[123] = 0;
-    buf.write(size.toString(8).padStart(11, '0'), 124, 11);
-    buf[135] = 0;
-    buf.write('0'.repeat(11), 136, 11);
-    buf[147] = 0;
-    buf.fill(0x20, 148, 156);
-    buf.write(type, 156, 1);
-    buf.write('ustar\0', 257, 6);
-    buf.write('00', 263, 2);
-    let sum = 0;
-    for (let i = 0; i < BLOCK; i++) sum += buf[i];
-    buf.write(sum.toString(8).padStart(6, '0'), 148, 6);
-    buf[154] = 0;
-    buf[155] = 0x20;
-    return buf;
-}
-
-function tarFile(name, contentBuf) {
-    const padded = Buffer.alloc(Math.ceil(contentBuf.length / BLOCK) * BLOCK);
-    contentBuf.copy(padded);
-    return Buffer.concat([tarHeader(name, contentBuf.length), padded]);
-}
-
-/** Tar a synthetic package with a package.json and (optionally) a prebuild file. */
-function buildPackageTar(pkgJson, { withPrebuild = false } = {}) {
-    const parts = [tarHeader('package/', 0, '5')];
-    parts.push(tarFile('package/package.json', Buffer.from(JSON.stringify(pkgJson, null, 2) + '\n')));
+/**
+ * The files a synthetic package ships: its `package.json` and, optionally, a
+ * prebuild directory.
+ *
+ * The two prebuild files are stand-ins for the pair EVERY gjsify GI bridge ships —
+ * content is irrelevant, presence is not. The `.typelib` is load-bearing for the
+ * launcher: `prebuilds/<os>-<arch>/` is also the prebuildify convention, so the
+ * preamble takes a directory only when it holds one, and a fixture with just a
+ * `.so` would be a prebuild the real launcher is right to skip.
+ */
+function packageFiles(pkgJson, withPrebuild = false) {
+    const files = { 'package.json': JSON.stringify(pkgJson, null, 2) + '\n' };
     if (withPrebuild) {
-        parts.push(tarHeader(`package/${PREBUILD_REL}/`, 0, '5'));
-        // Stand-ins for the two files EVERY gjsify GI bridge ships — content is
-        // irrelevant, presence is not. The `.typelib` is load-bearing for the
-        // launcher: `prebuilds/<os>-<arch>/` is also the prebuildify convention,
-        // so the preamble takes a directory only when it holds one, and a
-        // fixture with just a `.so` would be a prebuild the real launcher is
-        // right to skip.
-        parts.push(tarFile(`package/${PREBUILD_REL}/libgjsify_engine.so`, Buffer.from('\x7fELF stub')));
-        parts.push(tarFile(`package/${PREBUILD_REL}/GjsifyEngine-1.0.typelib`, Buffer.from('GTYP stub')));
+        files[`${PREBUILD_REL}/libgjsify_engine.so`] = '\x7fELF stub';
+        files[`${PREBUILD_REL}/GjsifyEngine-1.0.typelib`] = 'GTYP stub';
     }
-    parts.push(Buffer.alloc(BLOCK * 2)); // trailer
-    return Buffer.concat(parts);
-}
-
-function sriSha512(bytes) {
-    return `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
+    return files;
 }
 
 function runHarness(cmd, args, cwd, env = {}) {
@@ -207,7 +169,7 @@ describe('global GJS install lays down the bundler engine', { timeout: 90_000 },
 
         index = {};
         for (const [name, info] of Object.entries(PACKAGES)) {
-            const tgz = gzipSync(buildPackageTar(info.json, { withPrebuild: info.withPrebuild }));
+            const tgz = gzipSync(packageTar(packageFiles(info.json, info.withPrebuild)));
             index[name] = {
                 name,
                 'dist-tags': { latest: CLI_VERSION },

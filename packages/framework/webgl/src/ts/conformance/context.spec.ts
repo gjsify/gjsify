@@ -204,7 +204,7 @@ const WEBGL_CONSTANTS: [string, number][] = [
 ];
 
 export default async () => {
-    await on('Display', async () => {
+    await on('Gl', async () => {
         const setup = createGLSetup();
         if (!setup) {
             console.warn('WebGL context not available — skipping conformance/context tests');

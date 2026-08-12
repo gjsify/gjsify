@@ -18,54 +18,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
-import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-
-// ----- tar helpers (ustar v0 with a package.json + bundle file) -----
-const BLOCK = 512;
-function tarHeader(name, size, type = '0') {
-    const buf = Buffer.alloc(BLOCK);
-    buf.write(name, 0, Math.min(name.length, 100));
-    buf.write('0000644', 100, 7);
-    buf[107] = 0;
-    buf.write('0000000', 108, 7);
-    buf[115] = 0;
-    buf.write('0000000', 116, 7);
-    buf[123] = 0;
-    buf.write(size.toString(8).padStart(11, '0'), 124, 11);
-    buf[135] = 0;
-    buf.write('0'.repeat(11), 136, 11);
-    buf[147] = 0;
-    buf.fill(0x20, 148, 156);
-    buf.write(type, 156, 1);
-    buf.write('ustar\0', 257, 6);
-    buf.write('00', 263, 2);
-    let sum = 0;
-    for (let i = 0; i < BLOCK; i++) sum += buf[i];
-    buf.write(sum.toString(8).padStart(6, '0'), 148, 6);
-    buf[154] = 0;
-    buf[155] = 0x20;
-    return buf;
-}
-
-function buildPackageTar(files) {
-    const blocks = [tarHeader('package/', 0, '5')];
-    for (const [name, contents] of Object.entries(files)) {
-        const body = Buffer.isBuffer(contents) ? contents : Buffer.from(contents);
-        const padded = Buffer.alloc(Math.ceil(body.length / BLOCK) * BLOCK);
-        body.copy(padded);
-        blocks.push(tarHeader(`package/${name}`, body.length));
-        blocks.push(padded);
-    }
-    blocks.push(Buffer.alloc(BLOCK * 2));
-    return Buffer.concat(blocks);
-}
-
-function sriSha512(bytes) {
-    return `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
-}
+import { packageTar, sriSha512 } from '../mock-registry.mjs';
 
 function sha256Hex(bytes) {
     return createHash('sha256').update(bytes).digest('hex');
@@ -170,7 +127,7 @@ describe('Phase F — install.mjs bootstrap', { timeout: 120_000 }, async () => 
                     'package.json': JSON.stringify(body, null, 2) + '\n',
                     ...entry.files,
                 };
-                const tar = buildPackageTar(files);
+                const tar = packageTar(files);
                 const tgz = gzipSync(tar);
                 const baseName = `${unscoped}-${version}.tgz`;
                 index[name].versions[version] = {

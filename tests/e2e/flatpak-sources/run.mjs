@@ -14,6 +14,7 @@ import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { sriSha512 } from '../mock-registry.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
@@ -22,7 +23,7 @@ const CLI_ENTRY = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'index.
 /** A valid `sha512-<base64>` SRI for `content`, plus its hex digest. */
 function sri(content) {
     return {
-        integrity: `sha512-${createHash('sha512').update(content).digest('base64')}`,
+        integrity: sriSha512(content),
         hex: createHash('sha512').update(content).digest('hex'),
     };
 }

@@ -45,6 +45,17 @@ on:
         required: false
         type: boolean
         default: true
+      runtime:
+        description: >-
+          Cold-tree bootstrap runtime. Switches ONLY that step, and is forwarded to release.yml so the
+          cut and the publish cannot pick different ones (they did in v0.31.0). Node survives either
+          value: setup-node, npx release-it, the `node scripts/*` hooks inside .release-it.json (which
+          no input can reach), verify-committed-bundles.mjs and the dispatch step all still run on it.
+          Each run prints a DRIVER line naming the interpreter actually used, derived from the shim.
+        required: false
+        type: choice
+        options: [node, gjs]
+        default: node
 
 # Cutting pushes a commit + tag to main and creates a release.
 # `actions: write` is for the publish dispatch at the end of the job — see there.
@@ -155,7 +166,7 @@ jobs:
       # (`PATH="$PWD/node_modules/.bin:$PATH" gjsify …`), so what is on Node here
       # is the cold start, not the release.
       - name: Bootstrap the build toolchain (cold trees only)
-        run: .github/scripts/bootstrap-cold-tree.sh
+        run: .github/scripts/bootstrap-cold-tree.sh "${{ inputs.runtime || 'node' }}"
 
       # `verify-committed-bundles.mjs` (the after:bump hook) resolves each
       # workspace dep's `lib/esm` — it must run AFTER a workspace build, which is
@@ -422,9 +433,10 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
+          RUNTIME: ${{ inputs.runtime || 'node' }}
         run: |
           TAG="$(git describe --tags --abbrev=0)"
-          echo "dispatching release.yml for $TAG"
+          echo "dispatching release.yml for $TAG (bootstrap runtime: $RUNTIME)"
           echo "PUBLISH_TAG=$TAG" >> "$GITHUB_ENV"
           TAG="$TAG" node --input-type=module -e '
             const { GITHUB_TOKEN, REPO, TAG } = process.env;
@@ -439,7 +451,15 @@ jobs:
                 },
                 body: JSON.stringify({
                     ref: "main",
-                    inputs: { release_tag: TAG, skip_publish: "false", verify_only: "false" },
+                    // RUNTIME is forwarded, not re-chosen: v0.31.0's cut and publish
+                    // ran different bootstraps because each workflow carried its own
+                    // copy of the decision.
+                    inputs: {
+                        release_tag: TAG,
+                        skip_publish: "false",
+                        verify_only: "false",
+                        runtime: process.env.RUNTIME || "node",
+                    },
                 }),
             });
             // 204 is the documented success. Anything else means the release is
@@ -474,3 +494,93 @@ jobs:
               echo "that dispatches \`release.yml\` to publish to npm."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+  # THE CANARY. Non-blocking by construction (`continue-on-error`), and the
+  # precondition the cut's own revert note names: "a NON-BLOCKING job exercises
+  # the GJS-hosted bootstrap, so the next regression there is a signal rather
+  # than a deadlocked release. Without (2) a revert only re-arms the trap for
+  # the next CLI bug."
+  #
+  # It runs the SAME script with `gjs`, never a second copy of it — a second copy
+  # is the thing that drifts, and it is the copy you reach for under pressure
+  # (v0.31.0: the cut was fixed, release.yml's duplicate was not).
+  #
+  # THREE ASSERTIONS, IN ORDER, because the v0.31.0 signature was a ZERO EXIT WITH
+  # NO OUTPUT — `gjsify tsc` returning 0 having compiled nothing, the `&&` chain
+  # then dying one command later and naming a step past the fault:
+  #   1. ARTIFACT   — the CLI entry exists and is non-empty.
+  #   2. LOADABLE   — it runs and reports the version its manifest declares.
+  #                   Present-but-broken is exactly what a file test misses.
+  #   3. REPRODUCES — the tree still reproduces the committed bundles byte for
+  #                   byte, read-only. This is the real flip criterion: the
+  #                   157-byte-short `affected.gjs.mjs` incident passed 1 and 2.
+  #
+  # One greppable verdict line in BOTH outcomes. Neither release workflow has a
+  # ci-summary aggregator, and a canary that reports nothing on failure is a job
+  # that burns half an hour saying nothing.
+  gjs-bootstrap-canary:
+    name: Canary — cold-tree bootstrap under GJS (non-blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    continue-on-error: true
+    container:
+      image: ghcr.io/gjsify/ci-fedora:44
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '26.x'
+
+      - name: Install dependencies (gjsify install --immutable)
+        run: |
+          B=$(gjs -m install.mjs --fetch-only)
+          gjs -m "$B" install --immutable
+          echo "GJSIFY_BOOTSTRAP=$B" >> "$GITHUB_ENV"
+
+      - name: Bootstrap the build toolchain under GJS
+        id: bootstrap
+        run: .github/scripts/bootstrap-cold-tree.sh gjs
+
+      - name: Verdict
+        if: always()
+        run: |
+          ENTRY=packages/infra/cli/lib/index.js
+          # `if` blocks and not `[ … ] && …`: this runs under `bash -e`, where an
+          # AND-list whose left side fails is a trap the next reader steps in.
+          verdict() {
+            echo "GJS-BOOTSTRAP-CANARY: $1"
+            if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+              echo "**GJS-BOOTSTRAP-CANARY: $1**" >> "$GITHUB_STEP_SUMMARY"
+            fi
+            if [ "${2:-pass}" = fail ]; then
+              exit 1
+            fi
+            exit 0
+          }
+
+          # 1. ARTIFACT
+          if [ ! -s "$ENTRY" ]; then
+            verdict "FAIL — $ENTRY is missing or empty after the GJS bootstrap" fail
+          fi
+
+          # 2. LOADABLE. The declared version is the oracle: a CLI that starts but
+          #    reports something else is not the one this commit ships.
+          DECLARED="$(node -p "require('./packages/infra/cli/package.json').version")"
+          REPORTED="$(node "$ENTRY" --version 2>&1 | tr -d '[:space:]' || true)"
+          case "$REPORTED" in
+            *"$DECLARED"*) ;;
+            *) verdict "FAIL — $ENTRY runs but reports '$REPORTED', not the declared $DECLARED" fail ;;
+          esac
+
+          # 3. REPRODUCES. Read-only on purpose: `--rebuild` would make the check
+          #    pass by writing the answer it is supposed to compare against.
+          if ! node scripts/verify-committed-bundles.mjs; then
+            verdict "FAIL — bootstrapped under GJS, but the tree no longer reproduces the committed bundles" fail
+          fi
+
+          verdict "PASS — GJS cold-tree bootstrap produced a loadable CLI $DECLARED that reproduces the committed bundles"

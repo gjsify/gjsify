@@ -6,7 +6,10 @@ import type GLib from '@girs/glib-2.0';
 export * from './spy.js';
 import nodeAssert from 'node:assert';
 import type { AssertPredicate } from 'node:assert';
+import { runtimeName, runtimeVersion } from '@gjsify/runtime';
+import { hostOs } from '@gjsify/utils/core';
 import { quitMainLoop } from '@gjsify/utils/main-loop';
+import { canRealizeGl, canRealizeSurface, type DisplayEnv } from './capabilities.js';
 
 /**
  * Typed view of the cross-runtime globals this runner reads. `@gjsify/unit` must
@@ -366,7 +369,15 @@ export interface Namespaces {
 
 export type Callback = () => void | Promise<void>;
 
-export type Runtime = 'Gjs' | 'Deno' | 'Node.js' | 'Unknown' | 'Browser' | 'Display';
+/**
+ * What `on()` gates on: a runtime IDENTITY, or a host CAPABILITY.
+ *
+ * `'Display'` and `'Gl'` are capabilities and deliberately separate — a gate must
+ * state the thing it actually requires. They were one name until the WebGL suites
+ * (which need a realizable GL context) and any plain GTK-surface test shared
+ * `'Display'`, which made each wrong on a different OS. See `hasDisplay`/`hasGl`.
+ */
+export type Runtime = 'Gjs' | 'Deno' | 'Bun' | 'Node.js' | 'Unknown' | 'Browser' | 'Display' | 'Gl';
 
 // In browsers `globalThis.print` is `window.print()` — the print DIALOG, not text
 // output — so browser contexts must use console.log. The GJS check takes priority
@@ -901,25 +912,31 @@ describe.skip = async function (moduleName: string, _callback?: Callback) {
     print(`\n${BLUE}- ${moduleName} (skipped)${RESET}`);
 };
 
-const hasDisplay = (): boolean => {
+/** Read an env var through whichever of the two hosts can answer. */
+const envVar = (name: string): string | undefined => {
     const env = runtimeGlobals().process?.env;
-    if (env) {
-        return !!(env.DISPLAY || env.WAYLAND_DISPLAY);
-    }
+    if (env) return env[name];
     // GJS fallback for before the process polyfill exists. The optional-chained
     // probe is non-throwing off GJS, and on GJS the GLib typelib is the runtime's
     // own hard dependency — a try/catch would only hide which runtime we are on.
     const GLib = runtimeGlobals().imports?.gi?.GLib;
-    if (GLib) {
-        return !!(GLib.getenv('DISPLAY') || GLib.getenv('WAYLAND_DISPLAY'));
-    }
-    return false;
+    return GLib ? (GLib.getenv(name) ?? undefined) : undefined;
 };
 
+/** The real host's display env, read once per gate call (env can change mid-run). */
+const displayEnv = (): DisplayEnv => ({ DISPLAY: envVar('DISPLAY'), WAYLAND_DISPLAY: envVar('WAYLAND_DISPLAY') });
+
+const hasDisplay = (): boolean => canRealizeSurface(hostOs(), displayEnv());
+
+const hasGl = (): boolean => canRealizeGl(hostOs(), displayEnv());
+
 const runtimeMatch = async function (onRuntime: Runtime[], version?: string) {
-    // 'Display' asks for a graphical display, not for runtime identity.
+    // Capabilities, not runtime identity — each answers its own question.
     if (onRuntime.includes('Display')) {
         return { matched: hasDisplay() };
+    }
+    if (onRuntime.includes('Gl')) {
+        return { matched: hasGl() };
     }
 
     const currRuntime = await getRuntime();
@@ -1324,39 +1341,32 @@ const printResult = () => {
     }
 };
 
+/**
+ * This runner's name for the host, e.g. `'Gjs 1.88.1'`, `'Bun 1.3.14'`, `'Browser'`.
+ *
+ * The identity comes from `@gjsify/runtime`, which is the one place the four-way
+ * probe order is written down and the one place it is table-checked. This runner
+ * re-derived it and had no Bun branch at all, so `process.versions.node` — which
+ * Bun fakes — made every `on('Node.js', …)` suite RUN on Bun while reporting
+ * itself as Node. `'Gjs'` and `'Browser'` are this API's own vocabulary (`on()`
+ * has always spelled it that way, and a browser is not one of the four runtimes),
+ * hence the mapping rather than a direct re-export.
+ */
+const RUNTIME_LABEL: Record<string, string> = { GJS: 'Gjs', 'Node.js': 'Node.js', Bun: 'Bun', Deno: 'Deno' };
+
 const getRuntime = async () => {
     if (runtime && runtime !== 'Unknown') {
         return runtime;
     }
 
-    if (globalThis.Deno?.version?.deno) {
-        return 'Deno ' + globalThis.Deno?.version?.deno;
+    const label = RUNTIME_LABEL[runtimeName];
+    if (label) {
+        runtime = runtimeVersion ? `${label} ${runtimeVersion}` : label;
+        return runtime;
     }
 
-    // Check process (GJS / Node) BEFORE document: `@gjsify/dom-elements` can set
-    // `globalThis.document` on GJS, which would otherwise read as a browser. The
-    // dynamic `import('process')` throws in the browser, hence the catch.
-    {
-        let process = globalThis.process;
-
-        if (!process) {
-            try {
-                process = await import('node:process');
-            } catch (_e) {
-                // browser or runtime without process — fall through to document check
-            }
-        }
-
-        if (process?.versions?.gjs) {
-            runtime = 'Gjs ' + process.versions.gjs;
-            return runtime;
-        } else if (process?.versions?.node) {
-            runtime = 'Node.js ' + process.versions.node;
-            return runtime;
-        }
-    }
-
-    // Browser only after no Node/GJS process was found.
+    // Only after no runtime answered: `@gjsify/dom-elements` can set
+    // `globalThis.document` on GJS, so this must never be asked first.
     if (typeof runtimeGlobals().document !== 'undefined') {
         runtime = 'Browser';
         return runtime;

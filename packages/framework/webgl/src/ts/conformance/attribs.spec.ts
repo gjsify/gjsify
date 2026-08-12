@@ -10,7 +10,7 @@ import { makeProgram, makeTestFBO, destroyTestFBO } from '../test-utils.js';
 import { createGLSetup } from './setup.js';
 
 export default async () => {
-    await on('Display', async () => {
+    await on('Gl', async () => {
         const setup = createGLSetup();
         if (!setup) {
             console.warn('WebGL context not available — skipping conformance/attribs tests');

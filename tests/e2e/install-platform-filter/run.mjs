@@ -36,73 +36,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
-import { createHash } from 'node:crypto';
-import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { LOCKFILE_VERSION } from '../helpers.mjs';
-
-// ----- tar helpers (ustar v0) — same shape as install-lock-preserve/run.mjs ---
-const BLOCK = 512;
-function tarHeader(name, size, type = '0') {
-    const buf = Buffer.alloc(BLOCK);
-    buf.write(name, 0, Math.min(name.length, 100));
-    buf.write('0000644', 100, 7);
-    buf.write('0000000', 108, 7);
-    buf.write('0000000', 116, 7);
-    buf.write(size.toString(8).padStart(11, '0'), 124, 11);
-    buf.write('0'.repeat(11), 136, 11);
-    buf.fill(0x20, 148, 156);
-    buf.write(type, 156, 1);
-    buf.write('ustar\0', 257, 6);
-    buf.write('00', 263, 2);
-    let sum = 0;
-    for (let i = 0; i < BLOCK; i++) sum += buf[i];
-    buf.write(sum.toString(8).padStart(6, '0'), 148, 6);
-    buf[154] = 0;
-    buf[155] = 0x20;
-    return buf;
-}
-function fileEntry(name, body) {
-    const padded = Buffer.alloc(Math.ceil(body.length / BLOCK) * BLOCK);
-    body.copy(padded);
-    return Buffer.concat([tarHeader(name, body.length), padded]);
-}
-function buildPackageTar(files) {
-    const parts = [tarHeader('package/', 0, '5')];
-    for (const [name, body] of Object.entries(files)) {
-        parts.push(fileEntry(`package/${name}`, Buffer.from(body)));
-    }
-    parts.push(Buffer.alloc(BLOCK * 2));
-    return Buffer.concat(parts);
-}
-function sriSha512(bytes) {
-    return `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
-}
-
-function runCli(cliEntry, args, { cwd, env, timeoutMs = 60_000 } = {}) {
-    return new Promise((resolve, reject) => {
-        const child = spawn(process.execPath, [cliEntry, ...args], { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
-        let stdout = '';
-        let stderr = '';
-        child.stdout.setEncoding('utf-8');
-        child.stderr.setEncoding('utf-8');
-        child.stdout.on('data', (c) => (stdout += c));
-        child.stderr.on('data', (c) => (stderr += c));
-        const kill = setTimeout(() => {
-            // ChildProcess.kill with a known signal never throws — failure to
-            // deliver just means the process already exited.
-            child.kill('SIGKILL');
-        }, timeoutMs);
-        child.on('close', (code) => {
-            clearTimeout(kill);
-            resolve({ status: code, stdout, stderr });
-        });
-        child.on('error', (e) => {
-            clearTimeout(kill);
-            reject(e);
-        });
-    });
-}
+import { packageTar, runCli, sriSha512 } from '../mock-registry.mjs';
 
 /**
  * The published corpus. `libc` is deliberately NOT part of what the abbreviated
@@ -143,7 +79,7 @@ function buildIndex() {
                 ...(meta.libc ? { libc: meta.libc } : {}),
             };
             const tgz = gzipSync(
-                buildPackageTar({
+                packageTar({
                     'package.json': JSON.stringify(pkgJson),
                     'index.js': `module.exports = ${JSON.stringify({ name, version })};\n`,
                 }),
@@ -268,6 +204,7 @@ describe('gjsify install — os/cpu/libc filtering', { timeout: 180_000 }, () =>
     it('(a) records the foreign-platform optional deps but installs only the matching one', async () => {
         const dir = project('glibc-target', { dependencies: { 'plat-app': '^1.0.0' } });
         const r = await runCli(cliEntry, ['install', '--os=linux', '--cpu=x64', '--libc=glibc', '--verbose'], {
+            timeoutMs: 60_000,
             cwd: dir,
             env: baseEnv,
         });
@@ -338,7 +275,7 @@ describe('gjsify install — os/cpu/libc filtering', { timeout: 180_000 }, () =>
         const r = await runCli(
             cliEntry,
             ['install', '--refresh-lockfile', '--os=linux', '--cpu=x64', '--libc=glibc', '--verbose'],
-            { cwd: dir, env: baseEnv },
+            { timeoutMs: 60_000, cwd: dir, env: baseEnv },
         );
         assert.equal(r.status, 0, `install failed: ${r.stderr}\n${r.stdout}`);
         assert.match(r.stderr, /packument-cache-hit: plat-bin-linux-x64-musl \(full, 304/);
@@ -357,7 +294,7 @@ describe('gjsify install — os/cpu/libc filtering', { timeout: 180_000 }, () =>
         const r = await runCli(
             cliEntry,
             ['install', '--immutable', '--os=linux', '--cpu=x64', '--libc=musl', '--verbose'],
-            { cwd: dir, env: baseEnv },
+            { timeoutMs: 60_000, cwd: dir, env: baseEnv },
         );
         assert.equal(r.status, 0, `install failed: ${r.stderr}\n${r.stdout}`);
         assert.ok(installed(dir, 'plat-bin-linux-x64-musl'), '--libc=musl must select the musl variant');
@@ -371,6 +308,7 @@ describe('gjsify install — os/cpu/libc filtering', { timeout: 180_000 }, () =>
         const dir = project('darwin-target', { dependencies: { 'plat-app': '^1.0.0' } });
         requestedShapes = new Map();
         const r = await runCli(cliEntry, ['install', '--os=darwin', '--cpu=arm64', '--verbose'], {
+            timeoutMs: 60_000,
             cwd: dir,
             env: baseEnv,
         });
@@ -404,6 +342,7 @@ describe('gjsify install — os/cpu/libc filtering', { timeout: 180_000 }, () =>
     it('(c) an incompatible REQUIRED dependency fails with EBADPLATFORM', async () => {
         const dir = project('required-mismatch', { dependencies: { 'win-only': '^1.0.0' } });
         const r = await runCli(cliEntry, ['install', '--os=linux', '--cpu=x64', '--libc=glibc'], {
+            timeoutMs: 60_000,
             cwd: dir,
             env: baseEnv,
         });
@@ -417,7 +356,7 @@ describe('gjsify install — os/cpu/libc filtering', { timeout: 180_000 }, () =>
     it('(c) --force installs an incompatible REQUIRED dependency anyway', async () => {
         const dir = project('required-forced', { dependencies: { 'win-only': '^1.0.0' } });
         const args = ['install', '--force', '--os=linux', '--cpu=x64', '--libc=glibc', '--verbose'];
-        const r = await runCli(cliEntry, args, { cwd: dir, env: baseEnv });
+        const r = await runCli(cliEntry, args, { timeoutMs: 60_000, cwd: dir, env: baseEnv });
         assert.equal(r.status, 0, `--force must bypass the check: ${r.stderr}\n${r.stdout}`);
         assert.ok(installed(dir, 'win-only'), '--force must install the incompatible required dep');
     });
@@ -429,6 +368,7 @@ describe('gjsify install — os/cpu/libc filtering', { timeout: 180_000 }, () =>
         // install fails instead of thinning.
         const dir = project('optional-mismatch', { optionalDependencies: { 'win-only': '^1.0.0' } });
         const r = await runCli(cliEntry, ['install', '--os=linux', '--cpu=x64', '--libc=glibc', '--verbose'], {
+            timeoutMs: 60_000,
             cwd: dir,
             env: baseEnv,
         });
@@ -444,6 +384,7 @@ describe('gjsify install — os/cpu/libc filtering', { timeout: 180_000 }, () =>
         // what lets the flags be a thin wrapper rather than a second mechanism.
         const dir = project('env-target', { dependencies: { 'plat-app': '^1.0.0' } });
         const r = await runCli(cliEntry, ['install', '--verbose'], {
+            timeoutMs: 60_000,
             cwd: dir,
             env: { ...baseEnv, npm_config_os: 'linux', npm_config_cpu: 'x64', npm_config_libc: 'musl' },
         });

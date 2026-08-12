@@ -25,6 +25,15 @@ on:
         required: false
         type: boolean
         default: true
+      runtime:
+        description: >-
+          Cold-tree bootstrap runtime, normally FORWARDED by release-cut.yml rather than chosen here.
+          Switches only that step — see .github/scripts/bootstrap-cold-tree.sh for what Node still
+          drives either way, including publish-napi's Node-only facade bootstrap, which no input reaches.
+        required: false
+        type: choice
+        options: [node, gjs]
+        default: node
       verify_only:
         description: 'Run `gjsify foreach publish --check-trusted` against every package and skip the actual publish. Used to audit Trusted Publisher configs on npmjs.com after configuring them — the OIDC JWT issued for THIS workflow file matches the configured `release.yml` Trusted Publishers.'
         required: false
@@ -93,7 +102,7 @@ jobs:
           echo "GJSIFY_BOOTSTRAP=$B" >> "$GITHUB_ENV"
 
       - name: Bootstrap the build toolchain (cold trees only)
-        run: .github/scripts/bootstrap-cold-tree.sh
+        run: .github/scripts/bootstrap-cold-tree.sh "${{ inputs.runtime || 'node' }}"
 
       - name: Build packages
         run: PATH="$PWD/node_modules/.bin:$PATH" gjsify run build
@@ -1569,6 +1578,12 @@ jobs:
       # caller to build it, so @gjsify/napi was the one package that missed the
       # train. The script now runs `build:infra` itself when the entry is
       # absent, so no caller has to know the ordering.
+      # THE THIRD COLD-TREE BOOTSTRAP, and the one the `runtime` input does NOT
+      # reach — deliberately. It is Node-only by construction, not by oversight:
+      # under GJS the only bundler engine is `@gjsify/rolldown-native`, whose JS
+      # facade is what THIS step builds, so a GJS arm here would have to bundle
+      # its own bundler. Named here because an uncommented exception is how the
+      # `runtime` input becomes a lie one level down.
       - name: Bootstrap the native bundler facade
         run: node scripts/bootstrap-native-facades.mjs
 

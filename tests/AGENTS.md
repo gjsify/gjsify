@@ -33,6 +33,16 @@ Matchers: `toBe|toEqual|toBeTruthy|toBeFalsy|toBeNull|toBeDefined|toBeUndefined|
 
 **Test sources:** port from `refs/` (`refs/node-test/` primary; `refs/deno/ext/{web,fetch,crypto,…}` for Web API), rewritten in `@gjsify/unit` with bare specifiers — never copied verbatim, never weakened. Select core behavior, GNOME-relevant edge cases, errors, cross-platform; skip V8 internals/native addons/stubbed features.
 
+### E2E tests — `tests/e2e/`
+
+One suite per directory (`run.mjs`, `node:test`), driving the built CLI from OUTSIDE. Two shared
+modules, NEITHER re-implementable in a suite: `helpers.mjs` (repo paths, packing, project setup) and
+`mock-registry.mjs` — the npm harness (`packageTar` · `packageTarball` · `sriSha512` ·
+`startMockRegistry` · `runCli`/`runCliSync`). A registry that must MISBEHAVE uses `onRequest`, never
+a private server. `scripts/check-e2e-harness-duplication.mjs` fails on a private copy and holds the
+incident. A suite-specific POLICY over the shared runner stays local (`build-cache`'s hermetic env);
+a second implementation does not. `runCli` defaults to 30 s — longer goes at the CALL SITE.
+
 ### Browser tests — `tests/browser/` (Playwright, Firefox/SpiderMonkey)
 
 Third axis alongside `test:gjs`/`test:node`. **The goal is GJS, not the browser**: they verify the native browser platform behaves the way our GJS impl claims — they do NOT test our GJS packages in a browser. **`src/test.browser.mts` must use browser globals directly** — never import `@gjsify/<pkg>` impls or spec files that do: Web APIs are already global in the browser, and importing our packages drags `@girs/*`/`gi://` in transitively, forcing workaround aliases. The correct fix is always a clean test file, not more aliases. **`@girs/*` or `gi://*` appearing in a browser/Node bundle = a missing alias somewhere in the chain — fix the import; never mask with `external:` (unresolvable bare specifiers) or a blanket empty-module map.** Build: `build:test:browser` → `gjsify build src/test.browser.mts --app browser` (the target's `gjsImportsEmptyPlugin` silences what leaks via `@gjsify/unit`; only two aliases exist: `assert`→`@gjsify/assert`, `process`→`@gjsify/empty`). 12 packages have browser tests; GJS-only packages (webaudio, webrtc, gamepad) have none — no browser equivalent of libsoup/GStreamer/Manette. Run: `cd tests/browser && npx playwright test --project=firefox` (add `--project=chromium` for engine diffs).

@@ -52,11 +52,21 @@
  * check. The notes are ALSO `::warning::` annotations, which survive a summary
  * file that cannot be written.
  *
- * IT DELIBERATELY DOES NOT FAIL ON an INCOMPLETE release where no published
- * package has a pinned dependency — that is exactly what prevention promises, it
- * can only co-occur with an already-red publish job, and a second misleading red
- * ("the enumeration broke") on top of the real cause teaches everyone to ignore
- * this job. The log says no edge was examined, so it cannot READ as verified.
+ * IT ALSO CHECKS THE ROSTER, not only the edges: every package whose manifest
+ * carries the release version must be live at it. That is a SECOND question, and
+ * the edge check answered its own correctly while v0.31.0 left `@gjsify/napi` and
+ * its two platform children at 0.30.0 — nothing in this repository declares a
+ * manifest edge to `napi`, so there was no pinned edge to examine.
+ *
+ * This block used to say the opposite: that an incomplete release must NOT fail
+ * here, because it "can only co-occur with an already-red publish job" and a second
+ * misleading red teaches everyone to ignore this job. The reasoning was sound and
+ * its premise expired. It was written when INCOMPLETE meant the sweep aborted;
+ * since ADR 0017 split `napi`, `node-gi` and the GTK bundles into their own jobs, a
+ * package goes missing through a SKIPPED job, which is neither red nor examined,
+ * while the 60-name `publish` job stays green. What survives of the old reasoning
+ * is its requirement, and the roster failure meets it: it names the PACKAGE that is
+ * not on npm, never "the enumeration broke".
  *
  * WHAT "RESOLVES" MEANS: the release version is by construction the MAXIMUM of
  * this train, so each of `<v>`, `=<v>`, `^<v>`, `~<v>` admits exactly one existing
@@ -398,6 +408,47 @@ if (bad.length > 0) {
             'no-op for what already landed and publishes the rest.',
     );
 }
+/**
+ * THE ROSTER, beside the edges: did every package this train MEANT to publish
+ * actually arrive?
+ *
+ * The edge check answers a different question, and answered it correctly while
+ * v0.31.0 shipped `@gjsify/napi` and its two platform children at 0.30.0: nothing
+ * in this repository declares a manifest edge to `@gjsify/napi`, so there was no
+ * pinned edge to examine, let alone fail.
+ *
+ * The header's reasoning for tolerating an incomplete release rested on a clause
+ * that stopped holding — that it "can only co-occur with an already-red publish
+ * job". That was true when INCOMPLETE meant the sweep aborted. Since ADR 0017 gave
+ * `napi`, `node-gi` and the GTK bundles their own publish jobs, a package can go
+ * missing through a SKIPPED job, which is neither red nor examined, while the
+ * 60-name `publish` job is green.
+ *
+ * Two things this deliberately does NOT do. It does not turn a skipped publish job
+ * into a failure — the skip is correct, `publish-napi` cannot run without its
+ * prebuild — and it does not report that the enumeration broke. The finding is a
+ * NAMED package that is not on npm, which is what the header's "second misleading
+ * red" warning is asking for.
+ *
+ * The roster comes from the MANIFESTS under `packages/**` (`candidates`, via
+ * `createContext`) and not from the root `workspaces` globs. Measured on the
+ * incident: a workspace-derived roster reports "All 138 at 0.31.0" — green —
+ * because `packages/napi/*` and `packages/node-gi/*` are not in that list at all,
+ * by design, and `release.yml` relies on the exclusion. The packages the dedicated
+ * jobs own are exactly the ones that can go missing and exactly the ones those
+ * globs cannot see.
+ */
+if (errored.length === 0 && live.length > 0 && notLive.length > 0) {
+    problems.push(
+        `${notLive.length} of ${candidates.length} package(s) this train meant to publish are NOT on ${registry} ` +
+            `at ${version}: ${notLive.slice(0, 20).join(', ')}${notLive.length > 20 ? `, … (+${notLive.length - 20})` : ''}` +
+            `. Each one declares ${version} in its own manifest, so the ` +
+            'release intended to publish it. A package with no incoming manifest edge (`@gjsify/napi`, ' +
+            '`@gjsify/node-gi`, the `@gjsify/gtk-runtime-*` bundles) has its own publish job as its ONLY guard, ' +
+            'and a skipped job is neither red nor examined. Re-run the release workflow: `gjsify publish ' +
+            '--tolerate-republish` no-ops for what already landed and publishes the rest.',
+    );
+}
 
 /**
  * NOT failures, and therefore the most dangerous thing this script produces:
@@ -408,19 +459,13 @@ if (bad.length > 0) {
  * print statement cannot.
  */
 const notes = [];
-if (problems.length === 0 && examined.length === 0) {
-    // Never phrase this as a verified closure: nothing was examined, because the
-    // published tree contains no pinned dependency — what an aborted but
-    // dependency-ordered sweep looks like, and with ordering plus fail-fast the
-    // TYPICAL abort, so this is the state a human most often reads in the release UI.
-    notes.push(
-        `NO edge was examined: none of the ${pinnedEdges.length} release-pinned edge(s) this tree declares has a ` +
-            `published parent (${notLive.length} package(s) absent at ${version}). Nothing on npm points at ` +
-            'anything missing, so the closure is intact — but this run verified no edge, and an unverified closure ' +
-            'is not a verified one. The publish job that stopped short is the finding: re-run the release ' +
-            '(`gjsify publish --tolerate-republish` no-ops for what already landed).',
-    );
-}
+// A note for "no edge was examined because the sweep stopped short" used to live
+// here. The roster assertion above now FAILS that state and names the missing
+// packages, so the note became unreachable — `problems.length === 0` implies every
+// candidate is live, which with a non-empty edge set implies a live pinned parent.
+// Removed rather than left as dead reassurance; `verdict` still carries a
+// NOTHING VERIFIED branch for any path that reaches zero examined edges without a
+// problem, which is the honest thing to print if one is ever found.
 
 /** One sentence a human can read off the summary table without decoding counts. */
 const verdict =

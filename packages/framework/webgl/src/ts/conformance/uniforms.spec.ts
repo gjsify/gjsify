@@ -40,7 +40,7 @@ function floatArrayClose(a: Float32Array | number[], b: number[], tol = 0.001): 
 }
 
 export default async () => {
-    await on('Display', async () => {
+    await on('Gl', async () => {
         const setup = createGLSetup();
         if (!setup) {
             console.warn('WebGL context not available — skipping conformance/uniforms tests');

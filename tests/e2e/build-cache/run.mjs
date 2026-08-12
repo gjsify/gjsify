@@ -31,43 +31,21 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { runCli as runCliRaw } from '../mock-registry.mjs';
 
-function runCli(cliEntry, args, { cwd, env, timeoutMs = 60_000 } = {}) {
-    return new Promise((resolve, reject) => {
-        const child = spawn(process.execPath, [cliEntry, ...args], {
-            cwd,
-            // Hermetic: never inherit a build-cache toggle from the outer
-            // environment; individual tests opt in explicitly.
-            env: { ...process.env, GJSIFY_BUILD_CACHE: '', ...env },
-            stdio: ['ignore', 'pipe', 'pipe'],
-        });
-        let stdout = '';
-        let stderr = '';
-        child.stdout.setEncoding('utf-8');
-        child.stderr.setEncoding('utf-8');
-        child.stdout.on('data', (c) => {
-            stdout += c;
-        });
-        child.stderr.on('data', (c) => {
-            stderr += c;
-        });
-        const kill = setTimeout(() => {
-            // ChildProcess.kill with a known signal never throws — failure
-            // to deliver just returns false (the process already exited).
-            child.kill('SIGKILL');
-        }, timeoutMs);
-        child.on('close', (code) => {
-            clearTimeout(kill);
-            resolve({ status: code, stdout, stderr });
-        });
-        child.on('error', (e) => {
-            clearTimeout(kill);
-            reject(e);
-        });
-    });
-}
+/**
+ * The shared CLI runner, made HERMETIC for this suite.
+ *
+ * `GJSIFY_BUILD_CACHE` is blanked before each test's own `env` is layered on, so a
+ * developer with the toggle exported does not silently turn the cache on for the
+ * cases that assert it is OFF. It is a policy about THIS suite's subject, not a
+ * property of running the CLI, which is why it lives here and not in the shared
+ * runner — and why the shared runner's plain pass-through would have made
+ * `env: { GJSIFY_BUILD_CACHE: '1' }` replace the whole environment, PATH included.
+ */
+const runCli = (cliEntry, args, { env, ...rest } = {}) =>
+    runCliRaw(cliEntry, args, { ...rest, env: { ...process.env, GJSIFY_BUILD_CACHE: '', ...env } });
 
 describe('gjsify build cache (--cached, ADR 0006 phase 1)', { timeout: 300_000 }, () => {
     let root, cliEntry;
@@ -147,7 +125,7 @@ describe('gjsify build cache (--cached, ADR 0006 phase 1)', { timeout: 300_000 }
     let coldMarkers;
 
     it('(1) cold cache: first --cached run builds every package (all misses)', async () => {
-        const r = await runCli(cliEntry, ['foreach', 'build', '--cached'], { cwd: root });
+        const r = await runCli(cliEntry, ['foreach', 'build', '--cached'], { timeoutMs: 60_000, cwd: root });
         assert.equal(r.status, 0, `foreach failed: ${r.stderr}\n${r.stdout}`);
         coldMarkers = markers();
         for (const [k, v] of Object.entries(coldMarkers)) {
@@ -170,7 +148,7 @@ describe('gjsify build cache (--cached, ADR 0006 phase 1)', { timeout: 300_000 }
     });
 
     it('(2) warm cache: second run hits for all, markers unchanged', async () => {
-        const r = await runCli(cliEntry, ['foreach', 'build', '--cached'], { cwd: root });
+        const r = await runCli(cliEntry, ['foreach', 'build', '--cached'], { timeoutMs: 60_000, cwd: root });
         assert.equal(r.status, 0, `foreach failed: ${r.stderr}`);
         for (const name of ['@test/a', '@test/b', '@test/c']) {
             assert.match(r.stderr, new RegExp(`\\[gjsify build-cache\\] ${name}: hit`), `expected hit log for ${name}`);
@@ -180,7 +158,7 @@ describe('gjsify build cache (--cached, ADR 0006 phase 1)', { timeout: 300_000 }
 
     it('(2b) hit restores outputs after they were deleted', async () => {
         rmSync(join(pkgDir('c'), 'lib'), { recursive: true, force: true });
-        const r = await runCli(cliEntry, ['foreach', 'build', '--cached'], { cwd: root });
+        const r = await runCli(cliEntry, ['foreach', 'build', '--cached'], { timeoutMs: 60_000, cwd: root });
         assert.equal(r.status, 0, `foreach failed: ${r.stderr}`);
         assert.match(
             r.stderr,
@@ -192,7 +170,7 @@ describe('gjsify build cache (--cached, ADR 0006 phase 1)', { timeout: 300_000 }
 
     it("(3) editing A's src re-runs A AND its dependent B, but not C", async () => {
         writeFileSync(join(pkgDir('a'), 'src', 'index.ts'), "export const who = '@test/a edited';\n");
-        const r = await runCli(cliEntry, ['foreach', 'build', '--cached'], { cwd: root });
+        const r = await runCli(cliEntry, ['foreach', 'build', '--cached'], { timeoutMs: 60_000, cwd: root });
         assert.equal(r.status, 0, `foreach failed: ${r.stderr}`);
         const now = markers();
         assert.notEqual(now.a, coldMarkers.a, 'A must rebuild after its src changed');
@@ -218,7 +196,7 @@ describe('gjsify build cache (--cached, ADR 0006 phase 1)', { timeout: 300_000 }
         // Two more distinct input states → 4 keys seen in total for A.
         for (const edit of ['v3', 'v4']) {
             writeFileSync(join(pkgDir('a'), 'src', 'index.ts'), `export const who = '${edit}';\n`);
-            const r = await runCli(cliEntry, ['foreach', 'build', '--cached'], { cwd: root });
+            const r = await runCli(cliEntry, ['foreach', 'build', '--cached'], { timeoutMs: 60_000, cwd: root });
             assert.equal(r.status, 0, `foreach failed: ${r.stderr}`);
         }
         const dir = cacheDirFor('test-a-');
@@ -228,11 +206,16 @@ describe('gjsify build cache (--cached, ADR 0006 phase 1)', { timeout: 300_000 }
     });
 
     it('(6) GJSIFY_BUILD_CACHE=1 enables the cache without the flag; --no-cached overrides', async () => {
-        const hit = await runCli(cliEntry, ['foreach', 'build'], { cwd: root, env: { GJSIFY_BUILD_CACHE: '1' } });
+        const hit = await runCli(cliEntry, ['foreach', 'build'], {
+            timeoutMs: 60_000,
+            cwd: root,
+            env: { GJSIFY_BUILD_CACHE: '1' },
+        });
         assert.equal(hit.status, 0, `foreach failed: ${hit.stderr}`);
         assert.match(hit.stderr, /\[gjsify build-cache\] @test\/a: hit/, 'env toggle must enable the cache');
         const before = markers();
         const off = await runCli(cliEntry, ['foreach', 'build', '--no-cached'], {
+            timeoutMs: 60_000,
             cwd: root,
             env: { GJSIFY_BUILD_CACHE: '1' },
         });
@@ -240,12 +223,15 @@ describe('gjsify build cache (--cached, ADR 0006 phase 1)', { timeout: 300_000 }
         assert.ok(!off.stderr.includes('[gjsify build-cache]'), '--no-cached must win over the env toggle');
         assert.notEqual(markers().a, before.a, '--no-cached must actually re-run the builds');
         // Re-store the current state for the tests below.
-        const restore = await runCli(cliEntry, ['foreach', 'build', '--cached'], { cwd: root });
+        const restore = await runCli(cliEntry, ['foreach', 'build', '--cached'], { timeoutMs: 60_000, cwd: root });
         assert.equal(restore.status, 0);
     });
 
     it('(7) gjsify workspace <name> <script> --cached hits the same cache', async () => {
-        const r = await runCli(cliEntry, ['workspace', '@test/b', 'build', '--cached'], { cwd: root });
+        const r = await runCli(cliEntry, ['workspace', '@test/b', 'build', '--cached'], {
+            timeoutMs: 60_000,
+            cwd: root,
+        });
         assert.equal(r.status, 0, `workspace failed: ${r.stderr}`);
         assert.match(
             r.stderr,
@@ -255,7 +241,10 @@ describe('gjsify build cache (--cached, ADR 0006 phase 1)', { timeout: 300_000 }
     });
 
     it('(8) --cached with --exec is rejected', async () => {
-        const r = await runCli(cliEntry, ['foreach', '--cached', '--exec', '--', 'node', '-e', ''], { cwd: root });
+        const r = await runCli(cliEntry, ['foreach', '--cached', '--exec', '--', 'node', '-e', ''], {
+            timeoutMs: 60_000,
+            cwd: root,
+        });
         assert.notEqual(r.status, 0, 'expected non-zero exit for --cached --exec');
         assert.match(r.stdout + r.stderr, /--cached only applies to script mode/i);
     });
@@ -334,7 +323,8 @@ describe('gjsify build cache — the dual emit must not clobber itself', { timeo
     });
 
     it('a cache HIT on build:gjsify leaves the build:types output intact', async () => {
-        const run = (script) => runCli(cliEntry, ['workspace', '@test/dual', script, '--cached'], { cwd: root });
+        const run = (script) =>
+            runCli(cliEntry, ['workspace', '@test/dual', script, '--cached'], { timeoutMs: 60_000, cwd: root });
 
         const cold = await run('build:gjsify');
         assert.equal(cold.status, 0, cold.stderr);
@@ -356,7 +346,8 @@ describe('gjsify build cache — the dual emit must not clobber itself', { timeo
     });
 
     it('the reverse order is symmetric: a build:types hit keeps lib/esm', async () => {
-        const run = (script) => runCli(cliEntry, ['workspace', '@test/dual', script, '--cached'], { cwd: root });
+        const run = (script) =>
+            runCli(cliEntry, ['workspace', '@test/dual', script, '--cached'], { timeoutMs: 60_000, cwd: root });
         rmSync(join(pkg, 'lib'), { recursive: true, force: true });
         assert.equal((await run('build:types')).status, 0);
         assert.equal((await run('build:gjsify')).status, 0);
@@ -368,6 +359,7 @@ describe('gjsify build cache — the dual emit must not clobber itself', { timeo
 
     it('each script records ONLY its own sub-tree as a cache output', async () => {
         const r = await runCli(cliEntry, ['workspace', '@test/dual', 'build:gjsify', '--cached'], {
+            timeoutMs: 60_000,
             cwd: root,
             env: { GJSIFY_BUILD_CACHE: '1' },
         });

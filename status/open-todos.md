@@ -185,6 +185,21 @@ bare CJS `require`, not just an `fs` global, so supplying `fs` alone would not
 have been enough. The API swap to `compileString` (done earlier, byte-identical
 CSS + source map) was necessary and is not sufficient.
 
+**The bundler's own sass path fails too, EARLIER and for a different reason —
+measured 2026-08-12, and it was never written down.** An ordinary
+`import './x.scss'` built with `--app gjs` dies at
+`UNLOADABLE_DEPENDENCY: Could not load style.scss`, while the identical input under
+`--app node` compiles and lands `color: red` in the bundle. The cause is NOT the
+`require` wall above: `css-as-string.ts` reaches dart-sass through
+`import('sass')`, a BARE specifier resolved at RUNTIME, which GJS's ESM loader
+cannot do (`Module not found: sass`), and `dist/cli.gjs.mjs` carries no inlined
+dart-sass either (grep: zero `dartNodeIsActuallyNode`). Its comment claimed the
+opposite — "the `dart-sass` JS API is pure JS, so it loads under GJS + Node alike"
+— and is corrected. So there are TWO sass paths and one fix answers neither by
+itself. `tests/e2e/scss-under-gjs` now holds both halves: the Node case asserts the
+compiled output, the GJS case asserts the exact failure shape and goes RED the day
+it starts working.
+
 A second thing surfaces in the same run and needs a decision, not just a fix:
 `--globals auto` injects `document`, `navigator`, `HTMLElement`,
 `HTMLCanvasElement`, `MutationObserver`, `Path2D`, `location` for this bundle —

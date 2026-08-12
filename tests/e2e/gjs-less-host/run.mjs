@@ -26,11 +26,12 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, delimiter } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runCli } from '../mock-registry.mjs';
 
 const cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
 
@@ -41,33 +42,6 @@ function pathWithoutGjs() {
         .split(delimiter)
         .filter((d) => d && !names.some((n) => existsSync(join(d, n))))
         .join(delimiter);
-}
-
-function runCli(args, { cwd, env, timeoutMs = 60_000 } = {}) {
-    return new Promise((resolve, reject) => {
-        const child = spawn(process.execPath, [cliEntry, ...args], {
-            cwd,
-            env,
-            stdio: ['ignore', 'pipe', 'pipe'],
-        });
-        let stdout = '';
-        let stderr = '';
-        child.stdout.setEncoding('utf-8');
-        child.stderr.setEncoding('utf-8');
-        child.stdout.on('data', (c) => (stdout += c));
-        child.stderr.on('data', (c) => (stderr += c));
-        // ChildProcess.kill with a known signal never throws — a failure to
-        // deliver just returns false (the process already exited).
-        const kill = setTimeout(() => child.kill('SIGKILL'), timeoutMs);
-        child.on('close', (status) => {
-            clearTimeout(kill);
-            resolve({ status, stdout, stderr });
-        });
-        child.on('error', (e) => {
-            clearTimeout(kill);
-            reject(e);
-        });
-    });
 }
 
 describe('gjsify CLI on a host without gjs', { timeout: 180_000 }, () => {
@@ -109,13 +83,13 @@ describe('gjsify CLI on a host without gjs', { timeout: 180_000 }, () => {
     });
 
     it('reports its version', async () => {
-        const r = await runCli(['--version'], { cwd: dir, env });
+        const r = await runCli(cliEntry, ['--version'], { cwd: dir, env });
         assert.equal(r.status, 0, r.stderr);
         assert.doesNotMatch(r.stderr, /Missing system dependencies/);
     });
 
     it('builds an --app node bundle', async () => {
-        const r = await runCli(['build', 'hello.ts', '--app', 'node', '--outfile', 'hello.node.mjs'], {
+        const r = await runCli(cliEntry, ['build', 'hello.ts', '--app', 'node', '--outfile', 'hello.node.mjs'], {
             cwd: dir,
             env,
         });
@@ -129,7 +103,7 @@ describe('gjsify CLI on a host without gjs', { timeout: 180_000 }, () => {
     // runtime and never reach for gjs. This is the path that legitimately
     // spawns `node`, which is why the scrub keeps the rest of PATH intact.
     it('runs an --app node bundle on the host runtime', async () => {
-        const r = await runCli(['run', 'hello.node.mjs'], { cwd: dir, env });
+        const r = await runCli(cliEntry, ['run', 'hello.node.mjs'], { cwd: dir, env });
         assert.doesNotMatch(r.stderr, /Missing system dependencies/);
         assert.match(r.stdout + r.stderr, /GJS_LESS_OK/);
     });

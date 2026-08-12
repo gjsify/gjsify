@@ -42,9 +42,6 @@ const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const CLI_ENTRY = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js');
 
 // ---------------------------------------------------------------------------
-// Minimal ustar tar builder — enough to produce a valid .tgz that gjsify
-// publish can pack from a temp fixture dir (the actual pack step runs for
-// real; we only need the fixture to exist).
 // ---------------------------------------------------------------------------
 
 // Token used in the fake auth .npmrc and asserted in the captured request.

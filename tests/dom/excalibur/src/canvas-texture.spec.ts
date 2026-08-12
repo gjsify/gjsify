@@ -21,7 +21,7 @@ import GLib from '@girs/glib-2.0';
 import Gtk from '@girs/gtk-4.0';
 
 export default async () => {
-    await on('Display', async () => {
+    await on('Gl', async () => {
         Gtk.init();
 
         await describe('Canvas2D → WebGL texture pipeline', async () => {

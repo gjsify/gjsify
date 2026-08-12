@@ -32,10 +32,62 @@
 # ONE script, called by every workflow that needs it. The duplicate copy in
 # release.yml is exactly why v0.31.0's publish still failed after the cut was
 # fixed: the fix went to one of the two.
+#
+# RUNTIME IS ARGUMENT 1 (`node` | `gjs`), so flipping it is a dispatch decision
+# rather than an edit to this file — the edit is what diverged last time. Colon
+# form `${1:-node}` on purpose: on a `release: published` event every `inputs.*`
+# renders as the EMPTY STRING, and `${1-node}` substitutes only when the
+# parameter is UNSET, so an explicit empty argument would fall through and fail
+# every real release.
+#
+# WHAT THE ARGUMENT DOES NOT BUY. It switches THIS bootstrap. Node survives every
+# value of it: `setup-node`, `npx release-it`, the `node scripts/*` hooks inside
+# `.release-it.json` (which no workflow input can reach), `verify-committed-bundles.mjs`,
+# and the dispatch step. There is also a THIRD cold-tree bootstrap this does not
+# reach — `node scripts/bootstrap-native-facades.mjs` in release.yml's
+# `publish-napi` — which is Node-only BY DESIGN: the facade it builds is what the
+# GJS bundler engine needs in order to exist.
 set -euo pipefail
+
+RUNTIME="${1:-node}"
+case "$RUNTIME" in
+    node | gjs) ;;
+    *)
+        echo "::error::bootstrap-cold-tree: unknown runtime '${RUNTIME}' (expected 'node' or 'gjs')." >&2
+        exit 2
+        ;;
+esac
+
+# The one line that must be true rather than merely requested. Everything after
+# this script resolves `gjsify` through `node_modules/.bin/gjsify`, so the
+# interpreter that will drive `gjsify run build`, `verify-committed-bundles.mjs`
+# and the `after:bump` rebuild is a property of THE SHIM THIS SCRIPT LEAVES
+# BEHIND — never of the input. A run labelled `gjs` whose bundles were built by
+# Node is the class of misinformation that made v0.31.0 unrecoverable, so the
+# label is derived at the end, from the shim, and printed there.
+report_shim() {
+    local shim='node_modules/.bin/gjsify'
+    local target interpreter
+    target="$(readlink -f "$shim" 2>/dev/null || echo '<dangling>')"
+    interpreter="$(head -c 2 "$target" 2>/dev/null || true)"
+    if [ "$interpreter" = '#!' ]; then
+        interpreter="$(head -n 1 "$target" | sed 's|^#!\s*||')"
+    else
+        interpreter='node (a plain .js entry, run by whatever spawns it)'
+    fi
+    echo "DRIVER: every later step runs \`${target}\` via ${interpreter}"
+    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+        {
+            echo "| Cold-tree bootstrap | \`${RUNTIME}\` (requested) |"
+            echo "| --- | --- |"
+            echo "| Driver for later steps | \`${target}\` |"
+        } >> "$GITHUB_STEP_SUMMARY"
+    fi
+}
 
 if [ -f packages/infra/cli/lib/index.js ]; then
     echo "Node CLI entry present — the .bin shim is usable, skipping build:infra."
+    report_shim
     exit 0
 fi
 
@@ -52,10 +104,19 @@ mkdir -p /tmp/gjsify-node-cli
 ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
 echo "Node bootstrap CLI: $(node_modules/.bin/gjsify --version)"
 
-node /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js run build:infra
+if [ "$RUNTIME" = 'gjs' ]; then
+    # The revert this file's header describes, reachable without editing it.
+    # `$GJSIFY_BOOTSTRAP` is the PREVIOUS release's CLI, which is why a defect
+    # here can only be repaired by a release — see the header, and the canary in
+    # release-cut.yml that exercises this arm on every cut without blocking it.
+    gjs -m "$GJSIFY_BOOTSTRAP" run build:infra
+else
+    node /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js run build:infra
+fi
 
 # Hand it back. Left dangling, `verify-committed-bundles` rebuilt
 # affected.gjs.mjs 157 bytes short and reported it STALE — the check was right,
 # it was being handed the wrong compiler.
 ln -sf "$PWD/packages/infra/cli/lib/index.js" node_modules/.bin/gjsify
 echo "Handed back to the freshly built CLI: $(node_modules/.bin/gjsify --version)"
+report_shim

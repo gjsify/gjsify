@@ -390,8 +390,14 @@ let _sassPromise: Promise<SassSurface> | null = null;
 async function compileSass(filename: string): Promise<string> {
     if (!_sassPromise) {
         // Lazy + indirect specifier so `sass` is only resolved when a Sass file
-        // is actually imported (mirrors the lazy lightningcss backend). The
-        // `dart-sass` JS API is pure JS, so it loads under GJS + Node alike.
+        // is actually imported (mirrors the lazy lightningcss backend).
+        //
+        // NODE ONLY — this comment used to claim "loads under GJS + Node alike".
+        // Measured on 0.37.0: under GJS it rejects with `Module not found: sass`,
+        // because a BARE specifier resolved at RUNTIME is what GJS's ESM loader
+        // cannot do, so `import './x.scss'` fails there with UNLOADABLE_DEPENDENCY.
+        // Why bundling dart-sass in does not fix it: status/open-todos.md (#1053).
+        // `tests/e2e/scss-under-gjs` holds both halves and reds the day it works.
         _sassPromise = import(/* @vite-ignore */ 'sass') as unknown as Promise<SassSurface>;
     }
     try {

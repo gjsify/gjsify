@@ -120,7 +120,7 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
 
     // Async — execFileSync would block the event loop and prevent the
     // in-process mock registry server from accepting connections.
-    async function runCli(args, opts = {}) {
+    async function runUpgrade(args, opts = {}) {
         const { stdout } = await execFileAsync('node', [CLI_ENTRY, 'upgrade', ...args], {
             timeout: opts.timeout ?? 30 * 1000,
             cwd: opts.cwd,
@@ -133,7 +133,7 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
     it('--latest --dry-run reports candidates without writing', async () => {
         const dir = scaffold('dry-run-project');
         const before = readFileSync(join(dir, 'package.json'), 'utf-8');
-        const out = await runCli(['--latest', '--dry-run'], { cwd: dir });
+        const out = await runUpgrade(['--latest', '--dry-run'], { cwd: dir });
         assert.match(out, /checking 4 unique deps across 1 workspace/);
         assert.match(out, /lib-a/);
         assert.match(out, /lib-b/);
@@ -147,7 +147,7 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
 
     it('--latest writes new ranges preserving the prefix', async () => {
         const dir = scaffold('latest-project');
-        await runCli(['--latest'], { cwd: dir });
+        await runUpgrade(['--latest'], { cwd: dir });
         const after = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf-8'));
         // lib-a was ^1.0.0; latest 2.0.0 → ^2.0.0
         assert.equal(after.dependencies['lib-a'], '^2.0.0');
@@ -161,7 +161,7 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
 
     it('--patch skips minor + major updates', async () => {
         const dir = scaffold('patch-project');
-        const out = await runCli(['--patch'], { cwd: dir });
+        const out = await runUpgrade(['--patch'], { cwd: dir });
         const after = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf-8'));
         // lib-a (1.0.0 → 2.0.0 is major) and lib-b (0.4.0 → 0.5.0 is minor) skipped
         assert.equal(after.dependencies['lib-a'], '^1.0.0');
@@ -174,7 +174,7 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
 
     it('--minor skips major updates', async () => {
         const dir = scaffold('minor-project');
-        await runCli(['--minor'], { cwd: dir });
+        await runUpgrade(['--minor'], { cwd: dir });
         const after = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf-8'));
         // lib-a (1.0.0 → 2.0.0 is major) skipped
         assert.equal(after.dependencies['lib-a'], '^1.0.0');
@@ -186,7 +186,7 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
 
     it('--filter narrows the scope by substring', async () => {
         const dir = scaffold('filter-project');
-        await runCli(['--latest', '--filter', 'lib-a,lib-c'], { cwd: dir });
+        await runUpgrade(['--latest', '--filter', 'lib-a,lib-c'], { cwd: dir });
         const after = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf-8'));
         assert.equal(after.dependencies['lib-a'], '^2.0.0');
         assert.equal(after.devDependencies['lib-c'], '^3.2.1');
@@ -212,7 +212,7 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
             ) + '\n',
             'utf-8',
         );
-        const out = await runCli(['--latest', '--dry-run'], { cwd: dir });
+        const out = await runUpgrade(['--latest', '--dry-run'], { cwd: dir });
         // Only lib-a is checked (@gjsify/cli has workspace: range)
         assert.match(out, /checking 1 unique deps across 1 workspace/);
         assert.match(out, /lib-a/);
@@ -231,7 +231,7 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
             ) + '\n',
             'utf-8',
         );
-        const out = await runCli([], { cwd: dir });
+        const out = await runUpgrade([], { cwd: dir });
         assert.match(out, /no external npm dependencies/);
     });
 
@@ -301,7 +301,7 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
 
     it('workspace mode: aggregates declarations across all workspaces', async () => {
         const root = scaffoldMonorepo('mono-aggregate');
-        const out = await runCli(['--latest', '--dry-run'], { cwd: root });
+        const out = await runUpgrade(['--latest', '--dry-run'], { cwd: root });
         // 3 unique deps (lib-a, lib-b, lib-c) across 4 workspaces (root + 3 children)
         assert.match(out, /checking 3 unique deps across 4 workspace/);
         // lib-a should show fan=3 (alpha + beta + gamma)
@@ -312,7 +312,7 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
 
     it('workspace mode: --check exits non-zero on inconsistency', async () => {
         const root = scaffoldMonorepo('mono-check-fail');
-        await assert.rejects(runCli(['--check'], { cwd: root }), (err) => {
+        await assert.rejects(runUpgrade(['--check'], { cwd: root }), (err) => {
             assert.equal(err.code, 1);
             assert.match(err.stderr ?? '', /lib-a/);
             assert.match(err.stderr ?? '', /declared at inconsistent ranges/);
@@ -348,13 +348,13 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
                 2,
             ) + '\n',
         );
-        const out = await runCli(['--check'], { cwd: root });
+        const out = await runUpgrade(['--check'], { cwd: root });
         assert.match(out, /gjsify upgrade --check: OK/);
     });
 
     it('workspace mode: --align fixes inconsistencies offline', async () => {
         const root = scaffoldMonorepo('mono-align');
-        const out = await runCli(['--align'], { cwd: root });
+        const out = await runUpgrade(['--align'], { cwd: root });
         // lib-a was ^1.0.0 (alpha, beta) + ^0.9.0 (gamma) → align to highest = ^1.0.0
         assert.match(out, /aligning 1 inconsistent dep/);
         assert.match(out, /lib-a/);
@@ -364,7 +364,7 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
 
     it('workspace mode: --workspace filter restricts to one package', async () => {
         const root = scaffoldMonorepo('mono-filter');
-        const out = await runCli(['--latest', '--dry-run', '-p', '@m/alpha'], { cwd: root });
+        const out = await runUpgrade(['--latest', '--dry-run', '-p', '@m/alpha'], { cwd: root });
         // Only alpha's deps should be checked: lib-a, lib-c
         assert.match(out, /checking 2 unique deps across 1 workspace/);
         assert.match(out, /lib-a/);
@@ -377,7 +377,7 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
         // Excluding gamma (which declares ^0.9.0) leaves alpha + beta which both
         // declare ^1.0.0 — `--check` should now exit 0.
         const root = scaffoldMonorepo('mono-exclude');
-        const out = await runCli(['--check', '--exclude-workspace', '@m/gamma'], { cwd: root });
+        const out = await runUpgrade(['--check', '--exclude-workspace', '@m/gamma'], { cwd: root });
         assert.match(out, /gjsify upgrade --check: OK/);
     });
 
@@ -385,7 +385,7 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
         // Excluding ALL of '@m/*' leaves only the root workspace (which has no
         // deps). `--check` should report nothing to check.
         const root = scaffoldMonorepo('mono-exclude-glob');
-        const out = await runCli(['--check', '--exclude-workspace', '@m/*'], { cwd: root });
+        const out = await runUpgrade(['--check', '--exclude-workspace', '@m/*'], { cwd: root });
         // With every child workspace excluded, root has no external deps to check
         assert.match(out, /no external npm dependencies/);
     });
