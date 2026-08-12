@@ -38,8 +38,34 @@ export const GJS_PROCESS_STUB =
     // perf-tracking libs, …). Build it as a named local so we can
     // attach the property before stashing it on the stub object.
     'const _h=t=>t?[0,0]:[0,0];_h.bigint=()=>0n;' +
+    // `platform`/`arch`, answered LAZILY by the same `uname -sm` probe
+    // `@gjsify/process` uses (`packages/node/process/src/internal/uname.ts`),
+    // with `@gjsify/utils`' `platform-names.ts` mapping tables inlined minimally
+    // — a banner runs before the module system exists and cannot import the
+    // canonical ones. Those two are the source of truth; keep this in step or a
+    // bundle answers differently depending on whether it pulled
+    // `@gjsify/process` in. These used to be the literals `"linux"`/`"x64"`,
+    // which is a WRONG answer on two of three OSes rather than a missing one.
+    // Lazy, so the cost falls only on a bundle that reads the field AND never
+    // loads `@gjsify/process` (whose register replaces this object): nothing is
+    // spawned at load. Windows is answered from the environment — `uname` is not
+    // on a native Windows PATH, and the env answer is exact.
+    'let _pc;const _p=()=>{if(_pc)return _pc;_pc={platform:"linux",arch:"x64"};' +
+    'try{' +
+    'if(_G.getenv("OS")==="Windows_NT"||_G.getenv("SystemRoot")){' +
+    'const a=(_G.getenv("PROCESSOR_ARCHITECTURE")||"").toLowerCase();' +
+    '_pc={platform:"win32",arch:a==="arm64"?"arm64":a==="x86"?"ia32":"x64"};return _pc}' +
+    'const _r=_G.spawn_sync(null,["uname","-sm"],null,_G.SpawnFlags.SEARCH_PATH,null);' +
+    'if(_r&&_r[0]&&_r[1]){const _t=new TextDecoder().decode(_r[1]).trim().split(/\\s+/);' +
+    'if(_t.length>1){const s=_t[0],m=_t[_t.length-1].toLowerCase();' +
+    '_pc={platform:s==="Linux"?"linux":s==="Darwin"?"darwin":/^CYGWIN/i.test(s)?"cygwin":' +
+    '/^(MINGW|MSYS|Windows)/i.test(s)?"win32":s.toLowerCase(),' +
+    'arch:m==="x86_64"||m==="amd64"?"x64":m==="aarch64"||m==="arm64"?"arm64":' +
+    '/^i[3-6]86$/.test(m)?"ia32":m.startsWith("arm")?"arm":m}}}' +
+    '}catch(e){/* no GLib spawn, or spawn refused: the linux/x64 fallback stands */}' +
+    'return _pc};' +
     'globalThis.process={' +
-    'platform:"linux",arch:"x64",version:"v20.0.0",' +
+    'get platform(){return _p().platform},get arch(){return _p().arch},version:"v20.0.0",' +
     'env:new Proxy({},{' +
     'get(_,p){return typeof p==="string"?(_G.getenv(p)??undefined):undefined},' +
     'set(_,p,v){if(typeof p==="string")_G.setenv(p,String(v),true);return true},' +

@@ -41,9 +41,10 @@
         "@girs/glib-2.0": "^4.1.0",
         "@girs/gobject-2.0": "^4.1.0",
         "@girs/gtk-4.0": "^4.1.0",
+        "@gjsify/adwaita-app": "workspace:^",
+        "@gjsify/adwaita-core": "workspace:^",
         "@gjsify/devtools": "workspace:^",
         "@gjsify/stories": "workspace:^",
-        "@gjsify/adwaita-core": "workspace:^",
         "@gjsify/storybook-core": "workspace:^"
     },
     "devDependencies": {

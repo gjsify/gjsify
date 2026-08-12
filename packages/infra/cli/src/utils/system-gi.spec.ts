@@ -16,7 +16,14 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { pathCovers, splitSearchPath, systemGiLibraryDirs, type SystemGiOptions } from './system-gi.js';
+import {
+    composeDyldFallback,
+    dyldDefaultFallbackDirs,
+    pathCovers,
+    splitSearchPath,
+    systemGiLibraryDirs,
+    type SystemGiOptions,
+} from './system-gi.js';
 
 // The ORIGINAL, reached across the repo by relative path. A spec may do this where
 // the shipped module may not: `src/*.spec.ts` is bundled only into
@@ -329,6 +336,36 @@ export default async () => {
             ] as const) {
                 expect(pathCovers(wanted, current)).toBe(nodeGi.pathCovers(wanted, current));
             }
+        });
+
+        await it('agrees on the dyld fallback composition', async () => {
+            // The two copies WRITE this variable from different processes — the
+            // CLI into a gjs child, node-gi into its own re-exec — so a drift
+            // here is a platform that works under one launcher and not the other.
+            for (const env of [
+                {},
+                { HOME: '/Users/dev' },
+                { HOME: '/Users/dev', DYLD_FALLBACK_LIBRARY_PATH: '/opt/ci/lib' },
+                { DYLD_FALLBACK_LIBRARY_PATH: '/usr/local/lib:/usr/lib' },
+            ]) {
+                expect(dyldDefaultFallbackDirs(env)).toStrictEqual(nodeGi.dyldDefaultFallbackDirs(env));
+                for (const wanted of [[], ['/usr/local/lib'], ['/opt/homebrew/lib', '/usr/local/lib']]) {
+                    expect(composeDyldFallback(wanted, env)).toBe(nodeGi.composeDyldFallback(wanted, env));
+                }
+            }
+        });
+
+        await it('keeps every dyld default in the composed value', async () => {
+            // The regression this exists for: a tail of `/usr/lib` alone dropped
+            // `/usr/local/lib` — every Homebrew GTK library on Intel macOS — so
+            // setting the variable made the child find LESS than leaving it unset.
+            const env = { HOME: '/Users/dev' };
+            const entries = composeDyldFallback(['/opt/homebrew/lib'], env).split(':');
+            expect(entries[0]).toBe('/opt/homebrew/lib');
+            for (const dir of ['/Users/dev/lib', '/usr/local/lib', '/lib', '/usr/lib']) {
+                expect(entries.includes(dir)).toBe(true);
+            }
+            expect(entries.length).toBe(new Set(entries).size);
         });
     });
 };

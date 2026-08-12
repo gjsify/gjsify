@@ -11,7 +11,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
-import { pathCovers, splitSearchPath, systemGiLibraryDirs } from './system-gi.js';
+import { composeDyldFallback, pathCovers, splitSearchPath, systemGiLibraryDirs } from './system-gi.js';
 import { nativeCandidates, prebuildAddonPath } from './native-paths.js';
 
 // NB: node:child_process is intentionally NOT imported at module top level. It is
@@ -309,9 +309,11 @@ export function maybeReexecForGtkRuntime() {
     const env = {
         ...process.env,
         [REEXEC_SENTINEL]: '1',
-        // Our dirs first, then whatever the host asked for — falling back to
-        // dyld's own default tail so setting the variable never REMOVES /usr/lib.
-        DYLD_FALLBACK_LIBRARY_PATH: [...libDirs, ...(curDyldDirs.length > 0 ? curDyldDirs : ['/usr/lib'])].join(':'),
+        // Our dirs first, then whatever the host asked for, then dyld's own
+        // default list — setting the variable REPLACES that list, so carrying
+        // it is what keeps the re-exec'd child from searching LESS than the
+        // process that spawned it.
+        DYLD_FALLBACK_LIBRARY_PATH: composeDyldFallback(libDirs),
     };
     // Only a bundle relocates typelibs; a host GI stack's are already on GI's own
     // search path, so the system branch deliberately leaves GI_TYPELIB_PATH alone.
@@ -502,9 +504,10 @@ export function activateBundledGtkRuntime(native) {
     } else {
         const existing = process.env.DYLD_FALLBACK_LIBRARY_PATH;
         if (!existing || !existing.split(':').includes(bundle.libDir)) {
-            process.env.DYLD_FALLBACK_LIBRARY_PATH = existing
-                ? `${bundle.libDir}:${existing}`
-                : `${bundle.libDir}:/usr/lib`;
+            // Same composition as the re-exec above: the bundle's libdir first,
+            // then the inherited value, then dyld's default list — which this
+            // variable REPLACES rather than extends.
+            process.env.DYLD_FALLBACK_LIBRARY_PATH = composeDyldFallback([bundle.libDir]);
         }
     }
 

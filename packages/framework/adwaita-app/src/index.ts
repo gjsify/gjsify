@@ -3,7 +3,7 @@
 // CSS, nav split view, async view mounting, dialogs/toast/file) — it never
 // hides Adw/GTK. Pure named exports; no /register, no globalThis writes.
 
-export { AdwaitaApp, runAdwaitaApp } from './application.js';
+export { AdwaitaApp, runAdwaitaApp, runApplication } from './application.js';
 export type { AdwaitaAppOptions } from './application.js';
 
 export { createNavShell } from './nav-shell.js';

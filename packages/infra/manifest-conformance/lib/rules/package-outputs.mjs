@@ -56,7 +56,7 @@
  * carries no repository knowledge and behaves identically in a consumer's tree.
  */
 
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { posix, relative, resolve } from 'node:path';
 
 import { defineRule } from '../registry.mjs';
@@ -205,6 +205,69 @@ export function impliedExampleNodeEntry(pkg) {
 }
 
 /**
+ * A static `import … from 'node:x'` — the one thing a `--app gjs` bundle can
+ * never contain: GJS has no resolver for that URI scheme, so the module dies at
+ * LOAD with `ImportError: Unsupported URI scheme for importing: node`. The gjs
+ * target aliases every `node:` builtin to its `@gjsify/*` implementation, so a
+ * correct bundle carries none.
+ */
+const NODE_SPECIFIER_IMPORT = /(?:^|[\s;}])(?:import|export)[\s\S]{0,200}?from\s*["'`]node:[a-z_/]+["'`]/;
+
+/**
+ * Is the file at `abs` a GJS bundle, or a NODE bundle wearing its name?
+ *
+ * THE INCIDENT. `@gjsify/example-gtk-adwaita-storybook@0.37.0` shipped a
+ * `dist/gjs.js` byte-identical to its `dist/gjs.node.mjs`: `build:gjs` ran
+ * `gjsify storybook --build-only --out dist/gjs.js` with no `--runtime`, and
+ * that flag defaults to the runtime the CLI is EXECUTING IN — node, in the
+ * release job. A script named `build:gjs` therefore produced an `--app node`
+ * bundle, wrote it to the GJS path and exited 0; the homepage's storybook slide
+ * died on every Linux and arm64 gjs tab while the tarball, the manifest and the
+ * build all looked correct. Nothing else could catch it — existence was checked,
+ * the artifact was never compared against the TARGET it was named for.
+ *
+ * Cause-agnostic like the existence half: a missing `--runtime`, a copied file
+ * and a mis-wired build script all land here without it knowing which happened.
+ *
+ * @returns `null` when the file is a plausible gjs bundle, otherwise why not.
+ */
+export function inspectGjsArtifact(abs, nodeAbs) {
+    let source;
+    try {
+        source = readFileSync(abs, 'utf8');
+    } catch {
+        // Unreadable belongs to the EXISTENCE half; reporting it twice would make
+        // one defect read as two. Same for the node entry below.
+        return null;
+    }
+    if (NODE_SPECIFIER_IMPORT.test(source)) {
+        return 'imports a `node:` builtin, which GJS cannot resolve — this is an `--app node` bundle';
+    }
+    if (nodeAbs && existsSync(nodeAbs)) {
+        try {
+            if (readFileSync(nodeAbs, 'utf8') === source) {
+                return 'is byte-identical to the declared `--app node` bundle';
+            }
+        } catch {
+            /* see above */
+        }
+    }
+    return null;
+}
+
+/**
+ * One finding as a line. Shared with `scripts/verify-package-outputs.mjs` so the
+ * rule and the standalone script cannot word the same defect differently — they
+ * did, once, and a `kind` added to one renderer read as nonsense in the other.
+ */
+export function formatMissing(m) {
+    // `artifact` findings are about a file that EXISTS and is the wrong thing,
+    // so "missing" would be a lie; their `path` already carries the sentence.
+    const detail = m.kind === 'artifact' ? `wrong artifact: ${m.path}` : `missing ${m.kind}: ${m.path}`;
+    return `    ${m.field} → ${m.value}   (${detail})`;
+}
+
+/**
  * Inspect every in-scope package and report which declared paths are missing.
  * Exported separately from the rule so the standalone entry script can render
  * its own `--json` payload from the same data.
@@ -294,6 +357,31 @@ export function inspectDeclaredOutputs(ctx) {
                 kind: 'any-of',
             });
         }
+        // The artifact half: a file declared for `gjs` must BE a gjs bundle.
+        // Existence is not the contract — a node bundle at the GJS path exists
+        // and resolves and fails at load. See `inspectGjsArtifact`.
+        const gjsEntry = pkg.manifest.gjsify?.main;
+        const runtimes = pkg.manifest.gjsify?.example?.runtimes;
+        if (typeof gjsEntry === 'string' && Array.isArray(runtimes) && runtimes.includes('gjs')) {
+            const gjsAbs = resolve(pkg.dir, gjsEntry);
+            if (existsSync(gjsAbs)) {
+                const nodeEntry =
+                    pkg.manifest.gjsify?.example?.node ?? impliedExampleNodeEntry(pkg.manifest)?.candidates?.[0];
+                const wrong = inspectGjsArtifact(
+                    gjsAbs,
+                    typeof nodeEntry === 'string' ? resolve(pkg.dir, nodeEntry) : undefined,
+                );
+                if (wrong) {
+                    missing.push({
+                        field: 'gjsify.main',
+                        value: gjsEntry,
+                        path: `${relative(ctx.root, gjsAbs)} ${wrong}`,
+                        kind: 'artifact',
+                    });
+                }
+            }
+        }
+
         results.push({
             dir: pkg.rel,
             name: pkg.name,
@@ -336,8 +424,8 @@ export const packageOutputsRule = defineRule({
 
         const failures = [];
         for (const r of broken) {
-            const lines = [`${r.name} (${r.dir}) declares ${r.missing.length} path(s) that do not exist:`];
-            for (const m of r.missing) lines.push(`    ${m.field} → ${m.value}   (missing ${m.kind}: ${m.path})`);
+            const lines = [`${r.name} (${r.dir}) declares ${r.missing.length} path(s) that do not hold:`];
+            for (const m of r.missing) lines.push(formatMissing(m));
             const scripts = Object.keys(r.scripts);
             if (scripts.length > 0) {
                 lines.push(`    produced by: ${scripts.map((s) => `gjsify workspace ${r.name} ${s}`).join(' · ')}`);

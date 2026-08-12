@@ -227,3 +227,43 @@ export function systemGiLibraryDirs({
 export function pathCovers(wanted, current) {
     return wanted.every((dir) => current.includes(dir));
 }
+
+/**
+ * dyld's OWN default fallback list, verbatim from `dyld(1)`:
+ * `$HOME/lib:/usr/local/lib:/lib:/usr/lib`.
+ *
+ * Load-bearing because `DYLD_FALLBACK_LIBRARY_PATH` REPLACES this list rather
+ * than extending it, so a composition that omits part of it hands the child a
+ * SMALLER search path than the same child would have had with the variable
+ * unset. MEASURED, and it cost a whole platform: both writers used to append a
+ * bare `/usr/lib`, dropping `/usr/local/lib` — where every Homebrew GTK library
+ * lives on Intel macOS — so every `gjsify` gjs command on such a Mac died in
+ * `dlopen(libsoup-3.0.0.dylib)` before it had downloaded anything (the CLI's own
+ * fetcher goes through Soup), and so did the Node-free bootstrap the Getting
+ * Started page prints. The tell that it was OURS: plain
+ * `gjs -c 'imports.gi.Soup'` loads fine with no DYLD variable set.
+ * @param {Record<string, string | undefined>} [env]
+ * @returns {string[]}
+ */
+export function dyldDefaultFallbackDirs(env = process.env) {
+    const home = env['HOME'];
+    return [...(home ? [`${home}/lib`] : []), '/usr/local/lib', '/lib', '/usr/lib'];
+}
+
+/**
+ * Compose a `DYLD_FALLBACK_LIBRARY_PATH` value: `wanted`, then the launching
+ * environment's own value, then {@link dyldDefaultFallbackDirs} —
+ * unconditionally, because the target is a CHILD (a re-exec, or a spawned gjs)
+ * and it must never search less than one launched without gjsify. Deduplicated:
+ * `systemGiLibraryDirs()` can legitimately yield a directory the tail also
+ * names, and a repeat costs the loader a second stat on every miss. First
+ * occurrence wins everywhere, so dropping later repeats preserves behaviour.
+ * @param {readonly string[]} wanted
+ * @param {Record<string, string | undefined>} [env]
+ * @returns {string}
+ */
+export function composeDyldFallback(wanted, env = process.env) {
+    return [
+        ...new Set([...wanted, ...splitSearchPath(env['DYLD_FALLBACK_LIBRARY_PATH']), ...dyldDefaultFallbackDirs(env)]),
+    ].join(':');
+}

@@ -195,3 +195,33 @@ export function systemGiLibraryDirs({
 export function pathCovers(wanted: readonly string[], current: readonly string[]): boolean {
     return wanted.every((dir) => current.includes(dir));
 }
+
+/**
+ * dyld's OWN default fallback list, verbatim from `dyld(1)`. Setting
+ * `DYLD_FALLBACK_LIBRARY_PATH` REPLACES it, so anything composed for that
+ * variable must carry it as a tail. The incident that bought this rule is in the
+ * ORIGINAL (`packages/node-gi/node-gi/system-gi.js`); the mirror does not
+ * restate it.
+ */
+export function dyldDefaultFallbackDirs(env: Record<string, string | undefined> = process.env): string[] {
+    const home = env['HOME'];
+    return [...(home ? [`${home}/lib`] : []), '/usr/local/lib', '/lib', '/usr/lib'];
+}
+
+/**
+ * Compose a `DYLD_FALLBACK_LIBRARY_PATH` value: `wanted`, then the launching
+ * environment's own value, then {@link dyldDefaultFallbackDirs} —
+ * unconditionally, so a child launched through gjsify never searches LESS than
+ * one launched without it. Deduplicated: `systemGiLibraryDirs()` can legitimately
+ * yield a directory the tail also names, and a repeated entry costs the loader a
+ * second stat on every miss. First occurrence wins everywhere, so dropping later
+ * repeats is behaviour-preserving.
+ */
+export function composeDyldFallback(
+    wanted: readonly string[],
+    env: Record<string, string | undefined> = process.env,
+): string {
+    return [
+        ...new Set([...wanted, ...splitSearchPath(env['DYLD_FALLBACK_LIBRARY_PATH']), ...dyldDefaultFallbackDirs(env)]),
+    ].join(':');
+}

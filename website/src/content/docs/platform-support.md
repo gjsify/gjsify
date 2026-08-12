@@ -62,6 +62,25 @@ otherwise the host runtime — so on Windows that middle line runs the showcase'
 `--app node` bundle without being told to. A showcase that declares no support
 for the chosen runtime says so instead of crashing.
 
+Read the consequence plainly: on Windows the `gjsify` invocation and the `npx`
+invocation execute the **same** bundle on the **same** runtime. The fallback is
+sound, but it means "the same GObject code runs on Windows" rests entirely on
+`@gjsify/node-gi`, and a green Windows result says nothing about the GJS path.
+Installing the CLI follows from the same fact: the Node-free bootstrap
+(`gjs -m install.mjs`) needs a `gjs` binary, so on Windows the CLI comes from
+npm.
+
+### Measuring Windows needs an interactive session
+
+Recorded because it cost a cross-platform verification run an entire discarded
+pass. Win32-OpenSSH puts its session in **session 0, which has no desktop**, so
+every GTK showcase driven over SSH died with an `0xC0000005` access violation
+inside `gtk-4-1.dll` — a crash with a plausible stack and no hint of the real
+cause, which reads like a gjsify defect and is not one. Re-run as an interactive
+scheduled task in the logged-on session, the same commands render. Anyone
+automating Windows checks for this project needs the interactive session, or the
+results will be confidently wrong.
+
 What a Windows checkout cannot do is anything that ends in a `gjs` process:
 `--app gjs` bundles, `test:gjs`, and the showcases and examples built around
 them. That is the same upstream blocker as above, not a separate gap. Concretely

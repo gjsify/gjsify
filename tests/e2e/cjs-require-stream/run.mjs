@@ -1,4 +1,6 @@
-// E2E test for the CJS `require('stream')` / `util.inherits` regression.
+// E2E tests for `require()` call sites inside bundled CJS deps resolving with
+// the `require` condition — TWO regressions of that one class, both first seen
+// in `npx @gjsify/cli showcase express-webserver`.
 //
 // Reproduces the showcase failure where running
 //   npx @gjsify/cli showcase express-webserver
@@ -16,6 +18,18 @@
 //   packages/infra/rolldown-plugin-gjsify/src/plugins/alias.ts
 // where `resolveId` now forwards `extraOptions.kind` through the
 // `this.resolve(target, importer, { skipSelf: true, kind })` call.
+//
+// The SECOND regression reached the same broken outcome from the other end.
+// `app/gjs.ts` pinned `conditionNames: ['browser','import']`, and naming a
+// call-site condition explicitly applies it to BOTH kinds — so a require()
+// call matched an `import` key whenever the package declared that key first.
+// `is-promise@4` does (`[{import,require,default}, …]`), so `router`'s
+// `const isPromise = require('is-promise')` bound `{default: fn}` and every
+// express request threw `TypeError: … is not a function`. The response still
+// went out 200 and express logged `err.stack`, which carries no message line
+// on SpiderMonkey, so the homepage's flagship slide printed ~59 anonymous
+// frames per request and named no cause. Fixed by listing NEITHER `import`
+// nor `require`: rolldown adds the one matching each call site.
 //
 // Strategy: build a minimal app that mirrors the failing pattern
 // (`require('stream')` from a CJS module + `util.inherits` from the
@@ -100,14 +114,53 @@ describe('CJS `require("stream")` + util.inherits regression', { timeout: 10 * 6
                 '};\n',
         );
 
+        // A third-party package shaped like `is-promise@4`: an exports ARRAY
+        // whose object declares `import` BEFORE `require`. The resolver takes
+        // the package's first key that the build's condition list contains, so
+        // this package is what turns a stray `'import'` in that list into a CJS
+        // consumer holding an ESM namespace. Written straight into
+        // `node_modules/` — it exists only to be resolved, and a registry
+        // dependency would make the suite depend on a fourth-party publish.
+        const vendored = join(projectDir, 'node_modules', 'importfirst');
+        mkdirSync(vendored, { recursive: true });
+        writeFileSync(
+            join(vendored, 'package.json'),
+            JSON.stringify(
+                {
+                    name: 'importfirst',
+                    version: '1.0.0',
+                    main: './cjs.js',
+                    exports: { '.': [{ import: './esm.mjs', require: './cjs.js', default: './cjs.js' }, './cjs.js'] },
+                },
+                null,
+                2,
+            ) + '\n',
+        );
+        // `module.exports = fn` — callable. Its ESM twin exports the same
+        // function as `default`, so picking that entry yields `{default: fn}`,
+        // and calling it is the `TypeError: … is not a function` above.
+        writeFileSync(join(vendored, 'cjs.js'), 'module.exports = function isThing(x) { return x === 42; };\n');
+        writeFileSync(join(vendored, 'esm.mjs'), 'export default function isThing(x) { return x === 42; }\n');
+
+        writeFileSync(
+            join(projectDir, 'src', 'importfirst-mod.cjs'),
+            "var isThing = require('importfirst');\n" +
+                'module.exports = function check() {\n' +
+                "  if (typeof isThing !== 'function') return 'namespace:' + typeof isThing;\n" +
+                "  return isThing(42) === true ? 'ok' : 'wrong-result';\n" +
+                '};\n',
+        );
+
         writeFileSync(
             join(projectDir, 'src', 'index.ts'),
             "// ESM entry that consumes a CJS dep using require('stream') +\n" +
                 '// util.inherits — exactly the shape that broke under Rolldown\n' +
                 '// before the alias plugin forwarded `extraOptions.kind`.\n' +
                 "import check from './cjs-mod.cjs';\n" +
+                "import checkImportFirst from './importfirst-mod.cjs';\n" +
                 'const ok = check();\n' +
-                "console.log('CJS_REQUIRE_STREAM_INHERITS_OK=' + (ok === true));\n",
+                "console.log('CJS_REQUIRE_STREAM_INHERITS_OK=' + (ok === true));\n" +
+                "console.log('CJS_REQUIRE_IMPORT_FIRST=' + checkImportFirst());\n",
         );
     });
 
@@ -154,5 +207,20 @@ describe('CJS `require("stream")` + util.inherits regression', { timeout: 10 * 6
             'expected stdout to confirm `new MyStream() instanceof Stream`. Combined output:\n' + combined,
         );
         assert.strictEqual(result.status, 0, 'gjs exited non-zero. Combined output:\n' + combined);
+    });
+
+    it('gives a require() call the CJS entry of an import-first exports map', () => {
+        if (!gjsAvailable()) {
+            assert.fail('gjs not on PATH; this regression test requires the gjs runtime.');
+        }
+        const result = spawnSync('gjs', ['-m', bundlePath], { encoding: 'utf8', timeout: 30 * 1000 });
+        const combined = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+        // `namespace:object` is the regression: the ESM entry was picked and the
+        // CJS consumer holds `{default: fn}` instead of the function.
+        assert.match(
+            result.stdout ?? '',
+            /CJS_REQUIRE_IMPORT_FIRST=ok/,
+            'require() of an import-first package did not resolve to its CJS entry. Combined output:\n' + combined,
+        );
     });
 });
