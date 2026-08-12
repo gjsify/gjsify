@@ -356,4 +356,18 @@ declare module '@nativescript/core' {
      * label (or the cancel-button text). NativeScript free function.
      */
     export function action(options: ActionOptions): Promise<string>;
+
+    /** App-level services. Only `addCss` is used here. */
+    export namespace Application {
+        /**
+         * Append CSS to the application stylesheet and re-apply style to the live
+         * view tree.
+         *
+         * The ONLY way to change an accent at runtime on this platform: the NS CSS
+         * subset has no custom properties, so `theme/adwaita.css` inlines the accent
+         * as a literal and there is nothing to reassign. Appended rules come last,
+         * which is how an override of equal specificity wins.
+         */
+        export function addCss(cssText: string, attributeScoped?: boolean): void;
+    }
 }

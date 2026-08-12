@@ -87,6 +87,13 @@ export type {
     ToggleGroupStateChange,
     ToggleGroupStateListener,
 } from './adw-toggle-group.js';
+// Runtime accent override. The theme inlines the accent as a literal (the NS CSS
+// subset has no custom properties), so switching it means generating rules for the
+// exact selectors that carry it — the table lives in the pure `accent-theme.ts` and
+// is gated against the stylesheet by scripts/check-nativescript-accent-rules.mjs.
+export { applyAdwaitaNsAccent, clearAdwaitaNsAccent } from './adw-accent.js';
+export { ADWAITA_NS_ACCENT_RULES, adwaitaNsAccentColor, adwaitaNsAccentCss } from './accent-theme.js';
+export type { AccentRole, AccentRule } from './accent-theme.js';
 // AdwShortcutLabel draws an accelerator as keycaps. The grammar, the keycap order
 // and the label lookup are headless (`@gjsify/adwaita-core`, ADR 0004); the NS view
 // TREE is the pure `shortcut-label.ts`, so the spec suite drives the conformance
