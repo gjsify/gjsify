@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, dirname, resolve } from 'node:path';
+import { join, dirname, basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -79,6 +79,35 @@ writeFileSync(join(here, 'sibling.marker'), here + '\\n');
 console.log('ARGS:' + args.join(','));
 if (args.includes('--fail')) process.exit(3);
 console.log('OK');
+`;
+
+/**
+ * A script that reports the two things a globals policy decides, both read at RUNTIME
+ * rather than grepped out of the bundle:
+ *
+ *   `document`         — whether a GTK-backed register was injected at all.
+ *   `process.versions` — WHICH `process` the bundle got. Without the register the bundle's
+ *                        own banner stub stands and `versions` is empty; with it,
+ *                        `@gjsify/process` answers `node: 20.0.0` — deliberately, for the
+ *                        npm packages that gate an API LEVEL on it. dart-sass gates its
+ *                        HOST STRATEGY on that same key, which is the incident this
+ *                        policy exists for (#1053).
+ *
+ * The `document` half reads the identifier FOR REAL rather than through `typeof`, and the
+ * try/catch is the price of that: `detect-free-globals.ts` treats a bare `typeof X` as a
+ * presence-check guard and defers it until something actually uses X, so a typeof-only
+ * probe never triggers the injection it is trying to observe (measured: it reported
+ * `DOCUMENT:no` under a policy that excluded nothing). A bare read is a ReferenceError
+ * when no register was injected — which is exactly the answer being asked for.
+ */
+const GLOBALS_PROBE = `let documentPresent = 'no';
+try {
+    documentPresent = document === undefined ? 'no' : 'yes';
+} catch {
+    documentPresent = 'no';
+}
+console.log('DOCUMENT:' + documentPresent);
+console.log('VERSIONS_NODE:' + (typeof process.versions.node === 'string' ? 'yes' : 'no'));
 `;
 
 // NOTE for whoever extends this: do NOT assert that nothing after
@@ -238,5 +267,105 @@ describe('gjsify run --node-script on a Node-less GJS host', { skip: SKIP, timeo
         // would make yargs take `--test` FOR the script path.
         const { output } = runInFixture(['run', 'build:nodeflag'], { expectFail: true, path: 'no-node' });
         assert.match(output, /runs a SCRIPT FILE only/, output);
+    });
+});
+
+// The DECLARED half of `--node-script`, as opposed to the detected one.
+//
+// `--globals auto` answers a runtime question syntactically: it injects a register for
+// every global the bundled code MENTIONS, and it cannot tell a live branch from a dead
+// one. `@gjsify/adwaita-web`'s stylesheet build is where that bit: auto-detection saw
+// dart-sass's browser half, injected the GTK-backed DOM registers and `@gjsify/process`,
+// and the resulting bundle both demanded `gi://Gdk` at load and reported
+// `process.versions.node` — which sent dart-sass down a host path whose `require("url")`
+// a bundled ESM artifact cannot serve (#1053).
+//
+// The declaration lives in the script's package rather than on a flag because the shim
+// path has no command line: a `package.json` spelling `node scripts/x.mjs` re-enters the
+// CLI through a `node` on PATH, and that spelling has to stay (`writeNodeShim`).
+describe('gjsify run --node-script globals policy', { skip: SKIP, timeout: 5 * 60 * 1000 }, () => {
+    let tmpDir;
+    let rootDir;
+
+    /** A project whose only script is {@link GLOBALS_PROBE}, with the given `gjsify` block. */
+    function writeProject(dir, gjsifyBlock) {
+        mkdirSync(join(dir, 'scripts'), { recursive: true });
+        writeFileSync(
+            join(dir, 'package.json'),
+            JSON.stringify(
+                { name: `policy-${basename(dir)}`, private: true, type: 'module', ...gjsifyBlock },
+                null,
+                2,
+            ) + '\n',
+        );
+        writeFileSync(join(dir, 'scripts', 'probe.mjs'), GLOBALS_PROBE);
+    }
+
+    /** Run the probe under the GJS CLI bundle and return its stdout+stderr. */
+    function runProbe(cwd, scriptPath) {
+        return execFileSync('gjs', ['-m', CLI_BUNDLE, 'run', '--node-script', scriptPath], {
+            cwd,
+            stdio: 'pipe',
+            timeout: 4 * 60 * 1000,
+            encoding: 'utf-8',
+        });
+    }
+
+    before(() => {
+        tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-node-script-globals-'));
+        rootDir = join(tmpDir, 'root');
+        // One node_modules at the root: resolution walks up, so every fixture below —
+        // including the NESTED package — is served by it, and the nested case stays about
+        // config anchoring rather than about installs.
+        mkdirSync(join(rootDir, 'node_modules'), { recursive: true });
+        for (const p of LINK_PKGS) {
+            const src = join(WS_MODULES, p);
+            if (existsSync(src)) symlinkSync(src, join(rootDir, 'node_modules', p), 'dir');
+        }
+
+        writeProject(join(rootDir, 'auto'), {});
+        writeProject(join(rootDir, 'pkg-level'), { gjsify: { excludeGlobals: ['document', 'process'] } });
+        // Package level excludes ONE of the two; the nodeScript layer excludes both. Which
+        // `process` the probe reports is therefore the discriminator between "the override
+        // applied" and "the package-level list applied".
+        writeProject(join(rootDir, 'override'), {
+            gjsify: {
+                excludeGlobals: ['document'],
+                nodeScript: { excludeGlobals: ['document', 'process'] },
+            },
+        });
+        // The cwd's package says nothing; the script's package says everything.
+        writeProject(join(rootDir, 'outer'), {});
+        writeProject(join(rootDir, 'outer', 'inner'), {
+            gjsify: { nodeScript: { excludeGlobals: ['document', 'process'] } },
+        });
+    });
+
+    after(() => {
+        if (!process.env.GJSIFY_E2E_KEEP_TEMP && tmpDir) rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    it('injects both registers when nothing is declared — the state that broke #1053', () => {
+        const out = runProbe(join(rootDir, 'auto'), 'scripts/probe.mjs');
+        assert.match(out, /DOCUMENT:yes/, out);
+        assert.match(out, /VERSIONS_NODE:yes/, out);
+    });
+
+    it('honours package-level gjsify.excludeGlobals', () => {
+        const out = runProbe(join(rootDir, 'pkg-level'), 'scripts/probe.mjs');
+        assert.match(out, /DOCUMENT:no/, out);
+        // The banner `process` is still there — only its `versions.node` claim is gone.
+        assert.match(out, /VERSIONS_NODE:no/, out);
+    });
+
+    it('lets gjsify.nodeScript override the package-level list', () => {
+        const out = runProbe(join(rootDir, 'override'), 'scripts/probe.mjs');
+        assert.match(out, /VERSIONS_NODE:no/, `the package-level list won, so the override was ignored:\n${out}`);
+    });
+
+    it("reads the policy of the SCRIPT's package, not the cwd's", () => {
+        const out = runProbe(join(rootDir, 'outer'), join('inner', 'scripts', 'probe.mjs'));
+        assert.match(out, /DOCUMENT:no/, `the cwd's package answered instead of the script's:\n${out}`);
+        assert.match(out, /VERSIONS_NODE:no/, out);
     });
 });

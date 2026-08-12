@@ -538,12 +538,28 @@ export class BuildAction {
              * wrapper does not apply here.
              */
             preserveDefaultExport?: boolean;
+            /**
+             * The globals policy for this bundle, when the caller has one to
+             * apply (`Config.forNodeScript` resolves it from the package that
+             * owns the entry). Left unset the nested build keeps `--globals
+             * auto`, which is what the plugin and config loaders want.
+             */
+            globals?: string;
+            excludeGlobals?: string[];
         },
     ): Promise<string> {
         const cwd = process.cwd();
         const cacheDir = join(cwd, 'node_modules', '.cache', 'gjsify', opts.cacheSubdir);
         const safeName = opts.label.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const outfile = join(cacheDir, `${safeName}-${shortHash(inputPath)}.mjs`);
+        // The policy belongs in the cache KEY, not only in the build: one file under two
+        // globals policies is two artifacts, and the freshness check below (entry mtime +
+        // lockfile) cannot see the `package.json` edit that changed one. Callers without a
+        // policy keep their existing cache filenames.
+        const cacheKey =
+            opts.globals === undefined && opts.excludeGlobals === undefined
+                ? inputPath
+                : `${inputPath} ${JSON.stringify([opts.globals ?? null, opts.excludeGlobals ?? null])}`;
+        const outfile = join(cacheDir, `${safeName}-${shortHash(cacheKey)}.mjs`);
 
         const cacheDisabled =
             opts.cache === false || (opts.noCacheEnv ? isTruthyEnv(process.env[opts.noCacheEnv]) : false);
@@ -556,6 +572,8 @@ export class BuildAction {
         await mkdir(cacheDir, { recursive: true });
         await new BuildAction({
             verbose: opts.verbose,
+            ...(opts.globals !== undefined ? { globals: opts.globals } : {}),
+            ...(opts.excludeGlobals !== undefined ? { excludeGlobals: opts.excludeGlobals } : {}),
             bundler: {
                 input: inputPath,
                 output: { file: outfile },
