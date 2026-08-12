@@ -291,6 +291,25 @@ are a rule that reads each package's actual build inputs, or making the order
 DERIVED (`foreach build --with-dependencies -t` over the infra set) instead of
 hand-listed — both more than a red-main fix should carry.
 
+**How much of the order is even hand-written, and what deriving it would cost.**
+gjsify already has the yarn feature: `gjsify foreach` is a drop-in for `yarn
+workspaces foreach` (`-t/--topological`, `-p`, `-d/--with-dependencies`,
+`--topological-dev`), and the root `build` is `gjsify foreach build -tp`. Everything
+after the bootstrap is therefore ALREADY derived. Only `build:infra` is authored,
+and its first half has to be: `@gjsify/cli` depends on `@gjsify/{semver,
+npm-registry,tar,workspace}`, whose own `build` is `gjsify run build:gjsify && …` —
+i.e. it needs the CLI. The list breaks that at SCRIPT granularity (their
+`build:types` first, riding the committed `tsc.gjs.mjs`; then the CLI; then their
+full build), and a topological sort orders PACKAGES, not halves of one package's
+build.
+
+The tail — utils, events, terminal-native, process, assert, runtime, unit — carries
+no such cycle and is fully derivable. Measured: `-t -d` over those seven selects
+**29** packages, because `@gjsify/unit` manifest-depends on dom-elements,
+web-streams and the rest. That is the trade — correct by construction against a
+bootstrap that builds 22 more packages, on a path macOS and Windows run COLD on
+every push. Worth its own PR with the wall-clock delta measured, not guessed.
+
 ### `process.exit()` under GJS SCHEDULES the exit and RETURNS, so the next line still runs
 
 Measured while adding `tests/e2e/node-script`. A script whose body is
