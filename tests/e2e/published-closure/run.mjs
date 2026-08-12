@@ -232,16 +232,23 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
         assert.doesNotMatch(r.out, /WARNING: could not write/);
     });
 
-    it('"nothing was examined" reaches the SUMMARY, not just stdout', async () => {
-        // THE REGRESSION THIS CASE EXISTS FOR. With ordering plus fail-fast, "a
-        // prefix published, no live pinned parent" is the TYPICAL abort — so this
-        // is what a human reads in the release UI during the most likely partial
-        // release. The honest sentence used to go to stdout ONLY: the rendered
-        // summary said `Pinned edges examined | 0` / `Unresolvable edges | 0`
-        // with no alert, under a green check, which is a missing signal reading
-        // as a pass — the exact class this whole guard exists to remove,
-        // recurring inside the guard. Any state the script thinks is worth
-        // saying must be visible in the artifact a human actually opens.
+    it('an INCOMPLETE release fails in the SUMMARY, naming the package', async () => {
+        // TWO REGRESSIONS IN ONE CASE.
+        //
+        // The roster (#1056): this used to be the state the script deliberately let
+        // pass — "a prefix published, no live pinned parent" is what an ordered,
+        // fail-fast sweep looks like when it aborts, and nothing on npm points at
+        // anything missing. That tolerance rested on the aborted sweep being
+        // ALREADY RED elsewhere, which stopped being true when ADR 0017 gave napi,
+        // node-gi and the GTK bundles their own publish jobs: a SKIPPED job leaves a
+        // package behind while the sweep stays green. v0.31.0 shipped @gjsify/napi
+        // at 0.30.0 through exactly that hole, under a green verify-release-closure.
+        //
+        // The channel: whatever the script thinks is worth saying must be visible in
+        // the artifact a human opens. The honest sentence once went to stdout ONLY,
+        // so the rendered summary read `Pinned edges examined | 0` with no alert
+        // under a green check — a missing signal reading as a pass, the exact class
+        // this guard exists to remove, recurring inside the guard.
         const root = fixture('prefix-summary', splitBridge);
         published = new Map([
             ['@fix/util', [VERSION]],
@@ -251,22 +258,22 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
         const summary = join(root, 'summary.md');
         const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1'], {
             // GITHUB_ACTIONS on purpose: the annotation is the one channel that
-            // survives an unwritable summary, and it renders NEXT TO the green
-            // check rather than behind it.
+            // survives an unwritable summary, and it renders NEXT TO the check.
             env: { GITHUB_STEP_SUMMARY: summary, GITHUB_ACTIONS: 'true' },
         });
-        assert.equal(r.status, 0, `an aborted-but-ordered sweep must stay green:\n${r.out}`);
+        assert.notEqual(r.status, 0, `an incomplete release must not pass:\n${r.out}`);
         const written = readFileSync(summary, 'utf8');
-        assert.match(written, /> \[!WARNING\]\n> NO edge was examined/);
-        assert.match(written, /\| Verdict \| \*\*NOTHING VERIFIED\*\* — no edge was examined/);
+        // The finding is the NAMED package, never "the enumeration broke".
+        assert.match(written, /> \[!CAUTION\]\n> 1 of \d+ package\(s\) this train meant to publish are NOT on/);
+        assert.match(written, /@fix\/bridge/);
+        assert.match(written, /\| Verdict \| \*\*FAILED\*\*/);
         // The alert must be ABOVE the table: a reader who stops at the first
         // numbers has already been told.
         assert.ok(
-            written.indexOf('[!WARNING]') < written.indexOf('| Fact | Value |'),
+            written.indexOf('[!CAUTION]') < written.indexOf('| Fact | Value |'),
             `the alert must precede the table:\n${written}`,
         );
         assert.doesNotMatch(written, /Every one of/);
-        assert.match(r.stdout, /::warning title=Release closure::NO edge was examined/);
     });
 
     it('a bridge published WITHOUT one platform child FAILS and names it', async () => {
@@ -291,11 +298,12 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
         assert.doesNotMatch(r.out, /UNRESOLVABLE: .*bridge-linux-x64/);
     });
 
-    it('a missing package with NO published dependent is not a violation', async () => {
-        // Prevention's promise: any PREFIX of a dependency-ordered sweep is
-        // resolvable. Children landed, the bridge did not — nothing on npm points
-        // at anything absent, so this must stay green or the guard would red-line
-        // every legitimately aborted sweep.
+    it('a missing package with NO published dependent still fails the ROSTER', async () => {
+        // The edge check is right to find nothing here — no live package points at
+        // the absent one, so the closure genuinely is intact. That is precisely why
+        // the roster is a SECOND question: @gjsify/napi has no incoming manifest
+        // edge anywhere in this repository, so an edge-only check could never have
+        // reported it missing, and did not.
         const root = fixture('prefix', splitBridge);
         published = new Map([
             ['@fix/util', [VERSION]],
@@ -303,11 +311,14 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
             ['@fix/bridge-darwin-arm64', [VERSION]],
         ]);
         const r = await runScript(['--root', root, '--registry', registryUrl, '--attempts', '1']);
-        assert.equal(r.status, 0, `an aborted-but-ordered sweep must stay green:\n${r.out}`);
+        assert.notEqual(r.status, 0, `a package the train meant to publish is missing:\n${r.out}`);
         assert.match(r.stdout, /absent at 1\.2\.3 \(1\): @fix\/bridge/);
-        // …and it must not READ as a verified closure: nothing was examined.
-        assert.match(r.stdout, /NO edge was examined/);
-        assert.doesNotMatch(r.stdout, /Every one of/);
+        assert.match(r.out, /this train meant to publish are NOT on/);
+        assert.match(r.out, /--tolerate-republish/);
+        // It must not claim an UNRESOLVABLE edge: there is none, and naming one
+        // would send the reader after a dangling pin that does not exist.
+        assert.doesNotMatch(r.out, /UNRESOLVABLE:/);
+        assert.doesNotMatch(r.out, /Every one of/);
     });
 
     it('a release that published NOTHING fails instead of passing empty', async () => {
