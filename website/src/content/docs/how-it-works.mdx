@@ -84,13 +84,42 @@ The CLI runs an iterative multi-pass build:
 2. **Pass N** builds again with the discovered globals injected via tiny `register` stubs. The newly injected modules can pull in code that references *more* globals, so the loop repeats until the detected set stabilises (typically 2–3 iterations, capped at 5).
 3. The final real build uses the converged set and writes to disk.
 
-> Use `--verbose` to see what auto mode detected per iteration:
-> ```bash
-> gjsify build src/index.ts -o dist/index.js --verbose
-> # [gjsify] --globals auto: iteration 1, 7 global(s): Buffer, fetch, process, …
-> # [gjsify] --globals auto: iteration 2, 11 global(s): + AbortSignal, Headers, …
-> # [gjsify] --globals auto: converged after 2 iteration(s), 11 global(s)
-> ```
+Use `--verbose` to see what auto mode detected per iteration:
+
+<CommandTabs title="Auto detection, per iteration">
+  <Fragment slot="gjsify">
+    ```bash
+    gjsify build src/index.ts -o dist/index.js --verbose
+    # [gjsify] --globals auto: iteration 1, 7 global(s): Buffer, fetch, process, …
+    # [gjsify] --globals auto: iteration 2, 11 global(s): + AbortSignal, Headers, …
+    # [gjsify] --globals auto: converged after 2 iteration(s), 11 global(s)
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    npx @gjsify/cli@latest build src/index.ts -o dist/index.js --verbose
+    # [gjsify] --globals auto: iteration 1, 7 global(s): Buffer, fetch, process, …
+    # [gjsify] --globals auto: iteration 2, 11 global(s): + AbortSignal, Headers, …
+    # [gjsify] --globals auto: converged after 2 iteration(s), 11 global(s)
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    bunx @gjsify/cli@latest build src/index.ts -o dist/index.js --verbose
+    # [gjsify] --globals auto: iteration 1, 7 global(s): Buffer, fetch, process, …
+    # [gjsify] --globals auto: iteration 2, 11 global(s): + AbortSignal, Headers, …
+    # [gjsify] --globals auto: converged after 2 iteration(s), 11 global(s)
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno run -A --reload --min-dep-age 0 npm:@gjsify/cli@latest build src/index.ts -o dist/index.js --verbose
+    # [gjsify] --globals auto: iteration 1, 7 global(s): Buffer, fetch, process, …
+    # [gjsify] --globals auto: iteration 2, 11 global(s): + AbortSignal, Headers, …
+    # [gjsify] --globals auto: converged after 2 iteration(s), 11 global(s)
+    ```
+  </Fragment>
+</CommandTabs>
 
 ### Why analyse the bundled output, not the source?
 
@@ -108,13 +137,44 @@ The acorn analyser cannot follow value-flow indirection. The canonical example i
 
 The fix is to keep auto detection on and add an explicit safety net:
 
-```bash
-# Auto + the entire DOM group
-gjsify build src/gjs/gjs.ts -o dist/gjs.js --globals auto,dom
+<CommandTabs title="Auto plus an explicit safety net">
+  <Fragment slot="gjsify">
+    ```bash
+    # Auto + the entire DOM group
+    gjsify build src/gjs/gjs.ts -o dist/gjs.js --globals auto,dom
 
-# Auto + a single identifier we know auto can't see
-gjsify build src/index.ts -o dist/index.js --globals auto,matchMedia,FontFace
-```
+    # Auto + a single identifier we know auto can't see
+    gjsify build src/index.ts -o dist/index.js --globals auto,matchMedia,FontFace
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    # Auto + the entire DOM group
+    npx @gjsify/cli@latest build src/gjs/gjs.ts -o dist/gjs.js --globals auto,dom
+
+    # Auto + a single identifier we know auto can't see
+    npx @gjsify/cli@latest build src/index.ts -o dist/index.js --globals auto,matchMedia,FontFace
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    # Auto + the entire DOM group
+    bunx @gjsify/cli@latest build src/gjs/gjs.ts -o dist/gjs.js --globals auto,dom
+
+    # Auto + a single identifier we know auto can't see
+    bunx @gjsify/cli@latest build src/index.ts -o dist/index.js --globals auto,matchMedia,FontFace
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    # Auto + the entire DOM group
+    deno run -A --reload --min-dep-age 0 npm:@gjsify/cli@latest build src/gjs/gjs.ts -o dist/gjs.js --globals auto,dom
+
+    # Auto + a single identifier we know auto can't see
+    deno run -A --reload --min-dep-age 0 npm:@gjsify/cli@latest build src/index.ts -o dist/index.js --globals auto,matchMedia,FontFace
+    ```
+  </Fragment>
+</CommandTabs>
 
 The extras are seeded into the very first pass, so any code reachable only through them is also visible to the analyser.
 

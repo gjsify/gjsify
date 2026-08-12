@@ -3,6 +3,8 @@ title: Platform Support
 description: Which operating systems GJSify actually runs on today — per runtime, per native bridge, with the known gaps named.
 ---
 
+import CommandTabs from '../../components/CommandTabs.astro';
+
 GJSify has **two independent axes**, and they are easy to confuse:
 
 - The **runtime** axis — GJS, Node.js, Bun, Deno, the browser, NativeScript. This is
@@ -162,7 +164,7 @@ in that OS's format plus the GI typelib that names it. Those artifacts are then
 verified as far as the checking host allows — see
 [What the checks actually prove](#what-the-checks-actually-prove) below.
 
-<!-- Regenerate with: node scripts/audit-runtimes.mjs --platforms --markdown -->
+{/* Regenerate with the "Audit the matrix" window below, --markdown line. */}
 
 | package | tier | darwin-arm64 | darwin-x64 | linux-arm64 | linux-ppc64 | linux-riscv64 | linux-s390x | linux-x64 | win32-x64 |
 |---|---|---|---|---|---|---|---|---|---|
@@ -230,11 +232,36 @@ two current causes:
 
 Check the matrix against reality at any time:
 
-```bash
-node scripts/audit-runtimes.mjs --platforms            # human-readable
-node scripts/audit-runtimes.mjs --platforms --markdown # this table
-node scripts/audit-runtimes.mjs --check                # CI gate, every audit
-```
+<CommandTabs title="Audit the matrix">
+  <Fragment slot="gjsify">
+    ```bash
+    gjsify run --node-script scripts/audit-runtimes.mjs --platforms            # human-readable
+    gjsify run --node-script scripts/audit-runtimes.mjs --platforms --markdown # this table
+    gjsify run --node-script scripts/audit-runtimes.mjs --check                # CI gate, every audit
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    node scripts/audit-runtimes.mjs --platforms            # human-readable
+    node scripts/audit-runtimes.mjs --platforms --markdown # this table
+    node scripts/audit-runtimes.mjs --check                # CI gate, every audit
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    bun scripts/audit-runtimes.mjs --platforms            # human-readable
+    bun scripts/audit-runtimes.mjs --platforms --markdown # this table
+    bun scripts/audit-runtimes.mjs --check                # CI gate, every audit
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno run -A scripts/audit-runtimes.mjs --platforms            # human-readable
+    deno run -A scripts/audit-runtimes.mjs --platforms --markdown # this table
+    deno run -A scripts/audit-runtimes.mjs --check                # CI gate, every audit
+    ```
+  </Fragment>
+</CommandTabs>
 
 ### What the checks actually prove
 

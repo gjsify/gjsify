@@ -58,22 +58,23 @@ You need a few system packages:
 - **libsoup3** — HTTP, WebSocket and `fetch` at runtime
 - **Node.js 24+, Bun or Deno** — *optional*, only needed if you prefer a package-manager workflow over the Node-free bootstrap above
 
-<details>
-<summary>Install commands</summary>
-
-Fedora:
-
-```bash
-sudo dnf install gjs gtk4 libsoup3
-```
-
-Debian/Ubuntu:
-
-```bash
-sudo apt install gjs libgtk-4-1 libsoup-3.0-0
-```
-
-</details>
+<CommandTabs title="Install commands" group="distro">
+  <Fragment slot="fedora">
+    ```bash
+    sudo dnf install gjs gtk4 libsoup3
+    ```
+  </Fragment>
+  <Fragment slot="debian">
+    ```bash
+    sudo apt install gjs libgtk-4-1 libsoup-3.0-0
+    ```
+  </Fragment>
+  <Fragment slot="arch">
+    ```bash
+    sudo pacman -S gjs gtk4 libsoup3
+    ```
+  </Fragment>
+</CommandTabs>
 
 Not sure if everything is in place?
 

@@ -22,110 +22,110 @@ export interface PillarCoverage {
 
 export const pillarCoverage: readonly PillarCoverage[] = [
     {
-        category: 'Node.js APIs',
-        total: 41,
-        full: 33,
-        partial: 5,
-        stub: 3,
+        "category": "Node.js APIs",
+        "total": 41,
+        "full": 33,
+        "partial": 5,
+        "stub": 3
     },
     {
-        category: 'Node.js native bridges',
-        total: 5,
-        full: 5,
-        partial: 0,
-        stub: 0,
+        "category": "Node.js native bridges",
+        "total": 5,
+        "full": 5,
+        "partial": 0,
+        "stub": 0
     },
     {
-        category: 'Node.js meta',
-        total: 2,
-        full: 2,
-        partial: 0,
-        stub: 0,
+        "category": "Node.js meta",
+        "total": 2,
+        "full": 2,
+        "partial": 0,
+        "stub": 0
     },
     {
-        category: 'Web APIs',
-        total: 19,
-        full: 19,
-        partial: 0,
-        stub: 0,
+        "category": "Web APIs",
+        "total": 19,
+        "full": 19,
+        "partial": 0,
+        "stub": 0
     },
     {
-        category: 'Web native bridges',
-        total: 1,
-        full: 1,
-        partial: 0,
-        stub: 0,
+        "category": "Web native bridges",
+        "total": 1,
+        "full": 1,
+        "partial": 0,
+        "stub": 0
     },
     {
-        category: 'Web meta',
-        total: 1,
-        full: 1,
-        partial: 0,
-        stub: 0,
+        "category": "Web meta",
+        "total": 1,
+        "full": 1,
+        "partial": 0,
+        "stub": 0
     },
     {
-        category: 'Browser UI / Adwaita',
-        total: 5,
-        full: 5,
-        partial: 0,
-        stub: 0,
+        "category": "Browser UI / Adwaita",
+        "total": 5,
+        "full": 5,
+        "partial": 0,
+        "stub": 0
     },
     {
-        category: 'DOM',
-        total: 2,
-        full: 2,
-        partial: 0,
-        stub: 0,
+        "category": "DOM",
+        "total": 2,
+        "full": 2,
+        "partial": 0,
+        "stub": 0
     },
     {
-        category: 'Framework',
-        total: 15,
-        full: 15,
-        partial: 0,
-        stub: 0,
+        "category": "Framework",
+        "total": 16,
+        "full": 16,
+        "partial": 0,
+        "stub": 0
     },
     {
-        category: 'NativeScript bridges',
-        total: 5,
-        full: 5,
-        partial: 0,
-        stub: 0,
+        "category": "NativeScript bridges",
+        "total": 5,
+        "full": 5,
+        "partial": 0,
+        "stub": 0
     },
     {
-        category: 'GJS infrastructure',
-        total: 3,
-        full: 3,
-        partial: 0,
-        stub: 0,
+        "category": "GJS infrastructure",
+        "total": 3,
+        "full": 3,
+        "partial": 0,
+        "stub": 0
     },
     {
-        category: 'Build/Infra tools',
-        total: 20,
-        full: 17,
-        partial: 3,
-        stub: 0,
+        "category": "Build/Infra tools",
+        "total": 20,
+        "full": 17,
+        "partial": 3,
+        "stub": 0
     },
     {
-        category: 'Runtime engines',
-        total: 4,
-        full: 3,
-        partial: 1,
-        stub: 0,
+        "category": "Runtime engines",
+        "total": 5,
+        "full": 4,
+        "partial": 1,
+        "stub": 0
     },
     {
-        category: 'Showcases',
-        total: 13,
-        full: 13,
-        partial: 0,
-        stub: 0,
+        "category": "Showcases",
+        "total": 13,
+        "full": 13,
+        "partial": 0,
+        "stub": 0
     },
     {
-        category: 'Integration test suites',
-        total: 35,
-        full: 35,
-        partial: 0,
-        stub: 0,
-    },
+        "category": "Integration test suites",
+        "total": 35,
+        "full": 35,
+        "partial": 0,
+        "stub": 0
+    }
 ];
 
 /** Pillars meaningful as a top-level coverage breakdown — meta + native-bridge
@@ -137,19 +137,15 @@ export const overviewPillars: readonly PillarCoverage[] = pillarCoverage.filter(
 
 /** Aggregate over the overview-tier pillars (all rendered in the bar grid). */
 export function tallyOverview(): {
-    total: number;
-    full: number;
-    partial: number;
-    stub: number;
+    total: number; full: number; partial: number; stub: number;
     implementedPct: number;
 } {
     const acc = { total: 0, full: 0, partial: 0, stub: 0 };
     for (const p of overviewPillars) {
-        acc.total += p.total;
-        acc.full += p.full;
-        acc.partial += p.partial;
-        acc.stub += p.stub;
+        acc.total += p.total; acc.full += p.full;
+        acc.partial += p.partial; acc.stub += p.stub;
     }
-    const implementedPct = acc.total === 0 ? 0 : Math.round(((acc.full + acc.partial) / acc.total) * 100);
+    const implementedPct = acc.total === 0 ? 0
+        : Math.round(((acc.full + acc.partial) / acc.total) * 100);
     return { ...acc, implementedPct };
 }
