@@ -3,8 +3,8 @@
 // 2. Compile scss/adwaita-skin.scss to dist/adwaita-web.css using the sass npm package.
 
 import { compileString } from 'sass';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
     contactNewSymbolic,
@@ -140,14 +140,104 @@ console.log(`✓ Generated scss/_icons.generated.scss (${Object.keys(ICONS).leng
 // to sass. `sass.node.js` populates the global `self.fs` that dart-sass reads every file
 // through; `sass.default.js` loads with `{immutable}` only, so on a non-Node runtime that
 // global is undefined and sass can open nothing — neither its own filesystem importer nor
-// the `file:` URL a FileImporter hands back. Porting the rest of the way means swapping
-// this one object for an Importer whose `canonicalize`/`load` supply CONTENTS through
-// `node:fs` (which gjsify polyfills); nothing else here changes. Tracked in
-// `status/open-todos.md` (#1053) as the one script not yet equivalent to the other four.
+// the `file:` URL a FileImporter hands back. So this is an Importer, not a FileImporter:
+// `canonicalize` decides WHICH file (the partial/index resolution sass would otherwise do
+// itself) and `load` hands back CONTENTS read through `node:fs`, which gjsify polyfills.
+// dart-sass never opens a file, so it never needs the global it does not have.
+//
+// The other half of running here is NOT in this file — it is
+// `package.json#gjsify.nodeScript.excludeGlobals`, and since JSON cannot carry the reason,
+// the reason is here. `--globals auto` answers a runtime question syntactically: it injects
+// a register for every global the bundled code MENTIONS, and dart-sass mentions its whole
+// browser half. Two consequences, both fatal, neither obvious from the symptom:
+//
+//   document, HTMLElement, HTMLCanvasElement, Path2D, MutationObserver, navigator —
+//     dead code here, but their registers are GTK-backed, so the bundle demands gi://Gdk at
+//     load, and dart2js's own `document.scripts` probe then dies on a document polyfill
+//     that has no `scripts`. A build script must not need a display stack.
+//   process —
+//     the one that decides everything else. dart-sass asks `process.versions` whether it
+//     owns a `node` key and switches HOST STRATEGY on the answer; `@gjsify/process` answers
+//     `20.0.0` on purpose, for the npm packages that gate an API LEVEL on it. Believed, it
+//     sends dart-sass down a path whose `require("url")` a bundled ESM artifact cannot
+//     serve. Left out, the bundle's own banner `process` stands — same `platform`/`env`/
+//     `cwd`, and an empty `versions` — which is the truth here and is all this script uses.
+//
+// `location` deliberately STAYS: dart's `Uri.base` reads it, and unlike the six above its
+// register pulls in no display stack.
+//
+// CANONICAL URLs USE A PRIVATE SCHEME, NOT `file:`, and that is the load-bearing detail.
+// Sass resolves relative loads from a `file:`-canonical stylesheet through its OWN
+// filesystem importer, so a custom importer on a `file:` entry is never asked: under Node
+// it stayed dead code (which is why swapping it in changed no byte), and under GJS the
+// first `@use` died with "fileExists() is only supported on Node.js". A URL sass cannot
+// recognise as a file is what forces every load back through `load()` below. `load()`
+// hands the real `file:` URL back as `sourceMapUrl`, so the emitted map still names the
+// sources by their real paths and both outputs stay byte-identical to the Node run.
+// Authority-less on purpose (`gjsify-fs:/a/b`, not `gjsify-fs:///a/b`): sass round-trips
+// these through DART's `Uri`, not the WHATWG parser, and Dart drops an empty authority on
+// normalisation. Writing the form it normalises TO is what keeps the string sass hands back
+// equal to the string handed in — the three-slash form came back as one and turned a fixed
+// prefix length into `file://ome/...`.
+const CANONICAL_SCHEME = 'gjsify-fs:';
+const FILE_SCHEME = 'file://';
+
+/** `/a/b.scss` → `gjsify-fs:/a/b.scss` (on Windows: `gjsify-fs:/C:/a/b.scss`). */
+const toCanonical = (path) => new URL(CANONICAL_SCHEME + pathToFileURL(path).pathname);
+/** The inverse — the same location in the scheme a source map and `node:fs` understand. */
+const toFileUrl = (canonical) => new URL(FILE_SCHEME + new URL(String(canonical)).pathname);
+
+const SASS_EXTENSIONS = ['.scss', '.sass', '.css'];
+
+/**
+ * The candidate files sass itself would try for a load, in its order: the exact name, then
+ * the `_partial`, then the same two per extension, then the directory's `index`. Written
+ * out because a custom `canonicalize` replaces that resolution — it does not extend it.
+ */
+function loadCandidates(path) {
+    const dir = dirname(path);
+    const name = basename(path);
+    const ext = extname(name);
+    if (SASS_EXTENSIONS.includes(ext)) {
+        const stem = name.slice(0, -ext.length);
+        return [join(dir, name), join(dir, `_${stem}${ext}`)];
+    }
+    return [
+        ...SASS_EXTENSIONS.flatMap((e) => [join(dir, `${name}${e}`), join(dir, `_${name}${e}`)]),
+        ...SASS_EXTENSIONS.flatMap((e) => [join(path, `index${e}`), join(path, `_index${e}`)]),
+    ];
+}
+
+const contentsImporter = {
+    canonicalize(url) {
+        // Sass resolves a relative `@use` against the containing stylesheet's canonical URL
+        // before asking, so this is normally already in the canonical scheme. `scssDir`
+        // anchors the one case it is not: a bare specifier reaching the entry's importer.
+        const target = url.startsWith(CANONICAL_SCHEME) ? fileURLToPath(toFileUrl(url)) : resolve(scssDir, url);
+        for (const candidate of loadCandidates(target)) {
+            if (existsSync(candidate)) return toCanonical(candidate);
+        }
+        return null;
+    },
+    load(canonicalUrl) {
+        const fileUrl = toFileUrl(canonicalUrl);
+        const path = fileURLToPath(fileUrl);
+        const ext = extname(path);
+        return {
+            contents: readFileSync(path, 'utf8'),
+            syntax: ext === '.sass' ? 'indented' : ext === '.css' ? 'css' : 'scss',
+            // The private scheme is an implementation detail of HOW the file was read; the
+            // map has to name the file itself, or every `sourcesContent` entry is filed
+            // under a URL nothing can open.
+            sourceMapUrl: fileUrl,
+        };
+    },
+};
+
 const entryPoint = resolve(scssDir, 'adwaita-skin.scss');
 const result = compileString(readFileSync(entryPoint, 'utf8'), {
-    url: pathToFileURL(entryPoint),
-    importers: [{ findFileUrl: (url) => new URL(url, pathToFileURL(`${scssDir}/`)) }],
+    url: toCanonical(entryPoint),
+    importers: [contentsImporter],
     style: 'expanded',
     sourceMap: true,
     sourceMapIncludeSources: true,
@@ -159,7 +249,15 @@ const cssOut = resolve(distDir, 'adwaita-web.css');
 const mapOut = resolve(distDir, 'adwaita-web.css.map');
 
 writeFileSync(cssOut, `${result.css}\n/*# sourceMappingURL=adwaita-web.css.map */\n`);
-writeFileSync(mapOut, JSON.stringify(result.sourceMap));
+// The ENTRY is the one stylesheet sass did not get through `load()` — it was handed the
+// string directly — so it is the one source still named in the private scheme. A map
+// describes files a devtool has to be able to open, so the scheme comes back off here,
+// where it went on, rather than leaking into the artifact.
+const sourceMap = {
+    ...result.sourceMap,
+    sources: result.sourceMap.sources.map((s) => (s.startsWith(CANONICAL_SCHEME) ? String(toFileUrl(s)) : s)),
+};
+writeFileSync(mapOut, JSON.stringify(sourceMap));
 
 console.log(`✓ Compiled ${entryPoint} → ${cssOut}`);
 
