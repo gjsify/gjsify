@@ -15,29 +15,11 @@ import { isShowcaseName, SHOWCASE_NAMES } from './showcase-registry.ts';
 // declare `bun`, so an advertised tab that does not work is a documented command
 // that fails. The set is read from each showcase's own manifest — see
 // `declaredRuntimes` below for why it is derived rather than listed per slide.
-type Runtime = 'gjs' | 'node' | 'bun' | 'deno';
-
-// Runtime → the CommandTabs tab id it renders as.
-const RUNTIME_TAB: Record<Runtime, 'gjsify' | 'npm' | 'bun' | 'deno'> = {
-  gjs: 'gjsify',
-  node: 'npm',
-  bun: 'bun',
-  deno: 'deno',
-};
-
-// Runtime → how the gjsify toolchain is invoked on that host.
 //
-// `@latest` is not decoration: `npx`/`bunx`/`deno run` all reuse a CACHED copy
-// of an unpinned bin, and on one machine on one day that served 0.4.25 under
-// npx and 0.23.0 under deno while bunx fetched 0.24.1 — with the two old ones
-// failing in ways that read as gjsify bugs. A pinned tag is what makes a
-// documented command reproducible.
-const RUNTIME_INVOCATION: Record<Runtime, string> = {
-  gjs: 'gjsify',
-  node: 'npx @gjsify/cli@latest',
-  bun: 'bunx @gjsify/cli@latest',
-  deno: 'deno run -A npm:@gjsify/cli@latest',
-};
+// HOW each runtime invokes the toolchain lives in `runtime-invocations.ts`, one
+// definition for the whole site: this map used to be a private copy here, and
+// the deno line drifted out of step with what the CLI itself recommends.
+import { RUNTIME_INVOCATION, RUNTIME_TAB, type Runtime } from './runtime-invocations.ts';
 
 // The runtimes a showcase is verified on, READ FROM ITS OWN MANIFEST rather than
 // restated here. The comment above already said a slide's set mirrors

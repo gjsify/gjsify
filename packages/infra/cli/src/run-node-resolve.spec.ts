@@ -20,7 +20,7 @@ import { describe, expect, it } from '@gjsify/unit';
 import { resolveNodeGi, resolveNodeGiForBundle } from './utils/run-node.js';
 import { computeNativeEnvForBundle } from './utils/run-gjs.js';
 import { libraryPathVar } from './utils/detect-native-packages.js';
-import { systemGiLibraryDirs } from './utils/system-gi.js';
+import { dyldDefaultFallbackDirs, systemGiLibraryDirs } from './utils/system-gi.js';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -161,11 +161,12 @@ export default async () => {
             expect(name).toBe('DYLD_FALLBACK_LIBRARY_PATH');
 
             const entries = value.split(':');
-            // Every probed libdir is there, `/usr/lib` still terminates the
-            // search (setting the variable REPLACES dyld's own default list),
-            // and nothing appears twice.
+            // Every probed libdir is there, dyld's WHOLE default list still
+            // terminates the search (setting the variable REPLACES that list,
+            // so a partial tail SUBTRACTS from what the child would otherwise
+            // find), and nothing appears twice.
             for (const dir of systemDirs) expect(entries.includes(dir)).toBe(true);
-            expect(entries.includes('/usr/lib')).toBe(true);
+            for (const dir of dyldDefaultFallbackDirs(inherited)) expect(entries.includes(dir)).toBe(true);
             expect(entries.length).toBe(new Set(entries).size);
             // The "and nothing else" half: the inherited loader variable must
             // not come back, which is the win32 symptom the next row pins from

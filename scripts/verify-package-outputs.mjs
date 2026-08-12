@@ -28,7 +28,10 @@ import { fileURLToPath } from 'node:url';
 import process from 'node:process';
 
 import { createContext } from '../packages/infra/manifest-conformance/lib/context.mjs';
-import { inspectDeclaredOutputs } from '../packages/infra/manifest-conformance/lib/rules/package-outputs.mjs';
+import {
+    formatMissing,
+    inspectDeclaredOutputs,
+} from '../packages/infra/manifest-conformance/lib/rules/package-outputs.mjs';
 
 const argv = process.argv.slice(2);
 const args = new Set(argv);
@@ -110,8 +113,8 @@ if (asJson) {
             fail(`${r.dir}: unreadable package.json — ${r.error}`);
             continue;
         }
-        fail(`${r.name} (${r.dir}) declares ${r.missing.length} path(s) that do not exist:`);
-        for (const m of r.missing) console.error(`    ${m.field} → ${m.value}   (missing ${m.kind}: ${m.path})`);
+        fail(`${r.name} (${r.dir}) declares ${r.missing.length} path(s) that do not hold:`);
+        for (const m of r.missing) console.error(formatMissing(m));
         const scripts = Object.keys(r.scripts);
         if (scripts.length > 0) {
             console.error(`    produced by: ${scripts.map((s) => `gjsify workspace ${r.name} ${s}`).join(' · ')}`);

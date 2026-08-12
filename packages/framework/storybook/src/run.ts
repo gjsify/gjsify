@@ -6,6 +6,7 @@
 // bridge, i.e. `gjsify storybook --runtime node` (AGENTS.md § The legacy
 // imports.* object is NOT an API).
 import system from 'system';
+import { runApplication } from '@gjsify/adwaita-app';
 
 import { StorybookApplication, type StorybookOptions } from './application.js';
 
@@ -20,6 +21,8 @@ import { StorybookApplication, type StorybookOptions } from './application.js';
  * ```
  */
 export async function runStorybook(options: StorybookOptions): Promise<number> {
-    const app = new StorybookApplication(options);
-    return app.runAsync([system.programInvocationName, ...system.programArgs]);
+    // `runApplication`, not a bare `runAsync`: a second launch while a storybook
+    // is already running is a single-instance handoff that otherwise exits 0
+    // with no window and no output. See its note for what that silence cost.
+    return runApplication(new StorybookApplication(options), [system.programInvocationName, ...system.programArgs]);
 }

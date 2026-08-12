@@ -141,8 +141,48 @@ export class AdwaitaApp extends Adw.Application {
  * ```
  */
 export async function runAdwaitaApp(options: AdwaitaAppOptions): Promise<number> {
-    const app = new AdwaitaApp(options);
-    return app.runAsync([system.programInvocationName, ...system.programArgs]);
+    return runApplication(new AdwaitaApp(options), [system.programInvocationName, ...system.programArgs]);
+}
+
+/**
+ * Run a `Gio.Application` on the `runAsync` lifecycle and SAY SO when the launch
+ * was a single-instance handoff.
+ *
+ * GApplication is single-instance by default: launching a second time claims no
+ * bus name, sends `activate` to the process that already owns it, and returns 0.
+ * That is correct, and it is indistinguishable from a crash — the second launch
+ * prints nothing, opens no window and exits successfully. A cross-platform run
+ * of the homepage's showcases read exactly that as "exits 0 after ~2 s, no
+ * window, no output, no error — worse than a crash, because nothing tells the
+ * user anything went wrong", on a box where a storybook from another session was
+ * still running. So the silence cost a real diagnosis, and this is the line that
+ * removes it.
+ *
+ * `register()` BEFORE `run()`, because the answer is only available while the
+ * application is registered: `run()` unregisters on the way out, and
+ * `get_is_remote()` afterwards is a `g_application_get_is_remote: assertion
+ * 'application->priv->is_registered' failed` returning false — measured. `run()`
+ * registers by itself when nobody did, so doing it here changes nothing else.
+ */
+export async function runApplication(app: Gio.Application, argv: string[]): Promise<number> {
+    let remote = false;
+    try {
+        app.register(null);
+        remote = app.get_is_remote();
+    } catch {
+        // `g_application_register` is `throws="1"`: an unreachable session bus
+        // lands here. `run()` meets the same wall and reports it in its own
+        // terms, so the only thing lost is the notice below.
+        remote = false;
+    }
+    const code = await app.runAsync(argv);
+    if (remote) {
+        console.error(
+            `${app.applicationId ?? 'This application'} is already running — ` +
+                'brought the existing instance to the front instead of opening a second window.',
+        );
+    }
+    return code;
 }
 
 GObject.type_ensure(AdwaitaApp.$gtype);

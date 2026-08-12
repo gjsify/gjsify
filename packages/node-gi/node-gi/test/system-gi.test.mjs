@@ -9,7 +9,13 @@
 // the `macos` job's env-free GTK step (see .github/workflows/node-gi.yml).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { pathCovers, splitSearchPath, systemGiLibraryDirs } from '../system-gi.js';
+import {
+    composeDyldFallback,
+    dyldDefaultFallbackDirs,
+    pathCovers,
+    splitSearchPath,
+    systemGiLibraryDirs,
+} from '../system-gi.js';
 
 /** A `pkg-config` stub: no spawn, so the spec never depends on the host having it. */
 const noPkgConfig = () => [];
@@ -131,6 +137,37 @@ test('pathCovers: the re-exec suppression test', () => {
     assert.equal(pathCovers(['/usr/local/lib'], ['/usr/lib']), false);
     assert.equal(pathCovers(['/a', '/b'], ['/a']), false, 'partial coverage is not coverage');
     assert.equal(pathCovers([], ['/usr/lib']), true, 'nothing wanted is trivially covered');
+});
+
+test('composeDyldFallback: carries dyld’s whole default list', () => {
+    // `DYLD_FALLBACK_LIBRARY_PATH` REPLACES dyld's default list rather than
+    // extending it, so a composition that omits part of it hands the re-exec'd
+    // child a SMALLER search path than the process that spawned it. This used to
+    // append a bare `/usr/lib`, which dropped `/usr/local/lib` — where every
+    // Homebrew GTK library lives on Intel macOS — and killed every gjs command
+    // gjsify launched on such a Mac, `dlopen(libsoup-3.0.0.dylib)` first.
+    const env = { HOME: '/Users/dev' };
+    assert.deepEqual(dyldDefaultFallbackDirs(env), ['/Users/dev/lib', '/usr/local/lib', '/lib', '/usr/lib']);
+
+    const entries = composeDyldFallback(['/opt/homebrew/lib'], env).split(':');
+    assert.equal(entries[0], '/opt/homebrew/lib', 'our dirs out-rank the defaults');
+    for (const dir of dyldDefaultFallbackDirs(env)) {
+        assert.ok(entries.includes(dir), `${dir} must survive the composition`);
+    }
+    assert.equal(entries.length, new Set(entries).size, 'no directory is searched twice');
+});
+
+test('composeDyldFallback: an inherited value sits between ours and the defaults', () => {
+    const entries = composeDyldFallback(['/opt/homebrew/lib'], {
+        DYLD_FALLBACK_LIBRARY_PATH: '/opt/ci/lib',
+    }).split(':');
+    assert.equal(entries[0], '/opt/homebrew/lib');
+    assert.equal(entries[1], '/opt/ci/lib', 'the host asked for it, so it stays ahead of the defaults');
+    assert.ok(entries.includes('/usr/local/lib'), 'and the defaults are still appended behind it');
+});
+
+test('dyldDefaultFallbackDirs: omits $HOME/lib when there is no HOME', () => {
+    assert.deepEqual(dyldDefaultFallbackDirs({}), ['/usr/local/lib', '/lib', '/usr/lib']);
 });
 
 test('splitSearchPath: drops empty segments', () => {

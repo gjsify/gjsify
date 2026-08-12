@@ -265,6 +265,54 @@ describe('verify-package-outputs — declared entry points must exist (#67)', ()
         assert.equal(status, 0, out);
     });
 
+    it('FAILS when the gjs artifact is really a node bundle', () => {
+        // `@gjsify/example-gtk-adwaita-storybook@0.37.0`: `build:gjs` ran
+        // `gjsify storybook --build-only --out dist/gjs.js` with no `--runtime`,
+        // which follows the runtime the CLI EXECUTES IN — node, in the release
+        // job. The published `dist/gjs.js` came out byte-identical to
+        // `dist/gjs.node.mjs`, so every gjs tab of the homepage's storybook
+        // slide died with `ImportError: Unsupported URI scheme for importing:
+        // node` while the manifest, the tarball and the build all looked right.
+        const root = makeRoot('gjs-artifact-is-node-bundle');
+        addPackage(
+            root,
+            'a',
+            {
+                name: '@t/a',
+                version: '1.0.0',
+                gjsify: { main: 'dist/gjs.js', example: { runtimes: ['gjs', 'node'] } },
+            },
+            {
+                'dist/gjs.js': 'import{createRequire as e}from"node:module";\nexport{};\n',
+                'dist/gjs.node.mjs': 'import{createRequire as e}from"node:module";\nexport{};\n',
+            },
+        );
+        const { status, out } = runGuard(root);
+        assert.notEqual(status, 0, 'guard passed a node bundle shipped as the gjs entry point');
+        assert.match(out, /gjsify\.main/, out);
+        assert.match(out, /node:/, out);
+    });
+
+    it('FAILS on a gjs artifact byte-identical to the node bundle', () => {
+        // The same defect with no `node:` import to give it away — a bundle can
+        // be built for the wrong target and still contain nothing GJS chokes on
+        // at load. Identity with the node entry is the second, independent tell.
+        const root = makeRoot('gjs-artifact-copied-from-node');
+        addPackage(
+            root,
+            'a',
+            {
+                name: '@t/a',
+                version: '1.0.0',
+                gjsify: { main: 'dist/gjs.js', example: { runtimes: ['gjs', 'node'] } },
+            },
+            { 'dist/gjs.js': '// same bytes\n', 'dist/gjs.node.mjs': '// same bytes\n' },
+        );
+        const { status, out } = runGuard(root);
+        assert.notEqual(status, 0, 'guard passed a gjs entry that is a copy of the node bundle');
+        assert.match(out, /byte-identical/, out);
+    });
+
     it('asks nothing of a gjs-only example', () => {
         const root = makeRoot('gjs-only-example');
         addPackage(

@@ -147,17 +147,29 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         // `require('crypto')`s and cycles back through the @gjsify/crypto alias.
         resolve: {
             mainFields: format === 'esm' ? ['browser', 'module', 'main'] : ['browser', 'main', 'module'],
-            // ESM: omit 'require' — packages listing 'require' before 'import'
-            // would silently route through their CJS entry.
+            // NEITHER 'import' NOR 'require' belongs here — rolldown adds the
+            // one that matches each CALL SITE (`import` for an import
+            // statement, `require` for a require() call), and naming either
+            // explicitly applies it to both kinds. The exports-map resolver
+            // iterates the PACKAGE's keys in declaration order and takes the
+            // first one our list contains, so `'import'` in this list makes a
+            // require() call match an `import` key that happens to be declared
+            // first — handing a CJS consumer an ESM namespace where it expects
+            // `module.exports`. MEASURED on the express showcase: `is-promise@4`
+            // declares `[{import,require,default}, …]` in that order, so
+            // `router`'s `const isPromise = require('is-promise')` bound the
+            // namespace `{default: fn}` and every request threw
+            // `TypeError: n is not a function`. The response still went out 200
+            // and express's own handler logged `err.stack` — which on
+            // SpiderMonkey carries no message line — so the flagship slide
+            // printed ~59 anonymous frames per request and nothing said why.
             //
-            // `'node'` is deliberately absent. The exports-map resolver iterates
-            // the PACKAGE's keys in declaration order and takes the first one
-            // present in `conditionNames` (our order is irrelevant), so enabling
-            // `node` hands `cross-fetch-ponyfill` its Node-only entry — it
-            // imports `blobFrom`/`fileFrom` and the bundle breaks at link time.
-            // Packages that genuinely need their `node` export under GJS (so far
-            // only `unicorn-magic`'s `traversePathUp`) get an explicit alias.
-            conditionNames: format === 'esm' ? ['browser', 'import'] : ['browser', 'require', 'import'],
+            // `'node'` is deliberately absent for a different reason: enabling
+            // it hands `cross-fetch-ponyfill` its Node-only entry, which imports
+            // `blobFrom`/`fileFrom` and breaks the bundle at link time. Packages
+            // that genuinely need their `node` export under GJS (so far only
+            // `unicorn-magic`'s `traversePathUp`) get an explicit alias.
+            conditionNames: ['browser'],
         },
         transform: {
             // GJS 1.86 / SpiderMonkey 140 ≈ firefox140.

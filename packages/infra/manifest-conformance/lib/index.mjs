@@ -37,7 +37,15 @@ export * from './source-graph.mjs';
 export { renderReport, formatFindings } from './report.mjs';
 
 // ── the portable rule set — importing this module registers all of them ──
-export { packageOutputsRule, declaredPaths, targetFor, isCheckablePath, inspectDeclaredOutputs } from './rules/package-outputs.mjs';
+export {
+    packageOutputsRule,
+    declaredPaths,
+    targetFor,
+    isCheckablePath,
+    inspectDeclaredOutputs,
+    inspectGjsArtifact,
+    formatMissing,
+} from './rules/package-outputs.mjs';
 export {
     prebuildArtifactsRule,
     collectNativePackages,

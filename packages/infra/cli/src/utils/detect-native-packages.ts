@@ -25,7 +25,7 @@
 import { readdirSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { readPackageJson } from './pkg-json.js';
-import { splitSearchPath, systemGiLibraryDirs, type SystemGiOptions } from './system-gi.js';
+import { composeDyldFallback, systemGiLibraryDirs, type SystemGiOptions } from './system-gi.js';
 
 export interface NativePackage {
     /** npm package name, e.g. "@gjsify/webgl" */
@@ -666,12 +666,12 @@ const DYLD_FALLBACK_VAR = 'DYLD_FALLBACK_LIBRARY_PATH';
  *      exactly the "nothing else found it" case. Consequence, and it is the
  *      intended precedence: gjsify's own prebuilds keep priority through the
  *      override variable, the system stack fills in behind it.
- *   2. **Our dirs go FIRST, an inherited fallback is kept BEHIND them, and
- *      `/usr/lib` is appended when there is none.** Setting the variable
- *      REPLACES dyld's own default fallback list, so writing only our dirs would
- *      silently remove `/usr/lib` from the search — a host that exported the
- *      variable itself already carries whatever tail it wants. Same composition
- *      as node-gi's re-exec.
+ *   2. **Our dirs go FIRST, an inherited fallback behind them, and dyld's own
+ *      default list behind that** — `composeDyldFallback()`, the same
+ *      composition node-gi's re-exec uses. Setting the variable REPLACES that
+ *      default list rather than extending it, so any composition that does not
+ *      carry it hands the child a SMALLER search path than it would have had
+ *      with the variable unset.
  *
  * Emitted even when `packages` is empty: the gap is in the host's loader, not in
  * a gjsify prebuild, so a plain `gjsify run script.gjs.js` that touches GTK needs
@@ -717,19 +717,7 @@ export function buildNativeEnv(
     // it, so a Mac with no GI stack installed is left byte-unchanged.
     const systemDirs = (opts.systemGiDirs ?? systemGiLibraryDirs)({ platform, env });
     if (systemDirs.length > 0) {
-        const inherited = splitSearchPath(env[DYLD_FALLBACK_VAR]);
-        // Deduplicated, and not for tidiness: `systemGiLibraryDirs()` accepts a
-        // libdir stated outright through `GI_TYPELIB_PATH` on directory
-        // existence alone, so a host that names `/usr/lib/girepository-1.0`
-        // there puts `/usr/lib` in `systemDirs` — and the `/usr/lib` tail below
-        // then repeated it. A search path that lists the same directory twice
-        // asks the loader to stat it twice for every miss, and it makes the
-        // value the `$ …` echo prints read as though the CLI had composed
-        // something it did not. First occurrence wins in every loader, so
-        // dropping later repeats is behaviour-preserving.
-        out[DYLD_FALLBACK_VAR] = [
-            ...new Set([...systemDirs, ...(inherited.length > 0 ? inherited : ['/usr/lib'])]),
-        ].join(':');
+        out[DYLD_FALLBACK_VAR] = composeDyldFallback(systemDirs, env);
     }
     return out;
 }

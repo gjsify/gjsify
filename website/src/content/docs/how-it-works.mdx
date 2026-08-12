@@ -67,7 +67,7 @@ The CLI's default `--globals auto` discovers which registers your project needs 
   </Fragment>
   <Fragment slot="deno">
     ```bash
-    deno run -A npm:@gjsify/cli@latest build src/index.ts --outfile dist/index.js
+    deno run -A --reload --min-dep-age 0 npm:@gjsify/cli@latest build src/index.ts --outfile dist/index.js
     # (--globals auto is the default — no flag needed)
     ```
   </Fragment>
@@ -224,7 +224,7 @@ Then it spawns `gjs -m <bundle>`:
   </Fragment>
   <Fragment slot="deno">
     ```bash
-    deno run -A npm:@gjsify/cli@latest run dist/index.js
+    deno run -A --reload --min-dep-age 0 npm:@gjsify/cli@latest run dist/index.js
     ```
   </Fragment>
 </CommandTabs>
@@ -252,7 +252,7 @@ If you want to run `gjs` directly (for example from a systemd unit or a packaged
   </Fragment>
   <Fragment slot="deno">
     ```bash
-    eval $(deno run -A npm:@gjsify/cli@latest info --export)
+    eval $(deno run -A --reload --min-dep-age 0 npm:@gjsify/cli@latest info --export)
     gjs -m dist/index.js
     ```
   </Fragment>

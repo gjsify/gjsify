@@ -445,10 +445,28 @@ export default async () => {
 
         await it('puts the host GI libdirs on DYLD_FALLBACK_LIBRARY_PATH on darwin', async () => {
             const env = buildNativeEnv(pkgs, { platform: 'darwin', env: {}, systemGiDirs: brewX64 });
-            // `/usr/lib` is APPENDED because setting the variable REPLACES dyld's
-            // own default fallback list — emitting only our dir would silently
-            // remove /usr/lib from the search.
-            expect(env.DYLD_FALLBACK_LIBRARY_PATH).toBe('/usr/local/lib:/usr/lib');
+            // dyld's WHOLE default list is appended, because setting the variable
+            // REPLACES it. This used to append a bare `/usr/lib`, which dropped
+            // `/usr/local/lib` — every Homebrew GTK library on Intel macOS — out
+            // of the search and killed every gjs command gjsify launched there.
+            expect(env.DYLD_FALLBACK_LIBRARY_PATH).toBe('/usr/local/lib:/lib:/usr/lib');
+        });
+
+        await it('never hands the child a SMALLER search path than an unset variable', async () => {
+            // The invariant the `/usr/lib`-only tail broke, stated directly: every
+            // directory dyld would have searched on its own must still be there.
+            // `$HOME/lib` is part of that list, so a host with a HOME keeps it.
+            const env = buildNativeEnv(pkgs, {
+                platform: 'darwin',
+                env: { HOME: '/Users/dev' },
+                systemGiDirs: brewX64,
+            });
+            const entries = env.DYLD_FALLBACK_LIBRARY_PATH?.split(':') ?? [];
+            for (const dir of ['/Users/dev/lib', '/usr/local/lib', '/lib', '/usr/lib']) {
+                expect(entries.includes(dir)).toBe(true);
+            }
+            // Ours still out-ranks the defaults.
+            expect(entries[0]).toBe('/usr/local/lib');
         });
 
         await it('keeps DYLD_LIBRARY_PATH carrying ONLY the prebuild dirs', async () => {
@@ -470,7 +488,7 @@ export default async () => {
                 env: { DYLD_FALLBACK_LIBRARY_PATH: '/opt/ci/lib:/usr/lib' },
                 systemGiDirs: brewX64,
             });
-            expect(env.DYLD_FALLBACK_LIBRARY_PATH).toBe('/usr/local/lib:/opt/ci/lib:/usr/lib');
+            expect(env.DYLD_FALLBACK_LIBRARY_PATH).toBe('/usr/local/lib:/opt/ci/lib:/usr/lib:/lib');
             // The inherited value already carries /usr/lib, so it is not added twice.
             expect(env.DYLD_FALLBACK_LIBRARY_PATH?.split(':').filter((d) => d === '/usr/lib').length).toBe(1);
         });
@@ -480,7 +498,7 @@ export default async () => {
             // `gjsify run script.gjs.js` touching GTK hits it too. If this row ever
             // needs `packages` non-empty, the fix has been narrowed too far.
             const env = buildNativeEnv([], { platform: 'darwin', env: {}, systemGiDirs: brewX64 });
-            expect(env.DYLD_FALLBACK_LIBRARY_PATH).toBe('/usr/local/lib:/usr/lib');
+            expect(env.DYLD_FALLBACK_LIBRARY_PATH).toBe('/usr/local/lib:/lib:/usr/lib');
         });
 
         await it('leaves the variable ALONE off darwin', async () => {

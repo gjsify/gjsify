@@ -4,13 +4,11 @@
 // tabbed by runtime (same component as the slideshow) so developers scaffold a
 // new app with whichever runtime they already have — gjsify / npx / bunx / deno.
 import CommandTabs from './CommandTabs.astro';
+// One definition of how each runtime invokes the toolchain — see
+// `runtime-invocations.ts` for why the deno line carries two extra flags.
+import { invocationCommands } from './runtime-invocations.ts';
 
-const createCommands = [
-  { runtime: 'gjsify', code: 'gjsify create my-app' },
-  { runtime: 'npm', code: 'npx @gjsify/cli@latest create my-app' },
-  { runtime: 'bun', code: 'bunx @gjsify/cli@latest create my-app' },
-  { runtime: 'deno', code: 'deno run -A npm:@gjsify/cli@latest create my-app' },
-];
+const createCommands = invocationCommands('create my-app');
 ---
 
 <section class="quick-start-cta">
