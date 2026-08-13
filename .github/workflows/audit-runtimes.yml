@@ -115,6 +115,15 @@ jobs:
       - name: Check no spec spells a POSIX constant as a Linux number
         run: node scripts/check-spec-posix-literals.mjs
 
+      # `actionlint` parses workflow syntax and runs with `-shellcheck=` empty, so nothing
+      # read the SHELL inside a `run:` block. `release-cut.yml` passed its publish dispatch
+      # as `node -e '…'` with an apostrophe in a comment; the string closed early, node got
+      # a truncated program, and v0.38.0 was cut, tagged and released without ever being
+      # dispatched to npm. The release dry run cannot cover it either — that step is the
+      # one thing a dry run skips. `bash -n` on every extracted block does, in milliseconds.
+      - name: Check every workflow `run:` block is valid shell
+        run: node scripts/check-workflow-run-syntax.mjs
+
       # The PR-title linter inherits its type list from the action default
       # instead of carrying a second copy of `type-enum`. That is only sound
       # while the two agree — this is what says so out loud.

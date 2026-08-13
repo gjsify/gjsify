@@ -438,7 +438,14 @@ jobs:
           TAG="$(git describe --tags --abbrev=0)"
           echo "dispatching release.yml for $TAG (bootstrap runtime: $RUNTIME)"
           echo "PUBLISH_TAG=$TAG" >> "$GITHUB_ENV"
-          TAG="$TAG" node --input-type=module -e '
+          # A QUOTED heredoc, not `node -e '…'`, and the reason is this step's own
+          # history: the comment below about v0.31.0 carried an apostrophe, which closed
+          # the single-quoted shell string early and handed node a truncated script
+          # (`SyntaxError: Unexpected end of input`). v0.38.0 was cut, tagged and
+          # released — and never dispatched to npm. `<<'JS'` interpolates nothing and
+          # ends only on its own delimiter, so no character in the script can escape it.
+          # The dry run cannot catch this: this step is the one thing a dry run skips.
+          cat > "$RUNNER_TEMP/dispatch-publish.mjs" <<'DISPATCH_JS'
             const { GITHUB_TOKEN, REPO, TAG } = process.env;
             const url = `https://api.github.com/repos/${REPO}/actions/workflows/release.yml/dispatches`;
             const res = await fetch(url, {
@@ -475,7 +482,8 @@ jobs:
                 process.exit(1);
             }
             console.log(`dispatched release.yml for ${TAG} (HTTP 204)`);
-          '
+          DISPATCH_JS
+          TAG="$TAG" node "$RUNNER_TEMP/dispatch-publish.mjs"
 
       - name: Summary
         if: always()
