@@ -338,15 +338,19 @@ describe('stage-prebuild: staging', () => {
     it('REFUSES a `.typelib` with no `.gir` beside it', () => {
         // The positive assertion that keeps a DEFERRED missing `.gir` transient.
         //
-        // `scripts/manifest-conformance/prebuild-gir-gaps.mjs` defers ten committed
-        // directories that hold a library and a typelib and no `.gir`, on the
-        // stated promise that "the next `prebuilds.yml` run that rebuilds this
-        // target lands the file" — and every one of those targets stages through
-        // this script, which matches by extension. The promise is therefore only
-        // falsifiable HERE: if the build stops emitting the `.gir`, the stager would
-        // otherwise copy two of three files, the deferral would never clear, the
-        // ledger would keep passing, and a deferral the tree calls transient would
-        // be permanent with nothing saying so.
+        // `PREBUILD_GIR_GAPS` deferred ten committed directories that held a library
+        // and a typelib and no `.gir`, on the stated promise that "the next
+        // `prebuilds.yml` run that rebuilds this target lands the file" — and every
+        // one of those targets stages through this script, which matches by
+        // extension. The promise was therefore only falsifiable HERE: if the build
+        // stops emitting the `.gir`, the stager would otherwise copy two of three
+        // files, the deferral would never clear, the ledger would keep passing, and
+        // a deferral the tree calls transient would be permanent with nothing saying
+        // so.
+        //
+        // All ten arrived and the ledger was retired, which does NOT retire this
+        // test: it is the check that made retiring it safe, by closing the gap class
+        // structurally rather than draining it once.
         //
         // `g-ir-compiler` takes the `.gir` as INPUT and every meson build here runs
         // it on a path in this same build directory, so a `.typelib` here is proof

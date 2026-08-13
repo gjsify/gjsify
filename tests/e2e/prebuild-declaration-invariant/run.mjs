@@ -208,10 +208,13 @@ describe('prebuild invariant — half 1: a declared platform must have a body', 
         assert.match(problems[0], /holds no `\.gir`/);
         // The message must say what a missing `.gir` does and does NOT cost, or the next
         // reader treats a tooling gap as a broken runtime (or the reverse), and it must
-        // name both ways out — restage, or record the gap.
+        // name the way out. RESTAGING is that way and the message may not bury it: the
+        // deferral route is still expressible but has no producer since the ledger module
+        // drained and was deleted, so pointing a reader at it first would send them to
+        // write a file rather than to re-run the job that fixes this in one pass.
         assert.match(problems[0], /Nothing LOADS a `\.gir`/);
         assert.match(problems[0], /ts-for-gir/);
-        assert.match(problems[0], /prebuild-gir-gaps\.mjs/);
+        assert.match(problems[0], /restage this target/);
     });
 
     it('does NOT reach the `.gir` check when the library or typelib is missing', () => {

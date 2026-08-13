@@ -22,7 +22,7 @@
 //   3. a ledger entry whose directory no longer exists          → FAIL (stale deferral)
 //
 // (2) and (3) keep the ledger from becoming where omissions go to die — an entry cannot
-// outlive its cause, as with `PREBUILD_GIR_GAPS` and `unchecked-fields.mjs` — and every
+// outlive its cause, as with the retired `PREBUILD_GIR_GAPS` and `unchecked-fields.mjs` — and every
 // entry is PRINTED on every run, so deferrals stay visible rather than merely recorded.
 //
 // Usage: node scripts/check-e2e-suite-coverage.mjs [--root <dir>]

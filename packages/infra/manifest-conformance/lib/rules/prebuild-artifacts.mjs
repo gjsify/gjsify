@@ -79,6 +79,16 @@
  * hand-written key there would be a field the generator has to learn and then
  * keep forever, for a gap whose whole point is to disappear.
  *
+ * NO CALLER INJECTS ONE TODAY, and the reason is the good one: the ledger module
+ * `scripts/audit-runtimes.mjs` used to import drained to zero once all ten
+ * directories received their `.gir` through `commit-prebuilds`, so it was
+ * deleted. The option stays because it is the mechanism, not the ledger — it is
+ * what a future gap would be recorded through, together with
+ * `scripts/clear-satisfied-gir-gaps.mjs`, which auto-retires an entry whose file
+ * arrives. Read the branch below as ARMED-BUT-UNFED rather than as live policy:
+ * with `stage-prebuild.mjs` refusing to stage a `.typelib` with no `.gir` beside
+ * it, the gap class is structurally closed and restaging is the answer.
+ *
  * The cost of that choice, stated rather than discovered: a ledger the CALLER
  * injects is invisible to a portable run in someone else's tree, so while an
  * entry stands, a consumer-side check over the published tarball of that target
@@ -363,7 +373,7 @@ export function auditPrebuildArtifacts(nativePkgs, { girGaps = {} } = {}) {
                     );
                 } else {
                     failures.push(
-                        `${pkg.name} (${pkg.path}): \`${pkg.prebuildsField}/${target}/\` holds no \`.gir\` (present: ${files.join(', ')}). Nothing LOADS a \`.gir\` — girepository resolves the \`.typelib\` — so this is not a broken runtime; what it breaks is everything downstream of the committed artifact: \`ts-for-gir --girDirectories\` regenerating this bridge's types from the directory it ships (six bridges' \`build:gir-types\` scripts point at exactly this path), and the GIR-parsing \`shared-library\`-leaf assertion. It is a hard failure because \`scripts/stage-prebuild.mjs\` matches \`.gir\` by extension: every directory the shared stager wrote has one, so a directory without one was produced by something else, and the pre-stager \`cp\` lists that omitted it are the reason ten of sixty directories had a different file shape from the other fifty. Fix by letting \`prebuilds.yml\` restage this target (the stager copies the \`.gir\` with no change needed), or record the gap with its reason in \`scripts/manifest-conformance/prebuild-gir-gaps.mjs\`.`,
+                        `${pkg.name} (${pkg.path}): \`${pkg.prebuildsField}/${target}/\` holds no \`.gir\` (present: ${files.join(', ')}). Nothing LOADS a \`.gir\` — girepository resolves the \`.typelib\` — so this is not a broken runtime; what it breaks is everything downstream of the committed artifact: \`ts-for-gir --girDirectories\` regenerating this bridge's types from the directory it ships (six bridges' \`build:gir-types\` scripts point at exactly this path), and the GIR-parsing \`shared-library\`-leaf assertion. It is a hard failure because \`scripts/stage-prebuild.mjs\` matches \`.gir\` by extension: every directory the shared stager wrote has one, so a directory without one was produced by something else, and the pre-stager \`cp\` lists that omitted it are the reason ten of sixty directories had a different file shape from the other fifty. Fix by letting \`prebuilds.yml\` restage this target: the stager copies the \`.gir\` with no change needed, and it now REFUSES to stage a \`.typelib\` without one, so restaging is the whole answer. Deferring is still EXPRESSIBLE — the caller may inject a package → reason map as \`prebuildGirGaps\` — but nothing feeds one today, because the ledger module that did drained to zero and was deleted. Recreate it only for a directory that genuinely cannot be restaged.`,
                     );
                 }
             }
@@ -531,7 +541,7 @@ export function renderPrebuildSummary({ notes, stats }) {
     }
     if (stats.girDeferred > 0) {
         lines.push(
-            `  ${stats.girDeferred} committed director(y|ies) are missing their \`.gir\` under a ledger entry in \`scripts/manifest-conformance/prebuild-gir-gaps.mjs\` — each states its own reason, and each becomes a FAILURE the moment the file lands:`,
+            `  ${stats.girDeferred} committed director(y|ies) are missing their \`.gir\` under a caller-injected \`prebuildGirGaps\` entry — each states its own reason, and each becomes a FAILURE the moment the file lands:`,
         );
     }
     for (const n of notes) lines.push(`  · ${n}`);

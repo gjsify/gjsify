@@ -7,8 +7,9 @@
 // host — and the two are indistinguishable to a grep.
 //
 // Hence a ledger of stated reasons rather than a ban. Same shape as `E2E_UNLISTED_SUITES` and
-// `PREBUILD_GIR_GAPS`, with the same self-retiring half: an entry whose file no longer slices
-// anything FAILS, so the ledger cannot outlive its cause.
+// the since-retired `PREBUILD_GIR_GAPS`, with the same self-retiring half: an entry whose file
+// no longer slices anything FAILS, so the ledger cannot outlive its cause. `PREBUILD_GIR_GAPS`
+// is the worked example of where that ends — it drained to zero and the module was deleted.
 //
 // The reason must say WHAT KIND OF VALUE is being split and why that kind is always
 // `/`-separated. "It works on Linux" is not a reason — that is the defect this check exists

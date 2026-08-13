@@ -1322,37 +1322,6 @@ directory. The arm64 signature follows automatically once the bytes it hashes
 are stable. Worth doing: it is the last thing standing between this repo and a
 byte-comparison of a committed prebuild against a CI-built one.
 
-### The missing-`.gir` ledger is empty and should now be deleted
-
-All ten `.gir` files have landed through the commit channel, which is what the
-ledger existed to force, and `scripts/clear-satisfied-gir-gaps.mjs` emptied
-itself in the same commit that added them:
-`scripts/manifest-conformance/prebuild-gir-gaps.mjs` now exports
-`PREBUILD_GIR_GAPS = {}`. Both auto-exits worked as designed — the clearing
-script removes an entry whose file arrived, `prebuild-artifacts` fails an entry
-that outlives its cause, `stage-prebuild.mjs` refuses a `.typelib` with no
-`.gir` beside it (so the gap class is structurally closed, not just drained),
-and `platforms-ci` fails a deferral for a target no leg builds.
-
-**What is left is the reviewed human commit the ledger's own header prescribes**
-— the clearing script deliberately leaves `{}` rather than deleting the module,
-because a bot pushing under `[skip ci]` must not remove something
-`scripts/audit-runtimes.mjs` imports. An empty ledger is a corpse by this repo's
-own rule, so the file and its import go by hand.
-
-It is not a one-line deletion, which is why it is still here. The module is
-reachable from: the real import at `scripts/audit-runtimes.mjs:143` and its use
-at `:1610`; `clear-satisfied-gir-gaps.mjs:49` (whose own tests are fixture-only,
-so the SCRIPT stays — it is the mechanism for any future ledger); a comment in
-`rules/platforms-ci.mjs:281`; the error text and summary line in
-`prebuild-artifacts.mjs:366`/`:517`, which OFFER the ledger as the deferral
-route and would otherwise point at a deleted file; the importer list that
-`tests/e2e/prebuild-declaration-invariant` machine-checks; and the now-false
-"Ten of sixty directories are in it today" in `docs/runtime-platform-axes.md:11`.
-The rule's error text needs rewording in the same change: with the stager
-refusing an incomplete triple, "restage this target" is the answer and
-"record the gap" no longer has a file to record it in.
-
 ### A gate whose fixture reads what the gated job writes — SECOND instance
 
 `gate-pushed-tree.sh` exists because `tests/e2e/platform-exemption-clearing`
