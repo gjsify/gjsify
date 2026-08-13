@@ -174,20 +174,26 @@ for (const area of AREAS) {
     // are the same statement. Exactly equivalent to `have > ceiling + TOLERANCE`.
     const allowed = ceiling === undefined ? Number.POSITIVE_INFINITY : allowedComments(ceiling, t.code);
     const over = t.comment > allowed;
-    rows.push({ area, ...t, have, ceiling, over });
+    rows.push({ area, ...t, have, ceiling, allowed, over });
     if (over) failures.push({ area, have, ceiling, comment: t.comment, code: t.code, allowed });
 }
 
 const pad = (s, n) => String(s).padEnd(n);
 const lpad = (s, n) => String(s).padStart(n);
+// `spare` is printed while PASSING too, and that is the point: it is the number a
+// reader wants before spending it, and the obvious way to work it out by hand —
+// `ceiling * code` — is the very formula this script stopped using, so leaving it
+// unprinted invites the wrong arithmetic. Both authors of the change that added it
+// computed a margin by hand and both got it too low.
 process.stdout.write(
-    `${pad('area', 32)}${lpad('files', 6)}${lpad('code', 9)}${lpad('comment', 9)}${lpad('ratio', 8)}${lpad('ceiling', 9)}\n`,
+    `${pad('area', 32)}${lpad('files', 6)}${lpad('code', 9)}${lpad('comment', 9)}${lpad('ratio', 8)}${lpad('ceiling', 9)}${lpad('spare', 7)}\n`,
 );
 for (const r of rows) {
+    const spare = Number.isFinite(r.allowed) ? r.allowed - r.comment : '-';
     process.stdout.write(
         `${pad(r.area, 32)}${lpad(r.files, 6)}${lpad(r.code, 9)}${lpad(r.comment, 9)}` +
             `${lpad(r.have.toFixed(3), 8)}${lpad(r.ceiling === undefined ? '-' : r.ceiling.toFixed(3), 9)}` +
-            `${r.over ? '  OVER' : ''}\n`,
+            `${lpad(spare, 7)}${r.over ? '  OVER' : ''}\n`,
     );
 }
 
@@ -217,6 +223,8 @@ for (const f of failures) {
             `over its committed ceiling of ${f.ceiling.toFixed(3)} — ${f.comment} comment lines against ` +
             `${f.code} code lines, ${f.comment - f.allowed} more than the ${f.allowed} that ceiling allows. ` +
             `Cutting ${f.comment - f.allowed} passes; cutting more than that is spending headroom you do not owe.\n` +
+            '  This is a RATIO, so DELETING CODE raises it: a commit that only removes dead code,\n' +
+            '  adding no comment at all, can land here. Check the code column before assuming otherwise.\n' +
             '  Comment WHY, not WHAT: a comment that restates the code is a second copy that drifts.\n' +
             '  What usually has to go: restatement, narrative history ("previously we…", "ported from…"),\n' +
             '  upstream source coordinates a reader cannot act on, and change-log entries git already has.\n' +
