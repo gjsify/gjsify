@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.38.0](https://github.com/gjsify/gjsify/compare/v0.37.0...v0.38.0) (2026-08-13)
+
+### Features
+
+* **adwaita-nativescript:** render <adw-shortcut-label>, and gate the theme against its own class names ([#1125](https://github.com/gjsify/gjsify/issues/1125)) ([bcd0ded](https://github.com/gjsify/gjsify/commit/bcd0dedcb2b6d22e088a7e8808e81ccb3fb38aab)), closes [#1123](https://github.com/gjsify/gjsify/issues/1123) [#1123](https://github.com/gjsify/gjsify/issues/1123)
+* sass under GJS, a globals policy for node-scripts, and the docs to match ([#1053](https://github.com/gjsify/gjsify/issues/1053)) ([#1135](https://github.com/gjsify/gjsify/issues/1135)) ([4020042](https://github.com/gjsify/gjsify/commit/4020042168eaaf4768fb5e5a93efa267592cbec6))
+* **storybook:** appearance settings on all three targets, and the Adwaita accent palette in core ([#1127](https://github.com/gjsify/gjsify/issues/1127)) ([973f054](https://github.com/gjsify/gjsify/commit/973f0543e9456914660c2e1e1ee47dbb188390b1))
+
+### Bug Fixes
+
+* **build:** build @gjsify/runtime before @gjsify/unit needs it ([#1134](https://github.com/gjsify/gjsify/issues/1134)) ([98a388f](https://github.com/gjsify/gjsify/commit/98a388fbe24a498dacb038004666ad580cfbe03a)), closes [#1133](https://github.com/gjsify/gjsify/issues/1133)
+* **cli:** make gjsify installable and runnable on macOS ([#1131](https://github.com/gjsify/gjsify/issues/1131)) ([f757be0](https://github.com/gjsify/gjsify/commit/f757be09b486ded6f1dffe9bbcf30c8bc20fe3db))
+* **install:** retry a dropped connection, not an HTTP answer ([#1136](https://github.com/gjsify/gjsify/issues/1136)) ([5b4187c](https://github.com/gjsify/gjsify/commit/5b4187c58c31535c158fea08e7ca40bb612100c8))
+* **node-gi:** tell GI where a typelib's backer is, env-free ([#1132](https://github.com/gjsify/gjsify/issues/1132)) ([d5474e9](https://github.com/gjsify/gjsify/commit/d5474e9d64cd37190a0413121c38817432edf3ca)), closes [#920](https://github.com/gjsify/gjsify/issues/920)
+* repair the four homepage commands that lied ([#1130](https://github.com/gjsify/gjsify/issues/1130)) ([e200a07](https://github.com/gjsify/gjsify/commit/e200a079eb733cfcc36c56ef7f65256db29cf43f))
+* **runtime:** keep the specs out of the type build, they close a cycle ([#1137](https://github.com/gjsify/gjsify/issues/1137)) ([19432d6](https://github.com/gjsify/gjsify/commit/19432d6b0d54ebb5c38f47c8e4e1f1332bfbcaf7))
+
+### Continuous Integration
+
+* check the PR title fits the squash subject ([#1129](https://github.com/gjsify/gjsify/issues/1129)) ([b172ad5](https://github.com/gjsify/gjsify/commit/b172ad50f0d82be6e114d19890e6146d0939f12c)), closes [#1125](https://github.com/gjsify/gjsify/issues/1125) [#1127](https://github.com/gjsify/gjsify/issues/1127) [#849](https://github.com/gjsify/gjsify/issues/849) [#1127](https://github.com/gjsify/gjsify/issues/1127)
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([f9e8b82](https://github.com/gjsify/gjsify/commit/f9e8b82427e8f78d6a4fa8d0574053d75c709f2d))
+
+### Tests
+
+* hold the tree to the claims it makes about itself ([#1133](https://github.com/gjsify/gjsify/issues/1133)) ([b4eb230](https://github.com/gjsify/gjsify/commit/b4eb2302a3a0454af18bab3a6b7e810fa5c30696)), closes [#1041](https://github.com/gjsify/gjsify/issues/1041)
+
 ## [0.37.0](https://github.com/gjsify/gjsify/compare/v0.36.0...v0.37.0) (2026-08-11)
 
 ### Features

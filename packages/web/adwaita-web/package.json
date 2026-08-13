@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/adwaita-web",
-    "version": "0.37.0",
+    "version": "0.38.0",
     "description": "Adwaita/Libadwaita web components for browser targets",
     "type": "module",
     "main": "./src/index.ts",
