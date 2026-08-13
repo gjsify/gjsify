@@ -141,6 +141,7 @@ export type {
 export {
     ADW_ACCENT_BG_COLORS,
     ADW_ACCENT_COLOR_NAMES,
+    ADW_ACCENT_FG_COLOR,
     ADW_DEFAULT_ACCENT_COLOR,
     adwaitaAccent,
     adwaitaAccentBgColor,

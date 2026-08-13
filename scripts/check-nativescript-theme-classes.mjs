@@ -20,9 +20,15 @@
 // WHAT IT CHECKS
 //
 // For every class name a widget source emits, the theme must carry a `.name`
-// selector — unless `status/nativescript-theme-classes.json` lists it. A listed
-// class that has since become styled, or that no widget emits any more, is also a
-// failure: the ledger is a ratchet and may only shrink.
+// selector — unless `status/nativescript-theme-classes.json` gives it a REASON.
+// A listed class that has since become styled, or that no widget emits any more,
+// is also a failure: an exemption may not outlive the situation it describes.
+//
+// THERE IS NO UNREVIEWED LIST. The ledger was seeded with 22 measured names and
+// no judgement; #1126 worked those plus the ten the blind spot below was hiding
+// down to zero — 27 hooks, 5 missing rules. Keeping the bucket would keep the
+// escape hatch, since a name is added to a list far more easily than a sentence
+// is written about it, and "unreviewed" is the state this file exists to end.
 //
 // SCOPE, AND WHY IT IS NARROW. Only the `adw-` namespace plus the handful of
 // unprefixed libadwaita names this port uses ({@link UNPREFIXED}). A bare-word
@@ -30,23 +36,27 @@
 // reviewable, and a missing one shows up as a class nothing gates rather than as
 // a false failure.
 //
-// KNOWN BLIND SPOT: a class assembled by interpolation (`adw-${kind}-row`) is not
-// a literal and is not seen. This catches the common case, not every case.
+// TEMPLATE LITERALS ARE READ TOO, interpolations blanked out first. `` `${b.className}
+// adw-entry-apply` `` is how a widget ADDS a class to an inherited list, the dominant
+// shape here — reading only single-quoted strings missed 24 classes, 10 unstyled and
+// so gated by nothing at all (#1126). Blanking an interpolation is the whole of what
+// a static reader may claim about it. STILL BLIND to a name assembled ACROSS a
+// boundary (`adw-${kind}-row`), where no substring of it is the class: narrower than
+// the gap it replaced, and the tree holds no instance of it today.
 //
 // Comments are stripped before the scan. A class named only in prose is not
 // emitted, and counting it would reproduce exactly the #1123 misreading in
 // reverse.
 //
-// Usage: node scripts/check-nativescript-theme-classes.mjs [--root <dir>] [--update]
+// Usage: node scripts/check-nativescript-theme-classes.mjs [--root <dir>]
 
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : args[rootFlag + 1];
-const UPDATE = args.includes('--update');
 
 const SRC = join(ROOT, 'packages/nativescript-bridge/adwaita/src');
 const THEME = join(SRC, 'theme/adwaita.css');
@@ -54,6 +64,9 @@ const LEDGER = join(ROOT, 'status/nativescript-theme-classes.json');
 
 /** libadwaita's own unprefixed class names, which this port keeps verbatim. */
 const UNPREFIXED = new Set(['keycap', 'dimmed']);
+
+/** Shortest reason that can plausibly name a node or a C rule. */
+const MIN_REASON = 40;
 
 const isTracked = (name) => name.startsWith('adw-') || UNPREFIXED.has(name);
 
@@ -73,11 +86,23 @@ function widgetSources() {
     return found;
 }
 
+/** A literal holding one class, or several separated by spaces as NS holds them. */
+const LITERAL = /['"`]([a-z][a-z0-9-]*(?: [a-z][a-z0-9-]*)*)['"`]/g;
+/** A template literal, read for the class names AROUND its interpolations. */
+const TEMPLATE = /`([^`]*)`/g;
+/** One `${…}` — blanked first. Nested braces end it early, which can only drop a name. */
+const INTERPOLATION = /\$\{[^{}]*\}/g;
+/** The same shape {@link LITERAL} accepts, anchored, for a template's remainder. */
+const CLASS_LIST = /^[a-z][a-z0-9-]*(?: [a-z][a-z0-9-]*)*$/;
+
 /** Class names in string literals, one entry per name with the files that emit it. */
 function emittedClasses(files) {
-    // A literal holding one class, or several separated by spaces as NS holds them.
-    const LITERAL = /['"`]([a-z][a-z0-9-]*(?: [a-z][a-z0-9-]*)*)['"`]/g;
     const emitted = new Map();
+    const record = (name, file) => {
+        if (!isTracked(name)) return;
+        if (!emitted.has(name)) emitted.set(name, new Set());
+        emitted.get(name).add(relative(ROOT, file));
+    };
 
     for (const file of files) {
         const code = readFileSync(file, 'utf8')
@@ -85,11 +110,15 @@ function emittedClasses(files) {
             .replace(/^\s*\/\/.*$/gm, '');
 
         for (const match of code.matchAll(LITERAL)) {
-            for (const name of match[1].split(' ')) {
-                if (!isTracked(name)) continue;
-                if (!emitted.has(name)) emitted.set(name, new Set());
-                emitted.get(name).add(relative(ROOT, file));
-            }
+            for (const name of match[1].split(' ')) record(name, file);
+        }
+
+        for (const match of code.matchAll(TEMPLATE)) {
+            const remainder = match[1].replace(INTERPOLATION, ' ').trim().replace(/\s+/g, ' ');
+            // Held to the SAME shape a plain literal must have, which is what keeps
+            // prose out: `Toast: ${text}` fails it and is skipped.
+            if (!CLASS_LIST.test(remainder)) continue;
+            for (const name of remainder.split(' ')) record(name, file);
         }
     }
     return emitted;
@@ -101,30 +130,9 @@ const styled = new Set([...theme.matchAll(/\.([a-z][a-z0-9-]*)/g)].map((match) =
 const emitted = emittedClasses(widgetSources());
 const unstyled = [...emitted.keys()].filter((name) => !styled.has(name)).sort();
 
-if (UPDATE) {
-    const previous = (() => {
-        try {
-            return JSON.parse(readFileSync(LEDGER, 'utf8'));
-        } catch {
-            return { reviewed: {}, unreviewedBaseline: [] };
-        }
-    })();
-    const reviewed = Object.fromEntries(
-        Object.entries(previous.reviewed ?? {}).filter(([name]) => unstyled.includes(name)),
-    );
-    const baseline = unstyled.filter((name) => !(name in reviewed));
-    writeFileSync(LEDGER, `${JSON.stringify({ reviewed, unreviewedBaseline: baseline }, null, 4)}\n`);
-    process.stdout.write(
-        `check-nativescript-theme-classes: wrote ${relative(ROOT, LEDGER)} ` +
-            `(${Object.keys(reviewed).length} reviewed, ${baseline.length} baseline)\n`,
-    );
-    process.exit(0);
-}
-
 const ledger = JSON.parse(readFileSync(LEDGER, 'utf8'));
 const reviewed = ledger.reviewed ?? {};
-const baseline = ledger.unreviewedBaseline ?? [];
-const listed = new Set([...Object.keys(reviewed), ...baseline]);
+const listed = new Set(Object.keys(reviewed));
 
 const failures = [];
 
@@ -141,13 +149,16 @@ for (const name of listed) {
         failures.push(`${name} is listed, but no widget emits it any more — remove the entry.`);
     } else if (styled.has(name)) {
         failures.push(`${name} is listed as unstyled, but the theme now styles it — remove the entry.`);
+    } else if (typeof reviewed[name] !== 'string' || reviewed[name].trim().length < MIN_REASON) {
+        // A placeholder entry is the unreviewed list again, one key at a time.
+        // The floor is crude by design: it cannot judge a sentence, only refuse a blank.
+        failures.push(`${name} is listed with no real reason — say what carries its look, or why nothing does.`);
     }
 }
 
 process.stdout.write(
     `check-nativescript-theme-classes: ${emitted.size} classes emitted, ` +
-        `${emitted.size - unstyled.length} styled, ${Object.keys(reviewed).length} reviewed exemption(s), ` +
-        `${baseline.length} unreviewed baseline.\n`,
+        `${emitted.size - unstyled.length} styled, ${Object.keys(reviewed).length} reviewed exemption(s).\n`,
 );
 
 if (failures.length > 0) {

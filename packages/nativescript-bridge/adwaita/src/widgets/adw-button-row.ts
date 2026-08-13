@@ -25,13 +25,11 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { StackLayout } from '@nativescript/core';
+import { adwaitaAccent, onAdwaitaAccentChanged } from '@gjsify/adwaita-core';
 import { AdwActionRow } from './adw-action-row.js';
 import { AdwIcon } from './adw-icon.js';
 import { attachRowPressFeedback } from './row-press.js';
-import { ButtonRowState, buttonRowIconVisuals } from './row-state.js';
-
-/** The Adwaita accent (suggested) colour the button-row title + icons use. */
-const ADW_ACCENT = '#3584e4';
+import { ButtonRowState, buttonRowIconColor, buttonRowIconVisuals } from './row-state.js';
 
 /** Event name emitted when the row is tapped. Mirrors `Adw.ButtonRow::activated`. */
 export { ACTIVATED } from './adw-action-row.js';
@@ -47,6 +45,10 @@ export class AdwButtonRow extends AdwActionRow {
     protected readonly _startIcon: AdwIcon;
     /** The trailing symbolic icon. */
     protected readonly _endIcon: AdwIcon;
+    /** An explicit icon fill (the destructive red), or `null` to follow the accent. */
+    private _pinnedIconColor: string | null = null;
+    /** Live accent subscription — held only while the row is on screen. */
+    private _unsubAccent: (() => void) | null = null;
     /**
      * The headless start/end icon state (ADR 0004).
      *
@@ -78,6 +80,21 @@ export class AdwButtonRow extends AdwActionRow {
 
         this._startIcon = AdwButtonRow._makeIcon('adw-button-row-start-icon');
         this._endIcon = AdwButtonRow._makeIcon('adw-button-row-end-icon');
+        this._applyIconColor();
+
+        // Follow a runtime accent change while on screen. The title is a `Label`
+        // and the generated override repaints it through CSS; these two are
+        // pre-coloured bitmaps, so nothing but this re-render can move them —
+        // they stayed the constructor's blue on an orange page. Subscribed on
+        // load and dropped on unload, as `AdwIcon` does for the colour scheme.
+        this.addEventListener('loaded', () => {
+            this._applyIconColor();
+            this._unsubAccent ??= onAdwaitaAccentChanged(() => this._applyIconColor());
+        });
+        this.addEventListener('unloaded', () => {
+            this._unsubAccent?.();
+            this._unsubAccent = null;
+        });
 
         // Fixed child order — start icon, title, end icon — with the icons
         // collapsed when empty. The old port re-ordered children on every icon
@@ -97,12 +114,12 @@ export class AdwButtonRow extends AdwActionRow {
         attachRowPressFeedback(this);
     }
 
-    /** A centered, accent-coloured symbolic icon, collapsed until it has content. */
+    /** A centered symbolic icon, collapsed until it has content. Its fill is set by
+     *  {@link _applyIconColor}, which is also what follows an accent change. */
     private static _makeIcon(className: string): AdwIcon {
         const icon = new AdwIcon();
         icon.className = `${icon.className} ${className}`.trim();
         icon.verticalAlignment = 'middle';
-        icon.iconColor = ADW_ACCENT;
         return icon;
     }
 
@@ -141,8 +158,17 @@ export class AdwButtonRow extends AdwActionRow {
     }
 
     set startIconColor(value: string) {
-        this._startIcon.iconColor = value || ADW_ACCENT;
-        this._endIcon.iconColor = value || ADW_ACCENT;
+        // An empty value RELEASES the pin, so the row goes back to following the
+        // accent rather than freezing on whatever blue was current when it was set.
+        this._pinnedIconColor = value || null;
+        this._applyIconColor();
+    }
+
+    /** Paint both icons in the pinned colour, or in the active accent's fill. */
+    private _applyIconColor(): void {
+        const color = buttonRowIconColor(this._pinnedIconColor, adwaitaAccent());
+        this._startIcon.iconColor = color;
+        this._endIcon.iconColor = color;
     }
 
     /** Push the derived icon payload + visibility onto the two `AdwIcon`s. */

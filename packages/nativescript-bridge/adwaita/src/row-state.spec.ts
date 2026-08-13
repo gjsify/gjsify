@@ -27,11 +27,14 @@ import {
     WINDOW_TITLE_VECTORS,
 } from '@gjsify/adwaita-core/conformance';
 
+import { ADW_ACCENT_BG_COLORS } from '@gjsify/adwaita-core';
+
 import {
     ActionRowState,
     ButtonRowState,
     SwitchRowState,
     WindowTitleState,
+    buttonRowIconColor,
     buttonRowIconVisuals,
     isViewSensitive,
     nsVisibility,
@@ -191,6 +194,26 @@ export default async () => {
                 expect(new ButtonRowState().state.activatable).toBe(vector.activatable);
             });
         }
+
+        await describe("the icons' fill", async () => {
+            await it('follows the accent when nothing is pinned', () => {
+                // Not the literal `#3584e4` the row used to hold: the icons are
+                // pre-coloured bitmaps, so a runtime accent change reaches them
+                // only through this resolution.
+                expect(buttonRowIconColor(null, 'blue')).toBe(ADW_ACCENT_BG_COLORS.blue);
+                expect(buttonRowIconColor(null, 'orange')).toBe(ADW_ACCENT_BG_COLORS.orange);
+                expect(buttonRowIconColor(undefined, 'purple')).toBe(ADW_ACCENT_BG_COLORS.purple);
+            });
+
+            await it('lets an explicit colour win — the destructive red', () => {
+                expect(buttonRowIconColor('#c01c28', 'blue')).toBe('#c01c28');
+                expect(buttonRowIconColor('#c01c28', 'green')).toBe('#c01c28');
+            });
+
+            await it('reads an EMPTY pin as "follow again", not as a colour', () => {
+                expect(buttonRowIconColor('', 'green')).toBe(ADW_ACCENT_BG_COLORS.green);
+            });
+        });
     });
 
     await describe('WindowTitleState through the NativeScript mapping', async () => {

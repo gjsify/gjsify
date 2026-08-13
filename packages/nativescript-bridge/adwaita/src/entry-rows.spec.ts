@@ -139,6 +139,17 @@ export const AdwEntryRowsNsTest = async () => {
             expect(views.editIcon.className).toBe(NS_EDIT_ICON_CLASS);
         });
 
+        await it('dims the disabled pencil by $strong_disabled_opacity, not --disabled-opacity', () => {
+            // The vector loop above compares the painted opacity against this
+            // same constant, so it agrees with whatever the constant says and
+            // cannot see a wrong VALUE. The number is written out here, from
+            // `> .edit-icon:disabled { opacity: $strong_disabled_opacity }`
+            // (_lists.scss:205-207) with `$strong_disabled_opacity: 30%`
+            // (_colors.scss:311). It was 0.4 — the GENERAL disabled opacity,
+            // applied to the one icon libadwaita gives a stronger dim.
+            expect(NS_INSENSITIVE_OPACITY).toBe(0.3);
+        });
+
         await it('paints CHARACTER-counted text into the field', () => {
             const { state, views } = makeRow();
             for (const { text, length } of ENTRY_TEXT_LENGTH_VECTORS) {

@@ -47,8 +47,19 @@ export const ADW_ACCENT_COLOR_NAMES: readonly AdwAccentColorName[] = [
 ];
 
 /**
+ * `--accent-fg-color` — what goes ON TOP of an accent fill.
+ *
+ * `adw_style_manager` defines it as plain `white`, unconditionally: not per
+ * accent, and not per colour scheme (adw-style-manager.c:161). Named here
+ * because a port that has to write the colour out — a bitmap fill, a
+ * stylesheet without custom properties — otherwise spells `#ffffff` inline and
+ * reads as a light-mode assumption someone will later "fix" for dark.
+ */
+export const ADW_ACCENT_FG_COLOR = '#ffffff';
+
+/**
  * `adw_accent_color_to_rgba` — the BACKGROUND colour of each accent
- * (adw-accent-color.c:52-84). The matching foreground is white in every case.
+ * (adw-accent-color.c:52-84). The matching foreground is {@link ADW_ACCENT_FG_COLOR}.
  */
 export const ADW_ACCENT_BG_COLORS: Readonly<Record<AdwAccentColorName, string>> = {
     blue: '#3584e4',

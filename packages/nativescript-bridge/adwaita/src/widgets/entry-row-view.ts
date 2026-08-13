@@ -73,8 +73,16 @@ export const NS_EDIT_ICON_CLASS = 'adw-icon adw-entry-edit';
  */
 export const NS_INSENSITIVE_CLASS = 'adw-insensitive';
 
-/** Opacity of a desensitized part (`gtk_widget_set_sensitive (…, FALSE)`, C:150). */
-export const NS_INSENSITIVE_OPACITY = 0.4;
+/**
+ * Opacity of the desensitized pencil — `$strong_disabled_opacity` 30%
+ * (_colors.scss:311), which `> .edit-icon:disabled` takes (_lists.scss:205-207).
+ *
+ * NOT the general `--disabled-opacity` (50% light / 40% dark): libadwaita gives
+ * this one icon a stronger dim than a disabled widget gets, and 0.4 here was the
+ * general value applied to the one place that has its own. A second user of
+ * {@link NS_INSENSITIVE_CLASS} needs its own number, not this one.
+ */
+export const NS_INSENSITIVE_OPACITY = 0.3;
 
 /** Map a boolean onto NativeScript's `visibility`. */
 export function nsVisibility(visible: boolean): NsVisibility {

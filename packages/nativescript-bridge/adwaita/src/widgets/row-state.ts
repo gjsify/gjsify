@@ -26,9 +26,10 @@ import {
     ButtonRowState,
     SwitchRowState,
     WindowTitleState,
+    adwaitaAccentBgColor,
     deriveRowLabels,
 } from '@gjsify/adwaita-core';
-import type { AdwRowLabelInput, AdwRowLabels, ButtonRowRenderState } from '@gjsify/adwaita-core';
+import type { AdwAccentColorName, AdwRowLabelInput, AdwRowLabels, ButtonRowRenderState } from '@gjsify/adwaita-core';
 import type { View } from '@nativescript/core';
 
 export { ActionRowState, ButtonRowState, SwitchRowState, WindowTitleState };
@@ -96,6 +97,24 @@ export function buttonRowIconVisuals(state: ButtonRowRenderState): NsButtonRowIc
         endIcon: state.endIconName,
         endIconVisibility: nsVisibility(state.endIconVisible),
     };
+}
+
+/**
+ * The fill an `AdwButtonRow`'s two symbolic icons take.
+ *
+ * `row.button` paints its title in `--accent-color` and libadwaita moves it with
+ * the accent; here the icons are bitmaps rendered in a colour, so the value has
+ * to be RESOLVED rather than inherited, and it has to be resolved again whenever
+ * the accent changes. An explicit `pinned` colour wins — that is how a caller
+ * gives a `destructive-action` row its red — and an empty pin means "follow",
+ * not "freeze on the blue that was current when you asked".
+ *
+ * Lives here, in the module with no `@nativescript/core` value imports, because
+ * `AdwButtonRow extends AdwActionRow extends GridLayout` and no spec can import
+ * it off-device. A rule inside that class is a rule nothing checks.
+ */
+export function buttonRowIconColor(pinned: string | null | undefined, accent: AdwAccentColorName): string {
+    return pinned || adwaitaAccentBgColor(accent);
 }
 
 /**
