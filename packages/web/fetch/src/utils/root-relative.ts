@@ -32,8 +32,10 @@ import { lastPathSeparatorIndex, pathToFileUrlHref } from '@gjsify/utils/core';
  * (#1143).
  *
  * The base and the URL are CONCATENATED rather than resolved through `new URL(url, base)`:
- * resolving a root-relative path against `file:///C:/app/dist` keeps the drive and drops
- * the directory, which is not what a program directory means.
+ * resolving a root-relative path against `file:///C:/app/dist` drops the program directory
+ * and keeps only the root — and the runtimes do not agree on what the root is. Measured:
+ * Node keeps the drive (`file:///C:/res/…`), GJS/SpiderMonkey does not (`file:///res/…`).
+ * So resolution is both wrong for this purpose and host-dependent.
  *
  * @param programPath `System.programPath ?? System.programInvocationName` on gjs;
  *   `process.argv[1]` — the bundle itself — on the node-gi reverse bridge.

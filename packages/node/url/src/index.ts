@@ -547,8 +547,12 @@ export function fileURLToPath(url: string | URL, options?: { windows?: boolean }
         throw new TypeError('The URL must be of scheme file');
     }
 
-    const windows = options?.windows ?? platformOrShapeIsWindows(decodeURIComponent(url.pathname).slice(1));
     const pathname = url.pathname;
+    // The shape probe reads the pathname RAW. Decoding first would move the `URIError` a
+    // malformed `%` sequence raises ahead of the encoded-separator check below, changing which
+    // error a caller sees for `file:///a%2Fb%ZZ`; and a drive letter is never percent-encoded,
+    // so there is nothing to decode for this question anyway.
+    const windows = options?.windows ?? platformOrShapeIsWindows(pathname.slice(1));
 
     // An encoded separator would decode into one MORE path component than the URL names, so
     // it is refused before anything is decoded. Node's rule is ASYMMETRIC and both halves are
