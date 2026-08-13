@@ -120,6 +120,25 @@ function measure() {
 /** @param {{code: number, comment: number}} t */
 const ratio = (t) => (t.code === 0 ? 0 : t.comment / t.code);
 
+// One part in 2000, absorbing the rounding in the committed ceiling so a
+// re-baselined tree does not fail its own value.
+const TOLERANCE = 0.0005;
+
+/**
+ * The most comment lines a tree may hold and still pass — the ONE number both the
+ * verdict and the advice are read off, so they cannot disagree.
+ *
+ * They did: the gate compared the ratio against `ceiling + TOLERANCE` while the
+ * advice reported against `ceiling * code`, so the message asked for a cut the gate
+ * did not require, by a margin that scaled with the tree — 6 lines on
+ * `packages/infra`, 44 on `packages/node`. The message directly below names what
+ * has to survive a trim (the incident behind a rule, GI quirks, error text); an
+ * inflated number is spent on exactly that material.
+ *
+ * @param {number} ceiling @param {number} code
+ */
+const allowedComments = (ceiling, code) => Math.floor((ceiling + TOLERANCE) * code);
+
 const mode = process.argv.includes('--check') ? 'check' : process.argv.includes('--update') ? 'update' : 'print';
 
 const totals = measure();
@@ -151,11 +170,12 @@ for (const area of AREAS) {
     if (t.files === 0) continue;
     const have = ratio(t);
     const ceiling = budget[area];
-    // Tolerance of one part in 2000 absorbs the rounding in the committed value,
-    // so a re-baselined tree does not fail its own ceiling.
-    const over = ceiling !== undefined && have > ceiling + 0.0005;
+    // Compared in LINES, not in ratios, so the verdict and the "cut N lines" advice
+    // are the same statement. Exactly equivalent to `have > ceiling + TOLERANCE`.
+    const allowed = ceiling === undefined ? Number.POSITIVE_INFINITY : allowedComments(ceiling, t.code);
+    const over = t.comment > allowed;
     rows.push({ area, ...t, have, ceiling, over });
-    if (over) failures.push({ area, have, ceiling, comment: t.comment, code: t.code });
+    if (over) failures.push({ area, have, ceiling, comment: t.comment, allowed });
 }
 
 const pad = (s, n) => String(s).padEnd(n);
@@ -192,11 +212,10 @@ for (const area of unbudgeted) {
 if (mode !== 'check') process.exit(stale.length + unbudgeted.length > 0 ? 1 : 0);
 
 for (const f of failures) {
-    const allowed = Math.floor(f.ceiling * f.code);
     process.stderr.write(
         `\ncheck-comment-budget: ${f.area} is at ${f.have.toFixed(3)} comment lines per code line, ` +
-            `over its committed ceiling of ${f.ceiling.toFixed(3)} — ${f.comment} comment lines against ` +
-            `${f.code} code lines, about ${f.comment - allowed} more than the ceiling allows.\n` +
+            `over its committed ceiling of ${f.ceiling.toFixed(3)} — ${f.comment} comment lines, ` +
+            `${f.comment - f.allowed} more than the ${f.allowed} this tree's ceiling allows.\n` +
             '  Comment WHY, not WHAT: a comment that restates the code is a second copy that drifts.\n' +
             '  What usually has to go: restatement, narrative history ("previously we…", "ported from…"),\n' +
             '  upstream source coordinates a reader cannot act on, and change-log entries git already has.\n' +
