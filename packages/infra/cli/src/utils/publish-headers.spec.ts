@@ -12,7 +12,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import type { NpmrcConfig } from '@gjsify/npm-registry';
-import { buildPublishHeaders, escapePackageName } from './publish-headers.js';
+import { buildPublishHeaders, cliVersion, escapePackageName } from './publish-headers.js';
 
 function npmrcWithToken(token: string): NpmrcConfig {
     return {
@@ -138,6 +138,15 @@ export default async () => {
 
             const h = buildPublishHeaders(URL, { npmrc: npmrcWithToken('tok') });
             expect(h['user-agent']?.startsWith(`gjsify-publish/${declared} `)).toBe(true);
+        });
+
+        await it('answers a real version from a dist-shaped bundle, for callers that PIN to it', async () => {
+            // Meaningful because THIS SPEC RUNS AS A BUNDLE IN `dist/`: the layout
+            // where the fixed-depth read `showcase.ts` used to carry answers nothing,
+            // unpinning its dlx spec (`docs/code-anti-patterns.md`).
+            const version = cliVersion();
+            expect(version).not.toBe('unknown');
+            expect(/^\d+\.\d+\.\d+/.test(version)).toBe(true);
         });
 
         await it('honours an explicit userAgent override', async () => {

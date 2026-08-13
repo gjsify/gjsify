@@ -123,3 +123,39 @@ for the raw call. A guard watching another mechanism is the smell the governance
 rules name, and the cost of this one would be a grep over the tree that cannot
 tell a display string (where the host separator is arguably right) from a value
 about to be split.
+
+## A dual-entry package reading its own manifest at a fixed depth
+
+**Rule: `@gjsify/cli` learns its own version from `cliVersion()`
+(`utils/publish-headers.ts`) and nowhere else. A
+`new URL('../../package.json', import.meta.url)` read is wrong by construction
+in this package — machine-checked by
+[`scripts/check-cli-own-version-read.mjs`](../scripts/check-cli-own-version-read.mjs).**
+
+The CLI ships TWO entries from one package: `npm install` runs the tsc output
+under `lib/`, a globally installed `gjsify` runs the bundle at
+`dist/cli.gjs.mjs`. A relative manifest read is depth-dependent, so one spelling
+cannot be right for both — `../../package.json` resolves correctly from
+`lib/commands/` and lands one directory ABOVE the package from `dist/`, where no
+manifest exists.
+
+It fails silently. The read sits in a `try`, so the miss is not an error; it is
+the answer "no version".
+
+Measured 2026-08-13, against published 0.38.0. `showcase` PINS the showcase
+package to the CLI's own version, and a version it cannot read leaves the spec as
+a bare package name — at which point `dlx` serves whatever it cached for that
+name once. `gjsify showcase adwaita-storybook`, the first tab of the project's
+own home page, ran a cached **0.37.0** bundle and died with
+`ImportError: Unsupported URI scheme for importing: node`: that release's
+`dist/gjs.js` was byte-identical to its `gjs.node.mjs`. 0.38.0 had already fixed
+it. The banner told the whole story and nobody was reading it — `npx`/`bunx`
+printed `[gjsify 0.38.0]`, the gjs entry printed no version at all.
+
+**Why no CI leg saw it:** every runtime the test matrix exercises invokes the
+`lib/` entry, where the fixed depth happens to be correct. The broken entry is
+the one a user installs.
+
+The resolver's own doc comment already said "deliberately NOT a fixed
+`../../package.json` read", and a fourth copy grew beside it regardless. Prose
+does not fail a PR; the check does.

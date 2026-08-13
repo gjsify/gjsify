@@ -115,9 +115,14 @@ export function buildPublishHeaders(url: string, opts: PublishHeaderOptions): Re
  *    `lib/`, `dist/` and an installed `node_modules/@gjsify/cli/**` alike.
  *
  * `GJSIFY_CLI_PACKAGE_JSON` overrides both, matching `self-update.ts`.
+ *
+ * Exported because `showcase` needs the SAME answer rather than a fourth
+ * resolver: it PINS the showcase package to this version, so a version it cannot
+ * read is a showcase left unpinned and `dlx` serves a stale cached one
+ * (`docs/code-anti-patterns.md`). Returns `'unknown'`, never `undefined`.
  */
 let cachedCliVersion: string | undefined;
-function cliVersion(): string {
+export function cliVersion(): string {
     if (cachedCliVersion !== undefined) return cachedCliVersion;
     cachedCliVersion =
         (typeof __PACKAGE_VERSION__ === 'string' ? __PACKAGE_VERSION__ : '') || walkForCliVersion() || 'unknown';

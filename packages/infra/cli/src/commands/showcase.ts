@@ -8,6 +8,7 @@ import { ensurePkgDir } from './dlx.js';
 import { fetchPackument, type Packument } from '@gjsify/npm-registry';
 import { loadNpmrc } from '../utils/load-npmrc.js';
 import { parseSpec } from '../utils/parse-spec.js';
+import { cliVersion } from '../utils/publish-headers.js';
 import { resolveNodeEntry } from '../utils/resolve-gjs-entry.js';
 import { runRuntimeBundle } from '../utils/run-node.js';
 import {
@@ -20,14 +21,15 @@ import {
     type ExampleRuntime,
 } from '../utils/runtimes.js';
 
+/**
+ * This CLI's own version, or `undefined` when it genuinely cannot be told.
+ *
+ * The shared resolver, never a local fixed-depth manifest read — that misses from
+ * `dist/`, unpinning `dlxSpec`. Incident: `docs/code-anti-patterns.md`.
+ */
 function readCliVersion(): string | undefined {
-    try {
-        const pkgUrl = new URL('../../package.json', import.meta.url);
-        const pkg = JSON.parse(readFileSync(pkgUrl, 'utf8')) as { version?: unknown };
-        return typeof pkg.version === 'string' ? pkg.version : undefined;
-    } catch {
-        return undefined;
-    }
+    const version = cliVersion();
+    return version === 'unknown' ? undefined : version;
 }
 
 /**

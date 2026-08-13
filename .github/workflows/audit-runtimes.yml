@@ -121,6 +121,17 @@ jobs:
       - name: Check the PR-title type list still matches commitlint
         run: node scripts/check-pr-title-types.mjs
 
+      # Same shape as the two above: a rule that only prose enforced, broken by a
+      # copy that grew next to the resolver whose comment forbids it. `@gjsify/cli`
+      # is dual-entry, so a fixed-depth read of its own manifest is right from
+      # `lib/` and wrong from `dist/cli.gjs.mjs` — the entry a globally installed
+      # `gjsify` runs. It fails silently (the read is inside a `try`), and the
+      # version it fails to produce is what `showcase` pins its dlx spec to, so
+      # 0.38.0 served a cached 0.37.0 showcase that crashed on a bug 0.38.0 had
+      # fixed. Invisible to every CI leg, all of which use the `lib/` entry.
+      - name: Check the CLI reads its own version through one resolver
+        run: node scripts/check-cli-own-version-read.mjs
+
       # Comment volume has no natural limit, so nothing failed while `cli-fail.ts` grew
       # a 47-line yargs research diary above a 3-line function (ratio 9.3), while
       # `rolldown-plugin-gjsify` reached one comment line per code line, or while
