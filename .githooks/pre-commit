@@ -161,7 +161,27 @@ echo "[gjsify pre-commit] rebuilding it — bypass with 'git commit --no-verify'
 # Same shape as #1080 one level down: a build trusting an on-disk artefact without
 # checking it is current. There the answer was to widen the SELECTION rather than
 # add a probe, and it is the same answer here.
-$GJSIFY workspace @gjsify/cli build --with-dependencies || rebuild_failed "gjsify workspace @gjsify/cli build --with-dependencies"
+#
+# `--cached` (ADR 0006) is here for the RE-RUN, and deliberately not sold as the
+# answer to #1100. Measured on a 20-core workstation, warm tree:
+#
+#   no cache, twice in a row                          336.1 s / 335.6 s
+#   --cached, nothing changed since the last run        2.5 s
+#   --cached, CLI source edited (what TRIGGERS the hook)  303.8 s
+#
+# So it does NOT fix the reported cost: the hook only fires when one of the four
+# paths below changed, and in that state 27 workspace packages miss — including
+# the CLI's whole dep closure (assert, path, url, utils, workspace, semver, tar,
+# npm-registry, sqlite), whose own sources did not change. Why they miss is not
+# explained by the version-based toolchain salt and is worth its own look; the
+# 10 % is what it is worth today.
+#
+# What it DOES buy is the second run over the same sources: `git commit --amend`,
+# a retry after a rejected message, a re-run after fixing an unrelated staged
+# file — 336 s → 2.5 s. That is a real workflow and the flag is free, so it stays;
+# it is just not the narrowing #1100 asks for. That one still wants the set the
+# bundle actually inlines.
+$GJSIFY workspace @gjsify/cli build --with-dependencies --cached || rebuild_failed "gjsify workspace @gjsify/cli build --with-dependencies --cached"
 $GJSIFY workspace @gjsify/cli build:affected-bundle || rebuild_failed "gjsify workspace @gjsify/cli build:affected-bundle"
 
 # ANNOUNCE a change instead of staging it silently. A rebuild producing identical
