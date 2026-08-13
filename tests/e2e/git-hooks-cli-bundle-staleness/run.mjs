@@ -203,7 +203,15 @@ describe('git pre-commit hook — affected.gjs.mjs staleness', { timeout: 2 * 60
         // resolve-npm/rolldown-plugin-gjsify and staged a bundle CI could not
         // reproduce (#1093). Pinning the exact command is what stops that being
         // dropped again by someone simplifying the line.
-        assert.equal(invocations[0], 'workspace @gjsify/cli build --with-dependencies');
+        //
+        // `--cached` is pinned for a narrower reason, stated so nobody reads it
+        // as the fix for #1100 — measured, it is not: with CLI source edited,
+        // which is the only state that FIRES this hook, it saves 336 s → 304 s.
+        // What it saves is the RE-RUN over unchanged sources (`--amend`, a retry
+        // after a rejected message): 336 s → 2.5 s. Pinned because that is a
+        // silent property — dropping the flag breaks no assertion, it just makes
+        // every amend slow again.
+        assert.equal(invocations[0], 'workspace @gjsify/cli build --with-dependencies --cached');
         assert.equal(invocations[1], 'workspace @gjsify/cli build:affected-bundle');
 
         // The rebuilt bundle must be in the just-recorded commit.
@@ -250,7 +258,7 @@ describe('git pre-commit hook — affected.gjs.mjs staleness', { timeout: 2 * 60
 
         const invocations = readLog(logPath);
         assert.deepEqual(invocations, [
-            'workspace @gjsify/cli build --with-dependencies',
+            'workspace @gjsify/cli build --with-dependencies --cached',
             'workspace @gjsify/cli build:affected-bundle',
         ]);
 
