@@ -5,6 +5,9 @@
 import Adw from '@girs/adw-1';
 import type Gtk from '@girs/gtk-4.0';
 
+import { resolveDefaultResponse } from './dialog-model.js';
+import type { ConfirmResponse } from './types.js';
+
 /** Options for {@link confirmDialog}. */
 export interface ConfirmOptions {
     /** Dialog heading. */
@@ -17,6 +20,14 @@ export interface ConfirmOptions {
     cancelLabel?: string;
     /** Style the confirm button as destructive (red) instead of suggested. */
     destructive?: boolean;
+    /**
+     * Response the dialog opens focused on, so Enter activates it. Default `confirm`.
+     *
+     * Pair `cancel` with `destructive`: what makes a "really delete this?" dialog
+     * worth showing is the accidental gesture, and a `confirm` default hands the
+     * reflex of dismissing a dialog with Enter the deletion instead of the escape.
+     */
+    defaultResponse?: ConfirmResponse;
 }
 
 /**
@@ -24,6 +35,10 @@ export interface ConfirmOptions {
  * on cancel/dismiss. `parent` anchors the dialog (typically the window).
  */
 export function confirmDialog(parent: Gtk.Widget, options: ConfirmOptions): Promise<boolean> {
+    // An invalid option is a caller bug, not a dialog outcome: validated outside
+    // the executor so it throws at the call site instead of arriving as a
+    // rejection on the channel that reports the user's answer.
+    const defaultResponse = resolveDefaultResponse(options.defaultResponse);
     return new Promise((resolve) => {
         const dialog = new Adw.AlertDialog({ heading: options.heading, body: options.body ?? '' });
         dialog.add_response('cancel', options.cancelLabel ?? 'Cancel');
@@ -32,7 +47,7 @@ export function confirmDialog(parent: Gtk.Widget, options: ConfirmOptions): Prom
             'confirm',
             options.destructive ? Adw.ResponseAppearance.DESTRUCTIVE : Adw.ResponseAppearance.SUGGESTED,
         );
-        dialog.set_default_response('confirm');
+        dialog.set_default_response(defaultResponse);
         dialog.set_close_response('cancel');
         dialog.connect('response', (_dialog, response) => resolve(response === 'confirm'));
         dialog.present(parent);

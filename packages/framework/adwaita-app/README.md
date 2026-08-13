@@ -87,7 +87,11 @@ promise-job queue under `run()`).
 
 ### Interaction helpers
 
-- `confirmDialog(parent, { heading, body?, confirmLabel?, cancelLabel?, destructive? }): Promise<boolean>`
+- `confirmDialog(parent, { heading, body?, confirmLabel?, cancelLabel?, destructive?, defaultResponse? }): Promise<boolean>`
+  — `defaultResponse` (`'confirm' | 'cancel'`, default `'confirm'`) picks the
+  response Enter activates. A destructive question wants both: `destructive: true`
+  for the red button and `defaultResponse: 'cancel'` so the reflex keystroke
+  escapes instead of deleting. An id that is neither throws a `TypeError`.
 - `errorDialog(parent, heading, body?): Promise<void>`
 - `registerToastOverlay(overlay)` + `showToast(title, timeout?)`
 - `pickFile(parent, { title?, filters? }): Promise<string | null>` /
