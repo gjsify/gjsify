@@ -1,8 +1,17 @@
 #!/usr/bin/env node
 // Drop a missing-`.gir` ledger entry once the `.gir` IS committed.
 //
-// The sibling of `clear-committed-platform-exemptions.mjs`, against the same trap.
-// `scripts/manifest-conformance/prebuild-gir-gaps.mjs` records a committed prebuild
+// A NO-OP IN THIS TREE TODAY, and kept anyway — read this before deleting it as dead.
+// The ledger it edits drained to zero (every one of the ten `.gir` files arrived through
+// `commit-prebuilds`, which is what it existed to force) and the empty module was then
+// deleted by hand, so `clearSatisfiedGirGaps` takes its "no ledger" early return on every
+// run. What survives is the MECHANISM: this script, its fixture-only tests, and the
+// `prebuildGirGaps` option the rule still accepts are together what a future deferral
+// would be recorded and auto-retired through. Deleting it would mean the next gap gets a
+// ledger with no auto-exit, which is the exact failure below.
+//
+// The sibling of `clear-committed-platform-exemptions.mjs`, against the same trap. A
+// ledger module at `LEDGER_REL` records a committed prebuild
 // directory with no `.gir` yet, and `prebuild-artifacts` turns an entry into a
 // FAILURE the moment the file appears, so a deferral cannot outlive its cause. That
 // makes it a trap for the job that RESOLVES the cause: `commit-prebuilds` pushes the

@@ -74,7 +74,6 @@ import {
     walkEntryGraph,
 } from '../packages/infra/manifest-conformance/lib/index.mjs';
 import { UNCHECKED_FIELDS } from './manifest-conformance/unchecked-fields.mjs';
-import { PREBUILD_GIR_GAPS } from './manifest-conformance/prebuild-gir-gaps.mjs';
 import { platformRows, renderPlatformMatrix } from './manifest-conformance/rules/platforms-ci.mjs';
 import './manifest-conformance/rules/tier.mjs';
 import './manifest-conformance/rules/refs-pin.mjs';
@@ -1367,9 +1366,12 @@ function repoContext() {
         extra: {
             fieldCoverage: 'enforce',
             uncheckedFields: UNCHECKED_FIELDS,
-            // Injected rather than declared in a manifest, because the manifests it would
-            // live in are GENERATED from derived fields only — see the rule's header.
-            prebuildGirGaps: PREBUILD_GIR_GAPS,
+            // No `prebuildGirGaps` here, and that is a state rather than an omission: the
+            // ledger module this injected drained to zero once every `.gir` arrived through
+            // `commit-prebuilds`, and an empty ledger is a corpse by this repo's own rule,
+            // so it was deleted. `prebuild-artifacts` still ACCEPTS the option — recreating
+            // a ledger module and importing it here is the whole of the work if a directory
+            // ever again ships without its `.gir` and cannot be restaged.
         },
     });
 }

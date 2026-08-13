@@ -7,7 +7,7 @@
 // packages and named by no script at all.
 //
 // Enforced by `scripts/check-e2e-suite-coverage.mjs` (see its header); same shape as
-// `scripts/manifest-conformance/unchecked-fields.mjs` and `PREBUILD_GIR_GAPS` — an honest
+// `scripts/manifest-conformance/unchecked-fields.mjs` and the retired `PREBUILD_GIR_GAPS` — an honest
 // "not covered" must be available, a silent one must not.
 //
 // The reason must say what the suite NEEDS that `test:e2e` does not provide — not that

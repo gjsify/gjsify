@@ -245,9 +245,11 @@ function main() {
     // "the next `prebuilds.yml` run lands the file" — and this is the only moment
     // that promise is falsifiable. Otherwise a build that stopped emitting a `.gir`
     // stages two of three files, the deferral never clears, and a deferral the tree
-    // calls TRANSIENT is permanent with nothing saying so. The ledger
-    // (`PREBUILD_GIR_GAPS`) is deliberately NOT consulted: the rebuild is where its
-    // claim gets checked, not excused.
+    // calls TRANSIENT is permanent with nothing saying so. A deferral ledger is
+    // deliberately NOT consulted here — the rebuild is where its claim gets checked,
+    // not excused — and this refusal is why there is no longer one to consult: it
+    // closes the gap class structurally, so `PREBUILD_GIR_GAPS` could drain to zero
+    // and be deleted rather than be maintained forever.
     if (artifacts.some((f) => f.endsWith('.typelib')) && !artifacts.some((f) => f.endsWith('.gir'))) {
         console.error(
             `[stage-prebuild] ${pkg.name}: ${buildDirName}/ holds a \`.typelib\` but no \`.gir\`\n` +

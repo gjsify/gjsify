@@ -246,8 +246,10 @@ export async function parseCiPlatforms(
 /**
  * Is every DEFERRED missing `.gir` actually on its way?
  *
- * The ledger (`scripts/manifest-conformance/prebuild-gir-gaps.mjs`) excuses a
- * committed directory holding no `.gir` on one promise: "the next `prebuilds.yml`
+ * A ledger — the caller-injected `prebuildGirGaps` map, with no producer in this
+ * tree since the module that fed it drained to zero and was deleted, so this
+ * function is armed and unfed rather than live — excuses a committed
+ * directory holding no `.gir` on one promise: "the next `prebuilds.yml`
  * run that rebuilds this target lands the file". Two ways for that to be false, and
  * the ledger sees neither. That the build STOPS EMITTING the `.gir` is caught at the
  * moment of truth by `scripts/stage-prebuild.mjs`, which refuses to stage a

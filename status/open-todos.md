@@ -1053,28 +1053,29 @@ Adoption is opportunistic, not a rewrite — wire each consumer onto the shell p
 
 `@gjsify/devtools` exports `org.gjsify.Devtools` correctly in every app config (verified rigorously, guarded by `tests/e2e/devtools-export`), and the css-as-string bare-`@import` gap that blocked the maker's rebuild under the global GJS CLI is fixed at the core (native `bundle()` path resolves + inlines bare-specifier `@import`s via `cssBundleResolver`; unresolvable imports fail loudly; `tests/e2e/css-as-string-bare-import`). Residual (map-editor repo, not gjsify): the committed `apps/maker-gjs/org.pixelrpg.maker` bundle predates the `installDevtools(this)` call — rebuild + recommit it. `installDevtools` logs `[gjsify-devtools] exported …` so "did devtools come up?" is answerable from the app's stderr.
 
-### `Screenshot`'s `scope` in-arg is DEAD — a caller asking for a widget silently gets the active window
+### `Screenshot(scope)` is routed, but two of its four scope shapes are unproven
 
-The wire method takes one (`<arg type="s" direction="in" name="scope"/>`,
-`packages/framework/devtools/src/devtools-iface.ts:11`) and the handler ignores
-it: `ScreenshotAsync(_params, invocation)`
-(`packages/framework/devtools/src/devtools-service.ts:151`) always calls
-`_captureActiveWindowPng()` (`:171`), which resolves
-`this._app.get_active_window()` and nothing else. The generic MCP tool passes
-`scope ?? 'window'` (`packages/framework/devtools-mcp/src/generic-tools.ts:62`),
-so every caller today happens to ask for the active window and the gap stays
-invisible — but `'toplevel:1'` or `'toplevel:0/child:2'` returns the active
-window's pixels: a WRONG ANSWER, not an error.
+The dead in-arg is fixed — `ScreenshotAsync` reads `params[0]` and resolves it
+through the same `_resolveRootWidget` the path methods use. Two of the four
+shapes that fix needs are asserted headlessly in `peer-transport.spec.ts`: the
+active-window vocabulary (`''`/`window`/`active`) still answers, and an
+unresolvable path now raises `not-found` instead of silently returning the
+active window's pixels. That second one is what makes the argument's routing
+OBSERVABLE at all — it is the only input whose read and unread readings differ.
 
-Both halves of the fix already exist: `_resolveRootWidget`
-(`devtools-service.ts:289`) already maps `''`/`'window'`/`'active'` AND any
-widget path, and `captureWidgetPng(widget)` (`screenshot.ts:18`) captures any
-widget — `_captureActiveWindowPng` is the one path that goes through neither. The
-warm-up retry (`captureWidgetWhenRenderable`) is widget-generic too. Deliberately
-not fixed alongside the bus-less transport: it changes what an EXISTING argument
-MEANS, so it wants its own regression test per scope shape (active window, a
-non-active toplevel, a child widget, and an unresolvable path → error rather than
-a silent fallback).
+The other two — a NON-ACTIVE toplevel, and a CHILD widget — cannot be asserted
+where the suite runs. Both need a realised, laid-out window, and the devtools
+specs run on plain gjs with no display precisely so they cover the busless path
+on every PR. So what is unproven is not the routing (the resolver is shared with
+`DumpTree`/`GetProperty`/`ActivateWidget`, which are covered) but that
+`captureWidgetPng` on a CHILD returns that child's pixels rather than its
+window's, and that presenting `widget.get_root()` warms up the right toplevel.
+
+Where it would go: `tests/e2e/devtools-export/`, the one suite that drives a real
+GApplication — which is itself unlisted today for an unexplained name loss in the
+containerised runner (its own entry below). Same environmental hole, so this
+waits on that rather than adding a second suite that would skip for the same
+reason.
 
 ### Architecture backlog — ADRs 0001–0008
 
@@ -1321,37 +1322,6 @@ archive case, but these are direct `.o` references from meson's per-target
 directory. The arm64 signature follows automatically once the bytes it hashes
 are stable. Worth doing: it is the last thing standing between this repo and a
 byte-comparison of a committed prebuild against a CI-built one.
-
-### The missing-`.gir` ledger is empty and should now be deleted
-
-All ten `.gir` files have landed through the commit channel, which is what the
-ledger existed to force, and `scripts/clear-satisfied-gir-gaps.mjs` emptied
-itself in the same commit that added them:
-`scripts/manifest-conformance/prebuild-gir-gaps.mjs` now exports
-`PREBUILD_GIR_GAPS = {}`. Both auto-exits worked as designed — the clearing
-script removes an entry whose file arrived, `prebuild-artifacts` fails an entry
-that outlives its cause, `stage-prebuild.mjs` refuses a `.typelib` with no
-`.gir` beside it (so the gap class is structurally closed, not just drained),
-and `platforms-ci` fails a deferral for a target no leg builds.
-
-**What is left is the reviewed human commit the ledger's own header prescribes**
-— the clearing script deliberately leaves `{}` rather than deleting the module,
-because a bot pushing under `[skip ci]` must not remove something
-`scripts/audit-runtimes.mjs` imports. An empty ledger is a corpse by this repo's
-own rule, so the file and its import go by hand.
-
-It is not a one-line deletion, which is why it is still here. The module is
-reachable from: the real import at `scripts/audit-runtimes.mjs:143` and its use
-at `:1610`; `clear-satisfied-gir-gaps.mjs:49` (whose own tests are fixture-only,
-so the SCRIPT stays — it is the mechanism for any future ledger); a comment in
-`rules/platforms-ci.mjs:281`; the error text and summary line in
-`prebuild-artifacts.mjs:366`/`:517`, which OFFER the ledger as the deferral
-route and would otherwise point at a deleted file; the importer list that
-`tests/e2e/prebuild-declaration-invariant` machine-checks; and the now-false
-"Ten of sixty directories are in it today" in `docs/runtime-platform-axes.md:11`.
-The rule's error text needs rewording in the same change: with the stager
-refusing an incomplete triple, "restage this target" is the answer and
-"record the gap" no longer has a file to record it in.
 
 ### A gate whose fixture reads what the gated job writes — SECOND instance
 
