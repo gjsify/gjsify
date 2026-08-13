@@ -175,7 +175,7 @@ for (const area of AREAS) {
     const allowed = ceiling === undefined ? Number.POSITIVE_INFINITY : allowedComments(ceiling, t.code);
     const over = t.comment > allowed;
     rows.push({ area, ...t, have, ceiling, over });
-    if (over) failures.push({ area, have, ceiling, comment: t.comment, allowed });
+    if (over) failures.push({ area, have, ceiling, comment: t.comment, code: t.code, allowed });
 }
 
 const pad = (s, n) => String(s).padEnd(n);
@@ -214,8 +214,9 @@ if (mode !== 'check') process.exit(stale.length + unbudgeted.length > 0 ? 1 : 0)
 for (const f of failures) {
     process.stderr.write(
         `\ncheck-comment-budget: ${f.area} is at ${f.have.toFixed(3)} comment lines per code line, ` +
-            `over its committed ceiling of ${f.ceiling.toFixed(3)} — ${f.comment} comment lines, ` +
-            `${f.comment - f.allowed} more than the ${f.allowed} this tree's ceiling allows.\n` +
+            `over its committed ceiling of ${f.ceiling.toFixed(3)} — ${f.comment} comment lines against ` +
+            `${f.code} code lines, ${f.comment - f.allowed} more than the ${f.allowed} that ceiling allows. ` +
+            `Cutting ${f.comment - f.allowed} passes; cutting more than that is spending headroom you do not owe.\n` +
             '  Comment WHY, not WHAT: a comment that restates the code is a second copy that drifts.\n' +
             '  What usually has to go: restatement, narrative history ("previously we…", "ported from…"),\n' +
             '  upstream source coordinates a reader cannot act on, and change-log entries git already has.\n' +
