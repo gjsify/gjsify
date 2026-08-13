@@ -24,18 +24,6 @@ it wants an ADR before implementation.
 Until then a consumer that must degrade has to swap the GTK widget itself, which is what
 `jelly-jumper-window.ts` already does on a `startGame()` rejection.
 
-### `on('Display')` is X11/Wayland-shaped, so every GL test skips on macOS
-
-`hasDisplay()` in `packages/gjs/unit/src/index.ts` is `!!(DISPLAY || WAYLAND_DISPLAY)`. GDK's
-macOS backend sets neither, so `on('Display')` reports no display and the whole WebGL1 +
-WebGL2 suites — the GL-backed ones — are silently counted as ignored on darwin. Measured while
-closing #1107: `gjsify workspace @gjsify/webgl run test` runs 54 tests on this macOS VM, none
-of them against a real GL context, on a host where a real context is available and works.
-
-This is how the darwin GL defects (#1103–#1107) reached a human instead of CI. The gate needs
-to ask whether a display is reachable rather than whether an X11/Wayland variable is set —
-on darwin and win32 GTK has one without either.
-
 ### jelly-jumper does not run in a browser
 
 Its `--app browser` build renders the Adwaita chrome and nothing else; the canvas stays at the
@@ -363,34 +351,6 @@ Worth deciding rather than discovering: whether the shim should REFUSE for the
 second row (a name-based deny-list is ugly; a `gjsify.nodeOnly` manifest flag is
 honest) or whether "fails further in" is acceptable. Nobody has hit it yet
 because every host that runs those has Node.
-
-### Every DISPLAY-gated GTK test silently skips on macOS, so the darwin GTK path is near-uncovered
-
-`test/gtk-smoke.test.mjs`, `gtk-template*.test.mjs`, `adw-smoke.test.mjs` and
-`cairo-drawfunc.test.mjs` each gate on
-`!!process.env.DISPLAY || !!process.env.WAYLAND_DISPLAY`. GTK's macOS backend is
-quartz, which sets NEITHER — so on both macOS matrix legs every one of them
-reports as a clean skip, and the `macos` job has never executed a GTK assertion.
-That is how two independent darwin defects shipped in v0.27.0 together (the
-bare-leaf `dlopen` and the ELF-soname-only template API): nothing on that job
-could fail.
-
-The new `test/gtk-typelib-backers.test.mjs` closes the part that needs no
-display, which is the loader question and was the reported bug. What is still
-uncovered is everything downstream of `gtk_init`: real windows, composite
-templates, the Cairo draw func. **Measured, and it is the encouraging half:** on
-the local macOS 15.7.8 test VM the fireworks showcase constructs a
-`Gtk.ApplicationWindow` from a `.blp` template and runs its main loop cleanly
-over a plain SSH session with no GUI login — so quartz needs far less than
-`DISPLAY` implies, and the honest predicate is probably
-`process.platform === 'darwin' || DISPLAY || WAYLAND_DISPLAY`.
-
-Not changed here because the predicate is copy-pasted into five test files
-(lift it to one shared helper in the same change — that duplication is the
-reason it drifted this far) and because "a GitHub macOS runner has a usable
-window server" is an assumption this PR has no way to measure; getting it wrong
-turns five clean skips into five red legs on an unrelated PR. Do it as its own
-change, where a red macOS leg means what it says.
 
 ### `systemGiLibraryDirs()` lives in two places, pinned by a test rather than shared
 
@@ -1825,3 +1785,41 @@ What is NOT closed by that run, stated so neither reads as covered:
   the two are not separable from this one observation. Worth one deliberate
   measurement on a clean host with scripts approved, because "install node-gi and
   it works" is what the win32 story currently promises.
+
+### This ledger goes stale silently, and the two obvious guards were measured and rejected
+
+Two entries here — the `on('Display')` X11/Wayland gate and the DISPLAY-gated GTK
+skips — described a tree that had not existed for days. `capabilities.ts`
+(`canRealizeSurface`/`canRealizeGl`, #1133) and `node-gi`'s `test/display-gate.mjs`
+had already landed the exact shape the second entry ASKED for, down to lifting the
+copy-pasted predicate into one shared helper, and five macOS GTK job families
+including a windowing proof were green on both arches. Both entries were deleted in
+the change that added this one. The cost is not tidiness: an agent asked for the
+next development steps read this file, believed it, and proposed work that was
+already merged.
+
+The generate-status corpse check cannot see this class. It matches the SHAPE of a
+resolved heading (`~~`, `✓`, `Completed`), and a stale entry has none of those — it
+reads exactly like live work, because it was.
+
+Two guards suggest themselves. Both were measured against this file, and both are
+worse than nothing:
+
+- **Flag an entry that references a CLOSED issue.** 34 distinct issue references
+  across 92 sections; 6 point at closed issues (#503, #655, #997, #1002, #1101,
+  #1107). Every one of the six is legitimate provenance — *"Found closing #1107"*,
+  *"the #655 guard"*, *"issue #503"* naming an upstream GIO bug in another tracker,
+  and #1002's own text already says *"is closed as"*. Six false positives, zero
+  findings. It would also have missed both stale entries, which carried no issue
+  reference at all.
+- **Flag an entry naming a path that does not exist.** 23 of 92 sections name one,
+  and they are overwhelmingly correct prose using package-relative shorthand
+  (`lib/esm/index.js`, `src/index.ts`, `test/arrays.test.mjs`). Failing on those
+  would train everyone to bypass the check within a week.
+
+What the two stale entries had in common is not an anchor, it is a QUOTE: each
+one quoted a source fragment (`` `!!(DISPLAY || WAYLAND_DISPLAY)` ``) from a
+repo-rooted file it named. A check that held such a quote to still occurring in
+that file would have failed the day `capabilities.ts` landed, offline and with no
+network. Whether enough entries make a quotable claim to be worth the machinery is
+unmeasured — that measurement is the next step, not another guard.
