@@ -25,13 +25,10 @@
 // is also a failure: an exemption may not outlive the situation it describes.
 //
 // THERE IS NO UNREVIEWED LIST. The ledger was seeded with 22 measured names and
-// no judgement, and #1126 worked all of them — plus the ten the template-literal
-// blind spot below was hiding — down to zero: 27 were genuine hooks, 5 were
-// missing rules. Keeping the bucket after that would keep the escape hatch: a
-// name can be added to a list far more easily than a sentence about it can be
-// written, and "unreviewed" is precisely the state this file exists to end. So
-// an exemption now costs one sentence naming the C, or naming the node that
-// carries the rule instead.
+// no judgement; #1126 worked those plus the ten the blind spot below was hiding
+// down to zero — 27 hooks, 5 missing rules. Keeping the bucket would keep the
+// escape hatch, since a name is added to a list far more easily than a sentence
+// is written about it, and "unreviewed" is the state this file exists to end.
 //
 // SCOPE, AND WHY IT IS NARROW. Only the `adw-` namespace plus the handful of
 // unprefixed libadwaita names this port uses ({@link UNPREFIXED}). A bare-word
@@ -39,19 +36,13 @@
 // reviewable, and a missing one shows up as a class nothing gates rather than as
 // a false failure.
 //
-// TEMPLATE LITERALS ARE READ TOO, with their interpolations blanked out first.
-// `` `${button.className} adw-entry-apply` `` is how a widget ADDS a class to an
-// inherited list, and it is the dominant shape in this tree — reading only
-// single-quoted strings missed 24 classes, 10 of them unstyled and therefore
-// gated by nothing at all (#1126). An interpolation contributes no class name
-// this scan can know, so blanking it is not an approximation of the value: it is
-// the whole of what a static reader may claim about it.
-//
-// REMAINING BLIND SPOT: a name assembled ACROSS an interpolation boundary
-// (`adw-${kind}-row`) still cannot be read, because no substring of it is the
-// class. That is a narrower gap than the one this replaced — it needs the name
-// itself to be computed, not merely concatenated onto other classes — and the
-// tree currently holds no instance of it.
+// TEMPLATE LITERALS ARE READ TOO, interpolations blanked out first. `` `${b.className}
+// adw-entry-apply` `` is how a widget ADDS a class to an inherited list, the dominant
+// shape here — reading only single-quoted strings missed 24 classes, 10 unstyled and
+// so gated by nothing at all (#1126). Blanking an interpolation is the whole of what
+// a static reader may claim about it. STILL BLIND to a name assembled ACROSS a
+// boundary (`adw-${kind}-row`), where no substring of it is the class: narrower than
+// the gap it replaced, and the tree holds no instance of it today.
 //
 // Comments are stripped before the scan. A class named only in prose is not
 // emitted, and counting it would reproduce exactly the #1123 misreading in
@@ -99,8 +90,7 @@ function widgetSources() {
 const LITERAL = /['"`]([a-z][a-z0-9-]*(?: [a-z][a-z0-9-]*)*)['"`]/g;
 /** A template literal, read for the class names AROUND its interpolations. */
 const TEMPLATE = /`([^`]*)`/g;
-/** One `${…}` — blanked before the class list is read. Nested braces end the scan early,
- *  which can only drop names, never invent one. */
+/** One `${…}` — blanked first. Nested braces end it early, which can only drop a name. */
 const INTERPOLATION = /\$\{[^{}]*\}/g;
 /** The same shape {@link LITERAL} accepts, anchored, for a template's remainder. */
 const CLASS_LIST = /^[a-z][a-z0-9-]*(?: [a-z][a-z0-9-]*)*$/;
@@ -125,9 +115,8 @@ function emittedClasses(files) {
 
         for (const match of code.matchAll(TEMPLATE)) {
             const remainder = match[1].replace(INTERPOLATION, ' ').trim().replace(/\s+/g, ' ');
-            // Hold the remainder to the SAME shape a plain literal must have. A
-            // template carrying prose (`Toast: ${text}`) fails it and is skipped,
-            // which is what keeps this from sweeping up arbitrary strings.
+            // Held to the SAME shape a plain literal must have, which is what keeps
+            // prose out: `Toast: ${text}` fails it and is skipped.
             if (!CLASS_LIST.test(remainder)) continue;
             for (const name of remainder.split(' ')) record(name, file);
         }
@@ -161,9 +150,8 @@ for (const name of listed) {
     } else if (styled.has(name)) {
         failures.push(`${name} is listed as unstyled, but the theme now styles it — remove the entry.`);
     } else if (typeof reviewed[name] !== 'string' || reviewed[name].trim().length < MIN_REASON) {
-        // An entry carrying a placeholder is the unreviewed list again, one key
-        // at a time. The floor is deliberately crude — it cannot judge a
-        // sentence, only refuse a blank.
+        // A placeholder entry is the unreviewed list again, one key at a time.
+        // The floor is crude by design: it cannot judge a sentence, only refuse a blank.
         failures.push(`${name} is listed with no real reason — say what carries its look, or why nothing does.`);
     }
 }
