@@ -27,6 +27,7 @@ interface _RuntimeGlobals {
         env?: Partial<Record<string, string>>;
         versions?: { gjs?: string; node?: string };
         exit?: (code: number) => never;
+        cwd?: () => string;
         on?: (event: string, listener: (error: unknown) => void) => unknown;
         listenerCount?: (event: string) => number;
     };
@@ -133,6 +134,66 @@ const warnings: Array<{ suite: string; message: string }> = [];
 
 const noteWarning = (message: string): void => {
     warnings.push({ suite: currentSuite, message });
+};
+
+/**
+ * Whether the process CWD was still readable the last time a test ended.
+ *
+ * A spec that `chdir`s into a temp directory and then removes it leaves the whole
+ * PROCESS in a deleted CWD, and every later `process.cwd()` — including one inside
+ * a child this runner spawns — dies with `ENOENT … uv_cwd`. Specs share one
+ * process, so the cost lands on whichever test runs next: on darwin-x64 that was
+ * `@gjsify/cli`'s classifier suite failing ~30 % of runs in a spec that never
+ * touches the CWD, while the spec that broke it passed.
+ *
+ * Latched, so only the TRANSITION is reported. Without that every remaining test in
+ * the run fails too, and the culprit is buried under its own fallout.
+ */
+let cwdReadable = true;
+
+/**
+ * `false` once `process.cwd()` cannot resolve; `true` where there is nothing to ask.
+ *
+ * NODE-SIDE ONLY, and deliberately not papered over: `@gjsify/process` implements
+ * `cwd()` as `GLib.get_current_dir() || '/'`, which returns a string rather than
+ * throwing, so the GJS leg cannot answer this question and always reads readable.
+ * That matches where the hazard is measured — the failures are `uv_cwd` from Node
+ * and from Node children — and a probe that pretended otherwise would report a
+ * clean CWD on the one host that cannot check.
+ */
+const probeCwd = (): boolean => {
+    const cwd = runtimeGlobals().process?.cwd;
+    if (typeof cwd !== 'function') return true;
+    try {
+        cwd();
+        return true;
+    } catch {
+        // The one throw this catch exists for, and it is a real path: Node raises
+        // `ENOENT: uv_cwd` from `process.cwd()` once the directory is gone. Nothing
+        // else here can throw, and swallowing is the point — the verdict is the
+        // return value, recorded by the caller against the test that did it.
+        return false;
+    }
+};
+
+/**
+ * Charge a destroyed process CWD to the test that destroyed it.
+ *
+ * Called as each test ends. See `cwdReadable` for why attribution is the whole
+ * value: the failure is otherwise reported against an innocent later test, in a
+ * different suite, only sometimes.
+ */
+const noteIfCwdDestroyed = (expectation: string): void => {
+    if (!cwdReadable || probeCwd()) return;
+    cwdReadable = false;
+    ++countTestsFailed;
+    const message =
+        `this test left the process in a deleted working directory — every later ` +
+        `\`process.cwd()\`, including one inside a spawned child, now fails with ENOENT. ` +
+        `A spec that \`chdir\`s into a temp dir must chdir BACK before removing it, and ` +
+        `the whole run shares one process.`;
+    testErrors.push({ suite: currentSuite, test: expectation, message });
+    print(`  ${RED}❌ ${expectation} — ${message}${RESET}`);
 };
 
 /**
@@ -1116,6 +1177,7 @@ export const it = async function (
     } finally {
         --activeTestDepth;
         assertionLedgers.pop();
+        noteIfCwdDestroyed(expectation);
     }
 
     const duration = now() - t0;
@@ -1513,6 +1575,7 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
     countTestsXfail = 0;
     warnings.length = 0;
     axisLedger.clear();
+    cwdReadable = probeCwd();
 
     let requireAxes: readonly Runtime[] = [];
     if (options) {

@@ -82,9 +82,7 @@ export const flatpakDepsCommand: Command<unknown, FlatpakDepsOptions> = {
             console.log(`[gjsify flatpak deps] flatpak-node-generator ${cmdArgs.join(' ')}`);
         }
 
-        // `completion: 'return'` — this handler ends with a `console.log`, so under
-        // GJS an async spawn would leave `ensureMainLoop`'s loop armed and park the
-        // command after the generator had already finished.
+        // `completion: 'return'` — this handler returns; see `utils/spawn.ts`.
         const result = await spawnToCompletion('flatpak-node-generator', cmdArgs, {
             completion: 'return',
             notFound: () =>

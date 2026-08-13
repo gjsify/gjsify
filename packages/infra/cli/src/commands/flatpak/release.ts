@@ -163,9 +163,7 @@ function resolveCliEntry(): string {
 
 /** Spawn `node <args>` and reject on non-zero exit. */
 async function runNode(args: string[], cwd: string): Promise<void> {
-    // `completion: 'return'` — the handler ends with a `console.log` and returns, so
-    // under GJS an async spawn would leave `ensureMainLoop`'s loop armed and park the
-    // release after every sub-command had already succeeded.
+    // `completion: 'return'` — the handler returns; see `utils/spawn.ts`.
     const result = await spawnToCompletion('node', args, { completion: 'return', cwd });
     if (result.code !== 0) {
         throw new Error(`sub-command exited with ${describeExit(result)}: node ${args.join(' ')}`);

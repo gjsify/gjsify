@@ -272,9 +272,7 @@ async function detectDefaultBranch(cloneDir: string, verbose?: boolean): Promise
     return 'master';
 }
 
-// `completion: 'return'` on both helpers below — this command's handler ends with a
-// `console.log` and returns, so under GJS an async spawn would leave
-// `ensureMainLoop`'s loop armed and park the sync after the PR was already open.
+// `completion: 'return'` on both helpers — the handler returns; see `utils/spawn.ts`.
 async function gitInRepo(cwd: string, args: string[], verbose?: boolean): Promise<void> {
     if (verbose) console.log(`[gjsify flatpak sync-flathub] git ${args.join(' ')} (in ${cwd})`);
     const result = await spawnToCompletion('git', args, {
