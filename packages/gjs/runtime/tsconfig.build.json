@@ -1,0 +1,17 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        // Declarations only, for the same reason `@gjsify/semver` gives: `build:gjsify`
+        // and `build:types` both target `lib/esm`, so whichever ran last won the JS.
+        "emitDeclarationOnly": true
+    },
+    // THE SPECS CANNOT BE IN THE TYPE BUILD, and that is a cycle rather than a
+    // preference. `@gjsify/unit`'s `src/index.ts` imports `@gjsify/runtime`, so unit
+    // cannot be type-built before runtime; runtime's SPECS import `@gjsify/unit`, so a
+    // type build that includes them cannot run before unit. `build:infra` builds both on
+    // a cold tree where nothing else has run — measured by the release dry-run, which is
+    // the only leg that bootstraps cold: `src/detect.spec.ts:8:38 - error TS2307: Cannot
+    // find module '@gjsify/unit'`. Excluding the specs cuts the edge that does not carry
+    // API: `check` (`gjsify tsc --noEmit`) still type-checks them, after the build.
+    "exclude": ["src/test.mts", "src/**/*.spec.ts", "src/**/*.spec.mts"]
+}
