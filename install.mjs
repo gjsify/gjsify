@@ -134,6 +134,62 @@ function checkGjsVersion() {
     }
 }
 
+/** Total attempts per URL, and the wait before each retry. Override for tests / slow links. */
+const FETCH_ATTEMPTS = Number(GLib.getenv('GJSIFY_INSTALL_FETCH_ATTEMPTS') || '5');
+const RETRY_BACKOFF_MS = [1000, 2000, 4000, 8000];
+
+function sleepMs(ms) {
+    return new Promise((resolve) => {
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, ms, () => {
+            resolve();
+            return GLib.SOURCE_REMOVE;
+        });
+    });
+}
+
+async function fetchOnce(session, url, { forceHttp1 = false } = {}) {
+    const message = Soup.Message.new('GET', url);
+    message.request_headers.append('User-Agent', USER_AGENT);
+    // The failure this retries against announces its own protocol — libsoup reports it
+    // verbatim as `HTTP/2 Error: NO_ERROR`, a stream closed mid-response. Retrying over
+    // HTTP/1.1 sidesteps the multiplexing that produces it, so the first attempt keeps the
+    // faster protocol and every retry drops to the one that cannot fail that way. Guarded:
+    // `set_force_http1` is libsoup 3.4+, and this script must still run on older hosts.
+    if (forceHttp1 && typeof message.set_force_http1 === 'function') message.set_force_http1(true);
+    const bytes = await session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null);
+    const status = message.get_status();
+    if (status !== Soup.Status.OK) {
+        const err = new Error(`HTTP ${status} from ${url}`);
+        err.httpStatus = status;
+        throw err;
+    }
+    return bytes.get_data();
+}
+
+/**
+ * A dropped connection is a HICCUP; an HTTP answer is an ANSWER.
+ *
+ * THE INCIDENT. `https://github.com/gjsify/gjsify/releases/latest/download/…` dropped
+ * HTTP/2 connections for a stretch on 2026-08-12 and took four CI jobs across two PRs
+ * with it, each dying in `gjsify-setup` before a line of the change under test ran.
+ * Measured from a workstation during the same window: one in three `curl` attempts
+ * returned `Connection died, tried 5 times before giving up`. A single-shot fetch turns
+ * that into "Refusing to install an UNVERIFIED bootstrap bundle", which reads like the
+ * digest is missing or hostile — the one message that must never be a false alarm, since
+ * the correct response to it is to disable verification.
+ *
+ * So retries are scoped to what CANNOT be an answer: a transport failure (no status at
+ * all), plus 429 and 5xx. A 404 is the registry saying the asset does not exist and a 403
+ * is it saying no; retrying either would only delay the same result while making a real
+ * outage look like a hang.
+ *
+ * FIVE attempts, not three, and the numbers come from a run rather than a preference:
+ * with three the CI log showed `retry 2/3` and `retry 3/3` and still failed, because each
+ * attempt takes ~20 s to give up — so the 500ms/1500ms backoff was noise beside it and the
+ * whole sequence covered barely 40 s of a longer wobble. 1/2/4/8 s over five attempts
+ * covers about two minutes. Beyond that it is an outage, not a hiccup, and waiting longer
+ * only turns a clear failure into a hang.
+ */
 async function fetchBytes(session, url) {
     if (url.startsWith('file://')) {
         const path = url.slice('file://'.length);
@@ -141,14 +197,22 @@ async function fetchBytes(session, url) {
         const [, bytes] = file.load_contents(null);
         return bytes;
     }
-    const message = Soup.Message.new('GET', url);
-    message.request_headers.append('User-Agent', USER_AGENT);
-    const bytes = await session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null);
-    const status = message.get_status();
-    if (status !== Soup.Status.OK) {
-        throw new Error(`HTTP ${status} from ${url}`);
+    const attempts = Number.isFinite(FETCH_ATTEMPTS) && FETCH_ATTEMPTS >= 1 ? FETCH_ATTEMPTS : 1;
+    let lastErr = null;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+        try {
+            return await fetchOnce(session, url, { forceHttp1: attempt > 1 });
+        } catch (err) {
+            lastErr = err;
+            const status = err.httpStatus;
+            const retriable = status === undefined || status === 429 || status >= 500;
+            if (!retriable || attempt === attempts) break;
+            const wait = RETRY_BACKOFF_MS[Math.min(attempt - 1, RETRY_BACKOFF_MS.length - 1)];
+            info(`Fetch of ${url} failed (${err.message}) — retry ${attempt + 1}/${attempts} in ${wait}ms`);
+            await sleepMs(wait);
+        }
     }
-    return bytes.get_data();
+    throw lastErr;
 }
 
 function sha256Hex(bytes) {
@@ -201,6 +265,41 @@ function pruneCache(dir, keepBasename) {
 }
 
 /**
+ * The newest cached bootstrap whose CONTENTS hash to the digest in its own name, or
+ * null. Re-hashing is the whole point: the filename is a claim, and a truncated entry
+ * keeps its name — the same reason the warm-cache path below re-hashes rather than
+ * trusting it.
+ */
+function newestCachedBootstrap(dir) {
+    let best = null;
+    let children;
+    try {
+        children = Gio.File.new_for_path(dir).enumerate_children(
+            'standard::name,time::modified',
+            Gio.FileQueryInfoFlags.NONE,
+            null,
+        );
+    } catch {
+        // No cache directory yet — `enumerate_children` is `throws="1"`.
+        return null;
+    }
+    for (;;) {
+        const entry = children.next_file(null);
+        if (entry === null) break;
+        const name = entry.get_name();
+        if (!name.startsWith(CACHE_PREFIX) || !name.endsWith(CACHE_SUFFIX)) continue;
+        const claimed = name.slice(CACHE_PREFIX.length, name.length - CACHE_SUFFIX.length).toLowerCase();
+        if (!/^[0-9a-f]{64}$/.test(claimed)) continue;
+        const path = GLib.build_filenamev([dir, name]);
+        const bytes = readBytesOrNull(path);
+        if (!bytes || sha256Hex(bytes).toLowerCase() !== claimed) continue;
+        const mtime = entry.get_modification_date_time()?.to_unix() ?? 0;
+        if (!best || mtime > best.mtime) best = { path, basename: name, mtime };
+    }
+    return best;
+}
+
+/**
  * Resolve a VERIFIED bootstrap bundle and return its path.
  *
  * Fetching the digest BEFORE the bundle, and keying the cache by it, is the
@@ -222,6 +321,26 @@ async function resolveBootstrap(session, bootstrapUrl, sha256Url) {
         try {
             sumBytes = await fetchBytes(session, sha256Url);
         } catch (err) {
+            // Before refusing: a bundle already in the cache carries its own digest in
+            // its NAME, and re-hashing the bytes proves the name. Those bytes were
+            // verified against a digest that WAS fetched, on an earlier run — so reusing
+            // them installs nothing unverified. That is a different thing from the defect
+            // this function's header records, where a failed digest fetch waved a FRESH
+            // download through with no digest at all.
+            //
+            // What it does concede is FRESHNESS: someone who can block the network can
+            // hold you on the release you already have. So it is loud, it names the
+            // digest, and it only ever runs after the retries above are exhausted — which
+            // on 2026-08-12 was a GitHub release CDN dropping every connection from the
+            // CI runners for over an hour, with a warm cache sitting right there, unusable
+            // because the digest fetch comes first.
+            const cached = newestCachedBootstrap(cacheDir());
+            if (cached) {
+                error(`Could not fetch ${sha256Url}: ${err.message}`);
+                info(`Falling back to the cached bootstrap verified earlier: ${cached.basename}`);
+                info('It may be OLDER than `latest` — re-run once the network recovers.');
+                return cached.path;
+            }
             error(`Could not fetch ${sha256Url}: ${err.message}`);
             error('Refusing to install an UNVERIFIED bootstrap bundle.');
             error("To bootstrap without verification, set GJSIFY_INSTALL_BOOTSTRAP_SHA256_URL='' explicitly.");

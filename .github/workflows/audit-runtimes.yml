@@ -301,7 +301,14 @@ jobs:
           tarball="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
           url="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${tarball}"
           tmp="$(mktemp -d)"
-          curl -sSfL -o "$tmp/$tarball" "$url"
+          # The same flags `prebuilds.yml` already downloads with, for the reason it
+          # learned them: a GitHub release asset can die mid-transfer, and plain `curl`
+          # answers `curl: (56) Connection died, tried 5 times before giving up` — which
+          # failed this REQUIRED check on two PRs on 2026-08-12, neither of which had
+          # touched a workflow file. `--retry-all-errors` is the load-bearing flag:
+          # `--retry` alone covers HTTP statuses and connect failures, not a receive error.
+          curl --proto '=https' --tlsv1.2 -sSfL --retry 5 --retry-delay 5 --retry-all-errors \
+            --connect-timeout 30 -o "$tmp/$tarball" "$url"
           echo "${ACTIONLINT_SHA256}  $tmp/$tarball" | sha256sum -c -
           tar xzf "$tmp/$tarball" -C "$tmp" actionlint
           "$tmp/actionlint" -version
