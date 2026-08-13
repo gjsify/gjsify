@@ -2,6 +2,9 @@
 // Pure types only (no @girs value imports) so the pure-logic modules that
 // consume them stay Node + GJS testable.
 
+/** The two response ids a `confirmDialog` adds to its `Adw.AlertDialog`. */
+export type ConfirmResponse = 'confirm' | 'cancel';
+
 /** A single entry in the navigation sidebar / view stack. */
 export interface NavItem {
     /** Stable id used as the `Gtk.Stack` child name and for `selectById`. */
