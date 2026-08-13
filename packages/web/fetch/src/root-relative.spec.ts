@@ -45,6 +45,47 @@ export default async () => {
             expect(rewriteRootRelativeUrl('/res/x.png', '')).toBe('/res/x.png');
             expect(rewriteRootRelativeUrl('/res/x.png', 'main.js')).toBe('/res/x.png');
         });
+
+        // #1143, measured on Windows 11: the program path is `C:\…\dist\main.js`, the old
+        // `lastIndexOf('/')` returned -1, the "no program dir" guard swallowed it, and the
+        // URL reached the `Request` constructor unrewritten — `Invalid URL` on bun and
+        // deno, then a SIGSEGV / 0xC0000005. These run on the LINUX runner: the win32
+        // answer is decided from the path's shape, so it needs no win32 host to check.
+        await it('maps a root-relative URL under a win32 drive program path', async () => {
+            expect(rewriteRootRelativeUrl('/res/tilemaps/level1.tmx', 'C:\\app\\dist\\main.js')).toBe(
+                'file:///C:/app/dist/res/tilemaps/level1.tmx',
+            );
+        });
+
+        await it('maps a root-relative URL under a UNC program path', async () => {
+            expect(rewriteRootRelativeUrl('/res/x.png', '\\\\build\\share\\app\\dist\\main.js')).toBe(
+                'file://build/share/app/dist/res/x.png',
+            );
+        });
+
+        await it('keeps the query string a cache-busted asset request carries', async () => {
+            // Only the DIRECTORY is percent-encoded. Encoding the URL half would turn
+            // `?v=2` into `%3Fv=2` and ask for a file whose name contains a question mark.
+            expect(rewriteRootRelativeUrl('/res/x.png?v=2', 'C:\\app\\dist\\main.js')).toBe(
+                'file:///C:/app/dist/res/x.png?v=2',
+            );
+            expect(rewriteRootRelativeUrl('/res/x.png?v=2', '/opt/app/dist/main.js')).toBe(
+                'file:///opt/app/dist/res/x.png?v=2',
+            );
+        });
+
+        await it('percent-encodes a program dir that needs it', async () => {
+            // A space in the program directory is ordinary on Windows (`C:\Program Files`)
+            // and was previously emitted raw.
+            expect(rewriteRootRelativeUrl('/res/x.png', 'C:\\Program Files\\app\\main.js')).toBe(
+                'file:///C:/Program%20Files/app/res/x.png',
+            );
+        });
+
+        await it('treats a backslash in a POSIX program path as part of the name', async () => {
+            // `\` is legal in a POSIX filename, so this must NOT be read as a separator.
+            expect(rewriteRootRelativeUrl('/res/x.png', '/opt/od\\d/main.js')).toBe('file:///opt/od%5Cd/res/x.png');
+        });
     });
 
     // The `system`-reading wrapper, end to end on gjs — the runtime where the

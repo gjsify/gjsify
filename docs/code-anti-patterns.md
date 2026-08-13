@@ -124,6 +124,64 @@ rules name, and the cost of this one would be a grep over the tree that cannot
 tell a display string (where the host separator is arguably right) from a value
 about to be split.
 
+## A filesystem path SPLIT on `'/'` alone
+
+**Rule: ask `@gjsify/utils/core` where a path separates — `lastPathSeparatorIndex()`,
+`splitPathComponents()`, `pathToFileUrlHref()` — or `node:path` where the HOST is
+the authority. Never `path.lastIndexOf('/')`.**
+
+The other direction of the section above. That one is about PRODUCING a path
+another module will read; this one is about CONSUMING a path the host produced,
+and it fails the same way for the same reason — `/` is the separator on POSIX and
+one of TWO on win32.
+
+What makes it silent is that `-1` is a legitimate answer. Every call site already
+had a branch for "this path has no directory part", so a win32 path took the
+no-separator path and the code carried on:
+
+```ts
+const slash = programPath.lastIndexOf('/');
+if (slash <= 0) return url; // written for '' and for a bare name
+return `file://${programPath.slice(0, slash)}${url}`;
+```
+
+That is `@gjsify/fetch`'s root-relative rewrite, under a comment asserting "the
+program path is `/`-separated on every runtime this serves". On win32 the program
+path is `C:\…\dist\main.js`, so every root-relative `fetch()` reached the
+`Request` constructor unrewritten: `Invalid URL`, then SIGSEGV on bun and
+`0xC0000005` on deno — measured on Windows 11, while node on the same host and
+all four runtimes on Linux were green (#1143).
+
+Four more copies were live at the same commit, none of them able to fail on Linux:
+
+| package | what it sliced | consequence on win32 |
+|---|---|---|
+| `@gjsify/sqlite` | the database path | `DB_DIR` = `.`, `DB_NAME` keeping the drive letter — the file landed in the CWD under a fabricated name, and `existsSync(path)` was false for the path just opened |
+| `@gjsify/fs` | a path, for per-component `NAME_MAX` | the whole path counted as ONE component, so no per-name limit was enforced |
+| `@gjsify/cli` | a user-supplied template path | the basename was the entire path |
+| `@gjsify/url` | `filepath[0] !== '/'` as the absoluteness test | every drive path was called relative and had the CWD prepended |
+
+**Decide from the path's SHAPE, not from `process.platform`.** A drive-letter or
+UNC prefix is positive evidence carried by the value itself, so the win32
+behaviour is checkable from the Linux runner that CI actually has — the same
+lesson as `check-spec-posix-literals.mjs`, one level up from constants to paths.
+It is also why "contains a backslash" is NOT the test: a backslash is a legal
+character in a POSIX filename (see the section above), so that reading corrupts
+`/tmp/we\ird`. Where the host genuinely is the authority — CLI tooling operating
+on the machine it runs on — `node:path` is the right owner instead, with the
+caveat that it does not yet answer correctly under GJS (#1146).
+
+**Why this class DOES get a check where the one above deliberately does not.**
+The objection there still holds — a grep cannot tell a display string from a
+value about to be split, and cannot tell a filesystem path from a `/`-separated
+IDENTIFIER. This tree is full of the latter: D-Bus object paths, URL pathnames,
+npm specifiers, git paths, all `/`-separated by their own specifications on every
+OS. So `check-posix-path-slice.mjs` does not ban the shape; it demands a stated
+reason per file in `scripts/posix-path-slice-exceptions.mjs`, saying which kind of
+value it is. Seven entries, each printed on every run, and an entry whose file
+stops slicing anything FAILS — so the ledger cannot outlive its cause. The
+distinction the grep cannot make is made once, by a human, in a reviewable place.
+
 ## A dual-entry package reading its own manifest at a fixed depth
 
 **Rule: `@gjsify/cli` learns its own version from `cliVersion()`

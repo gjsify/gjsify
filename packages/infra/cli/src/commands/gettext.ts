@@ -1,6 +1,6 @@
 import { execFile } from 'node:child_process';
 import { mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import type { Command } from '../types/index.js';
 
@@ -126,9 +126,12 @@ function defaultFilename(domain: string, format: GettextFormat, metainfoTemplate
             // Mirror the template filename but without the trailing `.in` (convention for
             // pre-processed metainfo templates: `org.foo.Bar.metainfo.xml.in`).
             if (metainfoTemplate) {
-                const base = metainfoTemplate.replace(/\.in$/, '');
-                const slash = base.lastIndexOf('/');
-                return slash >= 0 ? base.slice(slash + 1) : base;
+                // `basename`, not a hand-rolled `lastIndexOf('/')`: this is a path the USER
+                // passed, and on win32 it separates with `\`, which the slice read as part
+                // of the name (#1143). `node:path` is the right owner for host tooling —
+                // though it only answers correctly under Node until #1146 makes
+                // `@gjsify/path` select win32 per host.
+                return basename(metainfoTemplate.replace(/\.in$/, ''));
             }
             return `${domain}.xml`;
         }

@@ -3,6 +3,8 @@
 // Reimplemented for GJS using Gda-6.0
 
 import Gda from '@girs/gda-6.0';
+// `/core` — the pure half, so this stays independent of whether Gio is reachable.
+import { lastPathSeparatorIndex } from '@gjsify/utils/core';
 import {
     ConstructCallRequiredError,
     InvalidArgTypeError,
@@ -180,9 +182,14 @@ export class DatabaseSync {
                     Gda.ConnectionOptions.NONE,
                 );
             } else {
-                const lastSlash = this.#path.lastIndexOf('/');
-                const dir = lastSlash >= 0 ? this.#path.substring(0, lastSlash) : '.';
-                const name = lastSlash >= 0 ? this.#path.substring(lastSlash + 1) : this.#path;
+                // The separator question goes to `@gjsify/utils/core`, which answers it from
+                // the path's SHAPE: `lastIndexOf('/')` found nothing in `C:\data\app.db`, so
+                // DB_DIR became `.` and DB_NAME kept the drive letter and the backslashes —
+                // the database was created in the CWD under a fabricated name, and
+                // `existsSync(path)` was false for the path the caller had just opened (#1143).
+                const lastSeparator = lastPathSeparatorIndex(this.#path);
+                const dir = lastSeparator >= 0 ? this.#path.substring(0, lastSeparator) : '.';
+                const name = lastSeparator >= 0 ? this.#path.substring(lastSeparator + 1) : this.#path;
                 // libgda's SQLite provider always stores the database as `<DB_DIR>/<DB_NAME>.db`, so
                 // strip a trailing `.db` from DB_NAME: node:sqlite uses the given path verbatim, and
                 // passing `foo.db` as DB_NAME would land the file at `foo.db.db` — making the real

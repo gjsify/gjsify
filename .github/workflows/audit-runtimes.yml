@@ -115,6 +115,16 @@ jobs:
       - name: Check no spec spells a POSIX constant as a Linux number
         run: node scripts/check-spec-posix-literals.mjs
 
+      # The same class one level up from constants: a FILESYSTEM path split on `'/'` alone
+      # separates on `'\\'` on win32, so `lastIndexOf('/')` returns -1 there — a value the
+      # existing "no separator" branches already handle, which is why four copies shipped in
+      # silence and `fetch('/res/…')` died as `Invalid URL` on Windows (#1143). Also Linux-blind
+      # by construction, hence its place in this job. A `/`-separated IDENTIFIER (D-Bus object
+      # path, URL pathname, npm specifier, git path) is legitimate and common here, so the check
+      # demands a stated reason per file rather than banning the shape.
+      - name: Check no filesystem path is split on '/' alone
+        run: node scripts/check-posix-path-slice.mjs
+
       # `actionlint` parses workflow syntax and runs with `-shellcheck=` empty, so nothing
       # read the SHELL inside a `run:` block. `release-cut.yml` passed its publish dispatch
       # as `node -e '…'` with an apostrophe in a comment; the string closed early, node got
@@ -448,6 +458,16 @@ jobs:
       # Linux-only run can see. Incident + rule in the script header.
       - name: Check no spec spells a POSIX constant as a Linux number
         run: node scripts/check-spec-posix-literals.mjs
+
+      # The same class one level up from constants: a FILESYSTEM path split on `'/'` alone
+      # separates on `'\\'` on win32, so `lastIndexOf('/')` returns -1 there — a value the
+      # existing "no separator" branches already handle, which is why four copies shipped in
+      # silence and `fetch('/res/…')` died as `Invalid URL` on Windows (#1143). Also Linux-blind
+      # by construction, hence its place in this job. A `/`-separated IDENTIFIER (D-Bus object
+      # path, URL pathname, npm specifier, git path) is legitimate and common here, so the check
+      # demands a stated reason per file rather than banning the shape.
+      - name: Check no filesystem path is split on '/' alone
+        run: node scripts/check-posix-path-slice.mjs
 
       - name: Check the PR-title type list still matches commitlint
         run: node scripts/check-pr-title-types.mjs

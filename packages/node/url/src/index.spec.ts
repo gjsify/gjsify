@@ -891,6 +891,77 @@ export default async () => {
             expect(u.pathname).toBe('/a/b/c/d/e');
             expect(u.protocol).toBe('file:');
         });
+
+        await it('should encode a non-BMP character instead of throwing', async () => {
+            // The encoder this replaced walked the string by UTF-16 INDEX and handed
+            // `encodeURIComponent` one half of a surrogate pair, which raises
+            // `URIError: URI malformed` — so every path containing an emoji threw (#1143).
+            // The `fileURLToPath` direction has had a 🚀 case all along; this one did not.
+            expect(pathToFileURL('/🚀').href).toBe('file:///%F0%9F%9A%80');
+            expect(fileURLToPath(pathToFileURL('/dir/🚀.png'))).toBe('/dir/🚀.png');
+        });
+
+        await it('should not treat a win32 absolute path as relative', async () => {
+            // `filepath[0] !== '/'` called every drive path relative and prepended the CWD.
+            // Forced through `{ windows }` — Node's own escape hatch — so the win32 answer
+            // is checked on the Linux runner instead of only on a win32 host.
+            expect(pathToFileURL('C:\\app\\dist', { windows: true }).href).toBe('file:///C:/app/dist');
+            expect(pathToFileURL('C:\\Program Files\\app', { windows: true }).href).toBe(
+                'file:///C:/Program%20Files/app',
+            );
+        });
+
+        await it('should map a UNC path to a URL with a host', async () => {
+            const u = pathToFileURL('\\\\server\\share\\app', { windows: true });
+            expect(u.href).toBe('file://server/share/app');
+            expect(u.hostname).toBe('server');
+            expect(u.pathname).toBe('/share/app');
+        });
+
+        await it('should round-trip a win32 path through fileURLToPath', async () => {
+            for (const path of ['C:\\app\\dist\\main.js', 'C:\\Program Files\\a b\\x.png', '\\\\srv\\share\\x']) {
+                const url = pathToFileURL(path, { windows: true });
+                expect(fileURLToPath(url, { windows: true })).toBe(path);
+            }
+        });
+
+        await it('should keep the POSIX answer when the shape does not say win32', async () => {
+            // The regression guard for the whole change: a POSIX path must be untouched by
+            // the win32 support, on every host.
+            expect(pathToFileURL('/opt/app/dist').href).toBe('file:///opt/app/dist');
+            expect(pathToFileURL('/tmp/back\\slash').href).toBe('file:///tmp/back%5Cslash');
+        });
+    });
+
+    await describe('fileURLToPath (win32)', async () => {
+        await it('should strip the URL slash before a drive letter', async () => {
+            expect(fileURLToPath('file:///C:/app/dist', { windows: true })).toBe('C:\\app\\dist');
+            expect(fileURLToPath('file:///C:/Program%20Files/app', { windows: true })).toBe('C:\\Program Files\\app');
+        });
+
+        await it('should read a host as a UNC server rather than refusing it', async () => {
+            expect(fileURLToPath('file://server/share/x', { windows: true })).toBe('\\\\server\\share\\x');
+        });
+
+        await it('should still refuse a host off win32', async () => {
+            // The message used to name `linux` on macOS too.
+            expect(() => fileURLToPath('file://server/share/x', { windows: false })).toThrow('File URL host');
+        });
+
+        await it('should refuse an encoded separator in either spelling', async () => {
+            // Node's rule is asymmetric, and the wording differs with it: on win32 BOTH
+            // encodings are separators, on POSIX `%5C` is an ordinary character.
+            expect(() => fileURLToPath('file:///C:/a%2Fb', { windows: true })).toThrow(
+                'must not include encoded \\ or / characters',
+            );
+            expect(() => fileURLToPath('file:///C:/a%5Cb', { windows: true })).toThrow(
+                'must not include encoded \\ or / characters',
+            );
+            expect(fileURLToPath('file:///a%5Cb', { windows: false })).toBe('/a\\b');
+            expect(() => fileURLToPath('file:///a%2Fb', { windows: false })).toThrow(
+                'must not include encoded / characters',
+            );
+        });
     });
 
     await describe('url.parse (legacy)', async () => {

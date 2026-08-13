@@ -138,6 +138,24 @@ Linux never needed either lever: its bootstrap runs the published GJS bundle,
 where `detectPackageManager()` already returns `gjsify`. That is also why a
 Linux-only pipeline could not see this — the same shape ADR 0018 § 5 predicts.
 
+### `pathToFileURL` does not resolve a RELATIVE win32 path against the current drive
+
+Left over from the #1143 fix, which closed the win32 ABSOLUTE paths (drive-letter and
+UNC, both directions, both matching native Node character for character). Node runs
+`path.win32.resolve()` on the input first, so on win32 a relative `app\dist` picks up
+the current drive and becomes `C:\app\dist`; `@gjsify/url` still joins a relative path
+to the CWD with `/`.
+
+Not folded into the fix because it needs `path.win32.resolve()`, and `@gjsify/path`
+never selects the win32 half at all — that is #1146, whose blast radius is every
+consumer of `node:path` under GJS and which therefore wants its own measurement pass.
+Do this one after it, not before: the resolve is one line once the flavour is
+selectable.
+
+Scope note for whoever picks it up: absolute paths are covered and tested, so this only
+affects a caller that hands `pathToFileURL` a relative path ON win32. `node:url` is
+`native` on the node target, so the gap is GJS-on-win32 only.
+
 ### sass under GJS: the SCRIPT path is closed, the BUNDLER path is not (#1053)
 
 The bootstrap chain itself is closed: `gjsify run --node-script <file>` bundles an
