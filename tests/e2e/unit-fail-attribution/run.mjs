@@ -122,6 +122,37 @@ run({
 });
 `;
 
+// The DELETED-CWD case. A spec that `chdir`s into a temp directory and then
+// removes it leaves the whole PROCESS in a deleted working directory, and every
+// later `process.cwd()` — including one inside a child the runner spawns — dies
+// with `ENOENT … uv_cwd`. Specs share one process, so the cost lands on whatever
+// runs NEXT: on darwin-x64 this failed `@gjsify/cli`'s classifier suite in ~30 % of
+// runs, in a spec that never touches the CWD, while the spec that broke it passed.
+//
+// Attribution is the entire value, so the fixture puts a clean bystander AFTER the
+// offender: the run must name the offender and leave the bystander green.
+const DELETED_CWD_SUITE = `
+import { run, describe, it, expect } from '@gjsify/unit';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+run({
+    async DeletedCwdSuite() {
+        await describe('deleted cwd', async () => {
+            await it('A chdirs into a temp dir and removes it', async () => {
+                const dir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-deleted-cwd-'));
+                process.chdir(dir);
+                rmSync(dir, { recursive: true, force: true });
+                expect(1).toBe(1);
+            });
+            await it('B bystander never touches the cwd', async () => {
+                expect(2).toBe(2);
+            });
+        });
+    },
+});
+`;
+
 // oxlint-disable-next-line no-control-regex -- ANSI SGR sequences are ESC-prefixed by design
 const ANSI = /\x1B\[[0-9;]*m/g;
 const stripAnsi = (s) => s.replace(ANSI, '');
@@ -212,6 +243,30 @@ describe('@gjsify/unit failure attribution E2E', { timeout: 5 * 60 * 1000 }, () 
 
         // A genuine failure (the leak IS a real test bug) → non-zero exit.
         assert.notStrictEqual(code, 0, 'run with a stray must exit non-zero');
+    });
+
+    it('a destroyed process cwd is charged to the test that destroyed it', () => {
+        const out = join(tmpDir, 'deleted-cwd.node.mjs');
+        buildEntryFromUnitSrc('__e2e_deleted_cwd.mts', DELETED_CWD_SUITE, out);
+        const { code, out: stdout } = runBundle(out);
+        const plain = stripAnsi(stdout);
+
+        // Named, and named as the offender rather than as a generic failure.
+        assert.match(
+            plain,
+            /A chdirs into a temp dir and removes it — this test left the process in a deleted working directory/,
+            'the offending test must be named',
+        );
+
+        // The bystander that runs AFTER it stays green. Before the latch existed,
+        // this is where the failure surfaced — in a spec that touches nothing.
+        assert.match(plain, /✔ B bystander never touches the cwd/, 'the later bystander must stay green');
+
+        // Reported once, not once per remaining test.
+        const occurrences = plain.split('deleted working directory').length - 1;
+        assert.strictEqual(occurrences, 1, 'the transition is reported exactly once');
+
+        assert.notStrictEqual(code, 0, 'a run that destroyed its cwd must exit non-zero');
     });
 
     it('a clean suite (incl. toThrow-wrapped matcher) reports zero failures', () => {

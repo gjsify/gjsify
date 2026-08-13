@@ -14,7 +14,8 @@
 // stops at the first failure and reports which step blocked, with a
 // clear command the user can re-run by hand.
 
-import { execFile, spawn } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { describeExit, spawnToCompletion } from '../../utils/spawn.js';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
@@ -162,12 +163,9 @@ function resolveCliEntry(): string {
 
 /** Spawn `node <args>` and reject on non-zero exit. */
 async function runNode(args: string[], cwd: string): Promise<void> {
-    await new Promise<void>((resolvePromise, reject) => {
-        const child = spawn('node', args, { cwd, stdio: 'inherit' });
-        child.on('error', reject);
-        child.on('exit', (code) => {
-            if (code === 0) resolvePromise();
-            else reject(new Error(`sub-command exited with code ${code}: node ${args.join(' ')}`));
-        });
-    });
+    // `completion: 'return'` — the handler returns; see `utils/spawn.ts`.
+    const result = await spawnToCompletion('node', args, { completion: 'return', cwd });
+    if (result.code !== 0) {
+        throw new Error(`sub-command exited with ${describeExit(result)}: node ${args.join(' ')}`);
+    }
 }

@@ -93,8 +93,14 @@ export interface SpawnToCompletionOptions {
      * stderr**, for a parent whose own stdout is machine-readable: `gjsify pack
      * --json` emits JSON there, and interleaved lifecycle-script log lines make it
      * unparseable for anything piping into `JSON.parse`.
+     *
+     * `'capture'` collects both streams into {@link SpawnCompletion} and emits
+     * NEITHER, for a caller that reports the child's output only on failure. Unlike
+     * `'pipe'` it works on both paths, so it composes with `completion: 'return'` —
+     * `'pipe'` hands back a live `ChildProcess` the blocking path cannot produce,
+     * which is why that one is `'exit'`-only.
      */
-    stdio?: 'inherit' | 'pipe' | 'inherit-stderr';
+    stdio?: 'inherit' | 'pipe' | 'inherit-stderr' | 'capture';
     /**
      * Run `cmd` through the platform shell so `&&`, `|` and env-var references work.
      * `cmd` is then a whole command LINE and `args` must be empty — npm/yarn script
@@ -127,6 +133,10 @@ export interface SpawnCompletion {
     code: number | null;
     /** The terminating signal, or `null` on a normal exit. */
     signal: NodeJS.Signals | null;
+    /** The child's stdout — only under `stdio: 'capture'`, `''` when it wrote none. */
+    stdout?: string;
+    /** The child's stderr — only under `stdio: 'capture'`, `''` when it wrote none. */
+    stderr?: string;
 }
 
 /** `undefined` (inherit) unless the caller passed an env or asked for colour. */
@@ -204,6 +214,16 @@ export function spawnToCompletion(
             windowsVerbatimArguments: invocation.windowsVerbatimArguments,
         });
         if (r.error) return Promise.reject(mapSpawnError(r.error as NodeJS.ErrnoException, opts));
+        // `'capture'` hands both streams back instead of emitting them — this path
+        // already pipes, so it is the same read, routed to the caller.
+        if (opts.stdio === 'capture') {
+            return Promise.resolve({
+                code: r.status,
+                signal: r.signal ?? null,
+                stdout: String(r.stdout ?? ''),
+                stderr: String(r.stderr ?? ''),
+            });
+        }
         // Captured stdout goes to the parent's STDERR under `'inherit-stderr'`, the
         // destination the streaming path routes it to, so the two agree on where a
         // lifecycle script's chatter lands.
@@ -222,9 +242,11 @@ export function spawnToCompletion(
             stdio:
                 opts.stdio === 'pipe'
                     ? ['ignore', 'pipe', 'pipe']
-                    : opts.stdio === 'inherit-stderr'
-                      ? ['inherit', 2, 2]
-                      : 'inherit',
+                    : opts.stdio === 'capture'
+                      ? ['inherit', 'pipe', 'pipe']
+                      : opts.stdio === 'inherit-stderr'
+                        ? ['inherit', 2, 2]
+                        : 'inherit',
         };
         if (opts.shell) spawnOpts.shell = true;
         if (env) spawnOpts.env = env;
@@ -232,10 +254,23 @@ export function spawnToCompletion(
         const child = spawn(win.cmd, win.args, spawnOpts);
         opts.onSpawn?.(child);
 
+        // Collected only under `'capture'`; the other modes never attach a reader,
+        // so an inherited stream is untouched.
+        let captured: { stdout: string; stderr: string } | undefined;
+        if (opts.stdio === 'capture') {
+            // Bound to a const the listeners close over: narrowing `captured` does
+            // not survive into a callback, and `captured!` would be a lie the day
+            // someone reorders these lines.
+            const buf = { stdout: '', stderr: '' };
+            captured = buf;
+            child.stdout?.on('data', (d) => (buf.stdout += String(d)));
+            child.stderr?.on('data', (d) => (buf.stderr += String(d)));
+        }
+
         // `close` (not `exit`) so piped stdio is fully drained before the caller's
         // flushers run; with `stdio: 'inherit'` the two are emitted back to back.
         child.on('close', (code, signal) => {
-            resolvePromise({ code, signal });
+            resolvePromise(captured ? { code, signal, ...captured } : { code, signal });
         });
         child.on('error', (err: NodeJS.ErrnoException) => {
             reject(mapSpawnError(err, opts));

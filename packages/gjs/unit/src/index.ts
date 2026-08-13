@@ -27,6 +27,7 @@ interface _RuntimeGlobals {
         env?: Partial<Record<string, string>>;
         versions?: { gjs?: string; node?: string };
         exit?: (code: number) => never;
+        cwd?: () => string;
         on?: (event: string, listener: (error: unknown) => void) => unknown;
         listenerCount?: (event: string) => number;
     };
@@ -75,6 +76,41 @@ let countTestsIgnored = 0;
 let countTestsXfail = 0;
 
 /**
+ * What each `on()` gate actually DID, per axis it named.
+ *
+ * `on()` answers "is this host on that axis" and returns silently when it is not,
+ * which is correct — `on('Deno', …)` is supposed to contribute nothing under Node.
+ * The gap is that a gate which SHOULD have fired and did not is indistinguishable
+ * from one that correctly stood down: a miss only does `++countTestsIgnored`, the
+ * count is printed, and the exit code reads `countTestsFailed` alone. So an axis
+ * that stopped running leaves nothing behind — strictly worse than a deleted test
+ * file, which at least shows up as a file that is gone.
+ *
+ * `tests` is the delta the matched blocks actually executed, not the number of
+ * `it()` calls they contain: a block that matched and then registered nothing is
+ * the exact silent shape being measured, and it must not look like coverage.
+ */
+export interface AxisRecord {
+    /** Gated blocks that matched this host and ran. */
+    matched: number;
+    /** Gated blocks that named this axis and stood down. */
+    ignored: number;
+    /** Tests the matched blocks executed. */
+    tests: number;
+}
+
+const axisLedger = new Map<string, AxisRecord>();
+
+const axisRecord = (axis: string): AxisRecord => {
+    let rec = axisLedger.get(axis);
+    if (!rec) {
+        rec = { matched: 0, ignored: 0, tests: 0 };
+        axisLedger.set(axis, rec);
+    }
+    return rec;
+};
+
+/**
  * Non-zero only while an `it()` callback is on the stack. A matcher throwing at
  * depth 0 escaped its test (a late assertion from a settled test's timer, or an
  * `expect()` outside any `it`); such a throw must not corrupt a bystander test's
@@ -98,6 +134,66 @@ const warnings: Array<{ suite: string; message: string }> = [];
 
 const noteWarning = (message: string): void => {
     warnings.push({ suite: currentSuite, message });
+};
+
+/**
+ * Whether the process CWD was still readable the last time a test ended.
+ *
+ * A spec that `chdir`s into a temp directory and then removes it leaves the whole
+ * PROCESS in a deleted CWD, and every later `process.cwd()` — including one inside
+ * a child this runner spawns — dies with `ENOENT … uv_cwd`. Specs share one
+ * process, so the cost lands on whichever test runs next: on darwin-x64 that was
+ * `@gjsify/cli`'s classifier suite failing ~30 % of runs in a spec that never
+ * touches the CWD, while the spec that broke it passed.
+ *
+ * Latched, so only the TRANSITION is reported. Without that every remaining test in
+ * the run fails too, and the culprit is buried under its own fallout.
+ */
+let cwdReadable = true;
+
+/**
+ * `false` once `process.cwd()` cannot resolve; `true` where there is nothing to ask.
+ *
+ * NODE-SIDE ONLY, and deliberately not papered over: `@gjsify/process` implements
+ * `cwd()` as `GLib.get_current_dir() || '/'`, which returns a string rather than
+ * throwing, so the GJS leg cannot answer this question and always reads readable.
+ * That matches where the hazard is measured — the failures are `uv_cwd` from Node
+ * and from Node children — and a probe that pretended otherwise would report a
+ * clean CWD on the one host that cannot check.
+ */
+const probeCwd = (): boolean => {
+    const cwd = runtimeGlobals().process?.cwd;
+    if (typeof cwd !== 'function') return true;
+    try {
+        cwd();
+        return true;
+    } catch {
+        // The one throw this catch exists for, and it is a real path: Node raises
+        // `ENOENT: uv_cwd` from `process.cwd()` once the directory is gone. Nothing
+        // else here can throw, and swallowing is the point — the verdict is the
+        // return value, recorded by the caller against the test that did it.
+        return false;
+    }
+};
+
+/**
+ * Charge a destroyed process CWD to the test that destroyed it.
+ *
+ * Called as each test ends. See `cwdReadable` for why attribution is the whole
+ * value: the failure is otherwise reported against an innocent later test, in a
+ * different suite, only sometimes.
+ */
+const noteIfCwdDestroyed = (expectation: string): void => {
+    if (!cwdReadable || probeCwd()) return;
+    cwdReadable = false;
+    ++countTestsFailed;
+    const message =
+        `this test left the process in a deleted working directory — every later ` +
+        `\`process.cwd()\`, including one inside a spawned child, now fails with ENOENT. ` +
+        `A spec that \`chdir\`s into a temp dir must chdir BACK before removing it, and ` +
+        `the whole run shares one process.`;
+    testErrors.push({ suite: currentSuite, test: expectation, message });
+    print(`  ${RED}❌ ${expectation} — ${message}${RESET}`);
 };
 
 /**
@@ -378,6 +474,26 @@ export type Callback = () => void | Promise<void>;
  * `'Display'`, which made each wrong on a different OS. See `hasDisplay`/`hasGl`.
  */
 export type Runtime = 'Gjs' | 'Deno' | 'Bun' | 'Node.js' | 'Unknown' | 'Browser' | 'Display' | 'Gl';
+
+export interface RunOptions {
+    /** Wall-clock budget for the whole run. */
+    timeout?: number;
+    /** Per-`it()` budget. */
+    testTimeout?: number;
+    /** Per-`describe()` budget. */
+    suiteTimeout?: number;
+    /** `expectation` → reason; skips that test and prints the reason. */
+    skip?: Record<string, string>;
+    /**
+     * Axes this entry claims to exercise — checked, not decorative.
+     *
+     * Each named axis that THIS host matches must have executed at least one test
+     * through an `on()` gate, or the run fails. An axis the host does not match is
+     * skipped, so one built entry can declare every axis it serves and each leg is
+     * held only to its own (see `failUnexercisedAxes`).
+     */
+    requireAxes?: readonly Runtime[];
+}
 
 // In browsers `globalThis.print` is `window.print()` — the print DIALOG, not text
 // output — so browser contexts must use console.log. The GJS check takes priority
@@ -931,12 +1047,14 @@ const hasDisplay = (): boolean => canRealizeSurface(hostOs(), displayEnv());
 const hasGl = (): boolean => canRealizeGl(hostOs(), displayEnv());
 
 const runtimeMatch = async function (onRuntime: Runtime[], version?: string) {
-    // Capabilities, not runtime identity — each answers its own question.
+    // Capabilities, not runtime identity — each answers its own question. They name
+    // themselves as the matched axis for the same reason the runtime arm does: the
+    // ledger must credit the axis that actually decided, never every axis listed.
     if (onRuntime.includes('Display')) {
-        return { matched: hasDisplay() };
+        return { matched: hasDisplay(), runtime: 'Display' as Runtime };
     }
     if (onRuntime.includes('Gl')) {
-        return { matched: hasGl() };
+        return { matched: hasGl(), runtime: 'Gl' as Runtime };
     }
 
     const currRuntime = await getRuntime();
@@ -977,16 +1095,29 @@ export const on = async function (onRuntime: Runtime | Runtime[], version: strin
         version = undefined;
     }
 
-    const { matched } = await runtimeMatch(onRuntime, version as string | undefined);
+    const { matched, runtime: matchedAxis } = await runtimeMatch(onRuntime, version as string | undefined);
 
     if (!matched) {
         ++countTestsIgnored;
+        // Every named axis stood down: none of them decided in favour of running.
+        for (const axis of onRuntime) ++axisRecord(axis).ignored;
         return;
     }
 
     print(`\nOn ${onRuntime.join(', ')}${version ? ' ' + version : ''}`);
 
+    // Measured across the gate, so a block that matched and then registered
+    // nothing scores zero rather than counting as coverage (see `AxisRecord`).
+    const testsBefore = countTestsOverall;
     await callback();
+
+    // ONLY the axis that matched is credited. `on(['Node.js', 'Gjs'], …)` running
+    // under Node exercised Node and nothing else, and booking those tests against
+    // 'Gjs' too would let the Node leg satisfy a Gjs declaration — the precise
+    // false claim this ledger exists to make impossible.
+    const rec = axisRecord(matchedAxis ?? onRuntime[0]);
+    ++rec.matched;
+    rec.tests += countTestsOverall - testsBefore;
 };
 
 let beforeEachCb: Callback | undefined | null;
@@ -1046,6 +1177,7 @@ export const it = async function (
     } finally {
         --activeTestDepth;
         assertionLedgers.pop();
+        noteIfCwdDestroyed(expectation);
     }
 
     const duration = now() - t0;
@@ -1113,6 +1245,19 @@ export const getTestCounters = (): {
     xfail: countTestsXfail,
     warnings: warnings.length,
 });
+
+/**
+ * Snapshot of what each `on()` gate did, keyed by the axis it named.
+ *
+ * The read side of `RunOptions.requireAxes` — a copy, so a caller cannot mutate the
+ * runner's tally. Same seam and same reason as `getTestCounters()`: assert against
+ * the numbers the verdict is computed from, not against printed text.
+ */
+export const getAxisLedger = (): Record<string, AxisRecord> => {
+    const out: Record<string, AxisRecord> = {};
+    for (const [axis, rec] of axisLedger) out[axis] = { ...rec };
+    return out;
+};
 
 /**
  * An EXPECTED failure — a test asserting the correct behaviour against a defect we
@@ -1291,6 +1436,36 @@ const browserSignalDone = () => {
     doc.documentElement.dataset.testsDone = 'true';
 };
 
+/**
+ * Hold the run to the axes it declared it would exercise.
+ *
+ * The declaration is HOST-CONDITIONAL on purpose: `test.mts` is built once and run
+ * on every leg, so a static "must run the Gjs axis" would be a lie under Node. An
+ * axis the host does not match claims nothing and is skipped here; an axis the host
+ * DOES match must have executed at least one test, or the leg ran green having
+ * exercised none of what it was launched for.
+ *
+ * Failing is the point. Reporting was already there — `countTestsIgnored` is printed
+ * on every run — and it never once stopped a merge, because nothing read it.
+ */
+const failUnexercisedAxes = async (declared: readonly Runtime[]): Promise<void> => {
+    for (const axis of declared) {
+        const { matched } = await runtimeMatch([axis]);
+        if (!matched) continue;
+
+        const rec = axisLedger.get(axis);
+        if (rec && rec.tests > 0) continue;
+
+        ++countTestsFailed;
+        const detail = rec
+            ? `${rec.matched} gate(s) matched but executed no test, ${rec.ignored} stood down`
+            : 'no on() gate named it';
+        const message = `declared axis '${axis}' ran on this host but exercised nothing — ${detail}`;
+        testErrors.push({ suite: '<axis declaration>', test: axis, message });
+        print(`\n${RED}❌ ${message}${RESET}`);
+    }
+};
+
 const printResult = () => {
     const totalMs = runStartTime > 0 ? now() - runStartTime : 0;
     const durationStr = totalMs > 0 ? `  ${GRAY}(${formatDuration(totalMs)})` : '';
@@ -1301,6 +1476,18 @@ const printResult = () => {
 
     if (countTestsIgnored) {
         print(`\n${BLUE}✔ ${countTestsIgnored} ignored test${countTestsIgnored > 1 ? 's' : ''}${RESET}`);
+    }
+
+    if (axisLedger.size) {
+        // One line per axis any `on()` gate named, so "which axes did this leg
+        // actually exercise" is answerable from the log alone. A `0 tests` entry is
+        // the shape worth seeing: the gate fired and produced nothing.
+        print(`\n${BLUE}⊞ axes exercised${RESET}`);
+        for (const [axis, rec] of axisLedger) {
+            print(
+                `  ${BLUE}↳ ${axis}: ${rec.tests} test${rec.tests === 1 ? '' : 's'} from ${rec.matched} gate${rec.matched === 1 ? '' : 's'}${rec.ignored ? `, ${rec.ignored} stood down` : ''}${RESET}`,
+            );
+        }
     }
 
     if (countTestsXfail) {
@@ -1380,17 +1567,17 @@ const printRuntime = async () => {
     print(`\nRunning on ${runtime}`);
 };
 
-export const run = async (
-    namespaces: Namespaces,
-    options?: { timeout?: number; testTimeout?: number; suiteTimeout?: number; skip?: Record<string, string> } | number,
-) => {
+export const run = async (namespaces: Namespaces, options?: RunOptions | number) => {
     applyEnvOverrides();
     installUncaughtHooks();
     runStartTime = now();
     skipReasons = new Map();
     countTestsXfail = 0;
     warnings.length = 0;
+    axisLedger.clear();
+    cwdReadable = probeCwd();
 
+    let requireAxes: readonly Runtime[] = [];
     if (options) {
         if (typeof options === 'number') {
             timeoutConfig.runTimeout = options;
@@ -1399,6 +1586,7 @@ export const run = async (
             if (options.testTimeout !== undefined) timeoutConfig.testTimeout = options.testTimeout;
             if (options.suiteTimeout !== undefined) timeoutConfig.suiteTimeout = options.suiteTimeout;
             if (options.skip) skipReasons = new Map(Object.entries(options.skip));
+            if (options.requireAxes) requireAxes = options.requireAxes;
         }
     }
 
@@ -1415,6 +1603,7 @@ export const run = async (
                 }
             }
         })
+        .then(() => failUnexercisedAxes(requireAxes))
         .then(async () => {
             printResult();
             browserSignalDone();
