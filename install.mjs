@@ -20,8 +20,69 @@
 
 import GLib from 'gi://GLib';
 import Gio from 'gi://Gio';
-import Soup from 'gi://Soup?version=3.0';
 import system, { exit } from 'system';
+
+/**
+ * Soup, loaded late and — on a macOS that cannot find it — through one re-exec.
+ *
+ * WHY THIS IS NOT A PLAIN IMPORT. GI resolves a typelib's shared library with a
+ * bare-leaf `dlopen("libsoup-3.0.0.dylib")`. Homebrew installs that dylib in
+ * `/usr/local/lib` (Intel) or `/opt/homebrew/lib` (arm64), and `gjs` carries an
+ * rpath only for glib's own directory, so on a stock Homebrew macOS dyld never
+ * looks where the library actually is. Measured 2026-08-13 on macOS 15.7.9:
+ *
+ *     $ curl -fsSL .../install.mjs -o /tmp/g.mjs && gjs -m /tmp/g.mjs
+ *     Failed to load shared library 'libsoup-3.0.0.dylib' referenced by the typelib
+ *     JS ERROR: Error: Unsupported type void, deriving from fundamental void
+ *
+ * That is the DOCUMENTED install path for a platform this project advertises,
+ * and it fails before the first byte is downloaded — the bootstrap's own fetcher
+ * is Soup. `DYLD_FALLBACK_LIBRARY_PATH=/usr/local/lib` fixes it, but nothing can
+ * export that on the user's behalf from inside this process: the variable is
+ * read by dyld at image load, long before any JS runs. Hence a re-exec.
+ *
+ * Repaired ONLY when the load actually fails, so a healthy host (arm64 Homebrew,
+ * a distro-packaged gjs, anything with a working rpath) re-execs never.
+ *
+ * Note the probe touches `Session` rather than just importing the namespace:
+ * `imports.gi.Soup` SUCCEEDS on a broken host — the library is resolved lazily,
+ * when a type is first needed. A namespace-only check reports a healthy
+ * environment and is the reason this looked like a network bug for so long.
+ */
+const DYLD_REEXEC_MARKER = 'GJSIFY_INSTALL_DYLD_REEXEC';
+
+/** dyld's documented default fallback list, plus both Homebrew prefixes. */
+function dyldFallbackDirs() {
+    const home = GLib.get_home_dir();
+    return [`${home}/lib`, '/usr/local/lib', '/opt/homebrew/lib', '/lib', '/usr/lib'].join(':');
+}
+
+async function loadSoup() {
+    const mod = await import('gi://Soup?version=3.0');
+    void mod.default.Session; // forces the dlopen; see above
+    return mod.default;
+}
+
+let Soup;
+try {
+    Soup = await loadSoup();
+} catch (error) {
+    const onMacos = GLib.file_test('/usr/lib/dyld', GLib.FileTest.EXISTS);
+    if (!onMacos || GLib.getenv(DYLD_REEXEC_MARKER)) throw error;
+
+    const self = GLib.filename_from_uri(import.meta.url)[0];
+    const gjs = GLib.find_program_in_path('gjs');
+    if (!gjs) throw error;
+
+    // SIP strips an INHERITED DYLD_* when a protected binary is exec'd, but a
+    // value this process sets itself survives into Homebrew's unprotected `gjs`.
+    const launcher = new Gio.SubprocessLauncher({ flags: Gio.SubprocessFlags.NONE });
+    launcher.setenv('DYLD_FALLBACK_LIBRARY_PATH', dyldFallbackDirs(), true);
+    launcher.setenv(DYLD_REEXEC_MARKER, '1', true);
+    const child = launcher.spawnv([gjs, '-m', self, ...(system?.programArgs ?? [])]);
+    child.wait(null);
+    exit(child.get_exit_status() === 0 ? 0 : 1);
+}
 
 Gio._promisify(Soup.Session.prototype, 'send_and_read_async');
 Gio._promisify(Gio.Subprocess.prototype, 'wait_check_async');
