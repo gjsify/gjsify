@@ -30,8 +30,19 @@
 // reviewable, and a missing one shows up as a class nothing gates rather than as
 // a false failure.
 //
-// KNOWN BLIND SPOT: a class assembled by interpolation (`adw-${kind}-row`) is not
-// a literal and is not seen. This catches the common case, not every case.
+// TEMPLATE LITERALS ARE READ TOO, with their interpolations blanked out first.
+// `` `${button.className} adw-entry-apply` `` is how a widget ADDS a class to an
+// inherited list, and it is the dominant shape in this tree — reading only
+// single-quoted strings missed 24 classes, 10 of them unstyled and therefore
+// gated by nothing at all (#1126). An interpolation contributes no class name
+// this scan can know, so blanking it is not an approximation of the value: it is
+// the whole of what a static reader may claim about it.
+//
+// REMAINING BLIND SPOT: a name assembled ACROSS an interpolation boundary
+// (`adw-${kind}-row`) still cannot be read, because no substring of it is the
+// class. That is a narrower gap than the one this replaced — it needs the name
+// itself to be computed, not merely concatenated onto other classes — and the
+// tree currently holds no instance of it.
 //
 // Comments are stripped before the scan. A class named only in prose is not
 // emitted, and counting it would reproduce exactly the #1123 misreading in
@@ -73,11 +84,24 @@ function widgetSources() {
     return found;
 }
 
+/** A literal holding one class, or several separated by spaces as NS holds them. */
+const LITERAL = /['"`]([a-z][a-z0-9-]*(?: [a-z][a-z0-9-]*)*)['"`]/g;
+/** A template literal, read for the class names AROUND its interpolations. */
+const TEMPLATE = /`([^`]*)`/g;
+/** One `${…}` — blanked before the class list is read. Nested braces end the scan early,
+ *  which can only drop names, never invent one. */
+const INTERPOLATION = /\$\{[^{}]*\}/g;
+/** The same shape {@link LITERAL} accepts, anchored, for a template's remainder. */
+const CLASS_LIST = /^[a-z][a-z0-9-]*(?: [a-z][a-z0-9-]*)*$/;
+
 /** Class names in string literals, one entry per name with the files that emit it. */
 function emittedClasses(files) {
-    // A literal holding one class, or several separated by spaces as NS holds them.
-    const LITERAL = /['"`]([a-z][a-z0-9-]*(?: [a-z][a-z0-9-]*)*)['"`]/g;
     const emitted = new Map();
+    const record = (name, file) => {
+        if (!isTracked(name)) return;
+        if (!emitted.has(name)) emitted.set(name, new Set());
+        emitted.get(name).add(relative(ROOT, file));
+    };
 
     for (const file of files) {
         const code = readFileSync(file, 'utf8')
@@ -85,11 +109,16 @@ function emittedClasses(files) {
             .replace(/^\s*\/\/.*$/gm, '');
 
         for (const match of code.matchAll(LITERAL)) {
-            for (const name of match[1].split(' ')) {
-                if (!isTracked(name)) continue;
-                if (!emitted.has(name)) emitted.set(name, new Set());
-                emitted.get(name).add(relative(ROOT, file));
-            }
+            for (const name of match[1].split(' ')) record(name, file);
+        }
+
+        for (const match of code.matchAll(TEMPLATE)) {
+            const remainder = match[1].replace(INTERPOLATION, ' ').trim().replace(/\s+/g, ' ');
+            // Hold the remainder to the SAME shape a plain literal must have. A
+            // template carrying prose (`Toast: ${text}`) fails it and is skipped,
+            // which is what keeps this from sweeping up arbitrary strings.
+            if (!CLASS_LIST.test(remainder)) continue;
+            for (const name of remainder.split(' ')) record(name, file);
         }
     }
     return emitted;
