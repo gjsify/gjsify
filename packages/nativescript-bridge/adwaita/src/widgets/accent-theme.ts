@@ -61,7 +61,6 @@ export const ADWAITA_NS_ACCENT_RULES: ReadonlyArray<AccentRule> = [
     { selector: '.adw-viewswitcherbar-button-badge', property: 'background-color', role: 'fill' },
     { selector: '.adw-button-row', property: 'color', role: 'fill' },
     { selector: '.adw-button-row-title', property: 'color', role: 'fill' },
-    { selector: '.adw-button-row-start-icon', property: 'color', role: 'fill' },
     { selector: '.adw-view-switcher-button-badge', property: 'background-color', role: 'fill' },
     { selector: '.adw-inline-view-switcher-button-badge', property: 'background-color', role: 'fill' },
     { selector: '.adw-carousel-dot.active', property: 'color', role: 'fill' },

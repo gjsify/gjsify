@@ -55,11 +55,15 @@ Page.adw-window {
     /* NS has no text-transform; author titles in upper-case in markup if desired. */
 }
 
-/* Dimmed description line below the title. */
+/* Dimmed description line below the title.
+ *
+ * The 6 above it is `box.labels`'s `border-spacing: 6px` (_preferences.scss:7-9)
+ * — the labels box carries nothing else, and the NS subset has no property for a
+ * spacing, so the gap rides on the second child. It was 2. */
 .adw-preferences-group-description {
     font-size: 12;
     color: rgba(0, 0, 0, 0.55);
-    margin: 2 0 0 0;
+    margin: 6 0 0 0;
 }
 
 /* The boxed list: rounded card holding the rows. */
@@ -888,10 +892,21 @@ Page.adw-window {
     margin: 0;
 }
 
+/* The two glyphs either side of the centered title. `row.button > box` spaces its
+ * three children with `border-spacing: 6px` (_lists.scss:458-462), which the NS
+ * subset has no property for — so the 6 rides on the icons, mirrored.
+ *
+ * MARGIN ONLY. Both are `AdwIcon`s, i.e. `Image`s showing a bitmap that was
+ * rendered in its fill colour, so `color` here reaches nothing and `font-size`
+ * has no text to size. They used to be declared anyway, which put a dead accent
+ * declaration in the runtime-accent table as well; the colour now follows the
+ * accent through `iconColor`, which is the only thing that can carry it. */
 .adw-button-row-start-icon {
-    font-size: 15;
-    color: #3584e4;
-    margin: 0 8 0 0;
+    margin: 0 6 0 0;
+}
+
+.adw-button-row-end-icon {
+    margin: 0 0 0 6;
 }
 
 /* ===== Button content (icon + label) ===== */

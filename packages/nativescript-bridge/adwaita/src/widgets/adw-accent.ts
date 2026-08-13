@@ -14,11 +14,22 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { Application } from '@nativescript/core';
-import { ADW_DEFAULT_ACCENT_COLOR, type AdwAccentColorName } from '@gjsify/adwaita-core';
+import { ADW_DEFAULT_ACCENT_COLOR, setAdwaitaAccent, type AdwAccentColorName } from '@gjsify/adwaita-core';
 import { adwaitaNsAccentCss } from './accent-theme.js';
 
-/** Repaint every accent-coloured rule in the theme for `accent`. */
+/**
+ * Repaint every accent-coloured rule in the theme for `accent`.
+ *
+ * The core's accent state is set FIRST, and that is not bookkeeping. A widget
+ * whose accent lands somewhere CSS cannot reach — a symbolic icon is a bitmap
+ * rendered in its fill colour — can only follow by re-rendering on
+ * `onAdwaitaAccentChanged`, and that fires from here. `setAdwaitaAccent`'s own
+ * documentation names this as the renderer's half of the contract; the two were
+ * simply never connected on this port, so `adwaitaAccent()` stayed `'blue'`
+ * however many times the stylesheet was replaced.
+ */
 export function applyAdwaitaNsAccent(accent: AdwAccentColorName): void {
+    setAdwaitaAccent(accent);
     Application.addCss(adwaitaNsAccentCss(accent));
 }
 
@@ -31,5 +42,6 @@ export function applyAdwaitaNsAccent(accent: AdwAccentColorName): void {
  * system accent for the theme to follow, so the default IS the fallback here.
  */
 export function clearAdwaitaNsAccent(): void {
+    setAdwaitaAccent(ADW_DEFAULT_ACCENT_COLOR);
     Application.addCss(adwaitaNsAccentCss(ADW_DEFAULT_ACCENT_COLOR));
 }
