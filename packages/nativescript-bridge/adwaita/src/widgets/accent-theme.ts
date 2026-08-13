@@ -65,8 +65,11 @@ export const ADWAITA_NS_ACCENT_RULES: ReadonlyArray<AccentRule> = [
     { selector: '.adw-view-switcher-button-badge', property: 'background-color', role: 'fill' },
     { selector: '.adw-inline-view-switcher-button-badge', property: 'background-color', role: 'fill' },
     { selector: '.adw-carousel-dot.active', property: 'color', role: 'fill' },
+    { selector: '.adw-image-button.adw-entry-apply', property: 'background-color', role: 'fill' },
+    { selector: '.adw-image-button.adw-entry-apply:highlighted', property: 'background-color', role: 'shade' },
     { selector: '.ns-dark .adw-button.suggested-action', property: 'background-color', role: 'fill' },
     { selector: '.ns-dark .adw-avatar', property: 'background-color', role: 'shade' },
+    { selector: '.ns-dark .adw-image-button.adw-entry-apply:highlighted', property: 'background-color', role: 'shade' },
 ];
 
 /** The colour for one role of `accent`. */

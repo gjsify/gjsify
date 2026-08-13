@@ -1,8 +1,11 @@
 {
     "reviewed": {
-        "adw-insensitive": "A styling hook with no look of its own: the widget applies NS_INSENSITIVE_OPACITY (0.4) imperatively, which is what the user sees (entry-row-view.ts:69-77).",
+        "adw-insensitive": "A styling hook with no look of its own: the applier sets NS_INSENSITIVE_OPACITY on the pencil imperatively, which is what the user sees (entry-row-view.ts, applyEntryRowState).",
         "adw-shortcut-label-keys": "One combination's box. It carries no paint — the 6-unit border-spacing between keycaps rides on the caps themselves via adw-shortcut-label-spaced, because the NS subset has no :first-child.",
-        "adw-shortcut-label-disabled": "A consumer hook so the no-shortcut state can be styled without matching on child count. The look comes from the .dimmed half of the same className, which the theme does style."
+        "adw-shortcut-label-disabled": "A consumer hook so the no-shortcut state can be styled without matching on child count. The look comes from the .dimmed half of the same className, which the theme does style.",
+        "adw-entry-row": "The row's own base class, and the carrier for the `focused` / `empty` state classes that ride on the same string. Everything libadwaita puts on `row.entry` itself is either unreachable here (a focus-ring, a `:disabled` filter) or already applied: its 6px header margin pairs with the editable area's 6px padding (_lists.scss:186-192) for the same 12 inset `.adw-row` gives every row.",
+        "adw-entry-row-suffixes": "The box holding indicator, apply button and pencil. `AdwActionRow.setSuffix` also stamps `.adw-row-suffix`, which places and vertically centres it, and libadwaita puts no spacing on the box either — the 6 between the three rides on the children (_lists.scss:200-203).",
+        "adw-password-entry-row": "A subclass marker. C adds a bare `password` class to the row (adw-password-entry-row.c:173); every rule that selects it lands on descendants this port styles by their own class — the caps-lock dim is `> .indicator`, which `.adw-entry-indicator` now carries."
     },
     "unreviewedBaseline": [
         "adw-bottom-sheet",
@@ -12,17 +15,10 @@
         "adw-carousel",
         "adw-carousel-page",
         "adw-carousel-track",
-        "adw-entry-apply",
-        "adw-entry-edit",
-        "adw-entry-empty-title",
-        "adw-entry-indicator",
-        "adw-entry-row",
-        "adw-entry-row-suffixes",
         "adw-expander-row",
         "adw-icon",
         "adw-inline-view-switcher",
         "adw-menu-button",
-        "adw-password-entry-row",
         "adw-password-peek",
         "adw-preferences-group-labels",
         "adw-preferences-group-suffix",

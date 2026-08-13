@@ -25,7 +25,7 @@
 
 import { Label, StackLayout, TextField, type EventData, type View } from '@nativescript/core';
 import { documentEditSymbolic, objectSelectSymbolic } from '@gjsify/adwaita-icons/actions';
-import { EntryRowState, type EntryRowRenderState } from '@gjsify/adwaita-core';
+import { ADW_ACCENT_FG_COLOR, EntryRowState, type EntryRowRenderState } from '@gjsify/adwaita-core';
 
 import { AdwActionRow } from './adw-action-row.js';
 import { AdwIcon } from './adw-icon.js';
@@ -146,6 +146,13 @@ export class AdwEntryRow extends AdwActionRow {
         const applyButton = new AdwImageButton();
         applyButton.className = `${applyButton.className} adw-entry-apply`.trim();
         applyButton.icon = objectSelectSymbolic;
+        // `suggested-action` (adw-entry-row.ui:99) is an accent fill with
+        // `--accent-fg-color` on top — white in BOTH schemes, so pinning it here
+        // is not a light-mode choice. It cannot come from the stylesheet: the
+        // fill is baked into the rendered bitmap, and CSS `color` on an `Image`
+        // reaches nothing. Without it the checkmark stayed scheme-coloured and
+        // went near-black on the blue.
+        applyButton.iconColor = ADW_ACCENT_FG_COLOR;
         applyButton.addEventListener('tap', () => this.apply());
         suffixes.addChild(applyButton);
         this._applyButton = applyButton;
