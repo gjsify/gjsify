@@ -20,9 +20,18 @@
 // WHAT IT CHECKS
 //
 // For every class name a widget source emits, the theme must carry a `.name`
-// selector — unless `status/nativescript-theme-classes.json` lists it. A listed
-// class that has since become styled, or that no widget emits any more, is also a
-// failure: the ledger is a ratchet and may only shrink.
+// selector — unless `status/nativescript-theme-classes.json` gives it a REASON.
+// A listed class that has since become styled, or that no widget emits any more,
+// is also a failure: an exemption may not outlive the situation it describes.
+//
+// THERE IS NO UNREVIEWED LIST. The ledger was seeded with 22 measured names and
+// no judgement, and #1126 worked all of them — plus the ten the template-literal
+// blind spot below was hiding — down to zero: 27 were genuine hooks, 5 were
+// missing rules. Keeping the bucket after that would keep the escape hatch: a
+// name can be added to a list far more easily than a sentence about it can be
+// written, and "unreviewed" is precisely the state this file exists to end. So
+// an exemption now costs one sentence naming the C, or naming the node that
+// carries the rule instead.
 //
 // SCOPE, AND WHY IT IS NARROW. Only the `adw-` namespace plus the handful of
 // unprefixed libadwaita names this port uses ({@link UNPREFIXED}). A bare-word
@@ -48,16 +57,15 @@
 // emitted, and counting it would reproduce exactly the #1123 misreading in
 // reverse.
 //
-// Usage: node scripts/check-nativescript-theme-classes.mjs [--root <dir>] [--update]
+// Usage: node scripts/check-nativescript-theme-classes.mjs [--root <dir>]
 
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : args[rootFlag + 1];
-const UPDATE = args.includes('--update');
 
 const SRC = join(ROOT, 'packages/nativescript-bridge/adwaita/src');
 const THEME = join(SRC, 'theme/adwaita.css');
@@ -65,6 +73,9 @@ const LEDGER = join(ROOT, 'status/nativescript-theme-classes.json');
 
 /** libadwaita's own unprefixed class names, which this port keeps verbatim. */
 const UNPREFIXED = new Set(['keycap', 'dimmed']);
+
+/** Shortest reason that can plausibly name a node or a C rule. */
+const MIN_REASON = 40;
 
 const isTracked = (name) => name.startsWith('adw-') || UNPREFIXED.has(name);
 
@@ -130,30 +141,9 @@ const styled = new Set([...theme.matchAll(/\.([a-z][a-z0-9-]*)/g)].map((match) =
 const emitted = emittedClasses(widgetSources());
 const unstyled = [...emitted.keys()].filter((name) => !styled.has(name)).sort();
 
-if (UPDATE) {
-    const previous = (() => {
-        try {
-            return JSON.parse(readFileSync(LEDGER, 'utf8'));
-        } catch {
-            return { reviewed: {}, unreviewedBaseline: [] };
-        }
-    })();
-    const reviewed = Object.fromEntries(
-        Object.entries(previous.reviewed ?? {}).filter(([name]) => unstyled.includes(name)),
-    );
-    const baseline = unstyled.filter((name) => !(name in reviewed));
-    writeFileSync(LEDGER, `${JSON.stringify({ reviewed, unreviewedBaseline: baseline }, null, 4)}\n`);
-    process.stdout.write(
-        `check-nativescript-theme-classes: wrote ${relative(ROOT, LEDGER)} ` +
-            `(${Object.keys(reviewed).length} reviewed, ${baseline.length} baseline)\n`,
-    );
-    process.exit(0);
-}
-
 const ledger = JSON.parse(readFileSync(LEDGER, 'utf8'));
 const reviewed = ledger.reviewed ?? {};
-const baseline = ledger.unreviewedBaseline ?? [];
-const listed = new Set([...Object.keys(reviewed), ...baseline]);
+const listed = new Set(Object.keys(reviewed));
 
 const failures = [];
 
@@ -170,13 +160,17 @@ for (const name of listed) {
         failures.push(`${name} is listed, but no widget emits it any more — remove the entry.`);
     } else if (styled.has(name)) {
         failures.push(`${name} is listed as unstyled, but the theme now styles it — remove the entry.`);
+    } else if (typeof reviewed[name] !== 'string' || reviewed[name].trim().length < MIN_REASON) {
+        // An entry carrying a placeholder is the unreviewed list again, one key
+        // at a time. The floor is deliberately crude — it cannot judge a
+        // sentence, only refuse a blank.
+        failures.push(`${name} is listed with no real reason — say what carries its look, or why nothing does.`);
     }
 }
 
 process.stdout.write(
     `check-nativescript-theme-classes: ${emitted.size} classes emitted, ` +
-        `${emitted.size - unstyled.length} styled, ${Object.keys(reviewed).length} reviewed exemption(s), ` +
-        `${baseline.length} unreviewed baseline.\n`,
+        `${emitted.size - unstyled.length} styled, ${Object.keys(reviewed).length} reviewed exemption(s).\n`,
 );
 
 if (failures.length > 0) {

@@ -389,14 +389,24 @@ Page.adw-window {
 
 /* ===== Expander row (disclosure) ===== */
 
+/* The disclosure chevron. `expander-widget > box > title > expander` sits at 70%
+ * and goes opaque on hover/press (_expanders.scss:16-21); NS has no hover, so the
+ * resting 70% is the whole of it.
+ *
+ * The `width: 32` / `height: 32` that used to be here NEVER APPLIED. NativeScript
+ * ignores a CSS value for a property the widget has set as a LOCAL one
+ * (properties/index.js:585-598), and `AdwIcon` assigns `width`/`height` in its
+ * constructor — so the chevron has always been the 16 `expander`'s own minimum
+ * asks for (_expanders.scss:2-3), which is right, while the stylesheet claimed
+ * a 32 tap target it never got. `color` and `font-size` were dead for the other
+ * reason: it is an `Image` of a pre-coloured bitmap.
+ *
+ * The tap target is a separate matter, filed as #1155 — libadwaita toggles from
+ * the HEADER ROW ("must be activatable to toggle expansion by clicking or
+ * tapping anywhere on it", adw-expander-row.ui:25-27), and this port listens on
+ * the chevron alone. */
 .adw-expander-toggle {
-    width: 32;
-    height: 32;
-    /* Flat chevron affordance — transparent, no button chrome. */
-    background-color: transparent;
-    color: rgba(0, 0, 0, 0.55);
-    font-size: 16;
-    padding: 0;
+    opacity: 0.7;
     margin: 0;
 }
 
@@ -1574,7 +1584,7 @@ Page.ns-dark.adw-window {
  * .adw-avatar` already spells a shade under a dark selector, and the role is
  * scheme-independent by construction (accent-theme.ts). The dark button press
  * two sections down instead hand-picks `#2c75d6`, which is a THIRD literal no
- * accent override can reach (#1153); this rule does not add a fourth. */
+ * accent override can reach (#1154); this rule does not add a fourth. */
 .ns-dark .adw-image-button.adw-entry-apply:highlighted {
     background-color: #1c71d8;
 }
@@ -1639,11 +1649,9 @@ Page.ns-dark.adw-window {
 
 /* ===== Dark: expander row ===== */
 
-.ns-dark .adw-expander-toggle {
-    /* Flat chevron — transparent, dim foreground. */
-    background-color: transparent;
-    color: rgba(255, 255, 255, 0.55);
-}
+/* No dark counterpart for the chevron: the 70% is an alpha over whatever the
+ * bitmap was rendered in, and AdwIcon re-renders that on a scheme change. The
+ * `color` this rule used to set reached an `Image` and did nothing. */
 
 .ns-dark .adw-expander-disclosure {
     background-color: #222226;
