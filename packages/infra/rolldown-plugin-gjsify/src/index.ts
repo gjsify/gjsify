@@ -16,6 +16,7 @@ export {
 export type { NodeModulesPathRewriteOptions, RewriteResult } from './plugins/rewrite-node-modules-paths.js';
 
 export { processStubPlugin, GJS_PROCESS_STUB, composeBanner } from './plugins/process-stub.js';
+export { giRuntimePathsStub } from './plugins/gi-runtime-paths.js';
 export type { ProcessStubPluginOptions } from './plugins/process-stub.js';
 export { cssAsStringPlugin } from './plugins/css-as-string.js';
 export { textLoaderPlugin } from './plugins/text-loader.js';

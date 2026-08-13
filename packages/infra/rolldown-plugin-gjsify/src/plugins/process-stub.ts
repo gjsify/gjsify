@@ -12,12 +12,12 @@
 // later via `--globals auto` (which injects @gjsify/node-globals/register/process).
 //
 // Kept as a single line: the banner runs before any source-map-aware
-// machinery, so newlines here would shift every line number by one. Single
-// line = zero source-map drift for the actual bundle code below.
+// machinery, so newlines here would shift every line number by one.
 import type { Plugin } from 'rolldown';
 
 import { BUNDLE_URL_BANNER } from './bundle-url-banner.js';
 import { GJS_WELLKNOWN_SYMBOLS_STUB } from './wellknown-symbols-banner.js';
+import { giRuntimePathsStub } from './gi-runtime-paths.js';
 
 // Every GJS ambient global is reached through `globalThis.` — NEVER as a bare
 // identifier. The banner shares the module's top-level scope with the bundled
@@ -26,30 +26,23 @@ import { GJS_WELLKNOWN_SYMBOLS_STUB } from './wellknown-symbols-banner.js';
 // in its temporal dead zone: `ReferenceError: can't access lexical declaration
 // 'imports' before initialization`, thrown at load, before a single line of
 // program code runs. `@girs/gjs`'s `gjs.js` declares exactly that
-// (`const imports = globalThis.imports || {}`), so the failure is real and
-// arrives whenever tree-shaking happens to retain that module. It was found
-// via `@gjsify/web-streams`, whose GJS test leg died the moment `@gjsify/utils`
-// became more shakeable — but nothing about it is specific to either package.
+// (`const imports = globalThis.imports || {}`), so the failure arrives whenever
+// tree-shaking happens to retain that module.
 export const GJS_PROCESS_STUB =
     'if(typeof globalThis.process==="undefined"){' +
     'const _s=globalThis.imports.system,_G=globalThis.imports.gi.GLib;' +
-    // process.hrtime needs a `.bigint` property attached to the function
-    // itself (Node API shape: `process.hrtime.bigint()` — used by execa,
-    // perf-tracking libs, …). Build it as a named local so we can
-    // attach the property before stashing it on the stub object.
+    // `process.hrtime.bigint()` is the shape execa and perf-tracking libs reach
+    // for, so `.bigint` has to hang off the function itself.
     'const _h=t=>t?[0,0]:[0,0];_h.bigint=()=>0n;' +
-    // `platform`/`arch`, answered LAZILY by the same `uname -sm` probe
-    // `@gjsify/process` uses (`packages/node/process/src/internal/uname.ts`),
-    // with `@gjsify/utils`' `platform-names.ts` mapping tables inlined minimally
-    // — a banner runs before the module system exists and cannot import the
-    // canonical ones. Those two are the source of truth; keep this in step or a
-    // bundle answers differently depending on whether it pulled
-    // `@gjsify/process` in. These used to be the literals `"linux"`/`"x64"`,
-    // which is a WRONG answer on two of three OSes rather than a missing one.
-    // Lazy, so the cost falls only on a bundle that reads the field AND never
-    // loads `@gjsify/process` (whose register replaces this object): nothing is
-    // spawned at load. Windows is answered from the environment — `uname` is not
-    // on a native Windows PATH, and the env answer is exact.
+    // `platform`/`arch` from the same `uname -sm` probe `@gjsify/process` uses
+    // (`packages/node/process/src/internal/uname.ts`) plus `@gjsify/utils`'
+    // `platform-names.ts` tables, inlined minimally because a banner runs before
+    // the module system exists. Those two are the source of truth; keep this in
+    // step or a bundle answers differently depending on whether it pulled
+    // `@gjsify/process` in. These used to be the literals `"linux"`/`"x64"` — a
+    // WRONG answer on two of three OSes rather than a missing one. Lazy, so
+    // nothing is spawned at load. Windows is answered from the environment:
+    // `uname` is not on a native Windows PATH, and the env answer is exact.
     'let _pc;const _p=()=>{if(_pc)return _pc;_pc={platform:"linux",arch:"x64"};' +
     'try{' +
     'if(_G.getenv("OS")==="Windows_NT"||_G.getenv("SystemRoot")){' +
@@ -86,17 +79,10 @@ export const GJS_PROCESS_STUB =
     '}';
 
 /**
- * Compose the GJS process stub with the user-supplied banner so the result
- * is valid syntax for `gjs -m`. A leading `#!shebang` line in the user
- * banner is hoisted to byte 0 of the output. Any `#` character that appears
- * anywhere except byte 0 is a fatal SyntaxError under SpiderMonkey 128+ —
- * putting our process stub before the user's shebang would break the bundle.
- *
- * Output shape:
- *   [#!shebang\n][<process-stub>\n<rest-of-user-banner>]
- *
- * Either side of the bracket may be empty; the result is always concatenated
- * without leading whitespace.
+ * Compose the GJS process stub with the user-supplied banner so the result is
+ * valid syntax for `gjs -m`, hoisting a leading `#!shebang` to byte 0: a `#`
+ * anywhere except byte 0 is a fatal SyntaxError under SpiderMonkey 128+, so
+ * putting the stub before the user's shebang would break the bundle.
  */
 export function composeBanner(stub: string, userBanner: string): string {
     if (!userBanner) return stub;
@@ -109,13 +95,6 @@ export function composeBanner(stub: string, userBanner: string): string {
     return shebang + stub + (rest ? '\n' + rest : '');
 }
 
-/**
- * Build a Rolldown plugin that injects the GJS process stub as a chunk
- * banner. Runs with `enforce: 'post'`-equivalent ordering so the stub
- * lands *after* any user `output.banner` value, except when the user
- * banner starts with a `#!shebang` line — which is hoisted to byte 0
- * by `composeBanner`.
- */
 export interface ProcessStubPluginOptions {
     /** User-supplied banner string. May contain a leading `#!shebang`. */
     userBanner?: string;
@@ -124,15 +103,28 @@ export interface ProcessStubPluginOptions {
      * ESM-only — set by the orchestrator when `format === 'esm'`.
      */
     captureBundleUrl?: boolean;
+    /**
+     * Directories, RELATIVE to the program's own directory, holding typelibs and
+     * their backing libraries. Emitted as a byte-1 prologue that hands them to GI at
+     * runtime, so the bundle needs no `GI_TYPELIB_PATH` / loader-path environment and
+     * therefore no launcher (see `gi-runtime-paths.ts` for the measurement).
+     * Empty or unset emits nothing.
+     */
+    giRuntimePaths?: readonly string[];
 }
 
+/** Inject the byte-1 banner as a chunk banner, after any user `output.banner`. */
 export function processStubPlugin(options: ProcessStubPluginOptions = {}): Plugin {
-    // The anchor capture must precede the process stub so it runs at the very
-    // top of the chunk (where `import.meta.url` is the bundle's own URL). The
-    // well-known-symbols polyfill must also run before any module init, so it
-    // joins the byte-1 banner. All three pieces are single-line (no source-map
-    // drift) and idempotent.
-    const stub = (options.captureBundleUrl ? BUNDLE_URL_BANNER : '') + GJS_WELLKNOWN_SYMBOLS_STUB + GJS_PROCESS_STUB;
+    // Order is load-bearing: the anchor capture first, because `import.meta.url`
+    // is the bundle's own URL only at the very top of the chunk; the GI path
+    // prologue last, because it reads `imports.system`, which the process stub
+    // neither provides nor disturbs. Everything here runs before module init and
+    // is single-line and idempotent.
+    const stub =
+        (options.captureBundleUrl ? BUNDLE_URL_BANNER : '') +
+        GJS_WELLKNOWN_SYMBOLS_STUB +
+        GJS_PROCESS_STUB +
+        giRuntimePathsStub(options.giRuntimePaths ?? []);
     const banner = composeBanner(stub, options.userBanner ?? '');
     return {
         name: 'gjsify-process-stub',
