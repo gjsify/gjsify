@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.38.1](https://github.com/gjsify/gjsify/compare/v0.38.0...v0.38.1) (2026-08-13)
+
+### Bug Fixes
+
+* **ci:** a quoted heredoc for the publish dispatch, and bash -n on every run block ([#1138](https://github.com/gjsify/gjsify/issues/1138)) ([dfabdea](https://github.com/gjsify/gjsify/commit/dfabdea1f01969eb2648ee28d9e159d4254b6c95))
+* **cli:** read the CLI's own version from one resolver ([#1139](https://github.com/gjsify/gjsify/issues/1139)) ([f067adb](https://github.com/gjsify/gjsify/commit/f067adb8cc9e4f2188b7f16e00c1e16637d6752f))
+* **install:** make the macOS bootstrap find libsoup ([#1140](https://github.com/gjsify/gjsify/issues/1140)) ([93cc861](https://github.com/gjsify/gjsify/commit/93cc86167919eeff5786e53b20340a7073bf009a))
+
 ## [0.38.0](https://github.com/gjsify/gjsify/compare/v0.37.0...v0.38.0) (2026-08-13)
 
 ### Features
