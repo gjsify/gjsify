@@ -18,11 +18,20 @@
 // `dist/cli.gjs.mjs`). So the two paths fail for two reasons and one fix will not
 // answer both.
 //
-// WHY THIS FILE RATHER THAN A FIX. Bundling dart-sass in runs straight into the
-// documented `require` wall, and clearing that means giving the GJS bundle a
-// `require` — a global one changes what every `typeof require !== 'undefined'`
-// feature-detect in the npm ecosystem decides, which is a cross-cutting change
-// AGENTS.md § Governance routes through its own ADR and PR. Not the PR that found it.
+// WHY THIS FILE RATHER THAN A FIX — and the first answer here was wrong, so it is
+// recorded rather than replaced. It read: "bundling dart-sass in runs straight into
+// the documented `require` wall, and clearing that means giving the GJS bundle a
+// global `require`". Measured since (#1053): dart-sass compiles under GJS with no
+// `require` at all — that wall is behind `if (dartNodeIsActuallyNode)`, which is true
+// only because `@gjsify/process` reports `versions.node`. `build-scss.mjs` now runs
+// under GJS and emits byte-identical CSS.
+//
+// What stops the BUNDLER path is size, not capability. There is no runtime resolve
+// that can work — `sass.default.js` imports a bare `immutable` — so `cli.gjs.mjs`
+// would have to carry dart-sass inlined: 3.6 MB minified onto a 6.6 MB artifact that
+// loads on every GJS invocation, for a file type most builds never import. That wants
+// a lazy separately-published carrier (the shape `@gjsify/lightningcss-native` has for
+// CSS), which is its own PR.
 //
 // IT IS A TRIPWIRE, NOT AN ACCEPTANCE. The GJS case asserts the CURRENT failure and
 // its exact shape, so the day SCSS compiles under GJS this suite goes red and has to

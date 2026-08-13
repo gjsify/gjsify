@@ -60,7 +60,18 @@
             "browser": "polyfill",
             "nativescript": "none"
         },
-        "tier": 2
+        "tier": 2,
+        "nodeScript": {
+            "excludeGlobals": [
+                "document",
+                "HTMLElement",
+                "HTMLCanvasElement",
+                "Path2D",
+                "MutationObserver",
+                "navigator",
+                "process"
+            ]
+        }
     },
     "license": "MIT",
     "repository": {

@@ -108,6 +108,18 @@ export interface ConfigData {
      */
     excludeGlobals?: string[];
     /**
+     * Overrides for the ad-hoc bundle `gjsify run --node-script <file>` builds under
+     * GJS. Unset keys fall through to the package-level `globals` / `excludeGlobals`
+     * above, so most packages need only those. `@gjsify/adwaita-web` forced the split:
+     * its browser bundle wants the DOM registers, while the script that COMPILES its
+     * stylesheet must not have them — injecting them made that bundle demand `gi://Gdk`
+     * and believe it was running on Node (#1053).
+     */
+    nodeScript?: {
+        globals?: string;
+        excludeGlobals?: string[];
+    };
+    /**
      * Compile-time defines from `package.json` fields: JS identifier → dotted
      * package.json path. Values are JSON-stringified before merging into
      * `bundler.transform.define`.

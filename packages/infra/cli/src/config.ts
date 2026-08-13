@@ -1,6 +1,6 @@
 import { APP_NAME } from './constants.js';
 import { cosmiconfig, type Loader, type Options as LoadOptions } from 'cosmiconfig';
-import { basename } from 'node:path';
+import { basename, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isGjs, hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { buildAppForRuntime } from './utils/runtimes.js';
@@ -240,6 +240,24 @@ export class Config {
     private async readTSConfig(dirPath?: string) {
         const tsconfig = getTsconfig(dirPath)?.config || {};
         return tsconfig;
+    }
+
+    /**
+     * The globals policy for a `gjsify run --node-script` bundle, resolved from the
+     * package that OWNS THE SCRIPT — not the cwd, which during a monorepo build is the
+     * repo root. `gjsify.nodeScript` overrides either key (see `ConfigData.nodeScript`).
+     *
+     * CONFIG AND NOT A FLAG because on a host with no `node` the caller is a
+     * `package.json` spelling `node scripts/x.mjs`, re-entering the CLI through the shim
+     * `writeNodeShim()` writes: no call site to hang a flag on, on exactly the hosts this
+     * exists for.
+     */
+    async forNodeScript(scriptPath: string): Promise<{ globals?: string; excludeGlobals?: string[] }> {
+        const { config } = await this.load(dirname(scriptPath));
+        return {
+            globals: config.nodeScript?.globals ?? config.globals,
+            excludeGlobals: config.nodeScript?.excludeGlobals ?? config.excludeGlobals,
+        };
     }
 
     async forBuild(cliArgs: ArgumentsCamelCase<CliBuildOptions>) {

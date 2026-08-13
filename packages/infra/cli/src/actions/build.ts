@@ -12,7 +12,7 @@ import {
     detectNodeGiGlobals,
 } from '@gjsify/rolldown-plugin-gjsify/globals';
 import { pnpPlugin } from '@gjsify/rolldown-plugin-pnp';
-import { dirname, extname, join, resolve } from 'node:path';
+import { basename, dirname, extname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { chmod, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { normalizeBundlerOptions, mergeBundlerOptions } from '../utils/normalize-bundler-options.js';
@@ -538,12 +538,37 @@ export class BuildAction {
              * wrapper does not apply here.
              */
             preserveDefaultExport?: boolean;
+            /**
+             * The globals policy for this bundle, when the caller has one
+             * (`Config.forNodeScript`). Unset keeps `--globals auto`, which is what
+             * the plugin and config loaders want.
+             */
+            globals?: string;
+            excludeGlobals?: string[];
         },
     ): Promise<string> {
         const cwd = process.cwd();
         const cacheDir = join(cwd, 'node_modules', '.cache', 'gjsify', opts.cacheSubdir);
         const safeName = opts.label.replace(/[^a-zA-Z0-9._-]/g, '_');
-        const outfile = join(cacheDir, `${safeName}-${shortHash(inputPath)}.mjs`);
+        // The policy belongs in the cache KEY, not only in the build: one file under two
+        // policies is two artifacts, and the freshness check below (entry mtime + lockfile)
+        // cannot see the `package.json` edit that changed one. Callers without a policy keep
+        // their existing cache filenames.
+        const cacheKey =
+            opts.globals === undefined && opts.excludeGlobals === undefined
+                ? inputPath
+                : `${inputPath} ${JSON.stringify([opts.globals ?? null, opts.excludeGlobals ?? null])}`;
+        // THE HASH GOES IN THE DIRECTORY, THE FILE KEEPS THE SOURCE'S NAME. As
+        // `<name>-<hash>.mjs` it broke every script guarding its body with the standard
+        // is-entry test: `audit-runtimes.mjs` asks whether `process.argv[1]` ENDS WITH its
+        // own name, so `--node-script` ran it, printed NOTHING and exited 0. Same cause the
+        // `import.meta.url` define exists for — the bundle does not live where the source
+        // does — and a name is cheaper to keep right than an argv to rewrite.
+        const outfile = join(
+            cacheDir,
+            `${safeName}-${shortHash(cacheKey)}`,
+            `${basename(inputPath).replace(/\.[cm]?[jt]sx?$/i, '')}.mjs`,
+        );
 
         const cacheDisabled =
             opts.cache === false || (opts.noCacheEnv ? isTruthyEnv(process.env[opts.noCacheEnv]) : false);
@@ -553,9 +578,11 @@ export class BuildAction {
         }
 
         if (opts.verbose) console.debug(`[gjsify] bundling ${inputPath} for GJS → ${outfile}`);
-        await mkdir(cacheDir, { recursive: true });
+        await mkdir(dirname(outfile), { recursive: true });
         await new BuildAction({
             verbose: opts.verbose,
+            ...(opts.globals !== undefined ? { globals: opts.globals } : {}),
+            ...(opts.excludeGlobals !== undefined ? { excludeGlobals: opts.excludeGlobals } : {}),
             bundler: {
                 input: inputPath,
                 output: { file: outfile },

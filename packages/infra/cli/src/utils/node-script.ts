@@ -17,6 +17,10 @@
 //                            injects the globals the script reads, and resolves bare
 //                            specifiers), then run the bundle.
 //
+// "the globals the script reads" is auto-detection: a syntactic answer to a runtime question,
+// blind to a dead branch. The script's own package overrides it through `gjsify.nodeScript` /
+// `gjsify.globals` (`Config.forNodeScript`) — the shim path has no command line for a flag.
+//
 // `import.meta.url` is the whole trick: the bundle does not live where the source lives, and
 // a script's own location is how it finds what it operates on — all four scripts this was
 // built for derive their package root from `dirname(fileURLToPath(import.meta.url))`. Left
@@ -30,6 +34,7 @@ import { existsSync, statSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
+import { Config } from '../config.js';
 import { runGjsBundle } from './run-gjs.js';
 import { runRuntimeBundle } from './run-node.js';
 
@@ -87,6 +92,7 @@ export async function runNodeScript(
     // Dynamic import keeps the bundler machinery out of the eager module graph
     // of every `gjsify run`, matching how config.ts pulls it.
     const { BuildAction } = await import('../actions/build.js');
+    const { globals, excludeGlobals } = await new Config().forNodeScript(scriptPath);
     let bundlePath: string;
     try {
         bundlePath = await BuildAction.bundleFileForGjsCached(scriptPath, {
@@ -96,6 +102,8 @@ export async function runNodeScript(
             // A script is executed, never imported — no default export to preserve.
             preserveDefaultExport: false,
             define: { 'import.meta.url': JSON.stringify(pathToFileURL(scriptPath).href) },
+            globals,
+            excludeGlobals,
         });
     } catch (err) {
         throw new Error(
@@ -106,6 +114,6 @@ export async function runNodeScript(
     }
 
     // Quiet for the same reason as the node path above; the bundle's location is
-    // deterministic (`node_modules/.cache/gjsify/node-scripts/<name>-<hash>.mjs`).
+    // deterministic (`node_modules/.cache/gjsify/node-scripts/<name>-<hash>/<name>.mjs`).
     await runGjsBundle(bundlePath, extraArgs, { exitOnSuccess: options.exitOnSuccess, quiet: true });
 }

@@ -153,9 +153,17 @@ describe('plugins-by-name under the GJS CLI', { skip: SKIP, timeout: 5 * 60 * 10
 
         // The plugin was bundled to a cached self-contained ESM, not imported
         // directly.
+        // One DIRECTORY per (entry, globals policy), with the bundle inside keeping the
+        // SOURCE's basename — a script run through `--node-script` guards its body on
+        // `process.argv[1]` ending with its own name, and a `<name>-<hash>.mjs` bundle
+        // failed that silently (see `bundleFileForGjsCached`).
         const cacheDir = join(projectDir, 'node_modules', '.cache', 'gjsify', 'plugins');
         assert.ok(existsSync(cacheDir), 'plugin GJS-bundle cache dir missing');
-        const cached = readdirSync(cacheDir).filter((f) => f.endsWith('.mjs'));
-        assert.ok(cached.length >= 1, 'no cached plugin bundle written');
+        const entries = readdirSync(cacheDir, { withFileTypes: true });
+        const cached = entries
+            .filter((e) => e.isDirectory())
+            .flatMap((e) => readdirSync(join(cacheDir, e.name)).map((f) => join(e.name, f)))
+            .filter((f) => f.endsWith('.mjs'));
+        assert.ok(cached.length >= 1, `no cached plugin bundle written (cache holds: ${entries.map((e) => e.name)})`);
     });
 });

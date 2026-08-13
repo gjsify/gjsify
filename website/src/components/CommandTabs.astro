@@ -40,22 +40,29 @@ interface Props {
      *
      *   `runtime` (default) — WHICH RUNTIME executes the command.
      *   `pm`               — WHICH PACKAGE MANAGER installs it.
+     *   `distro`           — WHICH DISTRIBUTION supplies the system packages.
      *
-     * They are deliberately separate groups rather than one list. The two
-     * questions are independent (a Node project may install with pnpm), and the
-     * selection is persisted + mirrored across the site — so mixing them would
-     * mean picking "Deno" in one window silently hunting for a nonexistent
-     * "deno" tab in a package-manager window, and picking "pnpm" dragging every
-     * runtime window somewhere arbitrary. Each group keeps its own
-     * localStorage key and only syncs with its own kind.
+     * They are deliberately separate groups rather than one list. The questions
+     * are independent (a Node project may install with pnpm; a Fedora box may
+     * run Deno), and the selection is persisted + mirrored across the site — so
+     * mixing them would mean picking "Deno" in one window silently hunting for a
+     * nonexistent "deno" tab in a package-manager window, and picking "pnpm"
+     * dragging every runtime window somewhere arbitrary. Each group keeps its
+     * own localStorage key and only syncs with its own kind.
      */
-    group?: 'runtime' | 'pm';
+    group?: 'runtime' | 'pm' | 'distro';
     /** Programmatic tabs (alternative to MDX slots) — one command per tab. */
     commands?: { runtime: 'gjsify' | 'npm' | 'bun' | 'deno' | 'yarn' | 'pnpm'; code: string }[];
 }
 
 const { title = 'Terminal', group = 'runtime', commands } = Astro.props;
 
+/**
+ * The tabs a group CAN offer. A page renders only the slots it actually fills,
+ * which is the whole point: a tab is a promise that the command works there, and
+ * a package manager or distribution with no verified spelling for a given command
+ * gets no tab rather than a plausible-looking one.
+ */
 const TAB_SETS: Record<string, { slot: string; label: string }[]> = {
     runtime: [
         { slot: 'gjsify', label: 'GJS' },
@@ -65,12 +72,24 @@ const TAB_SETS: Record<string, { slot: string; label: string }[]> = {
     ],
     // npm first: it is what a reader lands on with no stored preference, and
     // the one every ecosystem tool documents. `gjsify` last — it is ours, and
-    // putting it first would read as steering.
+    // putting it first would read as steering. Bun and Deno are here as PACKAGE
+    // MANAGERS (`bun add`, `deno add`), which is a different question from the
+    // Bun/Deno tabs in the runtime group.
     pm: [
         { slot: 'npm', label: 'npm' },
         { slot: 'yarn', label: 'Yarn' },
         { slot: 'pnpm', label: 'pnpm' },
+        { slot: 'bun', label: 'Bun' },
+        { slot: 'deno', label: 'Deno' },
         { slot: 'gjsify', label: 'GJSify' },
+    ],
+    // Ordered by what the project's own CI and test hosts run, not by
+    // popularity: Fedora is the CI image and the only distribution every
+    // system-package claim on this site has been executed on.
+    distro: [
+        { slot: 'fedora', label: 'Fedora' },
+        { slot: 'debian', label: 'Debian/Ubuntu' },
+        { slot: 'arch', label: 'Arch' },
     ],
 };
 const RUNTIMES = TAB_SETS[group] ?? TAB_SETS.runtime;
