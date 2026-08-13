@@ -30,6 +30,20 @@ import {
 
 type ActionScope = 'app' | 'win';
 
+/**
+ * Does this widget-scope string mean "the active window"?
+ *
+ * `DumpTree`, `GetProperty`, `ActivateWidget` and `Screenshot` all take ONE string
+ * that is either this or a `toplevel:N/child:M` path. ONE predicate rather than the
+ * inline test it replaces, because `_resolveRootWidget` and `Screenshot`'s
+ * not-found split have to ask the identical question — two copies drift into a
+ * scope that resolves for one caller and 404s for the other, which is unreviewable
+ * from either side.
+ */
+function isActiveWindowScope(scope: string): boolean {
+    return !scope || scope === 'window' || scope === 'active';
+}
+
 /** Resolve after `ms`, yielding to the GLib main loop so layout/render can progress. */
 function frameDelay(ms: number): Promise<void> {
     return new Promise((resolve) => {
@@ -177,7 +191,20 @@ export class DevtoolsService {
     }
 
     /**
-     * `Screenshot(scope) -> ay` — PNG bytes of the active window via the GSK renderer.
+     * `Screenshot(scope) -> ay` — PNG bytes of `scope` via the GSK renderer.
+     *
+     * `scope` is the same widget vocabulary `DumpTree`/`GetProperty`/`ActivateWidget`
+     * take: `''`, `window` or `active` for the active window, or a stable
+     * `toplevel:N/child:M` path for ONE widget inside it. Capturing a single widget
+     * costs nothing extra — `captureWidgetPng` snapshots whatever `Gtk.Widget` it is
+     * handed — so the only thing that ever made this window-only was not reading the
+     * argument.
+     *
+     * It went unread for the whole life of the method while being DECLARED in the
+     * interface XML and exposed as a user-facing `scope` parameter on the MCP
+     * `screenshot` tool, which even defaulted it to `'window'`. Asking for a child
+     * widget therefore returned the whole window and said nothing — the failure mode a
+     * declared-but-ignored argument always has, since every caller looks correct.
      *
      * Uses the `<Name>Async` manual-reply convention: the method takes the raw
      * `invocation` and calls `return_value()` itself, and `wrapJSObject` finds it because
@@ -190,9 +217,14 @@ export class DevtoolsService {
      * unaffected. That no longer reproduces on gjs 1.88.1 — a plain `async Screenshot()`
      * returning `ay` marshals correctly — so this can collapse back into one.
      */
-    async ScreenshotAsync(_params: unknown[], invocation: Gio.DBusMethodInvocation): Promise<void> {
+    async ScreenshotAsync(params: unknown[], invocation: Gio.DBusMethodInvocation): Promise<void> {
         try {
-            const png = await this._captureActiveWindowPng();
+            // Defensive rather than trusting the signature: the same service is reached
+            // over the session bus AND the peer transport, and an extension may call the
+            // method directly. A non-string first argument means the active window, which
+            // is what every pre-scope caller expected.
+            const scope = typeof params?.[0] === 'string' ? params[0] : '';
+            const png = await this._captureScopePng(scope);
             invocation.return_value(new GLib.Variant('(ay)', [png]));
         } catch (error) {
             invocation.return_dbus_error(
@@ -203,18 +235,31 @@ export class DevtoolsService {
     }
 
     /**
-     * Capture the active window to PNG, warming up across frames: a just-launched or
-     * mid-layout window yields a zero-size GSK frame, so the first `captureWidgetPng` can
-     * be empty. Empty bytes remain the genuine-failure signal, for a window that never
-     * realises at all.
+     * Capture `scope` to PNG, warming up across frames: a just-launched or mid-layout
+     * window yields a zero-size GSK frame, so the first `captureWidgetPng` can be empty.
+     * Empty bytes remain the genuine-failure signal, for a window that never realises at
+     * all.
      */
-    private async _captureActiveWindowPng(): Promise<Uint8Array> {
-        const win = this._app.get_active_window();
-        if (!win) return new Uint8Array(0);
-        let png = captureWidgetPng(win);
+    private async _captureScopePng(scope: string): Promise<Uint8Array> {
+        const resolved = this._resolveRootWidget(scope);
+        if (!resolved) {
+            // Two different absences, reported differently on purpose. An explicit path
+            // matching no live widget is a CALLER error and gets the same `not-found`
+            // every other path-taking method raises. The DEFAULT scope with no active
+            // window is the app not being up yet — callers already treat empty bytes as
+            // "present it and retry", and turning that into an error would break the
+            // retry the MCP tool performs.
+            if (isActiveWindowScope(scope)) return new Uint8Array(0);
+            throw new Error(formatDbusErrorMessage('not-found', `no widget at '${scope}'`));
+        }
+        let png = captureWidgetPng(resolved.widget);
         if (!png) {
-            win.present();
-            png = await captureWidgetWhenRenderable(win);
+            // Present the toplevel that OWNS the scope rather than `get_active_window()`:
+            // for a child widget the two can differ, and presenting the wrong window
+            // leaves the target unrealised for every one of the retries below.
+            const root = resolved.widget.get_root();
+            if (root instanceof Gtk.Window) root.present();
+            png = await captureWidgetWhenRenderable(resolved.widget);
         }
         return png ?? new Uint8Array(0);
     }
@@ -327,7 +372,7 @@ export class DevtoolsService {
     // --- internals ---
 
     private _resolveRootWidget(root: string): { widget: Gtk.Widget; path: string } | null {
-        if (!root || root === 'window' || root === 'active') {
+        if (isActiveWindowScope(root)) {
             const win = this._app.get_active_window();
             if (!win) return null;
             return { widget: win, path: pathOfWidget(win) ?? 'toplevel:0' };

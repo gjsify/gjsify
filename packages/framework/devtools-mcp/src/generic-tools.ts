@@ -49,9 +49,20 @@ export function registerGenericTools(ctx: McpToolContext, which: GenericToolName
             'screenshot',
             {
                 description:
-                    'Capture a PNG screenshot of the active window via the GTK GSK pipeline. Needs a visible ' +
-                    'window (auto-raises + retries once when the capture comes back empty).',
-                inputSchema: z.object({ scope: z.string().optional(), ...instanceArg }),
+                    'Capture a PNG screenshot via the GTK GSK pipeline. `scope` chooses WHAT is captured: the ' +
+                    'active window by default, or a single widget inside it by path. Needs a visible window ' +
+                    '(auto-raises + retries once when the capture comes back empty).',
+                inputSchema: z.object({
+                    scope: z
+                        .string()
+                        .optional()
+                        .describe(
+                            'What to capture: omitted, "window" or "active" for the active window, or a ' +
+                                '`toplevel:N/child:M` path from dump_tree for one widget. An explicit path ' +
+                                'matching no live widget is an error, not a silent whole-window shot.',
+                        ),
+                    ...instanceArg,
+                }),
             },
             async ({ scope, instance }) => {
                 try {

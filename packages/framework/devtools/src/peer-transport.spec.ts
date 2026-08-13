@@ -209,6 +209,58 @@ export default async () => {
             }
         });
 
+        await it('READS the Screenshot `scope` argument instead of ignoring it', async () => {
+            // The guard for a declared-but-unread argument, which is invisible from every
+            // other angle: `scope` was in the interface XML and on the MCP `screenshot`
+            // tool from the start, and the service took it as `_params` and captured the
+            // active window whatever it said. Asking for a child widget returned the whole
+            // window, successfully, and no test could tell — a shot of the wrong widget is
+            // still a valid PNG.
+            //
+            // A path matching NO live widget is the one input whose two readings differ
+            // OBSERVABLY: unread it is the active window (here: none, so empty bytes and a
+            // happy reply), read it is `not-found`. That is why this asserts an ERROR and
+            // needs no display — with nothing realised, the success path proves nothing.
+            const app = new Gtk.Application({ application_id: 'org.gjsify.PeerSpecShotScope' });
+            const service = new DevtoolsService(app, {});
+            const objectPath = '/org/gjsify/PeerSpecShotScope/devtools';
+            const peer = startDevtoolsPeerServer(service, objectPath);
+            try {
+                const connection = await connectPeer(peer.address);
+                let message = '';
+                try {
+                    await peerCall(
+                        connection,
+                        objectPath,
+                        'Screenshot',
+                        GLib.Variant.new_tuple([GLib.Variant.new_string('toplevel:99/child:0')]),
+                        '(ay)',
+                    );
+                } catch (error) {
+                    message = error instanceof Error ? error.message : String(error);
+                }
+                expect(message).toContain('toplevel:99/child:0');
+                expect(message).toContain('not-found');
+
+                // And the default vocabulary still means the active window, so routing the
+                // argument did not turn every pre-existing caller into an error.
+                for (const scope of ['', 'window', 'active']) {
+                    const reply = await peerCall(
+                        connection,
+                        objectPath,
+                        'Screenshot',
+                        GLib.Variant.new_tuple([GLib.Variant.new_string(scope)]),
+                        '(ay)',
+                    );
+                    const [png] = reply.recursiveUnpack() as [Uint8Array];
+                    expect(png instanceof Uint8Array).toBe(true);
+                }
+                connection.close_sync(null);
+            } finally {
+                peer.stop();
+            }
+        });
+
         await it('keeps nonce-tcp access control on the nonce FILE, readable only by us', async () => {
             // `nonce-tcp:` must be served with `DBusServerFlags.NONE`, because
             // AUTHENTICATION_REQUIRE_SAME_USER rejects every TCP client (no peer
