@@ -438,6 +438,58 @@ launcher defer to the CLI rather than re-derive; that is a launcher-shape change
 and belongs in its own PR, ideally the one that lifts `system-gi` to a shared
 package (above).
 
+**A THIRD SHAPE EXISTS, and it needs no launcher at all — measured 2026-08-13 on
+the macOS 15.7.9 x86_64 VM.** Neither of the two shapes above is the only option,
+because the repair does not have to reach the process from OUTSIDE. GI takes it at
+runtime, from inside the process, in three lines:
+
+```js
+const repo = imports.gi.GIRepository.Repository.dup_default();
+repo.prepend_search_path(dir);   // replaces GI_TYPELIB_PATH
+repo.prepend_library_path(dir);  // replaces DYLD_/LD_LIBRARY_PATH
+```
+
+Measured, plain `gjs`, under `env -u DYLD_FALLBACK_LIBRARY_PATH -u
+DYLD_LIBRARY_PATH -u GI_TYPELIB_PATH`:
+
+| | |
+|---|---|
+| no prepend | `Failed to load shared library 'libgtk-4.1.dylib'` — dlopen tried only gjs's own rpath, `…/Cellar/gjs/1.88.1/bin/../../../../opt/glib/lib`, i.e. **glib's keg alone**, confirming the mechanism this entry describes |
+| with prepend | **`OK gtype: GtkWidget`** |
+
+`Repository.dup_default()`, `prepend_search_path` and `prepend_library_path` are
+all present under gjs 1.88.1 (checked on darwin AND linux). The linux control that
+isolates which call does what: prepending only the SEARCH path finds the typelib
+and then fails with `Failed to load shared library 'libgwebgl.so' referenced by the
+typelib`, so `prepend_library_path` is load-bearing and not redundant.
+
+This is the same call `activateGiLibraryPath()` (#1132) makes in C for node-gi —
+`dup_default()` is node-gi's `DupDefaultRepository()`. What is new is that a GJS
+BUNDLE can make it too, which removes the launcher from this path entirely rather
+than making it smarter.
+
+**It has no snapshot problem** (it runs at app start, so `systemGiLibraryDirs()` is
+evaluated then) and **no shell copy** (same TypeScript, type-checked). Both
+objections above dissolve.
+
+**What it does NOT cover, so the launcher does not disappear wholesale:** a library
+pulled in through ANOTHER library's link closure (`LC_LOAD_DYLIB` / `NEEDED`). The
+loader resolves those and GI never sees them, so only `@rpath`/`$ORIGIN` in the
+binaries reaches them — the same distinction ADR 0023 § 4 draws, and the reason
+#1144 is not fixed by this.
+
+**The one open decision before implementing.** The dirs have to come from
+somewhere the bundle can import. Two of the three sources are relative to the app
+tree (gjsify's own `prebuilds/<target>` dirs, a chosen GTK bundle's `libDir`) and
+need nothing new. The SYSTEM dirs need `systemGiLibraryDirs()`, which lives in
+`@gjsify/node-gi` — a package with exactly ONE dependency (`node-addon-api`) and
+not a workspace member, so importing it from a bundle, or giving it a
+`@gjsify/utils` dependency, both change a posture that looks deliberate. Lifting
+the canonical copy to `@gjsify/utils/core` (pure, already the home for this kind
+of helper) and keeping node-gi's as the pinned mirror it already is would leave the
+copy count unchanged and make it importable — but that is node-gi's dependency
+posture, so it wants a deliberate call rather than a drive-by.
+
 ### Bun DID hard-crash in the N-API teardown class — the first one, and the note that predicted it asked to be told
 
 **Cross-reference (added 2026-08-06): #925 files the same `test/arrays.test.mjs` occurrences as a TEST FLAKE, while this entry files them as an N-API teardown crash class (`free(): invalid pointer`, a glibc abort). Same file, two theories. Whichever is right, the next occurrence should be read from the RAW job log for a `----- Native stack trace -----` block, which is what tells the two apart.**
