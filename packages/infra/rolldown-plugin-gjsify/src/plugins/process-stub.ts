@@ -18,6 +18,7 @@ import type { Plugin } from 'rolldown';
 
 import { BUNDLE_URL_BANNER } from './bundle-url-banner.js';
 import { GJS_WELLKNOWN_SYMBOLS_STUB } from './wellknown-symbols-banner.js';
+import { giRuntimePathsStub } from './gi-runtime-paths.js';
 
 // Every GJS ambient global is reached through `globalThis.` — NEVER as a bare
 // identifier. The banner shares the module's top-level scope with the bundled
@@ -124,6 +125,14 @@ export interface ProcessStubPluginOptions {
      * ESM-only — set by the orchestrator when `format === 'esm'`.
      */
     captureBundleUrl?: boolean;
+    /**
+     * Directories, RELATIVE to the program's own directory, holding typelibs and
+     * their backing libraries. Emitted as a byte-1 prologue that hands them to GI at
+     * runtime, so the bundle needs no `GI_TYPELIB_PATH` / loader-path environment and
+     * therefore no launcher (see `gi-runtime-paths.ts` for the measurement).
+     * Empty or unset emits nothing.
+     */
+    giRuntimePaths?: readonly string[];
 }
 
 export function processStubPlugin(options: ProcessStubPluginOptions = {}): Plugin {
@@ -132,7 +141,14 @@ export function processStubPlugin(options: ProcessStubPluginOptions = {}): Plugi
     // well-known-symbols polyfill must also run before any module init, so it
     // joins the byte-1 banner. All three pieces are single-line (no source-map
     // drift) and idempotent.
-    const stub = (options.captureBundleUrl ? BUNDLE_URL_BANNER : '') + GJS_WELLKNOWN_SYMBOLS_STUB + GJS_PROCESS_STUB;
+    // The GI path prologue goes LAST of the three: it reads `imports.system`, which
+    // the process stub does not provide and does not disturb, and it must still run
+    // before any module init so the first `gi://` import already sees the paths.
+    const stub =
+        (options.captureBundleUrl ? BUNDLE_URL_BANNER : '') +
+        GJS_WELLKNOWN_SYMBOLS_STUB +
+        GJS_PROCESS_STUB +
+        giRuntimePathsStub(options.giRuntimePaths ?? []);
     const banner = composeBanner(stub, options.userBanner ?? '');
     return {
         name: 'gjsify-process-stub',

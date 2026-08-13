@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import bundlerPickSuite from './bundler-pick.spec.js';
 import cliFailSuite from './cli-fail.spec.js';
 import installProjectEngineSuite from './commands/install-project-engine.spec.js';
+import giRuntimePathsBannerSuite from './gi-runtime-paths-banner.spec.js';
 import processStubBannerSuite from './process-stub-banner.spec.js';
 import barrelsGenerateSuite from './barrels-generate.spec.js';
 import npmOidcSuite from './npm-oidc.spec.js';
@@ -183,6 +184,7 @@ run(
         bundlerPickSuite,
         cliFailSuite,
         installProjectEngineSuite,
+        giRuntimePathsBannerSuite,
         processStubBannerSuite,
         barrelsGenerateSuite,
         npmOidcSuite,
