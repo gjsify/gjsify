@@ -8,7 +8,7 @@
 // `pipx install flatpak-node-generator` or `pip install --user
 // flatpak-node-generator`.
 
-import { spawn } from 'node:child_process';
+import { describeExit, spawnToCompletion } from '../../utils/spawn.js';
 import { existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { mkdirSync } from 'node:fs';
@@ -82,26 +82,21 @@ export const flatpakDepsCommand: Command<unknown, FlatpakDepsOptions> = {
             console.log(`[gjsify flatpak deps] flatpak-node-generator ${cmdArgs.join(' ')}`);
         }
 
-        await new Promise<void>((res, rej) => {
-            const child = spawn('flatpak-node-generator', cmdArgs, { stdio: 'inherit' });
-            child.on('error', (err: NodeJS.ErrnoException) => {
-                if (err.code === 'ENOENT') {
-                    rej(
-                        new Error(
-                            'gjsify flatpak deps: flatpak-node-generator not found. ' +
-                                'Install via `pipx install flatpak-node-generator` ' +
-                                '(see https://github.com/flatpak/flatpak-builder-tools/tree/master/node).',
-                        ),
-                    );
-                } else {
-                    rej(err);
-                }
-            });
-            child.on('exit', (code) => {
-                if (code === 0) res();
-                else rej(new Error(`gjsify flatpak deps: flatpak-node-generator exited with status ${code}`));
-            });
+        // `completion: 'return'` — this handler ends with a `console.log`, so under
+        // GJS an async spawn would leave `ensureMainLoop`'s loop armed and park the
+        // command after the generator had already finished.
+        const result = await spawnToCompletion('flatpak-node-generator', cmdArgs, {
+            completion: 'return',
+            notFound: () =>
+                new Error(
+                    'gjsify flatpak deps: flatpak-node-generator not found. ' +
+                        'Install via `pipx install flatpak-node-generator` ' +
+                        '(see https://github.com/flatpak/flatpak-builder-tools/tree/master/node).',
+                ),
         });
+        if (result.code !== 0) {
+            throw new Error(`gjsify flatpak deps: flatpak-node-generator exited with ${describeExit(result)}`);
+        }
 
         console.log(`[gjsify flatpak deps] wrote ${out}`);
     },

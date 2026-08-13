@@ -18,7 +18,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { homedir } from 'node:os';
-import { execFile, spawn } from 'node:child_process';
+import { execFile } from 'node:child_process';
+import { describeExit, spawnToCompletion } from '../../utils/spawn.js';
 import { promisify } from 'node:util';
 import type { Command, ConfigData } from '../../types/index.js';
 import { Config } from '../../config.js';
@@ -271,25 +272,20 @@ async function detectDefaultBranch(cloneDir: string, verbose?: boolean): Promise
     return 'master';
 }
 
-function gitInRepo(cwd: string, args: string[], verbose?: boolean): Promise<void> {
+// `completion: 'return'` on both helpers below — this command's handler ends with a
+// `console.log` and returns, so under GJS an async spawn would leave
+// `ensureMainLoop`'s loop armed and park the sync after the PR was already open.
+async function gitInRepo(cwd: string, args: string[], verbose?: boolean): Promise<void> {
     if (verbose) console.log(`[gjsify flatpak sync-flathub] git ${args.join(' ')} (in ${cwd})`);
-    return new Promise((res, rej) => {
-        const child = spawn('git', args, { cwd, stdio: 'inherit' });
-        child.on('error', (err: NodeJS.ErrnoException) => {
-            if (err.code === 'ENOENT') {
-                rej(new Error('[gjsify flatpak sync-flathub] `git` not found. Install it from your distro.'));
-            } else {
-                rej(err);
-            }
-        });
-        child.on('exit', (code) => {
-            if (code === 0) res();
-            else rej(new Error(`git ${args[0]} exited ${code}`));
-        });
+    const result = await spawnToCompletion('git', args, {
+        completion: 'return',
+        cwd,
+        notFound: () => new Error('[gjsify flatpak sync-flathub] `git` not found. Install it from your distro.'),
     });
+    if (result.code !== 0) throw new Error(`git ${args[0]} exited ${describeExit(result)}`);
 }
 
-function ghCreate(
+async function ghCreate(
     cloneDir: string,
     flathubRepo: string,
     branch: string,
@@ -310,24 +306,15 @@ function ghCreate(
         body,
     ];
     if (verbose) console.log(`[gjsify flatpak sync-flathub] gh ${args.join(' ')} (in ${cloneDir})`);
-    return new Promise((res, rej) => {
-        const child = spawn('gh', args, { cwd: cloneDir, stdio: 'inherit' });
-        child.on('error', (err: NodeJS.ErrnoException) => {
-            if (err.code === 'ENOENT') {
-                rej(
-                    new Error(
-                        '[gjsify flatpak sync-flathub] `gh` (GitHub CLI) not found. Install via `dnf install gh` (Fedora), `apt install gh` (Debian/Ubuntu), or `flatpak install -y flathub com.github.cli`.',
-                    ),
-                );
-            } else {
-                rej(err);
-            }
-        });
-        child.on('exit', (code) => {
-            if (code === 0) res();
-            else rej(new Error(`gh pr create exited ${code}`));
-        });
+    const result = await spawnToCompletion('gh', args, {
+        completion: 'return',
+        cwd: cloneDir,
+        notFound: () =>
+            new Error(
+                '[gjsify flatpak sync-flathub] `gh` (GitHub CLI) not found. Install via `dnf install gh` (Fedora), `apt install gh` (Debian/Ubuntu), or `flatpak install -y flathub com.github.cli`.',
+            ),
     });
+    if (result.code !== 0) throw new Error(`gh pr create exited ${describeExit(result)}`);
 }
 
 /**

@@ -273,6 +273,30 @@ export default async () => {
             });
             expect(r.code).toBe(0);
         });
+
+        await it('capture hands both streams back instead of emitting them', async () => {
+            const r = await spawnToCompletion(
+                ...node("process.stdout.write('out'); process.stderr.write('err'); process.exit(3)"),
+                { completion: 'return', stdio: 'capture' },
+            );
+            expect(r.code).toBe(3);
+            expect(r.stdout).toBe('out');
+            expect(r.stderr).toBe('err');
+        });
+
+        await it('capture composes with completion: return, unlike pipe', async () => {
+            // The reason the mode exists: `'pipe'` hands back a live `ChildProcess`
+            // the blocking path cannot produce, so it is `'exit'`-only — which left a
+            // caller that must stay quiet on success and return normally (`gjsify
+            // flatpak check`) with no option but a raw spawn.
+            const r = await spawnToCompletion(...node('process.exit(0)'), {
+                completion: 'return',
+                stdio: 'capture',
+            });
+            expect(r.code).toBe(0);
+            expect(r.stdout).toBe('');
+            expect(r.stderr).toBe('');
+        });
     });
 
     await describe('describeExit', async () => {

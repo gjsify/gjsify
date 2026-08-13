@@ -12,7 +12,7 @@
 
 import { existsSync, readdirSync } from 'node:fs';
 import { resolve, join } from 'node:path';
-import { spawn } from 'node:child_process';
+import { type SpawnCompletion, spawnToCompletion } from '../../utils/spawn.js';
 import type { Command, ConfigData, ConfigDataFlatpak } from '../../types/index.js';
 import { readPackageJson, looksLikeAppId } from './utils.js';
 import { Config } from '../../config.js';
@@ -140,48 +140,39 @@ function resolveManifestPath(explicit: string | undefined, appId: string | undef
     );
 }
 
-function runLinter(bin: string, args: string[], verbose: boolean): Promise<boolean> {
-    return new Promise((resolveP) => {
-        const child = spawn(bin, args, {
-            stdio: verbose ? 'inherit' : ['ignore', 'pipe', 'pipe'],
+async function runLinter(bin: string, args: string[], verbose: boolean): Promise<boolean> {
+    // `completion: 'return'` — the handler's SUCCESS path ends with a `console.log`
+    // and returns, so under GJS an async spawn leaves `ensureMainLoop`'s loop armed
+    // and the command parks at 0 % CPU after every check has passed. The failure
+    // path exits, which is why the hang would have shown up only on a clean run.
+    let result: SpawnCompletion;
+    try {
+        result = await spawnToCompletion(bin, args, {
+            completion: 'return',
+            stdio: verbose ? 'inherit' : 'capture',
         });
-        let stdout = '';
-        let stderr = '';
-        if (!verbose) {
-            child.stdout?.setEncoding('utf-8');
-            child.stderr?.setEncoding('utf-8');
-            child.stdout?.on('data', (c) => {
-                stdout += c;
-            });
-            child.stderr?.on('data', (c) => {
-                stderr += c;
-            });
+    } catch (err) {
+        const e = err as NodeJS.ErrnoException;
+        if (e.code === 'ENOENT') {
+            console.error(
+                `[gjsify flatpak check] ${bin} not found in PATH.\n` +
+                    `Install via:\n` +
+                    `  flatpak install -y flathub org.flatpak.Builder\n` +
+                    `  alias ${bin}="flatpak run --command=${bin} org.flatpak.Builder"`,
+            );
+        } else {
+            console.error(`[gjsify flatpak check] ${bin} failed to spawn: ${e.message}`);
         }
-        child.on('error', (err) => {
-            const e = err as NodeJS.ErrnoException;
-            if (e.code === 'ENOENT') {
-                console.error(
-                    `[gjsify flatpak check] ${bin} not found in PATH.\n` +
-                        `Install via:\n` +
-                        `  flatpak install -y flathub org.flatpak.Builder\n` +
-                        `  alias ${bin}="flatpak run --command=${bin} org.flatpak.Builder"`,
-                );
-            } else {
-                console.error(`[gjsify flatpak check] ${bin} failed to spawn: ${e.message}`);
-            }
-            resolveP(false);
-        });
-        child.on('exit', (code) => {
-            const ok = code === 0;
-            const tag = ok ? 'OK' : 'FAIL';
-            console.log(`[gjsify flatpak check] ${tag}: ${bin} ${args.join(' ')}`);
-            if (!ok && !verbose) {
-                if (stdout.trim()) console.log(stdout.trimEnd());
-                if (stderr.trim()) console.error(stderr.trimEnd());
-            }
-            resolveP(ok);
-        });
-    });
+        return false;
+    }
+
+    const ok = result.code === 0;
+    console.log(`[gjsify flatpak check] ${ok ? 'OK' : 'FAIL'}: ${bin} ${args.join(' ')}`);
+    if (!ok && !verbose) {
+        if (result.stdout?.trim()) console.log(result.stdout.trimEnd());
+        if (result.stderr?.trim()) console.error(result.stderr.trimEnd());
+    }
+    return ok;
 }
 
 void join;
