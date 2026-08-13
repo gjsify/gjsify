@@ -29,6 +29,7 @@ export * from './globals.js';
 export * from './host-os.js';
 export * from './message.js';
 export * from './microtask.js';
+export * from './path-shape.js';
 export * from './platform-names.js';
 export * from './structured-clone.js';
 

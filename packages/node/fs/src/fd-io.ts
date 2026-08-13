@@ -28,6 +28,7 @@
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import GioUnix from '@girs/giounix-2.0';
+import { splitPathComponents } from '@gjsify/utils/core';
 
 import { createNodeError } from './errors.js';
 
@@ -290,11 +291,18 @@ export function answered(info: Gio.FileInfo | null): boolean {
     return info !== null && info.has_attribute('standard::type');
 }
 
-/** `NAME_MAX` / `PATH_MAX`, counted in BYTES — the limits are on the encoded name, not on code points. */
+/**
+ * `NAME_MAX` / `PATH_MAX`, counted in BYTES — the limits are on the encoded name, not on
+ * code points.
+ *
+ * Components come from `@gjsify/utils/core`, which splits on the separators the path
+ * actually uses: `split('/')` yielded ONE component for `C:\a\b`, so a win32 path was
+ * length-checked as a whole and every per-name limit went unenforced (#1143).
+ */
 function nameTooLong(path: string, syscall: string): NodeJS.ErrnoException | null {
     const encoder = new TextEncoder();
     if (encoder.encode(path).length > 4096) return fsError('ENAMETOOLONG', syscall, path);
-    for (const component of path.split('/')) {
+    for (const component of splitPathComponents(path)) {
         if (encoder.encode(component).length > 255) return fsError('ENAMETOOLONG', syscall, path);
     }
     return null;

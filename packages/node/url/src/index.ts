@@ -3,8 +3,29 @@
 // See refs/deno/ext/node/polyfills/url.ts, refs/bun/src/js/node/url.ts, refs/node/lib/url.js
 
 import GLib from '@girs/glib-2.0';
+// `/core` — the pure half. `path-shape` owns the ONE path↔`file://` conversion in the tree,
+// so `@gjsify/fetch` building a base URL and `pathToFileURL` here cannot drift apart (#1143).
+import { hostOs, isWin32, isWindowsPath, pathToFileUrlHref } from '@gjsify/utils/core';
 
 const PARSE_FLAGS = GLib.UriFlags.HAS_PASSWORD | GLib.UriFlags.ENCODED | GLib.UriFlags.SCHEME_NORMALIZE;
+
+/**
+ * Should a path be read as win32 when the caller did not say?
+ *
+ * The HOST decides wherever the host can be identified — that is Node's rule and keeping it
+ * means `pathToFileURL('C:/x')` on Linux stays relative-to-CWD there, as Node has it, rather
+ * than being promoted to a drive path because a directory happens to be called `C:`.
+ *
+ * Where the host CANNOT be identified, the path's own shape is the only evidence there is.
+ * That case is real and is not an edge: `hostPlatform()` reads the `process` global that
+ * `@gjsify/process` installs, and a GJS bundle built without the node globals has none — so a
+ * host-only reading would answer "not Windows" on win32 and reintroduce #1143. `hostOs()`
+ * returns `undefined` there precisely so a caller can tell "unknown" from "POSIX" instead of
+ * collapsing the two.
+ */
+function platformOrShapeIsWindows(filepath: string): boolean {
+    return hostOs() === undefined ? isWindowsPath(filepath) : isWin32();
+}
 
 export class URLSearchParams {
     _entries: [string, string][] = [];
@@ -508,7 +529,12 @@ export function resolve(from: string, to: string): string {
     return new URL(to, new URL(from, 'resolve://')).href.replace(/^resolve:\/\//, '');
 }
 
-export function fileURLToPath(url: string | URL): string {
+/**
+ * @param options.windows read the URL as naming a win32 path — Node's own escape hatch
+ *   (`refs/node/lib/internal/url.js`), and the only way to ask for the non-host answer from
+ *   a POSIX runner. Defaults to the host.
+ */
+export function fileURLToPath(url: string | URL, options?: { windows?: boolean }): string {
     if (typeof url === 'string') {
         url = new URL(url);
     }
@@ -521,27 +547,65 @@ export function fileURLToPath(url: string | URL): string {
         throw new TypeError('The URL must be of scheme file');
     }
 
-    if (url.hostname !== '' && url.hostname !== 'localhost') {
-        throw new TypeError(`File URL host must be "localhost" or empty on linux`);
+    const windows = options?.windows ?? platformOrShapeIsWindows(decodeURIComponent(url.pathname).slice(1));
+    const pathname = url.pathname;
+
+    // An encoded separator would decode into one MORE path component than the URL names, so
+    // it is refused before anything is decoded. Node's rule is ASYMMETRIC and both halves are
+    // measured against it: win32 refuses `%2F` AND `%5C` (both are separators there) under one
+    // message, while POSIX refuses only `%2F` and reads `%5C` as an ordinary character in a
+    // filename (`refs/node/lib/internal/url.js`).
+    for (let i = 0; i < pathname.length; i++) {
+        if (pathname[i] !== '%') continue;
+        const third = pathname.codePointAt(i + 2)! | 0x20;
+        const encodedSlash = pathname[i + 1] === '2' && third === 102;
+        const encodedBackslash = pathname[i + 1] === '5' && third === 99;
+        if (windows && (encodedSlash || encodedBackslash)) {
+            throw new TypeError('File URL path must not include encoded \\ or / characters');
+        }
+        if (encodedSlash) {
+            throw new TypeError('File URL path must not include encoded / characters');
+        }
     }
 
-    const pathname = url.pathname;
-    for (let i = 0; i < pathname.length; i++) {
-        if (pathname[i] === '%') {
-            const third = pathname.codePointAt(i + 2)! | 0x20;
-            if (pathname[i + 1] === '2' && third === 102) {
-                throw new TypeError('File URL path must not include encoded / characters');
-            }
+    // A UNC path is the one shape where a file URL legitimately HAS a host, and it only means
+    // that on win32. The message named `linux` unconditionally while the check refused UNC on
+    // every platform (#1143).
+    if (url.hostname !== '' && url.hostname !== 'localhost') {
+        if (!windows) {
+            throw new TypeError(`File URL host must be "localhost" or empty on ${hostOs() ?? 'this platform'}`);
         }
+        return `\\\\${url.hostname}${decodeURIComponent(pathname).replace(/\//g, '\\')}`;
+    }
+
+    if (windows) {
+        // `/C:/app/dist` → `C:\app\dist`: the leading slash is the URL's empty host, not part
+        // of the path.
+        const decoded = decodeURIComponent(pathname);
+        if (/^\/[A-Za-z]:/.test(decoded)) return decoded.slice(1).replace(/\//g, '\\');
+        return decoded.replace(/\//g, '\\');
     }
 
     return decodeURIComponent(pathname);
 }
 
-export function pathToFileURL(filepath: string): URL {
+/**
+ * @param options.windows treat `filepath` as a win32 path even where the host is not — Node's
+ *   own escape hatch (`refs/node/lib/internal/url.js`), and how the win32 behaviour is checked
+ *   from the Linux runner CI actually has (#1143).
+ *
+ * Not yet at Node parity: Node runs `path.win32.resolve()` first, so a RELATIVE path gets the
+ * current drive. Here a relative path is still joined to the CWD with `/`. Recorded in
+ * `status/open-todos.md` rather than half-done.
+ */
+export function pathToFileURL(filepath: string, options?: { windows?: boolean }): URL {
+    const windows = options?.windows ?? platformOrShapeIsWindows(filepath);
     let resolved = filepath;
 
-    if (filepath[0] !== '/') {
+    // Absoluteness is a per-platform question: `filepath[0] !== '/'` called every win32
+    // absolute path relative and prepended the CWD to it (#1143).
+    const absolute = windows ? isWindowsPath(filepath) || filepath.startsWith('/') : filepath.startsWith('/');
+    if (!absolute) {
         if (typeof globalThis.process?.cwd === 'function') {
             resolved = globalThis.process.cwd() + '/' + filepath;
         } else if (GLib?.get_current_dir) {
@@ -551,32 +615,7 @@ export function pathToFileURL(filepath: string): URL {
         }
     }
 
-    return new URL('file://' + encodePathForURL(resolved));
-}
-
-function encodePathForURL(filepath: string): string {
-    let result = '';
-    for (let i = 0; i < filepath.length; i++) {
-        const ch = filepath[i];
-        if (
-            (ch >= 'a' && ch <= 'z') ||
-            (ch >= 'A' && ch <= 'Z') ||
-            (ch >= '0' && ch <= '9') ||
-            ch === '/' ||
-            ch === '-' ||
-            ch === '_' ||
-            ch === '.' ||
-            ch === '~' ||
-            ch === ':' ||
-            ch === '@' ||
-            ch === '!'
-        ) {
-            result += ch;
-        } else {
-            result += encodeURIComponent(ch);
-        }
-    }
-    return result;
+    return new URL(pathToFileUrlHref(resolved, { windows }));
 }
 
 export function domainToASCII(domain: string): string {
