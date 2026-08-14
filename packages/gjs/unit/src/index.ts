@@ -1009,7 +1009,12 @@ export const describe = async function (
         await withTimeout(callback, suiteTimeoutMs, `describe: ${moduleName}`);
     } catch (e) {
         if (e instanceof TimeoutError) {
+            // Counted AND recorded. This used to raise the tally without entering the
+            // failure ledger, so the run reported "1 of N tests failed" over a ledger
+            // that named nothing — which is the whole of #1159. A recap alone would
+            // not have fixed it: there was nothing to recap.
             ++countTestsFailed;
+            testErrors.push({ suite: moduleName, test: '<suite timed out>', message: e.message });
             print(`  ${RED}⏱ Suite timed out: ${e.message}${RESET}`);
         } else {
             throw e;
@@ -1522,10 +1527,106 @@ const printResult = () => {
     }
 
     if (countTestsFailed) {
+        printFailureRecap(rtTag);
         print(`\n${RED}❌ ${rtTag}${countTestsFailed} of ${countTestsOverall} tests failed${durationStr}${RESET}`);
     } else {
         print(`\n${GREEN}✔ ${rtTag}${countTestsOverall} completed${durationStr}${RESET}`);
     }
+};
+
+/**
+ * Name every failure, right above the summary that counts them.
+ *
+ * WHY (#1159). The summary line was the only failure signal and it names nothing, and
+ * NO marker distinguished a failing line from a passing one: a grep for `✖`, `✘`,
+ * `❌`, `not ok` or `AssertionError` over a 9305-line CI log returned the summary and
+ * nothing else. Locating one test name in a red macOS run took about fifteen minutes
+ * of pure retrieval — and `macos-suites.yml` / `windows-suites.yml` run on `main` and
+ * the nightly, NOT on PRs (ADR 0018 § 5), so the least readable legs are exactly the
+ * ones nobody watches live, read by someone deciding whether their merge did it.
+ *
+ * `✖` is the marker because it appears nowhere else in this runner's output (`✗` is
+ * expected failures, `❌` is the per-test line and the summary), so `grep '✖'` alone
+ * answers "what failed" without any recap being read.
+ *
+ * IT ALSO REPORTS ITS OWN BLIND SPOT. The tally and the ledger are two counters, and
+ * they were out of step: both timeout paths raised the tally without recording
+ * anything, which is why the incident that motivated #1159 had nothing to recap in
+ * the first place. Rather than silently listing fewer failures than it counted, a
+ * mismatch is stated — a gap that announces itself cannot be mistaken for a clean
+ * list.
+ */
+const printFailureRecap = (rtTag: string): void => {
+    for (const line of formatFailureRecap(testErrors, countTestsFailed, rtTag)) print(line);
+    // On Actions, also put the names on the run's SUMMARY page. That is where the
+    // person who just merged is already looking, and until now the only annotation
+    // there was `Process completed with exit code 1`.
+    if (envVar('GITHUB_ACTIONS')) for (const line of formatFailureAnnotations(testErrors, rtTag)) print(line);
+};
+
+/**
+ * The failures as GitHub Actions `::error::` workflow commands.
+ *
+ * Separate from the human recap because the constraints differ: a command must start
+ * at column 0, carry no SGR codes (they would be printed literally in the annotation),
+ * and encode newlines as `%0A`. Emitting a coloured recap line here would put escape
+ * sequences on the summary page.
+ *
+ * Capped, because Actions renders at most ten annotations per step and this runner is
+ * launched once per runtime per shard — a 200-failure leg would spend the whole budget
+ * on one shard and push every other leg's first failure off the page. The count is
+ * stated when it truncates, so the cap can never read as "that was all of them".
+ */
+export const formatFailureAnnotations = (
+    entries: ReadonlyArray<{ suite: string; test: string; message: string }>,
+    rtTag = '',
+    max = 10,
+): string[] => {
+    const escape = (s: string): string => s.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A');
+    const lines = entries
+        .slice(0, max)
+        .map(
+            (e) =>
+                `::error title=${escape(`${rtTag}${e.suite} › ${e.test}`)}::${escape(e.message.trim().split('\n')[0]!)}`,
+        );
+    if (entries.length > max) {
+        lines.push(
+            `::error title=${escape(`${rtTag}more failures`)}::${entries.length - max} further failure(s) — see the ✖ recap in the log`,
+        );
+    }
+    return lines;
+};
+
+/**
+ * The recap's LINES, as a pure function of the ledger and the tally.
+ *
+ * Split out so a spec can drive the shipping formatter: `printFailureRecap` reads
+ * module-level state and writes to stdout, neither of which a test can reach — and a
+ * reporter nothing tests is how the gap in #1159 lasted this long. The colour codes
+ * are applied here too, so assertions see the shipped strings rather than a parallel
+ * spelling of them.
+ */
+export const formatFailureRecap = (
+    entries: ReadonlyArray<{ suite: string; test: string; message: string }>,
+    countFailed: number,
+    rtTag = '',
+): string[] => {
+    const lines = [`\n${RED}✖ ${rtTag}failed test${entries.length === 1 ? '' : 's'}${RESET}`];
+    for (const e of entries) {
+        // First line only: an assertion's message can be a multi-line diff, and this
+        // block exists to be SCANNED. The full text is already above, at the failure.
+        const reason = e.message.trim().split('\n')[0];
+        lines.push(`  ${RED}✖ ${e.suite} › ${e.test}${RESET}${GRAY} — ${reason}${RESET}`);
+    }
+
+    if (entries.length !== countFailed) {
+        lines.push(
+            `  ${RED}✖ ${countFailed} failure${countFailed === 1 ? '' : 's'} counted but ` +
+                `${entries.length} named — a failure path is raising the tally without recording ` +
+                `itself, so this list is INCOMPLETE${RESET}`,
+        );
+    }
+    return lines;
 };
 
 /**
@@ -1596,8 +1697,12 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
                 await withTimeout(() => runTests(namespaces), timeoutConfig.runTimeout, 'entire test run');
             } catch (e) {
                 if (e instanceof TimeoutError) {
+                    // Recorded for the same reason as the suite timeout above: a
+                    // counted failure that is absent from the ledger cannot be named
+                    // in the recap, and the recap is the only place a CI reader looks.
                     print(`\n${RED}⏱ ${e.message}${RESET}`);
                     ++countTestsFailed;
+                    testErrors.push({ suite: '<test run>', test: '<run timed out>', message: e.message });
                 } else {
                     throw e;
                 }

@@ -194,9 +194,28 @@ function runGjsBundle(outFile) {
     }
 }
 
-function runBundle(outFile) {
+/**
+ * Run the bundle with the CI-detection env PINNED rather than inherited.
+ *
+ * `GITHUB_ACTIONS` is exported into every Actions step and a spawned child inherits
+ * it, so the runner's annotation branch (#1159) fired in CI and not locally: the same
+ * input, two code paths, decided by an env var no test mentioned. That is exactly the
+ * trap `packages/infra/cli/src/affected-classifier.spec.ts` documents for
+ * `GITHUB_OUTPUT`, and it cost a red E2E here before this pin existed.
+ *
+ * `githubActions: true` opts INTO the annotation path, for the test that covers it.
+ */
+function runBundle(outFile, { githubActions = false } = {}) {
+    const env = { ...process.env };
+    if (githubActions) env.GITHUB_ACTIONS = 'true';
+    else delete env.GITHUB_ACTIONS;
     try {
-        const stdout = execFileSync('node', [outFile], { stdio: 'pipe', timeout: 60 * 1000, encoding: 'utf8' });
+        const stdout = execFileSync('node', [outFile], {
+            stdio: 'pipe',
+            timeout: 60 * 1000,
+            encoding: 'utf8',
+            env,
+        });
         return { code: 0, out: stdout };
     } catch (e) {
         return { code: e.status ?? -1, out: `${e.stdout ?? ''}${e.stderr ?? ''}` };
@@ -262,11 +281,61 @@ describe('@gjsify/unit failure attribution E2E', { timeout: 5 * 60 * 1000 }, () 
         // this is where the failure surfaced — in a spec that touches nothing.
         assert.match(plain, /✔ B bystander never touches the cwd/, 'the later bystander must stay green');
 
-        // Reported once, not once per remaining test.
-        const occurrences = plain.split('deleted working directory').length - 1;
-        assert.strictEqual(occurrences, 1, 'the transition is reported exactly once');
+        // Reported at the failure and once more in the recap — and NOWHERE else.
+        //
+        // The property under test is that the count does not scale with the suite: the
+        // bug this pins reported the transition once per REMAINING test. Since #1159 the
+        // runner also names every failure in a recap block above the summary, so the
+        // honest assertion is one occurrence on each side of that block's header rather
+        // than a loosened "at least one", which would stop noticing per-test repetition.
+        const parts = plain.split(/^\u2716 .*failed tests?$/m);
+        assert.strictEqual(parts.length, 2, 'expected exactly one failure-recap header');
+        assert.strictEqual(
+            parts[0].split('deleted working directory').length - 1,
+            1,
+            'the transition is reported exactly once where it happened',
+        );
+        assert.strictEqual(
+            parts[1].split('deleted working directory').length - 1,
+            1,
+            'and exactly once in the recap that names it',
+        );
 
         assert.notStrictEqual(code, 0, 'a run that destroyed its cwd must exit non-zero');
+    });
+
+    it('under GITHUB_ACTIONS the failure is also emitted as a workflow command', () => {
+        // The branch that turned this suite red before `runBundle` pinned the env: on
+        // Actions the runner also writes `::error::` lines so the names reach the run's
+        // summary page. Covered here rather than left to the machine — an output branch
+        // that only appears in CI is one nobody reads until it breaks something else.
+        const out = join(tmpDir, 'annotated-cwd.node.mjs');
+        buildEntryFromUnitSrc('__e2e_annotated_cwd.mts', DELETED_CWD_SUITE, out);
+        const { code, out: stdout } = runBundle(out, { githubActions: true });
+        const plain = stripAnsi(stdout);
+
+        const commands = plain.split('\n').filter((l) => l.startsWith('::error title='));
+        assert.strictEqual(commands.length, 1, 'exactly one annotation for the one failure');
+        assert.match(commands[0], /deleted working directory/, 'the annotation carries the reason');
+
+        // A workflow command must start at column 0 and carry no SGR bytes, or Actions
+        // prints it literally instead of rendering an annotation.
+        const raw = stdout.split('\n').find((l) => l.includes('::error title='));
+        assert.ok(raw.startsWith('::error title='), 'the command must start at column 0');
+        // A plain substring check, not a regex: `no-control-regex` flags the escape in
+        // either spelling, and the suppression would be noise for a one-character test.
+        assert.ok(!raw.includes('\u001b['), 'the command must carry no escape codes');
+
+        assert.notStrictEqual(code, 0, 'still a failing run');
+    });
+
+    it('without GITHUB_ACTIONS it emits no workflow commands', () => {
+        // The other half of the pin: the default path must stay quiet, so a developer
+        // reading the log locally never sees Actions plumbing.
+        const out = join(tmpDir, 'unannotated-cwd.node.mjs');
+        buildEntryFromUnitSrc('__e2e_unannotated_cwd.mts', DELETED_CWD_SUITE, out);
+        const { out: stdout } = runBundle(out);
+        assert.doesNotMatch(stripAnsi(stdout), /^::error/m, 'no workflow commands off Actions');
     });
 
     it('a clean suite (incl. toThrow-wrapped matcher) reports zero failures', () => {
