@@ -2,73 +2,58 @@
 /**
  * Generate the per-target platform packages of every native bridge — ADR 0017.
  *
- * WHAT AND WHY
+ * A native bridge used to ship every `<os>-<arch>` prebuild it promises in ONE
+ * tarball. Measured here: 97.3 MB of committed binaries, of which a `linux-x64`
+ * consumer could load 31.5 MB — 68 % downloaded and never loadable, growing with
+ * every emulated architecture and taxing the 95 % of users not on it.
  *
- * A native bridge used to ship every `<os>-<arch>` prebuild it promises inside
- * ONE tarball. Measured on this tree: 97.3 MB of committed binaries, of which a
- * `linux-x64` consumer could load 31.5 MB. 68 % of the bytes were downloaded and
- * never loadable, and the number grows with every emulated architecture the
- * project adds — each new target taxing the 95 % of users who are not on it.
+ * ADR 0017 adopts the ecosystem answer (esbuild ships 26 of these; napi-rs,
+ * rolldown, oxc, lightningcss the same): the bridge keeps its name, API and loader
+ * contract and declares one `optionalDependencies` entry per target, each holding
+ * that target's binary behind `os`/`cpu`. A package manager installs the one that
+ * fits and SILENTLY skips the rest — silently, because a platform mismatch on an
+ * OPTIONAL dependency is not an error (on a required one it is `EBADPLATFORM`).
  *
- * ADR 0017 adopts the ecosystem answer (esbuild has 26 of these, napi-rs,
- * rolldown, oxc and lightningcss upstream all do the same): the bridge keeps its
- * name, API and loader contract, declares one `optionalDependencies` entry per
- * target, and each target's binary lives in a package that declares `os`/`cpu`.
- * A package manager installs the one that fits and SILENTLY skips the rest —
- * silently, because a platform mismatch on an OPTIONAL dependency is not an
- * error (on a required one it is `EBADPLATFORM`).
+ * GENERATED, NOT WRITTEN. 51 manifests × 12 fields is not a review surface a human
+ * holds correct, and every field is DERIVABLE (name from parent + token, `os`/`cpu`
+ * from the token, version and tier from the parent, glibc floor from the ELF). A
+ * hand-written set would drift on the first release bump and on every new target,
+ * in the worst shape: a bridge searching at runtime for a sibling that was never
+ * published, reporting "typelib not found". So one function emits the set and
+ * `--check` re-emits and compares. `audit-runtimes.mjs --check` runs that as the
+ * `platform-packages` rule, which also holds ADR 0017 step 2 — every declared
+ * target has a package AND an `optionalDependencies` entry whose `os`/`cpu` match
+ * the token, "otherwise we trade one silent drift for another".
  *
- * WHY THE MANIFESTS ARE GENERATED RATHER THAN WRITTEN
+ * WHAT A GENERATED PACKAGE DELIBERATELY LACKS
  *
- * 51 manifests × 12 fields is not a review surface a human can hold correct, and
- * every field in them is DERIVABLE: the name from the parent plus the token, the
- * `os`/`cpu` from the token, the version from the parent, the tier from the
- * parent, the glibc floor from the ELF. A hand-written set would drift on the
- * first release bump and on every new target, and the drift would be silent in
- * the worst possible shape — a bridge searching at runtime for a sibling package
- * that was never published, reporting "typelib not found".
+ *   · No `main`/`types`/`module`/`exports`. These are DATA packages; the loader
+ *     (`detectNativePackages()`) finds them by scanning node_modules for
+ *     `gjsify.prebuilds` + `prebuilds/<target>/` — the same mechanism that found
+ *     the bundled directory before the split, which is why ADR 0017 needs no new
+ *     runtime code path. A declared-but-absent entry point would (correctly) fail
+ *     the `package-outputs` rule.
+ *   · No `gjsify.runtimes`: that quadruplet describes an API's cross-runtime reach
+ *     and a package with no JavaScript has none. `runtimes-drift` skips them on the
+ *     same signal the generator writes — see `isPlatformPackageManifest()`.
+ *   · No sources, build or tests. The four lifecycle scripts are no-ops so
+ *     `gjsify foreach {build,check,clear,test}` — which derives its set from the
+ *     workspace, not a list — walks them without special-casing.
  *
- * So the set is emitted from one function, and `--check` re-emits it and compares.
- * `audit-runtimes.mjs --check` runs that comparison as the `platform-packages`
- * rule, which additionally holds ADR 0017 step 2: every declared target has a
- * platform package AND an `optionalDependencies` entry whose `os`/`cpu` match the
- * token — "otherwise we trade one silent drift for another".
+ * THE LIBC AXIS IS MEASURED. `libc` and `gjsify.glibcRequires` are read out of the
+ * ELF by the `prebuild-libc` rule's OWN reader (`measurePrebuildLibc`), never a copy
+ * living here — {@link measureLibcFields} holds the incident. A guessed
+ * `libc: ["glibc"]` would make every package manager refuse the install on musl
+ * hosts where six of these bridges provably load, so the field is written only where
+ * a glibc dynamic loader is actually recorded.
  *
- * WHAT A GENERATED PACKAGE DELIBERATELY DOES NOT HAVE
- *
- *   · No `main`, `types`, `module` or `exports`. These are DATA packages; the
- *     loader (`detectNativePackages()`) finds them by scanning node_modules for
- *     `gjsify.prebuilds` + `prebuilds/<target>/`, exactly the mechanism that
- *     found the bundled directory before the split — which is why ADR 0017 needs
- *     no new runtime code path at all. Declaring an entry point that does not
- *     exist would (correctly) fail the `package-outputs` rule.
- *   · No `gjsify.runtimes`. That quadruplet describes the cross-runtime reach of
- *     an API; a package with no JavaScript has none. `runtimes-drift` skips these
- *     packages on the same signal the generator writes them with — see
- *     `isPlatformPackageManifest()`.
- *   · No sources, no build, no tests. The four lifecycle scripts are no-ops so
- *     that `gjsify foreach {build,check,clear,test}` — which derives its package
- *     set from the workspace rather than from a list — walks them without
- *     special-casing.
- *
- * THE LIBC AXIS IS MEASURED, NOT GUESSED
- *
- * A generated manifest also carries the npm `libc` filter and
- * `gjsify.glibcRequires`, both read out of the ELF by the `prebuild-libc` rule's
- * OWN reader (`measurePrebuildLibc`), never by a copy of it living here — see
- * {@link measureLibcFields} for the incident that rule exists to prevent. A
- * guessed `libc: ["glibc"]` would make every package manager refuse the install
- * on musl hosts where six of these bridges provably load, so the field is
- * written only where a glibc dynamic loader is actually recorded.
- *
- * A GENUINE IMPROVEMENT THE SPLIT BUYS ON THAT AXIS: npm's `libc` is ONE
- * package-level filter while the requirement is per TARGET —
- * `@gjsify/tls-native` records no libc soname on x64/arm64/ppc64/s390x and DOES
- * record the glibc interpreter on riscv64, because Fedora's riscv64 toolchain
- * links it explicitly. One tarball could not state that; per-target packages
- * can, and do: only `@gjsify/tls-native-linux-riscv64` declares the restriction.
- * The same holds for the floor — `gjsify.glibcRequires` becomes a one-entry map
- * per package instead of a whole-tree maximum every consumer inherits.
+ * The split IMPROVES that axis: npm's `libc` is one package-level filter while the
+ * requirement is per TARGET. `@gjsify/tls-native` records no libc soname on
+ * x64/arm64/ppc64/s390x and DOES record the glibc interpreter on riscv64, because
+ * Fedora's riscv64 toolchain links it explicitly — one tarball cannot state that,
+ * and only `@gjsify/tls-native-linux-riscv64` declares the restriction. Same for the
+ * floor: a one-entry map per package instead of a whole-tree maximum every consumer
+ * inherits.
  *
  * Usage:
  *   node scripts/generate-platform-packages.mjs            # --check (default)
@@ -111,34 +96,28 @@ const stringifyManifest = (obj) => `${JSON.stringify(obj, null, 4)}\n`;
  * The npm `libc` + `gjsify.glibcRequires` values MEASURED from the committed
  * artifacts of one target.
  *
- * Both are properties of the BINARY, so both are read out of the binary — the
- * same reason `prebuild-artifacts` reads the machine out of `e_machine` instead
- * of trusting the directory name. A hand-maintained fact about a committed
- * binary is a fact that has already drifted; you just do not know when.
+ * Both describe the BINARY, so both are read out of it — the same reason
+ * `prebuild-artifacts` reads `e_machine` instead of trusting a directory name.
  *
- * The measurement itself is NOT reimplemented here. `measurePrebuildLibc()` is
- * the `prebuild-libc` rule's own reader, and the generator calls it because the
- * two must agree by construction: the rule GRADES the field this function
- * WRITES, so a second opinion about the same bytes can only ever be a way for
- * `--write` to emit a manifest that `--check` then rejects. That is not
- * hypothetical — it is what a hand-rolled copy of the loader predicate did here
- * on its first real run. It tested `/^ld-linux[\w.-]*\.so(\.\d+)?$/`, which is
- * the loader's name on x86-64, arm64 and riscv64 but NOT on ppc64le or s390x,
- * where glibc calls it `ld64.so.2` / `ld64.so.1`. So the generator wrote no
- * `libc` for exactly those two targets of `@gjsify/lightningcss-native` and the
- * rule failed them for the omission — two tools reading one ELF and disagreeing.
- * `libcFlavourOfNeeded`/`muslVerdictOfNeeded` match all five spellings.
+ * The measurement is NOT reimplemented here: `measurePrebuildLibc()` is the
+ * `prebuild-libc` rule's own reader, and the rule GRADES the field this function
+ * WRITES, so a second opinion about the same bytes can only make `--write` emit a
+ * manifest `--check` rejects. Not hypothetical — a hand-rolled copy of the loader
+ * predicate did exactly that on its first run. It tested
+ * `/^ld-linux[\w.-]*\.so(\.\d+)?$/`, the loader's name on x86-64, arm64 and riscv64
+ * but NOT on ppc64le or s390x, where glibc calls it `ld64.so.2` / `ld64.so.1`: the
+ * generator wrote no `libc` for those two targets of `@gjsify/lightningcss-native`
+ * and the rule failed them for the omission. `libcFlavourOfNeeded` /
+ * `muslVerdictOfNeeded` match all five spellings.
  *
- * What the generator still decides is the POLICY, and only where it is a direct
- * read rather than an inference: `musl: 'incompatible'` — a recorded glibc
- * dynamic loader — means the image cannot load under musl's loader at all, so
- * the filter is required. An `'undetermined'` verdict is NOT the opposite: musl
- * treats a `DT_NEEDED` of `libc.so.6` as a request for itself and loads such an
- * image happily, which a container probe on `alpine:3.24.1` confirmed for six of
- * this repo's bridges. Declaring `libc: ["glibc"]` there would refuse the
- * install on exactly the platform the axis exists to support, so nothing is
- * declared and the three-tier judgement stays with the rule, which is where it
- * belongs.
+ * The generator decides only the POLICY, and only where it is a direct read:
+ * `musl: 'incompatible'` — a recorded glibc dynamic loader — means the image cannot
+ * load under musl's loader, so the filter is required. `'undetermined'` is NOT the
+ * opposite: musl treats a `DT_NEEDED` of `libc.so.6` as a request for itself and
+ * loads such an image happily, confirmed on `alpine:3.24.1` for six of this repo's
+ * bridges. Declaring `libc: ["glibc"]` there would refuse the install on exactly the
+ * platform the axis exists to support, so nothing is declared and the three-tier
+ * judgement stays with the rule.
  *
  * @param {string} dir absolute path to the target's prebuild directory
  * @param {string} target the `<os>-<arch>` token
@@ -338,31 +317,25 @@ License: MIT
  *      declared target — correctly, since the directory really is gone.
  *   2. `prebuilds` is dropped from `files`. This is the byte saving; without it
  *      the tarball is unchanged and the whole exercise buys nothing.
- *   3. The npm `libc` filter and `gjsify.glibcRequires` are REMOVED, because
- *      both are properties of a BINARY and this tarball no longer holds one.
- *      Leaving `libc` behind is not cosmetic — it is an install-time
- *      REGRESSION the split would otherwise introduce. npm, yarn and pnpm all
- *      honour the field, so `@gjsify/lightningcss-native`'s inherited
- *      `libc: ["glibc"]` would refuse to install the pure-TypeScript half on
- *      every musl host, where it runs fine (the bridge degrades gracefully when
- *      no native engine loads, and on Alpine that is exactly what should
- *      happen). Before the split one filter had to cover the whole tarball;
- *      now the constraint belongs to the one package that carries the
- *      constrained bytes, which is the per-target precision ADR 0017 buys —
- *      only `@gjsify/tls-native-linux-riscv64` declares `libc`, not all five
- *      of that bridge's Linux targets. `gjsify.glibcRequires` moves for the
- *      same reason plus a second one: as a parent-level map it is a fact about
- *      directories the parent cannot see any more, so nothing could keep it
- *      true. Each child measures its own floor out of its own ELF.
- *   4. `optionalDependencies` gains one entry per split target. The RANGE is
- *      `workspace:*` for a workspace member — the repository's convention (283
- *      of 285 sibling runtime edges use the workspace protocol) and it resolves
- *      to the EXACT sibling version at pack time, which is the pin the esbuild
- *      model needs and which no release bump can forget. `@gjsify/napi` and
- *      `@gjsify/node-gi` are deliberately NOT workspace members (their own CI,
- *      their own carve-outs), and `gjsify pack` throws on a `workspace:` range
- *      it cannot resolve, so those get the literal version — kept honest by the
- *      audit rule rather than by memory.
+ *   3. The npm `libc` filter and `gjsify.glibcRequires` are REMOVED: both describe
+ *      a BINARY this tarball no longer holds. Leaving `libc` is not cosmetic but
+ *      an install-time REGRESSION — npm, yarn and pnpm all honour it, so
+ *      `@gjsify/lightningcss-native`'s inherited `libc: ["glibc"]` would refuse the
+ *      pure-TypeScript half on every musl host, where it runs fine (the bridge
+ *      degrades when no native engine loads, which on Alpine is the right
+ *      outcome). The constraint now belongs to the package carrying the
+ *      constrained bytes — only `@gjsify/tls-native-linux-riscv64` declares
+ *      `libc`, not all five of that bridge's Linux targets. `glibcRequires` moves
+ *      for that reason plus one more: as a parent-level map it describes
+ *      directories the parent can no longer see, so nothing could keep it true.
+ *   4. `optionalDependencies` gains one entry per split target, ranged
+ *      `workspace:*` for a workspace member — the repo convention (283 of 285
+ *      sibling runtime edges) which resolves to the EXACT sibling version at pack
+ *      time, the pin the esbuild model needs and no release bump can forget.
+ *      `@gjsify/napi` and `@gjsify/node-gi` are deliberately NOT members (own CI,
+ *      own carve-outs) and `gjsify pack` throws on a `workspace:` range it cannot
+ *      resolve, so those get the literal version — held by the audit rule rather
+ *      than by memory.
  *
  * `gjsify.platforms` is untouched: ADR 0017 step 2 keeps it as the single
  * declaration, and every child's one-element list is derived from it.

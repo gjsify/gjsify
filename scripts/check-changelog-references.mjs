@@ -1,43 +1,38 @@
 #!/usr/bin/env node
 // Every reference link in CHANGELOG.md must name the thing its href points at.
 //
-// THE FAILURE (measured on the 0.27.1 cut, and public in its release notes):
-// the generated changelog carried links to issues that do not exist and to
-// repositories that do not exist —
+// THE FAILURE (measured on the 0.27.1 cut, public in its release notes): the
+// generated changelog linked to issues and REPOSITORIES that do not exist —
 //
 //   closes [#version](https://github.com/gjsify/gjsify/issues/version)
 //          [pre-#955](https://github.com/gjsify/pre-/issues/955)
-//          [Post-#955](https://github.com/gjsify/Post-/issues/955)
 //          [442/#121](https://github.com/442/gjsify/issues/121)
 //          [@import](https://github.com/import)
 //
 // TWO INDEPENDENT PRODUCERS, both inside `@release-it/conventional-changelog`'s
 // preset, both structurally unable to tell a reference from a token:
 //
-//  1. `conventional-commits-parser`'s reference regex is
-//     `(?:.*?)??\s*([\w-\.\/]*?)??(#)([\w-]+)(?=\s|$|[,;)\]])`. The issue group
-//     is `[\w-]+`, NOT digits — so `#version`, `#ifdef`, `#ffffff` and
-//     `package.json#exports` all parse as issues. The group before it is a free
+//  1. `conventional-commits-parser`'s reference regex,
+//     `(?:.*?)??\s*([\w-\.\/]*?)??(#)([\w-]+)(?=\s|$|[,;)\]])`. The issue group is
+//     `[\w-]+`, NOT digits, so `#version`, `#ifdef`, `#ffffff` and
+//     `package.json#exports` all parse as issues; the group before it is a free
 //     `owner/repo` prefix, so `pre-#955` yields repository `pre-` and `#442/#121`
-//     yields owner `442`. The writer then fills the missing half from the repo
-//     context and emits a URL for a repository nobody ever named.
-//  2. the preset's writer `transform` re-links the SUBJECT with
-//     `(#)([a-z0-9]+)` and mentions with `\B@([a-z0-9](?:-?[a-z0-9/]){0,38})`.
-//     That is the same path that renders the load-bearing `(#970)` squash-merge
-//     suffix into a link, and the one that turned the CSS at-rule `@import` and
-//     the npm scope `@girs` into user pages.
+//     owner `442`. The writer fills the missing half from the repo context and emits
+//     a URL for a repository nobody named.
+//  2. the preset's writer `transform`, re-linking the SUBJECT with `(#)([a-z0-9]+)`
+//     and mentions with `\B@([a-z0-9](?:-?[a-z0-9/]){0,38})` — the same path that
+//     renders the load-bearing `(#970)` squash suffix as a link, and that turned the
+//     CSS at-rule `@import` and the npm scope `@girs` into user pages.
 //
-// WHY A POST-GENERATION GATE AND NOT PRESET CONFIG. Producer 1 CAN be narrowed:
-// `parserOpts.issuePrefixes` accepts a RegExp (`joinOr` inlines `.source` for a
-// non-string), and `[/(?<=(?:^|[\s(\[])(?:[A-Za-z\d][\w.-]*\/[A-Za-z\d][\w.-]*)?)#(?=\d+(?:[\s,;:)\].]|$))/]`
-// was measured to reject every artefact shape above while still accepting `#971`
-// and `GNOME/gjs#704`. It is not enough, for two reasons: a RegExp cannot be
-// written in `.release-it.json` (the config would have to become JS), and
-// producer 2 reads the PRESET's own `issuePrefixes: ['#']` to build a regex that
-// is baked into the preset's `transform` closure — narrowing it there either
-// breaks the `(#970)` subject links this changelog depends on or means replacing
-// the preset's `transform` wholesale. A gate over the emitted file covers both
-// producers with one rule and cannot be outflanked by a third.
+// WHY A POST-GENERATION GATE AND NOT PRESET CONFIG. Producer 1 CAN be narrowed —
+// `parserOpts.issuePrefixes` accepts a RegExp, and one was measured that rejects
+// every shape above while still accepting `#971` and `GNOME/gjs#704`. Not enough,
+// twice over: a RegExp cannot live in `.release-it.json` (the config would have to
+// become JS), and producer 2 reads the PRESET's own `issuePrefixes: ['#']` into a
+// regex baked into its `transform` closure, so narrowing there either breaks the
+// `(#970)` subject links this changelog depends on or replaces `transform`
+// wholesale. A gate over the emitted file covers both with one rule, and cannot be
+// outflanked by a third producer.
 //
 // IT ASSERTS POSITIVE FACTS, it does not merely exit 0. Before looking at the
 // file it runs its own detector over a fixture matrix of the seventeen artefact
@@ -48,16 +43,14 @@
 // as a clean one. The same matrix covers the section slicer, because the release
 // body is a slice and a mis-slice publishes the wrong release's notes.
 //
-// `--write` REPAIRS, then re-asserts. Same shape as `after:bump`'s
-// `generate-platform-packages --write` → `audit-runtimes --check --strict`: fix
-// what is derivable, then refuse to commit what is not. Repair is deliberately
-// LOSSY-BUT-HONEST — an invalid entry in a `, closes …` list is DROPPED and an
-// invalid link anywhere else is UNLINKED to its literal text. It never re-points
-// a fabricated link, because the token's real target is not derivable: `PKCS#7`,
-// `gjs#44` and `node-gtk #442/#121` name a standard, a GitLab project and
-// another repository's issues, so mechanically re-pointing them at this repo
-// would replace a broken link with a confidently wrong one. The token itself
-// survives verbatim in the commit body, which every entry links to by hash.
+// `--write` REPAIRS, then re-asserts — the shape of `after:bump`'s
+// `generate-platform-packages --write` → `audit-runtimes --check --strict`. Repair is
+// deliberately LOSSY-BUT-HONEST: an invalid entry in a `, closes …` list is DROPPED,
+// an invalid link elsewhere is UNLINKED to its literal text, and nothing is ever
+// re-pointed, because the token's real target is not derivable — `PKCS#7`, `gjs#44`
+// and `node-gtk #442/#121` name a standard, a GitLab project and another repo's
+// issues, so re-pointing them here would trade a broken link for a confidently wrong
+// one. The token survives verbatim in the commit body every entry links to by hash.
 //
 // THE FILE IS NOT THE PUBLISHED ARTEFACT — `--release-notes` is why this script
 // also emits. Repairing CHANGELOG.md does NOT repair the GitHub release body:
