@@ -4,6 +4,7 @@ import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import type Gtk from '@girs/gtk-4.0';
 import {
+    appIdToObjectPath,
     DEVTOOLS_ADDRESS_ENV,
     DEVTOOLS_ENABLE_ENV,
     DEVTOOLS_INSTANCE_ENV,
@@ -204,9 +205,9 @@ function exportDevtools(
 
     const appId = app.get_application_id() ?? 'unknown';
     // The app's own path where it has one; on a bus-less host it never registers, so
-    // derive the path as Gio.Application does (id dots → slashes), which keeps the
-    // bridge's prediction correct either way.
-    const objectPath = `${basePath ?? `/${appId.replace(/\./g, '/')}`}/devtools`;
+    // derive it through the SHARED helper the bridge predicts with — one derivation, so
+    // the two cannot disagree about an id GApplication rewrites (see appIdToObjectPath).
+    const objectPath = `${basePath ?? appIdToObjectPath(appId)}/devtools`;
 
     if (transport.kind === 'unregistered' || (transport.kind === 'peer' && transport.reason === 'no-session-bus')) {
         console.error(describeMissingConnection(sessionBusAddress, busAnswers));
