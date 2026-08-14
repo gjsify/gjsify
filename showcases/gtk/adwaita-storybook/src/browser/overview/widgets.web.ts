@@ -5,7 +5,10 @@ import { StoryElement, type StoryArgs, type StoryMeta, type WebStoryModule } fro
 import {
     OVERVIEW_ACCENT_OPTIONS,
     OVERVIEW_ADVANCED_ROWS,
+    OVERVIEW_DEVICES,
+    OVERVIEW_GROUP_TITLES,
     OVERVIEW_SHORTCUTS,
+    OVERVIEW_TEXT,
     overviewWidgetsMeta,
 } from '../../overview/widgets.meta.js';
 
@@ -33,7 +36,7 @@ export class OverviewWidgetsWebStory extends StoryElement {
         host.style.flexDirection = 'column';
         host.style.width = '100%';
 
-        this._banner = el('adw-banner', { title: 'You have unsaved changes', 'button-label': 'Save' });
+        this._banner = el('adw-banner', { title: OVERVIEW_TEXT.bannerTitle, 'button-label': OVERVIEW_TEXT.bannerButton });
         this._syncBanner();
         host.append(this._banner);
 
@@ -42,12 +45,12 @@ export class OverviewWidgetsWebStory extends StoryElement {
         // --- Appearance: a widget demo only. The storybook's OWN appearance is in
         // the chrome, and wiring these to it would give one setting two controls
         // that disagree.
-        const appearance = el('adw-preferences-group', { title: 'Appearance' });
+        const appearance = el('adw-preferences-group', { title: OVERVIEW_GROUP_TITLES.appearance });
         appearance.append(
-            el('adw-switch-row', { title: 'Dark mode', subtitle: 'Use the dark Adwaita palette' }),
-            el('adw-switch-row', { title: 'Notifications', subtitle: 'Show toasts for events', active: '' }),
+            el('adw-switch-row', { title: OVERVIEW_TEXT.darkMode, subtitle: OVERVIEW_TEXT.darkModeSubtitle }),
+            el('adw-switch-row', { title: OVERVIEW_TEXT.notifications, subtitle: OVERVIEW_TEXT.notificationsSubtitle, active: '' }),
             el('adw-combo-row', {
-                title: 'Accent color',
+                title: OVERVIEW_TEXT.accentColor,
                 // `items` is JSON, not a comma list — the element parses it.
                 items: JSON.stringify([...OVERVIEW_ACCENT_OPTIONS]),
                 selected: '0',
@@ -56,14 +59,20 @@ export class OverviewWidgetsWebStory extends StoryElement {
         page.append(appearance);
 
         // --- Account ---
-        const account = el('adw-preferences-group', { title: 'Account' });
+        const account = el('adw-preferences-group', { title: OVERVIEW_GROUP_TITLES.account });
         account.append(
-            el('adw-entry-row', { title: 'Name', text: 'Ada Lovelace' }),
-            el('adw-entry-row', { title: 'Email', text: 'ada@example.com' }),
-            el('adw-spin-row', { title: 'Devices', min: '1', max: '10', step: '1', value: '3' }),
+            el('adw-entry-row', { title: OVERVIEW_TEXT.name, text: OVERVIEW_TEXT.nameValue }),
+            el('adw-entry-row', { title: OVERVIEW_TEXT.email, text: OVERVIEW_TEXT.emailValue }),
+            el('adw-spin-row', {
+                title: OVERVIEW_TEXT.devices,
+                min: String(OVERVIEW_DEVICES.lower),
+                max: String(OVERVIEW_DEVICES.upper),
+                step: String(OVERVIEW_DEVICES.step),
+                value: String(OVERVIEW_DEVICES.value),
+            }),
         );
 
-        const advanced = el('adw-expander-row', { title: 'Advanced', subtitle: 'More options' });
+        const advanced = el('adw-expander-row', { title: OVERVIEW_TEXT.advanced, subtitle: OVERVIEW_TEXT.advancedSubtitle });
         advanced.toggleAttribute('expanded', true);
         for (const row of OVERVIEW_ADVANCED_ROWS) {
             advanced.append(
@@ -76,7 +85,7 @@ export class OverviewWidgetsWebStory extends StoryElement {
         page.append(account);
 
         // --- Shortcuts: the newest widget, in context ---
-        const shortcuts = el('adw-preferences-group', { title: 'Shortcuts' });
+        const shortcuts = el('adw-preferences-group', { title: OVERVIEW_GROUP_TITLES.shortcuts });
         for (const shortcut of OVERVIEW_SHORTCUTS) {
             const row = el('adw-action-row', { title: shortcut.title });
             const label = el('adw-shortcut-label', { accelerator: shortcut.accelerator, slot: 'suffix' });
@@ -86,7 +95,7 @@ export class OverviewWidgetsWebStory extends StoryElement {
         page.append(shortcuts);
 
         // --- Actions ---
-        const actions = el('adw-preferences-group', { title: 'Actions' });
+        const actions = el('adw-preferences-group', { title: OVERVIEW_GROUP_TITLES.actions });
         const buttons = document.createElement('div');
         buttons.style.display = 'flex';
         buttons.style.gap = '12px';
@@ -94,10 +103,10 @@ export class OverviewWidgetsWebStory extends StoryElement {
 
         const save = document.createElement('button');
         save.className = 'adw-button suggested-action';
-        save.textContent = 'Save changes';
+        save.textContent = OVERVIEW_TEXT.save;
         const remove = document.createElement('button');
         remove.className = 'adw-button destructive-action';
-        remove.textContent = 'Delete account';
+        remove.textContent = OVERVIEW_TEXT.delete;
         buttons.append(save, remove);
         actions.append(buttons);
         page.append(actions);

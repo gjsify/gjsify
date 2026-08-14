@@ -20,7 +20,10 @@ import {
 import {
     OVERVIEW_ACCENT_OPTIONS,
     OVERVIEW_ADVANCED_ROWS,
+    OVERVIEW_DEVICES,
+    OVERVIEW_GROUP_TITLES,
     OVERVIEW_SHORTCUTS,
+    OVERVIEW_TEXT,
     overviewWidgetsMeta,
 } from '@gjsify/example-gtk-adwaita-storybook/metas';
 
@@ -39,8 +42,8 @@ export class OverviewWidgetsNsStory extends StoryView {
         const host = new StackLayout();
 
         this._banner = new AdwBanner();
-        this._banner.title = 'You have unsaved changes';
-        this._banner.buttonLabel = 'Save';
+        this._banner.title = OVERVIEW_TEXT.bannerTitle;
+        this._banner.buttonLabel = OVERVIEW_TEXT.bannerButton;
         this._syncBanner();
         host.addChild(this._banner);
 
@@ -50,22 +53,22 @@ export class OverviewWidgetsNsStory extends StoryView {
         // in its chrome, and wiring these to it would give one setting two controls
         // that disagree.
         const appearance = new AdwPreferencesGroup();
-        appearance.title = 'APPEARANCE';
+        appearance.title = OVERVIEW_GROUP_TITLES.appearance;
 
         const dark = new AdwSwitchRow();
-        dark.title = 'Dark mode';
-        dark.subtitle = 'Use the dark Adwaita palette';
+        dark.title = OVERVIEW_TEXT.darkMode;
+        dark.subtitle = OVERVIEW_TEXT.darkModeSubtitle;
         dark.active = false;
         appearance.addRow(dark);
 
         const notifications = new AdwSwitchRow();
-        notifications.title = 'Notifications';
-        notifications.subtitle = 'Show toasts for events';
+        notifications.title = OVERVIEW_TEXT.notifications;
+        notifications.subtitle = OVERVIEW_TEXT.notificationsSubtitle;
         notifications.active = true;
         appearance.addRow(notifications);
 
         const accent = new AdwComboRow();
-        accent.title = 'Accent color';
+        accent.title = OVERVIEW_TEXT.accentColor;
         accent.options = OVERVIEW_ACCENT_OPTIONS.map((label) => ({ label, value: label.toLowerCase() }));
         accent.selectedIndex = 0;
         appearance.addRow(accent);
@@ -74,29 +77,29 @@ export class OverviewWidgetsNsStory extends StoryView {
 
         // --- Account ---
         const account = new AdwPreferencesGroup();
-        account.title = 'ACCOUNT';
+        account.title = OVERVIEW_GROUP_TITLES.account;
 
         const name = new AdwEntryRow();
-        name.title = 'Name';
-        name.text = 'Ada Lovelace';
+        name.title = OVERVIEW_TEXT.name;
+        name.text = OVERVIEW_TEXT.nameValue;
         account.addRow(name);
 
         const email = new AdwEntryRow();
-        email.title = 'Email';
-        email.text = 'ada@example.com';
+        email.title = OVERVIEW_TEXT.email;
+        email.text = OVERVIEW_TEXT.emailValue;
         account.addRow(email);
 
         const devices = new AdwSpinRow();
-        devices.title = 'Devices';
-        devices.min = 1;
-        devices.max = 10;
-        devices.step = 1;
-        devices.value = 3;
+        devices.title = OVERVIEW_TEXT.devices;
+        devices.min = OVERVIEW_DEVICES.lower;
+        devices.max = OVERVIEW_DEVICES.upper;
+        devices.step = OVERVIEW_DEVICES.step;
+        devices.value = OVERVIEW_DEVICES.value;
         account.addRow(devices);
 
         const advanced = new AdwExpanderRow();
-        advanced.title = 'Advanced';
-        advanced.subtitle = 'More options';
+        advanced.title = OVERVIEW_TEXT.advanced;
+        advanced.subtitle = OVERVIEW_TEXT.advancedSubtitle;
         for (const row of OVERVIEW_ADVANCED_ROWS) {
             if (row.kind === 'switch') {
                 const child = new AdwSwitchRow();
@@ -116,7 +119,7 @@ export class OverviewWidgetsNsStory extends StoryView {
 
         // --- Shortcuts: the newest widget, in context ---
         const shortcuts = new AdwPreferencesGroup();
-        shortcuts.title = 'SHORTCUTS';
+        shortcuts.title = OVERVIEW_GROUP_TITLES.shortcuts;
         for (const shortcut of OVERVIEW_SHORTCUTS) {
             const row = new AdwActionRow();
             row.title = shortcut.title;
@@ -129,18 +132,18 @@ export class OverviewWidgetsNsStory extends StoryView {
 
         // --- Actions ---
         const actions = new AdwPreferencesGroup();
-        actions.title = 'ACTIONS';
+        actions.title = OVERVIEW_GROUP_TITLES.actions;
         const buttons = new StackLayout();
         buttons.orientation = 'horizontal';
         buttons.className = 'adw-action-buttons';
 
         const save = new AdwButton();
-        save.text = 'Save changes';
+        save.text = OVERVIEW_TEXT.save;
         save.variant = 'suggested-action';
         buttons.addChild(save);
 
         const remove = new AdwButton();
-        remove.text = 'Delete account';
+        remove.text = OVERVIEW_TEXT.delete;
         remove.variant = 'destructive-action';
         buttons.addChild(remove);
 
