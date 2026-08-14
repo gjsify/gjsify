@@ -19,7 +19,8 @@
         "clear": "gjsify clear lib tsconfig.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
         "build": "gjsify run build:types",
-        "build:types": "gjsify tsc"
+        "build:types": "gjsify tsc",
+        "build:test:browser": "gjsify build src/test.browser.mts --app browser --outfile dist/test.browser.mjs"
     },
     "keywords": [
         "storybook",

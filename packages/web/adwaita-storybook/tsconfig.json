@@ -2,7 +2,11 @@
     "compilerOptions": {
         "module": "ESNext",
         "target": "ESNext",
-        "lib": ["ESNext", "DOM", "DOM.Iterable"],
+        "lib": [
+            "ESNext",
+            "DOM",
+            "DOM.Iterable"
+        ],
         "rootDir": "src",
         "outDir": "lib",
         "declarationDir": "lib/types",
@@ -10,8 +14,11 @@
         "moduleResolution": "bundler",
         "allowImportingTsExtensions": true,
         "emitDeclarationOnly": true,
+        "skipLibCheck": true,
         "strict": true,
         "types": []
     },
-    "include": ["src/**/*.ts"]
+    "include": [
+        "src/**/*.ts"
+    ]
 }

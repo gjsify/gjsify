@@ -163,6 +163,31 @@ export const STORYBOOK_WEB_CSS = `
 }
 
 /* --- Preview area --- */
+
+/* The slotted content pane has to PASS ITS BOUND DOWN, or the scroller below it has
+   nothing to scroll against.
+
+   Measured before this rule existed: .adw-osv-content bounded itself correctly at
+   697px while its content wanted 1008px, but this div — display: block,
+   min-height: auto, flex: 0 1 auto — ignored that and grew to 1008. So
+   .sb-preview-scroll inherited clientHeight === scrollHeight, had nothing to scroll,
+   and everything past the fold was clipped by the toolbar view's overflow: hidden:
+   a tall story just ended mid-page.
+
+   The sidebar never had this. Its scroller sits directly inside the toolbar view's own
+   flex content wrapper, so nothing breaks the chain there; this pane is the one place
+   a plain div sits between the bound and the scroller.
+
+   NOTE: no backticks in this file's comments — the whole stylesheet is a JS template
+   literal, so a backtick ends it and the parse error lands nine lines away. */
+.sb-preview-pane {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+}
+
 .sb-preview-scroll {
     flex: 1 1 auto;
     min-height: 0;
