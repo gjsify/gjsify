@@ -7,34 +7,51 @@ name: node-gi
 # Builds the N-API addon against girepository-2.0 and runs the smoke tests on
 # Node, mirroring the Fedora 44 environment the rest of CI uses.
 
-# THE PATH FILTERS BELOW ARE NARROWER THAN WHAT THIS WORKFLOW GUARDS, and that is
-# why `schedule` and `workflow_dispatch` are here (#1173). The consumer harness
-# runs NINE OTHER packages' own test suites through the reverse bridge, so a break
-# originating anywhere in their source — or in anything they share, like
-# `packages/gjs/unit` — is invisible to a trigger naming three paths. Measured:
-# `main` went red on 2026-08-13 and stayed red with nothing reporting it, because
-# no merge after the v0.38.1 release touched a filtered path. A docs-only edit to
-# `packages/node-gi/AGENTS.md` is what eventually re-triggered it, 1 day later.
+# THE TRIGGER IS A DENY-LIST, and that is the whole point (#1173). The consumer
+# harness runs NINE OTHER packages' own test suites through the reverse bridge, so
+# a break originating anywhere in their source — or in anything they share, like
+# `packages/gjs/unit` — was invisible to the allow-list of three node-gi paths this
+# used to carry. Measured: `main` went red on 2026-08-13 and stayed red with nothing
+# reporting it, because no merge after the v0.38.1 release touched a filtered path.
+# A docs-only edit to `packages/node-gi/AGENTS.md` is what eventually re-triggered
+# it, 1 day later. Same class as #1028 (an e2e guard firing only on `tests/e2e/**`)
+# and #1149 (a hook trigger naming four of 111 closure packages): a guard whose
+# trigger is narrower than its subject. An allow-list fails SILENT — an input nobody
+# listed produces no run, and no run reads as no problem. A deny-list fails the
+# other way, which is the only direction a guard may fail in.
 #
-# The filters are still right for PRs: this builds an addon and runs three runtimes
-# over nine suites, which no unrelated PR should pay for. What was missing is a
-# trigger that does not depend on guessing the input set — a nightly run bounds how
-# long a break can hide at ~24 h whatever caused it, and dispatch makes it
-# answerable on demand. Same class as #1028 (an e2e guard firing only on
-# `tests/e2e/**`) and #1149 (a hook trigger naming four of 111 closure packages):
-# a guard whose trigger is narrower than its subject.
+# The first answer to #1173 was `schedule` + `workflow_dispatch`, on the reasoning
+# that a PR-side fix was unaffordable: "this builds an addon and runs three runtimes
+# over nine suites, which no unrelated PR should pay for". That treats the run as
+# indivisible, and it is not. Six of the 23 jobs are plain `ubuntu-latest` (~21 job-
+# minutes, ~8 min wall) and they ARE the consumer guard; the other 17 are the macOS
+# ×10 / Windows ×6 / arm64 matrix, which proves the ENGINE's OS portability — dyld
+# and PE relocation, marshalling under a different pointer width — and which no
+# consumer change can move. So the trigger runs wide and the `scope` job below keeps
+# the OS matrix on the narrow set. The nightly stays: it is what bounds how long a
+# break can hide when nobody pushes at all.
+#
+# The case that settled it: #1179 fixes the very red leg this comment describes, and
+# under the allow-list no CI job could observe the fix, because the fix is in
+# `packages/node/zlib`. A gate that cannot see its own repair is not a gate.
 on:
   push:
     branches: [main]
-    paths:
-      - 'packages/node-gi/**'
-      - 'scripts/node-gi-consumer-harness.mjs'
-      - '.github/workflows/node-gi.yml'
+    # Deliberately short, and repeated rather than shared: a YAML anchor is not
+    # part of the workflow syntax GitHub parses. Every entry must be a path that
+    # CANNOT change what this workflow builds or runs; when in doubt it belongs
+    # off the list, because an entry added by guess restores the silence above.
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'website/**'
+      - 'refs/**'
   pull_request:
-    paths:
-      - 'packages/node-gi/**'
-      - 'scripts/node-gi-consumer-harness.mjs'
-      - '.github/workflows/node-gi.yml'
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'website/**'
+      - 'refs/**'
   schedule:
     # 03:17 UTC — off the hour, so this does not queue behind everything else
     # scheduled at :00.
@@ -46,9 +63,79 @@ permissions:
 
 concurrency:
   group: node-gi-${{ github.ref }}
-  cancel-in-progress: true
+  # PRs cancel their own superseded runs; main pushes and the nightly complete on
+  # their own. `main.yml` carries the measured incident behind the expression — a
+  # still-PENDING run is evicted when a newer run joins the group, so a landed
+  # commit can end up with no run at all — and widening the trigger above puts
+  # more main pushes in this group, which is what made the difference matter here.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # ONE decision, read by every OS leg: does this run include the macOS/Windows/
+  # arm64 matrix? The `on:` block above explains why the trigger is wide; this is
+  # where the cost of that width is paid back. The rule is deliberately blunt and
+  # per-RUNNER rather than per-job — everything on `ubuntu-latest` always runs,
+  # the scarce runners run when node-gi's own sources changed — because a
+  # per-job "could a consumer change move this?" list is a second copy of the
+  # dependency graph, and the copy is what drifts. ADR 0018 § 5 already settles
+  # the residual: the OS axis is verified on main and nightly, not per PR.
+  scope:
+    name: Scope the OS legs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      engine: ${{ steps.decide.outputs.engine }}
+    steps:
+      - name: Decide from the changed files
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.number }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -uo pipefail
+
+          decide() {
+            printf 'engine=%s\n' "$1" >> "$GITHUB_OUTPUT"
+            printf '### OS legs: %s\n\n%s\n' "$1" "$2" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          }
+
+          files=''
+          case "$EVENT" in
+            pull_request)
+              files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename') || files=''
+              ;;
+            push)
+              # A branch's first push and a force-push leave no usable base.
+              case "$BEFORE" in
+                ''|0000000000000000000000000000000000000000) files='' ;;
+                *) files=$(gh api "repos/$REPO/compare/$BEFORE...$SHA" --jq '.files[].filename') || files='' ;;
+              esac
+              ;;
+            *)
+              decide true "\`$EVENT\` runs the full matrix by definition."
+              ;;
+          esac
+
+          # No list is no decision, and a guard may only fail towards running.
+          # GitHub truncates the file list of a very large diff, which lands here
+          # as well rather than as a quietly narrowed run.
+          if [ -z "$files" ]; then
+            decide true 'The changed-file list was empty or unreadable — failing open.'
+          fi
+
+          if printf '%s\n' "$files" | grep -Eq '^(packages/node-gi/|scripts/node-gi-consumer-harness\.mjs$|\.github/(workflows/node-gi\.yml$|scripts/))'; then
+            decide true "node-gi's own sources changed."
+          fi
+          decide false 'Consumer-only change: the Linux legs run, the OS matrix does not.'
+
   build-test:
     name: Build & test (Node / Fedora 44)
     runs-on: ubuntu-latest
@@ -535,6 +622,8 @@ jobs:
   # build-test job (no GC-stress/quad/DBus legs) so the extra arm minutes stay small.
   arm64:
     name: aarch64 build + conformance (Fedora 44)
+    needs: scope
+    if: ${{ needs.scope.outputs.engine == 'true' }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 20
     container:
@@ -637,6 +726,8 @@ jobs:
   # matrix entry rather than a second job.
   macos:
     name: macOS build + conformance (Node+Bun+Deno / darwin-${{ matrix.arch }})
+    needs: scope
+    if: ${{ needs.scope.outputs.engine == 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -1526,6 +1617,8 @@ jobs:
   # arm64 + macos jobs; a future prebuilt-GTK upload slots in beside it.
   windows:
     name: Windows build + conformance (Node / windows-latest x64)
+    needs: scope
+    if: ${{ needs.scope.outputs.engine == 'true' }}
     runs-on: windows-latest
     timeout-minutes: 40
     env:
@@ -1663,6 +1756,8 @@ jobs:
   # consume the addon), so it runs in parallel.
   windows-gtk-runtime:
     name: Windows GTK runtime bundle (build / windows-latest x64)
+    needs: scope
+    if: ${{ needs.scope.outputs.engine == 'true' }}
     runs-on: windows-latest
     timeout-minutes: 30
     env:
@@ -1826,6 +1921,8 @@ jobs:
   # consume the addon). Uploads the bundle for the windowing proof job below.
   windows-gtk-windowing-runtime:
     name: Windows FULL-windowing GTK runtime bundle (build / windows-2022 x64)
+    needs: scope
+    if: ${{ needs.scope.outputs.engine == 'true' }}
     # PINNED TO windows-2022, and not for nostalgia. Two reasons, both measured:
     #
     #   • gvsbuild builds GStreamer's dependency chain, and libvpx's configure has
