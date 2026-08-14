@@ -58,13 +58,29 @@ import { dirname, join, resolve as resolvePath } from 'node:path';
 import type { Workspace } from '@gjsify/workspace';
 import { cliPackageDir } from './publish-headers.js';
 
-/** Split `@gjsify/<name>[/<sub>]` into package name + `exports` key; `null` otherwise. */
-function splitWorkspaceSpecifier(specifier: string): { name: string; subpath: string } | null {
-    if (!specifier.startsWith('@gjsify/')) return null;
+/**
+ * Split a bare specifier into a WORKSPACE package name + its `exports` key, or
+ * `null` when it names no workspace.
+ *
+ * Matched against the workspace index rather than against the `@gjsify/` scope: a
+ * scope literal would be a second place that has to be edited when the project is
+ * vendored, forked or renamed, and the question here is only ever "is this one of
+ * OUR packages". Scoped names take two segments, unscoped one.
+ */
+function splitWorkspaceSpecifier(
+    specifier: string,
+    byName: ReadonlyMap<string, Workspace>,
+): { name: string; subpath: string } | null {
+    if (specifier.startsWith('.') || specifier.startsWith('/') || specifier.includes(':')) return null;
     const parts = specifier.split('/');
-    if (parts.length < 2) return null;
-    const rest = parts.slice(2).join('/');
-    return { name: `${parts[0]}/${parts[1]}`, subpath: rest ? `./${rest}` : '.' };
+    const candidates = specifier.startsWith('@') ? [2] : [1];
+    for (const depth of candidates) {
+        const name = parts.slice(0, depth).join('/');
+        if (!byName.has(name)) continue;
+        const rest = parts.slice(depth).join('/');
+        return { name, subpath: rest ? `./${rest}` : '.' };
+    }
+    return null;
 }
 
 /**
@@ -164,7 +180,10 @@ function workspaceEntry(ws: Workspace, subpath: string): string | null {
 }
 
 /** `peerDependencies` of `manifest` that name a workspace package. */
-function workspacePeers(manifest: { peerDependencies?: Record<string, string> }, byName: Map<string, Workspace>): string[] {
+function workspacePeers(
+    manifest: { peerDependencies?: Record<string, string> },
+    byName: Map<string, Workspace>,
+): string[] {
     return Object.keys(manifest.peerDependencies ?? {}).filter((name) => byName.has(name));
 }
 
@@ -194,7 +213,10 @@ export interface CliRuntimeClosureOptions {
  * the sweep builds can tear), a relocated bundle with no reachable manifest, and
  * a CLI whose entry has not been built.
  */
-export function cliRuntimeClosure(workspaces: readonly Workspace[], options: CliRuntimeClosureOptions = {}): Set<string> {
+export function cliRuntimeClosure(
+    workspaces: readonly Workspace[],
+    options: CliRuntimeClosureOptions = {},
+): Set<string> {
     const byName = new Map(workspaces.map((ws) => [ws.name, ws]));
     const found = new Set<string>();
 
@@ -243,7 +265,7 @@ export function cliRuntimeClosure(workspaces: readonly Workspace[], options: Cli
                 if (next) queue.push(next);
                 continue;
             }
-            const split = splitWorkspaceSpecifier(specifier);
+            const split = splitWorkspaceSpecifier(specifier, byName);
             const ws = split ? byName.get(split.name) : undefined;
             if (!split || !ws) continue;
             found.add(split.name);

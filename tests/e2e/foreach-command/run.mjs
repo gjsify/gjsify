@@ -466,6 +466,82 @@ describe('gjsify foreach + workspace (Phase D.4)', { timeout: 60_000 }, () => {
         assert.ok(!existsSync(join(root, 'marks', 'survived.txt')), 'sleeper middle process survived the kill');
     });
 
+    // ── the CLI's own imports are built BEFORE the parallel sweep ──────
+    // Every child of `foreach` boots the CLI, so a package the CLI imports must
+    // not be rewritten while siblings are starting. Measured on macOS run
+    // 31130155911: `@gjsify/native-platform`'s build died ERR_MODULE_NOT_FOUND
+    // on an `npm-registry/lib/esm/_virtual/` chunk whose `auth.js` was already
+    // on disk.
+    //
+    // `GJSIFY_CLI_PACKAGE_JSON` — the override `cliPackageDir()` already
+    // honours — points the closure walk at a fixture CLI inside this monorepo,
+    // so the assertion is about THIS scheduler rather than about the real
+    // `@gjsify/cli` import graph.
+    //
+    // The DISCRIMINATOR is the delay: `core` (the fixture CLI's only import)
+    // waits 400 ms before recording itself, `utils` and `app` record
+    // immediately. In the prefix `core` runs alone and lands FIRST; in the
+    // parallel sweep it would land last. So the order file goes red without the
+    // fix instead of merely passing with it.
+    it("foreach -p builds the running CLI's own imports first", async () => {
+        const orderPath = join(root, 'marks', 'order.txt');
+        rmSync(join(root, 'marks'), { recursive: true, force: true });
+        mkdirSync(join(root, 'marks'), { recursive: true });
+
+        mkdirSync(join(root, 'fake-cli', 'lib'), { recursive: true });
+        writeFileSync(
+            join(root, 'fake-cli', 'package.json'),
+            JSON.stringify({ name: '@gjsify/cli', version: '0.0.0', bin: { gjsify: './lib/index.js' } }, null, 2),
+        );
+        writeFileSync(join(root, 'fake-cli', 'lib', 'index.js'), "import '@test/core';\n");
+
+        for (const w of [
+            { dir: 'utils', name: '@test/utils', delay: 0 },
+            { dir: 'core', name: '@test/core', delay: 400 },
+            { dir: 'app', name: '@test/app', delay: 0 },
+        ]) {
+            const manifestPath = join(root, 'packages', w.dir, 'package.json');
+            const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+            manifest.scripts.order = `node -e "setTimeout(() => require('fs').appendFileSync('${orderPath.replace(
+                /'/g,
+                "\\'",
+            )}', '${w.name}\\n'), ${w.delay})"`;
+            writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+        }
+
+        const r = await runCli(cliEntry, ['foreach', 'order', '-p'], {
+            cwd: root,
+            env: { ...process.env, GJSIFY_CLI_PACKAGE_JSON: join(root, 'fake-cli', 'package.json') },
+        });
+        assert.equal(r.status, 0, `foreach order failed: ${r.stderr}\n${r.stdout}`);
+        assert.match(r.stderr, /serial prefix: 1 package\(s\)/, 'no serial prefix was announced');
+        assert.match(r.stderr, /@test\/core/);
+
+        const order = readFileSync(orderPath, 'utf8').trim().split('\n');
+        assert.equal(order.length, 3, `expected 3 recorded workspaces, got ${JSON.stringify(order)}`);
+        assert.equal(
+            order[0],
+            '@test/core',
+            `the CLI's own import must finish before the sweep starts, got ${JSON.stringify(order)}`,
+        );
+
+        // The other half of the A/B, so the assertion above is known to
+        // DISCRIMINATE rather than to be true of any ordering: without the
+        // override the walk resolves the real `@gjsify/cli`, whose imports name
+        // no workspace here, the prefix is empty, and the 400 ms sleeper lands
+        // last. A test that cannot fail is not evidence.
+        rmSync(orderPath, { force: true });
+        const plain = await runCli(cliEntry, ['foreach', 'order', '-p'], { cwd: root });
+        assert.equal(plain.status, 0, `foreach order failed: ${plain.stderr}`);
+        assert.doesNotMatch(plain.stderr, /serial prefix/, 'an empty closure must announce no prefix');
+        const plainOrder = readFileSync(orderPath, 'utf8').trim().split('\n');
+        assert.notEqual(
+            plainOrder[0],
+            '@test/core',
+            `without a prefix the sleeper must not be first — the fixture stopped discriminating (${JSON.stringify(plainOrder)})`,
+        );
+    });
+
     it("workspace <name> <script> runs only that workspace's script", async () => {
         rmSync(join(root, 'marks'), { recursive: true, force: true });
         mkdirSync(join(root, 'marks'), { recursive: true });

@@ -153,9 +153,7 @@ export default async () => {
                     entry,
                     cliManifest: { peerDependencies: { '@gjsify/cli-peer': 'workspace:^' } },
                 });
-                expect([...closure].sort().join(',')).toBe(
-                    '@gjsify/cli-peer,@gjsify/native-engine,@gjsify/plugin',
-                );
+                expect([...closure].sort().join(',')).toBe('@gjsify/cli-peer,@gjsify/native-engine,@gjsify/plugin');
             } finally {
                 rmSync(root, { recursive: true, force: true });
             }

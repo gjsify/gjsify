@@ -503,8 +503,7 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
         // gating on the literal string "build" would be the hand-written list this
         // closure exists to replace. A serial run needs no prefix at all: nothing
         // else is in flight to read what it writes.
-        const prefixNames =
-            args.parallel === true ? cliRuntimeClosure(allWorkspaces) : new Set<string>();
+        const prefixNames = args.parallel === true ? cliRuntimeClosure(allWorkspaces) : new Set<string>();
         const prefix = prefixNames.size > 0 ? selected.filter((ws) => prefixNames.has(ws.name)) : [];
         const sweep = prefix.length > 0 ? selected.filter((ws) => !prefixNames.has(ws.name)) : selected;
 
