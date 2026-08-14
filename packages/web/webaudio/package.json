@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/webaudio",
-    "version": "0.38.1",
+    "version": "0.39.0",
     "description": "Web Audio API for GJS using GStreamer as audio backend",
     "type": "module",
     "module": "lib/esm/index.js",

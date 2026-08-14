@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/terminal-native-linux-ppc64",
-    "version": "0.38.1",
+    "version": "0.39.0",
     "description": "linux-ppc64 prebuilt native library + GObject-Introspection typelib for @gjsify/terminal-native. Installed automatically on linux/ppc64 as an optionalDependency of that package (ADR 0017) and skipped everywhere else. Contains no JavaScript.",
     "license": "MIT",
     "os": [

@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.39.0](https://github.com/gjsify/gjsify/compare/v0.38.1...v0.39.0) (2026-08-14)
+
+### Features
+
+* make a green run prove what it actually did ([#1141](https://github.com/gjsify/gjsify/issues/1141)) ([3d06560](https://github.com/gjsify/gjsify/commit/3d06560a828ce87869a491716f3b761900c37710)), closes [#1044](https://github.com/gjsify/gjsify/issues/1044) [#1012](https://github.com/gjsify/gjsify/issues/1012) [#1061](https://github.com/gjsify/gjsify/issues/1061)
+* **path:** select the flavour per host, and drive win32 from Linux ([#1167](https://github.com/gjsify/gjsify/issues/1167)) ([605a5d2](https://github.com/gjsify/gjsify/commit/605a5d28700fdcac0b34498abd10caee45425d74)), closes [#1149](https://github.com/gjsify/gjsify/issues/1149)
+* **rolldown-plugin-gjsify:** hand GI its paths from inside the bundle ([#1152](https://github.com/gjsify/gjsify/issues/1152)) ([8b957b3](https://github.com/gjsify/gjsify/commit/8b957b326156189c35acb56209b24214964ac4b7)), closes [#1132](https://github.com/gjsify/gjsify/issues/1132) [#1143](https://github.com/gjsify/gjsify/issues/1143)
+* **storybook:** the overview leads, the stage is tinted, and two NS gestures measured ([#1162](https://github.com/gjsify/gjsify/issues/1162)) ([14eeced](https://github.com/gjsify/gjsify/commit/14eeced18fb2677f8d0de116351277055c479092)), closes [#1154](https://github.com/gjsify/gjsify/issues/1154) [#1154](https://github.com/gjsify/gjsify/issues/1154)
+* **utils:** one canonical answer for system GI libdirs ([#1160](https://github.com/gjsify/gjsify/issues/1160)) ([14a8acd](https://github.com/gjsify/gjsify/commit/14a8acd99d4b85dbcc59e95926af7cd33587f1d8)), closes [#1152](https://github.com/gjsify/gjsify/issues/1152)
+
+### Bug Fixes
+
+* **adwaita-app:** stop hardwiring Enter to confirm ([#1147](https://github.com/gjsify/gjsify/issues/1147)) ([b3b37e8](https://github.com/gjsify/gjsify/commit/b3b37e88fb85c79c96c1350b5c90e1ad9d17d733))
+* **adwaita-nativescript:** every theme class judged, and the ten the gate never saw ([#1156](https://github.com/gjsify/gjsify/issues/1156)) ([317cff1](https://github.com/gjsify/gjsify/commit/317cff1e1697ad4040ed2047daae6a3fe6752187)), closes [#1125](https://github.com/gjsify/gjsify/issues/1125) [#1126](https://github.com/gjsify/gjsify/issues/1126) [#1126](https://github.com/gjsify/gjsify/issues/1126) [#1155](https://github.com/gjsify/gjsify/issues/1155) [#1152](https://github.com/gjsify/gjsify/issues/1152) [#1153](https://github.com/gjsify/gjsify/issues/1153) [#1153](https://github.com/gjsify/gjsify/issues/1153)
+* **adwaita-storybook:** let the web preview scroll again ([#1165](https://github.com/gjsify/gjsify/issues/1165)) ([44ba0d7](https://github.com/gjsify/gjsify/commit/44ba0d7a935c634e6226df0cebd13dc8cb1c364d))
+* **devtools:** route Screenshot's scope arg; retire the drained .gir ledger ([#1153](https://github.com/gjsify/gjsify/issues/1153)) ([1c2be62](https://github.com/gjsify/gjsify/commit/1c2be62f2e28eb29d0a7164e5804eef8e4892bfb))
+* **hooks:** compute the affected-bundle trigger from its closure ([#1169](https://github.com/gjsify/gjsify/issues/1169)) ([3ee4bf8](https://github.com/gjsify/gjsify/commit/3ee4bf8dc8669ebb48008f3dc1f5cf8fffd1fe0c))
+* **node-gi:** make the consumer gate show its evidence ([#1174](https://github.com/gjsify/gjsify/issues/1174)) ([364a8ac](https://github.com/gjsify/gjsify/commit/364a8ac39a3235dd14ca8e482d28d500c204774b)), closes [#1028](https://github.com/gjsify/gjsify/issues/1028) [#1173](https://github.com/gjsify/gjsify/issues/1173) [#1170](https://github.com/gjsify/gjsify/issues/1170)
+* print each tree's remaining comment headroom ([#1158](https://github.com/gjsify/gjsify/issues/1158)) ([a8a89a9](https://github.com/gjsify/gjsify/commit/a8a89a91f73a27c5ea6d2d22c4724e72823aa9f4)), closes [#1152](https://github.com/gjsify/gjsify/issues/1152) [#1157](https://github.com/gjsify/gjsify/issues/1157) [#1156](https://github.com/gjsify/gjsify/issues/1156)
+* stop slicing a filesystem path as if it were POSIX ([#1148](https://github.com/gjsify/gjsify/issues/1148)) ([b55c0c5](https://github.com/gjsify/gjsify/commit/b55c0c5b16041312275f6b4764622024fc5fd3bb)), closes [#1143](https://github.com/gjsify/gjsify/issues/1143) [#1146](https://github.com/gjsify/gjsify/issues/1146) [#1143](https://github.com/gjsify/gjsify/issues/1143)
+* **storybook:** tint the preview area, not a box inside it ([#1168](https://github.com/gjsify/gjsify/issues/1168)) ([d9cf608](https://github.com/gjsify/gjsify/commit/d9cf6083b0288c5d6f4171d62f2f704de91510c9))
+* **unit:** name the failing test, and record the timeouts that never were ([#1163](https://github.com/gjsify/gjsify/issues/1163)) ([ce3ae86](https://github.com/gjsify/gjsify/commit/ce3ae86274fad067cff6864b40121e6ca29550d6))
+
+### Performance Improvements
+
+* **cli:** classify directly; keep the spawns that test a process ([#1164](https://github.com/gjsify/gjsify/issues/1164)) ([8a53b59](https://github.com/gjsify/gjsify/commit/8a53b59c72bfbe7a1c71f21f1f734a9554154ed7))
+* **hooks:** make an amend's rebuild a cache hit ([#1142](https://github.com/gjsify/gjsify/issues/1142)) ([3c3ae13](https://github.com/gjsify/gjsify/commit/3c3ae138e295cb83dfa4ff08cb09ceb8660e6435)), closes [#1133](https://github.com/gjsify/gjsify/issues/1133) [#1100](https://github.com/gjsify/gjsify/issues/1100) [#1100](https://github.com/gjsify/gjsify/issues/1100) [#1093](https://github.com/gjsify/gjsify/issues/1093)
+
+### Documentation
+
+* **adr:** state that a process has ONE GObject registry ([#1150](https://github.com/gjsify/gjsify/issues/1150)) ([67da690](https://github.com/gjsify/gjsify/commit/67da6901c01c59f441e0b95638862c08f46c27df)), closes [#1120](https://github.com/gjsify/gjsify/issues/1120) [#1144](https://github.com/gjsify/gjsify/issues/1144) [#1132](https://github.com/gjsify/gjsify/issues/1132)
+* put AGENTS.md back under its byte ceiling ([#1171](https://github.com/gjsify/gjsify/issues/1171)) ([405b10b](https://github.com/gjsify/gjsify/commit/405b10bd0e3e9dbab5a93cc4eccf6016e9f4637f))
+* **scripts:** cut 52 comment lines, keep every incident ([#1176](https://github.com/gjsify/gjsify/issues/1176)) ([821d979](https://github.com/gjsify/gjsify/commit/821d979bc9e7d6e738b892200790e218c20255e5)), closes [#1102](https://github.com/gjsify/gjsify/issues/1102) [#910](https://github.com/gjsify/gjsify/issues/910) [#1170](https://github.com/gjsify/gjsify/issues/1170)
+* **status:** a third shape for the macOS launcher gap, measured ([#1151](https://github.com/gjsify/gjsify/issues/1151)) ([6b96ff0](https://github.com/gjsify/gjsify/commit/6b96ff09ee8be126da6ca148abdb167efad0a0ea)), closes [#1132](https://github.com/gjsify/gjsify/issues/1132) [#1144](https://github.com/gjsify/gjsify/issues/1144)
+
+### Maintenance
+
+* delete the coverage script that no workflow runs and could not be right ([#1170](https://github.com/gjsify/gjsify/issues/1170)) ([58f2d8b](https://github.com/gjsify/gjsify/commit/58f2d8bafaf7411cda8ca2e779357915a37f6ceb))
+* report the comment budget instead of gating on it ([#1166](https://github.com/gjsify/gjsify/issues/1166)) ([4e53d1e](https://github.com/gjsify/gjsify/commit/4e53d1e7c5dbfaf24bdc0376d49817001557d432)), closes [#1157](https://github.com/gjsify/gjsify/issues/1157) [#1164](https://github.com/gjsify/gjsify/issues/1164)
+
 ## [0.38.1](https://github.com/gjsify/gjsify/compare/v0.38.0...v0.38.1) (2026-08-13)
 
 ### Bug Fixes
