@@ -163,6 +163,16 @@ const TOLERANCE = 0.0005;
  */
 const allowedComments = (ceiling, code) => Math.floor((ceiling + TOLERANCE) * code);
 
+/**
+ * The other side of the same ratio: the code total at which today's comments fit. Printed
+ * next to the cut because a message that only ever says "cut N" teaches that deletion is
+ * the safe direction, and it is not — #1156 lost 27 lines of headroom by removing ~10
+ * code lines and adding no comment at all. Read by both surfaces, so they cannot drift
+ * into advising half of a two-sided quantity.
+ * @param {number} comment @param {number} ceiling
+ */
+const codeToFit = (comment, ceiling) => Math.ceil(comment / (ceiling + TOLERANCE));
+
 const mode = process.argv.includes('--check')
     ? 'check'
     : process.argv.includes('--update')
@@ -175,13 +185,26 @@ const totals = measure();
 
 if (mode === 'update') {
     /** @type {Record<string, number>} */
+    const previous = existsSync(BUDGET_FILE) ? JSON.parse(readFileSync(BUDGET_FILE, 'utf8')) : {};
+    /** @type {Record<string, number>} */
     const out = {};
+    const moved = [];
     for (const area of AREAS) {
         const t = totals.get(area);
-        if (t.files > 0) out[area] = Number(ratio(t).toFixed(3));
+        if (t.files === 0) continue;
+        // ONLY EVER TIGHTENS, as the header has always promised and the code did not do:
+        // it wrote the measured value unconditionally, so `--update` on a GROWN tree
+        // raised the ceiling to fit — measured here, `scripts` 0.586 -> 0.591, blessing
+        // the exact drift the ratchet exists to catch. Raising stays possible as a
+        // reviewed edit to the ledger, in the commit that needs it.
+        const measured = Number(ratio(t).toFixed(3));
+        const stored = previous[area];
+        out[area] = stored === undefined ? measured : Math.min(stored, measured);
+        if (out[area] !== stored) moved.push(`${area}: ${stored === undefined ? 'new' : stored} -> ${out[area]}`);
     }
     writeFileSync(BUDGET_FILE, `${JSON.stringify(out, null, 4)}\n`);
     process.stdout.write(`check-comment-budget: wrote ${BUDGET_FILE} (${Object.keys(out).length} areas)\n`);
+    for (const m of moved) process.stdout.write(`  ${m}\n`);
     process.exit(0);
 }
 
@@ -253,7 +276,9 @@ if (mode === 'warn') {
     for (const f of failures) {
         process.stdout.write(
             `::warning title=comment budget: ${f.area}::at ${f.have.toFixed(3)} per code line, over its ` +
-                `ceiling of ${f.ceiling.toFixed(3)} by ${f.comment - f.allowed} comment line(s). ` +
+                `ceiling of ${f.ceiling.toFixed(3)} by ${f.comment - f.allowed} comment line(s). Cut that many, ` +
+                `or reach ${codeToFit(f.comment, f.ceiling)} code lines — it is a RATIO, so DELETING CODE raises ` +
+                'it and a commit that removes dead code without adding a comment can land here. ' +
                 'Reported, not gated — run --check locally before a cleanup commit.\n',
         );
     }
@@ -268,8 +293,10 @@ for (const f of failures) {
             `over its committed ceiling of ${f.ceiling.toFixed(3)} — ${f.comment} comment lines against ` +
             `${f.code} code lines, ${f.comment - f.allowed} more than the ${f.allowed} that ceiling allows. ` +
             `Cutting ${f.comment - f.allowed} passes; cutting more than that is spending headroom you do not owe.\n` +
-            '  This is a RATIO, so DELETING CODE raises it: a commit that only removes dead code,\n' +
-            '  adding no comment at all, can land here. Check the code column before assuming otherwise.\n' +
+            `  Two levers, because it is a RATIO: CUT ${f.comment - f.allowed} COMMENT LINES, or reach\n` +
+            `  ${codeToFit(f.comment, f.ceiling)} CODE LINES (currently ${f.code}). Read backwards, that is why DELETING CODE\n` +
+            '  raises it: a commit that only removes dead code, adding no comment at all, can land\n' +
+            '  here. Check the code column before assuming a deletion is the safe direction.\n' +
             '  Comment WHY, not WHAT: a comment that restates the code is a second copy that drifts.\n' +
             '  What usually has to go: restatement, narrative history ("previously we…", "ported from…"),\n' +
             '  upstream source coordinates a reader cannot act on, and change-log entries git already has.\n' +

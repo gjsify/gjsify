@@ -15,12 +15,20 @@
 //         was when last reviewed. Two files are over the 20 KB target AGENTS.md sets
 //         for itself, so a flat 20 KB gate would have failed on arrival and been
 //         waived; a per-file ratchet fails only on REGROWTH, which is the thing worth
-//         catching. `--update` after a cleanup lowers a ceiling; raising one is a
-//         reviewed line in the same commit as the prose that needed it.
+//         catching.
+//
+// The SOFT ceiling is EXACT: a file BELOW its ceiling fails too, and `--update` is the
+// one-command fix named in the message. Slack is the defect — a required check reads
+// `main` plus ONE branch and `strict_required_status_checks_policy` is false, so two
+// branches can each spend the same slack in full and land a state neither run measured
+// (#1157, probe-merged: a 48-byte window took `main` to 979 over a ceiling of 955 with
+// both PRs green). At zero slack every size change must edit this path's ledger line,
+// so concurrent changes to one file collide in git rather than on `main`. Reasoning,
+// both reproductions and the residual: docs/governance.md § Concurrent PRs.
 //
 //   node scripts/check-agent-context-size.mjs            # print the table
 //   node scripts/check-agent-context-size.mjs --check    # gate (CI)
-//   node scripts/check-agent-context-size.mjs --update   # re-baseline
+//   node scripts/check-agent-context-size.mjs --update   # re-baseline (both directions)
 //
 // A `CLAUDE.md` that is a real file rather than a symlink to `AGENTS.md` is also an
 // error: both get loaded, so the tax doubles and the second copy drifts.
@@ -68,13 +76,18 @@ for (const r of rows) {
     const ceiling = budget[r.file];
     const overHard = r.bytes > HARD_CAP;
     const overSoft = ceiling !== undefined && r.bytes > ceiling;
+    // Slack is the whole defect, so it is a failure rather than a courtesy. A ceiling
+    // above the file is also simply a false statement about the tree — the same kind of
+    // thing as the stale and unbudgeted entries below, not a judgement about size.
+    const slack = ceiling !== undefined && r.bytes < ceiling;
     process.stdout.write(
         `${pad(r.file, 52)}${lpad(r.bytes, 8)}${lpad(ceiling === undefined ? '-' : ceiling, 9)}` +
-            `${overHard ? '  OVER 32 KiB' : overSoft ? '  OVER' : ''}\n`,
+            `${overHard ? '  OVER 32 KiB' : overSoft ? '  OVER' : slack ? `  STALE -${ceiling - r.bytes}` : ''}\n`,
     );
     if (overHard) failures.push({ ...r, ceiling, kind: 'hard' });
     else if (overSoft) failures.push({ ...r, ceiling, kind: 'soft' });
     else if (ceiling === undefined) failures.push({ ...r, ceiling, kind: 'unbudgeted' });
+    else if (slack) failures.push({ ...r, ceiling, kind: 'slack' });
 }
 
 // A ceiling for a file that no longer exists is a claim nothing checks.
@@ -114,12 +127,22 @@ for (const f of failures) {
                 `${f.ceiling} (+${f.bytes - f.ceiling}). This file is loaded on every agent turn.\n` +
                 '  Move the DETAIL into `docs/` and keep the rule plus one link — never delete the incident\n' +
                 '  behind a rule, which is what makes the rule survive a future "simplification".\n' +
-                `  If the growth is genuinely warranted, raise the ceiling in ${BUDGET_FILE} in the same\n` +
-                '  commit, so the increase is reviewed rather than accumulated.\n',
+                '  If the growth is genuinely warranted: node scripts/check-agent-context-size.mjs --update\n' +
+                `  and commit ${BUDGET_FILE} with it, so the increase is one reviewed line rather than\n` +
+                '  something that accumulated. That line is also the interlock — a concurrent PR growing the\n' +
+                '  same file writes the same line, so git stops the pair instead of CI stopping `main`.\n',
         );
     } else if (f.kind === 'unbudgeted') {
         process.stderr.write(
             `\ncheck-agent-context-size: ${f.file} has no ceiling in ${BUDGET_FILE}. Run --update to baseline it.\n`,
+        );
+    } else if (f.kind === 'slack') {
+        process.stderr.write(
+            `\ncheck-agent-context-size: ${f.file} is ${f.bytes} bytes but its ceiling says ${f.ceiling} ` +
+                `(${f.ceiling - f.bytes} bytes of slack). Shrinking is the point, so this is not a complaint ` +
+                'about the file — the LEDGER is out of date, and unclaimed slack is what two concurrent PRs ' +
+                'can each spend in full while both stay green (#1157).\n' +
+                '  Fix: node scripts/check-agent-context-size.mjs --update — then commit the ledger with it.\n',
         );
     }
 }

@@ -130,3 +130,81 @@ That second cost is what ADR 0002 removes: with the bundle untracked, a CLI PR
 becomes a source-only diff and re-merging is a normal text merge rather than a
 20-minute rebuild. The "prefer few large PRs" conclusion survives on the
 25-minutes-per-pass arithmetic alone.
+
+## Concurrent PRs and checks that score a shared number
+
+> Root [AGENTS.md](../AGENTS.md) § Writing agent context files carries the rule this
+> section is the reasoning for. Issue #1157 is the thread.
+
+A required check reads exactly one tree: `main` plus **one** branch's diff. It never sees
+the other open branches, and `main`'s ruleset sets
+`strict_required_status_checks_policy: false`, so a branch is not required to be up to
+date before merging and nothing re-measures at merge time. For a check that asserts a
+FACT about a diff — this declaration matches that file, this workflow block is valid
+shell — that is harmless: the fact stays true however the merge orders.
+
+For a check that scores a **shared number**, it is not. Any slack the number carries can
+be spent in full by two branches at once, and the second merge lands a state neither CI
+run measured. Both PRs are green, the merge is clean, and `main` is red for a reason that
+appears in neither diff. Per the incident in #906, every open PR then fails on `main`'s
+reason while looking like its own diff is broken.
+
+**Two checks in `Detect runtime-triplet drift` carried such a number. Nothing else does**
+— audited script by script; every other check in that job fails per item, on a fact, and
+is immune by construction. They were resolved differently, on purpose.
+
+### `check-comment-budget` — de-gated (#1166)
+
+A comment-to-code ratio over a whole tree is the worst case: ~500 unrelated files feed one
+counter, so any two PRs touching the same pillar contend. Probe-merged in #1157: `main` at
+5014/8678 = 0.578, `main` + #1152 + #1156 at 5060/8671 = 0.584, over a 0.583 ceiling. Two
+further facts came out of that probe and neither was guessable from the PRs' own deltas —
+#1156 lost 27 lines of headroom by **deleting ~10 code lines** and adding no comment at
+all (it is a ratio, so removing code raises it), and a third open PR removed comment lines
+net, so the set that overflowed was not the set that landed.
+
+The fix was not to give the counter slack. It was to notice that the check scores a
+**proxy** rather than a fact — moving a full-line comment to the end of a code line drops
+the comment count and leaves the code count untouched, and ~1670 trailing comments are
+already invisible to it — and that blocking power over unrelated work is more than a proxy
+earns. CI runs `--warn`: the table plus one annotation per over-ceiling tree, exit 0. The
+ledger's own integrity still fails, because a stale or missing ceiling is a fact.
+
+Adding a margin to the ceilings was considered and rejected: it weakens the ratchet by
+exactly its own size, and it is a second, weaker fix for a problem de-gating already
+closed.
+
+### `check-agent-context-size` — exact ledger, still gated
+
+This one stays a gate: it asserts a fact with a real cost behind it (past 32 KiB Codex
+truncates the tail with no warning), so de-gating was not on offer. Per-file byte ceilings
+look immune — different files never contend — but the shape is the same, and it was
+reproduced rather than argued. Ceiling 955; a cleanup takes the file to 907 and does not
+re-baseline; two PRs then add 35 bytes each in different paragraphs. Both green, merge
+clean, `main` at 979 over 955.
+
+The window is always **the slack itself**, and the fix is to have none: a file BELOW its
+ceiling now fails, with `--update` named in the message. At zero slack every size change
+must edit that path's line in `status/agent-context-budget.json`, so two concurrent
+changes to the same context file collide there and **git** refuses the merge — the ledger
+becomes the interlock, and the check no longer has to see a branch it was never run on.
+Measured both ways: +35 B and +41 B conflict in the ledger and are blocked.
+
+**Residual, stated because it is real.** Two PRs that change one file by the *identical*
+number of bytes write the identical ledger line, which merges clean and lands over the
+ceiling. Byte-exact collisions are narrow, not impossible, and `main`'s own run is what
+catches them. Closing that too needs `strict_required_status_checks_policy: true` or a
+merge queue — both were weighed and both lose to the arithmetic in § PR size above: a full
+pass is ~25 minutes, and every merge into `main` would force a re-run of every open PR.
+
+**The cost, stated because it is paid by everyone.** Changing an agent context file by one
+byte fails CI until `--update` runs and the ledger is committed alongside. That friction is
+the mechanism, not a side effect.
+
+### The rule this generalises to
+
+Before putting a number behind a required check, ask whether two branches can each spend
+its slack in full. If they can, either the check should not gate, or its ledger must be
+exact enough that concurrent spenders collide in git first. A whole-tree or whole-repo
+aggregate is structurally blind to concurrent PRs; only per-item exactness gives the merge
+something to trip over.
