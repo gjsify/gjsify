@@ -13,11 +13,13 @@ install, unless that something is a Flatpak.
 Measured on this tree:
 
 ```
-$ grep -rniE 'appimage|nfpm|dpkg-deb|rpmbuild|\.rpm\b' packages/infra/cli/src docs status | wc -l
+$ grep -rniE 'appimage|nfpm|dpkg-deb|rpmbuild|\.rpm\b' packages/infra/cli/src | wc -l
 0
 ```
 
-Not a partial implementation, not a TODO — the question has never been asked. The half that
+Not a partial implementation, not a TODO — the question has never been asked. (Scoped to the
+CLI sources on purpose: this file is the first place in the tree where those words appear at
+all, and a grep that included `docs/` would from now on be measuring itself.) The half that
 IS answered is answered well: `packages/infra/cli/src/commands/flatpak/` is 2 633 lines over
 nine subcommands with six e2e suites behind it, one of which drives a real `flatpak-builder`.
 It emits `.desktop.in` / `.metainfo.xml.in` gettext templates, so app metadata is
@@ -124,12 +126,42 @@ by staging and by adding deb + rpm. Folding Flatpak in means unifying `gjsify.fl
 Two commands that share a staging model and not yet a config key is an acceptable intermediate
 state; two commands that duplicate the staging model is not.
 
-### 8. AppImage is out of scope
+### 8. AppImage is DEFERRED, and this names what would unblock it
 
-The reference's AppDir carries the app and not GTK4, so "runs anywhere without installing" is
-false on any host without GTK4. A GJS app would additionally have to carry GJS. gjsify can make
-that promise honestly only by shipping a runtime bundle inside the image — a different, larger
-decision. Better no AppImage than one that fails on the machines it was invented for.
+Not "rejected". An AppImage makes one promise — *one file, no install, any distro* — and that
+promise holds only if the file contains everything the target is not guaranteed to have. For a
+GJS application that is GTK4, libadwaita, **GJS itself**, the typelibs and girepository.
+
+The reference does not carry them: its AppDir holds the app tree and takes GTK4 from the host,
+so on a host without GTK4 the "runs anywhere" file does not run. That is not an AppImage; it is
+a tarball with a launcher, wearing the name of something that promises more. Copying it would
+have us make a claim we do not keep — the one failure mode this ADR exists to avoid twice over
+(§ 4, § 5).
+
+Making it honestly needs a **relocatable Linux runtime closure**, and the tree's evidence is
+that this is a project rather than a target: the batteries-included bundles exist for
+`darwin-arm64`, `darwin-x64` and `win32-x64` (`packages/node-gi/gtk-runtime-*`) and there is no
+Linux one, deliberately — on Linux GTK has always come from the distro. Building one drags in
+the dylib/ELF relocation work ADR 0023 describes for the other platforms, plus GJS and
+SpiderMonkey, plus the licensing question `status/open-todos.md` already logs against the
+existing bundles (*"The GTK bundles declare `license: MIT` while shipping an LGPL closure"*),
+which for a redistributed single file is a compliance item rather than a note.
+
+**And the need it would serve is already served.** One file, no repository, offline install:
+
+```
+gjsify flatpak build --repo=/tmp/repo --bundle=app.flatpak   # exists today
+flatpak install app.flatpak
+```
+
+`packages/infra/cli/src/commands/flatpak/build.ts` already wraps `flatpak build-bundle`. What
+AppImage adds over that is *"and the user does not have Flatpak either"* — a real but narrowing
+gap, and a poor trade against a Linux runtime closure nobody has built yet.
+
+So: deb and rpm first, because they answer *"install this the way my distro installs things"*,
+which nothing here answers at all. AppImage becomes worth revisiting the day a
+`@gjsify/gtk-runtime-linux-<arch>` exists — and then it is mostly a packaging step on top of a
+closure that already had to be solved for its own reasons.
 
 ### 9. Reimplement from the design; copy nothing
 
