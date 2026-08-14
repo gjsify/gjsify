@@ -1,15 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Unit tests for the `gjsify affected` classifier.
 //
-// The classifier branches are exercised by CALLING `classifyAndExpand` on a real temp
-// monorepo; the CLI itself is still spawned for the cases where the process boundary is
-// the thing under test (both emit branches, and a real `sh` doing the word split).
-//
-// It used to spawn for all 40, to keep the helper unexported. That privacy is kept —
-// the classifier moved to `commands/affected-classify.ts`, which is not in the
-// package's `exports` map — and the 12.81 s it cost against a 30 s per-`describe()`
-// budget is not (#1161). The header that justified the spawns is preserved in that
-// module, next to the code it justified.
+// Branches are exercised by CALLING `classifyAndExpand` on a real temp monorepo; the CLI
+// is still spawned where the process boundary IS the thing under test (both emit
+// branches, and a real `sh` doing the word split). Why it is split that way, and what
+// the all-spawn version cost: `commands/affected-classify.ts` (#1161).
 
 import { describe, it, expect } from '@gjsify/unit';
 import { discoverWorkspaces } from '@gjsify/workspace';
@@ -201,24 +196,7 @@ async function shellWordSplit(value: string): Promise<string[]> {
     });
 }
 
-/**
- * Classify DIRECTLY — the same two calls the command handler makes, minus the process.
- *
- * This used to spawn the built CLI for every case, and the spec header explained why:
- * it kept `classifyAndExpand` unexported. That privacy is intact — the classifier now
- * lives in `commands/affected-classify.ts`, which is NOT in the package's `exports`
- * map, so this relative import is the only way in and the public surface is unchanged.
- *
- * What the spawn bought beyond privacy was the argv/stdin/JSON round trip, and that is
- * still covered: `includeArgsFor` and `emitToGithubOutput` below go through the real
- * CLI, so `--changed-from-stdin` parsing and both emit branches keep a process test.
- * What it cost was 33 spawns for a pure function — 12.81 s measured on this host
- * against a 30 s per-`describe()` budget, which is a red `main` on any platform 2.6x
- * slower per spawn (#1161).
- *
- * The fixture is unchanged: a real temp monorepo, discovered by the real
- * `discoverWorkspaces`, so every case still asserts against a genuinely walked tree.
- */
+/** Classify DIRECTLY — the handler's own two calls, on a really-walked temp monorepo. */
 function runClassify(cwd: string, changedFiles: string[]): ClassifyOutput {
     return classifyAndExpand(discoverWorkspaces(cwd, { includeRoot: true }), changedFiles);
 }

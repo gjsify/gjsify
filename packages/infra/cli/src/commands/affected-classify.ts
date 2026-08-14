@@ -1,25 +1,16 @@
 // SPDX-License-Identifier: MIT
 // The `gjsify affected` CLASSIFIER — the pure decision, separated from the command.
 //
-// WHY THIS MODULE EXISTS, and it overrides a documented decision (#1161). The spec
-// used to reach `classifyAndExpand` by SPAWNING the built CLI, and its header said
-// why: it kept the helper unexported, "a private detail of the command", while still
-// giving behavioural coverage of every branch. That trade was deliberate, so it is
-// worth stating what changed rather than quietly exporting the symbol.
+// WHY THIS MODULE EXISTS (#1161). The spec used to reach `classifyAndExpand` by spawning
+// the built CLI for all 40 cases, deliberately: the spawns kept the helper unexported.
+// Measured, they cost 12.81 s against a 30 s per-`describe()` budget (11.68 s / 12.30 s on
+// two other hosts, so it is the suite's property, not a host's). A runner 2.6x slower per
+// spawn blows it, which CI macOS ordinarily is — so the failure was a BUDGET, never an
+// assertion, on the legs that run on `main` rather than on PRs: a red `main` naming no test.
 //
-// What it cost, measured: 40 tests, every one a process spawn, 11.7 s and 12.3 s on
-// two independent Linux hosts against a 30 s per-`describe()` budget — a 2.6x margin.
-// A macOS runner only has to be 2.6x slower per spawn to blow it, and on CI macOS
-// (SIP, Gatekeeper, shared tenancy) 2-5x is ordinary. So the failure signature was a
-// BUDGET, never an assertion, on the platform whose suites run on `main` and the
-// nightly rather than on PRs — a red `main` that names no test.
-//
-// The privacy the trade bought is kept, and the spawns are not: this module is NOT in
-// the package's `exports` map, so nothing outside can import it. The spec reaches it
-// by relative path, which is the same access a nested function had, and the public
-// surface is byte-unchanged. Testing a pure function through a process boundary 33
-// times was the wrong layer; the seven cases that genuinely cross a process boundary
-// (the emit branches, and the real `sh` word-split) still do.
+// The privacy survives without them: this module is NOT in the package's `exports` map, so
+// the spec's relative import is the only way in. The seven cases that genuinely cross a
+// process boundary — both emit branches, a real `sh` word-split — still spawn.
 
 import {
     affectedClosure,
