@@ -27,8 +27,8 @@ export type StoryArgsListener = (args: StoryArgs) => void;
  * Base class for NativeScript story views.
  *
  * Provides default chrome — a clamped boxed group (`AdwClamp` +
- * `AdwPreferencesGroup`) with a title + description above a centered,
- * dashed-framed preview "stage" — built programmatically with the
+ * `AdwPreferencesGroup`) with a title + description above a centered, tinted
+ * preview "stage" — built programmatically with the
  * `@gjsify/adwaita-nativescript` widgets + the Adwaita CSS classes. Simple
  * stories compose their preview by calling {@link addContent}; a subclass that
  * needs a bespoke layout passes its own root view to the constructor (then
@@ -102,9 +102,9 @@ export class StoryView extends StoryViewBase<View> {
         descLabel.textWrap = true;
         let hasDesc = false;
 
-        // Subtle dashed-frame stage so the preview's bounds stay locatable even
-        // when the widget is transparent or empty (mirrors the browser
-        // `.story-stage` and the native renderer's `.story-stage`).
+        // Tinted stage so the preview's bounds stay locatable even when the
+        // widget is transparent or empty (mirrors the browser `.story-stage`
+        // and the native renderer's `.story-stage`).
         const stage = new StackLayout();
         stage.orientation = 'vertical';
         stage.className = 'story-stage';

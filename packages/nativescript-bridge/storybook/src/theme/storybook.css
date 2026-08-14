@@ -137,16 +137,40 @@
 }
 
 /*
- * Centered, dashed-framed preview stage (mirrors the browser .story-stage and
- * the native renderer's .story-stage). NS supports a dashed border style.
+ * Centered, tinted preview stage (mirrors the browser .story-stage and the
+ * native renderer's .story-stage).
+ *
+ * The stage must stay LOCATABLE when the widget on it is transparent or in an
+ * empty state — that requirement is why it was framed at all, and two corner
+ * tints meet it with a surface instead of a dashed outline.
+ *
+ * TWO SUBSTITUTIONS THE NS CSS SUBSET FORCES, both deliberate:
+ *
+ * 1. No `radial-gradient` — the parser recognises `linear-gradient` and nothing
+ *    else (css/parser.js:424), and it parses ONE gradient per declaration, so
+ *    the other two targets' pair of corner circles becomes a single 135deg
+ *    sweep: accent in the top-left corner, purple in the bottom-right, clear
+ *    through the middle where the widget sits.
+ * 2. No custom properties, so the standalone accent the other two name
+ *    (@accent_color / var(--accent-color)) is spelled out per scheme — the same
+ *    two values adwaita-web resolves it to. A runtime accent therefore does NOT
+ *    reach this backdrop on NS, unlike the other two targets.
+ *
+ * The middle stop fades to a ZERO-ALPHA COPY of the tint rather than to
+ * `transparent`: `transparent` is rgba(0,0,0,0), and interpolating towards it
+ * pulls a grey through the centre wherever the renderer does not premultiply.
  */
 .story-stage {
-    border-width: 1;
-    border-color: rgba(0, 0, 0, 0.28);
-    border-style: dashed;
     border-radius: 12;
     padding: 18;
     margin: 12 0 0 0;
+    background-image: linear-gradient(
+        135deg,
+        rgba(28, 113, 216, 0.07) 0%,
+        rgba(28, 113, 216, 0) 45%,
+        rgba(146, 110, 228, 0) 55%,
+        rgba(146, 110, 228, 0.06) 100%
+    );
 }
 
 /* ===== Controls panel — a RIGHT overlay (sidebar_position=END) ===== */
@@ -250,4 +274,23 @@
 
 .ns-dark .sb-swatch.selected {
     border-color: #ffffff;
+}
+
+/* The preview stage's dark tint. Only the accent end changes: it carries the
+ * STANDALONE accent, which libadwaita lightens for a dark background
+ * (#1c71d8 → #78aeed), while the purple is decoration and is the same hue in
+ * both schemes — as it is on the website. Alphas rise slightly because a tint
+ * over #1d1d20 reads weaker than the same tint over white.
+ *
+ * The full compound is restated rather than only the changed stops: NS sums
+ * specificity FLAT (class, attribute and pseudo-class 10 each — css-selector.js
+ * :205,292) and there is no per-stop cascade for a gradient anyway. */
+.ns-dark .story-stage {
+    background-image: linear-gradient(
+        135deg,
+        rgba(120, 174, 237, 0.09) 0%,
+        rgba(120, 174, 237, 0) 45%,
+        rgba(146, 110, 228, 0) 55%,
+        rgba(146, 110, 228, 0.08) 100%
+    );
 }

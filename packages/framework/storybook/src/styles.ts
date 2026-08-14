@@ -92,13 +92,30 @@ export const STORYBOOK_CSS = `
     background-color: @window_bg_color;
 }
 
-/* Subtle dashed frame around the live preview so the widget's bounds stay
-   locatable even when it is transparent or in an empty state (e.g. a collapsed
-   bottom sheet, a status page, a bare button). @window_fg_color flips with the
-   theme (alpha(currentColor, …) does not resolve in a Gtk.CssProvider). */
+/* The live preview's stage. It has to stay LOCATABLE even when the widget on it
+   is transparent or in an empty state (a collapsed bottom sheet, a status page,
+   a bare button) — that requirement is why a frame was here at all. A dashed
+   border met it by drawing attention to itself; two corner tints meet it by
+   giving the stage a surface, which is what the widget gallery on the website
+   does and what this mirrors.
+
+   BOTH SCHEMES, WITHOUT BRANCHING. A Gtk.CssProvider string cannot ask which
+   colour scheme is active, so the tint is named rather than spelled out:
+   @accent_color is libadwaita's STANDALONE accent, defined as the accent moved
+   to a lightness that reads against the current scheme's background
+   (oklab min(l, 0.5) in light, max(l, 0.85) in dark — _colors.scss:25,88). It is
+   therefore correct in both by construction, and it follows a runtime accent, so
+   the stage is never blue while the widgets are orange. The website hardcodes
+   #3584e4 / #78aeed for the same two states, which is this name resolved by hand.
+
+   The purple counter-tint has no named equivalent and stays a literal, as it is
+   on the website — it is decoration, not a role, and it is the same hue in both
+   schemes there too. */
 .story-stage {
-    border: 1px dashed alpha(@window_fg_color, 0.28);
     border-radius: 12px;
     padding: 18px;
+    background-image:
+        radial-gradient(circle at 0% 0%, alpha(@accent_color, 0.07), transparent 45%),
+        radial-gradient(circle at 100% 100%, alpha(#926ee4, 0.06), transparent 45%);
 }
 `;

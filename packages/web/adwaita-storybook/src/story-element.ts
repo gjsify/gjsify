@@ -15,7 +15,7 @@ export type StoryArgsListener = (args: StoryArgs) => void;
  * Base class for browser story elements.
  *
  * Provides default chrome — a clamped boxed group with a title + description above a
- * centered, dashed-framed preview stage. Simple stories compose their preview by
+ * centered, tinted preview stage. Simple stories compose their preview by
  * calling {@link addContent}; a subclass needing a bespoke layout passes its own root
  * element to the constructor, and {@link addContent} is then a no-op.
  */
