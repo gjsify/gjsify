@@ -73,7 +73,9 @@ const declared = [];
     const source = readFileSync(ORDER_SRC, 'utf8');
     const block = source.match(/STORYBOOK_CATEGORY_ORDER[^=]*=\s*\[([^\]]*)\]/);
     if (!block) {
-        console.error(`check-storybook-category-order: no STORYBOOK_CATEGORY_ORDER array in ${relative(ROOT, ORDER_SRC)}.`);
+        console.error(
+            `check-storybook-category-order: no STORYBOOK_CATEGORY_ORDER array in ${relative(ROOT, ORDER_SRC)}.`,
+        );
         process.exit(1);
     }
     for (const match of block[1].matchAll(/'([^']+)'/g)) declared.push(match[1]);

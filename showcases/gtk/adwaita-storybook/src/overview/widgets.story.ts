@@ -48,9 +48,19 @@ export class OverviewWidgetsStory extends StoryWidget {
         // these to it would give one setting two controls that disagree.
         const appearance = new Adw.PreferencesGroup({ title: OVERVIEW_GROUP_TITLES.appearance });
         appearance.add(
-            new Adw.SwitchRow({ title: OVERVIEW_TEXT.darkMode, subtitle: OVERVIEW_TEXT.darkModeSubtitle, active: false }),
+            new Adw.SwitchRow({
+                title: OVERVIEW_TEXT.darkMode,
+                subtitle: OVERVIEW_TEXT.darkModeSubtitle,
+                active: false,
+            }),
         );
-        appearance.add(new Adw.SwitchRow({ title: OVERVIEW_TEXT.notifications, subtitle: OVERVIEW_TEXT.notificationsSubtitle, active: true }));
+        appearance.add(
+            new Adw.SwitchRow({
+                title: OVERVIEW_TEXT.notifications,
+                subtitle: OVERVIEW_TEXT.notificationsSubtitle,
+                active: true,
+            }),
+        );
         appearance.add(
             new Adw.ComboRow({
                 title: OVERVIEW_TEXT.accentColor,
@@ -73,18 +83,24 @@ export class OverviewWidgetsStory extends StoryWidget {
 
         const devices = new Adw.SpinRow({
             title: OVERVIEW_TEXT.devices,
-            adjustment: new Gtk.Adjustment({ value: OVERVIEW_DEVICES.value,
+            adjustment: new Gtk.Adjustment({
+                value: OVERVIEW_DEVICES.value,
                 lower: OVERVIEW_DEVICES.lower,
                 upper: OVERVIEW_DEVICES.upper,
                 step_increment: OVERVIEW_DEVICES.step,
-                page_increment: OVERVIEW_DEVICES.step }),
+                page_increment: OVERVIEW_DEVICES.step,
+            }),
         });
         // The displayed value does not always follow the adjustment through
         // property-init ordering, so it is set explicitly.
         devices.set_value(OVERVIEW_DEVICES.value);
         account.add(devices);
 
-        const advanced = new Adw.ExpanderRow({ title: OVERVIEW_TEXT.advanced, subtitle: OVERVIEW_TEXT.advancedSubtitle, expanded: true });
+        const advanced = new Adw.ExpanderRow({
+            title: OVERVIEW_TEXT.advanced,
+            subtitle: OVERVIEW_TEXT.advancedSubtitle,
+            expanded: true,
+        });
         for (const row of OVERVIEW_ADVANCED_ROWS) {
             advanced.add_row(
                 row.kind === 'switch'

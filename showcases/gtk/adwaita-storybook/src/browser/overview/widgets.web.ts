@@ -36,7 +36,10 @@ export class OverviewWidgetsWebStory extends StoryElement {
         host.style.flexDirection = 'column';
         host.style.width = '100%';
 
-        this._banner = el('adw-banner', { title: OVERVIEW_TEXT.bannerTitle, 'button-label': OVERVIEW_TEXT.bannerButton });
+        this._banner = el('adw-banner', {
+            title: OVERVIEW_TEXT.bannerTitle,
+            'button-label': OVERVIEW_TEXT.bannerButton,
+        });
         this._syncBanner();
         host.append(this._banner);
 
@@ -48,7 +51,11 @@ export class OverviewWidgetsWebStory extends StoryElement {
         const appearance = el('adw-preferences-group', { title: OVERVIEW_GROUP_TITLES.appearance });
         appearance.append(
             el('adw-switch-row', { title: OVERVIEW_TEXT.darkMode, subtitle: OVERVIEW_TEXT.darkModeSubtitle }),
-            el('adw-switch-row', { title: OVERVIEW_TEXT.notifications, subtitle: OVERVIEW_TEXT.notificationsSubtitle, active: '' }),
+            el('adw-switch-row', {
+                title: OVERVIEW_TEXT.notifications,
+                subtitle: OVERVIEW_TEXT.notificationsSubtitle,
+                active: '',
+            }),
             el('adw-combo-row', {
                 title: OVERVIEW_TEXT.accentColor,
                 // `items` is JSON, not a comma list — the element parses it.
@@ -72,7 +79,10 @@ export class OverviewWidgetsWebStory extends StoryElement {
             }),
         );
 
-        const advanced = el('adw-expander-row', { title: OVERVIEW_TEXT.advanced, subtitle: OVERVIEW_TEXT.advancedSubtitle });
+        const advanced = el('adw-expander-row', {
+            title: OVERVIEW_TEXT.advanced,
+            subtitle: OVERVIEW_TEXT.advancedSubtitle,
+        });
         advanced.toggleAttribute('expanded', true);
         for (const row of OVERVIEW_ADVANCED_ROWS) {
             advanced.append(

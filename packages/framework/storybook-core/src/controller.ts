@@ -194,5 +194,4 @@ export class StorybookController<TInstance extends StoryInstanceLike> {
         }
         return null;
     }
-
 }
