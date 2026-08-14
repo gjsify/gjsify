@@ -38,8 +38,16 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const HARNESS = join(MONOREPO_ROOT, 'scripts', 'node-gi-consumer-harness.mjs');
 
-const { classify, collectFailures, formatFailure, parseSummary, stageTestAssets, REASON_RULES, STAGED_ASSET_DIRS } =
-    await import(`file://${HARNESS}`);
+const {
+    classify,
+    collectFailures,
+    formatFailure,
+    formatGateFailure,
+    parseSummary,
+    stageTestAssets,
+    REASON_RULES,
+    STAGED_ASSET_DIRS,
+} = await import(`file://${HARNESS}`);
 
 /** Bucket a raw captured run, exactly as the harness does. */
 const bucketOf = (stdout) => classify(collectFailures(stdout));
@@ -206,6 +214,61 @@ describe('node-gi consumer harness: rule precedence', () => {
 // if it were a node-gi finding — `@gjsify/fs` was recorded as a hard fail for
 // exactly this (`join(__dirname, 'test/watch.js')`, survey gap 7), so what is
 // pinned here is the SET of bridged dirs, not just that bridging happens.
+// What the CI gate PRINTS when it fails. Tested because it runs only on failure:
+// the path that carries the diagnosis is the one no green run exercises, and this
+// gate spent a day reporting `@gjsify/zlib — partial` as its entire evidence.
+describe('node-gi consumer harness: --require-pass output', () => {
+    const partial = {
+        name: '@gjsify/zlib',
+        build: { ok: true },
+        runtimes: {
+            node: {
+                status: 'partial',
+                passed: 53374,
+                total: 53375,
+                failed: 1,
+                reason: 'other',
+                samples: ['deflateSync round-trip — expected 3, got 4'],
+            },
+        },
+    };
+
+    it('names the failing test, not just the package', () => {
+        const out = formatGateFailure(partial);
+        assert.match(out, /@gjsify\/zlib — partial/);
+        assert.match(out, /deflateSync round-trip/, `the sample is the whole point: ${out}`);
+    });
+
+    it('prints failed alongside passed/total, because the two can disagree', () => {
+        // `@gjsify/unit` bumps countTestsFailed without bumping countTestsOverall for
+        // a stale `it.failing`, an unexercised axis, and a stray assertion — so a
+        // total SMALLER than the standalone run is expected in those cases and reads
+        // as flake without the failed count beside it.
+        const out = formatGateFailure(partial);
+        assert.match(out, /53374\/53375 passed, 1 failed/, out);
+    });
+
+    it('says so when the collector captured nothing, instead of printing silence', () => {
+        const noSamples = {
+            name: '@gjsify/ws',
+            build: { ok: true },
+            runtimes: { node: { status: 'partial', passed: 10, total: 12, failed: 2, reason: 'other', samples: [] } },
+        };
+        assert.match(formatGateFailure(noSamples), /no failure samples captured/);
+    });
+
+    it('falls back to the BUILD samples when the package never ran', () => {
+        const buildFail = {
+            name: '@gjsify/http2',
+            build: { ok: false, reason: 'missing-typelib', samples: ['cannot resolve gi://Soup'] },
+            runtimes: {},
+        };
+        const out = formatGateFailure(buildFail);
+        assert.match(out, /build missing-typelib/);
+        assert.match(out, /cannot resolve gi:\/\/Soup/, out);
+    });
+});
+
 describe('node-gi consumer harness: test-asset staging', () => {
     it('bridges every on-disk asset dir the suite may resolve from the bundle', () => {
         assert.ok(STAGED_ASSET_DIRS.includes('fixtures'), 'fixtures/ must stay bridged');

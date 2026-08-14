@@ -7,6 +7,22 @@ name: node-gi
 # Builds the N-API addon against girepository-2.0 and runs the smoke tests on
 # Node, mirroring the Fedora 44 environment the rest of CI uses.
 
+# THE PATH FILTERS BELOW ARE NARROWER THAN WHAT THIS WORKFLOW GUARDS, and that is
+# why `schedule` and `workflow_dispatch` are here (#1173). The consumer harness
+# runs NINE OTHER packages' own test suites through the reverse bridge, so a break
+# originating anywhere in their source — or in anything they share, like
+# `packages/gjs/unit` — is invisible to a trigger naming three paths. Measured:
+# `main` went red on 2026-08-13 and stayed red with nothing reporting it, because
+# no merge after the v0.38.1 release touched a filtered path. A docs-only edit to
+# `packages/node-gi/AGENTS.md` is what eventually re-triggered it, 1 day later.
+#
+# The filters are still right for PRs: this builds an addon and runs three runtimes
+# over nine suites, which no unrelated PR should pay for. What was missing is a
+# trigger that does not depend on guessing the input set — a nightly run bounds how
+# long a break can hide at ~24 h whatever caused it, and dispatch makes it
+# answerable on demand. Same class as #1028 (an e2e guard firing only on
+# `tests/e2e/**`) and #1149 (a hook trigger naming four of 111 closure packages):
+# a guard whose trigger is narrower than its subject.
 on:
   push:
     branches: [main]
@@ -19,6 +35,11 @@ on:
       - 'packages/node-gi/**'
       - 'scripts/node-gi-consumer-harness.mjs'
       - '.github/workflows/node-gi.yml'
+  schedule:
+    # 03:17 UTC — off the hour, so this does not queue behind everything else
+    # scheduled at :00.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
