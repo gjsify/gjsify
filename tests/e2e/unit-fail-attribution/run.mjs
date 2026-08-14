@@ -262,9 +262,25 @@ describe('@gjsify/unit failure attribution E2E', { timeout: 5 * 60 * 1000 }, () 
         // this is where the failure surfaced — in a spec that touches nothing.
         assert.match(plain, /✔ B bystander never touches the cwd/, 'the later bystander must stay green');
 
-        // Reported once, not once per remaining test.
-        const occurrences = plain.split('deleted working directory').length - 1;
-        assert.strictEqual(occurrences, 1, 'the transition is reported exactly once');
+        // Reported at the failure and once more in the recap — and NOWHERE else.
+        //
+        // The property under test is that the count does not scale with the suite: the
+        // bug this pins reported the transition once per REMAINING test. Since #1159 the
+        // runner also names every failure in a recap block above the summary, so the
+        // honest assertion is one occurrence on each side of that block's header rather
+        // than a loosened "at least one", which would stop noticing per-test repetition.
+        const parts = plain.split(/^\u2716 .*failed tests?$/m);
+        assert.strictEqual(parts.length, 2, 'expected exactly one failure-recap header');
+        assert.strictEqual(
+            parts[0].split('deleted working directory').length - 1,
+            1,
+            'the transition is reported exactly once where it happened',
+        );
+        assert.strictEqual(
+            parts[1].split('deleted working directory').length - 1,
+            1,
+            'and exactly once in the recap that names it',
+        );
 
         assert.notStrictEqual(code, 0, 'a run that destroyed its cwd must exit non-zero');
     });

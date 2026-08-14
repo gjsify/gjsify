@@ -9,7 +9,9 @@
 import { describe, expect, it, formatFailureAnnotations, formatFailureRecap } from '@gjsify/unit';
 
 /** Strip SGR codes so assertions read the text, not the colouring. */
-const plain = (lines: string[]): string[] => lines.map((l) => l.replace(/\x1b\[[0-9;]*m/g, ''));
+// oxlint-disable-next-line no-control-regex -- ANSI SGR sequences are ESC-prefixed by design
+const ANSI = /\x1b\[[0-9;]*m/g;
+const plain = (lines: string[]): string[] => lines.map((l) => l.replace(ANSI, ''));
 
 const entry = (suite: string, test: string, message: string) => ({ suite, test, message });
 
@@ -84,8 +86,10 @@ export default async () => {
 
         await it('carries NO escape codes — they would print literally on the summary page', () => {
             const lines = formatFailureAnnotations([entry('s', 't', 'x')], '[Gjs] ');
-            // eslint-disable-next-line no-control-regex
-            expect(/\x1b\[/.test(lines[0]!)).toBe(false);
+            // A fresh non-global matcher: `ANSI` carries `g`, and `.test()` on a global
+            // regex advances its `lastIndex`, so sharing it here would make this
+            // assertion depend on whatever ran before it.
+            expect(lines[0]!.includes('\x1b[')).toBe(false);
             expect(lines[0]!.includes('[Gjs]')).toBe(true);
         });
 
