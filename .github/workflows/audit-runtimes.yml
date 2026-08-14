@@ -182,6 +182,15 @@ jobs:
       # warning, so the end of an oversized file is not read at all. Per-file ceilings
       # are MEASURED for the same reason as above: two files are over the 20 KB target
       # AGENTS.md sets itself, and a flat gate would have been waived on arrival.
+      #
+      # The ceilings are EXACT, so a file BELOW its ceiling fails here too and the fix is
+      # `--update` plus the ledger in the same commit. That is not pedantry: a required
+      # check reads `main` plus ONE branch and `strict_required_status_checks_policy` is
+      # false, so any slack a committed number carries can be spent in full by two
+      # branches at once. Probe-merged in #1157 — a 48-byte window left by an
+      # un-re-baselined cleanup took `main` to 979 over a ceiling of 955 with both PRs
+      # green. At zero slack the two spenders collide in the ledger and git stops them.
+      # Reasoning + the residual: docs/governance.md § Concurrent PRs.
       - name: Check agent context file sizes
         run: node scripts/check-agent-context-size.mjs --check
 
