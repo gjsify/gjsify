@@ -10,6 +10,7 @@ export * from './story-view-base.js';
 export * from './registry.js';
 export * from './controls.js';
 export * from './controller.js';
+export * from './category-order.js';
 export * from './discover.js';
 export * from './devtools.js';
 export * from './settings.js';

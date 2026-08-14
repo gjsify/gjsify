@@ -3,9 +3,12 @@
 // asserted against the @gjsify/adwaita-core/conformance vectors — nothing compares the rendering
 // (#1052).
 //
-// The array order must stay as it is: the GTK storybook discovers `*.story.ts` by path glob, making
-// its sidebar order alphabetical by `<category-dir>/<story-file>`, and this list reproduces that so
-// the NS sidebar matches.
+// THE ORDER OF THIS ARRAY NO LONGER DECIDES THE SIDEBAR. It used to have to reproduce the GTK
+// storybook's path glob (alphabetical by `<category-dir>/<story-file>`) so the two sidebars agreed —
+// a rule kept by hand in a comment, which the browser target's own list broke without anything
+// noticing. Categories now come from STORYBOOK_CATEGORY_ORDER in @gjsify/storybook-core, applied by
+// the controller all three targets share, so this list only decides which stories exist and how they
+// sit WITHIN their category.
 
 import type { NsStoryModule } from '@gjsify/storybook-nativescript';
 // Buttons

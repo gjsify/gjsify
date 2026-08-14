@@ -244,6 +244,15 @@ jobs:
       - name: Check every storybook story exists on all three targets
         run: node scripts/check-storybook-story-parity.mjs
 
+      # Story-set parity says the same stories EXIST; it cannot say the reader meets
+      # them in the same order. That order was a by-product of enumeration — a path
+      # glob on two targets, a hand-written list on the third — and a comment claiming
+      # the two mirrored each other was the only thing holding it. They did not:
+      # `Overview` led one sidebar and sat fifth, below the fold, on another, which
+      # reads as the overview being missing rather than as an ordering difference.
+      - name: Check every storybook category is placed by the declaration
+        run: node scripts/check-storybook-category-order.mjs
+
       # A NativeScript widget's className and the theme's selector are two halves of
       # one decision that nothing compares. Renaming the shortcut-label keycap class
       # from `keycap` to `adw-keycap` was measured: 3221 tests stayed GREEN while
@@ -537,6 +546,15 @@ jobs:
       # others is the one state where no comparison is possible at all.
       - name: Check every storybook story exists on all three targets
         run: node scripts/check-storybook-story-parity.mjs
+
+      # Story-set parity says the same stories EXIST; it cannot say the reader meets
+      # them in the same order. That order was a by-product of enumeration — a path
+      # glob on two targets, a hand-written list on the third — and a comment claiming
+      # the two mirrored each other was the only thing holding it. They did not:
+      # `Overview` led one sidebar and sat fifth, below the fold, on another, which
+      # reads as the overview being missing rather than as an ordering difference.
+      - name: Check every storybook category is placed by the declaration
+        run: node scripts/check-storybook-category-order.mjs
 
       # A NativeScript widget's className and the theme's selector are two halves of
       # one decision that nothing compares. Renaming the shortcut-label keycap class
