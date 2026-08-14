@@ -1066,9 +1066,10 @@ static std::string CamelToSnake(const std::string& name) {
 
 // The instance's concrete GType may lack introspection info (e.g. a private
 // GLocalFile); walk up to the nearest ancestor GType that has an object info.
-// Returns a new ref or nullptr. Shared by CallMethod (invoke) and HasMethod
-// (feature detection) so both resolve identically.
-static GIObjectInfo* FindNearestObjectInfo(GIRepository* repo, GType gtype) {
+// Returns a new ref or nullptr. Shared by CallMethod (invoke), HasMethod
+// (feature detection) and object.cc's ClassInfoForTypeName (the L1 prototype
+// lookup) so all three resolve the same way.
+GIObjectInfo* FindNearestObjectInfo(GIRepository* repo, GType gtype) {
   for (GType t = gtype; t != 0; t = g_type_parent(t)) {
     GIBaseInfo* bi = gi_repository_find_by_gtype(repo, t);
     if (bi != nullptr) {
@@ -1218,6 +1219,54 @@ Napi::Value HasMethod(const Napi::CallbackInfo& info) {
   }
   GIFunctionInfo* func = ResolveInstanceMethod(repo, gtype, objInfo, method);
   gi_base_info_unref(objInfo);
+  g_object_unref(repo);
+  if (func == nullptr) return Napi::Boolean::New(env, false);
+  const bool invocable = gi_callable_info_is_method(reinterpret_cast<GICallableInfo*>(func));
+  gi_base_info_unref(func);
+  return Napi::Boolean::New(env, invocable);
+}
+
+// hasClassMethod(namespace, typeName, methodName) -> boolean
+// The CLASS-level twin of hasMethod: TRUE iff `Ns.Type` declares an invocable
+// instance method by that name (literal introspected name first, snake_case
+// alias second — the resolution callMethod itself performs), across own,
+// implemented-interface and inherited methods. Keyed by TYPE rather than by an
+// instance handle because it backs the lazy method resolution on the class
+// PROTOTYPE (#1175), which must answer before any instance exists.
+Napi::Value HasClassMethod(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 3 || !info[0].IsString() || !info[1].IsString() || !info[2].IsString()) {
+    Napi::TypeError::New(env,
+                         "hasClassMethod(namespace: string, typeName: string, methodName: string)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string ns = info[0].As<Napi::String>().Utf8Value();
+  std::string tn = info[1].As<Napi::String>().Utf8Value();
+  std::string method = info[2].As<Napi::String>().Utf8Value();
+
+  GIRepository* repo = DupDefaultRepository();
+  GIBaseInfo* base = gi_repository_find_by_name(repo, ns.c_str(), tn.c_str());
+  GIFunctionInfo* func = nullptr;
+  if (base != nullptr) {
+    if (GI_IS_OBJECT_INFO(base)) {
+      GType gtype =
+          gi_registered_type_info_get_g_type(reinterpret_cast<GIRegisteredTypeInfo*>(base));
+      // An object info always carries a registered GType; the guard is for the
+      // interface-list step, which would warn on G_TYPE_INVALID.
+      if (gtype != G_TYPE_INVALID) {
+        func = ResolveInstanceMethod(repo, gtype, reinterpret_cast<GIObjectInfo*>(base), method);
+      }
+    } else if (GI_IS_INTERFACE_INFO(base)) {
+      GIInterfaceInfo* iface = reinterpret_cast<GIInterfaceInfo*>(base);
+      func = gi_interface_info_find_method(iface, method.c_str());
+      if (func == nullptr) {
+        const std::string snake = CamelToSnake(method);
+        if (snake != method) func = gi_interface_info_find_method(iface, snake.c_str());
+      }
+    }
+    gi_base_info_unref(base);
+  }
   g_object_unref(repo);
   if (func == nullptr) return Napi::Boolean::New(env, false);
   const bool invocable = gi_callable_info_is_method(reinterpret_cast<GICallableInfo*>(func));

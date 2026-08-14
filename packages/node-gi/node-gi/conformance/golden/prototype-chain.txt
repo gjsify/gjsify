@@ -1,0 +1,19 @@
+typeof proto.convert: function
+proto has own convert: true
+typeof proto.reset: function
+typeof proto.notAMethod: undefined
+proto has own notAMethod: false
+proto.convert === proto.convert: true
+proto.convert === spy: true
+instance has own convert: false
+d.convert === spy: true
+"convert" in d: true
+d.convert === proto.convert: true
+d.convert(...) returns: SPY
+restored proto.convert === original: true
+restored d.convert === original: true
+wrapper observed reset calls: 2
+after restore, typeof d.reset(): undefined
+after restore, count unchanged: 2
+two instances share the method: true
+the prototype is the instances' resolver: true

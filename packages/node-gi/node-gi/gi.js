@@ -149,16 +149,16 @@ function buildGError(domainName, domainQuark, code, message) {
 native.setErrorBuilder(buildGError);
 
 // Stamps a makeClass prototype with its { namespace, typeName } so Gio._promisify can
-// record WHICH introspected class a registration belongs to — introspected instances
-// have no live prototype chain to resolve by, so it is matched against the instance's
-// GType via native.isInstanceOf.
+// record WHICH introspected class a registration belongs to — matched against the
+// instance's GType via native.isInstanceOf when the promisified prototype is not the
+// one the instance resolves through.
 const CLASS_INFO = Symbol('nodeGiClassInfo');
 
 // Promisified async methods: GI method name (snake_case) → registrations
-// `{ namespace?, typeName?, wrapper }`. Introspected-class instances resolve methods
-// dynamically (no prototype chain), so the instance proxy consults this registry;
-// when two classes promisify the SAME method name it picks the registration whose
-// class the instance is-a.
+// `{ namespace?, typeName?, wrapper }`. An instance whose concrete GType resolves to a
+// DIFFERENT prototype than the promisified one (a private GLocalFile against
+// Gio.File.prototype) reaches the wrapper only through this registry; when two classes
+// promisify the SAME method name it picks the registration whose class the instance is-a.
 const promisifiedMethods = new Map();
 
 function wrapReturn(value) {
@@ -1113,11 +1113,42 @@ function instanceHasMethod(handle, name) {
     return present;
 }
 
-// Wrap a live GObject handle as a GJS-shaped instance. When `userProto` is given
-// (a registerClass subclass's prototype) the wrapper resolves the user class's
-// own prototype members FIRST — so `inst.myMethod()` runs the JS method with the
-// wrapper as `this` — then falls back to GObject property get/set and GI method
-// routing. `.connect()/.emit()/.disconnect()` work in both modes.
+// The JS prototype a wrapper resolves its members through, by runtime GType name.
+// Stable for the process — a GType neither gains ancestors nor changes class.
+const protoByGTypeName = new Map();
+
+// EVERY wrapper gets a prototype, as in GJS where an instance's [[Prototype]] IS
+// its class's prototype: without one, a member assigned to `Ns.Class.prototype` was
+// accepted and observable there yet invisible to the instance, which kept reaching
+// the native method underneath (#1175) — a spy that reports itself installed and
+// then measures nothing. A registerClass subclass's own prototype when the GType is
+// one we registered, else the introspected class's.
+function protoForInstance(handle) {
+    const gtypeName = native.getTypeName(handle);
+    if (gtypeName === null) return undefined;
+    const cached = protoByGTypeName.get(gtypeName);
+    if (cached !== undefined) return cached === null ? undefined : cached;
+    const registered = classesByGType.get(gtypeName);
+    let proto = registered !== undefined ? registered.prototype : null;
+    if (proto === null) {
+        // Only LOADED namespaces are searched, and a namespace object is reached
+        // through the same per-namespace cache `requireGi` fills, so the prototype
+        // resolved here is the very object a program can patch.
+        const info = native.classInfoForTypeName(gtypeName);
+        const cls = info === null ? undefined : namespaceObject(info.namespace)[info.name];
+        if (cls !== undefined && cls !== null) proto = cls.prototype ?? null;
+    }
+    protoByGTypeName.set(gtypeName, proto);
+    return proto === null ? undefined : proto;
+}
+
+// Wrap a live GObject handle as a GJS-shaped instance. The wrapper resolves its
+// class prototype chain FIRST (a registerClass subclass's own methods, anything
+// the program put on the introspected prototype) — so `inst.myMethod()` runs the
+// JS method with the wrapper as `this` — then falls back to GObject property
+// get/set and GI method routing. `userProto` overrides the prototype derived from
+// the handle's GType, for the construction paths that already know the leaf class.
+// `.connect()/.emit()/.disconnect()` work in both modes.
 function wrapInstance(handle, userProto) {
     const cached = instanceCache.get(handle);
     if (cached !== undefined) {
@@ -1139,7 +1170,8 @@ function wrapInstance(handle, userProto) {
         return cached;
     }
     const target = { [HANDLE]: handle };
-    if (userProto !== undefined) target[USER_PROTO] = userProto;
+    const proto = userProto ?? protoForInstance(handle);
+    if (proto !== undefined) target[USER_PROTO] = proto;
     const proxy = new Proxy(target, {
         get(t, prop) {
             if (prop === HANDLE) return handle;
@@ -1181,12 +1213,22 @@ function wrapInstance(handle, userProto) {
                 default:
                     break;
             }
+            // A plain JS field previously written on THIS wrapper. With the toggle-ref
+            // bridge the wrapper is CANONICAL (one proxy per GObject, cached by the
+            // canonical native handle), so a plain field IS shared across the
+            // vfunc<->instance boundary and survives a round-trip + GC while C owns the
+            // object. Read FIRST, before the class prototype — ordinary JS lookup order.
+            // (GObject PROPERTIES remain the right choice for state C must also see; the
+            // `set` trap routes those to GObject, so no expando competes with one.)
+            if (Object.prototype.hasOwnProperty.call(t, prop)) return t[prop];
             const up = t[USER_PROTO];
             if (up !== undefined) {
                 const desc = findProtoDescriptor(up, prop);
                 if (desc !== undefined) {
-                    if (typeof desc.value === 'function') return (...args) => desc.value.apply(proxy, args);
                     if (typeof desc.get === 'function') return desc.get.call(proxy);
+                    // The prototype's OWN function, never a re-bound thunk: `this` comes
+                    // from the call site anyway, and re-binding breaks the identity a
+                    // spy is recognised by — `inst.m === Cls.prototype.m` (#1175).
                     return desc.value;
                 }
             }
@@ -1210,25 +1252,16 @@ function wrapInstance(handle, userProto) {
             if (native.hasProperty(handle, propName)) {
                 return wrapReturn(native.getProperty(handle, propName));
             }
-            // Surface a plain JS field previously written on THIS wrapper. With the
-            // toggle-ref bridge the wrapper is now CANONICAL (one proxy per GObject,
-            // cached by the canonical native handle), so a plain field IS shared across
-            // the vfunc<->instance boundary and survives a round-trip + GC while C owns
-            // the object — a vfunc's `this` resolves to the same cached proxy as
-            // construct, and `store.get_item(x)` returns the same proxy a setter wrote
-            // to. Own-property only (set via the `set` trap), so an introspected GI
-            // method of the same name is never shadowed unless the user explicitly
-            // assigned an expando. (GObject PROPERTIES remain the right choice for state
-            // that must also be visible to C / other language bindings.)
-            if (Object.prototype.hasOwnProperty.call(t, prop)) return t[prop];
             // LAST resort before treating an unknown name as a GI method: an INHERITED
             // member (Object.prototype.hasOwnProperty / isPrototypeOf / … — RESERVED
             // already covers toString/valueOf/etc.) must resolve to the real function,
             // not a GI callMethod thunk that would throw on `inst.hasOwnProperty('x')`.
             if (prop in t) return t[prop];
-            // A Gio._promisify'd async method (registerClass subclasses pick it up via
-            // their userProto above; introspected instances have no prototype chain, so
-            // they resolve it here from the registry, per-class). Bound to this instance.
+            // A Gio._promisify'd async method. The prototype lookup above already finds
+            // it whenever the promisified prototype is on the instance's chain; the
+            // registry covers what a chain cannot reach — a private concrete type
+            // (GLocalFile) resolves to its nearest INTROSPECTABLE ancestor, so an
+            // instance of it never sees `Gio.File.prototype`. Bound to this instance.
             const promisified = resolvePromisified(handle, camelToSnake(prop));
             if (promisified !== undefined) return (...args) => promisified.apply(proxy, args);
             // GJS parity: an UNKNOWN member is `undefined`, never a throw-on-call
@@ -1335,6 +1368,91 @@ function defineLazyGType(ctor, namespace, typeName) {
     });
 }
 
+// The GObject behind a prototype method's `this`. A prototype function is
+// reachable without an instance (`Cls.prototype.m()`, a detached reference), so
+// the engine must never be handed `undefined` for the instance argument.
+function prototypeMethodHandle(self, where) {
+    const handle = self === null || self === undefined ? undefined : self[HANDLE];
+    if (handle === undefined) throw new TypeError(`${where}: \`this\` is not a node-gi instance`);
+    return handle;
+}
+
+// The invocable form of an introspected instance method, as it sits on a class
+// prototype: `this` supplies the GObject, so ONE function serves every instance of
+// the class and `inst.m === Cls.prototype.m` holds (gjs parity).
+function makeGiMethod(where, method) {
+    const fn = function (...args) {
+        return wrapReturn(native.callMethod(prototypeMethodHandle(this, where), method, unwrapArgs(args)));
+    };
+    Object.defineProperty(fn, 'name', { value: method, configurable: true });
+    return fn;
+}
+
+// A class prototype that MATERIALIZES its introspected methods on first look-up —
+// the JS twin of the SpiderMonkey `resolve` hook gjs installs on every GObject
+// prototype (refs/gjs gi/object.cpp). Without it a node-gi prototype stayed
+// permanently empty, so `Cls.prototype.method` read `undefined` and wrapping a
+// method had nothing to wrap (#1175). Lazy, not eager: a class like Gtk.Widget
+// carries hundreds of inherited methods and a program touches a handful.
+function makeClassPrototype(namespace, typeName) {
+    const target = {};
+    // Put the vfunc chain-up Proxy beneath the prototype so a registerClass
+    // subclass's `super.vfunc_<name>(...)` resolves (see vfuncChainProto).
+    Object.setPrototypeOf(target, vfuncChainProto);
+    // Stamp the prototype with its class identity so Gio._promisify(Cls.prototype, …)
+    // can record which class a registration belongs to (non-enumerable).
+    Object.defineProperty(target, CLASS_INFO, {
+        value: { namespace, typeName },
+        enumerable: false,
+        configurable: true,
+    });
+    const where = `${namespace}.${typeName}.prototype`;
+    const resolved = new Map(); // accessor name -> is an introspected method of this class
+    // Writable + configurable: a program REPLACES a method to instrument it and puts
+    // the original back afterwards, which is the whole point of the prototype.
+    // Enumerable, like the methods gjs's resolve hook defines.
+    const define = (prop, value) => {
+        Object.defineProperty(target, prop, { value, writable: true, enumerable: true, configurable: true });
+        return true;
+    };
+    // Defines the member on the target and reports whether the name resolved, so the
+    // traps answer from the target itself and stay within the Proxy invariants (a
+    // reported own property must really exist on an extensible target).
+    const materialize = (prop) => {
+        if (typeof prop !== 'string' || RESERVED.has(prop)) return false;
+        if (Object.prototype.hasOwnProperty.call(target, prop)) return true;
+        // gjs's GObject.Object.prototype members are JS shims over namespace-level
+        // functions (see objectPrototypeShim), and `bind_property_full` even HAS an
+        // introspected GIR shadow — bind_with_closures, whose GValue write-back a
+        // marshaled GClosure cannot satisfy — so the shim must win here too.
+        const shim = objectPrototypeShim(prop);
+        if (shim !== undefined) {
+            return define(prop, function (...args) {
+                return shim(prototypeMethodHandle(this, `${where}.${prop}`), args);
+            });
+        }
+        let present = resolved.get(prop);
+        if (present === undefined) {
+            present = native.hasClassMethod(namespace, typeName, prop);
+            resolved.set(prop, present);
+        }
+        return present && define(prop, makeGiMethod(where, prop));
+    };
+    return new Proxy(target, {
+        get(t, prop, receiver) {
+            materialize(prop);
+            return Reflect.get(t, prop, receiver);
+        },
+        getOwnPropertyDescriptor(t, prop) {
+            materialize(prop);
+            return Reflect.getOwnPropertyDescriptor(t, prop);
+        },
+        has(t, prop) {
+            return materialize(prop) || Reflect.has(t, prop);
+        },
+    });
+}
+
 function makeClass(namespace, typeName) {
     const ctor = function ctor(props) {
         // G3/G2 construction routing. `new.target` is the leaf class the `new` was
@@ -1382,20 +1500,12 @@ function makeClass(namespace, typeName) {
     Object.defineProperty(ctor, 'name', { value: typeName, configurable: true });
     ctor.$gtypeName = `${namespace}.${typeName}`;
     defineLazyGType(ctor, namespace, typeName);
-    // Put the vfunc chain-up Proxy beneath this base class's prototype so a
-    // registerClass subclass's `super.vfunc_<name>(...)` resolves (see above).
-    Object.setPrototypeOf(ctor.prototype, vfuncChainProto);
-    // Stamp the prototype with its class identity so Gio._promisify(Cls.prototype, …)
-    // can record which class a registration belongs to (non-enumerable).
-    Object.defineProperty(ctor.prototype, CLASS_INFO, {
-        value: { namespace, typeName },
-        enumerable: false,
-        configurable: true,
-    });
+    ctor.prototype = makeClassPrototype(namespace, typeName);
     // `inst instanceof Ns.Class` — GJS parity for the WHOLE GObject hierarchy, not
-    // just the leaf class. An instance is a Proxy over a bare `{[HANDLE]}` (no live JS
-    // prototype chain linking Adw.ApplicationWindow → Gtk.ApplicationWindow → …), so
-    // the default instanceof (a prototype-chain walk) reported `false` for every base
+    // just the leaf class. An instance is a Proxy carrying its class prototype as a
+    // SYMBOL rather than as [[Prototype]], and class prototypes are not linked to their
+    // bases (no Adw.ApplicationWindow → Gtk.ApplicationWindow → … chain), so the
+    // default instanceof (a prototype-chain walk) reported `false` for every base
     // class. Resolve it by the GObject type system instead: `native.isInstanceOf`
     // (g_type_is_a) recognises subclasses AND implemented interfaces, exactly like GJS.
     // Guarded by `isGObjectHandle` first — a bare/boxed/variant handle (or any non-node-gi
@@ -1455,6 +1565,14 @@ function makeClass(namespace, typeName) {
             const giName = camelToSnake(prop);
             return (...args) => wrapReturn(native.callStaticMethod(namespace, typeName, giName, unwrapArgs(args)));
         },
+    });
+    // Replacing ctor.prototype dropped the automatic back-link; restore it pointing at
+    // the class the user actually holds (the Proxy), not the raw ctor behind it.
+    Object.defineProperty(ctor.prototype, 'constructor', {
+        value: proxy,
+        writable: true,
+        enumerable: false,
+        configurable: true,
     });
     return proxy;
 }
@@ -2316,6 +2434,30 @@ function createNamespace(namespace) {
 
 const namespaceCache = new Map();
 
+// The ONE namespace object per GI namespace, as in gjs where `imports.gi.Ns` is a
+// singleton. Keyed by NAMESPACE alone: a repository cannot hold two versions at
+// once, and keying by `Ns@version` handed `requireGi('Gio','2.0')` and
+// `requireGi('Gio')` two independent objects — `Gio.File !== Gio.File` between the
+// spellings, a prototype patched through one invisible through the other. Does NOT
+// load the typelib (requireGi does that first).
+function namespaceObject(namespace) {
+    let ns = namespaceCache.get(namespace);
+    if (ns === undefined) {
+        ns = createNamespace(namespace);
+        // The GObject namespace also carries the GJS runtime statics (registerClass +
+        // ParamSpec/ParamFlags/SignalFlags) layered over its introspected members.
+        if (namespace === 'GObject') ns = decorateGObjectNamespace(ns);
+        // The GLib namespace carries the GJS-shaped GLib.Variant ergonomics
+        // (new GLib.Variant(sig, value) + deepUnpack/unpack/recursiveUnpack) and the
+        // GLib.Error class.
+        else if (namespace === 'GLib') ns = decorateGLibNamespace(ns);
+        // The Gio namespace carries Gio._promisify (async → Promise).
+        else if (namespace === 'Gio') ns = decorateGioNamespace(ns);
+        namespaceCache.set(namespace, ns);
+    }
+    return ns;
+}
+
 // Whether the libuv↔GLib bridge has been attached this process. The native
 // startMainLoop is itself idempotent; this just avoids the extra call.
 let loopAttached = false;
@@ -2373,22 +2515,7 @@ export function requireGi(namespace, version) {
         }
         loopAttached = true;
     }
-    const key = version ? `${namespace}@${version}` : namespace;
-    let ns = namespaceCache.get(key);
-    if (ns === undefined) {
-        ns = createNamespace(namespace);
-        // The GObject namespace also carries the GJS runtime statics (registerClass +
-        // ParamSpec/ParamFlags/SignalFlags) layered over its introspected members.
-        if (namespace === 'GObject') ns = decorateGObjectNamespace(ns);
-        // The GLib namespace carries the GJS-shaped GLib.Variant ergonomics
-        // (new GLib.Variant(sig, value) + deepUnpack/unpack/recursiveUnpack) and the
-        // GLib.Error class.
-        else if (namespace === 'GLib') ns = decorateGLibNamespace(ns);
-        // The Gio namespace carries Gio._promisify (async → Promise).
-        else if (namespace === 'Gio') ns = decorateGioNamespace(ns);
-        namespaceCache.set(key, ns);
-    }
-    return ns;
+    return namespaceObject(namespace);
 }
 
 /**

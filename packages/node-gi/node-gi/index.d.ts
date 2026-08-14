@@ -100,6 +100,15 @@ export function callMethod(handle: GObjectHandle, methodName: string, args?: unk
 export function hasMethod(handle: GObjectHandle, methodName: string): boolean;
 
 /**
+ * The CLASS-level twin of {@link hasMethod}: `true` iff `Ns.Type` declares an
+ * invocable instance method by that name (literal introspected name or
+ * snake_case alias), across own, implemented-interface and inherited methods.
+ * Answers by TYPE rather than by instance handle, which is what lets a class
+ * prototype resolve its methods before any instance of it exists.
+ */
+export function hasClassMethod(namespace: string, typeName: string, methodName: string): boolean;
+
+/**
  * Invoke a type-level constructor/static function (e.g. `Gio.File.new_for_path`,
  * `Gtk.Label.new`) — a function found on a type but taking no instance. The Node
  * twin of `Ns.Class.method(...)`. OUT/INOUT params follow {@link callFunction}'s
@@ -253,6 +262,15 @@ export function hasProperty(handle: GObjectHandle, name: string): boolean;
 
 /** The runtime GType name of a GObject handle (e.g. "GSimpleAction"). */
 export function getTypeName(handle: GObjectHandle): string;
+
+/**
+ * The introspected type that OWNS a runtime GType name — the reverse of
+ * {@link getGType}, walking up to the nearest ancestor carrying object info (a
+ * private concrete type such as `GLocalFile` has none of its own). Searches only
+ * LOADED namespaces, so it never pulls in a typelib as a side effect. `null` when
+ * the GType is unknown or no ancestor is introspectable.
+ */
+export function classInfoForTypeName(gtypeName: string): { namespace: string; name: string } | null;
 
 /**
  * The runtime GType of an introspected registered type, as an opaque node-gi
@@ -525,6 +543,7 @@ declare const native: {
     callFunction: typeof callFunction;
     callMethod: typeof callMethod;
     hasMethod: typeof hasMethod;
+    hasClassMethod: typeof hasClassMethod;
     callStaticMethod: typeof callStaticMethod;
     constructStruct: typeof constructStruct;
     newObject: typeof newObject;
@@ -535,6 +554,7 @@ declare const native: {
     setProperty: typeof setProperty;
     hasProperty: typeof hasProperty;
     getTypeName: typeof getTypeName;
+    classInfoForTypeName: typeof classInfoForTypeName;
     getGType: typeof getGType;
     isInstanceOf: typeof isInstanceOf;
     isGObjectHandle: typeof isGObjectHandle;
