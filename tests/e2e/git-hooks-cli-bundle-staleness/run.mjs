@@ -26,6 +26,7 @@ import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = resolve(fileURLToPath(import.meta.url), '..', '..', '..', '..');
 const INSTALL_SCRIPT = join(REPO_ROOT, 'scripts', 'install-git-hooks.mjs');
+const CLOSURE_SCRIPT = join(REPO_ROOT, 'scripts', 'affected-bundle-closure.mjs');
 
 /**
  * EVERY hook `install-git-hooks.mjs` expects — READ FROM THE INSTALLER, never
@@ -68,11 +69,32 @@ const EXPECTED_HOOKS = (() => {
  *     an incomplete hooks dir)
  *   - `packages/infra/cli/src/index.ts` + `dist/affected.gjs.mjs`
  *   - `node_modules/.bin/gjsify` — synthetic stub recording its argv to a log
+ *   - `scripts/affected-bundle-closure.mjs` — THE REAL SCRIPT, plus enough
+ *     `package.json` manifests for its walk to have something to walk
  *
  * The stub is wired into PATH via `node_modules/.bin` so the hook's resolver
  * picks it up first.
+ *
+ * The manifests are what make these tests test the CLOSURE. Without them the
+ * walk finds no `@gjsify/cli`, the hook takes its four-path fallback, and every
+ * assertion here still passes — the fallback names `cli/src` too. That is not a
+ * hypothetical: the fixture had no manifests when the closure trigger landed, so
+ * the closure walk was never once exercised by this suite (#1149). Any package
+ * added below has to be REACHABLE from `@gjsify/cli`'s dependencies, or it is
+ * outside the closure and the hook is right to ignore it.
+ *
+ * `closureScript` picks which of the three states the hook must survive:
+ *   'real'    — the shipped script (the normal case)
+ *   'missing' — no `scripts/` at all, which the hook's existence guard catches
+ *   'broken'  — present but exits non-zero, which ONLY the `|| true` on the
+ *               command substitution catches, because under `set -e` a failing
+ *               substitution in an assignment aborts the shell
+ *
+ * The last two are separate states on purpose. Both guards produce the same
+ * fallback, so a single test passes with either one removed and pins neither —
+ * measured, both A/B breaks stayed green until this split.
  */
-function setupSyntheticRepo(parent) {
+function setupSyntheticRepo(parent, { closureScript = 'real' } = {}) {
     const root = mkdtempSync(join(parent, 'gh-hooks-'));
     // Init git WITHOUT global hook-path inheritance (otherwise the parent
     // workspace's core.hooksPath setting would leak in).
@@ -106,6 +128,37 @@ function setupSyntheticRepo(parent) {
     writeFileSync(join(root, 'packages', 'infra', 'cli', 'src', 'index.ts'), `export const v = 1;\n`);
     writeFileSync(join(root, 'packages', 'infra', 'cli', 'dist', 'affected.gjs.mjs'), `// initial affected bundle\n`);
 
+    // Manifests for the closure walk. `semver` is the interesting one: it is a
+    // dependency of the CLI and therefore inlined into the bundle, and it is NOT
+    // one of the four paths the hook falls back to — so a test that fires on it
+    // can only be passing through the closure.
+    const manifest = (dir, name, deps) => {
+        mkdirSync(join(root, dir, 'src'), { recursive: true });
+        writeFileSync(join(root, dir, 'package.json'), `${JSON.stringify({ name, dependencies: deps }, null, 2)}\n`);
+    };
+    manifest('packages/infra/cli', '@gjsify/cli', {
+        '@gjsify/semver': '*',
+        '@gjsify/rolldown-plugin-gjsify': '*',
+    });
+    manifest('packages/infra/semver', '@gjsify/semver', {});
+    manifest('packages/infra/rolldown-plugin-gjsify', '@gjsify/rolldown-plugin-gjsify', {});
+    // Outside the closure: nothing depends on it. Present so a trigger that fired
+    // on all of `packages/` — the failure mode of widening the list — is visible.
+    manifest('packages/web/unrelated', '@gjsify/unrelated', {});
+
+    if (closureScript !== 'missing') {
+        mkdirSync(join(root, 'scripts'), { recursive: true });
+        const dest = join(root, 'scripts', 'affected-bundle-closure.mjs');
+        if (closureScript === 'broken') {
+            // Stands in for any way the walk can fail on a real host: an unparsable
+            // manifest, a git call that errors, a rename this fixture has not caught
+            // up with. What matters is the exit code, not the reason.
+            writeFileSync(dest, `process.stderr.write('synthetic closure failure\\n');\nprocess.exit(1);\n`);
+        } else {
+            cpSync(CLOSURE_SCRIPT, dest);
+        }
+    }
+
     // The build pipeline the CLI bundle INLINES. A resolver change here is
     // silently absent from `dist/affected.gjs.mjs` until it is rebuilt, so the hook
     // treats it exactly like `cli/src/`.
@@ -138,6 +191,19 @@ exit 0
     execFileSync('git', ['-C', root, 'commit', '-q', '-m', 'initial', '--no-verify']);
 
     return { root, stubPath, logPath };
+}
+
+/**
+ * Everything the hook printed, from BOTH streams.
+ *
+ * Measured: `git commit` forwards a hook's stdout to git's own STDERR, so
+ * `result.stdout` is empty for every line the hook echoes. An assertion written
+ * against `result.stdout` therefore passes no matter what the hook said — a
+ * vacuous green. Which stream git picks is git's business and could change; the
+ * hook only promises to say the thing, so assert over the union.
+ */
+function hookOutput(result) {
+    return `${result.stdout ?? ''}${result.stderr ?? ''}`;
 }
 
 function readLog(logPath) {
@@ -178,7 +244,7 @@ describe('git pre-commit hook — affected.gjs.mjs staleness', { timeout: 2 * 60
 
         const result = runHook(root);
         assert.equal(result.status, 0, `hook failed: ${result.stderr}`);
-        assert.deepEqual(readLog(logPath), [], `hook should not have invoked gjsify, got: ${result.stdout}`);
+        assert.deepEqual(readLog(logPath), [], `hook should not have invoked gjsify, got: ${hookOutput(result)}`);
     });
 
     it('auto-rebuilds + auto-stages dist/affected.gjs.mjs when packages/infra/cli/src/ changes', () => {
@@ -281,6 +347,87 @@ describe('git pre-commit hook — affected.gjs.mjs staleness', { timeout: 2 * 60
             initialBundle,
             'affected bundle was not refreshed by the rebuild',
         );
+    });
+
+    it('fires for a closure package the four-path fallback never named', () => {
+        // The whole point of #1149. `packages/infra/semver` is inlined into the
+        // bundle because the CLI depends on it, and the old hand-listed trigger did
+        // not name it — so this commit used to go out with a stale bundle and cost a
+        // CI round-trip. If the closure walk ever silently stops working, the
+        // fallback takes over and THIS is the test that goes red; the `cli/src` ones
+        // would stay green, because the fallback names that path too.
+        const { root, logPath } = setupSyntheticRepo(parent);
+
+        const depSrc = 'packages/infra/semver/src/index.ts';
+        writeFileSync(join(root, depSrc), `export const parse = (v) => v;\n`);
+        execFileSync('git', ['-C', root, 'add', depSrc]);
+
+        const result = runHook(root);
+        assert.equal(result.status, 0, `hook failed: ${result.stderr}`);
+        assert.ok(
+            !hookOutput(result).includes('falling back'),
+            `the hook fell back instead of walking the closure: ${hookOutput(result)}`,
+        );
+        assert.deepEqual(readLog(logPath), [
+            'workspace @gjsify/cli build --with-dependencies --cached',
+            'workspace @gjsify/cli build:affected-bundle',
+        ]);
+    });
+
+    it('stays silent for a package OUTSIDE the closure', () => {
+        // The other half of the same property, and the risk in widening a trigger:
+        // firing on all of `packages/` would make every commit pay a 300 s rebuild.
+        // Nothing depends on `@gjsify/unrelated`, so it is not in the bundle.
+        const { root, logPath } = setupSyntheticRepo(parent);
+
+        const outside = 'packages/web/unrelated/src/index.ts';
+        writeFileSync(join(root, outside), `export const x = 1;\n`);
+        execFileSync('git', ['-C', root, 'add', outside]);
+
+        const result = runHook(root);
+        assert.equal(result.status, 0, `hook failed: ${result.stderr}`);
+        assert.deepEqual(readLog(logPath), [], `hook rebuilt for a non-closure package: ${hookOutput(result)}`);
+    });
+
+    it('falls back to the four known inputs — and still commits — when the closure cannot be computed', () => {
+        // The fallback was written for this case and was UNREACHABLE in it: under
+        // `set -e`, the failing command substitution aborted the hook, so a tree
+        // without the script could not commit at all. The fixture reproduces that
+        // tree by omitting the script, which is why this test exists rather than a
+        // comment claiming the branch works.
+        // The REASON is asserted per state, not just the fact of falling back. The
+        // `|| true` alone keeps the commit alive in both states, so an assertion on
+        // the announcement text is what distinguishes the named guard from the
+        // catch-all — without it, deleting the existence check changes nothing
+        // observable and the message quietly degrades to the generic one.
+        const expectedReason = { missing: 'not found', broken: 'produced no paths' };
+
+        for (const closureScript of ['missing', 'broken']) {
+            const { root, logPath } = setupSyntheticRepo(parent, { closureScript });
+
+            writeFileSync(join(root, 'packages/infra/cli/src/index.ts'), `export const v = 5;\n`);
+            execFileSync('git', ['-C', root, 'add', 'packages/infra/cli/src/index.ts']);
+
+            const result = runHook(root);
+            assert.equal(result.status, 0, `[${closureScript}] hook failed instead of falling back: ${result.stderr}`);
+            assert.ok(
+                hookOutput(result).includes('could not compute the affected-bundle closure'),
+                `[${closureScript}] the fallback did not announce itself: ${hookOutput(result)}`,
+            );
+            assert.ok(
+                hookOutput(result).includes(expectedReason[closureScript]),
+                `[${closureScript}] expected the reason to name "${expectedReason[closureScript]}": ${hookOutput(result)}`,
+            );
+            // Degraded, not disabled: the four known inputs still fire.
+            assert.deepEqual(
+                readLog(logPath),
+                [
+                    'workspace @gjsify/cli build --with-dependencies --cached',
+                    'workspace @gjsify/cli build:affected-bundle',
+                ],
+                `[${closureScript}] the fallback did not rebuild`,
+            );
+        }
     });
 
     it('skips the rebuild when SKIP_GJSIFY_HOOKS=1', () => {

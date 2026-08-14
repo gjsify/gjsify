@@ -69,9 +69,7 @@ for (const rel of manifests) {
     // that is present locally is present in the build.
     depsOf.set(
         pkg.name,
-        Object.keys({ ...pkg.dependencies, ...pkg.optionalDependencies }).filter((n) =>
-            n.startsWith('@gjsify/'),
-        ),
+        Object.keys({ ...pkg.dependencies, ...pkg.optionalDependencies }).filter((n) => n.startsWith('@gjsify/')),
     );
 }
 
