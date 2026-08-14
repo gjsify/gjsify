@@ -108,8 +108,26 @@
 /* ===== Detail area (preview content + right controls overlay) ===== */
 
 .sb-controls-split,
+/* The preview AREA carries the tint, not a box inside it — the stage version floated
+ * in the pane with no edge. On the element that already owns the area's background,
+ * because an opaque background one level in covers a gradient one level out (measured
+ * on the browser target: five sample points across the pane returned the identical
+ * colour while the computed style still reported a background-image).
+ *
+ * The NS subset's two substitutions still hold: one `linear-gradient` per declaration
+ * rather than two radial corners, and the accent spelled out per scheme because there
+ * are no custom properties — so a runtime accent does NOT reach this backdrop here.
+ * Middle stops fade to a zero-alpha COPY of each tint rather than to `transparent`,
+ * which is rgba(0,0,0,0) and pulls a grey through the centre. */
 .sb-preview-scroll {
     background-color: #fafafb;
+    background-image: linear-gradient(
+        135deg,
+        rgba(28, 113, 216, 0.07) 0%,
+        rgba(28, 113, 216, 0) 45%,
+        rgba(146, 110, 228, 0) 55%,
+        rgba(146, 110, 228, 0.06) 100%
+    );
 }
 
 .sb-preview-pane {
@@ -136,41 +154,11 @@
     margin: 3 0 0 0;
 }
 
-/*
- * Centered, tinted preview stage (mirrors the browser .story-stage and the
- * native renderer's .story-stage).
- *
- * The stage must stay LOCATABLE when the widget on it is transparent or in an
- * empty state — that requirement is why it was framed at all, and two corner
- * tints meet it with a surface instead of a dashed outline.
- *
- * TWO SUBSTITUTIONS THE NS CSS SUBSET FORCES, both deliberate:
- *
- * 1. No `radial-gradient` — the parser recognises `linear-gradient` and nothing
- *    else (css/parser.js:424), and it parses ONE gradient per declaration, so
- *    the other two targets' pair of corner circles becomes a single 135deg
- *    sweep: accent in the top-left corner, purple in the bottom-right, clear
- *    through the middle where the widget sits.
- * 2. No custom properties, so the standalone accent the other two name
- *    (@accent_color / var(--accent-color)) is spelled out per scheme — the same
- *    two values adwaita-web resolves it to. A runtime accent therefore does NOT
- *    reach this backdrop on NS, unlike the other two targets.
- *
- * The middle stop fades to a ZERO-ALPHA COPY of the tint rather than to
- * `transparent`: `transparent` is rgba(0,0,0,0), and interpolating towards it
- * pulls a grey through the centre wherever the renderer does not premultiply.
- */
+/* Breathing room only. No radius and no surface: nothing here is a box any more —
+ * the tinted area is `.sb-preview-scroll` above. */
 .story-stage {
-    border-radius: 12;
     padding: 18;
     margin: 12 0 0 0;
-    background-image: linear-gradient(
-        135deg,
-        rgba(28, 113, 216, 0.07) 0%,
-        rgba(28, 113, 216, 0) 45%,
-        rgba(146, 110, 228, 0) 55%,
-        rgba(146, 110, 228, 0.06) 100%
-    );
 }
 
 /* ===== Controls panel — a RIGHT overlay (sidebar_position=END) ===== */
@@ -241,10 +229,6 @@
     color: rgba(255, 255, 255, 0.55);
 }
 
-.ns-dark .story-stage {
-    border-color: rgba(255, 255, 255, 0.28);
-}
-
 /* ===== Appearance dialog swatches =====
  * Round accent swatches. NS has no radio input and no `:checked`, so selection is a
  * class the dialog maintains and the ring is a border — `border-radius`,
@@ -276,7 +260,7 @@
     border-color: #ffffff;
 }
 
-/* The preview stage's dark tint. Only the accent end changes: it carries the
+/* The preview area's dark tint. Only the accent end changes: it carries the
  * STANDALONE accent, which libadwaita lightens for a dark background
  * (#1c71d8 → #78aeed), while the purple is decoration and is the same hue in
  * both schemes — as it is on the website. Alphas rise slightly because a tint
@@ -285,7 +269,7 @@
  * The full compound is restated rather than only the changed stops: NS sums
  * specificity FLAT (class, attribute and pseudo-class 10 each — css-selector.js
  * :205,292) and there is no per-stop cascade for a gradient anyway. */
-.ns-dark .story-stage {
+.ns-dark .sb-preview-scroll {
     background-image: linear-gradient(
         135deg,
         rgba(120, 174, 237, 0.09) 0%,

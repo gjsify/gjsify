@@ -366,6 +366,10 @@ export class StorybookWindow extends Adw.ApplicationWindow implements StorybookV
         // --- Preview content + controls overlay ---
         this._content_area = new Adw.Bin({ hexpand: true, vexpand: true });
         const contentScroll = new Gtk.ScrolledWindow({ hexpand: true, vexpand: true, child: this._content_area });
+        // The preview AREA owns the tinted surface (see `.sb-preview-area`). On the
+        // scroller rather than on the Bin inside it, so the tint spans the pane and
+        // stays put while a tall story scrolls.
+        contentScroll.add_css_class('sb-preview-area');
 
         this._control_panel = new Adw.PreferencesGroup({ title: 'Controls' });
         const prefsPage = new Adw.PreferencesPage();
