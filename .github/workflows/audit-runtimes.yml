@@ -158,8 +158,23 @@ jobs:
       # every agent context afterwards. The ceilings are MEASURED, not chosen: each is
       # what the tree had when it was last cleaned, so a cleanup cannot grow back
       # without a reviewed commit that raises one.
-      - name: Check each tree's comment budget
-        run: node scripts/check-comment-budget.mjs --check
+      # REPORTED, NOT GATED — and that is a deliberate exception to this repo's own
+      # rule that a check which only warns gets ignored. The difference is what it
+      # measures. The gates around it assert a FACT about the code; this one scores a
+      # PROXY (comment lines over code lines) that is satisfiable without removing a
+      # word: a full-line comment moved to the end of a code line leaves the comment
+      # count lower and the code count unchanged, and ~1670 such lines are already
+      # invisible to it. Blocking power over unrelated PRs is more than that
+      # measurement earns — as a whole-tree aggregate it is a shared counter every
+      # branch contends for (#1157), and `--update` re-baselines to exactly the
+      # measured value, so trees sit at zero headroom and a pure code deletion can turn
+      # a green branch red.
+      #
+      # The table still prints on every run and each over-ceiling tree still raises a
+      # visible warning, so drift stays observable; `--check` remains for local use and
+      # for a deliberate cleanup commit.
+      - name: Report each tree's comment budget
+        run: node scripts/check-comment-budget.mjs --warn
 
       # Same failure mode one level up: an AGENTS.md is loaded on EVERY agent turn, and
       # the root file reached 277 KB before it was split, one defensible paragraph at a

@@ -11,12 +11,31 @@
 // The ceilings in `status/comment-budget.json` are MEASURED, not chosen: each is
 // what that tree actually had when it was last cleaned. A ratio rather than a line
 // count, because new code arrives with proportionate comments and a line budget
-// would block a new package while a ratio does not. A gate rather than a warning,
-// because `reportUnusedDisableDirectives` in `.oxlintrc.json` already records what
-// this repo learned about checks that only warn.
+// would block a new package while a ratio does not.
+//
+// REPORTED IN CI, NOT GATED, and that is a deliberate exception to this repo's own
+// rule — `reportUnusedDisableDirectives` in `.oxlintrc.json` records what it learned
+// about checks that only warn, and the rule holds for checks that assert a FACT. This
+// one scores a PROXY, and three measurements decided it:
+//
+//   - The proxy is satisfiable without removing a word. Classification is by how a
+//     line STARTS, so moving a full-line comment to the end of a code line drops the
+//     comment count and leaves the code count untouched. ~1670 trailing comments are
+//     already invisible to it.
+//   - As a whole-tree aggregate behind a required check it is a shared counter every
+//     branch contends for (#1157), and `--update` re-baselines to exactly the measured
+//     value, so trees sit at zero headroom.
+//   - It is a ratio, so a commit that only DELETES code raises it. A pure cleanup can
+//     turn a green branch red for a reason unrelated to it.
+//
+// Blocking power over unrelated work is more than that earns. The table still prints
+// every run and each over-ceiling tree raises a visible warning, so drift stays
+// observable; the ledger's own integrity (a stale or missing ceiling) still fails,
+// because that is a fact rather than a score.
 //
 //   node scripts/check-comment-budget.mjs            # print the table
-//   node scripts/check-comment-budget.mjs --check    # gate (CI)
+//   node scripts/check-comment-budget.mjs --warn     # report + annotate (CI)
+//   node scripts/check-comment-budget.mjs --check    # gate (local, cleanup commits)
 //   node scripts/check-comment-budget.mjs --update   # re-baseline after a cleanup
 //
 // Raising a ceiling is a reviewed, one-line commit. Lowering one is free, and
@@ -65,9 +84,14 @@ function sourceFiles() {
 }
 
 /**
- * Comment and code line counts. Every non-blank line is one or the other, so the
- * ratio cannot be gamed by moving a comment onto a code line — that line then
- * counts as code and the tree's code total rises with it.
+ * Comment and code line counts, classified by how the trimmed line STARTS.
+ *
+ * This used to claim the ratio "cannot be gamed by moving a comment onto a code line
+ * — that line then counts as code and the tree's code total rises with it". Measured,
+ * it does not: the code line was ALREADY code, so appending a trailing comment leaves
+ * the code count unchanged and only drops the comment count. `// why` above
+ * `doThing();` scores 1/1; `doThing(); // why` scores 0/1. Trailing comments are free
+ * here, which is one of the reasons this is a report rather than a gate.
  *
  * @param {string} src
  */
@@ -139,7 +163,13 @@ const TOLERANCE = 0.0005;
  */
 const allowedComments = (ceiling, code) => Math.floor((ceiling + TOLERANCE) * code);
 
-const mode = process.argv.includes('--check') ? 'check' : process.argv.includes('--update') ? 'update' : 'print';
+const mode = process.argv.includes('--check')
+    ? 'check'
+    : process.argv.includes('--update')
+      ? 'update'
+      : process.argv.includes('--warn')
+        ? 'warn'
+        : 'print';
 
 const totals = measure();
 
@@ -213,6 +243,21 @@ for (const area of unbudgeted) {
         `\ncheck-comment-budget: '${area}' has source files but no ceiling in ${BUDGET_FILE}. ` +
             'Run --update to baseline it.\n',
     );
+}
+
+// `--warn` is what CI runs: the table above plus one Actions warning per tree that
+// is over, so drift stays observable without the power to stop an unrelated branch.
+// Structural problems (a stale or missing ceiling) still fail, because those are
+// facts about the ledger rather than a score.
+if (mode === 'warn') {
+    for (const f of failures) {
+        process.stdout.write(
+            `::warning title=comment budget: ${f.area}::at ${f.have.toFixed(3)} per code line, over its ` +
+                `ceiling of ${f.ceiling.toFixed(3)} by ${f.comment - f.allowed} comment line(s). ` +
+                'Reported, not gated — run --check locally before a cleanup commit.\n',
+        );
+    }
+    process.exit(stale.length + unbudgeted.length > 0 ? 1 : 0);
 }
 
 if (mode !== 'check') process.exit(stale.length + unbudgeted.length > 0 ? 1 : 0);
