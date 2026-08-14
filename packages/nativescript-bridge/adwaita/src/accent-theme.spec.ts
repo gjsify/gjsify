@@ -16,10 +16,14 @@ export default async () => {
             await it(`${vector.name} fills with the palette colour and shades with the derivation`, () => {
                 expect(adwaitaNsAccentColor(vector.name, 'fill')).toBe(vector.background);
                 // The shade is `min(l, 0.5)` — libadwaita's "this colour, darker".
-                // It is NOT the dark-scheme standalone: both shade sites in the theme
-                // are already scheme-specific through their own selector.
+                // It is NOT the dark-scheme standalone: every shade site in the theme
+                // is already scheme-specific through its own selector.
                 expect(adwaitaNsAccentColor(vector.name, 'shade')).toBe(vector.standaloneLight);
                 expect(adwaitaNsAccentColor(vector.name, 'shade')).not.toBe(vector.standaloneDark);
+                // And the third role is that other branch, `max(l, 0.85)`: accent TEXT
+                // on a dark page has to go LIGHTER, the opposite of a press fill.
+                // Collapsing the two is what left four dark rules unreachable (#1154).
+                expect(adwaitaNsAccentColor(vector.name, 'standalone-dark')).toBe(vector.standaloneDark);
             });
         }
     });
@@ -46,9 +50,12 @@ export default async () => {
             expect(css.includes(adwaitaAccentBgColor('green'))).toBe(true);
             expect(css.includes(adwaitaAccentColor('green', false))).toBe(true);
             // The literals the theme hardcodes must be gone, or the override is a
-            // no-op that looks like a change.
+            // no-op that looks like a change. `#78aeed` is here because it was the
+            // one that WAS a no-op: unclassified, so four dark accent-text rules kept
+            // painting blue under every accent (#1154).
             expect(css.includes('#3584e4')).toBe(false);
             expect(css.includes('#1c71d8')).toBe(false);
+            expect(css.includes('#78aeed')).toBe(false);
         });
 
         await it('keeps the dark-scheme selectors scoped', () => {
@@ -60,9 +67,22 @@ export default async () => {
             for (const rule of dark) expect(css.includes(`${rule.selector} {`)).toBe(true);
         });
 
-        await it('covers both roles, so neither shade site is left behind', () => {
+        await it('uses every role, so no site is left behind', () => {
             const roles = new Set(ADWAITA_NS_ACCENT_RULES.map((rule) => rule.role));
-            expect([...roles].sort()).toStrictEqual(['fill', 'shade']);
+            expect([...roles].sort()).toStrictEqual(['fill', 'shade', 'standalone-dark']);
+        });
+
+        await it('gives the three roles three DIFFERENT colours', () => {
+            // A role that resolves to the same colour as another is a role in name
+            // only: it would look covered in the table and repaint nothing new. Worth
+            // asserting because `shade` and `standalone-dark` are the two branches of
+            // one derivation, and passing the wrong boolean silently merges them.
+            for (const accent of ['blue', 'orange', 'slate'] as const) {
+                const colours = (['fill', 'shade', 'standalone-dark'] as const).map((role) =>
+                    adwaitaNsAccentColor(accent, role),
+                );
+                expect(new Set(colours).size).toBe(3);
+            }
         });
     });
 };

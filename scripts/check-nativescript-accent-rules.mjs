@@ -27,8 +27,37 @@ const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..
 const THEME = join(ROOT, 'packages/nativescript-bridge/adwaita/src/theme/adwaita.css');
 const TABLE = join(ROOT, 'packages/nativescript-bridge/adwaita/src/widgets/accent-theme.ts');
 
-/** The two literals the theme uses for the accent, and the role each stands for. */
-const ACCENT_LITERALS = { '#3584e4': 'fill', '#1c71d8': 'shade' };
+/** The literals the theme uses for the accent, and the role each stands for. */
+const ACCENT_LITERALS = { '#3584e4': 'fill', '#1c71d8': 'shade', '#78aeed': 'standalone-dark' };
+
+/**
+ * Every OTHER opaque colour the theme is allowed to contain, with the reason.
+ *
+ * WHY A CLOSED LIST. The scan used to classify two literals and IGNORE the rest, so
+ * an accent-derived colour that was not one of those two was not a mismatch — it was
+ * invisible. That is how `#2c75d6` (a hand-picked dark press) and `#78aeed` (accent
+ * TEXT on dark, four rules) survived: the gate reported counts, never coverage. Now
+ * a colour is either an accent role or listed here, and a new one fails until
+ * someone says which it is.
+ *
+ * Alpha colours are deliberately out of scope: `rgba(255,255,255,.1)` and friends are
+ * overlays over whatever is behind them, so they cannot encode an accent.
+ */
+const NON_ACCENT_LITERALS = {
+    '#ffffff': 'plain white — accent foregrounds, dark-mode text',
+    '#fafafb': 'light $window_bg',
+    '#ebebed': 'light $view/$card shade',
+    '#e6e6e9': 'light pressed row',
+    '#222226': 'dark $window_bg',
+    '#2e2e32': 'dark $sidebar_bg',
+    '#2a2a2e': 'dark $view_bg',
+    '#303034': 'dark elevated surface',
+    '#34343a': 'dark $card_bg',
+    '#3a3a40': 'dark banner strip — neutral by design, not an accent',
+    '#45454c': 'dark separator/border',
+    '#c01c28': 'libadwaita $destructive_bg (red_4)',
+    '#ff7b80': 'libadwaita destructive foreground on dark',
+};
 
 /** Every accent declaration in the stylesheet, as `selector|property|role`. */
 function themeDeclarations(css) {
@@ -62,8 +91,30 @@ function tableEntries(source) {
     return found;
 }
 
-const declarations = themeDeclarations(readFileSync(THEME, 'utf8'));
+/**
+ * Every opaque colour literal in the theme that is neither an accent nor listed.
+ *
+ * Comments are blanked first, newlines kept, so line numbers stay true while a
+ * colour NAMED in prose — explaining what a rule replaced, say — does not read as a
+ * declaration the gate has to classify.
+ */
+function unclassifiedLiterals(css) {
+    const found = new Map(); // literal -> first line it appears on
+    const lines = css.replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ' ')).split('\n');
+    for (let i = 0; i < lines.length; i++) {
+        for (const [literal] of lines[i].matchAll(/#[0-9a-fA-F]{6}/g)) {
+            const key = literal.toLowerCase();
+            if (key in ACCENT_LITERALS || key in NON_ACCENT_LITERALS) continue;
+            if (!found.has(key)) found.set(key, i + 1);
+        }
+    }
+    return found;
+}
+
+const css = readFileSync(THEME, 'utf8');
+const declarations = themeDeclarations(css);
 const entries = tableEntries(readFileSync(TABLE, 'utf8'));
+const unclassified = unclassifiedLiterals(css);
 
 if (declarations.length === 0) {
     console.error('check-nativescript-accent-rules: found no accent declarations in the theme — the scan is broken.');
@@ -82,10 +133,17 @@ for (const item of tabled) {
     if (!declared.has(item))
         failures.push(`the table covers ${item.split('|').join('  ')} — the theme no longer declares it`);
 }
+for (const [literal, line] of unclassified) {
+    failures.push(
+        `${literal} (${relative(ROOT, THEME)}:${line}) is neither an accent role nor a listed ` +
+            'non-accent — an accent the gate cannot classify is not a mismatch, it is invisible',
+    );
+}
 
 console.log(
     `check-nativescript-accent-rules: ${declared.size} accent declaration(s) in the theme, ` +
-        `${tabled.size} in the override table.`,
+        `${tabled.size} in the override table; ` +
+        `${Object.keys(NON_ACCENT_LITERALS).length} non-accent colours accounted for.`,
 );
 
 if (failures.length > 0) {

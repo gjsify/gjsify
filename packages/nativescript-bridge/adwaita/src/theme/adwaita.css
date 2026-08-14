@@ -1582,9 +1582,9 @@ Page.ns-dark.adw-window {
  *
  * It carries the SHADE role, the same one the light press uses — `.ns-dark
  * .adw-avatar` already spells a shade under a dark selector, and the role is
- * scheme-independent by construction (accent-theme.ts). The dark button press
- * two sections down instead hand-picks `#2c75d6`, which is a THIRD literal no
- * accent override can reach (#1154); this rule does not add a fourth. */
+ * scheme-independent by construction (accent-theme.ts). The dark button press two
+ * sections down used to hand-pick its own literal instead; #1154 made it carry
+ * this same role, so the two dark presses now agree. */
 .ns-dark .adw-image-button.adw-entry-apply:highlighted {
     background-color: #1c71d8;
 }
@@ -1688,8 +1688,16 @@ Page.ns-dark.adw-window {
     background-color: rgba(255, 255, 255, 0.22);
 }
 
+/* The SHADE, not a lighter press. libadwaita presses an opaque button — which is
+ * what `.suggested-action` extends — with `background-image: image(RGB(0 0 6 /
+ * 20%))`, a darkening overlay that is identical in both schemes
+ * (_buttons.scss:165-167). The lighter press two rules up belongs to the plain
+ * button, whose fill is itself an overlay; an accent button has no lighter state
+ * in either scheme. This used to hand-pick `#2c75d6`, a third literal the accent
+ * override could not reach, so the button turned orange and its pressed state
+ * flashed blue (#1154). */
 .ns-dark .adw-button.suggested-action:highlighted {
-    background-color: #2c75d6;
+    background-color: #1c71d8;
 }
 
 .ns-dark .adw-button.destructive-action:highlighted {
