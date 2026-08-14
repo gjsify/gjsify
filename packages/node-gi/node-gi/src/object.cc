@@ -745,6 +745,39 @@ Napi::Value GetTypeName(const Napi::CallbackInfo& info) {
   return Napi::String::New(env, G_OBJECT_TYPE_NAME(obj));
 }
 
+// classInfoForTypeName(gtypeName) -> { namespace, name } | null
+// The introspected type that OWNS a runtime GType name — the reverse of
+// getGType, over the same nearest-ancestor walk method resolution uses (a
+// private concrete type such as GLocalFile carries no info of its own). L1 needs
+// it to hand a wrapper the JS prototype of its class, so that a member the
+// program put on `Ns.Class.prototype` is what the instance resolves (#1175).
+// Searches only LOADED namespaces (gi_repository_find_by_gtype), so it never
+// pulls in a typelib as a side effect of wrapping an object.
+Napi::Value ClassInfoForTypeName(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 1 || !info[0].IsString()) {
+    Napi::TypeError::New(env, "classInfoForTypeName(gtypeName: string)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string typeName = info[0].As<Napi::String>().Utf8Value();
+  GType gtype = g_type_from_name(typeName.c_str());
+  if (gtype == G_TYPE_INVALID) return env.Null();
+  GIRepository* repo = DupDefaultRepository();
+  GIObjectInfo* objInfo = FindNearestObjectInfo(repo, gtype);
+  Napi::Value result = env.Null();
+  if (objInfo != nullptr) {
+    GIBaseInfo* base = reinterpret_cast<GIBaseInfo*>(objInfo);
+    Napi::Object out = Napi::Object::New(env);
+    out.Set("namespace", Napi::String::New(env, gi_base_info_get_namespace(base)));
+    out.Set("name", Napi::String::New(env, gi_base_info_get_name(base)));
+    gi_base_info_unref(base);
+    result = out;
+  }
+  g_object_unref(repo);
+  return result;
+}
+
 // getGType(namespace, name) -> GType handle | null
 // The runtime GType of an introspected registered type (object/interface/struct/
 // union/enum/flags), as a node-gi GType handle. The L1 layer surfaces it as a

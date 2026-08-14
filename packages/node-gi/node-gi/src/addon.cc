@@ -78,6 +78,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("callFunction", Napi::Function::New(env, CallFunction));
   exports.Set("callMethod", Napi::Function::New(env, CallMethod));
   exports.Set("hasMethod", Napi::Function::New(env, HasMethod));
+  exports.Set("hasClassMethod", Napi::Function::New(env, HasClassMethod));
   exports.Set("callStaticMethod", Napi::Function::New(env, CallStaticMethod));
   exports.Set("constructStruct", Napi::Function::New(env, ConstructStruct));
   exports.Set("newObject", Napi::Function::New(env, NewObject));
@@ -90,6 +91,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("setProperty", Napi::Function::New(env, SetProperty));
   exports.Set("hasProperty", Napi::Function::New(env, HasProperty));
   exports.Set("getTypeName", Napi::Function::New(env, GetTypeName));
+  exports.Set("classInfoForTypeName", Napi::Function::New(env, ClassInfoForTypeName));
   exports.Set("getGType", Napi::Function::New(env, GetGType));
   exports.Set("isInstanceOf", Napi::Function::New(env, IsInstanceOf));
   exports.Set("isGObjectHandle", Napi::Function::New(env, IsGObjectHandle));

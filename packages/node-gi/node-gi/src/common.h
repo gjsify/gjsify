@@ -556,6 +556,11 @@ Napi::Value PrependLibraryPath(const Napi::CallbackInfo& info);
 Napi::Value CallFunction(const Napi::CallbackInfo& info);
 Napi::Value CallMethod(const Napi::CallbackInfo& info);
 Napi::Value HasMethod(const Napi::CallbackInfo& info);
+Napi::Value HasClassMethod(const Napi::CallbackInfo& info);
+// The nearest ancestor GType carrying object introspection info (a concrete type
+// may be private — GLocalFile); a new ref, or nullptr. Shared with object.cc so
+// method dispatch and prototype lookup resolve to the same class.
+GIObjectInfo* FindNearestObjectInfo(GIRepository* repo, GType gtype);
 Napi::Value CallStaticMethod(const Napi::CallbackInfo& info);
 // The `new <Struct>()` [[Construct]] path: route to the struct's 'new'
 // constructor when it has one, else zero-allocate (GJS gi/boxed.cpp parity).
@@ -588,6 +593,7 @@ Napi::Value GetProperty(const Napi::CallbackInfo& info);
 Napi::Value SetProperty(const Napi::CallbackInfo& info);
 Napi::Value HasProperty(const Napi::CallbackInfo& info);
 Napi::Value GetTypeName(const Napi::CallbackInfo& info);
+Napi::Value ClassInfoForTypeName(const Napi::CallbackInfo& info);
 Napi::Value GetGType(const Napi::CallbackInfo& info);
 Napi::Value IsInstanceOf(const Napi::CallbackInfo& info);
 Napi::Value IsGObjectHandle(const Napi::CallbackInfo& info);

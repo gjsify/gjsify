@@ -479,6 +479,47 @@ A *passive* fd source with no pending op (e.g. only a listening
 `Gio.SocketService`) does not keep the process alive on its own, and a
 purely-sync program still exits immediately.
 
+#### Class prototypes and the lookup order
+
+`Ns.Class.prototype` is a real prototype: reading a name on it MATERIALIZES the
+introspected method behind that name (the JS twin of the `resolve` hook GJS
+installs on every GObject prototype), and every wrapper resolves its members
+through the prototype of its runtime GType — a `registerClass` subclass's own
+prototype, otherwise the introspected class's — before any native fallback. So
+instrumenting a method works the way it does on GJS:
+
+```js
+const proto = Gio.ZlibDecompressor.prototype;
+const original = proto.convert;             // the introspected method
+proto.convert = function (...args) {        // instrument it
+    calls++;
+    return original.apply(this, args);
+};
+const d = new Gio.ZlibDecompressor({ format: Gio.ZlibCompressorFormat.GZIP });
+d.convert === proto.convert;                // true — and the wrapper IS called
+proto.convert = original;                   // put it back
+```
+
+Until 0.39 an instance ignored its prototype: the assignment stuck, `d.convert`
+still reached the native method, and a spy-based test reported itself installed
+while measuring nothing. Byte-compared against GJS by the `prototype-chain`
+conformance program.
+
+Lookup order on a wrapper: own JS field → the class prototype chain →
+`runAsync` / the GObject.js shims → GObject property → inherited `Object.prototype`
+member → a `Gio._promisify` registration → introspected method → `undefined`.
+
+Deliberate divergences from GJS, all measured:
+
+- class prototypes are NOT chained to their base classes, so `instanceof` goes
+  through `g_type_is_a` (see below) and an interface method materializes once per
+  implementing class instead of being one shared function;
+- GObject **properties** are not surfaced as prototype accessors — they resolve on
+  the instance only;
+- a private concrete GType (`GLocalFile`) resolves to its nearest INTROSPECTABLE
+  ancestor rather than to the interface GJS would use, which is why
+  `Gio._promisify` also keeps a per-class registry.
+
 #### `GLib.Variant` (build + unpack, GJS semantics)
 
 `new GLib.Variant(signature, value)` recursively builds a GVariant from a type
