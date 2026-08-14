@@ -188,12 +188,26 @@ export const STORYBOOK_WEB_CSS = `
     min-width: 0;
 }
 
+/* The tint belongs to the whole preview AREA, not to a box inside it. On the website
+   it sits on the preview panel and the stage within is only centring; on the stage it
+   drew a grey rectangle floating in the pane with no defined edge, which is how it read.
+
+   HERE and not on .sb-preview-pane, measured: this element paints an OPAQUE
+   background-color, so a gradient one level up is covered completely. Sampling five
+   points across the pane returned the identical colour while the computed style still
+   reported a background-image — true and meaningless.
+
+   A background on a scroll container is painted against its padding box, so it stays
+   put while the content scrolls, the way a wallpaper does. */
 .sb-preview-scroll {
     flex: 1 1 auto;
     min-height: 0;
     min-width: 0;
     overflow: auto;
     background-color: var(--window-bg-color);
+    background-image:
+        radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--accent-color) 7%, transparent), transparent 45%),
+        radial-gradient(circle at 100% 100%, color-mix(in srgb, #926ee4 6%, transparent), transparent 45%);
 }
 
 .sb-story-page {
@@ -228,19 +242,16 @@ export const STORYBOOK_WEB_CSS = `
     color: var(--window-fg-color);
 }
 
-/* Centered, tinted preview stage (mirrors the native .story-stage).
+/* Centring and breathing room only — the surface is the pane's.
 
-   The stage has to stay LOCATABLE when the widget on it is transparent or empty
-   — that is why it was framed at all. Two corner tints do that with a surface
-   instead of a dashed outline, matching the widget gallery on the website.
+   The stage carried the tint first, and against the pane's own background that read
+   as a grey rectangle floating with no edge rather than as a surface. It has no
+   border-radius for the same reason: nothing here is a box any more.
 
-   BOTH SCHEMES, WITHOUT BRANCHING: --accent-color is the STANDALONE accent
-   (#1c71d8 light, #78aeed dark — _variables.scss:55, _theme.scss:33), already
-   flipped by the same media query and .theme-dark/.theme-light classes that
-   theme everything else here, so this rule needs no scheme of its own. It also
-   follows a runtime accent. The purple counter-tint is decoration rather than a
-   role and stays a literal, as it is on the website, where it is the same hue in
-   both schemes. */
+   The requirement the tint answers is unchanged — the preview area stays locatable
+   when the widget on it is transparent or empty — it is just answered by the AREA
+   now instead of by a rectangle inside it. Scheme handling moved with it, see
+   .sb-preview-pane. */
 .story-stage {
     display: flex;
     flex-direction: column;
@@ -249,11 +260,7 @@ export const STORYBOOK_WEB_CSS = `
     gap: var(--spacing-m);
     padding: var(--spacing-l);
     margin-top: var(--spacing-s);
-    border-radius: var(--card-radius);
     min-height: 80px;
-    background-image:
-        radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--accent-color) 7%, transparent), transparent 45%),
-        radial-gradient(circle at 100% 100%, color-mix(in srgb, #926ee4 6%, transparent), transparent 45%);
 }
 
 /* --- Controls panel --- */

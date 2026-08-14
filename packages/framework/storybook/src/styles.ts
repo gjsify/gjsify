@@ -92,30 +92,35 @@ export const STORYBOOK_CSS = `
     background-color: @window_bg_color;
 }
 
-/* The live preview's stage. It has to stay LOCATABLE even when the widget on it
-   is transparent or in an empty state (a collapsed bottom sheet, a status page,
-   a bare button) — that requirement is why a frame was here at all. A dashed
-   border met it by drawing attention to itself; two corner tints meet it by
-   giving the stage a surface, which is what the widget gallery on the website
-   does and what this mirrors.
+/* The preview AREA carries the tint, not a box inside it.
 
-   BOTH SCHEMES, WITHOUT BRANCHING. A Gtk.CssProvider string cannot ask which
-   colour scheme is active, so the tint is named rather than spelled out:
-   @accent_color is libadwaita's STANDALONE accent, defined as the accent moved
-   to a lightness that reads against the current scheme's background
-   (oklab min(l, 0.5) in light, max(l, 0.85) in dark — _colors.scss:25,88). It is
-   therefore correct in both by construction, and it follows a runtime accent, so
-   the stage is never blue while the widgets are orange. The website hardcodes
-   #3584e4 / #78aeed for the same two states, which is this name resolved by hand.
+   The requirement is unchanged — the preview must stay LOCATABLE when the widget on
+   it is transparent or in an empty state (a collapsed bottom sheet, a status page, a
+   bare button), which is why a frame was here at all. A dashed border met it by
+   drawing attention to itself; a box with a surface met it by floating in the pane
+   with no edge, which is how it read. The whole area meets it by being the surface,
+   which is what the widget gallery on the website does: there the tint is on the
+   preview panel and the stage within it is only centring.
 
-   The purple counter-tint has no named equivalent and stays a literal, as it is
-   on the website — it is decoration, not a role, and it is the same hue in both
-   schemes there too. */
-.story-stage {
-    border-radius: 12px;
-    padding: 18px;
+   BOTH SCHEMES, WITHOUT BRANCHING. A Gtk.CssProvider string cannot ask which colour
+   scheme is active, so the tint is named rather than spelled out: @accent_color is
+   libadwaita's STANDALONE accent, defined as the accent moved to a lightness that
+   reads against the current scheme's background (oklab min(l, 0.5) in light,
+   max(l, 0.85) in dark — _colors.scss:25,88). Correct in both by construction, and it
+   follows a runtime accent, so the area is never blue while the widgets are orange.
+   The website hardcodes #3584e4 / #78aeed for those two states, which is this name
+   resolved by hand.
+
+   The purple counter-tint has no named equivalent and stays a literal, as on the
+   website — decoration, not a role, and the same hue in both schemes there too. */
+.sb-preview-area {
     background-image:
         radial-gradient(circle at 0% 0%, alpha(@accent_color, 0.07), transparent 45%),
         radial-gradient(circle at 100% 100%, alpha(#926ee4, 0.06), transparent 45%);
+}
+
+/* Breathing room only. No radius and no surface: nothing here is a box any more. */
+.story-stage {
+    padding: 18px;
 }
 `;
