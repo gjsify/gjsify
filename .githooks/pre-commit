@@ -138,14 +138,38 @@ rebuild_failed() {
 #
 # Both still apply to `affected.gjs.mjs`: it is built by the same `--app gjs`
 # pipeline from the same CLI source tree, so the same inputs stale it.
-AFFECTED_SRC_CHANGED="$(git diff --cached --name-only --diff-filter=ACMR -- packages/infra/cli/src/ packages/infra/cli/package.json packages/infra/resolve-npm/lib/ packages/infra/rolldown-plugin-gjsify/src/ | head -1)"
+# The trigger is COMPUTED from the bundle's own workspace-dep closure, not listed.
+# It used to name four paths over a build that inlines 111 of 201 packages, so a
+# commit touching a closure package the list did not name went out with a stale
+# bundle — measured at 5 of the last 60 commits (#1149). Widening it costs those
+# same 5 firings and buys back 5 CI round-trips; the closure walk is package.json
+# reads only, 47 ms.
+#
+# Cheap pre-filter first: nothing under packages/ staged means nothing in the
+# closure can have changed, and that is the common case.
+if [ -z "$(git diff --cached --name-only --diff-filter=ACMR -- packages/ | head -1)" ]; then
+    exit 0
+fi
+
+AFFECTED_CLOSURE_PATHS="$(node scripts/affected-bundle-closure.mjs 2>/dev/null)"
+if [ -z "$AFFECTED_CLOSURE_PATHS" ]; then
+    # Never silently skip: a closure we could not compute is unknown, not empty.
+    echo "[gjsify pre-commit] could not compute the affected-bundle closure — falling back to the four known inputs."
+    AFFECTED_CLOSURE_PATHS="packages/infra/cli/src
+packages/infra/cli/package.json
+packages/infra/resolve-npm/lib
+packages/infra/rolldown-plugin-gjsify/src"
+fi
+
+# shellcheck disable=SC2086 -- word splitting on the newline-separated path list is intended
+AFFECTED_SRC_CHANGED="$(git diff --cached --name-only --diff-filter=ACMR -- $AFFECTED_CLOSURE_PATHS | head -1)"
 
 if [ -z "$AFFECTED_SRC_CHANGED" ]; then
     exit 0
 fi
 
 echo "[gjsify pre-commit] staged changes may stale packages/infra/cli/dist/affected.gjs.mjs:"
-echo "  • packages/infra/cli/src/ (or package.json), packages/infra/resolve-npm/lib/, or packages/infra/rolldown-plugin-gjsify/src/"
+echo "  • $AFFECTED_SRC_CHANGED (in the bundle's workspace-dep closure)"
 echo "[gjsify pre-commit] rebuilding it — bypass with 'git commit --no-verify' or SKIP_GJSIFY_HOOKS=1."
 
 # `build` first: `build:affected-bundle` bundles `lib/`, which that step emits.
