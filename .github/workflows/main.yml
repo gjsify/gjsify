@@ -23,8 +23,20 @@ on:
   workflow_dispatch:
 
 # Cancel superseded runs on the SAME PR branch (a force-push / new commit
-# obsoletes the in-flight run). main pushes + the nightly schedule are NOT
-# cancelled — each landed commit + sweep must complete on its own.
+# obsoletes the in-flight run). main pushes + the nightly schedule are not
+# cancelled ONCE THEY HAVE STARTED — each landed commit + sweep completes on its
+# own.
+#
+# `cancel-in-progress` governs IN-PROGRESS runs only. A run still PENDING in the
+# group is evicted when a newer run joins it, whatever this expression says —
+# GitHub keeps one pending run per group. Measured 2026-08-14: the push run for
+# the #1170 merge sat pending behind a main run from 34 minutes earlier, a
+# `workflow_dispatch` on main joined the group, and the push run was cancelled 3 s
+# later with zero jobs ever started. So a LANDED COMMIT CAN END UP WITH NO RUN OF
+# ITS OWN, and the run list shows `cancelled`, which reads as noise rather than as
+# a gap. Before trusting "main is green", check that a run exists for main's
+# CURRENT sha — `gh run list --commit $(git rev-parse origin/main)` — rather than
+# reading the newest green run on the branch.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
