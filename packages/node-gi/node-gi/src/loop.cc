@@ -509,14 +509,30 @@ static void PumpDrainContext() {
   if (scope != nullptr) napi_close_handle_scope(g_loop_env, scope);
 }
 
-// The prepare+query HINT pass: learn GLib's earliest-timer deadline + poll fds
-// and mirror them into the uv timer / uv_poll watchers, so libuv's poll sleep
-// ends exactly when GLib next has work. The context is left "prepared" without a
-// matching check/dispatch — safe: the next g_main_context_iteration() (ours or a
-// blocking loop's) simply re-prepares. Runs only at g_main_depth() == 0; the
+// The prepare+query+check HINT pass: learn GLib's earliest-timer deadline + poll
+// fds and mirror them into the uv timer / uv_poll watchers, so libuv's poll sleep
+// ends exactly when GLib next has work. Runs only at g_main_depth() == 0; the
 // g_in_uv_pump flag is held across it so UvLoopSource stays parked (masking uv's
 // backend fd out of the queried set — it must not be uv_poll'd, and uv's own
 // backend timeout must not feed back into the timer hint).
+//
+// The CHECK is not cosmetic and must never be dropped again: a GSource may hold a
+// LOCK between its prepare() and its check(), and leaving the context prepared
+// deadlocks the process on the next call into that library. GDK's Wayland event
+// source is exactly that shape — its prepare() takes libwayland's designated-reader
+// slot (`wl_display_prepare_read_queue`) and only its check() releases it
+// (`wl_display_read_events` / `wl_display_cancel_read`). Measured (gjsify #1145,
+// gtk 4.22 / Fedora 44 / Mesa Vulkan): with the hint pass ending at query, the very
+// next `gtk_window_present()` blocked forever inside `wl_display_roundtrip_queue`
+// under `gsk_renderer_new_for_surface_full`, so the app never finished showing its
+// window while its GDBus worker thread kept answering Peer.Ping and Introspect —
+// a live process at ~0.5 % CPU that read as "devtools hangs". Only Wayland shows
+// it (GdkX11's source holds nothing across the pair), only node (bun/deno pump
+// through complete `g_main_context_iteration`s), and only once GTK was initialised
+// at g_main_depth() == 0 — `Gio.Application.register()` before `runAsync()` does
+// exactly that, which is why an app that only ever calls `run()` never saw it.
+// Passing revents = 0 is the right reading: this pass did NOT poll, so no fd is
+// reported ready and every source that took something in prepare() gives it back.
 static void PumpArmWakeups() {
   if (!g_pump_inited || g_main_depth() > 0 || g_in_uv_pump) return;
   GMainContext* ctx = g_main_context_default();
@@ -531,6 +547,14 @@ static void PumpArmWakeups() {
     nfds = g_main_context_query(ctx, prio, &timeout, g_pump_fds->data(),
                                 static_cast<gint>(g_pump_fds->size()));
   }
+  // g_main_context_query fills fd + events and leaves revents untouched, so the
+  // previous pass's values would otherwise be replayed as fresh readiness.
+  for (int i = 0; i < nfds; i++) (*g_pump_fds)[i].revents = 0;
+  // No dispatch pairs with this check: g_main_context_prepare() clears
+  // pending_dispatches on entry (glib gmain.c), and PumpDrainContext() — a full
+  // iteration — runs on the same libuv turn, so anything this marks ready is
+  // dispatched there rather than being stranded.
+  g_main_context_check(ctx, prio, g_pump_fds->data(), nfds);
   g_in_uv_pump = FALSE;
 
   if (!SyncPumpPolls(nfds)) {

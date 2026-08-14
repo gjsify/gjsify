@@ -437,6 +437,44 @@ jobs:
               test/gtk-template-signals.test.mjs \
               test/strv-construct.test.mjs test/interface-props.test.mjs
 
+      # The ONE leg with a WAYLAND display, and the only place the #1145 guard can
+      # run: every other GTK step here pins GDK_BACKEND=x11, and GdkX11's event
+      # source holds nothing across prepare/check, so the deadlock the fix closed
+      # (GDK's Wayland prepare() takes libwayland's reader slot, the uv pump's
+      # hint pass never gave it back, `gtk_window_present()` blocked forever) is
+      # invisible under Xvfb. weston's headless backend needs no GPU, no seat and
+      # no DRM — a socket in XDG_RUNTIME_DIR is the whole requirement.
+      # NODE_GI_REQUIRE_WAYLAND=1 turns the test's self-skip into a failure, so a
+      # compositor that never came up cannot be reported as a pass.
+      - name: Wayland prepare/check regression (headless weston)
+        working-directory: packages/node-gi/node-gi
+        run: |
+          set -eu
+          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 weston
+          export XDG_RUNTIME_DIR=/tmp/wayland-runtime
+          mkdir -p "$XDG_RUNTIME_DIR"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          sock="$XDG_RUNTIME_DIR/wayland-ci"
+          # `--backend=headless` is the weston 13+ spelling; older weston wants the
+          # module filename. Try both rather than pinning a version we do not control.
+          for backend in headless headless-backend.so; do
+            if [ -S "$sock" ]; then break; fi
+            weston --no-config --backend="$backend" --width=800 --height=600 \
+              --socket=wayland-ci >"/tmp/weston-$backend.log" 2>&1 &
+            for _ in $(seq 1 50); do
+              if [ -S "$sock" ]; then break; fi
+              sleep 0.2
+            done
+          done
+          if [ ! -S "$sock" ]; then
+            echo "::group::weston logs"; cat /tmp/weston-*.log; echo "::endgroup::"
+            echo "headless weston never created its socket"
+            exit 1
+          fi
+          WAYLAND_DISPLAY=wayland-ci NODE_GI_REQUIRE_WAYLAND=1 NODE_GI_NATIVE=build \
+            GSK_RENDERER=cairo LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
+            node --test test/wayland-prepare-check.test.mjs
+
       # GTK capstone: ONE unchanged Adwaita gi:// source builds + runs
       # byte-identically on BOTH gjs and node under one display — the GTK analog of
       # the headless L3 capstone. `npm install` builds @gjsify/node-gi via the
