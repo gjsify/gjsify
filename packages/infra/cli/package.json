@@ -148,6 +148,7 @@
         "@gjsify/tsc": "workspace:^",
         "@gjsify/web-polyfills": "workspace:^",
         "@gjsify/workspace": "workspace:^",
+        "acorn": "^8.17.0",
         "cosmiconfig": "^9.0.2",
         "get-tsconfig": "^4.14.0",
         "pkg-types": "^2.3.1",
