@@ -258,6 +258,14 @@ jobs:
       # from `keycap` to `adw-keycap` was measured: 3221 tests stayed GREEN while
       # every keycap lost its fill, radius, padding and minimum width. The renderer
       # spec cannot see it — it reads the same constant the widget writes.
+      # AdwExpanderRow extends GridLayout, so no off-device spec can construct one —
+      # which is how its entire expand affordance stayed a 16-unit chevron on the port
+      # whose targets are fingers (#1155). Measured on the emulator: a NativeScript tap
+      # does NOT stop at the child that handles it, so toggling from the row's own tap
+      # would collapse the row whenever a user touched anything nested inside it.
+      - name: Check disclosure toggles are wired to the header, not the whole row
+        run: node scripts/check-nativescript-disclosure-toggles.mjs
+
       - name: Check the NativeScript theme styles every class its widgets emit
         run: node scripts/check-nativescript-theme-classes.mjs
 
@@ -561,6 +569,14 @@ jobs:
       # from `keycap` to `adw-keycap` was measured: 3221 tests stayed GREEN while
       # every keycap lost its fill, radius, padding and minimum width. The renderer
       # spec cannot see it — it reads the same constant the widget writes.
+      # AdwExpanderRow extends GridLayout, so no off-device spec can construct one —
+      # which is how its entire expand affordance stayed a 16-unit chevron on the port
+      # whose targets are fingers (#1155). Measured on the emulator: a NativeScript tap
+      # does NOT stop at the child that handles it, so toggling from the row's own tap
+      # would collapse the row whenever a user touched anything nested inside it.
+      - name: Check disclosure toggles are wired to the header, not the whole row
+        run: node scripts/check-nativescript-disclosure-toggles.mjs
+
       - name: Check the NativeScript theme styles every class its widgets emit
         run: node scripts/check-nativescript-theme-classes.mjs
 
