@@ -244,11 +244,28 @@ jobs:
       - name: Check every storybook story exists on all three targets
         run: node scripts/check-storybook-story-parity.mjs
 
+      # Story-set parity says the same stories EXIST; it cannot say the reader meets
+      # them in the same order. That order was a by-product of enumeration — a path
+      # glob on two targets, a hand-written list on the third — and a comment claiming
+      # the two mirrored each other was the only thing holding it. They did not:
+      # `Overview` led one sidebar and sat fifth, below the fold, on another, which
+      # reads as the overview being missing rather than as an ordering difference.
+      - name: Check every storybook category is placed by the declaration
+        run: node scripts/check-storybook-category-order.mjs
+
       # A NativeScript widget's className and the theme's selector are two halves of
       # one decision that nothing compares. Renaming the shortcut-label keycap class
       # from `keycap` to `adw-keycap` was measured: 3221 tests stayed GREEN while
       # every keycap lost its fill, radius, padding and minimum width. The renderer
       # spec cannot see it — it reads the same constant the widget writes.
+      # AdwExpanderRow extends GridLayout, so no off-device spec can construct one —
+      # which is how its entire expand affordance stayed a 16-unit chevron on the port
+      # whose targets are fingers (#1155). Measured on the emulator: a NativeScript tap
+      # does NOT stop at the child that handles it, so toggling from the row's own tap
+      # would collapse the row whenever a user touched anything nested inside it.
+      - name: Check disclosure toggles are wired to the header, not the whole row
+        run: node scripts/check-nativescript-disclosure-toggles.mjs
+
       - name: Check the NativeScript theme styles every class its widgets emit
         run: node scripts/check-nativescript-theme-classes.mjs
 
@@ -538,11 +555,28 @@ jobs:
       - name: Check every storybook story exists on all three targets
         run: node scripts/check-storybook-story-parity.mjs
 
+      # Story-set parity says the same stories EXIST; it cannot say the reader meets
+      # them in the same order. That order was a by-product of enumeration — a path
+      # glob on two targets, a hand-written list on the third — and a comment claiming
+      # the two mirrored each other was the only thing holding it. They did not:
+      # `Overview` led one sidebar and sat fifth, below the fold, on another, which
+      # reads as the overview being missing rather than as an ordering difference.
+      - name: Check every storybook category is placed by the declaration
+        run: node scripts/check-storybook-category-order.mjs
+
       # A NativeScript widget's className and the theme's selector are two halves of
       # one decision that nothing compares. Renaming the shortcut-label keycap class
       # from `keycap` to `adw-keycap` was measured: 3221 tests stayed GREEN while
       # every keycap lost its fill, radius, padding and minimum width. The renderer
       # spec cannot see it — it reads the same constant the widget writes.
+      # AdwExpanderRow extends GridLayout, so no off-device spec can construct one —
+      # which is how its entire expand affordance stayed a 16-unit chevron on the port
+      # whose targets are fingers (#1155). Measured on the emulator: a NativeScript tap
+      # does NOT stop at the child that handles it, so toggling from the row's own tap
+      # would collapse the row whenever a user touched anything nested inside it.
+      - name: Check disclosure toggles are wired to the header, not the whole row
+        run: node scripts/check-nativescript-disclosure-toggles.mjs
+
       - name: Check the NativeScript theme styles every class its widgets emit
         run: node scripts/check-nativescript-theme-classes.mjs
 

@@ -203,7 +203,19 @@ export const STORYBOOK_WEB_CSS = `
     color: var(--window-fg-color);
 }
 
-/* Centered, dashed-framed preview stage (mirrors the native .story-stage). */
+/* Centered, tinted preview stage (mirrors the native .story-stage).
+
+   The stage has to stay LOCATABLE when the widget on it is transparent or empty
+   — that is why it was framed at all. Two corner tints do that with a surface
+   instead of a dashed outline, matching the widget gallery on the website.
+
+   BOTH SCHEMES, WITHOUT BRANCHING: --accent-color is the STANDALONE accent
+   (#1c71d8 light, #78aeed dark — _variables.scss:55, _theme.scss:33), already
+   flipped by the same media query and .theme-dark/.theme-light classes that
+   theme everything else here, so this rule needs no scheme of its own. It also
+   follows a runtime accent. The purple counter-tint is decoration rather than a
+   role and stays a literal, as it is on the website, where it is the same hue in
+   both schemes. */
 .story-stage {
     display: flex;
     flex-direction: column;
@@ -212,9 +224,11 @@ export const STORYBOOK_WEB_CSS = `
     gap: var(--spacing-m);
     padding: var(--spacing-l);
     margin-top: var(--spacing-s);
-    border: 1px dashed rgba(127, 127, 127, 0.28);
     border-radius: var(--card-radius);
     min-height: 80px;
+    background-image:
+        radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--accent-color) 7%, transparent), transparent 45%),
+        radial-gradient(circle at 100% 100%, color-mix(in srgb, #926ee4 6%, transparent), transparent 45%);
 }
 
 /* --- Controls panel --- */

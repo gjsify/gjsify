@@ -102,6 +102,24 @@ export default async () => {
             expect(view.shown).not.toBeNull();
         });
 
+        await it('lands on the story the sidebar leads with, not the one found first', () => {
+            // The two were the same list until categories gained a declared
+            // order. Discovery hands `Buttons` over first here while the sidebar
+            // has to lead with `Overview`; reading the landing story off the
+            // registry instead opens a story the sidebar does not show at the
+            // top, which is what the reordering first shipped.
+            const view = new MockView();
+            const controller = new StorybookController<MockStory>(view, () => []);
+            controller.mount([
+                makeModule({ title: 'Buttons/Button Content', controls: [] }),
+                makeModule({ title: 'Overview/Widgets', controls: [] }),
+            ]);
+
+            expect(view.sidebar.map((g) => g.category)).toStrictEqual(['Overview', 'Buttons']);
+            expect(view.selectedTitle).toBe('Overview/Widgets');
+            expect(view.previewTitle).toBe('Overview/Widgets — Default');
+        });
+
         await it('honours openFirst=false', () => {
             const view = new MockView();
             const controller = new StorybookController<MockStory>(view, () => []);

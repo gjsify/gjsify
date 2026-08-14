@@ -42,8 +42,8 @@ function buildGtkChrome(bin: Adw.Bin): StoryChrome<Gtk.Widget> {
         spacing: 12,
         hexpand: true,
     });
-    // Subtle dashed frame so the preview's bounds are visible even when the
-    // widget itself is transparent or in an empty state (see `.story-stage`).
+    // Tinted stage so the preview's bounds are visible even when the widget
+    // itself is transparent or in an empty state (see `.story-stage`).
     content.add_css_class('story-stage');
 
     group.add(content);

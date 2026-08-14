@@ -3,8 +3,17 @@
 // embeddable `mount(container)` (`embed.ts`, used by the gjsify website) draw
 // from this single list so the two stay in lockstep.
 //
-// Order mirrors the native sidebar's category order (Presentation, Boxed
-// Lists, Buttons, …).
+// THE ORDER OF THIS ARRAY NO LONGER DECIDES THE SIDEBAR. Categories are ordered
+// by STORYBOOK_CATEGORY_ORDER in @gjsify/storybook-core, which every target's
+// controller applies, so this list only decides which stories exist and how they
+// sit WITHIN their category.
+//
+// It used to claim it mirrored the native sidebar's order. It measurably did not:
+// the GTK and NativeScript storybooks took their order from a path glob
+// (alphabetical by directory), so `Overview` led here and sat fifth there. One
+// sentence was the only thing holding an invariant across three files, and the
+// sentence was wrong — which is why the order moved somewhere a build gate can
+// check it.
 
 import type { WebStoryModule } from '@gjsify/adwaita-storybook';
 import { OverviewWidgetsWebStories } from './overview/widgets.web.js';

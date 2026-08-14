@@ -1,11 +1,12 @@
 // AdwExpanderRow — a Libadwaita-style expander row for NativeScript.
 //
 // Extends {@link AdwActionRow}: the inherited title/subtitle stack is the always-
-// visible header, a `[+]/[−]` disclosure `Button` sits in the suffix slot, and a
-// second grid row (spanning both columns) holds a `StackLayout` of child rows that
-// is revealed/collapsed by toggling its `visibility`. Mirrors `Adw.ExpanderRow`:
+// visible header, a chevron sits in the suffix slot, and a second grid row
+// (spanning both columns) holds a `StackLayout` of child rows that is
+// revealed/collapsed by toggling its `visibility`. Mirrors `Adw.ExpanderRow`:
 // `addRow(child)` appends to the disclosure, `expanded` get/set drives the reveal
-// and emits `notify::expanded`.
+// and emits `notify::expanded`. Tapping the HEADER toggles it — see the
+// constructor for which views carry that and the device measurement behind it.
 //
 // The disclosure STATE MACHINE (the expanded/collapsed toggle + notify-on-change)
 // is HEADLESS and lives in `@gjsify/adwaita-core` (ADR 0004) as {@link ExpanderState};
@@ -81,8 +82,7 @@ export class AdwExpanderRow extends AdwActionRow {
         this.setSuffix(toggle);
         this._toggle = toggle;
 
-        // The core state drives the reveal + chevron + notify; the chevron tap
-        // flips it.
+        // The core state drives the reveal + chevron + notify.
         this._state.subscribe((expanded) => {
             this._disclosure.visibility = expanded ? 'visible' : 'collapse';
             this._toggle.icon = expanded ? panUpSymbolic : panDownSymbolic;
@@ -93,9 +93,41 @@ export class AdwExpanderRow extends AdwActionRow {
             };
             this.notify(data);
         });
-        toggle.addEventListener('tap', () => {
+
+        // WHAT TOGGLES THE ROW, and why it is wired exactly here (#1155).
+        //
+        // libadwaita expands from the HEADER, and says why in the template:
+        // "The header row must be activatable to toggle expansion by clicking it"
+        // (adw-expander-row.ui:24-26 → activate_cb → adw-expander-row.c:94-98). It
+        // sets `activatable=False` on the expander itself and True on the inner
+        // header, so the REVEALED rows cannot toggle their own parent.
+        //
+        // This port has no inner header widget — it IS an AdwActionRow — so the
+        // targets are the header's own children: the title/subtitle stack, which
+        // fills the flexible column and therefore most of the header, plus the
+        // chevron. Both sit in grid row 0; the disclosure is row 1.
+        //
+        // MEASURED ON DEVICE, because the answer decides the shape and no
+        // off-device spec can reach it (`extends GridLayout` cannot be imported):
+        // a NativeScript `tap` does NOT stop at a child that handles it. A tap on a
+        // plain Label inside the disclosure fires its own listener AND the row's;
+        // so does a tap on a nested switch row. (A nested entry row fires neither —
+        // the native EditText consumes it.) So the tempting version, toggling from
+        // the row's own `tap` or from `activate()`, would collapse the row whenever
+        // a user touched anything inside it.
+        //
+        // For the same reason the chevron's listener is the ONLY one on the chevron:
+        // if the row itself also toggled, a chevron tap would toggle twice and read
+        // as dead. Siblings do not receive each other's taps, which is what makes
+        // two header-scoped listeners safe.
+        //
+        // The affordance was previously the chevron alone — a 16-unit square, on the
+        // port whose targets are fingers.
+        const toggleOnTap = () => {
             this._state.toggle();
-        });
+        };
+        this._textStack.addEventListener('tap', toggleOnTap);
+        toggle.addEventListener('tap', toggleOnTap);
     }
 
     /** Append a child row (or any view) to the disclosure container. */

@@ -5,6 +5,7 @@
 // {@link StorybookView} (render seams) plus a `buildControls` builder.
 
 import type { StoryArgs, StoryArgValue, StoryControl } from '@gjsify/stories';
+import { orderCategories } from './category-order.js';
 import type { ControlRow } from './controls.js';
 import { StoryRegistry, type StoryModuleLike } from './registry.js';
 
@@ -75,15 +76,21 @@ export class StorybookController<TInstance extends StoryInstanceLike> {
 
     /**
      * Register + instantiate `modules`, render the sidebar, and (when
-     * `openFirst`) select the first story.
+     * `openFirst`) select the story the sidebar lists first.
      */
     mount(modules: StoryModuleLike<TInstance, new () => TInstance>[], openFirst = true): void {
         this._registry.registerStories(modules);
         const instantiated = this._registry.createStoryInstances();
-        this._view.renderSidebar(this._groupByCategory(instantiated), (instance) => this.select(instance));
+        const groups = this._groupByCategory(instantiated);
+        this._view.renderSidebar(groups, (instance) => this.select(instance));
 
         if (openFirst) {
-            const first = this._firstStory();
+            // The landing story is read off the SIDEBAR, not the registry.
+            // Those were the same list until the categories gained a declared
+            // order; taking it from the registry again would open a story the
+            // sidebar does not lead with, which is a stranger first impression
+            // than either order on its own.
+            const first = groups[0]?.stories[0]?.instance ?? null;
             if (first) this.select(first);
         }
     }
@@ -128,7 +135,14 @@ export class StorybookController<TInstance extends StoryInstanceLike> {
                 byCategory.get(category)!.push({ instance, name: name || 'Unnamed' });
             }
         }
-        return [...byCategory].map(([category, stories]) => ({ category, stories }));
+        // Categories follow the DECLARED order, not the order the modules were
+        // enumerated in — a path glob on two targets and a hand-written list on
+        // the third, which is how one story set grew three different first
+        // screens. Stories WITHIN a category keep discovery order.
+        return orderCategories([...byCategory.keys()]).map((category) => ({
+            category,
+            stories: byCategory.get(category)!,
+        }));
     }
 
     // --- MCP / devtools control surface (mirrors all three apps) ---
@@ -177,14 +191,6 @@ export class StorybookController<TInstance extends StoryInstanceLike> {
             for (const instance of module.instances ?? []) {
                 if (instance.meta.title === title) return instance;
             }
-        }
-        return null;
-    }
-
-    private _firstStory(): TInstance | null {
-        for (const module of this._registry.getStories()) {
-            const first = (module.instances ?? [])[0];
-            if (first) return first;
         }
         return null;
     }
