@@ -351,6 +351,46 @@ function collectFailures(text, max = 4) {
 /** Render a failure record the way the report stores it. */
 const formatFailure = (f) => (f.name && f.message ? `${f.name} — ${f.message}` : f.name || f.message);
 
+/**
+ * What `--require-pass` prints for ONE package that did not pass: the verdict, the
+ * counts, the bucket, and the failure SAMPLES.
+ *
+ * As a CI gate this runs on a runner whose `--out` report goes to `/tmp` and is
+ * never uploaded, so a bare `@gjsify/zlib — partial` was the entire evidence a
+ * reader got — "1 of 53375 tests failed" with nothing saying which one. Getting the
+ * name then meant building the native addon locally, which is the expensive step
+ * this replaces.
+ *
+ * Counts are printed as `passed/total` AND `failed`, because the first two alone
+ * mislead. `@gjsify/unit` bumps `countTestsFailed` without bumping
+ * `countTestsOverall` for three cases — an `it.failing` marker that started
+ * passing, an unexercised declared axis, and an assertion that fired outside any
+ * `it()` — so a run can report a SMALLER total than the same suite standalone. Read
+ * as "a test went missing", that looks like flake; it is one of those three, all of
+ * which are deterministic. Measured on zlib: 53375 through the bridge vs 53376
+ * standalone, which cost a wrong flake diagnosis before the accounting was checked.
+ *
+ * A package with no samples says so explicitly: `collectFailures` keys off a fixed
+ * marker set (`❌ ⏱ ✗ ✘`), and a reporter emitting anything else produces an empty
+ * list. Silence there means "the collector missed it", not "no failures".
+ */
+function formatGateFailure(r) {
+    const node = r.runtimes?.node;
+    const verdict = r.build?.ok ? (node?.status ?? 'no-node-run') : `build ${r.build?.reason}`;
+    const lines = [`  ${r.name} — ${verdict}`];
+    if (node && node.total !== undefined) {
+        lines.push(
+            `      ${node.passed}/${node.total} passed, ${node.failed} failed · bucket: ${node.reason ?? 'n/a'}`,
+        );
+    }
+    const samples = (node?.samples?.length ? node.samples : r.build?.samples) ?? [];
+    for (const s of samples) lines.push(`      ✖ ${s}`);
+    if (!samples.length) {
+        lines.push(`      (no failure samples captured — collectFailures matches ❌ ⏱ ✗ ✘ only)`);
+    }
+    return lines.join('\n');
+}
+
 // The failure's MESSAGE (name only as a last resort), with double-quoted spans
 // blanked so a test NAME quoted into a message cannot decide the bucket.
 const signatureOf = (f) => (f.message || f.name).replace(/"[^"\n]*"/g, '""');
@@ -651,12 +691,7 @@ function main() {
         if (notPassing.length) {
             console.error(
                 `\n✗ --require-pass: ${notPassing.length} package(s) did not PASS on node:\n` +
-                    notPassing
-                        .map(
-                            (r) =>
-                                `  ${r.name} — ${r.build?.ok ? (r.runtimes.node?.status ?? 'no-node-run') : `build ${r.build?.reason}`}`,
-                        )
-                        .join('\n'),
+                    notPassing.map(formatGateFailure).join('\n'),
             );
             process.exit(1);
         }
@@ -668,4 +703,13 @@ function main() {
 // (`tests/e2e/node-gi-consumer-harness/run.mjs` imports them).
 if (process.argv[1] && resolve(process.argv[1]).endsWith('node-gi-consumer-harness.mjs')) main();
 
-export { REASON_RULES, STAGED_ASSET_DIRS, classify, collectFailures, formatFailure, parseSummary, stageTestAssets };
+export {
+    REASON_RULES,
+    STAGED_ASSET_DIRS,
+    classify,
+    collectFailures,
+    formatFailure,
+    formatGateFailure,
+    parseSummary,
+    stageTestAssets,
+};
