@@ -450,7 +450,11 @@ jobs:
         working-directory: packages/node-gi/node-gi
         run: |
           set -eu
-          dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 weston
+          # weston is baked into .docker/ci-fedora.Dockerfile. The `||` covers exactly one
+          # window and retires itself: `build-ci-image.yml` only PUSHES the `:44` tag from
+          # main, so the run that ADDS a package to the image still gets the old one.
+          command -v weston >/dev/null 2>&1 ||
+            dnf install -y --setopt=install_weak_deps=False --disablerepo=fedora-cisco-openh264 weston
           export XDG_RUNTIME_DIR=/tmp/wayland-runtime
           mkdir -p "$XDG_RUNTIME_DIR"
           chmod 700 "$XDG_RUNTIME_DIR"

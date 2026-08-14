@@ -47,6 +47,12 @@ RUN dnf install -y \
 # that the `gjsify gresource` test hard-requires; `gettext` ships `msgfmt`
 # for the `gjsify gettext` test.
 #
+# `weston` is Xvfb's WAYLAND twin, and it buys a display AXIS, not a second way
+# to do the same thing: GdkX11 holds no state between a GSource's prepare() and
+# check(), GdkWayland holds libwayland's reader slot there, so #1145 (the uv
+# pump left the context prepared and `gtk_window_present()` deadlocked) is
+# invisible under Xvfb. Its headless backend needs no GPU, no seat and no DRM.
+#
 # This list used to carry "MUST stay in lockstep with main.yml" — a convention
 # with nothing behind it, which is the shape of every drift this repo has paid
 # for. `scripts/check-ci-image-packages.mjs` now derives the answer: any job
@@ -74,6 +80,7 @@ RUN dnf install -y \
     xorg-x11-server-Xvfb \
     mesa-dri-drivers \
     mesa-libGL \
+    weston \
     && dnf clean all
 
 # Meson + Vala + Blueprint compiler for the native bridge builds
