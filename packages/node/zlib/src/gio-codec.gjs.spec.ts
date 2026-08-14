@@ -21,7 +21,7 @@
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import Gio from '@girs/gio-2.0';
-import { gzipSync, gunzipSync } from './index.js';
+import { gunzip, gzipSync, gunzipSync } from './index.js';
 import { CONVERT_INPUT_SLICE } from './gio-codec.js';
 
 /** Deterministic pseudo-random (incompressible) bytes via a 32-bit LCG. */
@@ -80,6 +80,80 @@ export default async () => {
             await it('round-trips a single member larger than the slice bound', async () => {
                 const decompressed = gunzipSync(gzA);
                 expect(firstMismatch(decompressed, memberA)).toBe(-1);
+            });
+        });
+
+        await describe('async gunzip: the Web fast path and its member-aware fallback', async () => {
+            // THE CELL NO GATE COVERED. Our `decompress()` prefers a native
+            // `DecompressionStream` when one exists, and that branch never ran under
+            // test: GJS has no such global, and the Node leg's specs import
+            // `node:zlib`, which is Node's own zlib rather than this file. The only
+            // host that ever reached it was the node-gi reverse bridge — where it
+            // failed, because a spec-conforming DecompressionStream decodes ONE gzip
+            // member and rejects the rest while `zlib.gunzip()` decodes them all.
+            //
+            // A stub stands in for that platform here, so the branch is exercised on
+            // any host. It fails the way Deno's did ("failed to write whole buffer"),
+            // which is the behaviour the fallback exists for.
+            const withStubbedWebCompression = async (fn: () => Promise<void>) => {
+                const g = globalThis as unknown as Record<string, unknown>;
+                const hadC = 'CompressionStream' in g;
+                const hadD = 'DecompressionStream' in g;
+                const prevC = g['CompressionStream'];
+                const prevD = g['DecompressionStream'];
+                g['CompressionStream'] = class {};
+                g['DecompressionStream'] = class {
+                    readable = new ReadableStream({
+                        start(c: ReadableStreamDefaultController) {
+                            c.error(new TypeError('failed to write whole buffer'));
+                        },
+                    });
+                    writable = new WritableStream();
+                };
+                try {
+                    await fn();
+                } finally {
+                    if (hadC) g['CompressionStream'] = prevC;
+                    else delete g['CompressionStream'];
+                    if (hadD) g['DecompressionStream'] = prevD;
+                    else delete g['DecompressionStream'];
+                }
+            };
+
+            const asyncGunzip = (input: Uint8Array) =>
+                new Promise<Uint8Array>((resolve, reject) => {
+                    gunzip(input, (err, out) => (err ? reject(err) : resolve(out)));
+                });
+
+            await it('falls back to the member walk when the platform stream rejects', async () => {
+                await withStubbedWebCompression(async () => {
+                    const out = await asyncGunzip(concatBytes([gzipSync('abc'), gzipSync('def')]));
+                    expect(new TextDecoder().decode(out)).toBe('abcdef');
+                });
+            });
+
+            await it('still resolves a SINGLE member through the fallback', async () => {
+                // The fallback must not be gzip-multi-member-only: once the platform
+                // path has failed, every gzip input has to come out of the walk.
+                await withStubbedWebCompression(async () => {
+                    const out = await asyncGunzip(gzipSync('just one'));
+                    expect(new TextDecoder().decode(out)).toBe('just one');
+                });
+            });
+
+            await it('still REJECTS genuinely corrupt gzip rather than swallowing it', async () => {
+                // The fallback is a second decoder, not a way to make errors vanish:
+                // a catch that returned empty output here would turn every corrupt
+                // stream into a silent success.
+                await withStubbedWebCompression(async () => {
+                    let threw = false;
+                    try {
+                        await asyncGunzip(new Uint8Array([0x1f, 0x8b, 0x08, 0x00, 0x99, 0x99, 0x99]));
+                    } catch {
+                        threw = true;
+                    }
+                    expect(threw).toBeTruthy();
+                });
             });
         });
 

@@ -30,7 +30,22 @@ import { compressWithGio, decompressStreamWithGio, gunzipWithGio, type GioFormat
 
 type ZlibCallback = (error: Error | null, result: Uint8Array) => void;
 
-const hasWebCompression = typeof globalThis.CompressionStream !== 'undefined';
+/**
+ * Is a native Compression Streams implementation present?
+ *
+ * Asked PER CALL, not snapshotted at module load, and that is load-bearing for
+ * testability rather than for correctness: a module-load snapshot makes the Web
+ * branch unreachable from any test on GJS, where the global is absent — and that
+ * unreachability is why the multi-member gzip defect below shipped. No gate ran this
+ * branch. On GJS the global does not exist, and on Node the specs import `node:zlib`,
+ * which IS Node's own zlib rather than this file (tests/AGENTS.md rule 3: the Node
+ * leg proves the test, the GJS leg proves our implementation). The only host that
+ * ever ran it was the node-gi reverse bridge, months later.
+ *
+ * With the check lazy, a spec can define the globals and exercise both branches
+ * anywhere. The cost is one `typeof` per call.
+ */
+const hasWebCompression = (): boolean => typeof globalThis.CompressionStream !== 'undefined';
 
 // The Gio codec primitives (shared with the streaming classes in
 // transform-streams.ts, incl. the bounded-slice gzip member walk) live in
@@ -91,15 +106,49 @@ async function decompressWithWeb(data: Uint8Array, format: CompressionFormat): P
 }
 
 async function compress(data: Uint8Array, format: GioFormat): Promise<Uint8Array> {
-    if (hasWebCompression) {
+    if (hasWebCompression()) {
         return compressWithWeb(data, format as CompressionFormat);
     }
     return compressWithGio(data, format);
 }
 
+/**
+ * Async one-shot decode, with the multi-member gzip case handled where the platform
+ * cannot do it.
+ *
+ * A native `DecompressionStream('gzip')` decodes exactly ONE member and errors on
+ * whatever follows — which is what the Compression Streams spec asks of it. Node's
+ * `zlib.gunzip()` decodes every member, multi-member gzip being legal and produced
+ * by `gzip -c a b`, bgzip and some HTTP servers. Preferring the Web API therefore
+ * made this the only one of three siblings that could not read concatenated members:
+ * `gunzipSync` walks them (`gunzipWithGio`) and `createGunzip` walks them (the
+ * Transform in transform-streams.ts). Measured through the node-gi reverse bridge,
+ * where the RUNTIME's own `DecompressionStream` wins over our polyfill:
+ *
+ *   ✔ gunzipSync should decompress concatenated gzip members
+ *   ❌ gunzip async should decompress concatenated gzip members
+ *        TypeError: failed to write whole buffer
+ *          at Object.transform (ext:deno_web/14_compression.js)
+ *   ✔ createGunzip (stream) should decompress concatenated gzip members
+ *
+ * The Web path STAYS the fast path, gzip included: it is the platform's own C zlib,
+ * and on a host with no Gio it is the only path there is. The member walk runs only
+ * after it has actually failed, so single-member gzip — the overwhelming majority —
+ * pays nothing.
+ *
+ * Not conditioned on inspecting the bytes first: only inflating tells you where a
+ * member ends, so "does this have a second one" is not answerable more cheaply than
+ * walking them. A genuinely corrupt stream still rejects, because `gunzipWithGio`
+ * re-decodes and surfaces GLib's error — what the truncated-input tests assert.
+ */
 async function decompress(data: Uint8Array, format: GioFormat): Promise<Uint8Array> {
-    if (hasWebCompression) {
-        return decompressWithWeb(data, format as CompressionFormat);
+    if (hasWebCompression()) {
+        try {
+            return await decompressWithWeb(data, format as CompressionFormat);
+        } catch (err) {
+            if (format !== 'gzip') throw err;
+            return decompressWithGio(data, format);
+        }
     }
     return decompressWithGio(data, format);
 }
