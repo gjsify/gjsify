@@ -80,9 +80,9 @@ if (reason && process.env.NODE_GI_REQUIRE_WAYLAND === '1') {
                 env: { ...process.env, GDK_BACKEND: 'wayland' },
             });
             const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
-            // The child prints REGISTERED before the window, so a missing
-            // PRESENT_RETURNED after a present REGISTERED is the deadlock itself
-            // rather than a compositor that refused the connection.
+            // The child prints REGISTERED before it builds the window, so REGISTERED
+            // without PRESENT_RETURNED is the deadlock itself rather than a
+            // compositor that refused the connection.
             assert.match(out, /REGISTERED/, `the fixture must reach GApplication.register().\n${out}`);
             assert.notEqual(
                 r.signal,
