@@ -138,14 +138,68 @@ rebuild_failed() {
 #
 # Both still apply to `affected.gjs.mjs`: it is built by the same `--app gjs`
 # pipeline from the same CLI source tree, so the same inputs stale it.
-AFFECTED_SRC_CHANGED="$(git diff --cached --name-only --diff-filter=ACMR -- packages/infra/cli/src/ packages/infra/cli/package.json packages/infra/resolve-npm/lib/ packages/infra/rolldown-plugin-gjsify/src/ | head -1)"
+# The trigger is COMPUTED from the bundle's own workspace-dep closure, not listed.
+# It used to name four paths over a build that inlines 111 of 201 packages, so a
+# commit touching a closure package the list did not name went out with a stale
+# bundle — measured at 5 of the last 60 commits (#1149). Widening it costs those
+# same 5 firings and buys back 5 CI round-trips; the closure walk is package.json
+# reads only, 47 ms.
+#
+# Cheap pre-filter first: nothing under packages/ staged means nothing in the
+# closure can have changed, and that is the common case.
+if [ -z "$(git diff --cached --name-only --diff-filter=ACMR -- packages/ | head -1)" ]; then
+    exit 0
+fi
+
+CLOSURE_SCRIPT="$REPO_ROOT/scripts/affected-bundle-closure.mjs"
+AFFECTED_CLOSURE_PATHS=""
+CLOSURE_FALLBACK_REASON=""
+
+# The two mundane absences are NAMED rather than run into, so the fallback below
+# can say which one happened. A silent fallback that always fires is the worse
+# bug: the closure would never run, every commit would use the four-path list,
+# and nothing would say so.
+#
+# `|| true` on the substitution is LOAD-BEARING. Under `set -e` a failing command
+# substitution in an assignment aborts the shell, so without it the fallback is
+# UNREACHABLE in exactly the case it exists for. Measured: the e2e's synthetic
+# repo has no `scripts/`, node exited 1, and the hook died at exit 1 with the
+# fallback never reached. A hook that cannot compute the closure must degrade,
+# never take the commit with it — the same rule the three guards above follow.
+#
+# stderr is NOT redirected in the third branch: node and the script are both
+# present there, so anything written is a real defect in the walk and belongs on
+# screen. The absences that would merely be noisy are the two handled above.
+if ! command -v node >/dev/null 2>&1; then
+    CLOSURE_FALLBACK_REASON="no node on PATH"
+elif [ ! -f "$CLOSURE_SCRIPT" ]; then
+    CLOSURE_FALLBACK_REASON="$CLOSURE_SCRIPT not found"
+else
+    AFFECTED_CLOSURE_PATHS="$(node "$CLOSURE_SCRIPT" --root "$REPO_ROOT" || true)"
+    if [ -z "$AFFECTED_CLOSURE_PATHS" ]; then
+        CLOSURE_FALLBACK_REASON="the closure walk produced no paths"
+    fi
+fi
+
+if [ -n "$CLOSURE_FALLBACK_REASON" ]; then
+    # Never silently skip: a closure we could not compute is unknown, not empty.
+    echo "[gjsify pre-commit] could not compute the affected-bundle closure ($CLOSURE_FALLBACK_REASON)."
+    echo "[gjsify pre-commit] falling back to the four known inputs — a closure package outside them will not fire."
+    AFFECTED_CLOSURE_PATHS="packages/infra/cli/src
+packages/infra/cli/package.json
+packages/infra/resolve-npm/lib
+packages/infra/rolldown-plugin-gjsify/src"
+fi
+
+# shellcheck disable=SC2086 -- word splitting on the newline-separated path list is intended
+AFFECTED_SRC_CHANGED="$(git diff --cached --name-only --diff-filter=ACMR -- $AFFECTED_CLOSURE_PATHS | head -1)"
 
 if [ -z "$AFFECTED_SRC_CHANGED" ]; then
     exit 0
 fi
 
 echo "[gjsify pre-commit] staged changes may stale packages/infra/cli/dist/affected.gjs.mjs:"
-echo "  • packages/infra/cli/src/ (or package.json), packages/infra/resolve-npm/lib/, or packages/infra/rolldown-plugin-gjsify/src/"
+echo "  • $AFFECTED_SRC_CHANGED (in the bundle's workspace-dep closure)"
 echo "[gjsify pre-commit] rebuilding it — bypass with 'git commit --no-verify' or SKIP_GJSIFY_HOOKS=1."
 
 # `build` first: `build:affected-bundle` bundles `lib/`, which that step emits.
