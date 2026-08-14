@@ -10,7 +10,7 @@
     "packages/nativescript-bridge": 0.495,
     "packages/gjs": 0.399,
     "tests": 0.239,
-    "scripts": 0.583,
+    "scripts": 0.586,
     "examples": 0.182,
     "showcases": 0.158,
     "website": 0.17
