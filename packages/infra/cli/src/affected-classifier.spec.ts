@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Unit tests for the `gjsify affected` classifier.
 //
-// We exercise `classifyAndExpand` indirectly by spawning the built CLI
-// bundle with `--changed-from-stdin` and `--format=json`. That keeps the
-// internal helper unexported (it's a private detail of the command) but
-// still gives us deterministic, behavioral coverage of every classifier
-// branch.
+// Branches are exercised by CALLING `classifyAndExpand` on a real temp monorepo; the CLI
+// is still spawned where the process boundary IS the thing under test (both emit
+// branches, and a real `sh` doing the word split). Why it is split that way, and what
+// the all-spawn version cost: `commands/affected-classify.ts` (#1161).
 
 import { describe, it, expect } from '@gjsify/unit';
+import { discoverWorkspaces } from '@gjsify/workspace';
+import { classifyAndExpand } from './commands/affected-classify.js';
 import { spawn } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -195,31 +196,9 @@ async function shellWordSplit(value: string): Promise<string[]> {
     });
 }
 
-async function runClassify(cwd: string, changedFiles: string[]): Promise<ClassifyOutput> {
-    return new Promise((res, rej) => {
-        const child = spawn(
-            // oxlint-disable-next-line gjsify/spawn-node-binary -- as in `run()` above: the runtime under test is the one that must classify, and this suite never runs under GJS.
-            process.execPath,
-            [CLI_ENTRY, 'affected', '--changed-from-stdin', '--format=json', '--cwd', cwd],
-            { stdio: ['pipe', 'pipe', 'pipe'] },
-        );
-        let stdout = '';
-        let stderr = '';
-        child.stdout.on('data', (d) => (stdout += String(d)));
-        child.stderr.on('data', (d) => (stderr += String(d)));
-        child.on('close', (code) => {
-            if (code !== 0) {
-                rej(new Error(`affected exited ${code}: ${stderr}`));
-                return;
-            }
-            try {
-                res(JSON.parse(stdout.trim()));
-            } catch (e) {
-                rej(new Error(`bad json: ${stdout}\n${(e as Error).message}`));
-            }
-        });
-        child.stdin.end(changedFiles.join('\n') + '\n');
-    });
+/** Classify DIRECTLY — the handler's own two calls, on a really-walked temp monorepo. */
+function runClassify(cwd: string, changedFiles: string[]): ClassifyOutput {
+    return classifyAndExpand(discoverWorkspaces(cwd, { includeRoot: true }), changedFiles);
 }
 
 export default async (): Promise<void> => {
@@ -227,18 +206,18 @@ export default async (): Promise<void> => {
         const root = makeMonorepo();
 
         await it('empty diff → skipAll=true', async () => {
-            const r = await runClassify(root, []);
+            const r = runClassify(root, []);
             expect(r.skipAll).toBe(true);
             expect(r.global).toBe(false);
         });
 
         await it('only docs → skipAll=true', async () => {
-            const r = await runClassify(root, ['README.md', 'docs/foo.md', 'STATUS.md']);
+            const r = runClassify(root, ['README.md', 'docs/foo.md', 'STATUS.md']);
             expect(r.skipAll).toBe(true);
         });
 
         await it('flatpak SDK-extension manifest → skipAll (build tooling, ignored)', async () => {
-            const r = await runClassify(root, [
+            const r = runClassify(root, [
                 'flatpak/org.freedesktop.Sdk.Extension.gjsify.json',
                 'flatpak/org.freedesktop.Sdk.Extension.gjsify.metainfo.xml',
             ]);
@@ -249,7 +228,7 @@ export default async (): Promise<void> => {
         await it('flatpak manifest alongside a real src change → flatpak ignored, no full run', async () => {
             // The flatpak manifest is dropped by IGNORE, so it neither forces a
             // global run nor widens the closure — only the real `fs` change drives it.
-            const r = await runClassify(root, [
+            const r = runClassify(root, [
                 'flatpak/org.freedesktop.Sdk.Extension.gjsify.json',
                 'packages/node/fs/src/index.ts',
             ]);
@@ -260,7 +239,7 @@ export default async (): Promise<void> => {
         await it('packages/node-gi change → skipAll (own node-gi.yml, not a workspace)', async () => {
             // node-gi is not a gjsify workspace; its own workflow builds + tests
             // it. Its files are ignored so a node-gi-only PR skips the main run.
-            const r = await runClassify(root, [
+            const r = runClassify(root, [
                 'packages/node-gi/node-gi/src/addon.cc',
                 'packages/node-gi/node-gi/index.js',
                 'packages/node-gi/node-gi/test/callbacks.test.mjs',
@@ -270,16 +249,13 @@ export default async (): Promise<void> => {
         });
 
         await it('node-gi.yml workflow change → ignored (its own workflow)', async () => {
-            const r = await runClassify(root, ['.github/workflows/node-gi.yml']);
+            const r = runClassify(root, ['.github/workflows/node-gi.yml']);
             expect(r.skipAll).toBe(true);
             expect(r.global).toBe(false);
         });
 
         await it('node-gi alongside a real src change → node-gi ignored, no full run', async () => {
-            const r = await runClassify(root, [
-                'packages/node-gi/node-gi/src/addon.cc',
-                'packages/node/fs/src/index.ts',
-            ]);
+            const r = runClassify(root, ['packages/node-gi/node-gi/src/addon.cc', 'packages/node/fs/src/index.ts']);
             expect(r.global).toBe(false);
             expect(r.skipAll).toBe(false);
         });
@@ -288,7 +264,7 @@ export default async (): Promise<void> => {
             // napi is not a gjsify workspace; its own workflow builds + tests it
             // (Vala+C++/meson shim + node-gyp addons). Its files are ignored so a
             // napi-only PR skips the main run.
-            const r = await runClassify(root, [
+            const r = runClassify(root, [
                 'packages/napi/napi/src/cc/value.cc',
                 'packages/napi/napi/conformance/programs/test_number.mjs',
                 'packages/napi/napi/scripts/conformance.mjs',
@@ -298,13 +274,13 @@ export default async (): Promise<void> => {
         });
 
         await it('napi.yml workflow change → ignored (its own workflow)', async () => {
-            const r = await runClassify(root, ['.github/workflows/napi.yml']);
+            const r = runClassify(root, ['.github/workflows/napi.yml']);
             expect(r.skipAll).toBe(true);
             expect(r.global).toBe(false);
         });
 
         await it('napi alongside a real src change → napi ignored, no full run', async () => {
-            const r = await runClassify(root, ['packages/napi/napi/src/cc/value.cc', 'packages/node/fs/src/index.ts']);
+            const r = runClassify(root, ['packages/napi/napi/src/cc/value.cc', 'packages/node/fs/src/index.ts']);
             expect(r.global).toBe(false);
             expect(r.skipAll).toBe(false);
         });
@@ -313,38 +289,35 @@ export default async (): Promise<void> => {
             // A README in a GLOBAL_TRIGGERS path (packages/infra/cli/,
             // workspace/, …) must NOT force a full run — IGNORE is applied
             // before the global-trigger check.
-            const r = await runClassify(root, ['packages/infra/cli/README.md', 'packages/infra/workspace/README.md']);
+            const r = runClassify(root, ['packages/infra/cli/README.md', 'packages/infra/workspace/README.md']);
             expect(r.skipAll).toBe(true);
             expect(r.global).toBe(false);
         });
 
         await it('real src in a global-trigger dir still triggers global (alongside a README)', async () => {
-            const r = await runClassify(root, [
-                'packages/infra/cli/README.md',
-                'packages/infra/cli/src/commands/build.ts',
-            ]);
+            const r = runClassify(root, ['packages/infra/cli/README.md', 'packages/infra/cli/src/commands/build.ts']);
             expect(r.global).toBe(true);
         });
 
         await it('infra workspace touched → global=true', async () => {
-            const r = await runClassify(root, ['packages/infra/workspace/src/index.ts']);
+            const r = runClassify(root, ['packages/infra/workspace/src/index.ts']);
             expect(r.global).toBe(true);
             expect(r.runIntegration).toBe(true);
             expect(r.runE2E).toBe(true);
         });
 
         await it('root lockfile bump → global=true', async () => {
-            const r = await runClassify(root, ['gjsify-lock.json']);
+            const r = runClassify(root, ['gjsify-lock.json']);
             expect(r.global).toBe(true);
         });
 
         await it('root tsconfig → global=true', async () => {
-            const r = await runClassify(root, ['tsconfig.json']);
+            const r = runClassify(root, ['tsconfig.json']);
             expect(r.global).toBe(true);
         });
 
         await it('workflow files (other than main.yml) → ignored', async () => {
-            const r = await runClassify(root, [
+            const r = runClassify(root, [
                 '.github/workflows/deploy-docs.yml',
                 '.github/workflows/audit-runtimes.yml',
                 // `cancel-pr-runs.yml` is listed by NAME in OTHER_WORKFLOW_INPUTS,
@@ -358,7 +331,7 @@ export default async (): Promise<void> => {
         });
 
         await it('single-pkg code change → seeds + prod dependents only', async () => {
-            const r = await runClassify(root, ['packages/node/fs/src/index.ts']);
+            const r = runClassify(root, ['packages/node/fs/src/index.ts']);
             expect(r.global).toBe(false);
             // fs and its RUNTIME dependent A — closure size 2. B (devDep on fs)
             // is intentionally excluded by the prod-deps-only closure.
@@ -372,7 +345,7 @@ export default async (): Promise<void> => {
             // This is the core of the prod-only closure — build/test-tool devDep
             // edges no longer fan a single-package change out across the monorepo
             // (the cause of the historical 210/221-workspace closure explosion).
-            const r = await runClassify(root, ['packages/node/fs/src/index.ts']);
+            const r = runClassify(root, ['packages/node/fs/src/index.ts']);
             expect(r.workspaces.includes('@gjsify/B')).toBe(false);
             expect(r.workspaces.includes('@gjsify/A')).toBeTruthy();
         });
@@ -382,19 +355,19 @@ export default async (): Promise<void> => {
             // only closure a unit change would otherwise yield a near-empty
             // closure, but a matcher bug can break assertions anywhere — so a
             // change to the test framework must force a full run.
-            const r = await runClassify(root, ['packages/gjs/unit/src/index.ts']);
+            const r = runClassify(root, ['packages/gjs/unit/src/index.ts']);
             expect(r.global).toBe(true);
         });
 
         await it('test-only change for one ws → no closure expansion', async () => {
-            const r = await runClassify(root, ['packages/node/fs/src/foo.spec.ts']);
+            const r = runClassify(root, ['packages/node/fs/src/foo.spec.ts']);
             expect(r.global).toBe(false);
             expect(r.workspaces.length).toBe(1);
             expect(r.workspaces[0]).toBe('@gjsify/fs');
         });
 
         await it('unmatched-but-not-ignored file → conservative global', async () => {
-            const r = await runClassify(root, ['scripts/unknown.mjs']);
+            const r = runClassify(root, ['scripts/unknown.mjs']);
             // scripts/ is not in IGNORE and not in any workspace; classifier
             // bails out conservatively.
             expect(r.global).toBe(true);
@@ -408,7 +381,7 @@ export default async (): Promise<void> => {
         // ~90-minute `main.yml` run on every change to either.
 
         await it('.github/prebuild-toolchain/** → skipAll (prebuilds.yml owns it)', async () => {
-            const r = await runClassify(root, [
+            const r = runClassify(root, [
                 '.github/prebuild-toolchain/emulated-build.sh',
                 '.github/prebuild-toolchain/changed-packages.mjs',
             ]);
@@ -417,7 +390,7 @@ export default async (): Promise<void> => {
         });
 
         await it('scripts/manifest-conformance/** → skipAll (audit-runtimes.yml owns it)', async () => {
-            const r = await runClassify(root, [
+            const r = runClassify(root, [
                 'scripts/manifest-conformance/rules/tier.mjs',
                 'scripts/manifest-conformance/unchecked-fields.mjs',
             ]);
@@ -432,7 +405,7 @@ export default async (): Promise<void> => {
             // `packages/infra/manifest-conformance/lib/**` — so that half must
             // keep behaving like the ordinary workspace it is. A regex widened
             // to `manifest-conformance` anywhere would silence a real input.
-            const r = await runClassify(root, ['packages/infra/manifest-conformance/lib/rules/field-coverage.mjs']);
+            const r = runClassify(root, ['packages/infra/manifest-conformance/lib/rules/field-coverage.mjs']);
             expect(r.skipAll).toBe(false);
         });
 
@@ -444,11 +417,7 @@ export default async (): Promise<void> => {
             // accident, through the generic `/\.md$/i`, which is why the gap
             // showed on the JSON alone. `audit-runtimes.yml`'s `status-data`
             // rule reads all of it on every PR.
-            const r = await runClassify(root, [
-                'status/status.json',
-                'status/open-todos.md',
-                'scripts/generate-status.mjs',
-            ]);
+            const r = runClassify(root, ['status/status.json', 'status/open-todos.md', 'scripts/generate-status.mjs']);
             expect(r.skipAll).toBe(true);
             expect(r.global).toBe(false);
         });
@@ -457,13 +426,13 @@ export default async (): Promise<void> => {
             // The same class as the two above, found while fixing them: the
             // workflow shipped without an IGNORE entry, so every change to it
             // forced a full run.
-            const r = await runClassify(root, ['.github/workflows/release-cut.yml']);
+            const r = runClassify(root, ['.github/workflows/release-cut.yml']);
             expect(r.skipAll).toBe(true);
             expect(r.global).toBe(false);
         });
 
         await it('other-workflow input alongside a real src change → no full run', async () => {
-            const r = await runClassify(root, [
+            const r = runClassify(root, [
                 '.github/prebuild-toolchain/emulated-build.sh',
                 'scripts/manifest-conformance/rules/tier.mjs',
                 'packages/node/fs/src/index.ts',
@@ -483,7 +452,7 @@ export default async (): Promise<void> => {
         // `tests/e2e/create-app`, the one suite that would have noticed.
 
         await it('templates/** seeds @gjsify/create-app (no manifest edge exists)', async () => {
-            const r = await runClassify(root, ['templates/adw-canvas2d/package.json']);
+            const r = runClassify(root, ['templates/adw-canvas2d/package.json']);
             expect(r.global).toBe(false);
             expect(r.workspaces.includes('@gjsify/create-app')).toBe(true);
             // The template still seeds itself — the coupling ADDS a seed, it
@@ -494,14 +463,14 @@ export default async (): Promise<void> => {
         await it('templates/** turns the e2e tier on', async () => {
             // tests/e2e/create-app scaffolds from dist-templates/ and builds
             // the result: it is the only real coverage a template change has.
-            const r = await runClassify(root, ['templates/adw-canvas2d/src/main.ts']);
+            const r = runClassify(root, ['templates/adw-canvas2d/src/main.ts']);
             expect(r.runE2E).toBe(true);
         });
 
         await it('templates/** reports the coupling in its reason', async () => {
             // The reason string is what a human reads in the CI log to see
             // WHY create-app is in a closure it has no dependency edge into.
-            const r = await runClassify(root, ['templates/adw-canvas2d/package.json']);
+            const r = runClassify(root, ['templates/adw-canvas2d/package.json']);
             expect(r.reason.includes('script-coupling')).toBe(true);
         });
 
@@ -509,14 +478,14 @@ export default async (): Promise<void> => {
             // TEST_ONLY skips closure expansion because test code has no
             // downstream consumers. A coupled directory does have one, so the
             // shortcut must not swallow the extra seed.
-            const r = await runClassify(root, ['templates/adw-canvas2d/src/foo.spec.ts']);
+            const r = runClassify(root, ['templates/adw-canvas2d/src/foo.spec.ts']);
             expect(r.workspaces.includes('@gjsify/create-app')).toBe(true);
         });
 
         await it('a non-templates change does NOT seed create-app', async () => {
             // The coupling must stay scoped — otherwise it is just a second,
             // quieter global trigger.
-            const r = await runClassify(root, ['packages/node/fs/src/index.ts']);
+            const r = runClassify(root, ['packages/node/fs/src/index.ts']);
             expect(r.workspaces.includes('@gjsify/create-app')).toBe(false);
             expect(r.runE2E).toBe(false);
         });
@@ -528,7 +497,7 @@ export default async (): Promise<void> => {
             // global and names itself.
             const drifted = makeMonorepo(false);
             try {
-                const r = await runClassify(drifted, ['templates/adw-canvas2d/package.json']);
+                const r = runClassify(drifted, ['templates/adw-canvas2d/package.json']);
                 expect(r.global).toBe(true);
                 expect(r.reason.includes('SCRIPT_COUPLINGS')).toBe(true);
                 expect(r.reason.includes('@gjsify/create-app')).toBe(true);
