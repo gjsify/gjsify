@@ -5,5 +5,6 @@ import logSuite from './log.spec.js';
 import nextTickSuite from './next-tick.spec.js';
 import pathShapeSuite from './path-shape.spec.js';
 import platformNamesSuite from './platform-names.spec.js';
+import systemGiDirsSuite from './system-gi-dirs.spec.js';
 
-run({ hostOsSuite, hostProcessSuite, logSuite, nextTickSuite, pathShapeSuite, platformNamesSuite });
+run({ hostOsSuite, hostProcessSuite, logSuite, nextTickSuite, pathShapeSuite, platformNamesSuite, systemGiDirsSuite });

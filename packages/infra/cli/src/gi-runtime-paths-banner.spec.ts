@@ -96,6 +96,16 @@ export default async () => {
             expect(cut![1].includes('\\/')).toBe(true);
         });
 
+        await it('uses an ABSOLUTE entry as given, on both separator styles', async () => {
+            // Bundle prebuilds ship beside the program; a SYSTEM libdir does not.
+            // Joining `/usr/local/lib` under the program dir would name nothing,
+            // which is what would silently happen if the join were unconditional.
+            const stub = giRuntimePathsStub(['/usr/local/lib']);
+            const test = /\/\^\(\[A-Za-z\]:/.exec(stub);
+            expect(test !== null).toBe(true);
+            expect(stub.includes("?d:b+'/'+d")).toBe(true);
+        });
+
         await it('emits every directory it was given, JSON-quoted', async () => {
             const dirs = ['a-dir', 'with space', "with'quote"];
             const stub = giRuntimePathsStub(dirs);

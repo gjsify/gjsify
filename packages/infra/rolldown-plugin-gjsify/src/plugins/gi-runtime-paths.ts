@@ -31,7 +31,9 @@ export function giRuntimePathsStub(dirs: readonly string[]): string {
         // Both separators: the program path is the HOST's, and on win32 a `/`-only
         // cut matches nothing (same rule as `lastPathSeparatorIndex`, #1143).
         `var m=/^(.*)[\\/\\\\][^\\/\\\\]*$/.exec(p);if(!m)return;` +
-        `var b=m[1];for(var d of [${list}]){var f=b+'/'+d;r.prepend_search_path(f);r.prepend_library_path(f)}` +
+        // Absolute stays absolute: joining a system libdir under the program dir names nothing.
+        `var b=m[1];for(var d of [${list}]){var f=/^([A-Za-z]:[\\/\\\\]|[\\/\\\\])/.test(d)?d:b+'/'+d;` +
+        `r.prepend_search_path(f);r.prepend_library_path(f)}` +
         `})();`
     );
 }
