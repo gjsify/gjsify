@@ -15,12 +15,10 @@
 // This module MUST NOT execute anything at load time (no top-level
 // `parseAsync`) — `run.ts` imports it, and a top-level run would re-dispatch
 // the original argv on import.
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import yargs from 'yargs';
 
 import { classifyCliFailure } from './cli-fail.js';
+import { cliVersion } from './utils/publish-headers.js';
 
 import {
     buildCommand as build,
@@ -92,24 +90,6 @@ function runtimeLabel(): string {
     return 'unknown runtime';
 }
 
-// Read the version from package.json adjacent to the bundle. yargs's
-// auto-version-discovery (its `pkg-up`-driven default) doesn't reach
-// through the bundled `dist/cli.gjs.mjs` path on GJS — falls back to
-// "unknown". Both layouts are covered:
-//   - dev (tsx, `yarn workspace`):  src/index.ts → ../package.json
-//   - bundled (install -g):         dist/cli.gjs.mjs → ../package.json
-function readBundleVersion(): string {
-    try {
-        const here = dirname(fileURLToPath(import.meta.url));
-        const pkg = JSON.parse(readFileSync(join(here, '..', 'package.json'), 'utf8')) as {
-            version?: unknown;
-        };
-        return typeof pkg.version === 'string' ? pkg.version : 'unknown';
-    } catch {
-        return 'unknown';
-    }
-}
-
 /**
  * Build + run the gjsify yargs command surface for the given argv (already
  * stripped of the `node`/`gjs` + script prefix — i.e. what `hideBin` returns).
@@ -128,7 +108,7 @@ export async function runCli(argv: readonly string[]): Promise<void> {
     const cli = yargs(argv as string[]);
     await cli
         .scriptName(APP_NAME)
-        .version(readBundleVersion())
+        .version(cliVersion())
         .strict()
         // Sits beside `.strict()` because that is what produces most of what it
         // classifies. See `cli-fail.ts` for the four yargs measurements this
