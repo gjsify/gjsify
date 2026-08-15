@@ -11,19 +11,17 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
+import { ADW_BUTTON_STYLE_CLASSES, type AdwButtonStyleClass, buttonStyleClass } from '@gjsify/adwaita-core';
 import { Button } from '@nativescript/core';
 
-/** The Adwaita button variants this widget can apply. `'default'` = plain button. */
-export type AdwButtonVariant = 'default' | 'suggested-action' | 'destructive-action' | 'flat' | 'pill';
-
-const VARIANT_CLASSES: Record<Exclude<AdwButtonVariant, 'default'>, string> = {
-    'suggested-action': 'suggested-action',
-    'destructive-action': 'destructive-action',
-    flat: 'flat',
-    pill: 'pill',
-};
-
-const ALL_VARIANT_CLASSES = Object.values(VARIANT_CLASSES);
+/**
+ * The Adwaita button variants this widget can apply. `'default'` = plain button.
+ *
+ * The class list is `@gjsify/adwaita-core`'s, not a local table: this widget's own
+ * one was MISSING `circular`, which the browser element had, and neither file could
+ * see the other. `circular` is now here because the shared table says it exists.
+ */
+export type AdwButtonVariant = 'default' | AdwButtonStyleClass;
 
 export class AdwButton extends Button {
     private _variant: AdwButtonVariant = 'default';
@@ -38,7 +36,7 @@ export class AdwButton extends Button {
 
     /**
      * The Adwaita style variant. Setting it swaps the corresponding CSS class
-     * (`.suggested-action`/`.destructive-action`/`.flat`/`.pill`) onto the button,
+     * (one of `AdwButton.variantClasses`) onto the button,
      * preserving the base `adw-button` class. Note that `pill` is the rounded
      * SHAPE and combines with no other variant here (set the shape OR the accent
      * intent — matching how this CSS subset expresses them as flat classes).
@@ -49,11 +47,8 @@ export class AdwButton extends Button {
 
     set variant(value: AdwButtonVariant) {
         this._variant = value;
-        const classes = ['adw-button'];
-        if (value !== 'default') {
-            classes.push(VARIANT_CLASSES[value]);
-        }
-        this.className = classes.join(' ');
+        const styleClass = value === 'default' ? null : buttonStyleClass(value);
+        this.className = styleClass ? `adw-button ${styleClass}` : 'adw-button';
     }
 
     /**
@@ -61,6 +56,6 @@ export class AdwButton extends Button {
      * and for consumers composing class lists manually.
      */
     static get variantClasses(): readonly string[] {
-        return ALL_VARIANT_CLASSES;
+        return ADW_BUTTON_STYLE_CLASSES;
     }
 }

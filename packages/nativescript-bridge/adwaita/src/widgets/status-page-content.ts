@@ -8,9 +8,16 @@
 // Free of `@nativescript/core` imports so the spec suite exercises the shipping
 // predicates; the widget class `extends GridLayout` and is unresolvable off-device.
 //
+// The predicate itself is `stringIsNotEmpty` from `@gjsify/adwaita-core` — the same
+// `string_is_not_empty` the action rows bind their labels to. Both renderers spelled
+// it themselves (`text ? … : …` here, `title.length === 0` in the browser), and a
+// rule written twice is a rule that can drift twice.
+//
 // Reference: refs/libadwaita/src/adw-status-page.c
 // Reference: refs/libadwaita/src/adw-status-page.ui
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
+
+import { stringIsNotEmpty } from '@gjsify/adwaita-core';
 
 /** NativeScript's `visible` / not-in-layout pair, the counterpart of GTK `visible`. */
 export type StatusPageVisibility = 'visible' | 'collapse';
@@ -21,7 +28,7 @@ export type StatusPageVisibility = 'visible' | 'collapse';
  * VISIBLE title in libadwaita, so trimming here would hide a widget GTK draws.
  */
 export function statusPageLabelVisibility(text: string | null | undefined): StatusPageVisibility {
-    return text ? 'visible' : 'collapse';
+    return stringIsNotEmpty(text) ? 'visible' : 'collapse';
 }
 
 /**
@@ -34,5 +41,5 @@ export function statusPageLabelVisibility(text: string | null | undefined): Stat
  * the missing half is a real gap rather than a simplification.
  */
 export function statusPageIconVisibility(icon: string | null | undefined): StatusPageVisibility {
-    return icon ? 'visible' : 'collapse';
+    return stringIsNotEmpty(icon) ? 'visible' : 'collapse';
 }

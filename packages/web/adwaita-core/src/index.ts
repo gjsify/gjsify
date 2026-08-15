@@ -121,6 +121,10 @@ export type {
     ButtonContentEllipsize,
 } from './button-content.js';
 
+// --- Button style classes (Gtk.Button + Adwaita style classes) ---
+export { ADW_BUTTON_STYLE_ALIASES, ADW_BUTTON_STYLE_CLASSES, buttonStyleClass, buttonStyleClasses } from './button.js';
+export type { AdwButtonStyleClass } from './button.js';
+
 // --- Checks + radio-group exclusivity (Adwaita check/radio) ---
 export { RadioGroupState, resolveCheckState } from './checks.js';
 export type { AdwCheckState, RadioGroupChange, RadioGroupListener } from './checks.js';

@@ -130,6 +130,10 @@ export type {
     ButtonContentTextVector,
 } from './button-content.js';
 
+// --- Button style-class vectors (Gtk.Button + Adwaita style classes) ---
+export { BUTTON_STYLE_CLASS_VECTORS } from './button.js';
+export type { ButtonStyleClassVector } from './button.js';
+
 // --- Radio-group exclusivity (Adwaita check/radio) vectors ---
 export { RADIO_GROUP_VECTORS } from './checks.js';
 export type { RadioGroupStep, RadioGroupVector } from './checks.js';

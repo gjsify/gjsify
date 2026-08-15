@@ -18,6 +18,7 @@
 // Reference: refs/libadwaita/src/stylesheet/widgets/_dialog.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
+import { aboutDialogVisibility } from '@gjsify/adwaita-core';
 import { Button, GridLayout, ItemSpec, Label, ScrollView, StackLayout, type EventData } from '@nativescript/core';
 
 /** Event name emitted when the dialog is closed. */
@@ -77,6 +78,12 @@ export class AdwAboutDialog extends GridLayout {
         closeButton.set('androidElevation', 0);
         closeButton.addEventListener('tap', () => this.close());
         card.addChild(closeButton);
+
+        // A dialog nobody has written to yet is SEVEN empty labels, all visible —
+        // the same blank lines the visibility rules exist to remove. Every setter
+        // re-renders the whole card, so one call here is what covers the state
+        // before the first one.
+        this._render();
     }
 
     private _addCardLabel(card: StackLayout, className: string): Label {
@@ -95,7 +102,7 @@ export class AdwAboutDialog extends GridLayout {
 
     set applicationName(value: string) {
         this._applicationName = value ?? '';
-        this._nameLabel.text = this._applicationName;
+        this._render();
     }
 
     /** A glyph standing in for the app icon (no icon-theme lookup in the NS subset). */
@@ -105,7 +112,7 @@ export class AdwAboutDialog extends GridLayout {
 
     set applicationIcon(value: string) {
         this._applicationIcon = value ?? '';
-        this._iconLabel.text = this._applicationIcon;
+        this._render();
     }
 
     /** The version string. */
@@ -115,7 +122,7 @@ export class AdwAboutDialog extends GridLayout {
 
     set version(value: string) {
         this._version = value ?? '';
-        this._versionLabel.text = this._version;
+        this._render();
     }
 
     /** The developer/author name. */
@@ -125,7 +132,7 @@ export class AdwAboutDialog extends GridLayout {
 
     set developerName(value: string) {
         this._developerName = value ?? '';
-        this._developerLabel.text = this._developerName;
+        this._render();
     }
 
     /** A short comments/description line. */
@@ -135,7 +142,7 @@ export class AdwAboutDialog extends GridLayout {
 
     set comments(value: string) {
         this._comments = value ?? '';
-        this._commentsLabel.text = this._comments;
+        this._render();
     }
 
     /** The website URL (plain text — not a tappable link in this subset). */
@@ -145,7 +152,7 @@ export class AdwAboutDialog extends GridLayout {
 
     set website(value: string) {
         this._website = value ?? '';
-        this._websiteLabel.text = this._website;
+        this._render();
     }
 
     /** The copyright line. */
@@ -155,7 +162,46 @@ export class AdwAboutDialog extends GridLayout {
 
     set copyright(value: string) {
         this._copyright = value ?? '';
-        this._copyrightLabel.text = this._copyright;
+        this._render();
+    }
+
+    /**
+     * Push the seven strings onto their labels, and COLLAPSE the ones with nothing
+     * to say.
+     *
+     * Every label used to be unconditionally visible, so an about dialog without a
+     * version rendered a blank line where the version belongs — the exact case
+     * `aboutDialogVisibility` answers for the browser port (`adw-about-dialog.c`
+     * binds each part's `visible` to a closure over the property that feeds it).
+     * Same input, two different dialogs, and nothing said so.
+     *
+     * The core's record covers a nineteen-part dialog; this port is a flat card, so
+     * it reads the parts it has. `copyright` is NOT one of them: upstream has no
+     * copyright LABEL, it derives the string into the Legal page this port does not
+     * build (`legalSectionVisible` takes it as a separate argument). It therefore
+     * keeps the same non-empty rule directly. The website row is the core's
+     * `websiteRow`, which is the flat-card equivalent here.
+     */
+    private _render(): void {
+        const visibility = aboutDialogVisibility({
+            applicationName: this._applicationName,
+            applicationIcon: this._applicationIcon,
+            developerName: this._developerName,
+            version: this._version,
+            comments: this._comments,
+            website: this._website,
+        });
+        const show = (label: Label, text: string, shown: boolean): void => {
+            label.text = text;
+            label.visibility = shown ? 'visible' : 'collapse';
+        };
+        show(this._iconLabel, this._applicationIcon, visibility.appIcon);
+        show(this._nameLabel, this._applicationName, visibility.appName);
+        show(this._versionLabel, this._version, visibility.version);
+        show(this._developerLabel, this._developerName, visibility.developerName);
+        show(this._commentsLabel, this._comments, visibility.commentsLabel);
+        show(this._websiteLabel, this._website, visibility.websiteRow);
+        show(this._copyrightLabel, this._copyright, this._copyright.length > 0);
     }
 
     /** Reveal the about overlay. */
