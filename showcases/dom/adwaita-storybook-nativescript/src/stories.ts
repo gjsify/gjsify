@@ -14,8 +14,12 @@ import type { NsStoryModule } from '@gjsify/storybook-nativescript';
 // Buttons
 import { ButtonContentNsStories } from './buttons/button-content.ns.js';
 import { ButtonStylesNsStories } from './buttons/button-styles.ns.js';
+import { MenuButtonNsStories } from './buttons/menu-button.ns.js';
 import { SplitButtonNsStories } from './buttons/split-button.ns.js';
 import { ToggleGroupNsStories } from './buttons/toggle-group.ns.js';
+// Controls
+import { DropDownNsStories } from './controls/drop-down.ns.js';
+import { EntryNsStories } from './controls/entry.ns.js';
 // Feedback
 import { AboutDialogNsStories } from './feedback/about-dialog.ns.js';
 import { AlertDialogNsStories } from './feedback/alert-dialog.ns.js';
@@ -56,13 +60,18 @@ import { CarouselNsStories } from './view-switching/carousel.ns.js';
 import { InlineViewSwitcherNsStories } from './view-switching/inline-view-switcher.ns.js';
 import { TabViewNsStories } from './view-switching/tab-view.ns.js';
 import { ViewSwitcherNsStories } from './view-switching/view-switcher.ns.js';
+import { ViewSwitcherBarNsStories } from './view-switching/view-switcher-bar.ns.js';
 
 export const stories: NsStoryModule[] = [
     // Buttons
     ButtonContentNsStories,
     ButtonStylesNsStories,
+    MenuButtonNsStories,
     SplitButtonNsStories,
     ToggleGroupNsStories,
+    // Controls
+    EntryNsStories,
+    DropDownNsStories,
     // Feedback
     AboutDialogNsStories,
     AlertDialogNsStories,
@@ -103,4 +112,5 @@ export const stories: NsStoryModule[] = [
     InlineViewSwitcherNsStories,
     TabViewNsStories,
     ViewSwitcherNsStories,
+    ViewSwitcherBarNsStories,
 ];

@@ -6,8 +6,11 @@
 
 export * from './buttons/button-content.meta.js';
 export * from './buttons/button-styles.meta.js';
+export * from './buttons/menu-button.meta.js';
 export * from './buttons/split-button.meta.js';
 export * from './buttons/toggle-group.meta.js';
+export * from './controls/drop-down.meta.js';
+export * from './controls/entry.meta.js';
 export * from './feedback/about-dialog.meta.js';
 export * from './feedback/alert-dialog.meta.js';
 export * from './feedback/preferences-dialog.meta.js';
@@ -40,4 +43,5 @@ export * from './rows/switch-row.meta.js';
 export * from './view-switching/carousel.meta.js';
 export * from './view-switching/inline-view-switcher.meta.js';
 export * from './view-switching/tab-view.meta.js';
+export * from './view-switching/view-switcher-bar.meta.js';
 export * from './view-switching/view-switcher.meta.js';

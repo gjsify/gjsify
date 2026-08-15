@@ -32,8 +32,11 @@ import { PasswordEntryRowWebStories } from './rows/password-entry-row.web.js';
 import { PreferencesGroupWebStories } from './rows/preferences-group.web.js';
 import { SpinRowWebStories } from './rows/spin-row.web.js';
 import { SwitchRowWebStories } from './rows/switch-row.web.js';
+import { DropDownWebStories } from './controls/drop-down.web.js';
+import { EntryWebStories } from './controls/entry.web.js';
 import { ButtonContentWebStories } from './buttons/button-content.web.js';
 import { ButtonStylesWebStories } from './buttons/button-styles.web.js';
+import { MenuButtonWebStories } from './buttons/menu-button.web.js';
 import { SplitButtonWebStories } from './buttons/split-button.web.js';
 import { ToggleGroupWebStories } from './buttons/toggle-group.web.js';
 import { ClampWebStories } from './layout/clamp.web.js';
@@ -44,6 +47,7 @@ import { CarouselWebStories } from './view-switching/carousel.web.js';
 import { InlineViewSwitcherWebStories } from './view-switching/inline-view-switcher.web.js';
 import { TabViewWebStories } from './view-switching/tab-view.web.js';
 import { ViewSwitcherWebStories } from './view-switching/view-switcher.web.js';
+import { ViewSwitcherBarWebStories } from './view-switching/view-switcher-bar.web.js';
 import { BottomSheetWebStories } from './navigation/bottom-sheet.web.js';
 import { NavigationSplitViewWebStories } from './navigation/navigation-split-view.web.js';
 import { NavigationViewWebStories } from './navigation/navigation-view.web.js';
@@ -71,8 +75,11 @@ export const stories: WebStoryModule[] = [
     PreferencesGroupWebStories,
     SpinRowWebStories,
     SwitchRowWebStories,
+    EntryWebStories,
+    DropDownWebStories,
     ButtonContentWebStories,
     ButtonStylesWebStories,
+    MenuButtonWebStories,
     SplitButtonWebStories,
     ToggleGroupWebStories,
     ClampWebStories,
@@ -83,6 +90,7 @@ export const stories: WebStoryModule[] = [
     InlineViewSwitcherWebStories,
     TabViewWebStories,
     ViewSwitcherWebStories,
+    ViewSwitcherBarWebStories,
     BottomSheetWebStories,
     NavigationSplitViewWebStories,
     NavigationViewWebStories,

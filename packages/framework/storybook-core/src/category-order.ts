@@ -33,6 +33,7 @@ export const STORYBOOK_CATEGORY_ORDER: readonly string[] = [
     'Overview',
     'Presentation',
     'Boxed Lists',
+    'Controls',
     'Buttons',
     'Layout',
     'View Switching',
