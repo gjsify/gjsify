@@ -5,7 +5,7 @@ import Gio from '@girs/gio-2.0';
 import GLib from '@girs/glib-2.0';
 import { normalizePath } from './utils.js';
 import { Dirent } from './dirent.js';
-import { createNodeError } from './errors.js';
+import { createNodeError, requireCallback } from './errors.js';
 import type { PathLike } from 'node:fs';
 
 const DIR_ATTRS =
@@ -154,7 +154,7 @@ export function opendir(
     if (typeof optionsOrCallback === 'function') {
         cb = optionsOrCallback;
     } else {
-        cb = callback!;
+        cb = requireCallback(callback, 'callback');
     }
 
     if (typeof cb !== 'function') {

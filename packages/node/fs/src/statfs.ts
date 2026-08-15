@@ -6,6 +6,7 @@ import GLib from '@girs/glib-2.0';
 import { normalizePath } from './utils.js';
 
 import type { PathLike } from 'node:fs';
+import { requireCallback } from './errors.js';
 
 const FS_INFO_ATTRS = ['filesystem::size', 'filesystem::free'].join(',');
 
@@ -93,7 +94,7 @@ export function statfs(
 ): void;
 // oxlint-disable-next-line typescript/no-explicit-any -- overload-impl signature: the three public overloads above split the callback's `stats` type (StatFsResult vs BigIntStatFsResult), which a single typed impl signature cannot unify; the typed surface is the overloads.
 export function statfs(path: PathLike, optionsOrCb: any, callback?: any): void {
-    const cb = typeof optionsOrCb === 'function' ? optionsOrCb : callback;
+    const cb = typeof optionsOrCb === 'function' ? optionsOrCb : requireCallback(callback);
     const options = typeof optionsOrCb === 'function' ? {} : optionsOrCb;
     const useBigInt = options?.bigint === true;
     queryFsInfoAsync(path, useBigInt).then(

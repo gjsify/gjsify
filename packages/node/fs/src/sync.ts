@@ -437,6 +437,47 @@ export function copyFileSync(src: PathLike, dest: PathLike, mode?: number): void
     } catch (err: unknown) {
         throw createNodeError(err, 'copyfile', srcStr, destStr);
     }
+    dropSetIdBitsAfterCopy(destFile, destStr);
+}
+
+/**
+ * `Gio.File.copy` reproduces the source mode WHOLE, set-user-ID and set-group-ID
+ * included. Node's `copyFile` does not, and the difference is a
+ * privilege-escalation shape: a setuid binary copied into a writable directory
+ * would otherwise arrive still setuid.
+ *
+ * The mask is MEASURED against node v24.15.0 rather than derived — `& 0o777`
+ * would be wrong in one direction and a umask dance wrong in another:
+ *
+ *   src 4755 → dst 0755              set-user-ID dropped
+ *   src 2755 → dst 0755              set-group-ID dropped
+ *   src 1755 → dst 1755              STICKY IS KEPT
+ *   src 7755 → dst 1755              only the two ID bits go
+ *   src 0666 under umask 0027 → 0666 the umask does NOT apply
+ *   pre-existing dst 0600, src 0644 → 0644, so overwrite is no different
+ *
+ * Only touched when a bit is actually set: without them `Gio.File.copy` already
+ * lands on Node's answer, so an unconditional chmod would buy a syscall per copy
+ * and a second place for the mode to come from.
+ *
+ * DELIBERATELY NOT APPLIED to `fs.cp`/`cpSync`. Measured on the same Node, they
+ * are already right: a single-file `cp` onto an ABSENT destination KEEPS 4755,
+ * and only the recursive walk and the overwrite path drop it. Masking there
+ * would introduce a divergence rather than close one. That asymmetry is Node's
+ * own, it is not a security shape (an existing destination means the file was
+ * already there), and reproducing it exactly needs its own measurement pass —
+ * `status/open-todos.md` carries the numbers.
+ */
+function dropSetIdBitsAfterCopy(destFile: Gio.File, destStr: string): void {
+    const SET_ID_BITS = 0o6000;
+    try {
+        const info = destFile.query_info('unix::mode', Gio.FileQueryInfoFlags.NONE, null);
+        const mode = info.get_attribute_uint32('unix::mode');
+        if ((mode & SET_ID_BITS) === 0) return;
+        destFile.set_attribute_uint32('unix::mode', mode & ~SET_ID_BITS, Gio.FileQueryInfoFlags.NONE, null);
+    } catch (err: unknown) {
+        throw createNodeError(err, 'copyfile', destStr);
+    }
 }
 
 export function accessSync(path: PathLike, mode?: number): void {

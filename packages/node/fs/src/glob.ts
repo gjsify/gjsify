@@ -4,6 +4,7 @@
 import { readdirSync } from './sync.js';
 import { normalizePath } from './utils.js';
 import type { PathLike } from 'node:fs';
+import { requireCallback } from './errors.js';
 
 export interface GlobOptions {
     cwd?: string | URL;
@@ -192,7 +193,7 @@ export function glob(
         cb = options;
         opts = {};
     } else {
-        cb = callback!;
+        cb = requireCallback(callback);
         opts = options || {};
     }
 

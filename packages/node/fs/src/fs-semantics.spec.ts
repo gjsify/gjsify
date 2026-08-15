@@ -67,6 +67,10 @@ import {
     chmod as fsChmod,
     accessSync,
     constants as fsConstants,
+    copyFileSync,
+    mkdtemp,
+    fstat,
+    opendir,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
@@ -2580,6 +2584,185 @@ export default async () => {
                 fsClose(fd);
                 await new Promise<void>((resolve) => setTimeout(resolve, 50));
                 expectCode(() => readSync(fd, Buffer.alloc(1), 0, 1, null), 'EBADF');
+            } finally {
+                drop(dir);
+            }
+        });
+    });
+
+    await describe('fs — the four divergences #1046 measured', async () => {
+        await it.failing(
+            'K-18 copyFile drops set-user-ID and set-group-ID, and KEEPS sticky',
+            async () => {
+                // `Gio.File.copy` reproduces the source mode WHOLE. Node's `copyFile`
+                // does not, and the gap is a privilege-escalation shape: a setuid
+                // binary copied into a writable directory arrived still setuid.
+                //
+                // The three cases are here because the obvious mask is wrong. Measured
+                // on node v24.15.0: 4755 -> 0755, 2755 -> 0755, but 1755 -> 1755. A
+                // `& 0o777` would drop the sticky bit Node keeps, so the rule asserts
+                // the KEEP as loudly as the two drops — it is the half a plausible
+                // implementation gets wrong.
+                const dir = scratch('r17');
+                try {
+                    const cases: Array<[number, number]> = [
+                        [0o4755, 0o0755],
+                        [0o2755, 0o0755],
+                        [0o1755, 0o1755],
+                        [0o7755, 0o1755],
+                    ];
+                    for (const [srcMode, expected] of cases) {
+                        const src = join(dir, `s${srcMode.toString(8)}`);
+                        const dst = join(dir, `d${srcMode.toString(8)}`);
+                        writeFileSync(src, 'x');
+                        chmodSync(src, srcMode);
+                        // The precondition, asserted rather than assumed: on a host that
+                        // cannot express the bits there is nothing for the copy to drop,
+                        // and the rule would pass for the wrong reason.
+                        expect(statSync(src).mode & 0o7777).toBe(srcMode);
+                        copyFileSync(src, dst);
+                        expect(statSync(dst).mode & 0o7777).toBe(expected);
+                    }
+                    // The umask does NOT apply (measured: src 0666 under umask 0027
+                    // still lands 0666), and neither does a pre-existing destination's
+                    // mode — the copy overwrites it with the source's.
+                    const plain = join(dir, 'plain');
+                    const onto = join(dir, 'onto');
+                    writeFileSync(plain, 'x');
+                    chmodSync(plain, 0o644);
+                    writeFileSync(onto, 'older-and-longer');
+                    chmodSync(onto, 0o600);
+                    copyFileSync(plain, onto);
+                    expect(statSync(onto).mode & 0o7777).toBe(0o644);
+                } finally {
+                    drop(dir);
+                }
+            },
+            NO_SPECIAL_BITS_REASON,
+            { when: !CREATE_KEEPS_SPECIAL_BITS },
+        );
+
+        await it('K-19 fs.mkdtemp exists in the callback form', async () => {
+            // It did not: only `mkdtempSync` and `fsPromises.mkdtemp` were exported, so
+            // `fs.mkdtemp(prefix, cb)` was a TypeError at the call. The bundler had been
+            // saying so on every build that imported it — IMPORT_IS_UNDEFINED — which is
+            // a warning, not a gate, so nothing went red.
+            const dir = scratch('r18');
+            try {
+                const made = await new Promise<string>((resolve, reject) => {
+                    mkdtemp(join(dir, 'p-'), (err, folder) => (err ? reject(err) : resolve(folder)));
+                });
+                expect(basename(made).startsWith('p-')).toBe(true);
+                expect(statSync(made).isDirectory()).toBe(true);
+                // Same body as the sync form, so the 0700 ceiling holds here too rather
+                // than being a second implementation that can drift to 0777.
+                expect(existsSync(made)).toBe(true);
+                // Two calls must not collide.
+                const again = await new Promise<string>((resolve, reject) => {
+                    mkdtemp(join(dir, 'p-'), (err, folder) => (err ? reject(err) : resolve(folder)));
+                });
+                expect(again).not.toBe(made);
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('K-20 a callback-form entry point rejects a missing callback', async () => {
+            // The counterpart to K-16. Seventeen entry points took `callback!` — a
+            // non-null assertion that silences the only type the compiler had — and then
+            // called it inside a promise chain, so a missing callback became
+            // `callback is not a function` as an UNHANDLED REJECTION. GJS has no host
+            // hook for that event, so on the leg that matters the runner never saw it.
+            //
+            // Measured on node v24.15.0: all seventeen throw ERR_INVALID_ARG_TYPE
+            // SYNCHRONOUSLY. `fs.close(fd)` and `ws.close()` are the two that genuinely
+            // are optional; K-16 pins those, and they must not be routed through the
+            // same helper.
+            const dir = scratch('r19');
+            try {
+                const f = join(dir, 'f');
+                writeFileSync(f, 'x');
+                const fd = openSync(f, 'r+');
+                try {
+                    // One per shape: an fd op, a path op, an options-taking op and the
+                    // one whose message names a different argument.
+                    expectCode(() => (fstat as unknown as (fd: number) => void)(fd), 'ERR_INVALID_ARG_TYPE');
+                    expectCode(
+                        () => (fsChmod as unknown as (p: string, m: number) => void)(f, 0o644),
+                        'ERR_INVALID_ARG_TYPE',
+                    );
+                    expectCode(() => (fsReadFile as unknown as (p: string) => void)(f), 'ERR_INVALID_ARG_TYPE');
+                    expectCode(() => (opendir as unknown as (p: string) => void)(dir), 'ERR_INVALID_ARG_TYPE');
+                    // Node's message names "cb" everywhere except `opendir`, which says
+                    // "callback". A single hardcoded name would be wrong on one of them.
+                    let opendirMessage = '';
+                    try {
+                        (opendir as unknown as (p: string) => void)(dir);
+                    } catch (err: unknown) {
+                        opendirMessage = (err as Error).message;
+                    }
+                    expect(opendirMessage.includes('"callback"')).toBe(true);
+                    let fstatMessage = '';
+                    try {
+                        (fstat as unknown as (fd: number) => void)(fd);
+                    } catch (err: unknown) {
+                        fstatMessage = (err as Error).message;
+                    }
+                    expect(fstatMessage.includes('"cb"')).toBe(true);
+                    // A non-function is rejected too, not just an absent one.
+                    expectCode(
+                        () => (fsChmod as unknown as (p: string, m: number, c: unknown) => void)(f, 0o644, 42),
+                        'ERR_INVALID_ARG_TYPE',
+                    );
+                } finally {
+                    closeSync(fd);
+                }
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('K-21 readableWebStream streams from the cursor, and locks the handle', async () => {
+            // It used to return `new ReadableStream()` — no underlying source, so
+            // `for await (const chunk of fh.readableWebStream())` never settled. A hang
+            // is the worst shape a missing feature can take: no error, no stack, no
+            // timeout, and a consumer that looks like it is working.
+            //
+            // Every expectation is measured on node v24.15.0, including the one that is
+            // easy to get backwards: the stream starts at the handle's CURRENT position,
+            // not at byte 0.
+            const dir = scratch('r20');
+            try {
+                const f = join(dir, 'f');
+                writeFileSync(f, 'hello world');
+
+                const handle = await fsPromises.open(f, 'r');
+                let text = '';
+                try {
+                    await handle.read(Buffer.alloc(6), 0, 6, null);
+                    const stream = handle.readableWebStream();
+                    const reader = (
+                        stream as unknown as { getReader(): { read(): Promise<{ done: boolean; value?: Uint8Array }> } }
+                    ).getReader();
+                    for (;;) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        if (value) text += Buffer.from(value).toString();
+                    }
+                    // Six bytes were already consumed, so the stream yields the rest.
+                    expect(text).toBe('world');
+                    // A SECOND call throws — the lock is taken by the call, and is not
+                    // released when the stream ends.
+                    expectCode(() => handle.readableWebStream(), 'ERR_INVALID_STATE');
+                    // The handle is NOT closed for you.
+                    expect((await handle.stat()).isFile()).toBe(true);
+                } finally {
+                    await handle.close();
+                }
+
+                const closed = await fsPromises.open(f, 'r');
+                await closed.close();
+                expectCode(() => closed.readableWebStream(), 'ERR_INVALID_STATE');
             } finally {
                 drop(dir);
             }

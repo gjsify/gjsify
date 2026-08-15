@@ -2,6 +2,12 @@ import '@gjsify/node-globals/register/process';
 import '@gjsify/node-globals/register/buffer';
 import '@gjsify/node-globals/register/timers';
 import '@gjsify/node-globals/register/url';
+// K-21 needs a global `ReadableStream`. GJS exposes none (see
+// status/upstream-patch-candidates.md), and `readableWebStream()` deliberately
+// resolves the constructor off globalThis rather than importing it, so an app that
+// never calls the method does not bundle the WHATWG implementation. The TEST is
+// what has to supply it.
+import '@gjsify/web-streams/register';
 import { run } from '@gjsify/unit';
 
 import testSuiteCallback from './callback.spec.js';

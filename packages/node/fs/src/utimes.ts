@@ -6,6 +6,7 @@ import Gio from '@girs/gio-2.0';
 import { normalizePath } from './utils.js';
 
 import type { PathLike, TimeLike } from 'node:fs';
+import { requireCallback } from './errors.js';
 
 function toGLibDateTime(t: TimeLike): GLib.DateTime {
     const ms =
@@ -37,6 +38,7 @@ export function utimes(
     mtime: TimeLike,
     callback: (err: NodeJS.ErrnoException | null) => void,
 ): void {
+    requireCallback(callback);
     Promise.resolve()
         .then(() => utimesSync(path, atime, mtime))
         .then(() => callback(null), callback);
@@ -56,6 +58,7 @@ export function lutimes(
     mtime: TimeLike,
     callback: (err: NodeJS.ErrnoException | null) => void,
 ): void {
+    requireCallback(callback);
     Promise.resolve()
         .then(() => lutimesSync(path, atime, mtime))
         .then(() => callback(null), callback);
@@ -85,6 +88,7 @@ export function lchown(
     gid: number,
     callback: (err: NodeJS.ErrnoException | null) => void,
 ): void {
+    requireCallback(callback);
     Promise.resolve()
         .then(() => lchownSync(path, uid, gid))
         .then(() => callback(null), callback);

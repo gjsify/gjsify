@@ -77,6 +77,43 @@ they were deliberately left out of the binding fix rather than bundled into it.
 None of the three is reachable from `postbote`'s index today, which is why the binding fix
 did not wait for them.
 
+### `fs.cp` and `fs.rm` were measured beside #1046 and deliberately left alone
+
+Both came up while closing #1046's four divergences and neither belongs in that
+change. The numbers are here so the next reader does not re-measure them, and so
+nobody "fixes" `cp` by copying `copyFile`'s new set-ID mask into it.
+
+**`cp` is already right, and Node is inconsistent with itself.** Measured on node
+v24.15.0, source mode 4755:
+
+| call | destination | result |
+|---|---|---|
+| `copyFileSync` | absent or present | `0755` — set-user-ID and set-group-ID dropped |
+| `cpSync(file, file)` | absent | `4755` — KEPT |
+| `cpSync(file, file)` | present | `0755` |
+| `cpSync(dir, dir, {recursive:true})` | either | `0755` for every file inside |
+
+So `cp` preserves the bits exactly when the destination did not exist, and
+`@gjsify/fs` — which lets `Gio.File.copy` reproduce the whole mode — already
+matches that case. Masking in `cp.ts` would INTRODUCE a divergence rather than
+close one. Reproducing the other two rows means teaching `cpOneSyncFile` whether
+it is the top-level entry or a recursive descendant, which is a change to the
+walk, not to a mask. It is also not the security shape `copyFile`'s was: an
+existing destination means the file was already there.
+
+**`fs.rm` with no callback CRASHES Node rather than validating.** Every other
+callback entry point throws `ERR_INVALID_ARG_TYPE` synchronously (measured across
+all of them while writing K-20); `fs.rm(path, {force:true})` returns and then dies
+inside `node:internal/fs/rimraf:51` at `callback(err)`. `fs.close(fd)` is the only
+one that is genuinely silent-and-fine, and K-16 pins it.
+
+`@gjsify/fs` therefore leaves `rm` unvalidated too — matching Node — which means a
+missing callback there is still an unhandled rejection GJS cannot report. Adding
+`requireCallback` to it would be strictly better behaviour and a deliberate
+divergence from the reference; that is a decision, not a bug fix, so it is not in
+#1046's PR. Nothing can depend on the crash, so the decision is cheap whenever
+someone wants to take it.
+
 ### `pathToFileURL` does not resolve a RELATIVE win32 path against the current drive
 
 Left over from the #1143 fix, which closed the win32 ABSOLUTE paths (drive-letter and
