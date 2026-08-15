@@ -734,9 +734,13 @@ function adwaitaCoverageSection(coverage) {
     );
     out.push(table(['Widget', 'GTK story', 'adwaita-web', 'adwaita-nativescript'], rows));
     out.push('');
+    // The backlog sentence is CONDITIONAL: naming a remainder that is empty is the
+    // same drift as any other stale claim — it reads as work outstanding when there
+    // is none, and nobody re-reads a generated line to check.
     out.push(
         `**${shared.length} of ${both.length}** widgets implemented on BOTH renderers share their behaviour ` +
-            'through `@gjsify/adwaita-core`. The remainder still carry two copies (ADR 0004 backlog).',
+            'through `@gjsify/adwaita-core`.' +
+            (shared.length < both.length ? ' The remainder still carry two copies (ADR 0004 backlog).' : ''),
     );
     if (dataObjects.length) {
         out.push('');

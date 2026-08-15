@@ -15,19 +15,23 @@
 // Reference: refs/libadwaita/src/menu-button (Adw.MenuButton)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
+import type { AdwMenuEntry } from '@gjsify/adwaita-core';
 import { action, type EventData } from '@nativescript/core';
 import { AdwImageButton } from './adw-image-button.js';
 
 /** Event name emitted when a menu item is chosen. */
 export const MENU_ITEM_ACTIVATED = 'menuItemActivated';
 
-/** One entry in an {@link AdwMenuButton}'s menu. */
-export interface AdwMenuItem {
-    /** Stable identifier reported on activation (defaults to {@link label}). */
-    id?: string;
-    /** The menu item's display label. */
-    label: string;
-}
+/**
+ * One entry in an {@link AdwMenuButton}'s menu — `@gjsify/adwaita-core`'s
+ * {@link AdwMenuEntry}, under the name this widget has always used.
+ *
+ * It used to be a THIRD declaration of the same shape (the browser element had a
+ * second, and the core the original), and this one was missing `icon` — so a menu
+ * written for one renderer was not the same object on the other. The browser side
+ * adopted the core type in #1191; this is its twin.
+ */
+export type AdwMenuItem = AdwMenuEntry;
 
 /** Payload of the {@link MENU_ITEM_ACTIVATED} event. */
 export interface MenuItemActivatedEventData extends EventData {
