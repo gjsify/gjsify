@@ -673,6 +673,23 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
           // don't. The out-container is freed (or borrowed) by ReadOutOrReturn per the
           // SAME (OUT) transfer. Verified vs gjs 1.88 (GIMarshallingTests.array_inout,
           // garray/glist/gslist/gptrarray/ghashtable_utf8_none_inout, bytearray_full_inout).
+          //
+          // THAT ABI IS TAKEN FROM THE ANNOTATION AND CANNOT BE VERIFIED HERE. `c:type`
+          // — the only place `gchar*` and `gchar**` differ — lives in the GIR XML and is
+          // NOT compiled into the typelib. `GLib.base64_decode_inplace` is annotated
+          // `direction="inout"` over a `c:type="gchar*"`, one star; compared field by
+          // field against a genuine `gchar***` INOUT (`GLib.OptionContext.parse`'s
+          // `argv`) its metadata is identical — direction INOUT, transfer EVERYTHING,
+          // tag ARRAY, is_pointer true, caller-allocates false. A mis-annotated callee
+          // therefore receives `&slots[i]` and writes its output OVER the GIArgument
+          // union, and the read-back below marshals and frees a clobbered pointer.
+          // Measured: five runs of that one call, five different return values; gjs
+          // corrupts identically, so there is no oracle to compare against either.
+          //
+          // Nothing to detect on this side — the discriminator is data the runtime does
+          // not have — and a per-function denylist ossifies. Upstream annotation bug:
+          // `status/upstream-patch-candidates.md`. `test/arrays.test.mjs` records why
+          // that call was removed from the suite and must not come back.
           Napi::Value v = jsCursor < args.Length() ? args.Get(jsCursor) : env.Undefined();
           jsCursor++;
           if (!IsSupportedContainerType(ti, &why)) {
