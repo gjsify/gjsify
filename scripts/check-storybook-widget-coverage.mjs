@@ -1,0 +1,143 @@
+#!/usr/bin/env node
+// Every widget both renderers ship is either IN the storybook or in this ledger.
+//
+// WHAT THIS ADDS TO PARITY
+//
+// `check-storybook-story-parity.mjs` asks whether the three targets render the SAME
+// stories. It is blind by construction to the story that exists nowhere: a widget with
+// no `*.meta.ts` at all is perfectly symmetric across three targets, so parity is
+// green and the reference storybook simply does not show it.
+//
+// Measured 2026-08-15, and the size of the hole is the argument for the check: of the
+// 43 widgets implemented on BOTH renderers, NINE had no story anywhere — including
+// `adw-entry`, `adw-drop-down`, `adw-menu-button` and `adw-view-switcher-bar`, four
+// ordinary widgets a reader would expect to find first. The GTK storybook is the
+// reference implementation the other two are aligned against; a widget it never shows
+// is a widget with no reference.
+//
+// WHAT IT CHECKS
+//
+//   1. Every `adw-<name>` present in BOTH `packages/web/adwaita-web/src/elements/` and
+//      `packages/nativescript-bridge/adwaita/src/widgets/` has a `<name>.meta.ts` in
+//      the GTK showcase — or an entry below saying why not.
+//   2. No ledger entry names a widget that HAS a story (a stale exemption reads as
+//      considered when it is merely forgotten).
+//   3. No ledger entry names a widget the rule cannot reach — one renderer only, or
+//      no renderer at all. Same reason: it would look like cover it does not give.
+//
+// The both-renderers scope is deliberate. A widget on ONE renderer cannot have a
+// three-target story, so demanding one here would demand a port, and that is a
+// product decision this check has no business making.
+//
+// Plain Node over the repo's own files — no install, no build — so it runs in
+// `audit-runtimes.yml` next to the other repo-scoped guards.
+//
+// Usage: node scripts/check-storybook-widget-coverage.mjs [--root <dir>]
+
+import { readdirSync } from 'node:fs';
+import { dirname, join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const args = process.argv.slice(2);
+const rootFlag = args.indexOf('--root');
+const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : args[rootFlag + 1];
+
+const WEB_ELEMENTS = join(ROOT, 'packages/web/adwaita-web/src/elements');
+const NS_WIDGETS = join(ROOT, 'packages/nativescript-bridge/adwaita/src/widgets');
+const GTK_SRC = join(ROOT, 'showcases/gtk/adwaita-storybook/src');
+
+/**
+ * Widgets on both renderers that deliberately have no story of their own, and why.
+ *
+ * The bar is: a reader looking for this widget in the storybook finds what they came
+ * for, under another name — or there is nothing a GTK story could honestly show. "It
+ * would be work" is not a reason; those get a story.
+ */
+const NO_STORY_OF_ITS_OWN = {
+    button: 'Buttons/Button Styles IS the button story — its `component` is `Gtk.Button.$gtype`, and it renders the plain button beside .pill/.circular/.suggested-action/.destructive-action/.flat. A second story would show the same widget with fewer states.',
+    'toast-overlay':
+        'Feedback/Toast renders it. The overlay is only ever the surface a toast appears on, so the story is named after the thing the reader is looking for.',
+    'view-stack':
+        'A stack shows exactly one page and offers no way to change it — alone it is a blank preview. Every switcher story builds one and drives it: View Switcher, Inline View Switcher, View Switcher Bar.',
+    icon: 'There is no Adwaita or GTK icon WIDGET to reference. GTK draws a `Gtk.Image` inline (the navigation stories do), and the browser element exists because CSS needs a box to hang a symbolic on. A story would demonstrate a GTK primitive, not an Adwaita widget.',
+    'data-grid':
+        'The one widget here with no GTK renderer at all — it is an original @gjsify widget, not a libadwaita port. A GTK story would have to hand-assemble a `Gtk.Grid`, i.e. put a fourth implementation in a showcase where no package owns it. If a GTK data grid is wanted it starts as a package (#1050).',
+};
+
+/** `adw-<name>.ts` files directly under `dir`. */
+function widgetNames(dir) {
+    const found = new Set();
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (!entry.isFile()) continue;
+        const match = entry.name.match(/^adw-(.+)\.ts$/);
+        if (match && !entry.name.endsWith('.spec.ts')) found.add(match[1]);
+    }
+    return found;
+}
+
+/** Story names — every `<name>.meta.ts` anywhere under the GTK showcase. */
+function storyNames(dir) {
+    const found = new Set();
+    const walk = (current) => {
+        for (const entry of readdirSync(current, { withFileTypes: true })) {
+            const path = join(current, entry.name);
+            if (entry.isDirectory()) walk(path);
+            else if (entry.name.endsWith('.meta.ts')) found.add(entry.name.slice(0, -'.meta.ts'.length));
+        }
+    };
+    walk(dir);
+    return found;
+}
+
+const web = widgetNames(WEB_ELEMENTS);
+const ns = widgetNames(NS_WIDGETS);
+const stories = storyNames(GTK_SRC);
+
+if (web.size === 0 || ns.size === 0 || stories.size === 0) {
+    console.error(
+        'check-storybook-widget-coverage: one of the three scans came back empty ' +
+            `(web ${web.size}, nativescript ${ns.size}, stories ${stories.size}) — that is a broken scan, not a clean tree.`,
+    );
+    process.exit(1);
+}
+
+const onBothRenderers = [...web].filter((name) => ns.has(name)).sort();
+const failures = [];
+
+for (const name of onBothRenderers) {
+    if (stories.has(name)) continue;
+    if (name in NO_STORY_OF_ITS_OWN) continue;
+    failures.push(
+        `adw-${name}: shipped by both renderers, rendered by no story. Add ${name}.meta.ts + its three\n` +
+            '    renderings, or add it to NO_STORY_OF_ITS_OWN in this script with the reason.',
+    );
+}
+
+for (const name of Object.keys(NO_STORY_OF_ITS_OWN)) {
+    if (stories.has(name)) {
+        failures.push(`adw-${name}: exempted here, but ${name}.meta.ts exists — drop the stale exemption.`);
+    } else if (!web.has(name) || !ns.has(name)) {
+        const where = web.has(name) ? 'the browser only' : ns.has(name) ? 'NativeScript only' : 'neither renderer';
+        failures.push(
+            `adw-${name}: exempted here, but it is on ${where} — outside this check's scope, so the entry covers nothing.`,
+        );
+    }
+}
+
+if (failures.length > 0) {
+    console.error(`check-storybook-widget-coverage: ${failures.length} problem(s):\n`);
+    for (const failure of failures) console.error(`  - ${failure}`);
+    console.error(
+        '\nThe GTK storybook is the reference the other two targets are aligned against, so a widget it\n' +
+            'never shows is a widget with no reference — and story-set parity cannot see that, because a\n' +
+            'story missing from all three targets is perfectly symmetric.\n' +
+            `  elements: ${relative(ROOT, WEB_ELEMENTS)}    widgets: ${relative(ROOT, NS_WIDGETS)}    stories: ${relative(ROOT, GTK_SRC)}`,
+    );
+    process.exit(1);
+}
+
+const exempt = Object.keys(NO_STORY_OF_ITS_OWN).length;
+console.log(
+    `check-storybook-widget-coverage: ${onBothRenderers.length} widgets on both renderers — ` +
+        `${onBothRenderers.length - exempt} with a story, ${exempt} ledgered with a reason.`,
+);
