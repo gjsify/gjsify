@@ -36,9 +36,9 @@ CONTENT, not `AdwTabBar`), and upstream excludes `GtkSourceView`, which is the o
 here. It ships with the first of those widgets, not before. The ledger carries that reason next
 to the entry.
 
-`<adw-shortcut-label>` SHIPPED: its accelerator grammar lives in `@gjsify/adwaita-core` and is
-driven by `SHORTCUT_LABEL_VECTORS` from both the core and the browser suite. The NativeScript
-rendering of it is the open follow-up.
+`<adw-shortcut-label>` is on all three renderers, and its accelerator grammar lives in
+`@gjsify/adwaita-core`, driven by `SHORTCUT_LABEL_VECTORS` from every suite that renders it — the
+one thing about it the matrix cannot show.
 
 `<adw-label>` is NOT planned: `_labels.scss` is a widget partial in name only — four lines of
 GtkLabel plumbing plus a dozen UTILITY CLASSES. Those classes ship (`scss/_labels.scss`:
@@ -55,7 +55,8 @@ radio into ONE `_checks.scss`, spells the others `_progress-bar.scss` / `_labels
 `_icon.scss` or `_shortcut_label.scss` at all. A header naming a file that is not there is worse
 than none.
 
-Two gaps run the other way — NativeScript has widgets the browser does not (`adw-icon`,
-`adw-image-button`, `adw-preferences-page`, `adw-slider-row`), and the browser has one
-NativeScript lacks (`adw-data-grid`, whose column alignment is CSS subgrid — #1050). Those show
-up as asymmetric rows in the derived matrix, so they are not restated here either.
+Which widget is missing from which renderer is an asymmetric row in the derived matrix, so it is
+not listed here — the copy that used to sit here named `adw-icon` as NativeScript-only and
+`adw-data-grid` as browser-only after both had shipped on both sides. What a matrix cannot say is
+whether an asymmetry is a GAP or a DECISION; when one is settled, the reason goes next to the
+widget, the way `.inline` carries its reason in the style-class ledger.
