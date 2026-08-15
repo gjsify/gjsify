@@ -66,4 +66,4 @@ print('after restore, count unchanged:', resets);
 // entry would excuse this whole program on node/bun/deno.)
 const other = new Gio.ZlibDecompressor({ format: Gio.ZlibCompressorFormat.GZIP });
 print('two instances share the method:', other.convert === decompressor.convert);
-print('the prototype is the instances\' resolver:', proto.convert === other.convert);
+print("the prototype is the instances' resolver:", proto.convert === other.convert);
