@@ -603,22 +603,24 @@ Page.adw-window {
     background-color: #fafafb;
 }
 
+/* The header-bar background, so the status-bar inset the widget pads with is painted
+ * in the header colour: the chrome reaches the screen edge, the header content stops
+ * short of the clock.
+ *
+ * The PADDING is no longer here. It used to be `padding-top: var(--safeAreaInsetTop,
+ * 0)`, with "the host app feeds the variable" — and nothing in this repo ever fed it,
+ * on any platform, so the fallback was the only value it ever had. It could not have
+ * worked either way: this NS CSS subset has no custom properties at all, which is the
+ * same reason the accent has to be inlined as a literal. AdwToolbarView applies the
+ * real reading now (#1128). */
 .adw-toolbar-view-top {
-    /* Match the header-bar background so the TOP safe-area inset (status bar) is
-     * painted in the header colour — the chrome reaches the screen edge but the
-     * header content does not slide under the clock. Host app feeds the inset
-     * into --safeAreaInsetTop (falls back to 0 when unset). */
     background-color: #ffffff;
-    padding-top: var(--safeAreaInsetTop, 0);
 }
 
 .adw-toolbar-view-bottom {
     background-color: #ffffff;
     border-top-width: 1;
     border-top-color: rgba(0, 0, 0, 0.1);
-    /* BOTTOM safe-area inset (nav bar / gesture pill) painted in the bottom-bar
-     * colour. Host app feeds --safeAreaInsetBottom (falls back to 0). */
-    padding-bottom: var(--safeAreaInsetBottom, 0);
 }
 
 /* top-bar-style / bottom-bar-style = raised: an opaque background with a
