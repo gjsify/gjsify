@@ -2593,47 +2593,71 @@ export default async () => {
 
     await describe('fs — the four divergences #1046 measured', async () => {
         await it.failing(
-            'K-18 copyFile reproduces the kernel write-time privilege strip',
+            'K-18 copyFile leaves what the kernel leaves after a write',
             async () => {
                 // `Gio.File.copy` reproduces the source mode WHOLE. Node's `copyFile`
                 // does not, and the gap is a privilege-escalation shape: a setuid
                 // binary copied into a writable directory arrived still setuid.
                 //
-                // NODE MASKS NOTHING, and the first version of this rule believed it
-                // did. libuv `fchmod`s the SOURCE mode onto the destination before
-                // its copy loop; what removes the bits is the kernel on the following
-                // `write(2)` (`should_remove_suid()`). So the table below is that
-                // predicate, and every row after the first two exists because a
-                // `& ~0o6000` gets it wrong:
+                // NODE MASKS NOTHING, and two versions of this rule got that wrong in
+                // opposite ways. libuv `fchmod`s the SOURCE mode onto the destination
+                // and then writes the bytes; what removes the bits is the KERNEL, on
+                // that write. So there is no constant to assert — there is a kernel
+                // behaviour to agree with, and it is not the same kernel everywhere:
                 //
-                //   S_ISUID goes on any write; S_ISGID goes ONLY with S_IXGRP, since
-                //   without group-exec it is the mandatory-locking mark rather than a
-                //   privilege; and a ZERO-LENGTH source is never written, so nothing
-                //   is stripped at all.
+                //   Linux  `should_remove_suid()`: S_ISUID on any write, S_ISGID only
+                //          when S_IXGRP is set, so 2644 SURVIVES.
+                //   darwin XNU drops it there too — measured, 2644 -> 0644, which is
+                //          what reddened both macOS legs on a transcribed table.
                 //
-                // CONTENT LENGTH IS PART OF THE CASE. The first version wrote 'x'
-                // everywhere and used only x755 modes — group-exec always set, source
-                // never empty — which is exactly the shape that cannot see either
-                // condition.
+                // So the expected value is DERIVED on the host: create a file, chmod
+                // it to the source mode, write the same number of bytes through a
+                // descriptor, and read the mode back. That is the same fchmod-then-
+                // write libuv performs, so whatever this kernel does to those bits is
+                // what `copyFile` has to end up with. Nothing here is transcribed, and
+                // the rule cannot go stale on a kernel nobody has run it on yet.
+                //
+                // NOT the same instrument as the thing under test: the oracle uses
+                // chmod + write, `copyFileSync` is a different call. (A broken chmod
+                // or write would already have reddened a dozen rules above.)
                 const dir = scratch('r18');
                 try {
-                    const cases: Array<[number, number, string]> = [
-                        [0o4755, 0o0755, 'x'],
-                        [0o2755, 0o0755, 'x'],
-                        [0o1755, 0o1755, 'x'],
-                        [0o7755, 0o1755, 'x'],
-                        // S_ISGID survives without S_IXGRP...
-                        [0o2644, 0o2644, 'x'],
-                        [0o2744, 0o2744, 'x'],
-                        // ...and only S_IXGRP counts, not user- or other-exec.
-                        [0o2614, 0o0614, 'x'],
-                        // Both set, no group-exec: S_ISUID goes, S_ISGID stays.
-                        [0o6644, 0o2644, 'x'],
-                        // No write, no strip.
-                        [0o4755, 0o4755, ''],
-                        [0o7755, 0o7755, ''],
+                    const modeOf = (path: string): number => (statSync(path).mode & 0o7777) as number;
+
+                    /** What this kernel leaves after `fchmod(mode)` + a write of `content`. */
+                    const afterKernelWrite = (tag: string, mode: number, content: string): number => {
+                        const probe = join(dir, `probe-${tag}`);
+                        writeFileSync(probe, '');
+                        chmodSync(probe, mode);
+                        if (content.length > 0) {
+                            const fd = openSync(probe, 'r+');
+                            try {
+                                writeSync(fd, Buffer.from(content), 0, content.length, null);
+                            } finally {
+                                closeSync(fd);
+                            }
+                        }
+                        return modeOf(probe);
+                    };
+
+                    // Every shape a plausible implementation gets wrong. CONTENT LENGTH
+                    // is part of the case: a zero-length source is never written, so
+                    // nothing is stripped — the first version of this rule wrote 'x'
+                    // everywhere and used only x755 modes, which is exactly the shape
+                    // that can see neither that nor the S_IXGRP condition.
+                    const cases: Array<[number, string]> = [
+                        [0o4755, 'x'],
+                        [0o2755, 'x'],
+                        [0o1755, 'x'],
+                        [0o7755, 'x'],
+                        [0o2644, 'x'],
+                        [0o2744, 'x'],
+                        [0o2614, 'x'],
+                        [0o6644, 'x'],
+                        [0o4755, ''],
+                        [0o7755, ''],
                     ];
-                    for (const [srcMode, expected, content] of cases) {
+                    for (const [srcMode, content] of cases) {
                         const tag = `${srcMode.toString(8)}-${content.length}`;
                         const src = join(dir, `s${tag}`);
                         const dst = join(dir, `d${tag}`);
@@ -2642,10 +2666,27 @@ export default async () => {
                         // The precondition, asserted rather than assumed: on a host that
                         // cannot express the bits there is nothing for the copy to drop,
                         // and the rule would pass for the wrong reason.
-                        expect(statSync(src).mode & 0o7777).toBe(srcMode);
+                        expect(modeOf(src)).toBe(srcMode);
                         copyFileSync(src, dst);
-                        expect(statSync(dst).mode & 0o7777).toBe(expected);
+                        expect(modeOf(dst)).toBe(afterKernelWrite(tag, srcMode, content));
                     }
+
+                    // Two invariants stated OUTRIGHT, so the rule still says something
+                    // if the oracle above ever degenerates to "whatever happened".
+                    const setuid = join(dir, 'inv-setuid');
+                    writeFileSync(setuid, 'payload');
+                    chmodSync(setuid, 0o4755);
+                    copyFileSync(setuid, join(dir, 'inv-setuid-copy'));
+                    // The security shape: a copied, non-empty setuid binary is not setuid.
+                    expect(modeOf(join(dir, 'inv-setuid-copy')) & 0o4000).toBe(0);
+
+                    const sticky = join(dir, 'inv-sticky');
+                    writeFileSync(sticky, 'payload');
+                    chmodSync(sticky, 0o1755);
+                    copyFileSync(sticky, join(dir, 'inv-sticky-copy'));
+                    // Sticky is not a privilege bit and no kernel strips it here.
+                    expect(modeOf(join(dir, 'inv-sticky-copy')) & 0o1000).toBe(0o1000);
+
                     // The umask does NOT apply (measured: src 0666 under umask 0027
                     // still lands 0666), and neither does a pre-existing destination's
                     // mode — the copy overwrites it with the source's.
@@ -2656,21 +2697,19 @@ export default async () => {
                     writeFileSync(onto, 'older-and-longer');
                     chmodSync(onto, 0o600);
                     copyFileSync(plain, onto);
-                    expect(statSync(onto).mode & 0o7777).toBe(0o644);
+                    expect(modeOf(onto)).toBe(0o644);
                 } finally {
                     drop(dir);
                 }
             },
             // The gate is CAN_EXPRESS_POSIX_MODE, and the obvious choice was wrong.
-            // CREATE_KEEPS_SPECIAL_BITS was tried first — it is keyed on linux
-            // because BSD's open(2) masks the create mode to ACCESSPERMS — and the
-            // darwin legs went red for PASSING: `it.failing` retires itself, which
-            // is exactly what it is for. The distinction it draws is about the
-            // CREATE mode, and this rule never creates with the bits; it sets them
-            // with chmod(2), which darwin honours. Measured on all three:
-            // linux passes, darwin passes, win32 genuinely cannot express the mode
-            // at all (NTFS, where Node synthesizes 0o666/0o444), so win32 is the
-            // only leg where the setup cannot even produce a setuid source.
+            // CREATE_KEEPS_SPECIAL_BITS was tried first — it is keyed on linux because
+            // BSD's open(2) masks the create mode — and the darwin legs went red for
+            // PASSING: `it.failing` retires itself, which is exactly what it is for.
+            // The distinction it draws is about the CREATE mode, and this rule never
+            // creates with the bits; it sets them with chmod(2), which darwin honours.
+            // win32 is the only leg where the SETUP cannot produce a setuid source at
+            // all (NTFS, where Node synthesizes 0o666/0o444).
             NO_POSIX_MODE_REASON,
             { when: !CAN_EXPRESS_POSIX_MODE },
         );

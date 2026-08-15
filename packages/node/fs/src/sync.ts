@@ -4,6 +4,7 @@
 import GLib from '@girs/glib-2.0';
 import Gio from '@girs/gio-2.0';
 import { existsSync } from '@gjsify/utils';
+import { isDarwin } from '@gjsify/utils/core';
 import { Buffer } from 'node:buffer';
 import { join } from 'node:path';
 
@@ -454,8 +455,13 @@ export function copyFileSync(src: PathLike, dest: PathLike, mode?: number): void
  * predicate, and it has two conditions the mask cannot express:
  *
  *   - S_ISUID goes on any write.
- *   - S_ISGID goes ONLY when S_IXGRP is also set. Without group-exec the bit is
- *     the mandatory-locking mark, not a privilege, and the kernel leaves it.
+ *   - S_ISGID goes ONLY when S_IXGRP is also set — ON LINUX. Without group-exec
+ *     the bit is the mandatory-locking mark rather than a privilege, and
+ *     `should_remove_suid()` leaves it. XNU does not make that distinction and
+ *     strips it either way: measured on both macOS legs, `2644 -> 0644` where
+ *     Linux gives `2644 -> 2644`. Node inherits the difference for free because
+ *     the KERNEL is what strips; we have to spell it, through the one OS
+ *     detector (ADR 0018) this package already uses for the `O_*` table.
  *   - No write happens at all for a ZERO-LENGTH source, so nothing is stripped.
  *
  * Measured against node v24.15.0, and every row here is a row a mask gets wrong
@@ -500,7 +506,7 @@ function stripPrivilegeBitsAfterCopy(destFile: Gio.File, srcStr: string, destStr
         if (info.get_size() === 0) return;
         const mode = info.get_attribute_uint32('unix::mode');
         let stripped = mode & ~S_ISUID;
-        if (mode & S_IXGRP) stripped &= ~S_ISGID;
+        if (isDarwin() || mode & S_IXGRP) stripped &= ~S_ISGID;
         if (stripped === mode) return;
         destFile.set_attribute_uint32('unix::mode', stripped, Gio.FileQueryInfoFlags.NONE, null);
     } catch (err: unknown) {
