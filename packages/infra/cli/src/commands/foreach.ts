@@ -26,7 +26,12 @@ import { findWorkspaceRoot } from '../utils/workspace-root.js';
 import { cliRuntimeClosure } from '../utils/cli-runtime-closure.js';
 import { prefixLines } from '../utils/prefixed-output.js';
 import { BuildCacheRunner, buildCacheEnabledByEnv } from '../utils/build-cache.js';
-import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
+// The ONE runner-selection rule, shared rather than re-derived. This file used to
+// carry its own copy; `workspace.ts` grew the bootstrap-CLI branch and the copy
+// here did not, so a `gjsify foreach` reached from a cold-tree bootstrap would
+// have delegated to npm and lost the shim one level down — silently, and only on
+// the OS legs that bootstrap cold. `onboard.ts` already imports it from here.
+import { detectPackageManager } from './workspace.js';
 
 // Every child spawned by spawnPrefixed registers here so fail-fast can
 // terminate the whole in-flight set instead of waiting on it. On CI a
@@ -844,20 +849,6 @@ async function runOne(
     }
     await spawnPrefixed(runner, argv, ws.location, prefixOutput ? `[${ws.name}] ` : null);
     if (cache && before) cache.storeAfterSuccess(ws, before);
-}
-
-function detectPackageManager(): 'yarn' | 'npm' | 'gjsify' {
-    // Under GJS there is no Node — neither `npm` nor `yarn` can run scripts, so
-    // the runner is `gjsify` itself via the GJS shim on PATH
-    // (`ensureGjsifyShimOnPath`). Makes node-free `gjsify foreach` work.
-    if (isGjs()) return 'gjsify';
-    // `npm_config_user_agent` is set by npm/yarn/pnpm — first token is
-    // `<name>/<version>`. Reuse it so `gjsify foreach build` invoked
-    // through `yarn run` keeps using yarn, etc.
-    const ua = process.env.npm_config_user_agent ?? '';
-    if (ua.startsWith('yarn/')) return 'yarn';
-    if (ua.startsWith('gjsify/')) return 'gjsify';
-    return 'npm';
 }
 
 async function spawnPrefixed(cmd: string, args: readonly string[], cwd: string, prefix: string | null): Promise<void> {
