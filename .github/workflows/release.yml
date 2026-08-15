@@ -264,13 +264,6 @@ jobs:
   #
   # `needs: publish` so @gjsify/cli@<release-version> is already on npm (this job
   # installs it to drive the OIDC publish) and the publish legs are serialized.
-  #
-  # MAINTAINER ACTION — @gjsify/gtk-runtime-darwin-x64 is a NEW npm name: npm Trusted
-  # Publishing (OIDC) cannot CREATE a package, only publish new versions of an
-  # existing one, so it needs a one-time `gjsify onboard` (first publish + Trusted
-  # Publisher) BEFORE the first release that runs this leg — otherwise the OIDC
-  # exchange 404s and stalls every alphabetically-later package. Same requirement the
-  # win32 job below documents.
   publish-gtk-runtime-darwin:
     name: Publish @gjsify/gtk-runtime-darwin-${{ matrix.arch }} (macOS bundle)
     needs: publish
@@ -444,14 +437,6 @@ jobs:
   # search path at LoadLibrary time), and NO addon build (the tarball ships only
   # gtk/{bin,girepository-1.0,manifest.json}; the addon prebuild is node-gi's own
   # concern in node-gi.yml).
-  #
-  # MAINTAINER ACTION — MANUAL FIRST PUBLISH REQUIRED (like the darwin package):
-  # npm Trusted Publishing (OIDC) cannot CREATE a package, only publish new versions
-  # of an existing one. So @gjsify/gtk-runtime-win32-x64 needs a one-time manual
-  # `gjsify publish --access public` + `gjsify trust @gjsify/gtk-runtime-win32-x64`
-  # (or `gjsify onboard`) from a maintainer machine BEFORE this job's first CI
-  # release — otherwise the OIDC exchange 404s. See AGENTS.md "New @gjsify/* package:
-  # first-publish + Trusted Publisher bootstrap".
   #
   # `needs: publish` so @gjsify/cli@<release-version> is already on npm and the two
   # publish legs are serialized.
@@ -1464,16 +1449,6 @@ jobs:
           path: packages/napi/napi-darwin-arm64/prebuilds/darwin-arm64
           if-no-files-found: error
 
-  # MAINTAINER ACTION — MANUAL FIRST PUBLISH REQUIRED (like the gtk-runtime and
-  # node-gi packages, but here it has never happened at all: `curl
-  # https://registry.npmjs.org/@gjsify/napi` still 404s). npm Trusted Publishing
-  # (OIDC) can only publish new versions of an EXISTING package, so @gjsify/napi
-  # needs a one-time manual `gjsify publish --access public` + `gjsify trust
-  # @gjsify/napi` (or `gjsify onboard`) from a maintainer machine BEFORE this
-  # job's first CI release — otherwise the OIDC exchange 404s and this job reds.
-  # See AGENTS.md "New @gjsify/* package: first-publish + Trusted Publisher
-  # bootstrap".
-  #
   # WHY THIS JOB BUILDS lib/ (unlike publish-node-gi): node-gi ships committed
   # hand-written JS, so its publish job only stages prebuilds. @gjsify/napi's
   # published entry points (`main`/`types` -> lib/esm/index.js,
@@ -1625,11 +1600,6 @@ jobs:
       # `optionalDependencies`, and an optional dependency that does not resolve
       # is skipped in silence. Publishing the bridge first would leave a window
       # in which an install succeeds and produces a bridge with no binary.
-      #
-      # MAINTAINER ACTION: `@gjsify/napi-linux-x64` and
-      # `@gjsify/napi-darwin-arm64` are NEW names. Like `@gjsify/napi` itself
-      # they need a one-time manual first publish + `gjsify trust` (or `gjsify
-      # onboard`) before this job's first CI release, or the OIDC exchange 404s.
       - name: Publish the @gjsify/napi platform packages (OIDC)
         env:
           GJSIFY_PUBLISH_DEBUG: '1'

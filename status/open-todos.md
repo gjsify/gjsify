@@ -686,30 +686,6 @@ The L1 `GObject.registerClass` no longer does: an entry `signalSpecToNative` can
 
 `node packages/infra/cli/scripts/generate-register-closure.mjs` (`--check` reports staleness). A stale map is fail-soft — builds stay correct but pay extra `--globals auto` analysis passes. (The related hazard — the committed CLI bundle inlining a stale map — is closed: `.githooks/pre-commit` triggers on `packages/infra/resolve-npm/lib/` and `packages/infra/rolldown-plugin-gjsify/src/`.)
 
-### `gjsify onboard` for `@gjsify/gtk-runtime-darwin-x64` — required before the release that ships it
-
-npm Trusted Publishing (OIDC) cannot CREATE a package, only publish new versions of an existing
-one, so the new name needs a one-time manual first publish + Trusted Publisher from a maintainer
-machine BEFORE `release.yml`'s `publish-gtk-runtime-darwin` matrix runs its `x64` leg. An
-unbootstrapped name 404s the OIDC exchange and stalls every alphabetically-later package (the
-v0.4.20 `@gjsify/tls-native` incident: 60+ packages stuck). One command:
-`gjsify onboard` (whoami-gated login, per-package state probe, publishes + trusts only the gaps,
-ONE shared OTP). The package itself, its builder and both CI chains are in place.
-
-### `gjsify onboard` for the three `@gjsify/webkit-native*` names — required before the release that ships them
-
-Same mechanism as the `gtk-runtime-darwin-x64` entry above, three names at once: `@gjsify/webkit-native`, `@gjsify/webkit-native-darwin-x64` and `@gjsify/webkit-native-darwin-arm64` are all published (none is `private`), all new as of ADR 0022, and none exists on npm. Trusted Publishing cannot CREATE a package, so an unbootstrapped name 404s the OIDC exchange and stalls every alphabetically-later package — the v0.4.20 incident left 60+ at 0.4.19, and `webkit-*` sits ahead of `websocket`, `webstorage` and `xmlhttprequest`. One `gjsify onboard` run covers all three (it probes per package and publishes only the gaps, one shared OTP).
-
-### `gjsify onboard` for `@gjsify/example-dom-three-loader-ldraw` — required before the release that ships it
-
-Same mechanism as the two entries above, one name. The LDraw viewer moved from
-`examples/` to `showcases/` and lost its `"private": true` in the process, so the
-publish sweep now includes it and the name does not exist on npm. It sorts
-between `example-dom-three-geometry-teapot` and
-`example-dom-three-postprocessing-pixel`, i.e. an unbootstrapped name would stall
-both the pixel showcase and every `@gjsify/*` after it. One `gjsify onboard` run
-covers it.
-
 ### `@gjsify/webgl` renders on darwin-x64, but no WebGL2 CONTENT can
 
 First rendering proof on darwin, measured 2026-08-03 on the Intel macOS 15.7.8 test VM
@@ -1556,19 +1532,6 @@ repository has the same "valac does not run on Windows" problem, and
 `prebuilt_vala_c` is a per-package option today rather than a shared mechanism.
 Lifting it is premature until a second bridge wants it — but the second one is
 where the helper gets lifted, not the third.
-
-### `gjsify onboard` for `@gjsify/webgl-win32-x64` — required before the release that ships it
-
-Same mechanism as the `gtk-runtime-darwin-x64` entry above. The name is new as of
-the win32 promotion, is not `private`, and does not exist on npm; Trusted
-Publishing (OIDC) cannot CREATE a package, so an unbootstrapped name 404s the
-exchange and stalls every alphabetically-later package (the v0.4.20 incident left
-60+ at 0.4.19, and `webgl-win32-x64` sits ahead of `webkit-*`, `websocket`,
-`webstorage` and `xmlhttprequest`). One `gjsify onboard` run covers it. Until it
-is bootstrapped the target is honestly declared and honestly unshipped: the
-package carries a `gjsify.platformsUncommitted` exemption that
-`clear-committed-platform-exemptions.mjs` drops the moment `commit-prebuilds`
-lands the directory.
 
 ### `win32-arm64` is blocked UPSTREAM, not on effort — measured
 

@@ -1,6 +1,6 @@
 # 24. `gjsify ship` — one payload, a runtime policy per OS, several install formats
 
-- Status: **Accepted** — stages 2 and 3 of § Implementation have landed; see § Implementation status
+- Status: **Accepted** — stages 1, 2 and 3 of § Implementation have landed; see § Implementation status
 - Date: 2026-08-14 (accepted 2026-08-15)
 - Deciders: Pascal Garber
 - Related: [ADR 0017 (native distribution)](0017-native-package-distribution.md), [ADR 0018 (OS-axis declaration)](0018-os-axis-declaration.md), [ADR 0021 (in-process prebuild resolution)](0021-launcher-free-prebuild-resolution.md), [ADR 0023 (which GTK a process uses)](0023-gtk-source-precedence.md), [docs/publishing.md](../publishing.md), `status/open-todos.md` § *gjsify on Flatpak — remaining roadmap*
@@ -152,13 +152,21 @@ the silence. On macOS and Windows the question does not arise: the closure is in
 
 ### 7. The glibc floor is derived from the ELF, not authored
 
-`gjsify.glibcRequires` is authored today on the platform packages, and nothing checks it
-against the binary. The floor is readable: walk the section headers, read `DT_NEEDED` from
-`.dynamic`, take the highest `GLIBC_x.y` in `.dynstr`. No `readelf`, no `ldd`, ~150 lines.
+`gjsify.glibcRequires` must be measured from the binary rather than believed, because the
+dynamic linker enforces the measured number and a host below it gets
+`version 'GLIBC_x.y' not found` with no fallback. The floor is readable without `readelf` or
+`ldd`: walk the section headers, read `DT_NEEDED` from `.dynamic`, take the highest `GLIBC_x.y`
+in `.dynstr`.
 
-**This one is separable and should not wait for the rest.** It converts an authored
-declaration into a machine-checked one, which is what the `declarations` governance rule
-demands of every `gjsify.*` key, and it pays off even if no `ship` command is ever written.
+**Correction, 2026-08-15 — this section shipped already-false and is kept as the record.** As
+drafted it read "nothing checks it against the binary" and listed the work as separable stage 1.
+Both were wrong on the day the ADR was accepted: the reader landed 2026-08-01 in `7896c51b02`
+(#897) as `@gjsify/manifest-conformance`'s `binary.mjs` (`readElfNeeded`,
+`readElfGlibcRequires`, `compareGlibcVersions`), and the rule that holds the declaration against
+it is `prebuild-libc`'s Check B, selected by `scripts/audit-runtimes.mjs` and therefore already
+part of a required check. An ADR is a decision record, so the wrong claim is corrected here
+rather than deleted: a reader who took stage 1 as "the separable one, start there" would have
+rebuilt a rule that has been gating the tree for two weeks.
 
 ### 8. `gjsify flatpak` migrates under `gjsify ship`
 
@@ -240,7 +248,8 @@ who holds the Developer ID and the Authenticode certificate, and whether CI may 
 Staged, each stage independently useful and independently mergeable:
 
 1. **ELF glibc floor** + a `@gjsify/manifest-conformance` rule holding `gjsify.glibcRequires`
-   against the binary. Needs nothing else here (§ 7).
+   against the binary (§ 7). Already landed when this ADR was written — see § Implementation
+   status. The numbering is kept so stages 2–7 keep the numbers other documents cite.
 2. **The payload and the Linux layout** — `gjsify ship --stage` producing the tree and nothing
    else, proven by an e2e suite that inspects it.
 3. **deb + rpm**, plus the dependency derivation of § 6, with an e2e suite that installs the
@@ -261,14 +270,19 @@ Follow-up work lands in `status/open-todos.md` per governance; this ADR records 
 `-qpl`, `-qp --requires`, `-qp --scripts`, `-i --test`, `rpm2cpio | cpio -it`), GNU `ar` and GNU
 `tar`.
 
-**Stage 1 (the ELF glibc floor) is still OPEN**, and is now a smaller job than the ADR assumed: the
-reader it needs already exists — `@gjsify/manifest-conformance`'s `binary.mjs` exports
-`readElfNeeded`, `readElfGlibcRequires` and `compareGlibcVersions` — so what is missing is only the
-rule that holds `gjsify.glibcRequires` against the binary. It stayed out of this change because it
-is about the PLATFORM packages' declarations, not about `ship`: a `--app gjs` payload contains no
-ELF at all, so nothing here can exercise it. The `ship` rule added instead
-(`manifest-conformance/lib/rules/ship.mjs`) is what keeps `gjsify.ship` from being a fifth
-unchecked declaration.
+**Stage 1 (the ELF glibc floor) was already landed when this ADR was written**, and this paragraph
+previously said the opposite. Both halves are in the tree and have been since 2026-08-01,
+`7896c51b02` (#897): the reader is `@gjsify/manifest-conformance`'s `binary.mjs`
+(`readElfNeeded`, `readElfGlibcRequires`, `compareGlibcVersions`), and the rule holding
+`gjsify.glibcRequires` against it is `lib/rules/prebuild-libc.mjs` Check B, which fails a
+package whose committed artifacts outgrow their declared floor and, separately, one that
+measures a floor it never declared. `scripts/audit-runtimes.mjs` selects `prebuild-libc`, so it
+runs inside `Detect runtime-triplet drift` — a required check.
+
+Stage 1 is nonetheless correctly numbered *outside* `ship`: it is about the PLATFORM packages'
+declarations, and a `--app gjs` payload contains no ELF at all, so nothing in `ship` can
+exercise it. The `ship` rule added here (`manifest-conformance/lib/rules/ship.mjs`) is what
+keeps `gjsify.ship` from being a fifth unchecked declaration.
 
 **Four things the ADR left open, and how they were settled.**
 
