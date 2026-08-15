@@ -398,8 +398,11 @@ export function write<TBuffer extends NodeJS.ArrayBufferView>(
     // the callback first, and both branches below read it off the same slot.
     requireCallback(args[args.length - 1]);
     const fileHandle = withHandle(fd, 'write', (err) => {
+        // No `typeof cb !== 'function'` guard: `requireCallback` above has already
+        // thrown if it were not one, so the probe could only ever be false — the
+        // "paranoid probes for what the workspace guarantees" anti-pattern, which
+        // hides a real bug as a silent no-call.
         const cb = args[args.length - 1];
-        if (typeof cb !== 'function') return;
         if (typeof data === 'string') (cb as WriteStrCallback)(err, 0, '');
         else (cb as WriteBufCallback)(err, 0, Buffer.from([]) as unknown as TBuffer);
     });
@@ -806,11 +809,19 @@ export function mkdtemp(
     const callback = typeof optsOrCb === 'function' ? optsOrCb : requireCallback(maybeCb);
     const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
     Promise.resolve().then(() => {
+        // The callback is invoked OUTSIDE the try. Every sibling in this file calls
+        // it inside one, so a callback that throws is re-entered with its own
+        // exception as the `err` argument — a second invocation the caller never
+        // asked for. Not fixed for the siblings here; recorded in
+        // `status/open-todos.md` with the reproduction.
+        let made: string | Buffer;
         try {
-            callback(null, mkdtempSync(prefix, options as EncodingOption) as never);
+            made = mkdtempSync(prefix, options as EncodingOption);
         } catch (err: unknown) {
             callback(err as NodeJS.ErrnoException, undefined as never);
+            return;
         }
+        callback(null, made as never);
     });
 }
 

@@ -34,28 +34,33 @@ export function createNodeError(err: unknown, syscall: string, path: PathLike, d
  * Node's `validateFunction(cb, 'cb')`, which every callback-form `fs` entry point
  * runs before it does any work.
  *
- * Why it is a shared helper and not a line per site: the seventeen call sites that
- * need it all spelled the same non-null assertion — `callback!`, `maybeCb!` — and
- * that assertion is the defect, not a symptom of it. It silences the one type the
+ * Why it is a shared helper and not a line per site: the sites that need it all
+ * spelled the same non-null assertion — `callback!`, `maybeCb!` — and that
+ * assertion is the defect, not a symptom of it. It silences the one type the
  * compiler had, so a missing callback survived into the async body and surfaced as
  * `callback is not a function` INSIDE a promise chain. Under GJS that is invisible:
  * there is no host hook for `unhandledRejection`, so the runner never learns the
- * caller made a mistake. Grep for `!` in a callback position and the class stays
- * closed.
+ * caller made a mistake.
  *
- * MEASURED against node v24.15.0, all seventeen — `copyFile`, `access`,
- * `appendFile`, `readlink`, `truncate`, `mkdir`, `rmdir`, `readFile`, `writeFile`,
- * `fstat`, `ftruncate`, `readv`, `writev`, `glob`, `opendir`, `cp`, `statfs` —
- * throw `ERR_INVALID_ARG_TYPE` synchronously. `fs.close(fd)` and
- * `WriteStream.close()` are the two that genuinely are optional and stay silent;
- * #1039 settled those and `fs-semantics.spec.ts` K-16 pins them, so do NOT route
- * them through here.
+ * THE `!` HEURISTIC IS NOT THE RULE, which is how the first sweep missed a third of
+ * them. `fs.chmod` declares its callback REQUIRED, so it needed no assertion — and a
+ * type is not enforced at a JS boundary. The rule is: every callback-form entry
+ * point validates, checked against Node one at a time.
+ *
+ * Node validates all of them synchronously with `ERR_INVALID_ARG_TYPE`. The two
+ * exceptions are `fs.close(fd)` and `WriteStream.close()`, genuinely optional and
+ * silent — #1039 settled those and `fs-semantics.spec.ts` K-16 pins them, so do NOT
+ * route them through here — plus `fs.rm`, which Node does not validate either (it
+ * crashes inside `internal/fs/rimraf` instead; `status/open-todos.md` records it).
  *
  * `argName` is a parameter because Node is not uniform: `opendir` says `"callback"`
- * and the other sixteen say `"cb"`.
+ * and `watchFile` says `"listener"`, while the rest say `"cb"`.
  */
-// oxlint-disable-next-line typescript/no-explicit-any -- the return type is the caller's own callback type, which each of the seventeen overload-impl signatures already narrows; a generic here would have to be instantiated at every site to say the same thing.
-export function requireCallback<T>(value: T, argName: 'cb' | 'callback' = 'cb'): T & ((...args: any[]) => void) {
+export function requireCallback<T>(
+    value: T,
+    argName: 'cb' | 'callback' | 'listener' = 'cb',
+    // oxlint-disable-next-line typescript/no-explicit-any -- the return type is the caller's own callback type, which each overload-impl signature already narrows; a generic here would have to be instantiated at every site to say the same thing.
+): T & ((...args: any[]) => void) {
     if (typeof value === 'function') return value as T & ((...args: never[]) => void);
     const error = new TypeError(
         `The "${argName}" argument must be of type function. Received ${describeReceived(value)}`,
@@ -65,9 +70,22 @@ export function requireCallback<T>(value: T, argName: 'cb' | 'callback' = 'cb'):
 }
 
 /**
- * Node's `Received …` clause, reproduced from measurement rather than from its
- * source: `42` → `type number (42)`, `'x'` → `type string ('x')`, `null` → `null`,
- * `{}` → `an instance of Object`, `[]` → `an instance of Array`.
+ * Node's `Received …` clause, from measurement rather than from its source:
+ *
+ *   undefined            → `undefined`
+ *   null                 → `null`
+ *   42                   → `type number (42)`
+ *   10n                  → `type bigint (10n)`      the `n` is part of it
+ *   'x'                  → `type string ('x')`
+ *   "it's"               → `type string ("it's")`   quotes swap, not escape
+ *   'y'.repeat(40)       → `type string ('yyy…yyy...')`  truncated at 25 + `...`
+ *   {} / [] / new Map()  → `an instance of Object|Array|Map`
+ *
+ * NOT reproduced, deliberately: Node reaches `util.inspect` for exotic values, so a
+ * null-prototype object renders `[Object: null prototype] {}` there and
+ * `an instance of Object` here. Chasing that means importing an inspector into a
+ * message nobody matches on — callers branch on `err.code`. The claim is scoped to
+ * the rows above rather than to "whatever Node prints".
  */
 function describeReceived(value: unknown): string {
     if (value === null || value === undefined) return String(value);
@@ -75,7 +93,12 @@ function describeReceived(value: unknown): string {
         const name = (value as { constructor?: { name?: string } }).constructor?.name;
         return `an instance of ${name && name.length > 0 ? name : 'Object'}`;
     }
-    if (typeof value === 'string') return `type string ('${value}')`;
+    if (typeof value === 'string') {
+        const shown = value.length > 25 ? `${value.slice(0, 25)}...` : value;
+        // Node swaps the quote rather than escaping it.
+        return shown.includes("'") ? `type string ("${shown}")` : `type string ('${shown}')`;
+    }
+    if (typeof value === 'bigint') return `type bigint (${value}n)`;
     if (typeof value === 'symbol') return `type symbol (${value.toString()})`;
     return `type ${typeof value} (${String(value)})`;
 }

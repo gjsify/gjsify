@@ -77,6 +77,36 @@ they were deliberately left out of the binding fix rather than bundled into it.
 None of the three is reachable from `postbote`'s index today, which is why the binding fix
 did not wait for them.
 
+### Every callback-form `fs` entry point calls the callback from INSIDE its try
+
+The shape, repeated across `callback.ts`, `fd-ops.ts` and `utimes.ts`:
+
+```ts
+Promise.resolve().then(() => {
+    try {
+        mkdirSync(path, options);
+        callback(null);          // <- inside the try
+    } catch (err) {
+        callback(err);           // <- so a THROWING callback lands here
+    }
+});
+```
+
+A user callback that throws is therefore re-entered immediately with its own
+exception as the `err` argument — one call the caller never made, and the second
+one looks to them like the operation failed. Node calls the callback once.
+
+Found while closing #1046: the new `mkdtemp` copied the pattern, and its K-19 case
+(`calls` must be 1) is what exposed it. `mkdtemp` now computes inside the try and
+calls outside it; the siblings are unchanged, because it is a behavioural change to
+~10 entry points and belongs in its own measured pass rather than riding an
+unrelated PR.
+
+Whoever takes it: the repair is mechanical, but the ASSERTION is the interesting
+half — the test has to prove the callback is entered exactly once, which means
+letting it throw. On the GJS leg that surfaces as an "Unhandled promise rejection"
+warning, so a suite that treats warnings as failures cannot express this rule.
+
 ### `fs.cp` and `fs.rm` were measured beside #1046 and deliberately left alone
 
 Both came up while closing #1046's four divergences and neither belongs in that

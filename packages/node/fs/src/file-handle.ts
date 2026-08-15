@@ -376,8 +376,15 @@ export class FileHandle implements IFileHandle {
      *   - the handle is NOT closed when the stream ends; user code still calls
      *     `close()`.
      *
-     * Deliberately not a `type: 'bytes'` stream: Node's is a plain (non-BYOB) one,
-     * and a byte stream would hand consumers a different `read()` contract.
+     * A BYTE stream (`type: 'bytes'`), because Node's is — measured, after the first
+     * version of this comment asserted the opposite and built a default stream:
+     * `fh.readableWebStream().getReader({ mode: 'byob' })` returns a
+     * `ReadableStreamBYOBReader` on v24.15.0 and reads into the caller's buffer. A
+     * default stream rejects that reader, so getting this backwards would have
+     * introduced a divergence inside the change that exists to remove them.
+     *
+     * The BYOB path also removes the 64 KiB allocation per pull whenever the consumer
+     * brings its own view.
      */
     readableWebStream(): ReadableStream {
         if (this._closed) throw invalidState('The FileHandle is closed');
@@ -392,18 +399,29 @@ export class FileHandle implements IFileHandle {
         }
         this._webStreamLocked = true;
         return new Ctor({
+            type: 'bytes',
             // An ARROW, so `this` stays the handle — a method shorthand here would
             // bind it to the underlying-source object and need a `this` alias.
-            pull: (controller: ReadableStreamDefaultController<Uint8Array>) => {
+            pull: (controller: ReadableByteStreamController) => {
+                // A handle closed MID-STREAM ends the stream cleanly rather than
+                // erroring it: measured, Node's next `read()` resolves `{done:true}`.
+                // Erroring here would make an ordinary `close()` during iteration throw
+                // at the consumer.
+                if (this._closed) {
+                    controller.close();
+                    // A byte stream with an outstanding BYOB request must answer it
+                    // before close, or the reader's promise never settles.
+                    controller.byobRequest?.respond(0);
+                    return;
+                }
                 // ONE chunk per pull, not `_readToEnd()`: a slow consumer must not
                 // force the whole file into memory, which is the reason to reach for
                 // this over `readFile()` in the first place.
-                if (this._closed) {
-                    controller.error(invalidState('The FileHandle is closed'));
-                    return;
-                }
+                const view = controller.byobRequest?.view;
+                const buf = view
+                    ? new Uint8Array(view.buffer, view.byteOffset, view.byteLength)
+                    : new Uint8Array(64 * 1024);
                 let read: number;
-                const buf = new Uint8Array(64 * 1024);
                 try {
                     read = this._readCore(buf, 0, buf.length, null);
                 } catch (err: unknown) {
@@ -412,6 +430,11 @@ export class FileHandle implements IFileHandle {
                 }
                 if (read === 0) {
                     controller.close();
+                    controller.byobRequest?.respond(0);
+                    return;
+                }
+                if (controller.byobRequest) {
+                    controller.byobRequest.respond(read);
                     return;
                 }
                 controller.enqueue(buf.subarray(0, read));

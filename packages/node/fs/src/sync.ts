@@ -437,7 +437,7 @@ export function copyFileSync(src: PathLike, dest: PathLike, mode?: number): void
     } catch (err: unknown) {
         throw createNodeError(err, 'copyfile', srcStr, destStr);
     }
-    dropSetIdBitsAfterCopy(destFile, destStr);
+    stripPrivilegeBitsAfterCopy(destFile, srcStr, destStr);
 }
 
 /**
@@ -446,19 +446,41 @@ export function copyFileSync(src: PathLike, dest: PathLike, mode?: number): void
  * privilege-escalation shape: a setuid binary copied into a writable directory
  * would otherwise arrive still setuid.
  *
- * The mask is MEASURED against node v24.15.0 rather than derived — `& 0o777`
- * would be wrong in one direction and a umask dance wrong in another:
+ * NODE DOES NOT MASK ANYTHING — that is the whole trap here, and a `& ~0o6000`
+ * written from the obvious reading of the docs is wrong in six measurable ways.
+ * libuv `fchmod`s the SOURCE mode onto the destination BEFORE its copy loop, and
+ * what removes the bits is the kernel, on the subsequent `write(2)`:
+ * `should_remove_suid()` in `fs/inode.c`. So the rule to reproduce is that
+ * predicate, and it has two conditions the mask cannot express:
  *
- *   src 4755 → dst 0755              set-user-ID dropped
- *   src 2755 → dst 0755              set-group-ID dropped
- *   src 1755 → dst 1755              STICKY IS KEPT
- *   src 7755 → dst 1755              only the two ID bits go
- *   src 0666 under umask 0027 → 0666 the umask does NOT apply
- *   pre-existing dst 0600, src 0644 → 0644, so overwrite is no different
+ *   - S_ISUID goes on any write.
+ *   - S_ISGID goes ONLY when S_IXGRP is also set. Without group-exec the bit is
+ *     the mandatory-locking mark, not a privilege, and the kernel leaves it.
+ *   - No write happens at all for a ZERO-LENGTH source, so nothing is stripped.
  *
- * Only touched when a bit is actually set: without them `Gio.File.copy` already
- * lands on Node's answer, so an unconditional chmod would buy a syscall per copy
- * and a second place for the mode to come from.
+ * Measured against node v24.15.0, and every row here is a row a mask gets wrong
+ * or a row that pins the shape:
+ *
+ *   len 3  src 4755 → dst 0755   set-user-ID goes
+ *   len 3  src 2755 → dst 0755   set-group-ID goes — S_IXGRP is set
+ *   len 3  src 2644 → dst 2644   ...and STAYS without it
+ *   len 3  src 2744 → dst 2744   user-exec does not count, only GROUP-exec
+ *   len 3  src 2614 → dst 0614   other-exec does not either; S_IXGRP does
+ *   len 3  src 6644 → dst 2644   both bits set: only S_ISUID goes
+ *   len 3  src 1755 → dst 1755   sticky is never touched
+ *   len 0  src 4755 → dst 4755   NO WRITE, NO STRIP
+ *   len 0  src 7755 → dst 7755   same, all three survive
+ *   src 0666 under umask 0027 → 0666       the umask does NOT apply
+ *   pre-existing dst 0600, src 0644 → 0644 overwrite is no different
+ *
+ * An empty setuid source copied ONTO a non-empty destination also keeps 4755:
+ * libuv's `ftruncate` precedes its `fchmod`, so the truncate's own strip is
+ * overwritten. The size read below is the destination's AFTER the copy, which is
+ * the source's, so that case falls out of the same guard.
+ *
+ * Left alone when the result would not change: without the bits `Gio.File.copy`
+ * already lands on Node's answer, so an unconditional chmod would buy a syscall
+ * per copy and a second place for the mode to come from.
  *
  * DELIBERATELY NOT APPLIED to `fs.cp`/`cpSync`. Measured on the same Node, they
  * are already right: a single-file `cp` onto an ABSENT destination KEEPS 4755,
@@ -468,15 +490,24 @@ export function copyFileSync(src: PathLike, dest: PathLike, mode?: number): void
  * already there), and reproducing it exactly needs its own measurement pass —
  * `status/open-todos.md` carries the numbers.
  */
-function dropSetIdBitsAfterCopy(destFile: Gio.File, destStr: string): void {
-    const SET_ID_BITS = 0o6000;
+function stripPrivilegeBitsAfterCopy(destFile: Gio.File, srcStr: string, destStr: string): void {
+    const S_ISUID = 0o4000;
+    const S_ISGID = 0o2000;
+    const S_IXGRP = 0o0010;
     try {
-        const info = destFile.query_info('unix::mode', Gio.FileQueryInfoFlags.NONE, null);
+        const info = destFile.query_info('unix::mode,standard::size', Gio.FileQueryInfoFlags.NONE, null);
+        // No bytes written, no strip — see the `len 0` rows above.
+        if (info.get_size() === 0) return;
         const mode = info.get_attribute_uint32('unix::mode');
-        if ((mode & SET_ID_BITS) === 0) return;
-        destFile.set_attribute_uint32('unix::mode', mode & ~SET_ID_BITS, Gio.FileQueryInfoFlags.NONE, null);
+        let stripped = mode & ~S_ISUID;
+        if (mode & S_IXGRP) stripped &= ~S_ISGID;
+        if (stripped === mode) return;
+        destFile.set_attribute_uint32('unix::mode', stripped, Gio.FileQueryInfoFlags.NONE, null);
     } catch (err: unknown) {
-        throw createNodeError(err, 'copyfile', destStr);
+        // `srcStr` in `path` and `destStr` in `dest`, matching the copy's own throw
+        // above: a caller matching on `err.path` must not get a different file
+        // depending on WHICH half of copyFile failed.
+        throw createNodeError(err, 'copyfile', srcStr, destStr);
     }
 }
 
@@ -679,7 +710,12 @@ export function mkdtempSync(prefix: string, options?: EncodingOption): string | 
 
 export function mkdtempSync(prefix: string, options?: EncodingOption | BufferEncodingOption): string | Buffer {
     const encoding: string | undefined = getEncodingFromOptions(options);
-    return decode(mkdtempAt(prefix), encoding);
+    const made = mkdtempAt(prefix);
+    // `'buffer'` is not a TextDecoder label — `decode()` would construct
+    // `new TextDecoder('buffer')` and throw a RangeError, leaving the directory
+    // created and the caller with an error instead of the Buffer Node returns.
+    // Measured: `fs.mkdtempSync(p, { encoding: 'buffer' })` is a Buffer on v24.15.0.
+    return encoding === 'buffer' ? Buffer.from(made) : decode(made, encoding);
 }
 
 /**
