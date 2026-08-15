@@ -23,6 +23,7 @@ import toastTestSuite from './toast.spec.js';
 import popoverTestSuite from './popover.spec.js';
 import bannerTestSuite from './banner.spec.js';
 import buttonContentTestSuite from './button-content.spec.js';
+import buttonTestSuite from './button.spec.js';
 import aboutDialogTestSuite from './about-dialog.spec.js';
 import checksTestSuite from './checks.spec.js';
 import wrapBoxTestSuite from './wrap-box.spec.js';
@@ -33,6 +34,7 @@ run({
     aboutDialogTestSuite,
     bannerTestSuite,
     buttonContentTestSuite,
+    buttonTestSuite,
     checksTestSuite,
     breakpointTestSuite,
     accentTestSuite,

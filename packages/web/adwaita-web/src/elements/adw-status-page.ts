@@ -7,6 +7,8 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
 // icon node is <adw-icon>.
 
+import { stringIsNotEmpty } from '@gjsify/adwaita-core';
+
 import { type AdwIcon, createAdwIcon } from './adw-icon.js';
 
 export class AdwStatusPage extends HTMLElement {
@@ -51,13 +53,16 @@ export class AdwStatusPage extends HTMLElement {
         this._iconEl.iconName = this.getAttribute('icon');
         this._iconEl.hidden = this._iconEl.resolvedIconName === '';
 
+        // `string_is_not_empty` from the core, not a local `.length === 0`: the same
+        // closure the NativeScript port binds its labels to, and the reason a title of
+        // `'   '` stays VISIBLE — it reads the first byte, it never trims.
         const title = this.getAttribute('title') ?? '';
         this._titleEl.textContent = title;
-        this._titleEl.hidden = title.length === 0;
+        this._titleEl.hidden = !stringIsNotEmpty(title);
 
         const description = this.getAttribute('description') ?? '';
         this._descEl.textContent = description;
-        this._descEl.hidden = description.length === 0;
+        this._descEl.hidden = !stringIsNotEmpty(description);
 
         this._childEl.hidden = this._childEl.childElementCount === 0;
     }

@@ -9,15 +9,12 @@
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
 // icon node is <adw-icon>.
 
+import { buttonStyleClasses } from '@gjsify/adwaita-core';
+
 import { createAdwIcon } from './adw-icon.js';
 
-const VARIANT_CLASSES: Record<string, string> = {
-    flat: 'flat',
-    suggested: 'suggested-action',
-    destructive: 'destructive-action',
-    circular: 'circular',
-    pill: 'pill',
-};
+/** The boolean attributes that select a style class; the mapping lives in the core. */
+const STYLE_ATTRIBUTES = ['flat', 'suggested', 'destructive', 'circular', 'pill'] as const;
 
 export class AdwButton extends HTMLElement {
     private _button!: HTMLButtonElement;
@@ -50,9 +47,10 @@ export class AdwButton extends HTMLElement {
     private _render() {
         const btn = this._button;
         btn.className = 'adw-button';
-        for (const [attr, cls] of Object.entries(VARIANT_CLASSES)) {
-            if (this.hasAttribute(attr)) btn.classList.add(cls);
-        }
+        // The attribute → class mapping is `@gjsify/adwaita-core`'s, so this element
+        // and the NativeScript one cannot disagree about which classes exist —
+        // `circular` was in this table and missing from that one.
+        btn.classList.add(...buttonStyleClasses(STYLE_ATTRIBUTES.filter((attr) => this.hasAttribute(attr))));
 
         const icon = this.getAttribute('icon');
         const label = (this.getAttribute('label') ?? this._label).trim();

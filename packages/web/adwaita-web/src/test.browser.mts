@@ -35,6 +35,7 @@ import { AdwWrapBoxTest } from './adw-wrap-box.spec.js';
 import { AdwHeaderBarTest } from './adw-header-bar.spec.js';
 import { AdwEntryTest } from './adw-entry.spec.js';
 import { AdwMenuButtonTest } from './adw-menu-button.spec.js';
+import { AdwButtonTest } from './adw-button.spec.js';
 import { AdwBannerTest } from './adw-banner.spec.js';
 import { AdwButtonContentTest } from './adw-button-content.spec.js';
 import { AdwIconTest } from './adw-icon.spec.js';
@@ -81,6 +82,7 @@ run({
     AdwHeaderBarTest,
     AdwEntryTest,
     AdwMenuButtonTest,
+    AdwButtonTest,
     AdwViewStackTest,
     AdwNavigationViewTest,
     AdwSidebarTest,
