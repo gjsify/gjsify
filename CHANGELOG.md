@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.40.0](https://github.com/gjsify/gjsify/compare/v0.39.0...v0.40.0) (2026-08-15)
+
+### Features
+
+* **adwaita-nativescript:** apply the window insets ([#1190](https://github.com/gjsify/gjsify/issues/1190)) ([6e4c1d0](https://github.com/gjsify/gjsify/commit/6e4c1d024bf749833afff870a47748071427d0f9)), closes [#1128](https://github.com/gjsify/gjsify/issues/1128)
+* **cli:** gjsify ship — installable .deb and .rpm from one payload ([#1193](https://github.com/gjsify/gjsify/issues/1193)) ([60a3844](https://github.com/gjsify/gjsify/commit/60a3844dcaa50b64d1614984fd159d11847e2228))
+* **storybook:** show four widgets we already ship ([#1189](https://github.com/gjsify/gjsify/issues/1189)) ([f678314](https://github.com/gjsify/gjsify/commit/f6783145b4364c201a0c3309817a6db13ba0c1f0)), closes [#1050](https://github.com/gjsify/gjsify/issues/1050)
+
+### Bug Fixes
+
+* **adwaita-nativescript:** share the menu-entry type ([#1196](https://github.com/gjsify/gjsify/issues/1196)) ([8d129c1](https://github.com/gjsify/gjsify/commit/8d129c1f1a6a615c8638af73d9383b5270bfd6d1)), closes [#1191](https://github.com/gjsify/gjsify/issues/1191)
+* **adwaita-web:** delegate three widgets to the core ([#1191](https://github.com/gjsify/gjsify/issues/1191)) ([2e91553](https://github.com/gjsify/gjsify/commit/2e91553a360f12654492e2812f55577ed6b7d4e3))
+* **adwaita:** retire the last three two-copy widgets ([#1192](https://github.com/gjsify/gjsify/issues/1192)) ([4991bb3](https://github.com/gjsify/gjsify/commit/4991bb39872694afb03ef19d1bccb8510089aab5))
+* **cli:** --version through the one resolver ([#1178](https://github.com/gjsify/gjsify/issues/1178)) ([63a18eb](https://github.com/gjsify/gjsify/commit/63a18ebcde86a46ba3b58a94bb70d16aa8442433)), closes [#1102](https://github.com/gjsify/gjsify/issues/1102) [#910](https://github.com/gjsify/gjsify/issues/910) [#1170](https://github.com/gjsify/gjsify/issues/1170) [#1139](https://github.com/gjsify/gjsify/issues/1139)
+* **cli:** build the CLI's own deps before the sweep ([#1185](https://github.com/gjsify/gjsify/issues/1185)) ([0a56930](https://github.com/gjsify/gjsify/commit/0a569306b6ae6efa0e58b2b272bb4cd988206862)), closes [#1031](https://github.com/gjsify/gjsify/issues/1031)
+* **fs:** close the four divergences from Node ([#1201](https://github.com/gjsify/gjsify/issues/1201)) ([b827af0](https://github.com/gjsify/gjsify/commit/b827af0cda89c7cf48f1721483d50425b7570f1e)), closes [#1046](https://github.com/gjsify/gjsify/issues/1046) [#1039](https://github.com/gjsify/gjsify/issues/1039)
+* leave no slack behind a required check ([#1181](https://github.com/gjsify/gjsify/issues/1181)) ([bd2d644](https://github.com/gjsify/gjsify/commit/bd2d644163ae29ec67f6f113c7b8c9df7f2c3bfe)), closes [#1157](https://github.com/gjsify/gjsify/issues/1157) [#1166](https://github.com/gjsify/gjsify/issues/1166) [#1157](https://github.com/gjsify/gjsify/issues/1157) [#1178](https://github.com/gjsify/gjsify/issues/1178)
+* **node-gi:** pair the pump's prepare with a check ([#1184](https://github.com/gjsify/gjsify/issues/1184)) ([318515f](https://github.com/gjsify/gjsify/commit/318515fa0cb15b1dfec8f1e11769039c749b9231)), closes [#1145](https://github.com/gjsify/gjsify/issues/1145) [#1145](https://github.com/gjsify/gjsify/issues/1145)
+* **node-gi:** resolve members via the prototype ([#1183](https://github.com/gjsify/gjsify/issues/1183)) ([d33993f](https://github.com/gjsify/gjsify/commit/d33993f8ca4077b79fbfcf500a5a81d663d59139)), closes [#1175](https://github.com/gjsify/gjsify/issues/1175) [#1175](https://github.com/gjsify/gjsify/issues/1175)
+* **node-gi:** stop calling an un-marshallable GLib function ([#1200](https://github.com/gjsify/gjsify/issues/1200)) ([7cb7f55](https://github.com/gjsify/gjsify/commit/7cb7f55b4af95dc25ad4c0d2631c0c3cf7cf46c0)), closes [#925](https://github.com/gjsify/gjsify/issues/925)
+* **zlib:** decode every gzip member, and let CI see it ([#1179](https://github.com/gjsify/gjsify/issues/1179)) ([c24d5d8](https://github.com/gjsify/gjsify/commit/c24d5d8542a350a1d49f2c76a79ab741f16ef397)), closes [#1173](https://github.com/gjsify/gjsify/issues/1173) [#1174](https://github.com/gjsify/gjsify/issues/1174) [#1173](https://github.com/gjsify/gjsify/issues/1173) [#1173](https://github.com/gjsify/gjsify/issues/1173)
+
+### Documentation
+
+* **adr:** 0024 — a ship command for three OSes ([#1182](https://github.com/gjsify/gjsify/issues/1182)) ([a371279](https://github.com/gjsify/gjsify/commit/a3712796e79ca9ef086a76d89f8e491a156c4786)), closes [#1180](https://github.com/gjsify/gjsify/issues/1180)
+* correct two claims the tree contradicts ([#1202](https://github.com/gjsify/gjsify/issues/1202)) ([58f8bab](https://github.com/gjsify/gjsify/commit/58f8baba3b2db88c898e58c838b4d2bd897afdfb)), closes [#1198](https://github.com/gjsify/gjsify/issues/1198)
+* drop two live counts that had drifted ([#1172](https://github.com/gjsify/gjsify/issues/1172)) ([b78732c](https://github.com/gjsify/gjsify/commit/b78732c9ed84b108700050ddff49c03b28b489f9))
+* retire what the tree already disproves ([#1197](https://github.com/gjsify/gjsify/issues/1197)) ([e5c60f6](https://github.com/gjsify/gjsify/commit/e5c60f6975da6639f7b311716f7985a3126ec547)), closes [#897](https://github.com/gjsify/gjsify/issues/897)
+* **status:** stop restating what the matrix derives ([#1188](https://github.com/gjsify/gjsify/issues/1188)) ([385eb57](https://github.com/gjsify/gjsify/commit/385eb57edabf37b00f90053768b999e933c2a634)), closes [#1125](https://github.com/gjsify/gjsify/issues/1125)
+* **website:** publish the Adwaita token contract ([#1194](https://github.com/gjsify/gjsify/issues/1194)) ([0311407](https://github.com/gjsify/gjsify/commit/0311407dd1673b51055ced7fbd48eb9d738d3d54))
+
+### Continuous Integration
+
+* retire the two bootstrap bridges ([#1199](https://github.com/gjsify/gjsify/issues/1199)) ([7cc1860](https://github.com/gjsify/gjsify/commit/7cc18601bc5066185cd628ef9e50031af133db18))
+* un-gate the three whole-tree checks ([#1198](https://github.com/gjsify/gjsify/issues/1198)) ([d329b0b](https://github.com/gjsify/gjsify/commit/d329b0ba366b1e117e067078d1cd43892c11755f)), closes [#949](https://github.com/gjsify/gjsify/issues/949) [#960](https://github.com/gjsify/gjsify/issues/960) [#957](https://github.com/gjsify/gjsify/issues/957) [#1183](https://github.com/gjsify/gjsify/issues/1183) [#1186](https://github.com/gjsify/gjsify/issues/1186) [#1187](https://github.com/gjsify/gjsify/issues/1187) [#1187](https://github.com/gjsify/gjsify/issues/1187)
+
+### Maintenance
+
+* **refs:** bump gtkx to v1.1.0 ([#1180](https://github.com/gjsify/gjsify/issues/1180)) ([042f10d](https://github.com/gjsify/gjsify/commit/042f10d2ab6cd303e9b7e9ca5aa90ef14bfbc5f5))
+
 ## [0.39.0](https://github.com/gjsify/gjsify/compare/v0.38.1...v0.39.0) (2026-08-14)
 
 ### Features
