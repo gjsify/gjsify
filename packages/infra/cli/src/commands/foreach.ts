@@ -23,6 +23,7 @@ import {
     type Workspace,
 } from '@gjsify/workspace';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
+import { cliRuntimeClosure } from '../utils/cli-runtime-closure.js';
 import { prefixLines } from '../utils/prefixed-output.js';
 import { BuildCacheRunner, buildCacheEnabledByEnv } from '../utils/build-cache.js';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
@@ -489,17 +490,44 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
                   })
                 : undefined;
 
+        // The serial prefix: every child of this command BOOTS the CLI, so a
+        // package the CLI imports must not be written while siblings are starting
+        // (the torn `lib/esm` in `utils/cli-runtime-closure.ts`'s header). Building
+        // that closure first — alone, in the order the caller already sorted — is a
+        // REORDERING, not extra work: the prefix is removed from the parallel set,
+        // so the cost is only the parallelism given up over those few packages.
+        //
+        // Applied to every PARALLEL invocation, not only to `build`. Which scripts
+        // rewrite an output tree is not knowable from a script NAME — `build`,
+        // `build:types`, a package's own `dist` step and `clear` all do — and
+        // gating on the literal string "build" would be the hand-written list this
+        // closure exists to replace. A serial run needs no prefix at all: nothing
+        // else is in flight to read what it writes.
+        const prefixNames = args.parallel === true ? cliRuntimeClosure(allWorkspaces) : new Set<string>();
+        const prefix = prefixNames.size > 0 ? selected.filter((ws) => prefixNames.has(ws.name)) : [];
+        const sweep = prefix.length > 0 ? selected.filter((ws) => !prefixNames.has(ws.name)) : selected;
+
         try {
+            if (prefix.length > 0) {
+                console.error(
+                    `[gjsify foreach] serial prefix: ${prefix.length} package(s) the running CLI imports — ` +
+                        `${prefix.map((ws) => ws.name).join(', ')}`,
+                );
+                for (const ws of prefix) {
+                    console.error(`[gjsify foreach] start ${ws.name} (serial prefix)`);
+                    await runOne(ws, finalCmd, cmdArgs, /* prefixOutput */ true, verbose, exec, cache);
+                }
+            }
             if (args.parallel && !args.topological && !args['topological-dev']) {
                 const jobs = args.jobs && args.jobs > 0 ? args.jobs : cpus().length;
-                await runParallel(selected, finalCmd, cmdArgs, jobs, verbose, exec, cache);
+                await runParallel(sweep, finalCmd, cmdArgs, jobs, verbose, exec, cache);
             } else if (args.parallel) {
                 // Topological + parallel: each workspace starts as soon as its
                 // deps (in the selected set) have finished. Yarn calls this
                 // "topological order with concurrency"; we cap at --jobs.
                 const jobs = args.jobs && args.jobs > 0 ? args.jobs : cpus().length;
                 await runTopologicalParallel(
-                    selected,
+                    sweep,
                     finalCmd,
                     cmdArgs,
                     jobs,
@@ -509,7 +537,7 @@ export const foreachCommand: Command<unknown, ForeachOptions> = {
                     cache,
                 );
             } else {
-                await runSequential(selected, finalCmd, cmdArgs, verbose, exec, cache);
+                await runSequential(sweep, finalCmd, cmdArgs, verbose, exec, cache);
             }
         } catch (err) {
             // Plain --parallel rejects on the FIRST failure (Promise.all) while

@@ -16,6 +16,7 @@ import barrelsGenerateSuite from './barrels-generate.spec.js';
 import npmOidcSuite from './npm-oidc.spec.js';
 import publishDiagnoseSuite from './publish-diagnose.spec.js';
 import publishHeadersSuite from './utils/publish-headers.spec.js';
+import cliRuntimeClosureSuite from './utils/cli-runtime-closure.spec.js';
 import whoamiCommandSuite from './whoami-command.spec.js';
 import installBackendParseSpecSuite from './install-backend-parse-spec.spec.js';
 import installTarballCacheSuite from './utils/install-tarball-cache.spec.js';
@@ -190,6 +191,7 @@ run(
         npmOidcSuite,
         publishDiagnoseSuite,
         publishHeadersSuite,
+        cliRuntimeClosureSuite,
         whoamiCommandSuite,
         installBackendParseSpecSuite,
         installTarballCacheSuite,

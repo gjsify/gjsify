@@ -77,39 +77,6 @@ they were deliberately left out of the binding fix rather than bundled into it.
 None of the three is reachable from `postbote`'s index today, which is why the binding fix
 did not wait for them.
 
-### `foreach build` can read a workspace package's `lib/` while another job is writing it
-
-The parallel sweep rebuilds packages that the RUNNING CLI imports at runtime, so
-a package's build can import a half-written `lib/esm`. Measured on the macOS
-leg (run 31130155911, darwin-arm64), on the first full build that leg had ever
-reached:
-
-    [gjsify foreach] start @gjsify/native-platform (49/160 done, 3 in flight)
-    [gjsify foreach] start @gjsify/npm-registry    (50/160 done, 3 in flight)
-    [@gjsify/native-platform] ERR_MODULE_NOT_FOUND
-      .../npm-registry/lib/esm/_virtual/_rolldown/runtime.js
-      imported from .../npm-registry/lib/esm/auth.js
-
-`auth.js` was already on disk and its rolldown chunk was not — a creation
-window, not a corrupt build.
-
-**Narrowed, not closed.** `build:infra` used to build `@gjsify/{semver,
-npm-registry,tar,workspace}` with `build:types`, which writes `lib/types` and
-NOT the `lib/esm` that their `exports["."].default` names — so the CLI's own
-four runtime dependencies were still absent when the sweep began creating them.
-They now get a full `build`, verified on a cold tree: all four have
-`lib/esm/index.js` AND `lib/esm/_virtual/` before the sweep starts. That is the
-same protection Linux CI gets for free from its restored `lib/` cache, which is
-why a Linux pipeline never saw this — a cold Linux worktree at the same commit
-built all 160 packages green, so the race is real but timing-dependent and
-macOS simply lost it.
-
-What is NOT fixed: a concurrent REWRITE of an existing `lib/` is still a window,
-it is just a much smaller one (every file already exists). The structural fix is
-for `foreach build` to build the CLI's own dependency closure serially before
-starting the parallel sweep, rather than relying on `build:infra` having done
-it. Do that where the scheduler lives, not in a root script.
-
 ### The macOS/Windows cold-tree bootstrap still needs a two-variable bridge in the workflow
 
 `macos-suites.yml` and `windows-suites.yml` bootstrap from the PUBLISHED CLI,
@@ -292,29 +259,34 @@ rules were run against today's tree:
   including `@gjsify/utils -> @gjsify/unit`, because each package's build has its own
   include/exclude globs that neither rule knows.
 
-A gate that cries wolf six times teaches people to silence it. The honest options
-are a rule that reads each package's actual build inputs, or making the order
-DERIVED (`foreach build --with-dependencies -t` over the infra set) instead of
-hand-listed — both more than a red-main fix should carry.
+A gate that cries wolf six times teaches people to silence it.
 
-**How much of the order is even hand-written, and what deriving it would cost.**
-gjsify already has the yarn feature: `gjsify foreach` is a drop-in for `yarn
-workspaces foreach` (`-t/--topological`, `-p`, `-d/--with-dependencies`,
-`--topological-dev`), and the root `build` is `gjsify foreach build -tp`. Everything
-after the bootstrap is therefore ALREADY derived. Only `build:infra` is authored,
-and its first half has to be: `@gjsify/cli` depends on `@gjsify/{semver,
-npm-registry,tar,workspace}`, whose own `build` is `gjsify run build:gjsify && …` —
-i.e. it needs the CLI. The list breaks that at SCRIPT granularity (their
-`build:types` first, riding the committed `tsc.gjs.mjs`; then the CLI; then their
-full build), and a topological sort orders PACKAGES, not halves of one package's
-build.
+**Deriving the tail was tried and does not work — the trade is not a cost, it is a
+failure.** The tail (utils, events, terminal-native, process, assert, runtime, unit)
+carries no CLI cycle and looks derivable, so `gjsify foreach build -t -d` over those
+seven seeds was run on a cold tree at `b4536bc9`, from the same state as the authored
+tail (`build:infra` clauses 1–16, 62 s):
 
-The tail — utils, events, terminal-native, process, assert, runtime, unit — carries
-no such cycle and is fully derivable. Measured: `-t -d` over those seven selects
-**29** packages, because `@gjsify/unit` manifest-depends on dom-elements,
-web-streams and the rest. That is the trade — correct by construction against a
-bootstrap that builds 22 more packages, on a path macOS and Windows run COLD on
-every push. Worth its own PR with the wall-clock delta measured, not guessed.
+- authored tail: **45 s**, exit 0;
+- derived tail: **exit 1 after 8 s** — `@gjsify/canvas2d-core` sorts at index 1 of 43
+  while `@gjsify/unit` sorts at 42, and canvas2d-core's `build:types` compiles nine
+  `*.spec.ts` files that `import … from '@gjsify/unit'`. Nine × `TS2307: Cannot find
+  module '@gjsify/unit'`, `build:types` exit 2. The edge is a devDependency, and
+  `-d`/`-t` walk production deps only, so no ordering over that graph can place unit
+  first.
+- `--topological-dev` is not the answer either: it widens the same closure from 43 to
+  **115** packages and its sort throws — the devDependency graph is cyclic, which is
+  what the flag's own help text warns about.
+
+Note the earlier estimate of **29** selected packages does not reproduce: the same
+selection (`--include` the seven, `-d` production closure, packages declaring a
+`build` script) is **43** at this commit.
+
+So the order stays authored. What is still missing is a gate. The honest remaining
+option is a rule that reads each package's ACTUAL build inputs — the tsconfig
+include/exclude globs its `build:types` compiles, not its manifest — because that is
+the only thing that would have predicted the canvas2d-core failure above, and it is
+the same information the two rejected rules were missing.
 
 ### `process.exit()` under GJS SCHEDULES the exit and RETURNS, so the next line still runs
 

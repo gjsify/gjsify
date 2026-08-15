@@ -131,6 +131,30 @@ export function cliVersion(): string {
 
 /** Nearest ancestor `package.json` whose `name` is `@gjsify/cli`; '' when none. */
 function walkForCliVersion(): string {
+    const dir = cliPackageDir();
+    if (!dir) return '';
+    try {
+        const pkg = JSON.parse(readFileSync(`${dir}/package.json`, 'utf8')) as { version?: unknown };
+        if (typeof pkg.version === 'string') return pkg.version;
+    } catch {
+        /* cliPackageDir() already parsed it once; a race or a permission flip lands here */
+    }
+    return '';
+}
+
+/**
+ * Directory of the RUNNING `@gjsify/cli` package — the nearest ancestor of this
+ * module holding a `package.json` named `@gjsify/cli`; `null` when none.
+ *
+ * The climb, not a fixed `'..'` hop, for the reason {@link cliVersion} states: the
+ * package is dual-entry and the two entries sit at different depths.
+ * `GJSIFY_CLI_PACKAGE_JSON` overrides the starting point, same as for the version.
+ *
+ * Exported because the answer to "where am I installed" is the same question as
+ * "which version am I", and this file is where that climb lives — a second copy
+ * elsewhere is the drift `check-cli-own-version-read.mjs` exists to prevent.
+ */
+export function cliPackageDir(): string | null {
     const override = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process?.env?.[
         'GJSIFY_CLI_PACKAGE_JSON'
     ];
@@ -138,15 +162,12 @@ function walkForCliVersion(): string {
     try {
         dir = override ? dirname(override) : dirname(fileURLToPath(import.meta.url));
     } catch {
-        return '';
+        return null;
     }
     for (let i = 0; i < 12; i++) {
         try {
-            const pkg = JSON.parse(readFileSync(`${dir}/package.json`, 'utf8')) as {
-                name?: unknown;
-                version?: unknown;
-            };
-            if (pkg.name === '@gjsify/cli' && typeof pkg.version === 'string') return pkg.version;
+            const pkg = JSON.parse(readFileSync(`${dir}/package.json`, 'utf8')) as { name?: unknown };
+            if (pkg.name === '@gjsify/cli') return dir;
         } catch {
             /* no manifest here (or unreadable) — keep climbing */
         }
@@ -154,7 +175,7 @@ function walkForCliVersion(): string {
         if (parent === dir) break;
         dir = parent;
     }
-    return '';
+    return null;
 }
 
 /**
