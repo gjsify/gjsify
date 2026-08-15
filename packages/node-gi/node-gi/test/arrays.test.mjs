@@ -14,9 +14,18 @@
 //
 // INOUT containers are NOT covered here. They are covered exhaustively, with
 // exact values, by the tier-B gimarshalling port (`GIMarshallingTests
-// .array_inout`, `.array_inout_etc`, `.method_array_inout`), which node-gi.yml
-// runs on every leg. This file used to call `g_base64_decode_inplace` for that
-// and could not: see the deleted case's replacement note below.
+// .array_inout`, `.array_inout_etc`, `.method_array_inout`). This file used to
+// call `g_base64_decode_inplace` for that and could not: see the deleted case's
+// replacement note below.
+//
+// WHERE that port runs, stated exactly because the first version of this note
+// said "every leg" and node-gi.yml says otherwise: `build-test` (Fedora 44 x64)
+// and `arm64`. Not macOS, not Windows — those legs need the
+// `GIMarshallingTests` typelib, which only the Fedora image carries. Adequate
+// for what is claimed here, because the generic INOUT container path is
+// architecture- and OS-independent marshalling code and the two legs differ in
+// pointer-size-relevant ways; NOT adequate as a general statement about node-gi
+// coverage.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
