@@ -77,34 +77,6 @@ they were deliberately left out of the binding fix rather than bundled into it.
 None of the three is reachable from `postbote`'s index today, which is why the binding fix
 did not wait for them.
 
-### The macOS/Windows cold-tree bootstrap still needs a two-variable bridge in the workflow
-
-`macos-suites.yml` and `windows-suites.yml` bootstrap from the PUBLISHED CLI,
-because ADR 0002 untracked both bundles and a cold tree therefore has no CLI of
-its own. After `install --immutable` the tree DOES have
-`node_modules/.bin/gjsify`, and it dispatches to build outputs that
-`build:infra` is what produces — so the first nested `gjsify` inside that
-compound script dies with `Cannot find module …/packages/infra/cli/lib/index.js`.
-
-Fixed at the core for the NEXT release: `ensureGjsifyShimOnPath()` now also
-covers a bootstrap CLI under Node (not only the node-free GJS case), and
-`detectPackageManager()` returns `gjsify` for it — the second half matters
-because npm re-prepends `node_modules/.bin` for every lifecycle script it
-starts, which puts the dead shim back one level down and undoes the first half.
-Measured on a cold Linux worktree with the build cache cleared: `build:infra`
-exits 0 with the fixed CLI and fails on its first clause without it.
-
-Until that CLI is `latest` on npm the two legs set `GJSIFY_SHIM_DIR` and
-`npm_config_user_agent=gjsify/bootstrap`, the two levers the published 0.30.0
-already honours (`lib/commands/run.js` unshifts the first; `lib/commands/
-workspace.js` reads the second). **RETIREMENT TRIGGER: delete both `env:` blocks
-once `npm view @gjsify/cli version` is >0.30.0** — they are inert from that
-point, not merely redundant, and leaving them hides whether the core fix works.
-
-Linux never needed either lever: its bootstrap runs the published GJS bundle,
-where `detectPackageManager()` already returns `gjsify`. That is also why a
-Linux-only pipeline could not see this — the same shape ADR 0018 § 5 predicts.
-
 ### `pathToFileURL` does not resolve a RELATIVE win32 path against the current drive
 
 Left over from the #1143 fix, which closed the win32 ABSOLUTE paths (drive-letter and

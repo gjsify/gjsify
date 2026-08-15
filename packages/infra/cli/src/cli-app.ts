@@ -101,10 +101,13 @@ function runtimeLabel(): string {
  * exit before any async work runs.
  */
 export async function runCli(argv: readonly string[]): Promise<void> {
-    // Under GJS, make a GJS-runnable `gjsify` available on PATH for child
-    // processes (workspace/foreach orchestration + compound `gjsify run`
-    // scripts) so node-free builds don't fall back to the Node bin. No-op on
-    // Node.
+    // Make a runnable `gjsify` available on PATH for child processes
+    // (workspace/foreach orchestration + compound `gjsify run` scripts). TWO
+    // cases, not one — the "No-op on Node" this comment used to claim stopped
+    // being true when the bootstrap case landed: under GJS, so node-free builds
+    // don't fall back to the Node bin; and a BOOTSTRAP CLI under Node, where the
+    // tree's own `node_modules/.bin/gjsify` dangles until `build:infra` — which
+    // is what a cold macOS/Windows leg runs — has produced what it dispatches to.
     ensureGjsifyShimOnPath();
     const cli = yargs(argv as string[]);
     await cli

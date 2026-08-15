@@ -174,32 +174,21 @@ jobs:
       - name: Install the workspace
         run: node "%RUNNER_TEMP%\bootstrap-cli\node_modules\@gjsify\cli\lib\index.js" install --immutable
 
+      # This step used to carry an `env:` bridge — `GJSIFY_SHIM_DIR` plus
+      # `npm_config_user_agent=gjsify/bootstrap` — pointing PATH at npm's own
+      # `.bin` because `build:infra`'s nested `gjsify` clauses would otherwise
+      # resolve to the tree's not-yet-built shim. The published CLI now does
+      # that itself, and its retirement condition (`latest > 0.30.0`) is met at
+      # 0.39.0 with the fix in the SHIPPED tarball.
+      #
+      # WATCH THIS LEG SPECIFICALLY on the first run without the bridge. Windows
+      # is where the removal is a real test rather than a formality: the bridge
+      # always pointed at npm's shim trio, so the `.cmd`/`.ps1` pair that
+      # `buildLauncherShims` writes has never been exercised by
+      # `%COMSPEC%`/PATHEXT here.
+      # A red here is a CLI bug in `utils/bin-shim.ts`, not a reason to restore
+      # the `env:` block — restoring it would only re-hide the same gap.
       - name: Bootstrap the toolchain
-        env:
-          # THE BOOTSTRAP BRIDGE — both variables retire together the moment a
-          # CLI carrying `usingSelfShim()` (>0.30.0) is `latest` on npm; the CLI
-          # then does this for itself and this `env:` block is deletable.
-          #
-          # `build:infra` is a compound script whose every clause is a nested
-          # `gjsify`, resolved from PATH — where the install above has just put
-          # the tree's OWN `node_modules\.bin\gjsify.cmd`, which dispatches to
-          # the build outputs this step is what produces. Two levers the
-          # published CLI already honours make it reach a CLI that exists:
-          #   GJSIFY_SHIM_DIR       is unshifted ahead of `node_modules\.bin`
-          #                         when the CLI runs a script;
-          #   npm_config_user_agent `gjsify/` makes it run package scripts
-          #                         ITSELF rather than delegating to npm, which
-          #                         re-prepends `node_modules\.bin` for every
-          #                         lifecycle script and would undo the first
-          #                         lever one level down.
-          # Measured against the published 0.30.0 on a cold tree with the build
-          # cache cleared: without them `build:infra` dies on its first clause
-          # with `Cannot find module …\packages\infra\cli\lib\index.js`. That
-          # measurement was taken on LINUX — the mechanism is the package
-          # manager's PATH handling, not the OS — so what this leg adds is the
-          # `.cmd` half: npm's shim trio is what `%COMSPEC%` can actually run.
-          GJSIFY_SHIM_DIR: ${{ runner.temp }}\bootstrap-cli\node_modules\.bin
-          npm_config_user_agent: gjsify/bootstrap
         run: node "%RUNNER_TEMP%\bootstrap-cli\node_modules\@gjsify\cli\lib\index.js" run build:infra
 
       # `test:node` is only `node test.node.mjs` — it BUILDS nothing. The
