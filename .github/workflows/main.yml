@@ -276,6 +276,89 @@ jobs:
               --base "${{ steps.base.outputs.sha }}" \
               --format=github-actions
 
+  # ── Whole-tree checks ───────────────────────────────────────────────
+  # The three claims in this workflow that are about the TREE rather than about
+  # a set of workspaces: lint is clean, the tree is formatted, no dependency
+  # range has drifted. Their own job, on purpose.
+  #
+  # They used to ride `check` and `build`, and each carried a comment saying it
+  # was deliberately whole-repo — but both host jobs are gated on the affected
+  # classifier's `skip-all`, so "whole-repo" only ever meant "whole repo, IF the
+  # classifier found a workspace to build". `skip-all` is an honest answer to a
+  # BUILD question and was answering a TREE question by accident.
+  #
+  # The bill came due in #1183: it touched only classifier-IGNORE paths
+  # (`packages/node-gi/**`), skipped the matrix, and landed unformatted code
+  # behind a green required check — `gate` treats a skipped `check` as a pass.
+  # #1186 reformatted it afterwards; nothing stopped the next one. The IGNORE
+  # list also covers `packages/napi/**` and `website/**`, and neither node-gi.yml
+  # nor napi.yml has any lint or format step, so those trees were reachable the
+  # same way. This is the second instance of the class — the first (#949, #960)
+  # put its red on a stranger's PR, #957.
+  #
+  # NOT `needs: build`. That is the whole point: `build` is skipped exactly when
+  # this job is needed, and `check` additionally requires it to have SUCCEEDED,
+  # so neither could host an ungated step no matter what its `if:` said.
+  #
+  # The CLI here is the PUBLISHED bootstrap (`$GJSIFY_BOOTSTRAP`), not this
+  # commit's — a tree that is installed but not built has no other (ADR 0002).
+  # That is honest for what this job claims, because the CLI only assembles
+  # argv: `gjsify lint` runs the workspace's PINNED oxlint through its Node
+  # launcher, `format --check` the pinned oxfmt, and `upgrade --check` reads the
+  # tree's own package.json files. Whether the CLI's own lint/format commands
+  # still WORK is a different claim, and `tests/e2e/{oxc,oxc-plugin,
+  # lint-gjs-launcher}` in the `e2e` job is what holds it.
+  tree-checks:
+    name: Whole-tree checks
+    needs: [setup]
+    # No classifier gate anywhere in this expression, deliberately. The cost is
+    # one install on a docs-only PR, and it is the price of the claim.
+    if: ${{ always() && needs.setup.result == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 30
+    container:
+      # One Fedora, not the matrix: lint, format and dependency ranges are
+      # properties of the checkout, identical on every leg.
+      image: ghcr.io/gjsify/ci-fedora:${{ fromJSON(needs.setup.outputs.fedora-matrix)[0].v }}
+      options: --ulimit nofile=1048576:1048576
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/gjsify-setup
+        with:
+          fedora-version: ${{ fromJSON(needs.setup.outputs.fedora-matrix)[0].v }}
+          # This job must run when `build` does not, so there is no artifact to
+          # restore — `gjsify-setup` publishes the published bundle instead.
+          bootstrap-bundles: 'false'
+
+      # Gates on ERRORS ONLY, and that is oxlint's own exit semantics, not a
+      # flag: warnings never affect the exit code unless you opt in with
+      # --max-warnings/--deny-warnings, which this deliberately does NOT pass.
+      # The open warnings (mostly consistent-type-imports / no-unused-vars) stay
+      # visible in the log without failing the build.
+      - name: Lint (oxlint, errors only)
+        run: su testuser -c "gjs -m '$GJSIFY_BOOTSTRAP' lint"
+
+      # A formatter with a config and no gate formats nothing. `.oxfmtrc.json`
+      # had been maintained all along while nothing enforced it, and the drift
+      # just accumulated: 388 files were unformatted against the version the
+      # repo itself pinned.
+      - name: Format (oxfmt --check)
+        run: su testuser -c "gjs -m '$GJSIFY_BOOTSTRAP' format --check"
+
+      # Workspace-wide dependency-range drift, incl. the TypeScript version
+      # invariant. `--exclude-workspace '@gjsify/integration-*'` carves out the
+      # integration tests whose pins to specific upstream versions are
+      # intentional. It moved here from `build` with the other two: `website` is
+      # a root workspace member AND a classifier-IGNORE path, so a website-only
+      # dependency bump skipped this check the same way.
+      - name: Check dependency consistency
+        run: >
+          su testuser -c "gjs -m '$GJSIFY_BOOTSTRAP'
+          upgrade --check --exclude-workspace '@gjsify/integration-*'"
+
   # ── Build + type-check + examples ───────────────────────────────────
   # Compiles + type-checks the workspace packages and, when examples are in
   # scope, builds them too (build:examples MUST run right after a full build
@@ -610,14 +693,6 @@ jobs:
         if: ${{ needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || needs.changes.outputs.run-e2e == 'true' || contains(needs.changes.outputs.include-args, '@gjsify/example-') }}
         run: su testuser -c 'node scripts/verify-package-outputs.mjs --scope examples'
 
-      # Workspace-wide dependency-range drift detection. `--exclude-workspace
-      # '@gjsify/integration-*'` carves out integration tests whose pins to
-      # specific upstream versions are intentional.
-      - name: Check dependency consistency
-        run: >
-          su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH"
-          gjsify upgrade --check --exclude-workspace "@gjsify/integration-*"'
-
       # Type-check the examples. UNLIKE the package `check` job (which runs in
       # parallel off the build cache), this MUST stay in the build job: the
       # example type-check resolves workspace deps to their SOURCE (e.g.
@@ -804,32 +879,10 @@ jobs:
             fi
           '"
 
-      # Rides the existing static-analysis job: the workspace + node_modules are
-      # already restored here and oxlint takes seconds, so this costs no new
-      # container. Always the WHOLE repo (never selective) — "lint is clean" is a
-      # repo-wide claim and a per-file run cannot verify it.
-      #
-      # Gates on ERRORS ONLY, and that is oxlint's own exit semantics, not a flag:
-      # warnings never affect the exit code unless you opt in with
-      # --max-warnings/--deny-warnings, which this deliberately does NOT pass. The
-      # 59 open warnings (mostly consistent-type-imports / no-unused-vars) stay
-      # visible in the log without failing the build.
-      - name: Lint (oxlint, errors only)
-        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify lint'
-
-      # A formatter with a config and no gate formats nothing. `.oxfmtrc.json`
-      # has been maintained all along while nothing enforced it, so drift just
-      # accumulated: 388 files were unformatted against the version the repo
-      # itself pinned. Whole-repo like the lint step above, for the same reason
-      # — "the tree is formatted" is a repo-wide claim a per-file run cannot make.
-      #
-      # This is only honest because the engines agree: `gjsify format` picks the
-      # `@gjsify/oxfmt-native` bridge under GJS and the npm binary under Node,
-      # and #894 put both on oxfmt 0.61.0 with the lockstep machine-checked. A
-      # gate across two builds of a pre-1.0 formatter that were free to drift
-      # would fail on which engine happened to run it.
-      - name: Format (oxfmt --check)
-        run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify format --check'
+      # Lint and format used to ride here, because the workspace was already
+      # restored. That is a hosting argument, not a correctness one, and this
+      # job's `if:` made both claims conditional on the classifier — they are in
+      # `tree-checks` now, which nothing gates.
 
   # ── Unit tests (sharded) ────────────────────────────────────────────
   # Restores the build job's output and runs the workspace test suite split
@@ -1362,7 +1415,7 @@ jobs:
   # Never gates. Its output is the step summary, not its exit code.
   ci-summary:
     name: CI coverage summary
-    needs: [setup, changes, build, check, test, cross-runtime, macos, e2e, examples, browser]
+    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, examples, browser]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
@@ -1380,6 +1433,7 @@ jobs:
           EVENT: ${{ github.event_name }}
           R_SETUP: ${{ needs.setup.result }}
           R_CHANGES: ${{ needs.changes.result }}
+          R_TREE: ${{ needs.tree-checks.result }}
           R_BUILD: ${{ needs.build.result }}
           R_CHECK: ${{ needs.check.result }}
           R_TEST: ${{ needs.test.result }}
@@ -1408,6 +1462,7 @@ jobs:
             echo "| --- | --- |"
             printf '| Matrix planner (setup) | `%s` |\n'        "$R_SETUP"
             printf '| Affected classifier (changes) | `%s` |\n' "$R_CHANGES"
+            printf '| Whole-tree checks (lint/format/deps) | `%s` |\n' "$R_TREE"
             printf '| Build + examples | `%s` |\n'              "$R_BUILD"
             printf '| Type-check | `%s` |\n'                    "$R_CHECK"
             printf '| Unit tests (GJS, 4 shards) | `%s` |\n'    "$R_TEST"
@@ -1536,7 +1591,7 @@ jobs:
   # produces a fresh verdict anyway.
   gate:
     name: CI gate (GJS)
-    needs: [setup, changes, build, check, test, cross-runtime, macos, e2e, examples, browser]
+    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, examples, browser]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
@@ -1592,6 +1647,7 @@ jobs:
           RESULTS: |
             setup=${{ needs.setup.result }}
             changes=${{ needs.changes.result }}
+            tree-checks=${{ needs.tree-checks.result }}
             build=${{ needs.build.result }}
             check=${{ needs.check.result }}
             test=${{ needs.test.result }}
