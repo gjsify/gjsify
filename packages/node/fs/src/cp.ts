@@ -5,7 +5,7 @@
 import Gio from '@girs/gio-2.0';
 import { join } from 'node:path';
 import { normalizePath } from './utils.js';
-import { createNodeError } from './errors.js';
+import { createNodeError, requireCallback } from './errors.js';
 
 import type { PathLike } from 'node:fs';
 
@@ -229,7 +229,7 @@ export function cp(
         cb = options;
         opts = {};
     } else {
-        cb = callback!;
+        cb = requireCallback(callback);
         opts = options;
     }
 

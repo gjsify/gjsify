@@ -9,6 +9,7 @@ import { normalizePath } from './utils.js';
 import { isStdFd, readStdFdSync, writeStdFdSync } from './std-fd.js';
 
 import type { PathLike, TimeLike, StatOptions } from 'node:fs';
+import { requireCallback } from './errors.js';
 
 /**
  * The handle behind an fd, named by the syscall asking for it.
@@ -48,7 +49,7 @@ export function fstat(
     optionsOrCb: StatOptions | ((err: NodeJS.ErrnoException | null, stats: Stats | BigIntStats) => void),
     callback?: (err: NodeJS.ErrnoException | null, stats: Stats | BigIntStats) => void,
 ): void {
-    const cb = typeof optionsOrCb === 'function' ? optionsOrCb : callback!;
+    const cb = typeof optionsOrCb === 'function' ? optionsOrCb : requireCallback(callback);
     const options: StatOptions = typeof optionsOrCb === 'function' ? {} : optionsOrCb;
     fstatAsync(fd, options).then(
         (s) => cb(null, s),
@@ -75,7 +76,7 @@ export function ftruncate(
     lenOrCb: number | ((err: NodeJS.ErrnoException | null) => void),
     callback?: (err: NodeJS.ErrnoException | null) => void,
 ): void {
-    const cb = typeof lenOrCb === 'function' ? lenOrCb : callback!;
+    const cb = typeof lenOrCb === 'function' ? lenOrCb : requireCallback(callback);
     const len = typeof lenOrCb === 'function' ? 0 : lenOrCb;
     ftruncateAsync(fd, len).then(() => cb(null), cb);
 }
@@ -90,6 +91,7 @@ export function fdatasyncSync(fd: number): void {
     getFH(fd, 'fdatasync')._flushSync();
 }
 export function fdatasync(fd: number, callback: (err: NodeJS.ErrnoException | null) => void): void {
+    requireCallback(callback);
     Promise.resolve()
         .then(() => fdatasyncSync(fd))
         .then(() => callback(null), callback);
@@ -102,6 +104,7 @@ export function fsyncSync(fd: number): void {
     getFH(fd, 'fsync')._flushSync();
 }
 export function fsync(fd: number, callback: (err: NodeJS.ErrnoException | null) => void): void {
+    requireCallback(callback);
     Promise.resolve()
         .then(() => fsyncSync(fd))
         .then(() => callback(null), callback);
@@ -115,6 +118,7 @@ export function fchmodSync(fd: number, mode: number | string): void {
     chmodSync(getFH(fd, 'fchmod')._fdStatTarget(), mode);
 }
 export function fchmod(fd: number, mode: number | string, callback: (err: NodeJS.ErrnoException | null) => void): void {
+    requireCallback(callback);
     Promise.resolve()
         .then(() => fchmodSync(fd, mode))
         .then(() => callback(null), callback);
@@ -132,6 +136,7 @@ export function fchown(
     gid: number,
     callback: (err: NodeJS.ErrnoException | null) => void,
 ): void {
+    requireCallback(callback);
     Promise.resolve()
         .then(() => fchownSync(fd, uid, gid))
         .then(() => callback(null), callback);
@@ -149,6 +154,7 @@ export function futimes(
     mtime: TimeLike,
     callback: (err: NodeJS.ErrnoException | null) => void,
 ): void {
+    requireCallback(callback);
     Promise.resolve()
         .then(() => futimesSync(fd, atime, mtime))
         .then(() => callback(null), callback);
@@ -262,7 +268,7 @@ export function readv(
         | ((err: NodeJS.ErrnoException | null, bytesRead: number, buffers: NodeJS.ArrayBufferView[]) => void),
     callback?: (err: NodeJS.ErrnoException | null, bytesRead: number, buffers: NodeJS.ArrayBufferView[]) => void,
 ): void {
-    const cb = typeof positionOrCb === 'function' ? positionOrCb : callback!;
+    const cb = typeof positionOrCb === 'function' ? positionOrCb : requireCallback(callback);
     const position = typeof positionOrCb === 'function' ? null : positionOrCb;
     readvAsync(fd, buffers, position).then(
         (r) => cb(null, r.bytesRead, r.buffers),
@@ -303,7 +309,7 @@ export function writev(
         | ((err: NodeJS.ErrnoException | null, bytesWritten: number, buffers: NodeJS.ArrayBufferView[]) => void),
     callback?: (err: NodeJS.ErrnoException | null, bytesWritten: number, buffers: NodeJS.ArrayBufferView[]) => void,
 ): void {
-    const cb = typeof positionOrCb === 'function' ? positionOrCb : callback!;
+    const cb = typeof positionOrCb === 'function' ? positionOrCb : requireCallback(callback);
     const position = typeof positionOrCb === 'function' ? null : positionOrCb;
     writevAsync(fd, buffers, position).then(
         (r) => cb(null, r.bytesWritten, r.buffers),
@@ -316,6 +322,7 @@ export async function writevAsync(fd: number, buffers: NodeJS.ArrayBufferView[],
 }
 
 export function exists(path: PathLike, callback: (exists: boolean) => void): void {
+    requireCallback(callback);
     try {
         statSync(normalizePath(path));
         callback(true);

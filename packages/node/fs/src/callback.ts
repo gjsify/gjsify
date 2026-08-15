@@ -14,11 +14,13 @@ import type {
     RmOptions,
     RmDirOptions,
     MakeDirectoryOptions,
+    EncodingOption,
+    BufferEncodingOption,
 } from 'node:fs';
 import { FileHandle } from './file-handle.js';
 import { Buffer } from 'node:buffer';
 import { Stats, BigIntStats, STAT_ATTRIBUTES, statsFrom } from './stats.js';
-import { createNodeError } from './errors.js';
+import { createNodeError, requireCallback } from './errors.js';
 import {
     realpathSync,
     readdirSync,
@@ -32,6 +34,7 @@ import {
     chownSync,
     linkSync,
     mkdirSync,
+    mkdtempSync,
     rmdirSync,
     readFileSync,
     writeFileSync,
@@ -77,7 +80,7 @@ function parseOptsCb(
 ): { options: Record<string, unknown>; callback: Function } {
     return typeof optionsOrCallback === 'function'
         ? { options: {}, callback: optionsOrCallback }
-        : { options: (optionsOrCallback ?? {}) as Record<string, unknown>, callback: maybeCallback! };
+        : { options: (optionsOrCallback ?? {}) as Record<string, unknown>, callback: requireCallback(maybeCallback) };
 }
 
 function statImpl(
@@ -189,7 +192,8 @@ export function symlink(
     typeOrCallback: string | null | NoParamCallback,
     maybeCallback?: NoParamCallback,
 ): void {
-    const callback: NoParamCallback = typeof typeOrCallback === 'function' ? typeOrCallback : maybeCallback!;
+    const callback: NoParamCallback =
+        typeof typeOrCallback === 'function' ? typeOrCallback : requireCallback(maybeCallback);
     if (typeof callback !== 'function') {
         throw new TypeError('Callback must be a function. Received ' + typeof callback);
     }
@@ -255,25 +259,29 @@ export function open(path: PathLike, callback: OpenCallback): void;
 export function open(path: PathLike, ...args: (OpenMode | Mode | OpenCallback | undefined | null)[]): void {
     let flags: OpenMode | undefined;
     let mode: Mode | undefined | null;
-    let callback: OpenCallback;
+    // `| undefined`, and validated after the switch rather than asserted: the
+    // `default` arm below leaves it unassigned for `fs.open(path)`, and a
+    // definite-assignment `!` there would put the class straight back.
+    let maybeCallback: OpenCallback | undefined;
 
     switch (args.length) {
         case 1:
-            callback = args[0] as OpenCallback;
+            maybeCallback = args[0] as OpenCallback;
             break;
         case 2:
             flags = args[0] as OpenMode | undefined;
-            callback = args[1] as OpenCallback;
+            maybeCallback = args[1] as OpenCallback;
             break;
         case 3:
             flags = args[0] as OpenMode | undefined;
             mode = args[1] as Mode | undefined | null;
-            callback = args[2] as OpenCallback;
+            maybeCallback = args[2] as OpenCallback;
             break;
         default:
             break;
     }
 
+    const callback = requireCallback(maybeCallback);
     openP(path, flags as OpenFlags | number | undefined, mode)
         .then((fileHandle) => {
             callback(null, fileHandle.fd);
@@ -386,9 +394,15 @@ export function write<TBuffer extends NodeJS.ArrayBufferView>(
     data: string | TBuffer,
     ...args: (number | string | BufferEncoding | WriteStrCallback | WriteBufCallback | undefined | null)[]
 ): void {
+    // Before `withHandle`, which can already invoke the error path: Node validates
+    // the callback first, and both branches below read it off the same slot.
+    requireCallback(args[args.length - 1]);
     const fileHandle = withHandle(fd, 'write', (err) => {
+        // No `typeof cb !== 'function'` guard: `requireCallback` above has already
+        // thrown if it were not one, so the probe could only ever be false — the
+        // "paranoid probes for what the workspace guarantees" anti-pattern, which
+        // hides a real bug as a silent no-call.
         const cb = args[args.length - 1];
-        if (typeof cb !== 'function') return;
         if (typeof data === 'string') (cb as WriteStrCallback)(err, 0, '');
         else (cb as WriteBufCallback)(err, 0, Buffer.from([]) as unknown as TBuffer);
     });
@@ -509,7 +523,7 @@ export function read<TBuffer extends NodeJS.ArrayBufferView>(
 export function read(fd: number, callback: ReadCallback): void;
 
 export function read(fd: number, ...args: unknown[]): void {
-    const callback: ReadCallback = args[args.length - 1] as ReadCallback;
+    const callback: ReadCallback = requireCallback(args[args.length - 1] as ReadCallback);
 
     const fileHandle = withHandle(fd, 'read', (err) => {
         if (typeof callback === 'function') callback(err, 0, Buffer.from([]));
@@ -604,6 +618,7 @@ export function rm(path: PathLike, ...args: (RmOptions | NoParamCallback)[]): vo
 }
 
 export function rename(oldPath: PathLike, newPath: PathLike, callback: NoParamCallback): void {
+    requireCallback(callback);
     Promise.resolve().then(() => {
         try {
             renameSync(oldPath, newPath);
@@ -623,7 +638,7 @@ export function copyFile(
     maybeCb?: NoParamCallback,
 ): void {
     const mode = typeof modeOrCb === 'function' ? 0 : modeOrCb;
-    const callback = typeof modeOrCb === 'function' ? modeOrCb : maybeCb!;
+    const callback = typeof modeOrCb === 'function' ? modeOrCb : requireCallback(maybeCb);
     Promise.resolve().then(() => {
         try {
             copyFileSync(src, dest, mode);
@@ -638,7 +653,7 @@ export function access(path: PathLike, callback: NoParamCallback): void;
 export function access(path: PathLike, mode: number, callback: NoParamCallback): void;
 export function access(path: PathLike, modeOrCb: number | NoParamCallback, maybeCb?: NoParamCallback): void {
     const mode = typeof modeOrCb === 'function' ? undefined : modeOrCb;
-    const callback = typeof modeOrCb === 'function' ? modeOrCb : maybeCb!;
+    const callback = typeof modeOrCb === 'function' ? modeOrCb : requireCallback(maybeCb);
     Promise.resolve().then(() => {
         try {
             accessSync(path, mode);
@@ -662,7 +677,7 @@ export function appendFile(
     optsOrCb: { encoding?: string; mode?: number; flag?: string } | string | NoParamCallback,
     maybeCb?: NoParamCallback,
 ): void {
-    const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
+    const callback = typeof optsOrCb === 'function' ? optsOrCb : requireCallback(maybeCb);
     const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
     Promise.resolve().then(() => {
         try {
@@ -691,7 +706,7 @@ export function readlink(
         | ((err: NodeJS.ErrnoException | null, linkString: string | Buffer) => void),
     maybeCb?: (err: NodeJS.ErrnoException | null, linkString: string | Buffer) => void,
 ): void {
-    const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
+    const callback = typeof optsOrCb === 'function' ? optsOrCb : requireCallback(maybeCb);
     const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
     Promise.resolve().then(() => {
         try {
@@ -706,7 +721,7 @@ export function truncate(path: PathLike, callback: NoParamCallback): void;
 export function truncate(path: PathLike, len: number, callback: NoParamCallback): void;
 export function truncate(path: PathLike, lenOrCb: number | NoParamCallback, maybeCb?: NoParamCallback): void {
     const len = typeof lenOrCb === 'function' ? 0 : lenOrCb;
-    const callback = typeof lenOrCb === 'function' ? lenOrCb : maybeCb!;
+    const callback = typeof lenOrCb === 'function' ? lenOrCb : requireCallback(maybeCb);
     Promise.resolve().then(() => {
         try {
             truncateSync(path, len);
@@ -718,6 +733,7 @@ export function truncate(path: PathLike, lenOrCb: number | NoParamCallback, mayb
 }
 
 export function chmod(path: PathLike, mode: Mode, callback: NoParamCallback): void {
+    requireCallback(callback);
     Promise.resolve().then(() => {
         try {
             chmodSync(path, mode);
@@ -729,6 +745,7 @@ export function chmod(path: PathLike, mode: Mode, callback: NoParamCallback): vo
 }
 
 export function chown(path: PathLike, uid: number, gid: number, callback: NoParamCallback): void {
+    requireCallback(callback);
     Promise.resolve().then(() => {
         try {
             chownSync(path, uid, gid);
@@ -746,7 +763,7 @@ export function mkdir(
     optsOrCb: MakeDirectoryOptions | Mode | NoParamCallback,
     maybeCb?: NoParamCallback,
 ): void {
-    const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
+    const callback = typeof optsOrCb === 'function' ? optsOrCb : requireCallback(maybeCb);
     const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
     Promise.resolve().then(() => {
         try {
@@ -758,10 +775,60 @@ export function mkdir(
     });
 }
 
+/**
+ * `fs.mkdtemp(prefix[, options], callback)`.
+ *
+ * It was missing entirely — only `mkdtempSync` and `fsPromises.mkdtemp` existed —
+ * so `fs.mkdtemp(prefix, cb)` was a `TypeError` at the call. The bundler had been
+ * saying so out loud on every build that imported it:
+ *
+ *   IMPORT_IS_UNDEFINED: Import 'mkdtemp' will always be undefined because there
+ *   is no matching export in 'lib/esm/index.js'
+ *
+ * Nothing new is implemented here. `mkdtempAt()` is the shared body — the atomic
+ * `mkdir(2)`-retry loop with its 0700 ceiling — and `mkdtempSync` already wraps it
+ * with the encoding decision, so this wraps that. A second copy of the loop is how
+ * the private-scratch-space mode would eventually drift on one path only.
+ */
+export function mkdtemp(prefix: string, callback: (err: NodeJS.ErrnoException | null, folder: string) => void): void;
+export function mkdtemp(
+    prefix: string,
+    options: EncodingOption,
+    callback: (err: NodeJS.ErrnoException | null, folder: string) => void,
+): void;
+export function mkdtemp(
+    prefix: string,
+    options: BufferEncodingOption,
+    callback: (err: NodeJS.ErrnoException | null, folder: Buffer) => void,
+): void;
+export function mkdtemp(
+    prefix: string,
+    optsOrCb: EncodingOption | BufferEncodingOption | ((err: NodeJS.ErrnoException | null, folder: never) => void),
+    maybeCb?: (err: NodeJS.ErrnoException | null, folder: never) => void,
+): void {
+    const callback = typeof optsOrCb === 'function' ? optsOrCb : requireCallback(maybeCb);
+    const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
+    Promise.resolve().then(() => {
+        // The callback is invoked OUTSIDE the try. Every sibling in this file calls
+        // it inside one, so a callback that throws is re-entered with its own
+        // exception as the `err` argument — a second invocation the caller never
+        // asked for. Not fixed for the siblings here; recorded in
+        // `status/open-todos.md` with the reproduction.
+        let made: string | Buffer;
+        try {
+            made = mkdtempSync(prefix, options as EncodingOption);
+        } catch (err: unknown) {
+            callback(err as NodeJS.ErrnoException, undefined as never);
+            return;
+        }
+        callback(null, made as never);
+    });
+}
+
 export function rmdir(path: PathLike, callback: NoParamCallback): void;
 export function rmdir(path: PathLike, options: RmDirOptions, callback: NoParamCallback): void;
 export function rmdir(path: PathLike, optsOrCb: RmDirOptions | NoParamCallback, maybeCb?: NoParamCallback): void {
-    const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
+    const callback = typeof optsOrCb === 'function' ? optsOrCb : requireCallback(maybeCb);
     const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
     Promise.resolve().then(() => {
         try {
@@ -787,7 +854,7 @@ export function readFile(
         | ((err: NodeJS.ErrnoException | null, data: Buffer) => void),
     maybeCb?: (err: NodeJS.ErrnoException | null, data: string | Buffer | null) => void,
 ): void {
-    const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
+    const callback = typeof optsOrCb === 'function' ? optsOrCb : requireCallback(maybeCb);
     const options = typeof optsOrCb === 'function' ? undefined : optsOrCb;
     Promise.resolve().then(() => {
         try {
@@ -822,7 +889,7 @@ export function writeFile(
     optsOrCb: { encoding?: string; mode?: number; flag?: string } | string | NoParamCallback,
     maybeCb?: NoParamCallback,
 ): void {
-    const callback = typeof optsOrCb === 'function' ? optsOrCb : maybeCb!;
+    const callback = typeof optsOrCb === 'function' ? optsOrCb : requireCallback(maybeCb);
     // `options` used to be located only to find the callback behind it, and
     // then DROPPED — the body was `writeFileSync(pathStr, data)`, two
     // arguments. So the most idiomatic async spelling silently lost every one
@@ -848,6 +915,7 @@ export function writeFile(
 }
 
 export function link(existingPath: PathLike, newPath: PathLike, callback: NoParamCallback): void {
+    requireCallback(callback);
     // Delegate to linkSync — the canonical impl (argv-array spawn, Node
     // ENOENT/EEXIST semantics). The former inline copy shelled out with
     // unquoted paths (broken on spaces, command-injection hazard).
@@ -862,6 +930,7 @@ export function link(existingPath: PathLike, newPath: PathLike, callback: NoPara
 }
 
 export function unlink(path: PathLike, callback: NoParamCallback): void {
+    requireCallback(callback);
     const pathStr = normalizePath(path);
     Promise.resolve().then(() => {
         // GLib.unlink has no throw path (no `throws` in the GIR) — it reports

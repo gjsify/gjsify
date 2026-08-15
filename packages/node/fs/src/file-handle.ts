@@ -6,6 +6,7 @@ import { WriteStream } from './write-stream.js';
 import { Stats, BigIntStats, STAT_ATTRIBUTES, statsFrom } from './stats.js';
 import { getEncodingFromOptions, encodeUint8Array } from './encoding.js';
 import { normalizePath } from './utils.js';
+import { invalidState } from './errors.js';
 import { chmodSync, chownSync } from './sync.js';
 import { parseOpenFlags, normalizeMode, type OpenSpec } from './posix-flags.js';
 import {
@@ -64,6 +65,10 @@ export class FileHandle implements IFileHandle {
      */
     private _pos = 0;
     private _closed = false;
+    /** `readableWebStream()` takes this on the CALL, and never releases it — Node's
+     *  handle lock is per-handle, not per-stream, so a second call throws even after
+     *  the first stream has ended. Measured. */
+    private _webStreamLocked = false;
 
     /** Not part of the default implementation, used internal by gjsify */
     private static instances: { [fd: number]: FileHandle } = {};
@@ -349,14 +354,41 @@ export class FileHandle implements IFileHandle {
         return { bytesRead, buffer: buffer as T };
     }
     /**
-     * INCOMPLETE. Node returns a `ReadableStream` over the file's bytes and throws
-     * on a second call or a closed handle; this returns a SOURCELESS stream that
-     * yields nothing, and enforces neither rule. Reading the file needs a source
-     * wired to `_readCore` — until then prefer `createReadStream()`.
+     * `filehandle.readableWebStream()` — a `ReadableStream` over the file's bytes.
      *
-     * Node also never closes the handle for you: user code still calls `close()`.
+     * It used to return `new Ctor()`: a stream with NO underlying source, so
+     * `for await (const chunk of fh.readableWebStream())` never settled. A hang is
+     * the worst shape a missing feature can take — no error, no stack, no timeout —
+     * which is why this is implemented rather than made to throw.
+     *
+     * Every rule below is MEASURED against node v24.15.0 rather than read off the
+     * docs:
+     *
+     *   - it streams from the handle's CURRENT position, not from byte 0. After
+     *     `await fh.read(Buffer.alloc(6), 0, 6, null)` on "hello world", Node's
+     *     stream yields "world". `_readCore(…, null)` is the cursor-relative read,
+     *     which is what makes that true here too.
+     *   - a SECOND call throws `ERR_INVALID_STATE` — "Invalid state: The FileHandle
+     *     is locked". The lock is taken by the CALL, not by the first read.
+     *   - on a CLOSED handle it throws `ERR_INVALID_STATE` — "…is closed" — and NOT
+     *     the `EBADF` that `_assertOpen` raises, so this tests `_closed` itself
+     *     rather than routing through it.
+     *   - the handle is NOT closed when the stream ends; user code still calls
+     *     `close()`.
+     *
+     * A BYTE stream (`type: 'bytes'`), because Node's is — measured, after the first
+     * version of this comment asserted the opposite and built a default stream:
+     * `fh.readableWebStream().getReader({ mode: 'byob' })` returns a
+     * `ReadableStreamBYOBReader` on v24.15.0 and reads into the caller's buffer. A
+     * default stream rejects that reader, so getting this backwards would have
+     * introduced a divergence inside the change that exists to remove them.
+     *
+     * The BYOB path also removes the 64 KiB allocation per pull whenever the consumer
+     * brings its own view.
      */
     readableWebStream(): ReadableStream {
+        if (this._closed) throw invalidState('The FileHandle is closed');
+        if (this._webStreamLocked) throw invalidState('The FileHandle is locked');
         // Resolved from globalThis, not imported: keeps the WHATWG streams
         // implementation out of the bundle when this method is unused.
         const Ctor = (globalThis as { ReadableStream?: typeof globalThis.ReadableStream }).ReadableStream;
@@ -365,7 +397,49 @@ export class FileHandle implements IFileHandle {
                 'readableWebStream() requires a global ReadableStream. Import "node:stream/web" or "@gjsify/web-streams/register" before calling this method.',
             );
         }
-        return new Ctor() as unknown as ReadableStream;
+        this._webStreamLocked = true;
+        return new Ctor({
+            type: 'bytes',
+            // An ARROW, so `this` stays the handle — a method shorthand here would
+            // bind it to the underlying-source object and need a `this` alias.
+            pull: (controller: ReadableByteStreamController) => {
+                // A handle closed MID-STREAM ends the stream cleanly rather than
+                // erroring it: measured, Node's next `read()` resolves `{done:true}`.
+                // Erroring here would make an ordinary `close()` during iteration throw
+                // at the consumer.
+                if (this._closed) {
+                    controller.close();
+                    // A byte stream with an outstanding BYOB request must answer it
+                    // before close, or the reader's promise never settles.
+                    controller.byobRequest?.respond(0);
+                    return;
+                }
+                // ONE chunk per pull, not `_readToEnd()`: a slow consumer must not
+                // force the whole file into memory, which is the reason to reach for
+                // this over `readFile()` in the first place.
+                const view = controller.byobRequest?.view;
+                const buf = view
+                    ? new Uint8Array(view.buffer, view.byteOffset, view.byteLength)
+                    : new Uint8Array(64 * 1024);
+                let read: number;
+                try {
+                    read = this._readCore(buf, 0, buf.length, null);
+                } catch (err: unknown) {
+                    controller.error(err);
+                    return;
+                }
+                if (read === 0) {
+                    controller.close();
+                    controller.byobRequest?.respond(0);
+                    return;
+                }
+                if (controller.byobRequest) {
+                    controller.byobRequest.respond(read);
+                    return;
+                }
+                controller.enqueue(buf.subarray(0, read));
+            },
+        }) as unknown as ReadableStream;
     }
     /**
      * Read from the CURRENT position to EOF — not from the beginning, so earlier

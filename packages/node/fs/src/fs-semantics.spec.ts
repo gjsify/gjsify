@@ -67,6 +67,11 @@ import {
     chmod as fsChmod,
     accessSync,
     constants as fsConstants,
+    copyFileSync,
+    mkdtemp,
+    fstat,
+    opendir,
+    watchFile,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
@@ -2580,6 +2585,340 @@ export default async () => {
                 fsClose(fd);
                 await new Promise<void>((resolve) => setTimeout(resolve, 50));
                 expectCode(() => readSync(fd, Buffer.alloc(1), 0, 1, null), 'EBADF');
+            } finally {
+                drop(dir);
+            }
+        });
+    });
+
+    await describe('fs — the four divergences #1046 measured', async () => {
+        await it.failing(
+            'K-18 copyFile leaves what the kernel leaves after a write',
+            async () => {
+                // `Gio.File.copy` reproduces the source mode WHOLE. Node's `copyFile`
+                // does not, and the gap is a privilege-escalation shape: a setuid
+                // binary copied into a writable directory arrived still setuid.
+                //
+                // NODE MASKS NOTHING, and two versions of this rule got that wrong in
+                // opposite ways. libuv `fchmod`s the SOURCE mode onto the destination
+                // and then writes the bytes; what removes the bits is the KERNEL, on
+                // that write. So there is no constant to assert — there is a kernel
+                // behaviour to agree with, and it is not the same kernel everywhere:
+                //
+                //   Linux  `should_remove_suid()`: S_ISUID on any write, S_ISGID only
+                //          when S_IXGRP is set, so 2644 SURVIVES.
+                //   darwin XNU drops it there too — measured, 2644 -> 0644, which is
+                //          what reddened both macOS legs on a transcribed table.
+                //
+                // So the expected value is DERIVED on the host: create a file, chmod
+                // it to the source mode, write the same number of bytes through a
+                // descriptor, and read the mode back. That is the same fchmod-then-
+                // write libuv performs, so whatever this kernel does to those bits is
+                // what `copyFile` has to end up with. Nothing here is transcribed, and
+                // the rule cannot go stale on a kernel nobody has run it on yet.
+                //
+                // NOT the same instrument as the thing under test: the oracle uses
+                // chmod + write, `copyFileSync` is a different call. (A broken chmod
+                // or write would already have reddened a dozen rules above.)
+                const dir = scratch('r18');
+                try {
+                    const modeOf = (path: string): number => (statSync(path).mode & 0o7777) as number;
+
+                    /** What this kernel leaves after `fchmod(mode)` + a write of `content`. */
+                    const afterKernelWrite = (tag: string, mode: number, content: string): number => {
+                        const probe = join(dir, `probe-${tag}`);
+                        writeFileSync(probe, '');
+                        chmodSync(probe, mode);
+                        if (content.length > 0) {
+                            const fd = openSync(probe, 'r+');
+                            try {
+                                writeSync(fd, Buffer.from(content), 0, content.length, null);
+                            } finally {
+                                closeSync(fd);
+                            }
+                        }
+                        return modeOf(probe);
+                    };
+
+                    // Every shape a plausible implementation gets wrong. CONTENT LENGTH
+                    // is part of the case: a zero-length source is never written, so
+                    // nothing is stripped — the first version of this rule wrote 'x'
+                    // everywhere and used only x755 modes, which is exactly the shape
+                    // that can see neither that nor the S_IXGRP condition.
+                    const cases: Array<[number, string]> = [
+                        [0o4755, 'x'],
+                        [0o2755, 'x'],
+                        [0o1755, 'x'],
+                        [0o7755, 'x'],
+                        [0o2644, 'x'],
+                        [0o2744, 'x'],
+                        [0o2614, 'x'],
+                        [0o6644, 'x'],
+                        [0o4755, ''],
+                        [0o7755, ''],
+                    ];
+                    for (const [srcMode, content] of cases) {
+                        const tag = `${srcMode.toString(8)}-${content.length}`;
+                        const src = join(dir, `s${tag}`);
+                        const dst = join(dir, `d${tag}`);
+                        writeFileSync(src, content);
+                        chmodSync(src, srcMode);
+                        // The precondition, asserted rather than assumed: on a host that
+                        // cannot express the bits there is nothing for the copy to drop,
+                        // and the rule would pass for the wrong reason.
+                        expect(modeOf(src)).toBe(srcMode);
+                        copyFileSync(src, dst);
+                        expect(modeOf(dst)).toBe(afterKernelWrite(tag, srcMode, content));
+                    }
+
+                    // Two invariants stated OUTRIGHT, so the rule still says something
+                    // if the oracle above ever degenerates to "whatever happened".
+                    const setuid = join(dir, 'inv-setuid');
+                    writeFileSync(setuid, 'payload');
+                    chmodSync(setuid, 0o4755);
+                    copyFileSync(setuid, join(dir, 'inv-setuid-copy'));
+                    // The security shape: a copied, non-empty setuid binary is not setuid.
+                    expect(modeOf(join(dir, 'inv-setuid-copy')) & 0o4000).toBe(0);
+
+                    const sticky = join(dir, 'inv-sticky');
+                    writeFileSync(sticky, 'payload');
+                    chmodSync(sticky, 0o1755);
+                    copyFileSync(sticky, join(dir, 'inv-sticky-copy'));
+                    // Sticky is not a privilege bit and no kernel strips it here.
+                    expect(modeOf(join(dir, 'inv-sticky-copy')) & 0o1000).toBe(0o1000);
+
+                    // The umask does NOT apply (measured: src 0666 under umask 0027
+                    // still lands 0666), and neither does a pre-existing destination's
+                    // mode — the copy overwrites it with the source's.
+                    const plain = join(dir, 'plain');
+                    const onto = join(dir, 'onto');
+                    writeFileSync(plain, 'x');
+                    chmodSync(plain, 0o644);
+                    writeFileSync(onto, 'older-and-longer');
+                    chmodSync(onto, 0o600);
+                    copyFileSync(plain, onto);
+                    expect(modeOf(onto)).toBe(0o644);
+                } finally {
+                    drop(dir);
+                }
+            },
+            // The gate is CAN_EXPRESS_POSIX_MODE, and the obvious choice was wrong.
+            // CREATE_KEEPS_SPECIAL_BITS was tried first — it is keyed on linux because
+            // BSD's open(2) masks the create mode — and the darwin legs went red for
+            // PASSING: `it.failing` retires itself, which is exactly what it is for.
+            // The distinction it draws is about the CREATE mode, and this rule never
+            // creates with the bits; it sets them with chmod(2), which darwin honours.
+            // win32 is the only leg where the SETUP cannot produce a setuid source at
+            // all (NTFS, where Node synthesizes 0o666/0o444).
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
+        );
+
+        await it('K-19 fs.mkdtemp exists in the callback form', async () => {
+            // It did not: only `mkdtempSync` and `fsPromises.mkdtemp` were exported, so
+            // `fs.mkdtemp(prefix, cb)` was a TypeError at the call. The bundler had been
+            // saying so on every build that imported it — IMPORT_IS_UNDEFINED — which is
+            // a warning, not a gate, so nothing went red.
+            const dir = scratch('r18');
+            try {
+                const made = await new Promise<string>((resolve, reject) => {
+                    mkdtemp(join(dir, 'p-'), (err, folder) => (err ? reject(err) : resolve(folder)));
+                });
+                expect(basename(made).startsWith('p-')).toBe(true);
+                expect(statSync(made).isDirectory()).toBe(true);
+                // Same body as the sync form, so the 0700 ceiling holds here too rather
+                // than being a second implementation that can drift to 0777.
+                expect(existsSync(made)).toBe(true);
+                // Two calls must not collide.
+                const again = await new Promise<string>((resolve, reject) => {
+                    mkdtemp(join(dir, 'p-'), (err, folder) => (err ? reject(err) : resolve(folder)));
+                });
+                expect(again).not.toBe(made);
+                // `encoding: 'buffer'` is NOT a TextDecoder label. The shared body
+                // routed it through `decode()`, which constructed
+                // `new TextDecoder('buffer')` and threw — so the overload existed
+                // and could not work, leaving a created directory behind.
+                const asBuffer = await new Promise<Buffer>((resolve, reject) => {
+                    mkdtemp(join(dir, 'b-'), { encoding: 'buffer' }, (err, folder) =>
+                        err ? reject(err) : resolve(folder),
+                    );
+                });
+                expect(Buffer.isBuffer(asBuffer)).toBe(true);
+                expect(statSync(asBuffer.toString()).isDirectory()).toBe(true);
+                // A throwing user callback must not be re-entered with its own
+                // exception as `err` — the success call has to sit OUTSIDE the try.
+                // The GJS leg prints an "Unhandled promise rejection" warning for the
+                // throw below; that is the point of the test, not noise to silence.
+                let calls = 0;
+                await new Promise<void>((resolve) => {
+                    mkdtemp(join(dir, 't-'), () => {
+                        calls++;
+                        setTimeout(resolve, 20);
+                        throw new Error('from the callback');
+                    });
+                });
+                expect(calls).toBe(1);
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('K-20 a callback-form entry point rejects a missing callback', async () => {
+            // The counterpart to K-16. Seventeen entry points took `callback!` — a
+            // non-null assertion that silences the only type the compiler had — and then
+            // called it inside a promise chain, so a missing callback became
+            // `callback is not a function` as an UNHANDLED REJECTION. GJS has no host
+            // hook for that event, so on the leg that matters the runner never saw it.
+            //
+            // Measured on node v24.15.0: all seventeen throw ERR_INVALID_ARG_TYPE
+            // SYNCHRONOUSLY. `fs.close(fd)` and `ws.close()` are the two that genuinely
+            // are optional; K-16 pins those, and they must not be routed through the
+            // same helper.
+            const dir = scratch('r19');
+            try {
+                const f = join(dir, 'f');
+                writeFileSync(f, 'x');
+                const fd = openSync(f, 'r+');
+                try {
+                    // One per shape: an fd op, a path op, an options-taking op and the
+                    // one whose message names a different argument.
+                    expectCode(() => (fstat as unknown as (fd: number) => void)(fd), 'ERR_INVALID_ARG_TYPE');
+                    expectCode(
+                        () => (fsChmod as unknown as (p: string, m: number) => void)(f, 0o644),
+                        'ERR_INVALID_ARG_TYPE',
+                    );
+                    expectCode(() => (fsReadFile as unknown as (p: string) => void)(f), 'ERR_INVALID_ARG_TYPE');
+                    expectCode(() => (opendir as unknown as (p: string) => void)(dir), 'ERR_INVALID_ARG_TYPE');
+                    // Node's message names "cb" everywhere except `opendir`, which says
+                    // "callback". A single hardcoded name would be wrong on one of them.
+                    let opendirMessage = '';
+                    try {
+                        (opendir as unknown as (p: string) => void)(dir);
+                    } catch (err: unknown) {
+                        opendirMessage = (err as Error).message;
+                    }
+                    expect(opendirMessage.includes('"callback"')).toBe(true);
+                    let fstatMessage = '';
+                    try {
+                        (fstat as unknown as (fd: number) => void)(fd);
+                    } catch (err: unknown) {
+                        fstatMessage = (err as Error).message;
+                    }
+                    expect(fstatMessage.includes('"cb"')).toBe(true);
+                    // A non-function is rejected too, not just an absent one.
+                    expectCode(
+                        () => (fsChmod as unknown as (p: string, m: number, c: unknown) => void)(f, 0o644, 42),
+                        'ERR_INVALID_ARG_TYPE',
+                    );
+                    // `watchFile` names its argument a third way again.
+                    let watchMessage = '';
+                    try {
+                        (watchFile as unknown as (p: string) => void)(f);
+                    } catch (err: unknown) {
+                        watchMessage = (err as Error).message;
+                    }
+                    expect(watchMessage.includes('"listener"')).toBe(true);
+                    // The `Received …` clause, on the shapes worth reproducing. The
+                    // bigint suffix and the quote SWAP (Node does not escape) are the
+                    // two a hand-written renderer gets wrong.
+                    const received = (value: unknown): string => {
+                        try {
+                            (fsChmod as unknown as (p: string, m: number, c: unknown) => void)(f, 0o644, value);
+                        } catch (err: unknown) {
+                            return (err as Error).message.replace(
+                                'The "cb" argument must be of type function. Received ',
+                                '',
+                            );
+                        }
+                        return '<no throw>';
+                    };
+                    expect(received(10n)).toBe('type bigint (10n)');
+                    expect(received("it's")).toBe(`type string ("it's")`);
+                    expect(received('y'.repeat(40))).toBe(`type string ('${'y'.repeat(25)}...')`);
+                    expect(received(new Map())).toBe('an instance of Map');
+                } finally {
+                    closeSync(fd);
+                }
+            } finally {
+                drop(dir);
+            }
+        });
+
+        await it('K-21 readableWebStream streams from the cursor, and locks the handle', async () => {
+            // It used to return `new ReadableStream()` — no underlying source, so
+            // `for await (const chunk of fh.readableWebStream())` never settled. A hang
+            // is the worst shape a missing feature can take: no error, no stack, no
+            // timeout, and a consumer that looks like it is working.
+            //
+            // Every expectation is measured on node v24.15.0, including the one that is
+            // easy to get backwards: the stream starts at the handle's CURRENT position,
+            // not at byte 0.
+            const dir = scratch('r20');
+            try {
+                const f = join(dir, 'f');
+                writeFileSync(f, 'hello world');
+
+                const handle = await fsPromises.open(f, 'r');
+                let text = '';
+                try {
+                    await handle.read(Buffer.alloc(6), 0, 6, null);
+                    const stream = handle.readableWebStream();
+                    const reader = (
+                        stream as unknown as { getReader(): { read(): Promise<{ done: boolean; value?: Uint8Array }> } }
+                    ).getReader();
+                    for (;;) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        if (value) text += Buffer.from(value).toString();
+                    }
+                    // Six bytes were already consumed, so the stream yields the rest.
+                    expect(text).toBe('world');
+                    // A SECOND call throws — the lock is taken by the call, and is not
+                    // released when the stream ends.
+                    expectCode(() => handle.readableWebStream(), 'ERR_INVALID_STATE');
+                    // The handle is NOT closed for you.
+                    expect((await handle.stat()).isFile()).toBe(true);
+                } finally {
+                    await handle.close();
+                }
+
+                const closed = await fsPromises.open(f, 'r');
+                await closed.close();
+                expectCode(() => closed.readableWebStream(), 'ERR_INVALID_STATE');
+
+                // It is a BYTE stream. The first implementation built a default one
+                // on a comment asserting Node's was not BYOB-capable; measured, it
+                // is, and a default stream REJECTS this reader.
+                const byob = await fsPromises.open(f, 'r');
+                try {
+                    const stream = byob.readableWebStream();
+                    const reader = (
+                        stream as unknown as {
+                            getReader(o: { mode: 'byob' }): {
+                                read(v: Uint8Array): Promise<{ done: boolean; value?: Uint8Array }>;
+                                releaseLock(): void;
+                            };
+                        }
+                    ).getReader({ mode: 'byob' });
+                    const first = await reader.read(new Uint8Array(5));
+                    expect(Buffer.from(first.value ?? new Uint8Array()).toString()).toBe('hello');
+                    reader.releaseLock();
+                } finally {
+                    await byob.close();
+                }
+
+                // A handle closed MID-STREAM ends the stream cleanly. Erroring it
+                // would make an ordinary `close()` during iteration throw at the
+                // consumer, which Node does not do.
+                const midway = await fsPromises.open(f, 'r');
+                const midStream = midway.readableWebStream();
+                const midReader = (
+                    midStream as unknown as {
+                        getReader(): { read(): Promise<{ done: boolean; value?: Uint8Array }> };
+                    }
+                ).getReader();
+                await midway.close();
+                expect((await midReader.read()).done).toBe(true);
             } finally {
                 drop(dir);
             }

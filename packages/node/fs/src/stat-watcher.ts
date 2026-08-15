@@ -5,6 +5,7 @@ import { EventEmitter } from 'node:events';
 import { statSync } from './sync.js';
 
 import type { PathLike, Stats } from 'node:fs';
+import { requireCallback } from './errors.js';
 
 function zeroedStat(): Stats {
     return {
@@ -112,6 +113,8 @@ export function watchFile(
         listener = options;
         options = {};
     }
+    // Node names this one `"listener"`, not `"cb"` — measured on v24.15.0.
+    requireCallback(listener, 'listener');
     const interval = (options as { interval?: number }).interval ?? 5007;
     const resolved = filename.toString();
 
