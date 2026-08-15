@@ -78,4 +78,39 @@ export const AdwHeaderBarTest = async () => {
             unmountAll();
         });
     });
+
+    // The centre is the `<adw-window-title>` Adw.HeaderBar itself derives, so the three
+    // rules that element holds through @gjsify/adwaita-core reach the header bar too.
+    // None of them did while the centre was a bare span.
+    await describe('<adw-header-bar> derives an <adw-window-title>', async () => {
+        await it('builds one rather than a bare span', () => {
+            const bar = mountHeaderBar({ title: 'Documents' });
+            expect(bar.querySelector('adw-window-title')).toBeTruthy();
+            unmountAll();
+        });
+
+        await it('renders a subtitle, which it could not before', () => {
+            const bar = mountHeaderBar({ title: 'Documents', subtitle: '12 items' });
+            expect(centerText(bar)).toContain('Documents');
+            expect(centerText(bar)).toContain('12 items');
+            unmountAll();
+        });
+
+        await it('hides the title line when the title is empty — the blank-line bug', () => {
+            // adw-window-title.c:207-208. A header bar with only a subtitle used to
+            // reserve an empty line above it, because the span was always there.
+            const bar = mountHeaderBar({ title: '', subtitle: 'Loading…' });
+            const titleEl = bar.querySelector('.adw-window-title-title') as HTMLElement | null;
+            expect(titleEl?.hidden).toBe(true);
+            unmountAll();
+        });
+
+        await it('a subtitle survives a title write', () => {
+            const bar = mountHeaderBar({ title: 'Documents', subtitle: '12 items' });
+            bar.setAttribute('title', 'Pictures');
+            expect(centerText(bar)).toContain('Pictures');
+            expect(centerText(bar)).toContain('12 items');
+            unmountAll();
+        });
+    });
 };

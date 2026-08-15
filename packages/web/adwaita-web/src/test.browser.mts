@@ -33,6 +33,8 @@ import { AdwViewSwitcherBarTest } from './adw-view-switcher-bar.spec.js';
 import { AdwStyleIsolationTest } from './style-isolation.spec.js';
 import { AdwWrapBoxTest } from './adw-wrap-box.spec.js';
 import { AdwHeaderBarTest } from './adw-header-bar.spec.js';
+import { AdwEntryTest } from './adw-entry.spec.js';
+import { AdwMenuButtonTest } from './adw-menu-button.spec.js';
 import { AdwBannerTest } from './adw-banner.spec.js';
 import { AdwButtonContentTest } from './adw-button-content.spec.js';
 import { AdwIconTest } from './adw-icon.spec.js';
@@ -77,6 +79,8 @@ run({
     AdwStyleIsolationTest,
     AdwWrapBoxTest,
     AdwHeaderBarTest,
+    AdwEntryTest,
+    AdwMenuButtonTest,
     AdwViewStackTest,
     AdwNavigationViewTest,
     AdwSidebarTest,
