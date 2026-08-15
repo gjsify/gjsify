@@ -1118,6 +1118,74 @@ Scoped to `--global` only. Project-local removal (mirror of `npm uninstall <pkg>
 
 Exits non-zero when nothing was removed (no matching install found).
 
+## `gjsify ship`
+
+Turn a built application into something a stranger can install. One staged payload, wrapped per format — see [ADR 0024](https://github.com/gjsify/gjsify/blob/main/docs/adr/0024-ship-installable-artifacts.md).
+
+```bash
+gjsify ship                                # build the project, then a .deb and an .rpm
+gjsify ship --skip-build                   # package what is already built
+gjsify ship --target deb                   # one format
+gjsify ship --stage                        # produce the payload and stop
+```
+
+Output, under `ship/` by default:
+
+```
+ship/stage/            the prefix-relative payload — bin/, lib/<name>/, share/
+ship/overlay/<format>/ the per-format additions (the licence, where each format wants it)
+ship/out/              the artifacts
+```
+
+The payload is produced once and is identical in both artifacts; `ship/out/` is packed by reading `ship/stage/` back, so what you inspect is what ships.
+
+| Option | Default | Description |
+|---|---|---|
+| `--target <fmt..>` | `gjsify.ship.targets`, else `deb,rpm` | Formats to build, comma-separated or repeated. |
+| `--out <dir>` | `gjsify.ship.outDir`, else `ship` | Output root, relative to the project. |
+| `--stage` | `false` | Produce the staged payload and stop. |
+| `--skip-build` | `false` | Do not run the project's `build` script first. |
+| `--arch <arch>` | this host | Target architecture, in `process.arch` spelling. |
+| `--verbose` | `false` | Print every staged file and the detected GI namespaces. |
+
+### What it derives, so you do not configure it
+
+- **Runtime dependencies** come from the built bundle's `gi://` imports, mapped to the package that ships each typelib (`gir1.2-gtk-4.0` on Debian, `gtk4` on Fedora). A namespace the table does not know **fails the build** and names itself — an undeclared runtime dependency does not fail here, it fails on a user's machine after the download. Fill the gap with `gjsify.ship.typelibPackages`.
+- **Architecture** is `all` / `noarch` unless the payload contains a `.so` or `.node`. A pure-JS GJS app really does install everywhere, and claiming `amd64` would make apt refuse it on a machine it runs on.
+- **The launcher** derives its own prefix at runtime, so one payload works under `/usr`, under `/app`, or anywhere else.
+- **`Section:` / `Group:`** follow from `categories`, and the version is normalised so a semver prerelease (`1.2.0-rc.1`) still sorts before the release in both package managers (`1.2.0~rc.1`).
+
+No runtime is bundled on Linux: GJS and GTK come from the distribution, so the package depends on `gjs` instead of carrying ~100 MiB of it.
+
+Artifacts are **reproducible**: packing the same build twice gives byte-identical files. Timestamps come from the bundle's mtime, or from `SOURCE_DATE_EPOCH` when it is set — which is what makes two different checkouts of the same source produce identical bytes. Both hold per JS runtime: the payload is gzipped through the Web `CompressionStream`, whose deflate output is implementation-defined, so a Node-built and a GJS-built artifact of the same input need not match byte for byte.
+
+### Configuration — `gjsify.ship` in `package.json`
+
+Every key has a derived default, and metadata not set here falls back to `gjsify.flatpak`: both blocks describe the same application, so a project that already ships a Flatpak usually needs no `gjsify.ship` block at all.
+
+```jsonc
+"gjsify": {
+  "ship": {
+    "appId": "io.github.you.MyApp",        // else gjsify.flatpak.appId, else package.json#name
+    "binaryName": "my-app",                // else the package name, scope-stripped
+    "icon": "data/icons",                  // a file or a directory; sizes read from path or filename
+    "schemas": "data",                     // *.gschema.xml, named after the app id
+    "depends": { "rpm": ["dconf"] },       // appended to the derived set
+    "typelibPackages": {                   // fill a gap in the built-in table
+      "Nautilus-3.0": { "deb": "gir1.2-nautilus-3.0", "rpm": "nautilus" }
+    }
+  }
+}
+```
+
+### The GJS floor on Debian
+
+The emitted dependency is `gjs (>= 1.86)` — what the bundler targets. **No released Debian satisfies it**: Debian went 1.82.3 (trixie) straight to 1.88.1 (forky), skipping 1.84 and 1.86. `gjsify ship` says so rather than lowering the floor quietly, because a `.deb` apt refuses is better than one that installs and then dies on a syntax error. Set `gjsify.ship.minGjsVersion` if your bundle genuinely runs on an older GJS.
+
+### Scope
+
+Linux and `--app gjs` today. macOS (`.app` / `.dmg`), Windows, and Flatpak as a target under this command are the later stages of ADR 0024.
+
 ## `gjsify pack`
 
 Produce an npm-compatible `.tgz` tarball for a workspace. Drop-in for `npm pack`. Always rewrites `workspace:^/~/*` deps to resolved version ranges so the published tarball is portable. Honors the `files` allowlist + `.npmignore`/`.gitignore` with the same precedence as npm.

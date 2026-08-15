@@ -34,6 +34,16 @@ export const POSIX_PATH_SLICE_EXCEPTIONS = {
     'packages/node/fs/src/browser/opfs.ts':
         'An OPFS virtual path. The Origin Private File System has no host separator to inherit ' +
         '— its directory delimiter is `/` by the File System Access spec.',
+    'packages/infra/cli/src/utils/ship/rpm.ts':
+        'An ARCHIVE path. RPM describes the TARGET filesystem, not the build host: `DIRNAMES` ' +
+        'entries are `/`-terminated and `BASENAMES` carries the last component, both defined ' +
+        '`/`-separated by the RPM format, and the cpio payload names are the same strings with a ' +
+        '`./` prefix. A `.rpm` built on Windows still installs `/usr/bin/foo` on Linux.',
+    'packages/infra/cli/src/utils/ship/stage-writer.ts':
+        'A prefix-relative PAYLOAD path, which the planner builds with `posix.join` precisely so ' +
+        "one payload description serves every format. The `split('/')` is the identifier side " +
+        'of the conversion and `join(sep)` is what turns it into a host path — this is the one ' +
+        'place that crossing happens, which is why it reads as a split.',
     'packages/infra/workspace/src/changed-files.ts':
         'A git path from `git diff --name-only`, which git emits `/`-separated on every platform ' +
         '(core.quotePath notwithstanding) — including on Windows, where the working tree uses `\\`.',

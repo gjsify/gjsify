@@ -19,8 +19,15 @@ gjsify tsc …                              # Node-free tsc via the @gjsify/tsc 
 gjsify publish|whoami|login|logout        # Node-free npm publish/auth (npm-otp header, no web-OAuth)
 gjsify trust [pkg] | gjsify onboard       # Trusted-Publisher config / full first-publish+trust sweep (one shared OTP)
 gjsify upgrade [--latest|--minor|--patch|--align|--check] [-p glob]   # workspace-wide dep upgrades; --check = CI drift gate
+gjsify ship [--target deb,rpm] [--stage]   # installable artifacts from ONE staged payload (ADR 0024)
 gjsify install [--immutable|--refresh-lockfile] | gjsify dlx <pkg> | gjsify showcase <name> | gjsify storybook | gjsify debug
 ```
+
+**`gjsify ship` writes `.deb` and `.rpm` ITSELF** — no `dpkg-deb`, no `rpmbuild`, no vendored
+packer, because the packer has to run under GJS, offline, and on a Fedora CI image where
+`dpkg-deb` does not exist. What that bought, and the defect `rpm`-as-an-independent-oracle caught
+on the first artifact: [ADR 0024](../../../docs/adr/0024-ship-installable-artifacts.md) §
+Implementation status.
 
 **`gjsify foreach -p` builds the CLI's OWN runtime closure serially first** — every child BOOTS the CLI, so a parallel sweep otherwise reads the `lib/` trees its siblings write (macOS run 31130155911). The set is DERIVED, and the two cheaper derivations were measured wrong: `utils/cli-runtime-closure.ts` carries both numbers.
 

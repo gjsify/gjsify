@@ -1115,6 +1115,17 @@ The `org.freedesktop.Sdk.Extension.gjsify` SDK extension (toolchain under `/usr/
 - **Remaining Node touchpoints for a FULLY Node-free self-build** — oxc lint (oxlint's JS-plugin host needs Node — see the oxlint entry above) + switching the build-orchestrator entry from the Node CLI to `gjs -m cli.gjs.mjs`.
 - **`gjsify install --offline`** — a fail-fast-on-cache-miss flag so a no-network sandbox install errors clearly instead of attempting (and slowly failing) a network fetch. Complements `gjsify flatpak sources`.
 
+### `gjsify ship` — remaining roadmap (ADR 0024)
+
+Stages 2 and 3 have landed: one staged payload, `.deb` and `.rpm` packed by hand-written writers (no `dpkg-deb`, no `rpmbuild`, no vendored `nfpm`), proven end to end by `tests/e2e/ship` against `rpm`, GNU `ar` and GNU `tar`. Open, in the ADR's own order:
+
+- **Stage 1 — the ELF glibc floor.** `gjsify.glibcRequires` is authored on the platform packages and nothing holds it against the binary. The reader already exists (`manifest-conformance/lib/binary.mjs`: `readElfNeeded`, `readElfGlibcRequires`, `compareGlibcVersions`); what is missing is the rule. Independent of everything else here — a `--app gjs` payload contains no ELF, so `ship` cannot exercise it.
+- **Stages 4/5 — macOS `.app`/`.dmg` and the Windows program directory.** Assembly is cross-platform (the runtime closures are relocated and ad-hoc signed at BUNDLE build time and ship as npm packages), so a Linux host can build both; SIGNING is not, and `ship` must fail with that sentence rather than emit an unsigned artifact Gatekeeper or SmartScreen will refuse.
+- **Stage 6 — Flatpak as a target under `ship`.** The metadata half already moved (`utils/app-metadata.ts`); what is left is the staging path (`buildsystem: simple` + `cp -a stage/.`, which is what removes meson from inside the sandbox) and the deprecation window for the `gjsify.flatpak` config keys.
+- **Bundled Node for `--app node`** — still undecided between a ship-time fetch and a platform package (ADR 0017's shape). `gjsify ship` targets `--app gjs` today and says so.
+- **No in-tree app declares `gjsify.ship` yet**, so the `ship` conformance rule is vacuous in this repo and the feature's first real subjects are downstream (buchhaltung, bauplaner). The showcases are the natural first one — ADR 0024 counts them as the thirteen apps that ship no desktop entry, no metainfo, no icon and no schema — but giving one a `gjsify.ship` block means adding real icon and AppStream assets, which is a content change rather than a packaging one.
+- **`dpkg` is on no CI runner this project uses**, so the `.deb` is never verified by a real `dpkg -i`. What IS verified: GNU `ar` and GNU `tar` (independent readers of the container and of both inner tars), every `md5sums` digest recomputed, and the data member unpacked and compared byte-for-byte against the staged tree. The `.rpm` half has no such gap — `rpm` is on every Fedora image and `rpm -i --test` runs there. Closing it needs a Debian container leg or `dpkg` in the image, and is worth doing before anyone publishes a `.deb`; it is also the one check that would have caught the `glib-compile-schemas` dependency naming the wrong package on its own.
+
 ### Upstream PRs in flight (NativeScript) — track until merged
 
 Two fixes contributed upstream so NS apps work without gjsify-side workarounds. **Both OPEN as of 2026-06-04.** Revisit when either merges + ships in a NativeScript release: drop the corresponding workaround, then bump the version floor / re-validate.

@@ -1,0 +1,151 @@
+// Finding the payload on disk.
+//
+// The half of `gjsify ship` that must touch the filesystem, kept in one module
+// so `settings.ts` and `plan.ts` can stay pure. Every probe has a configured
+// override; the probes exist so a project that follows the GNOME convention
+// (`data/icons/hicolor/…`, `data/*.gschema.xml`) needs no configuration at all.
+
+import { existsSync, readdirSync, statSync } from 'node:fs';
+import { isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
+
+import type { ConfigDataShip } from '../../types/config-data.js';
+import { LICENSE_FILE_NAMES, type DiscoveredPayload, type ShipPackageManifest } from './settings.js';
+
+const ICON_EXTENSIONS = ['.svg', '.png'];
+
+export interface DiscoverInput {
+    projectDir: string;
+    pkg: ShipPackageManifest;
+    ship: ConfigDataShip;
+    /** `gjsify.flatpak.icon`, the pre-existing spelling of the same thing. */
+    flatpakIcon?: string;
+    /** The bundle path the project declares. */
+    declaredBundle?: string;
+}
+
+export function discoverPayload(input: DiscoverInput): DiscoveredPayload {
+    const { projectDir, ship } = input;
+    const bundlePath = resolveBundle(input);
+    const bundleDir = resolve(bundlePath, '..');
+
+    return {
+        bundlePath,
+        bundleDir,
+        bundleFiles: listFilesRecursive(bundleDir),
+        iconFiles: discoverIcons(projectDir, ship.icon ?? input.flatpakIcon),
+        schemaFiles: discoverSchemas(projectDir, ship.schemas),
+        licenseFile: discoverLicense(projectDir, ship.licenseFile),
+    };
+}
+
+function resolveBundle(input: DiscoverInput): string {
+    const declared = input.declaredBundle;
+    if (declared === undefined) {
+        throw new Error(
+            'gjsify ship: no bundle to ship. Set `gjsify.main` (or `main`) in package.json to the built ' +
+                'bundle, or `gjsify.ship.bundle` to override it.',
+        );
+    }
+    const bundlePath = isAbsolute(declared) ? declared : resolve(input.projectDir, declared);
+    if (!existsSync(bundlePath)) {
+        throw new Error(
+            `gjsify ship: the bundle ${declared} does not exist. Build it first (\`gjsify run build\`), ` +
+                'or drop `--skip-build`.',
+        );
+    }
+    return bundlePath;
+}
+
+/**
+ * Icons: an explicit file, an explicit directory, or the GNOME convention.
+ *
+ * A directory is walked rather than globbed because the size lives in the PATH
+ * (`hicolor/128x128/apps/…`) as often as in the filename.
+ */
+function discoverIcons(projectDir: string, configured: string | undefined): string[] {
+    if (configured !== undefined) {
+        const target = resolve(projectDir, configured);
+        if (!existsSync(target)) {
+            throw new Error(`gjsify ship: the configured icon path ${configured} does not exist.`);
+        }
+        return statSync(target).isDirectory() ? listIcons(target) : [target];
+    }
+    for (const candidate of ['data/icons', 'data/icons/hicolor']) {
+        const target = join(projectDir, candidate);
+        if (existsSync(target) && statSync(target).isDirectory()) {
+            const icons = listIcons(target);
+            if (icons.length > 0) return icons;
+        }
+    }
+    return [];
+}
+
+function listIcons(dir: string): string[] {
+    return listFilesRecursive(dir)
+        .filter((rel) => ICON_EXTENSIONS.some((ext) => rel.toLowerCase().endsWith(ext)))
+        .map((rel) => join(dir, rel.split('/').join(sep)))
+        .sort();
+}
+
+function discoverSchemas(projectDir: string, configured: string | undefined): string[] {
+    const roots = configured !== undefined ? [resolve(projectDir, configured)] : [join(projectDir, 'data')];
+    for (const root of roots) {
+        if (!existsSync(root)) {
+            if (configured !== undefined) {
+                throw new Error(`gjsify ship: the configured schema path ${configured} does not exist.`);
+            }
+            continue;
+        }
+        if (!statSync(root).isDirectory()) return [root];
+        const schemas = listFilesRecursive(root)
+            .filter((rel) => rel.endsWith('.gschema.xml'))
+            .map((rel) => join(root, rel.split('/').join(sep)))
+            .sort();
+        if (schemas.length > 0) return schemas;
+    }
+    return [];
+}
+
+function discoverLicense(projectDir: string, configured: string | undefined): string | undefined {
+    if (configured !== undefined) {
+        const target = resolve(projectDir, configured);
+        if (!existsSync(target)) {
+            throw new Error(`gjsify ship: the configured licence file ${configured} does not exist.`);
+        }
+        return target;
+    }
+    for (const name of LICENSE_FILE_NAMES) {
+        const target = join(projectDir, name);
+        if (existsSync(target)) return target;
+    }
+    return undefined;
+}
+
+/**
+ * Every regular file under `dir`, as POSIX-separated relative paths.
+ *
+ * A symlink is refused rather than followed: both package formats can carry
+ * one, but a symlink into the build tree would resolve to a path that does not
+ * exist on the user's machine, and silently copying its TARGET turns one file
+ * into an unexplained duplicate.
+ */
+export function listFilesRecursive(dir: string): string[] {
+    const out: string[] = [];
+    const walk = (current: string): void => {
+        for (const entry of readdirSync(current, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+            const full = join(current, entry.name);
+            if (entry.isDirectory()) {
+                walk(full);
+            } else if (entry.isSymbolicLink()) {
+                throw new Error(
+                    `gjsify ship: ${full} is a symlink. The payload has to be self-contained — replace it ` +
+                        'with the file it points at, or exclude it from the bundle directory.',
+                );
+            } else if (entry.isFile()) {
+                out.push(posix.join(...relative(dir, full).split(sep)));
+            }
+        }
+    };
+    walk(dir);
+    return out.sort();
+}

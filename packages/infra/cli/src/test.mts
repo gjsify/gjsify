@@ -9,6 +9,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import bundlerPickSuite from './bundler-pick.spec.js';
 import cliFailSuite from './cli-fail.spec.js';
+import shipPlanSuite from './utils/ship/plan.spec.js';
+import shipSettingsSuite from './utils/ship/settings.spec.js';
+import shipDependsSuite from './utils/ship/depends.spec.js';
+import shipArchivesSuite from './utils/ship/archives.spec.js';
+import shipPackersSuite from './utils/ship/packers.spec.js';
 import installProjectEngineSuite from './commands/install-project-engine.spec.js';
 import giRuntimePathsBannerSuite from './gi-runtime-paths-banner.spec.js';
 import processStubBannerSuite from './process-stub-banner.spec.js';
@@ -184,6 +189,11 @@ run(
     {
         bundlerPickSuite,
         cliFailSuite,
+        shipPlanSuite,
+        shipSettingsSuite,
+        shipDependsSuite,
+        shipArchivesSuite,
+        shipPackersSuite,
         installProjectEngineSuite,
         giRuntimePathsBannerSuite,
         processStubBannerSuite,

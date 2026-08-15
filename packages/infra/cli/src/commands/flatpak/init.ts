@@ -132,7 +132,7 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
     },
     handler: async (args) => {
         const cfg = new Config();
-        const configData = await cfg.forBuild({} as never).catch(() => ({}) as ConfigData);
+        const configData = await cfg.forCommand().catch(() => ({}) as ConfigData);
         const flatpak: ConfigDataFlatpak = configData.flatpak ?? {};
         const cwd = process.cwd();
         const pkg = readPackageJson(cwd);

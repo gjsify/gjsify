@@ -35,6 +35,7 @@ import {
     gettextCommand as gettext,
     gsettingsCommand as gsettings,
     flatpakCommand as flatpak,
+    shipCommand as ship,
     dlxCommand as dlx,
     installCommand as install,
     foreachCommand as foreach,
@@ -147,6 +148,7 @@ export async function runCli(argv: readonly string[]): Promise<void> {
         .command(gettext.command, gettext.description, gettext.builder, gettext.handler)
         .command(gsettings.command, gsettings.description, gsettings.builder, gsettings.handler)
         .command(flatpak.command, flatpak.description, flatpak.builder, flatpak.handler)
+        .command(ship.command, ship.description, ship.builder, ship.handler)
         .command(foreach.command, foreach.description, foreach.builder, foreach.handler)
         .command(workspace.command, workspace.description, workspace.builder, workspace.handler)
         .command(pack.command, pack.description, pack.builder, pack.handler)

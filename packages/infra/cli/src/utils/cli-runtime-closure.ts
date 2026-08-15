@@ -91,6 +91,30 @@ function splitWorkspaceSpecifier(
  * own entry is a bin (`#!/usr/bin/env node`), and a parse failure yields NO
  * specifiers, which under-selects rather than mis-selects.
  */
+interface SpecifierNode {
+    type?: string;
+    value?: unknown;
+    expressions?: unknown[];
+    quasis?: Array<{ value?: { cooked?: unknown } }>;
+}
+
+/**
+ * The string a module specifier node names, or `null` when it is computed.
+ *
+ * A substitution-free TEMPLATE LITERAL is as static as a quoted string, and
+ * skipping it is not hypothetical: the minifier rewrites `await
+ * import('gi://GLib?version=2.0')` to a backtick form, so a Literal-only reader
+ * silently loses every dynamic import in a built bundle.
+ */
+function literalSpecifier(node: SpecifierNode | undefined): string | null {
+    if (node?.type === 'Literal') return typeof node.value === 'string' ? node.value : null;
+    if (node?.type === 'TemplateLiteral' && node.expressions?.length === 0) {
+        const cooked = node.quasis?.[0]?.value?.cooked;
+        return typeof cooked === 'string' ? cooked : null;
+    }
+    return null;
+}
+
 export function moduleSpecifiers(code: string): string[] {
     let ast: acorn.Program;
     try {
@@ -105,16 +129,15 @@ export function moduleSpecifiers(code: string): string[] {
             for (const child of node) visit(child);
             return;
         }
-        const n = node as { type?: string; source?: { type?: string; value?: unknown } };
+        const n = node as { type?: string; source?: SpecifierNode };
         if (
-            (n.type === 'ImportDeclaration' ||
-                n.type === 'ExportNamedDeclaration' ||
-                n.type === 'ExportAllDeclaration' ||
-                n.type === 'ImportExpression') &&
-            n.source?.type === 'Literal' &&
-            typeof n.source.value === 'string'
+            n.type === 'ImportDeclaration' ||
+            n.type === 'ExportNamedDeclaration' ||
+            n.type === 'ExportAllDeclaration' ||
+            n.type === 'ImportExpression'
         ) {
-            out.push(n.source.value);
+            const specifier = literalSpecifier(n.source);
+            if (specifier !== null) out.push(specifier);
         }
         for (const [key, value] of Object.entries(n)) {
             if (key === 'type' || key === 'start' || key === 'end' || key === 'loc') continue;

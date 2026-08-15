@@ -30,7 +30,7 @@ const pkgRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const srcTemplates = join(pkgRoot, 'src', 'templates');
 const libTemplates = join(pkgRoot, 'lib', 'templates');
 
-mkdirSync(join(libTemplates, 'flatpak'), { recursive: true });
+mkdirSync(libTemplates, { recursive: true });
 
 for (const name of ['install.mjs.tmpl', 'oxlintrc.json.tmpl', 'oxfmtrc.tmpl']) {
     copyFileSync(join(srcTemplates, name), join(libTemplates, name));
@@ -38,9 +38,17 @@ for (const name of ['install.mjs.tmpl', 'oxlintrc.json.tmpl', 'oxfmtrc.tmpl']) {
 
 // The former `cp src/templates/flatpak/*.tmpl` — expanded here, because cmd.exe
 // does not expand globs and would have passed the pattern through verbatim.
-for (const name of readdirSync(join(srcTemplates, 'flatpak'))) {
-    if (!name.endsWith('.tmpl')) continue;
-    copyFileSync(join(srcTemplates, 'flatpak', name), join(libTemplates, 'flatpak', name));
+// The subdirectory SET is read rather than listed: `templates/app/` exists
+// because the desktop entry stopped being Flatpak's, and a hardcoded directory
+// list is how the next such move ships a CLI whose template is missing from
+// `lib/` — an ENOENT at the user's first run, invisible to every build check.
+for (const dir of readdirSync(srcTemplates, { withFileTypes: true })) {
+    if (!dir.isDirectory()) continue;
+    mkdirSync(join(libTemplates, dir.name), { recursive: true });
+    for (const name of readdirSync(join(srcTemplates, dir.name))) {
+        if (!name.endsWith('.tmpl')) continue;
+        copyFileSync(join(srcTemplates, dir.name, name), join(libTemplates, dir.name, name));
+    }
 }
 
 // The npm `bin` entry carries a shebang and is executed directly on POSIX.
