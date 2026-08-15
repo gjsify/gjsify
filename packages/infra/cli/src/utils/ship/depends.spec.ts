@@ -1,0 +1,175 @@
+// SPDX-License-Identifier: MIT
+// The dependency derivation, and the refusal that is its whole point.
+//
+// The reference implementation this design comes from returns `[]` for a GI
+// namespace its table does not know. That produces a package which installs
+// cleanly and dies on first launch with a dynamic-linker error — on the user's
+// machine, after the download, reading like an application bug. So the case
+// worth testing hardest here is the one that must FAIL.
+
+import { describe, expect, it } from '@gjsify/unit';
+
+import { deriveDepends, formatDebDepend, knownNamespaces, parseDepend, warnAboutGjsFloor } from './depends.js';
+import { resolveFormats } from './formats.js';
+import { parseGiSpecifier, scanGiNamespaces } from './gi-namespaces.js';
+
+const base = { kind: 'app' as const, hasSchemas: false, extra: [] };
+
+export default async () => {
+    await describe('deriveDepends', async () => {
+        await it('maps namespaces to the package that ships the typelib, per format', async () => {
+            const namespaces = ['Gtk-4.0', 'Adw-1', 'Gio-2.0'];
+            expect(deriveDepends('deb', { ...base, namespaces })).toStrictEqual([
+                'gjs >= 1.86',
+                'gir1.2-adw-1',
+                'gir1.2-glib-2.0',
+                'gir1.2-gtk-4.0',
+                'hicolor-icon-theme',
+            ]);
+            expect(deriveDepends('rpm', { ...base, namespaces })).toStrictEqual([
+                'gjs >= 1.86',
+                'libadwaita',
+                'glib2',
+                'gtk4',
+                'hicolor-icon-theme',
+            ]);
+        });
+
+        await it('collapses namespaces that share one package', async () => {
+            const depends = deriveDepends('rpm', { ...base, namespaces: ['Gtk-4.0', 'Gdk-4.0', 'Gsk-4.0'] });
+            expect(depends.filter((entry) => entry === 'gtk4').length).toBe(1);
+        });
+
+        await it('resolves an unpinned specifier when the table has exactly one version', async () => {
+            expect(deriveDepends('rpm', { ...base, namespaces: ['Gtk'] })).toContain('gtk4');
+        });
+
+        await it('FAILS on a namespace it cannot map, naming it and the escape hatch', async () => {
+            expect(() => deriveDepends('deb', { ...base, namespaces: ['Gst', 'Nautilus-3.0'] })).toThrow(
+                'gi://Nautilus',
+            );
+            expect(() => deriveDepends('deb', { ...base, namespaces: ['Nautilus-3.0'] })).toThrow('typelibPackages');
+        });
+
+        await it('accepts a namespace once the project supplies the row', async () => {
+            const depends = deriveDepends('deb', {
+                ...base,
+                namespaces: ['Nautilus-3.0'],
+                typelibPackages: { 'Nautilus-3.0': { deb: 'gir1.2-nautilus-3.0', rpm: 'nautilus' } },
+            });
+            expect(depends).toContain('gir1.2-nautilus-3.0');
+        });
+
+        await it('does NOT let free-form `depends` silence an unmapped namespace', async () => {
+            // A hatch that turns the check off is how the check stops meaning
+            // anything — `depends` is for things that are not typelibs.
+            expect(() =>
+                deriveDepends('deb', { ...base, namespaces: ['Nautilus-3.0'], extra: ['gir1.2-nautilus-3.0'] }),
+            ).toThrow('gi://Nautilus');
+        });
+
+        await it('adds the schema dependency only when schemas are shipped', async () => {
+            expect(deriveDepends('rpm', { ...base, namespaces: [], hasSchemas: true })).toContain(
+                'gsettings-desktop-schemas',
+            );
+            expect(deriveDepends('rpm', { ...base, namespaces: [] })).not.toContain('gsettings-desktop-schemas');
+        });
+
+        await it('appends the configured extras last, deduplicated', async () => {
+            expect(deriveDepends('rpm', { ...base, namespaces: [], extra: ['gtk4', 'dconf'] })).toStrictEqual([
+                'gjs >= 1.86',
+                'hicolor-icon-theme',
+                'gtk4',
+                'dconf',
+            ]);
+        });
+
+        await it('honours a lowered GJS floor', async () => {
+            expect(deriveDepends('deb', { ...base, namespaces: [], minGjsVersion: '1.82' })[0]).toBe('gjs >= 1.82');
+        });
+
+        await it("knows every namespace this repo's own showcases import", async () => {
+            for (const namespace of ['Gtk-4.0', 'Adw-1', 'GLib-2.0', 'Gio-2.0', 'GObject-2.0', 'GtkSource-5']) {
+                expect(knownNamespaces()).toContain(namespace);
+            }
+        });
+    });
+
+    await describe('warnAboutGjsFloor', async () => {
+        await it('warns for deb when no released Debian can satisfy the floor', async () => {
+            expect(warnAboutGjsFloor('deb', '1.86').join('')).toContain('not satisfiable on Debian stable');
+            expect(warnAboutGjsFloor('deb', '1.82').length).toBe(0);
+            expect(warnAboutGjsFloor('deb', '1.88.1').length).toBe(0);
+        });
+
+        await it('says nothing for rpm, where the floor is met', async () => {
+            expect(warnAboutGjsFloor('rpm', '1.86').length).toBe(0);
+        });
+    });
+
+    await describe('parseDepend / formatDebDepend', async () => {
+        await it("parses a bound and spells it dpkg's way", async () => {
+            expect(parseDepend('gjs >= 1.86')).toStrictEqual({ name: 'gjs', relation: '>=', version: '1.86' });
+            expect(formatDebDepend('gjs >= 1.86')).toBe('gjs (>= 1.86)');
+            expect(formatDebDepend('gtk4')).toBe('gtk4');
+        });
+
+        await it('spells strict inequality `<<` / `>>`, never the deprecated aliases', async () => {
+            // Bare `<` and `>` are deprecated dpkg aliases for `<=` and `>=`,
+            // so emitting them means the opposite of how they read.
+            expect(formatDebDepend('foo > 1.0')).toBe('foo (>> 1.0)');
+            expect(formatDebDepend('foo < 1.0')).toBe('foo (<< 1.0)');
+        });
+    });
+
+    await describe('resolveFormats', async () => {
+        await it('splits, deduplicates and sorts', async () => {
+            expect(resolveFormats(['rpm,deb', 'deb']).map((format) => format.id)).toStrictEqual(['deb', 'rpm']);
+        });
+
+        await it('refuses an unknown target and an empty one', async () => {
+            expect(() => resolveFormats(['snap'])).toThrow('unknown target');
+            // An empty list would stage the payload, pack nothing and exit 0.
+            expect(() => resolveFormats([])).toThrow('named no format');
+        });
+    });
+
+    await describe('scanGiNamespaces', async () => {
+        await it('finds static and dynamic imports, minified or not', async () => {
+            const source = [
+                `import Gtk from "gi://Gtk?version=4.0";`,
+                `import Adw from'gi://Adw?version=1';`,
+                `const G = await import("gi://GLib?version=2.0");`,
+            ].join('\n');
+            expect(scanGiNamespaces(source)).toStrictEqual(['Adw-1', 'GLib-2.0', 'Gtk-4.0']);
+        });
+
+        await it('finds the shapes a MINIFIED bundle actually emits', async () => {
+            // Verbatim from a real `gjsify build --app gjs` output: no space
+            // after `from`, and the dynamic import rewritten to a TEMPLATE
+            // LITERAL. A quote-only pattern silently dropped the second one,
+            // which would have shipped a package missing that dependency.
+            const minified =
+                'import e from"gi://Gtk?version=4.0";import t from"gi://Adw?version=1";' +
+                'const n=await import(`gi://GLib?version=2.0`);function main(){return[e,t,n]}';
+            expect(scanGiNamespaces(minified)).toStrictEqual(['Adw-1', 'GLib-2.0', 'Gtk-4.0']);
+        });
+
+        await it('skips a specifier built at runtime, which has no static answer', async () => {
+            expect(scanGiNamespaces('const m = await import(`gi://${ns}?version=1.0`);')).toStrictEqual([]);
+        });
+
+        await it('ignores a gi:// spelling that is not an import', async () => {
+            // Over-approximating here is not harmless: an unknown namespace is
+            // a build failure, so a mention inside a diagnostic string would
+            // make a correct project unbuildable.
+            expect(scanGiNamespaces(`throw new Error("gi://Nautilus is not supported");`)).toStrictEqual([]);
+        });
+
+        await it('parses a specifier with and without a version', async () => {
+            expect(parseGiSpecifier('gi://Gtk?version=4.0')).toBe('Gtk-4.0');
+            expect(parseGiSpecifier('gi://Gtk')).toBe('Gtk');
+            expect(parseGiSpecifier('node:fs')).toBe(null);
+        });
+    });
+};

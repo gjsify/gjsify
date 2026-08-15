@@ -169,6 +169,13 @@ export interface ConfigData {
      */
     flatpak?: ConfigDataFlatpak;
     /**
+     * Config for `gjsify ship` — the installable artifacts (`.deb`, `.rpm`)
+     * built from one staged payload. Metadata left unset here falls back to
+     * `gjsify.flatpak`, because both blocks describe the SAME application
+     * (ADR 0024 § 8) and no project should have to write it twice.
+     */
+    ship?: ConfigDataShip;
+    /**
      * Config for `gjsify format` / `lint` / `fix`. A thin shell: oxc's own
      * `.oxfmtrc.json` / `.oxlintrc.json` are the real configuration files.
      */
@@ -196,54 +203,14 @@ export interface ConfigDataTest {
     /** Default runtimes when `--runtime` not specified. Default: `['gjs', 'node']`. */
     runtimes?: Array<'gjs' | 'node'>;
 }
-
-/** Flatpak-toolchain config for the `gjsify flatpak` subcommand group. */
-export interface ConfigDataFlatpak {
-    /** Reverse-DNS app id, e.g. `eu.jumplink.Learn6502`. Defaults to `package.json#name` if it looks like a reverse-DNS id. */
-    appId?: string;
-    /**
-     * Runtime family. Default `'gnome'` — needed at runtime by GJS bundles
-     * for GLib/GObject/GIO. `'freedesktop'` is only suitable for non-gjsify
-     * CLI tools (no GJS interpreter ships in the Freedesktop runtime).
-     */
-    runtime?: 'gnome' | 'freedesktop';
-    /** Runtime/SDK version, e.g. `'50'` for GNOME or `'24.08'` for Freedesktop. */
-    runtimeVersion?: string;
-    /**
-     * Extra SDK extensions for the manifest, e.g.
-     * `['org.freedesktop.Sdk.Extension.llvm17']` for native code needing a specific
-     * toolchain. Leave empty for pure gjsify projects: the GNOME runtime already
-     * ships GJS + GLib + libsoup and `gjsify build` produces a self-contained bundle
-     * that needs no build-time Node.
-     */
-    sdkExtensions?: string[];
-    /** Path components prepended to PATH inside the build sandbox. */
-    appendPath?: string[];
-    /** The binary name to run (`/app/bin/<command>`). Defaults to `appId`. */
-    command?: string;
-    /** Finish-args (capabilities). Default depends on `runtime` + `--cli-only`. */
-    finishArgs?: string[];
-    /** Extra Flatpak modules prepended before the app's own meson/simple module (e.g. `blueprint-compiler` build). */
-    extraModules?: unknown[];
-    /**
-     * Full replacement for the manifest's `modules` array: used verbatim, with
-     * neither `extraModules` nor the meson default added. For CLI tools that ship a
-     * pre-built bundle and install via shell commands (`buildsystem: simple`).
-     */
-    modules?: unknown[];
-    /** Cleanup glob patterns applied to the final manifest, e.g. `['/include', '/lib/pkgconfig']`. */
-    cleanup?: string[];
-    /** Source-of-truth lockfile for `gjsify flatpak deps` — `yarn.lock` or `package-lock.json`. */
-    lockfile?: string;
-    /**
-     * GitHub-Actions container image override for `gjsify flatpak ci`. Default is
-     * derived from runtime + runtimeVersion, e.g. gnome+50 →
-     * `ghcr.io/flathub-infra/flatpak-github-actions:gnome-50`.
-     */
-    ciContainer?: string;
-    /** Branches the generated workflow triggers on. Default `['main']`. */
-    ciBranches?: string[];
-
+/**
+ * The app metadata every install format needs — AppStream MetaInfo fields plus
+ * what a freedesktop `.desktop` entry is built from. Shared on purpose: a
+ * `.deb`, an `.rpm`, a Flatpak and a macOS bundle all describe the SAME
+ * application, so this block belongs to the app rather than to whichever packer
+ * happens to read it (ADR 0024 § 8).
+ */
+export interface AppMetadata {
     /**
      * `'app'` (default) → desktop-application MetaInfo, GUI finish-args, .desktop +
      * icon required. `'cli'` → console-application MetaInfo with
@@ -389,6 +356,124 @@ export interface ConfigDataFlatpak {
         displayLengthMin?: number;
         controls?: Array<'keyboard' | 'pointing' | 'touch' | 'gamepad' | 'tablet' | 'console'>;
     };
+}
+
+/**
+ * `gjsify ship` configuration — the packaging half of {@link AppMetadata}.
+ *
+ * Everything here has a derived default; a project that already has a
+ * `gjsify.flatpak` block usually needs no `gjsify.ship` block at all.
+ */
+export interface ConfigDataShip extends AppMetadata {
+    /** Reverse-DNS app id. Falls back to `gjsify.flatpak.appId`, then `package.json#name`. */
+    appId?: string;
+    /**
+     * Package name and `bin/` entry. Default: `package.json#name` with the npm
+     * scope stripped, lowercased, non-alphanumerics folded to `-`.
+     */
+    binaryName?: string;
+    /** Override the upstream version. Default: `package.json#version`, normalised. */
+    version?: string;
+    /** Package revision within one upstream version (deb revision / rpm release). Default `'1'`. */
+    release?: string;
+    /** `Maintainer:` / `Packager:` as `Name <email>`. Default: `package.json#author`. */
+    maintainer?: string;
+    /** Formats to build when `--target` is not given. Default `['deb', 'rpm']`. */
+    targets?: string[];
+    /** Output root, relative to the project. Default `'ship'`. */
+    outDir?: string;
+    /**
+     * The built bundle `bin/<name>` executes. Default: `gjsify.main`, then
+     * `package.json#main`. Its whole directory is staged into `lib/<name>/`.
+     */
+    bundle?: string;
+    /** Icon file, or a directory of them. Sizes are read from the path or the filename. */
+    icon?: string;
+    /** A `*.gschema.xml` file, or a directory of them. */
+    schemas?: string;
+    /** Licence file. Default: the first of LICENSE, LICENSE.md, LICENSE.txt, COPYING. */
+    licenseFile?: string;
+    /** deb `Section:`. Default: derived from `categories`. */
+    section?: string;
+    /** rpm `Group:`. Default: derived from `categories`. */
+    group?: string;
+    /**
+     * Minimum GJS the emitted dependency asks for. Default `'1.86'` — what the
+     * bundler targets. Lower it only if the bundle genuinely runs on an older
+     * GJS: no released Debian ships 1.86, so the default makes a `.deb` that
+     * apt refuses on trixie rather than one that installs and then fails to
+     * start.
+     */
+    minGjsVersion?: string;
+    /**
+     * Runtime dependencies appended to the set derived from the bundle's
+     * `gi://` imports — the escape hatch for a namespace the table does not
+     * know, and for anything that is not a typelib at all.
+     */
+    depends?: { deb?: string[]; rpm?: string[] };
+    /**
+     * GI namespace → the package that ships its typelib, filling gaps in the
+     * built-in table (`Nautilus-3.0`, a namespace from a private library, …).
+     * A row here wins over the built-in one.
+     *
+     * This is what unblocks a namespace `gjsify ship` does not know; `depends`
+     * is for dependencies that are not typelibs at all and deliberately does
+     * not silence the unmapped-namespace failure.
+     */
+    typelibPackages?: Record<string, { deb: string; rpm: string }>;
+    /** Extra payload entries: prefix-relative destination → project-relative source. */
+    extraFiles?: Record<string, string>;
+    /** Arguments the launcher appends before the user's own. */
+    execArgs?: string[];
+}
+
+/** Flatpak-toolchain config for the `gjsify flatpak` subcommand group. */
+export interface ConfigDataFlatpak extends AppMetadata {
+    /** Reverse-DNS app id, e.g. `eu.jumplink.Learn6502`. Defaults to `package.json#name` if it looks like a reverse-DNS id. */
+    appId?: string;
+    /**
+     * Runtime family. Default `'gnome'` — needed at runtime by GJS bundles
+     * for GLib/GObject/GIO. `'freedesktop'` is only suitable for non-gjsify
+     * CLI tools (no GJS interpreter ships in the Freedesktop runtime).
+     */
+    runtime?: 'gnome' | 'freedesktop';
+    /** Runtime/SDK version, e.g. `'50'` for GNOME or `'24.08'` for Freedesktop. */
+    runtimeVersion?: string;
+    /**
+     * Extra SDK extensions for the manifest, e.g.
+     * `['org.freedesktop.Sdk.Extension.llvm17']` for native code needing a specific
+     * toolchain. Leave empty for pure gjsify projects: the GNOME runtime already
+     * ships GJS + GLib + libsoup and `gjsify build` produces a self-contained bundle
+     * that needs no build-time Node.
+     */
+    sdkExtensions?: string[];
+    /** Path components prepended to PATH inside the build sandbox. */
+    appendPath?: string[];
+    /** The binary name to run (`/app/bin/<command>`). Defaults to `appId`. */
+    command?: string;
+    /** Finish-args (capabilities). Default depends on `runtime` + `--cli-only`. */
+    finishArgs?: string[];
+    /** Extra Flatpak modules prepended before the app's own meson/simple module (e.g. `blueprint-compiler` build). */
+    extraModules?: unknown[];
+    /**
+     * Full replacement for the manifest's `modules` array: used verbatim, with
+     * neither `extraModules` nor the meson default added. For CLI tools that ship a
+     * pre-built bundle and install via shell commands (`buildsystem: simple`).
+     */
+    modules?: unknown[];
+    /** Cleanup glob patterns applied to the final manifest, e.g. `['/include', '/lib/pkgconfig']`. */
+    cleanup?: string[];
+    /** Source-of-truth lockfile for `gjsify flatpak deps` — `yarn.lock` or `package-lock.json`. */
+    lockfile?: string;
+    /**
+     * GitHub-Actions container image override for `gjsify flatpak ci`. Default is
+     * derived from runtime + runtimeVersion, e.g. gnome+50 →
+     * `ghcr.io/flathub-infra/flatpak-github-actions:gnome-50`.
+     */
+    ciContainer?: string;
+    /** Branches the generated workflow triggers on. Default `['main']`. */
+    ciBranches?: string[];
+
     /**
      * Flathub tracking-repo override for `gjsify flatpak sync-flathub` / `diff`.
      * Default `flathub/<appId>`; set when the upstream repo deviates.

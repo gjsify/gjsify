@@ -260,6 +260,22 @@ export class Config {
         };
     }
 
+    /**
+     * The config for a command that is NOT a build — `gjsify flatpak …`,
+     * `gjsify ship …`.
+     *
+     * They all want exactly what the loader already produces: the merged
+     * `package.json#gjsify` + config-file object, with none of `forBuild`'s
+     * build-specific defaulting. Reaching it through `forBuild({} as never)`
+     * — five copies of that line before this method existed — lies to the type
+     * system and drags a tsconfig read and bundler defaults into a command
+     * that has no bundle.
+     */
+    async forCommand(searchFrom: string = process.cwd()): Promise<ConfigData> {
+        const { config } = await this.load(searchFrom);
+        return config;
+    }
+
     async forBuild(cliArgs: ArgumentsCamelCase<CliBuildOptions>) {
         const configFile = await this.load(process.cwd());
         const configData: ConfigData = { ...configFile.config };

@@ -1,7 +1,7 @@
 # 24. `gjsify ship` — one payload, a runtime policy per OS, several install formats
 
-- Status: **Proposed**
-- Date: 2026-08-14
+- Status: **Accepted** — stages 2 and 3 of § Implementation have landed; see § Implementation status
+- Date: 2026-08-14 (accepted 2026-08-15)
 - Deciders: Pascal Garber
 - Related: [ADR 0017 (native distribution)](0017-native-package-distribution.md), [ADR 0018 (OS-axis declaration)](0018-os-axis-declaration.md), [ADR 0021 (in-process prebuild resolution)](0021-launcher-free-prebuild-resolution.md), [ADR 0023 (which GTK a process uses)](0023-gtk-source-precedence.md), [docs/publishing.md](../publishing.md), `status/open-todos.md` § *gjsify on Flatpak — remaining roadmap*
 
@@ -112,7 +112,7 @@ preference.
 
 | OS | runtime in the artifact | why, measured |
 |---|---|---|
-| Linux · `--app gjs` | none — `Depends: gjs (>= 1.86)` | GJS and GTK come from the distro. Bundling would be ~100 MiB of cargo cult |
+| Linux · `--app gjs` | none — `Depends: gjs (>= 1.86)` | GJS and GTK come from the distro. Bundling would be ~100 MiB of cargo cult. **Measured caveat: no released Debian satisfies that floor** — Debian went 1.82.3 (trixie) straight to 1.88.1 (forky), skipping 1.84 and 1.86. The honest floor is emitted anyway and warned about; see § Implementation status |
 | Linux · `--app node` | bundled Node | no system Node can be assumed, and the app is Node |
 | **macOS** | **Node + `@gjsify/node-gi` + `@gjsify/gtk-runtime-darwin-<arch>`** | this is the combination CI proves on both arches, with no Homebrew in the picture: the *batteries-included conformance* and *windowing proof* legs of `node-gi.yml` run green against the relocated bundle |
 | **Windows** | **Node + `@gjsify/node-gi` + `@gjsify/gtk-runtime-win32-x64`** | **there is no GJS host on Windows** (`docs/ci-selective.md`), so this is not a choice. The *batteries-included conformance* and *Adwaita Storybook proof* legs prove it without gvsbuild |
@@ -253,3 +253,50 @@ Staged, each stage independently useful and independently mergeable:
 7. **`@gjsify/gjs-runtime-darwin-<arch>`**, after which § 4's macOS row can change to GJS.
 
 Follow-up work lands in `status/open-todos.md` per governance; this ADR records the why.
+
+## Implementation status
+
+**Landed: stages 2 and 3.** `gjsify ship` stages the payload and packs `.deb` and `.rpm`, proven by
+`tests/e2e/ship` — which builds real artifacts and reads them back with `rpm` (`-K`, `-qp --info`,
+`-qpl`, `-qp --requires`, `-qp --scripts`, `-i --test`, `rpm2cpio | cpio -it`), GNU `ar` and GNU
+`tar`.
+
+**Stage 1 (the ELF glibc floor) is still OPEN**, and is now a smaller job than the ADR assumed: the
+reader it needs already exists — `@gjsify/manifest-conformance`'s `binary.mjs` exports
+`readElfNeeded`, `readElfGlibcRequires` and `compareGlibcVersions` — so what is missing is only the
+rule that holds `gjsify.glibcRequires` against the binary. It stayed out of this change because it
+is about the PLATFORM packages' declarations, not about `ship`: a `--app gjs` payload contains no
+ELF at all, so nothing here can exercise it. The `ship` rule added instead
+(`manifest-conformance/lib/rules/ship.mjs`) is what keeps `gjsify.ship` from being a fifth
+unchecked declaration.
+
+**Four things the ADR left open, and how they were settled.**
+
+*The deb/rpm packer is hand-rolled, not vendored.* The reference downloads a pinned `nfpm`
+binary; this tree writes both formats itself (`utils/ship/{ar,cpio,rpm-header,deb,rpm}.ts`, ~700
+lines). Three reasons, in order: the packer has to run under GJS, where a Go binary cannot; it has
+to run offline and inside a Flatpak sandbox, where a download cannot; and the CI image is Fedora,
+so a `dpkg-deb`-based deb packer could never have been tested here at all. It is the same trade
+`gjsify flatpak sources` already made against `flatpak-node-generator`. The payoff was immediate
+and unplanned: writing the RPM header ourselves is what made `rpm` available as an INDEPENDENT
+oracle, and it caught a real defect on the first artifact — the maintainer scripts carried dpkg's
+`$1` convention (`[ "$1" = "configure" ]`), which inside an rpm scriptlet is never true, so the
+package would have installed and refreshed nothing.
+
+*Bundled Node stays open* (§ 4's `--app node` row). Nothing here needs it, and the question — ship
+time fetch versus a platform package — is unchanged.
+
+*Architecture is derived, not configured.* A payload with no `.so`/`.node` is `Architecture: all` /
+`BuildArch: noarch`. Claiming `amd64` for a bundle of JavaScript would make apt refuse it on an
+arm64 machine it runs on perfectly.
+
+*The GJS floor is emitted honestly and warned about.* `Depends: gjs (>= 1.86)` is what the bundler
+targets and what no released Debian provides. Lowering it silently would trade a package apt
+refuses for one that installs and then dies on a syntax error, so `gjsify ship` prints the gap and
+`gjsify.ship.minGjsVersion` is the deliberate opt-out.
+
+**One thing this PR did that the ADR only implied.** § 8 says the metadata half of `gjsify flatpak`
+is the app's, not Flatpak's. The AppStream and desktop-entry renderers moved out of
+`commands/flatpak/scaffold.ts` into `utils/app-metadata.ts`, and `ConfigDataFlatpak` now extends a
+shared `AppMetadata`, so `gjsify.ship` reads the same fields with no second copy and no config
+rename. The command migration (§ 8's nine subcommands, the deprecation window) is still ahead.
