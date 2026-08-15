@@ -11,7 +11,12 @@
 //  * plain C utf8 array return (transfer full)      (g_uri_list_extract_uris)
 //  * GHashTable<utf8,utf8> return → object          (GLib.Uri.parse_params)
 //  * GList<utf8> return → string[]                  (g_content_types_get_registered)
-//  * INOUT byte-array container is handled           (g_base64_decode_inplace)
+//
+// INOUT containers are NOT covered here. They are covered exhaustively, with
+// exact values, by the tier-B gimarshalling port (`GIMarshallingTests
+// .array_inout`, `.array_inout_etc`, `.method_array_inout`), which node-gi.yml
+// runs on every leg. This file used to call `g_base64_decode_inplace` for that
+// and could not: see the deleted case's replacement note below.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -98,19 +103,40 @@ test('GList<utf8> return → string[]: Gio.content_types_get_registered()', () =
     assert.ok(types.every((t) => typeof t === 'string'));
 });
 
-test('INOUT byte-array container is handled, not deferred: GLib.base64_decode_inplace()', () => {
-    // The `text` arg is an INOUT byte array (decoded in place). INOUT containers now
-    // marshal (round-tripped byte-for-byte vs gjs in the gimarshalling port +
-    // marshalling-close.test.mjs), so this no longer throws the old "not yet supported"
-    // deferral. base64_decode_inplace ITSELF is a known-quirky in-place case: its
-    // return-array aliases the freed in-place `text` buffer, so the decoded bytes are
-    // implementation-defined AND NON-DETERMINISTIC on GJS too (verified: gjs returns a
-    // different garbage byte each run) — hence only the absence of the deferral throw is
-    // asserted here, never specific bytes. Well-defined INOUT arrays/lists/hashes are
-    // covered exhaustively (with exact values) by the tier-B gimarshalling port.
-    requireNamespace('GLib', '2.0');
-    assert.doesNotThrow(() => callFunction('GLib', 'base64_decode_inplace', [Uint8Array.from([97, 71, 107, 61])]));
-});
+// DELETED: `INOUT byte-array container is handled: GLib.base64_decode_inplace()`.
+//
+// DO NOT ADD IT BACK. The call corrupts the marshaller's own stack frame, and it
+// is not a node-gi defect — `g_base64_decode_inplace`'s introspection annotation
+// contradicts its C ABI, so no binding that honours the annotation can call it:
+//
+//   glib/gbase64.h:57   guchar *g_base64_decode_inplace (gchar *text, gsize *out_len);
+//   GLib-2.0.gir        <parameter name="text" direction="inout"
+//                        transfer-ownership="full">
+//                         <array length="1" zero-terminated="0" c:type="gchar*"/>
+//
+// One star. A real INOUT array is `gchar**` (the callee reads the in-container
+// and reassigns the out-container), and `calls.cc` implements exactly that: it
+// hands the callee `&slots[i]`. So `g_base64_decode_inplace` decodes base64
+// straight over the GIArgument union, and the read-back then marshals — and
+// frees — a pointer whose low bytes are decoded payload.
+//
+// Measured here (Fedora 44, Node 24.15, five consecutive runs): the call returns
+// 96, 208, 112, 240, 80 — a different value every run, because what comes back is
+// the clobbered pointer, not data. The old case asserted only `doesNotThrow`, so
+// it passed while doing that, and reported an abort (`free(): invalid pointer`)
+// or a silent process death only when the allocator happened to notice — which
+// is why #925 looked like a platform flake.
+//
+// The typelib CANNOT tell the two shapes apart: `c:type` lives in the GIR XML
+// and is not compiled into the typelib. Compared field by field against a
+// genuine `gchar***` INOUT (`GLib.OptionContext.parse`'s `argv`), the two are
+// identical — direction INOUT, transfer EVERYTHING, tag ARRAY, is_pointer true,
+// caller-allocates false. So there is nothing for node-gi to detect, and a
+// per-function denylist would be a workaround that ossifies. It is an upstream
+// GLib annotation bug; `status/upstream-patch-candidates.md` carries it.
+//
+// INOUT container coverage lives where it can assert exact values: the tier-B
+// gimarshalling port, run on every node-gi CI leg.
 
 test('null marshals as a NULL array argument (GJS parity)', () => {
     // gjs 1.88: GLib.environ_getenv(null, 'PATH') === null — a null JS value

@@ -1128,6 +1128,27 @@ jobs:
     name: macOS GTK runtime bundle (build + relocate / darwin-${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     needs: macos
+    # PER-LEG, NOT PER-MATRIX. `needs:` cannot name a single matrix leg in GitHub
+    # Actions, so this job waits on the WHOLE upstream matrix — and a matrix that
+    # ends in `failure` skips its dependants outright, as ONE uninstantiated row
+    # rather than one row per arch. Measured on the first node-gi nightly, run
+    # 31862972834 (2026-08-15): `macos-gtk-runtime` was green on darwin-arm64 and
+    # red on darwin-x64 (a GitHub artifact-service timeout, not a node-gi defect),
+    # and `macos-gtk-batteries-included` was skipped for BOTH arches, its job name
+    # still showing the unexpanded `darwin-${{ matrix.arch }}`. One arch's flake
+    # erased the other arch's proof.
+    #
+    # `!cancelled()` lets each leg run on its own merit and fail, correctly
+    # attributed, at its own `download-artifact` step when ITS arch's artifact is
+    # genuinely missing. `!= 'skipped'` keeps the `scope` gate: when the OS legs
+    # are scoped out upstream, this stays skipped rather than running orphaned.
+    #
+    # The cost is bounded and paid only on a real double failure: the downloads sit
+    # a few cheap steps into the job, so an orphaned leg dies in about a minute of
+    # 10x-billed time instead of a 30-minute conformance run. The alternative —
+    # splitting the upstream matrices into per-arch jobs so `needs:` can be precise
+    # — triples ~100 lines of YAML three times over. This was the smaller change.
+    if: ${{ !cancelled() && needs.macos.result != 'skipped' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -1227,7 +1248,9 @@ jobs:
   # brew-installs GTK, so a green leg IS the proof that the display-free bundle
   # self-satisfies — there is no other GTK on the host to fall back to. (`needs:` cannot
   # be scoped to a single matrix leg in GitHub Actions, so each batteries leg waits for
-  # BOTH build legs; that costs latency, never correctness.)
+  # BOTH build legs. This used to say that costs "latency, never correctness"; it was
+  # wrong from the day it was written, and the job-level `if:` below is what makes it
+  # true — without it, one arch's failure erases the sibling arch's proof entirely.)
   #
   # WHICH ARTIFACT THIS IS, because it is NOT the one npm publishes: the DISPLAY-FREE
   # bundle. `release.yml` ships the `--windowing` superset, so this job is the
@@ -1240,6 +1263,8 @@ jobs:
     name: macOS batteries-included conformance (no brew GTK / darwin-${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     needs: macos-gtk-runtime
+    # Per-leg, not per-matrix — see `macos-gtk-runtime` for the run that measured it.
+    if: ${{ !cancelled() && needs.macos-gtk-runtime.result != 'skipped' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
@@ -1376,6 +1401,8 @@ jobs:
     name: macOS windowing GTK runtime bundle (build + relocate / darwin-${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     needs: macos
+    # Per-leg, not per-matrix — see `macos-gtk-runtime` for the run that measured it.
+    if: ${{ !cancelled() && needs.macos.result != 'skipped' }}
     timeout-minutes: 40
     strategy:
       fail-fast: false
@@ -1513,6 +1540,8 @@ jobs:
     name: macOS windowing proof (no brew GTK / darwin-${{ matrix.arch }})
     runs-on: ${{ matrix.runner }}
     needs: macos-gtk-windowing-runtime
+    # Per-leg, not per-matrix — see `macos-gtk-runtime` for the run that measured it.
+    if: ${{ !cancelled() && needs.macos-gtk-windowing-runtime.result != 'skipped' }}
     timeout-minutes: 30
     strategy:
       fail-fast: false
