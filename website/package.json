@@ -1,38 +1,39 @@
 {
-  "name": "@gjsify/website",
-  "version": "0.39.0",
-  "private": true,
-  "scripts": {
-    "copy:assets": "node scripts/copy-showcase-assets.mjs",
-    "generate:coverage": "node scripts/generate-coverage.mjs",
-    "build:deps": "gjsify workspace @gjsify/adwaita-web build -d",
-    "start": "gjsify run build:deps && gjsify run generate:coverage && gjsify run copy:assets && astro dev",
-    "build": "gjsify run build:deps && gjsify run generate:coverage && gjsify run copy:assets && astro build",
-    "serve": "astro preview",
-    "typecheck": "astro check"
-  },
-  "dependencies": {
-    "@astrojs/starlight": "^0.40.0",
-    "@fontsource/coming-soon": "^5.2.8",
-    "@gjsify/adwaita-fonts": "workspace:^",
-    "@gjsify/adwaita-icons": "workspace:^",
-    "@gjsify/adwaita-web": "workspace:^",
-    "@gjsify/example-dom-canvas2d-fireworks": "workspace:^",
-    "@gjsify/example-dom-excalibur-jelly-jumper": "workspace:^",
-    "@gjsify/example-dom-minimalist-browser": "workspace:^",
-    "@gjsify/example-dom-three-geometry-teapot": "workspace:^",
-    "@gjsify/example-dom-three-loader-ldraw": "workspace:^",
-    "@gjsify/example-dom-three-postprocessing-pixel": "workspace:^",
-    "@gjsify/example-dom-webrtc-loopback": "workspace:^",
-    "@gjsify/example-gtk-adwaita-storybook": "workspace:^",
-    "astro": "^6.4.5",
-    "excalibur": "0.32.0",
-    "three": "0.185.1"
-  },
-  "devDependencies": {
-    "@types/three": "^0.185.0"
-  },
-  "engines": {
-    "node": ">=22.12.0"
-  }
+    "name": "@gjsify/website",
+    "version": "0.39.0",
+    "private": true,
+    "scripts": {
+        "copy:assets": "node scripts/copy-showcase-assets.mjs",
+        "generate:coverage": "node scripts/generate-coverage.mjs",
+        "generate:tokens": "node scripts/generate-theming-tokens.mjs",
+        "build:deps": "gjsify workspace @gjsify/adwaita-web build -d",
+        "start": "gjsify run build:deps && gjsify run generate:coverage && gjsify run generate:tokens && gjsify run copy:assets && astro dev",
+        "build": "gjsify run build:deps && gjsify run generate:coverage && gjsify run generate:tokens && gjsify run copy:assets && astro build",
+        "serve": "astro preview",
+        "typecheck": "astro check"
+    },
+    "dependencies": {
+        "@astrojs/starlight": "^0.40.0",
+        "@fontsource/coming-soon": "^5.2.8",
+        "@gjsify/adwaita-fonts": "workspace:^",
+        "@gjsify/adwaita-icons": "workspace:^",
+        "@gjsify/adwaita-web": "workspace:^",
+        "@gjsify/example-dom-canvas2d-fireworks": "workspace:^",
+        "@gjsify/example-dom-excalibur-jelly-jumper": "workspace:^",
+        "@gjsify/example-dom-minimalist-browser": "workspace:^",
+        "@gjsify/example-dom-three-geometry-teapot": "workspace:^",
+        "@gjsify/example-dom-three-loader-ldraw": "workspace:^",
+        "@gjsify/example-dom-three-postprocessing-pixel": "workspace:^",
+        "@gjsify/example-dom-webrtc-loopback": "workspace:^",
+        "@gjsify/example-gtk-adwaita-storybook": "workspace:^",
+        "astro": "^6.4.5",
+        "excalibur": "0.32.0",
+        "three": "0.185.1"
+    },
+    "devDependencies": {
+        "@types/three": "^0.185.0"
+    },
+    "engines": {
+        "node": ">=22.12.0"
+    }
 }

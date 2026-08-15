@@ -117,6 +117,7 @@ export default defineConfig({
                         { slug: 'widgets/view-switching' },
                         { slug: 'widgets/presentation' },
                         { slug: 'widgets/feedback' },
+                        { slug: 'widgets/theming' },
                     ],
                 },
                 {
