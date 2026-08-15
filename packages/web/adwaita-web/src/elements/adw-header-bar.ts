@@ -1,7 +1,22 @@
 // <adw-header-bar> — Adwaita header bar with centered title and start/end button slots.
+//
+// The derived centre is an `<adw-window-title>`, which is what `Adw.HeaderBar`
+// itself puts there (`adw-header-bar.c`: the title widget it creates when none is
+// given IS an `AdwWindowTitle`). It used to be a bare span with
+// `textContent = title ?? ''`, and that span carried none of the three rules the
+// window title already held in `@gjsify/adwaita-core`: an EMPTY title still
+// reserved a blank line, re-setting the same value repainted, and there was no
+// subtitle at all. So a header bar could not show what its own NativeScript twin
+// could, and the fix is delegation rather than a fourth copy of the derivation.
+//
+// Reference: refs/libadwaita/src/adw-header-bar.c
 // Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
 // Copyright (c) 2025 csm. MIT License.
 // Modifications: Reimplemented as Web Component for @gjsify/adwaita-web.
+
+// Registers <adw-window-title>: the derived centre is one, so importing the bar
+// alone must still define it.
+import './adw-window-title.js';
 
 export class AdwHeaderBar extends HTMLElement {
     private _initialized = false;
@@ -9,14 +24,14 @@ export class AdwHeaderBar extends HTMLElement {
     private _centerEl: HTMLDivElement | null = null;
     private _endEl: HTMLDivElement | null = null;
     /**
-     * The generated title span, or `null` when a `slot="center"` title-widget
-     * took the centre. `Adw.HeaderBar` has the same either/or: setting
-     * `title-widget` replaces the derived `AdwWindowTitle` outright.
+     * The derived `<adw-window-title>`, or `null` when a `slot="center"`
+     * title-widget took the centre. `Adw.HeaderBar` has the same either/or:
+     * setting `title-widget` replaces the derived `AdwWindowTitle` outright.
      */
-    private _titleEl: HTMLSpanElement | null = null;
+    private _titleEl: HTMLElement | null = null;
 
     static get observedAttributes() {
-        return ['title'];
+        return ['title', 'subtitle'];
     }
 
     /** The start (left) section container — append buttons/widgets here. */
@@ -56,7 +71,7 @@ export class AdwHeaderBar extends HTMLElement {
         if (centerChildren.length > 0) {
             for (const child of centerChildren) this._centerEl.appendChild(child);
         } else {
-            this._titleEl = document.createElement('span');
+            this._titleEl = document.createElement('adw-window-title');
             this._titleEl.className = 'adw-header-bar-title';
             this._centerEl.appendChild(this._titleEl);
         }
@@ -77,15 +92,23 @@ export class AdwHeaderBar extends HTMLElement {
      * kept whatever it was created with. `Adw.HeaderBar`'s derived title widget
      * is bound to the property and re-renders on every change.
      */
-    attributeChangedCallback(name: string) {
-        if (this._initialized && name === 'title') this._renderTitle();
+    attributeChangedCallback() {
+        if (this._initialized) this._renderTitle();
     }
 
     private _renderTitle() {
         // A `slot="center"` widget replaced the derived title, so there is
         // nothing for the attribute to write to — the same either/or as
         // `Adw.HeaderBar:title-widget`.
-        if (this._titleEl) this._titleEl.textContent = this.getAttribute('title') ?? '';
+        if (!this._titleEl) return;
+        // Forwarded as ATTRIBUTES, so the window title's own change detection and
+        // empty-string collapse do the work. Removing rather than writing `''`
+        // keeps "unset" distinguishable from "set to empty" on the child.
+        for (const name of ['title', 'subtitle']) {
+            const value = this.getAttribute(name);
+            if (value === null) this._titleEl.removeAttribute(name);
+            else this._titleEl.setAttribute(name, value);
+        }
     }
 }
 

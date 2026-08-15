@@ -20,8 +20,8 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
-import { isSplitButtonDirection, menuButtonPopupDirection } from '@gjsify/adwaita-core';
-import type { SplitButtonDirection } from '@gjsify/adwaita-core';
+import { isSplitButtonDirection, menuButtonPopupDirection, parseMenuEntries } from '@gjsify/adwaita-core';
+import type { AdwMenuEntry, SplitButtonDirection } from '@gjsify/adwaita-core';
 
 // SIDE-EFFECT import, deliberately separate from the type import below: it guarantees
 // `adw-popover` is defined before this module's `customElements.define` can upgrade a
@@ -34,12 +34,15 @@ import type { AdwPopover } from './adw-popover.js';
 
 import { createAdwIcon } from './adw-icon.js';
 
-/** A menu entry. `id` defaults to `label` on activation; `icon` is optional. */
-export interface AdwMenuItem {
-    id?: string;
-    label: string;
-    icon?: string;
-}
+/**
+ * A menu entry — `@gjsify/adwaita-core`'s {@link AdwMenuEntry}, re-exported under the
+ * name this element has always used.
+ *
+ * It used to be a SECOND declaration of the same shape, and the NativeScript menu
+ * button declared a THIRD that was missing `icon` entirely. One type, so a consumer
+ * writing menu entries writes the same object for either renderer.
+ */
+export type AdwMenuItem = AdwMenuEntry;
 
 /**
  * Where the popover sits, per `GtkArrowType`. `menuButtonPopupDirection` folds `none`
@@ -152,18 +155,16 @@ export class AdwMenuButton extends HTMLElement {
         this._render();
     }
 
+    /**
+     * The `menu` attribute, through the core parser the split button already used.
+     *
+     * The copy this replaces was weaker in a way markup can reach: it kept `id` and
+     * `icon` WHATEVER their runtime type, so `{"label":"Open","id":7}` produced an
+     * entry whose `id` is a number in a field typed `string` — and `id` is what the
+     * activation event reports. The core parser keeps only string-typed extras.
+     */
     private _parseMenuAttr(): AdwMenuItem[] {
-        const raw = this.getAttribute('menu');
-        if (!raw) return [];
-        try {
-            const parsed: unknown = JSON.parse(raw);
-            if (!Array.isArray(parsed)) return [];
-            return parsed
-                .filter((e): e is AdwMenuItem => typeof e === 'object' && e !== null && 'label' in e)
-                .map((e) => ({ id: e.id, label: String(e.label), icon: e.icon }));
-        } catch {
-            return [];
-        }
+        return parseMenuEntries(this.getAttribute('menu'));
     }
 
     private _onPopoverToggled(open: boolean): void {
