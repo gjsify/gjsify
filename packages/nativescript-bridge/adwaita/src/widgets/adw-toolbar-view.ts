@@ -30,6 +30,8 @@ import {
     defaultToolbarViewProps,
     toolbarViewClassNames,
 } from './chrome.js';
+import { observeWindowInsets } from './window-insets-source.js';
+import { NO_INSETS, type WindowInsets, toolbarViewInsetPadding } from './window-insets.js';
 
 /** The classes the widget starts with; the derived ones are swapped in beside them. */
 const BASE_CLASSES = {
@@ -46,6 +48,11 @@ export class AdwToolbarView extends GridLayout {
     /** The currently-installed content view (row 1), if any. */
     private _content: View | null = null;
     private _props: ToolbarViewProps = defaultToolbarViewProps();
+    /** The last window insets seen, so a shape change can be re-paid without waiting. */
+    private _insets: WindowInsets = NO_INSETS;
+    private _topBarCount = 0;
+    private _bottomBarCount = 0;
+    private _detachInsets: (() => void) | null = null;
 
     constructor() {
         super();
@@ -75,16 +82,33 @@ export class AdwToolbarView extends GridLayout {
         // `update_undershoots` runs from size_allocate, so the classes follow the
         // bars' real heights rather than a one-shot read at construction.
         this.addEventListener('layoutChanged', () => this._syncClasses());
+
+        // Window insets are the chrome's business, not each app's. Subscribing here
+        // is what fixes every showcase and every consumer at once — doing it per app
+        // is how it drifts, and #1128 is what that looked like: the scrim of every
+        // dialog stopped short of the status bar because nothing anywhere applied an
+        // inset. Bound on `loaded` so a torn-down pane stops holding the listener.
+        this.addEventListener('loaded', () => {
+            this._detachInsets ??= observeWindowInsets((insets) => this._applyInsets(insets));
+        });
+        this.addEventListener('unloaded', () => {
+            this._detachInsets?.();
+            this._detachInsets = null;
+        });
     }
 
     /** Append a widget (e.g. an {@link AdwHeaderBar}) to the top-bar slot. */
     addTopBar(view: View): void {
         this._topBox.addChild(view);
+        this._topBarCount += 1;
+        this._applyInsets(this._insets);
     }
 
     /** Append a widget to the bottom-bar slot. */
     addBottomBar(view: View): void {
         this._bottomBox.addChild(view);
+        this._bottomBarCount += 1;
+        this._applyInsets(this._insets);
     }
 
     /** Set (or replace) the main content view. Pass `null` to clear it. */
@@ -185,6 +209,27 @@ export class AdwToolbarView extends GridLayout {
             this.removeChild(box);
             this.addChild(box);
         }
+    }
+
+    /**
+     * Pay each edge's inset out of the slot that sits on it.
+     *
+     * The assignment is decided by the pure sibling (`toolbarViewInsetPadding`); this
+     * only spells it in NativeScript. Where that module says "the content pays", the
+     * padding goes on THIS view rather than on the content view: the content belongs
+     * to the consumer, and a chrome that writes padding into a consumer's widget
+     * would silently overwrite whatever they set there.
+     */
+    private _applyInsets(insets: WindowInsets): void {
+        this._insets = insets;
+        const padding = toolbarViewInsetPadding(insets, {
+            hasTopBar: this._topBarCount > 0,
+            hasBottomBar: this._bottomBarCount > 0,
+        });
+        this._topBox.paddingTop = padding.topBarTop;
+        this._bottomBox.paddingBottom = padding.bottomBarBottom;
+        this.paddingTop = padding.contentTop;
+        this.paddingBottom = padding.contentBottom;
     }
 
     /**

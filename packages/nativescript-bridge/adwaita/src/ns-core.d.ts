@@ -56,6 +56,16 @@ declare module '@nativescript/core' {
         backgroundColor: string;
         /** Inline opacity in [0, 1]. */
         opacity: number;
+        /**
+         * Inline padding in DIPs, per edge.
+         *
+         * A LOCAL value, so it beats whatever the stylesheet says for this view —
+         * which is why the window insets are applied here rather than through CSS.
+         */
+        paddingTop: number;
+        paddingBottom: number;
+        paddingLeft: number;
+        paddingRight: number;
         /** Visibility (`'visible' | 'hidden' | 'collapse'`). */
         visibility: string;
         /** Whether the view responds to touch at all — NS's `gtk_widget_set_can_target`. */
@@ -357,7 +367,7 @@ declare module '@nativescript/core' {
      */
     export function action(options: ActionOptions): Promise<string>;
 
-    /** App-level services. Only `addCss` is used here. */
+    /** App-level services: the stylesheet, the lifecycle, and the two native hosts. */
     export namespace Application {
         /**
          * Append CSS to the application stylesheet and re-apply style to the live
@@ -369,5 +379,38 @@ declare module '@nativescript/core' {
          * which is how an override of equal specificity wins.
          */
         export function addCss(cssText: string, attributeScoped?: boolean): void;
+
+        /** Subscribe to an application lifecycle event (`resume`, `suspend`, …). */
+        export function on(event: string, callback: (args: unknown) => void): void;
+        /** Drop a subscription made with {@link on}. */
+        export function off(event: string, callback: (args: unknown) => void): void;
+
+        /**
+         * The Android host, absent on every other platform.
+         *
+         * Declared only as far as the window-inset source reaches — the Activity, its
+         * Window, its decor view — because those are the one place both edges' insets
+         * are dispatched. Every hop is optional: `foregroundActivity` is null between
+         * activities, and a widget's `loaded` can fire in that window.
+         */
+        export const android:
+            | {
+                  readonly foregroundActivity?: AndroidActivityLike | null;
+                  readonly startActivity?: AndroidActivityLike | null;
+              }
+            | undefined;
+
+        /** The iOS host, absent on every other platform. */
+        export const ios: unknown | undefined;
+    }
+
+    /** As much of `android.app.Activity` as the inset source needs. */
+    export interface AndroidActivityLike {
+        getWindow?(): AndroidWindowLike | null;
+    }
+
+    /** As much of `android.view.Window` as the inset source needs. */
+    export interface AndroidWindowLike {
+        getDecorView?(): unknown;
     }
 }
