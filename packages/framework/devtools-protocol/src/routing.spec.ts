@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import {
+    appIdToObjectPath,
     DEVTOOLS_ADDRESS_ENV,
     devtoolsAddressFilePath,
     isDevtoolsEnabledValue,
@@ -10,7 +11,28 @@ import {
     sanitizeInstanceId,
 } from './routing.js';
 
+/** The D-Bus object-path grammar: `/`-separated `[A-Za-z0-9_]` elements, no trailing `/`. */
+const OBJECT_PATH = /^\/([A-Za-z0-9_]+(\/[A-Za-z0-9_]+)*)?$/;
+
 export default async () => {
+    await describe('appIdToObjectPath', async () => {
+        await it('maps dots to slashes and hyphens to underscores, as GApplication does', async () => {
+            expect(appIdToObjectPath('org.example.App')).toBe('/org/example/App');
+            // Measured against `app.get_dbus_object_path()` on gjs 1.88.1 for this very id.
+            expect(appIdToObjectPath('gjsify.examples.canvas2d-fireworks')).toBe('/gjsify/examples/canvas2d_fireworks');
+        });
+
+        await it('produces a LEGAL object path for a hyphenated id', async () => {
+            // The whole point: `-` is not in the object-path grammar, and exporting at an
+            // illegal path logs a GIO assertion and exports NOTHING rather than throwing.
+            expect(OBJECT_PATH.test(appIdToObjectPath('gjsify.examples.three-loader-ldraw'))).toBe(true);
+            expect(OBJECT_PATH.test(resolveBusAddress('gjsify.examples.three-loader-ldraw').objectPath)).toBe(true);
+            expect(OBJECT_PATH.test(resolveBusAddress('gjsify.examples.three-loader-ldraw', 'Host-1').objectPath)).toBe(
+                true,
+            );
+        });
+    });
+
     await describe('sanitizeInstanceId', async () => {
         await it('lowercases and strips non-alphanumerics', async () => {
             expect(sanitizeInstanceId('Host-1')).toBe('host1');

@@ -17,20 +17,37 @@ export interface BusAddress {
 }
 
 /**
+ * An application id as `Gio.Application` itself spells it as an object path: dots become
+ * slashes, HYPHENS BECOME UNDERSCORES (gio `gapplicationimpl-dbus.c`,
+ * `application_path_from_appid`).
+ *
+ * The hyphen half is not cosmetic. `-` is not a legal D-Bus object-path character —
+ * measured on gjs 1.88.1, `GLib.Variant.is_object_path('/gjsify/examples/canvas2d-fireworks')`
+ * is `false`, and exporting there does NOT throw: it logs one
+ * `g_dbus_interface_skeleton_export: assertion 'g_variant_is_object_path (object_path)'
+ * failed` and exports nothing. Every `gjsify.examples.*-*` showcase carries such an id, so
+ * a dots-only derivation aimed the bus-less export and the bridge's prediction at a path
+ * that can never exist, silently, while the app itself sat at the underscore one.
+ */
+export function appIdToObjectPath(appId: string): string {
+    return `/${appId.replace(/\./g, '/').replace(/-/g, '_')}`;
+}
+
+/**
  * Resolve an instance label to its DBus bus name + devtools object path, given the app's
  * base id. The default instance keeps the bare base; a named instance gets a
  * `.<segment>` bus-name suffix and a `/<segment>` path segment, so the bridge dials the
  * right process when several run side by side.
  *
- * Mirrors `Gio.Application`'s own path derivation (id dots → slashes, leading slash) plus
- * a `/devtools` leaf. The in-app adapter should prefer the authoritative
- * `app.get_dbus_object_path() + '/devtools'`; this only lets the bridge PREDICT it.
+ * Path derivation is {@link appIdToObjectPath} plus a `/devtools` leaf. The in-app adapter
+ * should prefer the authoritative `app.get_dbus_object_path() + '/devtools'`; this only
+ * lets the bridge PREDICT it.
  *
  * - `("org.example.App")` → `org.example.App` @ `/org/example/App/devtools`
  * - `("org.example.App", "host")` → `org.example.App.host` @ `/org/example/App/host/devtools`
  */
 export function resolveBusAddress(base: string, label?: string): BusAddress {
-    const basePath = `/${base.replace(/\./g, '/')}`;
+    const basePath = appIdToObjectPath(base);
     const seg = label && label !== 'default' ? sanitizeInstanceId(label) : 'default';
     if (seg === 'default') {
         return { busName: base, objectPath: `${basePath}/devtools`, instance: 'default' };
