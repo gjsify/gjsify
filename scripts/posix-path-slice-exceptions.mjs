@@ -41,7 +41,7 @@ export const POSIX_PATH_SLICE_EXCEPTIONS = {
         '`./` prefix. A `.rpm` built on Windows still installs `/usr/bin/foo` on Linux.',
     'packages/infra/cli/src/utils/ship/stage-writer.ts':
         'A prefix-relative PAYLOAD path, which the planner builds with `posix.join` precisely so ' +
-        'one payload description serves every format. The `split(\'/\')` is the identifier side ' +
+        "one payload description serves every format. The `split('/')` is the identifier side " +
         'of the conversion and `join(sep)` is what turns it into a host path — this is the one ' +
         'place that crossing happens, which is why it reads as a split.',
     'packages/infra/workspace/src/changed-files.ts':

@@ -370,6 +370,18 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.match(execFileSync('rpm', ['-qp', '--requires', rpmFile], { encoding: 'utf-8' }), /^nautilus$/m);
     });
 
+    it('refuses a build target it cannot package', () => {
+        // The launcher execs `gjs -m <bundle>`, so a `--app node` project would
+        // otherwise get a package that installs and fails at startup — and the
+        // fix for that case (a bundled Node) is still an open ADR decision.
+        const dir = scaffold(join(tmpDir, 'app-node'), (pkg) => {
+            pkg.gjsify.app = 'node';
+        });
+        const result = runCliExpectingFailure(dir);
+        assert.match(result, /only `gjs` can be packaged today/);
+        assert.match(result, /ADR 0024/);
+    });
+
     it('refuses a schema that would collide in the shared system directory', () => {
         const dir = scaffold(join(tmpDir, 'bad-schema'));
         rmSync(join(dir, 'data', `${APP_ID}.gschema.xml`));

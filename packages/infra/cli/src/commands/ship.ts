@@ -77,7 +77,11 @@ export const shipCommand: Command<unknown, ShipOptions> = {
                 type: 'string',
                 description: 'Target architecture in `process.arch` spelling. Default: this host.',
             })
-            .option('verbose', { type: 'boolean', default: false, description: 'Print each staged file.' }),
+            .option('verbose', {
+                type: 'boolean',
+                default: false,
+                description: 'Print each staged file and the GI namespaces the bundle imports.',
+            }),
 
     handler: async (args) => {
         const projectDir = process.cwd();
@@ -89,6 +93,7 @@ export const shipCommand: Command<unknown, ShipOptions> = {
         const configData = await config.forCommand(projectDir);
         const ship = configData.ship ?? {};
         const flatpak = configData.flatpak ?? {};
+        assertShippableTarget(configData.app);
         const pkg = (readPackageJson(join(projectDir, 'package.json')) ?? {}) as ShipPackageManifest;
 
         // Resolved before anything is built or written: a typo'd `--target`
@@ -203,6 +208,28 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
     const target = join(outDir, format.fileName(settings, archLabel));
     writeFileSync(target, bytes);
     return { format: format.id, path: target, size: bytes.byteLength };
+}
+
+/**
+ * Refuse a build target this command cannot package correctly.
+ *
+ * The launcher execs `gjs -m <bundle>`, so a `--app node` bundle would produce
+ * a package that installs and then fails at startup — and ADR 0024 § 4 says
+ * that case needs a BUNDLED Node, whose delivery (fetched at ship time versus a
+ * platform package) is still an open decision. Better to say so than to ship
+ * the broken half of it.
+ *
+ * An undeclared target is the common case for a GJS app and is allowed: `app`
+ * otherwise defaults to the HOST runtime, which would refuse a perfectly good
+ * GJS project merely for running this command under Node.
+ */
+function assertShippableTarget(app: string | undefined): void {
+    if (app === undefined || app === 'gjs') return;
+    throw new Error(
+        `gjsify ship: this project declares \`gjsify.app: "${app}"\`, and only \`gjs\` can be packaged today. ` +
+            'The launcher execs `gjs -m <bundle>`, so any other target would install and then fail to start. ' +
+            'ADR 0024 § 4 has the runtime-per-OS table and what is still open for the other targets.',
+    );
 }
 
 /**
