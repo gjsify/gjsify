@@ -255,6 +255,28 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.deepEqual(listing, header);
     });
 
+    it('.deb: unpacks to exactly the staged tree, byte for byte', () => {
+        if (!probe('ar') || !probe('tar')) return;
+        // The closest this suite can get to `dpkg -i`: dpkg is on no runner
+        // this project uses, so what is provable is that the data member
+        // expands to the payload that was staged — same paths, same bytes.
+        const unpacked = join(tmpDir, 'deb-unpacked');
+        rmSync(unpacked, { recursive: true, force: true });
+        mkdirSync(unpacked, { recursive: true });
+        execFileSync('tar', ['xzf', join(extractDeb(), 'data.tar.gz'), '-C', unpacked]);
+
+        const staged = listFiles(join(projectDir, 'ship', 'stage'));
+        const overlay = listFiles(join(projectDir, 'ship', 'overlay', 'deb'));
+        const expected = [...staged, ...overlay].sort();
+        const actual = listFiles(join(unpacked, 'usr')).sort();
+        assert.deepEqual(actual, expected);
+
+        for (const rel of staged) {
+            const source = join(projectDir, 'ship', 'stage', ...rel.split('/'));
+            assert.deepEqual(readFileSync(join(unpacked, 'usr', ...rel.split('/'))), readFileSync(source), rel);
+        }
+    });
+
     // ── properties of both ────────────────────────────────────────────────
 
     it('packs the same build twice into byte-identical artifacts', () => {
@@ -400,9 +422,26 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
     }
 });
 
-/** True when the tool is available; prints the skip when it is not. */
+/**
+ * True when the tool is available.
+ *
+ * On Linux — the only platform whose runners execute this suite — `rpm`, `ar`
+ * and `tar` are REQUIRED, and a missing one fails rather than skips. That
+ * distinction is the whole point: every artifact assertion here sits behind one
+ * of them, so a silent skip would leave the suite green having read nothing,
+ * which is exactly the class this suite's header says it exists to avoid.
+ * `cpio`/`rpm2cpio` stay optional — they gate one extra cross-check.
+ */
+const REQUIRED_ON_LINUX = new Set(['rpm', 'ar', 'tar']);
+
 function probe(cmd) {
     if (hasCommand(cmd)) return true;
+    if (process.platform === 'linux' && REQUIRED_ON_LINUX.has(cmd)) {
+        throw new Error(
+            `${cmd} is not on PATH. It is how this suite reads the artifact back, so skipping it would ` +
+                'make every packing assertion vacuous.',
+        );
+    }
     console.log(`  skipping: ${cmd} not on PATH`);
     return false;
 }

@@ -1,14 +1,17 @@
 // The "new ASCII" cpio archive (magic `070701`) an RPM carries as its payload.
 //
-// Every field is 8 uppercase hex digits, which makes the format trivially
-// writable and — more usefully — trivially INSPECTABLE: `rpm2cpio x.rpm |
-// cpio -it` reads what this writes, so the e2e suite has an oracle that shares
-// no code with the writer.
+// Every field is 8 hex digits, which makes the format trivially writable and —
+// more usefully — trivially INSPECTABLE: `rpm2cpio x.rpm | cpio -it` reads what
+// this writes, so the e2e suite has an oracle that shares no code with the
+// writer. (rpm itself formats them with `%8.8lx`, i.e. LOWERCASE; both parse,
+// and this writer emits uppercase.)
 //
 // Two padding rules, both easy to get subtly wrong and both silent when wrong:
 // the filename (including its NUL) is padded so that the DATA starts on a
 // 4-byte boundary counted from the start of the header, and the data itself is
 // padded so the NEXT header does too.
+
+import { concatBytes, encodeUtf8 } from './bytes.js';
 
 const MAGIC = '070701';
 const HEADER_FIELDS = 13;
@@ -42,8 +45,8 @@ export function createCpioArchive(entries: readonly CpioEntry[]): Uint8Array {
     let offset = 0;
 
     entries.forEach((entry, index) => {
-        const body = entry.linkTarget !== undefined ? encode(entry.linkTarget) : (entry.data ?? new Uint8Array(0));
-        const nameBytes = encode(`${entry.name}\0`);
+        const body = entry.linkTarget !== undefined ? encodeUtf8(entry.linkTarget) : (entry.data ?? new Uint8Array(0));
+        const nameBytes = encodeUtf8(`${entry.name}\0`);
         const header = buildHeader({
             ino: entry.ino ?? index + 1,
             mode: entry.mode,
@@ -59,9 +62,10 @@ export function createCpioArchive(entries: readonly CpioEntry[]): Uint8Array {
         offset = padTo4(chunks, offset);
     });
 
-    // The trailer's inode and link count are what `cpio` looks at to decide the
-    // archive ended cleanly; everything else is zero.
-    const trailerName = encode('TRAILER!!!\0');
+    // The archive ends at the entry NAMED `TRAILER!!!` — that name is the
+    // signal, not any of the numeric fields. rpm writes `nlink = 1` there and
+    // zeroes the rest, so this does too.
+    const trailerName = encodeUtf8('TRAILER!!!\0');
     offset = push(
         chunks,
         buildHeader({ ino: 0, mode: 0, nlink: 1, mtime: 0, filesize: 0, namesize: trailerName.byteLength }),
@@ -70,7 +74,7 @@ export function createCpioArchive(entries: readonly CpioEntry[]): Uint8Array {
     offset = push(chunks, trailerName, offset);
     padTo4(chunks, offset);
 
-    return concat(chunks);
+    return concatBytes(chunks);
 }
 
 interface HeaderFields {
@@ -103,7 +107,7 @@ function buildHeader(fields: HeaderFields): Uint8Array {
             `gjsify ship: internal error — cpio header is ${header.length} bytes, expected ${HEADER_SIZE}.`,
         );
     }
-    return encode(header);
+    return encodeUtf8(header);
 }
 
 function hex8(value: number): string {
@@ -128,20 +132,4 @@ function padTo4(chunks: Uint8Array[], offset: number): number {
     const padding = 4 - remainder;
     chunks.push(new Uint8Array(padding));
     return offset + padding;
-}
-
-function encode(value: string): Uint8Array {
-    return new TextEncoder().encode(value);
-}
-
-function concat(chunks: readonly Uint8Array[]): Uint8Array {
-    let total = 0;
-    for (const chunk of chunks) total += chunk.byteLength;
-    const out = new Uint8Array(total);
-    let offset = 0;
-    for (const chunk of chunks) {
-        out.set(chunk, offset);
-        offset += chunk.byteLength;
-    }
-    return out;
 }

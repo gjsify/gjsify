@@ -13,6 +13,7 @@ import shipPlanSuite from './utils/ship/plan.spec.js';
 import shipSettingsSuite from './utils/ship/settings.spec.js';
 import shipDependsSuite from './utils/ship/depends.spec.js';
 import shipArchivesSuite from './utils/ship/archives.spec.js';
+import shipPackersSuite from './utils/ship/packers.spec.js';
 import installProjectEngineSuite from './commands/install-project-engine.spec.js';
 import giRuntimePathsBannerSuite from './gi-runtime-paths-banner.spec.js';
 import processStubBannerSuite from './process-stub-banner.spec.js';
@@ -192,6 +193,7 @@ run(
         shipSettingsSuite,
         shipDependsSuite,
         shipArchivesSuite,
+        shipPackersSuite,
         installProjectEngineSuite,
         giRuntimePathsBannerSuite,
         processStubBannerSuite,

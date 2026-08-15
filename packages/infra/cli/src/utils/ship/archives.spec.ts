@@ -82,8 +82,11 @@ export default async () => {
         });
 
         await it('refuses a name the 16-byte field cannot hold', async () => {
+            // dpkg supports neither the GNU nor the BSD long-name extension, so
+            // a name that does not fit has to be an error rather than a
+            // truncation.
             expect(() => createArArchive([{ name: 'x'.repeat(17), data: new Uint8Array(1) }])).toThrow(
-                'longer than the 16-byte name field',
+                'does not fit in 16 bytes',
             );
         });
     });
@@ -99,6 +102,19 @@ export default async () => {
             expect(decoder.decode(archive.slice(110, 122))).toBe('./usr/bin/x\0');
             // 110 + 12 = 122, padded to 124 before the data.
             expect(decoder.decode(archive.slice(124, 126))).toBe('hi');
+        });
+
+        await it('pads an odd body so the NEXT header stays 4-aligned', async () => {
+            // The pad that matters, and the one a single-entry test cannot see:
+            // miss it and every later header is read at the wrong offset.
+            const archive = createCpioArchive([
+                { name: './a', mode: S_IFREG | 0o644, data: new TextEncoder().encode('xyz') },
+                { name: './b', mode: S_IFREG | 0o644, data: new TextEncoder().encode('q') },
+            ]);
+            // entry 1: header 110 + name './a\0' 4 = 114 → pad to 116, data 3 → pad to 120.
+            expect(decoder.decode(archive.slice(116, 119))).toBe('xyz');
+            expect(decoder.decode(archive.slice(120, 126))).toBe('070701');
+            expect(decoder.decode(archive.slice(120 + 110, 120 + 114))).toBe('./b\0');
         });
 
         await it('terminates with the TRAILER!!! entry', async () => {
@@ -177,8 +193,11 @@ export default async () => {
             expect(decoder.decode(lead.slice(10, 23))).toBe('hello-1.0.0-1');
         });
 
-        await it('pads to the boundary the main header starts on', async () => {
-            expect(padToEight(new Uint8Array(12)).byteLength).toBe(16);
+        await it('pads to the boundary the main header starts on, with zeros', async () => {
+            const padded = padToEight(Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]));
+            expect(padded.byteLength).toBe(16);
+            expect(Array.from(padded.subarray(0, 12))).toStrictEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+            expect(Array.from(padded.subarray(12))).toStrictEqual([0, 0, 0, 0]);
             expect(padToEight(new Uint8Array(16)).byteLength).toBe(16);
         });
     });

@@ -1,30 +1,27 @@
 // Which GI namespaces does this bundle actually load?
 //
 // Read off the emitted `--app gjs` bundle, because that is the file that gets
-// installed. `gi://` is a real module protocol under GJS, so the bundler leaves
-// those specifiers in the output verbatim — the artifact carries its own
-// dependency list and nothing has to be declared twice.
+// installed. `gi://` is a real module protocol under GJS, so the bundler keeps
+// those specifiers in the output verbatim (`rolldown-plugin-gjsify`'s externals
+// plugin) — the artifact carries its own dependency list and nothing has to be
+// declared twice.
 //
-// Deliberately narrow: only `from <spec>` and `import(<spec>)` count. A broad
-// `gi:\/\/(\w+)` sweep would also match the string inside a diagnostic message,
-// and since an unknown namespace FAILS the build (`depends.ts`), a false
-// positive there is a build that cannot be made to pass.
+// PARSED, not pattern-matched, and the first version of this file is why. A
+// regex over the bundle text got it wrong in both directions at once:
 //
-// All three quote characters, and no space assumed anywhere. Measured on a real
-// `--app gjs` bundle rather than on the source: the minifier emits
-// `import e from"gi://Gtk?version=4.0"` (no space) and rewrites a dynamic
-// import to a TEMPLATE LITERAL — ``await import(`gi://GLib?version=2.0`)``.
-// A quote-only pattern therefore missed every dynamic import, which is the
-// silent half of this feature's whole failure mode: the package would install
-// without the dependency and die when the import ran.
+//   * it missed `import "gi://Soup?version=3.0"` — the bare side-effect form,
+//     which is exactly what `@gjsify/fetch` puts at the top of every bundle
+//     that pulls it. The package would have shipped without libsoup, installed
+//     cleanly, and died at the first request.
+//   * it matched `gi://…` inside a diagnostic STRING containing the word
+//     `from`, and since an unmapped namespace fails the build, that made a
+//     correct project unbuildable.
 //
-// A specifier containing `$` is skipped: it is a template with a substitution,
-// so there is no static answer to give, and guessing one would fail the build
-// on a namespace the author never named.
+// `moduleSpecifiers` answers the question exactly, and it is the same acorn
+// pass the CLI already uses to compute its own runtime closure — so there is
+// one definition of "what does this file import" rather than two.
 
-/** `import X from 'gi://Ns?version=1.0'` and ``await import(`gi://Ns`)``. */
-const FROM_SPECIFIER = /\bfrom\s*(["'`])(gi:\/\/[^"'`$\n]+)\1/g;
-const DYNAMIC_IMPORT = /\bimport\s*\(\s*(["'`])(gi:\/\/[^"'`$\n]+)\1\s*\)/g;
+import { moduleSpecifiers } from '../cli-runtime-closure.js';
 
 /**
  * Extract the GI namespaces a bundle imports, as `Ns-Version` when the
@@ -32,12 +29,9 @@ const DYNAMIC_IMPORT = /\bimport\s*\(\s*(["'`])(gi:\/\/[^"'`$\n]+)\1\s*\)/g;
  */
 export function scanGiNamespaces(source: string): string[] {
     const found = new Set<string>();
-    for (const pattern of [FROM_SPECIFIER, DYNAMIC_IMPORT]) {
-        pattern.lastIndex = 0;
-        for (const match of source.matchAll(pattern)) {
-            const key = parseGiSpecifier(match[2] ?? '');
-            if (key !== null) found.add(key);
-        }
+    for (const specifier of moduleSpecifiers(source)) {
+        const key = parseGiSpecifier(specifier);
+        if (key !== null) found.add(key);
     }
     return [...found].sort();
 }

@@ -97,7 +97,7 @@ export function planOverlay(settings: ShipSettings, format: FormatDescriptor, in
         format.licenseKind === 'debian-copyright'
             ? renderDebianCopyright(settings, inputs.licenseText)
             : inputs.licenseText;
-    return normalise([{ path: format.licenseDest(settings.binaryName), mode: 0o644, source: { kind: 'text', text } }]);
+    return [{ path: format.licenseDest(settings.binaryName), mode: 0o644, source: { kind: 'text', text } }];
 }
 
 /**
@@ -182,9 +182,16 @@ function assertInsidePrefix(dest: string): string {
     return normalised;
 }
 
-/** A `.so`/`.node` inside the payload has to keep its executable bit. */
+/**
+ * A native module inside the payload has to keep its executable bit.
+ *
+ * By NAME here, unlike `isArchIndependent`, which reads the file's magic: the
+ * planner is pure and has no bytes to look at. The two answer different
+ * questions — "should this be 0755" versus "is this package portable" — and
+ * getting this one wrong costs a mode bit, not an unusable package.
+ */
 function isExecutableAsset(rel: string): boolean {
-    return /\.(so|node)(\.\d+)*$/.test(rel);
+    return /\.(so|node|dylib)(\.\d+)*$/.test(rel);
 }
 
 /** Last write wins, then sort — deterministic output for a deterministic artifact. */

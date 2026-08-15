@@ -68,11 +68,15 @@ export default async () => {
             ).toThrow('gi://Nautilus');
         });
 
-        await it('adds the schema dependency only when schemas are shipped', async () => {
-            expect(deriveDepends('rpm', { ...base, namespaces: [], hasSchemas: true })).toContain(
-                'gsettings-desktop-schemas',
-            );
-            expect(deriveDepends('rpm', { ...base, namespaces: [] })).not.toContain('gsettings-desktop-schemas');
+        await it('depends on the package that ships glib-compile-schemas, per format', async () => {
+            // NOT `gsettings-desktop-schemas`, which ships GNOME's own schemas
+            // and cannot compile ours. On Debian the tool is in a package no
+            // `gir1.2-*` pulls in, so naming the wrong one means the postinst's
+            // `command -v` guard skips, the schema is never compiled, and the
+            // first `Gio.Settings.new()` aborts the app.
+            expect(deriveDepends('rpm', { ...base, namespaces: [], hasSchemas: true })).toContain('glib2');
+            expect(deriveDepends('deb', { ...base, namespaces: [], hasSchemas: true })).toContain('libglib2.0-bin');
+            expect(deriveDepends('deb', { ...base, namespaces: [] })).not.toContain('libglib2.0-bin');
         });
 
         await it('appends the configured extras last, deduplicated', async () => {
@@ -100,6 +104,11 @@ export default async () => {
             expect(warnAboutGjsFloor('deb', '1.86').join('')).toContain('not satisfiable on Debian stable');
             expect(warnAboutGjsFloor('deb', '1.82').length).toBe(0);
             expect(warnAboutGjsFloor('deb', '1.88.1').length).toBe(0);
+            // Only the floor forky ACTUALLY satisfies is quiet: a `>= 1.88.1`
+            // test also silenced 1.90 and 2.0, the floors no Debian will meet
+            // for years.
+            expect(warnAboutGjsFloor('deb', '1.90').length).toBe(1);
+            expect(warnAboutGjsFloor('deb', '2.0').length).toBe(1);
         });
 
         await it('says nothing for rpm, where the floor is met', async () => {
@@ -144,6 +153,15 @@ export default async () => {
             expect(scanGiNamespaces(source)).toStrictEqual(['Adw-1', 'GLib-2.0', 'Gtk-4.0']);
         });
 
+        await it('finds a BARE side-effect import', async () => {
+            // `@gjsify/fetch` puts exactly this at the top of every bundle that
+            // pulls it, and the first version of the scanner — which required
+            // `from` or `import(` — returned nothing for it. The package would
+            // have shipped without libsoup, installed, and died at the first
+            // request.
+            expect(scanGiNamespaces('import"gi://Soup?version=3.0";')).toStrictEqual(['Soup-3.0']);
+        });
+
         await it('finds the shapes a MINIFIED bundle actually emits', async () => {
             // Verbatim from a real `gjsify build --app gjs` output: no space
             // after `from`, and the dynamic import rewritten to a TEMPLATE
@@ -159,11 +177,14 @@ export default async () => {
             expect(scanGiNamespaces('const m = await import(`gi://${ns}?version=1.0`);')).toStrictEqual([]);
         });
 
-        await it('ignores a gi:// spelling that is not an import', async () => {
-            // Over-approximating here is not harmless: an unknown namespace is
-            // a build failure, so a mention inside a diagnostic string would
-            // make a correct project unbuildable.
+        await it('ignores a gi:// spelling inside a string, even one containing `from`', async () => {
+            // Over-approximating is not harmless: an unmapped namespace is a
+            // BUILD FAILURE, so a mention in a diagnostic message would make a
+            // correct project unbuildable. The regex version matched this one.
             expect(scanGiNamespaces(`throw new Error("gi://Nautilus is not supported");`)).toStrictEqual([]);
+            expect(
+                scanGiNamespaces(`throw new Error("cannot import from 'gi://Nautilus?version=3.0'");`),
+            ).toStrictEqual([]);
         });
 
         await it('parses a specifier with and without a version', async () => {

@@ -77,7 +77,10 @@ export function resolveFormats(raw: readonly string[]): FormatDescriptor[] {
         .flatMap((entry) => entry.split(','))
         .map((entry) => entry.trim())
         .filter((entry) => entry.length > 0);
-    const unknown = names.filter((name) => !(name in FORMATS));
+    // `Object.hasOwn`, not `in`: `in` walks the prototype chain, so
+    // `--target constructor` resolved to `Object` and the refusal below never
+    // fired — the run then died somewhere unrelated.
+    const unknown = names.filter((name) => !Object.hasOwn(FORMATS, name));
     if (unknown.length > 0) {
         throw new Error(
             `gjsify ship: unknown target${unknown.length > 1 ? 's' : ''} ${unknown.join(', ')}. ` +

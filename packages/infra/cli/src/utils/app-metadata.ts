@@ -44,6 +44,14 @@ export interface AppMetadataInputs {
      * block the caller was actually reading.
      */
     configKey: string;
+    /**
+     * Year for the copyright comment. Passed in rather than read from the
+     * clock: this XML is PAYLOAD, so `new Date()` here makes the artifact's
+     * bytes depend on when it was packed — a reproducibility hole no test
+     * running inside one second can see. Defaults to the current year for
+     * callers that write the file to a source tree rather than into a package.
+     */
+    copyrightYear?: number;
 }
 
 export interface MissingFieldError {
@@ -143,7 +151,7 @@ function execFieldCode(mimetypes: readonly string[]): string {
 
 function renderMetainfo(inputs: AppMetadataInputs, kind: 'desktop-application' | 'console-application'): string {
     const m = inputs.metadata;
-    const year = new Date().getFullYear();
+    const year = inputs.copyrightYear ?? new Date().getFullYear();
     const developerName = m.developer?.name ?? '';
     const lines: string[] = [];
 

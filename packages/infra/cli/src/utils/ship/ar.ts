@@ -10,6 +10,8 @@
 // `flatpak-node-generator`), and it has the same payoff: the packer runs
 // wherever the CLI runs, including under GJS.
 
+import { concatBytes, encodeUtf8 } from './bytes.js';
+
 export interface ArMember {
     /** Member name, at most 16 bytes. */
     name: string;
@@ -35,21 +37,20 @@ const HEADER_SIZE = 60;
  * neither extension can arise and refusing a long name is honest.
  */
 export function createArArchive(members: readonly ArMember[]): Uint8Array {
-    const chunks: Uint8Array[] = [encodeAscii(GLOBAL_HEADER)];
+    const chunks: Uint8Array[] = [encodeUtf8(GLOBAL_HEADER)];
     for (const member of members) {
         chunks.push(buildMemberHeader(member));
         chunks.push(member.data);
         // Members are aligned to an even offset; the pad byte is `\n`.
-        if (member.data.byteLength % 2 === 1) chunks.push(encodeAscii('\n'));
+        if (member.data.byteLength % 2 === 1) chunks.push(encodeUtf8('\n'));
     }
-    return concat(chunks);
+    return concatBytes(chunks);
 }
 
 function buildMemberHeader(member: ArMember): Uint8Array {
-    const bytes = new TextEncoder().encode(member.name);
-    if (bytes.byteLength > 16) {
-        throw new Error(`gjsify ship: ar member name "${member.name}" is longer than the 16-byte name field.`);
-    }
+    // `pad()` below is what refuses an over-long name, with the width in the
+    // message — a second length check here would differ only for a non-ASCII
+    // name, and all three member names are literals.
     const header =
         pad(member.name, 16) +
         pad(String(member.mtime ?? 0), 12) +
@@ -61,7 +62,7 @@ function buildMemberHeader(member: ArMember): Uint8Array {
     if (header.length !== HEADER_SIZE) {
         throw new Error(`gjsify ship: internal error — ar header is ${header.length} bytes, expected ${HEADER_SIZE}.`);
     }
-    return encodeAscii(header);
+    return encodeUtf8(header);
 }
 
 function pad(value: string, width: number): string {
@@ -69,20 +70,4 @@ function pad(value: string, width: number): string {
         throw new Error(`gjsify ship: ar header field "${value}" does not fit in ${width} bytes.`);
     }
     return value.padEnd(width, ' ');
-}
-
-function encodeAscii(value: string): Uint8Array {
-    return new TextEncoder().encode(value);
-}
-
-function concat(chunks: readonly Uint8Array[]): Uint8Array {
-    let total = 0;
-    for (const chunk of chunks) total += chunk.byteLength;
-    const out = new Uint8Array(total);
-    let offset = 0;
-    for (const chunk of chunks) {
-        out.set(chunk, offset);
-        offset += chunk.byteLength;
-    }
-    return out;
 }

@@ -86,6 +86,19 @@ export async function buildDeb(inputs: DebInputs): Promise<Uint8Array> {
 }
 
 /**
+ * Collapse a value that has to occupy exactly one control line.
+ *
+ * A newline here does not corrupt the file — it FORGES a field: a summary
+ * pasted with a hard wrap turns its second line into whatever that line happens
+ * to start with, and `Pre-Depends: …` is a real thing to end up with by
+ * accident. The extended description already collapses whitespace per
+ * paragraph; these fields did not.
+ */
+function singleLine(value: string): string {
+    return value.replace(/[\r\n]+/g, ' ').trim();
+}
+
+/**
  * `./`, `./usr/`, `./usr/bin/`, … for every path in the archive.
  *
  * dpkg opens each file with `O_CREAT | O_EXCL` and never creates a parent, so
@@ -119,11 +132,11 @@ function renderControl(inputs: DebInputs, installedSize: number): string {
     fields.push(['Section', settings.section], ['Priority', 'optional']);
     if (settings.homepage) fields.push(['Homepage', settings.homepage]);
 
-    const lines = fields.map(([key, value]) => `${key}: ${value}`);
+    const lines = fields.map(([key, value]) => `${key}: ${singleLine(value)}`);
     // The extended description is continuation lines: one leading space per
     // line, and a lone ` .` for a paragraph break — a truly blank line ends
     // the field and silently truncates everything after it.
-    lines.push(`Description: ${settings.summary}`);
+    lines.push(`Description: ${singleLine(settings.summary)}`);
     const body = settings.description.filter((paragraph) => paragraph !== settings.summary);
     body.forEach((paragraph, index) => {
         if (index > 0) lines.push(' .');

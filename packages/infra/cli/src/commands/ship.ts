@@ -114,6 +114,7 @@ export const shipCommand: Command<unknown, ShipOptions> = {
         });
         for (const warning of warnings) console.warn(`${LOG} ${warning}`);
 
+        const mtime = buildTimestamp(settings.bundlePath);
         const metadataInputs = {
             appId: settings.appId,
             name: settings.name,
@@ -121,6 +122,7 @@ export const shipCommand: Command<unknown, ShipOptions> = {
             kind: settings.kind,
             metadata,
             configKey: 'gjsify.ship',
+            copyrightYear: new Date(mtime * 1000).getUTCFullYear(),
         };
         // Warn rather than fail: an incomplete AppStream component still
         // installs and still runs. It is app STORES that will reject it, and
@@ -151,7 +153,9 @@ export const shipCommand: Command<unknown, ShipOptions> = {
 
         const artifacts: ShipArtifact[] = [];
         for (const format of formats) {
-            artifacts.push(await packOne({ format, settings, stageInputs, staged, stageDir, outRoot, namespaces }));
+            artifacts.push(
+                await packOne({ format, settings, stageInputs, staged, stageDir, outRoot, namespaces, mtime }),
+            );
         }
 
         for (const artifact of artifacts) {
@@ -162,6 +166,8 @@ export const shipCommand: Command<unknown, ShipOptions> = {
 
 interface PackInput {
     format: FormatDescriptor;
+    /** The one build stamp every header and every rendered file shares. */
+    mtime: number;
     settings: ShipSettings;
     stageInputs: StageInputs;
     staged: ReturnType<typeof planStage>;
@@ -171,7 +177,7 @@ interface PackInput {
 }
 
 async function packOne(input: PackInput): Promise<ShipArtifact> {
-    const { format, settings, stageDir, outRoot } = input;
+    const { format, settings, stageDir, outRoot, mtime } = input;
 
     const overlay = planOverlay(settings, format, input.stageInputs);
     const overlayDir = join(outRoot, 'overlay', format.id);
@@ -189,7 +195,6 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
     for (const warning of warnAboutGjsFloor(format.id, settings.minGjsVersion)) console.warn(`${LOG} ${warning}`);
 
     const archLabel = format.archName(settings.arch, isArchIndependent(payload));
-    const mtime = buildTimestamp(settings.bundlePath);
     const common = { settings, payload, prefix: format.prefix, depends, archLabel, mtime };
     const bytes = format.id === 'deb' ? await buildDeb(common) : await buildRpm(common);
 

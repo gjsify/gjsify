@@ -40,7 +40,32 @@ export function buildTimestamp(bundlePath: string, env: Record<string, string | 
     return Math.floor(statSync(bundlePath).mtimeMs / 1000);
 }
 
-/** Does the payload contain anything architecture-specific? */
+/**
+ * Does the payload contain anything architecture-specific?
+ *
+ * Decided from the file's MAGIC, not from its name. A bundled runtime is just
+ * called `node`, a stripped helper may have no extension at all, and an
+ * extension list that misses one of them produces `Architecture: all` on an
+ * x86-64 payload — which apt and dnf will happily install on arm64, where it
+ * does not run.
+ */
 export function isArchIndependent(payload: readonly PayloadEntry[]): boolean {
-    return !payload.some((entry) => /\.(so|node|dylib|dll)(\.\d+)*$/.test(entry.path));
+    return !payload.some((entry) => isNativeBinary(entry.data));
+}
+
+/** ELF, Mach-O (both endiannesses, both widths, and a fat archive) or PE. */
+function isNativeBinary(data: Uint8Array): boolean {
+    if (data.byteLength < 4) return false;
+    const magic = (data[0]! << 24) | (data[1]! << 16) | (data[2]! << 8) | data[3]!;
+    switch (magic >>> 0) {
+        case 0x7f454c46: // \x7fELF
+        case 0xfeedface: // Mach-O 32
+        case 0xfeedfacf: // Mach-O 64
+        case 0xcefaedfe: // Mach-O 32, byte-swapped
+        case 0xcffaedfe: // Mach-O 64, byte-swapped
+        case 0xcafebabe: // Mach-O universal binary
+            return true;
+        default:
+            return data[0] === 0x4d && data[1] === 0x5a; // MZ — PE/COFF
+    }
 }

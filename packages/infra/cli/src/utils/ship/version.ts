@@ -14,10 +14,13 @@ export interface NormalisedVersion {
     warnings: string[];
 }
 
+// Spelled out rather than `\w`, which admits `_` — a character deb-version(7)
+// does not allow. `1.0.0_beta` would pass here and dpkg would refuse the
+// finished package at install time, one step too late to be useful.
 /** `dpkg` upstream-version grammar, minus the `-` that separates the revision. */
-const PACKAGE_VERSION = /^\d[\w.+~]*$/;
+const PACKAGE_VERSION = /^\d[A-Za-z0-9.+~]*$/;
 /** Debian revision / RPM release. */
-const RELEASE = /^\w[\w.+~]*$/;
+const RELEASE = /^[A-Za-z0-9][A-Za-z0-9.+~]*$/;
 
 /**
  * Convert an npm/semver version into one both dpkg and rpm order correctly.

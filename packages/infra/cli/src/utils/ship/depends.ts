@@ -48,7 +48,11 @@ const DEBIAN_GJS = 'trixie ships 1.82.3 and forky 1.88.1; 1.84 and 1.86 were ski
  */
 export function warnAboutGjsFloor(format: FormatId, floor: string): string[] {
     if (format !== 'deb') return [];
-    if (compareVersions(floor, '1.82.3') <= 0 || compareVersions(floor, '1.88.1') >= 0) return [];
+    // Only a floor forky ACTUALLY satisfies is quiet. The first cut tested
+    // `>= 1.88.1` and therefore went silent for 1.90 and 2.0 as well — the
+    // floors no Debian will satisfy for years.
+    if (compareVersions(floor, '1.82.3') <= 0) return [];
+    if (compareVersions(floor, '1.88.1') === 0) return [];
     return [
         `gjsify ship: \`Depends: gjs (>= ${floor})\` is not satisfiable on Debian stable — ${DEBIAN_GJS}. ` +
             'The package installs on forky/sid and on distributions with a newer GJS. Set ' +
@@ -154,7 +158,15 @@ export function deriveDepends(format: FormatId, inputs: DependsInputs): string[]
     }
 
     if (inputs.kind === 'app') out.push('hicolor-icon-theme');
-    if (inputs.hasSchemas) out.push('gsettings-desktop-schemas');
+    // The package that ships `glib-compile-schemas`, NOT `gsettings-desktop-schemas`
+    // (which ships GNOME's own `org.gnome.desktop.*` schemas and has nothing to
+    // do with compiling ours). Measured: `rpm -qf /usr/bin/glib-compile-schemas`
+    // → glib2; on Debian the binary lives in `libglib2.0-bin`, which none of the
+    // `gir1.2-*` packages pull in. Without it the postinst's `command -v` guard
+    // silently skips, the schema is never compiled, and the first
+    // `Gio.Settings.new()` aborts the app — an install that succeeds and an app
+    // that does not start.
+    if (inputs.hasSchemas) out.push(format === 'deb' ? 'libglib2.0-bin' : 'glib2');
     out.push(...inputs.extra);
 
     // Set-dedupe keeps first-insertion order, so `gjs` stays first and the

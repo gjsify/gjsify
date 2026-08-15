@@ -14,6 +14,7 @@
 
 import { createHash } from 'node:crypto';
 
+import { concatBytes } from './bytes.js';
 import { createCpioArchive, S_IFDIR, S_IFREG, type CpioEntry } from './cpio.js';
 import { parseDepend } from './depends.js';
 import type { PayloadEntry } from './payload.js';
@@ -128,10 +129,15 @@ const RPMLIB_REQUIRES: Array<[string, string]> = [
 /**
  * Directories a base system already owns.
  *
- * An rpm that claims `/usr/bin` fights `filesystem` for it; one that claims
- * nothing leaves its own `/usr/lib/<app>` unowned, which `rpm -e` then leaves
- * behind. Owning exactly the directories nobody else does is the middle
- * ground, and it is derivable rather than configured.
+ * An rpm that claims nothing leaves its own `/usr/lib/<app>` unowned, which
+ * `rpm -e` then leaves behind. Listing the base-system directories it must not
+ * claim is the middle ground.
+ *
+ * Deliberately not exhaustive, and that is affordable: rpm treats directory
+ * CO-ownership as normal (`rpm -qf /usr/share/icons/hicolor` names three
+ * packages on this machine), so a directory missing from this list costs
+ * rpmlint noise, not a broken install. The entries that matter are the ones a
+ * package would otherwise claim on every install.
  */
 const SYSTEM_OWNED_DIRECTORIES = new Set([
     '/usr',
@@ -184,7 +190,7 @@ export async function buildRpm(inputs: RpmInputs): Promise<Uint8Array> {
     const compressed = await gzipDeterministic(cpio);
 
     const header = buildRpmHeader(mainHeaderEntries(inputs, files, cpio, compressed), RPM_TAG_HEADERIMMUTABLE);
-    const body = concat([header, compressed]);
+    const body = concatBytes([header, compressed]);
     const signature = padToEight(
         buildRpmHeader(
             [
@@ -199,7 +205,7 @@ export async function buildRpm(inputs: RpmInputs): Promise<Uint8Array> {
     );
 
     const lead = buildRpmLead(`${settings.binaryName}-${settings.version}-${settings.release}`);
-    return concat([lead, signature, body]);
+    return concatBytes([lead, signature, body]);
 }
 
 /** The payload plus the directories this package should own, in install order. */
@@ -226,9 +232,7 @@ function collectFiles(inputs: RpmInputs, prefix: string): RpmFile[] {
         let current = '';
         for (const part of parts) {
             current = `${current}/${part}`;
-            if (!SYSTEM_OWNED_DIRECTORIES.has(current) && !current.startsWith('/usr/share/icons/')) {
-                owned.add(current);
-            }
+            if (!SYSTEM_OWNED_DIRECTORIES.has(current)) owned.add(current);
         }
     }
     for (const directory of owned) {
@@ -322,6 +326,10 @@ function mainHeaderEntries(
 
         { tag: TAG.PAYLOADFORMAT, type: RpmType.STRING, value: 'cpio' },
         { tag: TAG.PAYLOADCOMPRESSOR, type: RpmType.STRING, value: 'gzip' },
+        // Write-side metadata only — no reader acts on it (rpm-format.md § 6.5).
+        // `9` is what rpmbuild writes; the Web `CompressionStream` this packer
+        // uses exposes no level to report, so the honest reading of this field
+        // is "gzip, default settings" rather than a measured level.
         { tag: TAG.PAYLOADFLAGS, type: RpmType.STRING, value: '9' },
         { tag: TAG.PAYLOADDIGEST, type: RpmType.STRING_ARRAY, value: [hashHex('sha256', compressed)] },
         { tag: TAG.PAYLOADDIGESTALGO, type: RpmType.INT32, value: [DIGEST_ALGO_SHA256] },
@@ -442,16 +450,4 @@ function hashHex(algorithm: string, data: Uint8Array): string {
 
 function hashBytes(algorithm: string, data: Uint8Array): Uint8Array {
     return new Uint8Array(createHash(algorithm).update(data).digest());
-}
-
-function concat(chunks: readonly Uint8Array[]): Uint8Array {
-    let total = 0;
-    for (const chunk of chunks) total += chunk.byteLength;
-    const out = new Uint8Array(total);
-    let offset = 0;
-    for (const chunk of chunks) {
-        out.set(chunk, offset);
-        offset += chunk.byteLength;
-    }
-    return out;
 }
