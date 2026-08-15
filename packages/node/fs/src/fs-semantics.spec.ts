@@ -2638,8 +2638,18 @@ export default async () => {
                     drop(dir);
                 }
             },
-            NO_SPECIAL_BITS_REASON,
-            { when: !CREATE_KEEPS_SPECIAL_BITS },
+            // The gate is CAN_EXPRESS_POSIX_MODE, and the obvious choice was wrong.
+            // CREATE_KEEPS_SPECIAL_BITS was tried first — it is keyed on linux
+            // because BSD's open(2) masks the create mode to ACCESSPERMS — and the
+            // darwin legs went red for PASSING: `it.failing` retires itself, which
+            // is exactly what it is for. The distinction it draws is about the
+            // CREATE mode, and this rule never creates with the bits; it sets them
+            // with chmod(2), which darwin honours. Measured on all three:
+            // linux passes, darwin passes, win32 genuinely cannot express the mode
+            // at all (NTFS, where Node synthesizes 0o666/0o444), so win32 is the
+            // only leg where the setup cannot even produce a setuid source.
+            NO_POSIX_MODE_REASON,
+            { when: !CAN_EXPRESS_POSIX_MODE },
         );
 
         await it('K-19 fs.mkdtemp exists in the callback form', async () => {
