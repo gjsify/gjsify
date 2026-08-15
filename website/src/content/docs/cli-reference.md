@@ -1157,7 +1157,7 @@ The payload is produced once and is identical in both artifacts; `ship/out/` is 
 
 No runtime is bundled on Linux: GJS and GTK come from the distribution, so the package depends on `gjs` instead of carrying ~100 MiB of it.
 
-Artifacts are **reproducible**: packing the same build twice gives byte-identical files. Timestamps come from the bundle's mtime, or from `SOURCE_DATE_EPOCH` when it is set — which is what makes two different checkouts of the same source produce identical bytes.
+Artifacts are **reproducible**: packing the same build twice gives byte-identical files. Timestamps come from the bundle's mtime, or from `SOURCE_DATE_EPOCH` when it is set — which is what makes two different checkouts of the same source produce identical bytes. Both hold per JS runtime: the payload is gzipped through the Web `CompressionStream`, whose deflate output is implementation-defined, so a Node-built and a GJS-built artifact of the same input need not match byte for byte.
 
 ### Configuration — `gjsify.ship` in `package.json`
 
