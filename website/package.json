@@ -11,7 +11,7 @@
         "start": "gjsify run build:deps && gjsify run generate:coverage && gjsify run generate:tokens && gjsify run generate:platform-matrix && gjsify run copy:assets && astro dev",
         "build": "gjsify run build:deps && gjsify run generate:coverage && gjsify run generate:tokens && gjsify run generate:platform-matrix && gjsify run copy:assets && astro build",
         "serve": "astro preview",
-        "typecheck": "astro check"
+        "typecheck": "gjsify run generate:coverage && gjsify run generate:tokens && gjsify run generate:platform-matrix && astro check"
     },
     "dependencies": {
         "@astrojs/starlight": "^0.40.0",

@@ -19,7 +19,7 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 // The zero-dependency subpath, deliberately: importing the plugin root would
 // pull vite/execa/minify-xml into a system CHECK.
 import { resolveBlueprintCompiler } from '@gjsify/vite-plugin-blueprint/resolve';
-import { hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
+import { isNode } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 export type DepSeverity = 'required' | 'optional';
 
@@ -451,10 +451,14 @@ export function runAllChecks(cwd: string): DepCheck[] {
  * same reason), so `gjsify system-check` under GJS reported `✓ Node.js (v20.0.0)` on a
  * machine with no Node on it — under the NODE-FREE toolchain, whose entire premise is
  * that there is none. `cli-app.ts`'s `runtimeLabel()` already had to know better; one
- * question gets one answer, so this asks `hostRuntime()` too.
+ * question gets one answer, so this asks the same module.
  *
  * Under Node the running process IS the answer and its version cannot be faked from
  * inside; elsewhere it is a PATH question whose answer may legitimately be "no".
+ *
+ * `isNode()` rather than `hostRuntime() === 'node'`: the latter RETURNS `'node'` as its
+ * fallback for an unrecognised host, which would put an exotic runtime's possibly-stubbed
+ * `process.version` on the trusted branch. `isNode()` demands positive evidence.
  *
  * `optional`, never `required`: `gjsify showcase` and `gjsify install` both treat a
  * missing `required` row as fatal, and a GJS showcase needs no Node. The old row could
@@ -462,7 +466,7 @@ export function runAllChecks(cwd: string): DepCheck[] {
  * fails; what changes is only that the printed line is true.
  */
 function checkNodeRuntime(): DepCheck {
-    if (hostRuntime() === 'node') {
+    if (isNode()) {
         return { id: 'nodejs', name: 'Node.js', found: true, version: process.version, severity: 'optional' };
     }
     return checkBinary('nodejs', 'Node.js', 'node', ['--version'], 'optional');
@@ -665,6 +669,7 @@ function runOptionalChecks(needed: Set<string> | null, cwd: string): DepCheck[] 
 // Entries with multiple space-separated packages are intentional (one dep needs multiple system pkgs).
 const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
     apt: {
+        nodejs: 'nodejs',
         gjs: 'gjs',
         'blueprint-compiler': 'blueprint-compiler',
         'pkg-config': 'pkg-config',
@@ -690,6 +695,7 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         epoxy: 'libepoxy-dev',
     },
     dnf: {
+        nodejs: 'nodejs',
         gjs: 'gjs',
         'blueprint-compiler': 'blueprint-compiler',
         'pkg-config': 'pkgconf-pkg-config',
@@ -715,6 +721,7 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         epoxy: 'libepoxy-devel',
     },
     pacman: {
+        nodejs: 'nodejs',
         gjs: 'gjs',
         'blueprint-compiler': 'blueprint-compiler',
         'pkg-config': 'pkgconf',
@@ -740,6 +747,7 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         epoxy: 'libepoxy',
     },
     zypper: {
+        nodejs: 'nodejs',
         gjs: 'gjs',
         'blueprint-compiler': 'blueprint-compiler',
         'pkg-config': 'pkg-config',
@@ -765,6 +773,7 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
         epoxy: 'libepoxy-devel',
     },
     apk: {
+        nodejs: 'nodejs',
         gjs: 'gjs',
         'blueprint-compiler': 'blueprint-compiler',
         'pkg-config': 'pkgconf',
@@ -812,6 +821,7 @@ const PM_PACKAGES: Record<PackageManager, Partial<Record<string, string>>> = {
     // Recorded here so the next reader does not "fix" the gap by guessing a name;
     // both are genuine platform gaps, not table omissions.
     brew: {
+        nodejs: 'node',
         gjs: 'gjs',
         'blueprint-compiler': 'blueprint-compiler',
         'pkg-config': 'pkgconf',
@@ -892,7 +902,10 @@ export function buildInstallCommand(pm: PackageManager, missing: DepCheck[]): st
             );
             continue;
         }
-        if (dep.id === 'nodejs') continue; // can't be missing if we're running
+        // No `continue` for `nodejs`. It USED to be unmissable — the row was the
+        // literal `found: true` — and since it became a real probe it can report
+        // absent under GJS, so skipping it here printed "Missing optional: Node.js"
+        // above an install command that did not install it.
         const pkg = pkgMap[dep.id];
         if (pkg) pkgs.push(pkg);
     }

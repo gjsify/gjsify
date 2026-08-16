@@ -196,11 +196,16 @@ verified as far as the checking host allows — see
   </tbody>
 </table>
 
-{platformLegend.map((entry, index) => (
-  <span>
-    {index > 0 && ' · '}<code>{entry.mark}</code> {entry.meaning}
-  </span>
-))}
+{/* A `<p>`, not a bare run of spans: Starlight's markdown stylesheet keys the
+    flow margin on adjacent block elements, so a loose span sequence takes the
+    following paragraph's `margin-top` with it. */}
+<p>
+  {platformLegend.map((entry, index) => (
+    <span>
+      {index > 0 && ' · '}<code>{entry.mark}</code> {entry.meaning}
+    </span>
+  ))}
+</p>
 
 The marks are read out of the workflow YAML, so "a CI job targets it" is exactly
 what they claim — not that a green run of that job exists. `○` in particular says

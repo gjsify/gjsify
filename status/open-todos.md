@@ -1024,6 +1024,17 @@ ADR 0022 landed the backend and `@gjsify/iframe`'s 291 tests pass on darwin. **I
 
 **The input path has no CI coverage on any platform, and that is the honest state.** It is held by two by-hand probes — `webkit-input-darwin.m` (NSEvent → WebKit → page) and `webkit-input-widget-darwin.m` (the widget's own controllers → page, driven by emitting the controller signals). Both need a display, which is the same wall as the DISPLAY-gated-GTK entry above, and `@gjsify/iframe`'s 291 unit tests instantiate no live WebView at all. Two routes into GTK's real event translation were tried and are dead ends worth not re-trying: `-[NSApplication postEvent:atStart:]` is never picked up (GTK4's macOS backend does not drain the posted-event queue — measured with a plain `GtkGestureClick` and no WebKit anywhere, 0 hits), and `CGEventPostToPid()` is dropped because `AXIsProcessTrusted()` is false and Accessibility is not a permission CI can grant itself.
 
+### `--platforms` credits an artifact from the WORKING TREE while its legend says "committed"
+
+`collectNativePackages()` derives `shipped` from `readdirSync(<pkg>/prebuilds)` — presence on disk. The matrix legend renders that as **"artifact committed"**. For every bridge but one those agree, because their `prebuilds/` directories are tracked. `packages/node-gi/node-gi/.gitignore` ignores its own, and `stage-prebuild`/install leave one behind, so the same command prints a different table depending on whose machine it runs on:
+
+    with a staged prebuilds/:  | `@gjsify/node-gi` | 2 | ○ | ○ | ○ | · | · | · | ✓ | ○ |
+    without (clean checkout):  | `@gjsify/node-gi` | 2 | ○ | ○ | ○ | · | · | · | ○ | ○ |
+
+Found by committing the generated Platform Support matrix and having a review notice the `✓` did not reproduce. The immediate hole is closed by not committing that file at all (`website/.gitignore`), which is why this is a ledger entry rather than a fix: the audit itself still answers a question it does not ask.
+
+The fix is to credit from git rather than from the filesystem. What makes it more than a one-liner: `tests/e2e/prebuild-declaration-invariant` drives this code against SYNTHETIC packages, which are by construction untracked, so a tracked-ness requirement has to be a matrix-side credit rather than a change inside `collectNativePackages()`. Alternative, cheaper and honest: leave the measurement alone and change the legend to say "artifact present", which then no longer answers "can I install this there?" — the question the page exists for.
+
 ### Nothing exercises the NODE-FREE toolchain on macOS, and the prebuild's arrival hid that
 
 The engine half is DONE — `@gjsify/rolldown-native` declares all four of `linux-x64`, `linux-arm64`, `darwin-arm64`, `darwin-x64`; `packages/infra/rolldown-native-darwin-{arm64,x64}` hold committed artifacts; `--platforms` marks every darwin cell `✓` for it and for `@gjsify/lightningcss-native` / `@gjsify/oxfmt-native`; all three are on npm at the train version.
