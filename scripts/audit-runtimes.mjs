@@ -1693,7 +1693,8 @@ async function main() {
             }
             console.error('');
             console.error(
-                'The apps EXCLUDED from `workspaces` (the NativeScript ones under `showcases/`) resolve their ' +
+                'The apps EXCLUDED from `workspaces` (the NativeScript ones, under `showcases/` and ' +
+                    '`tests/integration/`) resolve their ' +
                     '`@gjsify/*` deps through npm, not through the workspace, so their ranges are the one place a ' +
                     'stale version survives unnoticed — nothing installs them in CI and `gjsify upgrade --check` ' +
                     'never sees them. Fix by naming the current workspace version in every range; during a RELEASE ' +

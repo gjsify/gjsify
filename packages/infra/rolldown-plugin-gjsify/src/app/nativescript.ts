@@ -21,13 +21,11 @@
 // slot routing would only change 4 of its 122 entries and all four are
 // regressions — `fs`/`fs/promises` (+ their `node:` forms) deliberately point
 // at `@gjsify/native-fs-bridge`, which declares `nativescript: "native"` in the
-// "this package IS the native implementation" sense and therefore routes to a
-// `globals.mjs` it does not ship → `@gjsify/empty`. The slot vocabulary's
-// `native` means "the RUNTIME provides this, use its value", so the bridge
-// packages are mis-declared; that is tracked in status/open-todos.md and must be settled
-// before this table is composed. A direct `import … from
-// '@gjsify/native-fs-bridge'` already hits the derived map (plain key hit) and
-// is emptied TODAY — same root cause, listed in the same TODO.
+// "this package IS the native implementation" sense and therefore promises a
+// `globals.mjs` it does not ship. The slot vocabulary's `native` means "the
+// RUNTIME provides this, use its value", so the bridge packages are
+// mis-declared; that is tracked in status/open-todos.md and must be settled
+// before this table is composed.
 //
 // Derived `@gjsify/<X>` entries are merged into the map below, so an import by
 // PACKAGE NAME still routes per its declared slot in a single hop.
@@ -64,9 +62,16 @@ export interface NativescriptFactoryInput {
     pluginOptions: PluginOptions;
 }
 
+// Never bundled: an app works only with the ONE core instance the runtime boots, and what
+// this target emits is an ENTRY the NS bundler resolves it for. An optional peer absent from
+// the workspace install, it was not resolvable either — every UI-widget bridge failed to build.
+const NATIVESCRIPT_CORE = /^@nativescript\/core(?:\/|$)/;
+
 export const setupForNativescript = async (input: NativescriptFactoryInput): Promise<NativescriptBuildConfig> => {
     const userExternal = input.userExternal ?? [];
-    const external = [...userExternal];
+    const external: (string | RegExp)[] = [...userExternal, NATIVESCRIPT_CORE];
+    const isExternal = (id: string): boolean =>
+        external.some((entry) => (typeof entry === 'string' ? entry === id : entry.test(id)));
 
     const exclude = input.pluginOptions.exclude ?? [];
     const entryPoints = await globToEntryPoints(input.input, exclude);
@@ -172,7 +177,7 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
         unresolvedWorkspaceImportPlugin({
             target: 'nativescript',
             aliases: aliasEntries,
-            isExternal: (id) => external.includes(id),
+            isExternal,
         }),
     ];
 

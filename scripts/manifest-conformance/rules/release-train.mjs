@@ -3,12 +3,12 @@
  *
  * Every `@gjsify/*` package moves as ONE version and ADR 0008 guarantees
  * compatibility only WITHIN a release. Workspace members get that for free through the
- * workspace; the NativeScript apps under `showcases/` do not — they are deliberately
- * excluded from `workspaces` (own `node_modules`, own NS toolchain), so their
- * `@gjsify/*` ranges are ordinary npm ranges nothing keeps current. Nothing installs
- * those apps in CI either, and being outside the workspace they are invisible to
- * `gjsify upgrade --check`, so a stale range there has no other signal. The incident
- * behind that is in the failure message below.
+ * workspace; the NativeScript apps `!`-negated out of `workspaces` do not — they carry
+ * their own `node_modules` and their own NS toolchain, so their `@gjsify/*` ranges are
+ * ordinary npm ranges nothing keeps current. Nothing installs those apps in CI either,
+ * and being outside the workspace they are invisible to `gjsify upgrade --check`, so a
+ * stale range there has no other signal. The incident behind that is in the failure
+ * message below.
  *
  * WHO KEEPS IT TRUE ACROSS A CUT. `@release-it/bumper` globs these manifests but
  * rewrites only `version`, never a dependency RANGE — so the moment release-it bumps
@@ -43,9 +43,25 @@ function readManifest(path) {
 }
 
 /**
- * Every directory under `showcases/` and `examples/` carrying its own `package.json`.
- * The workspace-excluded apps among them are what this rule is for; including the rest
- * costs nothing because they resolve identically.
+ * The trees that hold standalone apps.
+ *
+ * `tests/integration` is one of them and is NOT shaped like the other two — its apps sit
+ * one level down, not two. That is exactly how it went unread: the walk counted levels,
+ * so `tests/integration/nativescript` — the on-device NS suite, and the third manifest
+ * `!`-negated out of the root `workspaces` — was never collected, and its `@gjsify/*`
+ * ranges named a long-superseded release with nothing anywhere to say so.
+ */
+const APP_GROUPS = ['showcases', 'examples', 'tests/integration'];
+
+/**
+ * Every directory under {@link APP_GROUPS} carrying its own `package.json`. The
+ * workspace-excluded apps among them are what this rule is for; including the rest costs
+ * nothing because they resolve identically.
+ *
+ * Depth-agnostic on purpose: the walk stops at the first `package.json` on a branch
+ * rather than counting levels, so a group's layout is not a second thing to keep in sync
+ * with this file. Stopping there also keeps the walk out of an app's own `node_modules`,
+ * the only large subtree down here.
  *
  * A manifest that EXISTS but does not parse is returned separately rather than dropped:
  * an unreadable file has no ranges, so dropping it passes every check by having nothing
@@ -57,24 +73,24 @@ function readManifest(path) {
 export function collectStandaloneApps(root) {
     const apps = [];
     const unreadable = [];
-    for (const group of ['showcases', 'examples']) {
-        const groupDir = join(root, group);
-        if (!existsSync(groupDir)) continue;
-        for (const pillar of readdirSync(groupDir, { withFileTypes: true })) {
-            if (!pillar.isDirectory()) continue;
-            const pillarDir = join(groupDir, pillar.name);
-            for (const app of readdirSync(pillarDir, { withFileTypes: true })) {
-                if (!app.isDirectory()) continue;
-                const rel = `${group}/${pillar.name}/${app.name}`;
-                const path = join(pillarDir, app.name, 'package.json');
-                if (!existsSync(path)) continue;
-                const manifest = readManifest(path);
-                if (manifest) apps.push({ rel, manifest });
-                else unreadable.push(rel);
-            }
-        }
-    }
+    for (const group of APP_GROUPS) collectAppsUnder(root, group, apps, unreadable);
     return { apps, unreadable };
+}
+
+/** One branch of the {@link collectStandaloneApps} walk; `rel` stays posix for messages. */
+function collectAppsUnder(root, rel, apps, unreadable) {
+    const dir = join(root, rel);
+    if (!existsSync(dir)) return;
+    const entries = readdirSync(dir, { withFileTypes: true });
+    if (entries.some((entry) => entry.isFile() && entry.name === 'package.json')) {
+        const manifest = readManifest(join(dir, 'package.json'));
+        if (manifest) apps.push({ rel, manifest });
+        else unreadable.push(rel);
+        return;
+    }
+    for (const entry of entries) {
+        if (entry.isDirectory()) collectAppsUnder(root, `${rel}/${entry.name}`, apps, unreadable);
+    }
 }
 
 /** The range every governed edge has to name, for a given workspace version. */
@@ -142,7 +158,7 @@ export const releaseTrainRule = defineRule({
     id: 'release-train',
     scope: 'repo',
     fields: [],
-    description: 'standalone showcase/example apps name the current workspace version for every `@gjsify/*` range',
+    description: 'standalone apps name the current workspace version for every `@gjsify/*` range',
     run(ctx) {
         const version = readManifest(join(ctx.root, 'package.json'))?.version;
         if (typeof version !== 'string') {

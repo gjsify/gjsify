@@ -5,15 +5,21 @@
 //   node scripts/bump-release-train-ranges.mjs ${latestVersion} ${version}
 //
 // WHY IT EXISTS. `@release-it/bumper` globs the app manifests but rewrites
-// exactly one thing in each: the `version` field, never dependency RANGES. Two
-// apps under `showcases/` are `!`-negated out of the root `workspaces` globs
-// (`adwaita-storybook-nativescript` and `three-geometry-teapot-nativescript` — own
-// `node_modules`, own NS toolchain), so
-// their `@gjsify/*` deps are ordinary npm ranges resolved through the registry.
+// exactly one thing in each: the `version` field, never dependency RANGES. The
+// NativeScript apps are `!`-negated out of the root `workspaces` globs (own
+// `node_modules`, own NS toolchain) — `adwaita-storybook-nativescript` and
+// `three-geometry-teapot-nativescript` under `showcases/`, plus the on-device
+// suite `tests/integration/nativescript` — so their `@gjsify/*` deps are ordinary
+// npm ranges resolved through the registry.
 // Nothing kept those current, so the instant release-it bumped the workspace they
 // all named the previous version and the `release-train` rule failed inside the
 // same `after:bump` hook — unsatisfiable DURING a cut from the day it landed, and
 // the v0.32.0 attempt died there with 11 findings.
+//
+// The bumper's `out` globs name `tests/integration/nativescript/package.json`
+// one by one rather than `tests/*/*/package.json`: every other manifest under
+// `tests/` is a private workspace member with no `version` field at all, and a
+// glob would have the bumper start writing one into each of them.
 //
 // NOT `workspace:^` in those three manifests, which would reuse `gjsify pack`'s
 // substitution: nothing ever packs them (they are apps), that substitution happens
@@ -124,7 +130,12 @@ function indexMonorepoPackages() {
  * The manifest's own indentation, so a rewrite is a value change and not a reformat
  * of the whole file. `@release-it/bumper` writes these files the same way (detected
  * indent, `JSON.stringify`), which is why the round trip is lossless — measured
- * across all 76 standalone-app manifests, none of which re-serialises differently.
+ * across every standalone-app manifest, none of which re-serialises differently.
+ *
+ * ONE did, when `tests/integration/nativescript` joined the set: it carried a
+ * `\uXXXX` escape, which `JSON.stringify` writes back as the literal character. The
+ * manifest was normalised to the literal so the round trip stays a value change; a
+ * writer that preserved escapes would be a second JSON serialiser to maintain.
  *
  * @param {string} raw
  * @returns {string}

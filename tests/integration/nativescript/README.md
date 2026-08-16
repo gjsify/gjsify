@@ -48,7 +48,13 @@ therefore:
   `test:node` script) and **not** in any GitHub Actions workflow.
 
 It is installed and run standalone, against the **published** `@gjsify/*`
-packages (`^0.7.0`), so it validates the real shipped artifacts on V8. To smoke
+packages, so it validates the real shipped artifacts on V8. Its ranges therefore
+ride the release train like the workspace-excluded showcase apps do: the
+`release-train` conformance rule requires each of them to name the current
+workspace version, and `scripts/bump-release-train-ranges.mjs` rewrites them
+during a cut. Neither reached this manifest until the rule's walk stopped
+assuming every standalone app sits two levels below its group — the ranges sat
+at a long-superseded release for as long as nothing looked. To smoke
 an unpublished workspace change, `gjsify pack` it and point the dep at the tarball
 (this is how `@gjsify/native-platform` was validated on-device before its first
 npm publish — `gjsify pack` → `"@gjsify/native-platform": "file:./<tarball>.tgz"`
@@ -60,10 +66,10 @@ npm publish — `gjsify pack` → `"@gjsify/native-platform": "file:./<tarball>.
 > those `.js` files as ESM and the gradle build fails with `require is not defined
 > in ES module scope`. The app code is ESM regardless — Vite/Rolldown bundles it.
 
-> **Build-chain version floor — RESOLVED at `^0.7.0` (2026-06-17).** The deps are
-> now pinned `^0.7.0`; that line ships all the fixes the suite needs and the
-> 27/27 run below was against it. For the record, the `0.4.36` artifacts the suite
-> was previously pinned to predated:
+> **Build-chain version floor — RETIRED.** The floor is now the release train
+> itself: the deps name the current workspace version, so they cannot fall back
+> below it. For the record, the `0.4.36` artifacts the suite was once pinned to
+> predated:
 > - `@gjsify/resolve-npm` — the `module → @gjsify/module` NS alias (#457); 0.4.36
 >   routed `module → @gjsify/empty`, so css-tree's `createRequire` import failed the
 >   build.
@@ -75,7 +81,7 @@ npm publish — `gjsify pack` → `"@gjsify/native-platform": "file:./<tarball>.
 >   had no such alias.
 > - `@gjsify/nativescript-vite@0.4.36` — a `workspace:` range leaked into its npm
 >   manifest during the manual first-publish, making it uninstallable from npm; the
->   `0.7.0` line is clean (the release self-healed it).
+>   later lines are clean (the release self-healed it).
 
 ## Running locally
 

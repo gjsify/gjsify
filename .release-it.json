@@ -25,6 +25,7 @@
         "packages/*/*/package.json",
         "examples/*/*/package.json",
         "showcases/*/*/package.json",
+        "tests/integration/nativescript/package.json",
         "website/package.json"
       ]
     },
