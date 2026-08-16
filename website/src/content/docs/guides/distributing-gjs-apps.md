@@ -1,7 +1,30 @@
 ---
 title: Distribute your GJS app
-description: Ship a one-line installer for your GJSify-based npm package.
+description: Two ways to put a GJS app on someone else's machine — a one-line Node-free installer, or a .deb/.rpm via gjsify ship.
 ---
+
+There are two ways to put a GJS app on someone else's machine, and they answer
+different questions.
+
+| | `gjsify generate-installer` | `gjsify ship` |
+|---|---|---|
+| Produces | a one-line `curl … \| gjs` installer | a `.deb` / `.rpm` |
+| Installs into | `~/.local/` (per user, no root) | the system, via the distro package manager |
+| User needs | `gjs ≥ 1.86` and `curl` | nothing but their package manager |
+| Updates | re-run the installer | `apt upgrade` / `dnf upgrade` |
+| Best for | early adopters, CLI tools, anything you iterate on quickly | a release you want a distro user to install and forget |
+
+This page is about the first. The second is
+[`gjsify ship`](/gjsify/cli-reference/#gjsify-ship) — one staged payload wrapped
+per format, with the design recorded in
+[ADR 0024](https://github.com/gjsify/gjsify/blob/main/docs/adr/0024-ship-installable-artifacts.md).
+They are not exclusive: the same built bundle feeds both.
+
+One thing to know before reaching for a `.deb`: the emitted dependency is
+`gjs (>= 1.86)`, and **no released Debian satisfies it** — Debian went 1.82.3
+(trixie) straight to 1.88.1 (forky), skipping 1.84 and 1.86. `gjsify ship` says
+so at package time rather than lowering the floor quietly, because a package apt
+refuses is better than one that installs and then dies on a syntax error.
 
 The same Node-free bootstrap that installs `@gjsify/cli` also installs
 **any GJS-runnable package on npm** — including yours.
