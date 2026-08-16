@@ -17,7 +17,7 @@
 // build-time constant: one tarball is unpacked by all of these routes, so a flag
 // baked at build time would describe the builder rather than the installation.
 
-import { isAbsolute, resolve, sep } from 'node:path';
+import { posix, win32 } from 'node:path';
 
 /** Where the running CLI came from. */
 export type InstallProvenanceKind =
@@ -48,11 +48,26 @@ const SYSTEM_PREFIXES = ['/usr/', '/opt/', '/snap/'];
 /** Inside a Flatpak the whole app tree lives under this prefix. */
 const FLATPAK_PREFIX = '/app/';
 
+/**
+ * The TARGET platform's path module, never the host's.
+ *
+ * Same rule as `pathFor` in `install-global.ts`, and for the same reason: this
+ * function ACCEPTS a `platform` and must therefore answer for it. Reading the
+ * host's `node:path` instead makes every POSIX-shaped case unanswerable from a
+ * Windows runner — which is exactly what happened. Four of these tests went red on
+ * the win32 leg, on `main`, because `resolve('/app/lib')` there is `C:\app\lib`
+ * and `sep` is a backslash.
+ */
+function pathFor(platform: NodeJS.Platform): typeof win32 {
+    return platform === 'win32' ? win32 : posix;
+}
+
 /** Does `child` sit inside `parent`? Both must be absolute and already resolved. */
-function isInside(child: string, parent: string): boolean {
-    if (!isAbsolute(child) || !isAbsolute(parent)) return false;
-    const p = parent.endsWith(sep) ? parent : parent + sep;
-    return child === parent || child.startsWith(p);
+function isInside(child: string, parent: string, platform: NodeJS.Platform): boolean {
+    const p = pathFor(platform);
+    if (!p.isAbsolute(child) || !p.isAbsolute(parent)) return false;
+    const withSep = parent.endsWith(p.sep) ? parent : parent + p.sep;
+    return child === parent || child.startsWith(withSep);
 }
 
 export interface ProvenanceInput {
@@ -81,9 +96,10 @@ export interface ProvenanceInput {
 export function classifyInstall(input: ProvenanceInput): InstallProvenance {
     const env = input.env ?? process.env;
     const platform = input.platform ?? process.platform;
-    const selfDir = resolve(input.selfDir);
+    const p = pathFor(platform);
+    const selfDir = p.resolve(input.selfDir);
 
-    if (env.FLATPAK_ID || isInside(selfDir, FLATPAK_PREFIX)) {
+    if (env.FLATPAK_ID || isInside(selfDir, FLATPAK_PREFIX, platform)) {
         const id = env.FLATPAK_ID ?? 'io.github.gjsify.Cli';
         return {
             kind: 'flatpak',
@@ -93,7 +109,7 @@ export function classifyInstall(input: ProvenanceInput): InstallProvenance {
         };
     }
 
-    if (isInside(selfDir, resolve(input.xdgPrefix))) {
+    if (isInside(selfDir, p.resolve(input.xdgPrefix), platform)) {
         return {
             kind: 'xdg-global',
             evidence: `running from the user-global prefix ${input.xdgPrefix}`,
@@ -101,7 +117,7 @@ export function classifyInstall(input: ProvenanceInput): InstallProvenance {
         };
     }
 
-    if (platform !== 'win32' && SYSTEM_PREFIXES.some((p) => isInside(selfDir, p))) {
+    if (platform !== 'win32' && SYSTEM_PREFIXES.some((pfx) => isInside(selfDir, pfx, platform))) {
         return {
             kind: 'system-package',
             evidence: `running from the system prefix ${selfDir}`,
@@ -116,7 +132,7 @@ export function classifyInstall(input: ProvenanceInput): InstallProvenance {
         };
     }
 
-    if (selfDir.split(sep).includes('node_modules')) {
+    if (selfDir.split(p.sep).includes('node_modules')) {
         return {
             kind: 'npm-global',
             evidence: `running from a node_modules tree at ${selfDir}`,
