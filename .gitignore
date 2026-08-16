@@ -156,3 +156,7 @@ packages/node/worker_threads/fixtures/
 # by the tooling has nothing to be checked against.
 /tests/browser/playwright-report/
 /tests/browser/test-results/
+
+# `gjsify ship` output — the staged tree and the built .deb/.rpm. A build artifact,
+# like dist/: reproducible from the bundle plus the manifest, and 6 MB per format.
+ship/
