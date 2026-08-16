@@ -378,11 +378,17 @@ function ensureCliEntryLinks() {
  * Run one CLI invocation. Returns `true` on success; on failure it reports,
  * schedules the exit, and returns `false` so the CALLER stops.
  *
- * The boolean is load-bearing: under GJS `process.exit()` SCHEDULES the syscall on
- * a GLib idle source and RETURNS (`@gjsify/process`'s `exitProcess`), so a bare
- * exit here stopped nothing — a failed facade build still printed "done in 3.09s"
- * and attempted the second facade. Right exit code, every following line a lie.
- * The general divergence is in `status/open-todos.md`; this is the local repair.
+ * The boolean WAS load-bearing, and the incident is why it stays. Under GJS
+ * `process.exit()` used to SCHEDULE the syscall on a GLib idle source and RETURN
+ * (`@gjsify/process`'s `exitProcess`), so a bare exit here stopped nothing — a
+ * failed facade build still printed "done in 3.09s" and attempted the second
+ * facade. Right exit code, every following line a lie.
+ *
+ * `exitProcess` no longer returns: it drives the default main context until the
+ * scheduled exit fires (`tests/e2e/process-exit-terminates`). So this is now
+ * belt-and-braces rather than the repair. Kept because it is also the right
+ * shape under Node and costs one boolean — but it is no longer the thing
+ * standing between a failed build and a log that lies about it.
  */
 function run(args, cwd) {
     ensureCliEntryLinks();

@@ -111,12 +111,14 @@ console.log('DOCUMENT:' + documentPresent);
 console.log('VERSIONS_NODE:' + (typeof process.versions.node === 'string' ? 'yes' : 'no'));
 `;
 
-// NOTE for whoever extends this: do NOT assert that nothing after
-// `process.exit(3)` runs. Under GJS `process.exit()` SCHEDULES the syscall on a
-// GLib idle source and RETURNS (see `@gjsify/process`'s `exitProcess`), so the
-// line after it still executes — a documented, pre-existing divergence from Node
-// that has nothing to do with this runner, recorded in `status/open-todos.md`.
-// What this suite holds is the part a build chain depends on: the CODE survives.
+// NOTE for whoever extends this: you MAY now assert that nothing after
+// `process.exit(3)` runs. This note used to say the opposite, and PINNED the
+// divergence it described — `exitProcess` scheduled the syscall on a GLib idle
+// source and returned, so the line after it still executed. That is fixed:
+// `exitProcess` drives the main context itself and does not come back.
+// `tests/e2e/process-exit-terminates` owns the four shapes of that claim,
+// including the one a naive `system.exit()` still hangs on. What THIS suite
+// holds is the part a build chain depends on: the CODE survives.
 
 describe('gjsify run --node-script on a Node-less GJS host', { skip: SKIP, timeout: 5 * 60 * 1000 }, () => {
     let tmpDir;
