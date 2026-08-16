@@ -44,8 +44,13 @@ therefore:
   (`@nativescript/core`, `nativescript`, `@nativescript/vite`, `vite`) is **not**
   pulled by the workspace-wide `gjsify install` — consistent with the rule that
   no platform SDK is a hard workspace dependency;
-- **not** part of `gjsify foreach test:integration` (it has no `test:gjs` /
-  `test:node` script) and **not** in any GitHub Actions workflow.
+- unreachable by any `gjsify foreach`, and the reason is the exclusion above,
+  not the script names: with the directory out of `workspaces` there is no
+  `@gjsify/integration-nativescript` workspace to select, so even the root
+  `gjsify run test:integration` — which foreaches `test`, a script this suite
+  DOES declare — cannot see it (`gjsify workspace @gjsify/integration-nativescript`
+  answers `no workspace named …`). It is likewise absent from `main.yml`'s
+  `integration` allowlist: it drives a real Android device over `adb`.
 
 It is installed and run standalone, against the **published** `@gjsify/*`
 packages, so it validates the real shipped artifacts on V8. Its ranges therefore

@@ -1597,8 +1597,9 @@ jobs:
             printf -- '- classifier reason: `%s`\n' "${C_REASON:-<unset — classifier did not run or crashed; jobs fall back to a full run>}"
             printf -- '- affected closure: `%s`\n' "${C_INCLUDE:-<empty — treated as a full run>}"
             printf -- '- macOS leg: `enabled=%s` — %s\n' "${M_ENABLED:-<unset>}" "${M_REASON:-<unset>}"
-            echo "- integration suites (\`tests/integration/**\`) are not wired into any"
-            echo "  workflow yet — they run on no event, PR or main. Tracked in status/open-todos.md."
+            echo "- integration suites (\`tests/integration/**\`): the measured-green subset gates"
+            echo "  this run via the \`integration\` job; the rest are held out with their cause"
+            echo "  recorded per suite in status/integration-coverage.md."
             echo
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -1685,15 +1686,15 @@ jobs:
             echo
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Integration tests are NOT wired into CI yet. Measured: all 35 suites under
-  # `tests/integration/` appear in every workflow only as an EXCLUSION, so no
-  # event runs any of them. The classifier still emits `run-integration` — the
-  # half that works — so re-enabling the gate per-suite stays a small change.
-  # "CI-incompatible preconditions" is true of SOME (privileged Podman, an
-  # Android device, registry egress, system GIRs) and is not measured for the
-  # rest; that per-suite measurement, and why a hermetic subset rather than all
-  # 35, is `status/open-todos.md`. This comment claimed that tracking before the
-  # entry existed.
+  # The integration suites are gated by the `integration` job above, for the
+  # subset measured green in this image. Which suites those are, and the cause
+  # held against each one that is out, is `status/integration-coverage.md`.
+  #
+  # "CI-incompatible preconditions" stood here as a blanket reason for all 35
+  # until the per-suite measurement retired it: it is true of four of them
+  # (podman, an Android device, a native `.node`, `openssl(1)`), while most of
+  # the rest had simply never been run. Do not restore a blanket phrase — the
+  # reason a suite is out belongs beside that suite.
 
   # The ONE job this workflow's verdict may be read from — the branch-protection
   # required check. Everything else here is either a matrix leg (its name carries
