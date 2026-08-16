@@ -330,6 +330,24 @@ jobs:
       # AT THE NEW VERSION by the `after:bump` hook — `--rebuild` implies
       # `--keep`, so what is on disk here is what the tag carries. Uploading from
       # release.yml could only ever re-derive that.
+      # The distro packages, from the SAME bundle the assets above carry. `ship`
+      # re-reads `dist/cli.gjs.mjs`, so there is no second build and no way for the
+      # `.deb` and the `.gjs.mjs` on one release to disagree.
+      #
+      # `--skip-build` is the point: rebuilding here would produce a bundle from the
+      # working tree rather than the one the `after:bump` hook made AT THE NEW
+      # VERSION, and the tag would then carry two different bundles.
+      #
+      # Why this belongs on the release at all: `gjsify self-update` REFUSES to run
+      # when the CLI was installed by a package manager, because writing the XDG
+      # prefix there leaves the user with two installs. That refusal points at
+      # `releases/latest`, so the packages have to be there for the sentence to be
+      # true.
+      - name: Package the CLI as .deb and .rpm
+        if: ${{ !inputs.dry_run }}
+        working-directory: packages/infra/cli
+        run: node lib/index.js ship --skip-build
+
       - name: Generate cli.gjs.mjs.sha256
         if: ${{ !inputs.dry_run }}
         id: assets
@@ -356,6 +374,8 @@ jobs:
             install.mjs
             packages/infra/cli/dist/cli.gjs.mjs
             packages/infra/cli/dist/cli.gjs.mjs.sha256
+            packages/infra/cli/ship/out/*.deb
+            packages/infra/cli/ship/out/*.rpm
 
       # A check that cannot fail is decoration, so this one gates — and it gates
       # BEFORE the publish dispatch on purpose. The two failure modes are not

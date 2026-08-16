@@ -33,8 +33,18 @@ const APP_ID = /^[A-Za-z][\w-]*(\.[A-Za-z][\w-]*){2,}$/;
 const BINARY_NAME = /^[a-z\d][a-z\d+.-]+$/;
 /** The formats `gjsify ship` can build today. */
 const TARGETS = new Set(['deb', 'rpm']);
-/** Keys whose value is a path that must exist relative to the package. */
-const PATH_KEYS = ['bundle', 'icon', 'schemas', 'licenseFile'];
+/**
+ * Keys whose value is a SOURCE path that must exist relative to the package.
+ *
+ * `bundle` is deliberately NOT here. It is the one build OUTPUT among the path
+ * keys — `gjsify ship` packages a BUILT app — so it is absent in a clean checkout
+ * by definition, and requiring it here would mean no package could declare
+ * `gjsify.ship` without committing its own dist. The right moment to demand it is
+ * ship time, and `resolveBundle()` already does: "the bundle X does not exist.
+ * Build it first (`gjsify run build`)". Asking at audit time asks a different
+ * question and answers it wrong.
+ */
+const PATH_KEYS = ['icon', 'schemas', 'licenseFile'];
 
 export function auditShip(ctx) {
     const failures = [];

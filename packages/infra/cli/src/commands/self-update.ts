@@ -28,6 +28,7 @@ import { fetchPackument, type Packument } from '@gjsify/npm-registry';
 import type { Argv } from 'yargs';
 import type { Command } from '../types/index.js';
 import { installPackages, makeProgressReporter } from '../utils/install-backend.js';
+import { classifyInstall } from '../utils/install-provenance.js';
 import {
     defaultGlobalLayout,
     globalLayoutIsDefault,
@@ -83,6 +84,27 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
         const installedAtPrefix = existsSync(installedPkgJson);
 
         console.log(`Current ${PACKAGE_NAME}: v${currentVersion ?? '(unknown)'}`);
+
+        // REFUSE, do not warn-and-continue, when something else owns this install.
+        //
+        // Everything below writes the user-global XDG prefix. Under a `.deb`,
+        // `.rpm` or Flatpak that produces a SECOND copy which shadows the one the
+        // package manager tracks — so the next `apt upgrade` reverts it, or the two
+        // diverge, and the user's report is "I updated and nothing changed". A
+        // clean refusal naming the right command is strictly more useful than a
+        // successful write to the wrong place; #1064 is the same lesson one layer
+        // down, where the write succeeded and PATH still resolved the old binary.
+        const provenance = classifyInstall({ selfDir: readSelfDir(), xdgPrefix: layout.prefix });
+        if (provenance.managedElsewhere) {
+            console.error(
+                `\ngjsify self-update: this gjsify is managed by something else — ${provenance.evidence}.\n` +
+                    `Updating it from here would write ${layout.prefix} and leave you running two installs.\n\n` +
+                    `Update with: ${provenance.updateWith}\n`,
+            );
+            // `return process.exit()` — a bare `process.exit()` is DEFERRED under
+            // GJS and the handler would run on into the install it just refused.
+            return process.exit(1);
+        }
         if (!installedAtPrefix) {
             console.warn(
                 `\nWarning: no @gjsify/cli install found under ${layout.prefix}.\n` +
@@ -306,6 +328,27 @@ export function verifyPathResolution(opts: {
  * `import.meta.url` (the bundle file under GJS, or `lib/index.js` under
  * Node) until it finds a package.json with `name === '@gjsify/cli'`.
  */
+/**
+ * The directory of the running CLI's own package — the input the provenance
+ * question is actually about.
+ *
+ * The same upward walk `readCurrentVersion()` does, and for the same reason: it
+ * works from `lib/index.js` under Node and from the published `dist/cli.gjs.mjs`
+ * bundle under GJS. Honours the same `GJSIFY_CLI_PACKAGE_JSON` escape hatch, so a
+ * test can place a synthetic install anywhere without a real one.
+ */
+function readSelfDir(): string {
+    const override = process.env.GJSIFY_CLI_PACKAGE_JSON;
+    if (override) return dirname(resolve(override));
+    const here = fileURLToPath(import.meta.url);
+    let dir = dirname(resolve(here));
+    for (let i = 0; i < 8 && dir !== dirname(dir); i++) {
+        if (existsSync(join(dir, 'package.json'))) return dir;
+        dir = dirname(dir);
+    }
+    return dirname(resolve(here));
+}
+
 function readCurrentVersion(): string | null {
     try {
         // Escape hatch for tests: point GJSIFY_CLI_PACKAGE_JSON at a synthetic
