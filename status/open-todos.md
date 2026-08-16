@@ -1366,6 +1366,22 @@ the rule cannot be "fixtures may not read the tree". A first cut that would have
 caught both instances: fail a gate-listed suite that reads a path the same job's
 clearing scripts print on stdout, which is a set the job already computes.
 
+**Measured 2026-08-16, before building it: the naive form of that cut is 3-for-3
+false.** The mutated set is derivable without running anything — both clearing
+scripts take `--dry-run`, and what they WRITE is fixed (`clear-satisfied-gir-gaps`
+→ `scripts/manifest-conformance/prebuild-gir-gaps.mjs`; `clear-committed-platform-exemptions`
+→ the package manifests). But matching those paths as strings against the five
+gate-listed suites flags `platform-exemption-clearing`, `prebuild-declaration-invariant`
+and `prebuild-change-gate`, and all three are hermetic: the two known instances were
+FIXED by moving to synthetic trees, and a fixed suite still names the path it builds a
+copy of. A check with a 100 % false-positive rate gets disabled, and then protects
+nothing — `check-workflow-inline-scripts.mjs`'s header records the same lesson from its
+own first draft ("23 findings, 21 false").
+
+So the discriminator is not the path, it is the ROOT: a read anchored at the
+repository (`MONOREPO_ROOT`, `ROOT`) versus one anchored at a tmpdir the suite
+made. That is what the check has to see, and it is why this is not a grep.
+
 ### What still writes to `main` unverified, after the bot push got a gate
 
 `commit-prebuilds` now runs the checks that read its own output on the tree it is
