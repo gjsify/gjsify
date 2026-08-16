@@ -1078,6 +1078,18 @@ export function renderStatus(root, facts, data) {
     out.push('');
     out.push(table(['Category', 'Total', 'Full', 'Partial', 'Stub'], summaryRows));
     out.push('');
+    // The two directory-derived rows would otherwise read as a coverage claim.
+    // `Full` means "implemented" for every row EXCEPT these, where it is
+    // `Total` by construction (see `summarize`'s callers) — a suite counts as
+    // present because its directory exists, which says nothing about whether
+    // anything runs it. Saying so here is cheaper than a reader inferring
+    // "35 / 35 integration suites" as "35 suites pass".
+    out.push(
+        '> **Showcases** and **Integration test suites** are counted from directories: `Full` equals `Total` ' +
+            'by construction and asserts only that the directory is there. Which of them any CI event actually ' +
+            'runs is a separate question — see the Integration Test Coverage section and `status/open-todos.md`.',
+    );
+    out.push('');
     if (data.sections['summary-notes.md']) out.push(data.sections['summary-notes.md'], '');
     out.push('---', '');
     out.push('## Package Tiers');
