@@ -2,7 +2,7 @@
 // runtime APIs that we rely on. All patches are kept in this single file so
 // the demo code doesn't need inline `as TorrentFile & { … }` intersections.
 //
-// TODO(upstream, open-todos: 10 small API gaps): send a PR to DefinitelyTyped covering:
+// TODO(upstream, open-todos: small API gaps): send a PR to DefinitelyTyped covering:
 //   - NodeServer.listen (it's a Node http.Server at runtime)
 //   - Torrent.critical / Torrent.bitfield / 'verified' event
 //   - TorrentFile.offset / TorrentFile.on('stream', …)

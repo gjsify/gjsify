@@ -61,8 +61,10 @@ name: Build Native Prebuilds
 # not exist in a workflow that contains a job which pushes commits. Plain
 # `pull_request` runs with a token GitHub forces to read-only for fork PRs, and
 # the build legs need nothing more: they pull the PUBLIC `fedora:43` image, so
-# unlike main.yml's private `ghcr.io/gjsify/ci-fedora` they also work on a fork
-# PR. Least privilege backs that up rather than relying on it — see
+# they also work on a fork PR. (`ghcr.io/gjsify/ci-fedora` is public too and is
+# pulled anonymously since 1ff4d1224e — this comment called it private for as
+# long as that was still true.) Least privilege backs that up rather than
+# relying on it — see
 # `permissions` below.
 #
 # Artifacts are uploaded and can be downloaded to commit into the repo before
