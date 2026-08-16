@@ -1541,9 +1541,12 @@ const printResult = () => {
  * NO marker distinguished a failing line from a passing one: a grep for `✖`, `✘`,
  * `❌`, `not ok` or `AssertionError` over a 9305-line CI log returned the summary and
  * nothing else. Locating one test name in a red macOS run took about fifteen minutes
- * of pure retrieval — and `macos-suites.yml` / `windows-suites.yml` run on `main` and
- * the nightly, NOT on PRs (ADR 0018 § 5), so the least readable legs are exactly the
- * ones nobody watches live, read by someone deciding whether their merge did it.
+ * of pure retrieval — and at the time `macos-suites.yml` / `windows-suites.yml` ran on
+ * `main` and the nightly only, so the least readable legs were exactly the ones nobody
+ * watched live, read by someone deciding whether their merge did it. Those two now run
+ * on PRs as well (ADR 0018, § 5 re-measured), which raises the value of this rather
+ * than lowering it: the logs are read by more people, earlier, and still advisory —
+ * nothing forces the reading.
  *
  * `✖` is the marker because it appears nowhere else in this runner's output (`✗` is
  * expected failures, `❌` is the per-test line and the summary), so `grep '✖'` alone
