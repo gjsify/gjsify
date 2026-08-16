@@ -139,6 +139,15 @@ jobs:
       - name: Check every workflow `run:` block is valid shell
         run: node scripts/check-workflow-run-syntax.mjs
 
+      # The cross-runtime package list and the `if:` chain that decides whether its
+      # job runs are two copies of one set, and selective CI means the second one
+      # decides whether the first is ever read. They had already drifted: the runtime
+      # DETECTION package sat in neither for nine days, so the five assertions that
+      # read `globalThis` on a real bun/deno host — the only ones that cannot be
+      # checked anywhere else — were the ones never run.
+      - name: Check the cross-runtime list and its gate agree
+        run: node scripts/check-cross-runtime-gate.mjs
+
       # The PR-title linter inherits its type list from the action default
       # instead of carrying a second copy of `type-enum`. That is only sound
       # while the two agree — this is what says so out loud.
