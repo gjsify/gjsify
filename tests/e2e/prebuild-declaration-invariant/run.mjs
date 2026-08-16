@@ -110,6 +110,11 @@ process.on('exit', () => {
  * @param {Record<string, string[]>} [opts.stage] target → files to copy from a real
  *   prebuild (`from` selects which one)
  * @param {Record<string, string>} [opts.extraFiles] target → {name: contents}
+ * @param {Record<string, Record<string, string>>} [opts.renamed] target → {newName:
+ *   sourceName} — a REAL artifact copied under a second name. The debris the
+ *   nothing-unexplained check exists for is a renamed library, so the fixture has
+ *   to be a real one: a text stub would also trip the "not ELF" assertion and the
+ *   test would pass for the wrong reason.
  * @param {'meson'|'node-gyp'} [opts.builder] load-bearing since ADR 0017: the
  *   ABSENCE of `gjsify.prebuilds` used to mean exactly one thing and now means two.
  *   With `meson` it is a SPLIT bridge whose artifacts live in per-target packages,
@@ -121,6 +126,7 @@ function pkg({
     stage = {},
     from = REAL_X64,
     extraFiles = {},
+    renamed = {},
     uncommitted = null,
     namesPrebuildDir = true,
     builder = 'meson',
@@ -138,7 +144,15 @@ function pkg({
             writeFileSync(join(prebuildDir, target, name), contents);
         }
     }
-    const shipped = [...new Set([...Object.keys(stage), ...Object.keys(extraFiles)])].sort();
+    for (const [target, names] of Object.entries(renamed)) {
+        mkdirSync(join(prebuildDir, target), { recursive: true });
+        for (const [as, src] of Object.entries(names)) {
+            copyFileSync(join(from, src), join(prebuildDir, target, as));
+        }
+    }
+    const shipped = [
+        ...new Set([...Object.keys(stage), ...Object.keys(extraFiles), ...Object.keys(renamed)]),
+    ].sort();
     return {
         name: '@gjsify/fixture',
         path: 'packages/fixture',
@@ -223,6 +237,73 @@ describe('prebuild invariant — half 1: a declared platform must have a body', 
         const problems = failuresFor(pkg({ declared: ['linux-x64'], stage: { 'linux-x64': [] } }));
         assert.equal(problems.length, 1);
         assert.match(problems[0], /holds no `\.so`/);
+    });
+});
+
+describe('prebuild invariant — half 1b: nothing in the directory is unexplained', () => {
+    // Every other assertion in this file asks whether a file that SHOULD be there
+    // is. This is the opposite question, and it had no owner: `commit-prebuilds`
+    // extracts dozens of artifacts INTO the existing directory without clearing
+    // it, `git add` stages no deletions, and `sync-and-stage.sh` REFUSES staged
+    // deletions on purpose — that refusal is the one guard stopping the job from
+    // unshipping a binary, so the accumulation cannot be fixed by relaxing it.
+    // A library renamed in `meson.build` therefore stays beside its successor and
+    // `files: ["prebuilds"]` publishes both, forever, silently.
+    it('FAILS on a library left behind under its old name', () => {
+        const problems = failuresFor(
+            pkg({
+                declared: ['linux-x64'],
+                stage: { 'linux-x64': REAL_X64_FILES },
+                renamed: { 'linux-x64': { 'libgjsifyterminal-OLDNAME.so': 'libgjsifyterminal.so' } },
+            }),
+        );
+        // Exactly one: a real artifact under a second name is well-formed, so no
+        // other half has anything to say about it. That is the point — before this
+        // check, nothing did.
+        assert.equal(problems.length, 1, problems.join('\n'));
+        assert.match(problems[0], /libgjsifyterminal-OLDNAME\.so` is in a committed prebuild directory and nothing explains it/);
+        // Both ways out named, so the next reader does not pick deletion for a file
+        // a consumer actually needs.
+        assert.match(problems[0], /If it is dead, delete it/);
+        assert.match(problems[0], /make the typelib or a sibling library record it/);
+    });
+
+    it('FAILS on a stray non-artifact, which is how the real debris looked', () => {
+        // The two files this check found on its first run over the tree were
+        // `.gitkeep`s, left in directories that had since filled with real
+        // artifacts. They were deleted rather than exempted — an allowlist would
+        // have made them permanent — so this fixture is what keeps the case covered.
+        const problems = failuresFor(
+            pkg({
+                declared: ['linux-x64'],
+                stage: { 'linux-x64': REAL_X64_FILES },
+                extraFiles: { 'linux-x64': { '.gitkeep': '' } },
+            }),
+        );
+        assert.equal(problems.length, 1, problems.join('\n'));
+        assert.match(problems[0], /`prebuilds\/linux-x64\/\.gitkeep` is in a committed prebuild directory/);
+    });
+
+    it('PASSES a dependency sibling, which is what the Rust cdylibs are', () => {
+        // `libgjsify_lightningcss.so` is not named by any typelib — the Vala half
+        // records it as a DT_NEEDED. Explaining a file by another staged library's
+        // dependency list is therefore load-bearing, not a convenience: without it
+        // every Rust bridge in the tree would report as debris.
+        const dir = realPrebuild('infra', 'lightningcss-native', 'linux-x64');
+        const { failures } = auditPrebuildArtifacts([
+            {
+                name: '@gjsify/fixture',
+                path: 'packages/fixture',
+                tier: 3,
+                builder: 'meson',
+                declared: ['linux-x64'],
+                shipped: ['linux-x64'],
+                prebuildsField: 'prebuilds',
+                prebuildDir: dirname(dir),
+                uncommitted: null,
+            },
+        ]);
+        assert.deepEqual(failures, []);
     });
 });
 
@@ -679,8 +760,19 @@ describe('prebuild invariant — half 2: a body that exists must be loadable', (
         });
         copyFileSync(join(REAL_X64, 'libgjsifyterminal.so'), join(row.prebuildDir, 'linux-x64', 'libgjsifyrenamed.so'));
         const problems = failuresFor(row);
-        assert.equal(problems.length, 1);
-        assert.match(problems[0], /records shared library `libgjsifyterminal\.so`, which is NOT staged/);
+        // BOTH halves of the rename, and the second one is why half 1b exists: the
+        // name the typelib still expects is gone, AND the name that arrived is
+        // accounted for by nothing. This assertion expected only the first for as
+        // long as only the first had an owner.
+        assert.equal(problems.length, 2, problems.join('\n'));
+        assert.ok(
+            problems.some((p) => /records shared library `libgjsifyterminal\.so`, which is NOT staged/.test(p)),
+            problems.join('\n'),
+        );
+        assert.ok(
+            problems.some((p) => /libgjsifyrenamed\.so` is in a committed prebuild directory and nothing explains it/.test(p)),
+            problems.join('\n'),
+        );
     });
 
     it('FAILS on a file with a library extension that is not a library at all', () => {
