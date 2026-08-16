@@ -17,9 +17,10 @@
 //
 // Note for anyone reproducing this by hand: `nativeCandidates()` prefers
 // `prebuilds/<target>/node_gi.node` over `build/Release`, so a bare
-// `node probe.mjs` after `node-gyp build` measures the COMMITTED prebuild and the
-// fix looks like it did nothing. The `test` scripts set `NODE_GI_NATIVE=build`
-// for exactly this reason; an ad-hoc probe has to set it too.
+// `node probe.mjs` after `node-gyp build` measures the STAGED prebuild — gitignored,
+// left behind by stage-prebuild/install — and the fix looks like it did nothing. The
+// `test` scripts set `NODE_GI_NATIVE=build` for exactly this reason; an ad-hoc probe
+// has to set it too.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -92,6 +93,34 @@ test('the contents match, not merely the count', { skip: skipReason() }, () => {
     buf.unmap(map);
 });
 
+// The length is resolved ONLY where the element reader can walk that many elements.
+// This case is why: `PangoGlyphString.glyphs` is `<array length="0">` of INLINE
+// PangoGlyphInfo records, and `ReadCElement` dereferences an interface element as a
+// pointer while `CElementSize` reports `sizeof(gpointer)`. Handing it a length made a
+// SIGSEGV out of what had been an empty array — the first draft of this change did
+// exactly that, and only a probe outside GStreamer found it.
+//
+// So: same answer as before the change (empty, no crash), and a process that survives.
+// If `ReadCElement` ever learns by-value records, this test SHOULD fail — that is the
+// signal to widen `ElementsAreReadable`, and the assertion below says so out loud.
+test('an INLINE-record element field is declined, not walked', { skip: pangoSkip() }, () => {
+    const probe = `
+        import { requireGi } from ${JSON.stringify(join(import.meta.dirname, '..', 'gi.js'))};
+        const Pango = requireGi('Pango', '1.0');
+        const gs = new Pango.GlyphString();
+        gs.set_size(3);
+        console.log(JSON.stringify({ length: gs.glyphs === null ? null : gs.glyphs.length }));
+    `;
+    // A separate process on purpose: the regression is a SEGV, which no in-process
+    // assertion can catch — `status` is the measurement.
+    const res = spawnSync(process.execPath, ['--input-type=module', '-e', probe], {
+        encoding: 'utf8',
+        env: { ...process.env, NODE_GI_NATIVE: 'build' },
+    });
+    assert.equal(res.status, 0, `reading an inline-record element field crashed (signal ${res.signal})`);
+    assert.deepEqual(JSON.parse(res.stdout.trim()), { length: 0 });
+});
+
 // Gold-standard parity: gjs is the reference (the conformance README contract).
 const haveGjs = spawnSync('gjs', ['--version'], { stdio: 'ignore' }).status === 0;
 
@@ -122,4 +151,14 @@ function skipReason() {
 
 function gjsSkip() {
     return haveGjs ? undefined : 'gjs not on PATH';
+}
+
+/** Pango is its own dependency — present wherever GTK is, absent on a headless core box. */
+function pangoSkip() {
+    try {
+        requireGi('Pango', '1.0');
+        return undefined;
+    } catch (err) {
+        return `Pango not available: ${err.message}`;
+    }
 }

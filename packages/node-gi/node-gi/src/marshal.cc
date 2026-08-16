@@ -1750,6 +1750,54 @@ static GIFieldInfo* BoxedFieldAt(GIBaseInfo* owner, unsigned index) {
   return nullptr;
 }
 
+// Can `ReadCElement` actually read this array's elements?
+//
+// Resolving a length is only ever an improvement where the reader can then walk that
+// many elements. Two shapes it cannot: an element tag it answers with `Undefined()`
+// (its `default:`), and an INLINE (by-value) interface element — for those it
+// dereferences `src` as a pointer while `CElementSize` reports `sizeof(gpointer)`
+// rather than the record's real size, so a resolved length walks garbage. Measured:
+// `new Pango.GlyphString(); gs.set_size(3); gs.glyphs[0].glyph` SIGSEGVs with a
+// length and returns an empty array without one.
+//
+// `calls.cc` draws exactly this line at its own CALLER_ALLOCATES site, with the same
+// reason recorded there — a by-value element array needs `gi_struct_info_get_size`
+// per element plus a field-access read-back. That is ONE deferred piece of work, and
+// this predicate keeps the field path on the same side of it rather than opening a
+// second, crashing entrance to it.
+static bool ElementsAreReadable(GITypeInfo* type) {
+  GITypeInfo* elem = gi_type_info_get_param_type(type, 0);
+  if (elem == nullptr) return false;
+  bool readable;
+  switch (gi_type_info_get_tag(elem)) {
+    case GI_TYPE_TAG_BOOLEAN:
+    case GI_TYPE_TAG_INT8:
+    case GI_TYPE_TAG_UINT8:
+    case GI_TYPE_TAG_INT16:
+    case GI_TYPE_TAG_UINT16:
+    case GI_TYPE_TAG_INT32:
+    case GI_TYPE_TAG_UINT32:
+    case GI_TYPE_TAG_INT64:
+    case GI_TYPE_TAG_UINT64:
+    case GI_TYPE_TAG_FLOAT:
+    case GI_TYPE_TAG_DOUBLE:
+    case GI_TYPE_TAG_UTF8:
+    case GI_TYPE_TAG_FILENAME:
+      readable = true;
+      break;
+    // A pointer array of interfaces is a `gpointer` per slot, which is what
+    // `ReadCElement` reads. By value it is the record itself, which is not.
+    case GI_TYPE_TAG_INTERFACE:
+      readable = gi_type_info_is_pointer(elem);
+      break;
+    default:
+      readable = false;
+      break;
+  }
+  gi_base_info_unref(elem);
+  return readable;
+}
+
 // The element count for an array FIELD whose GIR carries `array length=<n>`,
 // meaning "sibling field <n> of this same struct holds it".
 //
@@ -1771,7 +1819,7 @@ static GIFieldInfo* BoxedFieldAt(GIBaseInfo* owner, unsigned index) {
 static bool FieldArrayLength(GITypeInfo* ftype, GIBaseInfo* owner, gpointer base, long* out) {
   unsigned int index = 0;
   if (!gi_type_info_get_array_length_index(ftype, &index)) return false;
-  if (owner == nullptr || base == nullptr) return false;
+  if (!ElementsAreReadable(ftype)) return false;
   GIFieldInfo* lengthField = BoxedFieldAt(owner, index);
   if (lengthField == nullptr) return false;
 
@@ -1795,7 +1843,11 @@ static bool FieldArrayLength(GITypeInfo* ftype, GIBaseInfo* owner, gpointer base
     gi_base_info_unref(ltype);
   }
   gi_base_info_unref(lengthField);
-  // A negative count would index out of the buffer. Refuse rather than trust it.
+  // A signed length field holding a negative value is a broken typelib, not a count.
+  // Declining sends it down the zero-terminated/fixed-size derivation the caller would
+  // have used anyway — which is also what a negative reaching `GIArrayToJs` does, so this
+  // changes no observable behaviour today. It is here to keep the CONTRACT of this
+  // function honest: it returns a resolved element count or nothing.
   if (resolved && *out < 0) resolved = false;
   return resolved;
 }
