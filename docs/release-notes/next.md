@@ -32,122 +32,88 @@ https://github.com/gjsify/gjsify/releases/tag/v0.28.0
 
 ## What this release is about
 
-**Windows and macOS stop being aspirations and become checked claims.**
+**The project's own documents had drifted away from the project.** Not by much in any single
+place, and that is what made it expensive: a reader cannot tell a stale sentence from a current
+one, so every wrong claim is load-bearing until someone measures it.
 
-Both platforms had been "supported" in the sense that nobody had measured them. When someone
-finally did, `main` — green on every existing check — was carrying **144 failing assertions on
-Windows** and a full red suite on macOS. Not one was a defect in an implementation. They were
-specs that spelled a POSIX answer as though it were *the* answer, which is precisely the failure
-mode a Linux-only pipeline cannot see: on Linux the POSIX literal cannot fail.
+An audit of this repository found roughly twenty statements the tree measurably contradicts —
+in the website, in `status/`, in `AGENTS.md` files, in source comments. This release corrects the
+user-facing ones, and where a claim could regrow it is now derived instead of typed.
 
-So this release does two things that belong together. It fixes what was broken, and it closes
-the hole that hid it: the operating system is now a **declared field** (`package.json#gjsify.os`)
-that a conformance rule checks, and two new CI legs actually execute package suites on Windows
-and macOS. A claim that nothing runs is not a claim.
-
-**If you build under GJS in a project (not a global install), upgrade** — `gjsify build` could
-not work there at all, and now does. **If you contribute to this repository**, note that
-`cli.gjs.mjs` and `tsc.gjs.mjs` are no longer committed files.
+**If you install with `gjs -m install.mjs` on Debian, read the install hint again.** It used to
+send you to Debian 13 for `gjs >= 1.86`; Debian 13 ships 1.82.3, which is the version the very
+next line refuses.
 
 ---
 
-### The OS is a declared, machine-checked claim (ADR 0018)
+### The install hint contradicted the check three lines above it
 
-`gjsify.os` joins `gjsify.runtimes` and `gjsify.platforms` as an axis packages declare and a rule
-enforces. Nine packages are backfilled; `field-coverage` now sees 19 kinds in scope against 15
-claimed, so the declaration cannot land without its check.
+`install.mjs` rejects `gjs < 1.86` and then printed `Debian 13+: sudo apt install gjs`. Debian 13
+is trixie, which ships **1.82.3** — the branch handed the reader the exact version it had just
+refused. Verified against Debian's own package tracker: trixie 1.82.3, forky 1.88.1, sid 1.89.2;
+1.84 and 1.86 were skipped entirely.
 
-Four claims deliberately sit below `supported`, each printing its reason on **every** run — pass
-or fail — rather than hiding behind a green tick:
+The repository already knew. `utils/ship/depends.ts` carries that measurement, dated, and
+`gjsify ship` warns on it at package time. Two website pages repeated the wrong half. One fact,
+one wording, everywhere now.
+
+### `system-check` reported a Node.js that was not installed
+
+The row was a literal — `{found: true, version: process.version}` — and `@gjsify/process` stubs
+`process.version` to `"v20.0.0"` for npm compatibility. So under GJS, on a machine with no Node
+at all, `gjsify system-check` printed:
 
 ```
-child_process win32=partial  a win32.ts exists and NOTHING RUNS IT
-os            win32=partial  same structural gap, plus spec failures
-process       win32=partial  the uname path is unreachable without a GJS host
-util          win32=partial  win32 silently gets the LINUX errno table
+✓  Node.js  (v20.0.0)
 ```
 
-An honest "partial" with a named gap is available. A silent one is not.
+Under the **Node-free** toolchain, whose entire premise is that there is no Node. It now asks the
+host and reports what is there, as an `optional` row — nothing that used to pass now fails,
+because a constant could never have failed a gate.
 
-### Windows and macOS suites now run in CI
+### The platform matrix is generated, not pasted
 
-`windows-suites.yml` runs the Node pillar on Windows, under **cmd.exe with the Git-for-Windows
-PATH entries removed** — because Git ships `chmod`, `cp`, `sed` and `which`, npm runs scripts
-through `%COMSPEC%` where none exist, and a leg using bash would faithfully reproduce a false
-green.
+The Platform Support page carried a hand-copied paste of `audit-runtimes --platforms --markdown`,
+under a comment telling the next editor to paste it again. It had drifted to showing
+`@gjsify/webgl` as **unsupported on win32-x64** — the one cell a Windows reader opens that page to
+check, and wrong: declared, CI-targeted, artifact committed. It had also lost a whole package row.
 
-`macos-suites.yml` is the stronger of the two, because macOS *has* a GJS host: both `test:node`
-and `test:gjs` run. Neither leg is a required check by design — Windows minutes bill at 2×, and
-a required check that fails to *start* blocks every PR forever. They are read, not waited on.
+The page now renders from data regenerated on every website build, and the mark rule moved into a
+single exported function so the page and the CI audit answer "where does this run?" from one rule
+rather than two. Both existing renderings are byte-identical.
 
-### `gjsify build` now works in a project that installs under GJS
+### A struct field read returned success and nothing
 
-The GJS bundler engine is an optional peer of `@gjsify/cli`, correctly — a plain
-`npm install @gjsify/cli` on Node must not drag in Linux prebuilds. But nothing installed it for
-a *project*: npm skips optional peers, and the native backend does not resolve peer dependencies
-at all. Under GJS there is no npm `rolldown` fallback, so **every `gjsify build` hard-failed**,
-and the error arrived buried under ~60 lines of command help.
+`GstMapInfo.data` is a `guint8*` whose length lives in the sibling `size` field. `@gjsify/node-gi`
+resolved no length for it and returned an EMPTY array — no error, no warning:
 
-A project install now lays the engine down when the host can run `gjs` and does not have it.
-Verified end to end against the real registry: native packages detected went 5 → 8, and
-`gjsify build index.ts` writes a 132 KB bundle where it previously had no engine to load (#1005,
-ADR 0020).
+```
+node-gi:  ok=true size=32 data.length=0
+gjs:      ok=true size=32 data.length=32
+```
 
-Two things fell out of that work and are worth naming on their own:
+An empty array is indistinguishable from a genuinely empty one, which is how this made audio
+inaudible on Node for an entire investigation: every layer above reported success on nothing.
+Fixed, with gjs as the oracle.
 
-- **A runtime error no longer prints command help.** yargs treats a rejected handler like a usage
-  error, so an accurate diagnosis scrolled out of view under a help dump that read as "bad
-  arguments". Usage errors still print help; runtime errors now print the error.
-- **The distro install hint was silently empty on exactly the hosts that needed it.** Package
-  manager detection shelled out to `which`(1), which the minimal Fedora CI containers do not
-  ship, so the hint printed nothing there. Two downstream projects had already found their
-  missing system library by hand.
+The note recording this defect had opened by calling the dependency one "GI cannot express for a
+struct-field read". It can — the annotation is in the GIR, it survives into the typelib, and the
+call-argument path had been resolving it all along. Only the field reader ignored it.
 
-### The committed CLI bundles are gone (ADR 0002)
+### Every landed commit gets a CI verdict
 
-`packages/infra/cli/dist/cli.gjs.mjs` and `packages/infra/tsc/dist/tsc.gjs.mjs` are no longer
-tracked — **10,197,542 B of committed artifact**, plus the apparatus that guarded their
-staleness: a `post-rewrite` hook, its e2e suite, two per-job bundle verification steps and a
-recovery procedure. CI now bootstraps from the published `@gjsify/cli` and builds them; they are
-still packed into tarballs and still shipped as release assets. Untracking is not unshipping.
+`concurrency.group` keyed on the branch put every push to `main` in one group, and GitHub keeps a
+single *pending* run per group — so a newer run evicted a queued one regardless of
+`cancel-in-progress`. A landed commit could therefore end up with **no run of its own**, showing
+in the run list as `cancelled`, which reads as noise rather than as a gap.
 
-The cost this removes was measured, three times in three days: a release restaling every open PR
-by one byte, an `+18 B` drift on all three artifacts from a `packages/web/` commit no hook
-covered, and a five-file change that had to carry an unrelated 6.6 MB hunk and was rejected as
-stale anyway.
+Off a pull request the key is now per-run. Pull requests keep the branch-wide key, because there
+superseding is the wanted behaviour.
 
-`affected.gjs.mjs` stays committed on purpose. The CI classifier boots it before any install and
-it gates every other job, so a stale copy does not error — it silently classifies today's work
-with an older commit's rules, and the run still looks green.
+---
 
-### Fixes
-
-- **`net.isIP()` accepted addresses Node rejects.** The GJS entry asked the host's
-  `inet_pton(3)`, and BSD accepts leading zeros in an IPv4 octet where glibc does not — so
-  `0177.0.0.1` and `127.000.000.001` classified as valid IPv4 on macOS. Leading-zero octets are
-  the classic parser-confusion vector, since `0177.0.0.1` is `127.0.0.1` to anything reading
-  octal. Both entries now share one pure classifier, and cross-checking it against Node over 34
-  inputs found two further bugs the split had hidden: `:::1` classified as IPv6, and
-  `::ffff:127.0.0.1` classified as not an IP at all.
-- **`os.networkInterfaces()` reported loopback's IPv6 address as external.** `internal` was
-  derived from the address (`=== '127.0.0.1'`) instead of the interface's `IFF_LOOPBACK` flag, so
-  `::1` came back external while `127.0.0.1` on the same interface came back internal. Two specs
-  had asserted otherwise all along; they passed only because the CI image ships no `iproute`, so
-  the primary code path never ran there (#1023).
-- **`os.cpus()` returned no `times` on macOS**, where Node guarantees numbers — `+cpu.times.user`
-  was silently `NaN` — and warned once per core per call. It now reports the documented all-zero
-  contract.
-- **`gjsify run` in a workspace did not change directory before dispatching in-process** (#1024).
-
-### Known and open
-
-- The per-CPU tick counters `os.cpus()` reports on macOS are all zero. Mach's
-  `host_processor_info` is unreachable from GJS and no userland tool prints cumulative per-core
-  totals. The assertion is declared as an expected failure that runs and retires itself the day a
-  reader exists, rather than being skipped.
-- Nothing yet stops a new call site inside the CLI from bypassing the spawn/teardown contract the
-  `pack` hang came from. The contract is documented and the fix is in; the guard that would make
-  a future bypass visible is not (#1012).
-- `gjsify install --immutable` (the CI shape) still cannot acquire the GJS bundler engine, because
-  the lockfile a frozen install consumes does not name it. It now says so and names the durable
-  fix: declare `@gjsify/rolldown-native` so the lockfile carries it (#1005, ADR 0020).
+**For contributors:** two rules earned their keep here and are worth restating. A ledger entry
+that instructs the *docs* to keep saying something has no retirement trigger — one of those kept
+three website pages wrong for months after the condition behind it went green. And a live count in
+prose is restatement that drifts unseen; the fix is to delete the number and say what it
+establishes.

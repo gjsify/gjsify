@@ -13,7 +13,7 @@ export const existsFD = (fd: number) => {
 };
 
 export function existsSync(path: string) {
-    // TODO(open-todos: 10 small API gaps): accept buffer and URL too
+    // TODO(open-todos: small API gaps): accept buffer and URL too
     if (typeof path !== 'string' || path === '') {
         return false;
     }

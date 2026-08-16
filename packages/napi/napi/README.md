@@ -17,7 +17,7 @@ runs inside GJS byte-identically to Node (see the gjsify `AGENTS.md`
 > `node_api.h` is intentionally loud-stubbed and deferred. First consumer:
 > **better-sqlite3 v13.0.1 (incl. its bundled SQLite) runs unmodified, byte-identical
 > to Node**, valgrind-clean. Conformance oracle (node's own `js-native-api`
-> addons, golden-diff vs Node): **13 pass / 8 Phase-0-deferred ledgered / 0 fail**.
+> addons, golden-diff vs Node): every program either byte-identical to Node or carrying its Phase-0 reason in `conformance/ledger.json`.
 
 ## How it works
 

@@ -1,6 +1,6 @@
 // Reference: Node.js lib/internal/errors.js — Node.js error base class
 // Reimplemented for GJS
-// TODO(open-todos: 10 small API gaps): create a shared module for node error classes?
+// TODO(open-todos: small API gaps): create a shared module for node error classes?
 
 /**
  * All error instances in Node have additional methods and properties

@@ -1073,7 +1073,7 @@ const runtimeMatch = async function (onRuntime: Runtime[], version?: string) {
     }
 
     if (typeof version === 'string') {
-        // TODO(open-todos: 10 small API gaps): allow version wildcards like 16.x.x
+        // TODO(open-todos: small API gaps): allow version wildcards like 16.x.x
         if (!currRuntime.includes(version)) {
             return {
                 matched: false,
@@ -1088,7 +1088,7 @@ const runtimeMatch = async function (onRuntime: Runtime[], version?: string) {
     };
 };
 
-// TODO(open-todos: 10 small API gaps): add support for Browser (tests/browser/ exists, this matcher cannot name it)
+// TODO(open-todos: small API gaps): add support for Browser (tests/browser/ exists, this matcher cannot name it)
 /** Run `callback` only on the named runtime(s): `on('Deno', () => { it(…) })`. */
 export const on = async function (onRuntime: Runtime | Runtime[], version: string | Callback, callback?: Callback) {
     if (typeof onRuntime === 'string') {
@@ -1415,7 +1415,7 @@ assert.deepStrictEqual = function <T>(actual: unknown, expected: T, message?: st
     }
 };
 
-// TODO(open-todos: 10 small API gaps): wrap more assert methods
+// TODO(open-todos: small API gaps): wrap more assert methods
 
 const runTests = async function (namespaces: Namespaces) {
     for (const subNamespace in namespaces) {

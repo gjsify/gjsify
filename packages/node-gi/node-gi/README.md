@@ -609,8 +609,7 @@ shared per-instance JS object yet), so use GObject **properties** for any state
 that must be visible both inside a vfunc and on the instance (those live in C and
 are consistent; the unified instance identity arrives with the toggle-ref work);
 a JS↔GObject reference cycle on a custom instance leaks (the same cycle-leak
-caveat the signal/vfunc layer carries); and multi-level registered subclass
-chains (registering a subclass of a registered subclass) are not yet supported.
+caveat the signal/vfunc layer carries).
 
 #### `GObject` conveniences (signals, `GObject.Value`, `Object.new`)
 

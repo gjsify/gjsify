@@ -669,8 +669,6 @@ static void NodeGiClassInit(gpointer g_class, gpointer class_data) {
 // return-tuple convention `[returnValue?, ...outArgs]` — one value bare, several as
 // an Array, matching exactly what a JS override of that vfunc receives as its call
 // args. Read-back reuses ReadOutOrReturn (array-length slots, containers, boxed).
-// INOUT containers stay deferred (the same rare, ownership-tricky case the function
-// path defers) with a clear, catchable throw BEFORE the ffi_call.
 //
 // MULTI-LEVEL chain-up (registered chains, G2): chains to the DEEPEST registered
 // override's captured parent (the C-side default below the whole registered chain),

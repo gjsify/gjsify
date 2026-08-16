@@ -587,10 +587,11 @@ Reports an install command for your detected package manager when something is m
 - Build toolchain: `gjs`, `pkg-config`, `meson`, `blueprint-compiler`
 - Foundational libraries: `gtk4`, `libadwaita-1`, `libsoup-3.0`, `gobject-introspection-1.0`
 
-**Optional** — only checked if a corresponding `@gjsify/*` package is in your project:
+**Optional** — Node.js always, and a system library only if a corresponding `@gjsify/*` package is in your project:
 
 | Optional dep | Required by |
 |---|---|
+| `node` | nothing — reported so you can see which toolchain you have. The Node-free bootstrap needs no Node, so its absence is a legitimate answer and never fails the check. Under Node the running process answers for itself; elsewhere it is a `PATH` lookup. |
 | `libmanette-0.2` | `@gjsify/gamepad` |
 | `gstreamer-1.0`, `gstreamer-app-1.0` | `@gjsify/webaudio` |
 | `gstreamer-webrtc-1.0`, `gstreamer-sdp-1.0`, `libnice` | `@gjsify/webrtc` |
