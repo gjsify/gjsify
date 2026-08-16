@@ -17,6 +17,7 @@ import {
     mkdirSync,
     mkdtempSync,
     readFileSync,
+    readdirSync,
     rmSync,
     symlinkSync,
     writeFileSync,
@@ -881,14 +882,31 @@ done`;
         assert.equal(spawnSync('bash', ['-n', emulated]).status, 0, 'emulated-build.sh must parse');
     });
 
-    it('the musl leg\u2019s script parses under POSIX sh and is executable', () => {
-        // `sh -n`, not `bash -n`: it runs in `alpine:3.24`, whose only shell is busybox ash.
-        // A bashism passes a bash check and then fails in the container, the one place this
-        // leg cannot be debugged cheaply — it is dispatch-only in effect.
-        assert.ok(existsSync(muslScript));
-        assert.equal(spawnSync('sh', ['-n', muslScript]).status, 0, 'musl-build.sh must parse under POSIX sh');
-        // Invoked as `sh <script>`, so the bit is not strictly required — but its header
-        // tells a human to run it by hand, and that should work.
-        assert.ok(statSync(muslScript).mode & 0o111, 'musl-build.sh must be executable');
+    // DERIVED, not listed. This assertion used to name `musl-build.sh` alone, and a
+    // hand-maintained list of scripts is the same shape as a hand-maintained list of
+    // packages in a workflow: the entry that is missing is invisible, and the one added
+    // later is the one nobody remembers. Splitting the committed-artifact check out of
+    // `musl-build.sh` produced exactly that miss — a second Alpine script, covered by
+    // nothing. Reading the directory means the next one is covered on arrival.
+    it('every prebuild-toolchain shell script parses and is executable', () => {
+        const dir = fileURLToPath(new URL('../../../.github/prebuild-toolchain/', import.meta.url));
+        const scripts = readdirSync(dir)
+            .filter((f) => f.endsWith('.sh'))
+            .sort();
+        // A directory read that finds nothing would make this a silent no-op — the failure
+        // mode this repository keeps paying for.
+        assert.ok(scripts.length >= 4, `expected several .sh scripts in ${dir}, found ${scripts.length}`);
+        for (const name of scripts) {
+            const path = join(dir, name);
+            // `sh -n`, not `bash -n`, for anything that runs in `alpine:3.24`, whose only
+            // shell is busybox ash: a bashism passes a bash check and then fails inside the
+            // container, the one place these legs cannot be debugged cheaply. The shebang
+            // decides which parser is the honest one.
+            const shell = readFileSync(path, 'utf8').startsWith('#!/bin/bash') ? 'bash' : 'sh';
+            assert.equal(spawnSync(shell, ['-n', path]).status, 0, `${name} must parse under ${shell}`);
+            // Invoked as `sh <script>`, so the bit is not strictly required — but every one
+            // of these headers tells a human to run it by hand, and that should work.
+            assert.ok(statSync(path).mode & 0o111, `${name} must be executable`);
+        }
     });
 });

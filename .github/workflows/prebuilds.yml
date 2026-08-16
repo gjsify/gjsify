@@ -2666,6 +2666,60 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  # ----------------------------------------------------------------
+  # Do the COMMITTED prebuilds resolve on musl? — the only leg that asks
+  #
+  # The libc axis is the one no other CI branch covers, and until this job it was
+  # asserted nowhere that a PR or a merge could see. `build-prebuilds-musl` owns
+  # the same question for the artifacts it BUILDS, but it is
+  # `workflow_dispatch`-only AND `continue-on-error: true` — both right for a
+  # canary (see its header), both fatal for a gate.
+  #
+  # This job needs no build at all: it reads binaries already in the tree, which
+  # is also what makes it cheap enough to run unconditionally. No `needs:` —
+  # its subject is the committed tree, not this run's package set, so a `changes`
+  # decision has nothing to say about it.
+  #
+  # NATIVE runners for both arches, no QEMU: `musl-committed-check.sh` refuses a
+  # target that is not the container's own machine, because musl's `ldd` answers
+  # for a foreign object instead of refusing it and the whole check then passes
+  # having judged nothing (measured; the script's guard carries the numbers).
+  # ----------------------------------------------------------------
+  check-committed-musl:
+    name: Committed prebuilds on musl (linux-${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+
+    steps:
+      # Checkout runs on the GLIBC HOST, like the musl build leg and for the same
+      # reason: `actions/checkout` is a JavaScript action and its runtime ships
+      # for musl only as an x64 binary, so an Alpine job-level `container:` dies
+      # at checkout on the arm64 runner.
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      # No `--platform`: the runner's own architecture IS the target. The script
+      # asserts that rather than trusting it.
+      - name: Check the committed linux-${{ matrix.arch }} prebuilds under musl
+        env:
+          TARGET: linux-${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "$PWD:/workspace" -w /workspace \
+            -e TARGET \
+            alpine:3.24 sh .github/prebuild-toolchain/musl-committed-check.sh
+
+
 
   # ----------------------------------------------------------------
   # Commit all prebuilds back to the repo — main only, and never from a PR
@@ -3421,6 +3475,52 @@ jobs:
           set -euo pipefail
           node scripts/audit-runtimes.mjs --check
 
+      # THE THIRD guard, and the only moment its question can be asked at all.
+      #
+      # `check-committed-musl` reads the tree, so on a PR it judges binaries that
+      # are ALREADY committed. The ones this job is about to commit reach it only
+      # on some later run — and NOT on the next push, because this job commits
+      # with `[skip ci]`, so the binaries it pushes trigger no workflow at all.
+      # Between here and the next PR that happens to touch a native path, a musl
+      # regression is shipped and unmeasured. Asking on the staged tree costs one
+      # container per arch and closes exactly that window.
+      #
+      # QEMU for the arm64 half: this runner is x64, and the script REFUSES a
+      # target that is not the container's own machine rather than answering for
+      # it — musl's `ldd` resolves a foreign object against the HOST's libraries
+      # and reports success, so without the refusal this step would be green
+      # about nothing (the guard's own comment carries the measurement).
+      # `check-committed-musl` gets a native runner per arch; here one runner
+      # serves both, so the emulator is registered and pinned exactly the way
+      # `build-prebuilds-qemu` pins it — the emulator version is part of the
+      # answer, so it is not left to the runner image.
+      - name: Register QEMU for the arm64 musl check
+        uses: docker/setup-qemu-action@v3
+        with:
+          image: tonistiigi/binfmt:qemu-v10.2.3
+          platforms: linux/arm64
+
+      # Both targets are judged even when the first fails: a single red arch must
+      # not hide the state of the other, or the fix lands blind.
+      - name: Check the staged prebuilds under musl, both arches
+        run: |
+          set -euo pipefail
+          rc=0
+          while IFS='|' read -r target platform; do
+            [ -n "$target" ] || continue
+            echo "::group::committed-musl check — ${target}"
+            if docker run --rm --platform "$platform" \
+              -v "$PWD:/workspace" -w /workspace \
+              -e TARGET="$target" \
+              alpine:3.24 sh .github/prebuild-toolchain/musl-committed-check.sh
+            then :; else rc=1; fi
+            echo "::endgroup::"
+          done <<'EOF'
+          linux-x64|linux/amd64
+          linux-arm64|linux/arm64
+          EOF
+          exit $rc
+
       # NO REBASE HERE, and its absence is the fix. This step used to end in
       # `git pull --rebase origin main` — commit the binaries, then ask git to
       # replay that commit onto a moved `main`. git has no merge driver for a
@@ -3587,6 +3687,7 @@ jobs:
       - webgl-vala-c-win32
       - build-prebuilds-win32
       - build-prebuilds-musl
+      - check-committed-musl
       - commit-prebuilds
     if: always()
     runs-on: ubuntu-latest
