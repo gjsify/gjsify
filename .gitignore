@@ -159,4 +159,11 @@ packages/node/worker_threads/fixtures/
 
 # `gjsify ship` output — the staged tree and the built .deb/.rpm. A build artifact,
 # like dist/: reproducible from the bundle plus the manifest, and 6 MB per format.
+# Unanchored on purpose: the output root is `gjsify.ship.outDir` and defaults to
+# `ship` beside whatever project is being shipped, so it can appear at any depth.
 ship/
+# …which also matched the SOURCE directory implementing that command. Those files
+# were already tracked, so nothing broke visibly — but `git add` on one of them is
+# refused, and a NEW source file there would be silently unaddable, which is how it
+# gets lost rather than reviewed.
+!packages/infra/cli/src/utils/ship/

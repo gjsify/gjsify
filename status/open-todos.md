@@ -327,39 +327,6 @@ include/exclude globs its `build:types` compiles, not its manifest — because t
 the only thing that would have predicted the canvas2d-core failure above, and it is
 the same information the two rejected rules were missing.
 
-### `process.exit()` under GJS SCHEDULES the exit and RETURNS, so the next line still runs
-
-Measured while adding `tests/e2e/node-script`. A script whose body is
-
-```js
-console.log('ARGS:' + args.join(','));
-if (args.includes('--fail')) process.exit(3);
-console.log('OK');
-```
-
-prints `OK` under GJS and then exits 3. The exit CODE is right; the control flow
-is not. `@gjsify/process`'s `exitProcess` (`src/internal/exit.ts`) schedules
-`system.exit()` on a `GLib.idle_add` source and returns a forever-pending Promise
-cast to `never` — which parks an `await`ing caller, but a SYNCHRONOUS caller
-simply carries on.
-
-This is why the repo's own CLI code is written `return process.exit(…)`
-everywhere, and that discipline works. What it does not cover is a plain script
-run through `gjsify run --node-script`: those are written for Node, where
-`process.exit()` never returns, and the four in the bootstrap chain all end their
-error paths with a bare `process.exit(code)` followed by the caller continuing.
-Today that costs extra work and confusing output after a fatal error, not a wrong
-exit code (the first scheduled exit wins).
-
-The plausible fix is a direct `system.exit(code)` when no main loop is parked —
-`GLib.main_depth() === 0`, which `ensureMainLoop()` already reads for a related
-decision — keeping the idle path only for the parked-loop case the current
-implementation exists for. It is NOT done here because it changes the exit path
-of every gjsify program, and the claim "system.exit terminates immediately when
-no loop is running" is an assumption in the current source
-(`exitProcess`'s no-GLib fallback comment), not something anyone has measured.
-Measure it first.
-
 ### Which `node scripts/*.mjs` calls are UNMEASURED on a Node-less host
 
 The shim is indiscriminate WITHIN its scope: on a host with no `node`, EVERY

@@ -126,6 +126,24 @@ export interface DependsInputs {
 }
 
 /**
+ * A typelib the payload CARRIES, rather than one the system provides.
+ *
+ * `@gjsify/*`'s native bridges ship their own `.typelib` inside the package —
+ * `GjsifyHttpSoupBridge`, which `@gjsify/http`'s server pulls in unconditionally,
+ * plus `GjsifyHttp2`, `GjsifySabNative` and the rest of the `*-native` set. No
+ * distribution has ever packaged a `gir1.2-gjsifyhttpsoupbridge` and none can:
+ * the file is in the tarball being built. So these are not a gap in the table.
+ * Mapping one would emit a dependency apt and dnf must fail to resolve, and the
+ * module header's rule — an unmapped namespace FAILS the build — is about a
+ * SYSTEM library nobody declared, which is the opposite situation.
+ *
+ * Excluding them is a precondition for widening the namespace scanner rather
+ * than a refinement of it: without this, `gjsify ship` throws on every project
+ * whose bundle reaches one, which includes every `@gjsify/http` server.
+ */
+const BUNDLED_TYPELIB = /^Gjsify[A-Z]/;
+
+/**
  * The `Depends:` / `Requires:` list for one format.
  *
  * @throws when a namespace has no entry in the table — see the module header.
@@ -135,6 +153,7 @@ export function deriveDepends(format: FormatId, inputs: DependsInputs): string[]
     const unmapped: string[] = [];
 
     for (const namespace of [...new Set(inputs.namespaces)].sort()) {
+        if (BUNDLED_TYPELIB.test(namespace)) continue;
         const entry = lookupTypelib(namespace, inputs.typelibPackages);
         if (entry === undefined) {
             unmapped.push(namespace);

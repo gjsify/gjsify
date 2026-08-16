@@ -1,24 +1,54 @@
-// process.exit — terminates the process. On GJS, schedules `system.exit()`
-// via `GLib.idle_add` so the syscall fires from a fresh main-loop iteration:
-// calling `system.exit()` directly from a microtask continuation (e.g.
-// yargs's `parseAsync` resolution) while a `GLib.MainLoop` is parked
-// deadlocks the process — the loop never returns control to top-level, the
-// syscall never runs.
+// process.exit — terminates the process, and does not come back.
 //
-// `ensureMainLoop()` is non-blocking on first call: it registers the loop
-// via `setMainLoopHook` so GJS keeps running it after JS module evaluation
-// completes. Without this, the idle source would sit queued in the default
-// main context but never dispatch (gjs -m exits as soon as JS eval ends),
-// and the process would exit with code 0 regardless of `code`.
+// WHY THIS IS NOT JUST `system.exit()`
+//
+// Under GJS `system.exit()` sets an exit flag that GJS acts on when control
+// returns to the top level. From a microtask continuation with a main-loop hook
+// armed — the shape every CLI reaches after `await parseAsync()` — control never
+// returns there, so the syscall never fires and the process HANGS. Measured on
+// gjs 1.88, `timeout` killing it at 124 in both variants: with the hook armed,
+// and with the hook armed and the loop already quit. `GLib.main_depth()` cannot
+// tell those apart from the safe case, so it is not the discriminator it looks
+// like — it reads 0 for a plain script where a direct exit works, 0 for both
+// hanging shapes, and 1 inside a dispatched callback where a direct exit works
+// again.
+//
+// WHAT DOES WORK, IN EVERY SHAPE
+//
+// Dispatching the exit from a main-context iteration this function drives
+// itself. `system.exit()` fires from inside a dispatch, which is the one
+// position measured to terminate in all four arrangements: a plain script with
+// no loop, a hook armed with the exit called from a microtask, a callback
+// dispatched by someone else's loop, and a real `Adw.Application` exiting from a
+// GTK timeout. One path, no bookkeeping, and nothing to keep in sync with the
+// dozen `app.runAsync()` call sites across this tree.
+//
+// AND WHY THE LOOP AT THE END IS THE POINT
+//
+// The previous implementation scheduled the same idle source and then RETURNED
+// a forever-pending Promise cast to `never`. A Promise is not a `never`: the
+// caller's SYNCHRONOUS control flow carried straight on to the next statement,
+// so `if (bad) process.exit(3)` ran everything after it and only then died with
+// the right code. `scripts/bootstrap-native-facades.mjs` carries its own boolean
+// return because of this, and its comment records the damage — "a failed facade
+// build still printed done in 3.09s … Right exit code, every following line a
+// lie". Driving the context blocks instead: the function occupies the caller's
+// stack until the process is gone, which is what `never` has to mean.
+//
+// If the idle never dispatches, this blocks rather than continuing. That is the
+// honest failure for a termination request, and the reverse of the one above.
 
-import { ensureMainLoop, quitMainLoop } from '@gjsify/utils/core';
 import { getGjsGlobal } from './gjs.js';
 
+/** The `GLib.MainContext` surface this file drives — `default()` plus one blocking step. */
+interface MainContextLike {
+    iteration: (mayBlock: boolean) => boolean;
+}
+
 /**
- * Trigger process termination with the given exit code. Returns `never` —
- * the function does not return to its caller under any path. If the GJS
- * idle-scheduled path is taken, this returns a forever-pending Promise so
- * the caller's synchronous control flow stalls until the syscall fires.
+ * Trigger process termination with the given exit code. Never returns, on any
+ * path and under any runtime — the GJS branch blocks in a main-context loop
+ * until the scheduled `system.exit()` takes the process down.
  */
 export function exitProcess(code: number): never {
     const gjsImports = getGjsGlobal().imports;
@@ -27,28 +57,29 @@ export function exitProcess(code: number): never {
     const idleAdd = GLib?.idle_add as ((priority: number, fn: () => boolean) => number) | undefined;
     const sourceRemove = GLib?.SOURCE_REMOVE as boolean | undefined;
     const priorityDefault = GLib?.PRIORITY_DEFAULT as number | undefined;
+    const mainContext = GLib?.MainContext as { default: () => MainContextLike } | undefined;
 
-    // GJS path: schedule the exit via GLib.idle_add so the syscall fires
-    // from a fresh main-loop iteration. The idle source must be added
-    // BEFORE quitting the loop. Quit lives in the idle callback so the
-    // source is guaranteed to dispatch before the loop drains.
-    if (system?.exit && idleAdd && typeof priorityDefault === 'number' && typeof sourceRemove === 'boolean') {
-        ensureMainLoop();
+    if (
+        system?.exit &&
+        idleAdd &&
+        typeof priorityDefault === 'number' &&
+        typeof sourceRemove === 'boolean' &&
+        typeof mainContext?.default === 'function'
+    ) {
         idleAdd(priorityDefault, () => {
-            quitMainLoop();
             system.exit!(code);
             return sourceRemove;
         });
-        // Park the JS continuation forever — the idle source will exit the
-        // process before this Promise can resolve. Cast satisfies the
-        // `never` return type without taking down the synchronous control flow.
-        return new Promise<never>(() => {
-            /* never */
-        }) as unknown as never;
+        const context = mainContext.default();
+        // Not a spin: `iteration(true)` blocks until a source is ready, and the
+        // idle above is ready immediately. It is a loop because dispatching one
+        // source is not a promise that OURS was the one dispatched.
+        for (;;) context.iteration(true);
     }
 
-    // GJS without GLib (extremely unlikely) — direct syscall, may deadlock
-    // a parked loop but at least exits when no loop is running.
+    // GJS without GLib (extremely unlikely) — direct syscall. There is no main
+    // context to dispatch from, so this keeps the pre-existing deadlock risk
+    // against a parked loop, and at least exits when none is running.
     try {
         if (system?.exit) system.exit(code);
     } catch {

@@ -5,7 +5,8 @@
 // `eval_module` runs that hook once the entry module's top-level await settles,
 // entering a blocking `g_main_loop_run()` that nothing ever quits — GJS has no
 // atexit hook, and only `process.exit()` tears it down (its `exitProcess`
-// idle-schedules `quitMainLoop()` + `imports.system.exit()`).
+// idle-schedules `imports.system.exit()` and then drives the default main
+// context until it fires, so the syscall runs from inside a dispatch).
 //
 // So a CLI command that async-spawns a child and then RETURNS NORMALLY parks at
 // 0% CPU *after* the child has already exited and been reaped. The symptom — a

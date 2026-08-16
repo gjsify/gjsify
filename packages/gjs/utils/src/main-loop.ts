@@ -25,9 +25,12 @@ interface _GjsImports {
  * a bare `imports.system.exit()` DEADLOCKS — it only sets GJS's internal exit
  * flag, never calls `loop.quit()`, so the parked `loop.run()` never returns.
  * Microtask draining is unaffected; only the exit hangs
- * (`docs/poc/tla-microtask-draining.md`). Exit through `process.exit()` (which
- * idle-schedules `quitMainLoop()` + `system.exit()`) or call {@link quitMainLoop}
- * yourself first.
+ * (`docs/poc/tla-microtask-draining.md`). Calling {@link quitMainLoop} first
+ * does NOT lift it — measured, the bare exit still hangs afterwards. Exit
+ * through `process.exit()`, which schedules the syscall on an idle source and
+ * then drives the default main context until it fires, so the exit happens
+ * from inside a dispatch where it works and the call never returns
+ * (`tests/e2e/process-exit-terminates`).
  */
 export function ensureMainLoop(): GLib.MainLoop | undefined {
     const gjsImports = (globalThis as unknown as _GjsImports).imports;
