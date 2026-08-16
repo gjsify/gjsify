@@ -12,6 +12,7 @@ this repository has:
 | `curated-alias-routing` (in `../audit-runtimes.mjs`) | Audits `@gjsify/resolve-npm`'s own alias TABLE |
 | `tier` | ADR 0003/0005 governance of the `@gjsify/*` release train; names `@gjsify/node-gi` explicitly |
 | `platforms-ci` | Parses `.github/workflows/prebuilds.yml`'s matrix by filename |
+| `pr-trigger-parity` | Reads `.github/workflows/*.yml`, and names `main` as the branch this repo merges into |
 | `refs-pin` | `refs/` submodules + Cargo path deps, verified against this repo's git index |
 
 Scope is not a quality judgement — `runtimes-drift` is the most battle-tested

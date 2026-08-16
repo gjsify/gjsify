@@ -16,20 +16,47 @@
 # answer, which is exactly the failure mode a Linux-only pipeline cannot see:
 # on Linux the POSIX literal CANNOT fail.
 #
-# WHY NOT ON EVERY PR
+# WHY ON EVERY PR
 #
-# ADR 0018 § 5 decides this, and states the asymmetry rather than implying
-# parity: the OS axis is verified on `main` and the nightly, not on every PR.
-# Two reasons, and neither is a reluctance to check. Windows minutes bill at 2x,
-# and a full `gjsify install` here is ~1000 packages; and `main` is
-# branch-protected with EXACTLY THREE required checks, where adding a fourth is
+# For its first ten days it was not, and the reason it gave was re-measured and
+# found wrong. That text named 2x Windows billing and the ~1000-package install,
+# concluded the leg belonged on `main` and the nightly, and path-filtered the
+# `pull_request` trigger onto this file alone — a filter satisfiable only by
+# editing the filter. It read as PR-covered and covered nothing else.
+#
+# What that cost, concretely: #1209 changed the CLI's install classifier and
+# showed "all checks passed" — no Windows package suite was among those checks.
+# It merged, and this leg stayed red across eight further merges until #1217
+# corrected `classifyInstall`'s answer for the target platform. That was not the
+# only one; red `main` pushes here have been a recurring event since the
+# workflow was created, each on a commit that was already in.
+#
+# The re-measurement, 2026-08-16:
+#   · The billing premise does not hold for this repository. It is PUBLIC and
+#     this job runs on the standard `windows-latest` image. The 2x figure is a
+#     multiplier on BILLED minutes, and there are none to multiply.
+#   · The runner was already being paid for. `node-gi.yml` spawns Windows jobs
+#     on every pull request under a `paths-ignore` deny-list, so this is one
+#     more job on a runner class the PR already uses, not a new cost category.
+#   · It is not the critical path. A successful run here finishes comfortably
+#     inside `main.yml`'s, so no PR waits longer than it already did.
+#
+# The required-check half of the old reasoning stands and is unchanged: `main`
+# is branch-protected with EXACTLY THREE required checks, and adding a fourth is
 # a governance decision with a trap behind it (a required check that does not
-# RUN blocks the PR forever). So this workflow is deliberately outside that set:
-# it is read, not waited on.
+# RUN blocks the PR forever). This leg stays ADVISORY — read before merging, not
+# waited on. Advisory is a statement about the merge BUTTON; it was never a
+# reason to withhold the measurement from the PR.
 #
-# The `pull_request` trigger is path-filtered onto this file alone, which keeps
-# it ADVISORY by construction while still letting a change to the leg be tested
-# by the PR that makes it.
+# WHY NO PATH FILTER
+#
+# The last step runs `audit-runtimes.mjs --check`, whose subject is the whole
+# tree rather than a set of workspaces. Filtering a job that contains a
+# whole-tree check is the shape that made #1183 green while `main` went red: the
+# affected classifier reported truthfully that the PR touched nothing it models,
+# and skipped the job whose repo-wide `format --check` step reads every file in
+# the checkout. So both triggers here are unfiltered — which is also the parity
+# `scripts/manifest-conformance/rules/pr-trigger-parity.mjs` now holds them to.
 #
 # WHY cmd.exe, AND WHY THE PATH IS STRIPPED
 #
@@ -74,8 +101,6 @@ on:
     - cron: '30 5 * * *'
   workflow_dispatch:
   pull_request:
-    paths:
-      - '.github/workflows/windows-suites.yml'
 
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('windows-suites-pr-{0}', github.ref) || format('windows-suites-{0}', github.run_id) }}
