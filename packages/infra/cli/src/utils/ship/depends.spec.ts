@@ -51,6 +51,21 @@ export default async () => {
             expect(() => deriveDepends('deb', { ...base, namespaces: ['Nautilus-3.0'] })).toThrow('typelibPackages');
         });
 
+        await it('skips a typelib the payload itself carries, rather than demanding a package for it', async () => {
+            // `@gjsify/http`'s server imports `gi://GjsifyHttpSoupBridge`, which
+            // reaches every bundle built on it. No distribution ships that
+            // typelib and none can — the file is inside the tarball being built
+            // — so the unmapped-namespace failure is the wrong answer here, and
+            // until this it made `gjsify ship` throw for every such project.
+            expect(
+                deriveDepends('deb', { ...base, namespaces: ['GjsifyHttpSoupBridge-1.0', 'Gtk-4.0'] }),
+            ).toStrictEqual(['gjs >= 1.86', 'gir1.2-gtk-4.0', 'hicolor-icon-theme']);
+            // Anchored on the PascalCase the bridge builds emit, so a real
+            // system namespace that merely starts with those letters still has
+            // to be mapped.
+            expect(() => deriveDepends('deb', { ...base, namespaces: ['Gjsifyish-1.0'] })).toThrow('gi://Gjsifyish');
+        });
+
         await it('accepts a namespace once the project supplies the row', async () => {
             const depends = deriveDepends('deb', {
                 ...base,
