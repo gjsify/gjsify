@@ -1355,6 +1355,13 @@ const CHECK_RULES = [
     // There is no iOS CI anywhere in this repo, so "does the declared platform have an
     // implementation at all" is the only half of that promise any machine here can hold.
     'nativescript-platforms',
+    // Reads only `license` + `files` out of each manifest, so it needs no build and no
+    // payload on disk: the payload it asks about is gitignored and produced on a runner,
+    // and `files` is what says the tarball will carry it. Added the day three published
+    // packages were found declaring `"license": "MIT"` over 37-45 relocated LGPL/MPL/GPL
+    // libraries — the notice files were already correct, and the one machine-readable
+    // field was not.
+    'bundled-license',
     // Guards the apps EXCLUDED from `workspaces` — the set no other check can see.
     'release-train',
     'field-coverage',
