@@ -22,18 +22,27 @@ export async function runLoopback(log: LogFn): Promise<void> {
     pcA.onconnectionstatechange = () => log('A', `connectionState → ${pcA.connectionState}`);
     pcB.onconnectionstatechange = () => log('B', `connectionState → ${pcB.connectionState}`);
 
-    // Trickle ICE between A and B
+    // Trickle ICE between A and B.
+    //
+    // `addIceCandidate` returns a promise and REJECTS on a closed connection
+    // (InvalidStateError). srflx candidates come back from the STUN server long
+    // after the local host candidates do, so on any run that reaches the STUN
+    // server they routinely land AFTER `close()` below — three unhandled promise
+    // rejections per run, measured under CI's Xvfb. Floating the promise left
+    // them unhandled, which GJS reports and the exit code does not.
+    const forwardCandidate = (tag: string, target: RTCPeerConnection, candidate: RTCIceCandidate): void => {
+        log(tag, `ICE ${candidate.type ?? '?'} ${candidate.address ?? ''}:${candidate.port ?? ''}`);
+        // Logged, never swallowed: a candidate arriving after teardown is
+        // expected, a rejection for any other reason is a signalling bug.
+        target.addIceCandidate(candidate.toJSON()).catch((err: unknown) => {
+            log(tag, `ICE dropped: ${err instanceof Error ? err.message : String(err)}`);
+        });
+    };
     pcA.onicecandidate = (ev) => {
-        if (ev.candidate) {
-            log('A→B', `ICE ${ev.candidate.type ?? '?'} ${ev.candidate.address ?? ''}:${ev.candidate.port ?? ''}`);
-            pcB.addIceCandidate(ev.candidate.toJSON());
-        }
+        if (ev.candidate) forwardCandidate('A→B', pcB, ev.candidate);
     };
     pcB.onicecandidate = (ev) => {
-        if (ev.candidate) {
-            log('B→A', `ICE ${ev.candidate.type ?? '?'} ${ev.candidate.address ?? ''}:${ev.candidate.port ?? ''}`);
-            pcA.addIceCandidate(ev.candidate.toJSON());
-        }
+        if (ev.candidate) forwardCandidate('B→A', pcA, ev.candidate);
     };
 
     // A creates the data channel

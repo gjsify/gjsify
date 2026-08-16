@@ -1284,6 +1284,27 @@ jobs:
       - name: Test net examples
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify run test:examples:net'
 
+      # The showcase matrix's gjs column (#999). `gjsify.example.runtimes` is a
+      # per-showcase promise — "this showcase ships an artifact for this runtime
+      # and it runs there" — and until this step nothing in CI launched one. The
+      # two steps above cover `@gjsify/example-node-cli-*` and `-net-*` only, and
+      # the closest thing to a showcase check, `verify-package-outputs.mjs
+      # --scope examples`, holds the declaration to a FILE EXISTING: a bundle
+      # that exists and dies on its first `gi://` import passes it completely.
+      #
+      # ONE `xvfb-run` around the WHOLE script, never around the individual
+      # showcases. Fedora's xvfb-run ends in `DISPLAY=:N XAUTHORITY=… "$@" 2>&1`,
+      # so anything launched THROUGH it has no separate stderr — and stderr is
+      # where the gate reads GJS's `JS ERROR` / unhandled-rejection markers, the
+      # only evidence of a throw inside a GLib callback (the process survives it
+      # and still exits 0). Wrapping per showcase made every captured stderr
+      # empty and the gate green on a crash. `dbus-run-session` gives
+      # GApplication a private bus; the GSK/GL/a11y vars keep GTK on the software
+      # path a display-less runner can provide — the same set as node-gi.yml's
+      # GTK legs.
+      - name: Smoke-launch the showcases (gjs column)
+        run: su testuser -c 'LIBGL_ALWAYS_SOFTWARE=1 GSK_RENDERER=cairo GDK_BACKEND=x11 GTK_A11Y=none xvfb-run -a --server-args="-screen 0 1280x720x24" dbus-run-session -- node scripts/showcase-smoke.mjs'
+
   # ── Browser tests (Playwright / Firefox) ────────────────────────────
   # The THIRD test axis, alongside `test:gjs` (the `test` job) and `test:node`
   # (`cross-runtime`). Until this job existed it was documented in AGENTS.md and
