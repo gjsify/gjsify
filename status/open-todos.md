@@ -1772,6 +1772,19 @@ spec one line after the first fix landed; and `AbortController` carried no
 `AbortSignal` sibling had one all along. Four commented lines had been hiding
 three shipped bugs.
 
+### 35 integration suites run on no event, and the pointer to this entry predates it
+
+`main.yml` said "Integration tests are NOT wired into CI yet (opt-in; suites have CI-incompatible preconditions) … Tracked in `status/open-todos.md`." No entry tracked it. This is that entry, written after measuring the claim rather than inheriting it.
+
+MEASURED: `tests/integration/` holds 35 suites. Every mention of them in every workflow is an EXCLUSION — `--exclude "@gjsify/integration-*"` in the test shard and in `upgrade --check`. No event runs any of them: not push, not pull_request, not the nightly. The `changes` job still emits `run-integration`, and its only consumer is the step-summary line, so the classifier half is ready and the gate half was never built.
+
+NOT MEASURED, and this is the gap between "wire it up" and knowing what that costs: WHICH of the 35 are hermetic. The blanket phrase "CI-incompatible preconditions" is true of some — privileged Podman, an Android device, registry egress, system GIRs — and is being used to cover all 35. The measurement that settles it is per-suite and small: for each, does it reach the network, a device, or a system service? Until someone does it, "opt-in" describes the status quo rather than deciding it.
+
+Two things that must NOT be done in place of that measurement:
+
+- **Do not delete `run-integration`.** It is the half that already works, and deleting it makes re-enabling the gate a bigger change than it is.
+- **Do not wire all 35 at once.** They pin upstream projects, so every pinned dependency becomes a PR blocker the day it breaks — real on-call surface for a solo maintainer, and the reason a hermetic SUBSET is the shape worth building. Estimated ~10–13 min per triggering run for that tier, on one runner, conditional on the classifier output that already exists.
+
 ### Some small API gaps are declared only in a source comment
 
 Also from `todo-needs-anchor`'s first run. None is a defect — each is a known
