@@ -44,8 +44,45 @@ const ROOT = rootIndex === -1 ? join(dirname(fileURLToPath(import.meta.url)), '.
 const GHA_EXPR = /\$\{\{[^}]*\}\}/g;
 const EXPR_PLACEHOLDER = 'GHA_EXPR';
 
-/** Shells `bash -n` can speak for. `pwsh`/`python` blocks are someone else's grammar. */
+/** Shells `bash -n` can speak for. `python` blocks are someone else's grammar. */
 const BASH_LIKE = new Set([undefined, 'bash', 'sh', 'bash -e {0}', 'bash --noprofile --norc -eo pipefail {0}']);
+
+/** Shells PowerShell's own parser can speak for. */
+const PWSH_LIKE = new Set(['pwsh', 'powershell', 'pwsh -Command {0}', 'pwsh -File {0}']);
+
+/**
+ * Parse a PowerShell script WITHOUT running it.
+ *
+ * `[Parser]::ParseFile` is PowerShell's own front end — the same one that would reject the
+ * script at step start — and it only ever reads. There is no `-WhatIf`-style half-execution
+ * here and no dot-sourcing: a syntax error comes back as a diagnostic, not as a side effect.
+ *
+ * Returns null when the script parses, or the first diagnostics when it does not.
+ */
+function pwshParse(scriptPath) {
+    const probe =
+        '$e = $null; ' +
+        `[System.Management.Automation.Language.Parser]::ParseFile('${scriptPath}', [ref]$null, [ref]$e) > $null; ` +
+        'if ($e.Count -gt 0) { $e | ForEach-Object { $_.Message } ; exit 1 } else { exit 0 }';
+    const r = spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-Command', probe], { encoding: 'utf-8' });
+    if (r.error !== undefined || r.status === null)
+        return { message: `pwsh could not run: ${r.error?.message ?? 'no status'}` };
+    if (r.status === 0) return null;
+    return { message: (r.stdout || r.stderr || '').trim().split('\n').slice(0, 3).join(' / ') };
+}
+
+const HAVE_PWSH =
+    spawnSync('pwsh', ['-NoProfile', '-Command', '$PSVersionTable.PSVersion.Major'], {
+        encoding: 'utf-8',
+    }).status === 0;
+
+/**
+ * The detector must DISCRIMINATE, or a green run means nothing. Same construction as
+ * `check-changelog-references.mjs`: a shape that must be rejected and one that must be
+ * accepted, run on every invocation that has an interpreter to run them with.
+ */
+const PWSH_MUST_REJECT = ['if ($true) { Write-Output "unclosed"', 'foreach ($x in 1..3 { $x }'];
+const PWSH_MUST_ACCEPT = ['if ($true) { Write-Output "ok" }', '$a = @(1,2,3); $a | ForEach-Object { $_ * 2 }'];
 
 function workflowFiles() {
     const out = [];
@@ -142,15 +179,30 @@ function collectRunSteps(text) {
     return steps;
 }
 
+const REQUIRE_PWSH = process.argv.includes('--require-pwsh');
 const tmp = mkdtempSync(join(tmpdir(), 'gjsify-run-syntax-'));
 const failures = [];
 let checked = 0;
-let skipped = 0;
+let pwshChecked = 0;
+/** Blocks no interpreter here can speak for — NAMED, never counted. */
+const unparsed = [];
 
 for (const file of workflowFiles()) {
     for (const step of collectRunSteps(readFileSync(file, 'utf-8'))) {
+        if (PWSH_LIKE.has(step.shell)) {
+            if (!HAVE_PWSH) {
+                unparsed.push({ file, name: step.name, shell: step.shell });
+                continue;
+            }
+            const psPath = join(tmp, `step-${pwshChecked}.ps1`);
+            writeFileSync(psPath, step.run.replace(GHA_EXPR, EXPR_PLACEHOLDER));
+            const bad = pwshParse(psPath);
+            pwshChecked++;
+            if (bad) failures.push({ file, name: step.name, message: bad.message });
+            continue;
+        }
         if (!BASH_LIKE.has(step.shell)) {
-            skipped++;
+            unparsed.push({ file, name: step.name, shell: step.shell });
             continue;
         }
         const script = step.run.replace(GHA_EXPR, EXPR_PLACEHOLDER);
@@ -168,10 +220,58 @@ for (const file of workflowFiles()) {
     }
 }
 
+// The detector proves it still discriminates, on every run that can run it. A parser
+// that accepts everything reports the same green as one that works.
+if (HAVE_PWSH) {
+    const selfFailures = [];
+    for (const [i, src] of PWSH_MUST_REJECT.entries()) {
+        const f = join(tmp, `selftest-bad-${i}.ps1`);
+        writeFileSync(f, src);
+        if (!pwshParse(f)) selfFailures.push(`accepted a broken script: ${src}`);
+    }
+    for (const [i, src] of PWSH_MUST_ACCEPT.entries()) {
+        const f = join(tmp, `selftest-ok-${i}.ps1`);
+        writeFileSync(f, src);
+        const bad = pwshParse(f);
+        if (bad) selfFailures.push(`rejected a valid script: ${src} — ${bad.message}`);
+    }
+    if (selfFailures.length > 0) {
+        console.error('run-syntax: the PowerShell detector does not discriminate — a green run would mean nothing:');
+        for (const f of selfFailures) console.error(`  · ${f}`);
+        rmSync(tmp, { recursive: true, force: true });
+        process.exit(1);
+    }
+}
+
 rmSync(tmp, { recursive: true, force: true });
 
+// `--require-pwsh` is what a Windows leg passes. Without it this host reports what it
+// could not read; with it, being unable to read them IS the failure — otherwise the one
+// leg that exists to check PowerShell would pass by skipping all of it, which is the
+// shape this repository has paid for most.
+if (REQUIRE_PWSH && !HAVE_PWSH) {
+    console.error(
+        `run-syntax: --require-pwsh was passed and no \`pwsh\` is on PATH, so ${unparsed.length} ` +
+            'PowerShell block(s) went unread. This flag exists so that cannot pass quietly.',
+    );
+    process.exit(1);
+}
+
 if (failures.length === 0) {
-    console.log(`OK — ${checked} \`run:\` block(s) parse as shell (${skipped} non-bash block(s) skipped).`);
+    const parts = [`${checked} shell`];
+    if (pwshChecked > 0) parts.push(`${pwshChecked} PowerShell`);
+    console.log(`OK — ${parts.join(' + ')} \`run:\` block(s) parse.`);
+    if (unparsed.length > 0) {
+        // NAMED, not counted: a bare "52 skipped" reads as housekeeping, and it hid that
+        // every `release.yml` PowerShell block is unread on a workflow with no PR trigger.
+        const byFile = new Map();
+        for (const u of unparsed) {
+            const k = u.file.replace(`${ROOT}/`, '');
+            byFile.set(k, (byFile.get(k) ?? 0) + 1);
+        }
+        console.log('   not read by any interpreter on this host:');
+        for (const [f, n] of [...byFile].sort()) console.log(`     ${f}: ${n} block(s)`);
+    }
     process.exit(0);
 }
 

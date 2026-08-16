@@ -131,6 +131,11 @@ jobs:
       # a truncated program, and v0.38.0 was cut, tagged and released without ever being
       # dispatched to npm. The release dry run cannot cover it either — that step is the
       # one thing a dry run skips. `bash -n` on every extracted block does, in milliseconds.
+      # It also NAMES the blocks no interpreter on this host can read, instead of
+      # counting them. "52 non-bash block(s) skipped" read as housekeeping and hid that
+      # every PowerShell block in `release.yml` is unread — on a workflow that has no
+      # `pull_request` trigger, which is the same structural hole the incident above
+      # came through. The Windows job below closes it.
       - name: Check every workflow `run:` block is valid shell
         run: node scripts/check-workflow-run-syntax.mjs
 
@@ -633,3 +638,26 @@ jobs:
       # the filter had shipped, with e2e coverage proving the filter itself worked.
       - name: Check the tracked lockfile carries current platform data
         run: node scripts/check-lockfile-current.mjs
+
+      # PowerShell's own parser, on the one host in this repo that has one.
+      #
+      # IN *THIS* WORKFLOW ON PURPOSE. `windows-suites.yml`, `napi.yml` and
+      # `prebuilds.yml` all have Windows runners, and all three filter `pull_request`
+      # by path — so a PR editing `release.yml`'s PowerShell would run none of them.
+      # `audit-runtimes.yml` runs on EVERY pull request with no paths filter, which is
+      # the property this check needs and the reason it is not next to the other
+      # Windows work. It is a step in the existing job rather than a job of its own:
+      # a second windows-latest runner would buy nothing.
+      #
+      # `release.yml` carries 11 of these blocks and has no `pull_request` trigger at
+      # all, so before this step their first execution was DURING a release — the same
+      # condition that let the v0.28.0 quote truncation through, one layer up.
+      #
+      # Parse-only, via `[Parser]::ParseFile`: the same front end that would reject the
+      # script at step start, and it only ever reads. `--require-pwsh` makes a missing
+      # interpreter FATAL, because without it the one leg that exists to read
+      # PowerShell would report green by skipping all of it. The script also self-tests
+      # its detector against a broken and a valid snippet, so a parser that accepted
+      # everything cannot pass either.
+      - name: Check every workflow `run:` block is valid PowerShell
+        run: node scripts/check-workflow-run-syntax.mjs --require-pwsh
