@@ -45,7 +45,8 @@ curl -fsSL https://github.com/<you>/<repo>/raw/main/install.mjs \
    `~/.local/bin/<your-bin>` launcher.
 
 No Node, no npm, no yarn on the user's machine. Just `gjs ≥ 1.86`
-(included with Fedora 43+, Debian 13+, Arch) and `curl`.
+(included with Fedora 43+, Arch, and Debian forky/sid — Debian 13 "trixie" ships
+1.82.3 and does not qualify) and `curl`.
 
 ## Customise
 

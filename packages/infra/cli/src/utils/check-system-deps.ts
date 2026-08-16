@@ -19,6 +19,7 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 // The zero-dependency subpath, deliberately: importing the plugin root would
 // pull vite/execa/minify-xml into a system CHECK.
 import { resolveBlueprintCompiler } from '@gjsify/vite-plugin-blueprint/resolve';
+import { hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 export type DepSeverity = 'required' | 'optional';
 
@@ -442,14 +443,39 @@ export function runAllChecks(cwd: string): DepCheck[] {
 }
 
 /**
- * Minimal checks needed to run any GJS example (Node + GJS binaries only).
- * Used by `gjsify showcase` for examples that have no native deps.
+ * Is a Node.js runtime available — asked of the host rather than asserted.
+ *
+ * This row used to be the literal `{found: true, version: process.version}`, which is
+ * a lie on three of the four hosts: `@gjsify/process` stubs `process.version` to
+ * `"v20.0.0"` for npm compatibility (Bun and Deno fake `process.versions.node` for the
+ * same reason), so `gjsify system-check` under GJS reported `✓ Node.js (v20.0.0)` on a
+ * machine with no Node on it — under the NODE-FREE toolchain, whose entire premise is
+ * that there is none. `cli-app.ts`'s `runtimeLabel()` already had to know better; one
+ * question gets one answer, so this asks `hostRuntime()` too.
+ *
+ * Under Node the running process IS the answer and its version cannot be faked from
+ * inside; elsewhere it is a PATH question whose answer may legitimately be "no".
+ *
+ * `optional`, never `required`: `gjsify showcase` and `gjsify install` both treat a
+ * missing `required` row as fatal, and a GJS showcase needs no Node. The old row could
+ * not have failed either gate — it was constant — so nothing that used to pass now
+ * fails; what changes is only that the printed line is true.
+ */
+function checkNodeRuntime(): DepCheck {
+    if (hostRuntime() === 'node') {
+        return { id: 'nodejs', name: 'Node.js', found: true, version: process.version, severity: 'optional' };
+    }
+    return checkBinary('nodejs', 'Node.js', 'node', ['--version'], 'optional');
+}
+
+/**
+ * Minimal checks needed to run any GJS example (the GJS binary; Node is reported but
+ * not required). Used by `gjsify showcase` for examples that have no native deps.
  */
 export function runMinimalChecks(): DepCheck[] {
     const results: DepCheck[] = [];
 
-    // Node.js — always present
-    results.push({ id: 'nodejs', name: 'Node.js', found: true, version: process.version, severity: 'required' });
+    results.push(checkNodeRuntime());
 
     // GJS
     results.push(

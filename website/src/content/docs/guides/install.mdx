@@ -26,11 +26,13 @@ GLib / Gio / Soup 3) that:
 > engine set — `@gjsify/rolldown-native`, `@gjsify/lightningcss-native`,
 > `@gjsify/oxfmt-native`. The CLI locates prebuilds for whatever host it runs on
 > (and exports `DYLD_LIBRARY_PATH` on macOS / `PATH` on Windows rather than
-> Linux's `LD_LIBRARY_PATH`), but `@gjsify/rolldown-native` — the only bundler
-> engine `gjsify build` has under GJS — currently publishes `linux-x64` and
-> `linux-arm64` only. A **Node-free** GJSify toolchain is therefore still
-> Linux-only. On macOS and Windows GJSify works with Node installed, using the
-> npm `rolldown` / `lightningcss` / `oxfmt` packages instead. See
+> Linux's `LD_LIBRARY_PATH`). All three publish `linux-x64`, `linux-arm64`,
+> `darwin-arm64` and `darwin-x64`; none publishes a `win32-x64` prebuild, and
+> Windows has no GJS host to run one under in any case, so a Node-free toolchain
+> there is not a gap but a consequence. On macOS the engines are in place while no
+> CI leg yet drives the Node-free path end to end — if it does not work for you,
+> Node plus the npm `rolldown` / `lightningcss` / `oxfmt` packages is the fallback.
+> See
 > [Platform Support](/gjsify/platform-support/) for the per-package matrix and
 > [How It Works → Native prebuilds](/gjsify/how-it-works/#native-prebuilds-and-gjsify-run)
 > for how a prebuild directory is located.
@@ -153,7 +155,9 @@ so if a showcase misbehaves, check that line first.
 
 The bootstrap script requires:
 
-- **gjs ≥ 1.86** — bundled with Fedora 43+, Debian 13+, Arch
+- **gjs ≥ 1.86** — bundled with Fedora 43+, Arch, and Debian forky/sid.
+  **Not Debian 13 (trixie)**, which ships 1.82.3: Debian went straight to 1.88.1 in
+  forky, skipping 1.84 and 1.86, so no Debian *stable* satisfies the floor yet.
 - **curl** (or `wget`) — universally available
 - An internet connection for the initial bootstrap; subsequent
   installs and updates resolve from cache when possible.

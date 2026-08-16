@@ -188,9 +188,14 @@ function checkGjsVersion() {
     if (major < 1 || (major === 1 && minor < 86)) {
         error(`gjs ${major}.${minor} is too old — gjsify requires gjs 1.86 or newer.`);
         error('Install hints:');
-        error('  Fedora 43+:  sudo dnf install gjs');
-        error('  Debian 13+:  sudo apt install gjs');
-        error('  Arch:        sudo pacman -S gjs');
+        error('  Fedora 43+:      sudo dnf install gjs');
+        error('  Arch:            sudo pacman -S gjs');
+        // NOT "Debian 13+". Measured 2026-08-16 against tracker.debian.org: trixie
+        // (13, stable) ships 1.82.3, forky (testing) 1.88.1, sid 1.89.2 — 1.84 and
+        // 1.86 were skipped entirely. Sending a trixie user to `apt install gjs`
+        // hands them the very version this branch just rejected, from the branch
+        // that rejected it. Same fact, same wording as `utils/ship/depends.ts`.
+        error('  Debian forky/sid: sudo apt install gjs   (trixie ships 1.82.3 — too old)');
         exit(1);
     }
 }

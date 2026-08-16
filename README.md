@@ -153,8 +153,9 @@ Node.js 24+ is **optional** — needed only to run the cross-validation test tra
 > `npm run status:generate` to render the full snapshot into a (gitignored)
 > `STATUS.md`. The tables below are a high-level snapshot.
 
-gjsify is a monorepo of ~130 `@gjsify/*` packages, organised as four pillars plus
-the toolchain.
+gjsify is a monorepo of `@gjsify/*` packages, organised as four pillars plus the
+toolchain. How many there are is derived, not typed — `npm run status:generate`
+counts them; the note above says where from.
 
 ### Node.js modules (`packages/node/`)
 
