@@ -111,6 +111,33 @@ export default async () => {
             expect(v.managedElsewhere).toBe(false);
         });
 
+        await it('answers for the TARGET platform, not the host it runs on', async () => {
+            // The four cases above are POSIX-shaped. They ran green on Linux and red
+            // on the win32 leg of `main`, because the implementation resolved paths
+            // with the HOST's `node:path`: `resolve('/app/lib')` is `C:\\app\\lib`
+            // there and `sep` is a backslash. Pinned here so a host-path regression
+            // fails on every runner rather than only on the one nobody's PR runs.
+            const v = classifyInstall({
+                selfDir: '/usr/lib/gjsify',
+                xdgPrefix: XDG,
+                env: {},
+                platform: 'linux',
+            });
+            expect(v.kind).toBe('system-package');
+        });
+
+        await it('reads a Windows layout with Windows separators', async () => {
+            const prefix = 'C:\\Users\\dev\\AppData\\Local\\gjsify\\global';
+            const v = classifyInstall({
+                selfDir: `${prefix}\\node_modules\\@gjsify\\cli`,
+                xdgPrefix: prefix,
+                env: {},
+                platform: 'win32',
+            });
+            expect(v.kind).toBe('xdg-global');
+            expect(v.managedElsewhere).toBe(false);
+        });
+
         await it('does not read a system prefix on win32, where those paths mean nothing', async () => {
             const v = classifyInstall({
                 selfDir: 'C:\\\\Users\\\\dev\\\\AppData\\\\gjsify',
