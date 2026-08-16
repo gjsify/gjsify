@@ -31,7 +31,20 @@ yargs(hideBin(process.argv))
             console.log(`${c.dim}pid     :${c.reset} ${process.pid}`);
         },
     )
-    .demandCommand(1, 'Pass --help to see available commands.')
+    // The `$0` default command. Without it, `demandCommand(1)` made the scripts
+    // the scaffolder itself prints — `npm run dev`, `npm start`, neither of which
+    // passes an argument — exit 1 with "Pass --help to see available commands."
+    // on a project created seconds earlier.
+    .command(
+        '$0',
+        'Show what this starter does',
+        () => {},
+        () => {
+            console.log(`${c.dim}runtime :${c.reset} ${c.green}${runtimeName}${c.reset}`);
+            console.log('');
+            console.log(`Try ${c.cyan}greet <name>${c.reset}, ${c.cyan}info${c.reset} or ${c.cyan}--help${c.reset}.`);
+        },
+    )
     .strict()
     .help()
     .parse();

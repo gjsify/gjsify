@@ -41,6 +41,29 @@ export interface CreateProjectOptions {
 /** Sentinel replaced by the user's project name in every text file under the template. */
 const PROJECT_NAME_SENTINEL = 'new-gjsify-app';
 
+/**
+ * Sentinel replaced by the scaffolded project's own application id.
+ *
+ * A GApplication id is a session-bus NAME and the first app to claim it owns it.
+ * Every scaffolded project shipped this same literal, so starting a second one
+ * while the first ran made GTK treat it as a REMOTE INSTANCE: it forwarded
+ * `activate` to the other project's window and exited 0, with no window and no
+ * error of its own (measured on `gtk-minimal` + `adw-canvas2d`).
+ */
+const APPLICATION_ID_SENTINEL = 'org.gjsify.example';
+
+/**
+ * The bus name a project scaffolded as `projectName` announces. A D-Bus element
+ * holds only `[A-Za-z0-9_-]` and may not begin with a digit where an npm name may
+ * hold `.` and begin with one, and `Gtk.Application` refuses to construct with an
+ * invalid id — so `npm create @gjsify/app 2048` would fail at startup, the one
+ * place only a launched app can see.
+ */
+export function applicationIdFor(projectName: string): string {
+    const element = projectName.replace(/[^A-Za-z0-9_-]/g, '-');
+    return `org.gjsify.${/^[0-9]/.test(element) ? `app-${element}` : element}`;
+}
+
 /** File extensions we treat as text and scan for the sentinel. */
 const TEXT_FILE_EXT = new Set([
     '.json',
@@ -106,7 +129,7 @@ export async function createProject(options: CreateProjectOptions): Promise<void
 
     mkdirSync(targetDir, { recursive: true });
     cpSync(info.path, targetDir, { recursive: true });
-    substituteProjectName(targetDir, projectName);
+    substituteTemplateSentinels(targetDir, projectName);
 
     if (install) {
         const argv = INSTALL_ARGV[packageManager];
@@ -139,10 +162,14 @@ export async function createProject(options: CreateProjectOptions): Promise<void
 }
 
 /**
- * Walk the scaffolded tree and replace the sentinel in every text file.
+ * Walk the scaffolded tree and replace every template sentinel in every text file.
  * Skips node_modules / dist / lib and non-text files by extension.
  */
-function substituteProjectName(rootDir: string, projectName: string): void {
+function substituteTemplateSentinels(rootDir: string, projectName: string): void {
+    const sentinels: Array<[string, string]> = [
+        [PROJECT_NAME_SENTINEL, projectName],
+        [APPLICATION_ID_SENTINEL, applicationIdFor(projectName)],
+    ];
     const skipDirs = new Set(['node_modules', 'dist', 'lib']);
     const stack: string[] = [rootDir];
     while (stack.length > 0) {
@@ -158,8 +185,9 @@ function substituteProjectName(rootDir: string, projectName: string): void {
             const ext = dot >= 0 ? entry.name.slice(dot) : '';
             if (!TEXT_FILE_EXT.has(ext)) continue;
             const content = readFileSync(full, 'utf-8');
-            if (!content.includes(PROJECT_NAME_SENTINEL)) continue;
-            writeFileSync(full, content.replaceAll(PROJECT_NAME_SENTINEL, projectName));
+            let replaced = content;
+            for (const [sentinel, value] of sentinels) replaced = replaced.replaceAll(sentinel, value);
+            if (replaced !== content) writeFileSync(full, replaced);
         }
     }
 }
