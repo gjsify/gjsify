@@ -1736,14 +1736,134 @@ static bool ReadFieldArg(GIFieldInfo* field, gpointer base, GITypeInfo* ftype,
   return false;
 }
 
-// Marshal a field GIArgument to JS. ARRAY tags dispatch to GIArrayToJs (length
-// derived from zero-terminated / fixed-size — the common GStrv field case);
-// everything else through GIArgumentToJs. TRANSFER NOTHING throughout — a field
-// read is a borrow (the container keeps ownership), so the JS value is a copy and
-// no container/element memory is freed.
-static Napi::Value FieldArgToJs(Napi::Env env, GITypeInfo* ftype, GIArgument* arg) {
+// Field #`index` of a struct/union, or nullptr. The by-NAME lookup is
+// `FindBoxedField`; this is the by-POSITION one an `array length=` annotation needs.
+static GIFieldInfo* BoxedFieldAt(GIBaseInfo* owner, unsigned index) {
+  if (GI_IS_STRUCT_INFO(owner)) {
+    GIStructInfo* s = reinterpret_cast<GIStructInfo*>(owner);
+    return index < gi_struct_info_get_n_fields(s) ? gi_struct_info_get_field(s, index) : nullptr;
+  }
+  if (GI_IS_UNION_INFO(owner)) {
+    GIUnionInfo* u = reinterpret_cast<GIUnionInfo*>(owner);
+    return index < gi_union_info_get_n_fields(u) ? gi_union_info_get_field(u, index) : nullptr;
+  }
+  return nullptr;
+}
+
+// Can `ReadCElement` actually read this array's elements?
+//
+// Resolving a length is only ever an improvement where the reader can then walk that
+// many elements. Two shapes it cannot: an element tag it answers with `Undefined()`
+// (its `default:`), and an INLINE (by-value) interface element — for those it
+// dereferences `src` as a pointer while `CElementSize` reports `sizeof(gpointer)`
+// rather than the record's real size, so a resolved length walks garbage. Measured:
+// `new Pango.GlyphString(); gs.set_size(3); gs.glyphs[0].glyph` SIGSEGVs with a
+// length and returns an empty array without one.
+//
+// `calls.cc` draws exactly this line at its own CALLER_ALLOCATES site, with the same
+// reason recorded there — a by-value element array needs `gi_struct_info_get_size`
+// per element plus a field-access read-back. That is ONE deferred piece of work, and
+// this predicate keeps the field path on the same side of it rather than opening a
+// second, crashing entrance to it.
+static bool ElementsAreReadable(GITypeInfo* type) {
+  GITypeInfo* elem = gi_type_info_get_param_type(type, 0);
+  if (elem == nullptr) return false;
+  bool readable;
+  switch (gi_type_info_get_tag(elem)) {
+    case GI_TYPE_TAG_BOOLEAN:
+    case GI_TYPE_TAG_INT8:
+    case GI_TYPE_TAG_UINT8:
+    case GI_TYPE_TAG_INT16:
+    case GI_TYPE_TAG_UINT16:
+    case GI_TYPE_TAG_INT32:
+    case GI_TYPE_TAG_UINT32:
+    case GI_TYPE_TAG_INT64:
+    case GI_TYPE_TAG_UINT64:
+    case GI_TYPE_TAG_FLOAT:
+    case GI_TYPE_TAG_DOUBLE:
+    case GI_TYPE_TAG_UTF8:
+    case GI_TYPE_TAG_FILENAME:
+      readable = true;
+      break;
+    // A pointer array of interfaces is a `gpointer` per slot, which is what
+    // `ReadCElement` reads. By value it is the record itself, which is not.
+    case GI_TYPE_TAG_INTERFACE:
+      readable = gi_type_info_is_pointer(elem);
+      break;
+    default:
+      readable = false;
+      break;
+  }
+  gi_base_info_unref(elem);
+  return readable;
+}
+
+// The element count for an array FIELD whose GIR carries `array length=<n>`,
+// meaning "sibling field <n> of this same struct holds it".
+//
+// This is the one GIArrayToJs call site that used to pass a hard `-1`, and the cost
+// was silence: `GstMapInfo.data` is `<array length="3" c:type="guint8*">` with field 3
+// being `size`, so a mapped 32-byte buffer marshalled as `size=32, data.length=0` — no
+// error, no warning, an empty array indistinguishable from a genuinely empty one. That
+// made audio inaudible on node for an entire investigation because every layer above
+// reported success. gjs reads 32 for the identical struct.
+//
+// The ledger entry that recorded this said the dependency was one "GI cannot express
+// for a struct-field READ". It can, and does: the annotation is in the GIR and survives
+// into the typelib, which is why the CALL-argument path (`calls.cc`) has resolved it for
+// as long as it has existed. Only the field reader ignored it.
+//
+// Returns false when there is no annotation, when the index is out of range, or when
+// the sibling is not integer-typed — all of which leave the caller on its previous
+// zero-terminated/fixed-size derivation rather than inventing a length.
+static bool FieldArrayLength(GITypeInfo* ftype, GIBaseInfo* owner, gpointer base, long* out) {
+  unsigned int index = 0;
+  if (!gi_type_info_get_array_length_index(ftype, &index)) return false;
+  if (!ElementsAreReadable(ftype)) return false;
+  GIFieldInfo* lengthField = BoxedFieldAt(owner, index);
+  if (lengthField == nullptr) return false;
+
+  bool resolved = false;
+  GITypeInfo* ltype = gi_field_info_get_type_info(lengthField);
+  if (ltype != nullptr) {
+    GIArgument larg;
+    if (ReadFieldArg(lengthField, base, ltype, &larg)) {
+      switch (gi_type_info_get_tag(ltype)) {
+        case GI_TYPE_TAG_INT8: *out = larg.v_int8; resolved = true; break;
+        case GI_TYPE_TAG_UINT8: *out = larg.v_uint8; resolved = true; break;
+        case GI_TYPE_TAG_INT16: *out = larg.v_int16; resolved = true; break;
+        case GI_TYPE_TAG_UINT16: *out = larg.v_uint16; resolved = true; break;
+        case GI_TYPE_TAG_INT32: *out = larg.v_int32; resolved = true; break;
+        case GI_TYPE_TAG_UINT32: *out = static_cast<long>(larg.v_uint32); resolved = true; break;
+        case GI_TYPE_TAG_INT64: *out = static_cast<long>(larg.v_int64); resolved = true; break;
+        case GI_TYPE_TAG_UINT64: *out = static_cast<long>(larg.v_uint64); resolved = true; break;
+        default: break;  // non-integer sibling: not a length, leave it alone
+      }
+    }
+    gi_base_info_unref(ltype);
+  }
+  gi_base_info_unref(lengthField);
+  // A signed length field holding a negative value is a broken typelib, not a count.
+  // Declining sends it down the zero-terminated/fixed-size derivation the caller would
+  // have used anyway — which is also what a negative reaching `GIArrayToJs` does, so this
+  // changes no observable behaviour today. It is here to keep the CONTRACT of this
+  // function honest: it returns a resolved element count or nothing.
+  if (resolved && *out < 0) resolved = false;
+  return resolved;
+}
+
+// Marshal a field GIArgument to JS. ARRAY tags dispatch to GIArrayToJs with the
+// length resolved from an `array length=` sibling field where the GIR declares one,
+// and otherwise derived from zero-terminated / fixed-size (the common GStrv field
+// case). Everything else goes through GIArgumentToJs. TRANSFER NOTHING throughout —
+// a field read is a borrow (the container keeps ownership), so the JS value is a copy
+// and no container/element memory is freed.
+static Napi::Value FieldArgToJs(Napi::Env env, GITypeInfo* ftype, GIArgument* arg,
+                                GIBaseInfo* owner, gpointer base) {
   if (gi_type_info_get_tag(ftype) == GI_TYPE_TAG_ARRAY) {
-    return GIArrayToJs(env, ftype, arg, GI_TRANSFER_NOTHING, /*length=*/-1);
+    long length = -1;
+    if (!FieldArrayLength(ftype, owner, base, &length)) length = -1;
+    return GIArrayToJs(env, ftype, arg, GI_TRANSFER_NOTHING, length);
   }
   return GIArgumentToJs(env, ftype, arg, GI_TRANSFER_NOTHING);
 }
@@ -1854,7 +1974,7 @@ Napi::Value GetBoxedField(const Napi::CallbackInfo& info) {
     }
     GIArgument arg;
     if (ReadFieldArg(field, bh->ptr, ftype, &arg)) {
-      result = FieldArgToJs(env, ftype, &arg);
+      result = FieldArgToJs(env, ftype, &arg, ti, bh->ptr);
     } else {
       Napi::Error::New(env, std::string("Reading field ") + typeName + "." + name + " is not supported")
           .ThrowAsJavaScriptException();
