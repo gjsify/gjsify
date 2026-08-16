@@ -78,6 +78,7 @@ void yargs(hideBin(process.argv))
 export {
     createProject,
     sanitizeProjectName,
+    applicationIdFor,
     PACKAGE_MANAGERS,
     type CreateProjectOptions,
     type PackageManager,

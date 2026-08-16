@@ -1,13 +1,15 @@
 // E2E test for @gjsify/create-app CLI
 // Scaffolds each template, patches @gjsify/* deps to local tarballs, installs,
-// and runs `npm run build` to prove the template compiles end-to-end.
+// runs `npm run build` to prove the template compiles end-to-end, and then
+// STARTS the scaffolded app to prove it runs.
 // Requires: yarn build (monorepo must be built first)
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execSync, execFileSync } from 'node:child_process';
-import { writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 import {
     MONOREPO_ROOT,
@@ -16,6 +18,8 @@ import {
     toFileRef,
     buildOverrides,
     npmInstallWithRetry,
+    spawnUntilReady,
+    hasCommand,
 } from '../helpers.mjs';
 
 // Listing order matches the template catalog (simple first).
@@ -41,19 +45,124 @@ function hasBlueprintCompiler() {
     }
 }
 
+/**
+ * How each template is STARTED and what proves it came up.
+ *
+ * There is deliberately NO default: `launchRecipe` throws on a template that is
+ * not listed, so a template added to `TEMPLATES` cannot scaffold, type-check and
+ * then never run. A default entry is exactly how the next template would quietly
+ * stop being checked — which is the hole this table closes.
+ *
+ *   gtk    — a GTK/Adwaita app: announces nothing, so it is asked over the
+ *            session bus for the name it claims.
+ *   cli    — a one-shot command: must exit 0 having printed `expect`.
+ *   server — an HTTP server: must print `ready` and then answer a request.
+ */
+const LAUNCH = {
+    'gtk-minimal': { kind: 'gtk' },
+    cli: { kind: 'cli', expect: /runtime\s*:/ },
+    'adw-canvas2d': { kind: 'gtk' },
+    'adw-webgl': { kind: 'gtk' },
+    'adw-game': { kind: 'gtk' },
+    'web-server-hono': { kind: 'server', ready: /Hono server running at http:\/\/localhost:\d+/ },
+    'web-server-express': { kind: 'server', ready: /Express server running at http:\/\/localhost:\d+/ },
+};
+
+function launchRecipe(template) {
+    const recipe = LAUNCH[template];
+    if (!recipe) {
+        const kinds = [...new Set(Object.values(LAUNCH).map((r) => r.kind))].join(' | ');
+        throw new Error(
+            `template "${template}" has no LAUNCH entry in tests/e2e/create-app/run.mjs. ` +
+                `Add one (kind: ${kinds}) so the scaffolded app is actually started — building it is not evidence that it runs.`,
+        );
+    }
+    return recipe;
+}
+
+// One port per template, fixed and suite-specific. `PORT=0` is not an option:
+// the templates print the port they were ASKED for, so the readiness line would
+// read `localhost:0` and the request would have nowhere to go.
+const SERVER_PORT_BASE = 39_180;
+
+const HAS_DISPLAY = Boolean(process.env.DISPLAY || process.env.WAYLAND_DISPLAY);
+// Xvfb is how this repo already gives CI a display (see the `Test` job in
+// .github/workflows/main.yml and `xorg-x11-server-Xvfb` in
+// .docker/ci-fedora.Dockerfile); a developer box with a real session skips it.
+const GUI_WRAPPER = HAS_DISPLAY
+    ? []
+    : hasCommand('xvfb-run')
+      ? ['xvfb-run', '-a', '--server-args=-screen 0 1280x720x24']
+      : null;
+
+/**
+ * Why the GUI templates cannot be started here, or `false` when they can.
+ *
+ * A displayless host is NOT covered by this: GTK4 fails to open a display,
+ * `gjs` exits 1 and the app never reaches the bus, so `spawnUntilReady` reports
+ * the real reason. Only a host that cannot provide a display AT ALL is excused.
+ */
+const GUI_SKIP_REASON =
+    GUI_WRAPPER === null
+        ? 'no DISPLAY/WAYLAND_DISPLAY and no xvfb-run — this host cannot run a GTK app'
+        : !hasCommand('dbus-daemon') || !hasCommand('gdbus')
+          ? 'dbus-daemon/gdbus missing — a GTK app is asked for its application id over the session bus'
+          : false;
+
+// LIBGL_ALWAYS_SOFTWARE mirrors what the WebGL jobs in main.yml set (Xvfb has no
+// GPU); GTK_A11Y=none silences the a11y-bus warning GTK itself prints under a
+// bus with no a11y service on it.
+const GUI_ENV = { LIBGL_ALWAYS_SOFTWARE: '1', GTK_A11Y: 'none' };
+
+/**
+ * A private session bus, one per launched GUI app.
+ *
+ * Not the host's: CI has no session bus at all, and on a developer box the host
+ * bus may already carry a name a scaffolded app wants — the assertion would then
+ * be about somebody else's process. Not a shared one either: a name is dropped
+ * when its owner's connection closes, so a bus reused across templates lets the
+ * previous app's name linger into the next one's assertion.
+ */
+function startPrivateBus() {
+    const out = execFileSync('dbus-daemon', ['--session', '--fork', '--print-address', '--print-pid'], {
+        encoding: 'utf8',
+    });
+    const [address, pid] = out.trim().split('\n');
+    return { address, pid: Number(pid) };
+}
+
+/** The well-known names currently owned on `address`. */
+function busNames(address) {
+    const out = execFileSync(
+        'gdbus',
+        [
+            'call',
+            '--session',
+            '--dest',
+            'org.freedesktop.DBus',
+            '--object-path',
+            '/org/freedesktop/DBus',
+            '--method',
+            'org.freedesktop.DBus.ListNames',
+        ],
+        { encoding: 'utf8', env: { ...process.env, DBUS_SESSION_BUS_ADDRESS: address } },
+    );
+    return [...out.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+}
+
 // `npm install` retry (transient @girs registry 404s) lives in ../helpers.mjs
 // as `npmInstallWithRetry`. `npm run build` is intentionally NOT retried so a
 // real regression (e.g. a runtime dep misclassified as a devDependency — the
 // bug this suite guards) still fails deterministically on the first attempt.
 
 /** Scaffold a project using the create-app CLI with an explicit template. */
-function scaffold(cwd, projectName, template) {
+function scaffold(cwd, projectName, template, extraArgs = []) {
     const createAppBin = join(MONOREPO_ROOT, 'packages', 'infra', 'create-gjsify', 'lib', 'index.js');
-    execFileSync('node', [createAppBin, projectName, '--template', template], {
+    const stdout = execFileSync('node', [createAppBin, projectName, '--template', template, ...extraArgs], {
         cwd,
-        stdio: 'pipe',
+        encoding: 'utf8',
     });
-    return join(cwd, projectName);
+    return { dir: join(cwd, projectName), stdout };
 }
 
 /**
@@ -104,6 +213,62 @@ function patchPackageJson(projectDir, tarballsDir, tarballMap) {
 // Tests
 // ---------------------------------------------------------------------------
 
+// Its own describe, so it runs without paying for the tarball packing below —
+// a missing launch recipe should be reported in seconds, not after seven installs.
+describe('create-app launch coverage', () => {
+    it('every template has a launch recipe', () => {
+        for (const template of TEMPLATES) launchRecipe(template);
+    });
+});
+
+// The D-Bus spec's rule for a well-known name, restated here rather than imported
+// from the scaffolder: a test that asks the implementation what "valid" means
+// cannot catch the implementation being wrong.
+const BUS_NAME = /^[A-Za-z_-][A-Za-z0-9_-]*(\.[A-Za-z_-][A-Za-z0-9_-]*)+$/;
+
+describe('create-app scaffolding options', { timeout: 2 * 60 * 1000 }, () => {
+    let tmpDir;
+
+    before(() => {
+        tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-create-app-opts-'));
+    });
+
+    after(() => {
+        cleanupTestEnvironment(tmpDir);
+    });
+
+    it('scaffolds with --package-manager gjsify and says so in the next steps', () => {
+        // `gjsify` is the only one of the four managers that works on a host with
+        // no Node.js, and nothing exercised it: the flag was threaded from argv to
+        // `printNextSteps` and never read back.
+        const { stdout } = scaffold(tmpDir, 'pm-gjsify', 'cli', ['--package-manager', 'gjsify']);
+        assert.match(stdout, /^ {2}gjsify install$/m, `next steps must install with gjsify. Output:\n${stdout}`);
+        assert.match(stdout, /^ {2}gjsify run dev$/m, `next steps must run scripts with gjsify. Output:\n${stdout}`);
+        assert.doesNotMatch(stdout, /npm run/, `no npm spelling may leak through. Output:\n${stdout}`);
+    });
+
+    it('derives the application id from the project name', () => {
+        const { dir } = scaffold(tmpDir, 'appid-derived', 'gtk-minimal');
+        const src = readFileSync(join(dir, 'src', 'index.ts'), 'utf8');
+        const id = src.match(/application_?[Ii]d: '([^']+)'/)?.[1];
+        // Two projects that both announce `org.gjsify.example` are one app to
+        // GTK: the second to start becomes a REMOTE instance of the first,
+        // forwards `activate` to the other project's window and exits 0 with no
+        // window and no error of its own.
+        assert.equal(id, 'org.gjsify.appid-derived', `scaffolded app id must be the project's own. Source:\n${src}`);
+    });
+
+    it('keeps the application id a valid bus name for a digit-leading project name', () => {
+        // npm accepts `2048`; a D-Bus name element may not begin with a digit, and
+        // `Gtk.Application` refuses to construct with an invalid id — at startup,
+        // where nothing but a launched app can see it.
+        const { dir } = scaffold(tmpDir, '2048', 'gtk-minimal');
+        const src = readFileSync(join(dir, 'src', 'index.ts'), 'utf8');
+        const id = src.match(/application_?[Ii]d: '([^']+)'/)?.[1];
+        assert.match(id ?? '', BUS_NAME, `"${id}" is not a valid D-Bus name. Source:\n${src}`);
+    });
+});
+
 describe('create-app E2E', { timeout: 60 * 60 * 1000 }, () => {
     let tmpDir;
     let tarballsDir;
@@ -121,7 +286,8 @@ describe('create-app E2E', { timeout: 60 * 60 * 1000 }, () => {
     });
 
     for (const template of TEMPLATES) {
-        describe(`template: ${template}`, { timeout: 10 * 60 * 1000 }, () => {
+        describe(`template: ${template}`, { timeout: 15 * 60 * 1000 }, () => {
+            const projectName = `test-${template}`;
             let projectDir;
             let skipReason;
 
@@ -132,7 +298,7 @@ describe('create-app E2E', { timeout: 60 * 60 * 1000 }, () => {
                 }
 
                 console.log(`  [${template}] scaffolding…`);
-                projectDir = scaffold(tmpDir, `test-${template}`, template);
+                projectDir = scaffold(tmpDir, projectName, template).dir;
 
                 console.log(`  [${template}] patching package.json…`);
                 patchPackageJson(projectDir, tarballsDir, tarballMap);
@@ -151,7 +317,7 @@ describe('create-app E2E', { timeout: 60 * 60 * 1000 }, () => {
             it('package.json was scaffolded with the expected name', (t) => {
                 if (skipReason) return t.skip(skipReason);
                 const pkg = JSON.parse(readFileSync(join(projectDir, 'package.json'), 'utf8'));
-                assert.equal(pkg.name, `test-${template}`, 'project name not rewritten');
+                assert.equal(pkg.name, projectName, 'project name not rewritten');
                 assert.notEqual(pkg.name, 'new-gjsify-app', 'sentinel name leaked through');
             });
 
@@ -205,6 +371,98 @@ describe('create-app E2E', { timeout: 60 * 60 * 1000 }, () => {
                 }
                 if (checked === 0) return t.skip('build output missing');
             });
+
+            // The assertion `node --check` could not make, and it caught two
+            // templates shipping a broken start-up: `cli` exited 1 on `npm start`
+            // for want of a `$0` default command, and every GTK one announced the
+            // same hardcoded application id.
+            it('the scaffolded app starts', async (t) => {
+                if (skipReason) return t.skip(skipReason);
+                const recipe = launchRecipe(template);
+                if (recipe.kind === 'gtk' && GUI_SKIP_REASON) {
+                    // On CI the tooling is BAKED INTO THE IMAGE — `.docker/ci-fedora.Dockerfile`
+                    // installs `xorg-x11-server-Xvfb`, `dbus-daemon`, `dbus-x11` and `glib2`
+                    // (which is where `gdbus` comes from). So on the one host this leg exists
+                    // for, the skip cannot legitimately fire: if it does, the image lost a
+                    // package and every GTK template silently stopped being started. Skipping
+                    // there would turn this into a check that reports green on the only run
+                    // that matters, which is the failure class this suite was written against.
+                    // Locally the skip is honest — a laptop without a display should not fail.
+                    if (process.env.CI) {
+                        assert.fail(
+                            `GTK launch cannot be skipped on CI: ${GUI_SKIP_REASON}. The CI image is ` +
+                                'built to carry Xvfb, dbus-daemon/dbus-x11 and glib2 — if one is gone, ' +
+                                'restore it in .docker/ci-fedora.Dockerfile rather than letting the ' +
+                                'GTK templates go unstarted.',
+                        );
+                    }
+                    return t.skip(GUI_SKIP_REASON);
+                }
+
+                console.log(`  [${template}] npm start…`);
+                if (recipe.kind === 'gtk') return startGtkApp(projectDir, projectName, template);
+                if (recipe.kind === 'cli') return startCliApp(projectDir, recipe, template);
+                return startServerApp(projectDir, recipe, template);
+            });
         });
+    }
+
+    async function startGtkApp(projectDir, projectName, template) {
+        const appId = `org.gjsify.${projectName}`;
+        const [command, ...args] = [...GUI_WRAPPER, 'npm', 'run', 'start'];
+        const bus = startPrivateBus();
+        let app;
+        try {
+            app = await spawnUntilReady(command, args, {
+                cwd: projectDir,
+                env: { ...process.env, ...GUI_ENV, DBUS_SESSION_BUS_ADDRESS: bus.address },
+                // The app prints nothing, so the bus is the only witness — and it
+                // is a display-backed one: with no display GTK4 fails to open one,
+                // `gjs` exits 1 and the name never appears, so this reports that
+                // exit instead of passing on a host that showed nothing.
+                probe: () => busNames(bus.address).some((n) => n.startsWith('org.gjsify.')),
+                timeoutMs: 3 * 60 * 1000,
+                label: `${template} npm start`,
+            });
+            const claimed = busNames(bus.address).filter((n) => n.startsWith('org.gjsify.'));
+            assert.deepEqual(
+                claimed,
+                [appId],
+                `the scaffolded app must announce its OWN application id.\n${app.output()}`,
+            );
+        } finally {
+            await app?.stop();
+            process.kill(bus.pid, 'SIGTERM');
+        }
+    }
+
+    async function startCliApp(projectDir, recipe, template) {
+        const app = await spawnUntilReady('npm', ['run', 'start'], {
+            cwd: projectDir,
+            ready: recipe.expect,
+            awaitExit: true,
+            timeoutMs: 2 * 60 * 1000,
+            label: `${template} npm start`,
+        });
+        assert.equal(app.code, 0, `\`npm start\` must succeed on a freshly scaffolded project.\n${app.output()}`);
+    }
+
+    async function startServerApp(projectDir, recipe, template) {
+        const port = SERVER_PORT_BASE + TEMPLATES.indexOf(template);
+        const app = await spawnUntilReady('npm', ['run', 'start'], {
+            cwd: projectDir,
+            env: { ...process.env, PORT: String(port) },
+            ready: recipe.ready,
+            timeoutMs: 2 * 60 * 1000,
+            label: `${template} npm start`,
+        });
+        try {
+            const res = await fetch(`http://localhost:${port}/api/ping`, { signal: AbortSignal.timeout(15_000) });
+            assert.equal(res.status, 200, `GET /api/ping must answer 200.\n${app.output()}`);
+            const body = await res.json();
+            assert.equal(body.ok, true, `GET /api/ping must answer {ok:true}, got ${JSON.stringify(body)}`);
+        } finally {
+            await app.stop();
+        }
     }
 });

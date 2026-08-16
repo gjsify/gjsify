@@ -36,7 +36,8 @@ Matchers: `toBe|toEqual|toBeTruthy|toBeFalsy|toBeNull|toBeDefined|toBeUndefined|
 ### E2E tests — `tests/e2e/`
 
 One suite per directory (`run.mjs`, `node:test`), driving the built CLI from OUTSIDE. Two shared
-modules, NEITHER re-implementable in a suite: `helpers.mjs` (repo paths, packing, project setup) and
+modules, NEITHER re-implementable in a suite: `helpers.mjs` (repo paths, packing, project setup,
+`spawnUntilReady` — a suite that only BUILDS an app has not shown it runs) and
 `mock-registry.mjs` — the npm harness (`packageTar` · `packageTarball` · `sriSha512` ·
 `startMockRegistry` · `runCli`/`runCliSync`). A registry that must MISBEHAVE uses `onRequest`, never
 a private server. `scripts/check-e2e-harness-duplication.mjs` fails on a private copy and holds the

@@ -1,10 +1,11 @@
 // Shared E2E test helpers for @gjsify CLI/plugin workflows.
 
-import { execFileSync, execSync } from 'node:child_process';
+import { execFileSync, execSync, spawn } from 'node:child_process';
 import { writeFileSync, mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 import { readLockfileVersion } from '../../scripts/check-lockfile-current.mjs';
 import { MONOREPO_ROOT, HOST_TARGET, registryOnlyDependencies } from './workspaces.mjs';
@@ -317,6 +318,124 @@ function runYarnInstall(projectDir) {
             COREPACK_ENABLE_DOWNLOAD_PROMPT: '0',
         },
     });
+}
+
+/** SIGTERM/SIGKILL a whole process group. ESRCH means it is already gone — nothing to do. */
+function killGroup(pid, signal) {
+    try {
+        process.kill(-pid, signal);
+    } catch (err) {
+        if (err.code !== 'ESRCH') throw err;
+    }
+}
+
+const outputDump = (output) => `\n--- output ---\n${output.trimEnd() || '(nothing printed)'}`;
+
+/**
+ * Start a process and resolve once it has PROVEN it came up.
+ *
+ * Readiness is a predicate, never a sleep, and it takes two shapes because the
+ * processes do: a server announces its port on stdout (`ready`), a GTK app
+ * announces nothing and has to be asked from the outside (`probe`). Pass either
+ * or both; passing neither throws, because "started" would then mean "`spawn()`
+ * returned", which is equally true of a bundle that dies in its first tick.
+ *
+ * That last case is why this exists. `tests/e2e/create-app` proved its scaffolded
+ * templates with `node --check` on the built bundle, so one that scaffolded,
+ * type-checked and then died at startup passed — which is how a CLI template with
+ * no default command and a GTK template with a shared application id both shipped.
+ *
+ * `awaitExit` covers one-shot commands: resolve when the process has exited AND
+ * `ready` matched what it printed, so the caller asserts on the exit code
+ * instead of racing it.
+ *
+ * The child gets its own process GROUP. Callers start a package-manager script,
+ * i.e. a shell that spawns a runtime that spawns the app; killing the pid alone
+ * leaves the app holding its port or its bus name for whatever runs next.
+ *
+ * @returns {Promise<{child: import('node:child_process').ChildProcess, output: () => string,
+ *   code: number|null, signal: string|null, exited: Promise<{code: number|null, signal: string|null}>,
+ *   stop: () => Promise<{code: number|null, signal: string|null}>}>}
+ */
+export async function spawnUntilReady(command, args, options = {}) {
+    const { cwd, env, ready, probe, awaitExit = false, timeoutMs = 60_000, pollMs = 250, label = command } = options;
+    if (!ready && !probe) {
+        throw new Error(`spawnUntilReady(${label}): pass \`ready\`, \`probe\` or both — otherwise "ready" is a sleep.`);
+    }
+
+    const child = spawn(command, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+    let output = '';
+    const collect = (chunk) => {
+        output += chunk.toString();
+    };
+    child.stdout.on('data', collect);
+    child.stderr.on('data', collect);
+    child.on('error', (err) => {
+        output += `\n[spawn error] ${err.message}\n`;
+    });
+
+    // `close`, not `exit`: `exit` fires while the pipes may still hold the very
+    // line the caller is waiting for, which reports a healthy process as "exited
+    // before it was ready" with the evidence missing from the message.
+    let closed;
+    const exited = new Promise((resolve) => {
+        child.on('close', (code, signal) => {
+            closed = { code, signal };
+            resolve(closed);
+        });
+    });
+
+    const stop = async () => {
+        if (!closed) {
+            killGroup(child.pid, 'SIGTERM');
+            const escalate = setTimeout(() => killGroup(child.pid, 'SIGKILL'), 5_000);
+            escalate.unref();
+            await exited;
+            clearTimeout(escalate);
+        }
+        return exited;
+    };
+
+    const printed = () => (typeof ready === 'function' ? ready(output) : ready ? ready.test(output) : true);
+    const handle = () => ({
+        child,
+        output: () => output,
+        code: closed?.code ?? null,
+        signal: closed?.signal ?? null,
+        exited,
+        stop,
+    });
+
+    const deadline = Date.now() + timeoutMs;
+    let probeError;
+    for (;;) {
+        let isReady = printed();
+        if (isReady && probe) {
+            try {
+                isReady = Boolean(await probe());
+            } catch (err) {
+                // Asking a port or a bus name that is not up yet is the NORMAL
+                // not-ready answer, so it cannot be fatal — but it is the only
+                // diagnosis a timeout has, so it is carried into that message.
+                probeError = err;
+                isReady = false;
+            }
+        }
+        if (isReady && (!awaitExit || closed)) return handle();
+        if (closed) {
+            if (isReady) return handle();
+            throw new Error(
+                `${label} exited (code ${closed.code}, signal ${closed.signal}) before it was ready.` +
+                    outputDump(output),
+            );
+        }
+        if (Date.now() >= deadline) {
+            await stop();
+            const why = probeError ? `\nlast probe error: ${probeError.message}` : '';
+            throw new Error(`${label} was not ready within ${timeoutMs}ms.${why}` + outputDump(output));
+        }
+        await sleep(pollMs);
+    }
 }
 
 /**
