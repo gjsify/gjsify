@@ -150,9 +150,7 @@ function pkg({
             copyFileSync(join(from, src), join(prebuildDir, target, as));
         }
     }
-    const shipped = [
-        ...new Set([...Object.keys(stage), ...Object.keys(extraFiles), ...Object.keys(renamed)]),
-    ].sort();
+    const shipped = [...new Set([...Object.keys(stage), ...Object.keys(extraFiles), ...Object.keys(renamed)])].sort();
     return {
         name: '@gjsify/fixture',
         path: 'packages/fixture',
@@ -261,7 +259,10 @@ describe('prebuild invariant — half 1b: nothing in the directory is unexplaine
         // other half has anything to say about it. That is the point — before this
         // check, nothing did.
         assert.equal(problems.length, 1, problems.join('\n'));
-        assert.match(problems[0], /libgjsifyterminal-OLDNAME\.so` is in a committed prebuild directory and nothing explains it/);
+        assert.match(
+            problems[0],
+            /libgjsifyterminal-OLDNAME\.so` is in a committed prebuild directory and nothing explains it/,
+        );
         // Both ways out named, so the next reader does not pick deletion for a file
         // a consumer actually needs.
         assert.match(problems[0], /If it is dead, delete it/);
@@ -770,7 +771,9 @@ describe('prebuild invariant — half 2: a body that exists must be loadable', (
             problems.join('\n'),
         );
         assert.ok(
-            problems.some((p) => /libgjsifyrenamed\.so` is in a committed prebuild directory and nothing explains it/.test(p)),
+            problems.some((p) =>
+                /libgjsifyrenamed\.so` is in a committed prebuild directory and nothing explains it/.test(p),
+            ),
             problems.join('\n'),
         );
     });
