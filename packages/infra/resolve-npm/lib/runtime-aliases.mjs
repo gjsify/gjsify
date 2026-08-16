@@ -32,8 +32,8 @@
 // infra/gjs/framework packages that opted out of the triplet model.
 //
 // When a slot=native package is missing the corresponding `globals.mjs`
-// re-export file, the resolver emits a warn-once log and falls back to
-// `@gjsify/empty` (the current behavior) — surfacing the gap is desirable.
+// re-export file, the resolver emits a warn-once log and leaves the specifier
+// alone — surfacing the gap without gutting the bundle (see `case 'native'`).
 //
 // ── Platform-entry routing (ADR 0014) ──────────────────────────────────────
 //
@@ -403,11 +403,18 @@ function resolveSlot(rec, target) {
             if (rec.hasGlobals) {
                 return `${rec.name}/globals`;
             }
+            // No `globals.mjs` behind the promise. Routing to `@gjsify/empty` here
+            // was the same MISSING_EXPORT mistake the `none` case below documents,
+            // and it cost more: every `packages/nativescript-bridge/*` package is
+            // in this state, so `--app nativescript` could not build ANY of them,
+            // unnoticed because no CI job built them (`tests/e2e/ns-bridge-bundles`).
+            // The warn-once stays — the DECLARATION is still wrong, and settling
+            // that vocabulary is its own change (`status/open-todos.md`).
             warnOnce(
                 `${rec.name}-${target}-native-missing-globals`,
-                `${rec.name} declares runtimes.${target}="native" but ships no globals.mjs — falling back to @gjsify/empty for --app ${target} builds.`,
+                `${rec.name} declares runtimes.${target}="native" but ships no globals.mjs — resolving it normally for --app ${target} builds.`,
             );
-            return '@gjsify/empty';
+            return null;
         case 'none':
             // Intentionally no rewrite. The original draft routed `none` to
             // `@gjsify/empty` (idea: shrink GJS-only polyfills out of Node
