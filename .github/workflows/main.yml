@@ -113,9 +113,12 @@ env:
   # polyfill. Every entry below either imports its own package by name, or
   # imports a bare Web specifier that `ALIASES_WEB_FOR_NODE` routes to the
   # POLYFILL (`dom-events`-style), or is infra code that is nobody's builtin.
-  # All nine were run locally on node + bun + deno before being listed.
+  # Every entry is run locally on node + bun + deno BEFORE being listed — that is
+  # the bar for joining this list, and it is why there is no count here: a number
+  # in a comment is a second copy of the list's length that nothing checks.
   CROSS_RUNTIME_PACKAGES: >-
     packages/gjs/unit
+    packages/gjs/runtime
     packages/web/adwaita-core
     packages/framework/storybook-core
     packages/web/domparser
@@ -994,7 +997,7 @@ jobs:
   #      shape as the CLI: build ONE engine-agnostic bundle, run it three times.
   cross-runtime:
     needs: [changes, setup, build]
-    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/cli') || contains(needs.changes.outputs.include-args, '@gjsify/unit') || contains(needs.changes.outputs.include-args, '@gjsify/adwaita-core') || contains(needs.changes.outputs.include-args, '@gjsify/storybook-core') || contains(needs.changes.outputs.include-args, '@gjsify/domparser') || contains(needs.changes.outputs.include-args, '@gjsify/webstorage') || contains(needs.changes.outputs.include-args, '@gjsify/semver') || contains(needs.changes.outputs.include-args, '@gjsify/workspace') || contains(needs.changes.outputs.include-args, '@gjsify/npm-registry') || contains(needs.changes.outputs.include-args, '@gjsify/tar')) }}
+    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/cli') || contains(needs.changes.outputs.include-args, '@gjsify/unit') || contains(needs.changes.outputs.include-args, '@gjsify/runtime') || contains(needs.changes.outputs.include-args, '@gjsify/adwaita-core') || contains(needs.changes.outputs.include-args, '@gjsify/storybook-core') || contains(needs.changes.outputs.include-args, '@gjsify/domparser') || contains(needs.changes.outputs.include-args, '@gjsify/webstorage') || contains(needs.changes.outputs.include-args, '@gjsify/semver') || contains(needs.changes.outputs.include-args, '@gjsify/workspace') || contains(needs.changes.outputs.include-args, '@gjsify/npm-registry') || contains(needs.changes.outputs.include-args, '@gjsify/tar')) }}
     strategy:
       fail-fast: false
       matrix:
