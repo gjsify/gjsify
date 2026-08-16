@@ -4,6 +4,7 @@ description: Which operating systems GJSify actually runs on today — per runti
 ---
 
 import CommandTabs from '../../components/CommandTabs.astro';
+import { platformColumns, platformLegend, platformMatrix } from '../../data/platform-matrix';
 
 GJSify has **two independent axes**, and they are easy to confuse:
 
@@ -25,7 +26,7 @@ up underneath a project that described itself as platform-independent.
 | **Apps on GJS** (`--app gjs`) | supported | partial — see below | not available (no GJS host) |
 | **Apps on Node/Bun/Deno** (`--app node`, via `@gjsify/node-gi`) | supported | supported | supported |
 | **Browser builds** (`--app browser`) | supported | supported | supported |
-| **The Node-free toolchain** (`gjsify build` under GJS) | supported | **not yet** | not available |
+| **The Node-free toolchain** (`gjsify build` under GJS) | supported | engines ship; not exercised in CI | not available |
 
 Browser builds carry no native bridge at all, so they are portable by
 construction. The GJS side is where the operating system matters.
@@ -132,23 +133,28 @@ npm does, through `cmd.exe`. A git-bash shell puts `C:\Program Files\Git\usr\bin
 on PATH, so `chmod`, `cp`, `rm` and `which` resolve there and a script that
 cannot work for a normal user appears to.
 
-## Why macOS has no Node-free toolchain yet
+## What the Node-free toolchain on macOS still owes
 
 `gjsify build` under GJS needs a bundler, and `@gjsify/rolldown-native` is the only
 bundler engine that runs there.
 
-The Rust-level blocker is gone: the wakeup channel that drives the plugin bridge used
-to be three `eventfd(2)` descriptors — a Linux-only syscall the `libc` crate does not
-expose on Apple targets, so the crate did not compile for macOS at all. It is now
-three anonymous pipes, one portable implementation on every platform, and
-`cargo check --target aarch64-apple-darwin` passes.
+**The engines ship.** All three — `@gjsify/rolldown-native`,
+`@gjsify/lightningcss-native`, `@gjsify/oxfmt-native` — publish `darwin-arm64` and
+`darwin-x64` prebuilds, and the matrix below marks each of those cells `✓`: declared, a
+CI job targets it, artifact committed. The Rust-level blocker that once stood in the way
+is long gone — the wakeup channel driving the plugin bridge used to be three
+`eventfd(2)` descriptors, a Linux-only syscall the `libc` crate does not expose on Apple
+targets; it is now three anonymous pipes, one portable implementation everywhere.
 
-What is still missing is a *native* macOS build: nothing has linked the library,
-generated its typelib, or loaded it under Homebrew's `gjs` yet. Until that leg is
-green, a macOS user needs Node.js for the build step and then runs the result on GJS.
+**What is missing is a leg that exercises the Node-free path end to end.** The two
+darwin suites install the workspace, bootstrap the toolchain and build it by invoking
+the CLI *under Node* (`node …/@gjsify/cli/lib/index.js`), which is the right shape for
+testing the Node pillar and says nothing about `gjs -m install.mjs` → `gjsify build`
+with no Node on the box. So the prerequisite is met and the claim is untested: a macOS
+user may well find the Node-free toolchain works, and nothing here promises it does.
 
-Everything else in the toolchain (`@gjsify/lightningcss-native`,
-`@gjsify/oxfmt-native`) already builds for macOS.
+That gap is a CI leg, not an engineering unknown, and it is tracked in
+`status/open-todos.md`.
 
 ## Native bridge matrix
 
@@ -164,27 +170,42 @@ in that OS's format plus the GI typelib that names it. Those artifacts are then
 verified as far as the checking host allows — see
 [What the checks actually prove](#what-the-checks-actually-prove) below.
 
-{/* Regenerate with the "Audit the matrix" window below, --markdown line. */}
+{/* Rendered from src/data/platform-matrix.ts, regenerated on every website build.
+    Do not paste a table in here: the copy that used to live at this spot drifted
+    twice, and by the time anyone measured it, it showed @gjsify/webgl as unsupported
+    on win32-x64 — the one cell a Windows reader comes here to check. */}
 
-| package | tier | darwin-arm64 | darwin-x64 | linux-arm64 | linux-ppc64 | linux-riscv64 | linux-s390x | linux-x64 | win32-x64 |
-|---|---|---|---|---|---|---|---|---|---|
-| `@gjsify/http-soup-bridge` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · |
-| `@gjsify/http2-native` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · |
-| `@gjsify/lightningcss-native` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · |
-| `@gjsify/napi` | 3 | ○ | · | · | · | · | · | ○ | · |
-| `@gjsify/node-gi` | 2 | ○ | ○ | ○ | · | · | · | ○ | ○ |
-| `@gjsify/oxfmt-native` | 1 | ✓ | ✓ | ✓ | · | · | · | ✓ | · |
-| `@gjsify/rolldown-native` | 1 | ✓ | ✓ | ✓ | · | · | · | ✓ | · |
-| `@gjsify/sab-native` | 1 | · | · | ✓ | ✓ | ✓ | ✓ | ✓ | · |
-| `@gjsify/terminal-native` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · |
-| `@gjsify/tls-native` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · |
-| `@gjsify/webgl` | 1 | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | · |
-| `@gjsify/webrtc-native` | 1 | · | · | ✓ | ✓ | ✓ | ✓ | ✓ | · |
+{/* No `key` props: Astro renders this once to static HTML with no reconciler, so a
+    `key` is not consumed — it is emitted verbatim as an invalid DOM attribute. */}
+<table>
+  <thead>
+    <tr>
+      <th>package</th>
+      <th>tier</th>
+      {platformColumns.map((target) => <th>{target}</th>)}
+    </tr>
+  </thead>
+  <tbody>
+    {platformMatrix.map((row) => (
+      <tr>
+        <td><code>{row.name}</code></td>
+        <td>{row.tier ?? '—'}</td>
+        {platformColumns.map((target) => <td>{row.cells[target]}</td>)}
+      </tr>
+    ))}
+  </tbody>
+</table>
 
-`✓` declared, a CI job targets it, artifact committed ·
-`○` declared, a CI job targets it, artifact NOT committed here ·
-`⚠` committed artifact, no CI job targets it · `!` declared, no CI job targets it ·
-`?` produced, undeclared · `·` unsupported
+{/* A `<p>`, not a bare run of spans: Starlight's markdown stylesheet keys the
+    flow margin on adjacent block elements, so a loose span sequence takes the
+    following paragraph's `margin-top` with it. */}
+<p>
+  {platformLegend.map((entry, index) => (
+    <span>
+      {index > 0 && ' · '}<code>{entry.mark}</code> {entry.meaning}
+    </span>
+  ))}
+</p>
 
 The marks are read out of the workflow YAML, so "a CI job targets it" is exactly
 what they claim — not that a green run of that job exists. `○` in particular says
@@ -230,34 +251,35 @@ two current causes:
   absence *is* the state. `release.yml` carries a prebuild leg per target, which is
   what the audit checks.
 
-Check the matrix against reality at any time:
+The table above is generated from these same functions on every website build.
+Run them yourself at any time:
 
 <CommandTabs title="Audit the matrix">
   <Fragment slot="gjsify">
     ```bash
     gjsify run --node-script scripts/audit-runtimes.mjs --platforms            # human-readable
-    gjsify run --node-script scripts/audit-runtimes.mjs --platforms --markdown # this table
+    gjsify run --node-script scripts/audit-runtimes.mjs --platforms --markdown # the same marks, as markdown
     gjsify run --node-script scripts/audit-runtimes.mjs --check                # CI gate, every audit
     ```
   </Fragment>
   <Fragment slot="npm">
     ```bash
     node scripts/audit-runtimes.mjs --platforms            # human-readable
-    node scripts/audit-runtimes.mjs --platforms --markdown # this table
+    node scripts/audit-runtimes.mjs --platforms --markdown # the same marks, as markdown
     node scripts/audit-runtimes.mjs --check                # CI gate, every audit
     ```
   </Fragment>
   <Fragment slot="bun">
     ```bash
     bun scripts/audit-runtimes.mjs --platforms            # human-readable
-    bun scripts/audit-runtimes.mjs --platforms --markdown # this table
+    bun scripts/audit-runtimes.mjs --platforms --markdown # the same marks, as markdown
     bun scripts/audit-runtimes.mjs --check                # CI gate, every audit
     ```
   </Fragment>
   <Fragment slot="deno">
     ```bash
     deno run -A scripts/audit-runtimes.mjs --platforms            # human-readable
-    deno run -A scripts/audit-runtimes.mjs --platforms --markdown # this table
+    deno run -A scripts/audit-runtimes.mjs --platforms --markdown # the same marks, as markdown
     deno run -A scripts/audit-runtimes.mjs --check                # CI gate, every audit
     ```
   </Fragment>

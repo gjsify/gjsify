@@ -87,6 +87,13 @@ import './manifest-conformance/rules/node-script-globals.mjs';
 // means removing one, and the e2e suites share a checkout.
 export { auditPrebuildArtifacts, collectNativePackages, renderPrebuildSummary };
 
+// `repoContext` is exported for `website/scripts/generate-platform-matrix.mjs`, which
+// renders the platform matrix onto the Platform Support page. It needs THIS context —
+// the `discoveryRoots` below are what keep `packages/{node-gi,napi}/*` in scope despite
+// not being workspace members — and a second construction of it beside this one is how
+// the website would come to tabulate a different population than the audit does.
+export { repoContext };
+
 const ROOT = resolve(fileURLToPath(import.meta.url), '..', '..');
 const PACKAGES_DIR = resolve(ROOT, 'packages');
 

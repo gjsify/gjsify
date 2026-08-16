@@ -376,8 +376,26 @@ export function auditPlatforms(nativePkgs, ciPlatforms) {
     return { failures, rows };
 }
 
+// "a CI job targets it", not "a green build exists": this is parsed out of the
+// workflow YAML, which knows nothing about run results, so saying "built" would
+// claim more than the data supports.
+const LEGEND_PARTS = [
+    '✓ declared, a CI job targets it, artifact committed',
+    '○ declared, a CI job targets it, artifact NOT committed here',
+    '⚠ committed artifact, no CI job targets it',
+    '! declared, no CI job targets it',
+    '? produced, undeclared',
+    '· unsupported',
+];
+
 /**
- * The OS × package matrix — the honest answer to "where does this run?".
+ * The OS × package matrix as DATA — the columns, the legend, and one mark per cell.
+ *
+ * Split out of {@link renderPlatformMatrix} when the website stopped hand-copying the
+ * rendered table into `platform-support.mdx`: that copy drifted twice unseen, and by
+ * the time it was measured it showed `@gjsify/webgl` as UNSUPPORTED on win32 — the
+ * one cell a Windows reader is there to check — and had lost a whole package row.
+ * Two renderings of one mark rule; never two mark rules.
  *
  * Takes rows that have been through {@link creditPlatformArtifacts} and REFUSES
  * anything else: every glyph but `·` turns on where the artifact for a cell is, and
@@ -385,11 +403,11 @@ export function auditPlatforms(nativePkgs, ciPlatforms) {
  * reading it off the bridge alone cannot fail — it quietly answers a different
  * question, which this signature exists to make unrepeatable.
  */
-export function renderPlatformMatrix(rows, { markdown = false } = {}) {
+export function platformMatrixData(rows) {
     const uncredited = rows.filter((r) => r.artifacts == null || typeof r.artifacts !== 'object');
     if (uncredited.length > 0) {
         throw new TypeError(
-            `renderPlatformMatrix: ${uncredited.length} row(s) carry no \`artifacts\` map (first: ${uncredited[0].name}). ` +
+            `platformMatrixData: ${uncredited.length} row(s) carry no \`artifacts\` map (first: ${uncredited[0].name}). ` +
                 'Rows must come from `platformRows()`, which runs `creditPlatformArtifacts()` BEFORE filtering the ' +
                 'per-target platform packages out of the table — the artifact state of a split bridge lives on its ' +
                 'children, so crediting after the filter finds nothing and every declared target renders `✓`.',
@@ -423,36 +441,48 @@ export function renderPlatformMatrix(rows, { markdown = false } = {}) {
         if (artifact?.committed === true || built) return '?'; // produced, never promised
         return '·';
     };
-    // "a CI job targets it", not "a green build exists": this is parsed out of the
-    // workflow YAML, which knows nothing about run results, so saying "built" would
-    // claim more than the data supports.
-    const legendParts = [
-        '✓ declared, a CI job targets it, artifact committed',
-        '○ declared, a CI job targets it, artifact NOT committed here',
-        '⚠ committed artifact, no CI job targets it',
-        '! declared, no CI job targets it',
-        '? produced, undeclared',
-        '· unsupported',
-    ];
+    return {
+        platforms,
+        legend: LEGEND_PARTS,
+        rows: rows.map((r) => ({
+            name: String(r.name),
+            tier: r.tier ?? null,
+            cells: Object.fromEntries(platforms.map((p) => [p, mark(r, p)])),
+        })),
+    };
+}
+
+/**
+ * The OS × package matrix, rendered for a terminal or for markdown.
+ *
+ * The marks themselves come from {@link platformMatrixData} — this function only
+ * lays them out.
+ */
+export function renderPlatformMatrix(rows, { markdown = false } = {}) {
+    const { platforms, legend, rows: data } = platformMatrixData(rows);
+    const cells = (r) => platforms.map((p) => r.cells[p]);
     if (markdown) {
         const lines = [
             `| package | tier | ${platforms.join(' | ')} |`,
             `|---|---|${platforms.map(() => '---').join('|')}|`,
         ];
-        for (const r of rows) {
-            lines.push(`| \`${r.name}\` | ${r.tier ?? '—'} | ${platforms.map((p) => mark(r, p)).join(' | ')} |`);
+        for (const r of data) {
+            lines.push(`| \`${r.name}\` | ${r.tier ?? '—'} | ${cells(r).join(' | ')} |`);
         }
         lines.push('');
-        lines.push(legendParts.map((l) => `\`${l.slice(0, 1)}\`${l.slice(1)}`).join(' · '));
+        lines.push(legend.map((l) => `\`${l.slice(0, 1)}\`${l.slice(1)}`).join(' · '));
         return lines.join('\n');
     }
-    const nameWidth = Math.max(...rows.map((r) => String(r.name).length), 'package'.length);
+    const nameWidth = Math.max(...data.map((r) => r.name.length), 'package'.length);
     const head = `${'package'.padEnd(nameWidth)} │ ${platforms.map((p) => p.padEnd(14)).join(' │ ')}`;
     const sep = `${'─'.repeat(nameWidth)}─┼─${platforms.map(() => '─'.repeat(14)).join('─┼─')}`;
-    const body = rows.map(
-        (r) => `${String(r.name).padEnd(nameWidth)} │ ${platforms.map((p) => mark(r, p).padEnd(14)).join(' │ ')}`,
+    const body = data.map(
+        (r) =>
+            `${r.name.padEnd(nameWidth)} │ ${cells(r)
+                .map((m) => m.padEnd(14))
+                .join(' │ ')}`,
     );
-    return [head, sep, ...body, '', legendParts.join('   ')].join('\n');
+    return [head, sep, ...body, '', legend.join('   ')].join('\n');
 }
 
 /**
