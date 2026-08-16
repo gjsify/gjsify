@@ -32,13 +32,25 @@ on:
 # GitHub keeps one pending run per group. Measured 2026-08-14: the push run for
 # the #1170 merge sat pending behind a main run from 34 minutes earlier, a
 # `workflow_dispatch` on main joined the group, and the push run was cancelled 3 s
-# later with zero jobs ever started. So a LANDED COMMIT CAN END UP WITH NO RUN OF
-# ITS OWN, and the run list shows `cancelled`, which reads as noise rather than as
-# a gap. Before trusting "main is green", check that a run exists for main's
-# CURRENT sha — `gh run list --commit $(git rev-parse origin/main)` — rather than
-# reading the newest green run on the branch.
+# later with zero jobs ever started. So a LANDED COMMIT COULD END UP WITH NO RUN
+# OF ITS OWN, and the run list showed `cancelled`, which reads as noise rather
+# than as a gap. Until this is confirmed fixed, that gap is still detectable the
+# way it was found: `gh run list --commit $(git rev-parse origin/main)` shows
+# whether main's CURRENT sha has a run at all, which reading the newest green run
+# on the branch does not.
+#
+# Which is why the group key is now PER-RUN off a PR. Eviction is a property of
+# the group, so the fix is to stop putting independent runs in one. `github.sha`
+# is NOT enough and was the first attempt: in all four eviction pairs on record
+# the push and the `workflow_dispatch` are the SAME commit, so keying on the sha
+# leaves them competing exactly as before. `github.run_id` is unique per run, so
+# nothing off a PR ever shares a group. Same construction as `prebuilds.yml`,
+# which has keyed it this way all along.
+#
+# Pull requests deliberately keep the branch-wide key — there, superseding IS the
+# wanted behaviour, and `cancel-in-progress` above is what performs it.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.event_name == 'pull_request' && format('main-pr-{0}', github.ref) || format('main-{0}', github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Package lists shared between the job that BUILDS a bundle and the job that

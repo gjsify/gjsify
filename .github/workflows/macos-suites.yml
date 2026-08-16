@@ -82,7 +82,7 @@ on:
       - '.github/workflows/macos-suites.yml'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.event_name == 'pull_request' && format('macos-suites-pr-{0}', github.ref) || format('macos-suites-{0}', github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:

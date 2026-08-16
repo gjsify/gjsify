@@ -62,12 +62,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: node-gi-${{ github.ref }}
+  # Per-RUN off a PR, so no two runs share a group and none can evict another while
+  # pending. `main.yml` carries the measured incident and why the sha is not enough.
+  group: ${{ github.event_name == 'pull_request' && format('node-gi-pr-{0}', github.ref) || format('node-gi-{0}', github.run_id) }}
   # PRs cancel their own superseded runs; main pushes and the nightly complete on
-  # their own. `main.yml` carries the measured incident behind the expression — a
-  # still-PENDING run is evicted when a newer run joins the group, so a landed
-  # commit can end up with no run at all — and widening the trigger above puts
-  # more main pushes in this group, which is what made the difference matter here.
+  # their own.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:

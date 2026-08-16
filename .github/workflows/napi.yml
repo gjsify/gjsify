@@ -41,8 +41,15 @@ permissions:
   contents: read
 
 concurrency:
-  group: napi-${{ github.ref }}
-  cancel-in-progress: true
+  # Per-RUN off a PR, so no two runs share a group and none can evict another while
+  # pending. `main.yml` carries the measured incident and why the sha is not enough.
+  group: ${{ github.event_name == 'pull_request' && format('napi-pr-{0}', github.ref) || format('napi-{0}', github.run_id) }}
+  # Was an unconditional `true` — the only one in the repo; every other workflow
+  # scopes it to `pull_request`. So a push to main KILLED the in-flight napi run of
+  # the commit before it, and what went uncovered is what nothing else covers
+  # (`packages/napi` is not a workspace member). PRs supersede their own runs; a
+  # landed commit finishes.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # The pinned refs/node revision the conformance addon sources + committed
 # goldens are generated from. MUST match the refs/node submodule gitlink so the
