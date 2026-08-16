@@ -91,6 +91,33 @@ const BOOTSTRAPPED_COLUMNS = ['gjs'];
  */
 const FATAL_PATTERNS = [/\bJS ERROR\b/, /\bUnhandled promise rejection\b/, /\bGjs-CRITICAL\b/];
 
+/**
+ * Showcases whose failure is the CONTAINER, not the code — each with the exact
+ * signature that was measured, because "may fail" without one hides the next
+ * real defect behind an excuse.
+ *
+ * A listed showcase still LAUNCHES and its output is still printed. It is only
+ * forgiven when the failure carries its recorded signature; fail for any other
+ * reason and the run is red as usual. That is the difference between a measured
+ * environmental limit and an exclusion.
+ *
+ * `minimalist-browser` embeds WebKit, which sandboxes its web process through
+ * bubblewrap and a dbus-proxy. In the CI container the document portal cannot
+ * mount (`fuse init failed: Can't mount path …/.cache/doc`), the proxy exits 1,
+ * and WebKit aborts the whole process. Measured on the first CI run that ever
+ * launched this showcase — it has never run in CI before this leg existed, which
+ * is why nobody had seen it.
+ */
+const ENVIRONMENT_BLOCKED = new Map([
+    [
+        'minimalist-browser',
+        {
+            why: "WebKit's bubblewrap sandbox cannot start under the CI container (no document-portal fuse mount)",
+            signature: /Failed to fully launch dbus-proxy/,
+        },
+    ],
+]);
+
 const argv = process.argv.slice(2);
 
 function flag(name, fallback) {
@@ -280,6 +307,12 @@ for (const { pkg, label, entryRel } of selected) {
 
     if (result.ok) {
         console.log(`ok   ${label} (${runtime}) — ${result.why} [${seconds}s]`);
+        continue;
+    }
+    const blocked = ENVIRONMENT_BLOCKED.get(label);
+    const output = `${result.stdout}\n${result.stderr}`;
+    if (blocked && blocked.signature.test(output)) {
+        console.log(`env  ${label} (${runtime}) — ${blocked.why} [${seconds}s]`);
         continue;
     }
     failures.push([label, result.why]);
