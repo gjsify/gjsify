@@ -1778,7 +1778,13 @@ jobs:
             const unscored = needs.filter((j) => !scored.includes(j));
             if (unscored.length) {
               console.error(`::error::the gate waits for but never SCORES: ${unscored.join(", ")}. ` +
-                "Add `<job>=${{ needs.<job>.result }}` to the Verdict step’s `RESULTS` — a job in " +
+                // The opening token is split so GITHUB does not read the rest as an
+                // expression to evaluate. `<job>` is a placeholder for a human and not
+                // a valid property dereference, so spelled whole the workflow file
+                // stops LOADING — a run with zero jobs, which reads as a green PR.
+                // This comment cannot spell it whole either: the scan is over raw
+                // text and knows nothing about JavaScript comments.
+                "Add `<job>=$" + "{{ needs.<job>.result }}` to the Verdict step’s `RESULTS` — a job in " +
                 "`needs:` alone is waited for and then ignored, so its failure passes the gate.");
               process.exit(1);
             }
