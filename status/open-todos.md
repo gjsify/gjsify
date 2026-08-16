@@ -1772,18 +1772,38 @@ spec one line after the first fix landed; and `AbortController` carried no
 `AbortSignal` sibling had one all along. Four commented lines had been hiding
 three shipped bugs.
 
-### 35 integration suites run on no event, and the pointer to this entry predates it
+### 13 integration suites are held out of the CI gate, each for a measured reason
 
-`main.yml` said "Integration tests are NOT wired into CI yet (opt-in; suites have CI-incompatible preconditions) … Tracked in `status/open-todos.md`." No entry tracked it. This is that entry, written after measuring the claim rather than inheriting it.
+The gate half now exists: `main.yml`'s `integration` job runs the measured-green subset on the
+`run-integration` output the classifier had been emitting into a step summary and nothing else.
+What remains open is the other 13 suites. This entry is what is left of "35 suites run on no
+event" after the per-suite measurement that entry asked for.
 
-MEASURED: `tests/integration/` holds 35 suites. Every mention of them in every workflow is an EXCLUSION — `--exclude "@gjsify/integration-*"` in the test shard and in `upgrade --check`. No event runs any of them: not push, not pull_request, not the nightly. The `changes` job still emits `run-integration`, and its only consumer is the step-summary line, so the classifier half is ready and the gate half was never built.
+MEASURED, per suite, in `ghcr.io/gjsify/ci-fedora:44` with a cold bootstrap (published cli →
+`install --immutable` → `build:infra` → `build`, all green): 21 green with assertions executed,
+13 held out, 1 (`devtools-cdp`) exiting 0 while asserting nothing. Sequential wall time for the
+21 is under four minutes on a 20-core host; the CI runner has four cores, so the job is budgeted
+at 20 minutes. Per-suite causes are recorded beside each suite in
+`status/integration-coverage.md` — that file, not this entry, is where a suite's status belongs.
 
-NOT MEASURED, and this is the gap between "wire it up" and knowing what that costs: WHICH of the 35 are hermetic. The blanket phrase "CI-incompatible preconditions" is true of some — privileged Podman, an Android device, registry egress, system GIRs — and is being used to cover all 35. The measurement that settles it is per-suite and small: for each, does it reach the network, a device, or a system service? Until someone does it, "opt-in" describes the status quo rather than deciding it.
+The blanket phrase this entry set out to test, "CI-incompatible preconditions", is retired: it
+holds for four suites (podman for `autobahn`, an Android device for `nativescript`, the native
+`node_datachannel.node` for `webtorrent`, `openssl(1)` for `tls-session`) and covered nine others
+that had simply never been run and are failing.
 
-Two things that must NOT be done in place of that measurement:
+The remaining work, in the shape it should be done:
 
-- **Do not delete `run-integration`.** It is the half that already works, and deleting it makes re-enabling the gate a bigger change than it is.
-- **Do not wire all 35 at once.** They pin upstream projects, so every pinned dependency becomes a PR blocker the day it breaks — real on-call surface for a solo maintainer, and the reason a hermetic SUBSET is the shape worth building. Estimated ~10–13 min per triggering run for that tier, on one runner, conditional on the classifier output that already exists.
+- **Seven suites are genuinely red** — `axios`, `chalk`, `debug`, `mcp-typescript-sdk`,
+  `socket.io`, `ts-for-gir`, `undici`. One cause per commit, and each returns to the allowlist in
+  the commit that makes it green. They are SEVEN causes, not one: a single shared defect was the
+  first hypothesis and the measurement refuted it. Two of them (`chalk`, `ts-for-gir`) fail on the
+  NODE leg, which by this repo's own rule means the test is wrong rather than the implementation.
+- **`undici` should be looked at first, and at the BUILD rather than the suite.** Its failures
+  read `me is not a function` — a mangled identifier reaching a call site is a bundling symptom,
+  and if it is one it will not be confined to this suite.
+- **`mcp-inspector-cli` needs no fix, only an ordering.** It reads an example's `dist`, which
+  `build:examples` produces and `build` does not.
+- **Do not delete `run-integration`.** Still true, and now for the opposite reason: it gates a job.
 
 ### Some small API gaps are declared only in a source comment
 

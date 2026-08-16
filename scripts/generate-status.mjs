@@ -1154,7 +1154,13 @@ export function renderStatus(root, facts, data) {
     out.push('');
     out.push(
         `\`tests/integration/\` validates \`@gjsify/*\` implementations by running curated upstream tests from ` +
-            `popular npm packages — ${integrationDirs.length} suites (opt-in: \`gjsify foreach test:integration\`). ` +
+            // `gjsify foreach test:integration` stood here and runs NOTHING: no suite declares
+            // that script, and foreach only hard-fails a zero-match `--include` pattern, not a
+            // zero-match script name. It exits 0. The summary section rendered above this one
+            // warns against exactly this spelling, so the generated file carried the warning and
+            // the trap in one document.
+            `popular npm packages — ${integrationDirs.length} suites (run them all with ` +
+            `\`gjsify run test:integration\` from the repo root; CI gates the measured-green subset). ` +
             'Suite notes are authored in [`status/integration-coverage.md`](status/integration-coverage.md); ' +
             'headings are validated against the suite directories.',
     );

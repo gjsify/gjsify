@@ -1245,6 +1245,87 @@ jobs:
       - name: E2E tests (shard ${{ matrix.shard }}/4)
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" node scripts/e2e-shard.mjs ${{ matrix.shard }} 4'
 
+  # ── Integration suites (curated upstream tests) ─────────────────────
+  # The suites under `tests/integration/` run real upstream test bodies against
+  # `@gjsify/*`. They are the largest regression net this repo owns, and until
+  # this job existed no event ran a single one of them: every mention in every
+  # workflow was an `--exclude`. The classifier half was already built and
+  # wired to nothing — `changes` has emitted `run-integration` all along and
+  # its only consumer was a line in the step summary.
+  #
+  # WHY AN ALLOWLIST, AND WHY THESE
+  #
+  # Not all of them pass, so gating all of them would gate red. Every suite was
+  # run individually in this same container image, and the list below is the
+  # set that came back green WITH assertions actually executed. The rest stay
+  # out and carry their measured cause in `status/integration-coverage.md`;
+  # each returns here in the commit that makes it green, one cause per commit.
+  #
+  # The list is spelled out rather than globbed on purpose. `gjsify foreach`
+  # makes an `--include` PATTERN matching zero workspaces a hard error, so a
+  # renamed or deleted suite fails this job loudly — where a glob would quietly
+  # shrink the set and stay green.
+  #
+  # `devtools-cdp` is NOT here although it exits 0. Its entire run is one test
+  # reading `skipped — no reachable inspector`: it needs a live WebKit remote
+  # inspector and self-skips without one. Exit code and assertion count
+  # disagree there, and the assertion count is the one that means something —
+  # listing it would add a permanently green check that verifies nothing.
+  #
+  # To reproduce exactly what this job runs, from the repo root:
+  #   gjsify foreach test -tv --include @gjsify/integration-acorn …
+  # `gjsify run test:integration` answers a DIFFERENT question — every suite,
+  # opt-in, including the ones known to fail.
+  integration:
+    needs: [changes, setup, build]
+    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-integration == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora: ${{ fromJSON(needs.setup.outputs.fedora-matrix) }}
+    name: Integration suites Fedora ${{ matrix.fedora.v }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 20
+    container:
+      image: ghcr.io/gjsify/ci-fedora:${{ matrix.fedora.v }}
+      options: --ulimit nofile=1048576:1048576
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/gjsify-setup
+        with:
+          fedora-version: ${{ matrix.fedora.v }}
+          # Each suite's `test` script drives the CHECKOUT's cli through the
+          # `.bin` shim, which dispatches to `dist/cli.gjs.mjs`; ADR 0002 took
+          # that out of the checkout, so it arrives as the build artifact.
+          bootstrap-bundles: 'true'
+      - name: Integration suites (the measured-green set)
+        run: >
+          su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" gjsify foreach test -tv
+          --include @gjsify/integration-acorn
+          --include @gjsify/integration-chokidar
+          --include @gjsify/integration-cosmiconfig
+          --include @gjsify/integration-deepkit-type-compiler
+          --include @gjsify/integration-deltachat
+          --include @gjsify/integration-dotenv
+          --include @gjsify/integration-execa
+          --include @gjsify/integration-fast-glob
+          --include @gjsify/integration-gettext-parser
+          --include @gjsify/integration-lightningcss
+          --include @gjsify/integration-loro-crdt
+          --include @gjsify/integration-minify-xml
+          --include @gjsify/integration-oxfmt-native
+          --include @gjsify/integration-pkg-types
+          --include @gjsify/integration-rolldown-native
+          --include @gjsify/integration-rollup-pluginutils
+          --include @gjsify/integration-streamx
+          --include @gjsify/integration-typescript-tsc
+          --include @gjsify/integration-worker-stress
+          --include @gjsify/integration-yargs
+          --include @gjsify/integration-yjs'
+
   # ── Examples (test) ─────────────────────────────────────────────────
   # Runs the example/showcase test suites against the dist the build job
   # produced (downloaded as an artifact — examples can't be rebuilt off a
@@ -1451,7 +1532,7 @@ jobs:
   # Never gates. Its output is the step summary, not its exit code.
   ci-summary:
     name: CI coverage summary
-    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, examples, browser]
+    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, integration, examples, browser]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
@@ -1516,8 +1597,9 @@ jobs:
             printf -- '- classifier reason: `%s`\n' "${C_REASON:-<unset — classifier did not run or crashed; jobs fall back to a full run>}"
             printf -- '- affected closure: `%s`\n' "${C_INCLUDE:-<empty — treated as a full run>}"
             printf -- '- macOS leg: `enabled=%s` — %s\n' "${M_ENABLED:-<unset>}" "${M_REASON:-<unset>}"
-            echo "- integration suites (\`tests/integration/**\`) are not wired into any"
-            echo "  workflow yet — they run on no event, PR or main. Tracked in status/open-todos.md."
+            echo "- integration suites (\`tests/integration/**\`): the measured-green subset gates"
+            echo "  this run via the \`integration\` job; the rest are held out with their cause"
+            echo "  recorded per suite in status/integration-coverage.md."
             echo
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -1604,15 +1686,15 @@ jobs:
             echo
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Integration tests are NOT wired into CI yet. Measured: all 35 suites under
-  # `tests/integration/` appear in every workflow only as an EXCLUSION, so no
-  # event runs any of them. The classifier still emits `run-integration` — the
-  # half that works — so re-enabling the gate per-suite stays a small change.
-  # "CI-incompatible preconditions" is true of SOME (privileged Podman, an
-  # Android device, registry egress, system GIRs) and is not measured for the
-  # rest; that per-suite measurement, and why a hermetic subset rather than all
-  # 35, is `status/open-todos.md`. This comment claimed that tracking before the
-  # entry existed.
+  # The integration suites are gated by the `integration` job above, for the
+  # subset measured green in this image. Which suites those are, and the cause
+  # held against each one that is out, is `status/integration-coverage.md`.
+  #
+  # "CI-incompatible preconditions" stood here as a blanket reason for all 35
+  # until the per-suite measurement retired it: it is true of four of them
+  # (podman, an Android device, a native `.node`, `openssl(1)`), while most of
+  # the rest had simply never been run. Do not restore a blanket phrase — the
+  # reason a suite is out belongs beside that suite.
 
   # The ONE job this workflow's verdict may be read from — the branch-protection
   # required check. Everything else here is either a matrix leg (its name carries
@@ -1632,7 +1714,7 @@ jobs:
   # produces a fresh verdict anyway.
   gate:
     name: CI gate (GJS)
-    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, examples, browser]
+    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, integration, examples, browser]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
@@ -1679,7 +1761,35 @@ jobs:
                 "cannot block a merge.");
               process.exit(1);
             }
+            // `needs:` only makes the gate WAIT for a job. What decides the
+            // verdict is the `RESULTS` env below, and that is a second
+            // hand-written list which nothing held to the first: a job added
+            // to `needs:` but not to `RESULTS` is waited for and then not
+            // read, so its failure passes the gate. Same drift this workflow
+            // warns about two jobs up, one level further in.
+            const verdictAt = lines.findIndex((l) => /^\s+RESULTS: \|\s*$/.test(l));
+            if (verdictAt < 0) { console.error("::error::cannot find the Verdict step’s `RESULTS:` block"); process.exit(1); }
+            const scored = [];
+            for (const line of lines.slice(verdictAt + 1)) {
+              const m = /^\s+([A-Za-z0-9_-]+)=\$\{\{ needs\./.exec(line);
+              if (!m) break;
+              scored.push(m[1]);
+            }
+            const unscored = needs.filter((j) => !scored.includes(j));
+            if (unscored.length) {
+              console.error(`::error::the gate waits for but never SCORES: ${unscored.join(", ")}. ` +
+                // The opening token is split so GITHUB does not read the rest as an
+                // expression to evaluate. `<job>` is a placeholder for a human and not
+                // a valid property dereference, so spelled whole the workflow file
+                // stops LOADING — a run with zero jobs, which reads as a green PR.
+                // This comment cannot spell it whole either: the scan is over raw
+                // text and knows nothing about JavaScript comments.
+                "Add `<job>=$" + "{{ needs.<job>.result }}` to the Verdict step’s `RESULTS` — a job in " +
+                "`needs:` alone is waited for and then ignored, so its failure passes the gate.");
+              process.exit(1);
+            }
             console.log(`CI gate covers all ${expected.length} job(s): ${expected.join(", ")}`);
+            console.log(`Verdict scores all ${needs.length} of them.`);
           '
       - name: Verdict
         shell: bash
@@ -1695,6 +1805,7 @@ jobs:
             cross-runtime=${{ needs.cross-runtime.result }}
             macos=${{ needs.macos.result }}
             e2e=${{ needs.e2e.result }}
+            integration=${{ needs.integration.result }}
             examples=${{ needs.examples.result }}
             browser=${{ needs.browser.result }}
         run: |

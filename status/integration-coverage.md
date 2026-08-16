@@ -5,9 +5,20 @@
      a section without a suite fails). Keep counts/narrative current in place;
      per-change history belongs in commit messages. -->
 
+**How CI uses this file.** `main.yml`'s `integration` job gates the suites measured green in
+`ghcr.io/gjsify/ci-fedora`; every suite below that is NOT marked **HELD OUT** is in that
+allowlist. A held-out suite states its measured cause inline and returns to the allowlist in the
+commit that makes it green — one cause per commit.
+
+The counts in each section were true when authored and nothing re-ran them, which is how nine
+suites came to be described as green while failing. They are now measured. Where a count below
+carries no HELD OUT marker it was re-confirmed; four had drifted upward as tests were added
+(acorn 127→128 per runtime, chokidar 19→33, execa GJS 43→44, worker-stress GJS 1034→1057) and
+are corrected in place.
+
 ## acorn
 
-Phase D-1 Workstream P — pure-JS ECMAScript parser + AST visitor (acorn + acorn-walk) used by `@gjsify/rolldown-plugin-gjsify`'s `auto-globals` detector. **Node: 127/127 green. GJS: 127/127 green, 0 skips.** No `@gjsify/*` fixes required — a clean canary that the SpiderMonkey 140 ES2024 surface (private class fields, top-level await, optional chaining, logical assignment, dynamic `import()`, import attributes, tagged templates) used by the `--globals auto` builder is intact under `firefox140` lowering. Suites: parse-basic (11), parse-strict (10), walk-basic (6), walk-recursive (5), error-positions (6) — each ×2 runtimes.
+Phase D-1 Workstream P — pure-JS ECMAScript parser + AST visitor (acorn + acorn-walk) used by `@gjsify/rolldown-plugin-gjsify`'s `auto-globals` detector. **Node: 128/128 green. GJS: 128/128 green, 0 skips.** No `@gjsify/*` fixes required — a clean canary that the SpiderMonkey 140 ES2024 surface (private class fields, top-level await, optional chaining, logical assignment, dynamic `import()`, import attributes, tagged templates) used by the `--globals auto` builder is intact under `firefox140` lowering. Suites: parse-basic (11), parse-strict (10), walk-basic (6), walk-recursive (5), error-positions (6) — each ×2 runtimes.
 
 ## autobahn
 
@@ -26,21 +37,29 @@ No cases are excluded: core RFC 6455 (1.\*–7.\*), permessage-deflate (12.\*/13
 
 **Not wired into CI** — Podman-in-CI needs privileged containers our config doesn't grant. Manual run + committed baselines under `reports/baseline/<agent>.json`; regressions surface in PR diffs.
 
+**HELD OUT of CI** (measured per-suite in `ghcr.io/gjsify/ci-fedora`): external precondition — `ghcr.io/gjsify/ci-fedora` ships neither podman nor docker, so `autobahn:up` exits 2 before a single case runs. Matches the "Not wired into CI" note above; the note is now measured rather than assumed.
+
 ## axios
 
 Validates axios 1.x against `@gjsify/*` using real localhost `node:http` servers (no mocking). On GJS, axios selects the XHR adapter because `globalThis.XMLHttpRequest` is available. **Node: 68/68 green. GJS: 52/52 green, 12 ignored (HTTP-adapter-only features).** Suites: basic (12), headers (8/5+3 ignored), timeout (6/5+1), redirects (7/5+2), compression (8/5+2), streams (6/3+3), abort (5/5). Root-cause fixes surfaced (landed): the `@gjsify/fetch` double-decompression bug (`Soup.ContentDecoder` removed per session; JS-level `DecompressionStream` decompresses exclusively), UTF-8 BOM stripping in XHR `responseText`, and the `@gjsify/zlib` brotli stubs.
+
+**HELD OUT of CI** (measured per-suite in `ghcr.io/gjsify/ci-fedora`): GJS **1 of 51 fails** — `compression › empty gzip response body is handled (no Z_BUF_ERROR)` reports `Network Error`. The Node leg is green (68). Documented above as `GJS: 52/52 green`, which no longer holds.
 
 ## chalk
 
 Universal terminal-color package (every CLI tool depends on chalk). Three ported spec files exercise ANSI escape-code generation, the truecolor + RGB/hex/ansi256 chain API with level-downsampling, and the level-gating contract: basic (18 — chain styling, nesting, `.reset()`, grey/gray alias, `Function.prototype.{apply,bind,call}` preserved, LF + CRLF line-break reopening), templates (11 — 24-bit SGR, hex parsing, ansi256, level=1/2/3 downsampling), level (17 — level=0 stripping, child/root level propagation, `new Chalk({level})` isolated context, range validation). **46 authored assertions; Node + GJS counts pending a clean run** (the initial suite-local install exhausted the worktree tmpfs; chalk 5 is pure-ESM JS over vendored ansi-styles + supports-color, so no `@gjsify/*` source change is anticipated). `chalk.level` is pinned per suite so assertions stay deterministic regardless of host TTY/COLORTERM/CI/FORCE_COLOR.
 
+**HELD OUT of CI** (measured per-suite in `ghcr.io/gjsify/ci-fedora`): Node **5 of 74 fail** — the `chalk.level` gating cases (`level = 1/2/3`, and the isolated `new Chalk({level})` context) all report `Expected values to match using ===`. This is the NODE leg, so by the repo's own rule it says the TEST is wrong, not that our implementation is. The "counts pending a clean run" note above was honest; this is that run.
+
 ## chokidar
 
-4 spec files ported from chokidar 5.0.0 `src/index.test.ts`. **Node: 19/19 green. GJS: 19/19 green, 0 skips.** Validates `@gjsify/fs`'s `FSWatcher` (`Gio.FileMonitor`-backed) end-to-end via the file-watching surface every TypeScript-aware dev tool depends on (Vite, Rolldown, esbuild/tsc `--watch`): basic events (add/change/unlink/addDir/unlinkDir/rename/all/close idempotency), recursive watch (chokidar walks the tree itself; `depth` boundaries), ignored (regex/function/subdir), await-write-finish (stabilityThreshold polling). Root-cause fix surfaced (landed): `FSWatcher` now emits the Node-contract `'change'` event shape — `(eventType: 'rename' | 'change', filename)` — instead of separate `'rename'`-named events that dropped every create/rename/delete for contract-following consumers (16 of 19 cases failed before the one-character fix in `fs-watcher.ts`).
+4 spec files ported from chokidar 5.0.0 `src/index.test.ts`. **Node: 33/33 green. GJS: 33/33 green, 0 skips.** Validates `@gjsify/fs`'s `FSWatcher` (`Gio.FileMonitor`-backed) end-to-end via the file-watching surface every TypeScript-aware dev tool depends on (Vite, Rolldown, esbuild/tsc `--watch`): basic events (add/change/unlink/addDir/unlinkDir/rename/all/close idempotency), recursive watch (chokidar walks the tree itself; `depth` boundaries), ignored (regex/function/subdir), await-write-finish (stabilityThreshold polling). Root-cause fix surfaced (landed): `FSWatcher` now emits the Node-contract `'change'` event shape — `(eventType: 'rename' | 'change', filename)` — instead of separate `'rename'`-named events that dropped every create/rename/delete for contract-following consumers (16 of 19 cases failed before the one-character fix in `fs-watcher.ts`).
 
 ## claude-agent-sdk
 
 Fresh suite (no API key) against `@anthropic-ai/claude-agent-sdk@0.3.181` — the ground-truth compatibility check for building AI-agent tooling on GNOME. **Node: 123/123 green. GJS: 125/125 green.** Exercises Explicit Resource Management (`using`/`await using` → the `Symbol.dispose`/`asyncDispose` GJS-banner polyfill; stream/readline/FileHandle dispose), zod-v4 + the MCP SDK (`createSdkMcpServer`/`tool` via `InMemoryTransport`), fs session readers + `CLAUDE_CONFIG_DIR`, os/path/process.env.
+
+**HELD OUT of CI** (measured per-suite in `ghcr.io/gjsify/ci-fedora`): GJS throws at module load — `ReferenceError: SharedArrayBuffer is not defined`, inside `__esmMin`, before any test executes. Needs the SharedArrayBuffer constructor opt-in tracked in `status/open-todos.md`. The Node leg is green (123). Documented above as `GJS: 125/125 green`.
 
 ## cosmiconfig
 
@@ -49,6 +68,8 @@ Phase D-1 Workstream S. Validates `@gjsify/fs` (read), `@gjsify/path` (resolve) 
 ## debug
 
 Validates `@gjsify/tty` (isatty), `@gjsify/process` (`process.stderr.write` + `.fd`) and `@gjsify/util` (formatWithOptions + inspect format specifiers) end-to-end via TJ Holowaychuk's `debug` — the same code paths Express / socket.io / eslint pull on every log. Green on Node + GJS.
+
+**HELD OUT of CI** (measured per-suite in `ghcr.io/gjsify/ci-fedora`): GJS — every built-in format specifier case fails, and the assertion shows an EMPTY captured string (`Expected  to contain fmt:s`, `… count=42`, `… payload={"a":1,"b":"two"}`). Nothing reaches the captured `process.stderr`. Documented above as green on both.
 
 ## deepkit-type-compiler
 
@@ -62,13 +83,15 @@ DeltaChat / chatmail core (`@deltachat/jsonrpc-client` + `@deltachat/stdio-rpc-s
 
 Validates `@gjsify/devtools-cdp`'s `InspectorProtocolClient` against a **live WebKit remote inspector** (CDP-shaped JSON-RPC over a per-target WebSocket), ported from `refs/webkit/LayoutTests/inspector/{runtime,dom}`. Opt-in + skip-if-unreachable: with `GJSIFY_CDP_INSPECTOR_PORT` unset it registers a single passing "skipped" test; pointed at a reachable inspector it asserts real `Runtime.evaluate` / `DOM.getDocument`/`querySelector`/`getOuterHTML`/`querySelectorAll` round-trips. Launch recipe: `gjsify browse <url> --inspector-port 9222`, then `GJSIFY_CDP_INSPECTOR_PORT=9222 gjsify workspace @gjsify/integration-devtools-cdp test`. **Not wired into CI** — needs a real WebKitGTK display.
 
+**HELD OUT of CI** (measured per-suite in `ghcr.io/gjsify/ci-fedora`): HELD OUT of the allowlist despite exiting 0. Its whole run is one test reading `skipped — no reachable inspector`: with `GJSIFY_CDP_INSPECTOR_PORT` unset it self-skips, so rc=0 and the assertion count is 1. Listing it would add a permanently green check that verifies nothing.
+
 ## dotenv
 
 Tiny but load-bearing — dotenv is the most ubiquitous third-party `process.env` mutator on npm, so if the `@gjsify/process` `process.env` Proxy's get/set/delete traps drift from Node's plain-object semantics this suite catches it first. **Node: 127/127 green (96 `it()` blocks). GJS: 127/127 green, 0 skips.** parse (48 — every quoting branch, inline comments, `\n` expansion, `export` tolerance, Buffer input, duplicate-key + line-ending matrix), parse-multiline (23), config (38 — string/array/URL paths, override semantics, `processEnv` target, ENOENT), populate (18 — incl. `delete process.env.X` unsetenv trap + `in` has trap). Fixtures reproduced verbatim from upstream v17.4.2. No `@gjsify/*` fix required.
 
 ## execa
 
-Phase D-1 Workstream T — the `execa` v9 subprocess wrapper consumed by `@gjsify/vite-plugin-blueprint` (blueprint-compiler) and `@gjsify/vite-plugin-gettext` (xgettext/msgfmt). **Node: 44/44 green. GJS: 43/43 green, 1 ignored on GJS** (async-stdin piping — tracked in Open TODOs as part of the child_process surface). Fixes surfaced (landed): named-import `hrtime` preserves `.bigint`; `ChildProcess.stdio` getter exposes the `[stdin, stdout, stderr]` tuple; the `--app gjs` process-stub's `hrtime` gained `.bigint` so pre-register `__esm` lazy-init code cannot hit a TypeError.
+Phase D-1 Workstream T — the `execa` v9 subprocess wrapper consumed by `@gjsify/vite-plugin-blueprint` (blueprint-compiler) and `@gjsify/vite-plugin-gettext` (xgettext/msgfmt). **Node: 44/44 green. GJS: 44/44 green, 0 ignored** — the async-stdin-piping case that was ignored on GJS now runs and passes (the measured run shows no `(skipped)` and no `✗`), so the Open-TODO note about it no longer describes this suite. Fixes surfaced (landed): named-import `hrtime` preserves `.bigint`; `ChildProcess.stdio` getter exposes the `[stdin, stdout, stderr]` tuple; the `--app gjs` process-stub's `hrtime` gained `.bigint` so pre-register `__esm` lazy-init code cannot hit a TypeError.
 
 ## fast-glob
 
@@ -90,9 +113,13 @@ Phase D-1 Workstream R. Validates `@gjsify/buffer` (binary MO parsing, endiannes
 
 Drives the official `@modelcontextprotocol/inspector` CLI as a subprocess against both GJS and Node builds of `examples/node/net-mcp-server` — catches regressions in the exact wire shape that produced the original MCP crash. **Node: 14/14 green. GJS: 14/14 green, 0 skips.** 7 scenarios (tool list/call, resource list/read, prompt list/get, server info) × both server builds. Sequential-call cap N ≤ 4 to stay under the residual deferred-GC window from the MCP SDK / Hono / web-streams stack (see Upstream GJS Patch Candidates).
 
+**HELD OUT of CI** (measured per-suite in `ghcr.io/gjsify/ci-fedora`): missing build precondition — the suite reads `examples/node/net-mcp-server/dist/index.gjs.mjs`, which `gjsify run build` does not produce (`build:examples` does). Reported as `14 of 0 tests failed`. Documented above as green on both.
+
 ## mcp-typescript-sdk
 
 Validates `@gjsify/http`, `@gjsify/fetch`, `@gjsify/net`, `@gjsify/ws`, `@gjsify/events`, `@gjsify/child_process`, `@gjsify/buffer` and the MCP TypeScript SDK's pure-JS surfaces. **Node: 281/281 green. GJS: 281/287 green** (6 pre-existing `streamable-http.spec.ts` timeouts under flaky libsoup long-poll SSE pause behaviour; tracked separately). Suites: protocol, tool, resource, prompt, streamable-http (⚠ flaky on GJS), in-memory-transport, stdio-buffer (newline framing incl. mid-codepoint UTF-8 chunking), uri-template (RFC 6570 incl. the CVE-2026-0621 ReDoS regression cases), tool-name-validation, stdio-subprocess (regression coverage for the `@gjsify/child_process` env-undefined silent-data-loss fix), server-initiated-requests (sampling + elicitation), cancellation-progress. Historic fixes surfaced: `ServerRequestSocket.destroySoon()`, async handler rejections swallowed in `_handleRequest`, `McpServer` GC'd between requests when handler-scoped.
+
+**HELD OUT of CI** (measured per-suite in `ghcr.io/gjsify/ci-fedora`): GJS **1 of 278 fails** — `MCP Streamable HTTP Transport › should sustain inspector-like mixed workload across sessions` exceeds its 5000 ms budget. Time-sensitive, so it may behave differently on a slower runner.
 
 ## minify-xml
 
@@ -101,6 +128,8 @@ Phase D-1 Workstream X — the `minify-xml` v4 pure-JS XML compressor consumed b
 ## nativescript
 
 On-device polyfill smoke suite — runs gjsify `nativescript:'polyfill'` packages on the **real NativeScript V8 runtime** (Android), closing the gap between *declaring* an NS slot and *executing* it. **14/14 green on NS V8** (NS CLI 9.0.6 / runtime 9.0.4, `@nativescript/core` 9.x, Vite 8.0.16): `@gjsify/path` 7/7 + `@gjsify/buffer` 7/7. Bundles the specs into a tiny NS app via the `@gjsify/nativescript-vite` composer, builds the APK, installs + launches on an emulator, parses `__GJSIFY_NS__` markers out of `adb logcat`. Root-cause fix surfaced (landed): `@gjsify/buffer` constructed `TextEncoder`/`TextDecoder` at module-eval time — on NS V8 those globals register after module evaluation, so the bundle rejected on app start; now lazily initialised. Local-only (needs the NS CLI + an Android emulator); excluded from the root workspace so the heavy NS toolchain is not pulled by `gjsify install`; not wired into CI. The deterministic runner works around NS CLI 9.0.6's watch-only Vite bundle-copy (see Open TODOs).
+
+**HELD OUT of CI** (measured per-suite in `ghcr.io/gjsify/ci-fedora`): not selectable at all: the root manifest excludes `tests/integration/nativescript` from `workspaces`, so no `@gjsify/integration-nativescript` workspace exists (`gjsify workspace …` answers `no workspace named …`). It also drives a real device over `adb`.
 
 ## oxfmt-native
 
@@ -122,6 +151,8 @@ Phase D-1 Workstream V — the helper toolkit consumed by `@gjsify/rolldown-plug
 
 5 test suites ported from socket.io v4 upstream. **Node: 112/112 green. GJS: 112/112 green, 0 skips.** Full transport coverage: polling, polling→WebSocket upgrade, and WebSocket-only. handshake (4 — CORS, allowRequest), socket-middleware (2), socket-timeout (4), socket (63 — emit/acks, onAny/offAny/prependAny, volatile, compression, disconnect, reserved-event guards), namespaces (39 — multi-namespace, `except()`, dynamic namespaces). Root-cause fixes surfaced (landed): `@gjsify/fetch` POST body never sent (raw-body attach via `set_request_body_from_bytes`); `IncomingMessage` wrongly emitted `'close'` after body end (breaking engine.io long-poll — `_autoClose` hook, close only via destroy per Node semantics); `EventEmitter.prototype` methods made enumerable (socket.io builds its namespace proxy from `Object.keys(EventEmitter.prototype)`); `req.socket` set on WebSocket upgrades; `--globals auto,WebSocket` for the alias-shaped `globalThisShim.WebSocket` access the detector cannot follow.
 
+**HELD OUT of CI** (measured per-suite in `ghcr.io/gjsify/ci-fedora`): GJS — the four `volatile event` cases fail with `Expected values to match using ===`. Documented above as `GJS: 112/112 green, 0 skips`.
+
 ## streamx
 
 6 spec files ported from `refs/streamx/test/` plus an original `throughput.spec.ts`. **Node: 155/155 green. GJS: 156/156 green (1 GJS-only test), 0 skips.** readable (24), writable (10), transform (2), pipeline (5), duplex (5), throughput (5/6 — queueMicrotask injection, 100-chunk no-loss, pipeline byte preservation, Duplex echo, timing). Root cause of the historic 0 B/s webtorrent-player symptom: `queueMicrotask` must be injected so streamx uses Promise-based microtask scheduling instead of the `process.nextTick` fallback — the GJS-only throughput test pins the injection.
@@ -130,9 +161,13 @@ Phase D-1 Workstream V — the helper toolkit consumed by `@gjsify/rolldown-plug
 
 Real TLS-handshake round-trip validating the `@gjsify/tls-native` Phase 2 Path-A C shim. session-resumption (conn 1 captures the session blob via the `'session'` event; conn 2 with `{session}` resumes — `isSessionReused() === true`; TLS 1.2 forced for predictable ticket-based resumption; the GJS path additionally asserts `hasTlsSessionAccess() === true` so a degraded native bridge fails loudly) + channel-binding (`getFinished()`/`getPeerFinished()` non-empty and different on both TLS 1.2 `tls-unique` and TLS 1.3 `tls-exporter` — identical bytes would be a handedness bug). Green on Node + GJS. Fixture cert+key generated at prebuild time via one `openssl req -x509` command; the server is a vanilla `node:tls.createServer` driven by `@gjsify/tls` under `--app gjs` via the standard alias layer — no GJS-specific test plumbing.
 
+**HELD OUT of CI** (measured per-suite in `ghcr.io/gjsify/ci-fedora`): external precondition — `setup-fixtures` shells out to `openssl(1)`, which the CI image does not ship (`spawnSync openssl ENOENT`). Fails before `build:test`. Green on any workstation that has openssl, which is why this was never noticed.
+
 ## ts-for-gir
 
 Phases 1–9 (partial): validates `@gi.ts/parser`, `@ts-for-gir/lib`, the typescript/json/html-doc generators, `@ts-for-gir/cli` and `@ts-for-gir/language-server` (v4.0.0-rc.13). **Node: 278/278 green. GJS: 214/214 green (3 ignored — Node-only: TypeDoc/shiki WASM + the CJS `typescript` lib resolution).** `glob`, `ejs`, `lodash`, `colorette`, `cosmiconfig`, `yargs`, `typedoc` all work on GJS/Node via `@gjsify/*`. Parser fixtures are gjsify's own Vala-generated GIRs; both CLI bundles (`dist/cli.node.mjs` + `dist/cli.gjs.mjs`) run the non-interactive command surface incl. the `--configName` cosmiconfig ESM-rc path (gjsify/ts-for-gir#385) and the `create` GJS-bundle short-circuit (gjsify/ts-for-gir#386). Root-cause fixes this suite drove into the platform over its phases: `util.styleText`/`stripVTControlCharacters`, per-source-file `__filename`/`__dirname` injection on the node target, the `--define`/`--external`/`--alias` CLI flags, runtime-relative `import.meta.url` rewriting (removed the TypeDoc stubs), `createRequire` ancestor-`node_modules` walk, `ensureMainLoop()` in `@gjsify/child_process.spawn()`. Strategic goal: ts-for-gir runs unmodified on GJS — remaining phases in Open TODOs.
+
+**HELD OUT of CI** (measured per-suite in `ghcr.io/gjsify/ci-fedora`): Node **1 of 291 fails** — `Expected --template is required (non-TTY)`. The NODE leg again, so this is the test/fixture, not our implementation. Documented above as `Node: 278/278 green`.
 
 ## typescript-tsc
 
@@ -142,13 +177,17 @@ TypeScript compiler (tsc) + language-server API on GJS and Node. **Node: 35 gree
 
 Three ports against npm `undici@7` — the canonical HTTP/1.1 + WebSocket client (Node's own `globalThis.fetch` is undici). Exercises `fetch`, `request` and `WebSocket` end-to-end against a local `node:http`-backed server (native on Node; `@gjsify/http` under GJS via the alias layer). **Node: 31/31 green (76 assertions). GJS: unblocked by the `@gjsify/zlib` Zstd stubs (undici's module-init feature detector reads `createZstdDecompress`); live GJS counts pending a run — any remaining gap is a separate follow-up.** fetch-basic (13), request (13), websocket (5 — npm `ws` server on Node, `@gjsify/ws` on GJS via the alias map, same source both runtimes).
 
+**HELD OUT of CI** (measured per-suite in `ghcr.io/gjsify/ci-fedora`): GJS — the basic verb cases fail with `me is not a function`. A MANGLED identifier reaching a call site points at the bundle rather than at the suite, so this one wants a look at the build before the test.
+
 ## webtorrent
 
 7 test files ported from `refs/webtorrent/test/`. **Node: 185/185 green. GJS: 185/185 green, 0 skips.** selections, rarity-map, client-destroy, client-add, bitfield, file-buffer, iterator — exercising fs (URL paths), stream, events, buffer, crypto, the `require`-condition ESM fix and the `random-access-file` alias. Root-cause fixes surfaced (landed): `@gjsify/fs` accepts `URL` path arguments across every public entry point; ESM builds no longer pull CJS entries through the `require` condition (double-`__toESM`-wrap made classes non-constructable); `random-access-file` aliased to its Node entry (the browser-stub throw stalled every `client.seed()`).
 
+**HELD OUT of CI** (measured per-suite in `ghcr.io/gjsify/ci-fedora`): external precondition — `Cannot find module '../../../build/Release/node_datachannel.node'`; the native `node_datachannel` binary is absent in the image. Documented above as green on both.
+
 ## worker-stress
 
-Three-suite stress workload validating `@gjsify/worker_threads` `transferList` semantics + the `SharedArrayBuffer` pass-through path + the cross-process `SharedBuffer` path. **Node: 1169/1169 green (SAB suite included; sab-native suite skipped). GJS: 1034/1034 green (SAB suite probe-only; sab-native suite runs the full 4-worker workload).** transferlist-stress (bulk ArrayBuffer transfer — 256 × 64 KiB with detach + integrity checks; multi-channel FIFO fan-out; 5-hop MessagePort transfer chain), sab-parallel-hash (Node: 4 threads SHA-256 over disjoint slices of a 1 MiB SAB, `Atomics` barrier), sab-native-parallel-hash (GJS: 4 subprocess workers over a memfd-backed `SharedBuffer` — SCM_RIGHTS fd-passing under load, page-coherent mmap across 5 processes, SEQ_CST visibility, count-and-drain bootstrap protocol; plus 8 workers × 10k `fetch_add` under contention with exactly 80,000 observed). Throughput baselines logged per run, not asserted (Node ≈ 700 MiB/s transferList; GJS ≈ 235 MiB/s).
+Three-suite stress workload validating `@gjsify/worker_threads` `transferList` semantics + the `SharedArrayBuffer` pass-through path + the cross-process `SharedBuffer` path. **Node: 1169/1169 green (SAB suite included; sab-native suite skipped). GJS: 1057/1057 green (SAB suite probe-only; sab-native suite runs the full 4-worker workload).** transferlist-stress (bulk ArrayBuffer transfer — 256 × 64 KiB with detach + integrity checks; multi-channel FIFO fan-out; 5-hop MessagePort transfer chain), sab-parallel-hash (Node: 4 threads SHA-256 over disjoint slices of a 1 MiB SAB, `Atomics` barrier), sab-native-parallel-hash (GJS: 4 subprocess workers over a memfd-backed `SharedBuffer` — SCM_RIGHTS fd-passing under load, page-coherent mmap across 5 processes, SEQ_CST visibility, count-and-drain bootstrap protocol; plus 8 workers × 10k `fetch_add` under contention with exactly 80,000 observed). Throughput baselines logged per run, not asserted (Node ≈ 700 MiB/s transferList; GJS ≈ 235 MiB/s).
 
 ## yargs
 
