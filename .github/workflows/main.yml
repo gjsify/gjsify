@@ -1583,10 +1583,15 @@ jobs:
             echo
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # Integration tests are NOT wired into CI yet (opt-in; suites have
-  # CI-incompatible preconditions). The classifier still emits run-integration
-  # so the gate can be re-enabled per-suite once each is hardened. Tracked in
-  # status/open-todos.md.
+  # Integration tests are NOT wired into CI yet. Measured: all 35 suites under
+  # `tests/integration/` appear in every workflow only as an EXCLUSION, so no
+  # event runs any of them. The classifier still emits `run-integration` — the
+  # half that works — so re-enabling the gate per-suite stays a small change.
+  # "CI-incompatible preconditions" is true of SOME (privileged Podman, an
+  # Android device, registry egress, system GIRs) and is not measured for the
+  # rest; that per-suite measurement, and why a hermetic subset rather than all
+  # 35, is `status/open-todos.md`. This comment claimed that tracking before the
+  # entry existed.
 
   # The ONE job this workflow's verdict may be read from — the branch-protection
   # required check. Everything else here is either a matrix leg (its name carries
