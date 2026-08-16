@@ -26,26 +26,33 @@ package it named had reached `full`.
    runner that gates the push; nothing byte-compares a committed prebuild; bundle determinism is
    unmeasured; and 51 `pwsh` blocks are never syntax-checked, eleven of them in `release.yml`.
 
-3. **Correct the one licence claim a machine reads.** The three `@gjsify/gtk-runtime-*` bundles
-   declare `"license": "MIT"` while shipping several dozen relocated LGPL/MPL/GPL libraries. The
-   notice TEXTS are generated and gated; the manifest field is not, so a scanner or SBOM
-   generator reads a declaration the tarball contradicts. It wants the same treatment as the
-   texts: emitted from what the builder measured, held to the manifest by a rule, never a
-   hand-edited string.
+   A second shape of the same class, and the one to look for next: a job that runs only AFTER
+   the merge. It does not pass without measuring — it is simply absent from the PR, which reads
+   identically. `pr-trigger-parity` now holds every workflow's `pull_request` trigger to its
+   `push`-to-`main` one; what it deliberately cannot see is whether a filter's globs still cover
+   the inputs the workflow guards (`napi.yml` is the open instance).
 
-4. **Keep the ledger measurable.** Entries here and in `open-todos.md` describe a tree that moves
-   faster than prose, and a stale entry reads exactly like live work — because it was. Two
-   guards (closed-issue references, non-existent paths) were measured against the file and are
-   worse than nothing. The one signal that would have caught the known instances is a QUOTE: an
-   entry that quotes a source fragment from a file it names, held to that fragment still
-   occurring there. Whether enough entries make a quotable claim is the next measurement, not
-   another guard.
+3. **Keep the ledger measurable — the guards are exhausted, the reading pass is not.** Entries
+   here and in `open-todos.md` describe a tree that moves faster than prose, and a stale entry
+   reads exactly like live work, because it was. THREE guards have now been measured against
+   the file and all three are worse than nothing: closed-issue references, non-existent paths,
+   and — measured 2026-08-16 — the quote-anchor check this item used to nominate, which flags
+   42 of 98 pairs because it cannot distinguish a QUOTE from a MENTION. Stop proposing guards.
+   Both stale entries found in that round were found by reading the tree, and both are deleted;
+   the record of what was tried, and why each attempt fails, is the last section of
+   `open-todos.md`. The only machinery still worth building is the narrow one: an entry that
+   pastes a JSON or YAML fragment verbatim can be held to it, because a pasted structure cannot
+   be a mention. That is roughly one entry, so build it small or not at all.
+
+   Note for whoever reads this next: **this section is itself the failure mode.** Its previous
+   point 3 asked for a licence declaration that had already been corrected, in a rule that
+   already existed — the file warning about second copies going stale had gone stale.
 
 ### Low priority
 
-5. **cluster** — multi-process via a Gio.Subprocess pool. `isPrimary`/`isMaster`/`isWorker`
+4. **cluster** — multi-process via a Gio.Subprocess pool. `isPrimary`/`isMaster`/`isWorker`
    exist; `fork()` throws. High effort: it needs a real multi-process architecture.
-6. **inspector** — GJS debugger integration (`gjs --debugger`). `Session.post()` and
+5. **inspector** — GJS debugger integration (`gjs --debugger`). `Session.post()` and
    `open`/`close` exist and are empty. V8-specific, and hard to port because of it.
 
 These two are the only packages still unimplemented by omission. The tree's third `stub`,
