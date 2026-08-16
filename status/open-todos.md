@@ -692,9 +692,13 @@ The five standalone declaration-vs-reality scripts are now one rule registry (`@
 
 Two consequences worth closing later, neither blocking: the Node re-exec is now redundant for everything GI resolves and could be narrowed to the closure case once a darwin CI leg proves it; and `hostGtkIsWorthTrying()` on an Apple-silicon host still answers from `systemGiLibraryDirs()`, whose `/opt/homebrew/lib` probe was never in dyld's default fallback — measured only on x86_64 so far.
 
-### `@gjsify/node-gi` — a pointer struct FIELD whose length lives in a sibling field marshals EMPTY
+### `@gjsify/node-gi` — an UNANNOTATED pointer array field still marshals EMPTY in silence
 
-`GstMapInfo.data` is a `guint8*` field whose length is carried by the sibling `size` field — a dependency GI cannot express for a struct-field READ. gjs resolves it; node-gi returns an empty array, and reports no error while doing so. Measured on a decoded audio sample: `map: ok=true size=8192 data.length=0` while `buffer.extract_dup(0, 8192)` returns 8192 bytes. That silent zero is what made audio inaudible on node for a whole investigation: every layer above reported success on an empty buffer. `@gjsify/webaudio` now uses the copying `gst_buffer_extract_dup`, which works on both runtimes — but any consumer reading a length-in-a-sibling-field pointer will hit this, and the empty result is indistinguishable from a genuinely empty buffer. Fix shape: honour the GIR's `array length=` annotation on struct FIELDS in the field reader (the call-argument path already does), and where the annotation is absent, prefer failing loudly over returning an empty array.
+The annotated half is CLOSED. `GstMapInfo.data` is `<array length="3" c:type="guint8*">` with field 3 being `size`; `FieldArrayLength()` in `src/marshal.cc` now reads that sibling, and `test/struct-field-array-length.test.mjs` holds it against gjs as the oracle (32 == 32, contents compared, A/B-proved: three of its four cases fail on the previous build).
+
+This entry once opened "a dependency GI cannot express for a struct-field READ". **That was wrong, and it is why the defect lived so long** — the annotation is in the GIR, it survives into the typelib, and the call-argument path in `calls.cc` had been resolving it all along. Only the field reader passed a hard `-1`. Worth keeping as the shape of a mistake: the entry stated an impossibility and then, one sentence later, described the fix for it, and the impossibility is the half people read.
+
+What remains is the case with NO annotation at all: `GIArrayToJs` falls through to `length = 0` when the field is neither zero-terminated nor fixed-size, so a pointer array whose length the GIR never states comes back empty and successful. Indistinguishable from a genuinely empty array — the same silence that made audio inaudible on node for a whole investigation, just one branch over. Prefer failing loudly there; the judgement to make first is whether any real GIR field hits it, because a throw on a shape nobody produces is a worse trade than the silence.
 
 ### `@gjsify/node-gi` — `GTK_IS_EVENT_CONTROLLER` assertion failures on the reverse bridge
 
