@@ -4,6 +4,40 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### ADR 0024 §8 is unblocked: `gjsify flatpak` + `generate-installer` move under `ship`
+
+The ADR sequenced the flatpak migration as stage 6 and gated it on one condition:
+"the migration lands only once `ship` can actually stage, so the tree never carries
+two staging models." Stages 2 and 3 have landed, so that condition is now met and
+nothing else is holding this.
+
+Scope, as decided 2026-08-17:
+
+- The nine subcommands under `packages/infra/cli/src/commands/flatpak/` (build,
+  check, ci, deps, diff, init, release, scaffold, sources, sync-flathub) become
+  `gjsify ship flatpak <sub>`.
+- `gjsify generate-installer` becomes `gjsify ship installer`. The ADR does not
+  cover it, and it is not a packer: it scaffolds an `install.mjs` INTO the
+  consumer's repo, which they commit, rather than reading the staged payload. It
+  moves anyway because it is one of the six distribution channels the website's
+  "Pick your distribution channel" table lists, and the CLI should agree with that
+  table. Same category as `flatpak init` / `flatpak scaffold`, which §8 also moves.
+- `gjsify build --shebang` does NOT move. It is a build output mode, not a
+  packaging channel, so the line is: `ship` owns the channels, `build` owns the
+  bundle shapes.
+
+Two costs §8 names and this must pay:
+
+- `gjsify.flatpak` is a **published config contract**. The keys move behind a
+  deprecation window in which both spellings resolve and the old one warns.
+- `gjsify flatpak …` is in published releases and in the Flathub sync automation,
+  so the old command path needs a warning ALIAS, not a removal.
+
+Already done, so do not redo it: the AppStream and desktop-entry renderers moved
+out of `commands/flatpak/scaffold.ts` into `utils/app-metadata.ts`, and
+`ConfigDataFlatpak` extends a shared base. That was §8's "the metadata half is the
+app's, not Flatpak's" half.
+
 ### Excalibur's own renderer swap runs on GJS but never reaches the screen
 
 Found closing #1107. `Engine.useCanvas2DFallback()` is `canvas.cloneNode(false)` →
