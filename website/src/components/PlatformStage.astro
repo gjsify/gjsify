@@ -643,8 +643,12 @@ const HOLD_MS = 5200;
   }
 
   /* Slightly tighter than a real header button: this window is drawn at about
-     three-quarters of desktop scale, so full-size controls read as oversized. */
-  .platform-app-btn {
+     three-quarters of desktop scale, so full-size controls read as oversized.
+     Qualified by `.adw-header-btn` because the skin's own `adw-header-bar
+     .adw-header-btn` is two classes deep — a bare `.platform-app-btn` lost the
+     cascade and the buttons silently stayed 34px, which made the end section
+     122px wide and shoved the title left into the macOS traffic lights. */
+  .platform-app-window .adw-header-btn.platform-app-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -652,7 +656,7 @@ const HOLD_MS = 5200;
     height: 26px;
   }
 
-  .platform-app-btn .adw-icon {
+  .platform-app-window .platform-app-btn .adw-icon {
     width: 14px;
     height: 14px;
   }
@@ -706,15 +710,45 @@ const HOLD_MS = 5200;
     color: var(--sl-color-white);
   }
 
-  /* Below this the app window would cover the shell chrome that identifies the
-     desktop, which is the one thing the stage exists to show. */
+  /* A phone gets a taller stage so the shell chrome — the top bar, the taskbar,
+     the dock — still has room above and below the window. That chrome is the only
+     thing that says WHICH desktop this is, so the window has to stay a minority
+     of the frame here too: at 86% it covered the dock entirely and the stage was
+     three wallpapers with an app on them. The rows shrink with it, since a 254px
+     window rendering desktop-sized rows reads as a zoomed screenshot. */
   @media (max-width: 640px) {
     .platform-stage-frame {
-      aspect-ratio: 4 / 5;
+      aspect-ratio: 3 / 4;
     }
 
     .platform-app {
-      width: min(86%, 400px);
+      width: min(74%, 320px);
+      font-size: 0.85em;
+    }
+
+    .platform-app-page {
+      padding: 8px 8px 10px;
+    }
+
+    /* The controls are fixed px, so they do not shrink with the window's own
+       font-size — at 218px wide the traffic lights ran straight into the title. */
+    .platform-controls--macos {
+      gap: 6px;
+    }
+
+    .platform-traffic {
+      width: 10px;
+      height: 10px;
+    }
+
+    .platform-app-window .adw-header-btn.platform-app-btn {
+      width: 22px;
+      height: 22px;
+    }
+
+    .platform-app-window .platform-app-btn .adw-icon {
+      width: 12px;
+      height: 12px;
     }
   }
 </style>

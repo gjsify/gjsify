@@ -375,7 +375,23 @@ header.header {
   }
 }
 
-/* ── Hero background glow ── */
+/* ── Hero background glow ──
+   The glow is deliberately wider than the content column — that bleed is the
+   effect — but "wider than the column" became "wider than the SCREEN" on a
+   phone: 200% of a 343px hero is 686px centred, hanging 171px off each side, and
+   the homepage scrolled sideways by 156px on every handset.
+
+   Clipped at the PANEL, which is exactly viewport-wide, rather than at the hero,
+   which is only as wide as the content column — clipping there would cut the
+   wash off at the text edge and leave a visible seam on desktop. `clip` and not
+   `hidden`: hidden would turn the panel into a scroll container and force the
+   other axis to `auto`, taking the sticky table of contents with it.
+
+   `:has()` keeps this to the pages that actually carry a hero. */
+.content-panel:has(.hero-custom) {
+  overflow-x: clip;
+}
+
 .hero-custom {
   position: relative;
 }

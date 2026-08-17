@@ -615,6 +615,18 @@ for (const slide of slides) {
     overflow: hidden;
   }
 
+  /* The negative margin keeps the track's CONTENT aligned with its parent, but
+     its border box is still 60px wider than the parent — and on a phone there is
+     no page gutter to absorb that, so the whole homepage scrolled sideways by
+     156px. Below this width the shadow bleed is given up rather than the layout:
+     8px of padding keeps a hint of it, and nothing reaches past the parent. */
+  @media (max-width: 640px) {
+    .slideshow-track {
+      padding: 96px 8px 16px;
+      margin-inline: 0;
+    }
+  }
+
   /* --- Slides ---
      All slides share the same flow position. Inactive slides are detached
      visually via opacity/transform so the active one defines layout height. */
