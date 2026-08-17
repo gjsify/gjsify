@@ -200,3 +200,62 @@ describe('gjsify tsc — Node fallback under a GJS-hosted CLI', { skip: SKIP, ti
         );
     });
 });
+
+// The OTHER direction, and the one CI could only see on Windows: a host with no
+// `gjs` AT ALL. `gjsify tsc` must degrade to upstream typescript and report the
+// COMPILER's status.
+//
+// A failed spawn emits `'error'` AND `'close'`, and that `'close'` carries the
+// spawn errno rather than an exit status. Acting on it reported the errno as the
+// compiler's result — measured -2 on POSIX, surfacing as 254, and -4058 on win32,
+// surfacing as 4294963238, which took every package build on the Windows runner
+// down while the Linux legs stayed green because they HAVE gjs. That asymmetry is
+// why this case exists here rather than being left to the win32 job.
+const CLI_LIB = join(REPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js');
+
+/** `process.env` with every PATH entry that provides a `gjs` removed. */
+function envWithoutGjs() {
+    const sep = process.platform === 'win32' ? ';' : ':';
+    const kept = (process.env.PATH ?? '')
+        .split(sep)
+        .filter((dir) => dir && !existsSync(join(dir, process.platform === 'win32' ? 'gjs.exe' : 'gjs')));
+    return { ...process.env, PATH: kept.join(sep) };
+}
+
+const NO_GJS_SKIP =
+    !existsSync(CLI_LIB) || !existsSync(TYPESCRIPT_PKG) ? 'needs a built cli lib + node_modules/typescript' : false;
+
+describe('gjsify tsc — no gjs on PATH at all', { skip: NO_GJS_SKIP, timeout: 5 * 60 * 1000 }, () => {
+    // `process.execPath` is absolute, so a thinned PATH cannot affect how the CLI
+    // itself is launched — only how IT resolves `gjs`.
+    const run = (args) =>
+        spawnSync(process.execPath, [CLI_LIB, 'tsc', ...args], {
+            encoding: 'utf-8',
+            env: envWithoutGjs(),
+            timeout: 4 * 60 * 1000,
+        });
+
+    it('falls back to upstream typescript and exits 0', () => {
+        const r = run(['--version']);
+        assert.equal(r.status, 0, `expected a clean 0, got ${r.status}:\n${r.stdout}${r.stderr}`);
+        assert.match(r.stdout, /Version \d/, `expected tsc's own version line, got:\n${r.stdout}${r.stderr}`);
+    });
+
+    it("reports the COMPILER's exit code, never the spawn errno", () => {
+        const dir = mkdtempSync(join(tmpdir(), 'gjsify-tsc-nogjs-'));
+        try {
+            writeFileSync(join(dir, 'bad.ts'), 'const y: number = "no";\n');
+            const r = run(['--noEmit', '--skipLibCheck', join(dir, 'bad.ts')]);
+            assert.notEqual(r.status, 0, 'a type error must not report success');
+            // tsc exits 1 or 2 for diagnostics. 254 is POSIX ENOENT (-2) and
+            // 4294963238 is win32 ENOENT (-4058) leaking through as a status.
+            assert.ok(
+                r.status > 0 && r.status < 128,
+                `expected a compiler exit status, got ${r.status} — that is a spawn errno:\n${r.stdout}${r.stderr}`,
+            );
+            assert.match(r.stdout + r.stderr, /TS2322/, 'the compiler diagnostic must reach the caller');
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+});

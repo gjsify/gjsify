@@ -193,7 +193,21 @@ export const tscCommand: Command<unknown, TscOptions> = {
                         completion: 'exit',
                         env,
                         onSpawn: (child) => {
-                            child.on('close', (code) => forceExit(code ?? 1));
+                            // A FAILED spawn emits both `'error'` and `'close'`, and
+                            // that `'close'` carries the SPAWN ERRNO rather than an
+                            // exit status — win32 ENOENT is -4058, which reached the
+                            // shell as 4294963238 and took every Windows build down
+                            // with it. Exiting on it would also pre-empt the Node
+                            // fallback. This is the race the old `gjsSpawnFailed`
+                            // flag existed to break; deleting the flag deleted the
+                            // property, so it is back, with its measurement.
+                            let spawnFailed = false;
+                            child.on('error', () => {
+                                spawnFailed = true;
+                            });
+                            child.on('close', (code) => {
+                                if (!spawnFailed) forceExit(code ?? 1);
+                            });
                         },
                     }).catch(reject);
                 });
@@ -232,7 +246,21 @@ export const tscCommand: Command<unknown, TscOptions> = {
                         completion: 'exit',
                         env,
                         onSpawn: (child) => {
-                            child.on('close', (code) => forceExit(code ?? 1));
+                            // A FAILED spawn emits both `'error'` and `'close'`, and
+                            // that `'close'` carries the SPAWN ERRNO rather than an
+                            // exit status — win32 ENOENT is -4058, which reached the
+                            // shell as 4294963238 and took every Windows build down
+                            // with it. Exiting on it would also pre-empt the Node
+                            // fallback. This is the race the old `gjsSpawnFailed`
+                            // flag existed to break; deleting the flag deleted the
+                            // property, so it is back, with its measurement.
+                            let spawnFailed = false;
+                            child.on('error', () => {
+                                spawnFailed = true;
+                            });
+                            child.on('close', (code) => {
+                                if (!spawnFailed) forceExit(code ?? 1);
+                            });
                         },
                     }).catch(reject);
                 });
