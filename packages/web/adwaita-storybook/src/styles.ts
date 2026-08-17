@@ -110,12 +110,17 @@ export const STORYBOOK_WEB_CSS = `
 /* Background scheme: the content header + preview + controls all sit on the
    window (story) background as one surface; only the left story-list column
    (its header + list) keeps the distinct sidebar shade. Matches the native
-   renderer. The default adw-header-bar background is its own headerbar shade,
-   so override it per pane here. */
-.sb-content-pane adw-header-bar {
+   renderer.
+
+   On the PANE, not on the header bar. A header bar inside a toolbar view is flat
+   — no background of its own — so it shows whatever surface it sits on, exactly
+   as native does; painting the bar instead means colouring one strip and hoping
+   it matches the pane under it, which is how the two panes' bars ended up looking
+   like separate widgets rather than the top of their column. */
+.sb-content-pane {
     background-color: var(--window-bg-color);
 }
-.sb-sidebar-pane adw-header-bar {
+.sb-sidebar-pane {
     background-color: var(--sidebar-bg-color);
 }
 
