@@ -87,7 +87,7 @@ from reading a silent exit code 0 as a crash.
 | `css` | none | CSS string applied display-wide on startup. |
 | `about` | none | Fields for an `Adw.AboutDialog`; wires an `app.about` action. |
 | `quitAction` | `true` | Wire `app.quit` on `<primary>q`. |
-| `devtools` | env-gated | `true` force-enables, an object passes [devtools options](./devtools/) through, `false` turns it off. Left out, it stays gated on `GJSIFY_DEVTOOLS`, which is safe in a release build. |
+| `devtools` | env-gated | `true` force-enables, an object passes [devtools options](/gjsify/guides/devtools/) through, `false` turns it off. Left out, it stays gated on `GJSIFY_DEVTOOLS`, which is safe in a release build. |
 | `onStartup` | none | `(app) => void`, runs on startup after CSS and devtools are wired. |
 
 ### If you run your own Adw.Application
@@ -247,8 +247,8 @@ MYAPP_VIEW=reports gjsify run --runtime node dist/app.node.mjs
 
 ## See also
 
-- [Devtools & MCP](./devtools/) for screenshotting and driving the running app.
-- [Storybook](./storybook/) for developing a widget on its own, with live controls.
+- [Devtools & MCP](/gjsify/guides/devtools/) for screenshotting and driving the running app.
+- [Storybook](/gjsify/guides/storybook/) for developing a widget on its own, with live controls.
 - [GObject Classes](../../patterns/gobject-classes/) for the `registerClass` rules your
   window and widget subclasses follow.
 - [Adwaita gallery](../../adwaita/) for the widgets to put inside your views.

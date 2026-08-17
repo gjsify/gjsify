@@ -938,9 +938,14 @@ a[aria-current='page']:hover {
        50px against their 34px.
 
    The fix is always the same: whatever container a component mounts adw-*
-   elements into carries `not-content`. Six components do now. If you add a
-   seventh and its rows drift apart by exactly 16px, this is why.
+   elements into carries `not-content`. If you add a component and its rows
+   drift apart by exactly 16px, this is why.
 
    A CSS rule here cannot replace that, because a tag-name prefix is not
    selectable: `adw-*` has no attribute to match on, so any rule would be a
-   hand-listed set of element names that drifts the day someone adds a widget. */
+   hand-listed set of element names that drifts the day someone adds a widget.
+   What CAN be checked is that the marker is present, and
+   `scripts/check-website-preview-not-content.mjs` does exactly that on every
+   run — so no count belongs here: a number in a comment is a second copy of a
+   set's size that nothing checks, and this one already said six while twelve
+   components carried the marker. */

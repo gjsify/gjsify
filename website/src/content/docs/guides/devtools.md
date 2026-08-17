@@ -59,7 +59,7 @@ four; [step 7](#7-gjs-nodejs-bun-and-deno) has the detail.
 `installDevtools` never throws. If it cannot come up it prints why on stderr and returns
 `null`, so a devtools problem can never cost you your window.
 
-If you use [`@gjsify/adwaita-app`](./native-adwaita-app/), this is already wired: pass
+If you use [`@gjsify/adwaita-app`](/gjsify/guides/native-adwaita-app/), this is already wired: pass
 `devtools: true` to force it on, or leave the option out and keep the env gate.
 
 ### Options
@@ -213,7 +213,7 @@ gjsify browse http://localhost:8080 --inspector-port 9222
 
 ## 6. Debug the storybook
 
-[`gjsify storybook`](./storybook/) speaks the same plane. Run it with `GJSIFY_DEVTOOLS=1`
+[`gjsify storybook`](/gjsify/guides/storybook/) speaks the same plane. Run it with `GJSIFY_DEVTOOLS=1`
 and bridge with `--profile storybook`; you get `list_stories`, `get_current_story`,
 `open_story` and `set_story_arg`, so an agent can open a widget in isolation, flip its args
 and `screenshot` each variant.

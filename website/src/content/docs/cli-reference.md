@@ -24,7 +24,7 @@ See [Install & Update](/gjsify/guides/install/) for the details.
 
 Keep the `@latest` tag. All three runners reuse a cached copy of an unpinned bin, so a plain `npx @gjsify/cli …` can go on serving a release from months ago, and Deno adds a second rule that refuses anything published in the last 24 hours. Neither one tells you it happened; [Which version do `npx`, `bunx` and `deno run` give you?](/gjsify/guides/install/#which-version-do-npx-bunx-and-deno-run-give-you) has the measurement. Every example below writes plain `gjsify`; swap in whichever launcher you use.
 
-Every command prints its own flags with `gjsify <command> --help`. The last line of that output tells you which runtime the CLI itself is on, for example `Running on GJS 1.88.1 (SpiderMonkey)` or `Running on Node.js v24.x.y`. That host runtime picks the default `--app` target for `gjsify build` and the default `--runtime` for `gjsify run` and `gjsify storybook`.
+`gjsify --help` lists every command, and its last line tells you which runtime the CLI itself is on, for example `Running on GJS 1.88.1 (SpiderMonkey)` or `Running on Node.js v24.x.y`. Each command prints its own flags with `gjsify <command> --help`, except the two pass-through commands, `run` and `tsc`, which hand `--help` to the target they launch. That host runtime picks the default `--app` target for `gjsify build` and the default `--runtime` for `gjsify run` and `gjsify storybook`.
 
 ## Commands at a glance
 
@@ -1018,7 +1018,7 @@ gjsify gresource data/org.example.App.data.gresource.xml \
 | `-t`, `--target <file>` | `<xml>` without `.xml`, next to it | Output `.gresource` file. |
 | `--verbose` | `false` | Print the underlying `glib-compile-resources` call. |
 
-Needs `glib-compile-resources` (`glib2-devel` on Fedora, `libglib2.0-dev-bin` on Debian and Ubuntu). The [`adwaita-package-builder` showcase](https://github.com/gjsify/gjsify/tree/main/showcases/dom/adwaita-package-builder) embeds its `style.css` this way.
+Needs `glib-compile-resources` (`glib2-devel` on Fedora, `libglib2.0-dev-bin` on Debian and Ubuntu).
 
 ### `gjsify gsettings`
 
@@ -1064,7 +1064,7 @@ gjsify gettext translations dist/metainfo \
 | `--remove-xml-comments` | `true` | For `--format xml`, strip XML comments from the output. |
 | `--verbose` | `false` | Print each `msgfmt` call. |
 
-Needs `msgfmt` (the `gettext` package). The [`adwaita-package-builder` showcase](https://github.com/gjsify/gjsify/tree/main/showcases/dom/adwaita-package-builder) uses both `--format mo` and `--format xml --metainfo`.
+Needs `msgfmt` (the `gettext` package).
 
 ## Explore
 

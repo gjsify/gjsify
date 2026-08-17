@@ -87,8 +87,9 @@ skipped.
 `--app node` is fully supported: builds, conformance and a real GTK/Adwaita
 window are all exercised on Apple silicon, and `@gjsify/gtk-runtime-darwin-arm64`
 ships the GTK 4 / Adwaita closure so you do not need a Homebrew GTK. Intel Macs
-get the same builds and the same display-free conformance run against
-`@gjsify/gtk-runtime-darwin-x64`; only the windowed GUI proof is arm64-only.
+get the same treatment against `@gjsify/gtk-runtime-darwin-x64`: the same builds,
+the same display-free conformance and the same windowed GUI proof, each one a
+matrix leg beside its Apple-silicon twin rather than a reduced substitute.
 
 What is not proven is the CLI on a `gjs` host. `gjsify build` under GJS needs a
 bundler, `@gjsify/rolldown-native` is the one that runs there, and it does

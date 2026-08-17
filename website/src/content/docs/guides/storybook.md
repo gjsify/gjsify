@@ -44,7 +44,7 @@ live panel. Build the preview in `initialize()`, react to control changes in `up
 and export the class in a `StoryModule`.
 
 Here is the story that ships with
-[`@gjsify/adwaita-app`](./native-adwaita-app/) for its `LoadingStack` widget, where a
+[`@gjsify/adwaita-app`](/gjsify/guides/native-adwaita-app/) for its `LoadingStack` widget, where a
 dropdown switches between the loading, content and error pages:
 
 ```ts
@@ -188,7 +188,7 @@ gjsify debug --profile storybook
 
 That gives you `list_stories`, `open_story`, `get_current_story` and `set_story_arg`
 alongside the generic `screenshot`, so you can walk every story, flip its args, and capture
-each variant. See [Devtools & MCP](./devtools/) for the whole loop.
+each variant. See [Devtools & MCP](/gjsify/guides/devtools/) for the whole loop.
 
 ## The rule of thumb
 
@@ -210,5 +210,5 @@ without a story is a widget nobody can look at without running your whole app.
 - [`gjsify storybook`](../../cli-reference/#gjsify-storybook) for every flag.
 - [Adwaita Storybook showcase](../../showcases/adwaita-storybook/), the full Libadwaita
   widget set as stories.
-- [Native Adwaita Apps](./native-adwaita-app/), where the `LoadingStack` above comes from.
-- [Devtools & MCP](./devtools/) for driving and screenshotting the running storybook.
+- [Native Adwaita Apps](/gjsify/guides/native-adwaita-app/), where the `LoadingStack` above comes from.
+- [Devtools & MCP](/gjsify/guides/devtools/) for driving and screenshotting the running storybook.
