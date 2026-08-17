@@ -49,6 +49,7 @@ import {
     onboardCommand as onboard,
     selfUpdateCommand as selfUpdate,
     generateInstallerCommand as generateInstaller,
+    pruneCommand as prune,
     uninstallCommand as uninstall,
     formatCommand as format,
     lintCommand as lint,
@@ -169,6 +170,7 @@ export async function runCli(argv: readonly string[]): Promise<void> {
             generateInstaller.handler,
         )
         .command(uninstall.command, uninstall.description, uninstall.builder, uninstall.handler)
+        .command(prune.command, prune.description, prune.builder, prune.handler)
         .command(upgrade.command, upgrade.description, upgrade.builder, upgrade.handler)
         .command(format.command, format.description, format.builder, format.handler)
         .command(lint.command, lint.description, lint.builder, lint.handler)

@@ -88,6 +88,7 @@ import win32CommandSuite from './utils/win32-command.spec.js';
 import gjsBundleGuardSuite from './utils/gjs-bundle-guard.spec.js';
 import gjsSourceEscapeSuite from './utils/gjs-source-escape.spec.js';
 import nodeBundleGuardSuite from './utils/node-bundle-guard.spec.js';
+import prunePrefixSuite from './utils/prune-prefix.spec.js';
 import unresolvedWorkspaceImportSuite from './unresolved-workspace-import.spec.js';
 
 // ---------------------------------------------------------------------------
@@ -264,6 +265,7 @@ run(
         gjsBundleGuardSuite,
         gjsSourceEscapeSuite,
         nodeBundleGuardSuite,
+        prunePrefixSuite,
         unresolvedWorkspaceImportSuite,
     },
     { skip },

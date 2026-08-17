@@ -20,8 +20,8 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
-import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
+import { startMockRegistry } from '../mock-registry.mjs';
 
 const SCRIPT = fileURLToPath(new URL('../../../scripts/verify-published-closure.mjs', import.meta.url));
 const VERSION = '1.2.3';
@@ -98,7 +98,7 @@ function writeTree(root, pkgs) {
 }
 
 describe('verify-published-closure (post-release registry assertion)', { timeout: 120_000 }, () => {
-    let server, registryUrl, tmp;
+    let registry, registryUrl, tmp;
     /** name → string[] of published versions. Missing name = 404. */
     let published = new Map();
     /** name → number of packument requests served (for the retry case). */
@@ -116,32 +116,47 @@ describe('verify-published-closure (post-release registry assertion)', { timeout
 
     before(async () => {
         tmp = mkdtempSync(join(tmpdir(), 'gjsify-e2e-closure-'));
-        server = createServer((req, res) => {
-            const name = decodeURIComponent((req.url ?? '/').replace(/^\//, '').split('?')[0]);
-            hits.set(name, (hits.get(name) ?? 0) + 1);
-            if (broken.has(name)) {
-                res.writeHead(503, { 'content-type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Service Unavailable' }));
-                return;
-            }
-            const hidden = revealAfter.has(name) && hits.get(name) < revealAfter.get(name);
-            const versions = hidden ? undefined : published.get(name);
-            if (!versions) {
-                res.writeHead(404, { 'content-type': 'application/json' });
-                res.end(JSON.stringify({ error: 'Not found' }));
-                return;
-            }
-            res.writeHead(200, { 'content-type': 'application/json' });
-            res.end(
-                JSON.stringify({ name, versions: Object.fromEntries(versions.map((v) => [v, { name, version: v }])) }),
-            );
-        });
-        await new Promise((r) => server.listen(0, '127.0.0.1', r));
-        registryUrl = `http://127.0.0.1:${server.address().port}`;
+        // Everything goes through `onRequest` rather than the shared module's
+        // fixture store: what each case publishes is MUTATED between cases
+        // (`published`, `broken`, `revealAfter` are reassigned per `it`), and a
+        // store fixed at construction cannot express that. The shared module is
+        // still what owns the socket and the teardown.
+        registry = await startMockRegistry(
+            {},
+            {
+                onRequest: (req, res) => {
+                    const name = decodeURIComponent((req.url ?? '/').replace(/^\//, '').split('?')[0]);
+                    hits.set(name, (hits.get(name) ?? 0) + 1);
+                    if (broken.has(name)) {
+                        res.writeHead(503, { 'content-type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Service Unavailable' }));
+                        return true;
+                    }
+                    const hidden = revealAfter.has(name) && hits.get(name) < revealAfter.get(name);
+                    const versions = hidden ? undefined : published.get(name);
+                    if (!versions) {
+                        res.writeHead(404, { 'content-type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'Not found' }));
+                        return true;
+                    }
+                    res.writeHead(200, { 'content-type': 'application/json' });
+                    res.end(
+                        JSON.stringify({
+                            name,
+                            versions: Object.fromEntries(versions.map((v) => [v, { name, version: v }])),
+                        }),
+                    );
+                    return true;
+                },
+            },
+        );
+        // `verify-published-closure.mjs` strips a trailing slash itself, so the
+        // shared module's `url` needs no adjustment.
+        registryUrl = registry.url;
     });
 
     after(async () => {
-        if (server) await new Promise((r) => server.close(r));
+        await registry?.close();
         if (tmp) rmSync(tmp, { recursive: true, force: true });
     });
 

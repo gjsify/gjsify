@@ -32,7 +32,7 @@ Keep the `@latest` tag. All three runners reuse a cached copy of an unpinned bin
 |---|---|
 | Start a project | [`create`](#gjsify-create) |
 | Build and run | [`build`](#gjsify-build) · [`run`](#gjsify-run) · [`test`](#gjsify-test) · [`clear`](#gjsify-clear) · [`copy`](#gjsify-copy) |
-| Dependencies | [`install`](#gjsify-install) · [`uninstall`](#gjsify-uninstall) · [`upgrade`](#gjsify-upgrade) · [`dlx`](#gjsify-dlx) · [`self-update`](#gjsify-self-update) · [`generate-installer`](#gjsify-generate-installer) |
+| Dependencies | [`install`](#gjsify-install) · [`uninstall`](#gjsify-uninstall) · [`prune`](#gjsify-prune) · [`upgrade`](#gjsify-upgrade) · [`dlx`](#gjsify-dlx) · [`self-update`](#gjsify-self-update) · [`generate-installer`](#gjsify-generate-installer) |
 | Monorepos | [`foreach`](#gjsify-foreach) · [`workspace`](#gjsify-workspace) · [`affected`](#gjsify-affected) |
 | Code quality | [`check`](#gjsify-check) · [`tsc`](#gjsify-tsc) · [`format`](#gjsify-format) · [`lint`](#gjsify-lint) · [`fix`](#gjsify-fix) · [`barrels`](#gjsify-barrels) |
 | GNOME assets | [`gresource`](#gjsify-gresource) · [`gsettings`](#gjsify-gsettings) · [`gettext`](#gjsify-gettext) |
@@ -546,6 +546,7 @@ gjsify install -g @gjsify/cli   # global install under ~/.local/share/gjsify/glo
 | `--cpu <arch>` | this host | Resolve and install for another CPU architecture (`x64`, `arm64`). |
 | `--libc <glibc\|musl>` | probed | Resolve for another libc family. Only meaningful with `--os=linux`. |
 | `--force` | `false` | Install a required dependency even when its `os` / `cpu` / `libc` excludes the target, instead of failing with `EBADPLATFORM`. Incompatible optional dependencies stay skipped. |
+| `--prune` | `true` | Afterwards, remove packages an earlier install left behind that this host cannot use, see [`gjsify prune`](#gjsify-prune). `--no-prune` disables. Skipped under `--immutable`, and whenever `--os`/`--cpu`/`--libc` is given. |
 
 The resolver follows npm v3 and later semantics, and honours npm-style `overrides` and yarn-style `resolutions` in `package.json`. The lockfile is `gjsify-lock.json`, a path-keyed `packages` map at `lockfileVersion` 4. There is more on how the tree is built in [How It Works](/gjsify/how-it-works/#how-gjsify-install-resolves-a-tree).
 
@@ -567,6 +568,30 @@ gjsify uninstall -g <pkg1> <pkg2>
 | `--verbose` | `false` | Verbose logging. |
 
 It exits non-zero when nothing matched.
+
+### `gjsify prune`
+
+Remove installed packages this host cannot use: the ones an *earlier* install put there before the platform filter could skip them. See [ADR 0025](https://github.com/gjsify/gjsify/blob/main/docs/adr/0025-prune-the-install-prefix.md).
+
+```bash
+gjsify prune -g --dry-run       # what would go, and how much it frees
+gjsify prune -g                 # remove it
+gjsify prune                    # the same, for this project's node_modules
+gjsify prune -g --os=darwin     # what a darwin host could not use
+```
+
+The decision is a **pure manifest read**: npm's own `os`, `cpu` and `libc`, through the same check the installer filters with, so a pruned prefix converges on what a fresh install would have placed. A package that declares **no** platform is never touched, however unusable it looks. Inferring that from a package *name* is how a prune starts deleting things it cannot justify.
+
+`install` and `self-update` run the same pass automatically, and `--no-prune` opts out. That pass uses the **measured** host and refuses outright when `--os`, `--cpu` or `--libc` is given, so an install can never delete against a target you typed. On this command those flags are honoured, because asking is not a side effect.
+
+| Option | Default | Description |
+|---|---|---|
+| `-g`, `--global` | `false` | Prune the user-global prefix instead of this project's `node_modules`. |
+| `--dry-run` | `false` | Report what would be removed and touch nothing. |
+| `--verbose` | `false` | List every package rather than the first few. |
+| `--os <name>` / `--cpu <arch>` / `--libc <name>` | this host | Decide as if the host were this target. |
+
+Removing nothing is a success, since this is idempotent housekeeping. It exits non-zero only when a removal you asked for failed. Sizes are **apparent**, summed from the files, so `du`, which counts allocated blocks, reports a slightly different number.
 
 ### `gjsify upgrade`
 
@@ -663,6 +688,7 @@ gjsify self-update --tag next   # a specific dist-tag or version
 | `--force` | `false` | Reinstall even when the target already matches. |
 | `--tag <tag>` | `latest` | npm dist-tag or a pinned version. |
 | `--skip-deps` | `false` | Update only the `@gjsify/cli` bundle, not its runtime dependencies (rolldown, lightningcss, `@gjsify/tsc`, the native `gi://` bridges). Faster, but it can leave those stale relative to the new bundle. |
+| `--prune` | `true` | Afterwards, remove packages an earlier install left behind that this host cannot use, see [`gjsify prune`](#gjsify-prune). `--no-prune` disables. |
 
 It reuses the same install backend as `gjsify install -g`, so transitive native prebuilds, the lockfile and bin shims are handled. It only works for CLIs installed under `~/.local/share/gjsify/global/`, which is where the `install.mjs` bootstrap and `gjsify install -g` put them. An `npm install -g` lands elsewhere, and `self-update` says so.
 

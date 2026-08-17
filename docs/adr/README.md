@@ -21,7 +21,7 @@ the TODO records the *what's left*.
 
 | ADR | Title | Status |
 |---|---|---|
-| [0001](0001-install-clean-separation.md) | `gjsify install` is non-destructive — install/clean separation | Accepted |
+| [0001](0001-install-clean-separation.md) | `gjsify install` is non-destructive — install/clean separation (amended) | Accepted |
 | [0002](0002-bootstrap-bundle-minimization.md) | Minimize committed bootstrap bundles — the previous release supplies the toolchain, never the installer (amended) | Accepted |
 | [0003](0003-package-tiering.md) | Explicit package tiering (stability contract) | Accepted |
 | [0004](0004-headless-adwaita-core.md) | Headless Adwaita core — share widget behavior across renderers | Accepted |
@@ -45,6 +45,7 @@ the TODO records the *what's left*.
 | [0022](0022-webkit-on-darwin.md) | `@gjsify/iframe` on macOS — Apple's WebKit behind a GObject shim that answers to `gi://WebKit` 6.0 | Accepted |
 | [0023](0023-gtk-source-precedence.md) | Which GTK a node-gi process uses: the app author installs a bundle, a per-OS policy decides, a from-source addon never gets one | Accepted |
 | [0024](0024-ship-installable-artifacts.md) | `gjsify ship` — one payload, a runtime policy derived per OS, several install formats; `gjsify flatpak` migrates under it | Accepted |
+| [0025](0025-prune-the-install-prefix.md) | Prune the install prefix — remove what this host cannot use, decided by a pure manifest read; an install never prunes against a typed target | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).

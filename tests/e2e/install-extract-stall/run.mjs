@@ -20,57 +20,25 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createServer } from 'node:http';
-import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
-import { packageTar, runCli, sriSha512 } from '../mock-registry.mjs';
+import { runCli, startMockRegistry } from '../mock-registry.mjs';
 
-/** This suite's fixtures are all a bare `package.json`. */
-const packageTarFor = (pkgJson) => packageTar({ 'package.json': JSON.stringify(pkgJson, null, 2) + '\n' });
+// The registry is deliberately WELL-BEHAVED here: the stall under test lives in
+// the extract phase, reached only once resolution and fetch have both succeeded.
+const PACKAGES = {
+    'leaf-dep': { '1.0.0': { dependencies: {} } },
+};
 
 describe('gjsify install — per-extract stall guard', { timeout: 60_000 }, () => {
-    let server, registryUrl, cliEntry, tgz;
+    let registry, cliEntry;
 
     before(async () => {
-        const pkgJson = { name: 'leaf-dep', version: '1.0.0', dependencies: {} };
-        tgz = gzipSync(packageTarFor(pkgJson));
-        const integrity = sriSha512(tgz);
-
-        server = createServer((req, res) => {
-            const url = req.url ?? '';
-            if (/^\/-\/leaf-dep\/1\.0\.0\.tgz$/.test(url)) {
-                res.writeHead(200, { 'content-type': 'application/octet-stream' });
-                res.end(tgz);
-                return;
-            }
-            if (decodeURIComponent(url.replace(/^\//, '')) === 'leaf-dep') {
-                const base = `http://127.0.0.1:${server.address().port}`;
-                res.writeHead(200, { 'content-type': 'application/json' });
-                res.end(
-                    JSON.stringify({
-                        name: 'leaf-dep',
-                        'dist-tags': { latest: '1.0.0' },
-                        versions: {
-                            '1.0.0': {
-                                name: 'leaf-dep',
-                                version: '1.0.0',
-                                dependencies: {},
-                                dist: { tarball: `${base}/-/leaf-dep/1.0.0.tgz`, integrity },
-                            },
-                        },
-                    }),
-                );
-                return;
-            }
-            res.writeHead(404).end('not found');
-        });
-        await new Promise((r) => server.listen(0, '127.0.0.1', r));
-        registryUrl = `http://127.0.0.1:${server.address().port}/`;
+        registry = await startMockRegistry(PACKAGES);
         cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
     });
 
-    after(() => {
-        if (server) server.close();
+    after(async () => {
+        await registry?.close();
     });
 
     it('exits non-zero with a "stalled" message when an extract never settles', async () => {
@@ -90,7 +58,7 @@ describe('gjsify install — per-extract stall guard', { timeout: 60_000 }, () =
                     2,
                 ) + '\n',
             );
-            writeFileSync(join(dir, '.npmrc'), `registry=${registryUrl}\n`);
+            writeFileSync(join(dir, '.npmrc'), `registry=${registry.url}\n`);
 
             const t0 = Date.now();
             const r = await runCli(cliEntry, ['install'], {
@@ -98,7 +66,7 @@ describe('gjsify install — per-extract stall guard', { timeout: 60_000 }, () =
                 env: {
                     ...process.env,
                     GJSIFY_INSTALL_BACKEND: 'native',
-                    npm_config_registry: registryUrl,
+                    npm_config_registry: registry.url,
                     // The extract that follows a successful fetch never settles...
                     GJSIFY_TEST_HANG_EXTRACT: '1',
                     // ...and the stall timer pulls the plug in ~1s (not the 120s default).

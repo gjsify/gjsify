@@ -37,12 +37,15 @@ import {
     linkGlobalBins,
     resolveBinOnPath,
 } from '../utils/install-global.js';
+import { resolveHostPlatform } from '../utils/platform-check.js';
+import { pruneAfterInstall } from '../utils/prune-prefix.js';
 
 interface SelfUpdateOptions {
     check?: boolean;
     force?: boolean;
     tag: string;
     skipDeps?: boolean;
+    prune?: boolean;
 }
 
 const PACKAGE_NAME = '@gjsify/cli';
@@ -66,6 +69,12 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
                 description: 'npm dist-tag or pinned version to install (e.g. `latest`, `next`, `0.5.0`).',
                 type: 'string',
                 default: 'latest',
+            })
+            .option('prune', {
+                description:
+                    'After updating, remove packages an earlier install left behind that this host cannot use (foreign os/cpu/libc). Use --no-prune to disable.',
+                type: 'boolean',
+                default: true,
             })
             .option('skip-deps', {
                 description:
@@ -217,6 +226,14 @@ export const selfUpdateCommand: Command<unknown, SelfUpdateOptions> = {
         // bakes the engine's prebuild dirs into the wrapper env preamble.
         if (pullDeps) {
             await installGjsEnginePackages(layout.prefix, target, { verbose: false });
+        }
+
+        // Same ordering reason as `install -g`: before the LINK, whose launchers bake
+        // the resolved prebuild directories into their env.
+        if (args.prune !== false) {
+            pruneAfterInstall(layout.prefix, resolveHostPlatform({ env: {} }), {
+                hint: 'gjsify prune -g --dry-run',
+            });
         }
 
         const linked = linkGlobalBins([PACKAGE_NAME], layout);
