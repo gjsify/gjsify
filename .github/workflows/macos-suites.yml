@@ -35,17 +35,39 @@
 # disagree is the interesting case, and it is exactly what
 # `@gjsify/child_process` was — green under native Node, catastrophic under GJS.
 #
-# WHY NOT ON EVERY PR
+# WHY ON EVERY PR
 #
-# ADR 0018 § 5, and the same asymmetry `windows-suites.yml` names rather than
-# implies: the OS axis is verified on `main` and the nightly, not on every PR.
-# macOS runners bill at 10x and `main` is branch-protected with EXACTLY THREE
-# required checks, where adding a fourth is a governance decision with a trap
-# behind it (a required check that does not RUN blocks the PR forever). The
-# `pull_request` trigger is path-filtered onto this file alone, which keeps the
-# leg ADVISORY by construction while still letting a change to it be tested by
-# the PR that makes it. `docs/ci-selective.md` lists it among the deliberate
-# exceptions.
+# It was not, and `windows-suites.yml` carries the long version of why that was
+# wrong; the same re-measurement (2026-08-16) settles this leg. The old text
+# named 10x macOS billing, and the multiplier applies to BILLED minutes — this
+# repository is public and both legs run on standard images (`macos-latest`,
+# `macos-15-intel`), so there are none. `node-gi.yml` already spawns macOS jobs
+# on every pull request, so the pool this declined to touch was being used
+# anyway. And the `pull_request` trigger it did carry was path-filtered onto
+# this file alone: satisfiable only by editing the filter.
+#
+# What the darwin half of that cost is written out under WHAT THIS IS FOR above
+# — `@gjsify/child_process` returning `status: null` for its entire suite,
+# `pid`/`ppid`/`rss` reading 0, `isIP('01.02.03.04')` answering 4. Every one of
+# those reached `main` through a green PR, because this leg was not on it.
+#
+# What is NOT free here is CONCURRENCY: GitHub caps concurrent macOS jobs well
+# below the other classes, this workflow asks for two per run, and `node-gi.yml`
+# asks for more. If PR macOS runs start queueing behind each other, the fallback
+# is to narrow THIS matrix (arm64 on PRs, both architectures on `main` and the
+# nightly) — not to withdraw the leg from PRs again, which is the change that
+# produced the four defects above.
+#
+# The required-check point is unchanged: `main` carries EXACTLY THREE required
+# checks and a fourth is a governance decision with a trap behind it (a required
+# check that does not RUN blocks the PR forever). This leg stays ADVISORY — read
+# before merging, not waited on.
+#
+# Both triggers are unfiltered, for the reason `windows-suites.yml` gives under
+# WHY NO PATH FILTER: the run ends in a whole-tree conformance audit, and a path
+# filter on a job containing a whole-tree check is a measured way to be green
+# while `main` goes red (#1183). `scripts/manifest-conformance/rules/pr-trigger-parity.mjs`
+# holds the two triggers to each other.
 #
 # WHY BOTH ARCHITECTURES
 #
@@ -78,8 +100,6 @@ on:
     - cron: '0 6 * * *'
   workflow_dispatch:
   pull_request:
-    paths:
-      - '.github/workflows/macos-suites.yml'
 
 concurrency:
   group: ${{ github.event_name == 'pull_request' && format('macos-suites-pr-{0}', github.ref) || format('macos-suites-{0}', github.run_id) }}

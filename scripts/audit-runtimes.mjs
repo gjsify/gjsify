@@ -81,6 +81,7 @@ import './manifest-conformance/rules/status-data.mjs';
 import './manifest-conformance/rules/platform-packages.mjs';
 import './manifest-conformance/rules/release-train.mjs';
 import './manifest-conformance/rules/node-script-globals.mjs';
+import './manifest-conformance/rules/pr-trigger-parity.mjs';
 
 // Re-exported for `tests/e2e/prebuild-declaration-invariant`, which drives the prebuild
 // invariant against SYNTHETIC packages: proving that a MISSING prebuild directory fails
@@ -1364,6 +1365,11 @@ const CHECK_RULES = [
     'bundled-license',
     // Guards the apps EXCLUDED from `workspaces` — the set no other check can see.
     'release-train',
+    // Reads `.github/workflows/*.yml` and nothing else, so it needs no install and no
+    // build. It belongs in the job that runs on EVERY PR, because the thing it guards is
+    // a workflow that does not run on a PR: put it anywhere path-filtered and the check
+    // for post-merge-only coverage would itself be post-merge-only.
+    'pr-trigger-parity',
     'field-coverage',
     'status-data',
 ];
@@ -1461,6 +1467,13 @@ async function main() {
         // main runs and ~41 hours: the gate said `DRIFT DETECTED.` and named nothing. See
         // the accountant at the end of this branch.
         const platformPackages = byId.get('platform-packages');
+        const prTriggerParity = byId.get('pr-trigger-parity');
+        // Same omission as `platform-packages` above, found while adding the rule beside
+        // it: selected by CHECK_RULES since #1208 and fetched in NEITHER branch, so it
+        // printed no summary when it passed and reached a reader only through the
+        // accountant — which labels its findings a REPORTER bug rather than a licence
+        // drift. Being caught by the safety net is not the same as being reported.
+        const bundledLicense = byId.get('bundled-license');
         const reach = reachability.reach;
 
         if (run.ok) {
@@ -1476,6 +1489,8 @@ async function main() {
             console.log(storybook.summary);
             console.log(nativescriptPlatforms.summary);
             console.log(releaseTrain.summary);
+            console.log(bundledLicense.summary);
+            console.log(prTriggerParity.summary);
             console.log(coverage.summary);
             console.log(statusData.summary);
             console.log(platformPackages.summary);
@@ -1745,6 +1760,34 @@ async function main() {
             );
             console.error('');
         }
+        if ((bundledLicense.failures ?? []).length > 0) {
+            console.error(`BUNDLED-LICENCE FAILURES on ${bundledLicense.failures.length} finding(s):`);
+            for (const line of bundledLicense.failures) {
+                console.error(`  - ${line}`);
+            }
+            console.error('');
+            console.error(
+                'A `@gjsify/gtk-runtime-*` tarball carries relocated third-party libraries, so its manifest may not ' +
+                    'declare a bare SPDX id: `license` must point at the notice file the builder emitted ' +
+                    '(`SEE LICENSE IN gtk/THIRD-PARTY-NOTICES.md`), and `files` must carry it. Both are produced by ' +
+                    'the bundle build — re-run it rather than hand-editing the field a scanner reads.',
+            );
+            console.error('');
+        }
+        if ((prTriggerParity.failures ?? []).length > 0) {
+            console.error(`PR-TRIGGER-PARITY FAILURES on ${prTriggerParity.failures.length} finding(s):`);
+            for (const line of prTriggerParity.failures) {
+                console.error(`  - ${line}`);
+            }
+            console.error('');
+            console.error(
+                'A workflow that runs after the merge but not before it makes "all checks passed" exclude something ' +
+                    'without saying so. The principle and the three workflows already split PR-side for it are in ' +
+                    'docs/ci-selective.md § PR coverage parity; ADR 0018 records why the OS legs were the last holdouts ' +
+                    'and what re-measuring their cost found.',
+            );
+            console.error('');
+        }
         for (const note of coverage.notes ?? []) console.error(`  · ${note}`);
         renderReachabilityNotes(reach);
 
@@ -1786,6 +1829,8 @@ async function main() {
             'field-coverage',
             'status-data',
             'platform-packages',
+            'bundled-license',
+            'pr-trigger-parity',
         ]);
         const unreported = run.results.filter(
             ({ rule, result }) => (result.failures ?? []).length > 0 && !REPORTED_RULE_IDS.has(rule.id),

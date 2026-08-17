@@ -97,6 +97,11 @@ which a bundle of unloadable binaries passes.
    structurally cannot gate PR code. Consequence, to be written where it can be
    read: **the OS axis is verified on `main` and the nightly, not on every PR.**
 
+   > **The second sentence is SUPERSEDED** — see *§ 5 re-measured* below. The
+   > capability requirement stands; the PR asymmetry was a cost judgement whose
+   > premises were re-measured on 2026-08-16 and did not hold for this
+   > repository. Both suite workflows now run on `pull_request`.
+
 ## Consequences
 
 - The ten packages above must each answer for three operating systems, once, in
@@ -241,10 +246,62 @@ Two consequences the ADR did not state and now does:
   should be expected to lower claims, and an axis whose claims only ever rise is
   not being exercised.
 
+## § 5 re-measured — the asymmetry cost more than the runners it saved
+
+Decision 5 was two claims, not one. The first — *a declared OS needs a CI leg
+that exercises CAPABILITY* — held, and produced `windows-suites.yml` and
+`macos-suites.yml`. The second — *the OS axis is verified on `main` and the
+nightly, not on every PR* — was a cost judgement, and re-measuring it on
+2026-08-16 found every premise it rested on to be false HERE:
+
+- **The multipliers are on billed minutes, and there are none.** 2x Windows and
+  10x macOS are real, and they apply to a private repository's Actions bill.
+  `gjsify/gjsify` is public and both legs use standard images
+  (`windows-latest`, `macos-latest`, `macos-15-intel`).
+- **The runner pool was already in use on PRs.** `node-gi.yml` spawns Windows
+  and macOS jobs on every pull request under a `paths-ignore` deny-list. The two
+  suite workflows were declining a runner class their own PRs already occupied.
+- **Neither leg is the critical path.** A successful run of either finishes well
+  inside `main.yml`'s, so offering them on a PR does not lengthen the wait.
+- **The `pull_request` trigger the ADR credited was not coverage.** Both were
+  path-filtered onto their own workflow file — a filter satisfiable only by
+  editing the filter. In the `on:` block they read as PR-covered; in a PR's check
+  list they were simply absent, which is indistinguishable from a check that
+  passed.
+
+The bill came due as red `main` pushes, repeatedly, each on a commit already
+merged. The clearest instance: #1209 changed the CLI's install classifier,
+showed "all checks passed" with no Windows package suite among those checks,
+merged, and left `windows-suites.yml` red across eight further merges until
+#1217 corrected `classifyInstall`'s answer for the target platform. The defect
+was on the win32 leg, in a suite this ADR created to catch exactly that, and the
+PR that introduced it could not have seen it.
+
+**Decision 5's second half is superseded: both legs run on `pull_request`, with
+no path filter** (the run ends in a whole-tree conformance audit, and filtering a
+job that contains a whole-tree check is a measured way to be green while `main`
+goes red — #1183). They remain ADVISORY, which was always a separate question:
+`main` carries exactly three required checks and a fourth is a governance
+decision with its own trap. Advisory means the merge button does not wait for
+them; it never meant the PR should not be told.
+
+Held by `pr-trigger-parity` (`scripts/manifest-conformance/rules/`), which fails
+any workflow whose `pull_request` filter is narrower than its `push`-to-`main`
+one. The rule was written against this tree and found exactly these two.
+
+What is genuinely scarce is macOS CONCURRENCY, not macOS minutes. If PR runs
+begin queueing, the fallback is to narrow the macOS MATRIX on PRs (arm64 only,
+both architectures on `main` and the nightly) — not to withdraw the leg from PRs
+again, which is the arrangement that produced the four darwin defects above.
+
 ## Do not
 
 - **Do not answer an OS question with the runtime axis.** It is blind to
   operating systems by design, and that blindness is measured, not theoretical.
+- **Do not withhold a leg from PRs on a cost premise nobody re-measured.** The
+  asymmetry in § 5 was reasoned, written down, and wrong about this repository
+  from the day it was accepted. A cost control is a claim about numbers, and a
+  claim about numbers has a shelf life.
 - **Do not let a file count stand in for a load.** Defect 3 passed a gate that
   counted 863 icons; the artifacts were unloadable. Every OS gate ends in an
   operation the OS actually performs — a decode, a `dlopen`, an `init`.

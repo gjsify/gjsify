@@ -125,6 +125,17 @@ jobs:
       - name: Check no filesystem path is split on '/' alone
         run: node scripts/check-posix-path-slice.mjs
 
+      # A raw NUL in source is invisible to every other gate in this job. Measured while
+      # adding `pr-trigger-parity`: its `join(' ')` had been committed with a NUL as the
+      # separator, and tsc, oxlint, that rule's own 13-case e2e and this audit all passed —
+      # `oxfmt --check` failed the file on indentation, and reformatting kept the byte. The
+      # single symptom was `git diff` classifying a hand-written `.mjs` as binary. Scoped to
+      # NUL alone: a draft flagging every C0 byte hit 34 legitimate ANSI-ESC test fixtures,
+      # and a check that fires on correct code is one people learn to route around. Host-
+      # independent, so it does not need the Windows leg below.
+      - name: Check no source file carries a raw NUL byte
+        run: node scripts/check-source-control-bytes.mjs
+
       # `actionlint` parses workflow syntax and runs with `-shellcheck=` empty, so nothing
       # read the SHELL inside a `run:` block. `release-cut.yml` passed its publish dispatch
       # as `node -e '…'` with an apostrophe in a comment; the string closed early, node got

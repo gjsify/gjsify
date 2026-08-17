@@ -1223,25 +1223,6 @@ Libgda does not expose session/changeset, WAL-mode toggles, backup or VFS APIs, 
 
 `webrtc-loopback` is a published showcase. Open follow-ups: `webrtc-video` could be a second showcase (getUserMedia + media pipeline; needs camera-permission UX — separate workstream); `webrtc-dtmf` / `webrtc-states` / `webrtc-trickle-ice` remain private reference implementations for specific spec behaviors, not end-user showcases.
 
-### Doc-revert detection — a non-conflicting revert of a `main`-only edit
-
-`a9e5ba63d` (on the status-as-data branch) rewrote the AGENTS.md governance
-block against a copy of the file that predated #885's consolidation. Git merged
-it without a conflict, because "replace one line with five" is a legitimate edit
-on a region the other side had already rewritten — the merge base simply had
-neither version. The result silently restored ~5 duplicated paragraphs that #885
-had removed, and nothing in the pipeline could see it: prose has no test, no
-type, and no conformance rule.
-
-The generalisable check is cheap and does not need to understand prose: for each
-line a PR REMOVES, ask whether that exact line was ADDED to the base branch after
-the PR's merge base. A hit means the PR is reverting work it never saw. Real
-reverts and genuine rewrites both trip it, so it must be a warning with an
-explicit acknowledgement path (a `Revert-Of:` trailer, or a label), never a hard
-gate. Cheapest home: a step in the `check` job over `git diff --merge-base`,
-scoped to `*.md` first, since prose is where the class actually bites — source
-regressions of this shape are usually caught by tsc, lint or a test.
-
 ### The baked CI image is `linux/amd64` only, so three arm64 jobs still `dnf install` every run
 
 `build-ci-image.yml` publishes `ghcr.io/gjsify/ci-fedora:<major>` for
@@ -1603,33 +1584,6 @@ shape transfers unchanged, since nothing in it is arch-specific: the Linux half
 emits arch-independent C + GIR, and the Windows half needs only a
 `windows-11-arm` runner and an arm64 prefix. Tracked as #1117.
 
-### The GTK bundles declare `license: MIT` while shipping an LGPL closure
-
-`@gjsify/gtk-runtime-{darwin-arm64,darwin-x64,win32-x64}` each carry 37–45
-relocated LGPL/MPL/GPL libraries (GTK, GLib, Pango, cairo, freetype, fontconfig,
-harfbuzz, libadwaita, GtkSourceView, and on win32 also librsvg, libxml2; ANGLE
-is SEEDED by the win32 builder but absent from the gvsbuild ZIP, so no shipped
-bundle contains it — see the webgl-on-win32 entry)
-and all three declare `"license": "MIT"` — the terms of their own three source
-files, not of the payload.
-
-The TEXTS are no longer missing: `packages/node-gi/scripts/bundle-licenses.mjs`
-derives `gtk/licenses/` + `gtk/THIRD-PARTY-NOTICES.md` from the source prefix,
-per-binary on darwin through each dylib's Homebrew keg (an unattributable dylib
-fails the build) and prefix-wide on win32, and `release.yml` gates on
-`m.licenses.texts > 0`. What is still wrong is the MACHINE-READABLE half: an
-automated consumer, a corporate license scanner or an SBOM generator reads the
-`license` field and never opens the notices, so the one declaration a tool can
-act on says something the tarball contradicts.
-
-Not fixed alongside the notices because the correct spelling is a judgement, not
-a mechanical edit: an SPDX expression naming the payload's real mix, versus
-`SEE LICENSE IN gtk/THIRD-PARTY-NOTICES.md`, versus splitting the package's own
-terms from the bundled ones. Whichever is chosen wants the same treatment as
-everything else here — derived from what the builder measured, so it cannot drift
-from the payload, which means `bundle-licenses.mjs` emitting the expression and a
-conformance rule comparing it to the manifest rather than a hand-edited string.
-
 ### 17 of 32 `@girs/*` packages cannot be version-checked against the installed library
 
 `gjsify system-check` now compares each `@girs/*` package's declared
@@ -1868,5 +1822,34 @@ What the two stale entries had in common is not an anchor, it is a QUOTE: each
 one quoted a source fragment (`` `!!(DISPLAY || WAYLAND_DISPLAY)` ``) from a
 repo-rooted file it named. A check that held such a quote to still occurring in
 that file would have failed the day `capabilities.ts` landed, offline and with no
-network. Whether enough entries make a quotable claim to be worth the machinery is
-unmeasured — that measurement is the next step, not another guard.
+network.
+
+**That measurement has now been made, and it is the third guard worse than
+nothing.** Implemented as described — sentence-scoped, pairing each backticked
+fragment with each repo-rooted path named in the same sentence — it produced 98
+checkable pairs over this file and flagged 42 of them (2026-08-16). The sampled
+flags are false without exception, and they fail in one way: **the check cannot
+tell a QUOTE from a MENTION.** `` `packages/node-gi/**` `` is a glob,
+`` `build:prebuilds` `` is a script name, `` `DYLD_LIBRARY_PATH` `` is an
+environment variable — none of them claims to be text occurring in the file the
+sentence also names, and a ledger is mostly mentions. Narrowing the pairing does
+not reach the class: what would have to be recognised is the difference between
+"this file CONTAINS this string" and "this file is ABOUT this thing", which is
+the judgement the guard was supposed to replace.
+
+So all three obvious guards are measured and rejected, and the two genuinely
+stale entries in this round were again found by READING the tree against the
+file — the licence entry (all three `gtk-runtime-*` manifests declare
+`SEE LICENSE IN gtk/THIRD-PARTY-NOTICES.md`, and `bundled-license.mjs` holds
+them there) and the doc-revert entry (`scripts/check-doc-revert.mjs` exists,
+wired advisory into `audit-runtimes.yml`, and its header records that the
+signature THIS FILE proposed was measured backwards — the entry was not merely
+closed, it was still publishing a wrong instruction). Both deleted in the change
+that added this paragraph.
+
+The honest state of the art is therefore: no guard, and a reading pass whenever
+this file is used to plan work. What stays buildable is far narrower than a quote
+check — a JSON or YAML FRAGMENT an entry pastes verbatim can be held to still
+parsing out of the file it names, because a pasted structure is unambiguously a
+quote rather than a mention. There is about one such fragment here, so that
+machinery would be honest and nearly idle, which is the correct size for it.
