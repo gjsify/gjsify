@@ -47,6 +47,7 @@ import {
 import { emblemSystemSymbolic } from '@gjsify/adwaita-icons/legacy';
 import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';
 import { applicationXExecutableSymbolic } from '@gjsify/adwaita-icons/mimetypes';
+import { windowCloseSymbolic } from '@gjsify/adwaita-icons/ui';
 import { toDataUri } from '@gjsify/adwaita-icons/utils';
 
 // view-columns-symbolic is not in the vendored icon theme @gjsify/adwaita-icons is
@@ -101,6 +102,9 @@ const ICONS = {
     'emblem-system': emblemSystemSymbolic,
     'preferences-system': preferencesSystemSymbolic,
     'application-x-executable': applicationXExecutableSymbolic,
+    // GtkWindowControls' close glyph — needed by anything that draws an Adwaita
+    // window frame in the browser, where there is no window manager to draw it.
+    'window-close': windowCloseSymbolic,
     // The libadwaita fallback for a NULL/empty icon-name: every view switcher substitutes
     // it, so it has to resolve to a real glyph rather than to an empty mask.
     'image-missing': imageMissingSymbolic,

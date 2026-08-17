@@ -60,30 +60,31 @@ adw-toolbar-view {
     }
   }
 
-  // The scroll fade under a FLAT bar. libadwaita paints it on the scrolled
-  // window; the browser equivalent is a non-interactive gradient stuck to the
-  // scrollport edge, taking no space of its own — a NEGATIVE margin equal to its
-  // height (_toolbars.scss :342-343, _scrolling.scss :150-157).
-  &.undershoot-top .adw-toolbar-view-content::before,
-  &.undershoot-bottom .adw-toolbar-view-content::after {
-    content: '';
-    position: sticky;
-    height: 6px;
-    flex-shrink: 0;
-    pointer-events: none;
+  // A bar in a toolbar view is INLINE — `%headerbar-inline` → `%headerbar-flat`:
+  // no background of its own, no separator, the content's foreground
+  // (_toolbars.scss :313-317, _header-bar.scss :110-147). That is what makes a
+  // flat-style view read as ONE surface with the bar sitting in it rather than as
+  // a bar bolted on top of a pane, and it is why the shading below is the ONLY
+  // thing that ever draws a line between them.
+  //
+  // Not folded into `%headerbar` itself: a header bar used as a WINDOW titlebar
+  // keeps its own background and shade, which is what `adw-header-bar` outside a
+  // toolbar view still renders.
+  .adw-toolbar-view-top,
+  .adw-toolbar-view-bottom {
+    &:not(.raised) adw-header-bar {
+      background: none;
+      color: inherit;
+      box-shadow: none;
+    }
   }
 
-  &.undershoot-top .adw-toolbar-view-content::before {
-    top: 0;
-    margin-bottom: -6px;
-    background: linear-gradient(to bottom, var(--headerbar-shade-color), transparent);
-  }
-
-  &.undershoot-bottom .adw-toolbar-view-content::after {
-    bottom: 0;
-    margin-top: -6px;
-    background: linear-gradient(to top, var(--headerbar-shade-color), transparent);
-  }
+  // The scroll shading under a FLAT bar belongs to the SCROLLER, not to the view:
+  // upstream's selector is `toolbarview.undershoot-top scrolledwindow`, and GTK
+  // draws that node only while the scroller is off the edge. Drawn from the view
+  // instead — which is what this did — the fade is unconditional, so every flat
+  // bar sat behind a permanent hairline that native shows only after scrolling.
+  // `_scrolling.scss` + `src/scroll-shading.ts` now own it, per scroller.
 }
 
 // extend-content-to-*-edge: the content spans the full height and the bar is

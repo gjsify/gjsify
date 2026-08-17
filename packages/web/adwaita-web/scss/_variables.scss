@@ -24,6 +24,13 @@
   // draws separators, instead of a harsh near-black line on a dark surface.
   --separator-color: rgba(0, 0, 6, 0.1);
 
+  // The GENERIC shade the whole `*-shade-color` family below specialises
+  // (`_colors.scss:79,141`). Scroll undershoots are drawn from it, and it belongs
+  // to the palette rather than to any one widget: a scroller can sit on a window,
+  // a view, a sidebar or a card, and reading its neighbour's shade would make the
+  // same indicator four different colours.
+  --shade-color: rgba(0, 0, 6, 0.07);
+
   // Sidebar / split panes. libadwaita defines the whole family, not just the
   // background (_colors.scss:47-58), and only the background was here — so
   // `.sidebar-pane` had no foreground to name, and an app overriding

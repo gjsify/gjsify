@@ -30,6 +30,7 @@ import {
     parseToolbarStyle,
     toolbarViewClasses,
 } from '@gjsify/adwaita-core';
+import { AdwScrollShading } from '../scroll-shading.js';
 
 export class AdwToolbarView extends HTMLElement {
     private _topEl!: HTMLDivElement;
@@ -37,6 +38,14 @@ export class AdwToolbarView extends HTMLElement {
     private _bottomEl!: HTMLDivElement;
     private _initialized = false;
     private _resize: ResizeObserver | null = null;
+    /**
+     * The scroll indicators for every scroller under this view.
+     *
+     * Owned HERE and not by a scroller widget, because upstream scopes them here:
+     * `toolbarview.undershoot-top scrolledwindow` shades whatever scrolls inside,
+     * however deeply nested — a split view's two panes included.
+     */
+    private _shading: AdwScrollShading | null = null;
 
     static get observedAttributes() {
         return ['top-bar-style', 'bottom-bar-style', 'extend-content-to-top-edge', 'extend-content-to-bottom-edge'];
@@ -87,6 +96,10 @@ export class AdwToolbarView extends HTMLElement {
 
         // `update_undershoots` runs from size_allocate, so the classes have to
         // follow the bars' real heights rather than a one-shot read.
+        // Before `_syncClasses`, which hands it the two undershoot flags it gates on.
+        this._shading = new AdwScrollShading(this._contentEl);
+        this._shading.connect();
+
         this._resize = new ResizeObserver(() => this._syncClasses());
         this._resize.observe(this._topEl);
         this._resize.observe(this._bottomEl);
@@ -96,6 +109,8 @@ export class AdwToolbarView extends HTMLElement {
     disconnectedCallback() {
         this._resize?.disconnect();
         this._resize = null;
+        this._shading?.disconnect();
+        this._shading = null;
     }
 
     attributeChangedCallback() {
@@ -117,6 +132,13 @@ export class AdwToolbarView extends HTMLElement {
             this._topEl.classList.toggle(cls, topBar.includes(cls));
             this._bottomEl.classList.toggle(cls, bottomBar.includes(cls));
         }
+
+        // The same two flags reach the scrollers, where the shade is actually
+        // drawn — a raised bar brings its own shadow and must not get a second one.
+        this._shading?.setUndershootEdges({
+            top: view.includes('undershoot-top'),
+            bottom: view.includes('undershoot-bottom'),
+        });
     }
 }
 
