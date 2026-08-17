@@ -127,6 +127,7 @@ env:
     packages/infra/workspace
     packages/infra/npm-registry
     packages/infra/tar
+    packages/infra/create-gjsify
 
   # ── Browser leg (see the `browser` job) ────────────────────────────────
   # Playwright `--grep` regex matching the browser bundles that are KNOWN RED
@@ -991,13 +992,13 @@ jobs:
   #      the build-cache suite's file-hashing loop hangs under @gjsify/fs's
   #      readSync.)
   #
-  #   2. $CROSS_RUNTIME_PACKAGES — the nine packages whose `--app node` bundle
+  #   2. $CROSS_RUNTIME_PACKAGES — the packages whose `--app node` bundle
   #      genuinely contains OUR code (see the workflow `env` block for why the
   #      set is not simply "every package with runtimes.node != none"). Same
   #      shape as the CLI: build ONE engine-agnostic bundle, run it three times.
   cross-runtime:
     needs: [changes, setup, build]
-    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/cli') || contains(needs.changes.outputs.include-args, '@gjsify/unit') || contains(needs.changes.outputs.include-args, '@gjsify/runtime') || contains(needs.changes.outputs.include-args, '@gjsify/adwaita-core') || contains(needs.changes.outputs.include-args, '@gjsify/storybook-core') || contains(needs.changes.outputs.include-args, '@gjsify/domparser') || contains(needs.changes.outputs.include-args, '@gjsify/webstorage') || contains(needs.changes.outputs.include-args, '@gjsify/semver') || contains(needs.changes.outputs.include-args, '@gjsify/workspace') || contains(needs.changes.outputs.include-args, '@gjsify/npm-registry') || contains(needs.changes.outputs.include-args, '@gjsify/tar')) }}
+    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '' || contains(needs.changes.outputs.include-args, '@gjsify/cli') || contains(needs.changes.outputs.include-args, '@gjsify/unit') || contains(needs.changes.outputs.include-args, '@gjsify/runtime') || contains(needs.changes.outputs.include-args, '@gjsify/adwaita-core') || contains(needs.changes.outputs.include-args, '@gjsify/storybook-core') || contains(needs.changes.outputs.include-args, '@gjsify/domparser') || contains(needs.changes.outputs.include-args, '@gjsify/webstorage') || contains(needs.changes.outputs.include-args, '@gjsify/semver') || contains(needs.changes.outputs.include-args, '@gjsify/workspace') || contains(needs.changes.outputs.include-args, '@gjsify/npm-registry') || contains(needs.changes.outputs.include-args, '@gjsify/tar') || contains(needs.changes.outputs.include-args, '@gjsify/create-app')) }}
     strategy:
       fail-fast: false
       matrix:
