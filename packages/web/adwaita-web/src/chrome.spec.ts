@@ -157,6 +157,25 @@ const ROOT_ACTION_PREVIEW = `
   </div>
 </adw-toolbar-view>`;
 
+/**
+ * A tab view in a toolbar view: the horizontal scroller the shading also reaches.
+ *
+ * `expand-tabs` is off on purpose, so enough tabs really do overflow the strip
+ * rather than being squeezed into it.
+ */
+const TAB_STRIP_PREVIEW = (pages: number): string => `
+<adw-toolbar-view style="flex: 1;">
+  <adw-header-bar slot="top">
+    <adw-window-title slot="center" title="Editor"></adw-window-title>
+  </adw-header-bar>
+  <adw-tab-view no-close="true">
+    ${Array.from(
+        { length: pages },
+        (_, i) => `<adw-tab-page title="A rather long tab title ${i}"><div>page ${i}</div></adw-tab-page>`,
+    ).join('')}
+  </adw-tab-view>
+</adw-toolbar-view>`;
+
 export const AdwChromeTest = async () => {
     await describe('adw-clamp allocation (AdwClampLayout conformance vectors)', async () => {
         // The browser resolves the child's own minimum through the normal `min-width`
@@ -568,7 +587,39 @@ export const AdwChromeTest = async () => {
             await settle();
             await settle();
             expect(area.classList.contains('undershoot-top')).toBe(true);
+
+            // ONE owner draws the shade. `undershoot-top` is also a documented
+            // libadwaita style class with its own inset host shadow in
+            // `_style_classes.scss`, so a scroller wearing the state class used to
+            // get that 6px blurred shadow UNDER the 1px line + 4px fade this package
+            // paints on the pseudo-element: the same edge, twice, in two sizes.
+            expect(getComputedStyle(area).boxShadow).toBe('none');
+            expect(getComputedStyle(area, '::before').boxShadow === 'none').toBe(false);
             host.remove();
+        });
+
+        await it('leaves a horizontally overflowing tab strip its own hairline', async () => {
+            // The horizontal pair has no rule in `_scrolling.scss` at all, because
+            // neither AdwTabBox nor AdwCarousel has a `scrolledwindow` node for GTK to
+            // shade. The style class did have one, and it is `box-shadow` too — so an
+            // overflowing strip silently traded its `inset 0 -1px` bottom shade for an
+            // edge shadow libadwaita never draws there.
+            const wide = mountPreview(TAB_STRIP_PREVIEW(8), 260, 320);
+            const narrow = mountPreview(TAB_STRIP_PREVIEW(1), 260, 320);
+            await settle();
+            await settle();
+            const overflowing = wide.querySelector('.adw-tab-bar') as HTMLElement;
+            const fitting = narrow.querySelector('.adw-tab-bar') as HTMLElement;
+
+            // The two discriminators: the strip really does overflow, and the shading
+            // controller really did reach it. Without them this is two identical bars.
+            expect(overflowing.scrollWidth > overflowing.clientWidth).toBe(true);
+            expect(overflowing.classList.contains('undershoot-end')).toBe(true);
+            expect(fitting.scrollWidth).toBe(fitting.clientWidth);
+
+            expect(getComputedStyle(overflowing).boxShadow).toBe(getComputedStyle(fitting).boxShadow);
+            wide.remove();
+            narrow.remove();
         });
     });
 };

@@ -372,21 +372,34 @@ $_linked-nodes: '.adw-button', '.adw-entry';
 // `-start`/`-end` follow text direction, same as `margin-start`/`margin-end`,
 // which `:dir()` expresses directly.
 //
-// `adw-toolbar-view` carries the same two class names for its OWN top/bottom
-// indicators, drawn on its content node against the header shade
-// (`_toolbar_view.scss:67-86`) — so it is excluded here rather than getting both
-// a host shadow and a content gradient.
+// THESE FOUR NAMES HAVE TWO WRITERS, so both of them are excluded here and this
+// rule is left to the third: an author applying the documented style class by
+// hand to markup adwaita-web does not drive.
+//
+//   - `adw-toolbar-view` carries `undershoot-top`/`-bottom` as its own STATE
+//     (`update_undershoots`), and hands the two flags down to the scrollers.
+//   - `src/scroll-shading.ts` stamps all four onto every scroller under a toolbar
+//     view and marks it `.adw-scroll-shaded`; `_scrolling.scss` draws that one,
+//     per scroller, as the 1px line + 4px fade GTK paints on a `scrolledwindow`.
+//
+// Without the second exclusion each shaded scroller drew BOTH — a 6px blurred
+// host shadow under the new gradient — and on the horizontal axis, which
+// `_scrolling.scss` deliberately leaves unpainted because neither AdwTabBox nor
+// AdwCarousel has a `scrolledwindow` node, this rule was the only thing drawing
+// at all: an overflowing tab strip lost its own `inset 0 -1px` bottom hairline to
+// this more specific `box-shadow` and gained an edge shadow libadwaita never
+// draws there.
 $undershoot-color: color-mix(in srgb, currentColor 6%, transparent);
 
-.undershoot-top:not(adw-toolbar-view) {
+.undershoot-top:not(adw-toolbar-view):not(.adw-scroll-shaded) {
   box-shadow: inset 0 6px 6px -6px $undershoot-color;
 }
 
-.undershoot-bottom:not(adw-toolbar-view) {
+.undershoot-bottom:not(adw-toolbar-view):not(.adw-scroll-shaded) {
   box-shadow: inset 0 -6px 6px -6px $undershoot-color;
 }
 
-.undershoot-start {
+.undershoot-start:not(.adw-scroll-shaded) {
   &:dir(ltr) {
     box-shadow: inset 6px 0 6px -6px $undershoot-color;
   }
@@ -396,7 +409,7 @@ $undershoot-color: color-mix(in srgb, currentColor 6%, transparent);
   }
 }
 
-.undershoot-end {
+.undershoot-end:not(.adw-scroll-shaded) {
   &:dir(ltr) {
     box-shadow: inset -6px 0 6px -6px $undershoot-color;
   }
