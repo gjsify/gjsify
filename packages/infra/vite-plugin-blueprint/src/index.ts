@@ -1,39 +1,58 @@
 import { type Plugin } from 'vite';
 import { execa } from 'execa';
 import minifyXML from 'minify-xml';
-import { formatMissingBlueprintCompiler, resolveBlueprintCompiler } from './resolve-compiler.js';
+import {
+    BlueprintCompileError,
+    BlueprintCompilerNotFoundError,
+    type ResolvedBlueprintCompiler,
+    resolveBlueprintCompiler,
+} from './resolve-compiler.js';
 
 export interface BlueprintPluginOptions {
     minify?: boolean;
     verbose?: boolean;
 }
 
-export { resolveBlueprintCompiler, formatMissingBlueprintCompiler } from './resolve-compiler.js';
+export {
+    BlueprintCompileError,
+    BlueprintCompilerNotFoundError,
+    type BlueprintHost,
+    currentBlueprintHost,
+    formatMissingBlueprintCompiler,
+    type ResolvedBlueprintCompiler,
+    resolveBlueprintCompiler,
+} from './resolve-compiler.js';
 
 export default function blueprintPlugin(options: BlueprintPluginOptions = {}): Plugin {
     const { minify = false, verbose = false } = options;
+
+    // Cached only on SUCCESS, so the PATH walk costs one probe per plugin
+    // instance instead of one per `.blp`. A MISS is deliberately re-probed:
+    // installing the compiler and saving the file is how a watch session is
+    // meant to recover, and caching "absent" would make that need a restart.
+    let compiler: ResolvedBlueprintCompiler | null = null;
 
     return {
         name: 'vite-plugin-blueprint',
 
         async load(id) {
             if (id.endsWith('.blp')) {
-                // Resolved per load rather than once at plugin construction, so a
-                // compiler installed mid-watch is picked up without a restart —
-                // and so the "missing" diagnostic names the .blp that wanted it.
-                const compiler = resolveBlueprintCompiler();
+                compiler ??= resolveBlueprintCompiler();
                 if (!compiler) {
-                    throw new Error(`${id}: ${formatMissingBlueprintCompiler()}`);
+                    // Names the `.blp` that wanted it, so the diagnostic points at
+                    // a file the reader recognises rather than at the plugin.
+                    throw new BlueprintCompilerNotFoundError(id);
                 }
+                const resolved = compiler;
 
                 try {
                     // Compile .blp file and get XML output directly
-                    const { stdout } = await execa(compiler.file, [...compiler.prefixArgs, 'compile', id], {
+                    const { stdout } = await execa(resolved.file, [...resolved.prefixArgs, 'compile', id], {
                         // Only ever an overlay (an MSYS2 PATH prepend); undefined
                         // inherits the environment unchanged.
-                        env: compiler.env,
+                        env: resolved.env,
                     });
-                    if (verbose) console.log(`Compiled ${id} (blueprint-compiler via ${compiler.source})`);
+                    if (verbose) console.log(`Compiled ${id} (blueprint-compiler via ${resolved.source})`);
 
                     let xmlContent = stdout;
 
@@ -46,13 +65,9 @@ export default function blueprintPlugin(options: BlueprintPluginOptions = {}): P
                     // Return the XML content as a string
                     return `export default ${JSON.stringify(xmlContent)};`;
                 } catch (error) {
-                    // The compiler EXISTS and refused the file, so this is a
-                    // blueprint syntax/type error and its own stderr is the
-                    // useful part — surface that, not an install hint the reader
-                    // has already satisfied.
                     const detail =
                         error instanceof Error ? (error as { stderr?: string }).stderr || error.message : String(error);
-                    throw new Error(`${id}: blueprint-compiler failed (${compiler.file})\n${detail}`);
+                    throw new BlueprintCompileError(id, resolved.file, detail);
                 }
             }
         },

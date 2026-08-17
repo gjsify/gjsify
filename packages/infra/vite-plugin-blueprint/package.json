@@ -24,9 +24,12 @@
         "types"
     ],
     "scripts": {
-        "clear": "gjsify clear lib tsconfig.tsbuildinfo",
+        "clear": "gjsify clear lib tsconfig.tsbuildinfo test.node.mjs",
         "check": "gjsify tsc --noEmit",
-        "build": "gjsify tsc"
+        "build": "gjsify tsc -p tsconfig.build.json",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "test": "gjsify run build:test:node && gjsify run test:node",
+        "test:node": "node test.node.mjs"
     },
     "repository": {
         "type": "git",
@@ -63,6 +66,8 @@
         }
     },
     "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3",
         "vite": "^8.1.3"

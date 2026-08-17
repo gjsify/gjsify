@@ -14,7 +14,10 @@ npm install @gjsify/vite-plugin-blueprint
 yarn add @gjsify/vite-plugin-blueprint
 ```
 
-Requires `blueprint-compiler` to be installed on the system (e.g. `sudo dnf install blueprint-compiler`).
+Requires `blueprint-compiler` on the system (e.g. `sudo dnf install blueprint-compiler`). It is found on
+`PATH`, and on Windows also in an MSYS2 install that is not on `PATH`; set `BLUEPRINT_COMPILER` to point at
+one the plugin does not find. When there is none, the build error names the install command for the host it
+ran on rather than leaving you to guess — so this README does not repeat one per platform.
 
 ## Usage
 

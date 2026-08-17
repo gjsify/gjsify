@@ -26,6 +26,44 @@ export interface ResolvedBlueprintCompiler {
 }
 
 /**
+ * The host facts this module decides on, taken as a PARAMETER rather than read
+ * from ambient `process.*`.
+ *
+ * Every unit-test leg in this repo runs on Linux, so an ambient
+ * `process.platform` puts the darwin and win32 branches — which are most of this
+ * module and the only ones anybody gets wrong — out of reach of any test. This
+ * is the purity `packages/infra/cli/src/utils/platform-check.ts` documents,
+ * applied to the module whose entire job is a per-OS answer.
+ */
+export interface BlueprintHost {
+    /** `process.platform` of the host being answered for. */
+    platform: NodeJS.Platform;
+    /** That host's environment. */
+    env: Record<string, string | undefined>;
+    /** Does this path exist? `existsSync` in production, a map in a test. */
+    exists: (path: string) => boolean;
+}
+
+/**
+ * `existsSync` throws rather than answering `false` when the argument is not a
+ * usable path at all (an embedded NUL, for one) — and an unreadable or malformed
+ * PATH entry is not an answer about the command we are looking for. Same catch,
+ * and same reason, as `isOnPath()` in `@gjsify/cli`'s `check-system-deps.ts`.
+ */
+function existsSafe(path: string): boolean {
+    try {
+        return existsSync(path);
+    } catch {
+        return false;
+    }
+}
+
+/** The running process as a {@link BlueprintHost}. */
+export function currentBlueprintHost(): BlueprintHost {
+    return { platform: process.platform, env: process.env, exists: existsSafe };
+}
+
+/**
  * MSYS2 install roots to probe on win32, in order.
  *
  * MSYS2 is the ONLY way to get blueprint-compiler onto Windows today, and not
@@ -39,13 +77,15 @@ export interface ResolvedBlueprintCompiler {
  * extracted-archive install, which is what a host without admin rights gets;
  * `C:\tools\msys64` is Chocolatey's.
  */
-const MSYS2_ROOTS = [
-    process.env.MSYS2_ROOT,
-    'C:\\msys64',
-    process.env.USERPROFILE && join(process.env.USERPROFILE, 'msys64'),
-    process.env.USERPROFILE && join(process.env.USERPROFILE, 'Tools', 'msys64'),
-    'C:\\tools\\msys64',
-].filter((root): root is string => typeof root === 'string' && root.length > 0);
+function msys2Roots(env: BlueprintHost['env']): string[] {
+    return [
+        env.MSYS2_ROOT,
+        'C:\\msys64',
+        env.USERPROFILE && join(env.USERPROFILE, 'msys64'),
+        env.USERPROFILE && join(env.USERPROFILE, 'Tools', 'msys64'),
+        'C:\\tools\\msys64',
+    ].filter((root): root is string => typeof root === 'string' && root.length > 0);
+}
 
 /**
  * MSYS2 environments, most-preferred first. `ucrt64` is MSYS2's own default for
@@ -55,22 +95,20 @@ const MSYS2_ROOTS = [
 const MSYS2_ENVS = ['ucrt64', 'mingw64', 'clang64'];
 
 /** Executable suffixes to try for a bare command name. Windows needs them; POSIX does not. */
-const EXE_SUFFIXES = process.platform === 'win32' ? ['.exe', '.cmd', '.bat', ''] : [''];
+function exeSuffixes(platform: NodeJS.Platform): string[] {
+    return platform === 'win32' ? ['.exe', '.cmd', '.bat', ''] : [''];
+}
 
 /** First existing `<dir>/<cmd><suffix>`, or null. */
-function findOnPath(cmd: string): string | null {
-    const pathVar = process.env.PATH;
+function findOnPath(cmd: string, host: BlueprintHost): string | null {
+    const pathVar = host.env.PATH;
     if (!pathVar) return null;
-    const sep = process.platform === 'win32' ? ';' : ':';
+    const sep = host.platform === 'win32' ? ';' : ':';
     for (const dir of pathVar.split(sep)) {
         if (!dir) continue;
-        for (const suffix of EXE_SUFFIXES) {
+        for (const suffix of exeSuffixes(host.platform)) {
             const candidate = join(dir, cmd + suffix);
-            try {
-                if (existsSync(candidate)) return candidate;
-            } catch {
-                // An unreadable PATH entry is not an answer about `cmd`.
-            }
+            if (host.exists(candidate)) return candidate;
         }
     }
     return null;
@@ -92,27 +130,29 @@ function findOnPath(cmd: string): string | null {
  * on PATH) would load two GLib builds into one process, which is a worse problem
  * than the one it solves.
  */
-function findInMsys2(): ResolvedBlueprintCompiler | null {
-    if (process.platform !== 'win32') return null;
-    for (const root of MSYS2_ROOTS) {
+function findInMsys2(host: BlueprintHost): ResolvedBlueprintCompiler | null {
+    if (host.platform !== 'win32') return null;
+    for (const root of msys2Roots(host.env)) {
         for (const env of MSYS2_ENVS) {
             const bin = join(root, env, 'bin');
             const script = join(bin, 'blueprint-compiler');
             const python = join(bin, 'python.exe');
-            try {
-                if (!existsSync(script) || !existsSync(python)) continue;
-            } catch {
-                continue;
-            }
+            if (!host.exists(script) || !host.exists(python)) continue;
             return {
                 file: python,
                 prefixArgs: [script],
-                env: { PATH: `${bin};${process.env.PATH ?? ''}` },
+                // `;` is a win32 fact, not a host fact — this branch only runs there.
+                env: { PATH: `${bin};${host.env.PATH ?? ''}` },
                 source: 'msys2',
             };
         }
     }
     return null;
+}
+
+/** Does this override name a location, as opposed to a bare command to look up? */
+function looksLikePath(override: string): boolean {
+    return override.includes('/') || override.includes('\\');
 }
 
 /**
@@ -121,17 +161,32 @@ function findInMsys2(): ResolvedBlueprintCompiler | null {
  * Order: `BLUEPRINT_COMPILER` (an explicit answer always wins, and is the escape
  * hatch for an install none of the probes below know about) → `PATH` → an MSYS2
  * install on win32.
+ *
+ * A set-but-unusable override resolves to null rather than falling through to
+ * the probes. Handing back a path that is not there sent its `ENOENT` into the
+ * "the compiler EXISTS and refused the file" branch, which then blamed the
+ * `.blp` for a typo in an environment variable; and quietly ignoring an explicit
+ * instruction to run a second guess is not better. Null is what lets
+ * {@link formatMissingBlueprintCompiler} say which of the two actually happened.
  */
-export function resolveBlueprintCompiler(): ResolvedBlueprintCompiler | null {
-    const override = process.env.BLUEPRINT_COMPILER;
+export function resolveBlueprintCompiler(
+    host: BlueprintHost = currentBlueprintHost(),
+): ResolvedBlueprintCompiler | null {
+    const override = host.env.BLUEPRINT_COMPILER;
     if (override) {
-        return { file: override, prefixArgs: [], source: 'env' };
+        if (looksLikePath(override)) {
+            return host.exists(override) ? { file: override, prefixArgs: [], source: 'env' } : null;
+        }
+        // A bare command name is a legitimate override, and must still reach the
+        // child through the same PATH walk any other command name gets.
+        const onPath = findOnPath(override, host);
+        return onPath ? { file: onPath, prefixArgs: [], source: 'env' } : null;
     }
-    const onPath = findOnPath('blueprint-compiler');
+    const onPath = findOnPath('blueprint-compiler', host);
     if (onPath) {
         return { file: onPath, prefixArgs: [], source: 'path' };
     }
-    return findInMsys2();
+    return findInMsys2(host);
 }
 
 /**
@@ -139,22 +194,75 @@ export function resolveBlueprintCompiler(): ResolvedBlueprintCompiler | null {
  *
  * Names the install command for THIS platform rather than listing every one:
  * the reader is on one host and the other two lines are noise they have to
- * filter. `BLUEPRINT_COMPILER` is mentioned everywhere because it is the answer
- * for any install the probes miss.
+ * filter. The Linux arm is the exception that proves it — every Linux row of
+ * `PM_PACKAGES` in `@gjsify/cli`'s `check-system-deps.ts` spells the package
+ * identically, so splitting it per distro would be four lines carrying one word.
+ *
+ * `BLUEPRINT_COMPILER` is mentioned everywhere because it is the answer for any
+ * install the probes miss — except when it is itself the problem, which gets its
+ * own sentence: repeating "or set BLUEPRINT_COMPILER" at someone who just set it
+ * is how a diagnostic loses their trust.
  */
-export function formatMissingBlueprintCompiler(): string {
+export function formatMissingBlueprintCompiler(host: BlueprintHost = currentBlueprintHost()): string {
+    const override = host.env.BLUEPRINT_COMPILER;
+    if (override) {
+        return (
+            `BLUEPRINT_COMPILER is set to "${override}", which is not ${
+                looksLikePath(override) ? 'a file that exists' : 'on PATH'
+            }.\n` +
+            '  Point it at a blueprint-compiler executable, or unset it to search PATH\n' +
+            '  (and, on Windows, the usual MSYS2 install locations).'
+        );
+    }
     const install =
-        process.platform === 'win32'
+        host.platform === 'win32'
             ? 'MSYS2 packages it prebuilt (it needs PyGObject, which has no Windows wheel, so pip cannot):\n' +
               '    pacman -S mingw-w64-ucrt-x86_64-blueprint-compiler mingw-w64-ucrt-x86_64-gtk4 mingw-w64-ucrt-x86_64-libadwaita\n' +
               '  An MSYS2 install under C:\\msys64, %USERPROFILE%\\msys64, %USERPROFILE%\\Tools\\msys64 or\n' +
               '  C:\\tools\\msys64 is found automatically — it does NOT need to be on PATH.'
-            : process.platform === 'darwin'
+            : host.platform === 'darwin'
               ? 'brew install blueprint-compiler'
-              : 'sudo dnf install blueprint-compiler   (Debian/Ubuntu: sudo apt install blueprint-compiler)';
+              : 'sudo dnf install blueprint-compiler   (apt, pacman, zypper and apk package it under the same name)';
     return (
-        'blueprint-compiler was not found, so a .blp template cannot be compiled.\n' +
+        'blueprint-compiler was not found — @gjsify/vite-plugin-blueprint needs it to\n' +
+        '  compile .blp templates to GtkBuilder XML.\n' +
         `  ${install}\n` +
         '  Or set BLUEPRINT_COMPILER to its full path.'
     );
+}
+
+/**
+ * No usable compiler on this host.
+ *
+ * Carries the whole user-facing sentence so the wording has exactly one home and
+ * the plugin composes nothing: what this replaces was an `ExecaError` naming the
+ * COMMAND, in the guest's own language, from inside a rolldown plugin stack
+ * (#1098).
+ */
+export class BlueprintCompilerNotFoundError extends Error {
+    override readonly name = 'BlueprintCompilerNotFoundError';
+
+    constructor(
+        readonly blueprintPath: string,
+        host: BlueprintHost = currentBlueprintHost(),
+    ) {
+        super(`${blueprintPath}: ${formatMissingBlueprintCompiler(host)}`);
+    }
+}
+
+/**
+ * The compiler exists and refused the file, so this is a blueprint syntax or
+ * type error and its own stderr is the useful part — never an install hint the
+ * reader has already satisfied.
+ */
+export class BlueprintCompileError extends Error {
+    override readonly name = 'BlueprintCompileError';
+
+    constructor(
+        readonly blueprintPath: string,
+        readonly compilerFile: string,
+        detail: string,
+    ) {
+        super(`${blueprintPath}: blueprint-compiler failed (${compilerFile})\n${detail}`);
+    }
 }
