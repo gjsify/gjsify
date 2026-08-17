@@ -18,30 +18,31 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { runCli } from '../mock-registry.mjs';
+import { runCli, startMockRegistry } from '../mock-registry.mjs';
 
 describe('gjsify install --timeout — slow-registry safety net', { timeout: 60_000 }, () => {
-    let server, registryUrl, cliEntry, envForCli;
-    const liveSockets = new Set();
+    let registry, registryUrl, cliEntry, envForCli;
 
     before(async () => {
-        // Slow registry: writes partial headers then never finishes the body.
-        // From a TCP/HTTP perspective this is a valid response that simply
-        // never closes — the exact "reachable but slow" pathology that the
-        // per-request timeout exists to guard against.
-        server = createServer((req, res) => {
-            liveSockets.add(req.socket);
-            req.socket.on('close', () => liveSockets.delete(req.socket));
-            // Write partial headers + a few bytes of body, then hang.
-            res.writeHead(200, { 'content-type': 'application/json' });
-            res.write('{"name":"');
-            // Intentionally never call res.end() — the response stays open
-            // until the client aborts or the process dies.
-        });
-        await new Promise((r) => server.listen(0, '127.0.0.1', r));
-        registryUrl = `http://127.0.0.1:${server.address().port}/`;
+        // No packages at all: `onRequest` answers everything, so the default
+        // routes are never reached.
+        registry = await startMockRegistry(
+            {},
+            {
+                // Slow registry: writes partial headers then never finishes the
+                // body. From a TCP/HTTP perspective this is a valid response that
+                // simply never closes — the exact "reachable but slow" pathology
+                // that the per-request timeout exists to guard against.
+                onRequest: (_req, res) => {
+                    res.writeHead(200, { 'content-type': 'application/json' });
+                    res.write('{"name":"');
+                    // Intentionally never call res.end().
+                    return true;
+                },
+            },
+        );
+        registryUrl = registry.url;
 
         cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
         envForCli = {
@@ -51,14 +52,13 @@ describe('gjsify install --timeout — slow-registry safety net', { timeout: 60_
         };
     });
 
-    after(() => {
-        // Yank any still-open sockets so the test process exits cleanly.
-        for (const s of liveSockets) {
-            // net.Socket.destroy() never throws — errors surface on the
-            // socket's 'error' event, not synchronously.
-            s.destroy();
-        }
-        if (server) server.close();
+    // No hand-rolled socket drain: `close()` drops open connections before
+    // waiting for them, which is what a server holding a response it never ends
+    // requires. Keeping a second teardown beside it is the scattered-lifecycle
+    // shape — and this suite is precisely the one that proves the shared close()
+    // needs it, since a plain `server.close()` here never resolves.
+    after(async () => {
+        await registry?.close();
     });
 
     it('exits non-zero with a clear "timed out" message when the registry never responds', async () => {

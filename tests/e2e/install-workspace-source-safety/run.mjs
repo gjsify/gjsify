@@ -47,10 +47,8 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve, relative } from 'node:path';
-import { createServer } from 'node:http';
-import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
-import { packageTar, runCli, sriSha512 } from '../mock-registry.mjs';
+import { runCli, startMockRegistry } from '../mock-registry.mjs';
 
 const SOURCE_MARKER = 'export const SOURCE = "WORKSPACE_SOURCE_PRESERVED";\n';
 
@@ -60,89 +58,22 @@ const SOURCE_MARKER = 'export const SOURCE = "WORKSPACE_SOURCE_PRESERVED";\n';
 // `@fixture/app@1.0.0` that DEPENDS on `@fixture/lib@^9.0.0` — used to drive
 // the transitive case where the same-named workspace must NOT be fetched even
 // though a registry consumer pulls it into the resolved tree.
-function makeRegistry() {
-    const libTar = gzipSync(
-        packageTar({
-            'package.json': JSON.stringify({ name: '@fixture/lib', version: '9.9.9', main: 'dist/index.js' }),
-            'dist/index.js': 'module.exports = "PUBLISHED_TARBALL";\n',
-        }),
-    );
-    const appTar = gzipSync(
-        packageTar({
-            'package.json': JSON.stringify({
-                name: '@fixture/app',
-                version: '1.0.0',
-                main: 'index.js',
-                dependencies: { '@fixture/lib': '^9.0.0' },
-            }),
-            'index.js': 'module.exports = require("@fixture/lib");\n',
-        }),
-    );
-    const libSri = sriSha512(libTar);
-    const appSri = sriSha512(appTar);
-    const index = {
-        '@fixture/lib': {
-            name: '@fixture/lib',
-            'dist-tags': { latest: '9.9.9' },
-            versions: {
-                '9.9.9': {
-                    name: '@fixture/lib',
-                    version: '9.9.9',
-                    dependencies: {},
-                    dist: { tarball: '__BASE__/-/lib/9.9.9.tgz', integrity: libSri },
-                    _tgz: libTar,
-                },
-            },
+const PACKAGES = {
+    '@fixture/lib': {
+        '9.9.9': {
+            main: 'dist/index.js',
+            dependencies: {},
+            files: { 'dist/index.js': 'module.exports = "PUBLISHED_TARBALL";\n' },
         },
-        '@fixture/app': {
-            name: '@fixture/app',
-            'dist-tags': { latest: '1.0.0' },
-            versions: {
-                '1.0.0': {
-                    name: '@fixture/app',
-                    version: '1.0.0',
-                    dependencies: { '@fixture/lib': '^9.0.0' },
-                    dist: { tarball: '__BASE__/-/app/1.0.0.tgz', integrity: appSri },
-                    _tgz: appTar,
-                },
-            },
+    },
+    '@fixture/app': {
+        '1.0.0': {
+            main: 'index.js',
+            dependencies: { '@fixture/lib': '^9.0.0' },
+            files: { 'index.js': 'module.exports = require("@fixture/lib");\n' },
         },
-    };
-    const server = createServer((req, res) => {
-        try {
-            const url = req.url ?? '';
-            if (/^\/-\/lib\/9\.9\.9\.tgz$/.test(url)) {
-                res.writeHead(200, { 'content-type': 'application/octet-stream' });
-                res.end(libTar);
-                return;
-            }
-            if (/^\/-\/app\/1\.0\.0\.tgz$/.test(url)) {
-                res.writeHead(200, { 'content-type': 'application/octet-stream' });
-                res.end(appTar);
-                return;
-            }
-            const pkgName = decodeURIComponent(url.replace(/^\//, ''));
-            const p = index[pkgName];
-            if (!p) {
-                res.writeHead(404).end('not found');
-                return;
-            }
-            const base = `http://127.0.0.1:${server.address().port}`;
-            const wire = JSON.parse(JSON.stringify(p, (k, v) => (k === '_tgz' ? undefined : v)));
-            for (const v of Object.values(wire.versions)) {
-                v.dist.tarball = v.dist.tarball.replace('__BASE__', base);
-            }
-            res.writeHead(200, { 'content-type': 'application/json' });
-            res.end(JSON.stringify(wire));
-        } catch (e) {
-            res.writeHead(500).end(String(e));
-        }
-    });
-    // Expose the integrity values so the --immutable test can hand-craft a
-    // lockfile that pins the same-named workspace as a registry entry.
-    server.__fixtures = { libSri, appSri };
-    return server;
-}
+    },
+};
 
 // Scaffold a fixture monorepo. `consumerSpec` is the version spec the consumer
 // uses for `@fixture/lib` (`workspace:^` or `^9.0.0`). `preseedRootSymlink`
@@ -219,13 +150,12 @@ function assertWorkspaceSymlink(linkPath, root, label) {
 }
 
 describe('gjsify install — never fetch/extract over workspace sources', { timeout: 90_000 }, () => {
-    let server, registryUrl, cliEntry, envForCli;
+    let registry, registryUrl, cliEntry, envForCli;
     const roots = [];
 
     before(async () => {
-        server = makeRegistry();
-        await new Promise((r) => server.listen(0, '127.0.0.1', r));
-        registryUrl = `http://127.0.0.1:${server.address().port}/`;
+        registry = await startMockRegistry(PACKAGES);
+        registryUrl = registry.url;
         cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
         // Fixture-local caches: the `fetch: @fixture/app` assertions below
         // require the tarball to actually come off the network — a shared
@@ -244,8 +174,8 @@ describe('gjsify install — never fetch/extract over workspace sources', { time
         };
     });
 
-    after(() => {
-        if (server) server.close();
+    after(async () => {
+        await registry?.close();
         for (const r of roots) rmSync(r, { recursive: true, force: true });
     });
 
@@ -371,23 +301,24 @@ describe('gjsify install — never fetch/extract over workspace sources', { time
         consumerPkg.dependencies['@fixture/app'] = '^1.0.0';
         writeFileSync(consumerPkgPath, JSON.stringify(consumerPkg, null, 2) + '\n');
 
-        const { libSri, appSri } = server.__fixtures;
+        // `resolved` is what the --immutable path downloads — it must be the URL
+        // this registry actually serves the tarball at, not a hand-spelled guess.
         const staleLock = {
             lockfileVersion: 2,
             requested: ['@fixture/app@^1.0.0'],
             packages: {
                 'node_modules/@fixture/app': {
                     version: '1.0.0',
-                    resolved: `${registryUrl}-/app/1.0.0.tgz`,
-                    integrity: appSri,
+                    resolved: registry.tarballUrl('@fixture/app', '1.0.0'),
+                    integrity: registry.integrity('@fixture/app', '1.0.0'),
                     dependencies: { '@fixture/lib': '^9.0.0' },
                 },
                 // The stale, destructive entry: a registry pin for a name that
                 // is actually a local workspace.
                 'node_modules/@fixture/lib': {
                     version: '9.9.9',
-                    resolved: `${registryUrl}-/lib/9.9.9.tgz`,
-                    integrity: libSri,
+                    resolved: registry.tarballUrl('@fixture/lib', '9.9.9'),
+                    integrity: registry.integrity('@fixture/lib', '9.9.9'),
                     dependencies: {},
                 },
             },

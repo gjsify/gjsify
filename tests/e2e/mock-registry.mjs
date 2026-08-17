@@ -10,11 +10,21 @@
 // exported none of it.
 //
 // SCOPE. This serves the COMMON registry shape: an index document per package,
-// `dist-tags.latest`, a gzipped tarball per version, 404 for anything unknown. A
-// suite that needs the registry to misbehave — stall mid-body, close early, count
-// requests — passes `onRequest`, which sees every request first and reports
-// whether it handled it. That hook exists so those suites keep the shared writer
-// instead of forking the whole module again, which is how this started.
+// `dist-tags.latest`, a gzipped tarball per version, 404 for anything unknown.
+//
+// Two hooks cover everything a suite has needed beyond that, and they answer
+// different questions:
+//
+//   onRequest(req, res, ctx)      — answer a request INSTEAD of the default routes.
+//                                   Return true when handled. This is where a stall,
+//                                   a 503, a 304, a dropped socket or a request
+//                                   counter goes.
+//   onPackument(doc, ctx)         — edit the document the default route is ABOUT to
+//                                   send. This is where "hide a version" or "the
+//                                   abbreviated shape omits libc" goes.
+//
+// They exist so a suite that needs the registry to misbehave keeps the shared
+// writer instead of forking the whole module again, which is how this started.
 
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
@@ -124,24 +134,32 @@ function splitVersionSpec(name, version, spec) {
  * Start an in-process npm registry over a fixture tree.
  *
  * @param {Record<string, Record<string, object>>} packages `name → version → manifest fields (+ optional `files`)`
- * @param {{ onRequest?: (req, res, ctx) => boolean, distTags?: Record<string, Record<string, string>> }} [options]
+ * @param {{ onRequest?: (req, res, ctx) => boolean,
+ *           onPackument?: (doc, ctx) => void,
+ *           distTags?: Record<string, Record<string, string>> }} [options]
  *        `onRequest` sees every request BEFORE the default routes and returns
- *        `true` when it has answered — the seam for suites testing a registry that
- *        stalls, truncates or fails.
+ *        `true` when it has answered — the seam for a registry that stalls,
+ *        truncates, 503s, 304s or counts. `onPackument` receives the document the
+ *        default route is about to send, so a suite can hide a version or strip a
+ *        field per request shape without re-implementing the route; `dist-tags` is
+ *        computed after it runs.
  * @returns {Promise<{ url: string, port: number, close: () => Promise<void>,
  *          tarball: (name: string, version: string) => Buffer,
  *          integrity: (name: string, version: string) => string,
+ *          tarballUrl: (name: string, version: string) => string,
  *          requests: string[] }>}
  */
 export async function startMockRegistry(packages, options = {}) {
-    const { onRequest, distTags = {} } = options;
+    const { onRequest, onPackument, distTags = {} } = options;
 
     /** name → { indexDoc, versions: Map<version, {tgz, integrity}> } */
     const store = new Map();
     for (const [name, versions] of Object.entries(packages)) {
-        const doc = { name, 'dist-tags': {}, versions: {} };
+        // No `dist-tags` here: it is computed on the WIRE path, after `onPackument`
+        // has had its say, so a hook that hides a version cannot leave `latest`
+        // pointing at one the document no longer offers.
+        const doc = { name, versions: {} };
         const built = new Map();
-        let last = '';
         for (const [version, spec] of Object.entries(versions)) {
             const { pkgJson, files } = splitVersionSpec(name, version, spec);
             const { tgz, integrity } = packageTarball(files);
@@ -150,9 +168,7 @@ export async function startMockRegistry(packages, options = {}) {
                 ...pkgJson,
                 dist: { tarball: `__BASE__/-/${name}/${version}.tgz`, integrity },
             };
-            last = version;
         }
-        doc['dist-tags'] = { latest: last, ...distTags[name] };
         store.set(name, { doc, versions: built });
     }
 
@@ -175,9 +191,15 @@ export async function startMockRegistry(packages, options = {}) {
             const entry = store.get(pkgName);
             if (!entry) return void res.writeHead(404).end('not found');
             const wire = JSON.parse(JSON.stringify(entry.doc));
+            onPackument?.(wire, { req, res, name: pkgName, store, baseUrl: baseUrl() });
+            // AFTER the hook, for the reason the store doc carries no dist-tags.
+            const offered = Object.keys(wire.versions);
+            wire['dist-tags'] = { latest: offered[offered.length - 1], ...distTags[pkgName] };
             for (const v of Object.values(wire.versions)) {
                 v.dist.tarball = v.dist.tarball.replace('__BASE__', baseUrl());
             }
+            // `writeHead` MERGES with headers already set, so an `onRequest` that
+            // set one (an ETag, say) and fell through still has it here.
             res.writeHead(200, { 'content-type': 'application/json' });
             res.end(JSON.stringify(wire));
         } catch (e) {
@@ -197,7 +219,18 @@ export async function startMockRegistry(packages, options = {}) {
         requests,
         tarball: (name, version) => store.get(name)?.versions.get(version)?.tgz,
         integrity: (name, version) => store.get(name)?.versions.get(version)?.integrity,
-        close: () => new Promise((resolve) => server.close(resolve)),
+        /** The URL this registry serves a tarball at — for a suite hand-writing a lockfile's `resolved`. */
+        tarballUrl: (name, version) => `${baseUrl()}/-/${name}/${version}.tgz`,
+        close: () =>
+            new Promise((resolve) => {
+                // `server.close()` waits for every open connection, and a registry
+                // that deliberately never ENDS a response has one that never closes.
+                // Measured: plain `close()` did not fire its callback within 2 s
+                // against the partial-body server `install-timeout` needs, and
+                // resolved immediately once the connections were dropped first.
+                server.closeAllConnections();
+                server.close(resolve);
+            }),
     };
 }
 

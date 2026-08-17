@@ -34,11 +34,9 @@ import { mkdtempSync, mkdirSync, rmSync, existsSync, readFileSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createServer } from 'node:http';
-import { gzipSync } from 'node:zlib';
 import { spawn, execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { packageTar, sriSha512 } from '../mock-registry.mjs';
+import { startMockRegistry } from '../mock-registry.mjs';
 
 const execFileAsync = promisify(execFile);
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -52,8 +50,7 @@ const ARCH = process.arch;
 const PREBUILD_REL = `prebuilds/linux-${ARCH}`;
 
 /**
- * The files a synthetic package ships: its `package.json` and, optionally, a
- * prebuild directory.
+ * The extra files a synthetic engine package ships beside its `package.json`.
  *
  * The two prebuild files are stand-ins for the pair EVERY gjsify GI bridge ships —
  * content is irrelevant, presence is not. The `.typelib` is load-bearing for the
@@ -61,14 +58,10 @@ const PREBUILD_REL = `prebuilds/linux-${ARCH}`;
  * preamble takes a directory only when it holds one, and a fixture with just a
  * `.so` would be a prebuild the real launcher is right to skip.
  */
-function packageFiles(pkgJson, withPrebuild = false) {
-    const files = { 'package.json': JSON.stringify(pkgJson, null, 2) + '\n' };
-    if (withPrebuild) {
-        files[`${PREBUILD_REL}/libgjsify_engine.so`] = '\x7fELF stub';
-        files[`${PREBUILD_REL}/GjsifyEngine-1.0.typelib`] = 'GTYP stub';
-    }
-    return files;
-}
+const PREBUILD_FILES = {
+    [`${PREBUILD_REL}/libgjsify_engine.so`]: '\x7fELF stub',
+    [`${PREBUILD_REL}/GjsifyEngine-1.0.typelib`]: 'GTYP stub',
+};
 
 function runHarness(cmd, args, cwd, env = {}) {
     return new Promise((resolve, reject) => {
@@ -134,11 +127,10 @@ async function launcherEnv(launcherPath, tmpRoot, extraEnv = {}) {
 
 describe('global GJS install lays down the bundler engine', { timeout: 90_000 }, () => {
     const CLI_VERSION = '9.9.9';
-    let server;
+    let registry;
     let registryUrl;
     let tmpRoot;
     let cacheHome;
-    let index;
 
     before(async () => {
         if (!existsSync(CLI_ENTRY) || !existsSync(INSTALL_GLOBAL_JS)) {
@@ -152,76 +144,20 @@ describe('global GJS install lays down the bundler engine', { timeout: 90_000 },
         // engine ships a real prebuilds/linux-<arch>/ dir in its tarball so
         // detectNativePackages picks it up after extraction.
         const PACKAGES = {
-            '@gjsify/cli': { json: { name: '@gjsify/cli', version: CLI_VERSION }, withPrebuild: false },
+            '@gjsify/cli': { [CLI_VERSION]: { dependencies: {} } },
             '@gjsify/rolldown-native': {
-                json: { name: '@gjsify/rolldown-native', version: CLI_VERSION, gjsify: { prebuilds: 'prebuilds' } },
-                withPrebuild: true,
+                [CLI_VERSION]: { dependencies: {}, gjsify: { prebuilds: 'prebuilds' }, files: PREBUILD_FILES },
             },
             '@gjsify/lightningcss-native': {
-                json: { name: '@gjsify/lightningcss-native', version: CLI_VERSION, gjsify: { prebuilds: 'prebuilds' } },
-                withPrebuild: true,
+                [CLI_VERSION]: { dependencies: {}, gjsify: { prebuilds: 'prebuilds' }, files: PREBUILD_FILES },
             },
             '@gjsify/oxfmt-native': {
-                json: { name: '@gjsify/oxfmt-native', version: CLI_VERSION, gjsify: { prebuilds: 'prebuilds' } },
-                withPrebuild: true,
+                [CLI_VERSION]: { dependencies: {}, gjsify: { prebuilds: 'prebuilds' }, files: PREBUILD_FILES },
             },
         };
 
-        index = {};
-        for (const [name, info] of Object.entries(PACKAGES)) {
-            const tgz = gzipSync(packageTar(packageFiles(info.json, info.withPrebuild)));
-            index[name] = {
-                name,
-                'dist-tags': { latest: CLI_VERSION },
-                versions: {
-                    [CLI_VERSION]: {
-                        name,
-                        version: CLI_VERSION,
-                        dependencies: {},
-                        dist: {
-                            tarball: `__BASE__/-/${encodeURIComponent(name)}/${CLI_VERSION}.tgz`,
-                            integrity: sriSha512(tgz),
-                        },
-                        _tgz: tgz,
-                    },
-                },
-            };
-        }
-
-        server = createServer((req, res) => {
-            try {
-                const url = req.url ?? '';
-                const tarMatch = url.match(/^\/-\/([^/]+)\/([^/]+)\.tgz$/);
-                if (tarMatch) {
-                    const name = decodeURIComponent(tarMatch[1]);
-                    const v = index[name]?.versions[tarMatch[2]];
-                    if (!v) {
-                        res.writeHead(404).end('not found');
-                        return;
-                    }
-                    res.writeHead(200, { 'content-type': 'application/octet-stream' });
-                    res.end(v._tgz);
-                    return;
-                }
-                const pkgName = decodeURIComponent(url.replace(/^\//, '').split('?')[0]);
-                const p = index[pkgName];
-                if (!p) {
-                    res.writeHead(404).end('not found');
-                    return;
-                }
-                const baseUrl = `http://127.0.0.1:${server.address().port}`;
-                const wire = JSON.parse(JSON.stringify(p, (k, val) => (k === '_tgz' ? undefined : val)));
-                for (const v of Object.values(wire.versions)) {
-                    v.dist.tarball = v.dist.tarball.replace('__BASE__', baseUrl);
-                }
-                res.writeHead(200, { 'content-type': 'application/json' });
-                res.end(JSON.stringify(wire));
-            } catch (e) {
-                res.writeHead(500).end(String(e));
-            }
-        });
-        await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-        registryUrl = `http://127.0.0.1:${server.address().port}/`;
+        registry = await startMockRegistry(PACKAGES);
+        registryUrl = registry.url;
         tmpRoot = mkdtempSync(join(tmpdir(), 'gjsify-global-engine-'));
         // Isolate the packument + tarball disk caches into this run's tmp dir.
         // Without this, a stale REAL @gjsify/rolldown-native packument from an
@@ -232,8 +168,8 @@ describe('global GJS install lays down the bundler engine', { timeout: 90_000 },
         mkdirSync(cacheHome, { recursive: true });
     });
 
-    after(() => {
-        if (server) server.close();
+    after(async () => {
+        await registry?.close();
         if (tmpRoot) rmSync(tmpRoot, { recursive: true, force: true });
     });
 

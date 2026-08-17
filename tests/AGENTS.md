@@ -39,9 +39,11 @@ One suite per directory (`run.mjs`, `node:test`), driving the built CLI from OUT
 modules, NEITHER re-implementable in a suite: `helpers.mjs` (repo paths, packing, project setup,
 `spawnUntilReady` — a suite that only BUILDS an app has not shown it runs) and
 `mock-registry.mjs` — the npm harness (`packageTar` · `packageTarball` · `sriSha512` ·
-`startMockRegistry` · `runCli`/`runCliSync`). A registry that must MISBEHAVE uses `onRequest`, never
-a private server. `scripts/check-e2e-harness-duplication.mjs` fails on a private copy and holds the
-incident. A suite-specific POLICY over the shared runner stays local (`build-cache`'s hermetic env);
+`startMockRegistry` · `runCli`/`runCliSync`). A registry that must MISBEHAVE uses `onRequest`
+(answer INSTEAD of the default routes) or `onPackument` (edit the document about to be sent), never
+a private server. `scripts/check-e2e-harness-duplication.mjs` fails on a private copy — a raw
+`createServer` included — and holds the incident; its ALLOWED ledger carries the suites whose
+subject IS a different npm API (publish, onboard, self-update) and is self-retiring. A suite-specific POLICY over the shared runner stays local (`build-cache`'s hermetic env);
 a second implementation does not. `runCli` defaults to 30 s — longer goes at the CALL SITE.
 
 ### Browser tests — `tests/browser/` (Playwright, Firefox/SpiderMonkey)
