@@ -176,7 +176,7 @@ const hasPreview = Astro.slots.has('preview');
             )
         }
 
-        <adw-tab-view no-close expand-tabs>
+        <adw-tab-view no-close expand-tabs data-impl-view>
             {present.map((r) => <adw-tab-page title={r.label} set:html={r.html} />)}
         </adw-tab-view>
     </div>
@@ -211,7 +211,11 @@ const hasPreview = Astro.slots.has('preview');
     const applyPreference = (impl: string | null, skip?: Element) => {
         if (!impl) return;
         for (const el of document.querySelectorAll<HTMLElement>('[data-impl-tabs]')) {
-            const view = el.querySelector('adw-tab-view');
+            // The MARKED view, not the first one: a preview that is itself an
+            // `<adw-tab-view>` precedes it in DOM order, so `querySelector` handed
+            // back the preview and silently retargeted it whenever the reader picked
+            // an implementation on any other widget.
+            const view = el.querySelector('adw-tab-view[data-impl-view]');
             if (!view || view === skip) continue;
             const impls = (el.dataset.impls ?? '').split(',');
             const index = impls.indexOf(impl);
@@ -222,7 +226,18 @@ const hasPreview = Astro.slots.has('preview');
     // Follow user selection: persist + mirror to every other widget on the page.
     document.addEventListener('notify::selected-page', (event) => {
         const view = event.target as HTMLElement;
-        const host = view?.closest?.('[data-impl-tabs]') as HTMLElement | null;
+        // ONLY this component's own implementation tab view. `notify::selected-page`
+        // BUBBLES, and every widget preview lives inside the same `[data-impl-tabs]`
+        // host, so an unguarded listener also caught the previews. On
+        // /adwaita/view-switching/ the Adw.TabView preview IS an `<adw-tab-view>`:
+        // clicking its "Details" chip arrived here as `detail.selected = 1`, was read
+        // as "the reader picked implementation 1" (Blueprint), persisted, and rewrote
+        // every widget on the page. The widgets above then swapped a long snippet for
+        // a short one and shrank, so the content under the reader's cursor jumped
+        // upward while scrollY never moved. Reported as "clicking a tab scrolls the
+        // page", which is exactly what it looks like.
+        if (!view?.matches?.('[data-impl-view]')) return;
+        const host = view.closest('[data-impl-tabs]') as HTMLElement | null;
         if (!host) return;
         const impls = (host.dataset.impls ?? '').split(',');
         const impl = impls[(event as CustomEvent).detail?.selected ?? 0];
@@ -335,8 +350,15 @@ const hasPreview = Astro.slots.has('preview');
 
     /* The preview widgets are light-DOM custom elements styled by the global
        adwaita-web stylesheet; keep them from stretching full width so small
-       widgets stay centered and legible. */
-    .adw-widget-preview-stage > :where(adw-preferences-group, adw-clamp, adw-banner) {
+       widgets stay centered and legible.
+
+       NOT adw-clamp, which was in this list. `_clamp.scss` keeps that element
+       uncapped and full-width on purpose: it is the box the tightening curve is
+       measured against, and the cap it applies goes on its CHILDREN. Capped at
+       420px it clamped a 400px child inside a 420px box, so the Layout page
+       promised "it stops growing past the maximum size and stays centred" over
+       20px in which to show either. */
+    .adw-widget-preview-stage > :where(adw-preferences-group, adw-banner) {
         width: 100%;
         max-width: 420px;
     }

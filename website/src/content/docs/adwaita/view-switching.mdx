@@ -448,13 +448,19 @@ pages.
   <Fragment slot="preview">
     <div style="height: 220px; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;">
       <adw-carousel id="view-switching-carousel" style="width: 100%; max-width: 480px; height: 160px;">
-        <adw-card style="width:440px;height:140px;display:flex;align-items:center;justify-content:center;background-color:color-mix(in srgb, var(--accent-bg-color) 14%, var(--window-bg-color));color:#ffffff;box-sizing:border-box;">
+        {/* No `color` on these three on purpose. Each tints itself with 14% of an
+            accent over `--window-bg-color`, so in the LIGHT scheme the fill lands near
+            rgb(222, 234, 248), and the `#ffffff` they carried put white text on that
+            at about 1.2:1: the labels were invisible under the site's light toggle
+            while looking right in dark. Inherited, the label takes `--card-fg-color`,
+            near-black in light and `#ffffff` in dark, so dark is unchanged. */}
+        <adw-card style="width:440px;height:140px;display:flex;align-items:center;justify-content:center;background-color:color-mix(in srgb, var(--accent-bg-color) 14%, var(--window-bg-color));box-sizing:border-box;">
           <span style="font-size:24pt;font-weight:800;">Welcome</span>
         </adw-card>
-        <adw-card style="width:440px;height:140px;display:flex;align-items:center;justify-content:center;background-color:color-mix(in srgb, #2ec27e 14%, var(--window-bg-color));color:#ffffff;box-sizing:border-box;">
+        <adw-card style="width:440px;height:140px;display:flex;align-items:center;justify-content:center;background-color:color-mix(in srgb, #2ec27e 14%, var(--window-bg-color));box-sizing:border-box;">
           <span style="font-size:24pt;font-weight:800;">Discover</span>
         </adw-card>
-        <adw-card style="width:440px;height:140px;display:flex;align-items:center;justify-content:center;background-color:color-mix(in srgb, #e5a50a 14%, var(--window-bg-color));color:#ffffff;box-sizing:border-box;">
+        <adw-card style="width:440px;height:140px;display:flex;align-items:center;justify-content:center;background-color:color-mix(in srgb, #e5a50a 14%, var(--window-bg-color));box-sizing:border-box;">
           <span style="font-size:24pt;font-weight:800;">Get started</span>
         </adw-card>
       </adw-carousel>

@@ -13,7 +13,12 @@ const grouped = groupIntegrationsByCategory();
 const totalSuites = integrationSuites.length;
 ---
 
-<section class="adw-coverage">
+{/* `not-content`, like the other four coverage dashboards and for the reason
+    `website/src/styles/custom.css` records: Starlight's prose flow put 16px on
+    every `.adw-row` after the first. It also drops Starlight's inline-code chip
+    from the `<code>` below, which puts that in line with how this family already
+    renders package names (`.adw-api-pkg` sets `background: transparent`). */}
+<section class="adw-coverage not-content">
 	<header class="adw-coverage-head">
 		<p class="adw-group-title">Integration Tests</p>
 		<h2 class="adw-coverage-title">{totalSuites} npm packages, end-to-end</h2>

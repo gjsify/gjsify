@@ -435,7 +435,9 @@ the detail page and watch the back button appear.
             <adw-header-bar data-adw-slot="top">
               <adw-window-title data-adw-slot="center" title="Contacts"></adw-window-title>
             </adw-header-bar>
-            <adw-button label="Open contact" pill suggested class="adw-navigation-view-root-action"></adw-button>
+            <div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
+              <adw-button label="Open contact" pill suggested></adw-button>
+            </div>
           </adw-toolbar-view>
         </adw-navigation-page>
         <adw-navigation-page tag="detail" title="Ada Lovelace">
@@ -537,7 +539,13 @@ the detail page and watch the back button appear.
                     <adw-header-bar slot="top">
                         <adw-window-title slot="center" title="Contacts"></adw-window-title>
                     </adw-header-bar>
-                    <adw-button label="Open contact" pill suggested class="adw-navigation-view-root-action"></adw-button>
+                    <!-- The toolbar view gives its content widget the whole rect, as
+                         Adw.ToolbarView does, so a button that wants to sit in the
+                         middle says so. This box is the web spelling of the GJS tab's
+                         halign/valign: center. -->
+                    <div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
+                        <adw-button label="Open contact" pill suggested></adw-button>
+                    </div>
                 </adw-toolbar-view>
             </adw-navigation-page>
             <adw-navigation-page tag="detail" title="Ada Lovelace">
@@ -752,8 +760,8 @@ A sheet that **slides up from the bottom edge** over the content it belongs to,
 which suits contextual actions and secondary content on a narrow window. Make it
 **modal** to dim the content behind it. `canClose` is on by default, so Escape or
 a click on the dimmed area dismisses the sheet; switch it off to keep the sheet
-up until your own code closes it. The preview shows the sheet already open; in a
-real window the toggle button opens and closes it.
+up until your own code closes it. The preview starts with the sheet up: click the
+dimmed area to dismiss it, and the button underneath to bring it back.
 
 <AdwWidget title="Adw.BottomSheet" padding="flush">
   <Fragment slot="preview">
@@ -761,7 +769,7 @@ real window the toggle button opens and closes it.
       <adw-bottom-sheet open modal can-close style="flex: 1;">
         <adw-bottom-sheet-content>
           <div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
-            <adw-button pill suggested>Toggle sheet</adw-button>
+            <adw-button pill suggested data-adw-toggle-open="adw-bottom-sheet">Toggle sheet</adw-button>
           </div>
         </adw-bottom-sheet-content>
         <adw-bottom-sheet-sheet>
