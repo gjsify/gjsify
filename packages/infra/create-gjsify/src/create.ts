@@ -2,29 +2,35 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, cpSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { discoverTemplates, findTemplate, type TemplateInfo } from './discover-templates.js';
+import {
+    INSTALL_ARGV,
+    defaultRuntimeFor,
+    hostRuntime,
+    packageManagersForRuntime,
+    runScriptCommand,
+    startScriptFor,
+    type PackageManager,
+} from './runtimes.js';
 
 export { discoverTemplates, findTemplate } from './discover-templates.js';
 export type { TemplateInfo } from './discover-templates.js';
-
-/**
- * Package managers a scaffolded project can be installed with. All four work:
- * the templates declare every dependency they need explicitly — including
- * `@gjsify/rolldown-native`, which npm/yarn/pnpm would otherwise skip as an
- * optional peer of `@gjsify/cli`.
- *
- * `gjsify` is gjsify's own installer and the only one of the four that works on
- * a host with no Node.js at all.
- */
-export const PACKAGE_MANAGERS = ['npm', 'yarn', 'pnpm', 'gjsify'] as const;
-export type PackageManager = (typeof PACKAGE_MANAGERS)[number];
-
-/** The `install` argv for each package manager. */
-const INSTALL_ARGV: Record<PackageManager, string[]> = {
-    npm: ['install', '--no-audit', '--no-fund'],
-    yarn: ['install'],
-    pnpm: ['install'],
-    gjsify: ['install'],
-};
+export {
+    PACKAGE_MANAGERS,
+    INSTALL_ARGV,
+    RUNTIME_PACKAGE_MANAGERS,
+    RUNTIME_DESCRIPTIONS,
+    packageManagersForRuntime,
+    isKnownRuntime,
+    hostRuntime,
+    defaultRuntimeFor,
+    runScriptCommand,
+    startScriptFor,
+    type PackageManager,
+} from './runtimes.js';
+// Re-exported through the package's `.` entry (which is this file, not
+// `index.ts`) so `gjsify create` can reach the same decisions the standalone bin
+// makes instead of re-deriving them — a second derivation is a second answer.
+export { selectRuntime, selectPackageManager, type Selection } from './select.js';
 
 export interface CreateProjectOptions {
     projectName: string;
@@ -36,6 +42,15 @@ export interface CreateProjectOptions {
     install?: boolean;
     /** Which package manager to install with, and to name in the printed next steps. */
     packageManager?: PackageManager;
+    /**
+     * Which of the template's declared runtimes the user intends to run on.
+     *
+     * It changes no scaffolded byte — a template ships every runtime it declares
+     * — but it decides which package manager is legal and which of the `start:*`
+     * scripts the next steps name. Omitted, it resolves the same way the
+     * non-interactive path does: the host runtime when the template supports it.
+     */
+    runtime?: string;
 }
 
 /** Sentinel replaced by the user's project name in every text file under the template. */
@@ -102,7 +117,7 @@ function isDirEmpty(path: string): boolean {
 
 export async function createProject(options: CreateProjectOptions): Promise<void> {
     const projectName = sanitizeProjectName(options.projectName);
-    const { template, force = false, install = false, packageManager = 'npm' } = options;
+    const { template, force = false, install = false } = options;
 
     const info = findTemplate(template);
     if (!info) {
@@ -111,6 +126,30 @@ export async function createProject(options: CreateProjectOptions): Promise<void
             .join(', ');
         throw new Error(
             `Unknown template "${template}". Available templates: ${available || '(none — run "yarn build" first)'}`,
+        );
+    }
+
+    // Resolve the runtime BEFORE the manager: which managers are legal is a
+    // function of the runtime, so a caller passing neither must not land on npm
+    // for a template that only runs on gjs. A template that declares NOTHING is
+    // unconstrained — the reading `@gjsify/cli`'s `readDeclaredRuntimes` gives a
+    // null declaration — so it falls through to the host rather than to an
+    // arbitrary first entry.
+    const offered = supportedRuntimes(info);
+    const runtime = options.runtime ?? defaultRuntimeFor(offered, options.packageManager) ?? hostRuntime();
+    const managers = packageManagersForRuntime(runtime);
+    if (!managers) {
+        throw new Error(
+            `Template "${info.name}" was asked for runtime "${runtime}", which this version of ` +
+                '@gjsify/create-app has no installer mapping for. Upgrade it, or pick one of: ' +
+                `${offered.join(', ') || '(none)'}.`,
+        );
+    }
+    const packageManager = options.packageManager ?? managers[0];
+    if (!managers.includes(packageManager)) {
+        throw new Error(
+            `"${packageManager}" cannot install a project you intend to run on ${runtime}. ` +
+                `Package managers for ${runtime}: ${managers.join(', ')}.`,
         );
     }
 
@@ -132,7 +171,7 @@ export async function createProject(options: CreateProjectOptions): Promise<void
     substituteTemplateSentinels(targetDir, projectName);
 
     if (install) {
-        const argv = INSTALL_ARGV[packageManager];
+        const argv = [...INSTALL_ARGV[packageManager]];
         console.log(`Running ${packageManager} ${argv[0]}...`);
         // `shell: true` is what makes this work on Windows, where `npm` is
         // `npm.cmd`: `CreateProcess` appends only `.exe` when it searches PATH
@@ -142,7 +181,9 @@ export async function createProject(options: CreateProjectOptions): Promise<void
         // my-app` therefore scaffolded a project, never installed anything, and
         // blamed npm for it. `shell: true` is the exemption the invariant in
         // `@gjsify/cli`'s `utils/spawn.ts` sanctions for exactly this case. It
-        // applies to all four managers, which all ship as `.cmd` shims there.
+        // applies to every manager here: npm/yarn/pnpm/gjsify ship as `.cmd`
+        // shims on Windows, and bun/deno as `.exe`, which the bare-name search
+        // finds — but the shell path is correct for both and costs nothing.
         const result = spawnSync(packageManager, argv, {
             cwd: targetDir,
             stdio: 'inherit',
@@ -158,7 +199,7 @@ export async function createProject(options: CreateProjectOptions): Promise<void
         }
     }
 
-    printNextSteps(projectName, info, install, packageManager);
+    printNextSteps(projectName, info, install, packageManager, runtime);
 }
 
 /**
@@ -197,45 +238,75 @@ function printNextSteps(
     template: TemplateInfo,
     installed: boolean,
     packageManager: PackageManager,
+    runtime: string,
 ): void {
-    // `npm run <script>` / `yarn <script>` / `pnpm <script>` / `gjsify run
-    // <script>` — the same script, four spellings. Printing the one that
-    // matches the manager the user actually chose is the whole point of
-    // threading it this far.
-    const run = packageManager === 'npm' ? 'npm run' : packageManager === 'gjsify' ? 'gjsify run' : packageManager;
+    const run = runScriptCommand(packageManager);
+    const scripts = templateScripts(template);
+    const start = startScriptFor(runtime);
 
     console.log('');
-    console.log(`Project created from template "${template.name}".`);
+    console.log(`Project created from template "${template.name}", set up for ${runtime}.`);
     console.log('');
     console.log('Next steps:');
     console.log(`  cd ${projectName}`);
     if (!installed) console.log(`  ${packageManager} install`);
-    console.log(`  ${run} dev`);
-    console.log('');
-    // The runtimes the template DECLARES, not a fixed list: a GJS-only template
-    // must not advertise `start:node`, and a portable one must not hide it.
-    const runtimes = declaredRuntimes(template);
-    if (runtimes.length > 1) {
-        console.log(`Runs on ${runtimes.join(', ')}:`);
+    // `dev` is the gjs one-liner (build the gjs bundle, then launch it); every
+    // other runtime consumes the `--app node` bundle, which `dev` does not
+    // produce. Printing `dev` for a `--runtime deno` user sent them to a script
+    // that rebuilds the wrong target and starts the wrong file.
+    if (runtime === 'gjs' && scripts['dev']) {
+        console.log(`  ${run} dev`);
+    } else {
         console.log(`  ${run} build`);
-        for (const runtime of runtimes) {
-            console.log(`  ${run} ${runtime === 'gjs' ? 'start' : `start:${runtime}`}`);
-        }
+        console.log(`  ${run} ${start}`);
+    }
+    console.log('');
+    // The OTHER runtimes the template DECLARES, not a fixed list: a GJS-only
+    // template must not advertise `start:node`, and a portable one must not hide
+    // it. Only those whose launch script the template actually ships are listed —
+    // a declaration with no script behind it is not a runnable offer.
+    const alternatives = supportedRuntimes(template).filter((rt) => rt !== runtime && scripts[startScriptFor(rt)]);
+    if (alternatives.length > 0) {
+        console.log(`Also runs on ${alternatives.join(', ')}:`);
+        for (const rt of alternatives) console.log(`  ${run} ${startScriptFor(rt)}`);
         console.log('');
     }
 }
 
-/** `gjsify.example.runtimes` from the template's manifest; `[]` when unstated. */
-function declaredRuntimes(template: TemplateInfo): string[] {
+/** The template manifest, or `{}` when it cannot be read. */
+function templateManifest(template: TemplateInfo): {
+    scripts?: Record<string, unknown>;
+    gjsify?: { example?: { runtimes?: unknown } };
+} {
     try {
-        const pkg = JSON.parse(readFileSync(join(template.path, 'package.json'), 'utf-8')) as {
-            gjsify?: { example?: { runtimes?: unknown } };
-        };
-        const runtimes = pkg.gjsify?.example?.runtimes;
-        return Array.isArray(runtimes) ? runtimes.filter((r): r is string => typeof r === 'string') : [];
+        return JSON.parse(readFileSync(join(template.path, 'package.json'), 'utf-8'));
     } catch {
         // A template with no readable manifest cannot be scaffolded at all —
         // `createProject` already failed by here. Nothing to advertise.
-        return [];
+        return {};
     }
+}
+
+/** The template's package scripts, keyed by name. */
+function templateScripts(template: TemplateInfo): Record<string, string> {
+    const scripts = templateManifest(template).scripts;
+    if (!scripts) return {};
+    return Object.fromEntries(
+        Object.entries(scripts).filter((entry): entry is [string, string] => typeof entry[1] === 'string'),
+    );
+}
+
+/**
+ * The runtimes a template can actually be scaffolded for: what it DECLARES in
+ * `gjsify.example.runtimes`, minus any name this scaffolder has no installer
+ * mapping for.
+ *
+ * Filtering rather than trusting the declaration wholesale keeps an older
+ * scaffolder usable against a newer template: it offers the runtimes it can
+ * serve instead of listing one in the picker and then failing on the install.
+ */
+export function supportedRuntimes(template: TemplateInfo): string[] {
+    const declared = templateManifest(template).gjsify?.example?.runtimes;
+    if (!Array.isArray(declared)) return [];
+    return declared.filter((rt): rt is string => typeof rt === 'string' && packageManagersForRuntime(rt) !== undefined);
 }

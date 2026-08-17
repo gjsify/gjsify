@@ -6,8 +6,8 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execSync, execFileSync } from 'node:child_process';
-import { writeFileSync, readFileSync, existsSync, mkdtempSync } from 'node:fs';
+import { execSync, execFileSync, spawnSync } from 'node:child_process';
+import { writeFileSync, readFileSync, existsSync, mkdtempSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -166,6 +166,45 @@ function scaffold(cwd, projectName, template, extraArgs = []) {
 }
 
 /**
+ * The TWO surfaces onto the same scaffolder, keyed by name.
+ *
+ * `npm create @gjsify/app` runs the standalone bin; `gjsify create` runs the CLI
+ * subcommand, which imports the very same package. They are separate argv
+ * parsers, which is how they drifted: the subcommand offered neither `--runtime`
+ * nor `--package-manager` and passed neither on, so `createProject` fell back to
+ * the host runtime and its first manager — `gjsify create --install` ran `npm
+ * install` without ever saying so, while the bin refused to guess.
+ */
+const SURFACES = {
+    'create-app': (argv) => [
+        'node',
+        [join(MONOREPO_ROOT, 'packages', 'infra', 'create-gjsify', 'lib', 'index.js'), ...argv],
+    ],
+    'gjsify create': (argv) => [
+        'node',
+        [join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js'), 'create', ...argv],
+    ],
+};
+
+/**
+ * Run `argv` on a surface with NO tty, and report everything a user would see.
+ *
+ * stdout and stderr are merged on purpose: which stream a notice goes to is part
+ * of the answer, but the parity assertion is about the answer itself, and the two
+ * surfaces would otherwise be free to agree on the text while disagreeing on
+ * where it lands. The cwd is scrubbed because it is the one legitimate difference
+ * — each surface scaffolds into its own directory.
+ */
+function runSurface(surface, cwd, argv) {
+    const [cmd, args] = SURFACES[surface](argv);
+    const r = spawnSync(cmd, args, { cwd, encoding: 'utf8' });
+    return {
+        status: r.status,
+        output: `${r.stdout ?? ''}${r.stderr ?? ''}`.split(cwd).join('<cwd>'),
+    };
+}
+
+/**
  * The build artifacts a scaffolded project DECLARES: `gjsify.main` (the
  * `--app gjs` bundle) plus `gjsify.example.node` (the `--app node` one, shared
  * by node/bun/deno).
@@ -245,6 +284,65 @@ describe('create-app scaffolding options', { timeout: 2 * 60 * 1000 }, () => {
         assert.match(stdout, /^ {2}gjsify install$/m, `next steps must install with gjsify. Output:\n${stdout}`);
         assert.match(stdout, /^ {2}gjsify run dev$/m, `next steps must run scripts with gjsify. Output:\n${stdout}`);
         assert.doesNotMatch(stdout, /npm run/, `no npm spelling may leak through. Output:\n${stdout}`);
+    });
+
+    // The argv shapes where the two surfaces can disagree at all: a flag the
+    // subcommand might not have, a default that has to be announced, a refusal
+    // that has to happen. `--install` appears WITHOUT a manager on purpose — it
+    // is the one default that would reach the user's disk, and the case where
+    // the drift was live rather than cosmetic. Nothing here installs: every one
+    // of these settles before `createProject` spawns anything.
+    const PARITY_ARGV = [
+        ['proj', '-t', 'cli'],
+        ['proj', '-t', 'cli', '-r', 'deno'],
+        ['proj', '-t', 'cli', '-p', 'bun'],
+        ['proj', '-t', 'cli', '--install'],
+        ['proj', '-t', 'cli', '-r', 'gjs', '-p', 'npm'],
+        ['proj', '-t', 'cli', '-r', 'bun', '-p', 'deno'],
+    ];
+
+    for (const argv of PARITY_ARGV) {
+        it(`answers \`${argv.slice(1).join(' ')}\` the same on both surfaces`, () => {
+            const results = Object.keys(SURFACES).map((surface) => {
+                const cwd = join(tmpDir, `parity-${surface.replace(/\W+/g, '-')}-${argv.join('-')}`);
+                mkdirSync(cwd, { recursive: true });
+                return { surface, ...runSurface(surface, cwd, argv) };
+            });
+            const [first, ...rest] = results;
+            for (const other of rest) {
+                assert.equal(
+                    other.status,
+                    first.status,
+                    `\`${argv.join(' ')}\` exits ${first.status} on ${first.surface} but ${other.status} on ${other.surface}`,
+                );
+                assert.equal(
+                    other.output,
+                    first.output,
+                    `\`${argv.join(' ')}\` answers differently on ${other.surface}:\n--- ${first.surface} ---\n${first.output}\n--- ${other.surface} ---\n${other.output}`,
+                );
+            }
+        });
+    }
+
+    it('refuses to pick an installer for you off a tty', () => {
+        // `--install` with no `--package-manager` and no terminal to ask: the
+        // manager writes node_modules and a lockfile, so a default here is a
+        // decision made ON the user rather than for them.
+        for (const surface of Object.keys(SURFACES)) {
+            const cwd = join(tmpDir, `no-silent-install-${surface.replace(/\W+/g, '-')}`);
+            mkdirSync(cwd, { recursive: true });
+            const { status, output } = runSurface(surface, cwd, ['proj', '-t', 'cli', '--install']);
+            assert.equal(status, 1, `${surface} must refuse. Output:\n${output}`);
+            assert.match(
+                output,
+                /--package-manager is required with --install/,
+                `${surface} must say which flag is missing. Output:\n${output}`,
+            );
+            assert.ok(
+                !existsSync(join(cwd, 'proj')),
+                `${surface} must not scaffold when it refuses. Output:\n${output}`,
+            );
+        }
     });
 
     it('derives the application id from the project name', () => {

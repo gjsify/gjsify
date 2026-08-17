@@ -42,16 +42,23 @@ Scaffold a new project into a new directory.
 
 ```bash
 gjsify create my-app --template gtk-minimal
-gjsify create my-app --template cli --install
-gjsify create                                   # pick a template interactively
+gjsify create my-app --template cli --runtime deno
+gjsify create my-app --template cli --package-manager pnpm --install
+gjsify create                       # pick template, runtime and manager interactively
 ```
+
+On a terminal it asks three questions in order — template, runtime, package manager — each narrowing the next. Every one can be answered by a flag instead, which is also how it is driven without a TTY. `npm create @gjsify/app` is the same scaffolder and takes the same flags.
 
 | Option | Default | Description |
 |---|---|---|
 | `[project-name]` | `my-gjs-app` | Directory to create. |
 | `-t`, `--template <name>` | prompted | Which template to scaffold from. Required when stdin is not a TTY. |
+| `-r`, `--runtime <rt>` | the host runtime | One of the runtimes the chosen template declares. Decides which package managers are on offer and which start script the next steps name. |
+| `-p`, `--package-manager <pm>` | the runtime's first | Must be one the chosen runtime can install for. Required alongside `--install` when there is no TTY — that default would write your `node_modules` and lockfile. |
 | `-f`, `--force` | `false` | Scaffold into a directory that already has files in it. |
 | `--install` | `false` | Run an install right after scaffolding. |
+
+An installer has to produce the module layout its runtime resolves against, so the runtime decides which managers are offered: `gjs` → `gjsify`; `node` → `npm`, `yarn`, `pnpm`, `gjsify`; `bun` → `bun`; `deno` → `deno`. Where a runtime offers exactly one, nothing is asked — it is used and announced. Passing `-p` without `-r` settles the runtime too, since a pinned manager already names one (`-p bun` sets the project up for Bun).
 
 The templates:
 
