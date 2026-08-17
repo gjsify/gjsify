@@ -13,8 +13,16 @@ interface Props {
 const { title, href, description } = Astro.props;
 ---
 
+{/* `not-content` for the reason AdwWidget.astro spells out: Starlight puts a
+    `margin-top` on every content element that FOLLOWS a sibling, exempting only
+    `:where(.not-content *)`. Inside a preview that lands on the WIDGETS. Measured
+    on this page: in the Buttons card, "Suggested" had `margin: 0` and Delete, the
+    circular button and Pill each had `margin: 16px 0 0`, so the first button sat
+    8px above its own row. The header-bar card had the same 16px pushed onto its
+    trailing button. A preview is a rendering of a widget, not prose, so it has to
+    be laid out by the widget's own stylesheet alone. */}
 <a class="adw-gallery-card" href={href}>
-    <div class="agc-preview">
+    <div class="agc-preview not-content">
         <template class="agc-tpl"><slot name="preview" /></template>
         <div class="agc-stage"></div>
     </div>

@@ -17,7 +17,7 @@ const iconUrl = toDataUri(icon);
 ---
 
 {href ? (
-  <a class="adw-card-link" href={href}>
+  <a class="adw-card-link not-content" href={href}>
     <adw-card>
       <div class="adw-card-icon-box" aria-hidden="true">
         <span class="adw-card-icon" style={`--card-icon: ${iconUrl}`}></span>
@@ -29,7 +29,7 @@ const iconUrl = toDataUri(icon);
     </adw-card>
   </a>
 ) : (
-  <adw-card>
+  <adw-card class="not-content">
     <div class="adw-card-icon-box" aria-hidden="true">
       <span class="adw-card-icon" style={`--card-icon: ${iconUrl}`}></span>
     </div>

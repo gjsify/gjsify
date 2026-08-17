@@ -920,3 +920,27 @@ a[aria-current='page']:hover {
     justify-content: flex-start;
   }
 }
+
+/* ── Adwaita widgets must not be laid out as prose ──────────────────────────
+   Starlight puts `margin-top: 1rem` on every element that FOLLOWS a sibling
+   inside `.sl-markdown-content`, exempting only `:where(.not-content *)`. That
+   rule is right for paragraphs and wrong for a widget, and when it reaches one
+   the damage does not look like a margin bug, which is why it keeps being
+   rediscovered:
+
+     · Buttons in a gallery card: the first sat 8px above its own row, because
+       it alone had no margin-top while its three neighbours had 16px.
+     · A header bar: the trailing button was pushed below its own title.
+     · The coverage dashboards: every row after the first gained 16px, so a
+       boxed list rendered as a column of floating cards. Reported as "this does
+       not look like Adwaita", which is exactly what it looked like.
+     · A wrap box: the first item STRETCHED by the margin its siblings carried,
+       50px against their 34px.
+
+   The fix is always the same: whatever container a component mounts adw-*
+   elements into carries `not-content`. Six components do now. If you add a
+   seventh and its rows drift apart by exactly 16px, this is why.
+
+   A CSS rule here cannot replace that, because a tag-name prefix is not
+   selectable: `adw-*` has no attribute to match on, so any rule would be a
+   hand-listed set of element names that drifts the day someone adds a widget. */
