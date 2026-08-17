@@ -21,6 +21,9 @@ import {
     spawnUntilReady,
     hasCommand,
 } from '../helpers.mjs';
+// Imported, not re-spelled: a second copy of the globals vocabulary is the one that drifts.
+import { GJS_GLOBALS_GROUPS, GJS_GLOBALS_MAP } from '../../../packages/infra/resolve-npm/lib/globals-map.mjs';
+import { ALIASES_WEB_FOR_GJS } from '../../../packages/infra/resolve-npm/lib/index.mjs';
 
 // Listing order matches the template catalog (simple first).
 const TEMPLATES = [
@@ -32,6 +35,45 @@ const TEMPLATES = [
     'web-server-hono',
     'web-server-express',
 ];
+
+const TEMPLATES_DIR = join(MONOREPO_ROOT, 'templates');
+
+/**
+ * The registers an EXPLICIT `--globals` list injects, mirroring `resolveGlobalsList`. `auto`
+ * and `none` are dropped: not identifiers, and what `auto` finds depends on the graph, which
+ * no manifest can promise. A template is held to the set it NAMES.
+ */
+function registerPathsFor(globalsArg) {
+    const out = new Set();
+    for (const token of globalsArg.split(',').map((t) => t.trim())) {
+        if (!token || token === 'auto' || token === 'none') continue;
+        const group = GJS_GLOBALS_GROUPS[token];
+        for (const id of group ?? [token]) {
+            const path = GJS_GLOBALS_MAP[id];
+            if (path) out.add(path);
+        }
+    }
+    return out;
+}
+
+/**
+ * The `@gjsify/*` spelling of a register path: the globals map stores the BARE specifier
+ * where the alias table rewrites at build time (`fetch/register/xhr`), so the name to find
+ * in `dependencies` is the alias target, not the prefix as written.
+ */
+function canonicalRegisterPath(registerPath) {
+    const direct = ALIASES_WEB_FOR_GJS[registerPath];
+    if (direct) return direct;
+    if (registerPath.startsWith('@')) return registerPath;
+    const head = packageNameOf(registerPath);
+    const aliased = ALIASES_WEB_FOR_GJS[head];
+    return aliased ? aliased + registerPath.slice(head.length) : registerPath;
+}
+
+function packageNameOf(registerPath) {
+    const parts = registerPath.split('/');
+    return registerPath.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
+}
 
 // Templates that compile `.blp` files — require blueprint-compiler on PATH.
 const BLUEPRINT_TEMPLATES = new Set(['adw-canvas2d', 'adw-webgl', 'adw-game']);
@@ -257,6 +299,43 @@ function patchPackageJson(projectDir, tarballsDir, tarballMap) {
 describe('create-app launch coverage', () => {
     it('every template has a launch recipe', () => {
         for (const template of TEMPLATES) launchRecipe(template);
+    });
+
+    // Templates only, because a template is the one package kind rebuilt OUTSIDE this
+    // monorepo by a manager we do not choose; a showcase ships a bundle built here, where
+    // everything is hoisted and the gap cannot bite. The incident is in the message below,
+    // where the next reader meets it.
+    it('every register a template asks for is a dependency it declares', () => {
+        for (const template of TEMPLATES) {
+            const pkg = JSON.parse(readFileSync(join(TEMPLATES_DIR, template, 'package.json'), 'utf8'));
+            const declared = new Set([
+                ...Object.keys(pkg.dependencies ?? {}),
+                ...Object.keys(pkg.devDependencies ?? {}),
+            ]);
+            for (const [script, body] of Object.entries(pkg.scripts ?? {})) {
+                if (typeof body !== 'string') continue;
+                for (const match of body.matchAll(/--globals\s+(\S+)/g)) {
+                    for (const registerPath of registerPathsFor(match[1])) {
+                        const owner = packageNameOf(canonicalRegisterPath(registerPath));
+                        assert.ok(
+                            declared.has(owner),
+                            `templates/${template}: script \`${script}\` passes --globals ${match[1]}, which injects ` +
+                                `\`${registerPath}\`, but the template declares no \`${owner}\`.\n` +
+                                '  It resolves only where the package manager HOISTS a transitive copy to the ' +
+                                'project root, which npm and bun do and the isolated layouts do not. Measured on the ' +
+                                'three adw templates: under pnpm, and under deno (the ONLY manager `gjsify create` ' +
+                                'offers for the deno runtime), `deno task build` — the next command the scaffolder ' +
+                                'prints — died on UnresolvedWorkspaceImportError, because `--app node` has no ' +
+                                'resolvable-register filter. The gjs half failed more quietly: it SKIPS an ' +
+                                'unresolvable register with a warning, so the build exited 0 without the DOM surface ' +
+                                'it had asked for (75 KB against npm 220 KB).\n' +
+                                `  Add \`${owner}\` to devDependencies — registers are bundled into the output, so it ` +
+                                'is not needed at runtime.',
+                        );
+                    }
+                }
+            }
+        }
     });
 });
 

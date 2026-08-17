@@ -23,6 +23,7 @@
         "@girs/gobject-2.0": "^4.1.0",
         "@girs/gtk-4.0": "^4.1.0",
         "@gjsify/cli": "workspace:^",
+        "@gjsify/dom-elements": "workspace:^",
         "@gjsify/rolldown-native": "workspace:^",
         "@gjsify/vite-plugin-blueprint": "workspace:^",
         "@types/node": "^25.9.2",
