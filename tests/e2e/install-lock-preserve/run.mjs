@@ -22,19 +22,16 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createServer } from 'node:http';
-import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
-import { packageTar, runCli, sriSha512 } from '../mock-registry.mjs';
+import { runCli, startMockRegistry } from '../mock-registry.mjs';
 
-/** A package version entry's prebuilt tarball + integrity. */
-function versionEntry(name, version, dependencies = {}) {
-    const files = {
-        'package.json': JSON.stringify({ name, version, main: 'index.js', dependencies }),
-        'index.js': `module.exports = ${JSON.stringify({ name, version })};\n`,
+/** One version's manifest fields plus the file it ships. */
+function versionSpec(name, version) {
+    return {
+        main: 'index.js',
+        dependencies: {},
+        files: { 'index.js': `module.exports = ${JSON.stringify({ name, version })};\n` },
     };
-    const tgz = gzipSync(packageTar(files));
-    return { name, version, dependencies, tgz, integrity: sriSha512(tgz) };
 }
 
 /** Read the resolved version of `name` at the hoisted root path in the lockfile. */
@@ -44,65 +41,29 @@ function lockedVersion(projectDir, name) {
 }
 
 describe('gjsify install — lockfile preservation', { timeout: 90_000 }, () => {
-    let server, registryUrl, projectDir, cliEntry, envForCli;
+    let registry, registryUrl, projectDir, cliEntry, envForCli;
 
     // Mutable: when false, dep-a's packument hides 1.1.0 (only 1.0.0 visible).
     let exposeNewer = false;
 
-    const ALL = {
-        'dep-a': {
-            '1.0.0': versionEntry('dep-a', '1.0.0'),
-            '1.1.0': versionEntry('dep-a', '1.1.0'),
-        },
-        'dep-b': {
-            '1.0.0': versionEntry('dep-b', '1.0.0'),
-        },
+    const PACKAGES = {
+        'dep-a': { '1.0.0': versionSpec('dep-a', '1.0.0'), '1.1.0': versionSpec('dep-a', '1.1.0') },
+        'dep-b': { '1.0.0': versionSpec('dep-b', '1.0.0') },
     };
 
-    function visibleVersions(name) {
-        if (name === 'dep-a' && !exposeNewer) {
-            return { '1.0.0': ALL['dep-a']['1.0.0'] };
-        }
-        return ALL[name];
-    }
-
     before(async () => {
-        server = createServer((req, res) => {
-            try {
-                const url = req.url ?? '';
-                const tarMatch = url.match(/^\/-\/([^/]+)\/([^/]+)\.tgz$/);
-                if (tarMatch) {
-                    const v = ALL[tarMatch[1]]?.[tarMatch[2]];
-                    if (!v) return void res.writeHead(404).end('not found');
-                    res.writeHead(200, { 'content-type': 'application/octet-stream' });
-                    return void res.end(v.tgz);
-                }
-                const name = decodeURIComponent(url.replace(/^\//, ''));
-                const versions = visibleVersions(name);
-                if (!versions) return void res.writeHead(404).end('not found');
-                const baseUrl = `http://127.0.0.1:${server.address().port}`;
-                const verNames = Object.keys(versions);
-                const wire = {
-                    name,
-                    'dist-tags': { latest: verNames[verNames.length - 1] },
-                    versions: {},
-                };
-                for (const [version, e] of Object.entries(versions)) {
-                    wire.versions[version] = {
-                        name,
-                        version,
-                        dependencies: e.dependencies,
-                        dist: { tarball: `${baseUrl}/-/${name}/${version}.tgz`, integrity: e.integrity },
-                    };
-                }
-                res.writeHead(200, { 'content-type': 'application/json' });
-                res.end(JSON.stringify(wire));
-            } catch (e) {
-                res.writeHead(500).end(String(e));
-            }
+        registry = await startMockRegistry(PACKAGES, {
+            // Hiding a version in the DOCUMENT, not in the store: the tarball
+            // route keeps serving 1.1.0, which is what makes step 3's
+            // `--refresh-lockfile` install it the moment it becomes visible.
+            // `dist-tags` is recomputed after this hook, so `latest` falls back
+            // to 1.0.0 while 1.1.0 is hidden — the behaviour the hand-rolled
+            // `visibleVersions()` produced.
+            onPackument: (doc, { name }) => {
+                if (name === 'dep-a' && !exposeNewer) delete doc.versions['1.1.0'];
+            },
         });
-        await new Promise((r) => server.listen(0, '127.0.0.1', r));
-        registryUrl = `http://127.0.0.1:${server.address().port}/`;
+        registryUrl = registry.url;
 
         projectDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-preserve-'));
         cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
@@ -125,8 +86,8 @@ describe('gjsify install — lockfile preservation', { timeout: 90_000 }, () => 
         writeFileSync(join(projectDir, '.npmrc'), `registry=${registryUrl}\n`);
     });
 
-    after(() => {
-        if (server) server.close();
+    after(async () => {
+        await registry?.close();
         if (projectDir) rmSync(projectDir, { recursive: true, force: true });
     });
 

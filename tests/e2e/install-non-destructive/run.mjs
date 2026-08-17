@@ -28,78 +28,29 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, rmSync, existsSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createServer } from 'node:http';
-import { gzipSync } from 'node:zlib';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { packageTar, runCli, sriSha512 } from '../mock-registry.mjs';
+import { runCli, startMockRegistry } from '../mock-registry.mjs';
 
 // Two independent registry packages, each a trivial CJS module. `@fixture/dep`
 // is the baseline dependency committed into every fixture; `@fixture/other` is
 // the package the add-package (`install <pkg>`) mode pulls in.
-function makeRegistry() {
-    const pkg = (name, version) => {
-        const tar = gzipSync(
-            packageTar({
-                'package.json': JSON.stringify({ name, version, main: 'index.js' }),
-                'index.js': `module.exports = ${JSON.stringify(name)};\n`,
-            }),
-        );
-        return { tar, sri: sriSha512(tar) };
-    };
-    const built = {
-        '@fixture/dep': pkg('@fixture/dep', '1.0.0'),
-        '@fixture/other': pkg('@fixture/other', '1.0.0'),
-    };
-    const index = {};
-    for (const [name, { tar, sri }] of Object.entries(built)) {
-        const slug = name.replace('@fixture/', '');
-        index[name] = {
-            name,
-            'dist-tags': { latest: '1.0.0' },
-            versions: {
-                '1.0.0': {
-                    name,
-                    version: '1.0.0',
-                    dependencies: {},
-                    dist: { tarball: `__BASE__/-/${slug}/1.0.0.tgz`, integrity: sri },
-                },
-            },
-        };
-    }
-    const server = createServer((req, res) => {
-        try {
-            const url = req.url ?? '';
-            const tgz = url.match(/^\/-\/([^/]+)\/1\.0\.0\.tgz$/);
-            if (tgz) {
-                const entry = built[`@fixture/${tgz[1]}`];
-                if (!entry) {
-                    res.writeHead(404).end('not found');
-                    return;
-                }
-                res.writeHead(200, { 'content-type': 'application/octet-stream' });
-                res.end(entry.tar);
-                return;
-            }
-            const pkgName = decodeURIComponent(url.replace(/^\//, ''));
-            const p = index[pkgName];
-            if (!p) {
-                res.writeHead(404).end('not found');
-                return;
-            }
-            const base = `http://127.0.0.1:${server.address().port}`;
-            const wire = JSON.parse(JSON.stringify(p));
-            for (const v of Object.values(wire.versions)) {
-                v.dist.tarball = v.dist.tarball.replace('__BASE__', base);
-            }
-            res.writeHead(200, { 'content-type': 'application/json' });
-            res.end(JSON.stringify(wire));
-        } catch (e) {
-            res.writeHead(500).end(String(e));
-        }
-    });
-    return server;
-}
+const PACKAGES = {
+    '@fixture/dep': {
+        '1.0.0': {
+            main: 'index.js',
+            dependencies: {},
+            files: { 'index.js': 'module.exports = "@fixture/dep";\n' },
+        },
+    },
+    '@fixture/other': {
+        '1.0.0': {
+            main: 'index.js',
+            dependencies: {},
+            files: { 'index.js': 'module.exports = "@fixture/other";\n' },
+        },
+    },
+};
 
 // Committed build-artifact markers — if an install deletes or rewrites either,
 // the marker changes and git surfaces it.
@@ -145,18 +96,17 @@ function assertMarkers(checks) {
 }
 
 describe('gjsify install — non-destructive (ADR 0001)', { timeout: 120_000 }, () => {
-    let server, registryUrl, cliEntry, baseEnv;
+    let registry, registryUrl, cliEntry, baseEnv;
     const roots = [];
 
     before(async () => {
-        server = makeRegistry();
-        await new Promise((r) => server.listen(0, '127.0.0.1', r));
-        registryUrl = `http://127.0.0.1:${server.address().port}/`;
+        registry = await startMockRegistry(PACKAGES);
+        registryUrl = registry.url;
         cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
     });
 
-    after(() => {
-        if (server) server.close();
+    after(async () => {
+        await registry?.close();
         for (const r of roots) rmSync(r, { recursive: true, force: true });
     });
 

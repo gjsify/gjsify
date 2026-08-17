@@ -34,15 +34,14 @@ import assert from 'node:assert/strict';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createServer } from 'node:http';
-import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { LOCKFILE_VERSION } from '../helpers.mjs';
-import { packageTar, runCli, sriSha512 } from '../mock-registry.mjs';
+import { runCli, startMockRegistry } from '../mock-registry.mjs';
 
 /**
- * The published corpus. `libc` is deliberately NOT part of what the abbreviated
- * packument will report (see `wirePackument`) — that mirrors the live registry:
+ * The published corpus, as manifest fields per version. `libc` IS declared here
+ * and is stripped from the ABBREVIATED document on the way out (see the
+ * `onPackument` hook) — that mirrors the live registry:
  * `lightningcss-linux-x64-musl@1.33.0` returns `{os,cpu}` under the corgi accept
  * header and `{os,cpu,libc}` under `application/json`.
  */
@@ -63,76 +62,43 @@ const CORPUS = {
     'win-only': { '1.0.0': { os: ['win32'] } },
 };
 
-function buildIndex() {
-    const index = {};
-    for (const [name, versions] of Object.entries(CORPUS)) {
-        index[name] = {};
-        for (const [version, meta] of Object.entries(versions)) {
-            const pkgJson = {
-                name,
+/** The corpus with the fields every entry shares filled in. */
+const PACKAGES = Object.fromEntries(
+    Object.entries(CORPUS).map(([name, versions]) => [
+        name,
+        Object.fromEntries(
+            Object.entries(versions).map(([version, meta]) => [
                 version,
-                main: 'index.js',
-                dependencies: meta.dependencies ?? {},
-                optionalDependencies: meta.optionalDependencies ?? {},
-                ...(meta.os ? { os: meta.os } : {}),
-                ...(meta.cpu ? { cpu: meta.cpu } : {}),
-                ...(meta.libc ? { libc: meta.libc } : {}),
-            };
-            const tgz = gzipSync(
-                packageTar({
-                    'package.json': JSON.stringify(pkgJson),
-                    'index.js': `module.exports = ${JSON.stringify({ name, version })};\n`,
-                }),
-            );
-            index[name][version] = { ...meta, tgz, integrity: sriSha512(tgz) };
-        }
-    }
-    return index;
-}
+                {
+                    main: 'index.js',
+                    dependencies: {},
+                    optionalDependencies: {},
+                    ...meta,
+                    files: { 'index.js': `module.exports = ${JSON.stringify({ name, version })};\n` },
+                },
+            ]),
+        ),
+    ]),
+);
 
 describe('gjsify install — os/cpu/libc filtering', { timeout: 180_000 }, () => {
-    let server, registryUrl, cliEntry, tmpRoot, baseEnv;
-    const index = buildIndex();
+    let registry, registryUrl, cliEntry, tmpRoot, baseEnv;
     /** Which document shapes were requested per package name, for property (d). */
     let requestedShapes;
 
-    function wirePackument(name, shape, baseUrl) {
-        const versions = {};
-        for (const [version, entry] of Object.entries(index[name])) {
-            versions[version] = {
-                name,
-                version,
-                dependencies: entry.dependencies ?? {},
-                optionalDependencies: entry.optionalDependencies ?? {},
-                ...(entry.os ? { os: entry.os } : {}),
-                ...(entry.cpu ? { cpu: entry.cpu } : {}),
-                // THE POINT OF THIS FIXTURE: libc is served ONLY in the full
-                // document. A resolver that trusts the abbreviated one judges
-                // every musl-only package installable on glibc.
-                ...(shape === 'full' && entry.libc ? { libc: entry.libc } : {}),
-                dist: { tarball: `${baseUrl}/-/${name}/${version}.tgz`, integrity: entry.integrity },
-            };
-        }
-        const names = Object.keys(versions);
-        return { name, 'dist-tags': { latest: names[names.length - 1] }, versions };
-    }
-
     before(async () => {
-        server = createServer((req, res) => {
-            try {
-                const url = req.url ?? '';
-                const tarMatch = url.match(/^\/-\/([^/]+)\/([^/]+)\.tgz$/);
-                if (tarMatch) {
-                    const entry = index[tarMatch[1]]?.[tarMatch[2]];
-                    if (!entry) return void res.writeHead(404).end('not found');
-                    res.writeHead(200, { 'content-type': 'application/octet-stream' });
-                    return void res.end(entry.tgz);
-                }
-                const name = decodeURIComponent(url.replace(/^\//, ''));
-                if (!index[name]) return void res.writeHead(404).end('not found');
+        requestedShapes = new Map();
+        registry = await startMockRegistry(PACKAGES, {
+            onRequest: (req, res) => {
+                const name = decodeURIComponent((req.url ?? '').replace(/^\//, '').split('?')[0]);
+                if (!PACKAGES[name]) return false;
 
-                const accept = String(req.headers.accept ?? '');
-                const shape = accept.includes('application/vnd.npm.install-v1+json') ? 'corgi' : 'full';
+                // Recorded BEFORE the 304 branch, so a conditional request still
+                // counts as a request for that shape — which is what property (d)
+                // is about.
+                const shape = String(req.headers.accept ?? '').includes('application/vnd.npm.install-v1+json')
+                    ? 'corgi'
+                    : 'full';
                 let shapes = requestedShapes.get(name);
                 if (!shapes) {
                     shapes = new Set();
@@ -149,17 +115,24 @@ describe('gjsify install — os/cpu/libc filtering', { timeout: 180_000 }, () =>
                 // cache hit. That is the failure this fixture pins.
                 const etag = `"rev-1-${name}"`;
                 if (req.headers['if-none-match'] === etag) {
-                    return void res.writeHead(304, { etag }).end();
+                    res.writeHead(304, { etag });
+                    res.end();
+                    return true;
                 }
-                const baseUrl = `http://127.0.0.1:${server.address().port}`;
-                res.writeHead(200, { 'content-type': 'application/json', etag });
-                res.end(JSON.stringify(wirePackument(name, shape, baseUrl)));
-            } catch (e) {
-                res.writeHead(500).end(String(e));
-            }
+                // Set and fall through: `writeHead` merges with headers already
+                // set, so the default packument route keeps this one.
+                res.setHeader('etag', etag);
+                return false;
+            },
+            onPackument: (doc, { req }) => {
+                const corgi = String(req.headers.accept ?? '').includes('application/vnd.npm.install-v1+json');
+                // THE POINT OF THIS FIXTURE: libc is served ONLY in the full
+                // document. A resolver that trusts the abbreviated one judges
+                // every musl-only package installable on glibc.
+                if (corgi) for (const v of Object.values(doc.versions)) delete v.libc;
+            },
         });
-        await new Promise((r) => server.listen(0, '127.0.0.1', r));
-        registryUrl = `http://127.0.0.1:${server.address().port}/`;
+        registryUrl = registry.url;
 
         tmpRoot = mkdtempSync(join(tmpdir(), 'gjsify-e2e-platform-'));
         cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
@@ -178,11 +151,10 @@ describe('gjsify install — os/cpu/libc filtering', { timeout: 180_000 }, () =>
             npm_config_libc: '',
             npm_config_force: '',
         };
-        requestedShapes = new Map();
     });
 
-    after(() => {
-        if (server) server.close();
+    after(async () => {
+        await registry?.close();
         if (tmpRoot) rmSync(tmpRoot, { recursive: true, force: true });
     });
 

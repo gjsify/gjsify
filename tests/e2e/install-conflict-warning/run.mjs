@@ -23,72 +23,18 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createServer } from 'node:http';
-import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
-import { packageTar, runCli, sriSha512 } from '../mock-registry.mjs';
+import { runCli, startMockRegistry } from '../mock-registry.mjs';
 
 const PACKAGES = {
-    'dep-x': { '1.9.0': {}, '2.5.0': {} },
-    'dep-y': { '1.9.0': {} },
+    'dep-x': {
+        '1.9.0': { main: 'index.js', dependencies: {}, files: { 'index.js': 'module.exports = "1.9.0";\n' } },
+        '2.5.0': { main: 'index.js', dependencies: {}, files: { 'index.js': 'module.exports = "2.5.0";\n' } },
+    },
+    'dep-y': {
+        '1.9.0': { main: 'index.js', dependencies: {}, files: { 'index.js': 'module.exports = "1.9.0";\n' } },
+    },
 };
-
-function makeRegistry() {
-    const index = {};
-    for (const [name, versions] of Object.entries(PACKAGES)) {
-        index[name] = { name, 'dist-tags': {}, versions: {} };
-        let last = '';
-        for (const version of Object.keys(versions)) {
-            const tgz = gzipSync(
-                packageTar({
-                    'package.json': JSON.stringify({ name, version, main: 'index.js' }),
-                    'index.js': `module.exports = ${JSON.stringify(version)};\n`,
-                }),
-            );
-            index[name].versions[version] = {
-                name,
-                version,
-                dependencies: {},
-                dist: { tarball: `__BASE__/-/${name}/${version}.tgz`, integrity: sriSha512(tgz) },
-                _tgz: tgz,
-            };
-            last = version;
-        }
-        index[name]['dist-tags'].latest = last;
-    }
-    const server = createServer((req, res) => {
-        try {
-            const url = req.url ?? '';
-            const tarMatch = url.match(/^\/-\/([^/]+)\/([^/]+)\.tgz$/);
-            if (tarMatch) {
-                const v = index[tarMatch[1]]?.versions[tarMatch[2]];
-                if (!v) {
-                    res.writeHead(404).end('not found');
-                    return;
-                }
-                res.writeHead(200, { 'content-type': 'application/octet-stream' });
-                res.end(v._tgz);
-                return;
-            }
-            const pkgName = decodeURIComponent(url.replace(/^\//, ''));
-            const p = index[pkgName];
-            if (!p) {
-                res.writeHead(404).end('not found');
-                return;
-            }
-            const base = `http://127.0.0.1:${server.address().port}`;
-            const wire = JSON.parse(JSON.stringify(p, (k, v) => (k === '_tgz' ? undefined : v)));
-            for (const v of Object.values(wire.versions)) {
-                v.dist.tarball = v.dist.tarball.replace('__BASE__', base);
-            }
-            res.writeHead(200, { 'content-type': 'application/json' });
-            res.end(JSON.stringify(wire));
-        } catch (e) {
-            res.writeHead(500).end(String(e));
-        }
-    });
-    return server;
-}
 
 function writeWorkspace(root, dirName, manifest) {
     const dir = join(root, 'packages', dirName);
@@ -97,12 +43,10 @@ function writeWorkspace(root, dirName, manifest) {
 }
 
 describe('gjsify install — version-conflict warning (ADR 0001 step 3)', { timeout: 120_000 }, () => {
-    let server, registryUrl, root, cliEntry, envForCli, result;
+    let registry, root, cliEntry, envForCli, result;
 
     before(async () => {
-        server = makeRegistry();
-        await new Promise((r) => server.listen(0, '127.0.0.1', r));
-        registryUrl = `http://127.0.0.1:${server.address().port}/`;
+        registry = await startMockRegistry(PACKAGES);
         cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
 
         root = mkdtempSync(join(tmpdir(), 'gjsify-e2e-conflict-warn-'));
@@ -111,7 +55,7 @@ describe('gjsify install — version-conflict warning (ADR 0001 step 3)', { time
         envForCli = {
             ...process.env,
             GJSIFY_INSTALL_BACKEND: 'native',
-            npm_config_registry: registryUrl,
+            npm_config_registry: registry.url,
             XDG_CACHE_HOME: join(root, 'xdg-cache'),
             HOME: homeDir,
             GJSIFY_NPM_CACHE: '0',
@@ -125,7 +69,7 @@ describe('gjsify install — version-conflict warning (ADR 0001 step 3)', { time
                 2,
             ) + '\n',
         );
-        writeFileSync(join(root, '.npmrc'), `registry=${registryUrl}\n`);
+        writeFileSync(join(root, '.npmrc'), `registry=${registry.url}\n`);
         // ws-a and ws-b CONFLICT on dep-x (^1 vs ^2 — no version satisfies
         // both) and AGREE on dep-y (^1.2 and ^1.4 are both satisfied by 1.9.0).
         writeWorkspace(root, 'ws-a', {
@@ -142,8 +86,8 @@ describe('gjsify install — version-conflict warning (ADR 0001 step 3)', { time
         result = await runCli(cliEntry, ['install'], { timeoutMs: 60_000, cwd: root, env: envForCli });
     });
 
-    after(() => {
-        if (server) server.close();
+    after(async () => {
+        await registry?.close();
         if (root) rmSync(root, { recursive: true, force: true });
     });
 

@@ -32,90 +32,41 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createServer } from 'node:http';
-import { gzipSync } from 'node:zlib';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { LOCKFILE_VERSION } from '../helpers.mjs';
-import { packageTar, runCli, sriSha512 } from '../mock-registry.mjs';
+import { runCli, startMockRegistry } from '../mock-registry.mjs';
 
 // Mock registry graph: alpha depends on beta (transitive dep exercised);
 // gamma has two versions so a dep-range change forces a real re-resolve.
 const PACKAGES = {
     alpha: {
-        '1.0.0': { dependencies: { beta: '^1.0.0' } },
+        '1.0.0': {
+            main: 'index.js',
+            dependencies: { beta: '^1.0.0' },
+            files: { 'index.js': 'module.exports = { name: "alpha", version: "1.0.0" };\n' },
+        },
     },
     beta: {
-        '1.2.3': { dependencies: {} },
+        '1.2.3': {
+            main: 'index.js',
+            dependencies: {},
+            files: { 'index.js': 'module.exports = { name: "beta", version: "1.2.3" };\n' },
+        },
     },
     gamma: {
-        '1.0.0': { dependencies: {} },
-        '1.5.0': { dependencies: {} },
+        '1.0.0': {
+            main: 'index.js',
+            dependencies: {},
+            files: { 'index.js': 'module.exports = { name: "gamma", version: "1.0.0" };\n' },
+        },
+        '1.5.0': {
+            main: 'index.js',
+            dependencies: {},
+            files: { 'index.js': 'module.exports = { name: "gamma", version: "1.5.0" };\n' },
+        },
     },
 };
-
-function makeRegistry() {
-    const index = {};
-    for (const [name, versions] of Object.entries(PACKAGES)) {
-        index[name] = { name, 'dist-tags': {}, versions: {} };
-        let last = '';
-        for (const [version, body] of Object.entries(versions)) {
-            const tgz = gzipSync(
-                packageTar({
-                    'package.json': JSON.stringify({
-                        name,
-                        version,
-                        main: 'index.js',
-                        dependencies: body.dependencies,
-                    }),
-                    'index.js': `module.exports = { name: ${JSON.stringify(name)}, version: ${JSON.stringify(version)} };\n`,
-                }),
-            );
-            index[name].versions[version] = {
-                name,
-                version,
-                dependencies: body.dependencies ?? {},
-                dist: { tarball: `__BASE__/-/${name}/${version}.tgz`, integrity: sriSha512(tgz) },
-                _tgz: tgz,
-            };
-            last = version;
-        }
-        index[name]['dist-tags'].latest = last;
-    }
-
-    const server = createServer((req, res) => {
-        try {
-            const url = req.url ?? '';
-            const tarMatch = url.match(/^\/-\/([^/]+)\/([^/]+)\.tgz$/);
-            if (tarMatch) {
-                const v = index[tarMatch[1]]?.versions[tarMatch[2]];
-                if (!v) {
-                    res.writeHead(404).end('not found');
-                    return;
-                }
-                res.writeHead(200, { 'content-type': 'application/octet-stream' });
-                res.end(v._tgz);
-                return;
-            }
-            const pkgName = decodeURIComponent(url.replace(/^\//, ''));
-            const p = index[pkgName];
-            if (!p) {
-                res.writeHead(404).end('not found');
-                return;
-            }
-            const base = `http://127.0.0.1:${server.address().port}`;
-            const wire = JSON.parse(JSON.stringify(p, (k, v) => (k === '_tgz' ? undefined : v)));
-            for (const v of Object.values(wire.versions)) {
-                v.dist.tarball = v.dist.tarball.replace('__BASE__', base);
-            }
-            res.writeHead(200, { 'content-type': 'application/json' });
-            res.end(JSON.stringify(wire));
-        } catch (e) {
-            res.writeHead(500).end(String(e));
-        }
-    });
-    return server;
-}
 
 function installedVersion(projectDir, name) {
     const manifest = join(projectDir, 'node_modules', name, 'package.json');
@@ -140,14 +91,12 @@ function deadPid() {
 }
 
 describe('gjsify install — concurrent installs (per-prefix lock + atomic shared caches)', { timeout: 300_000 }, () => {
-    let server, registryUrl, fixtureRoot, cliEntry, envBase;
+    let registry, fixtureRoot, cliEntry, envBase;
     const N_PROJECTS = 6;
     const projects = [];
 
     before(async () => {
-        server = makeRegistry();
-        await new Promise((r) => server.listen(0, '127.0.0.1', r));
-        registryUrl = `http://127.0.0.1:${server.address().port}/`;
+        registry = await startMockRegistry(PACKAGES);
         cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
 
         fixtureRoot = mkdtempSync(join(tmpdir(), 'gjsify-e2e-concurrent-'));
@@ -159,7 +108,7 @@ describe('gjsify install — concurrent installs (per-prefix lock + atomic share
         envBase = {
             ...process.env,
             GJSIFY_INSTALL_BACKEND: 'native',
-            npm_config_registry: registryUrl,
+            npm_config_registry: registry.url,
             // ONE shared cache for every concurrent install — the soak target.
             XDG_CACHE_HOME: sharedXdgCache,
             // Hermetic: no user ~/.npmrc, no npm-cacache interop.
@@ -183,13 +132,13 @@ describe('gjsify install — concurrent installs (per-prefix lock + atomic share
                     2,
                 ) + '\n',
             );
-            writeFileSync(join(dir, '.npmrc'), `registry=${registryUrl}\n`);
+            writeFileSync(join(dir, '.npmrc'), `registry=${registry.url}\n`);
             projects.push(dir);
         }
     });
 
-    after(() => {
-        if (server) server.close();
+    after(async () => {
+        await registry?.close();
         if (fixtureRoot) rmSync(fixtureRoot, { recursive: true, force: true });
     });
 
@@ -244,7 +193,7 @@ describe('gjsify install — concurrent installs (per-prefix lock + atomic share
                 2,
             ) + '\n',
         );
-        writeFileSync(join(dir, '.npmrc'), `registry=${registryUrl}\n`);
+        writeFileSync(join(dir, '.npmrc'), `registry=${registry.url}\n`);
 
         const results = await Promise.all(
             Array.from({ length: 5 }, () =>
@@ -272,7 +221,7 @@ describe('gjsify install — concurrent installs (per-prefix lock + atomic share
                 2,
             ) + '\n',
         );
-        writeFileSync(join(dir, '.npmrc'), `registry=${registryUrl}\n`);
+        writeFileSync(join(dir, '.npmrc'), `registry=${registry.url}\n`);
 
         // Fabricate the crash residue: a lock dir owned by a pid that no
         // longer exists (a just-exited child process).
@@ -299,7 +248,7 @@ describe('gjsify install — concurrent installs (per-prefix lock + atomic share
                 2,
             ) + '\n',
         );
-        writeFileSync(join(dir, '.npmrc'), `registry=${registryUrl}\n`);
+        writeFileSync(join(dir, '.npmrc'), `registry=${registry.url}\n`);
 
         // Hold the lock as THIS (alive) test-runner process, then release it
         // after 2s while the install is blocked on it.

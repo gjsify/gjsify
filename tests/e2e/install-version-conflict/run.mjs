@@ -24,153 +24,57 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createServer } from 'node:http';
-import { gzipSync } from 'node:zlib';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { LOCKFILE_VERSION } from '../helpers.mjs';
-import { packageTar, runCli, sriSha512 } from '../mock-registry.mjs';
+import { runCli, startMockRegistry } from '../mock-registry.mjs';
 
 describe('gjsify install — nested-node_modules version conflict (Phase D.7b)', { timeout: 90_000 }, () => {
-    let server, registryUrl, projectDir, cliEntry, envForCli;
+    let registry, projectDir, cliEntry, envForCli;
 
     // Mock packument graph: two `readable` majors, two consumers picking
     // different majors, one top-level pulling both.
     const PACKAGES = {
         readable: {
-            versions: {
-                '2.3.7': {
-                    dependencies: {},
-                    files: {
-                        'package.json': JSON.stringify({
-                            name: 'readable',
-                            version: '2.3.7',
-                            main: 'index.js',
-                        }),
-                        'index.js': 'module.exports = { __major: 2 };\n',
-                    },
-                },
-                '3.6.2': {
-                    dependencies: {},
-                    files: {
-                        'package.json': JSON.stringify({
-                            name: 'readable',
-                            version: '3.6.2',
-                            main: 'index.js',
-                        }),
-                        'index.js': 'module.exports = { __major: 3 };\n',
-                    },
-                },
+            '2.3.7': {
+                main: 'index.js',
+                dependencies: {},
+                files: { 'index.js': 'module.exports = { __major: 2 };\n' },
+            },
+            '3.6.2': {
+                main: 'index.js',
+                dependencies: {},
+                files: { 'index.js': 'module.exports = { __major: 3 };\n' },
             },
         },
         'bridge-pkg': {
-            versions: {
-                '1.0.0': {
-                    dependencies: { readable: '^2.0.0' },
-                    files: {
-                        'package.json': JSON.stringify({
-                            name: 'bridge-pkg',
-                            version: '1.0.0',
-                            main: 'index.js',
-                            dependencies: { readable: '^2.0.0' },
-                        }),
-                        'index.js': 'module.exports = require("readable");\n',
-                    },
-                },
+            '1.0.0': {
+                main: 'index.js',
+                dependencies: { readable: '^2.0.0' },
+                files: { 'index.js': 'module.exports = require("readable");\n' },
             },
         },
         'modern-pkg': {
-            versions: {
-                '1.0.0': {
-                    dependencies: { readable: '^3.0.0' },
-                    files: {
-                        'package.json': JSON.stringify({
-                            name: 'modern-pkg',
-                            version: '1.0.0',
-                            main: 'index.js',
-                            dependencies: { readable: '^3.0.0' },
-                        }),
-                        'index.js': 'module.exports = require("readable");\n',
-                    },
-                },
+            '1.0.0': {
+                main: 'index.js',
+                dependencies: { readable: '^3.0.0' },
+                files: { 'index.js': 'module.exports = require("readable");\n' },
             },
         },
         'top-pkg': {
-            versions: {
-                '0.1.0': {
-                    dependencies: { 'bridge-pkg': '^1.0.0', 'modern-pkg': '^1.0.0' },
-                    files: {
-                        'package.json': JSON.stringify({
-                            name: 'top-pkg',
-                            version: '0.1.0',
-                            dependencies: { 'bridge-pkg': '^1.0.0', 'modern-pkg': '^1.0.0' },
-                        }),
-                    },
-                },
-            },
+            '0.1.0': { dependencies: { 'bridge-pkg': '^1.0.0', 'modern-pkg': '^1.0.0' } },
         },
     };
 
     before(async () => {
-        const index = {};
-        for (const [name, info] of Object.entries(PACKAGES)) {
-            index[name] = { name, 'dist-tags': {}, versions: {} };
-            let last = '';
-            for (const [version, body] of Object.entries(info.versions)) {
-                const tar = packageTar(body.files);
-                const tgz = gzipSync(tar);
-                index[name].versions[version] = {
-                    name,
-                    version,
-                    dependencies: body.dependencies ?? {},
-                    dist: { tarball: `__BASE__/-/${name}/${version}.tgz`, integrity: sriSha512(tgz) },
-                    _tgz: tgz,
-                };
-                last = version;
-            }
-            index[name]['dist-tags'].latest = last;
-        }
-
-        server = createServer((req, res) => {
-            try {
-                const url = req.url ?? '';
-                const tarMatch = url.match(/^\/-\/([^/]+)\/([^/]+)\.tgz$/);
-                if (tarMatch) {
-                    const v = index[tarMatch[1]]?.versions[tarMatch[2]];
-                    if (!v) {
-                        res.writeHead(404).end('not found');
-                        return;
-                    }
-                    res.writeHead(200, { 'content-type': 'application/octet-stream' });
-                    res.end(v._tgz);
-                    return;
-                }
-                const pkgName = decodeURIComponent(url.replace(/^\//, ''));
-                const p = index[pkgName];
-                if (!p) {
-                    res.writeHead(404).end('not found');
-                    return;
-                }
-                const baseUrl = `http://127.0.0.1:${server.address().port}`;
-                const wire = JSON.parse(JSON.stringify(p, (k, v) => (k === '_tgz' ? undefined : v)));
-                for (const v of Object.values(wire.versions)) {
-                    v.dist.tarball = v.dist.tarball.replace('__BASE__', baseUrl);
-                }
-                res.writeHead(200, { 'content-type': 'application/json' });
-                res.end(JSON.stringify(wire));
-            } catch (e) {
-                res.writeHead(500).end(String(e));
-            }
-        });
-        await new Promise((r) => server.listen(0, '127.0.0.1', r));
-        registryUrl = `http://127.0.0.1:${server.address().port}/`;
+        registry = await startMockRegistry(PACKAGES);
 
         projectDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-conflict-'));
         cliEntry = fileURLToPath(new URL('../../../packages/infra/cli/lib/index.js', import.meta.url));
         envForCli = {
             ...process.env,
             GJSIFY_INSTALL_BACKEND: 'native',
-            npm_config_registry: registryUrl,
+            npm_config_registry: registry.url,
         };
 
         // Seed package.json with top-pkg as an existing dep so the no-arg
@@ -193,11 +97,11 @@ describe('gjsify install — nested-node_modules version conflict (Phase D.7b)',
                 2,
             ) + '\n',
         );
-        writeFileSync(join(projectDir, '.npmrc'), `registry=${registryUrl}\n`);
+        writeFileSync(join(projectDir, '.npmrc'), `registry=${registry.url}\n`);
     });
 
-    after(() => {
-        if (server) server.close();
+    after(async () => {
+        await registry?.close();
         if (projectDir) rmSync(projectDir, { recursive: true, force: true });
     });
 

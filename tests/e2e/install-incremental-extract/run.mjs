@@ -27,19 +27,8 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, existsSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createServer } from 'node:http';
-import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
-import { packageTar, runCli, sriSha512 } from '../mock-registry.mjs';
-
-function versionEntry(name, version, dependencies = {}) {
-    const files = {
-        'package.json': JSON.stringify({ name, version, main: 'index.js', dependencies }),
-        'index.js': `module.exports = ${JSON.stringify({ name, version })};\n`,
-    };
-    const tgz = gzipSync(packageTar(files));
-    return { name, version, dependencies, tgz, integrity: sriSha512(tgz) };
-}
+import { runCli, startMockRegistry } from '../mock-registry.mjs';
 
 /** Run the CLI under Node without blocking the in-process mock-registry loop. */
 
@@ -58,52 +47,45 @@ function markerSurvives(projectDir, name) {
 }
 
 describe('gjsify install — incremental extraction (skip already-extracted)', { timeout: 120_000 }, () => {
-    let server, registryUrl, projectDir, cliEntry, envForCli, cacheDir;
+    let registry, projectDir, cliEntry, envForCli, cacheDir;
 
     // root → mid → leaf ; root → leaf (so leaf is shared, mid + leaf are
     // transitive). After install #1 all three are on disk. Adding `extra`
     // (a fresh standalone dep) must re-extract ONLY `extra`, leaving root /
     // mid / leaf untouched.
     const ALL = {
-        leaf: { '1.0.0': versionEntry('leaf', '1.0.0') },
-        mid: { '1.0.0': versionEntry('mid', '1.0.0', { leaf: '^1.0.0' }) },
-        root: { '1.0.0': versionEntry('root', '1.0.0', { mid: '^1.0.0', leaf: '^1.0.0' }) },
-        extra: { '1.0.0': versionEntry('extra', '1.0.0') },
+        leaf: {
+            '1.0.0': {
+                main: 'index.js',
+                dependencies: {},
+                files: { 'index.js': 'module.exports = {"name":"leaf","version":"1.0.0"};\n' },
+            },
+        },
+        mid: {
+            '1.0.0': {
+                main: 'index.js',
+                dependencies: { leaf: '^1.0.0' },
+                files: { 'index.js': 'module.exports = {"name":"mid","version":"1.0.0"};\n' },
+            },
+        },
+        root: {
+            '1.0.0': {
+                main: 'index.js',
+                dependencies: { mid: '^1.0.0', leaf: '^1.0.0' },
+                files: { 'index.js': 'module.exports = {"name":"root","version":"1.0.0"};\n' },
+            },
+        },
+        extra: {
+            '1.0.0': {
+                main: 'index.js',
+                dependencies: {},
+                files: { 'index.js': 'module.exports = {"name":"extra","version":"1.0.0"};\n' },
+            },
+        },
     };
 
     before(async () => {
-        server = createServer((req, res) => {
-            try {
-                const url = req.url ?? '';
-                const tarMatch = url.match(/^\/-\/([^/]+)\/([^/]+)\.tgz$/);
-                if (tarMatch) {
-                    const v = ALL[tarMatch[1]]?.[tarMatch[2]];
-                    if (!v) return void res.writeHead(404).end('not found');
-                    res.writeHead(200, { 'content-type': 'application/octet-stream' });
-                    return void res.end(v.tgz);
-                }
-                const name = decodeURIComponent(url.replace(/^\//, ''));
-                const versions = ALL[name];
-                if (!versions) return void res.writeHead(404).end('not found');
-                const baseUrl = `http://127.0.0.1:${server.address().port}`;
-                const verNames = Object.keys(versions);
-                const wire = { name, 'dist-tags': { latest: verNames[verNames.length - 1] }, versions: {} };
-                for (const [version, e] of Object.entries(versions)) {
-                    wire.versions[version] = {
-                        name,
-                        version,
-                        dependencies: e.dependencies,
-                        dist: { tarball: `${baseUrl}/-/${name}/${version}.tgz`, integrity: e.integrity },
-                    };
-                }
-                res.writeHead(200, { 'content-type': 'application/json' });
-                res.end(JSON.stringify(wire));
-            } catch (e) {
-                res.writeHead(500).end(String(e));
-            }
-        });
-        await new Promise((r) => server.listen(0, '127.0.0.1', r));
-        registryUrl = `http://127.0.0.1:${server.address().port}/`;
+        registry = await startMockRegistry(ALL);
 
         projectDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-incremental-'));
         // Per-run cache root so a developer's warm ~/.cache doesn't change the
@@ -113,7 +95,7 @@ describe('gjsify install — incremental extraction (skip already-extracted)', {
         envForCli = {
             ...process.env,
             GJSIFY_INSTALL_BACKEND: 'native',
-            npm_config_registry: registryUrl,
+            npm_config_registry: registry.url,
             XDG_CACHE_HOME: cacheDir,
             // Don't read a co-developer's npm cacache during the test.
             GJSIFY_NPM_CACHE: '0',
@@ -133,11 +115,11 @@ describe('gjsify install — incremental extraction (skip already-extracted)', {
                 2,
             ) + '\n',
         );
-        writeFileSync(join(projectDir, '.npmrc'), `registry=${registryUrl}\n`);
+        writeFileSync(join(projectDir, '.npmrc'), `registry=${registry.url}\n`);
     });
 
-    after(() => {
-        if (server) server.close();
+    after(async () => {
+        await registry?.close();
         if (projectDir) rmSync(projectDir, { recursive: true, force: true });
         if (cacheDir) rmSync(cacheDir, { recursive: true, force: true });
     });

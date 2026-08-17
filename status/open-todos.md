@@ -1134,6 +1134,33 @@ Two smaller consequences wait on the same record:
 - The report cannot distinguish "installed on purpose, nothing depends on it yet"
   from "left over". Without the record those look identical, and deleting the first
   kind is the failure that makes a prune untrustworthy.
+### Two e2e suites still owe the shared harness, for different reasons
+
+Sixteen of the twenty suites that stood up a private `node:http` registry now use
+`startMockRegistry`, and `check-e2e-harness-duplication.mjs` has a
+`registry-server` rule so a twenty-first copy fails. Its ALLOWED ledger is
+self-retiring, so each remaining entry has to be answered rather than forgotten.
+
+**`install-script` — the registry half is deferred, not exempt.** Its subject is
+the bootstrap downloader (SHA-256 digest routes, the content-addressed cache, the
+retry on a dropped connection), which `onRequest` expresses; the packument
+registry beside it is ordinary and would migrate with no option at all. It was
+NOT migrated because it could not be verified: on the workstation the migration
+was written on, two of its nine cases fail before any change, with
+`No version of @gjsify/cli satisfies 0.0.99-test` from a run that has its own
+`XDG_CACHE_HOME`, its own global prefix and its own registry. CI is green on
+`main`, so this is local — but a migration verified only by "the same two still
+fail" is not verified, and that is the whole reason the other sixteen were
+believed. Find the local cause first; the migration is then mechanical.
+
+**A SECOND duplication class sits in the same files and is deliberately not
+ruled on yet.** A spawn-and-collect helper — `runChild` / `runHarness` — is
+`runCli` minus the hardcoded CLI entry, and appears in eleven suites, only five
+of which were in this migration. `native-install`'s copy genuinely cannot fold
+in: it runs a temp harness file with `--no-warnings`, not the CLI entry. So the
+fix is a shared `runNode(file, args)` that `runCli` itself delegates to, and a
+checker rule for it would touch six suites unrelated to the registry work —
+which is why it is a task and not a line in that PR.
 
 ### `@gjsify/sqlite` exec() compound-statement (CREATE TRIGGER) splitting
 

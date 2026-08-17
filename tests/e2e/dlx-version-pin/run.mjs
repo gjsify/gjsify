@@ -14,9 +14,8 @@
 //        b. transitive native-typelib deps land in the cache and the
 //           walker (`computeNativeEnvForBundle`) finds them
 //
-// Strategy: in-process HTTP packument server (mirrors
-// `tests/e2e/native-install/run.mjs`) hosting two synthetic showcase
-// versions and one synthetic native-bridge package. Drive `gjsify dlx`
+// Strategy: the shared in-process mock registry hosting two synthetic
+// showcase versions and one synthetic native-bridge package. Drive `gjsify dlx`
 // through the workspace CLI binary against this registry, with
 // `XDG_CACHE_HOME` pointing at a temp dir so the test never touches the
 // real `~/.cache/gjsify/dlx`. No gjs run — the test asserts on install
@@ -27,12 +26,10 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createServer } from 'node:http';
-import { gzipSync } from 'node:zlib';
 import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { pathToFileURL, fileURLToPath } from 'node:url';
-import { packageTar, sriSha512 } from '../mock-registry.mjs';
+import { startMockRegistry } from '../mock-registry.mjs';
 
 // ---------------------------------------------------------------------------
 // Process helper.
@@ -82,8 +79,7 @@ const linuxArch = process.arch;
 // ---------------------------------------------------------------------------
 
 describe('gjsify dlx version-pinned cache + transitive native deps', { timeout: 60_000 }, () => {
-    let server;
-    let registryUrl;
+    let registry;
     let cacheRoot;
     let envForCli;
     let cliEntry;
@@ -96,115 +92,34 @@ describe('gjsify dlx version-pinned cache + transitive native deps', { timeout: 
     //           runtime dep on @gjsify/http-soup-bridge.
     const PACKAGES = {
         '@synthetic/showcase': {
-            versions: {
-                '0.0.1': {
-                    dependencies: {},
-                    files: {
-                        'package.json': JSON.stringify({
-                            name: '@synthetic/showcase',
-                            version: '0.0.1',
-                            type: 'module',
-                            gjsify: { main: 'dist/bundle.mjs' },
-                            dependencies: {},
-                        }),
-                        'dist/bundle.mjs': "console.log('synthetic showcase v0.0.1');\n",
-                    },
-                },
-                '0.0.2': {
-                    dependencies: { '@synthetic/bridge': '^0.0.1' },
-                    files: {
-                        'package.json': JSON.stringify({
-                            name: '@synthetic/showcase',
-                            version: '0.0.2',
-                            type: 'module',
-                            gjsify: { main: 'dist/bundle.mjs' },
-                            dependencies: { '@synthetic/bridge': '^0.0.1' },
-                        }),
-                        'dist/bundle.mjs': "console.log('synthetic showcase v0.0.2');\n",
-                    },
-                },
+            '0.0.1': {
+                type: 'module',
+                gjsify: { main: 'dist/bundle.mjs' },
+                dependencies: {},
+                files: { 'dist/bundle.mjs': "console.log('synthetic showcase v0.0.1');\n" },
+            },
+            '0.0.2': {
+                type: 'module',
+                gjsify: { main: 'dist/bundle.mjs' },
+                dependencies: { '@synthetic/bridge': '^0.0.1' },
+                files: { 'dist/bundle.mjs': "console.log('synthetic showcase v0.0.2');\n" },
             },
         },
         '@synthetic/bridge': {
-            versions: {
-                '0.0.1': {
-                    dependencies: {},
-                    files: {
-                        'package.json': JSON.stringify({
-                            name: '@synthetic/bridge',
-                            version: '0.0.1',
-                            type: 'module',
-                            gjsify: { prebuilds: 'prebuilds' },
-                        }),
-                        [`prebuilds/linux-${linuxArch}/Synthetic.typelib`]: Buffer.from('typelib stub'),
-                        [`prebuilds/linux-${linuxArch}/libsynthetic.so`]: Buffer.from('so stub'),
-                    },
+            '0.0.1': {
+                type: 'module',
+                gjsify: { prebuilds: 'prebuilds' },
+                dependencies: {},
+                files: {
+                    [`prebuilds/linux-${linuxArch}/Synthetic.typelib`]: Buffer.from('typelib stub'),
+                    [`prebuilds/linux-${linuxArch}/libsynthetic.so`]: Buffer.from('so stub'),
                 },
             },
         },
     };
 
     before(async () => {
-        // Build packument index keyed by package name.
-        const index = {};
-        for (const [name, info] of Object.entries(PACKAGES)) {
-            index[name] = { name, 'dist-tags': {}, versions: {} };
-            let lastVersion = '';
-            for (const [version, body] of Object.entries(info.versions)) {
-                const tar = packageTar(body.files);
-                const tgz = gzipSync(tar);
-                index[name].versions[version] = {
-                    name,
-                    version,
-                    dependencies: body.dependencies ?? {},
-                    dist: {
-                        tarball: `__BASE__/-/${encodeURIComponent(name)}/${version}.tgz`,
-                        integrity: sriSha512(tgz),
-                    },
-                    _tgz: tgz,
-                };
-                lastVersion = version;
-            }
-            index[name]['dist-tags'].latest = lastVersion;
-        }
-
-        server = createServer((req, res) => {
-            try {
-                const url = req.url ?? '';
-                const tarMatch = url.match(/^\/-\/([^/]+)\/([^/]+)\.tgz$/);
-                if (tarMatch) {
-                    const pkgName = decodeURIComponent(tarMatch[1]);
-                    const v = index[pkgName]?.versions[tarMatch[2]];
-                    if (!v) {
-                        res.writeHead(404).end('not found');
-                        return;
-                    }
-                    res.writeHead(200, { 'content-type': 'application/octet-stream' });
-                    res.end(v._tgz);
-                    return;
-                }
-                // Packument: /<encoded-name>
-                const pkgName = decodeURIComponent(url.replace(/^\//, ''));
-                const p = index[pkgName];
-                if (!p) {
-                    res.writeHead(404).end('not found');
-                    return;
-                }
-                const baseUrl = `http://127.0.0.1:${server.address().port}`;
-                const wire = JSON.parse(JSON.stringify(p, (key, val) => (key === '_tgz' ? undefined : val)));
-                for (const v of Object.values(wire.versions)) {
-                    v.dist.tarball = v.dist.tarball.replace('__BASE__', baseUrl);
-                }
-                res.writeHead(200, { 'content-type': 'application/json' });
-                res.end(JSON.stringify(wire));
-            } catch (e) {
-                res.writeHead(500).end(String(e));
-            }
-        });
-
-        await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-        const port = server.address().port;
-        registryUrl = `http://127.0.0.1:${port}/`;
+        registry = await startMockRegistry(PACKAGES);
 
         cacheRoot = mkdtempSync(join(tmpdir(), 'gjsify-e2e-dlx-version-pin-'));
 
@@ -219,8 +134,8 @@ describe('gjsify dlx version-pinned cache + transitive native deps', { timeout: 
         };
     });
 
-    after(() => {
-        if (server) server.close();
+    after(async () => {
+        await registry?.close();
         if (cacheRoot) rmSync(cacheRoot, { recursive: true, force: true });
     });
 
@@ -243,7 +158,7 @@ describe('gjsify dlx version-pinned cache + transitive native deps', { timeout: 
         // about the gjs result; we assert on the install layout.
         const result = await runChild(
             process.execPath,
-            [cliEntry, 'dlx', '@synthetic/showcase@0.0.1', '--registry', registryUrl],
+            [cliEntry, 'dlx', '@synthetic/showcase@0.0.1', '--registry', registry.url],
             { env: envForCli, timeoutMs: 30_000 },
         );
 
@@ -276,7 +191,7 @@ describe('gjsify dlx version-pinned cache + transitive native deps', { timeout: 
         // would shadow the v0.0.2 install for 7 days.
         const result = await runChild(
             process.execPath,
-            [cliEntry, 'dlx', '@synthetic/showcase@0.0.2', '--registry', registryUrl],
+            [cliEntry, 'dlx', '@synthetic/showcase@0.0.2', '--registry', registry.url],
             { env: envForCli, timeoutMs: 30_000 },
         );
 
@@ -374,7 +289,7 @@ describe('gjsify dlx version-pinned cache + transitive native deps', { timeout: 
         // spec string.)
         const result = await runChild(
             process.execPath,
-            [cliEntry, 'dlx', '@synthetic/showcase@0.0.2', '--registry', registryUrl],
+            [cliEntry, 'dlx', '@synthetic/showcase@0.0.2', '--registry', registry.url],
             { env: envForCli, timeoutMs: 30_000 },
         );
         const combined = result.stdout + result.stderr;

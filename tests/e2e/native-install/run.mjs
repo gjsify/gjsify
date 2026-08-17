@@ -11,12 +11,10 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createServer } from 'node:http';
-import { gzipSync } from 'node:zlib';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { LOCKFILE_VERSION } from '../helpers.mjs';
-import { packageTar, sriSha512 } from '../mock-registry.mjs';
+import { startMockRegistry } from '../mock-registry.mjs';
 
 /**
  * Run a child without blocking the test event loop — the in-process mock
@@ -52,107 +50,30 @@ function runHarness(cmd, args, cwd) {
     });
 }
 
-/** This suite's fixtures are all a bare `package.json`. */
-const packageTarFor = (pkgJson) => packageTar({ 'package.json': JSON.stringify(pkgJson, null, 2) + '\n' });
-
 describe('native install backend (in-process registry)', { timeout: 60_000 }, () => {
-    let server;
-    let registryUrl;
+    let registry;
     let prefix;
     const PACKAGES = {
-        leaf: {
-            versions: { '1.0.0': { dependencies: {} } },
-        },
-        middle: {
-            versions: { '1.2.3': { dependencies: { leaf: '^1.0.0' } } },
-        },
-        root: {
-            versions: { '0.1.0': { dependencies: { middle: '^1.0.0', leaf: '^1.0.0' } } },
-        },
+        leaf: { '1.0.0': { dependencies: {} } },
+        middle: { '1.2.3': { dependencies: { leaf: '^1.0.0' } } },
+        root: { '0.1.0': { dependencies: { middle: '^1.0.0', leaf: '^1.0.0' } } },
         // Conflict graph (second test): app → dep@^1 + mid@^1; mid → dep@^2.
         // Forces dep@2 to NEST under mid while dep@1 hoists to the root — the
         // order-sensitive hoist-vs-nest placement path. A regression in the
         // resolver's BFS ordering (e.g. the wave-based parallel rewrite) would
         // surface here as a wrong placement.
-        dep: {
-            versions: { '1.0.0': { dependencies: {} }, '2.0.0': { dependencies: {} } },
-        },
-        mid: {
-            versions: { '1.0.0': { dependencies: { dep: '^2.0.0' } } },
-        },
-        app: {
-            versions: { '1.0.0': { dependencies: { dep: '^1.0.0', mid: '^1.0.0' } } },
-        },
+        dep: { '1.0.0': { dependencies: {} }, '2.0.0': { dependencies: {} } },
+        mid: { '1.0.0': { dependencies: { dep: '^2.0.0' } } },
+        app: { '1.0.0': { dependencies: { dep: '^1.0.0', mid: '^1.0.0' } } },
     };
 
     before(async () => {
-        // Build tarballs and a packument index keyed by package name.
-        const index = {};
-        for (const [name, info] of Object.entries(PACKAGES)) {
-            index[name] = { name, 'dist-tags': {}, versions: {} };
-            let lastVersion = '';
-            for (const [version, body] of Object.entries(info.versions)) {
-                const pkgJson = { name, version, ...body };
-                const tar = packageTarFor(pkgJson);
-                const tgz = gzipSync(tar);
-                index[name].versions[version] = {
-                    name,
-                    version,
-                    dependencies: body.dependencies ?? {},
-                    dist: {
-                        tarball: `__BASE__/-/${name}/${version}.tgz`,
-                        integrity: sriSha512(tgz),
-                    },
-                    _tgz: tgz,
-                };
-                lastVersion = version;
-            }
-            index[name]['dist-tags'].latest = lastVersion;
-        }
-
-        server = createServer((req, res) => {
-            try {
-                const url = req.url ?? '';
-                // Tarball: /-/<pkg>/<version>.tgz
-                const tarMatch = url.match(/^\/-\/([^/]+)\/([^/]+)\.tgz$/);
-                if (tarMatch) {
-                    const v = index[tarMatch[1]]?.versions[tarMatch[2]];
-                    if (!v) {
-                        res.writeHead(404).end('not found');
-                        return;
-                    }
-                    res.writeHead(200, { 'content-type': 'application/octet-stream' });
-                    res.end(v._tgz);
-                    return;
-                }
-                // Packument: /<encoded-name>
-                const pkgName = decodeURIComponent(url.replace(/^\//, ''));
-                const p = index[pkgName];
-                if (!p) {
-                    res.writeHead(404).end('not found');
-                    return;
-                }
-                const baseUrl = `http://127.0.0.1:${server.address().port}`;
-                const wire = JSON.parse(JSON.stringify(p, (key, val) => (key === '_tgz' ? undefined : val)));
-                for (const v of Object.values(wire.versions)) {
-                    v.dist.tarball = v.dist.tarball.replace('__BASE__', baseUrl);
-                }
-                res.writeHead(200, { 'content-type': 'application/json' });
-                res.end(JSON.stringify(wire));
-            } catch (e) {
-                res.writeHead(500).end(String(e));
-            }
-        });
-
-        await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-        const port = server.address().port;
-        registryUrl = `http://127.0.0.1:${port}/`;
-
+        registry = await startMockRegistry(PACKAGES);
         prefix = mkdtempSync(join(tmpdir(), 'gjsify-native-install-'));
     });
 
-    after(() => {
-        if (server) server.close();
+    after(async () => {
+        await registry?.close();
         if (prefix) rmSync(prefix, { recursive: true, force: true });
     });
 
@@ -169,7 +90,7 @@ describe('native install backend (in-process registry)', { timeout: 60_000 }, ()
       await installPackagesNative({
         prefix: ${JSON.stringify(prefix)},
         specs: ['root@^0.1.0'],
-        registry: ${JSON.stringify(registryUrl)},
+        registry: ${JSON.stringify(registry.url)},
         verbose: false,
         lockfile: true,
       });
@@ -246,7 +167,7 @@ describe('native install backend (in-process registry)', { timeout: 60_000 }, ()
       await installPackagesNative({
         prefix: ${JSON.stringify(prefix2)},
         specs: ['app@^1.0.0'],
-        registry: ${JSON.stringify(registryUrl)},
+        registry: ${JSON.stringify(registry.url)},
         verbose: false,
         lockfile: true,
       });

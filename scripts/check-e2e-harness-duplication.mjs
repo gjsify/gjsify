@@ -38,7 +38,28 @@ const SHARED_MODULE = 'mock-registry.mjs';
  *
  * @type {Array<{ suite: string, rule: string, why: string }>}
  */
-const ALLOWED = [];
+const ALLOWED = [
+    {
+        suite: 'publish',
+        rule: 'registry-server',
+        why: 'the SUBJECT is the publish HTTP layer, not a registry: it captures PUT bodies, the `@scope%2fname` escaping, the auth header and `npm-otp`, and stands up a 409 server. It serves no packument and no tarball.',
+    },
+    {
+        suite: 'onboard',
+        rule: 'registry-server',
+        why: 'serves the npm auth/trust API — /-/whoami, PUT /-/user/…, GET+POST /-/package/<name>/trust — as an OTP-challenge state machine. No packument, no tarball.',
+    },
+    {
+        suite: 'self-update',
+        rule: 'registry-server',
+        why: 'the assertion IS the URL the CLI asks for: every path but the escaped @gjsify/cli spellings gets a 406, which is the shape of the original defect. Its one packument is synthesised per request from a header and is never downloaded.',
+    },
+    {
+        suite: 'install-script',
+        rule: 'registry-server',
+        why: 'its subject is the BOOTSTRAP downloader — SHA-256 digest routes, the content-addressed cache and the retry on a dropped connection — with a packument registry only incidentally beside it. Migrating that half is tracked in status/open-todos.md, and is deferred because the suite could not be verified on the machine the migration was written on.',
+    },
+];
 
 const RULES = [
     {
@@ -63,6 +84,15 @@ const RULES = [
         id: 'run-cli',
         test: (src) => /\bfunction runCli\s*\(/.test(src),
         fix: `import \`runCli\` from ../${SHARED_MODULE} (pass \`timeoutMs\` where 30s is too short)`,
+    },
+    {
+        id: 'registry-server',
+        // Twenty suites stood up their own `node:http` registry beside the shared
+        // one, so its packument/tarball routing had twenty divergent siblings that
+        // no correction could reach. Matching the CALL rather than a helper name is
+        // what makes a renamed copy still fail.
+        test: (src) => /\bcreateServer\s*\(/.test(src),
+        fix: `serve fixtures with \`startMockRegistry(packages, { onRequest, onPackument })\` from ../${SHARED_MODULE}`,
     },
 ];
 

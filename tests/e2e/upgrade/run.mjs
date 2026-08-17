@@ -1,10 +1,10 @@
 // E2E test for `gjsify upgrade`.
 //
-// Strategy: stand up a mock npm registry in-process via `http.createServer()`,
-// generate packuments for a few synthetic packages, point `gjsify upgrade
-// --latest --dry-run` at the project via `--cwd`, set `npm_config_registry`
-// to our mock, and assert the candidate table shape + dry-run skip + actual
-// write-back behavior on a non-dry-run pass.
+// Strategy: stand up the shared in-process mock registry over a few synthetic
+// packages, point `gjsify upgrade --latest --dry-run` at the project via
+// `--cwd`, set `npm_config_registry` to our mock, and assert the candidate
+// table shape + dry-run skip + actual write-back behavior on a non-dry-run
+// pass.
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -12,37 +12,30 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
-import { createServer } from 'node:http';
 import { writeFileSync, readFileSync, mkdirSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { startMockRegistry } from '../mock-registry.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
 const CLI_ENTRY = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js');
 
+// Version keys with empty manifests: every case here runs a flavour of
+// `upgrade`, which only reads packuments and rewrites `package.json` — no
+// tarball is ever fetched, so there is nothing for a manifest to carry. The
+// last key of each package is what the registry offers as `dist-tags.latest`.
+const PACKAGES = {
+    'lib-a': { '1.0.0': {}, '1.1.0': {}, '1.2.3': {}, '2.0.0': {} },
+    'lib-b': { '0.4.0': {}, '0.5.0': {} },
+    'lib-c': { '3.2.0': {}, '3.2.1': {} },
+    'lib-uptodate': { '9.9.9': {} },
+};
+
 describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
     let tmpDir;
-    let registryServer;
-    let registryUrl;
-
-    /** Build a minimal packument body matching @gjsify/npm-registry's schema. */
-    function packument(name, versions, latest) {
-        const versionMap = {};
-        for (const v of versions) {
-            versionMap[v] = {
-                name,
-                version: v,
-                dist: { tarball: `${registryUrl}/${name}/-/${name}-${v}.tgz`, shasum: 'deadbeef' },
-            };
-        }
-        return JSON.stringify({
-            name,
-            'dist-tags': { latest },
-            versions: versionMap,
-        });
-    }
+    let registry;
 
     before(async () => {
         tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-upgrade-'));
@@ -50,41 +43,11 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
             throw new Error(`CLI entry not built: ${CLI_ENTRY}`);
         }
 
-        registryServer = createServer((req, res) => {
-            // Decode the packument lookup: /<name> or /@scope/<name>
-            const path = decodeURIComponent(req.url ?? '/');
-            // Strip leading slash + trailing query.
-            const name = path.replace(/^\//, '').split('?')[0] ?? '';
-            switch (name) {
-                case 'lib-a':
-                    res.setHeader('content-type', 'application/json');
-                    res.end(packument('lib-a', ['1.0.0', '1.1.0', '1.2.3', '2.0.0'], '2.0.0'));
-                    return;
-                case 'lib-b':
-                    res.setHeader('content-type', 'application/json');
-                    res.end(packument('lib-b', ['0.4.0', '0.5.0'], '0.5.0'));
-                    return;
-                case 'lib-c':
-                    res.setHeader('content-type', 'application/json');
-                    res.end(packument('lib-c', ['3.2.0', '3.2.1'], '3.2.1'));
-                    return;
-                case 'lib-uptodate':
-                    res.setHeader('content-type', 'application/json');
-                    res.end(packument('lib-uptodate', ['9.9.9'], '9.9.9'));
-                    return;
-                default:
-                    res.statusCode = 404;
-                    res.end('{}');
-                    return;
-            }
-        });
-        await new Promise((resolve) => registryServer.listen(0, '127.0.0.1', resolve));
-        const addr = registryServer.address();
-        registryUrl = `http://127.0.0.1:${addr.port}`;
+        registry = await startMockRegistry(PACKAGES);
     });
 
-    after(() => {
-        registryServer?.close();
+    after(async () => {
+        await registry?.close();
         if (!process.env.GJSIFY_E2E_KEEP_TEMP) {
             rmSync(tmpDir, { recursive: true, force: true });
         }
@@ -124,7 +87,7 @@ describe('CLI upgrade E2E', { timeout: 2 * 60 * 1000 }, () => {
         const { stdout } = await execFileAsync('node', [CLI_ENTRY, 'upgrade', ...args], {
             timeout: opts.timeout ?? 30 * 1000,
             cwd: opts.cwd,
-            env: { ...process.env, npm_config_registry: registryUrl, ...opts.env },
+            env: { ...process.env, npm_config_registry: registry.url, ...opts.env },
             encoding: 'utf8',
         });
         return stdout;
