@@ -28,7 +28,7 @@ const DESKTOPS = [
     id: 'gnome',
     name: 'GNOME',
     caption: 'Native GJS on the system libadwaita.',
-    clock: 'Mo 14:32',
+    clock: 'Mon 14:32',
   },
   {
     id: 'windows',
@@ -40,7 +40,7 @@ const DESKTOPS = [
     id: 'macos',
     name: 'macOS',
     caption: 'Node, Bun or Deno through the node-gi bridge.',
-    clock: 'Mon 14:32',
+    clock: 'Mon 17 Aug  14:32',
   },
 ] as const;
 
@@ -48,7 +48,13 @@ const DESKTOPS = [
 const HOLD_MS = 5200;
 ---
 
-<section class="platform-stage" aria-labelledby="platform-stage-title">
+{/* `not-content` is load-bearing, not tidiness. Starlight's content flow puts a
+    `margin-top` on every `* + *` inside `.sl-markdown-content`, and that reached
+    all the way down here: the second and third desktops sat 16px lower than the
+    first (so two of the three shells looked like they had a gap above them), and
+    every taskbar icon after the first sat 8px lower than its neighbour. Same trap
+    CommandTabs documents; the spacing in this section is all explicit. */}
+<section class="platform-stage not-content" aria-labelledby="platform-stage-title">
   <div class="platform-stage-intro">
     <h2 id="platform-stage-title" class="platform-stage-title">One app. Every desktop.</h2>
     <p class="platform-stage-lead">
@@ -58,7 +64,7 @@ const HOLD_MS = 5200;
     </p>
   </div>
 
-  <div class="platform-stage-frame" data-platform-stage data-hold={HOLD_MS}>
+  <div class="platform-stage-frame" data-platform-stage data-hold={HOLD_MS} data-active={DESKTOPS[0].id}>
     {/* The desktops are stacked; exactly one carries `.is-active` at a time. */}
     {
       DESKTOPS.map((desktop, index) => (
@@ -67,15 +73,33 @@ const HOLD_MS = 5200;
           data-desktop={desktop.id}
           aria-hidden="true"
         >
+          {/* GNOME 4x, not GNOME 3: there is no "Activities" label any more. The
+              left is the workspace indicator (a dash for the active workspace,
+              dots for the others), the centre is the clock, and the right is the
+              quick-settings cluster. */}
           {desktop.id === 'gnome' && (
             <div class="platform-shell platform-shell--gnome">
               <div class="platform-gnome-bar">
-                <span class="platform-gnome-activities">Activities</span>
+                <span class="platform-gnome-workspaces">
+                  <i class="platform-ws platform-ws--active" />
+                  <i class="platform-ws" />
+                  <i class="platform-ws" />
+                </span>
                 <span class="platform-gnome-clock">{desktop.clock}</span>
                 <span class="platform-gnome-status">
-                  <i class="platform-dot" />
-                  <i class="platform-dot" />
-                  <i class="platform-dot" />
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                      d="M8 12.5a1.15 1.15 0 1 0 0 2.3 1.15 1.15 0 0 0 0-2.3Zm0-3.4c-1.2 0-2.3.45-3.1 1.2l1.2 1.2A2.7 2.7 0 0 1 8 10.7c.75 0 1.45.28 1.95.75l1.2-1.2A4.5 4.5 0 0 0 8 9.1Zm0-3.4a7.9 7.9 0 0 0-5.5 2.2l1.2 1.2A6.2 6.2 0 0 1 8 6.85c1.7 0 3.25.64 4.35 1.7l1.2-1.2A7.9 7.9 0 0 0 8 5.7Z"
+                    />
+                  </svg>
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M8.6 2.2 5 5.2H2.4v5.6H5l3.6 3v-11.6Zm2.2 3a4 4 0 0 1 0 5.6l-1-1a2.6 2.6 0 0 0 0-3.6l1-1Z" />
+                  </svg>
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                      d="M2.2 4.6h9.1c.6 0 1.1.5 1.1 1.1v.9h1v2.8h-1v.9c0 .6-.5 1.1-1.1 1.1H2.2c-.6 0-1.1-.5-1.1-1.1V5.7c0-.6.5-1.1 1.1-1.1Zm.7 1.7v3.4h5.8V6.3H2.9Z"
+                    />
+                  </svg>
                 </span>
               </div>
             </div>
@@ -130,10 +154,34 @@ const HOLD_MS = 5200;
       <adw-window class="platform-app-window">
         <adw-toolbar-view>
           <adw-header-bar slot="top">
+            {/* The window controls are the one part of the app that DOES change
+                per desktop, and that is the point rather than an inconsistency:
+                GTK follows each platform's decoration layout, so the same binary
+                gets Adwaita's close button on GNOME, the three Windows controls,
+                and macOS' traffic lights on the LEFT. All three are rendered and
+                the stage shows the one matching the desktop below. */}
+            <span class="platform-controls platform-controls--macos" slot="start" aria-hidden="true">
+              <i class="platform-traffic platform-traffic--close" />
+              <i class="platform-traffic platform-traffic--min" />
+              <i class="platform-traffic platform-traffic--zoom" />
+            </span>
             <adw-window-title slot="center" title="Preferences" subtitle="My App"></adw-window-title>
-            <button class="adw-header-btn platform-app-close" slot="end" aria-label="Close" tabindex="-1">
-              <span class="adw-icon adw-icon--window-close" aria-hidden="true"></span>
-            </button>
+            <span class="platform-controls platform-controls--gnome" slot="end" aria-hidden="true">
+              <span class="adw-header-btn platform-app-btn">
+                <span class="adw-icon adw-icon--window-close"></span>
+              </span>
+            </span>
+            <span class="platform-controls platform-controls--windows" slot="end" aria-hidden="true">
+              <span class="adw-header-btn platform-app-btn">
+                <span class="adw-icon adw-icon--window-minimize"></span>
+              </span>
+              <span class="adw-header-btn platform-app-btn">
+                <span class="adw-icon adw-icon--window-maximize"></span>
+              </span>
+              <span class="adw-header-btn platform-app-btn">
+                <span class="adw-icon adw-icon--window-close"></span>
+              </span>
+            </span>
           </adw-header-bar>
           <div class="platform-app-page">
             <adw-preferences-group title="Appearance">
@@ -182,7 +230,11 @@ const HOLD_MS = 5200;
       index = next % desktops.length;
       desktops.forEach((el, i) => el.classList.toggle('is-active', i === index));
       const meta = DESKTOPS[index];
-      if (meta && nameEl && detailEl) {
+      if (!meta) return;
+      // Drives the window controls, which are the one part of the app that
+      // follows the platform (see the decoration-layout note in the markup).
+      stage.dataset.active = meta.id;
+      if (nameEl && detailEl) {
         nameEl.textContent = meta.name;
         detailEl.textContent = meta.caption;
       }
@@ -320,8 +372,27 @@ const HOLD_MS = 5200;
     font-weight: 600;
   }
 
-  .platform-gnome-activities {
+  .platform-gnome-workspaces {
     flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* The workspace indicator: a dash for the workspace you are on, dots for the
+     rest — GNOME 4x's replacement for the "Activities" label. */
+  .platform-ws {
+    display: block;
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: currentColor;
+    opacity: 0.45;
+  }
+
+  .platform-ws--active {
+    width: 16px;
+    opacity: 1;
   }
 
   .platform-gnome-clock {
@@ -333,17 +404,14 @@ const HOLD_MS = 5200;
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    gap: 5px;
+    gap: 7px;
   }
 
-  .platform-dot {
+  .platform-gnome-status svg {
     display: block;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: currentColor;
-    opacity: 0.75;
-    align-self: center;
+    width: 13px;
+    height: 13px;
+    fill: currentColor;
   }
 
   /* Windows 11: the bloom wallpaper + a centred, floating taskbar. */
@@ -527,10 +595,56 @@ const HOLD_MS = 5200;
     padding: 10px 12px 14px;
   }
 
-  /* Decorative: the button is here so the frame reads as a WINDOW, and there is
-     nothing behind it to press. Kept out of the tab order for the same reason. */
-  .platform-app-close {
+  /* --- Window controls: whichever set the desktop below prescribes --- */
+  .platform-controls {
+    display: none;
+    align-items: center;
+    gap: 4px;
+    /* Decorative: there is nothing behind these to press. */
     pointer-events: none;
+  }
+
+  .platform-stage-frame[data-active='gnome'] .platform-controls--gnome,
+  .platform-stage-frame[data-active='windows'] .platform-controls--windows,
+  .platform-stage-frame[data-active='macos'] .platform-controls--macos {
+    display: flex;
+  }
+
+  /* Slightly tighter than a real header button: this window is drawn at about
+     three-quarters of desktop scale, so full-size controls read as oversized. */
+  .platform-app-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+  }
+
+  .platform-app-btn .adw-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* macOS: GTK follows the platform decoration layout, so the controls move to
+     the LEFT and become the system's traffic lights rather than Adwaita's own
+     buttons. */
+  .platform-traffic {
+    display: block;
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+  }
+
+  .platform-traffic--close {
+    background: #ff5f57;
+  }
+
+  .platform-traffic--min {
+    background: #febc2e;
+  }
+
+  .platform-traffic--zoom {
+    background: #28c840;
   }
 
   /* --- Caption --- */
