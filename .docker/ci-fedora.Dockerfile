@@ -29,12 +29,20 @@ FROM fedora:${FEDORA_VERSION}
 # NOTE: weak deps are left ON (no --setopt=install_weak_deps=False) so this
 # image installs EXACTLY what `main.yml`'s plain `dnf install -y` pulled —
 # parity with the known-good environment matters more than image size.
+#
+# `dash` is here to make ONE assertion able to fail. On Fedora `/bin/sh` IS bash, so
+# `sh -n` on a script written for `alpine:3.24`'s busybox ash proves nothing — a bashism
+# passes here and dies in the container, the one place these legs cannot be debugged
+# cheaply. `tests/e2e/prebuild-change-gate` prefers a real POSIX shell and says so when
+# it finds none; without this package it always took that weaker path. Measured cost: a
+# few hundred KB, and nothing else on the image resolves `sh` through it.
 RUN dnf install -y \
     git \
     tar \
     xz \
     findutils \
     libatomic \
+    dash \
     && dnf clean all
 
 # GJS + GNOME devel libs. gstreamer1-{,plugins-base-,plugins-bad-free-}
