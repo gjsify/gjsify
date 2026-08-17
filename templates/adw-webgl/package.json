@@ -7,9 +7,14 @@
     "scripts": {
         "clear": "gjsify clear dist tsconfig.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
-        "build": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
+        "build": "gjsify run build:gjs && gjsify run build:node",
+        "build:gjs": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
+        "build:node": "gjsify build src/index.ts --app node --outfile dist/index.node.mjs --globals auto,dom",
         "start": "gjsify run dist/index.gjs.js",
-        "dev": "gjsify run build && gjsify run start"
+        "start:node": "gjsify run dist/index.node.mjs --runtime node",
+        "start:bun": "gjsify run dist/index.node.mjs --runtime bun",
+        "start:deno": "gjsify run dist/index.node.mjs --runtime deno",
+        "dev": "gjsify run build:gjs && gjsify run start"
     },
     "devDependencies": {
         "@girs/adw-1": "^4.1.0",
@@ -25,6 +30,7 @@
         "typescript": "^6.0.3"
     },
     "dependencies": {
+        "@gjsify/node-gi": "file:../../packages/node-gi/node-gi",
         "@gjsify/webgl": "workspace:^",
         "three": "0.185.1"
     },
@@ -32,8 +38,12 @@
         "main": "dist/index.gjs.js",
         "example": {
             "runtimes": [
-                "gjs"
-            ]
+                "gjs",
+                "node",
+                "bun",
+                "deno"
+            ],
+            "node": "dist/index.node.mjs"
         }
     }
 }

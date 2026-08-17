@@ -16,4 +16,9 @@ app.connect('activate', () => {
     win.present();
 });
 
-app.run([]);
+// runAsync, not the sync run(): it defers the blocking main loop to a macrotask so
+// promise continuations queued before it still drain. A sync run() works today, but
+// it parks them until the loop returns the moment anything here becomes asynchronous
+// — ADR 0009's latent hang, which node-gi inherits on node/bun/deno (node-gtk #442).
+// One lifecycle for all four runtimes, and the one a scaffolded app should grow from.
+await app.runAsync([]);

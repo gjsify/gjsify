@@ -17,22 +17,43 @@ engine the build needs when it runs under GJS — is listed explicitly in
 ## Commands
 
 ```bash
-npm run dev       # build + run
-npm run build     # bundle for GJS  → dist/index.gjs.js
-npm start         # run the built bundle on GJS
-npm run check     # type-check
-npm run clear     # remove build output
+npm run dev         # build for GJS + run
+npm run build       # bundle both targets
+npm run build:gjs   # → dist/index.gjs.js
+npm run build:node  # → dist/index.node.mjs
+npm start           # run on GJS
+npm run start:node  # run on Node.js
+npm run start:bun   # run on Bun
+npm run start:deno  # run on Deno
+npm run check       # type-check
+npm run clear       # remove build output
 ```
 
 ## Runtimes
 
-This template targets **GJS**. It drives GTK/libadwaita through `gi://`, so GJS
-is where it belongs — `package.json` declares that as
-`gjsify.example.runtimes: ["gjs"]`, and the build passes `--app gjs` explicitly
-so the target does not silently follow whichever runtime happens to invoke it.
+One `src/index.ts` runs on all four runtimes gjsify targets, out of two bundles:
 
-gjsify itself also targets Node.js, Bun and Deno; the `cli`, `web-server-hono`
-and `web-server-express` templates are the ones that ship bundles for all four.
+| Bundle | Built with | Runs on | `gi://` resolves through |
+|---|---|---|---|
+| `dist/index.gjs.js` | `--app gjs` | GJS | the interpreter itself |
+| `dist/index.node.mjs` | `--app node` | Node.js, Bun, Deno | [`@gjsify/node-gi`](https://www.npmjs.com/package/@gjsify/node-gi) |
+
+Node, Bun and Deno share the one `--app node` bundle — Node-API is their common
+ABI, so none of them needs a target of its own. That is also why
+`@gjsify/node-gi` sits in `dependencies` rather than `devDependencies`: the built
+bundle imports it while it runs, not while it builds.
+
+Both builds name `--app` explicitly so the target cannot silently follow
+whichever runtime happens to invoke the build. `package.json` then declares the
+result as `gjsify.example.runtimes`, which is what `gjsify run --runtime <name>`
+checks against — asking for a runtime this project has no bundle for fails with a
+message instead of crashing somewhere inside one.
+
+Neither build names `--globals`. The default is `auto`, and this source touches
+no web API — only `gi://` and `process`, which `auto` shims on GJS and which is
+native on the other three. Templates that draw through a Canvas or WebGL request
+that surface explicitly (`--globals auto,dom`); asking for it here would inject
+registers nothing ever calls.
 
 ## Operating systems
 
