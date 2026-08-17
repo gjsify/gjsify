@@ -1,37 +1,39 @@
 ---
 title: Buttons
-description: Adwaita button widgets — button content, style classes, split button and toggle group — each described neutrally with a live preview and GJS, Web and NativeScript code.
+description: "Adwaita buttons: icon-plus-label content, the style classes, split buttons and toggle groups. Live preview plus the code for GJS, Blueprint, the web and NativeScript."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
 
-A **button** is Adwaita's most direct control: a widget you press to make
-something happen. This page collects the button family — a button's
-**icon-plus-label content**, the **style classes** that give a button its shape
-and intent, the **split button** that couples an action with a menu, and the
-**toggle group** that turns a linked row of buttons into a single-choice
-selector.
+A button is the most direct control Adwaita has: you press it and something
+happens. This page covers the four things you will want from one. Give it an
+**icon plus a label**, apply a **style class** to set its shape and intent, use a
+**split button** to pair an action with a menu of alternatives, or a **toggle
+group** when a row of linked buttons should act as a single-choice selector.
 
-Every widget below is described independently of any one toolkit, then shown
-three ways. **Native GJS** (real Libadwaita through
-[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1)) is the primary
-implementation; the **Web** ([`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web))
-and **NativeScript** ([`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita))
-ports mirror it. The preview is the real Web component — no screenshot — so it
-follows the light/dark toggle just like a native window would.
+Each preview below is the live web component, so it follows the light and dark
+toggle the way a real window would. Under it, the tabs give you the same widget
+four ways: `@girs` TypeScript (one program, running on GJS, Node, Bun and Deno),
+the matching Blueprint declaration, the web port and the NativeScript port.
+
+Libadwaita is the reference here, typed by
+[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
+[`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
+and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
+follow its naming, and where one of them differs, its tab says so.
 
 :::note
-The previews use the browser port, so behaviour that Libadwaita drives natively
-(a split button's popover, a toggle group's keyboard navigation) may be
-simplified. Where a port diverges, its tab says so.
+The previews run the browser port, so behaviour Libadwaita drives natively (a
+split button's popover, a toggle group's keyboard navigation) can be simplified
+here.
 :::
 
 ## Button Content
 
-**Adw.ButtonContent** pairs a symbolic icon with a label as the child of a
-button, so an action reads both at a glance and in words. It is the standard way
-to give a button an icon _and_ text, and can optionally ellipsize its label
-(`can-shrink`) when horizontal space is tight.
+To put an icon _and_ text on a button, make an **Adw.ButtonContent** its child.
+It pairs a symbolic icon with a label, so the action reads at a glance and in
+words. Set `can-shrink` if the label may ellipsize when horizontal space runs
+short.
 
 <AdwWidget title="Adw.ButtonContent">
   <Fragment slot="preview">
@@ -99,11 +101,12 @@ to give a button an icon _and_ text, and can optionally ellipsize its label
 
 ## Button Styles
 
-Adwaita ships a small set of **style classes** that restyle an ordinary button:
-`.pill` for a rounded, prominent shape, `.circular` for an icon-only round
-button, `.suggested-action` and `.destructive-action` to colour an affirmative
-or dangerous action, and `.flat` to drop the visible background. They compose
-with any button and carry the same meaning across the toolkit.
+Add a **style class** to restyle any button. `.pill` makes it rounded and
+prominent, `.circular` suits an icon-only button, `.suggested-action` and
+`.destructive-action` colour an affirmative or a dangerous action, and `.flat`
+drops the visible background. They compose with each other and mean the same
+thing everywhere in the toolkit, so a `.destructive-action` in a header bar reads
+like one in a dialog.
 
 <AdwWidget title="Gtk.Button">
   <Fragment slot="preview">
@@ -229,11 +232,10 @@ with any button and carry the same meaning across the toolkit.
 
 ## Split Button
 
-**Adw.SplitButton** joins a primary action to a dropdown of related actions in
-one linked control — click the main half to run the default action, or open the
-attached menu for the alternatives. Adding the `.flat` style class gives the
-variant that fits header bars and toolbars, where a raised button would read as
-too heavy.
+Use a **split button** when one action is the obvious default and the rest are
+variations on it. Clicking the main half runs the default; the attached arrow
+opens a menu with the alternatives. Add `.flat` for the variant that belongs in a
+header bar or toolbar, where a raised button looks too heavy.
 
 <AdwWidget title="Adw.SplitButton">
   <Fragment slot="preview">
@@ -314,11 +316,10 @@ too heavy.
 
 ## Toggle Group
 
-**Adw.ToggleGroup** is a linked row of toggle buttons where exactly one is
-active at a time — a compact, mutually-exclusive selector for a small set of
-options, such as a view mode. Each toggle carries an icon and/or a label, and the
-style classes `.flat` and `.round` adjust the group for toolbars or a
-pill-shaped appearance.
+For a small set of mutually exclusive options, such as a view mode, use a
+**toggle group**: a linked row where exactly one toggle is active at a time. Each
+toggle takes an icon, a label, or both. The style classes `.flat` and `.round`
+adapt the group for a toolbar or give it a pill shape.
 
 <AdwWidget title="Adw.ToggleGroup">
   <Fragment slot="preview">
@@ -390,8 +391,8 @@ pill-shaped appearance.
 
 ## Related
 
-- [Boxed Lists](../boxed-lists/) — rows that embed these buttons and reuse the
+- [Boxed Lists](../boxed-lists/): rows that embed these buttons and reuse the
   same style classes.
-- [Layout](../layout/) — the containers that arrange buttons within a window.
-- [Adwaita Storybook](../../showcases/adwaita-storybook/) — the same widgets in a
-  live, interactive component browser.
+- [Layout](../layout/): the containers that arrange buttons within a window.
+- [Adwaita Storybook](../../showcases/adwaita-storybook/): the same widgets in a
+  live component browser you can poke at.

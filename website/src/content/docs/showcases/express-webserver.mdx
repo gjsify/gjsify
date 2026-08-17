@@ -1,19 +1,11 @@
 ---
 title: "Express Web Server"
-description: Unmodified Express 5 running on GJS through @gjsify/http — proves the http.Server / IncomingMessage / ServerResponse surface holds for the most-deployed Node web framework.
+description: An unmodified Express 5 blog app serving HTTP from GJS, with the same source running on Node, Bun and Deno.
 ---
 
-A small Express 5 blog app — JSON API (`/api/posts`, `/api/posts/:slug`, `/api/runtime`), server-rendered article pages, and a static HTML/CSS/JS frontend — running on GJS through [`@gjsify/http`](https://github.com/gjsify/gjsify/tree/main/packages/node/http). Express imports unmodified from npm; GJSify's Node compat layer serves every `http.Server` / `IncomingMessage` / `ServerResponse` API call Express reaches for.
+A small Express 5 blog: a JSON API, server-rendered article pages, and a static frontend. Express comes straight from npm with no fork and no shim in your code.
 
-## What it exercises
-
-| Pillar | What Express needs |
-|---|---|
-| [`@gjsify/http`](https://github.com/gjsify/gjsify/tree/main/packages/node/http) | `http.createServer()`, `Server.listen()`, full `IncomingMessage` (close-only-via-destroy per Node semantics) + `ServerResponse` API |
-| [`@gjsify/stream`](https://github.com/gjsify/gjsify/tree/main/packages/node/stream) | `req.pipe(res)`, body parsing |
-| [`@gjsify/events`](https://github.com/gjsify/gjsify/tree/main/packages/node/events) | EventEmitter with enumerable prototype methods (Express 5 requires this for some middleware) |
-| [`@gjsify/url`](https://github.com/gjsify/gjsify/tree/main/packages/node/url) | URL parsing in Express's route matcher |
-| `libsoup-3.0` | The TCP listener + HTTP/1.1 parser under `@gjsify/http` |
+The demo shows that a Node web app runs on GJS unchanged. `src/index.ts` has no GJS branch anywhere in it, so if you already have an Express service, this is what porting it looks like: nothing.
 
 ## Run it on GJS
 
@@ -21,44 +13,61 @@ A small Express 5 blog app — JSON API (`/api/posts`, `/api/posts/:slug`, `/api
 gjsify showcase express-webserver
 ```
 
-Starts a `Gtk.Application`-less GLib mainloop with Express bound to `http://127.0.0.1:3000`. Open the page or hit the API with curl:
+There is no window. It runs a GLib main loop and listens on port 3000. Open `http://localhost:3000/` in a browser, or hit the API:
 
 ```bash
-curl http://127.0.0.1:3000/api/posts
+curl http://localhost:3000/api/posts
 # → {"count":…,"posts":[…]}
 
-curl http://127.0.0.1:3000/api/runtime
+curl http://localhost:3000/api/posts/hello-gjs
+
+curl http://localhost:3000/api/runtime
 # → {"runtime":"GJS","platform":"linux","version":"…","time":"…"}
 ```
 
-The same Express app would behave identically under Node — there's no GJS-specific branch in `src/index.ts`. That's the load-bearing claim.
+Set `PORT` to listen somewhere else.
 
-## Run it under Node (for comparison)
+`/api/runtime` is the interesting one: it reports which JavaScript engine is serving the request, from `runtimeName` in `@gjsify/runtime`. Run the same bundle on Node and the field changes; nothing else does.
+
+## Run it on Node, Bun or Deno
 
 ```bash
-cd showcases/node/express-webserver
-gjsify run build
-gjsify run start:node
+gjsify showcase express-webserver --runtime node   # or bun / deno
 ```
 
-The package ships both `start` (GJS) and `start:node` scripts; same `src/index.ts`, two bundles (`dist/index.gjs.js`, `dist/index.node.mjs`).
+One `--app node` bundle serves all three. From `showcases/node/express-webserver/` in a checkout you can also run the two builds side by side:
 
-## Source
+```bash
+gjsify run build
+gjsify run start        # the --app gjs bundle
+gjsify run start:node   # the --app node bundle
+```
+
+Same `src/index.ts`, two bundles: `dist/index.gjs.js` and `dist/index.node.mjs`.
+
+## What it uses
+
+| Package | What Express needs it for |
+|---|---|
+| [`@gjsify/http`](https://github.com/gjsify/gjsify/tree/main/packages/node/http) | `http.createServer()`, `Server.listen()`, and the `IncomingMessage` and `ServerResponse` surface |
+| [`@gjsify/stream`](https://github.com/gjsify/gjsify/tree/main/packages/node/stream) | `req.pipe(res)` and body parsing |
+| [`@gjsify/events`](https://github.com/gjsify/gjsify/tree/main/packages/node/events) | `EventEmitter`, which Express and its middleware lean on throughout |
+| [`@gjsify/url`](https://github.com/gjsify/gjsify/tree/main/packages/node/url) | URL parsing in the route matcher |
+| libsoup 3.0 | The TCP listener and HTTP/1.1 parser under `@gjsify/http` |
+
+You install none of them. `gjsify build` rewrites the `node:` imports for you, which is what [How it works](/gjsify/how-it-works/) walks through.
+
+## Copy the structure
 
 [`showcases/node/express-webserver/`](https://github.com/gjsify/gjsify/tree/main/showcases/node/express-webserver)
 
-- `src/index.ts` — the whole Express app: middleware, JSON API, server-rendered HTML pages, `app.listen()` (npm `express` import, no `@gjsify/*` in the request path)
-- `src/data/posts.ts` — in-memory blog post fixtures consumed by the API + HTML routes
-- `src/public/` — static frontend (`index.html`, `style.css`, `app.js`) served via `express.static()`
+- `src/index.ts` is the whole app: middleware, the JSON API, the server-rendered pages and `app.listen()`.
+- `src/data/posts.ts` holds the in-memory post fixtures the API and the pages both read.
+- `src/public/` is the static frontend, served with `express.static()`.
 
-## Why Express specifically
-
-Express is the most-deployed Node web framework on the planet. If GJSify's `http` package can carry Express 5 unmodified — including middleware composition, error handling, route matching — then arbitrary npm web apps targeting Node tend to "just work" on GJS too. This showcase is the canary.
-
-Integration coverage for the broader npm web ecosystem (Socket.IO, axios, WebTorrent, …) lives under [`tests/integration/`](https://github.com/gjsify/gjsify/tree/main/tests/integration) — they all dovetail with the same `@gjsify/http` + `@gjsify/stream` surface.
+Compared with the GTK showcases there is no shell to write, because a server has no UI. Build it, run it, and the only per-target file is the bundle.
 
 ## Related
 
-- [`refs/socket.io/`](https://github.com/gjsify/gjsify/tree/main/refs/socket.io) — Socket.IO uses `http.Server` directly; the integration suite under `tests/integration/socket.io/` is the multi-client validation
-- [`refs/undici/`](https://github.com/gjsify/gjsify/tree/main/refs/undici) — Node's fetch / HTTP client reference, separate from `@gjsify/http` but the same socket plumbing
-- [`@gjsify/http`](https://github.com/gjsify/gjsify/tree/main/packages/node/http) — the package itself
+- [Node API packages](/gjsify/packages/node/) lists every Node builtin gjsify implements and the GNOME library behind each one.
+- [Distributing GJS apps](/gjsify/guides/distributing-gjs-apps/) covers shipping a server bundle once it works.

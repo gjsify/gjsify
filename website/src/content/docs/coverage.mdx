@@ -1,6 +1,6 @@
 ---
 title: Coverage
-description: How complete GJSify is — pillar entries, Node.js modules and W3C/WHATWG web standards, rendered live from the project status data.
+description: Check whether the Node.js module, Web API or npm package you need already works on GJS.
 ---
 
 import PillarCoverage from '../../components/PillarCoverage.astro';
@@ -8,9 +8,13 @@ import NodeApiCoverage from '../../components/NodeApiCoverage.astro';
 import WebStandardsCoverage from '../../components/WebStandardsCoverage.astro';
 import IntegrationTests from '../../components/IntegrationTests.astro';
 
-GJSify's progress is tracked as data in [`status/`](https://github.com/gjsify/gjsify/blob/main/status) and derived from the package manifests; these dashboards are regenerated from it on every build, so the bars never lag behind reality.
+Use this page to answer one question before you start building: **is the thing I need already there?**
 
-The dashboards below cover the primary direction — Node.js, Web and DOM APIs implemented on GJS. For what is validated on the *other* runtimes (Node.js, Bun, Deno, the browser), see [Runtimes](/gjsify/runtimes/).
+Expand a category to see every module or standard with its status. **Full** means the surface a normal app touches works. **Partial** means the core works and specific corners are named. **Stub** means it resolves so a dependency check passes, but does nothing. **Planned** means it is in scope and not built yet. **Out of scope** means it makes no sense in a desktop GTK app and will not be built.
+
+Everything below is generated from the package manifests on every site build, so it cannot drift away from what actually ships.
+
+These dashboards cover GJS, the primary target. For what is validated on Node.js, Bun, Deno and in the browser, see [Runtimes](/gjsify/runtimes/); for which operating systems each native bridge reaches, see [Platform Support](/gjsify/platform-support/).
 
 <PillarCoverage />
 
@@ -19,3 +23,9 @@ The dashboards below cover the primary direction — Node.js, Web and DOM APIs i
 <WebStandardsCoverage />
 
 <IntegrationTests />
+
+## If something you need is missing
+
+- A **partial** module is often good enough. Its entry names exactly what is not there.
+- If a global is the problem rather than a module, one build flag usually fixes it. [How It Works](/gjsify/how-it-works/) walks through it.
+- Otherwise, open an issue on [GitHub](https://github.com/gjsify/gjsify/issues) and say which package you are trying to run. That is the signal that moves things up the list.

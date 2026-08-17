@@ -1,37 +1,52 @@
 ---
 title: Overview
-description: What GJSify is — a TypeScript framework for native Linux apps that unifies GNOME, Node.js and the Web across runtimes.
+description: "What gjsify is, and what you can build with it: native GTK 4 / Adwaita apps written in TypeScript, with the Node.js and Web APIs you already know."
 ---
 
 import ThreeWorldsFusion from '../../components/ThreeWorldsFusion.astro';
 
-**GJSify is a TypeScript framework for native Linux apps.** You build
-GTK 4 / Adwaita applications, games and CLI tools against the APIs you already
-know — Node.js modules, Web standards, the DOM — and GJSify maps them onto the
-GNOME platform.
+**gjsify is a TypeScript framework for native desktop apps.** You write TypeScript
+and you get a real GTK 4 / Adwaita application: one native process, no bundled
+browser engine, no Node.js running alongside it. Your code is executed by GJS,
+GNOME's own JavaScript runtime, and gjsify supplies the pieces GJS never had, so
+`node:fs`, `fetch`, `WebSocket`, `<canvas>` and a large slice of npm work there.
+GTK and libadwaita stay exactly as they are, reached through `gi://` imports.
 
-The runtime is a build-time decision, not an architecture decision:
+**What you can build with it:** a desktop app with the full Adwaita widget set, a
+game rendering with WebGL into a real `Gtk.GLArea` or with Canvas 2D into a
+`Gtk.DrawingArea` (three.js and Excalibur.js run unmodified), a command-line tool,
+or an HTTP server on Express or Hono. `gjsify create` has a starter template for
+each of those. The same source
+can also be built for the browser, and the whole toolchain runs on GJS, so you can
+develop and ship on a machine with no Node.js installed.
 
-- On **GJS**, GNOME's JavaScript runtime, GJSify implements the Node.js and
-  Web APIs on top of Gio, libsoup, Cairo and friends.
-- On **Node.js, Bun and Deno**, GJSify implements the GJS side — `gi://`
-  imports and the GObject type system — through the
-  [node-gi](/gjsify/projects/node-gi/) reverse bridge, which runs the same
-  unchanged GObject-Introspection code on **Linux, macOS and Windows**.
-- In the **browser**, the same source runs as a web app, with the Adwaita
-  design system [carried over as Web Components](/gjsify/packages/web/).
+Start here: [Getting Started](/gjsify/getting-started/) takes you from nothing to a
+window on screen.
 
-This also makes GJSify a bridge between the web and the native desktop in both
-directions: web code runs inside native GTK windows, and the native look and
-feel travels to the web. See [Runtimes](/gjsify/runtimes/) for the full
-picture of what runs where.
+## Choose the target when you build
+
+Where your code runs is a flag on the build, not a decision baked into your app:
+
+| `gjsify build --app` | Runs on | Reach for it when |
+|---|---|---|
+| `gjs` | GJS, on Linux | you are shipping a native GNOME app. This is the main target. |
+| `node` | Node.js, Bun and Deno, on Linux, macOS and Windows | you want GTK code on a machine with no GJS, or a build step in CI |
+| `browser` | any modern browser | you want a web build of the same source, Adwaita included |
+
+The flag defaults to whatever runtime is running the CLI, so a global GJS install
+builds `gjs` bundles and `npx @gjsify/cli` builds `node` ones. [Runtimes](/gjsify/runtimes/)
+covers what each target gives you; [Platform Support](/gjsify/platform-support/)
+answers the operating-system question.
 
 <ThreeWorldsFusion />
 
 ## Where to go next
 
-- [Getting Started](/gjsify/getting-started/) — scaffold and run your first app
-- [Runtimes](/gjsify/runtimes/) — GJS, Node.js, Deno, Bun and the browser: what runs where
-- [How It Works](/gjsify/how-it-works/) — the build pipeline: auto-aliasing, `--globals auto`, native prebuilds
-- [Coverage](/gjsify/coverage/) — how complete the Node, Web and bridge surfaces already are
-- [Showcases](/gjsify/showcases/) — end-to-end apps that run unchanged on GJS and in the browser
+- [Getting Started](/gjsify/getting-started/): scaffold a project, get a window on screen
+- [Widget Gallery](/gjsify/adwaita/): every Adwaita component, with live previews and code
+- [Native Adwaita Apps](/gjsify/guides/native-adwaita-app/): the app shell, navigation, dialogs and toasts
+- [Runtimes](/gjsify/runtimes/): GJS, Node.js, Bun, Deno and the browser, and what runs where
+- [Packages](/gjsify/packages/overview/): the Node.js, Web and DOM APIs gjsify implements
+- [Showcases](/gjsify/showcases/): full apps that run on GJS and in your browser from one source
+- [CLI Reference](/gjsify/cli-reference/): every `gjsify` command and flag
+- [How It Works](/gjsify/how-it-works/): the build pipeline, if you want to look inside

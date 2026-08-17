@@ -1,35 +1,38 @@
 ---
 title: Boxed Lists
-description: Adwaita boxed-list rows — preferences group, action, switch, entry, combo, spin, expander and button rows — described neutrally with a live preview and GJS, Web and NativeScript code.
+description: "Adwaita boxed-list rows: preferences group, action, switch, entry, combo, spin, expander and button. Live preview plus the code for GJS, Blueprint, the web and NativeScript."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
 
-A **boxed list** is Adwaita's core pattern for settings and detail screens: a set
-of related **rows** gathered into a single rounded card. The card is a
-**preferences group**; each row is a small, self-contained control — a toggle, a
-text field, a drop-down, a button.
+Reach for a **boxed list** whenever you build a settings or detail screen: a set
+of related rows gathered into one rounded card. The card is a **preferences
+group**, and each row is a small self-contained control (a toggle, a text field,
+a drop-down, a button).
 
-Every widget below is described independently of any one toolkit, then shown
-three ways. **Native GJS** (real Libadwaita through
-[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1)) is the primary
-implementation; the **Web** ([`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web))
-and **NativeScript** ([`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita))
-ports mirror it. The preview is the real Web component — no screenshot — so it
-follows the light/dark toggle just like a native window would.
+Each preview below is the live web component, so it follows the light and dark
+toggle the way a real window would. Under it, the tabs give you the same widget
+four ways: `@girs` TypeScript (one program, running on GJS, Node, Bun and Deno),
+the matching Blueprint declaration, the web port and the NativeScript port.
+
+Libadwaita is the reference here, typed by
+[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
+[`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
+and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
+follow its naming, and where one of them differs, its tab says so.
 
 :::note
-The previews use the browser port, so behaviour that Libadwaita drives natively
-(an entry's apply button, a spin button's repeat, row-press feedback) may be
-simplified. Where a port diverges, its tab says so.
+The previews run the browser port, so behaviour Libadwaita drives natively (an
+entry's apply button, a spin button's repeat, the press feedback on a row) can be
+simplified here.
 :::
 
 ## Preferences Group
 
-The container for a boxed list. It renders its rows as one rounded card and can
-carry a **title**, a **description**, and a **header-suffix** widget (a button or
-switch pinned to the trailing edge of the header). Groups stack vertically to
-build a full preferences page.
+Start with the group: it draws its rows as one rounded card. Give it a **title**,
+a **description**, and a **header-suffix** widget (a button or switch pinned to
+the trailing edge of the header). Stack several groups to build a full
+preferences page.
 
 <AdwWidget title="Adw.PreferencesGroup">
   <Fragment slot="preview">
@@ -131,10 +134,10 @@ build a full preferences page.
 
 ## Action Row
 
-The most general row: a **title** with an optional **subtitle**, plus **prefix**
-and **suffix** slots for extra widgets (an icon on the leading edge, a button or
-chevron on the trailing edge). Marking it **activatable** makes the whole row
-respond to a click — typically to open a detail page.
+The general-purpose row: a **title** with an optional **subtitle**, plus
+**prefix** and **suffix** slots for extra widgets (an icon on the leading edge, a
+button or chevron on the trailing edge). Mark it **activatable** and the whole
+row responds to a click, which is how you open a detail page.
 
 <AdwWidget title="Adw.ActionRow">
   <Fragment slot="preview">
@@ -218,8 +221,8 @@ respond to a click — typically to open a detail page.
 
 ## Switch Row
 
-An action row with a trailing **switch** that toggles a single boolean setting —
-the boxed-list equivalent of a labelled on/off control.
+An action row with a trailing **switch**, for a single on/off setting. This is
+the row you will use most in a preferences page.
 
 <AdwWidget title="Adw.SwitchRow">
   <Fragment slot="preview">
@@ -275,9 +278,10 @@ the boxed-list equivalent of a labelled on/off control.
 
 ## Entry Row
 
-A row whose **title** doubles as the label and placeholder for an inline text
-field. Ideal for short, editable values — a name, a hostname, a nickname. It can
-show an **apply button** that commits the change.
+Edit a short value in place. The **title** doubles as the label and placeholder
+for an inline text field, which suits a name, a hostname or a nickname. Set
+`showApplyButton` if the change should be committed explicitly rather than as the
+user types.
 
 <AdwWidget title="Adw.EntryRow">
   <Fragment slot="preview">
@@ -327,8 +331,8 @@ show an **apply button** that commits the change.
 
 ## Password Entry Row
 
-An entry row that **masks** its contents and offers a **peek** toggle to reveal
-them. Use it wherever a secret is edited inline in a boxed list.
+The same row for secrets: it **masks** what you type and offers a **peek** toggle
+to reveal it. Use it anywhere a password or key is edited inline.
 
 <AdwWidget title="Adw.PasswordEntryRow">
   <Fragment slot="preview">
@@ -377,8 +381,8 @@ them. Use it wherever a secret is edited inline in a boxed list.
 
 ## Combo Row
 
-A row with an inline **drop-down** for choosing one option from a fixed list. The
-selection is stored as an index into the model.
+Pick one option from a fixed list. The row shows an inline **drop-down**, and the
+selection is an index into the model you gave it, not the string itself.
 
 <AdwWidget title="Adw.ComboRow">
   <Fragment slot="preview">
@@ -447,8 +451,9 @@ selection is stored as an index into the model.
 
 ## Spin Row
 
-A row with an inline **spin button** over a numeric range — a value with ± steppers
-and optional decimal digits, for settings like a font size or a count.
+Take a number within a range. The row carries an inline **spin button** with plus
+and minus steppers and optional decimal digits, which fits settings like a font
+size or a count.
 
 <AdwWidget title="Adw.SpinRow">
   <Fragment slot="preview">
@@ -508,9 +513,9 @@ and optional decimal digits, for settings like a font size or a count.
 
 ## Expander Row
 
-A row that **discloses** nested rows when expanded — a lightweight way to tuck
-away advanced or grouped settings. It can carry an **enable switch** that gates
-the whole section.
+Tuck advanced or grouped settings out of the way. The row **discloses** its
+nested rows when expanded, and it can carry an **enable switch** that gates the
+whole section.
 
 <AdwWidget title="Adw.ExpanderRow">
   <Fragment slot="preview">
@@ -585,9 +590,9 @@ the whole section.
 
 ## Button Row
 
-A full-width row that behaves like a **button** — for a boxed-list action such as
-_Add account_ or _Remove_. It takes an optional **start icon** and an Adwaita
-style class (`.suggested-action`, `.destructive-action`).
+Put an action at the end of a list, such as _Add account_ or _Remove_. The whole
+row behaves like a button. It takes an optional **start icon** and the usual
+Adwaita style classes (`.suggested-action`, `.destructive-action`).
 
 <AdwWidget title="Adw.ButtonRow">
   <Fragment slot="preview">
@@ -644,7 +649,8 @@ style class (`.suggested-action`, `.destructive-action`).
 
 ## Related
 
-- [Buttons](../buttons/) — standalone buttons and the style classes reused here.
-- [Layout](../layout/) — the `Clamp` that keeps a boxed list at a readable width.
-- [Adwaita Storybook](../../showcases/adwaita-storybook/) — the same widgets in a
-  live, interactive component browser.
+- [Buttons](../buttons/): standalone buttons and the style classes reused here.
+- [Layout](../layout/): the `Clamp` that keeps a boxed list at a readable width.
+- [Feedback](../feedback/): the preferences dialog these groups go into.
+- [Adwaita Storybook](../../showcases/adwaita-storybook/): the same widgets in a
+  live component browser you can poke at.

@@ -1,22 +1,24 @@
 ---
 title: node-gi
-description: Run unchanged GJS / GObject-Introspection code on Node.js, Bun and Deno — the reverse bridge. One source builds and runs on GJS and every Node-API runtime.
+description: Run unchanged gi:// and GObject code on Node.js, Bun and Deno. The reverse bridge, so one source builds for GJS and for every Node-API runtime.
 ---
 
-[`@gjsify/node-gi`](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/node-gi) is the **reverse** of the rest of GJSify: instead of bringing Node/Web APIs to GJS, it brings **GObject-Introspection to Node.js, Bun and Deno**. The same unchanged `gi://` source builds and runs natively under GJS *and* on every Node-API runtime — no code changes.
+[`@gjsify/node-gi`](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/node-gi) runs the rest of gjsify backwards. Instead of bringing Node and Web APIs to GJS, it brings GObject Introspection to Node.js, Bun and Deno, so the same unchanged `gi://` source runs natively under GJS *and* on every Node-API runtime.
+
+You care about this if you want your GTK app, or a library that talks to GLib, to run where GJS isn't. That is mostly two situations: shipping to Windows, which has no GJS host at all ([Platform Support](/gjsify/platform-support/) explains why), and running a test suite or a headless tool on the runtime your CI already has. If you only ever target GJS you can skip this page; nothing on the GJS side depends on node-gi at runtime.
 
 :::note[Stability]
-node-gi is tested and released together with every GJSify release, and real consumers exercise it — CI runs ten `@gjsify/*` packages' own test suites on it (`sqlite`, `http2`, `zlib`, `tls`, `ws`, `dom-elements`, `node-globals`, `canvas2d-core`, `crypto`, `string_decoder`). It is still a **younger part of the framework** than the GJS side, so a breaking change may occasionally ship in a minor release (always with a changelog note). Regular GJS apps are unaffected either way: no GJSify package depends on node-gi at runtime. Details in the [stability model](/gjsify/versioning/#package-tiers).
+node-gi is tested and released with every gjsify release, and real consumers exercise it. It is still a younger part of the framework than the GJS side, so a breaking change occasionally ships in a minor release, always with a changelog note. Details in the [stability model](/gjsify/versioning/#how-much-stability-to-expect).
 :::
 
 ## One source, every runtime
 
 ```
-gjsify build app.ts --app gjs    → gjs                  -m dist/app.gjs.mjs   (native gi://)
-gjsify build app.ts --app node   → node | bun | deno       dist/app.node.mjs  (@gjsify/node-gi)
+gjsify build app.ts --app gjs    → gjs                dist/app.gjs.mjs   (native gi://)
+gjsify build app.ts --app node   → node | bun | deno  dist/app.node.mjs  (@gjsify/node-gi)
 ```
 
-The `gjsify` bundler keeps `gi://` imports native for the GJS target and rewrites them onto the node-gi runtime (`requireGi`) for the Node target. Because node-gi is a **Node-API** addon, the *same* `--app node` bundle runs on Node, Bun and Deno — Node-API is their common native ABI, so there is no separate `--app deno`/`--app bun` target and no separate binding to maintain.
+The bundler keeps `gi://` imports native for the GJS target and rewrites them onto the node-gi runtime for the Node target. Because node-gi is a Node-API addon, the *same* `--app node` bundle runs on Node, Bun and Deno: Node-API is their shared native ABI, so there is no separate `--app deno` or `--app bun` target and no second binding to maintain.
 
 ```ts
 // The same file for gjs, node, bun and deno.
@@ -31,50 +33,41 @@ const file = Gio.File.new_for_path('/usr/share');
 print(file.get_basename()); // "share"
 ```
 
-## Runtimes
+## What works on which runtime
 
-The engine is one Node-API binary that loads on all four supported runtimes. `index.js` detects the runtime and prefers a shipped `prebuilds/<platform>-<arch>/` binary (Deno runs no postinstall build, so a prebuild is its only install path).
+One Node-API binary loads on all three runtimes. `index.js` detects the runtime and prefers a shipped `prebuilds/<platform>-<arch>/` binary. Deno runs no postinstall build, so a prebuild is its only install path.
 
-| Capability | GJS | Node | Bun | Deno |
-|---|:--:|:--:|:--:|:--:|
-| introspection, marshalling, enums, variants | ✅ | ✅ | ✅ | ✅ |
-| GObject create / properties / signals | ✅ | ✅ | ✅ | ✅ |
-| `registerClass` / subclass / vfunc chain-up | ✅ | ✅ | ✅ | ✅ |
-| toggle-ref GC + cross-thread teardown | ✅ | ✅ | ✅ | ✅ |
-| GLib async (timeouts, GIO async, DBus) | ✅ | ✅ | ✅ | ✅ |
-| blocking `GLib.MainLoop.run()` / `runAsync()` | ✅ | ✅ | ✅ | ✅ |
-| GTK / Adwaita GUI apps | ✅ | ✅ | ✅ | ✅ |
-| libuv kept alive *during* a blocking GLib loop | n/a | ✅ | — | — |
+GJS is the reference implementation, with native `gi://`. Against it:
 
-GJS is the reference implementation (native `gi://`). On Node the libuv↔GLib bridge keeps Node's own event loop alive during a blocking GLib loop; on Bun and Deno a portable GLib-iteration pump (`startMainContextPump`) co-pumps GLib from the runtime timer instead. Bun and Deno both reach the conformance subset (the Deno-2.1-era N-API quirks were fixed upstream in Deno 2.9); the one Node-only row is keeping the runtime's own timers alive *during* a blocking GLib loop — on Bun and Deno a blocking `run()` does not advance the runtime loop, by design, because they are pumped the other way round.
+| Capability | Node | Bun | Deno |
+|---|:--:|:--:|:--:|
+| introspection, marshalling, enums, variants | ✅ | ✅ | ✅ |
+| GObject create, properties, signals | ✅ | ✅ | ✅ |
+| `registerClass`, subclassing, vfunc chain-up | ✅ | ✅ | ✅ |
+| toggle-ref GC and cross-thread teardown | ✅ | ✅ | ✅ |
+| GLib async with no main loop (timeouts, GIO async, DBus) | ✅ | ✅ | ✅ |
+| blocking `GLib.MainLoop.run()` / `Gio.Application.runAsync()` | ✅ | ✅ | ✅ |
+| promise continuations drain *during* a blocking GLib loop | ✅ | ✅ | ✅ |
+| the runtime's own timers and I/O alive *during* a blocking GLib loop | ✅ | ✗ | ✗ |
+| GTK / Adwaita GUI apps | ✅ | ✅ | ✅ |
 
-GUI support is portable across all four runtimes: a blocking `Gtk.Application.run()` is driven by GLib, not by the host's event loop. A real `Gtk.Application` builds an Adwaita window (`Adw.ToolbarView` + `Adw.HeaderBar` + `Adw.StatusPage`), applies a `Gtk.CssProvider` and exits 0 on gjs, node, bun and deno. The `gtk-smoke` CI job gates this on all of them under xvfb. The GObject-Introspection conformance oracle (a port of GJS's own `GIMarshallingTests`) runs **byte-identical on gjs / node / bun / deno**.
+The last gap is by design rather than unfinished. On Node, a libuv-to-GLib bridge nests the two loops, so a blocking GLib loop keeps Node's timers running. Bun and Deno have no usable libuv to hook, so they get a portable pump that iterates the default GLib context from a runtime timer. Either way you don't call anything: loading a namespace arms whichever mechanism the runtime needs, and `await`ing a Gio async call works with no explicit main loop.
 
-Known gap: on Bun and Deno the app prints `GLib-GObject-CRITICAL` / `Gtk-CRITICAL` refcount assertions while tearing down (Node does not). The window renders and the process exits 0, so the capability holds, but the teardown path on those two runtimes is not yet clean.
+GUI support is portable because a blocking `Gtk.Application.run()` is driven by GLib, not by the host's event loop. A real `Gtk.Application` builds an Adwaita window (`Adw.ToolbarView`, `Adw.HeaderBar`, `Adw.StatusPage`), applies a `Gtk.CssProvider` and exits 0 on gjs, node, bun and deno. CI gates that on all of them under xvfb, and the conformance oracle (a port of GJS's own `GIMarshallingTests`) runs byte-identical across the four.
+
+:::caution[One known gap in GTK apps]
+A GTK app driven through node-gi intermittently logs `Gtk-CRITICAL **: gtk_event_controller_handle_crossing: assertion 'GTK_IS_EVENT_CONTROLLER (controller)' failed`, and the process can go down mid-frame when it does. It is nondeterministic, so a clean run proves nothing: three consecutive showcase runs produced one, six and one on Node, with Bun behaving the same way and Deno clean in that sample. If you hit it, it is a known lifetime bug in the bridge rather than something in your code.
+:::
 
 ## Platforms
 
-The same Node-API binary is validated on **Linux, macOS and Windows** — the OS axis is distinct from the runtime axis above, and the `prebuilds/<platform>-<arch>/` layout carries a binary per platform *and* arch. What CI actually proves per platform (stated by name, not by a runtime-class label):
+The operating system axis is separate from the runtime axis above, and `prebuilds/<platform>-<arch>/` carries a binary per platform *and* arch. What CI proves, named rather than generalised:
 
-- **Linux** — the full path: GJS-native `gi://` plus node-gi on Node, Bun and Deno, GTK/Adwaita GUIs and the whole conformance suite, against the system GTK.
-- **macOS, Apple silicon** (`macos-latest`, arm64) — node-gi builds and passes the display-free conformance suite on **Node, Bun and Deno**, and the GTK GUI renders (render-to-texture, no visible desktop): an `Adw.ApplicationWindow` realizes, renders and reacts to input, proven in CI. The batteries-included [`@gjsify/gtk-runtime-darwin-arm64`](https://www.npmjs.com/package/@gjsify/gtk-runtime-darwin-arm64) package ships the prebuilt GTK 4 / Adwaita closure so no system GTK is required (the GUI uses its `--windowing` closure, which adds libadwaita).
-- **macOS, Intel** (`macos-15-intel`, x64) — node-gi builds and passes the display-free conformance suite on **Node, Bun and Deno**. The batteries-included [`@gjsify/gtk-runtime-darwin-x64`](https://www.npmjs.com/package/@gjsify/gtk-runtime-darwin-x64) package ships the same relocated GTK 4 closure, built by the *same* script as the arm64 one, and CI proves it on a runner where GTK was never `brew install`ed — a green run is the "no Homebrew" claim. The `--windowing` GUI proof is Apple-silicon-only so far; `macos-15-intel` is also the last x86_64 macOS image GitHub Actions offers (through August 2027).
-- **Windows** (`windows-latest`, x64) — node-gi builds (**MSVC + gvsbuild**) and passes the display-free conformance suite on **Node**. Beyond headless conformance, the GTK GUI renders (render-to-texture, no visible desktop) **and** the full Libadwaita Storybook renders — both proven in CI. The batteries-included [`@gjsify/gtk-runtime-win32-x64`](https://www.npmjs.com/package/@gjsify/gtk-runtime-win32-x64) package (also selected via `--windowing`) ships the prebuilt GTK 4 / Adwaita closure, so **no gvsbuild is needed at consume time**.
+- **Linux.** The full path: native `gi://` on GJS plus node-gi on Node, Bun and Deno, GTK and Adwaita GUIs, and the whole conformance suite against the system GTK.
+- **macOS, Apple silicon and Intel.** node-gi builds and passes the display-free conformance suite on Node, Bun and Deno, and the GTK GUI renders (render to texture, no visible desktop): an `Adw.ApplicationWindow` realizes, renders and reacts to input. [`@gjsify/gtk-runtime-darwin-arm64`](https://www.npmjs.com/package/@gjsify/gtk-runtime-darwin-arm64) and [`@gjsify/gtk-runtime-darwin-x64`](https://www.npmjs.com/package/@gjsify/gtk-runtime-darwin-x64) ship a prebuilt GTK 4 and Adwaita closure, so no system GTK and no Homebrew are required. CI proves that on runners where GTK was never installed.
+- **Windows, x64.** node-gi builds with MSVC and gvsbuild, and passes the display-free conformance suite on Node. Beyond that, the GTK GUI renders and the full Libadwaita Storybook renders, both proven in CI. [`@gjsify/gtk-runtime-win32-x64`](https://www.npmjs.com/package/@gjsify/gtk-runtime-win32-x64) ships the prebuilt GTK 4 and Adwaita closure, so no gvsbuild is needed to consume it.
 
-GTK/GNOME GUI apps stay Linux-first (also proven on Windows); the cross-OS reach is the node-gi Node/Bun/Deno path.
-
-## How it works
-
-Two libuv-coupled subsystems are made portable so one binary spans all four runtimes:
-
-- **GC bridge** — the toggle-ref teardown drain uses a Node-API `napi_threadsafe_function` rather than a raw `uv_async_t` (Deno exports no libuv symbols; Bun does not yet implement `uv_async_init`).
-- **Main loop** — Node keeps the uv-nesting bridge that co-pumps its event loop during a blocking GLib loop; Bun/Deno iterate the default GLib context from a runtime timer, so GIO async callbacks / GLib timeouts / DBus fire while the runtime's own loop stays live.
-
-The native engine is vendored from [node-gtk](https://github.com/romgrk/node-gtk) (MIT, credits retained), ported to Node-API and retargeted to the modern GLib-integrated `girepository-2.0` API. GJS's own `gi/repo.cpp` is the reference for matching GJS semantics.
-
-## Cross-runtime testing
-
-The [example](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/example) is the capstone proof: several deterministic `gi://` sources each build `--app gjs` (native) and `--app node`, then run under GJS, Node, Bun and Deno with the harness asserting **byte-identical** output on every runtime (GJS as the reference). It runs in CI on Fedora across all four.
+GTK and GNOME GUI apps stay Linux-first, and also work on Windows. The cross-OS reach is the node-gi path on Node, Bun and Deno. The per-package matrix is in [Platform Support](/gjsify/platform-support/).
 
 ## Getting started
 
@@ -82,11 +75,28 @@ The [example](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/exampl
 npm install @gjsify/node-gi
 ```
 
-Requires a C++ toolchain (or the shipped prebuild) plus the GLib ≥ 2.80 / `girepository-2.0` development headers to build the native addon, and the target library typelibs installed at runtime (the same requirement as `gi://` under GJS) — or, on **macOS and Windows**, the batteries-included `@gjsify/gtk-runtime-{darwin-arm64,darwin-x64,win32-x64}` package, which bundles the GTK 4 / Adwaita closure so no system GTK is needed. See the [package README](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/node-gi#readme) for the full API and the Deno `--node-modules-dir=manual` note.
+To build the native addon you need a C++ toolchain (or the shipped prebuild for your platform) and the GLib 2.80 or newer development headers that expose `girepository-2.0`. At runtime you need the typelibs of the libraries you import, the same requirement `gi://` has under GJS. On macOS and Windows the `@gjsify/gtk-runtime-*` package covers that instead, bundling the GTK 4 and Adwaita closure so there is no system GTK to install.
+
+On Deno, run the bundle with `deno run -A --node-modules-dir=manual` so it uses the `node_modules` you already installed. Under `--node-modules-dir=auto` Deno re-resolves the whole build-time dependency tree, including platform binaries nothing at runtime imports, and that either hangs or needs registry access you may not have. The [package README](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/node-gi#readme) has the full API and the rest of the Deno notes.
+
+## How it works
+
+Two libuv-coupled subsystems were made portable so one binary spans every runtime:
+
+- **The GC bridge.** The toggle-ref teardown drain uses a Node-API `napi_threadsafe_function` rather than a raw `uv_async_t`, because Deno exports no libuv symbols and Bun does not implement `uv_async_init`.
+- **The main loop.** Node keeps the uv-nesting bridge that co-pumps its event loop during a blocking GLib loop. Bun and Deno iterate the default GLib context from a runtime timer instead, so GIO async callbacks, GLib timeouts and DBus fire while the runtime's own loop stays live.
+
+The native engine is derived from [node-gtk](https://github.com/romgrk/node-gtk) (MIT, credits retained), ported to Node-API and retargeted to the modern GLib-integrated `girepository-2.0` API. GJS's own `gi/repo.cpp` is the reference for matching GJS semantics.
+
+## How it is tested
+
+The [example](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/example) is the capstone: several deterministic `gi://` sources each build `--app gjs` and `--app node`, then run under GJS, Node, Bun and Deno, with the harness asserting byte-identical output on every one and GJS as the reference. It runs in CI on Fedora across all four.
+
+Nine `@gjsify/*` packages also run their own test suites through node-gi in CI: `sqlite`, `http2`, `zlib`, `tls`, `ws`, `dom-elements`, `node-globals`, `crypto` and `string_decoder`. That is what keeps the bridge honest against real consumer code rather than against tests written for it.
 
 ## See also
 
-- [napi](/gjsify/projects/napi/) — the forward bridge (native Node.js `.node` addons in GJS)
-- [Runtimes](/gjsify/runtimes/) — how the reverse bridge fits GJSify's overall target picture
-- [Versioning](/gjsify/versioning/#package-tiers) — the release train and stability model
-- [Storybook](/gjsify/guides/storybook/) — `gjsify storybook --runtime node`, the canonical consumer
+- [napi](/gjsify/projects/napi/) is the forward bridge: native Node.js `.node` addons inside GJS
+- [Runtimes](/gjsify/runtimes/) puts both bridge directions in one picture
+- [Versioning](/gjsify/versioning/#how-much-stability-to-expect) covers the release train and the stability model
+- [Storybook](/gjsify/guides/storybook/) documents `gjsify storybook --runtime node`, the canonical consumer

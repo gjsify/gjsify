@@ -1,36 +1,39 @@
 ---
 title: Presentation
-description: Adwaita presentation widgets — avatar, banner, spinner, status page and window title — described neutrally with a live preview and GJS, Web and NativeScript code.
+description: "Adwaita presentation widgets: avatar, banner, spinner, status page and window title. Live preview plus the code for GJS, Blueprint, the web and NativeScript."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
 
-Adwaita's **presentation** widgets communicate state and identity rather than
-collect input: an **avatar** for a person or account, a **banner** for an
-in-context message, a **spinner** for work in progress, a **status page** for an
-empty state, and a **window title** for a header bar.
+These widgets show state and identity rather than collect input. Use an
+**avatar** for a person or account, a **banner** for an in-context message, a
+**spinner** while work is running, a **status page** for an empty or error state,
+and a **window title** in a header bar.
 
-Every widget below is described independently of any one toolkit, then shown
-three ways. **Native GJS** (real Libadwaita through
-[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1)) is the primary
-implementation; the **Web** ([`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web))
-and **NativeScript** ([`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita))
-ports mirror it. The preview is the real Web component — no screenshot — so it
-follows the light/dark toggle just like a native window would.
+Each preview below is the live web component, so it follows the light and dark
+toggle the way a real window would. Under it, the tabs give you the same widget
+four ways: `@girs` TypeScript (one program, running on GJS, Node, Bun and Deno),
+the matching Blueprint declaration, the web port and the NativeScript port.
+
+Libadwaita is the reference here, typed by
+[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
+[`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
+and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
+follow its naming, and where one of them differs, its tab says so.
 
 :::note
-The previews use the browser port, so behaviour that Libadwaita drives natively
-(a spinner's animation timing, a banner's reveal transition) may be simplified.
-Where a port diverges — the NativeScript avatar has no icon fallback, its banner
-no markup — its tab says so.
+The previews run the browser port, so behaviour Libadwaita drives natively (a
+spinner's animation timing, a banner's reveal transition) can be simplified here.
+The NativeScript port diverges in two places worth knowing: its avatar has no
+icon fallback, and its banner takes plain text rather than markup.
 :::
 
 ## Avatar
 
-A round widget that stands in for a person, account, or entity. Given a **name**
-it derives **initials** and a stable background colour from that name; otherwise
-it falls back to a symbolic **icon**. The **size** scales it from an inline list
-glyph up to a full profile header.
+Stand in for a person, account or entity. Give it a **name** and it derives the
+**initials** and a stable background colour from that name; with no name it falls
+back to a symbolic **icon**. **Size** scales it from an inline list glyph up to a
+full profile header.
 
 <AdwWidget title="Adw.Avatar">
   <Fragment slot="preview">
@@ -74,7 +77,7 @@ glyph up to a full profile header.
     const avatar = new AdwAvatar();
     avatar.text = 'Ada Lovelace';
     avatar.size = 96;
-    // The NS avatar always shows derived initials — the CSS-subset widget has no
+    // The NS avatar always shows derived initials. The CSS-subset widget has no
     // icon-theme lookup, so `showInitials` / `iconName` have no equivalent.
     ```
   </Fragment>
@@ -82,14 +85,14 @@ glyph up to a full profile header.
 
 ## Banner
 
-A full-width strip pinned across the top of a view to surface a single,
-in-context status message — a metered connection, an offline state, a pending
-action. It carries a **title** and an optional action **button**, and reveals or
-hides itself so it only takes space when relevant.
+Surface one in-context status message across the top of a view: a metered
+connection, an offline state, a pending action. A banner takes a **title** and an
+optional action **button**, and it reveals and hides itself, so it only occupies
+space while the message applies.
 
 <AdwWidget title="Adw.Banner">
   <Fragment slot="preview">
-    <adw-banner title="Metered connection — updates paused" button-label="Resume" revealed></adw-banner>
+    <adw-banner title="Metered connection: updates paused" button-label="Resume" revealed></adw-banner>
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -97,7 +100,7 @@ hides itself so it only takes space when relevant.
     import Gtk from '@girs/gtk-4.0';
 
     const banner = new Adw.Banner({
-        title: 'Metered connection — updates paused',
+        title: 'Metered connection: updates paused',
         buttonLabel: 'Resume',
         revealed: true,
     });
@@ -113,7 +116,7 @@ hides itself so it only takes space when relevant.
     using Adw 1;
 
     Adw.Banner {
-      title: _("Metered connection — updates paused");
+      title: _("Metered connection: updates paused");
       button-label: _("Resume");
       revealed: true;
     }
@@ -121,7 +124,7 @@ hides itself so it only takes space when relevant.
   </Fragment>
   <Fragment slot="web">
     ```html
-    <adw-banner title="Metered connection — updates paused" button-label="Resume" revealed></adw-banner>
+    <adw-banner title="Metered connection: updates paused" button-label="Resume" revealed></adw-banner>
     ```
   </Fragment>
   <Fragment slot="nativescript">
@@ -129,19 +132,20 @@ hides itself so it only takes space when relevant.
     import { AdwBanner } from '@gjsify/adwaita-nativescript';
 
     const banner = new AdwBanner();
-    banner.title = 'Metered connection — updates paused';
+    banner.title = 'Metered connection: updates paused';
     banner.buttonLabel = 'Resume';
     banner.revealed = true;
-    // No `useMarkup` — the NS banner label is plain text (no rich-text subset).
+    // No `useMarkup`: the NS banner label is plain text (no rich-text subset).
     ```
   </Fragment>
 </AdwWidget>
 
 ## Spinner
 
-A lightweight, indeterminate loading indicator that spins continuously while
-visible. It signals that work is in progress without reporting how much remains,
-and scales to any **size** from an inline glyph to a page-filling placeholder.
+Show that work is running when you cannot say how much is left. The spinner turns
+continuously while visible and scales to any **size**, from an inline glyph to a
+page-filling placeholder. If you do know the progress, use a progress bar
+instead.
 
 <AdwWidget title="Adw.Spinner">
   <Fragment slot="preview">
@@ -188,10 +192,9 @@ and scales to any **size** from an inline glyph to a page-filling placeholder.
 
 ## Status Page
 
-A centered, full-page placeholder for an empty, error, or welcome state. It
-pairs a large symbolic **icon** with a **title** and **description**, and can
-host a **child** action — a way out of the empty state, such as creating the
-first document.
+Fill an empty, error or welcome screen with a centred placeholder: a large
+symbolic **icon**, a **title** and a **description**. Add a **child** widget to
+give the user a way out, such as a button that creates their first document.
 
 <AdwWidget title="Adw.StatusPage" padding="flush">
   <Fragment slot="preview">
@@ -265,9 +268,9 @@ first document.
 
 ## Window Title
 
-A compact widget that pairs a **title** with an optional **subtitle**, sized and
-styled for a window's header bar. The subtitle collapses when empty so a
-single-line title stays vertically centered.
+The title widget a header bar expects: a **title** with an optional **subtitle**,
+already sized and styled for that spot. Leave the subtitle empty and it collapses,
+so a single-line title stays vertically centred.
 
 <AdwWidget title="Adw.WindowTitle">
   <Fragment slot="preview">
@@ -312,7 +315,8 @@ single-line title stays vertically centered.
 
 ## Related
 
-- [Boxed Lists](../boxed-lists/) — the row widgets for settings and detail screens.
-- [Feedback](../feedback/) — toasts, dialogs and other transient status surfaces.
-- [Adwaita Storybook](../../showcases/adwaita-storybook/) — the same widgets in a
-  live, interactive component browser.
+- [Boxed Lists](../boxed-lists/): the row widgets for settings and detail screens.
+- [Feedback](../feedback/): toasts and dialogs, for messages that interrupt.
+- [Layout](../layout/): the header bar a `WindowTitle` goes into.
+- [Adwaita Storybook](../../showcases/adwaita-storybook/): the same widgets in a
+  live component browser you can poke at.

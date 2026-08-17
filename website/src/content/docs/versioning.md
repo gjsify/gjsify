@@ -1,66 +1,65 @@
 ---
 title: Versioning
-description: The @gjsify/* release train — what is compatible with what, and how to upgrade
+description: How to upgrade @gjsify/* safely, which versions work together, and how much stability each package promises.
 ---
 
-All `@gjsify/*` packages are released as one coherent **release train**: every
-release publishes the whole package set at a single version, and the packages
-are tested against each other at exactly that version. Compatibility between
-`@gjsify/*` packages is therefore guaranteed **only within the same release
-version** — combinations like `@gjsify/fetch@0.18.x` + `@gjsify/http@0.17.x`
-are never tested and not supported.
+**Upgrade all your `@gjsify/*` dependencies together, to the same version.** That is the whole rule.
 
-The practical rule: **upgrade all `@gjsify/*` dependencies together.**
+Every release publishes the entire package set at one version, and the packages are tested against each other at exactly that version. Mixing them (`@gjsify/fetch@0.40.x` with `@gjsify/http@0.39.x`, say) is untested and unsupported.
 
-## Upgrading
-
-[`gjsify upgrade`](/gjsify/cli-reference/#gjsify-upgrade) is the supported tool
-for exactly this:
+## Upgrade
 
 ```bash
-# Bump every @gjsify/* dependency to the latest release train
+# Bump every @gjsify/* dependency to the latest release
 gjsify upgrade --latest --filter @gjsify
 
-# Monorepos: repair drift — re-align deps declared at mixed
-# ranges across workspaces (offline, no registry calls)
-gjsify upgrade --align
+# Then fetch the new versions
+gjsify install
+```
 
-# CI gate: fail when dependency ranges have drifted apart
+`gjsify upgrade` only rewrites `package.json`. Nothing lands in `node_modules` until you run `gjsify install` after it.
+
+Preview first with `--dry-run`, and restrict the sweep with `--workspace <pattern>` if you only want part of a monorepo. Every flag is listed in the [CLI Reference](/gjsify/cli-reference/#gjsify-upgrade).
+
+## Repair a monorepo that has drifted apart
+
+In a workspace, different packages can end up declaring the same dependency at different ranges. `--align` fixes that offline, with no registry calls: it finds every dependency declared at more than one range and pulls them all up to the highest.
+
+```bash
+gjsify upgrade --align
+```
+
+## Catch drift in CI
+
+`--check` is the gate that pairs with `--align`. It makes no registry calls and exits non-zero as soon as any dependency is declared inconsistently across workspaces.
+
+```bash
 gjsify upgrade --check
 ```
 
-After the write-back, run `gjsify install` to actually fetch the new versions.
+## What moves together, and what does not
 
-## What is on the train — and what is not
+**Moves together:** every published `@gjsify/*` package. The Node.js modules, the Web APIs, the DOM bridges, the native prebuilds, the CLI and the build tooling all carry the same version number.
 
-- **On the train:** every published `@gjsify/*` package — Node.js modules,
-  Web APIs, DOM bridges, native prebuilds, the CLI and build tooling.
-- **Not on the train:** external peer dependencies (`vite`,
-  `@nativescript/core`, …) keep their own honest semver ranges, and `@girs/*`
-  type packages are versioned by
-  [ts-for-gir](/gjsify/projects/ts-for-gir/) — keep the versions your
-  scaffolded project pins, or bump them in lockstep with a `@girs` release.
+**Keeps its own schedule:**
 
-The full rationale is recorded in
-[ADR 0008 — Release-train versioning policy](https://github.com/gjsify/gjsify/blob/main/docs/adr/0008-release-versioning-policy.md).
+- External peer dependencies such as `vite` and `@nativescript/core` keep honest semver ranges of their own.
+- `@girs/*` type packages are versioned by [ts-for-gir](/gjsify/projects/ts-for-gir/). Keep the versions your scaffold pinned, or bump them together with a `@girs` release.
 
-## Package tiers
+## How much stability to expect
 
-Every published package declares a stability tier in `package.json#gjsify.tier`,
-verified in CI:
+Every package declares a tier, and CI checks the declaration.
 
-- **Tier 1 — core.** Stability promise: full dual-runtime CI, root-cause
-  governance, no known-broken releases. The Node.js, Web and DOM pillars, the
-  GTK bridge packages and the build tooling.
-- **Tier 2 — product.** Best effort: tested and released on the train, but a
-  breaking change may ship with a minor version and a changelog note. The
-  Adwaita design-identity packages, storybook, devtools, the native app shell,
-  the published showcases and [node-gi](/gjsify/projects/node-gi/).
-- **Tier 3 — experimental.** No promise; new axes start here — currently
-  [`@gjsify/napi`](/gjsify/projects/napi/) (native `.node` addons in GJS).
+**Tier 1, core.** Full dual-runtime CI and no known-broken releases. This is the Node.js, Web and DOM pillars, the GTK bridge packages and the build tooling, which is nearly every package you will ever import.
 
-Dependencies may only point at the same or a lower tier, so an experimental
-package can never destabilize a core one. The tier model is defined in
-[ADR 0003 — Package tiering](https://github.com/gjsify/gjsify/blob/main/docs/adr/0003-package-tiering.md);
-the current membership list is derived from the manifests — run
-`npm run status:generate` (see [`status/`](https://github.com/gjsify/gjsify/blob/main/status)).
+**Tier 2, product.** Tested and released on the same train, but a breaking change can arrive in a minor version with a changelog note. This covers the Adwaita packages, storybook, devtools, the native app shell, the published showcase apps and [node-gi](/gjsify/projects/node-gi/).
+
+**Tier 3, experimental.** No promise at all. New directions start here: today that is [`@gjsify/napi`](/gjsify/projects/napi/), the browser and CDP devtools adapters, and the prebuilt GTK runtime bundles for macOS and Windows.
+
+A package's runtime dependencies may only point at its own tier or a lower one, so nothing experimental can end up underneath something core.
+
+## Related
+
+- [CLI Reference](/gjsify/cli-reference/#gjsify-upgrade), all `gjsify upgrade` flags
+- [Runtimes](/gjsify/runtimes/), what is validated on GJS, Node.js, Bun, Deno and the browser
+- [Platform Support](/gjsify/platform-support/), which operating systems each native bridge reaches

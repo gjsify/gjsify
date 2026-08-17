@@ -1,39 +1,41 @@
 ---
 title: View Switching
-description: Adwaita view-switching widgets — view switcher, tab view, inline view switcher and carousel — described neutrally with a live preview and GJS, Web and NativeScript code.
+description: "Adwaita view-switching widgets: view switcher, tab view, inline view switcher and carousel. Live preview plus the code for GJS, Blueprint, the web and NativeScript."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
 
-**View switching** is how an Adwaita window shows one of several pages at a time.
-A **switcher** — a segmented bar, a strip of tabs, a compact toolbar control, or a
-swipeable pager — lets the user pick which page is visible, while the pages
-themselves live in a stack that shows exactly one child. The pattern adapts to
-window size: a wide desktop shows a full switcher, a narrow phone collapses it.
+When your window has several peer pages and shows one at a time, put the pages in
+a **view stack** and give the user a **switcher** to pick between them. Four
+switchers are on this page: a segmented bar, a strip of tabs, a compact toolbar
+control and a swipeable pager. All of them adapt to the window, so a wide desktop
+gets the full switcher and a narrow phone gets a collapsed one.
 
-Every widget below is described independently of any one toolkit, then shown
-three ways. **Native GJS** (real Libadwaita through
-[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1)) is the primary
-implementation; the **Web** ([`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web))
-and **NativeScript** ([`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita))
-ports mirror it. The preview is the real Web component — no screenshot — so it
-follows the light/dark toggle just like a native window would.
+Each preview below is the live web component, so it follows the light and dark
+toggle the way a real window would. Under it, the tabs give you the same widget
+four ways: `@girs` TypeScript (one program, running on GJS, Node, Bun and Deno),
+the matching Blueprint declaration, the web port and the NativeScript port.
+
+Libadwaita is the reference here, typed by
+[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
+[`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
+and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
+follow its naming, and where one of them differs, its tab says so.
 
 :::note
-The previews use the browser port, so gestures Libadwaita drives natively
-(swipe-to-page, drag-to-reorder tabs, the tab bar's auto-hide, cross-fade page
-transitions) may be simplified — click a switcher button, a tab, or a carousel
-dot to move between pages. Where a port diverges, its tab says so.
+The previews run the browser port, so gestures Libadwaita drives natively
+(swipe-to-page, drag-to-reorder tabs, the tab bar's auto-hide, cross-fade
+transitions) can be simplified here. Click a switcher button, a tab or a carousel
+dot to move between pages.
 :::
 
 ## View Switcher
 
-A **view switcher** presents a set of pages as one segmented control, each button
-carrying a page's icon and label. It drives a paired **view stack** that shows a
-single page at a time. Its **policy** controls the button layout: `wide` places
-the icon and label side by side; `narrow` stacks the icon above the label so the
-bar fits a slim window — an adaptive layout usually swaps between the two on a
-breakpoint.
+The standard switcher: one segmented control whose buttons each carry a page's
+icon and label, driving a paired **view stack**. Its **policy** decides the
+button layout. `wide` puts the icon and label side by side; `narrow` stacks the
+icon above the label so the bar fits a slim window. An adaptive layout normally
+swaps between the two on a breakpoint.
 
 <AdwWidget title="Adw.ViewSwitcher" padding="flush">
   <Fragment slot="preview">
@@ -180,11 +182,11 @@ breakpoint.
 
 ## Tab View
 
-A **tab view** is a dynamic tabbed container: a **tab bar** renders one chip per
-page — with a title and a close affordance — over a header-colored strip, and the
-selected chip is raised onto the view background. Unlike a view switcher, tabs are
-meant to be added, closed and reordered at runtime. The tab bar can **auto-hide**
-when only a single page remains, so a one-tab document looks chrome-free.
+Reach for a tab view when the pages are not fixed. Unlike a view switcher, tabs
+are meant to be added, closed and reordered while the app runs. The **tab bar**
+draws one chip per page, each with a title and a close button, and raises the
+selected chip onto the view background. Turn on **autohide** and the bar
+disappears once a single page is left, so a one-tab document looks chrome-free.
 
 <AdwWidget title="Adw.TabView" padding="flush">
   <Fragment slot="preview">
@@ -283,11 +285,10 @@ when only a single page remains, so a one-tab document looks chrome-free.
 
 ## Inline View Switcher
 
-An **inline view switcher** is a compact, toolbar-friendly variant of the view
-switcher, built from a linked toggle group. It drives the same kind of view stack,
-but its **display mode** lets each toggle show **labels**, **icons**, or **both** —
-so it fits into a header bar or a tight toolbar where a full switcher would be too
-wide.
+When a full switcher is too wide for the space, use the inline one. It is built
+from a linked toggle group and drives the same kind of view stack, but its
+**display mode** lets each toggle show **labels**, **icons** or **both**. That
+makes it fit a header bar or a tight toolbar.
 
 <AdwWidget title="Adw.InlineViewSwitcher" padding="flush">
   <Fragment slot="preview">
@@ -432,14 +433,16 @@ wide.
 
 ## Carousel
 
-A **carousel** is a horizontally swipeable pager: pages sit side by side and the
-user flicks, scrolls or clicks a **page indicator** to move between them — a
-common onboarding or gallery pattern. Adwaita ships two indicator widgets that
-bind to a carousel: **dots** (shown here) and **lines**; both track the fractional
-scroll position and grow/brighten the marker nearest the current page. The
-**scroll wheel** pages the carousel by default — pass `allow-scroll-wheel="false"`
-to leave wheel events to the page — while **long swipes**, off by default, let one
-flick skip several pages.
+For onboarding screens and galleries, use a carousel: pages sit side by side and
+the user flicks, scrolls or clicks a **page indicator** to move between them. Two
+indicator widgets bind to a carousel, **dots** (shown here) and **lines**. Both
+track the fractional scroll position and grow the marker nearest the current
+page.
+
+Two knobs are worth knowing. The **scroll wheel** pages the carousel by default;
+set `allow-scroll-wheel="false"` to leave wheel events to the page instead.
+**Long swipes** are off by default; turn them on to let one flick skip several
+pages.
 
 <AdwWidget title="Adw.Carousel" padding="flush">
   <Fragment slot="preview">
@@ -567,8 +570,8 @@ flick skip several pages.
 
 ## Related
 
-- [Navigation](../navigation/) — pages, split views and the navigation stack the
+- [Navigation](../navigation/): pages, split views and the navigation stack the
   switchers sit above.
-- [Layout](../layout/) — the `Clamp` and boxes that size a switched view.
-- [Adwaita Storybook](../../showcases/adwaita-storybook/) — the same widgets in a
-  live, interactive component browser.
+- [Layout](../layout/): the `Clamp` and boxes that size a switched view.
+- [Adwaita Storybook](../../showcases/adwaita-storybook/): the same widgets in a
+  live component browser you can poke at.

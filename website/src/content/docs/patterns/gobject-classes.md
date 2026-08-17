@@ -1,13 +1,16 @@
 ---
 title: GObject Classes
-description: registerClass() forms — static-block vs functional, init-order rules, $gtype declarations, and the rough edges to avoid.
+description: How to register a TypeScript class with the GObject type system - properties, signals, interfaces, the static-block ordering rule, and when $gtype needs a type annotation.
 ---
 
-`GObject.registerClass()` is how a JavaScript class gets registered with the GObject type system so GTK can introspect its properties, signals, vfuncs, and implemented interfaces. There are **three forms** that all work, but they differ in type safety, init order, and how clearly they survive maintenance. Pick whichever fits your codebase — but know the trade-offs before you mix them.
+`GObject.registerClass()` puts your JavaScript class into the GObject type system, so GTK
+can see its properties, signals, vfuncs and interfaces. You need it for every widget
+subclass you write.
 
-## TL;DR — pick this one
+## Write it like this
 
-If you don't know what you want, write:
+If you don't have a reason to do otherwise, use a static block at the **bottom** of the
+class body and pass all metadata inline:
 
 ```ts
 class MyButton extends Gtk.Button {
@@ -15,7 +18,7 @@ class MyButton extends Gtk.Button {
 
     onPressed(): void {
         this.pressedCount += 1;
-        print(`pressed ${this.pressedCount}× total`);
+        print(`pressed ${this.pressedCount} times`);
     }
 
     static {
@@ -24,7 +27,7 @@ class MyButton extends Gtk.Button {
             Properties: {
                 'pressed-count': GObject.ParamSpec.int(
                     'pressed-count', null, null,
-                    GObject.ParamFlags.READABLE, 0, Number.MAX_SAFE_INTEGER, 0,
+                    GObject.ParamFlags.READABLE, 0, GLib.MAXINT32, 0,
                 ),
             },
             Signals: {
@@ -36,148 +39,220 @@ class MyButton extends Gtk.Button {
 }
 ```
 
-Two things make this form robust:
+Two habits make this hold up:
 
-1. **`static { GObject.registerClass(...) }` is the *last* element in the class body.** Anything in the class — methods, instance fields, *other* static fields — has already been picked up by the time `registerClass` runs.
-2. **All GObject metadata is passed inline** to `registerClass({…}, this)` instead of via `static [GObject.interfaces] = …` / `static [GObject.properties] = …`. This sidesteps the init-order trap entirely (see [Static-block ordering trap](#static-block-ordering-trap) below). Using `this` inside the static block (instead of the class name) avoids repeating the identifier and is GJS-idiomatic.
+1. **Put the static block last.** Everything above it (methods, instance fields, other
+   static fields) is already in place when `registerClass` runs. See
+   [Put the static block last](#put-the-static-block-last) for what happens otherwise.
+2. **Pass the metadata inline** to `registerClass({…}, this)` rather than through
+   `static [GObject.properties] = …` fields. Then there is no ordering question at all.
 
-You may also see `static override $gtype: GObject.GType<MyClass>;` written next to the static block. That's only necessary when you actually use `MyClass.$gtype` somewhere that needs the narrowed `GType<MyClass>` — typically `GObject.type_is_a(x, MyClass)` to type-narrow `x` to `MyClass`. For the common case (passing `MyClass` to APIs that accept any GType), the inherited `GType<GObject.Object>` from the base class is fine — no override needed. See [`$gtype` narrowing](#gtype-is-typed-as-the-base-class) below for when the override is worth writing.
+Inside the static block, `this` is the class. Prefer it over spelling the class name again:
+the code stays correct after a rename.
 
-## The three forms
+## Add a property
 
-### Form A — static block, metadata inline (recommended)
+Properties are GObject `ParamSpec`s, keyed by their kebab-case GObject name. Read and write
+them from JS with the camelCase or snake_case accessor GJS generates.
 
 ```ts
-class Foo extends GObject.Object {
-    vfunc_init(): void { /* … */ }
-
+class Counter extends GObject.Object {
     static {
         GObject.registerClass({
-            GTypeName: 'Foo',
-            Implements: [Gio.Initable],
-            Properties: { … },
+            GTypeName: 'ExampleCounter',
+            Properties: {
+                count: GObject.ParamSpec.int(
+                    'count', null, null,
+                    GObject.ParamFlags.READWRITE, 0, GLib.MAXINT32, 0,
+                ),
+                label: GObject.ParamSpec.string(
+                    'label', null, null,
+                    GObject.ParamFlags.READWRITE, 'counter',
+                ),
+            },
         }, this);
+    }
+}
+
+const c = new Counter();
+c.count = 5;
+c.label = 'hello';
+c.connect('notify::count', () => print(`count is now ${c.count}`));
+```
+
+Keep the bounds inside the C type. `ParamSpec.int` is a `gint`, so its maximum is
+`GLib.MAXINT32`; hand it `Number.MAX_SAFE_INTEGER` and the value wraps, the
+`default_value <= maximum` assertion fails, and you get `null` back with nothing but a
+`GLib-GObject-CRITICAL` on stderr to say why. The same holds for `uint`, `int64` and
+friends.
+
+The full `ParamSpec` surface (`boolean`, `double`, `enum`, `object`, `boxed`, `flags`, …)
+is exercised in
+[`examples/gobject-param-spec`](https://github.com/gjsify/ts-for-gir/tree/main/examples/gobject-param-spec).
+
+## Add a signal
+
+`Signals` takes a map of signal name to its declaration. `param_types` lists the argument
+GTypes; `return_type` is optional.
+
+```ts
+static {
+    GObject.registerClass({
+        GTypeName: 'MyEmitter',
+        Signals: {
+            'row-picked': { param_types: [GObject.TYPE_STRING, GObject.TYPE_INT] },
+        },
+    }, this);
+}
+
+// later
+this.emit('row-picked', 'overview', 3);
+this.connect('row-picked', (_self, id: string, index: number) => { /* … */ });
+```
+
+## Override a vfunc
+
+`vfunc_*` overrides are ordinary instance methods. They can sit anywhere in the class body,
+because they live on the prototype and are not affected by static evaluation order.
+
+```ts
+class Initable extends GObject.Object {
+    vfunc_init(_cancellable: Gio.Cancellable | null): boolean {
+        return true;
+    }
+
+    static {
+        GObject.registerClass({ GTypeName: 'MyInitable', Implements: [Gio.Initable] }, this);
     }
 }
 ```
 
-Everything `registerClass` needs is in its own arguments. No static fields outside the block can fire too early. `static { … }` lives at the bottom so it runs last in source order. Inside the static block, `this` refers to the class itself — preferred over `Foo` because the body doesn't repeat the identifier and the snippet stays correct after a rename.
+## Subclass a registered class
 
-### Form B — static block, metadata in fields
+Register each subclass with its own static block. If TypeScript reports *"property X does
+not exist on Subclass"*, a missing `registerClass` on the subclass is the usual cause.
+
+```ts
+class Parent extends GObject.Object {
+    parentMethod(): void { /* … */ }
+    static { GObject.registerClass({ GTypeName: 'Parent' }, this); }
+}
+
+class Child extends Parent {
+    childMethod(): void { /* … */ }
+    static { GObject.registerClass({ GTypeName: 'Child' }, this); }
+}
+```
+
+## Put the static block last
+
+This is the one ordering rule that bites. `static` fields and static blocks run in source
+order, so a metadata field written *below* the block is assigned after `registerClass` has
+already read (and not found) it:
 
 ```ts
 class Foo extends GObject.Object {
-    static [GObject.interfaces] = [Gio.Initable];        // ← must come BEFORE registerClass
-    static [GObject.properties] = { … };
-
-    vfunc_init(): void { /* … */ }
-
-    static { GObject.registerClass(this); }              // ← still last
+    static { GObject.registerClass(Foo); }        // runs FIRST
+    static [GObject.interfaces] = [Gio.Initable]; // runs after, too late
+    vfunc_init(): boolean { return true; }
+}
+// Gjs-CRITICAL: Could not find definition of virtual function init
 ```
 
-Works **only if** every `static [GObject.*] = …` initializer appears *above* the static block. ES class evaluation is strict source-order, so `static [GObject.interfaces] = …` must be assigned *before* `registerClass()` reads it. **Form A is preferable** because the rule isn't enforceable at the type level — a refactor that moves a static field around breaks Form B silently at runtime.
+On current GJS the error is thrown while the class declaration is being evaluated, so the
+whole module fails to load. Older GJS deferred the same error to the first `.init()` call.
+Either way it is a source-ordering bug, not a missing API.
 
-### Form C — functional (no static block)
+Two ways out, both fine:
+
+```ts
+// Preferred: metadata inline, so nothing can be assigned too late.
+class Foo extends GObject.Object {
+    vfunc_init(): boolean { return true; }
+    static {
+        GObject.registerClass({ GTypeName: 'Foo', Implements: [Gio.Initable] }, this);
+    }
+}
+
+// Also works: every static field above the block.
+class Bar extends GObject.Object {
+    static [GObject.interfaces] = [Gio.Initable];
+    vfunc_init(): boolean { return true; }
+    static { GObject.registerClass(Bar); }
+}
+```
+
+The second form is more fragile: a refactor that moves the field breaks it at runtime with
+nothing at the type level to catch it. A working side-by-side demo of the broken and fixed
+versions lives at
+[`examples/gobject-static-block-ordering`](https://github.com/gjsify/ts-for-gir/tree/main/examples/gobject-static-block-ordering).
+
+## Register without a static block
+
+`registerClass` also takes an anonymous class and returns the registered constructor:
 
 ```ts
 const Foo = GObject.registerClass(
     {
         GTypeName: 'Foo',
         Implements: [Gio.Initable],
-        Properties: { … },
+        Properties: { /* … */ },
     },
     class extends GObject.Object {
-        vfunc_init(): void { /* … */ }
+        vfunc_init(): boolean { return true; }
     },
 );
 ```
 
-Has the strongest inference path in our generated types — `Foo` is typed as `RegisteredClass<typeof InnerClass, Props, Implements>` and `Foo.$gtype` is correctly typed as `GObject.GType<RegisteredClass<…>>`, no `static override $gtype` needed. The downside: TypeScript loses the named class symbol — `class extends X { … }` is anonymous, so stack traces, debugger names, and `instanceof Foo` checks against subclasses get less helpful. Use this form when you don't need to subclass `Foo`.
+This form has the best type inference: property types from the `Properties` block show up on
+instances, and `Foo.$gtype` is already typed as the registered class, so you never need the
+`$gtype` annotation below. The cost is the anonymous class, which makes stack traces and
+debugger names less helpful. Reach for it when you don't need to subclass `Foo`.
+[`examples/gobject-register-class-inference`](https://github.com/gjsify/ts-for-gir/tree/main/examples/gobject-register-class-inference)
+has it running with type assertions.
 
-A working example lives at [`examples/gobject-register-class-inference`](https://github.com/gjsify/ts-for-gir/tree/main/examples/gobject-register-class-inference).
+## When `$gtype` needs an annotation
 
-## Rough edges
+Subclasses inherit `static $gtype: GObject.GType<GObject.Object>` from the base class,
+because TypeScript does not narrow static-side `this`. **That is usually fine.** Anything
+that takes a GType (`GObject.signal_lookup`, `Gio.ListStore`'s `item_type`, a
+`Gtk.FileFilter.$gtype` argument) accepts the wider type without complaint.
 
-### Static-block ordering trap
-
-The trap that drove [GNOME/gjs#704](https://gitlab.gnome.org/GNOME/gjs/-/work_items/704):
-
-```ts
-class Foo extends GObject.Object {
-    static { GObject.registerClass(Foo); }              // ← runs FIRST (source order)
-    static [GObject.interfaces] = [Gio.Initable];       // ← runs AFTER — too late
-    vfunc_init(): void {}
-}
-
-new Foo().init(null);
-// Gjs-CRITICAL: Could not find definition of virtual function init
-```
-
-`registerClass()` fires before `[GObject.interfaces]` is assigned, so the Initable vtable never gets attached. The vfunc lookup at `.init()` time fails.
-
-**Rule of thumb:** `static { GObject.registerClass(...); }` is **always** the last element in the class body. Methods and instance-side declarations don't matter (they're on the prototype, not subject to static evaluation order). Static fields (`static [GObject.interfaces]`, `static [GObject.properties]`, anything else `registerClass` reads) must appear *above* the block — or, preferably, be passed inline to `registerClass({…}, Foo)` so the ordering question doesn't arise.
-
-### `$gtype` is typed as the base class
-
-Subclasses inherit `static $gtype: GObject.GType<GObject.Object>` from the base class — TS doesn't narrow static-side `this` to the subclass. **This is usually fine.** Most APIs that take a GType (e.g. `GObject.signal_lookup`, `Gio.ListStore`'s `item_type` constructor prop, anywhere you pass `Foo.$gtype`) accept any `GType<T>`, so the wider `GType<Object>` matches without complaint.
-
-The override is only worth writing when you actually need the `T` in `GType<T>` to be the subclass — typically because you're calling `GObject.type_is_a(x, Foo)` and want `x is Foo` narrowing:
+You only need the annotation when you want the `T` in `GType<T>` back, typically for
+narrowing:
 
 ```ts
 class Foo extends GObject.Object {
+    static override $gtype: GObject.GType<Foo>;
     static { GObject.registerClass({ GTypeName: 'Foo' }, this); }
 }
 
-GObject.type_is_a(x, Foo);
-// ^ Foo.$gtype is inferred as GType<Object>, not GType<Foo>
-//   so this narrows `x` to Object, not Foo
-```
-
-Fix only the consumer that needs the narrowing, by adding the override on the class:
-
-```ts
-class Foo extends GObject.Object {
-    static override $gtype: GObject.GType<Foo>;        // ← narrows the static type
-    static { GObject.registerClass({ GTypeName: 'Foo' }, this); }
-}
-
-GObject.type_is_a(x, Foo);
-// ^ now `x is Foo` ✓
-```
-
-The `override` keyword tells TS *"yes, I know the base class declares this; I'm narrowing it intentionally"*. At runtime the property is still set by `registerClass` — the declaration is purely a type-system hint. **Don't add it speculatively** — most code never hits the case that needs it.
-
-### Subclassing a registered class
-
-`GObject.registerClass()` returns a constructor that's structurally identical to its argument, but TypeScript sometimes loses fidelity when you subclass. If you hit *"property X does not exist on Subclass"* errors, register the subclass too:
-
-```ts
-class Parent extends GObject.Object {
-    parentMethod(): void { … }
-    static { GObject.registerClass({ GTypeName: 'Parent' }, this); }
-}
-
-class Child extends Parent {
-    childMethod(): void { … }
-    static { GObject.registerClass({ GTypeName: 'Child' }, this); }
+if (GObject.type_is_a(x, Foo)) {
+    // x is Foo, thanks to the annotation above
 }
 ```
 
-Each subclass goes through its own `static { GObject.registerClass(...) }` block. Add `static override $gtype: GObject.GType<Child>;` on the subclass only if `Child.$gtype` needs the narrowed type (same rule as for the base — most code doesn't).
+`override` tells TypeScript you are narrowing the base class declaration on purpose. At
+runtime `registerClass` still sets the value; the declaration is type-level only. Don't add
+it speculatively.
 
-## Quick checklist
+## Checklist
 
-When you write or review a class that goes through `GObject.registerClass()`:
-
-- [ ] `static { GObject.registerClass(...) }` is the last element of the class body.
-- [ ] Inside the static block, `registerClass({...}, this)` — `this` instead of the class name avoids the rename trap and is GJS-idiomatic.
-- [ ] Either: metadata is passed *inline* to `registerClass({…}, this)` (Form A — preferred), or: every `static [GObject.*] = …` initializer comes *above* the block (Form B — fragile under refactor).
-- [ ] `vfunc_*` overrides are normal instance methods (no `static`), declared anywhere in the class body.
-- [ ] `static override $gtype: GObject.GType<ThisClass>` only when you actually need the narrowed type (e.g. `GObject.type_is_a(x, ThisClass)` to type-narrow). Most consumers accept any GType and don't need the override.
+- [ ] `static { GObject.registerClass(...) }` is the last thing in the class body.
+- [ ] Metadata goes inline: `registerClass({…}, this)`. If you use `static [GObject.*]`
+      fields instead, every one of them sits above the block.
+- [ ] `this` inside the static block, not the class name.
+- [ ] Each subclass has its own `registerClass` call.
+- [ ] `vfunc_*` overrides are plain instance methods, no `static`.
+- [ ] `static override $gtype: GObject.GType<ThisClass>` only where you actually need the
+      narrowed type.
 
 ## References
 
-- [GNOME/gjs work_items/704](https://gitlab.gnome.org/GNOME/gjs/-/work_items/704) — the upstream bug report behind the static-block ordering trap, plus discussion of an ESLint rule that would catch it.
-- [`examples/gobject-register-class-inference`](https://github.com/gjsify/ts-for-gir/tree/main/examples/gobject-register-class-inference) — Form C in action with type-inference assertions.
-- [`examples/gobject-param-spec`](https://github.com/gjsify/ts-for-gir/tree/main/examples/gobject-param-spec) — Form A with the full ParamSpec surface.
-- [`examples/gobject-static-block-ordering`](https://github.com/gjsify/ts-for-gir/tree/main/examples/gobject-static-block-ordering) — side-by-side broken / fixed demo of the ordering trap, with a runtime assertion.
+- [GNOME/gjs work_items/704](https://gitlab.gnome.org/GNOME/gjs/-/work_items/704) is the
+  upstream report behind the ordering rule.
+- [`examples/gobject-param-spec`](https://github.com/gjsify/ts-for-gir/tree/main/examples/gobject-param-spec)
+- [`examples/gobject-register-class-inference`](https://github.com/gjsify/ts-for-gir/tree/main/examples/gobject-register-class-inference)
+- [`examples/gobject-static-block-ordering`](https://github.com/gjsify/ts-for-gir/tree/main/examples/gobject-static-block-ordering)
+- [Native Adwaita Apps](../../guides/native-adwaita-app/) puts these classes into a running
+  application.

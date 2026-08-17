@@ -1,60 +1,93 @@
 ---
 title: Node.js Modules
-description: 41 Node.js API modules implemented for GJS using native GNOME libraries
+description: The Node.js builtins you can import on GJS, what each one is backed by, and how complete it is.
 ---
 
 import NodeApiCoverage from '../../../components/NodeApiCoverage.astro';
 
-41 Node.js API modules (plus `@gjsify/node-polyfills` meta and 5 Vala native bridges) implemented for GJS using native GNOME libraries. Many of the pure-TypeScript modules (`path`, `buffer`, `events`, `querystring`, `string_decoder`, …) also run unchanged in the browser — each package declares which [runtimes](/gjsify/runtimes/) it supports.
+Import Node.js builtins the way you always have. There is no GJSify-specific spelling and nothing extra to install:
+
+```typescript
+import { readFile, writeFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import { createHash, randomUUID } from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import path from 'node:path';
+```
+
+At build time each import is rewritten to its `@gjsify/*` implementation: `node:fs` to `Gio.File`, `node:http` to `Soup.Server`, `node:crypto` to `GLib.Checksum` and `GLib.Hmac`. Your source file stays portable, so the same file also builds for `--app node` and runs on stock Node.js.
+
+The bare form works too. `import fs from 'fs'` resolves the same way, which is why dependencies written before the `node:` prefix existed keep working unchanged.
+
+## Globals come along for free
+
+`process`, `Buffer`, `URL`, `structuredClone`, `queueMicrotask` and `setImmediate` need no import. `gjsify build` scans the bundled output, finds the ones you actually reach, and injects only those.
+
+```typescript
+const port = Number(process.env.PORT ?? '8080');
+const body = Buffer.from('hello', 'utf-8');
+```
+
+## Which modules are ready
+
+Three levels of completeness. **Full** means the surface a normal app touches is there. **Partial** means the core works and specific corners are missing (each one is named in the table). **Stub** means the module resolves so a dependency check passes, but does nothing useful.
 
 <NodeApiCoverage />
 
-| Package | GNOME Libs | Status | Notes |
+| Module | Backed by | Status | Worth knowing |
 |---|---|---|---|
-| `assert` | — | Full | AssertionError, deepEqual, throws, strict |
-| `async_hooks` | — | Full | AsyncLocalStorage, AsyncResource, createHook |
-| `buffer` | — | Full | Buffer via Blob/File/atob/btoa |
-| `child_process` | Gio | Full | exec/execSync, execFile/execFileSync, spawn/spawnSync via Gio.Subprocess. Shell (`/bin/sh` · `%ComSpec%` + `/d /s /c`), `detached` (`setsid(1)`), `argv0` and signal numbers resolve per platform; `spawnSync` timeouts run on an in-process GLib timer (no `timeout(1)`). See the [package README](https://github.com/gjsify/gjsify/tree/main/packages/node/child_process#platform-support) for the per-platform contract |
-| `cluster` | — | Stub | isPrimary, isWorker |
-| `console` | — | Full | Console with stream support |
-| `constants` | — | Full | Flattened `os.constants` + `fs.constants` (deprecated Node alias) |
-| `crypto` | GLib | Full | Hash / Hmac / PBKDF2 / HKDF / scrypt / AES / DH / ECDH / Sign / Verify / KeyObject / X509 |
-| `dgram` | Gio | Full | UDP via Gio.Socket |
-| `diagnostics_channel` | — | Full | Channel, TracingChannel |
-| `dns` | Gio | Full | lookup, resolve4/6, reverse via Gio.Resolver + promises |
-| `domain` | — | Stub | Deprecated |
-| `events` | — | Full | EventEmitter (prototype methods enumerable for socket.io v4) |
-| `fs` | Gio | Full | sync/callback/promises/streams/FSWatcher; URL path args everywhere |
-| `globals` | GLib | Full | process, Buffer, structuredClone, TextEncoder/Decoder, URL, queueMicrotask |
-| `http` | Soup 3.0 | Full | Server (Soup.Server), IncomingMessage, ServerResponse, Agent |
-| `http2` | Soup 3.0 | Full | h2 via ALPN; PUSH_PROMISE/HEADERS/DATA via `@gjsify/http2-native` (Vala + libnghttp2) |
-| `https` | Soup 3.0 | Full | TLS-backed Agent, request/get via Soup + GIO |
-| `inspector` | — | Stub | Session stub |
-| `module` | Gio, GLib | Full | builtinModules, isBuiltin, createRequire |
-| `net` | Gio | Full | Socket (Gio.SocketClient), Server (Gio.SocketService) |
-| `os` | GLib | Full | homedir, hostname, cpus |
-| `path` | — | Full | POSIX + Win32 |
-| `perf_hooks` | — | Full | performance (Web API / GLib fallback) |
-| `process` | GLib | Full | extends EventEmitter, env, cwd, platform, nextTick |
-| `querystring` | — | Full | parse/stringify |
-| `readline` | — | Full | Interface, createInterface, question, prompt |
-| `sqlite` | Gda 6.0 | Partial | DatabaseSync / StatementSync on libgda SQLite provider |
-| `stream` | — | Full | Readable, Writable, Duplex, Transform, PassThrough |
-| `string_decoder` | — | Full | UTF-8, Base64, hex, streaming |
-| `sys` | — | Full | Deprecated alias for `util` |
-| `timers` | — | Full | setTimeout/setInterval/setImmediate + promises (GLib-safe) |
-| `tls` | Gio | Full | TLSSocket via Gio.TlsClientConnection + `@gjsify/tls-native` (Vala) |
-| `tty` | — | Full | ReadStream/WriteStream, ANSI escapes |
-| `url` | GLib | Full | URL (static `createObjectURL`/`revokeObjectURL`), URLSearchParams via GLib.Uri |
-| `util` | — | Full | inspect, format, promisify, types |
-| `v8` | GLib | Partial | Wire-format v15 serialize/deserialize; `getHeapStatistics` approximated from OS process memory (`/proc/self/status` on Linux, `ps` on macOS, all-zero where no reader exists); no heap snapshot or CPU profile |
-| `vm` | — | Partial | runInThisContext, runInNewContext, Script, compileFunction |
-| `worker_threads` | Gio, GLib | Partial | MessageChannel/Port/BroadcastChannel, subprocess Worker; SharedArrayBuffer via `@gjsify/sab-native` (cross-process, file-based) |
-| `ws` (npm) | Soup 3.0 | Partial | `ws`-compat WebSocket client + WebSocketServer over `@gjsify/websocket` |
-| `zlib` | — | Full | gzip/deflate via Web Compression API, Gio fallback |
+| `assert` | pure TS | Full | AssertionError, deepEqual, throws, strict |
+| `async_hooks` | pure TS | Full | AsyncLocalStorage, AsyncResource, createHook |
+| `buffer` | pure TS | Full | alloc, from, concat, every encoding, read/write helpers, plus the `Blob` and `File` classes Node re-exports here |
+| `child_process` | Gio | Full | exec, execFile, spawn, and their sync variants, via `Gio.Subprocess`. Shell, `detached`, `argv0` and signal numbers resolve per platform. Per-platform contract: [package README](https://github.com/gjsify/gjsify/tree/main/packages/node/child_process#platform-support) |
+| `cluster` | pure TS | Stub | `isPrimary` / `isWorker` only; `fork()` throws |
+| `console` | pure TS | Full | Console class, format specifiers, table, group, count, time |
+| `constants` | pure TS | Full | The deprecated flat alias for `os.constants` plus `fs.constants` |
+| `crypto` | GLib | Full | Hash, Hmac, PBKDF2, HKDF, scrypt, AES, DH, ECDH, Sign / Verify, KeyObject, X509 |
+| `dgram` | Gio | Full | UDP over `Gio.Socket`, incl. multicast, broadcast, TTL, IPv6 |
+| `diagnostics_channel` | pure TS | Full | Channel, TracingChannel, subscribe / unsubscribe |
+| `dns` | Gio | Full | lookup, resolve4/6, reverse via `Gio.Resolver`, plus `dns/promises` |
+| `domain` | pure TS | Stub | Deprecated in Node; pass-through |
+| `events` | pure TS | Full | EventEmitter with enumerable prototype methods, so socket.io v4 works |
+| `fs` | Gio | Full | sync, callback, promises, streams, FSWatcher, FileHandle; URL path args everywhere |
+| `globals` | GLib | Full | Not an import. This is `@gjsify/node-globals`, the package behind `process`, `Buffer`, `URL`, `URLSearchParams`, `structuredClone`, `queueMicrotask`, `btoa` / `atob` and the timer family |
+| `http` | Soup 3.0 | Full | Server, IncomingMessage, ServerResponse, Agent, chunked streaming, upgrade |
+| `http2` | Soup 3.0 | Full | h2 over ALPN, plus `respondWithFile` and `respondWithFD` via `@gjsify/http2-native`. `pushStream` builds the PUSH_PROMISE and hands you a working stream object, but Soup exposes no way to put it on the wire |
+| `https` | Soup 3.0 | Full | TLS Agent, `request` / `get`, `createServer` |
+| `inspector` | pure TS | Stub | Session stub; the V8 inspector protocol has no GJS equivalent |
+| `module` | Gio, GLib | Full | builtinModules, isBuiltin, createRequire (PnP aware) |
+| `net` | Gio | Full | Socket over `Gio.SocketClient`, Server over `Gio.SocketService`, isIP |
+| `os` | GLib | Full | homedir, hostname, cpus, platform, userInfo, networkInterfaces, loadavg |
+| `path` | pure TS | Full | POSIX and Win32 flavours, selected per host |
+| `perf_hooks` | pure TS | Full | performance, marks and measures, PerformanceObserver, timerify |
+| `process` | GLib | Full | EventEmitter based; env, cwd, argv, platform, hrtime, nextTick, memoryUsage |
+| `querystring` | pure TS | Full | parse / stringify with full encoding |
+| `readline` | pure TS | Full | Interface, createInterface, question, prompt, async iterator, cursor control |
+| `sqlite` | Gda 6.0 | Partial | `DatabaseSync` and `StatementSync` on the libgda SQLite provider |
+| `stream` | pure TS | Full | Readable, Writable, Duplex, Transform, PassThrough, objectMode, backpressure |
+| `string_decoder` | pure TS | Full | UTF-8, Base64, hex, streaming |
+| `sys` | pure TS | Full | Deprecated alias, re-exports `util` |
+| `timers` | pure TS | Full | setTimeout / setInterval / setImmediate plus `timers/promises`, on GLib sources |
+| `tls` | Gio | Full | TLSSocket over `Gio.TlsClientConnection`; mTLS, ALPN, peer certificates |
+| `tty` | GLib, `@gjsify/terminal-native` | Full | ReadStream / WriteStream, isatty, ANSI escapes, window size, raw mode |
+| `url` | GLib | Full | URL incl. `createObjectURL` / `revokeObjectURL`, URLSearchParams over `GLib.Uri` |
+| `util` | pure TS | Full | inspect, format, promisify, callbackify, styleText, types |
+| `v8` | GLib | Partial | serialize / deserialize (wire format v15); `getHeapStatistics` is approximated from OS process memory (`/proc/self/status` on Linux, `ps` on macOS) and reports all zeros where neither is readable. No heap snapshots, no CPU profiles |
+| `vm` | pure TS | Partial | runInThisContext, runInNewContext, Script, compileFunction, without realm isolation |
+| `worker_threads` | Gio, GLib | Partial | MessageChannel, MessagePort, BroadcastChannel; Worker runs as a subprocess. SharedArrayBuffer is cross-process and file backed via `@gjsify/sab-native` |
+| `ws` (npm) | Soup 3.0 | Partial | Drop-in for the `ws` package: client plus WebSocketServer over `@gjsify/websocket` |
+| `zlib` | Gio | Full | gzip, deflate and deflate-raw over `Gio.ZlibCompressor`. A host that brings its own Compression Streams API gets that path instead |
 
-## Meta
+`ws` is in this list because `import { WebSocketServer } from 'ws'` is aliased to `@gjsify/ws`, so packages that depend on `ws` work without a change. `isomorphic-ws` and `node-fetch` are aliased the same way.
 
-| Package | Purpose |
+## Where each module also runs
+
+Every package declares which runtimes it supports. Pure TypeScript modules such as `path`, `buffer`, `events`, `querystring` and `string_decoder` also run in the browser and under NativeScript. Gio-backed ones such as `fs` are GJS-first. [Runtimes](/gjsify/runtimes/) has the whole picture, and [Platform Support](/gjsify/platform-support/) covers which operating systems each native bridge reaches.
+
+## The umbrella package
+
+| Package | What it is for |
 |---|---|
-| `@gjsify/node-polyfills` | Umbrella dep — pulls every Node polyfill so scaffolds resolve any `node:*` import out of the box |
+| `@gjsify/node-polyfills` | A dependency-only umbrella that pulls in every Node polyfill. `@gjsify/cli` already depends on it, so scaffolds resolve any `node:*` import out of the box |
+
+You normally never name it. Add it explicitly only if you build without `@gjsify/cli` in your dependency tree.

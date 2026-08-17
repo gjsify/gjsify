@@ -1,52 +1,142 @@
 ---
 title: Overview
-description: Summary of all GJSify packages
+description: Which npm packages, Node.js modules and Web APIs you can use on GJS, and exactly how you import them.
 ---
 
 import BridgesGrid from '../../../components/BridgesGrid.astro';
 import CommandTabs from '../../../components/CommandTabs.astro';
 
-GJSify is organised into pillars, each implementing standard APIs on top of native GNOME libraries — plus a framework layer that glues them to GTK.
+**Yes, you can use the npm package you already know, and you import it exactly the way you already do.**
 
-| Category | Packages | Description |
-|---|---|---|
-| [Node.js Modules](./node) | 41 + 1 meta | `fs`, `net`, `http`, `crypto`, `stream`, `events`, `sqlite`, `ws`, and more |
-| [Web APIs](./web) | 19 + 1 native bridge + 1 meta | `fetch`, `XMLHttpRequest`, `WebSocket`, `WebRTC`, `WebAudio`, `Streams`, `DOMParser`, `MessageChannel`, `WebAssembly`, and more |
-| [DOM & Bridges](./dom) | 2 DOM + 6 bridges | Canvas2D, WebGL, DOM elements; GTK-backed Canvas/WebGL/Video/IFrame bridges |
-| Framework | app shell + tooling | [`@gjsify/adwaita-app`](/gjsify/guides/native-adwaita-app/) native app shell, [storybook](/gjsify/guides/storybook/), [devtools](/gjsify/guides/devtools/) |
-| Adwaita for browser | 4 | `@gjsify/adwaita-web`, `@gjsify/adwaita-core`, `@gjsify/adwaita-fonts`, `@gjsify/adwaita-icons` |
-| Reverse bridge | 1 | [`@gjsify/node-gi`](/gjsify/projects/node-gi/) — GObject-Introspection on Node.js, Bun and Deno |
-| Forward bridge | 1 | [`@gjsify/napi`](/gjsify/projects/napi/) — load native Node.js N-API `.node` addons in GJS |
+```typescript
+import express, { type Request, type Response } from 'express';
+import { readFileSync } from 'node:fs';
 
-93% of Node modules and 58% of web standards covered — see the [Node.js Modules](./node) and [Web APIs](./web) subpages for the full interactive breakdown.
+const html = readFileSync('index.html', 'utf-8');
 
-<BridgesGrid />
+const app = express();
+app.get('/', (_req: Request, res: Response) => res.type('html').send(html));
+app.listen(8080);
+```
 
-## Installation
+That file builds and runs on GJS. Nothing in it mentions `@gjsify`. When you run `gjsify build`, `node:fs` is rewritten to `@gjsify/fs` (backed by `Gio.File`), and every `node:*` import inside `express` and its dependencies goes the same way. The details are in [How It Works](/gjsify/how-it-works/).
 
-All packages are published to npm under the `@gjsify` scope:
+## Install a package from npm
 
-<CommandTabs title="Install packages">
+Install it like any other dependency. `gjsify install` is the Node-free path; npm, Bun and Deno work too.
+
+<CommandTabs title="Install express">
   <Fragment slot="gjsify">
     ```bash
-    gjsify install @gjsify/fs @gjsify/http @gjsify/fetch
+    gjsify install express
     ```
   </Fragment>
   <Fragment slot="npm">
     ```bash
-    npm install @gjsify/fs @gjsify/http @gjsify/fetch
+    npm install express
     ```
   </Fragment>
   <Fragment slot="bun">
     ```bash
-    bun add @gjsify/fs @gjsify/http @gjsify/fetch
+    bun add express
     ```
   </Fragment>
   <Fragment slot="deno">
     ```bash
-    deno add npm:@gjsify/fs npm:@gjsify/http npm:@gjsify/fetch
+    deno add npm:express
     ```
   </Fragment>
 </CommandTabs>
 
-In most cases, you don't install packages directly — `gjsify build` automatically aliases Node.js and Web API imports to the right implementation for the chosen [target](/gjsify/runtimes/): `@gjsify/*` polyfills on GJS, the native platform on Node.js and in the browser.
+You do not add `@gjsify/fs`, `@gjsify/http` or any other polyfill by hand. `@gjsify/cli` depends on the two umbrella packages `@gjsify/node-polyfills` and `@gjsify/web-polyfills`, so once the CLI is a devDependency of your project (every scaffold from `gjsify create` has it), the whole polyfill set is already resolvable.
+
+## Import Node.js builtins
+
+Use the `node:` prefix, the same as on Node.js:
+
+```typescript
+import { readFile } from 'node:fs/promises';
+import { createServer } from 'node:http';
+import { createHash } from 'node:crypto';
+import path from 'node:path';
+```
+
+The bare form (`import fs from 'fs'`) resolves too, so dependencies written before the `node:` prefix existed keep working. See [Node.js Modules](/gjsify/packages/node/) for the full list and what each one is backed by.
+
+## Use Web APIs without importing anything
+
+`fetch`, `WebSocket`, `crypto.subtle`, `ReadableStream` and friends are globals, not imports. The build detects which ones your bundle actually reaches and registers only those:
+
+```typescript
+const response = await fetch('https://api.example.com/data');
+const data = await response.json();
+
+const socket = new WebSocket('wss://echo.example.com');
+socket.addEventListener('message', (event) => console.log(event.data));
+```
+
+[Web APIs](/gjsify/packages/web/) lists everything that is available this way.
+
+## When you do write `@gjsify/...` in an import
+
+Three cases, all of them things that have no standard bare specifier:
+
+- **GTK bridge widgets.** `@gjsify/canvas2d`, `@gjsify/webgl`, `@gjsify/video` and `@gjsify/iframe` export widget classes you mount into a GTK tree. See [DOM & Graphics](/gjsify/packages/dom/).
+- **The Adwaita design system on the web.** `@gjsify/adwaita-web` gives you Adwaita as Web Components for `--app browser` builds. See the [Adwaita gallery](/gjsify/adwaita/).
+- **The native app shell.** `@gjsify/adwaita-app` wraps the `Adw.Application` boilerplate. See [Build a native Adwaita app](/gjsify/guides/native-adwaita-app/).
+
+<CommandTabs title="Install a GJSify package">
+  <Fragment slot="gjsify">
+    ```bash
+    gjsify install @gjsify/canvas2d @gjsify/adwaita-app
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    npm install @gjsify/canvas2d @gjsify/adwaita-app
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    bun add @gjsify/canvas2d @gjsify/adwaita-app
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno add npm:@gjsify/canvas2d npm:@gjsify/adwaita-app
+    ```
+  </Fragment>
+</CommandTabs>
+
+## What is implemented
+
+| Category | Packages | What you get |
+|---|---|---|
+| [Node.js Modules](/gjsify/packages/node/) | 41 plus 1 meta | `fs`, `net`, `http`, `crypto`, `stream`, `events`, `sqlite`, `ws` and more |
+| [Web APIs](/gjsify/packages/web/) | 19 plus 1 native bridge plus 1 meta | `fetch`, `XMLHttpRequest`, `WebSocket`, `WebRTC`, `WebAudio`, Streams, `DOMParser`, `MessageChannel`, `WebAssembly` and more |
+| [DOM & Graphics](/gjsify/packages/dom/) | 2 DOM plus 6 bridges | Canvas 2D, WebGL, DOM elements, and the GTK-backed Canvas / WebGL / Video / IFrame widgets |
+| Framework | app shell plus tooling | [`@gjsify/adwaita-app`](/gjsify/guides/native-adwaita-app/), [storybook](/gjsify/guides/storybook/), [devtools](/gjsify/guides/devtools/) |
+| Adwaita for the browser | 4 | `@gjsify/adwaita-web`, `@gjsify/adwaita-core`, `@gjsify/adwaita-fonts`, `@gjsify/adwaita-icons` |
+| Reverse bridge | 1 | [`@gjsify/node-gi`](/gjsify/projects/node-gi/), GObject-Introspection on Node.js, Bun and Deno |
+| Forward bridge | 1 | [`@gjsify/napi`](/gjsify/projects/napi/), native Node.js N-API `.node` addons in GJS |
+
+93% of the tracked Node.js modules and 58% of the tracked web standards are implemented. The [Coverage](/gjsify/coverage/) page renders the live numbers, module by module.
+
+<BridgesGrid />
+
+## Will my dependency work?
+
+The honest answer depends on what it reaches for. Two things help you decide before you try:
+
+- **Check the module list.** If your dependency only touches modules marked Full on the [Node.js](/gjsify/packages/node/) and [Web APIs](/gjsify/packages/web/) pages, it will almost certainly run.
+- **Check the integration suites.** Real npm packages whose own test suites run unmodified against `@gjsify/*` are listed on [Coverage](/gjsify/coverage/): `axios`, `socket.io`, `yargs`, `execa`, `fast-glob`, `cosmiconfig`, `webtorrent`, `acorn` and more. Express, three.js and Excalibur.js run as full [showcases](/gjsify/showcases/).
+
+If a build fails on a missing global, the error names the identifier and [How It Works](/gjsify/how-it-works/) shows the one-flag fix.
+
+## Where to go next
+
+- [Node.js Modules](/gjsify/packages/node/), every builtin and what backs it
+- [Web APIs](/gjsify/packages/web/), the standards that work as globals
+- [DOM & Graphics](/gjsify/packages/dom/), canvas, WebGL, video and iframes inside GTK windows
+- [Versioning](/gjsify/versioning/), how to upgrade `@gjsify/*` safely
+- [Runtimes](/gjsify/runtimes/), the same source on GJS, Node.js, Bun, Deno and the browser

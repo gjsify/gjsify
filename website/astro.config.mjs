@@ -11,11 +11,25 @@ export default defineConfig({
     site: 'https://gjsify.github.io',
     base: '/gjsify',
     trailingSlash: 'always',
-    // Old URLs of pages that were merged away. Destinations must spell out the
-    // `/gjsify` base — Astro does not prefix redirect targets with `base`.
+    // Old URLs of pages that moved or were merged away. Destinations must spell
+    // out the `/gjsify` base, because Astro does not prefix redirect targets
+    // with `base`.
+    //
+    // `/widgets/*` became `/adwaita/*`: the section only ever covered Adwaita,
+    // and naming it after the design system leaves room for a second one
+    // (Material, say) beside it rather than under it.
     redirects: {
         '/framework/bridges': '/gjsify/patterns/bridges/',
         '/patterns': '/gjsify/patterns/gobject-classes/',
+        '/widgets': '/gjsify/adwaita/',
+        '/widgets/boxed-lists': '/gjsify/adwaita/boxed-lists/',
+        '/widgets/buttons': '/gjsify/adwaita/buttons/',
+        '/widgets/layout': '/gjsify/adwaita/layout/',
+        '/widgets/navigation': '/gjsify/adwaita/navigation/',
+        '/widgets/view-switching': '/gjsify/adwaita/view-switching/',
+        '/widgets/presentation': '/gjsify/adwaita/presentation/',
+        '/widgets/feedback': '/gjsify/adwaita/feedback/',
+        '/widgets/theming': '/gjsify/adwaita/theming/',
     },
     vite: {
         resolve: {
@@ -83,16 +97,22 @@ export default defineConfig({
             favicon: '/favicon.svg',
             social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/gjsify/gjsify' }],
             // Labels stay short: a page's full story belongs in its title/description.
+            //
+            // Ordered for someone who wants to USE gjsify, not for someone who wants
+            // to understand how it is built. Everything above `Internals` answers
+            // "how do I…"; `Internals` is where the mechanism, the rationale and the
+            // bridge projects live, so the pages a newcomer reads first are not
+            // carrying them. `Adwaita` is named after the design system rather than
+            // "Widgets" so a second one can sit beside it later instead of under it.
             sidebar: [
                 {
                     label: 'Start',
                     items: [
                         { slug: 'overview' },
                         { slug: 'getting-started' },
+                        { slug: 'guides/install' },
                         { slug: 'runtimes' },
                         { slug: 'platform-support' },
-                        { slug: 'how-it-works' },
-                        { slug: 'guides/install' },
                     ],
                 },
                 {
@@ -107,27 +127,29 @@ export default defineConfig({
                     ],
                 },
                 {
-                    label: 'Widgets',
+                    label: 'Adwaita',
                     items: [
-                        { slug: 'widgets', label: 'Gallery' },
-                        { slug: 'widgets/boxed-lists' },
-                        { slug: 'widgets/buttons' },
-                        { slug: 'widgets/layout' },
-                        { slug: 'widgets/navigation' },
-                        { slug: 'widgets/view-switching' },
-                        { slug: 'widgets/presentation' },
-                        { slug: 'widgets/feedback' },
-                        { slug: 'widgets/theming' },
+                        { slug: 'adwaita', label: 'Gallery' },
+                        { slug: 'adwaita/boxed-lists' },
+                        { slug: 'adwaita/buttons' },
+                        { slug: 'adwaita/layout' },
+                        { slug: 'adwaita/navigation' },
+                        { slug: 'adwaita/view-switching' },
+                        { slug: 'adwaita/presentation' },
+                        { slug: 'adwaita/feedback' },
+                        { slug: 'adwaita/theming' },
                     ],
                 },
                 {
-                    label: 'Distribute',
+                    label: 'Ship your app',
                     items: [
-                        { slug: 'guides/distributing-gjs-apps', label: 'One-Line Installer' },
-                        { slug: 'guides/dlx-packaging', label: 'Run via dlx' },
-                        { slug: 'guides/self-executing-package', label: 'Self-Executing Bundle' },
+                        { slug: 'ship', label: 'Overview' },
+                        { slug: 'ship/linux-packages', label: 'deb & rpm' },
                         { slug: 'guides/flatpak-app', label: 'Flatpak: GUI App' },
                         { slug: 'guides/flatpak-cli-tool', label: 'Flatpak: CLI Tool' },
+                        { slug: 'guides/distributing-gjs-apps', label: 'One-Line Installer' },
+                        { slug: 'guides/self-executing-package', label: 'Self-Executing Bundle' },
+                        { slug: 'guides/dlx-packaging', label: 'Run via dlx' },
                     ],
                 },
                 {
@@ -144,10 +166,6 @@ export default defineConfig({
                     items: [{ slug: 'cli-reference' }, { slug: 'coverage' }, { slug: 'versioning' }],
                 },
                 {
-                    label: 'Ecosystem',
-                    items: [{ slug: 'projects/ts-for-gir' }, { slug: 'projects/node-gi' }, { slug: 'projects/napi' }],
-                },
-                {
                     label: 'Showcases',
                     collapsed: true,
                     items: [
@@ -156,11 +174,22 @@ export default defineConfig({
                         { slug: 'showcases/canvas2d-fireworks' },
                         { slug: 'showcases/excalibur-jelly-jumper' },
                         { slug: 'showcases/three-geometry-teapot' },
+                        { slug: 'showcases/three-loader-ldraw' },
                         { slug: 'showcases/three-postprocessing-pixel' },
                         { slug: 'showcases/minimalist-browser' },
                         { slug: 'showcases/webrtc-loopback' },
                         { slug: 'showcases/webrtc-video' },
                         { slug: 'showcases/express-webserver' },
+                    ],
+                },
+                {
+                    label: 'Internals',
+                    collapsed: true,
+                    items: [
+                        { slug: 'how-it-works' },
+                        { slug: 'projects/ts-for-gir' },
+                        { slug: 'projects/node-gi' },
+                        { slug: 'projects/napi' },
                     ],
                 },
                 {

@@ -1,140 +1,120 @@
 ---
 title: Runtimes
-description: One TypeScript codebase on GJS, Node.js, Deno and Bun — how GJSify makes the runtime a build-time decision.
+description: "Where your gjsify code can run: GJS, Node.js, Bun, Deno and the browser, and how to choose between them."
 ---
 
-GJSify's bridge runs in **both directions**, so the runtime is a build-time
-decision, not an architecture decision:
+One flag decides where your code runs:
 
-- **On GJS**, GJSify implements the Node.js and Web APIs on top of the GNOME
-  platform — `node:fs` is backed by Gio, `fetch` by libsoup, Canvas by Cairo.
-- **On Node.js, Bun and Deno**, GJSify implements the GJS side: `gi://` imports,
-  GObject classes, signals and the GLib main loop, through the
-  [`@gjsify/node-gi`](/gjsify/projects/node-gi/) native bridge.
+```bash
+gjsify build src/index.ts --app gjs      # a native GNOME app
+gjsify build src/index.ts --app node     # Node.js, Bun and Deno
+gjsify build src/index.ts --app browser  # a web build of the same source
+```
 
-Either way you write standard TypeScript against standard APIs.
-`gjsify build --app <target>` picks the runtime — the same source file builds
-for `gjs`, `node` and `browser`.
+Your source stays the same. What changes is which implementation each import
+resolves to.
 
 :::note[Runtime is not the same as operating system]
-This page covers the **runtime** axis. Which **operating systems** each runtime
-actually works on is a separate question — a package can be fully cross-runtime and
-still be Linux-only, because the native bridge underneath it is. See
-[Platform Support](/gjsify/platform-support/) for the per-OS picture and the
-current gaps.
+This page is about runtimes. Which **operating systems** each one works on is a
+separate question, and the answer is not the same: a package can be fully
+cross-runtime and still be Linux-only, because the native library underneath it
+is. [Platform Support](/gjsify/platform-support/) has that picture.
 :::
 
-## Two bridge directions
+## Ship a desktop app: `--app gjs`
 
-### Node.js & Web APIs on GJS — `--app gjs`
+This is the main target and what `gjsify create` scaffolds. Your app runs as a
+single native process on GJS, the JavaScript runtime GNOME users already have
+installed: GTK 4 widgets, Adwaita styling and npm packages in one SpiderMonkey
+runtime, with no second process and no bundled browser.
 
-The primary target. The build rewrites
-`node:*` imports and Web globals to their `@gjsify/*` implementations, each
-backed by a GNOME library. Your app runs as a single native process — GTK 4
-widgets, Adwaita styling, and the npm ecosystem in one SpiderMonkey runtime.
+The build rewrites `node:*` imports and Web globals to gjsify's implementations,
+each backed by a GNOME library: `node:fs` by Gio, `fetch` and `WebSocket` by
+libsoup, `<canvas>` by Cairo, `node:sqlite` by libgda.
 
-See [How It Works](/gjsify/how-it-works/) for the build pipeline and
-[Packages](/gjsify/packages/overview/) for what is implemented.
+You need `gjs` 1.86 or newer. [Packages](/gjsify/packages/overview/) lists what
+is implemented.
 
-### GNOME APIs on Node.js, Bun and Deno — `--app node`
+## Run GTK on Node.js, Bun or Deno: `--app node`
 
-The reverse direction. `@gjsify/node-gi` is a Node-API addon (vendored from
-node-gtk, retargeted to girepository-2.0) that resolves `gi://Gtk?version=4.0`
-imports, `GObject.registerClass`, signals, virtual functions with chain-up,
-boxed structs, Cairo drawing and the GLib main loop — on plain Node.js.
-Because Node-API is also Bun's and Deno's native-addon ABI, **one prebuilt
-binary serves all three runtimes**.
+The same GObject code runs on Node.js, Bun and Deno through
+[`@gjsify/node-gi`](/gjsify/projects/node-gi/), a native addon that resolves
+`gi://Gtk?version=4.0` imports and supports `GObject.registerClass`, signals,
+virtual functions with chain-up, boxed structs, Cairo drawing and the GLib main
+loop. Node-API is the native-addon ABI for all three runtimes, so one prebuilt
+binary serves them all.
 
-The injection is conditional: a `--app node` bundle that never touches GJS
-APIs stays node-gi-free and runs on stock Node.js.
+Reach for this when GJS is not an option: build tooling, CI, editor integrations,
+or a machine that has no GJS installed. It is also the path that reaches macOS
+and Windows.
 
-The [devtools](/gjsify/guides/devtools/) control plane works over this reverse
-bridge too: a GTK/Adwaita app running via `@gjsify/node-gi` on Node, Bun or
-Deno can be inspected, driven and **screenshotted** through the same
-`org.gjsify.Devtools` DBus interface as on GJS — `DumpTree`, `GetStatus`,
-`ListToplevels` and the async `Screenshot` all work, producing real PNGs.
+Add the bridge to the project that needs it, then build and run:
 
-### The browser — `--app browser`
+```bash
+gjsify install @gjsify/node-gi
+gjsify build src/index.ts --app node --outfile dist/index.node.mjs
+gjsify run dist/index.node.mjs --runtime node
+```
 
-The same source can target the browser. `@gjsify/adwaita-web` carries the
+A `--app node` bundle that never touches a `gi://` import stays free of node-gi
+and runs on stock Node.js, so you are not paying for the bridge unless you use
+it. [Devtools](/gjsify/guides/devtools/) works over this path as well: you can
+inspect, drive and screenshot a GTK app that is running on Node, Bun or Deno, and
+`gjsify storybook --runtime node` hosts the whole GTK storybook there.
+
+`@gjsify/node-gi` asks for Node.js 20 or newer; Bun and Deno are tracked at their
+current releases. CI builds one engine-agnostic `--app node` bundle per package
+and runs it on all three, so they do not drift apart.
+
+## Run it in the browser: `--app browser`
+
+The same source can be built as a web app. `@gjsify/adwaita-web` carries the
 Adwaita design system over as Web Components, and the bridge widgets have
-DOM-native counterparts — the [showcases](/gjsify/showcases/) embedded on this
-site are exactly these builds.
+DOM-native counterparts, so a `<canvas>` that was a `Gtk.DrawingArea` on GJS is
+an ordinary canvas here. The [showcases](/gjsify/showcases/) embedded on this site
+are exactly these builds.
 
-### The CLI follows the host runtime too
+Browser builds carry no native code, so they run wherever a browser does.
 
-`gjsify` itself runs on GJS, Node.js, Bun and Deno, and its defaults follow
-whichever one is hosting it: `gjsify build` defaults `--app` to `gjs` under a
-global GJS install and to `node` when run via `npx`/`bunx`/`deno run` (bun and
-deno consume the same `--app node` bundle). `gjsify run`, `gjsify showcase`
-and `gjsify storybook` apply the same host-derived default to their
-`--runtime` flag — so `gjsify showcase canvas2d-fireworks --runtime bun`
-picks the runtime explicitly, while omitting `--runtime` follows whatever
-runtime invoked the CLI. Override any of it with `--app`/`--runtime` or
-`package.json#gjsify.app`. Full flags: [CLI Reference](/gjsify/cli-reference/).
+## Mobile with NativeScript (experimental)
 
-## Support matrix
-
-Support claims name what is actually validated, not runtime-class labels:
-
-| Runtime | Role | Validated by |
-|---|---|---|
-| **GJS** 1.86+ | Primary target, full framework | 10,650+ test cases run on GJS *and* Node.js in CI (Fedora 43/44); 35 integration suites of curated upstream tests |
-| **Node.js** 24+ | Reverse bridge + toolchain host + CLI host | 261/261 node-gi engine tests; `@gjsify/sqlite`'s suite runs via `--app node` against real libgda; `gjsify storybook --runtime node` end-to-end; devtools (`DumpTree`/`Screenshot`/…) verified over the reverse bridge; `canvas2d-fireworks` showcase runs + screenshots via `--runtime node`; `excalibur-jelly-jumper` renders its full Excalibur.js game via node-gi |
-| **Bun** 1.3+ | Reverse bridge (same binary) + CLI host | Full node-gi core parity — 215/215; devtools + `canvas2d-fireworks` showcase verified via `--runtime bun` |
-| **Deno** 2.9+ | Reverse bridge (prebuild) + CLI host | Conformance subset green — no postinstall build needed; devtools + `canvas2d-fireworks` showcase verified via `--runtime deno` |
-| **Browser** | Build target + design system | 12 packages tested under Playwright (Firefox/SpiderMonkey); live showcases on this site |
-
-A golden-diff conformance harness runs the same programs on `gjs`, `node`,
-`bun` and `deno` and requires **byte-identical output**; the ported GNOME
-GIMarshallingTests currently pass 343 cases on all four runtimes.
-
-### Platforms — Linux, macOS and Windows
-
-The runtime table above is orthogonal to the operating system. GTK/GNOME apps
-stay **Linux-first**; the cross-OS reach is specifically the node-gi
-(Node/Bun/Deno) path, validated per platform by what CI actually proves — again,
-named, not labelled with a runtime class:
-
-| Platform | node-gi (Node / Bun / Deno) | GTK / Adwaita GUI | Prebuilt-GTK bundle |
-|---|---|---|---|
-| **Linux** | Full — builds + display-free conformance on Node, Bun and Deno | Proven (GJS native *and* node-gi) | Uses the system GTK |
-| **macOS, Apple silicon** (`macos-latest`, arm64) | Builds + display-free conformance on Node, Bun and Deno | Proven in CI — an Adw window realizes + renders + reacts (render-to-texture, no visible desktop) | `@gjsify/gtk-runtime-darwin-arm64` ships the GTK 4 / Adwaita closure (the GUI uses its `--windowing` variant, with libadwaita) |
-| **macOS, Intel** (`macos-15-intel`, x64) | Builds + display-free conformance on Node, Bun and Deno | Not exercised on Intel — the `--windowing` GUI proof runs on Apple silicon only | `@gjsify/gtk-runtime-darwin-x64` ships the display-free GTK 4 closure; CI proves it with **no** Homebrew GTK on the host |
-| **Windows** (`windows-latest`, x64) | Builds (MSVC + gvsbuild) + display-free conformance on Node | GTK GUI **and** the full Libadwaita Storybook both render in CI (render-to-texture, no visible desktop) | `@gjsify/gtk-runtime-win32-x64` ships the GTK 4 / Adwaita closure (also selected by `--windowing`; no gvsbuild at consume time) |
-
-Node-API is the common ABI, so a single `--app node` prebuilt binary serves
-Node, Bun and Deno on a given platform. Everywhere, the runtime requirement is a
-C++ toolchain (or the shipped prebuild) plus GLib ≥ 2.80 / `girepository-2.0`
-and the target library typelibs — or, on macOS and Windows, the batteries-included
-prebuilt-GTK bundle above.
-
-## What this means in practice
-
-- **Ship desktop apps on GJS.** It remains the primary target — the runtime
-  GNOME users already have installed, with the full framework surface.
-- **Use Node.js, Bun or Deno where GJS isn't available** — dev tooling, CI,
-  benchmarks, or editor integrations. `gjsify storybook --runtime node` is the
-  canonical example: the same GTK storybook, running on Node.js.
-- **node-gi is newer than the GJS side.** It is tested and released with
-  every GJSify release, but a breaking change may still ship in a minor
-  version. No GJSify package depends on it at runtime, so the reverse bridge
-  can never destabilize a GJS build — see
-  [Versioning](/gjsify/versioning/) for the stability model.
-
-## Mobile: NativeScript (experimental)
-
-A fifth direction is taking shape: the Adwaita widget set, storybook renderer
-and devtools agent exist as **native NativeScript components** for Android and
-iOS (`@gjsify/adwaita-nativescript` — real views, not a WebView), and
 `gjsify build --app nativescript` produces bundles for the NativeScript
-toolchain. The runtime target itself is still experimental; the widget packages are
-tested and released with the regular GJSify releases.
+toolchain, and `@gjsify/adwaita-nativescript` implements the Adwaita widget set,
+the storybook renderer and the devtools agent as real native Android and iOS
+views (not a WebView). The widget packages ship with every gjsify release; the
+runtime target itself is still experimental, so treat it as something to try
+rather than something to ship.
+
+## Pick a runtime for a single command
+
+`gjsify build` defaults `--app` to whatever runtime is running the CLI, and
+`gjsify run`, `gjsify showcase` and `gjsify storybook` apply the same default to
+their `--runtime` flag. Set it explicitly whenever you want something else:
+
+```bash
+gjsify run dist/index.node.mjs --runtime bun
+gjsify showcase canvas2d-fireworks --runtime deno
+```
+
+Or fix it per project with `gjsify.app` in `package.json`. The full flag list is
+in the [CLI Reference](/gjsify/cli-reference/); which runtime hosts the CLI itself
+is covered on [Install & Update](/gjsify/guides/install/).
+
+## Choosing, in one paragraph
+
+Ship on GJS. It is the primary target, it is what GNOME users have, and it is
+where the framework surface is complete. Use `--app node` for the places GJS
+cannot go, and `--app browser` when you want the same app on the web. Keep in
+mind that node-gi is younger than the GJS side: it is tested and released with
+every gjsify release, but a breaking change can still land in a minor version.
+No gjsify package depends on it at runtime, so it can never destabilise a GJS
+build. See [Versioning](/gjsify/versioning/) for the stability model.
 
 ## Related
 
-- [How It Works](/gjsify/how-it-works/) — auto-aliasing, `--globals auto`, prebuilds
-- [node-gi](/gjsify/projects/node-gi/) — the reverse bridge in depth
-- [napi](/gjsify/projects/napi/) — the forward bridge: native Node.js `.node` addons in GJS
-- [Coverage](/gjsify/coverage/) — live dashboards of the implemented surface
-- [Versioning](/gjsify/versioning/) — release train and package tiers
+- [Platform Support](/gjsify/platform-support/): Linux, macOS and Windows, per target
+- [Packages](/gjsify/packages/overview/): what is implemented on each runtime
+- [Coverage](/gjsify/coverage/): live dashboards of the implemented surface
+- [node-gi](/gjsify/projects/node-gi/): the bridge that puts GObject on Node.js
+- [napi](/gjsify/projects/napi/): the other direction, native `.node` addons inside GJS
+- [How It Works](/gjsify/how-it-works/): the build pipeline behind the `--app` flag

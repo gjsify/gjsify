@@ -17,7 +17,7 @@ On Fedora:
 sudo dnf install gjs gtk4-devel glib2-devel gobject-introspection-devel libsoup3-devel vala blueprint-compiler
 ```
 
-> The monorepo bootstraps from the **published** `gjsify` (ADR 0002) — no yarn, no Corepack, no Node-only npm CLI, and no committed bundle in the checkout. `install.mjs` downloads the release asset, verifies its SHA-256 and caches it by digest.
+> The monorepo bootstraps from the **published** `gjsify` (ADR 0002). No yarn, no Corepack, no Node-only npm CLI, and no committed bundle in the checkout. `install.mjs` downloads the release asset, verifies its SHA-256 and caches it by digest.
 >
 > Use the FULL `install.mjs`, not `--fetch-only`: only the full mode runs `gjsify install -g @gjsify/cli`, which puts `@gjsify/tsc` beside the CLI. On a host with no Node that global copy is the only thing `gjsify tsc` can resolve, and `build:infra` starts with a `gjsify tsc`.
 
@@ -69,5 +69,5 @@ gjsify run test:node        # Run the same tests under Node.js
 
 ## Next steps
 
-- [Architecture](/gjsify/contributing/architecture/) — monorepo structure, build system and GNOME library mappings
-- [TDD Workflow](/gjsify/contributing/tdd-workflow/) — how to port a new Node.js or Web API to GJS test-first
+- [Architecture](/gjsify/contributing/architecture/): monorepo structure, build system and GNOME library mappings
+- [TDD Workflow](/gjsify/contributing/tdd-workflow/): how to port a new Node.js or Web API to GJS test-first

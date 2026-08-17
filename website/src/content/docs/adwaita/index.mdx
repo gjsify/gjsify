@@ -1,0 +1,163 @@
+---
+title: Adwaita
+description: The Adwaita design system for GTK 4, one page per widget family, with a live preview and the code for GJS, Blueprint, the web and NativeScript.
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+import AdwGalleryCard from '../../../components/AdwGalleryCard.astro';
+
+Adwaita is GNOME's design system for GTK 4: the rows, buttons, header bars and
+dialogs a GNOME app is made of. GJSify gives you the whole set from TypeScript,
+and the same widget renders as a real Libadwaita widget on the desktop and as a
+custom element in the browser.
+
+Pick a category below. Every widget on those pages runs live in your browser,
+followed by the code to build it four ways: `@girs` TypeScript (the same program
+on GJS, Node, Bun and Deno), a Blueprint declaration, the web port and the
+NativeScript port. Choose a tab once and every widget block on the site follows
+it.
+
+Adwaita is one design system GJSify supports, not a requirement. Your app is an
+ordinary GTK 4 program, so you can mix in plain `Gtk.*` widgets or style your
+own, and the browser components live in a package you opt into.
+
+## Get the widgets
+
+On the desktop the widgets come from the Libadwaita library already installed on
+the machine. `@girs/adw-1` is the type package for it, and nothing else is
+needed:
+
+```ts
+import Adw from '@girs/adw-1';
+
+const row = new Adw.SwitchRow({ title: 'Automatic updates', active: true });
+```
+
+For the browser, install the port and import it once. That registers every
+element and applies the stylesheet, so from there you write HTML:
+
+```bash
+gjsify install @gjsify/adwaita-web
+```
+
+```ts
+import '@gjsify/adwaita-web';
+```
+
+```html
+<adw-preferences-group title="Updates">
+    <adw-switch-row title="Automatic updates" active></adw-switch-row>
+</adw-preferences-group>
+```
+
+The package entry is TypeScript, so it goes through your bundler like any other
+dependency: `gjsify build --app browser`, the
+[`gjsifyBrowser()` Vite preset](../../guides/vite-plugin/), or whatever you
+already use.
+
+To change how any of it looks, set the [design tokens](./theming/).
+
+## Browse the widgets
+
+<div class="adw-gallery-grid">
+  <AdwGalleryCard title="Boxed Lists" href="/gjsify/adwaita/boxed-lists/" description="Preferences groups and their rows: action, switch, entry, combo, spin, expander and button.">
+    <Fragment slot="preview">
+      <adw-preferences-group style="width:100%;max-width:240px;">
+        <adw-switch-row title="Wi-Fi" active></adw-switch-row>
+        <adw-switch-row title="Bluetooth"></adw-switch-row>
+      </adw-preferences-group>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Buttons" href="/gjsify/adwaita/buttons/" description="Button content, the style classes, split buttons and linked toggle groups.">
+    <Fragment slot="preview">
+      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;">
+        <adw-button label="Suggested" suggested></adw-button>
+        <adw-button label="Delete" destructive></adw-button>
+        <adw-button icon="list-add" circular></adw-button>
+        <adw-button label="Pill" pill></adw-button>
+      </div>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Layout" href="/gjsify/adwaita/layout/" description="Clamp, header bar, toolbar view and wrap box: the frame you build a window out of.">
+    <Fragment slot="preview">
+      <adw-header-bar style="width:100%;">
+        <adw-button data-adw-slot="start" icon="go-previous" flat></adw-button>
+        <adw-window-title data-adw-slot="center" title="Text Editor" subtitle="notes.md"></adw-window-title>
+        <adw-button data-adw-slot="end" icon="open-menu" flat></adw-button>
+      </adw-header-bar>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Navigation" href="/gjsify/adwaita/navigation/" description="Split views, navigation stacks, sidebars and bottom sheets, all of them adaptive.">
+    <Fragment slot="preview">
+      <adw-sidebar mode="sidebar" selected="0" style="width:100%;max-width:240px;">
+        <adw-sidebar-section title="Mailboxes">
+          <adw-sidebar-item title="Inbox" subtitle="3 unread" icon-name="mail-unread-symbolic"></adw-sidebar-item>
+          <adw-sidebar-item title="Starred" subtitle="Favourites" icon-name="starred-symbolic"></adw-sidebar-item>
+          <adw-sidebar-item title="Archive" subtitle="Older mail" icon-name="folder-symbolic"></adw-sidebar-item>
+        </adw-sidebar-section>
+      </adw-sidebar>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="View Switching" href="/gjsify/adwaita/view-switching/" description="View switchers, tab views and carousels over a stack that shows one page at a time.">
+    <Fragment slot="preview">
+      <adw-inline-view-switcher display-mode="both">
+        <adw-view-stack-page title="Overview" icon-name="view-grid"><div></div></adw-view-stack-page>
+        <adw-view-stack-page title="Activity" icon-name="document-edit"><div></div></adw-view-stack-page>
+        <adw-view-stack-page title="Settings" icon-name="emblem-system"><div></div></adw-view-stack-page>
+      </adw-inline-view-switcher>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Presentation" href="/gjsify/adwaita/presentation/" description="Avatars, banners, spinners, status pages and window titles for showing state.">
+    <Fragment slot="preview">
+      <adw-avatar text="Ada Lovelace" size="72" show-initials icon="avatar-default"></adw-avatar>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Feedback" href="/gjsify/adwaita/feedback/" description="Toasts, plus the about, alert and preferences dialogs.">
+    <Fragment slot="preview">
+      <div class="adw-toast visible" style="position:static;">
+        <div class="adw-toast-content-wrapper">
+          <span class="adw-toast-title">File moved to Trash</span>
+        </div>
+        <button type="button" class="adw-toast-action-button">Undo</button>
+        <button type="button" class="adw-toast-close-button" aria-label="Close"></button>
+      </div>
+    </Fragment>
+  </AdwGalleryCard>
+</div>
+
+## Where the widgets run
+
+<CardGrid>
+  <Card title="On the desktop">
+    Real Libadwaita widgets, typed by [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1):
+    `Adw.SwitchRow`, `Adw.HeaderBar`, `Adw.NavigationSplitView`. This is the
+    reference the other two ports follow, and the code runs unchanged on GJS,
+    Node.js, Bun and Deno.
+  </Card>
+  <Card title="In the browser">
+    [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
+    gives you the same widgets as custom elements: `<adw-switch-row>`,
+    `<adw-header-bar>`. There is no runtime framework to learn: one import
+    registers everything, and then you write HTML.
+  </Card>
+  <Card title="On Android and iOS">
+    [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
+    reproduces the Adwaita look with real NativeScript views rather than a
+    webview: `AdwSwitchRow`, `AdwHeaderBar`. Some widgets are simplified, and
+    each page says where.
+  </Card>
+</CardGrid>
+
+The web and NativeScript ports share one behaviour layer, so a fix to a toast
+queue or a spin-button clamp lands in both at once. If you want the mechanics,
+see [How It Works](/gjsify/how-it-works/).
+
+## Try the widgets interactively
+
+The [Adwaita Storybook](../../showcases/adwaita-storybook/) is a component
+browser: pick a widget, change its properties from a controls panel, and watch it
+update. Run it as a native window with `gjsify storybook`, or use the version
+embedded on that page.
+
+Ready to assemble a whole app out of these? Start with
+[Native Adwaita Apps](../../guides/native-adwaita-app/).

@@ -1,36 +1,41 @@
 ---
 title: Navigation
-description: Adwaita navigation widgets — navigation split view, overlay split view, navigation view, sidebar and bottom sheet — described neutrally with a live preview and GJS, Web and NativeScript code.
+description: "Adwaita navigation widgets: navigation split view, overlay split view, navigation view, sidebar and bottom sheet. Live preview plus the code for GJS, Blueprint, the web and NativeScript."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
 
-**Navigation** widgets move between the top-level places of an app and adapt that
-movement to the window size. On a wide window a sidebar and its content sit side
-by side; as the window narrows the same structure folds into a stack you push and
-pop, or a panel that overlays the content. Each widget below is described
-independently of any one toolkit, then shown three ways.
+These widgets move the user between the top-level places of your app, and they
+adapt that movement to the window size for free. On a wide window a sidebar and
+its content sit side by side. As the window narrows, the same structure folds
+into a stack you push and pop, or into a panel that overlays the content. You
+build one structure, not two.
 
-**Native GJS** (real Libadwaita through [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1))
-is the primary implementation; the **Web** ([`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web))
-and **NativeScript** ([`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita))
-ports mirror it.
+Each preview below is the live web component, so it follows the light and dark
+toggle the way a real window would. Under it, the tabs give you the same widget
+four ways: `@girs` TypeScript (one program, running on GJS, Node, Bun and Deno),
+the matching Blueprint declaration, the web port and the NativeScript port.
+
+Libadwaita is the reference here, typed by
+[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
+[`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
+and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
+follow its naming, and where one of them differs, its tab says so.
 
 :::note
-These widgets lean hardest on behaviour Libadwaita drives natively — adaptive
-breakpoints, gesture-driven overlays, animated push/pop and back-swipe. The
-previews use the browser port, so they render one representative state (sidebar
-shown, sheet open) and the collapse, overlay and slide interactions are
-simplified. Where a port diverges, its tab says so.
+These are the widgets that lean hardest on Libadwaita: adaptive breakpoints,
+gesture-driven overlays, animated push and pop, back-swipe. The previews run the
+browser port, so each shows one representative state (sidebar shown, sheet open)
+and the collapse, overlay and slide interactions are simplified.
 :::
 
 ## Navigation Split View
 
-A resizable **sidebar beside a content pane**. On a wide window the two panes sit
-side by side; when the window is narrow the view **collapses** into a single
-navigation stack, where selecting a sidebar row pushes the content page and a
-back button returns to the list. The sidebar and content are each a navigation
-page with its own header bar.
+The workhorse for a mail-client or settings layout: a resizable **sidebar beside
+a content pane**. On a wide window the two sit side by side. When the window is
+narrow the view **collapses** into a single navigation stack, so selecting a
+sidebar row pushes the content page and a back button returns to the list. Give
+the sidebar and the content each their own navigation page and header bar.
 
 <AdwWidget title="Adw.NavigationSplitView" padding="flush">
   <Fragment slot="preview">
@@ -63,7 +68,7 @@ page with its own header bar.
     import Adw from '@girs/adw-1';
 
     // Sidebar: an Adw.Sidebar, NOT a boxed list. A boxed list is a card of
-    // settings and draws itself as one — rounded, bordered, edge to edge in a
+    // settings and draws itself as one: rounded, bordered, edge to edge in a
     // pane that gives it no margin. A navigation sidebar is a flat selectable
     // list, and the widget that already knows how to be one is this.
     const section = new Adw.SidebarSection();
@@ -232,11 +237,10 @@ page with its own header bar.
 
 ## Overlay Split View
 
-A sidebar shown **beside** the content, or laid **over the top** of it when
-collapsed. Unlike the navigation split view, the collapsed sidebar overlays the
-content as a temporary panel — sliding in over a dimming scrim — rather than
-replacing it. This suits a utility, filter or navigation pane that should not
-push the primary content aside on a narrow window.
+Also a sidebar **beside** the content, but with a different collapsed behaviour:
+instead of replacing the content, the sidebar slides **over the top** of it as a
+temporary panel above a dimming scrim. Choose this one for a utility, filter or
+navigation pane that should not push the main content aside on a narrow window.
 
 <AdwWidget title="Adw.OverlaySplitView" padding="flush">
   <Fragment slot="preview">
@@ -265,7 +269,7 @@ push the primary content aside on a narrow window.
     import Adw from '@girs/adw-1';
 
     // Sidebar: a flat, title-less toolbar view over an Adw.Sidebar. The pane
-    // needs no style class of its own — Adw.OverlaySplitView puts `.sidebar-pane`
+    // needs no style class of its own: Adw.OverlaySplitView puts `.sidebar-pane`
     // on it while docked and `.overlay-pane` while collapsed, which is what
     // gives it its colour. (The old `.sidebar` class libadwaita deprecates in
     // favour of `.navigation-sidebar`; Adw.Sidebar carries that look itself.)
@@ -415,12 +419,12 @@ push the primary content aside on a narrow window.
 
 ## Navigation View
 
-A **navigation stack** of pages with push/pop semantics and an automatic back
-button. The root page is shown first; pushing a page slides it in from the
-trailing edge (when transitions are animated) and adds a back button that pops
-it, while a back-swipe gesture returns to the previous page. In the preview
-below the root page's **Open contact** button pushes the detail page — the push
-is interactive, so click it to see the transition and back button.
+A **navigation stack**: push a page, pop it, and get the back button for free.
+The root page shows first. Pushing slides the next page in from the trailing edge
+when transitions are animated, and a back-swipe gesture takes the user back.
+
+The preview below is interactive: click **Open contact** on the root page to push
+the detail page and watch the back button appear.
 
 <AdwWidget title="Adw.NavigationView" padding="flush">
   <Fragment slot="preview">
@@ -585,11 +589,14 @@ is interactive, so click it to see the transition and back button.
 
 ## Sidebar
 
-A **selectable list of items** grouped into titled sections. Selecting an item is
-the navigation gesture that drives the content shown beside it. Each item carries
-a title, an optional subtitle and a leading icon, and the sidebar supports two
-modes — a persistent `sidebar` and a full-width `page` — so it can adapt between
-wide and narrow layouts.
+The list that goes inside a split view: **selectable items** grouped into titled
+sections, where selecting one drives the content beside it. Each item takes a
+title, an optional subtitle and a leading icon. Two modes let it adapt: a
+persistent `sidebar` for wide layouts and a full-width `page` for narrow ones.
+
+Use this rather than a boxed list. A boxed list draws itself as a settings card,
+which looks wrong edge to edge in a pane; a sidebar is a flat selectable list and
+already knows how to be one.
 
 <AdwWidget title="Adw.Sidebar" padding="flush">
   <Fragment slot="preview">
@@ -741,11 +748,12 @@ wide and narrow layouts.
 
 ## Bottom Sheet
 
-A sheet that **slides up from the bottom edge** over the content it belongs to.
-It suits contextual actions and secondary content, especially on narrow windows.
-It can be **modal** — dimming the content behind it — and optionally dismissed by
-dragging it down. The preview shows the sheet in its open state; toggling it is
-interactive in a real window.
+A sheet that **slides up from the bottom edge** over the content it belongs to,
+which suits contextual actions and secondary content on a narrow window. Make it
+**modal** to dim the content behind it. `canClose` is on by default, so Escape or
+a click on the dimmed area dismisses the sheet; switch it off to keep the sheet
+up until your own code closes it. The preview shows the sheet already open; in a
+real window the toggle button opens and closes it.
 
 <AdwWidget title="Adw.BottomSheet" padding="flush">
   <Fragment slot="preview">
@@ -959,9 +967,11 @@ interactive in a real window.
 
 ## Related
 
-- [View Switching](../view-switching/) — switch between peer views (view stacks,
-  view switchers, tab views) rather than moving through a stack.
-- [Layout](../layout/) — the `Clamp`, `ToolbarView` and breakpoints these
-  navigation surfaces are built on.
-- [Adwaita Storybook](../../showcases/adwaita-storybook/) — the same widgets in a
-  live, interactive component browser.
+- [View Switching](../view-switching/): for switching between peer views instead
+  of moving through a stack.
+- [Layout](../layout/): the `Clamp` and `ToolbarView` these navigation surfaces
+  are built on.
+- [Native Adwaita Apps](../../guides/native-adwaita-app/): a ready-made
+  `NavigationSplitView` shell you can drop views into.
+- [Adwaita Storybook](../../showcases/adwaita-storybook/): the same widgets in a
+  live component browser you can poke at.

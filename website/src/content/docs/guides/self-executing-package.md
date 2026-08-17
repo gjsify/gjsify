@@ -1,24 +1,25 @@
 ---
-title: Build a self-executing GJS package
-description: Ship a single executable file users can run on bare GJS — no Node, no npm, no `gjsify dlx`
+title: Build a self-executing GJS bundle
+description: Ship one executable file that runs on bare gjs, with no Node, no npm and no gjsify on the user's machine.
 ---
 
-A self-executing package is a single GJS bundle file with a shebang that runs directly on `gjs`. End users never invoke `gjsify`, `gjsify dlx`, `npm`, or `node` — they just download or `chmod +x` your file and run it. This guide is the recipe — the canonical implementation is [ts-for-gir](https://github.com/gjsify/ts-for-gir/blob/main/packages/cli/).
+Pick this route when you want people to download one file, `chmod +x` it, and
+run it. There is no package manager, no install step and no gjsify on their
+machine; all they need is `gjs`. For the routes that install something, start
+at [Ship your app](/gjsify/ship/).
 
-If you only need an `npm`-distributable runner that consumers reach via `gjsify dlx <pkg>`, see [Distribute a package via `gjsify dlx`](./dlx-packaging) — that's a simpler pattern.
-
-## What you ship
+What you end up shipping is a single file:
 
 ```
 my-tool/
-├── bin/
-│   └── my-tool        # 23 MB single file, executable, with `#!/usr/bin/env -S gjs -m`
-└── (everything below is the build pipeline that produced bin/my-tool)
+└── bin/
+    └── my-tool     # executable, starting with #!/usr/bin/env -S gjs -m
 ```
 
-When users run `./bin/my-tool --help`, GJS interprets the shebang and executes the bundle. Nothing else on disk is read.
+When someone runs `./bin/my-tool --help`, GJS reads the shebang and executes
+the bundle. Nothing else on disk is touched.
 
-## 1. Write the entry point
+## Write the entry point
 
 ```ts
 // src/start.ts
@@ -33,18 +34,19 @@ async function main(): Promise<void> {
     })
     .parseAsync();
 
-  // CRITICAL: GJS keeps the GLib main loop alive after main() resolves.
-  // Without an explicit exit the process hangs silently after the last
-  // log line — visible to the user as "command did nothing".
   process.exit(0);
 }
 
 main();
 ```
 
-The explicit `process.exit(0)` is the most-common gotcha. Any module you import that touches `setTimeout`, `WebSocket`, `Soup.Server`, or initialises a Gtk app spins up a `GLib.MainLoop` that won't terminate on its own. The CLI's job is to call `process.exit` after its work resolves.
+That last `process.exit(0)` matters. Anything you import that touches
+`setTimeout`, a `Soup` session, a WebSocket or a GTK application starts a GLib
+main loop, and the loop keeps running after `main()` resolves. Without the
+explicit exit your tool prints its output and then sits there, which users read
+as "the command hung".
 
-## 2. Configure the build
+## Configure the build
 
 ```jsonc
 // package.json
@@ -53,81 +55,66 @@ The explicit `process.exit(0)` is the most-common gotcha. Any module you import 
   "version": "0.1.0",
   "type": "module",
   "main": "src/start.ts",
-  "bin": {
-    "my-tool": "bin/my-tool"
-  },
+  "bin": { "my-tool": "bin/my-tool" },
   "files": ["bin", "src"],
   "scripts": {
     "build": "gjsify build src/start.ts"
   },
   "gjsify": {
+    "app": "gjs",
     "shebang": true,
-    "bundler": {
-      "outfile": "bin/my-tool"
-    },
-    "bin": {
-      "my-tool": "bin/my-tool"
+    "bundler": { "output": { "file": "bin/my-tool" } },
+    "bin": { "my-tool": "bin/my-tool" },
+    "defineFromPackageJson": {
+      "__MY_TOOL_VERSION__": { "field": "version" }
     }
   },
   "devDependencies": {
-    "@gjsify/cli": "^0.18.0"
+    "@gjsify/cli": "^0.40.0"
   }
 }
 ```
 
-Two `bin` blocks — one at the package root (npm semantics: `npm install -g` symlinks here) and one inside `gjsify` (so `gjsify dlx @me/my-tool` resolves to the same file).
+Four keys carry the weight:
 
-`gjsify.shebang: true` makes the build prepend `#!/usr/bin/env -S gjs -m` and `chmod 0755` the output. Equivalent to `gjsify build src/start.ts --shebang`.
+- **`gjsify.app: "gjs"`** pins the target. Left out, the target follows whatever
+  runtime the CLI runs on, and building from Node would give you a Node bundle.
+- **`gjsify.shebang: true`** prepends `#!/usr/bin/env -S gjs -m` and marks the
+  output executable. Same as passing `--shebang`.
+- **`gjsify.bundler.output.file`** sets the output path. You need it here
+  because `main` points at a TypeScript source, and `gjsify build` refuses to
+  default the output onto a source file.
+- **`gjsify.defineFromPackageJson`** substitutes your version into the bundle at
+  build time, so `--version` reports something true.
+
+There are two `bin` blocks on purpose: the top-level one is npm's (`npm i -g`
+symlinks it), and the `gjsify` one lets `gjsify dlx @me/my-tool` find the same
+file.
 
 ```bash
 yarn build
-./bin/my-tool hello Pascal       # → Hello, Pascal!
+./bin/my-tool hello Pascal       # Hello, Pascal!
 ```
 
-## 3. Bake in the version (optional)
+## Report the right version
 
-If you need a `--version` command that reflects the bundled package's version, pass it through the bundler's `--define`. ts-for-gir does this with a 5-line wrapper:
-
-```js
-// scripts/build-gjs.mjs
-import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-
-const here = dirname(fileURLToPath(import.meta.url));
-const pkg = JSON.parse(readFileSync(join(here, "..", "package.json"), "utf-8"));
-const result = spawnSync(
-  "gjsify",
-  ["build", "src/start.ts", "--define", `__MY_TOOL_VERSION__=${JSON.stringify(pkg.version)}`],
-  { stdio: "inherit", cwd: join(here, "..") },
-);
-process.exit(result.status ?? 1);
-```
-
-Reference the constant in source:
+`defineFromPackageJson` turns `__MY_TOOL_VERSION__` into a compile-time
+constant. Declare it once for TypeScript:
 
 ```ts
 // src/types/version.d.ts
 declare const __MY_TOOL_VERSION__: string;
 ```
 
+and hand it to yargs:
+
 ```ts
-// in your CLI
-.option("version", { alias: "v", desc: () => __MY_TOOL_VERSION__ });
+.version(__MY_TOOL_VERSION__)
 ```
 
-Then wire `package.json#scripts.build` to invoke the wrapper:
+## Publish it on GitHub Releases
 
-```jsonc
-"scripts": {
-  "build": "node scripts/build-gjs.mjs"
-}
-```
-
-## 4. Distribute via GitHub Releases
-
-A GitHub-Actions workflow that builds the bundle on `release: published` and uploads it as a release asset:
+A workflow that builds on `release: published` and attaches the file:
 
 ```yaml
 # .github/workflows/release-app.yml
@@ -157,7 +144,7 @@ jobs:
             bin/my-tool --clobber
 ```
 
-Now every release tag has the binary attached. Consumers download it directly:
+Every release tag now carries the binary, and the download is three lines:
 
 ```bash
 curl -L https://github.com/me/my-tool/releases/latest/download/my-tool -o my-tool
@@ -165,61 +152,13 @@ chmod +x my-tool
 ./my-tool --version
 ```
 
-## 5. Bootstrap installer (`install.js`)
+If you would rather hand people a script than a URL, generate one with
+[`gjsify generate-installer`](/gjsify/guides/distributing-gjs-apps/). It installs from npm
+into `~/.local`, which also gives users a clean upgrade path.
 
-Provide a one-liner curl-friendly installer that's itself a GJS script — so users don't even need `curl`'s `-o`:
+## Add a self-update command
 
-```js
-#!/usr/bin/env -S gjs -m
-// install.js — installs my-tool into ~/.local/bin
-import GLib from "gi://GLib";
-import Gio from "gi://Gio";
-import Soup from "gi://Soup?version=3.0";
-import { exit } from "system";
-
-const REPO = "me/my-tool";
-const ASSET = "my-tool";
-const TARGET = GLib.build_filenamev([
-  GLib.get_home_dir(), ".local", "bin", "my-tool",
-]);
-
-const session = new Soup.Session();
-const apiMsg = Soup.Message.new(
-  "GET",
-  `https://api.github.com/repos/${REPO}/releases/latest`,
-);
-apiMsg.request_headers.append("Accept", "application/vnd.github.v3+json");
-apiMsg.request_headers.append("User-Agent", "my-tool-installer");
-
-const apiBytes = session.send_and_read(apiMsg, null);
-const release = JSON.parse(new TextDecoder().decode(apiBytes.toArray()));
-const url = release.assets.find((a) => a.name === ASSET)?.browser_download_url;
-if (!url) { printerr("asset not found"); exit(1); }
-
-print(`[my-tool] downloading ${release.tag_name}...`);
-const dlMsg = Soup.Message.new("GET", url);
-const bytes = session.send_and_read(dlMsg, null);
-GLib.mkdir_with_parents(GLib.path_get_dirname(TARGET), 0o755);
-GLib.file_set_contents_full(
-  TARGET,
-  bytes.toArray(),
-  GLib.FileSetContentsFlags.NONE,
-  0o755,
-);
-print(`[my-tool] installed to ${TARGET}`);
-```
-
-Users run:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/me/my-tool/main/install.js | gjs -m /dev/stdin
-```
-
-(Or download `install.js` and run it locally.) `install.js` itself is a self-executing GJS script — no Node, no `npm`. ts-for-gir's [install.js](https://github.com/gjsify/ts-for-gir/blob/main/install.js) is a battle-tested reference.
-
-## 6. Self-update from inside the binary
-
-Add a `self-update` subcommand to the bundle so users update without re-running the installer:
+Saves your users from re-running the download by hand:
 
 ```ts
 // src/commands/self-update.ts
@@ -231,7 +170,7 @@ const REPO = "me/my-tool";
 const ASSET = "my-tool";
 
 export async function selfUpdate(): Promise<void> {
-  // Refuse to self-update if running from source / node_modules
+  // Running from source or from node_modules: there is nothing to replace.
   const target = process.argv[1] ?? "";
   if (!target || target.endsWith(".ts") || target.includes("node_modules")) {
     console.log("self-update only works on the installed binary");
@@ -240,7 +179,7 @@ export async function selfUpdate(): Promise<void> {
 
   const release = await (await fetch(
     `https://api.github.com/repos/${REPO}/releases/latest`,
-    { headers: { "User-Agent": `my-tool` } },
+    { headers: { "User-Agent": "my-tool" } },
   )).json();
 
   const url = release.assets.find((a: any) => a.name === ASSET)
@@ -249,9 +188,8 @@ export async function selfUpdate(): Promise<void> {
 
   const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
 
-  // Atomic install: write to tmp file, chmod, rename over the running binary.
-  // Linux allows replacing an executing binary because the kernel keeps the
-  // old inode open until the process exits.
+  // Write, chmod, then rename over the running file. Linux keeps the old inode
+  // open until this process exits, so replacing a running binary is safe.
   const tmp = join(tmpdir(), `${ASSET}.${process.pid}`);
   writeFileSync(tmp, bytes);
   chmodSync(tmp, 0o755);
@@ -261,52 +199,51 @@ export async function selfUpdate(): Promise<void> {
 }
 ```
 
-Wire as a yargs command:
-
 ```ts
 .command("self-update", "update to the latest release", {}, selfUpdate)
 ```
 
-This works because GJSify bundles the modern `fetch` + `node:fs` polyfills automatically.
+`fetch` and `node:fs` both work here because the build bundles the gjsify
+polyfills for them. `process.argv[1]` is the path GJS was handed, which is your
+binary.
 
-## 7. Optional — also publish on npm
+## Publish on npm too
 
-You can ship the same package on npm so consumers who *do* have Node can use `gjsify dlx`:
+The same package can also go to the registry, so people who do have Node reach
+it through `gjsify dlx`:
 
 ```bash
 yarn npm publish
 ```
 
-Then both flows work:
-
 ```bash
-# Self-executing — no Node, no gjsify
+# no Node, no gjsify
 curl -L .../my-tool -o my-tool && chmod +x my-tool && ./my-tool
 
-# Via gjsify dlx — uses the same bundle from the npm tarball
+# same bundle, from the npm tarball
 gjsify dlx @me/my-tool
 ```
 
-Make sure the `bin/my-tool` file is in the published tarball (`"files": ["bin"]`) and `gjsify.bin` points to it.
+Keep `bin/my-tool` inside the published tarball (`"files": ["bin"]`) and make
+sure `gjsify.bin` points at it. See
+[Publish a package people run with dlx](/gjsify/guides/dlx-packaging/) for the rest.
 
-## Common pitfalls
+## When it misbehaves
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| Process hangs after last log line | Active `GLib.MainLoop` (any `setTimeout`, Soup, Gtk, ...) | Call `process.exit(0)` after `parseAsync()` resolves |
-| `Cannot find module '...'` at runtime | Some dep escaped bundling | Don't use `external` for code paths that actually run; verify with `gjs -m bin/my-tool` in a directory with no `node_modules` |
-| Bundle is 80 MB | Large dep included unnecessarily (e.g. typedoc, full TS compiler) | `--external typedoc` or `--alias typedoc=@gjsify/empty` for code paths the runtime never reaches |
-| `--version` prints `0.0.0` or undefined | Forgot the `--define` step | Add the `build-gjs.mjs` wrapper from step 3 |
-| `EACCES` running the bundle | Build forgot to chmod | Use `gjsify.shebang: true` (or `--shebang`) |
-| `gjsify build: refusing to default --outfile to src/start.ts` | `package.json#main` is `src/start.ts` and you didn't set an explicit outfile | Set `gjsify.bundler.output.file` (this is the safety check that prevents source overwrites) |
+| Hangs after the last line of output | A GLib main loop is still running (`setTimeout`, Soup, GTK) | `process.exit(0)` once your work resolves |
+| `Cannot find module '...'` at runtime | A dependency escaped the bundle | Drop it from `external`, then verify with `gjs -m bin/my-tool` in a directory with no `node_modules` |
+| The bundle is enormous | A large dependency got pulled in that never runs | `--external typedoc`, or `--alias typedoc=@gjsify/empty` |
+| `--version` prints nothing useful | No `defineFromPackageJson` entry | Add it and declare the constant |
+| `EACCES` when running the file | Not marked executable | `gjsify.shebang: true`, or `--shebang` |
+| `refusing to default --outfile to src/start.ts` | `main` is a TypeScript source and no output was set | Set `gjsify.bundler.output.file` |
 
-## Reference implementation
+## A working example
 
-[ts-for-gir](https://github.com/gjsify/ts-for-gir) implements every step above:
+[ts-for-gir](https://github.com/gjsify/ts-for-gir) ships exactly this way:
 
-- Entry: [`packages/cli/src/start.ts`](https://github.com/gjsify/ts-for-gir/blob/main/packages/cli/src/start.ts)
-- Build: [`packages/cli/scripts/build-gjs.mjs`](https://github.com/gjsify/ts-for-gir/blob/main/packages/cli/scripts/build-gjs.mjs)
-- Release workflow: [`.github/workflows/release-app.yml`](https://github.com/gjsify/ts-for-gir/blob/main/.github/workflows/release-app.yml)
-- Installer: [`install.js`](https://github.com/gjsify/ts-for-gir/blob/main/install.js)
-- Self-update: [`packages/cli/src/commands/self-update.ts`](https://github.com/gjsify/ts-for-gir/blob/main/packages/cli/src/commands/self-update.ts)
-- E2E tests against the bundle: [`packages/cli/tests/e2e/cli-gjs/`](https://github.com/gjsify/ts-for-gir/blob/main/packages/cli/tests/e2e/cli-gjs/)
+- entry: [`packages/cli/src/start.ts`](https://github.com/gjsify/ts-for-gir/blob/main/packages/cli/src/start.ts)
+- release workflow: [`.github/workflows/release-app.yml`](https://github.com/gjsify/ts-for-gir/blob/main/.github/workflows/release-app.yml)
+- installer script: [`install.js`](https://github.com/gjsify/ts-for-gir/blob/main/install.js)
+- self-update: [`packages/cli/src/commands/self-update.ts`](https://github.com/gjsify/ts-for-gir/blob/main/packages/cli/src/commands/self-update.ts)

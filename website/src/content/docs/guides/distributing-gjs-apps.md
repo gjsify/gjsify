@@ -1,77 +1,74 @@
 ---
-title: Distribute your GJS app
-description: Two ways to put a GJS app on someone else's machine — a one-line Node-free installer, or a .deb/.rpm via gjsify ship.
+title: Ship a one-line installer
+description: Generate an install.mjs so people install your GJS app with one curl command, without Node and without root.
 ---
 
-There are two ways to put a GJS app on someone else's machine, and they answer
-different questions.
+Pick this route when you iterate fast and want users on the newest version
+today rather than whenever a distro package catches up; everything lands under
+`~/.local`, so no `sudo` is involved. The other routes (deb, rpm, Flatpak, dlx)
+are compared on [Ship your app](/gjsify/ship/).
 
-| | `gjsify generate-installer` | `gjsify ship` |
-|---|---|---|
-| Produces | a one-line `curl … \| gjs` installer | a `.deb` / `.rpm` |
-| Installs into | `~/.local/` (per user, no root) | the system, via the distro package manager |
-| User needs | `gjs ≥ 1.86` and `curl` | nothing but their package manager |
-| Updates | re-run the installer | `apt upgrade` / `dnf upgrade` |
-| Best for | early adopters, CLI tools, anything you iterate on quickly | a release you want a distro user to install and forget |
+## Generate the installer
 
-This page is about the first. The second is
-[`gjsify ship`](/gjsify/cli-reference/#gjsify-ship) — one staged payload wrapped
-per format, with the design recorded in
-[ADR 0024](https://github.com/gjsify/gjsify/blob/main/docs/adr/0024-ship-installable-artifacts.md).
-They are not exclusive: the same built bundle feeds both.
-
-One thing to know before reaching for a `.deb`: the emitted dependency is
-`gjs (>= 1.86)`, and **no released Debian satisfies it** — Debian went 1.82.3
-(trixie) straight to 1.88.1 (forky), skipping 1.84 and 1.86. `gjsify ship` says
-so at package time rather than lowering the floor quietly, because a package apt
-refuses is better than one that installs and then dies on a syntax error.
-
-The same Node-free bootstrap that installs `@gjsify/cli` also installs
-**any GJS-runnable package on npm** — including yours.
-
-## Generate an installer for your package
-
-From the root of your GJSify app:
+From the root of your app:
 
 ```bash
 gjsify generate-installer
 ```
 
-This writes `install.mjs` to the current directory, with three constants
-substituted for your package: the npm name (from `package.json#name`),
-the bin name (the first key of `gjsify.bin` or `bin`), and the GJSify
-bootstrap URL (defaults to
-`https://github.com/gjsify/gjsify/releases/latest/download/cli.gjs.mjs`).
+That writes `install.mjs` next to your `package.json`, already filled in with
+your npm package name, your bin name (the first key of `gjsify.bin`, else of
+`bin`), and the URL of the gjsify bootstrap bundle.
 
-Commit the generated `install.mjs`:
+Commit it:
 
 ```bash
-git add install.mjs && git commit -m "chore: add gjsify-based installer"
+git add install.mjs && git commit -m "chore: add the gjsify installer"
 git push
 ```
 
-Your README's install instructions become:
+Your README's install section is now a single command:
 
 ```bash
 curl -fsSL https://github.com/<you>/<repo>/raw/main/install.mjs \
   -o /tmp/i.mjs && gjs -m /tmp/i.mjs && rm /tmp/i.mjs
 ```
 
-## What it does for your users
+## What your users get
 
-1. Downloads the pinned `cli.gjs.mjs` bootstrap bundle from the GJSify
-   GitHub release, verifies SHA-256.
-2. Spawns `gjs -m <bundle> install -g <your-package>` — `@gjsify/cli`'s
-   install backend resolves your package's transitive dependencies
-   (including any native prebuilds), writes them under
-   `~/.local/share/gjsify/global/`, and creates the
-   `~/.local/bin/<your-bin>` launcher.
+The script downloads the pinned `cli.gjs.mjs` bootstrap bundle, verifies it
+against the published SHA-256, and uses it to install your package from npm
+with its dependencies and any native prebuilds. Your package lands in
+`~/.local/share/gjsify/global/`, and a launcher appears at
+`~/.local/bin/<your-bin>`.
 
-No Node, no npm, no yarn on the user's machine. Just `gjs ≥ 1.86`
-(included with Fedora 43+, Arch, and Debian forky/sid — Debian 13 "trixie" ships
-1.82.3 and does not qualify) and `curl`.
+Nothing else has to be on their machine: no Node, no npm, no yarn. They need
+`curl` and `gjs` 1.86 or newer. Fedora 43+, Arch and Debian forky/sid qualify;
+Debian 13 "trixie" ships 1.82.3 and does not, and the installer says so with
+the right `apt` line instead of failing halfway.
 
-## Customise
+## Options your users can pass
+
+The generated `install.mjs` takes flags of its own, so someone can pin a
+version or reuse the script for a different package:
+
+```bash
+gjs -m install.mjs --tag 1.4.0            # a version or an npm dist-tag
+gjs -m install.mjs --force                # reinstall over an existing copy
+gjs -m install.mjs --target @me/other-pkg
+gjs -m install.mjs --help
+```
+
+It also reads four environment variables:
+
+| Variable | Effect |
+|---|---|
+| `GJSIFY_GLOBAL_PREFIX` | Install prefix. Default `~/.local/share/gjsify/global`. |
+| `GJSIFY_GLOBAL_BIN_DIR` | Where the launcher goes. Default `~/.local/bin`. |
+| `GJSIFY_INSTALL_BOOTSTRAP_URL` | Alternate bootstrap bundle. A `file://` URL works. |
+| `GJSIFY_INSTALL_REGISTRY` | npm registry override. |
+
+## Change what gets generated
 
 ```bash
 gjsify generate-installer \
@@ -84,58 +81,50 @@ gjsify generate-installer \
 | Flag | Default |
 |---|---|
 | `[target]` (positional) | `package.json#name` |
-| `--bin-name <name>` | first key of `gjsify.bin` or `bin` |
-| `--bootstrap-url <url>` | GJSify GitHub `releases/latest/download/cli.gjs.mjs` |
-| `--output <file>` | `install.mjs` (in cwd) |
-| `--force` | overwrite existing |
+| `--bin-name <name>` | first key of `gjsify.bin`, else of `bin` |
+| `--bootstrap-url <url>` | gjsify's GitHub `releases/latest/download/cli.gjs.mjs` |
+| `--output <file>` | `install.mjs` in the current directory |
+| `--force` | overwrite an existing file |
 
-For airgapped environments or forks, host your own bootstrap bundle and
-point `--bootstrap-url` at it. The generated `install.mjs` honors a
-`GJSIFY_INSTALL_BOOTSTRAP_URL` env var at runtime so users can override
-it without editing the script.
+On an airgapped network, or from a fork, host your own bootstrap bundle and
+point `--bootstrap-url` at it. Users can still override it per run with
+`GJSIFY_INSTALL_BOOTSTRAP_URL`, so you don't need a second script for the
+exceptions.
 
-## Requirements for your package
+## Make your package installable
 
-Your published package needs:
+Two things have to be true of what you publish. First, `package.json` names the
+GJS entry bundle:
 
-- `gjsify.bin` (or `bin`) in `package.json` pointing at the GJS entry
-  bundle:
-
-  ```json
-  {
-    "gjsify": { "bin": { "my-app": "./dist/my-app.gjs.mjs" } }
+```json
+{
+  "gjsify": {
+    "bin": { "my-app": "./dist/my-app.gjs.mjs" }
   }
-  ```
+}
+```
 
-- The bundle built with `gjsify build … --app gjs --shebang` so the
-  installed launcher works correctly. (The launcher will wrap with
-  `exec gjs -m '<bundle>'` for any `.mjs` target, so the shebang is
-  optional — but recommended.)
+Second, that bundle is built for GJS:
 
-- Any native prebuilds (`.so` / `.dylib` / `.dll` + `.typelib`) declared as
-  runtime dependencies of packages that contain a `gjsify.prebuilds` field.
-  `@gjsify/cli`'s install backend walks those automatically and bakes the
-  directories it finds into the bin launcher's environment.
+```bash
+gjsify build src/index.ts --app gjs --outfile dist/my-app.gjs.mjs --shebang
+```
 
-  The walk resolves `prebuilds/<os>-<arch>/` for the running host. There is one
-  spelling — `${process.platform}-${process.arch}` (`linux-x64`, `linux-arm64`,
-  `darwin-arm64`, `win32-x64`) — which is exactly what a running process can
-  compute about itself, so nothing has to be translated. A package's own
-  `gjsify.platforms` entry is still probed first, and the retired uname
-  spelling (`linux-x86_64`) is accepted as a fallback so tarballs published
-  before the rename keep loading. The launcher exports `GI_TYPELIB_PATH` plus
-  the library-search variable the host loader reads: `LD_LIBRARY_PATH` on
-  Linux, `DYLD_LIBRARY_PATH` on macOS, `PATH` on Windows.
+`--shebang` prepends `#!/usr/bin/env -S gjs -m` and marks the file executable.
+The installed launcher wraps any `.mjs` target in `exec gjs -m …` regardless,
+so this is optional; with it, the file also runs when someone invokes it
+directly.
 
-  So the *resolution* is cross-platform. Whether your app runs off Linux still
-  depends on whether its native dependencies actually publish an artifact for
-  that host — see [Platform Support](/gjsify/platform-support/) for the
-  per-package matrix.
+If your app depends on packages carrying native prebuilds, there is nothing to
+configure. The installer walks them and bakes the matching typelib and library
+search paths into the launcher. Which prebuilds exist for which host is a
+separate question, answered in
+[Platform Support](/gjsify/platform-support/); how the lookup works is in
+[How It Works](/gjsify/how-it-works/).
 
-## Reference implementations
+## Working examples
 
 - [`@gjsify/cli`](https://github.com/gjsify/gjsify/tree/main/packages/infra/cli)
-  itself — the canonical example. Its root `install.mjs` is the
-  template `gjsify generate-installer` writes.
-- [`@ts-for-gir/cli`](https://github.com/gjsify/ts-for-gir) — multi-bin
-  GJS app distributed via the same bootstrap.
+  ships the `install.mjs` that this command copies and substitutes into.
+- [`@ts-for-gir/cli`](https://github.com/gjsify/ts-for-gir) uses the same
+  bootstrap for a package with several bins.

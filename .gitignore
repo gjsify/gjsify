@@ -167,3 +167,7 @@ ship/
 # refused, and a NEW source file there would be silently unaddable, which is how it
 # gets lost rather than reviewed.
 !packages/infra/cli/src/utils/ship/
+# …and the DOCS section for that command, which is untracked and therefore hit the
+# silent case above: both pages were written, `git status` showed nothing, and a
+# commit would have carried none of it.
+!website/src/content/docs/ship/
