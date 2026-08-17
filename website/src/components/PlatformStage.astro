@@ -154,32 +154,41 @@ const HOLD_MS = 5200;
       <adw-window class="platform-app-window">
         <adw-toolbar-view>
           <adw-header-bar slot="top">
-            {/* The window controls are the one part of the app that DOES change
-                per desktop, and that is the point rather than an inconsistency:
-                GTK follows each platform's decoration layout, so the same binary
-                gets Adwaita's close button on GNOME, the three Windows controls,
-                and macOS' traffic lights on the LEFT. All three are rendered and
-                the stage shows the one matching the desktop below. */}
+            {/* An app's MAIN window, which is why it has a control set worth
+                showing at all — a dialog carries a close button and nothing else
+                on every platform, so the earlier "Preferences" window could not
+                have had three of anything.
+                The set is the one part of the app that legitimately differs per
+                desktop: GTK follows each platform's decoration layout, so the same
+                binary gets one close button on GNOME, minimize/maximize/close on
+                Windows, and macOS' traffic lights on the LEFT. All three are
+                rendered; the stage shows the one matching the desktop below. */}
             <span class="platform-controls platform-controls--macos" slot="start" aria-hidden="true">
               <i class="platform-traffic platform-traffic--close" />
               <i class="platform-traffic platform-traffic--min" />
               <i class="platform-traffic platform-traffic--zoom" />
             </span>
-            <adw-window-title slot="center" title="Preferences" subtitle="My App"></adw-window-title>
-            <span class="platform-controls platform-controls--gnome" slot="end" aria-hidden="true">
-              <span class="adw-header-btn platform-app-btn">
-                <span class="adw-icon adw-icon--window-close"></span>
+            <adw-window-title slot="center" title="My App"></adw-window-title>
+            {/* The two end sets share one slot and are STACKED, not laid out side
+                by side: they cross-fade into each other, so both must occupy the
+                same cell — in the flow, the hidden set would push the visible one
+                away from the window edge. */}
+            <span class="platform-controls-end" slot="end" aria-hidden="true">
+              <span class="platform-controls platform-controls--gnome">
+                <span class="adw-header-btn platform-app-btn">
+                  <span class="adw-icon adw-icon--window-close"></span>
+                </span>
               </span>
-            </span>
-            <span class="platform-controls platform-controls--windows" slot="end" aria-hidden="true">
-              <span class="adw-header-btn platform-app-btn">
-                <span class="adw-icon adw-icon--window-minimize"></span>
-              </span>
-              <span class="adw-header-btn platform-app-btn">
-                <span class="adw-icon adw-icon--window-maximize"></span>
-              </span>
-              <span class="adw-header-btn platform-app-btn">
-                <span class="adw-icon adw-icon--window-close"></span>
+              <span class="platform-controls platform-controls--windows">
+                <span class="adw-header-btn platform-app-btn">
+                  <span class="adw-icon adw-icon--window-minimize"></span>
+                </span>
+                <span class="adw-header-btn platform-app-btn">
+                  <span class="adw-icon adw-icon--window-maximize"></span>
+                </span>
+                <span class="adw-header-btn platform-app-btn">
+                  <span class="adw-icon adw-icon--window-close"></span>
+                </span>
               </span>
             </span>
           </adw-header-bar>
@@ -570,18 +579,20 @@ const HOLD_MS = 5200;
     width: min(46%, 380px);
     /* Above every desktop layer, and never fading with them. */
     z-index: 2;
-    filter: drop-shadow(0 26px 46px rgb(0 0 0 / 45%));
+    /* Deepens `adw-window`'s own shadow for a photographic wallpaper, and stays
+       CENTRED while doing it. It was `0 26px 46px`, and a 26px downward offset on
+       a 300px window pushes the whole shadow below the header bar — so the
+       window's top edge had no shade at all while its sides and bottom did, which
+       is what made the header look like it carried a different border. */
+    filter: drop-shadow(0 4px 20px rgb(0 0 0 / 45%));
   }
 
-  /* The window edge is libadwaita's `window.csd` recipe — the drop shadow lives on
-     the wrapper above so it is not clipped by this element's own overflow. */
+  /* NOT restated here: the radius, the 7%-white outline, the shadow and the
+     overflow clip are `adw-window`'s own — it already ships libadwaita's
+     `window.csd` recipe verbatim. This element only has to be told how wide it is. */
   .platform-app-window {
     display: block;
     width: 100%;
-    border-radius: 12px;
-    outline: 1px solid rgb(255 255 255 / 7%);
-    outline-offset: -1px;
-    overflow: hidden;
   }
 
   /* The window is a PORTRAIT of an app, so it is exactly as tall as its content —
@@ -595,19 +606,40 @@ const HOLD_MS = 5200;
     padding: 10px 12px 14px;
   }
 
-  /* --- Window controls: whichever set the desktop below prescribes --- */
+  /* --- Window controls: whichever set the desktop below prescribes ---
+     Cross-faded on the SAME curve as the desktops, because the two are one
+     event: swapping the control set with `display` made the window snap while
+     the wallpaper behind it dissolved, which read as a glitch rather than as the
+     app following the platform. */
+  .platform-controls-end {
+    display: grid;
+    justify-items: end;
+  }
+
+  .platform-controls-end > * {
+    grid-area: 1 / 1;
+  }
+
   .platform-controls {
-    display: none;
+    display: flex;
     align-items: center;
     gap: 4px;
     /* Decorative: there is nothing behind these to press. */
     pointer-events: none;
+    opacity: 0;
+    transition: opacity 1400ms ease-in-out;
   }
 
   .platform-stage-frame[data-active='gnome'] .platform-controls--gnome,
   .platform-stage-frame[data-active='windows'] .platform-controls--windows,
   .platform-stage-frame[data-active='macos'] .platform-controls--macos {
-    display: flex;
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .platform-controls {
+      transition: none;
+    }
   }
 
   /* Slightly tighter than a real header button: this window is drawn at about
@@ -627,11 +659,17 @@ const HOLD_MS = 5200;
 
   /* macOS: GTK follows the platform decoration layout, so the controls move to
      the LEFT and become the system's traffic lights rather than Adwaita's own
-     buttons. */
+     buttons. 12px across with 8px between them is the system's own metric — at
+     the 4px this started with, the three read as one striped pill. */
+  .platform-controls--macos {
+    gap: 8px;
+    padding-inline: 2px;
+  }
+
   .platform-traffic {
     display: block;
-    width: 11px;
-    height: 11px;
+    width: 12px;
+    height: 12px;
     border-radius: 50%;
   }
 
