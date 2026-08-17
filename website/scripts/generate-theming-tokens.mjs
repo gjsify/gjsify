@@ -17,6 +17,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -87,5 +88,20 @@ export const ADWAITA_TOKEN_GROUPS: AdwTokenGroup[] = ${JSON.stringify(groups, nu
 export const ADWAITA_TOKEN_COUNT = ${total};
 `;
 
+// The generated body is `JSON.stringify` output — quoted keys, no trailing
+// commas — while the committed file is oxfmt's. Left alone, every `run start`
+// and every `run build` rewrote a TRACKED file into a style the formatter
+// disagrees with, so simply viewing the site left the tree dirty and a later
+// `git add -A` would commit the churn. Formatting here rather than matching
+// oxfmt's style by hand: a hand-copied style is a second copy of the formatter's
+// rules, and it drifts the first time they change.
+function formatGenerated(path) {
+    const result = spawnSync('gjsify', ['format', path], { stdio: 'inherit' });
+    if (result.error || result.status !== 0) {
+        console.warn(`  note: could not run \`gjsify format ${path}\` — the file is written but unformatted.`);
+    }
+}
+
 writeFileSync(outPath, out, 'utf8');
+formatGenerated(outPath);
 console.log(`generate-theming-tokens: wrote ${outPath} (${total} tokens in ${groups.length} groups)`);
