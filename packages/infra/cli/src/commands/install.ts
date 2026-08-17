@@ -42,6 +42,8 @@ import {
     linkGlobalBins,
     specToPackageName,
 } from '../utils/install-global.js';
+import { resolveHostPlatform } from '../utils/platform-check.js';
+import { pruneAfterInstall } from '../utils/prune-prefix.js';
 import {
     addDependencyEntry,
     defaultRangeFromVersion,
@@ -81,6 +83,7 @@ interface InstallOptions {
     'save-peer'?: boolean;
     'save-optional'?: boolean;
     immutable?: boolean;
+    prune?: boolean;
     'refresh-lockfile'?: boolean;
     verbose: boolean;
     quiet?: boolean;
@@ -179,6 +182,12 @@ export const installCommand: Command<unknown, InstallOptions> = {
                     'Install a REQUIRED dependency even when its os/cpu/libc excludes the target, instead of failing with EBADPLATFORM (npm config key `force`). Incompatible OPTIONAL dependencies stay skipped — npm ignores --force for those too, and a binary that cannot load is not worth downloading.',
                 type: 'boolean',
                 default: false,
+            })
+            .option('prune', {
+                description:
+                    'After installing, remove packages an earlier install left behind that this host cannot use (foreign os/cpu/libc). Use --no-prune to disable. Skipped automatically under --immutable, and whenever --os/--cpu/--libc is given: an install must never delete against a target the user typed.',
+                type: 'boolean',
+                default: true,
             }),
     handler: async (args) => {
         // Must run before anything resolves — `--os/--cpu/--libc/--force` are npm
@@ -222,7 +231,7 @@ export const installCommand: Command<unknown, InstallOptions> = {
                     );
                 }
             }
-            await installGlobalAndLink(args.packages, { verbose: args.verbose });
+            await installGlobalAndLink(args.packages, { verbose: args.verbose, prune: args.prune });
             return;
         }
 
@@ -234,6 +243,7 @@ export const installCommand: Command<unknown, InstallOptions> = {
 
         if (backend === 'npm') {
             await projectInstallViaNpm(args);
+            pruneProjectPrefix(args);
             await runPostInstallChecks(args);
             return;
         }
@@ -286,6 +296,7 @@ export const installCommand: Command<unknown, InstallOptions> = {
         (hardExitTimerId as { unref?: () => void } | null)?.unref?.();
         try {
             await projectInstallNative(args, overallController?.signal);
+            pruneProjectPrefix(args);
             await runPostInstallChecks(args);
         } catch (err) {
             if (overallController !== null && overallController.signal.aborted && isAbortedFromOverallTimeout(err)) {
@@ -1282,7 +1293,7 @@ async function spawnNpm(npmArgs: string[]): Promise<void> {
         });
 }
 
-async function installGlobalAndLink(specs: string[], opts: { verbose: boolean }): Promise<void> {
+async function installGlobalAndLink(specs: string[], opts: { verbose: boolean; prune?: boolean }): Promise<void> {
     const layout = defaultGlobalLayout();
     mkdirSync(layout.prefix, { recursive: true });
 
@@ -1318,11 +1329,34 @@ async function installGlobalAndLink(specs: string[], opts: { verbose: boolean })
             await installGjsEnginePackages(layout.prefix, cliVersion, { verbose: opts.verbose });
         }
 
+        // Before the LINK on purpose: `linkGlobalBins`' launchers bake the resolved
+        // prebuild directories into GI_TYPELIB_PATH/LD_LIBRARY_PATH, and must not name
+        // a directory this pass is about to delete.
+        if (opts.prune !== false) {
+            pruneAfterInstall(layout.prefix, resolveHostPlatform({ env: {} }), {
+                hint: 'gjsify prune -g --dry-run',
+            });
+        }
+
         const created = linkGlobalBins(packageNames, layout);
         reportLinkedBins(created, layout.binDir);
     } finally {
         lock.release();
     }
+}
+
+/**
+ * The automatic pass for a PROJECT prefix.
+ *
+ * Hooked at the command level rather than inside `installPackages`, so `dlx`'s
+ * throwaway cache prefix — created, used once and dropped — pays nothing for it.
+ */
+function pruneProjectPrefix(args: InstallOptions): void {
+    if (args.prune === false) return;
+    pruneAfterInstall(process.cwd(), resolveHostPlatform({ env: {} }), {
+        immutable: args.immutable === true,
+        hint: 'gjsify prune --dry-run',
+    });
 }
 
 function reportLinkedBins(created: ReturnType<typeof linkGlobalBins>, binDir: string): void {

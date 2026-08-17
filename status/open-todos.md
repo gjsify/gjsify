@@ -1104,6 +1104,37 @@ Phase 0 (full `js_native_api.h` + module loader; better-sqlite3 byte-identical t
 
 `showcase.ts` spawns `spawn(process.execPath, [cliBin, 'dlx', dlxSpec])` — the same `process.execPath`-is-the-bundle trap fixed in `spawnOxcLauncher`. Under the committed GJS bundle `process.execPath` is `gjs`/the `.mjs`, not `node`, so `gjsify showcase <name>` under the GJS bundle spawns the wrong interpreter. Two-part fix (mirror `spawnOxcLauncher`): resolve the launcher via `nodeBinary()`, and use the blocking spawn path under GJS (a command that returns normally must not rely on the async exit event — see AGENTS.md § Lint & format). The deeper root — making async `@gjsify/child_process` spawns usable from CLI commands that return normally — is worth a dedicated fix (would also unblock spawn-based `gjsify test` under GJS).
 
+### A pruned prefix still cannot prove what it was assembled from
+
+ADR 0025 landed the platform rule: `gjsify prune` and the automatic pass after an
+install remove what npm's own `os`/`cpu`/`libc` say this host cannot use. Measured
+on a real 638 MB user-global prefix, that is 75 packages and 420.5 MB.
+
+**What it cannot decide is reachability** — "no installed package points at this any
+more". `@rolldown/binding-wasm32-wasi` is the worked example: unusable on any host
+this CLI runs on, declares no platform at all, and is not in the dependency set of
+the `rolldown` beside it. The platform rule correctly keeps it, and only a walk from
+a ROOT LIST could retire it.
+
+No prefix carries that list. The global prefix has no lockfile, no `package.json`
+and no record of the specs it was installed from — `installPackages` writes a
+lockfile only when its caller asks, and neither global writer does. So the record
+has to be created before the rule can exist: something like a `gjsify-global.json`
+naming the specs each `install -g` / `self-update` placed, written atomically beside
+`node_modules`, plus a recovery path for a prefix that predates it (walk the bin
+launchers back to their packages) whose incompleteness is REPORTED rather than
+assumed away — a root with no bin leaves no trace, which is exactly why an orphan
+sweep on a recovered list must stay an explicit request.
+
+Two smaller consequences wait on the same record:
+
+- `gjsify uninstall` does not prune. An uninstall is precisely when a closure
+  becomes unreachable, which is this rule. Its handler is also synchronous and takes
+  no install lock, so wiring anything in there is a change to that command first.
+- The report cannot distinguish "installed on purpose, nothing depends on it yet"
+  from "left over". Without the record those look identical, and deleting the first
+  kind is the failure that makes a prune untrustworthy.
+
 ### `@gjsify/sqlite` exec() compound-statement (CREATE TRIGGER) splitting
 
 `DatabaseSync.prototype.exec()`'s `#splitStatements()` is comment/quote-aware, but still a token-level scanner, not a parser — a compound statement whose body carries inner semicolons is shattered: `CREATE TRIGGER t … BEGIN INSERT …; … END;` splits at the `;` after the inner `INSERT`, yielding `incomplete input`. node:sqlite gets this right because SQLite's real parser knows `BEGIN…END`. **Clean fix = let libgda's own statement tokenizer do the splitting** — currently blocked because `Gda.SqlParser.parse_string()` used iteratively hits a double-free under GJS and `parse_string_as_batch()` returns `Gda.Batch` objects rather than `Gda.Statement`s. A heuristic port of SQLite's `sqlite3_complete()` state machine was considered and NOT taken (mis-handles `CASE…END;`, adds risk to the transaction `BEGIN; … COMMIT;` path). Revisit when the libgda `parse_string` limitation is resolved (then the hand-rolled splitter can be retired entirely).

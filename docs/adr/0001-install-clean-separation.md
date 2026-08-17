@@ -1,7 +1,12 @@
 # ADR 0001 — `gjsify install` is non-destructive: install/clean separation
 
-- **Status:** Accepted (2026-07-01)
+- **Status:** Accepted (2026-07-01) — amended 2026-08-17 by [ADR 0025](0025-prune-the-install-prefix.md)
 - **Scope:** `@gjsify/cli` (`install`, native backend), workspace workflow
+
+> **Amendment (ADR 0025).** "Cleaning is never an install side effect" is about BUILD ARTIFACTS —
+> `lib/`, `dist/`, committed bundles, files git tracks — and stands. ADR 0025 adds a pass that
+> deletes inside the prefix's own `node_modules/` (Decision 1's installer-owned mutable state),
+> and only packages the install itself would not have placed there.
 
 ## Context
 
