@@ -162,7 +162,14 @@ const HOLD_MS = 5200;
                 desktop: GTK follows each platform's decoration layout, so the same
                 binary gets one close button on GNOME, minimize/maximize/close on
                 Windows, and macOS' traffic lights on the LEFT. All three are
-                rendered; the stage shows the one matching the desktop below. */}
+                rendered; the stage shows the one matching the desktop below.
+
+                The macOS row is not a guess. `gdk_macos_toplevel_surface`
+                constructs a real NSWindow with
+                `Titled | Closable | Miniaturizable | Resizable`
+                (refs/gtk/gdk/macos/gdkmacostoplevelsurface.c:617-620), and that
+                mask is exactly what makes AppKit draw its own three traffic
+                lights at the top-left. Adwaita's buttons never appear there. */}
             <span class="platform-controls platform-controls--macos" slot="start" aria-hidden="true">
               <i class="platform-traffic platform-traffic--close" />
               <i class="platform-traffic platform-traffic--min" />
