@@ -271,131 +271,24 @@ done
 
 # ── the COMMITTED glibc artifacts must resolve here too ─────────────────────
 # The step above proves the artifacts THIS LEG BUILT are sound. It says nothing
-# about the ones users actually get: `@gjsify/<x>-linux-<arch>` is built against
-# glibc, declares no npm `libc` filter, and is therefore installed on musl hosts
-# BY DESIGN (`generate-platform-packages.mjs` writes `libc: ["glibc"]` only for a
-# recorded glibc dynamic loader, which a shared library never has). That design
-# rests on one claim — every symbol those binaries reference exists in musl too —
-# and until this step nothing anywhere tested it.
+# about the ones users actually get, and answering that is now its own script:
+# `musl-committed-check.sh`, which carries the reasoning, the accepted-gap ledger
+# and the incident behind them.
 #
-# It was false, measurably, for two of the ten bridges: `sab-native` referenced
-# `fcntl64` + `__cmsg_nxthdr` and `lightningcss-native` references
-# `gnu_get_libc_version`. None of it is a LOAD failure — GI binds lazily, so the
-# typelib resolved and the package worked until the unbound path was first
-# called. `@gjsify/worker_threads` therefore lost all four of its SharedBuffer
-# cross-process tests on every musl host while being fully green on glibc, and
-# the existing load test could not see it. This leg runs on real musl; asking it
-# the question costs one loop.
+# It left this file because this leg cannot be the only caller. This job is
+# `workflow_dispatch`-only and `continue-on-error: true` — both correct for a
+# canary that builds undeclared targets, both fatal for a check that must be able
+# to fail a PR. It runs in two more places now (a `check-committed-musl` job, and
+# a step inside `commit-prebuilds` before the binaries are committed), and one
+# body is what keeps the self-retiring ledger from drifting between them.
 #
-# `ldd` is musl's OWN loader in list mode, so it reports every unresolved
-# relocation at once rather than dlopen's first-error-only. Two failure classes
-# come back and they are NOT the same: a "symbol not found" is a real libc gap
-# and fails the leg, while "Error loading shared library" only means Alpine here
-# lacks that system dependency (libmozjs-140 has no Alpine package at all). The
-# second is reported as not-verified, never as broken — the same honesty the
-# cross-arch load tests already practise.
-#
-# ACCEPTED GAPS carry a mandatory reason and are printed every run. The ledger is
-# deliberately awkward in the same way `gjsify.platformsUncommitted` is: an entry
-# whose package STOPS having the gap becomes a FAILURE, so it retires itself
-# instead of rotting into a permanent exemption. `sab-native` is deliberately NOT
-# in here — its two symbols were OURS to stop referencing, and it now resolves.
-musl_gap_reason() {
-    case "$1" in
-    lightningcss-native-linux-*)
-        echo "gnu_get_libc_version is referenced by a crates.io dependency of the pinned refs/lightningcss build, not by our own source, so it cannot be removed the way sab-native's fcntl64/__cmsg_nxthdr were. Options are an upstream change or a musl-built sibling package; tracked in status/open-todos.md."
-        ;;
-    *) echo '' ;;
-    esac
-}
-
-# The bridges' own GNOME/system dependencies, so that as few packages as possible
-# land in the not-verified bucket below. Kept as a SEPARATE install from the
-# build toolchain because it buys check COVERAGE, not the ability to compile: a
-# library missing here silences the verdict for that package rather than failing
-# it, so every one added is one more artifact actually judged. `libmozjs-140`
-# (@gjsify/napi) has no Alpine package at all and stays unjudged.
-#
-# WHAT A GREEN VERDICT HERE DOES NOT MEAN. This step judges RELOCATIONS, so it
-# answers "can musl bind every symbol", never "does the host provide what this
-# bridge needs at runtime". `@gjsify/webrtc-native` is the standing example and it
-# is not hypothetical: `gst-plugins-bad` gives it `libgstwebrtc-1.0.so.0`, so it
-# resolves cleanly and this check reports it green — while on the very same image
-# `gst-inspect-1.0 webrtcbin` finds NOTHING. GStreamer 1.28's nice plugin needs
-# libnice >= 0.1.23 and Alpine ships 0.1.22, so the webrtcbin ELEMENT is not built
-# at all. Measured on alpine:3.24: library present, element and nice plugin both
-# absent. So `@gjsify/webrtc` cannot work on Alpine or postmarketOS today no
-# matter how well its prebuild links, and that is upstream, not ours:
-#   https://gitlab.postmarketos.org/postmarketOS/pmaports/-/work_items/4443
-#   https://gitlab.alpinelinux.org/alpine/aports/-/work_items/18092
-# Adding the postmarketOS repositories on top of Alpine does NOT fix it, which is
-# measured rather than assumed: on a real postmarketOS v26.06 device with the pmOS
-# mirrors active, `apk list -a libnice` still reports 0.1.22-r0 — pmOS takes it
-# from Alpine community unchanged — and `Gst.ElementFactory.find()` finds no
-# `webrtcbin`, `nicesrc` or `nicesink` while `dtlssrtpenc` and `rtpbin` are both
-# there, exactly the shape a libnice-gated nice plugin produces.
-# Do not extend this step into an element check on that basis — it would be an
-# accepted gap on day one with nothing we can do about it. It is recorded in
-# status/open-todos.md so a green line here is not read as "works on musl".
-apk add --no-cache \
-    libepoxy gdk-pixbuf json-glib libsoup3 gnutls gstreamer gst-plugins-base gst-plugins-bad
-
-echo "--- checking every COMMITTED glibc prebuild for this arch resolves under musl"
-committed_target="${PREBUILD%-musl}"
-checked=0
-for so in packages/*/*/prebuilds/"${committed_target}"/*.so; do
-    [ -f "$so" ] || continue
-    checked=$((checked + 1))
-    pkg=$(echo "$so" | sed 's|^packages/[^/]*/||;s|/prebuilds/.*||')
-    out=$(ldd "$so" 2>&1 || true)
-    # `|| true` on both: under `set -e` a `grep` that matches NOTHING exits 1 and
-    # a failing command substitution aborts the script — so the healthy case (no
-    # unresolved symbols) killed the loop at the first clean package, silently,
-    # while the exit code looked like a verdict. An exit code is not evidence
-    # that the loop ran.
-    syms=$(echo "$out" | grep 'symbol not found' | sed 's/^.*so: //;s/: symbol not found//' | sort -u | tr '\n' ' ' || true)
-    # The glibc dynamic loader appears as a DT_NEEDED of every Rust cdylib here
-    # and musl of course does not ship it. Its absence is the NORMAL case this
-    # whole check exists to characterise — musl substitutes itself — so it must
-    # not be read as a missing dependency, or the packages with a real gap
-    # (lightningcss-native) would be the ones silenced.
-    libs=$(echo "$out" | grep 'Error loading shared library' | sed 's/.*shared library //;s/:.*//' \
-        | grep -vE '^(ld-linux[^ ]*|ld64\.so\.[0-9]+)$' | sort -u | tr '\n' ' ' || true)
-    accepted=$(musl_gap_reason "$pkg")
-    # ORDER IS LOAD-BEARING: a genuinely absent library makes the SYMBOL verdict
-    # meaningless, because musl's loader then reports every symbol that library
-    # would have provided as not-found too. Judging symbols first blamed musl for
-    # a container that simply lacked libepoxy — ~200 `epoxy_gl*` "gaps" in
-    # `@gjsify/webgl`, none of them real. So: no library missing is the
-    # PRECONDITION for judging symbols at all.
-    if [ -n "$libs" ]; then
-        echo "--- $pkg: NOT VERIFIED here — absent system libs: $libs"
-    elif [ -n "$syms" ] && [ -n "$accepted" ]; then
-        echo "--- $pkg: ACCEPTED musl gap ($syms) — $accepted"
-    elif [ -n "$syms" ]; then
-        echo "::error::$pkg ($(basename "$so")) is installed on musl but does not resolve there: $syms"
-        echo "    Either stop referencing the glibc-private symbol (preferred — one"
-        echo "    artifact then serves both libcs), or declare libc: [\"glibc\"] on"
-        echo "    $pkg so npm refuses the install instead of failing at first call."
-        echo "    NOTE: this reads the COMMITTED binary, which is what users get."
-        echo "    A source fix does not clear it until the prebuild is rebuilt and"
-        echo "    re-committed, and \`commit-prebuilds\` is main-only — so the PR that"
-        echo "    fixes the source stays red here until it lands. That is the honest"
-        echo "    state (the shipped artifact really is still broken), not a bug."
-        rc=1
-    elif [ -n "$accepted" ]; then
-        echo "::error::$pkg resolves fully on musl, so its accepted-gap entry in musl_gap_reason() no longer applies — delete it."
-        rc=1
-    else
-        echo "--- $pkg: every relocation resolves"
-    fi
-done
-# A glob that matched nothing would make this whole step a silent no-op, which is
-# the failure mode the repo keeps paying for (`--include` matching zero
-# workspaces, a `files` glob shipping nothing). There are committed linux-x64 and
-# linux-arm64 prebuilds; if this leg finds none, the layout moved.
-if [ "$checked" -eq 0 ]; then
-    echo "::error::no committed prebuilds/${committed_target}/*.so found — this check verified nothing"
+# `TARGET` is this leg's token without the libc suffix: the committed directory
+# holding the glibc artifacts users actually get. Called under `if`, not bare —
+# it exits non-zero on a real gap and `set -e` would abort before the combined
+# verdict below.
+cd "$WORKSPACE"
+echo "--- handing over to the committed-artifact check"
+if TARGET="${PREBUILD%-musl}" sh .github/prebuild-toolchain/musl-committed-check.sh; then :; else
     rc=1
 fi
 

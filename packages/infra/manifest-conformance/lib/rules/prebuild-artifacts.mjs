@@ -65,6 +65,22 @@
  *    probe and which got structure only. Being loud about the boundary is the
  *    point — a check that claims more than it did is worse than no check.
  *
+ * 3. NOTHING UNEXPLAINED — the mirror of (1), and the half the write path needs
+ *    most. `commit-prebuilds` extracts dozens of downloaded artifacts INTO the
+ *    existing `prebuilds/<target>/` without clearing it, `git add` stages no
+ *    deletions, and `sync-and-stage.sh` REFUSES a staged deletion on purpose:
+ *    that refusal is the one guard stopping the job from unshipping a binary,
+ *    so the directory is append-only by design. A library renamed in
+ *    `meson.build` therefore lands beside its predecessor and
+ *    `files: ["prebuilds"]` publishes both, indefinitely, with nothing saying
+ *    so. A file earns its place four ways — it is the `.gir`, it is a
+ *    `.typelib`, a typelib NAMES it, or another staged library records it as a
+ *    dependency (which is what each Rust cdylib beside a Vala bridge is). That
+ *    covers the tree with NO exception list: measured when this landed, two of
+ *    the 206 committed files were unexplained, both `.gitkeep` left in a
+ *    directory that had since filled with real artifacts, and both were deleted
+ *    rather than exempted.
+ *
  * The `.gir` half has its own escape, injected by the caller rather than
  * declared in a manifest (`girGaps`, from `ctx.options.prebuildGirGaps`): a
  * per-target-package → reason map for a directory that is known to be missing
@@ -115,7 +131,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 
 import { defineRule } from '../registry.mjs';
 import { checkPrebuildDir, readLibrary, readTypelibSharedLibraries } from '../binary.mjs';
@@ -380,6 +396,10 @@ export function auditPrebuildArtifacts(nativePkgs, { girGaps = {} } = {}) {
 
             // ── Half 2a: structural loadability (any host, any target) ────
             let structurallySound = true;
+            // Every dependency leaf any staged library records, for the
+            // nothing-unexplained check below. Collected here rather than in a
+            // second pass because `readLibrary` has already parsed the file.
+            /** @type {Set<string>} */ const neededLeaves = new Set();
             for (const lib of libs.sort()) {
                 const path = join(dir, lib);
                 let info = null;
@@ -399,6 +419,7 @@ export function auditPrebuildArtifacts(nativePkgs, { girGaps = {} } = {}) {
                     structurallySound = false;
                     continue;
                 }
+                for (const dep of info.needed) neededLeaves.add(basename(dep));
                 if (info.os !== os || (info.arch !== null && info.arch !== arch)) {
                     failures.push(
                         `${pkg.name} (${pkg.path}): \`${pkg.prebuildsField}/${target}/${lib}\` is a ${info.os}/${info.arch ?? 'unknown'} image in a \`${target}\` directory — it can never load on the platform it is published for. This is the one prebuild defect a cross-arch target CAN be caught for from any host, because the machine is in the file header; a build that silently ran on the runner's own architecture instead of the emulated one produces exactly this.`,
@@ -441,6 +462,36 @@ export function auditPrebuildArtifacts(nativePkgs, { girGaps = {} } = {}) {
                         structurallySound = false;
                     }
                 }
+            }
+
+            // ── Half 1b: nothing unexplained ──────────────────────────────
+            // Every check above asks whether a file that SHOULD be here is. The
+            // opposite question had no owner, and the write path is built to
+            // accumulate: `commit-prebuilds` runs dozens of `download-artifact`
+            // steps that extract INTO the existing `prebuilds/<target>/` without
+            // clearing it, `git add` only ever adds, and `sync-and-stage.sh`
+            // refuses staged DELETIONS by design (that refusal is the one guard
+            // stopping the job from unshipping a binary, so it must stay). A
+            // library renamed in `meson.build` therefore lands beside its
+            // predecessor, and `files: ["prebuilds"]` publishes both. Nothing
+            // anywhere said so.
+            //
+            // Four ways a file earns its place, and they cover the tree with no
+            // exception list: it is the `.gir`, it is a `.typelib`, a typelib
+            // NAMES it, or another staged library records it as a dependency
+            // (which is what the Rust cdylibs beside each Vala bridge are).
+            // Measured across every committed directory when this landed: two
+            // files were unexplained, both `.gitkeep` left behind in a directory
+            // that had since filled with real artifacts — deleted in the same
+            // change rather than exempted, which is what an exception list would
+            // have made permanent.
+            for (const file of files.sort()) {
+                if (file.endsWith('.gir') || file.endsWith('.typelib')) continue;
+                if (recorded.has(file) || neededLeaves.has(file)) continue;
+                failures.push(
+                    `${pkg.name} (${pkg.path}): \`${pkg.prebuildsField}/${target}/${file}\` is in a committed prebuild directory and nothing explains it — no typelib records it, no staged library needs it, and it is neither the \`.gir\` nor a \`.typelib\`. This directory is only ever ADDED to (the downloads extract into it, \`git add\` stages no deletions, and the staging script refuses them), so a renamed or dropped library stays here forever and \`files: ["prebuilds"]\` keeps publishing it. If it is dead, delete it in this change; if a consumer really needs it, make the typelib or a sibling library record it so the next rename takes it along.`,
+                );
+                structurallySound = false;
             }
 
             // ── Half 2b: functional loadability (host target only) ────────
@@ -529,7 +580,7 @@ export function auditPrebuildArtifacts(nativePkgs, { girGaps = {} } = {}) {
 export function renderPrebuildSummary({ notes, stats }) {
     const lines = [
         `prebuild-artifact audit: ${stats.dirs} committed prebuild director(y|ies) across ${stats.packages} package(s) verified STRUCTURALLY ` +
-            `(machine matches the directory, library + typelib + \`.gir\` present, typelib-named libraries staged, self-relative sibling resolution recorded).`,
+            `(machine matches the directory, library + typelib + \`.gir\` present, typelib-named libraries staged, self-relative sibling resolution recorded, nothing unexplained).`,
         `  functional load (env-free \`dlopen\`, proving the sibling hop for real): ${stats.loaded} librar(y|ies) on this host's own target \`${HOST_TARGET}\`` +
             `; ${stats.structuralOnly} director(y|ies) are for OTHER targets and CANNOT be loaded here — a cross-arch prebuild is verifiable only from its file headers, and this audit does not pretend otherwise.` +
             (stats.hostSkipped > 0 ? ` ${stats.hostSkipped} host-target load(s) skipped (see notes).` : ''),
