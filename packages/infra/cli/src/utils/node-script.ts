@@ -37,8 +37,11 @@ import { hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { Config } from '../config.js';
 import { runGjsBundle } from './run-gjs.js';
 import { runRuntimeBundle } from './run-node.js';
+import type { SpawnCompletionContract } from './spawn.js';
 
 export interface RunNodeScriptOptions {
+    /** The caller's teardown contract, forwarded verbatim — see `RunGjsBundleOptions.completion`. */
+    completion: SpawnCompletionContract;
     /** Exit the process when the script succeeds. See `RunGjsBundleOptions.exitOnSuccess`. */
     exitOnSuccess?: boolean;
 }
@@ -70,7 +73,7 @@ function scriptCacheEnabled(): boolean {
 export async function runNodeScript(
     file: string,
     extraArgs: string[] = [],
-    options: RunNodeScriptOptions = {},
+    options: RunNodeScriptOptions,
 ): Promise<void> {
     const scriptPath = resolve(file);
     if (!existsSync(scriptPath) || !statSync(scriptPath).isFile()) {
@@ -85,7 +88,11 @@ export async function runNodeScript(
         // differ from what the runtime would have done itself. `quiet` because the echo
         // would print `node <file>` — what the package.json script already reads — behind
         // ~2 kB of native-library env, a dozen times per build chain.
-        await runRuntimeBundle(host, scriptPath, extraArgs, { exitOnSuccess: options.exitOnSuccess, quiet: true });
+        await runRuntimeBundle(host, scriptPath, extraArgs, {
+            completion: options.completion,
+            exitOnSuccess: options.exitOnSuccess,
+            quiet: true,
+        });
         return;
     }
 
@@ -115,5 +122,9 @@ export async function runNodeScript(
 
     // Quiet for the same reason as the node path above; the bundle's location is
     // deterministic (`node_modules/.cache/gjsify/node-scripts/<name>-<hash>/<name>.mjs`).
-    await runGjsBundle(bundlePath, extraArgs, { exitOnSuccess: options.exitOnSuccess, quiet: true });
+    await runGjsBundle(bundlePath, extraArgs, {
+        completion: options.completion,
+        exitOnSuccess: options.exitOnSuccess,
+        quiet: true,
+    });
 }

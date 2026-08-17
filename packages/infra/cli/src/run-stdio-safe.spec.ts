@@ -55,10 +55,13 @@ if (args.length > 0) {
 // Thin Node.js runner that calls runGjsBundle directly — avoids loading the
 // full CLI (which would need all @gjsify/* workspace packages compiled).
 // argv[2] = bundle path, argv[3..] = extra args to forward.
+// NB `completion` is passed here as SOURCE TEXT, so no type checker can hold it:
+// the CLI's tsconfig excludes specs, and this string is written to a temp file and
+// run in a child. It is `'exit'` because the runner ends when the bundle does.
 const RUNNER_SRC = `
 import { runGjsBundle } from '${CLI_LIB}/utils/run-gjs.js';
 const [,, bundlePath, ...extraArgs] = process.argv;
-await runGjsBundle(bundlePath, extraArgs);
+await runGjsBundle(bundlePath, extraArgs, { completion: 'exit' });
 `;
 
 let tmpDir: string | undefined;

@@ -17,10 +17,11 @@
 // CONSUMER's node_modules by the generated entry, so it stays out of the CLI's
 // own dependencies.
 
-import { spawn, type ChildProcess } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import type { Command } from '../types/index.js';
+import { spawnToCompletion } from '../utils/spawn.js';
 import { hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 /**
@@ -215,16 +216,16 @@ export const storybookCommand: Command<unknown, StorybookCliOptions> = {
         const launch = async (): Promise<void> => {
             if (runtime === 'gjs') {
                 const { runGjsBundle } = await import('../utils/run-gjs.js');
-                await runGjsBundle(outPath, [], { exitOnSuccess: true });
+                await runGjsBundle(outPath, [], { completion: 'exit', exitOnSuccess: true });
             } else if (runtime === 'node') {
                 const { runNodeBundle } = await import('../utils/run-node.js');
-                await runNodeBundle(outPath, [], { exitOnSuccess: true });
+                await runNodeBundle(outPath, [], { completion: 'exit', exitOnSuccess: true });
             } else {
                 // bun / deno — run the SAME `--app node` bundle via the shared
                 // runner (Node-API is their common ABI). node-gi is required
                 // because the storybook uses gi:// (checked in runRuntimeBundle).
                 const { runRuntimeBundle } = await import('../utils/run-node.js');
-                await runRuntimeBundle(runtime, outPath, [], { exitOnSuccess: true });
+                await runRuntimeBundle(runtime, outPath, [], { completion: 'exit', exitOnSuccess: true });
             }
         };
 
@@ -240,9 +241,27 @@ export const storybookCommand: Command<unknown, StorybookCliOptions> = {
         // (no @gjsify native bridges), so a plain `gjs -m` / `node` child is
         // enough and stays killable for relaunch.
         const { watch } = await import('node:fs');
+
+        /**
+         * Start a child this command SUPERVISES rather than waits for.
+         *
+         * `completion: 'daemon'` is the third row of the teardown table: the watcher
+         * neither exits nor unwinds, so the armed GJS main loop is not a leak here —
+         * it is what keeps the session alive. The handle arrives synchronously through
+         * `onSpawn`; the completion promise is deliberately never awaited (it settles
+         * when the child is killed for the next rebuild), only its REJECTION is routed
+         * out, so a missing interpreter still surfaces as a rebuild failure.
+         */
+        const spawnSupervised = (cmd: string, cmdArgs: string[], env?: NodeJS.ProcessEnv): Promise<ChildProcess> =>
+            new Promise<ChildProcess>((resolveChild, reject) => {
+                void spawnToCompletion(cmd, cmdArgs, { completion: 'daemon', env, onSpawn: resolveChild }).catch(
+                    reject,
+                );
+            });
+
         const spawnChild = async (): Promise<ChildProcess> => {
             if (runtime === 'gjs') {
-                return spawn('gjs', ['-m', outPath], { stdio: 'inherit' });
+                return spawnSupervised('gjs', ['-m', outPath]);
             }
             // node / bun / deno — run the `--app node` bundle with the native
             // typelib env wired like `gjsify run`. All three need @gjsify/node-gi
@@ -265,10 +284,10 @@ export const storybookCommand: Command<unknown, StorybookCliOptions> = {
             // `process.execPath` is gjs); bun/deno launch via the shared spec
             // (deno's `--node-modules-dir=manual`, etc.).
             if (runtime === 'node') {
-                return spawn(nodeBinary(), [outPath], { stdio: 'inherit', env });
+                return spawnSupervised(nodeBinary(), [outPath], env);
             }
             const [cmd, launchArgs] = RUNTIMES[runtime].launch(outPath);
-            return spawn(cmd, launchArgs, { stdio: 'inherit', env });
+            return spawnSupervised(cmd, launchArgs, env);
         };
         let child: ChildProcess | null = null;
         let rebuilding = false;

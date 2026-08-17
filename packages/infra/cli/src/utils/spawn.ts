@@ -24,6 +24,12 @@
 //   | Node | anything               | async `spawn` (streaming)           |
 //   | GJS  | `process.exit(…)`      | async `spawn` (streaming)           |
 //   | GJS  | a normal `return`      | blocking `spawnSync` (captured)     |
+//   | GJS  | never — it supervises  | async `spawn` (streaming)           |
+//
+// The fourth row is `completion: 'daemon'`: a command like `gjsify storybook
+// --watch` neither exits nor unwinds, so the armed loop is not a leak but the thing
+// keeping it alive. It takes the handle through `onSpawn` and never awaits the
+// completion promise.
 //
 // which is why `gjsify foreach`/`workspace`/`check` and `runGjsBundle` run hundreds
 // of async-spawned children under GJS without hanging: each ends its handler with
@@ -31,19 +37,36 @@
 // REQUIRED {@link SpawnToCompletionOptions.completion} field — a new call site must
 // state which side of the table it is on rather than inherit a wrong default.
 //
-// ## When a raw `node:child_process` spawn is still fine
+// ## Under `packages/infra/cli/src/`, a raw async `spawn` is never fine
 //
-// This helper also carries the Windows command rewrite (`forWin32`), so the rule is
-// about WHAT is spawned:
+// The contract above binds only code that USES this helper, and one import bypassed
+// it for years — `utils/run-lifecycle-script.ts` reached for `node:child_process`
+// while its own header asserted the opposite, and `gjsify pack` parked for 5m30s
+// after finishing its work on any package with a `prepack`, the production
+// `gjsify run publish:app` chain included (#1010).
+//
+// So the rule is enforced rather than written down: `scripts/check-spawn-teardown-
+// contract.mjs` fails on a value import of async `spawn` from `node:child_process`
+// anywhere under `packages/infra/cli/src/` outside this file, unless the site
+// carries an entry in `scripts/spawn-teardown-exceptions.mjs`. Deliberately narrow
+// to async `spawn`: `spawnSync` blocks and arms nothing, and `exec`/`execFile` stay
+// out until the `gjsify gsettings` observation (an `execFile` command that compiles
+// a schema and exits in 0.45 s although `_execImpl` also calls `ensureMainLoop`) is
+// explained rather than generalised from.
+//
+// ## What is spawned still matters — the Windows rewrite
+//
+// This helper also carries the Windows command rewrite (`forWin32`), which is a
+// second reason to come through it, and the one that applies OUTSIDE the CLI too:
 //
 //   • a real executable (`git`, `gh`, `node`, `gjs`, `flatpak`, `process.execPath`)
-//     may use `node:child_process` directly — Windows resolves those via `.exe`.
+//     resolves on Windows via `.exe`, so a rewrite is not what it needs.
 //   • `shell: true` is fine — Node routes it through `%COMSPEC%`, which finds
 //     `.cmd` shims.
 //   • a PACKAGE MANAGER or any `node_modules/.bin` entry by BARE NAME (`npm`,
-//     `yarn`, `npx`, `tsc`, `oxlint`, a `pm` from `detectPackageManager()`) MUST
-//     come through here: on Windows those are `.cmd` shims, where `spawn('npm')` is
-//     ENOENT and `spawn('npm.cmd')` is EINVAL, so a raw spawn cannot work at all.
+//     `yarn`, `npx`, `tsc`, `oxlint`, a `pm` from `detectPackageManager()`) cannot
+//     work without it: on Windows those are `.cmd` shims, where `spawn('npm')` is
+//     ENOENT and `spawn('npm.cmd')` is EINVAL.
 //
 // The third case is not hypothetical, and each instance was invisible to Linux and
 // macOS CI: raw spawns left `commands/check.ts` exiting 1 with no diagnostic,
@@ -66,10 +89,15 @@ const DEFAULT_MAX_BUFFER = 64 * 1024 * 1024;
  *   main loop, so the streaming async `spawn` is safe on both hosts.
  * - `'return'` — the command returns and lets the CLI unwind. Under GJS that must
  *   not leave a main loop armed, so the child runs on the blocking `spawnSync` path.
+ * - `'daemon'` — the command settles nothing: it stays alive supervising the child
+ *   and the armed loop is what keeps it running. The caller takes the handle through
+ *   {@link SpawnToCompletionOptions.onSpawn} and does NOT await the returned promise,
+ *   so "once this spawn settles" has no answer for it. Distinct from `'exit'` because
+ *   a supervisor has no exit to be safe by; it routes to the same streaming path.
  *
  * See the module header for the full rationale.
  */
-export type SpawnCompletionContract = 'exit' | 'return';
+export type SpawnCompletionContract = 'exit' | 'return' | 'daemon';
 
 export interface SpawnToCompletionOptions {
     /** The caller's teardown contract. Required — see {@link SpawnCompletionContract}. */

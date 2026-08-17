@@ -125,6 +125,15 @@ jobs:
       - name: Check no filesystem path is split on '/' alone
         run: node scripts/check-posix-path-slice.mjs
 
+      # A raw async `spawn` under packages/infra/cli/src bypasses the GJS teardown contract
+      # `utils/spawn.ts` owns, and its required `completion` field with it. That is not
+      # hypothetical: `run-lifecycle-script.ts` did it for years and `gjsify pack` parked for
+      # 5m30s after finishing, the production publish chain included (#1010, #1012). Linux CI
+      # cannot see it either — the parked process is a GJS-only failure — so the gate is
+      # lexical and lives here.
+      - name: Check no CLI source bypasses the spawn teardown contract
+        run: node scripts/check-spawn-teardown-contract.mjs
+
       # A raw NUL in source is invisible to every other gate in this job. Measured while
       # adding `pr-trigger-parity`: its `join(' ')` had been committed with a NUL as the
       # separator, and tsc, oxlint, that rule's own 13-case e2e and this audit all passed —
@@ -551,6 +560,15 @@ jobs:
       # demands a stated reason per file rather than banning the shape.
       - name: Check no filesystem path is split on '/' alone
         run: node scripts/check-posix-path-slice.mjs
+
+      # A raw async `spawn` under packages/infra/cli/src bypasses the GJS teardown contract
+      # `utils/spawn.ts` owns, and its required `completion` field with it. That is not
+      # hypothetical: `run-lifecycle-script.ts` did it for years and `gjsify pack` parked for
+      # 5m30s after finishing, the production publish chain included (#1010, #1012). Linux CI
+      # cannot see it either — the parked process is a GJS-only failure — so the gate is
+      # lexical and lives here.
+      - name: Check no CLI source bypasses the spawn teardown contract
+        run: node scripts/check-spawn-teardown-contract.mjs
 
       - name: Check the PR-title type list still matches commitlint
         run: node scripts/check-pr-title-types.mjs

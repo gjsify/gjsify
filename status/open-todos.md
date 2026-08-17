@@ -1171,9 +1171,27 @@ Phase 0 (full `js_native_api.h` + module loader; better-sqlite3 byte-identical t
 
 `@gjsify/child_process`'s `spawn()`/`exec` read `child.pid` from `Gio.Subprocess.get_identifier()`, which returns `null` once GSubprocess's child-watch (GLib worker-thread context) reaps the child — so an instant-exit child on a saturated runner can lose its pid (Node always reports one). **Resolved at the test layer** (deterministic alive-when-checked process) + **documented as an upstream GIO limitation** (see Upstream GJS Patch Candidates). The `GLib.spawn_async_with_pipes_and_fds` + `DO_NOT_REAP_CHILD` rewrite was scoped and **rejected for now**: it regresses `child.kill()` to a `/bin/kill` shell-out and reimplements env/cwd/stdio/wait-status reaping on a critical path. Revisit IF: (a) a real consumer needs a reliable pid for instant-exit children, or (b) upstream GIO exposes a spawn-time pid. **Filed upstream: [GNOME/glib#3981](https://gitlab.gnome.org/GNOME/glib/-/work_items/3981)**; maintainer verdict: accessor "would be OK" but de-prioritised in favour of pidfds, so the deterministic alive-process test + spawn-time capture (`_capturePidAtSpawn`) is our stable, permanent posture, not a temporary workaround.
 
-### `spawn(process.execPath, [cliBin, …])` under the GJS bundle (showcase.ts)
+### The `process.exit()` guards are right, and five comments explain them wrongly
 
-`showcase.ts` spawns `spawn(process.execPath, [cliBin, 'dlx', dlxSpec])` — the same `process.execPath`-is-the-bundle trap fixed in `spawnOxcLauncher`. Under the committed GJS bundle `process.execPath` is `gjs`/the `.mjs`, not `node`, so `gjsify showcase <name>` under the GJS bundle spawns the wrong interpreter. Two-part fix (mirror `spawnOxcLauncher`): resolve the launcher via `nodeBinary()`, and use the blocking spawn path under GJS (a command that returns normally must not rely on the async exit event — see AGENTS.md § Lint & format). The deeper root — making async `@gjsify/child_process` spawns usable from CLI commands that return normally — is worth a dedicated fix (would also unblock spawn-based `gjsify test` under GJS).
+`packages/node/process`'s `exitProcess` is declared `never` and blocks in
+`for (;;) context.iteration(true)` after idle-scheduling `system.exit(code)`
+(`internal/exit.ts`), landed as `ba64356b6e fix(process): make process.exit() not
+come back`. Before that it was genuinely deferred and RETURNED under GJS, and
+several `return process.exit(…)` guards were written with that as their stated
+reason.
+
+The guards are still correct — `return` marks the end of control flow for the
+reader and the type checker, and `run.ts` additionally propagates through
+`process.exitCode` because `gjsify run <script>` dispatches a nested
+`gjsify run <bundle>` IN PROCESS. What is stale is the REASON printed beside
+them: `commands/run.ts:319,342,439,467`, `commands/test.ts:85,185` and
+`utils/node-script.ts:81` still say a bare exit "falls through" or "is deferred".
+
+Deliberately not swept in the PR that added the spawn-teardown gate: that PR
+rewrote the two runners and left no stale premise in the code it touched, and a
+comment sweep belonging to `ba64356b6e` does not belong in a review about spawn
+routing. Each site needs its own sentence — the guards do not all stand for the
+same reason — which is why this is a task and not a find-and-replace.
 
 ### A pruned prefix still cannot prove what it was assembled from
 

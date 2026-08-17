@@ -158,6 +158,6 @@ export const browseCommand: Command<unknown, BrowseCliOptions> = {
             process.env.WEBKIT_INSPECTOR_HTTP_SERVER = `127.0.0.1:${inspectorPort}`;
         }
         const { runGjsBundle } = await import('../utils/run-gjs.js');
-        await runGjsBundle(outPath, [], { exitOnSuccess: true });
+        await runGjsBundle(outPath, [], { completion: 'exit', exitOnSuccess: true });
     },
 };
