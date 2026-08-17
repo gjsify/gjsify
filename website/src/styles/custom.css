@@ -161,8 +161,20 @@
   --ec-frm-trmTtbFg: rgba(0, 0, 6, 0.8);
 }
 
+/* `.frame` is a NAME COLLISION, not a shared concept, and this page loads both
+   sides of it: Expressive Code calls its code-block wrapper `.frame`, while
+   libadwaita's style class of the same name is a 1px border utility
+   (`_misc.scss:4-7`) that @gjsify/adwaita-web ships in its global stylesheet. So
+   every code block on the site drew that utility's border ON TOP of the window
+   outline below it — a light hairline in a place native draws none, since a
+   window's edge is the outline alone. The window recipe owns this edge. */
+.expressive-code .frame {
+  border: none;
+}
+
 /* --- adw-code-window → adw-window ---
-   Exact shadow from adwaita-css.ts:116-119 (adw-window) */
+   Exact shadow + outline from libadwaita `window.csd`
+   (refs/libadwaita/src/stylesheet/widgets/_window.scss:1-11). */
 .expressive-code .frame.adw-code-window {
   border-radius: 12px;
   box-shadow:

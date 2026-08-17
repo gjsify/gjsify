@@ -1,0 +1,568 @@
+---
+// Platform independence, shown rather than claimed: ONE Adwaita app window sits on
+// a desktop that cross-fades between a GNOME, a Windows 11 and a macOS shell. The
+// app never changes; only the desktop under it does.
+//
+// The three desktops are DRAWN, not screenshotted. Partly because shipping real
+// Windows and macOS shell captures means shipping someone else's artwork, and
+// partly because a stylised shell is the honest claim: the point is "your users'
+// desktop", not "this exact build of Windows". Each is a wallpaper gradient plus
+// the two or three chrome elements that make the desktop recognisable in half a
+// second — GNOME's top bar, Windows' centred taskbar, macOS' menu bar and dock.
+//
+// The window is real `adw-*` custom elements from @gjsify/adwaita-web, not a
+// picture of one, so what the section claims about the toolkit is on screen as the
+// toolkit.
+import { RUNTIME_INVOCATION } from './runtime-invocations.ts';
+
+/**
+ * The desktops, in rotation order. `label` is what the caption says while that
+ * desktop is showing; `runtimes` is how the app gets there on it.
+ *
+ * GNOME first: it is the desktop the toolkit is native to, and the one where a
+ * GJSify app is running against the system's own libadwaita rather than through
+ * the node-gi bridge.
+ */
+const DESKTOPS = [
+  {
+    id: 'gnome',
+    name: 'GNOME',
+    caption: 'Native GJS on the system libadwaita.',
+    clock: 'Mo 14:32',
+  },
+  {
+    id: 'windows',
+    name: 'Windows 11',
+    caption: 'Node, Bun or Deno through the node-gi bridge.',
+    clock: '14:32',
+  },
+  {
+    id: 'macos',
+    name: 'macOS',
+    caption: 'Node, Bun or Deno through the node-gi bridge.',
+    clock: 'Mon 14:32',
+  },
+] as const;
+
+/** How long one desktop holds before the next fades in, in ms. */
+const HOLD_MS = 5200;
+---
+
+<section class="platform-stage" aria-labelledby="platform-stage-title">
+  <div class="platform-stage-intro">
+    <h2 id="platform-stage-title" class="platform-stage-title">One app. Every desktop.</h2>
+    <p class="platform-stage-lead">
+      The same TypeScript, the same Adwaita widgets, the same <code>{RUNTIME_INVOCATION.gjs}</code>
+      commands. GJSify talks to the real GTK&nbsp;4 libraries on each system — no
+      embedded browser, no per-platform rewrite.
+    </p>
+  </div>
+
+  <div class="platform-stage-frame" data-platform-stage data-hold={HOLD_MS}>
+    {/* The desktops are stacked; exactly one carries `.is-active` at a time. */}
+    {
+      DESKTOPS.map((desktop, index) => (
+        <div
+          class:list={['platform-desktop', `platform-desktop--${desktop.id}`, index === 0 && 'is-active']}
+          data-desktop={desktop.id}
+          aria-hidden="true"
+        >
+          {desktop.id === 'gnome' && (
+            <div class="platform-shell platform-shell--gnome">
+              <div class="platform-gnome-bar">
+                <span class="platform-gnome-activities">Activities</span>
+                <span class="platform-gnome-clock">{desktop.clock}</span>
+                <span class="platform-gnome-status">
+                  <i class="platform-dot" />
+                  <i class="platform-dot" />
+                  <i class="platform-dot" />
+                </span>
+              </div>
+            </div>
+          )}
+
+          {desktop.id === 'windows' && (
+            <div class="platform-shell platform-shell--windows">
+              <div class="platform-win-taskbar">
+                <span class="platform-win-icons">
+                  <i class="platform-win-icon platform-win-icon--start" />
+                  <i class="platform-win-icon" />
+                  <i class="platform-win-icon" />
+                  <i class="platform-win-icon platform-win-icon--running" />
+                  <i class="platform-win-icon" />
+                </span>
+                <span class="platform-win-tray">{desktop.clock}</span>
+              </div>
+            </div>
+          )}
+
+          {desktop.id === 'macos' && (
+            <div class="platform-shell platform-shell--macos">
+              <div class="platform-mac-menubar">
+                <span class="platform-mac-menus">
+                  <b class="platform-mac-logo" />
+                  <span>My App</span>
+                  <span>File</span>
+                  <span>Edit</span>
+                  <span>View</span>
+                </span>
+                <span class="platform-mac-status">{desktop.clock}</span>
+              </div>
+              <div class="platform-mac-dock">
+                <i class="platform-mac-dock-icon" />
+                <i class="platform-mac-dock-icon" />
+                <i class="platform-mac-dock-icon platform-mac-dock-icon--running" />
+                <i class="platform-mac-dock-icon" />
+                <i class="platform-mac-dock-icon" />
+              </div>
+            </div>
+          )}
+        </div>
+      ))
+    }
+
+    {/* The constant. Deliberately OUTSIDE the fading stack. */}
+    <div class="platform-app">
+      {/* One group, three rows. The window has to stay a MINORITY of the stage:
+          the desktop around it is the thing that changes, and a window filling the
+          frame leaves nothing to notice. What runtime it is running on is said by
+          the caption, so no row repeats it. */}
+      <adw-window class="platform-app-window">
+        <adw-toolbar-view>
+          <adw-header-bar slot="top">
+            <adw-window-title slot="center" title="Preferences" subtitle="My App"></adw-window-title>
+            <button class="adw-header-btn platform-app-close" slot="end" aria-label="Close" tabindex="-1">
+              <span class="adw-icon adw-icon--window-close" aria-hidden="true"></span>
+            </button>
+          </adw-header-bar>
+          <div class="platform-app-page">
+            <adw-preferences-group title="Appearance">
+              <adw-switch-row title="Dark style" subtitle="Use a dark colour scheme" active></adw-switch-row>
+              <adw-combo-row title="Accent colour" items='["Blue","Teal","Green","Orange","Purple"]' selected="0"
+              ></adw-combo-row>
+              <adw-switch-row title="Native GTK 4" subtitle="No embedded browser" active></adw-switch-row>
+            </adw-preferences-group>
+          </div>
+        </adw-toolbar-view>
+      </adw-window>
+    </div>
+  </div>
+
+  {/* Below the stage, not over it: two of the three shells put their own chrome
+      along the bottom edge (the Windows taskbar, the macOS dock), and those are
+      exactly what identifies the desktop being shown. */}
+  <p class="platform-stage-caption" aria-live="polite">
+    <strong data-platform-name>{DESKTOPS[0].name}</strong>
+    <span data-platform-detail>{DESKTOPS[0].caption}</span>
+  </p>
+
+  {/* The rotation is decorative, so the list is the accessible statement of it. */}
+  <p class="sr-only">
+    The same application is shown running on {DESKTOPS.map((d) => d.name).join(', ')}.
+  </p>
+</section>
+
+<script is:inline define:vars={{ DESKTOPS: DESKTOPS.map((d) => ({ id: d.id, name: d.name, caption: d.caption })) }}>
+  // Inline + `define:vars` rather than a module import: this is a self-contained
+  // decorative rotation with no dependencies, and the caption text has to come from
+  // the same array the markup was rendered from or the two drift.
+  for (const stage of document.querySelectorAll('[data-platform-stage]')) {
+    const desktops = [...stage.querySelectorAll('[data-desktop]')];
+    // The caption sits outside the stage frame, so it is looked up on the section.
+    const section = stage.closest('.platform-stage') ?? document;
+    const nameEl = section.querySelector('[data-platform-name]');
+    const detailEl = section.querySelector('[data-platform-detail]');
+    const hold = Number(stage.dataset.hold) || 5200;
+    if (desktops.length < 2) continue;
+
+    let index = 0;
+    let timer = 0;
+
+    const show = (next) => {
+      index = next % desktops.length;
+      desktops.forEach((el, i) => el.classList.toggle('is-active', i === index));
+      const meta = DESKTOPS[index];
+      if (meta && nameEl && detailEl) {
+        nameEl.textContent = meta.name;
+        detailEl.textContent = meta.caption;
+      }
+    };
+
+    const start = () => {
+      clearInterval(timer);
+      timer = setInterval(() => show(index + 1), hold);
+    };
+    const stop = () => clearInterval(timer);
+
+    // Reduced motion keeps the first desktop and never cross-fades: the section
+    // still makes its point as a still image, which is why nothing else here
+    // depends on the rotation having run.
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) continue;
+
+    // Only animate while on screen — an off-screen crossfade is composited work
+    // nobody sees, and it keeps the tab quiet when the reader has scrolled past.
+    if (typeof IntersectionObserver === 'function') {
+      new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) (entry.isIntersecting ? start : stop)();
+        },
+        { threshold: 0.2 },
+      ).observe(stage);
+    } else {
+      start();
+    }
+  }
+</script>
+
+<style is:global>
+  /* Global, not scoped: Astro's scoped rules compile to `:where()` (specificity 0),
+     which Starlight's own content styles then win against. Same reason as Hero. */
+  .platform-stage {
+    max-width: 1100px;
+    margin-inline: auto;
+    padding: clamp(3rem, 6vw, 5rem) 1.5rem 0;
+  }
+
+  .platform-stage-intro {
+    text-align: center;
+    max-width: 46rem;
+    margin-inline: auto;
+    margin-bottom: clamp(2rem, 4vw, 3rem);
+  }
+
+  .platform-stage-title {
+    font-size: clamp(1.6rem, 3.2vw, 2.25rem);
+    font-weight: 800;
+    color: var(--sl-color-white);
+    margin: 0 0 0.75rem;
+    letter-spacing: -0.02em;
+  }
+
+  .platform-stage-lead {
+    margin: 0;
+    font-size: clamp(0.95rem, 1.5vw, 1.05rem);
+    line-height: 1.6;
+    color: var(--sl-color-gray-2);
+  }
+
+  .platform-stage-lead code {
+    background: var(--sl-color-gray-6);
+    border-radius: 5px;
+    padding: 0.1em 0.4em;
+    font-size: 0.9em;
+  }
+
+  /* --- The stage --- */
+  .platform-stage-frame {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    border-radius: 14px;
+    overflow: hidden;
+    /* The stage is a screen, so it keeps a real edge in both themes rather than
+       bleeding into the page background. */
+    box-shadow:
+      0 24px 60px -20px rgb(0 0 0 / 45%),
+      0 0 0 1px rgb(0 0 6 / 12%);
+    isolation: isolate;
+  }
+
+  :root[data-theme='dark'] .platform-stage-frame {
+    box-shadow:
+      0 24px 60px -20px rgb(0 0 0 / 65%),
+      0 0 0 1px rgb(255 255 255 / 8%);
+  }
+
+  /* --- Desktops: stacked, cross-faded --- */
+  .platform-desktop {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    /* Slow enough to read as a dissolve rather than a switch. Both halves of the
+       cross-fade run the same curve, so the total luminance stays flat. */
+    transition: opacity 1400ms ease-in-out;
+  }
+
+  .platform-desktop.is-active {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .platform-desktop {
+      transition: none;
+    }
+  }
+
+  .platform-shell {
+    position: absolute;
+    inset: 0;
+  }
+
+  /* GNOME: the blue-violet default wallpaper family + the top bar. */
+  .platform-desktop--gnome {
+    background:
+      radial-gradient(120% 90% at 20% 0%, #6c4ea8 0%, transparent 60%),
+      radial-gradient(110% 90% at 85% 100%, #1c71d8 0%, transparent 55%),
+      linear-gradient(160deg, #241f31 0%, #1b2a4a 55%, #12172b 100%);
+  }
+
+  .platform-gnome-bar {
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 6.5%;
+    min-height: 22px;
+    display: flex;
+    align-items: center;
+    padding: 0 1rem;
+    background: rgb(0 0 0 / 55%);
+    color: rgb(255 255 255 / 88%);
+    font-size: clamp(0.6rem, 1.05vw, 0.78rem);
+    font-weight: 600;
+  }
+
+  .platform-gnome-activities {
+    flex: 1;
+  }
+
+  .platform-gnome-clock {
+    flex: 0 0 auto;
+  }
+
+  .platform-gnome-status {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 5px;
+  }
+
+  .platform-dot {
+    display: block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    opacity: 0.75;
+    align-self: center;
+  }
+
+  /* Windows 11: the bloom wallpaper + a centred, floating taskbar. */
+  .platform-desktop--windows {
+    background:
+      radial-gradient(75% 65% at 50% 55%, #2f6fd0 0%, transparent 62%),
+      radial-gradient(60% 50% at 50% 45%, #63b3f5 0%, transparent 45%),
+      linear-gradient(150deg, #08142c 0%, #0d2a52 45%, #050b1a 100%);
+  }
+
+  .platform-win-taskbar {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 8%;
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgb(24 26 33 / 72%);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid rgb(255 255 255 / 8%);
+  }
+
+  .platform-win-icons {
+    display: flex;
+    align-items: center;
+    gap: clamp(6px, 1vw, 12px);
+  }
+
+  .platform-win-icon {
+    width: clamp(12px, 1.6vw, 18px);
+    aspect-ratio: 1;
+    border-radius: 4px;
+    background: rgb(255 255 255 / 55%);
+    position: relative;
+  }
+
+  .platform-win-icon--start {
+    background: linear-gradient(135deg, #4cc2ff, #0a84e0);
+  }
+
+  /* The running app gets Windows' underline indicator — it is what says the app in
+     the middle of the stage is THIS desktop's foreground window. */
+  .platform-win-icon--running {
+    background: linear-gradient(135deg, #7dc0f7, #3584e4);
+  }
+
+  .platform-win-icon--running::after {
+    content: '';
+    position: absolute;
+    left: 25%;
+    right: 25%;
+    bottom: -5px;
+    height: 2px;
+    border-radius: 2px;
+    background: #6cb6f5;
+  }
+
+  .platform-win-tray {
+    position: absolute;
+    right: clamp(8px, 1.5vw, 18px);
+    color: rgb(255 255 255 / 85%);
+    font-size: clamp(0.55rem, 0.95vw, 0.72rem);
+  }
+
+  /* macOS: a warm graphite wallpaper, the menu bar and the dock. */
+  .platform-desktop--macos {
+    background:
+      radial-gradient(90% 70% at 70% 10%, #b06a8c 0%, transparent 55%),
+      radial-gradient(90% 80% at 15% 90%, #3d5a8a 0%, transparent 55%),
+      linear-gradient(155deg, #2b2233 0%, #1d2333 50%, #14161f 100%);
+  }
+
+  .platform-mac-menubar {
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 5.5%;
+    min-height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0.85rem;
+    background: rgb(255 255 255 / 12%);
+    backdrop-filter: blur(14px);
+    color: rgb(255 255 255 / 92%);
+    font-size: clamp(0.55rem, 0.95vw, 0.72rem);
+  }
+
+  .platform-mac-menus {
+    display: flex;
+    align-items: center;
+    gap: clamp(6px, 1.1vw, 14px);
+  }
+
+  .platform-mac-menus span:first-of-type {
+    font-weight: 700;
+  }
+
+  /* An apple would be someone's trademark; a neutral rounded mark reads as "the
+     system menu" without borrowing a logo. */
+  .platform-mac-logo {
+    width: 9px;
+    height: 9px;
+    border-radius: 50% 50% 50% 12%;
+    background: currentColor;
+    display: inline-block;
+  }
+
+  .platform-mac-dock {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 2.5%;
+    display: flex;
+    align-items: flex-end;
+    gap: clamp(5px, 0.9vw, 10px);
+    padding: clamp(4px, 0.7vw, 7px);
+    border-radius: 14px;
+    background: rgb(255 255 255 / 14%);
+    backdrop-filter: blur(14px);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 14%);
+  }
+
+  .platform-mac-dock-icon {
+    width: clamp(16px, 2.2vw, 26px);
+    aspect-ratio: 1;
+    border-radius: 22%;
+    background: linear-gradient(160deg, rgb(255 255 255 / 70%), rgb(255 255 255 / 40%));
+    position: relative;
+  }
+
+  .platform-mac-dock-icon--running {
+    background: linear-gradient(160deg, #7dc0f7, #3584e4);
+  }
+
+  .platform-mac-dock-icon--running::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: -4px;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 85%);
+  }
+
+  /* --- The app: one window, unchanged across all three --- */
+  .platform-app {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(46%, 380px);
+    /* Above every desktop layer, and never fading with them. */
+    z-index: 2;
+    filter: drop-shadow(0 26px 46px rgb(0 0 0 / 45%));
+  }
+
+  /* The window edge is libadwaita's `window.csd` recipe — the drop shadow lives on
+     the wrapper above so it is not clipped by this element's own overflow. */
+  .platform-app-window {
+    display: block;
+    width: 100%;
+    border-radius: 12px;
+    outline: 1px solid rgb(255 255 255 / 7%);
+    outline-offset: -1px;
+    overflow: hidden;
+  }
+
+  /* The window is a PORTRAIT of an app, so it is exactly as tall as its content —
+     a scrollbar inside it would be describing this stage's layout rather than the
+     app's, and the toolbar view's content area scrolls by default. */
+  .platform-app-window .adw-toolbar-view-content {
+    overflow: hidden;
+  }
+
+  .platform-app-page {
+    padding: 10px 12px 14px;
+  }
+
+  /* Decorative: the button is here so the frame reads as a WINDOW, and there is
+     nothing behind it to press. Kept out of the tab order for the same reason. */
+  .platform-app-close {
+    pointer-events: none;
+  }
+
+  /* --- Caption --- */
+  .platform-stage-caption {
+    margin: 1rem 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: baseline;
+    gap: 0.5rem;
+    text-align: center;
+    font-size: clamp(0.8rem, 1.2vw, 0.92rem);
+    color: var(--sl-color-gray-2);
+    /* The line changes text as the stage rotates; a fixed height keeps the
+       section from reflowing every five seconds. */
+    min-height: 1.6em;
+  }
+
+  .platform-stage-caption strong {
+    font-weight: 700;
+    color: var(--sl-color-white);
+  }
+
+  /* Below this the app window would cover the shell chrome that identifies the
+     desktop, which is the one thing the stage exists to show. */
+  @media (max-width: 640px) {
+    .platform-stage-frame {
+      aspect-ratio: 4 / 5;
+    }
+
+    .platform-app {
+      width: min(86%, 400px);
+    }
+  }
+</style>
