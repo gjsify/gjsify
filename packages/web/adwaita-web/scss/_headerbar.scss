@@ -33,7 +33,21 @@ adw-header-bar {
   flex-shrink: 0;
 
   .adw-header-bar-center {
-    justify-self: center;
+    // STRETCHED into its track, never `justify-self: center`. A grid item that is
+    // centred is sized `fit-content`, whose floor is the item's own MIN-CONTENT —
+    // and a `nowrap` title's min-content is the whole string. Centred, a 260px bar
+    // with a back button and two end buttons therefore drew a 277px centre section
+    // starting 6.6px OUTSIDE the bar and running straight over all three buttons,
+    // with the ellipsis never reached. Stretched, the item is exactly its track,
+    // and the track is what is left once both sides have their natural width.
+    //
+    // That leftover is the rule `gtk_center_layout_distribute` applies while
+    // `shrink-center-last` is FALSE (gtkcenterlayout.c:155-157): the centre is
+    // CLAMPed to `size - spacing - (start.natural + end.natural)` and then pushed
+    // in from either side, so it cannot overlap them. The centring above still
+    // holds wherever the bar HAS room, because the two `1fr` side tracks split the
+    // free space evenly and `justify-content: center` centres the title in the
+    // middle track.
     display: flex;
     justify-content: center;
     // min-width: 0 prevents the title from pushing the end buttons off-screen.

@@ -36,6 +36,47 @@ function centerWidget(text: string): HTMLElement {
 /** Remove every header bar a test mounted. */
 function unmountAll(): void {
     for (const bar of Array.from(document.querySelectorAll('adw-header-bar'))) bar.remove();
+    for (const host of Array.from(document.querySelectorAll('[data-header-bar-host]'))) host.remove();
+}
+
+/** The long title both geometry tests use, so the narrow bar really has to give way. */
+const LONG_TITLE = 'A very very long document title indeed';
+
+/**
+ * A header bar of a fixed width, one start button and two end buttons.
+ *
+ * The asymmetry is the point: it is what tells "centred on the BAR" apart from
+ * "centred in the space the buttons left over".
+ */
+function mountSizedHeaderBar(width: number): HTMLElement {
+    const host = document.createElement('div');
+    host.setAttribute('data-header-bar-host', '');
+    host.style.width = `${width}px`;
+    document.body.appendChild(host);
+
+    const bar = document.createElement('adw-header-bar');
+    bar.setAttribute('title', LONG_TITLE);
+    for (const [slot, count] of [
+        ['start', 1],
+        ['end', 2],
+    ] as const) {
+        for (let i = 0; i < count; i++) {
+            const button = document.createElement('button');
+            button.className = 'adw-header-btn';
+            button.setAttribute('slot', slot);
+            button.textContent = '+';
+            bar.appendChild(button);
+        }
+    }
+    // Appended LAST: the sections are built in `connectedCallback`, so the slotted
+    // children have to be in place before the bar enters the document.
+    host.appendChild(bar);
+    return bar;
+}
+
+/** The rect of one part of a mounted header bar. */
+function rectOf(bar: HTMLElement, selector: string): DOMRect {
+    return (bar.querySelector(selector) as HTMLElement).getBoundingClientRect();
 }
 
 export const AdwHeaderBarTest = async () => {
@@ -110,6 +151,57 @@ export const AdwHeaderBarTest = async () => {
             bar.setAttribute('title', 'Pictures');
             expect(centerText(bar)).toContain('Pictures');
             expect(centerText(bar)).toContain('12 items');
+            unmountAll();
+        });
+    });
+
+    // `Adw.HeaderBar` lays its three sections out with a `GtkCenterBox`
+    // (adw-header-bar.c:992), whose two rules pull in opposite directions and were
+    // each broken on their own once. Both are asserted here, because a fix for
+    // either one is exactly what breaks the other:
+    //
+    //   - the centre is centred on the WHOLE bar, not in the space the sides left
+    //     over, so a bar with unequal sides still shows its title in the middle;
+    //   - `shrink_center_last` is FALSE, so the centre is clamped to
+    //     `size - (start.natural + end.natural)` and pushed in from either side
+    //     (gtkcenterlayout.c:155-157). The TITLE gives way, never the buttons.
+    await describe('<adw-header-bar> centre placement (GtkCenterBox)', async () => {
+        await it('centres the title on the BAR even when the two sides differ', () => {
+            const bar = mountSizedHeaderBar(600);
+            const barBox = bar.getBoundingClientRect();
+            const start = rectOf(bar, '.adw-header-bar-start');
+            const end = rectOf(bar, '.adw-header-bar-end');
+            const title = rectOf(bar, '.adw-window-title-title');
+
+            // The discriminator: with equal sides, centring on the bar and centring
+            // between the buttons are the same answer and this proves nothing.
+            expect(Math.round(end.width) > Math.round(start.width)).toBe(true);
+
+            const off = Math.abs((title.left + title.right) / 2 - (barBox.left + barBox.right) / 2);
+            expect(off <= 1).toBe(true);
+            unmountAll();
+        });
+
+        await it('ellipsizes instead of painting the title over the buttons', () => {
+            const bar = mountSizedHeaderBar(260);
+            const barBox = bar.getBoundingClientRect();
+            const start = rectOf(bar, '.adw-header-bar-start');
+            const end = rectOf(bar, '.adw-header-bar-end');
+            const centre = rectOf(bar, '.adw-header-bar-center');
+            const titleEl = bar.querySelector('.adw-window-title-title') as HTMLElement;
+
+            // The discriminator: the untruncated title really is wider than the whole
+            // bar, so there is a collision to avoid in the first place.
+            expect(titleEl.scrollWidth > Math.round(barBox.width)).toBe(true);
+
+            // A centred grid item is sized `fit-content`, whose floor is its own
+            // min-content — the whole `nowrap` string. That drew the centre section
+            // 277px wide in a 260px bar, starting outside it and running over all
+            // three buttons. Stretched into its track it can only be the leftover.
+            expect(centre.left >= start.right - 0.5).toBe(true);
+            expect(centre.right <= end.left + 0.5).toBe(true);
+            expect(centre.left >= barBox.left - 0.5 && centre.right <= barBox.right + 0.5).toBe(true);
+            expect(titleEl.scrollWidth > titleEl.clientWidth).toBe(true);
             unmountAll();
         });
     });
