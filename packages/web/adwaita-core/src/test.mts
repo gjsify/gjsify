@@ -29,6 +29,7 @@ import checksTestSuite from './checks.spec.js';
 import wrapBoxTestSuite from './wrap-box.spec.js';
 import spinnerTestSuite from './spinner.spec.js';
 import shortcutLabelTestSuite from './shortcut-label.spec.js';
+import scrollingTestSuite from './scrolling.spec.js';
 
 run({
     aboutDialogTestSuite,
@@ -60,4 +61,5 @@ run({
     wrapBoxTestSuite,
     spinnerTestSuite,
     shortcutLabelTestSuite,
+    scrollingTestSuite,
 });
