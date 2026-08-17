@@ -46,6 +46,48 @@ const DESKTOPS = [
 
 /** How long one desktop holds before the next fades in, in ms. */
 const HOLD_MS = 5200;
+
+/**
+ * The watermark drawn into each wallpaper, one flat silhouette per system.
+ *
+ * Drawn here rather than fetched as brand assets: these render at one colour and
+ * about 7% opacity, so all a file download would buy is a licence question. They
+ * are identifying which desktop is on screen, the same job the taskbar and the
+ * dock are already doing, just legible from across the room.
+ *
+ * `currentColor` throughout, so the CSS below owns the colour and the opacity.
+ */
+const MARKS: Record<string, string> = {
+  // The GNOME foot: a sole and four toes arcing away from it.
+  gnome: `<svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">
+      <ellipse cx="41" cy="66" rx="27" ry="31" transform="rotate(-18 41 66)" />
+      <circle cx="56" cy="20" r="10.5" />
+      <circle cx="74" cy="29" r="8.5" />
+      <circle cx="86" cy="44" r="7" />
+      <circle cx="92" cy="61" r="5.5" />
+    </svg>`,
+  // Windows 11: four panes in a square, no perspective.
+  windows: `<svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">
+      <rect x="3" y="3" width="44" height="44" rx="3" />
+      <rect x="53" y="3" width="44" height="44" rx="3" />
+      <rect x="3" y="53" width="44" height="44" rx="3" />
+      <rect x="53" y="53" width="44" height="44" rx="3" />
+    </svg>`,
+  // macOS: the apple. Body plus leaf, the silhouette everyone reads instantly.
+  //
+  // The alternative kept in mind here was the command glyph (U+2318), which says
+  // "Mac" to developers without touching anyone's brand book: Apple's identity
+  // guidelines are stricter than Microsoft's or GNOME's about third parties
+  // drawing their mark. Swapping back is this one entry.
+  macos: `<svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">
+      <path d="M74 53c-.1-11 9-16 9.4-16.3-5.1-7.5-13.1-8.5-16-8.6-6.8-.7-13.3 4-16.7 4
+               -3.4 0-8.7-3.9-14.3-3.8-7.4.1-14.2 4.3-18 10.9-7.7 13.3-2 33 5.5 43.8
+               3.7 5.3 8 11.2 13.7 11 5.5-.2 7.6-3.5 14.2-3.5 6.6 0 8.5 3.5 14.3 3.4
+               5.9-.1 9.6-5.4 13.2-10.7 4.2-6.1 5.9-12.1 6-12.4-.1-.1-11.5-4.4-11.6-17.4z" />
+      <path d="M63.3 20.6C66.3 17 68.3 12 67.8 7c-4.3.2-9.5 2.9-12.6 6.4
+               -2.8 3.1-5.2 8.2-4.6 13 4.8.4 9.7-2.4 12.7-5.8z" />
+    </svg>`,
+};
 ---
 
 {/* `not-content` is load-bearing, not tidiness. Starlight's content flow puts a
@@ -73,6 +115,15 @@ const HOLD_MS = 5200;
           data-desktop={desktop.id}
           aria-hidden="true"
         >
+          {/* A single-colour mark of the system, washed into the wallpaper. The
+              shell chrome already says which desktop this is, but it says it in
+              a 6%-tall strip at one edge; the mark is readable in the half second
+              a visitor actually spends here.
+              Kept deliberately faint and monochrome so it reads as "this is a
+              picture of that desktop" rather than as a badge claiming any kind of
+              endorsement. Each mark is its own block below, so swapping one for an
+              official asset is a single edit. */}
+          <span class="platform-mark" set:html={MARKS[desktop.id]} />
           {/* GNOME 4x, not GNOME 3: there is no "Activities" label any more. The
               left is the workspace indicator (a dash for the active workspace,
               dots for the others), the centre is the clock, and the right is the
@@ -364,6 +415,38 @@ const HOLD_MS = 5200;
     position: absolute;
     inset: 0;
   }
+
+  /* --- The system watermark ---
+     Sized off the frame's HEIGHT, not its width, and that is the whole trick: it
+     has to come out TALLER than the app window or it is simply invisible. At
+     260px square it was, because the window is 475×264 and swallowed it whole.
+     Keyed to the height it stays bigger than the window at every breakpoint, so
+     the mark reads as something the window is sitting on, the way a logo on a
+     wallpaper does.
+     Lifted a little above centre because the bottom of the stage belongs to the
+     taskbar and the dock. */
+  .platform-mark {
+    position: absolute;
+    left: 50%;
+    top: 47%;
+    transform: translate(-50%, -50%);
+    height: min(88%, 500px);
+    aspect-ratio: 1;
+    color: #fff;
+    /* Strong enough to be read in the half second before the window is noticed,
+       faint enough to stay wallpaper. At 0.07 it was technically on screen and
+       practically invisible, which bought nothing. */
+    opacity: 0.13;
+    pointer-events: none;
+    display: block;
+  }
+
+  .platform-mark svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
 
   /* GNOME: the blue-violet default wallpaper family + the top bar. */
   .platform-desktop--gnome {
