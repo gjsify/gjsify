@@ -11,6 +11,10 @@ import { writeFileSync, readFileSync, existsSync, mkdtempSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
+// The zero-dependency subpath, deliberately: the plugin root would pull vite,
+// execa and minify-xml into an e2e suite that only wants the answer.
+import { resolveBlueprintCompiler } from '@gjsify/vite-plugin-blueprint/resolve';
+
 import {
     MONOREPO_ROOT,
     createTestEnvironment,
@@ -33,16 +37,16 @@ const TEMPLATES = [
     'web-server-express',
 ];
 
-// Templates that compile `.blp` files — require blueprint-compiler on PATH.
+// Templates that compile `.blp` files — require a blueprint-compiler the BUILD
+// can find. Asking the resolver rather than probing PATH ourselves is the whole
+// point: on win32 MSYS2 does not put its bin dirs on PATH, so a `--version`
+// probe answers "missing" and skips three templates on a host where every one of
+// them builds. The resolver is what the plugin actually spawns, so it is the
+// only answer that predicts the build.
 const BLUEPRINT_TEMPLATES = new Set(['adw-canvas2d', 'adw-webgl', 'adw-game']);
 
 function hasBlueprintCompiler() {
-    try {
-        execFileSync('blueprint-compiler', ['--version'], { stdio: 'pipe' });
-        return true;
-    } catch {
-        return false;
-    }
+    return resolveBlueprintCompiler() !== null;
 }
 
 /**
