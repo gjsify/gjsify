@@ -302,6 +302,7 @@ gjsify install -g @gjsify/cli   # global install under ~/.local/share/gjsify/glo
 | `-O`, `--save-optional` | `false` | Save to `optionalDependencies`. |
 | `--immutable` | `false` | Refuse to update `gjsify-lock.json`; fail if it's missing or stale. Equivalent to `yarn --immutable` / `npm ci --frozen-lockfile`. |
 | `--verbose` | `false` | Per-package install log. |
+| `--prune` | `true` | Afterwards, remove packages an earlier install left behind that this host cannot use — see [`gjsify prune`](#gjsify-prune). `--no-prune` disables. Skipped under `--immutable`, and whenever `--os`/`--cpu`/`--libc` is given. |
 
 Resolver mirrors npm v3+ semantics: each `(requester → dep → range)` edge is checked against the ancestor `node_modules` chain; compatible placements are reused, conflicting ones are nested. Supports `npm`-style `overrides` and `yarn`-style `resolutions` in `package.json`. Lockfile schema is v2 (path-keyed `packages` map).
 
@@ -1070,6 +1071,8 @@ Only works for CLIs installed under `~/.local/share/gjsify/global/` (the `instal
 | `--check` | `false` | Compare current vs target without installing. Exit 0 if up-to-date, 1 if outdated. |
 | `--force` | `false` | Reinstall even when target matches current. |
 | `--tag` | `latest` | npm dist-tag or pinned version. |
+| `--skip-deps` | `false` | Update the CLI alone, without topping up the GJS engine packages. |
+| `--prune` | `true` | Afterwards, remove packages an earlier install left behind that this host cannot use. `--no-prune` disables. |
 
 ## `gjsify generate-installer`
 
@@ -1118,6 +1121,30 @@ Scoped to `--global` only. Project-local removal (mirror of `npm uninstall <pkg>
 | `--verbose` | `false` | Surface inspection failures (rare). |
 
 Exits non-zero when nothing was removed (no matching install found).
+
+## `gjsify prune`
+
+Remove installed packages this host cannot use — the ones an *earlier* install placed before the platform filter could skip them. See [ADR 0025](https://github.com/gjsify/gjsify/blob/main/docs/adr/0025-prune-the-install-prefix.md).
+
+```bash
+gjsify prune -g --dry-run       # what would go, and how much it frees
+gjsify prune -g                 # remove it
+gjsify prune                    # the same, for this project's node_modules
+gjsify prune -g --os=darwin     # what a darwin host could not use
+```
+
+The decision is a **pure manifest read**: npm's own `os`/`cpu`/`libc`, through the same check the installer filters with — so a pruned prefix converges on what a fresh install would have placed. A package that declares **no** platform is never touched, however unusable it looks: inferring that from a package NAME is how a prune starts deleting things it cannot justify.
+
+`install` and `self-update` run the same pass automatically (`--no-prune` opts out). That pass uses the **measured** host and refuses outright when `--os`/`--cpu`/`--libc` is given, so an install can never delete against a target you typed. On this command those flags are honoured, because asking is not a side effect.
+
+| Option | Default | Description |
+|---|---|---|
+| `--global` / `-g` | `false` | Prune the user-global prefix instead of the project's `node_modules`. |
+| `--dry-run` | `false` | Report what would be removed, touch nothing. |
+| `--verbose` | `false` | List every package rather than the first few. |
+| `--os` / `--cpu` / `--libc` | host | Decide as if the host were this target. |
+
+Removing nothing is a success — this is idempotent housekeeping. It exits non-zero only when a removal you asked for failed. Sizes are **apparent** (summed from the files), so `du`, which counts allocated blocks, will report a slightly different number.
 
 ## `gjsify ship`
 
