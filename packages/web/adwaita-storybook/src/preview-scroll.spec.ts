@@ -123,5 +123,31 @@ export const AdwStorybookPreviewScrollTest = async () => {
                 host.remove();
             }
         });
+
+        await it('lets the toolbar view, not this sheet, fill the story-list column', () => {
+            // This sheet used to carry its own `.sb-sidebar-scroll { flex: 1 1 auto }`,
+            // which held the column up here while every other Adw.ToolbarView content
+            // widget in the project still stopped at its last row. The declaration is
+            // gone and `adw-toolbar-view` fills its content widget instead, so this
+            // asserts the widget rule from the consumer that used to hide its absence.
+            const { host } = mountTall();
+            try {
+                const scroll = host.querySelector('.sb-sidebar-scroll') as HTMLElement;
+                const area = scroll.parentElement as HTMLElement;
+                const list = host.querySelector('.sb-sidebar-list') as HTMLElement;
+
+                // Two discriminators, without which "scroller height == pane height" is
+                // a coincidence: the scroller really is the toolbar view's content, and
+                // its own content really is shorter than the pane it has to fill.
+                expect(area.classList.contains('adw-toolbar-view-content')).toBe(true);
+                expect(list.getBoundingClientRect().height).toBeLessThan(area.getBoundingClientRect().height);
+
+                expect(Math.round(scroll.getBoundingClientRect().height)).toBe(
+                    Math.round(area.getBoundingClientRect().height),
+                );
+            } finally {
+                host.remove();
+            }
+        });
     });
 };

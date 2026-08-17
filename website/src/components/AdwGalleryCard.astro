@@ -13,8 +13,16 @@ interface Props {
 const { title, href, description } = Astro.props;
 ---
 
+{/* `not-content` for the reason AdwWidget.astro spells out: Starlight puts a
+    `margin-top` on every content element that FOLLOWS a sibling, exempting only
+    `:where(.not-content *)`. Inside a preview that lands on the WIDGETS. Measured
+    on this page: in the Buttons card, "Suggested" had `margin: 0` and Delete, the
+    circular button and Pill each had `margin: 16px 0 0`, so the first button sat
+    8px above its own row. The header-bar card had the same 16px pushed onto its
+    trailing button. A preview is a rendering of a widget, not prose, so it has to
+    be laid out by the widget's own stylesheet alone. */}
 <a class="adw-gallery-card" href={href}>
-    <div class="agc-preview">
+    <div class="agc-preview not-content">
         <template class="agc-tpl"><slot name="preview" /></template>
         <div class="agc-stage"></div>
     </div>
@@ -85,18 +93,30 @@ const { title, href, description } = Astro.props;
             radial-gradient(circle at 100% 100%, rgba(146, 110, 228, 0.08), transparent 45%);
     }
 
+    /* A DEFINITE height (the panel's 148px less its 14px padding), not a
+       max-height: the percentage cap below only resolves against a containing
+       block that has one. */
     .agc-stage {
         display: flex;
         align-items: center;
         justify-content: center;
         width: 100%;
-        max-height: 120px;
+        height: 100%;
     }
 
     /* Keep a wide widget (header bar, switcher, sidebar) from overflowing the
-       card; it scrolls internally rather than pushing the card wider. */
+       card; it scrolls internally rather than pushing the card wider.
+
+       `max-height` is the same rule on the other axis and it was missing. The
+       stage CENTRES its widget, so anything taller than the card was cut at both
+       edges at once: the Navigation card's sidebar comes to roughly 150-170px
+       against 120px of room, which sliced the "Mailboxes" heading off the top and
+       the last row's subtitle off the bottom with nothing to say either existed.
+       Capped, it starts at the top and either scrolls (adw-sidebar sets
+       `overflow-y: auto`) or clips only its bottom. */
     .agc-stage > * {
         max-width: 100%;
+        max-height: 100%;
     }
 
     .agc-body {

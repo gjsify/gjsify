@@ -12,5 +12,14 @@
         "strict": true,
         "skipLibCheck": true
     },
-    "files": ["src/index.ts", "src/create.ts"]
+    "comment": [
+        "`files` listed the two published entries and nothing else, so the compile",
+        "scope was their import closure and a source reachable from neither would",
+        "never have been type-checked. `include` takes all of `src/`; the sibling",
+        "convention (see packages/infra/cli) keeps specs and the test entry out —",
+        "the test tasks compile those, and `files` in package.json publishes `lib/`,",
+        "which must not carry them."
+    ],
+    "include": ["src/**/*.ts", "src/**/*.mts"],
+    "exclude": ["src/test.mts", "src/**/*.spec.ts", "src/**/*.spec.mts"]
 }

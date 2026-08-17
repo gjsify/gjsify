@@ -47,6 +47,7 @@ import {
 import { emblemSystemSymbolic } from '@gjsify/adwaita-icons/legacy';
 import { preferencesSystemSymbolic } from '@gjsify/adwaita-icons/categories';
 import { applicationXExecutableSymbolic } from '@gjsify/adwaita-icons/mimetypes';
+import { windowCloseSymbolic, windowMaximizeSymbolic, windowMinimizeSymbolic } from '@gjsify/adwaita-icons/ui';
 import { toDataUri } from '@gjsify/adwaita-icons/utils';
 
 // view-columns-symbolic is not in the vendored icon theme @gjsify/adwaita-icons is
@@ -101,6 +102,13 @@ const ICONS = {
     'emblem-system': emblemSystemSymbolic,
     'preferences-system': preferencesSystemSymbolic,
     'application-x-executable': applicationXExecutableSymbolic,
+    // GtkWindowControls' glyphs — needed by anything that draws an Adwaita window
+    // frame in the browser, where there is no window manager to draw it. All
+    // three, because the set a window shows is the PLATFORM's decoration layout:
+    // close alone on GNOME, minimize/maximize/close on Windows.
+    'window-close': windowCloseSymbolic,
+    'window-minimize': windowMinimizeSymbolic,
+    'window-maximize': windowMaximizeSymbolic,
     // The libadwaita fallback for a NULL/empty icon-name: every view switcher substitutes
     // it, so it has to resolve to a real glyph rather than to an empty mask.
     'image-missing': imageMissingSymbolic,

@@ -1,62 +1,77 @@
 ---
 title: "Three.js Teapot"
-description: Three.js Utah teapot with parameter controls — proves Three's full WebGL2 pipeline runs on GJS through @gjsify/webgl's Vala bridge.
+description: The Utah teapot rendered by unmodified Three.js, with native Adwaita rows driving the scene live.
 ---
 
 import ShowcaseEmbed from '../../../components/ShowcaseEmbed.astro';
 
-The Utah teapot rendered with [Three.js](https://threejs.org/), with live Adwaita-styled controls for tessellation level, body / lid / bottom toggles, and material switching. Ported from [`refs/three/examples/webgl_geometry_teapot.html`](https://github.com/gjsify/gjsify/tree/main/refs/three/examples/webgl_geometry_teapot.html).
+The Utah teapot rendered by [Three.js](https://threejs.org/), with an Adwaita sidebar that changes the geometry and the material while it spins.
+
+Two things to take from it. Three.js runs unmodified: `THREE.WebGLRenderer`, `TeapotGeometry` and `OrbitControls` come straight from npm and draw into a `Gtk.GLArea`. And the controls are real GTK widgets bound to the scene, so you can wrap a web renderer in a native GNOME interface instead of rebuilding one in HTML.
+
+Ported from the upstream [`webgl_geometry_teapot`](https://threejs.org/examples/#webgl_geometry_teapot) example.
 
 ## Live demo
 
 <ShowcaseEmbed name="three-geometry-teapot" />
 
-## What it exercises
+## Run it
 
-| Pillar | What Three.js needs |
-|---|---|
-| [`@gjsify/webgl`](https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl) | Full WebGL 2.0 surface — Three's renderer reaches for VAOs, uniform buffer objects, `texStorage2D`, `drawElementsInstanced`. All routed through the [`gwebgl` Vala bridge](https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl) → libepoxy → GLES 3.2. |
-| [`@gjsify/dom-elements`](https://github.com/gjsify/gjsify/tree/main/packages/dom/dom-elements) | `HTMLCanvasElement`, `requestAnimationFrame`, `ResizeObserver`, `OrbitControls` mouse events |
-| [`@gjsify/event-bridge`](https://github.com/gjsify/gjsify/tree/main/packages/framework/event-bridge) | Mouse drag → camera orbit |
-| `@gjsify/adwaita-web` | Browser embed's control panel styling |
-| Adwaita widgets (GJS) | `Adw.PreferencesGroup` + `Adw.SwitchRow` + `Adw.SpinRow` for the same controls |
-
-## Run it on GJS
+This showcase declares all four runtimes, so pick the one you already have:
 
 ```bash
-gjsify showcase three-geometry-teapot
+gjsify showcase three-geometry-teapot --runtime gjs
+gjsify showcase three-geometry-teapot --runtime node
+gjsify showcase three-geometry-teapot --runtime bun
+gjsify showcase three-geometry-teapot --runtime deno
 ```
 
-A GTK4 window opens with an `Adw.ToolbarView` shell: the toolbar holds the controls (tessellation 1-20, body/lid/bottom switches, material dropdown), the content area is the WebGL canvas. Drag with the mouse to orbit the camera; scroll to zoom.
+A GTK 4 window opens as an `Adw.OverlaySplitView`: the sidebar holds the controls, the canvas fills the rest. Drag to orbit the camera, scroll to zoom. Same window and same scene on all four.
+
+The sidebar has two groups. **Geometry** sets the tessellation level (an `Adw.ComboRow` stepping 2, 3, 4, 5, 6, 8, 10, 15, 20, 30, 40, 50) and toggles Display Lid, Display Body, Display Bottom, Snug Lid and Original Scale. **Material** switches the shading between wireframe, flat, smooth, glossy, textured and reflective.
+
+Under `gjs` this runs the `--app gjs` bundle against GJS's native `gi://`. Under `node`, `bun` and `deno` it runs one shared `--app node` bundle, where `gi://` goes through the [node-gi](/gjsify/projects/node-gi/) bridge. [Choose the runtime](/gjsify/showcases/#choose-the-runtime) covers what the CLI does when you leave the flag off.
 
 ## Run it in the browser
 
 ```ts
 import { mount } from '@gjsify/example-dom-three-geometry-teapot/browser';
-mount(document.getElementById('app')!);
+
+const handle = mount(document.getElementById('app')!, {
+  assetBase: '/demos/teapot/',   // where the UV grid and the Pisa cubemap live
+});
+
+handle.pause();
+handle.resume();
 ```
 
-Same shared scene logic. The browser embed renders the same controls through `@gjsify/adwaita-web`'s custom elements so the visual story is identical.
+The browser build rebuilds the same sidebar out of `@gjsify/adwaita-web` custom elements, so both versions look and behave the same.
 
-## Source
+## What it uses
+
+| Package | What Three.js needs it for |
+|---|---|
+| [`@gjsify/webgl`](https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl) | The full WebGL 2.0 surface: vertex array objects, uniform buffer objects, `texStorage2D`, `drawElementsInstanced` |
+| [`@gjsify/dom-elements`](https://github.com/gjsify/gjsify/tree/main/packages/dom/dom-elements) | `HTMLCanvasElement` and `requestAnimationFrame` |
+| [`@gjsify/event-bridge`](https://github.com/gjsify/gjsify/tree/main/packages/framework/event-bridge) | Mouse drag and scroll feeding `OrbitControls` |
+| `@gjsify/adwaita-web` | The sidebar in the browser build |
+| Libadwaita | `Adw.OverlaySplitView`, `Adw.ComboRow` and `Adw.SwitchRow` in the GTK build |
+
+`@gjsify/webgl` maps WebGL calls onto the platform's own GL through a Vala bridge, which is GLES 3.2 on Linux. Three.js targets desktop WebGL and does not know about that difference, and does not have to. [Bridge widgets](/gjsify/patterns/bridges/) has the detail.
+
+## Copy the structure
 
 [`showcases/dom/three-geometry-teapot/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/three-geometry-teapot)
 
-- `src/three-demo.ts` — the Three.js scene (shared between targets, no GJS-specific imports)
-- `src/gjs/gjs.ts` — `Adw.Application` entry point that boots the window
-- `src/gjs/teapot-window.ts` + `src/gjs/teapot-window.blp` — `Adw.ApplicationWindow` with Blueprint UI definitions
-- `src/browser/browser.ts` — DOM mount + Adwaita-web wiring
-- `src/browser/browser-main.ts` — standalone browser entry point (fullscreen demo)
-- `src/assets/uv_grid_opengl.jpg` + `src/assets/pisa/` — UV grid texture and Pisa cubemap (shipped as npm assets via `exports['./assets/*']`)
+- `src/three-demo.ts` is the whole scene behind one `start(canvas)` function, with no platform imports. It also exports `TESS_VALUES` and `SHADING_VALUES` so both shells build the same control lists.
+- `src/gjs/gjs.ts`, `teapot-window.ts` and `teapot-window.blp` are the `Adw.Application`, the window class and its Blueprint UI.
+- `src/browser/browser.ts` exports `mount()`; `browser-main.ts` runs it full-page.
+- `src/assets/` carries the UV grid texture and the Pisa cubemap, published through the package's `./assets/*` export.
 
-## Why this matters
-
-`@gjsify/webgl`'s Vala bridge maps each WebGL call into libepoxy's GLES 3.2 surface — but Three.js does NOT target GLES, it targets desktop WebGL. The fact that it runs unmodified is the load-bearing claim: the bridge handles every format / type / blit / buffer-storage difference between WebGL and GLES, so consumer code stays browser-shaped.
-
-When new Three.js features land (e.g. WebGPU paths, new post-processing passes), this showcase is one of the first regression targets — the matrix of WebGL calls Three reaches for is the broadest realistic surface available.
+Exporting your control values from the shared module, as `TESS_VALUES` does here, is the cheap way to stop two shells drifting apart.
 
 ## Related
 
-- [`three-postprocessing-pixel`](./three-postprocessing-pixel/) — same engine, different rendering pipeline (post-FX framebuffers + custom shaders)
-- [Bridge widgets pattern](../../patterns/bridges/) — covers the `WebGLBridge` lifecycle, including the resize → reframe flow
-- [`@gjsify/webgl`](https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl) — the package itself, where every new Three.js requirement gets implemented
+- [`three-postprocessing-pixel`](../three-postprocessing-pixel/) runs the same engine through a multi-pass post-processing chain.
+- [`three-loader-ldraw`](../three-loader-ldraw/) loads its geometry from disk over `fetch`.
+- [Bridge widgets](/gjsify/patterns/bridges/) covers the `WebGLBridge` lifecycle and the resize path.

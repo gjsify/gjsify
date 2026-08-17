@@ -34,6 +34,12 @@ export {
 } from './accent.js';
 export type { ApplyAccentOptions } from './accent.js';
 
+// GtkScrolledWindow's undershoot/overshoot indicators. `adw-toolbar-view` drives
+// this itself; exported so a consumer that owns its own chrome can shade a scroller
+// without one.
+export { AdwScrollShading } from './scroll-shading.js';
+export type { AdwUndershootEdges } from './scroll-shading.js';
+
 export { AdwAvatar } from './elements/adw-avatar.js';
 export { AdwBanner } from './elements/adw-banner.js';
 export { AdwCard } from './elements/adw-card.js';

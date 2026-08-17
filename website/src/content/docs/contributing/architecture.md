@@ -3,7 +3,7 @@ title: Architecture
 description: Monorepo structure and GNOME library mappings
 ---
 
-GJSify is an npm-workspaces monorepo, bootstrapped by its own CLI — `gjsify install` is the supported install path (no Yarn, no Node-only npm CLI required; see [Development Setup](/gjsify/contributing/development-setup/)).
+GJSify is an npm-workspaces monorepo, bootstrapped by its own CLI. `gjsify install` is the supported install path (no Yarn, no Node-only npm CLI required; see [Development Setup](/gjsify/contributing/development-setup/)).
 
 ## Monorepo Structure
 
@@ -56,9 +56,9 @@ Each `@gjsify/*` package maps Node.js or Web APIs to native GNOME libraries:
 
 GJSify treats the **Node.js API**, the **Web API**, the **DOM API** and the **Framework** layer as four equal pillars:
 
-- `packages/node/` — Node.js builtins (`fs`, `http`, `crypto`, …)
-- `packages/web/` — Web platform APIs (`fetch`, `WebSocket`, `ReadableStream`, Web Crypto, …)
-- `packages/dom/` — DOM element classes (`HTMLCanvasElement`, `HTMLImageElement`, …) with headless Canvas 2D
-- `packages/framework/` — everything that glues DOM and GTK together without being a spec implementation: the [bridge widgets](/gjsify/patterns/bridges/), the [storybook](/gjsify/guides/storybook/), the [devtools control plane](/gjsify/guides/devtools/) and the [Adwaita app shell](/gjsify/guides/native-adwaita-app/)
+- `packages/node/`: Node.js builtins (`fs`, `http`, `crypto`, …)
+- `packages/web/`: Web platform APIs (`fetch`, `WebSocket`, `ReadableStream`, Web Crypto, …)
+- `packages/dom/`: DOM element classes (`HTMLCanvasElement`, `HTMLImageElement`, …) with headless Canvas 2D
+- `packages/framework/`: everything that glues DOM and GTK together without being a spec implementation: the [bridge widgets](/gjsify/patterns/bridges/), the [storybook](/gjsify/guides/storybook/), the [devtools control plane](/gjsify/guides/devtools/) and the [Adwaita app shell](/gjsify/guides/native-adwaita-app/)
 
 The DOM-element ↔ GTK-widget pairings are documented in [Bridge Widgets](/gjsify/patterns/bridges/).

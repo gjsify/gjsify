@@ -1,67 +1,85 @@
 ---
 title: Showcases
-description: Production-quality runnable demos that exercise the full @gjsify/* pillar set — DOM + Canvas + WebGL + WebRTC + Excalibur + Three.js + Express — on both GJS and the browser.
+description: Complete demo apps you can start with one command, each showing a slice of what gjsify can build on GTK 4.
 ---
 
-The **showcases** are end-to-end runnable applications that double as proof of the `@gjsify/*` pillar set's coverage. Every showcase runs in two places from the same source:
+Showcases are finished, runnable apps. Each one starts with a single command, opens a real GTK 4 window, and is written in ordinary web code: `<canvas>`, WebGL, `fetch`, `XMLHttpRequest`, `RTCPeerConnection`, Express. They are the quickest way to find out whether gjsify can carry the kind of app you want to build, and the source of each one is a working template you can copy from.
 
-- **In a GTK4 window** via `gjsify showcase <name>` — Cairo / WebGL / WebKit / GStreamer backing the standard DOM APIs the showcase code reaches for.
-- **In a regular browser** via `import { mount } from '@gjsify/example-dom-<name>/browser'` — same module, native browser implementations.
+## Run one
 
-If something runs on GJS through GJSify, it also runs in the browser unmodified (and vice versa). That cross-platform contract is the point.
-
-## Browse the catalog
-
-| Showcase | Pillar focus | Browser demo |
-|---|---|---|
-| [`adwaita-storybook`](./adwaita-storybook/) | Adwaita + `@gjsify/adwaita-web` + `@gjsify/storybook` | Interactive Libadwaita component browser (native GTK + browser, one shared story) |
-| [`canvas2d-fireworks`](./canvas2d-fireworks/) | DOM + `@gjsify/canvas2d` | Particle fireworks on a `Canvas2DBridge` / `<canvas>` |
-| [`excalibur-jelly-jumper`](./excalibur-jelly-jumper/) | DOM + `@gjsify/webgl` + `@gjsify/xmlhttprequest` | Excalibur.js 2D platformer with Tiled tilemaps |
-| [`three-geometry-teapot`](./three-geometry-teapot/) | DOM + `@gjsify/webgl` | Three.js Utah teapot with parameter controls |
-| [`three-loader-ldraw`](./three-loader-ldraw/) | DOM + `@gjsify/webgl` + `@gjsify/fetch` | Three.js LDraw viewer — models streamed from disk over `fetch`, with building steps |
-| [`three-postprocessing-pixel`](./three-postprocessing-pixel/) | DOM + `@gjsify/webgl` + post FX | Three.js pixel-art post-processing pipeline |
-| [`minimalist-browser`](./minimalist-browser/) | DOM + `@gjsify/iframe` | URL bar + `<iframe>` (WebKit on GJS, real `<iframe>` in browser) |
-| [`webrtc-loopback`](./webrtc-loopback/) | `@gjsify/webrtc` | Two local peers exchange offer/answer + RTCDataChannel |
-| [`webrtc-video`](./webrtc-video/) | `@gjsify/webrtc` + `@gjsify/video` | Webcam preview — `getUserMedia` stream rendered through `VideoBridge` / native `<video>` |
-| [`express-webserver`](./express-webserver/) | Node — `@gjsify/http` + `express` | Express HTTP server running unmodified on GJS |
-
-## Running a showcase locally
+You need the `gjsify` CLI and at least one of `gjs`, `node`, `bun` and `deno`; two of the ten below declare `gjs` only, and the table says which. There is nothing to clone:
 
 ```bash
-gjsify showcase                          # list all
-gjsify showcase canvas2d-fireworks       # run on GJS (opens a GTK4 window)
+gjsify showcase                          # list every showcase
+gjsify showcase canvas2d-fireworks       # run one, opens a GTK 4 window
 ```
 
-The CLI resolves the showcase's npm package (every showcase is published as `@gjsify/example-<category>-<name>`) and launches its GJS bundle via `gjs -m`. Native dependencies (Vala typelibs) are auto-discovered from `node_modules`'s prebuild directories.
+The CLI fetches the showcase's npm package on demand, sets up the native typelibs it needs, and launches it. If a system library is missing, `gjsify system-check` names it. Add `--runtime` to say which of the four runs it, or leave it off and let the CLI resolve one: [Choose the runtime](#choose-the-runtime) below spells out both.
 
-### Pick the runtime — `--runtime`
+On Linux the GTK 4 stack comes from your distribution on every runtime. On macOS and Windows the `node`, `bun` and `deno` route pulls a prebuilt GTK 4 and Adwaita closure (`@gjsify/gtk-runtime-<os>-<arch>`) into the same cache, so there is no system GTK to install either.
 
-Add `--runtime` to run a showcase on Node.js, Bun or Deno instead of GJS, through the [`@gjsify/node-gi`](/gjsify/projects/node-gi/) reverse bridge — same GTK4 window, same source, a different JS engine underneath:
+## Pick a showcase
+
+| Showcase | What it shows | Runs on |
+|---|---|---|
+| [`adwaita-storybook`](./adwaita-storybook/) | Every Libadwaita widget, live, with a two-way controls panel | GJS, Node, Bun, Deno, browser |
+| [`canvas2d-fireworks`](./canvas2d-fireworks/) | Particle fireworks on a 2D `<canvas>` with Adwaita controls | GJS, Node, Bun, Deno, browser |
+| [`excalibur-jelly-jumper`](./excalibur-jelly-jumper/) | A 2D platformer on the unmodified Excalibur.js engine | GJS, Node, Bun, Deno, browser |
+| [`three-geometry-teapot`](./three-geometry-teapot/) | A Three.js scene driven by native Adwaita rows | GJS, Node, Bun, Deno, browser |
+| [`three-loader-ldraw`](./three-loader-ldraw/) | Three.js models streamed from disk over `fetch` | GJS, Node, Bun, Deno, browser |
+| [`three-postprocessing-pixel`](./three-postprocessing-pixel/) | A Three.js `EffectComposer` post-processing chain | GJS, Node, Bun, Deno, browser |
+| [`express-webserver`](./express-webserver/) | An unmodified Express 5 app serving HTTP and JSON | GJS, Node, Bun, Deno |
+| [`minimalist-browser`](./minimalist-browser/) | A browser shell: URL bar plus an `<iframe>` backed by WebKit | GJS, browser |
+| [`webrtc-loopback`](./webrtc-loopback/) | Two peers in one process talking over an `RTCDataChannel` | GJS, browser |
+| [`webrtc-video`](./webrtc-video/) | A webcam preview through `getUserMedia` | GJS, browser (from a checkout) |
+
+Nine of these ship in the CLI catalog. `webrtc-video` needs a camera and extra GStreamer plugins, so it runs from a checkout instead.
+
+## Choose the runtime
+
+Seven of the ten run on all four runtimes, and `--runtime` says which one:
 
 ```bash
-gjsify showcase canvas2d-fireworks --runtime gjs    # gjs -m
+gjsify showcase canvas2d-fireworks --runtime gjs
 gjsify showcase canvas2d-fireworks --runtime node
 gjsify showcase canvas2d-fireworks --runtime bun
 gjsify showcase canvas2d-fireworks --runtime deno
 ```
 
-`--runtime` defaults to whichever runtime the CLI itself is running on (`gjs` for a global GJS install, `node`/`bun`/`deno` when invoked via `npx`/`bunx`/`deno run`). A showcase can restrict which runtimes it supports via `package.json#gjsify.example.runtimes`; requesting an unsupported one fails with a clear error instead of a bundle crash. Details: [Runtimes](/gjsify/runtimes/) · [CLI Reference](/gjsify/cli-reference/#--runtime--run-a-showcase-off-gjs).
+Same window, same code, and here is what actually differs underneath:
 
-## Running the browser version
+- `--runtime gjs` runs the showcase's `--app gjs` bundle. GJS is GNOME's own JavaScript runtime, so `gi://Gtk` is native and nothing bridges into GTK.
+- `--runtime node`, `bun` and `deno` run its `--app node` bundle, where `gi://` goes through the [node-gi](/gjsify/projects/node-gi/) bridge. One bundle serves all three, because Node-API is their shared native ABI.
+- GJS is packaged for Linux and, partially, macOS; there is no GJS host on Windows. Node, Bun and Deno reach all three operating systems. [Platform Support](/gjsify/platform-support/) has the per-OS state.
 
-Every showcase ships a `./browser` export pointing at a TS module you can mount into any DOM container:
+With no `--runtime` flag, the CLI runs the `--app gjs` bundle when `gjs` is on PATH, and otherwise the `--app node` bundle on whichever runtime the CLI itself is running on. That default follows from packaging rather than from a preference: a showcase's canonical build is its `--app gjs` bundle, declared as `gjsify.main`, and every showcase ships one, while not every showcase ships an `--app node` bundle.
+
+Each showcase declares the runtimes it supports in `package.json` under `gjsify.example.runtimes`. Ask for one it does not declare and you get a clear error rather than a crash deep in the bundle. `minimalist-browser` and `webrtc-loopback` declare `["gjs"]`, because their native side is a WebKit view and a GStreamer pipeline reached through a typelib, so neither ships an `--app node` bundle. Their browser builds are unaffected: those run on the browser's own WebKit and WebRTC.
+
+More detail: [Runtimes](/gjsify/runtimes/) and the [CLI reference](/gjsify/cli-reference/#gjsify-showcase).
+
+## Put one in a web page
+
+Every showcase in the catalog except `express-webserver` also ships a `./browser` entry that mounts into any DOM container:
 
 ```ts
 import { mount } from '@gjsify/example-dom-canvas2d-fireworks/browser';
 
-const container = document.getElementById('app')!;
-mount(container);
+const handle = mount(document.getElementById('app')!);
+handle.pause();   // stop the render loop
+handle.resume();
 ```
 
-The website's `<ShowcaseEmbed>` component handles the loading and lifecycle for the live demos linked above. Source for each showcase lives under [`showcases/`](https://github.com/gjsify/gjsify/tree/main/showcases) in the GJSify repo — see the per-showcase pages for the deep dive on how each one exercises the pillar set.
+The package name follows the pattern `@gjsify/example-<category>-<name>`, so `adwaita-storybook` is `@gjsify/example-gtk-adwaita-storybook`. The live demos on the showcase pages below are these same modules, mounted by the site.
 
-## Why two targets matter
+## Read the source
 
-Showcases are how we **prove** the cross-platform contract: code written against standard DOM / Web APIs runs unmodified on both. Every gap surfaced by a showcase (a missing event, an unhandled Canvas method, a Web API stub) becomes a bug-fix in the underlying `@gjsify/*` package — never patched at the consumer level. The browser entry is the ground truth, the GJS entry validates we match it.
+Every showcase lives under [`showcases/`](https://github.com/gjsify/gjsify/tree/main/showcases) in the gjsify repo. They share one layout: a platform-agnostic module holds the app itself, and a thin shell per target wraps it. `src/gjs/` is the GTK shell, `src/browser/` is the DOM shell, and the file in between imports nothing platform-specific.
 
-When the matrix grows (new pillars, new bridges, new Vala extensions), showcases grow with it.
+That split is what you want to copy. Keep your app logic free of `@gjsify/*` imports, write against the standard APIs, and the same file runs on GTK and in a browser.
+
+## Related
+
+- [Bridge widgets](/gjsify/patterns/bridges/) explains how a `<canvas>` or an `<iframe>` becomes a GTK widget
+- [Adwaita widgets](/gjsify/adwaita/) covers the native UI the showcases wrap around their canvases
+- [Getting started](/gjsify/getting-started/) scaffolds your own app from the same pieces

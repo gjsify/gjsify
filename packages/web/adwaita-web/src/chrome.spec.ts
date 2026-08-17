@@ -90,6 +90,92 @@ function mountToolbarView(topBarHeight: number, bottomBarHeight: number): { host
     return { host, view };
 }
 
+/**
+ * A widget mounted the way the docs site mounts a preview: a fixed-height flex
+ * row, the markup attached in ONE piece from an inert `<template>`.
+ *
+ * The template is not decoration. A nested composite (a split view holding
+ * toolbar views) upgraded child-by-child by the parser can lose its slotted
+ * children to an upgrade-order race, so both the docs site and these tests build
+ * the subtree first and attach it afterwards.
+ */
+function mountPreview(markup: string, height = 340, width = 640): HTMLElement {
+    const host = document.createElement('div');
+    host.style.cssText = `height: ${height}px; width: ${width}px; display: flex; overflow: hidden;`;
+    const template = document.createElement('template');
+    template.innerHTML = markup;
+    host.append(template.content.cloneNode(true));
+    document.body.append(host);
+    return host;
+}
+
+/** Rounded to the pixel it renders at, as `clampedWidth` does for the clamp. */
+function heightOf(el: Element | null): number {
+    return el ? Math.round(el.getBoundingClientRect().height) : -1;
+}
+
+/** The sidebar pane of the Navigation Split View preview (docs/adwaita/navigation.mdx). */
+const SIDEBAR_PANE_PREVIEW = `
+<adw-toolbar-view style="flex: 1;">
+  <adw-header-bar slot="top">
+    <adw-window-title slot="center" title="Mailboxes"></adw-window-title>
+  </adw-header-bar>
+  <adw-sidebar mode="sidebar" selected="0">
+    <adw-sidebar-section>
+      <adw-sidebar-item title="All Mail" subtitle="128 messages" icon-name="mail-unread-symbolic"></adw-sidebar-item>
+      <adw-sidebar-item title="Starred" subtitle="6 messages" icon-name="starred-symbolic"></adw-sidebar-item>
+      <adw-sidebar-item title="Drafts" subtitle="2 messages" icon-name="document-edit-symbolic"></adw-sidebar-item>
+      <adw-sidebar-item title="Archive" subtitle="512 messages" icon-name="folder-symbolic"></adw-sidebar-item>
+    </adw-sidebar-section>
+  </adw-sidebar>
+</adw-toolbar-view>`;
+
+/** The content pane of the same preview: a status page that centres itself. */
+const STATUS_PANE_PREVIEW = `
+<adw-toolbar-view style="flex: 1;">
+  <adw-header-bar slot="top">
+    <adw-window-title slot="center" title="All Mail"></adw-window-title>
+  </adw-header-bar>
+  <adw-status-page icon="mail-unread-symbolic" title="All Mail" description="Select a conversation from the list to read it here."></adw-status-page>
+</adw-toolbar-view>`;
+
+/**
+ * The root page of the Navigation View preview: a lone action button.
+ *
+ * A GTK button asked to sit in the middle of a ToolbarView says
+ * `halign/valign: CENTER`; the web spelling is a centring box around it, which is
+ * what the preview now carries. It used to carry a bare
+ * `class="adw-navigation-view-root-action"` matching no rule in any stylesheet.
+ */
+const ROOT_ACTION_PREVIEW = `
+<adw-toolbar-view style="flex: 1;">
+  <adw-header-bar slot="top">
+    <adw-window-title slot="center" title="Contacts"></adw-window-title>
+  </adw-header-bar>
+  <div style="display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;">
+    <adw-button label="Open contact" pill suggested></adw-button>
+  </div>
+</adw-toolbar-view>`;
+
+/**
+ * A tab view in a toolbar view: the horizontal scroller the shading also reaches.
+ *
+ * `expand-tabs` is off on purpose, so enough tabs really do overflow the strip
+ * rather than being squeezed into it.
+ */
+const TAB_STRIP_PREVIEW = (pages: number): string => `
+<adw-toolbar-view style="flex: 1;">
+  <adw-header-bar slot="top">
+    <adw-window-title slot="center" title="Editor"></adw-window-title>
+  </adw-header-bar>
+  <adw-tab-view no-close="true">
+    ${Array.from(
+        { length: pages },
+        (_, i) => `<adw-tab-page title="A rather long tab title ${i}"><div>page ${i}</div></adw-tab-page>`,
+    ).join('')}
+  </adw-tab-view>
+</adw-toolbar-view>`;
+
 export const AdwChromeTest = async () => {
     await describe('adw-clamp allocation (AdwClampLayout conformance vectors)', async () => {
         // The browser resolves the child's own minimum through the normal `min-width`
@@ -387,6 +473,153 @@ export const AdwChromeTest = async () => {
             expect(topEl.classList.contains('raised')).toBe(false);
             expect(view.classList.contains('undershoot-top')).toBe(true);
             host.remove();
+        });
+    });
+
+    // `adw_toolbar_view_size_allocate` hands its ONE content widget the whole
+    // content rect; a widget that wants less says so with its own alignment.
+    // This port collected the content into a flex COLUMN, where an item that
+    // declares no `flex-grow` is content-sized instead, so the child stopped
+    // wherever its content did and the rest of the pane stayed empty.
+    await describe('adw-toolbar-view content allocation (size_allocate gives the content the whole rect)', async () => {
+        await it('stretches a lone content child past its own content height', async () => {
+            const host = mountPreview(SIDEBAR_PANE_PREVIEW);
+            await settle();
+            const area = host.querySelector('.adw-toolbar-view-content');
+            const sidebar = host.querySelector('adw-sidebar') as HTMLElement;
+
+            // The two discriminators, without which this passes on a broken build:
+            // the bar must really have taken height off the top, and the sidebar's
+            // own content must really be shorter than the area it has to fill,
+            // otherwise "child height == area height" is a coincidence. The rows are
+            // measured through the LIST, not through the sidebar's own scrollHeight:
+            // once the sidebar fills, its scrollHeight is its new height and the
+            // discriminator would have measured the fix instead of the content.
+            expect(heightOf(area) > 0 && heightOf(area) < 340).toBe(true);
+            expect(heightOf(sidebar.querySelector('.adw-sidebar-list')) < heightOf(area)).toBe(true);
+
+            expect(heightOf(sidebar)).toBe(heightOf(area));
+            host.remove();
+        });
+
+        await it('centres a status page in the pane rather than against its top bar', async () => {
+            const host = mountPreview(STATUS_PANE_PREVIEW);
+            await settle();
+            const area = host.querySelector('.adw-toolbar-view-content') as HTMLElement;
+            const status = host.querySelector('adw-status-page') as HTMLElement;
+
+            expect(heightOf(area) > 0 && heightOf(area) < 340).toBe(true);
+            expect(heightOf(status)).toBe(heightOf(area));
+
+            // What the reader actually sees, and the discriminator at the same time:
+            // an Adw.StatusPage centres its own column, so equal air above the icon
+            // and below the description is only reachable once it owns the whole
+            // pane. Top-aligned in the pane it measured 24px of padding above and
+            // some 60px of window background below.
+            const areaBox = area.getBoundingClientRect();
+            const above =
+                (status.querySelector('.adw-status-page-icon') as HTMLElement).getBoundingClientRect().top -
+                areaBox.top;
+            const description = status.querySelector('.adw-status-page-description') as HTMLElement;
+            const below = areaBox.bottom - description.getBoundingClientRect().bottom;
+            expect(Math.abs(above - below) <= 2).toBe(true);
+            host.remove();
+        });
+
+        await it('stretches a centring box and lets IT place the button, which keeps its own size', async () => {
+            const host = mountPreview(ROOT_ACTION_PREVIEW);
+            await settle();
+            const area = host.querySelector('.adw-toolbar-view-content') as HTMLElement;
+            const button = host.querySelector('adw-button') as HTMLElement;
+
+            expect(heightOf(area.firstElementChild)).toBe(heightOf(area));
+            // A pill button that grew to the pane's height would be the fill applied
+            // one level too deep. The alignment box exists precisely to absorb it.
+            expect(heightOf(button) > 0 && heightOf(button) < heightOf(area)).toBe(true);
+
+            const areaBox = area.getBoundingClientRect();
+            const buttonBox = button.getBoundingClientRect();
+            expect(Math.abs(buttonBox.top - areaBox.top - (areaBox.bottom - buttonBox.bottom)) <= 2).toBe(true);
+            expect(Math.abs(buttonBox.left - areaBox.left - (areaBox.right - buttonBox.right)) <= 2).toBe(true);
+            host.remove();
+        });
+    });
+
+    // The undershoot says "there IS content past this edge". A scroller whose
+    // content fits has none, so it must draw neither edge. That is the state the
+    // storybook got wrong for every scroller at rest, and the reason
+    // `scrollUndershootClasses` exists. Asserted here on a REAL scroller,
+    // because the core spec only ever sees the arithmetic.
+    await describe('adw-toolbar-view scroll shading (no undershoot where nothing can scroll)', async () => {
+        await it('leaves both edges clean while the content fits', async () => {
+            const host = mountPreview(SIDEBAR_PANE_PREVIEW);
+            await settle();
+            const area = host.querySelector('.adw-toolbar-view-content') as HTMLElement;
+
+            // Both scrollers under the view: the content area and the sidebar's own
+            // list, which is the node upstream shades (`AdwSidebar` wraps a
+            // GtkScrolledWindow) once the pane is tall enough to hold every row.
+            for (const el of [area, host.querySelector('adw-sidebar') as HTMLElement]) {
+                // The discriminator: the shading really is wired to this scroller, so
+                // "no undershoot class" is a decision and not a controller that never ran.
+                expect(el.classList.contains('adw-scroll-shaded')).toBe(true);
+                expect(el.scrollHeight).toBe(el.clientHeight);
+                expect(el.classList.contains('undershoot-top')).toBe(false);
+                expect(el.classList.contains('undershoot-bottom')).toBe(false);
+            }
+            host.remove();
+        });
+
+        await it('draws the top edge once there IS content past it', async () => {
+            // A status page, not the sidebar: a status page cannot scroll on its own,
+            // so the content area is the scroller and the shade belongs to it. And the
+            // TOP edge, because `update_undershoots` gates the bottom one on a bottom
+            // bar this view does not have, so asserting the bottom edge here would pass
+            // whatever the controller decided.
+            const host = mountPreview(STATUS_PANE_PREVIEW, 120);
+            await settle();
+            const area = host.querySelector('.adw-toolbar-view-content') as HTMLElement;
+            expect(area.scrollHeight > area.clientHeight).toBe(true);
+            expect(area.classList.contains('undershoot-top')).toBe(false);
+
+            // A REAL scroll, then the frames the `scroll` event is delivered in.
+            area.scrollTop = area.scrollHeight;
+            await settle();
+            await settle();
+            expect(area.classList.contains('undershoot-top')).toBe(true);
+
+            // ONE owner draws the shade. `undershoot-top` is also a documented
+            // libadwaita style class with its own inset host shadow in
+            // `_style_classes.scss`, so a scroller wearing the state class used to
+            // get that 6px blurred shadow UNDER the 1px line + 4px fade this package
+            // paints on the pseudo-element: the same edge, twice, in two sizes.
+            expect(getComputedStyle(area).boxShadow).toBe('none');
+            expect(getComputedStyle(area, '::before').boxShadow === 'none').toBe(false);
+            host.remove();
+        });
+
+        await it('leaves a horizontally overflowing tab strip its own hairline', async () => {
+            // The horizontal pair has no rule in `_scrolling.scss` at all, because
+            // neither AdwTabBox nor AdwCarousel has a `scrolledwindow` node for GTK to
+            // shade. The style class did have one, and it is `box-shadow` too — so an
+            // overflowing strip silently traded its `inset 0 -1px` bottom shade for an
+            // edge shadow libadwaita never draws there.
+            const wide = mountPreview(TAB_STRIP_PREVIEW(8), 260, 320);
+            const narrow = mountPreview(TAB_STRIP_PREVIEW(1), 260, 320);
+            await settle();
+            await settle();
+            const overflowing = wide.querySelector('.adw-tab-bar') as HTMLElement;
+            const fitting = narrow.querySelector('.adw-tab-bar') as HTMLElement;
+
+            // The two discriminators: the strip really does overflow, and the shading
+            // controller really did reach it. Without them this is two identical bars.
+            expect(overflowing.scrollWidth > overflowing.clientWidth).toBe(true);
+            expect(overflowing.classList.contains('undershoot-end')).toBe(true);
+            expect(fitting.scrollWidth).toBe(fitting.clientWidth);
+
+            expect(getComputedStyle(overflowing).boxShadow).toBe(getComputedStyle(fitting).boxShadow);
+            wide.remove();
+            narrow.remove();
         });
     });
 };

@@ -16,4 +16,9 @@ app.connect('activate', () => {
     win.present();
 });
 
-app.run([]);
+// runAsync, not the blocking run(): it defers the main loop by one macrotask, so
+// promise work queued while the app starts — engine.start(), and the resources a
+// real game loads before its first frame — settles before the loop takes the
+// thread. The blocking run() does boot THIS starter game on all four runtimes;
+// runAsync is the lifecycle GJS recommends and the one a growing game needs.
+await app.runAsync([]);

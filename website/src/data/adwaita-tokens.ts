@@ -67,6 +67,10 @@ export const ADWAITA_TOKEN_GROUPS: AdwTokenGroup[] = [
                 name: '--separator-color',
                 value: 'rgba(0, 0, 6, 0.1)',
             },
+            {
+                name: '--shade-color',
+                value: 'rgba(0, 0, 6, 0.07)',
+            },
         ],
     },
     {
@@ -383,4 +387,4 @@ export const ADWAITA_TOKEN_GROUPS: AdwTokenGroup[] = [
 ];
 
 /** How many tokens the contract carries — derived, never typed. */
-export const ADWAITA_TOKEN_COUNT = 67;
+export const ADWAITA_TOKEN_COUNT = 68;

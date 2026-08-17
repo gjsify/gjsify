@@ -69,7 +69,12 @@ const refHref = docHref === false ? null : (docHref ?? deriveRef(title));
 // GJS is the primary implementation and always present; Web + NativeScript are
 // additional. Render only the slots that were actually provided.
 const IMPLS = [
-    { slot: 'gjs', label: 'GJS' },
+    // NOT "GJS". The snippet is plain `@girs/*` GObject-Introspection TypeScript,
+    // which is exactly the code that runs unchanged on all four runtimes — naming
+    // one of them made the tab read as "the GJS variant", i.e. as if the other
+    // three needed a different program. They do not; that is the claim the whole
+    // site rests on, so the tab that demonstrates it has to say so.
+    { slot: 'gjs', label: 'GJS · Node · Bun · Deno' },
     // Blueprint sits next to GJS because it describes the SAME native widget
     // tree — it is how a GTK UI is usually written, with the GJS side reduced to
     // wiring. Web and NativeScript are the ports and follow.
@@ -92,17 +97,52 @@ const implsAttr = present.map((r) => r.slot).join(',');
 const hasPreview = Astro.slots.has('preview');
 ---
 
+{/* ONE window, shaped like a GNOME Workbench session: the header bar names the
+    widget, the pane under it RUNS it, and the editor tabs below hold the source
+    for each port.
+
+    It used to be two stacked cards — a free-floating preview, then a separate
+    Adwaita window for the code — and the header bar sat on the second one. So the
+    title read as belonging to the CODE rather than to the widget, and the pair
+    never fused: whatever a header bar sits on is what the reader takes the window
+    to be about. Putting it above BOTH panes is the whole fix. */}
 <div class="adw-widget">
-    {
-        hasPreview && (
-            <div
-                class:list={[
-                    'adw-widget-preview',
-                    'not-content',
-                    `is-${padding}`,
-                    { 'is-scroll': scroll },
-                ]}
-            >
+    <div class="command-tabs adw-widget-window not-content" data-impl-tabs data-impls={implsAttr}>
+        <div class="command-tabs-headerbar">
+            <span class="command-tabs-headerbar-start">
+                {
+                    refHref && (
+                        <a
+                            class="command-tabs-ref"
+                            href={refHref}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`Reference for ${title}`}
+                            aria-label={`Open the reference for ${title} in a new tab`}
+                        >
+                            <span class="command-tabs-ref-icon" aria-hidden="true" />
+                        </a>
+                    )
+                }
+            </span>
+            <span class="command-tabs-headerbar-title">{title}</span>
+            <span class="command-tabs-headerbar-end">
+                <button class="command-tabs-copy" aria-label="Copy active tab" type="button">
+                    <span class="command-tabs-copy-icon" aria-hidden="true"></span>
+                </button>
+            </span>
+        </div>
+
+        {
+            hasPreview && (
+                <div
+                    class:list={[
+                        'adw-widget-preview',
+                        'not-content',
+                        `is-${padding}`,
+                        { 'is-scroll': scroll },
+                    ]}
+                >
                 {/* `not-content` for the same reason CommandTabs.astro states it,
                     and it was missing HERE while the tabs below already carried
                     it. Starlight gives every content element that FOLLOWS a
@@ -128,40 +168,15 @@ const hasPreview = Astro.slots.has('preview');
                        `slot` as its own slot-assignment directive), so the preview
                        markup carries `data-adw-slot="…"`; the script maps it back
                        to a real `slot` before attaching. */}
-                <template class="adw-widget-preview-tpl">
-                    <slot name="preview" />
-                </template>
-                <div class="adw-widget-preview-stage"></div>
-            </div>
-        )
-    }
+                    <template class="adw-widget-preview-tpl">
+                        <slot name="preview" />
+                    </template>
+                    <div class="adw-widget-preview-stage" />
+                </div>
+            )
+        }
 
-    <div class="command-tabs not-content" data-impl-tabs data-impls={implsAttr}>
-        <div class="command-tabs-headerbar">
-            <span class="command-tabs-headerbar-start">
-                {
-                    refHref && (
-                        <a
-                            class="command-tabs-ref"
-                            href={refHref}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title={`Reference for ${title}`}
-                            aria-label={`Open the reference for ${title} in a new tab`}
-                        >
-                            <span class="command-tabs-ref-icon" aria-hidden="true" />
-                        </a>
-                    )
-                }
-            </span>
-            <span class="command-tabs-headerbar-title">{title}</span>
-            <span class="command-tabs-headerbar-end">
-                <button class="command-tabs-copy" aria-label="Copy active tab" type="button">
-                    <span class="command-tabs-copy-icon" aria-hidden="true"></span>
-                </button>
-            </span>
-        </div>
-        <adw-tab-view no-close expand-tabs>
+        <adw-tab-view no-close expand-tabs data-impl-view>
             {present.map((r) => <adw-tab-page title={r.label} set:html={r.html} />)}
         </adw-tab-view>
     </div>
@@ -196,7 +211,11 @@ const hasPreview = Astro.slots.has('preview');
     const applyPreference = (impl: string | null, skip?: Element) => {
         if (!impl) return;
         for (const el of document.querySelectorAll<HTMLElement>('[data-impl-tabs]')) {
-            const view = el.querySelector('adw-tab-view');
+            // The MARKED view, not the first one: a preview that is itself an
+            // `<adw-tab-view>` precedes it in DOM order, so `querySelector` handed
+            // back the preview and silently retargeted it whenever the reader picked
+            // an implementation on any other widget.
+            const view = el.querySelector('adw-tab-view[data-impl-view]');
             if (!view || view === skip) continue;
             const impls = (el.dataset.impls ?? '').split(',');
             const index = impls.indexOf(impl);
@@ -207,7 +226,18 @@ const hasPreview = Astro.slots.has('preview');
     // Follow user selection: persist + mirror to every other widget on the page.
     document.addEventListener('notify::selected-page', (event) => {
         const view = event.target as HTMLElement;
-        const host = view?.closest?.('[data-impl-tabs]') as HTMLElement | null;
+        // ONLY this component's own implementation tab view. `notify::selected-page`
+        // BUBBLES, and every widget preview lives inside the same `[data-impl-tabs]`
+        // host, so an unguarded listener also caught the previews. On
+        // /adwaita/view-switching/ the Adw.TabView preview IS an `<adw-tab-view>`:
+        // clicking its "Details" chip arrived here as `detail.selected = 1`, was read
+        // as "the reader picked implementation 1" (Blueprint), persisted, and rewrote
+        // every widget on the page. The widgets above then swapped a long snippet for
+        // a short one and shrank, so the content under the reader's cursor jumped
+        // upward while scrollY never moved. Reported as "clicking a tab scrolls the
+        // page", which is exactly what it looks like.
+        if (!view?.matches?.('[data-impl-view]')) return;
+        const host = view.closest('[data-impl-tabs]') as HTMLElement | null;
         if (!host) return;
         const impls = (host.dataset.impls ?? '').split(',');
         const impl = impls[(event as CustomEvent).detail?.selected ?? 0];
@@ -250,14 +280,14 @@ const hasPreview = Astro.slots.has('preview');
         margin-top: 1.5rem;
     }
 
-    /* ── Live preview panel ─────────────────────────────────────────────
-       An Adwaita "view" surface the real widget is painted onto, framed like
-       the code window below it so the pair reads as one card. */
+    /* ── Live preview pane ──────────────────────────────────────────────
+       The window's upper pane: an Adwaita "view" surface the real widget is
+       painted onto, directly under the header bar. It carries no frame of its
+       own — the window around it owns every edge — only the separator that
+       divides it from the editor tabs below, the way a paned split does. */
     .adw-widget-preview {
-        border-radius: 12px 12px 0 0;
         background: var(--adw-view-bg);
-        border: 1px solid var(--adw-card-border);
-        border-bottom: none;
+        border-bottom: 1px solid var(--adw-card-border);
         overflow: hidden;
         /* Subtle GNOME-wallpaper-ish tint so a white row/card stays visible on
            the white view surface, mirroring the widget gallery's backdrop. */
@@ -302,17 +332,33 @@ const hasPreview = Astro.slots.has('preview');
         overflow-x: auto;
     }
 
-    /* When a preview panel sits above the tab window, square off the window's
-       top corners so the two blocks fuse into one card. */
-    .adw-widget-preview + .command-tabs {
-        margin-top: 0;
-        border-radius: 0 0 12px 12px;
+    /* The preview is a PANE now, inside the window, so there is no second card
+       whose corners have to be squared off to fake a join. */
+
+    /* Narrow viewports: stop stretching the tabs to equal widths and let the bar
+       scroll instead — which is what Adw.TabBar itself does when its tabs no
+       longer fit. Equal widths on a phone give each of four tabs about 80px, and
+       "GJS · Node · Bun · Deno" then ellipsises down to something that names
+       nothing. The bar already has `overflow-x: auto`; it just needs tabs that
+       keep their own width. */
+    @media (max-width: 700px) {
+        .adw-widget-window adw-tab-view[expand-tabs] .adw-tab {
+            flex: 0 0 auto;
+            white-space: nowrap;
+        }
     }
 
     /* The preview widgets are light-DOM custom elements styled by the global
        adwaita-web stylesheet; keep them from stretching full width so small
-       widgets stay centered and legible. */
-    .adw-widget-preview-stage > :where(adw-preferences-group, adw-clamp, adw-banner) {
+       widgets stay centered and legible.
+
+       NOT adw-clamp, which was in this list. `_clamp.scss` keeps that element
+       uncapped and full-width on purpose: it is the box the tightening curve is
+       measured against, and the cap it applies goes on its CHILDREN. Capped at
+       420px it clamped a 400px child inside a 420px box, so the Layout page
+       promised "it stops growing past the maximum size and stays centred" over
+       20px in which to show either. */
+    .adw-widget-preview-stage > :where(adw-preferences-group, adw-banner) {
         width: 100%;
         max-width: 420px;
     }

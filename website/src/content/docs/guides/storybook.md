@@ -1,28 +1,51 @@
 ---
 title: Storybook
-description: Build a live component browser for your GTK/Adwaita widgets with GJSify — write a *.story.ts, run `gjsify storybook`, and get a sidebar of interactive, control-driven previews
+description: Build a live component browser for your GTK/Adwaita widgets. Write a *.story.ts next to each widget, run `gjsify storybook`, and get a sidebar of interactive previews with live controls.
 ---
 
-GJSify ships a **storybook**: a live component browser for your widgets, the GTK/Adwaita analogue of [Storybook](https://storybook.js.org/). Write a `*.story.ts` per widget, run `gjsify storybook`, and get a categorized sidebar of interactive previews whose properties are driven by a live controls panel — no per-project storybook *app* to maintain.
+Write one `*.story.ts` per widget, run `gjsify storybook`, and you get a component browser:
+a categorised sidebar of your widgets, each rendered live, with a controls panel that edits
+its properties while it runs. It is the GTK/Adwaita counterpart to
+[Storybook](https://storybook.js.org/), and there is no per-project storybook app to build
+or maintain.
 
-It is the idiomatic way to **develop, document, and visually verify** custom widgets. Pair it with [devtools](./devtools/) to drive/screenshot the running storybook headlessly.
+## Add it to a project
 
-## The pieces
+```bash
+gjsify install --save-dev @gjsify/storybook
+```
 
-| Package | Role |
-|---|---|
-| [`@gjsify/stories`](https://www.npmjs.com/package/@gjsify/stories) | The renderer-agnostic contract (pure TS): `StoryMeta`, `ControlType`, `StoryControl`, `StoryModule`. One story definition, any renderer. |
-| [`@gjsify/storybook`](https://www.npmjs.com/package/@gjsify/storybook) | The **GTK/Adwaita** renderer: `StoryWidget` base + the component-browser window. |
-| [`@gjsify/storybook-core`](https://www.npmjs.com/package/@gjsify/storybook-core) | Renderer-agnostic logic (registry, control binding, the app controller) the renderers share. |
-| [`@gjsify/adwaita-storybook`](https://www.npmjs.com/package/@gjsify/adwaita-storybook) · [`@gjsify/storybook-nativescript`](https://www.npmjs.com/package/@gjsify/storybook-nativescript) | The browser + NativeScript renderers — the same stories, other targets. |
+Then point the CLI at your stories in `package.json` and add a script:
 
-Driven by one CLI command: [`gjsify storybook`](../../cli-reference/#gjsify-storybook).
+```jsonc
+{
+  "scripts": {
+    "storybook": "gjsify storybook"
+  },
+  "gjsify": {
+    "storybook": {
+      "applicationId": "org.example.Storybook",
+      "title": "My Widgets",
+      "stories": "stories",   // directory scanned recursively; defaults to "src"
+      "globals": "auto"       // use "auto,dom" for canvas or DOM stories
+    }
+  }
+}
+```
 
-## 1. Write a story
+Every key is optional. Without `stories` the CLI scans `src`; without `applicationId` it
+derives one from your package name.
 
-A story is a `StoryWidget` subclass with a static `getMetadata(): StoryMeta`. The metadata's `title` (`"Category/Name"`) groups the sidebar; its `controls` become a live two-way-bound panel. Build the preview in `initialize()`, react to control changes in `updateArgs()`, and export the class in a `StoryModule`.
+## Write a story
 
-Here is the real story for [`@gjsify/adwaita-app`](./native-adwaita-app/)'s `LoadingStack` widget — a SELECT control switches its loading / content / error pages:
+A story is a `StoryWidget` subclass with a static `getMetadata()`. The metadata's `title`
+takes the form `"Category/Name"` and drives the sidebar grouping; its `controls` become the
+live panel. Build the preview in `initialize()`, react to control changes in `updateArgs()`,
+and export the class in a `StoryModule`.
+
+Here is the story that ships with
+[`@gjsify/adwaita-app`](/gjsify/guides/native-adwaita-app/) for its `LoadingStack` widget, where a
+dropdown switches between the loading, content and error pages:
 
 ```ts
 import GObject from '@girs/gobject-2.0';
@@ -63,12 +86,16 @@ export class LoadingStackStory extends StoryWidget {
 
     initialize(): void {
         this._stack = new LoadingStack({ widthRequest: 360, heightRequest: 220 });
-        this._stack.setContent(new Gtk.Label({ label: 'Loaded content 🎉', cssClasses: ['title-2'] }));
+        this._stack.setContent(new Gtk.Label({ label: 'Loaded content', cssClasses: ['title-2'] }));
         this.addContent(this._stack);
-        this.updateArgs(this.args);
+        this._apply();
     }
 
     updateArgs(_args: StoryArgs): void {
+        this._apply();
+    }
+
+    private _apply(): void {
         if (!this._stack) return;
         this._stack.setError(this.args.errorTitle as string);
         this._stack.set_visible_child_name(this.args.state as string);
@@ -80,45 +107,108 @@ GObject.type_ensure(LoadingStackStory.$gtype);
 export const LoadingStackStories: StoryModule = { stories: [LoadingStackStory] };
 ```
 
-Control kinds (`ControlType`): `TEXT`, `NUMBER`, `RANGE`, `BOOLEAN`, `SELECT` (with `options`), `COLOR`. Each control's `name` is the key in `this.args`; its `defaultValue` is spelled once and seeds the initial args.
+`StoryWidget` gives you three hooks to override and one helper to call:
 
-## 2. Configure + run
+| Member | What it is for |
+|---|---|
+| `initialize()` | Build the preview. Runs when the story is first opened. |
+| `updateArgs(args)` | React to a control change. Read values from `this.args`. |
+| `teardown()` | Release resources and disconnect signals when the story is deselected. |
+| `addContent(widget)` | Put a widget into the default preview slot. |
 
-Add `@gjsify/storybook` as a dev dependency, point `package.json#gjsify.storybook` at your stories directory, and add a script:
+`this.args` is a plain object keyed by each control's `name`. `setArg(name, value)` changes
+one value from code, which also runs `updateArgs`.
 
-```jsonc
-{
-  "scripts": { "storybook": "gjsify storybook" },
-  "devDependencies": { "@gjsify/storybook": "^0.18.0" },
-  "gjsify": {
-    "storybook": {
-      "applicationId": "org.example.Storybook",
-      "title": "My Widgets",
-      "stories": "stories",   // dir scanned for *.story.ts
-      "globals": "auto"        // "auto,dom" for canvas/DOM stories
-    }
-  }
-}
-```
+## Pick a control
+
+| `ControlType` | Renders as | Extra fields |
+|---|---|---|
+| `TEXT` | Text entry | `defaultValue: string` |
+| `NUMBER` | Spinner | `min`, `max`, `step`, `defaultValue: number` |
+| `RANGE` | Slider | `min`, `max`, `step`, `defaultValue: number` |
+| `BOOLEAN` | Switch | `defaultValue: boolean` |
+| `SELECT` | Dropdown | `options: { label, value }[]`, `defaultValue` |
+| `COLOR` | Colour picker | `defaultValue: '#rrggbb'` |
+
+Every control also takes an optional `description`, shown as help text. A control's
+`defaultValue` is spelled once and seeds the story's initial args, so you don't repeat it in
+`initialize()`.
+
+## Run it
 
 ```bash
-gjsify storybook                       # discover *.story.ts, build --app gjs, launch the browser
-gjsify storybook --watch               # rebuild + reload on change
-gjsify storybook --build-only --out dist/storybook.gjs.mjs   # build without launching (CI-friendly)
-gjsify storybook --runtime node        # build + run the SAME storybook on Node via the @gjsify/node-gi bridge
-gjsify storybook --runtime bun         # …or on Bun
-gjsify storybook --runtime deno        # …or on Deno
+gjsify storybook                    # find *.story.ts, build, launch the browser
+gjsify storybook --watch            # rebuild and relaunch when a story changes
+gjsify storybook --stories widgets  # scan a different directory
 ```
 
-`--runtime node`/`bun`/`deno` (or the matching `"runtime"` value in the config block) all build the identical storybook with `--app node` and run it on that runtime through the [node-gi reverse bridge](/gjsify/projects/node-gi/) — useful where GJS isn't available (CI, containers, editor tooling). Omitting `--runtime` defaults to whichever runtime the CLI itself is running on. Requires `@gjsify/node-gi` as a project `devDependency`.
+The bundle lands in `node_modules/.cache/gjsify-storybook` unless you pass `--out`. For CI,
+build without launching, and name the target you are building for:
+
+```bash
+gjsify storybook --build-only --out dist/storybook.gjs.mjs
+gjsify storybook --build-only --runtime node --out dist/storybook.node.mjs
+```
+
+## Pick the runtime
+
+Left alone, `gjsify storybook` builds and launches on whichever runtime the CLI itself is
+running on. `--runtime` says which one you want, and you can set the same value as
+`"runtime"` in the config block:
+
+```bash
+gjsify storybook --runtime gjs
+gjsify storybook --runtime node
+gjsify storybook --runtime bun
+gjsify storybook --runtime deno
+```
+
+What actually differs is one layer:
+
+- **gjs** builds an `--app gjs` bundle. `gi://Gtk` and `gi://Adw` resolve in the host
+  itself, so nothing sits between a story and GTK. Needs a `gjs` binary, which exists on
+  Linux and not on Windows.
+- **node, bun and deno** build one shared `--app node` bundle (Node-API is their common
+  ABI) and resolve `gi://` through [`@gjsify/node-gi`](/gjsify/projects/node-gi/), which
+  the project needs as a `devDependency`. This is the route that reaches macOS and Windows,
+  and the one CI drives the full Adwaita gallery through: the same prebuilt bundle renders
+  the gallery under Node on Linux (system GTK, Xvfb) and on Windows (the bundled GTK
+  runtime, no gvsbuild).
+
+Same stories, same sidebar, same controls panel either way.
+
+## Screenshot a story from CI or an agent
+
+Start the storybook with the devtools gate on and bridge it with the storybook profile:
+
+```bash
+GJSIFY_DEVTOOLS=1 gjsify storybook
+gjsify debug --profile storybook
+```
+
+That gives you `list_stories`, `open_story`, `get_current_story` and `set_story_arg`
+alongside the generic `screenshot`, so you can walk every story, flip its args, and capture
+each variant. See [Devtools & MCP](/gjsify/guides/devtools/) for the whole loop.
 
 ## The rule of thumb
 
-Treat a story as part of the widget: **every new custom widget ships a `*.story.ts` alongside it.** It is the widget's living documentation and its visual regression surface (screenshot it via [devtools](./devtools/) in CI). A widget without a story is undocumented.
+Treat a story as part of the widget: **every custom widget ships a `*.story.ts` next to
+it.** It is the widget's living documentation and its visual regression surface. A widget
+without a story is a widget nobody can look at without running your whole app.
+
+## The packages behind it
+
+| Package | Role |
+|---|---|
+| [`@gjsify/stories`](https://www.npmjs.com/package/@gjsify/stories) | The renderer-agnostic authoring contract: `StoryMeta`, `ControlType`, `StoryControl`, `StoryModule`. Re-exported by the renderers, so a story needs one import. |
+| [`@gjsify/storybook`](https://www.npmjs.com/package/@gjsify/storybook) | The GTK/Adwaita renderer: `StoryWidget` plus the component-browser window. |
+| [`@gjsify/storybook-core`](https://www.npmjs.com/package/@gjsify/storybook-core) | Shared registry, control binding and app controller. |
+| [`@gjsify/adwaita-storybook`](https://www.npmjs.com/package/@gjsify/adwaita-storybook) · [`@gjsify/storybook-nativescript`](https://www.npmjs.com/package/@gjsify/storybook-nativescript) | The browser and NativeScript renderers. Same stories, other targets. |
 
 ## See also
 
-- [`gjsify storybook`](../../cli-reference/#gjsify-storybook) — CLI reference.
-- [Adwaita Storybook showcase](../../showcases/adwaita-storybook/) — the full Libadwaita widget set as stories.
-- [Native Adwaita Apps](./native-adwaita-app/) — where the `LoadingStack` example lives.
-- [Devtools & MCP](./devtools/) — drive/screenshot the running storybook headlessly.
+- [`gjsify storybook`](../../cli-reference/#gjsify-storybook) for every flag.
+- [Adwaita Storybook showcase](../../showcases/adwaita-storybook/), the full Libadwaita
+  widget set as stories.
+- [Native Adwaita Apps](/gjsify/guides/native-adwaita-app/), where the `LoadingStack` above comes from.
+- [Devtools & MCP](/gjsify/guides/devtools/) for driving and screenshotting the running storybook.

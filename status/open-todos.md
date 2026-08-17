@@ -4,6 +4,77 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### No CI leg ever LAUNCHES a template on node, bun or deno
+
+`gjsify.example.runtimes` on the seven templates declares four runtimes, and
+`run.ts:238` validates `--runtime` against exactly that list, so the declaration
+has teeth for the user and none for us. The BUILD half is now machine-checked (a
+static case in `tests/e2e/create-app/run.mjs` holds every template to the
+dependency closure its `--globals` list implies, which is what caught the pnpm and
+Deno build failures). The LAUNCH half is still hand-verified: all sixteen
+template x runtime combinations were run by hand, and one was confirmed end to
+end, a deno-built `adw-canvas2d` with a real mapped toplevel.
+
+Why nothing covers it today: `scripts/showcase-smoke.mjs` derives its matrix from
+`packagesUnder(showcases/)` with `BOOTSTRAPPED_COLUMNS = ['gjs']`, and templates
+are not under `showcases/`; `verify-package-outputs.mjs` skips them because all
+seven are private. The two ways to close it, teaching showcase-smoke to derive
+from `templates/` as well, or adding twelve GUI launch legs to the create-app
+e2e, are both CI-matrix work with real flake surface: private D-Bus, Xvfb, dwell
+timers, runaway GUI processes.
+
+Deferred rather than half-built, and the two halves are not equally urgent: the
+build half had a live blocker behind it, this one has a verified-true claim.
+
+### Two CI comments still say rolldown-native has no Apple target
+
+`.github/workflows/main.yml:736-739` says it "does not compile for Apple targets
+at all (its Rust core wakes the GLib loop with `eventfd(2)`)", and
+`prebuilds.yml:1029-1040` lists it under "WHAT IS DELIBERATELY NOT HERE" as "not
+in the REQUIRED matrix". Both are contradicted by `prebuilds.yml:1225-1570`, where
+`build-prebuilds-macos` builds, stages and load-tests it on both darwin arches
+with `exit $rc`, and by `prebuilds.yml:1701`, which records the promotion and says
+the load test was made FATAL there.
+
+The website prose that repeated this has been corrected, so a reader is no longer
+misled. These are the upstream source of that claim, and a stale comment is how it
+grows back. Left for a commit of its own because both files path-filter CI job
+selection, and editing them from a docs branch is churn where it is riskiest.
+
+### ADR 0024 §8 is unblocked: `gjsify flatpak` + `generate-installer` move under `ship`
+
+The ADR sequenced the flatpak migration as stage 6 and gated it on one condition:
+"the migration lands only once `ship` can actually stage, so the tree never carries
+two staging models." Stages 2 and 3 have landed, so that condition is now met and
+nothing else is holding this.
+
+Scope, as decided 2026-08-17:
+
+- The nine subcommands under `packages/infra/cli/src/commands/flatpak/` (build,
+  check, ci, deps, diff, init, release, scaffold, sources, sync-flathub) become
+  `gjsify ship flatpak <sub>`.
+- `gjsify generate-installer` becomes `gjsify ship installer`. The ADR does not
+  cover it, and it is not a packer: it scaffolds an `install.mjs` INTO the
+  consumer's repo, which they commit, rather than reading the staged payload. It
+  moves anyway because it is one of the six distribution channels the website's
+  "Pick your distribution channel" table lists, and the CLI should agree with that
+  table. Same category as `flatpak init` / `flatpak scaffold`, which §8 also moves.
+- `gjsify build --shebang` does NOT move. It is a build output mode, not a
+  packaging channel, so the line is: `ship` owns the channels, `build` owns the
+  bundle shapes.
+
+Two costs §8 names and this must pay:
+
+- `gjsify.flatpak` is a **published config contract**. The keys move behind a
+  deprecation window in which both spellings resolve and the old one warns.
+- `gjsify flatpak …` is in published releases and in the Flathub sync automation,
+  so the old command path needs a warning ALIAS, not a removal.
+
+Already done, so do not redo it: the AppStream and desktop-entry renderers moved
+out of `commands/flatpak/scaffold.ts` into `utils/app-metadata.ts`, and
+`ConfigDataFlatpak` extends a shared base. That was §8's "the metadata half is the
+app's, not Flatpak's" half.
+
 ### Excalibur's own renderer swap runs on GJS but never reaches the screen
 
 Found closing #1107. `Engine.useCanvas2DFallback()` is `canvas.cloneNode(false)` →

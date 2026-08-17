@@ -8,6 +8,10 @@ import { describe, expect, it } from '@gjsify/unit';
 
 import type { AdwTabView } from './elements/adw-tab-view.js';
 
+function chips(view: AdwTabView): HTMLButtonElement[] {
+    return Array.from(view.querySelectorAll('.adw-tab')) as HTMLButtonElement[];
+}
+
 function makeTabView(attrs = ''): AdwTabView {
     const host = document.createElement('div');
     host.innerHTML = `<adw-tab-view ${attrs}>
@@ -109,6 +113,153 @@ export const AdwTabViewTest = async () => {
             view.noClose = false;
             expect(view.hasAttribute('no-close')).toBe(false);
             view.parentElement?.remove();
+        });
+    });
+
+    // Switching a tab scrolls the TAB STRIP and nothing else. In C that is not a rule
+    // anyone has to keep, it is the shape of the API: `scroll_to_tab_full` writes
+    // `self->adjustment`, the strip's own adjustment
+    // (refs/libadwaita/src/adw-tab-box.c:928-961), and `select_page` is its only caller
+    // on a selection (:1728). The DOM has no equally narrow move, because `focus()` and
+    // `scrollIntoView()` both walk every scrollable ancestor up to the window, so the
+    // port handed the document a 6567px jump on a single ArrowRight, measured in a
+    // documentation page long enough to have somewhere to jump to.
+    await describe('adw-tab-view keyboard selection scrolls the STRIP, not the page', async () => {
+        const BAR_WIDTH = 220;
+        const CHIP_WIDTH = 90;
+
+        /** A view parked far below the fold, so a window scroll is the only way to reveal it. */
+        function makeFarBelowTheFold(count = 6): { view: AdwTabView; host: HTMLElement } {
+            const host = document.createElement('div');
+            const spacer = document.createElement('div');
+            spacer.style.height = '4000px';
+            host.appendChild(spacer);
+            const inner = document.createElement('div');
+            inner.style.width = `${BAR_WIDTH}px`;
+            host.appendChild(inner);
+            document.body.appendChild(host);
+
+            const view = document.createElement('adw-tab-view') as AdwTabView;
+            inner.appendChild(view);
+            for (const id of 'abcdefgh'.slice(0, count)) view.appendPage({ id, title: `Page ${id}` });
+            return { view, host };
+        }
+
+        await it('ArrowRight moves focus without moving the window', async () => {
+            const { view, host } = makeFarBelowTheFold();
+            window.scrollTo(0, 0);
+            // The precondition IS the test: with the widget already on screen the
+            // browser would not scroll either way, and this would pass on the bug.
+            expect(view.getBoundingClientRect().top > window.innerHeight).toBe(true);
+
+            const before = window.scrollY;
+            chips(view)[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+
+            expect(view.selectedId).toBe('b');
+            // Focus still travels with the roving tabindex; what changed is where the
+            // browser may scroll, not whether the chip is focused.
+            expect(document.activeElement).toBe(chips(view)[1]);
+            expect(window.scrollY).toBe(before);
+
+            host.remove();
+            window.scrollTo(0, 0);
+        });
+
+        await it('End brings the last chip into the bar by scrolling the BAR', async () => {
+            const { view, host } = makeFarBelowTheFold();
+            window.scrollTo(0, 0);
+            const bar = view.querySelector('.adw-tab-bar') as HTMLElement;
+            // Pin the chip widths: a chip is a flex item that shrinks to whatever the
+            // strip has, so without this the six of them fit and `scroll_to_tab_full`
+            // has nothing to do, and the assertions below would hold vacuously.
+            for (const chip of chips(view)) chip.style.flex = '0 0 90px';
+            expect(bar.scrollWidth > bar.clientWidth).toBe(true);
+            expect(bar.scrollLeft).toBe(0);
+
+            const before = window.scrollY;
+            chips(view)[0].dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+
+            expect(view.selectedId).toBe('f');
+            expect(bar.scrollLeft > 0).toBe(true);
+            const last = chips(view)[5].getBoundingClientRect();
+            const box = bar.getBoundingClientRect();
+            expect(Math.round(last.right) <= Math.round(box.right)).toBe(true);
+            expect(window.scrollY).toBe(before);
+
+            host.remove();
+            window.scrollTo(0, 0);
+        });
+
+        // The two above both press a key, so both would still pass if the strip scroll
+        // lived in the key handler and the padding term were dropped. Neither is what C
+        // does: `notify::selected-page` reaches `select_page` through the bar
+        // (adw-tab-bar.c:934 -> adw-tab-box.c:1728), so EVERY selection scrolls the
+        // strip, and `scroll_to_tab_full` parks the chip `padding` short of the edge
+        // rather than flush against it (adw-tab-box.c:952-959).
+        await it('a programmatic selection parks the chip a padding short of the edge', async () => {
+            const { view, host } = makeFarBelowTheFold(8);
+            window.scrollTo(0, 0);
+            const bar = view.querySelector('.adw-tab-bar') as HTMLElement;
+            for (const chip of chips(view)) {
+                // `min-width: 0` as well as the basis: a flex item's automatic minimum
+                // size is its MIN-CONTENT size, and the selected chip carries a close
+                // affordance the others hide, so without this the six-point-something
+                // pixels it adds land in the middle of the arithmetic under test.
+                chip.style.flex = `0 0 ${CHIP_WIDTH}px`;
+                chip.style.minWidth = '0';
+            }
+            expect(bar.scrollLeft).toBe(0);
+
+            const before = window.scrollY;
+            // No keypress and no click: the model is driven directly.
+            expect(view.setSelectedPage('d')).toBe(true);
+
+            const pageSize = bar.clientWidth;
+            // `padding = MIN (tab_width, page_size - tab_width) / 2` (adw-tab-box.c:952).
+            const padding = Math.min(CHIP_WIDTH, pageSize - CHIP_WIDTH) / 2;
+            // Chip 4 of 8 is mid-strip, so the computed offset is inside the adjustment's
+            // range: an assertion the clamp could satisfy on its own proves nothing.
+            expect(bar.scrollLeft > 0 && bar.scrollLeft < bar.scrollWidth - pageSize).toBe(true);
+            const chip = chips(view)[3].getBoundingClientRect();
+            expect(Math.round(bar.getBoundingClientRect().right - chip.right)).toBe(padding);
+            expect(window.scrollY).toBe(before);
+
+            host.remove();
+            window.scrollTo(0, 0);
+        });
+    });
+
+    // The same coordinate space, one call site over, and it was wrong there too.
+    // `update_visible` (adw-tab-box.c:769-797) decides `fully_visible` from `pos` against
+    // the adjustment, exactly as `scroll_to_tab_full` does, and the close affordance
+    // hangs off it: `show_close = (hovering && fully_visible) || selected || dragging`
+    // (adw-tab.c:124). Measured with `offsetLeft` instead, the comparison ran against
+    // whichever positioned ancestor the HOST page happened to have, so a tab view that
+    // merely sat indented reported every chip clipped and swallowed the close button on
+    // hover.
+    await describe('adw-tab-view close affordance is measured against the BAR', async () => {
+        await it('hovering an indented but fully visible chip shows its close button', async () => {
+            const host = document.createElement('div');
+            // The whole defect: an offset between the chip's offsetParent and the bar.
+            // Nothing in the widget is positioned, so this lands in `offsetLeft`.
+            host.style.marginLeft = '300px';
+            host.style.width = '400px';
+            document.body.appendChild(host);
+            const view = document.createElement('adw-tab-view') as AdwTabView;
+            host.appendChild(view);
+            for (const id of ['a', 'b', 'c']) view.appendPage({ id, title: `Page ${id}` });
+
+            const bar = view.querySelector('.adw-tab-bar') as HTMLElement;
+            expect(bar.scrollWidth <= bar.clientWidth).toBe(true);
+
+            // Chip 1, not chip 0: `selected` shows the close button on its own, which
+            // would mask the `hovering && fullyVisible` term under test.
+            const chip = chips(view)[1];
+            expect(chip.classList.contains('active')).toBe(false);
+            chip.dispatchEvent(new PointerEvent('pointerenter', { bubbles: false }));
+            expect((chip.querySelector('.adw-tab-close') as HTMLElement).hidden).toBe(false);
+
+            host.remove();
         });
     });
 };

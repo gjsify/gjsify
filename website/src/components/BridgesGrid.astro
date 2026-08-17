@@ -7,7 +7,13 @@
 import { bridges, nativeBridges } from "../data/bridges.ts";
 ---
 
-<section class="adw-coverage">
+{/* `not-content` for the reason `website/src/styles/custom.css` records: without
+    it Starlight's prose flow gave every `.adw-row` after the first 16px of top
+    margin, so this boxed list read as a column of floating cards with their 1px
+    separators adrift. The sibling dashboards were fixed by hand in one pass and
+    this one was missed in it, which is why the sweep is now
+    `scripts/check-website-preview-not-content.mjs`. */}
+<section class="adw-coverage not-content">
 	<header class="adw-coverage-head">
 		<p class="adw-group-title">DOM ↔ GTK Bridges</p>
 		<h2 class="adw-coverage-title">Standard DOM elements, rendered natively</h2>

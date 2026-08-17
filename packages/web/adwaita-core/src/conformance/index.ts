@@ -356,6 +356,7 @@ export type {
 export {
     CAROUSEL_CLAMP_VECTORS,
     CAROUSEL_NAVIGATE_VECTORS,
+    CAROUSEL_PAGE_ALLOCATION_VECTORS,
     CAROUSEL_PAGE_AT_POSITION_VECTORS,
     CAROUSEL_PAGE_LIST_VECTORS,
     CAROUSEL_PROPERTY_DEFAULT_VECTORS,
@@ -370,6 +371,7 @@ export {
 export type {
     CarouselClampVector,
     CarouselNavigateVector,
+    CarouselPageAllocationVector,
     CarouselPageAtPositionVector,
     CarouselPageListVector,
     CarouselPageOp,

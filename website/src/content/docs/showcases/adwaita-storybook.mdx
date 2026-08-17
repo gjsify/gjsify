@@ -1,72 +1,75 @@
 ---
 title: "Adwaita Storybook"
-description: An interactive component browser for Libadwaita widgets — the same stories render natively under GJS/GTK and in the browser as @gjsify/adwaita-web custom elements.
+description: A component browser for Libadwaita widgets, where one story file renders natively under GTK and as web components in a browser.
 ---
 
 import ShowcaseEmbed from '../../../components/ShowcaseEmbed.astro';
 
-A component browser for the GNOME Libadwaita widget set: a sidebar of stories grouped by category, a live preview, and a controls panel that binds to each story's args. Every widget renders **natively under GJS/GTK** and — from the *same* renderer-free story metadata — **in the browser** as [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web) custom elements.
+A component browser for the Libadwaita widget set: a sidebar of stories, a live preview, and a controls panel wired to each story's arguments. The stories are grouped into nine categories, from Buttons and Boxed Lists to Navigation and View Switching.
+
+Two things to take from it. It is the fastest way to see what a Libadwaita widget looks like and how its properties behave before you commit to it. And it shows the story format gjsify uses: you describe a component once, in a file that imports no renderer, and get a native GTK preview and a browser preview from it.
 
 ## Live demo
 
 <ShowcaseEmbed name="adwaita-storybook" />
 
-The embed above is the real browser storybook: pick a widget in the sidebar, tweak its controls, watch it update. It is built from the identical stories the native GTK storybook shows.
+Pick a widget in the sidebar, change its controls, watch it update. This is the browser rendering of the same stories the native window shows.
 
-## What it exercises
+## Run it
 
-| Pillar | What it needs |
-|---|---|
-| [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web) | The full Adwaita widget set as light-DOM custom elements (rows, buttons, carousel, tab/view switchers, navigation, dialogs …) |
-| [`@gjsify/adwaita-storybook`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-storybook) | The browser storybook renderer — sidebar, preview, live controls, responsive collapse |
-| [`@gjsify/storybook`](https://github.com/gjsify/gjsify/tree/main/packages/framework/storybook) | The native GTK storybook (`gjsify storybook`) |
-| [`@gjsify/stories`](https://github.com/gjsify/gjsify/tree/main/packages/framework/stories) | The renderer-free `StoryMeta` contract shared by both targets |
-| [`@gjsify/devtools`](https://github.com/gjsify/gjsify/tree/main/packages/framework/devtools) | DBus/MCP control plane for screenshotting + driving the native window |
-
-## Run it on GJS
+This showcase declares all four runtimes, so pick the one you already have:
 
 ```bash
-gjsify showcase adwaita-storybook
+gjsify showcase adwaita-storybook --runtime gjs
+gjsify showcase adwaita-storybook --runtime node
+gjsify showcase adwaita-storybook --runtime bun
+gjsify showcase adwaita-storybook --runtime deno
 ```
 
-This opens the native GTK4 storybook window — real `Adw.*` widgets, an `Adw.NavigationSplitView` sidebar, and an `Adw.Breakpoint` that collapses to single-pane navigation on narrow widths.
+A native GTK 4 window opens with real `Adw.*` widgets: an `Adw.NavigationSplitView` for the sidebar, and an `Adw.Breakpoint` that folds it into single-pane navigation when the window gets narrow. The window is the same on all four.
 
-(From a checkout of the showcase, `gjsify storybook` does the same thing — it discovers the `*.story.ts` files and launches the GTK browser.)
+Under `gjs` the widgets come from GJS's native `gi://`. Under `node`, `bun` and `deno` they come through the [node-gi](/gjsify/projects/node-gi/) bridge, and one `--app node` bundle serves all three, so there is no per-runtime build and no third copy of a story. [Choose the runtime](/gjsify/showcases/#choose-the-runtime) covers what the CLI does when you leave the flag off.
 
-## Run it on Node, Bun or Deno
-
-```bash
-gjsify showcase adwaita-storybook --runtime node   # or --runtime bun / --runtime deno
-```
-
-The same native window, with GTK reached through [`@gjsify/node-gi`](/gjsify/projects/node-gi/) instead of GJS. One `--app node` bundle serves all three — Node-API is their common native ABI — so there is no per-runtime build and no third copy of a story.
+From a checkout of the showcase, `gjsify storybook` does the same thing, and `gjsify storybook --watch` rebuilds and relaunches when you edit a story. It takes the same `--runtime` flag, and because it builds the bundle itself rather than fetching a published one, its default is whichever runtime the CLI is running on.
 
 ## Run it in the browser
 
 ```ts
 import { mount } from '@gjsify/example-gtk-adwaita-storybook/browser';
-mount(document.getElementById('app')!);
+
+mount(document.getElementById('app')!, { title: 'Adwaita Storybook' });
 ```
 
-`mount()` renders the storybook into any container via `@gjsify/adwaita-storybook`'s `mountStorybook`, drawing from the same story list. The renderer is responsive — it collapses to single-pane navigation below 720px, mirroring the native breakpoint.
+`mount()` renders the storybook into any container through `@gjsify/adwaita-storybook`'s `mountStorybook`, from the same story list. It is responsive: the controls panel folds away below 1000px of container width, and below 620px the sidebar collapses to single-pane navigation.
 
-## Source
+## Add your own story
+
+A story is two small files plus one optional third, and the split is what lets one description drive several renderers.
+
+- `src/<category>/<name>.meta.ts` holds the `StoryMeta`: title, category, and the controls that drive it. It imports no renderer, and it is the single source of truth.
+- `src/<category>/<name>.story.ts` is the GTK twin. It spreads the meta and names the widget: `{ ...meta, component: Adw.X.$gtype }`.
+- `src/browser/<category>/<name>.web.ts` is the browser twin, a `StoryElement` that builds `@gjsify/adwaita-web` elements.
+
+Because the controls are declared once, both targets expose the same knobs, and a native screenshot lines up with a browser screenshot. `src/browser/stories.ts` is the shared list that `main.ts` (standalone) and `embed.ts` (`mount()`) both read.
+
+`gjsify storybook` finds every `*.story.ts` on its own. There is no storybook app to maintain: the settings it needs (application id, window title, story directory) live in the `gjsify.storybook` block of `package.json`.
+
+## What it uses
+
+| Package | What it provides |
+|---|---|
+| [`@gjsify/stories`](https://github.com/gjsify/gjsify/tree/main/packages/framework/stories) | The renderer-free `StoryMeta` contract both targets consume |
+| [`@gjsify/storybook`](https://github.com/gjsify/gjsify/tree/main/packages/framework/storybook) | The native GTK renderer behind `gjsify storybook` |
+| [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web) | The Adwaita widget set as light-DOM custom elements: rows, buttons, carousel, tab and view switchers, navigation, dialogs |
+| [`@gjsify/adwaita-storybook`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-storybook) | The browser renderer: sidebar, preview, live controls, responsive collapse |
+| [`@gjsify/devtools`](https://github.com/gjsify/gjsify/tree/main/packages/framework/devtools) | D-Bus and MCP control, so you can screenshot and drive the native window from a script |
+
+## Read the source
 
 [`showcases/gtk/adwaita-storybook/`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/adwaita-storybook)
 
-- `src/<category>/<name>.meta.ts` — the renderer-free `StoryMeta` (title, category, controls) — the single source of truth
-- `src/<category>/<name>.story.ts` — the native GTK twin (`{ ...meta, component: Adw.X.$gtype }`)
-- `src/browser/<category>/<name>.web.ts` — the browser twin (a `StoryElement` building `@gjsify/adwaita-web` elements)
-- `src/browser/stories.ts` — the shared story list consumed by both `main.ts` (standalone) and `embed.ts` (`mount()`)
-
-## One story, two renderers
-
-The point of this showcase is the **shared contract**. A story's metadata — its title, category, and the controls that drive it — lives in a `*.meta.ts` file that imports no renderer. The native `*.story.ts` and the browser `*.web.ts` each consume that metadata and bind it to their respective widget toolkit. Because the controls are declared once, the two targets expose identical knobs, so a native screenshot and a browser screenshot can be compared 1:1 — which is exactly how the widget port is validated.
-
-If a widget renders correctly in the GTK window but not in the browser (or vice-versa), that divergence is a bug to fix in `@gjsify/adwaita-web` — never a per-story patch.
-
 ## Related
 
-- [Showcases overview](../) — the full cross-platform catalog
-- [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web) — the browser Adwaita widget library this storybook exercises
-- [`refs/libadwaita/`](https://github.com/gjsify/gjsify/tree/main/refs/libadwaita) — the upstream Libadwaita source the widgets mirror
+- [Adwaita widgets](/gjsify/adwaita/) documents each widget you will find in the sidebar, with runnable snippets.
+- [Storybook guide](/gjsify/guides/storybook/) covers `gjsify storybook` in your own project.
+- [Devtools](/gjsify/guides/devtools/) shows how to drive and screenshot a story from outside the process.

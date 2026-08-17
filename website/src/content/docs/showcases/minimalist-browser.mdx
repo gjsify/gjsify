@@ -1,61 +1,82 @@
 ---
 title: "Minimalist Browser"
-description: URL bar + back/forward + iframe — same code runs in browser (real <iframe>) and GJS (IFrameBridge over WebKit.WebView).
+description: A URL bar, back and forward buttons, and an iframe that is a real WebKit view on GJS and a real iframe in the browser.
 ---
 
 import ShowcaseEmbed from '../../../components/ShowcaseEmbed.astro';
 
-A bare-bones browser shell — URL bar, back / forward / reload buttons, an `<iframe>` filling the rest. The same TS source compiles for the browser (where the iframe is a real iframe) and for GJS (where it's an `IFrameBridge` wrapping a full `WebKit.WebView`).
+A small browser shell: URL bar, back, forward and reload, and an `<iframe>` filling the rest of the window.
+
+The demo shows how to embed web content inside a GTK app. Write against `HTMLIFrameElement` the way you would on a web page, and on GJS you get a full `WebKit.WebView` behind it, with cookies, JavaScript, CSS and `postMessage` all working. Reports, help pages, OAuth flows, third-party widgets: this is the pattern for all of them.
 
 ## Live demo
 
 <ShowcaseEmbed name="minimalist-browser" />
 
-## What it exercises
-
-| Pillar | What it needs |
-|---|---|
-| [`@gjsify/iframe`](https://github.com/gjsify/gjsify/tree/main/packages/framework/iframe) | `HTMLIFrameElement` + `IFrameBridge` → `WebKit.WebView` |
-| [`@gjsify/dom-elements`](https://github.com/gjsify/gjsify/tree/main/packages/dom/dom-elements) | `HTMLInputElement` for the URL bar, click handling |
-| [`@gjsify/event-bridge`](https://github.com/gjsify/gjsify/tree/main/packages/framework/event-bridge) | GTK click events on the toolbar buttons |
-| Adwaita widgets (GJS) | `Adw.HeaderBar` + `Gtk.Entry` for the chrome |
-
 ## Run it on GJS
+
+This is one of two showcases that declare `["gjs"]` rather than all four runtimes. Its content area is a `WebKit.WebView` reached through a typelib, so it ships no `--app node` bundle and `--runtime node` tells you so instead of crashing:
 
 ```bash
 gjsify showcase minimalist-browser
 ```
 
-Opens a GTK4 window. The chrome is an `Adw.HeaderBar` with native GTK buttons; the content area below is the `IFrameBridge` widget. Type a URL, hit Enter — WebKit loads it (full browser-grade web compat: cookies, JavaScript, CSS, the lot).
+You need WebKitGTK 6.0 installed. `gjsify system-check` tells you if it is missing.
+
+A GTK 4 window opens with an `Adw.HeaderBar`: flat navigation buttons, a `Gtk.Entry` for the URL, and a home button. Below it a "Demo pages" strip links to the built-in pages, and a status bar sits at the bottom.
+
+The URL bar takes two kinds of address:
+
+- `page:welcome`, `page:about`, `page:postmessage` and `page:adwaita` load built-in pages from an in-memory library.
+- A real URL like `https://example.com` is loaded by WebKit.
+
+Every built-in page posts `{ type: 'page-loaded', title, url }` to its parent on `DOMContentLoaded`, and the status bar shows it. That round trip is the same code in both targets.
 
 ## Run it in the browser
 
 ```ts
 import { mount } from '@gjsify/example-dom-minimalist-browser/browser';
-mount(document.getElementById('app')!);
+
+const handle = mount(document.getElementById('app')!, {
+  homeUrl: 'page:welcome',
+});
+
+handle.navigate('https://example.com');
 ```
 
-The same `<input>` + button handlers, the same `<iframe>` element. The browser embed is fully self-contained.
+The same input and button handlers, wrapped around a real `<iframe>`.
 
-## Source
+## What it uses
+
+| Package | What it needs |
+|---|---|
+| [`@gjsify/iframe`](https://github.com/gjsify/gjsify/tree/main/packages/framework/iframe) | `HTMLIFrameElement` plus `IFrameBridge`, which is a `WebKit.WebView` subclass |
+| [`@gjsify/message-channel`](https://github.com/gjsify/gjsify/tree/main/packages/web/message-channel) | `MessageEvent` and the `postMessage` transport across the frame boundary |
+| [`@gjsify/dom-elements`](https://github.com/gjsify/gjsify/tree/main/packages/dom/dom-elements) | `HTMLInputElement` for the URL bar and the click handling |
+| [`@gjsify/event-bridge`](https://github.com/gjsify/gjsify/tree/main/packages/framework/event-bridge) | GTK clicks on the toolbar buttons |
+| Libadwaita | `Adw.ApplicationWindow`, `Adw.HeaderBar` and `Adw.ToolbarView` in the GTK build |
+
+## Pick the right iframe API
+
+`IFrameBridge` gives you two surfaces and you can use either.
+
+The standard one is `iframe.src`, `iframe.srcdoc`, `iframe.contentWindow.postMessage()` and `addEventListener('message')`. Use it when you want code that also runs in a browser, which is what this showcase does.
+
+The WebKit one is on the bridge itself: `loadUri()`, `loadHtml()`, `postMessage()`, `goBack()`, `goForward()`, `canGoBack`, `canGoForward`, and `reload()` inherited from `WebKit.WebView`. Use it when you want WebKit's own back and forward list rather than one you track yourself.
+
+One thing to watch on GJS: `contentWindow` is null until the first navigation finishes. Re-attach your message listener from `onReady()` after each load, the way `src/gjs/gjs.ts` does. A real `<iframe>` keeps `contentWindow` across navigations, so the browser build does not need this.
+
+## Copy the structure
 
 [`showcases/dom/minimalist-browser/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/minimalist-browser)
 
-- `src/browser-demo.ts` — shared `BrowserCore` (history stack, postMessage wiring, built-in `page:<name>` library) — runs unchanged in both targets
-- `src/gjs/gjs.ts` — `Adw.Application` + `Adw.ApplicationWindow` host driving `IFrameBridge`
-- `src/browser/browser.ts` — `mount(container)` module: DOM shell + real `<iframe>`
-- `src/browser/browser-main.ts` — standalone fullscreen browser entry (calls `mount(document.body)`)
+- `src/browser-demo.ts` holds `BrowserCore`: the history stack, the `postMessage` wiring and the built-in `page:<name>` library. It runs unchanged in both targets because it talks to a duck-typed `IFrameHandle`, and both a real `<iframe>` and `IFrameBridge.iframeElement` satisfy it.
+- `src/gjs/gjs.ts` is the `Adw.Application` shell driving `IFrameBridge`.
+- `src/browser/browser.ts` exports `mount()`; `browser-main.ts` runs it full-page.
 
-## The IFrameBridge story
-
-Unlike `Canvas2DBridge` / `WebGLBridge` / `VideoBridge`, which are pure-JS polyfills wrapping native GTK widgets, `IFrameBridge` IS [WebKit.WebView](https://webkitgtk.org/reference/webkit2gtk/stable/class.WebView.html). That's the entire point — we don't reimplement HTML rendering; for embedded web content the right tool is a real browser engine.
-
-The bridge exposes the standard `HTMLIFrameElement` API surface (`src`, `srcdoc`, `contentWindow.postMessage`, navigation events) so that **code shaped like browser code** works without a special "you're in GJS" branch. The `WebKit.WebView` is the engine; the iframe element is the contract.
-
-See [Bridge widgets pattern](../../patterns/bridges/#iframebridge-is-the-one-bridge-that-does-ship-a-browser) for when to reach for this — pretty much any time you embed third-party web content or a sandboxed report inside a GJS app.
+Both targets keep their own history stack rather than calling into the frame's history, because browsers block `contentWindow.history.go(-1)` across origins. Doing it the same way in both keeps the shared core honest.
 
 ## Related
 
-- [Bridge widgets pattern](../../patterns/bridges/) — the four bridges side by side
-- [`refs/epiphany/`](https://github.com/gjsify/gjsify/tree/main/refs/epiphany) — GNOME Web, the canonical real-world consumer of `WebKit.WebView` in a GTK4 host
-- [`refs/webkit/`](https://github.com/gjsify/gjsify/tree/main/refs/webkit) — WebKit source for spec-behavior references
+- [Bridge widgets](/gjsify/patterns/bridges/#embed-a-web-page) puts `IFrameBridge` next to the canvas, WebGL and video bridges and says when to reach for each.
+- [Adwaita widgets](/gjsify/adwaita/) covers the header bar and toolbar view this shell is built from.

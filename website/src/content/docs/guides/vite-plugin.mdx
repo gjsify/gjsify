@@ -1,13 +1,17 @@
 ---
 title: Vite Plugin
-description: Use GJSify's browser and NativeScript transforms directly in a Vite config — with or without the gjsify CLI — so a dual-target app develops under Vite exactly as it builds for production
+description: Develop a browser or NativeScript build under Vite with GJSify's transforms, so dev and production produce the same thing. Works with or without the gjsify CLI.
 ---
 
 import CommandTabs from '../../../components/CommandTabs.astro';
 
-`@gjsify/vite-plugin-gjsify` brings GJSify's build transforms to **Vite**. It exists because a dual-target app has two build paths that must agree: it ships for production via `gjsify build --app browser`, but it *develops* under Vite (dev server, HMR). The preset is what makes the two produce the same thing.
+`@gjsify/vite-plugin-gjsify` brings GJSify's build transforms to Vite. Spread one preset
+into `vite.config.ts` and your dev server resolves modules the same way
+`gjsify build --app browser` does, so what you see in dev is what you ship.
 
-**You do not need the `gjsify` CLI to use it.** The plugin is an ordinary npm package with `vite` as its only peer dependency. Install it with npm/yarn/pnpm, spread it into `vite.config.ts`, and run plain `vite` / `vite build`. This is covered by an end-to-end test whose fixture project depends on the plugin and *not* on `@gjsify/cli`.
+**You do not need the `gjsify` CLI for this.** The plugin is an ordinary npm package whose
+only peer dependency is `vite`. Install it, add it to your config, and run plain `vite` /
+`vite build`.
 
 ## Install
 
@@ -39,7 +43,7 @@ import CommandTabs from '../../../components/CommandTabs.astro';
   </Fragment>
 </CommandTabs>
 
-## Browser target
+## Build for the browser
 
 ```ts
 // vite.config.ts
@@ -51,42 +55,63 @@ export default defineConfig({
 });
 ```
 
-`gjsifyBrowser()` returns a plugin **array** — spread it, don't nest it. It composes the same pieces as the CLI's browser target:
+`gjsifyBrowser()` returns a plugin **array**, so spread it. Don't nest it.
+
+Here is what you get:
 
 | Piece | What it does |
 |---|---|
-| `gjsImportsEmptyPlugin()` | `@girs/*` and `gi://…` → an empty module. These leak in transitively (e.g. through `@gjsify/unit`), and no browser can resolve them. |
-| `blueprintPlugin()` | `.blp` → XML string, so `import T from './window.blp'` works in dev too. |
-| `deepkitPlugin()` | Opt-in Deepkit runtime types (`reflection: true`). Off by default. |
-| a Vite `config()` hook | Browser polyfill aliases (`process` → `@gjsify/empty`, `assert` → `@gjsify/assert`), `resolve.conditions: ['import','browser']`, `build.target: 'esnext'`, and `optimizeDeps.exclude` for GJS-shaped deps Vite's esbuild pre-bundler cannot crawl. |
+| `gjsImportsEmptyPlugin()` | Resolves `@girs/*` and `gi://…` to an empty module. They arrive transitively (through `@gjsify/unit`, for instance) and no browser can resolve them. |
+| `blueprintPlugin()` | Compiles `.blp` to an XML string, so `import T from './window.blp'` works in dev too. |
+| `deepkitPlugin()` | Deepkit runtime types. Off unless you set `reflection: true`. |
+| A Vite `config()` hook | Browser polyfill aliases (`process` → `@gjsify/empty`, `assert` → `@gjsify/assert`), `resolve.conditions: ['import', 'browser']`, `resolve.mainFields: ['browser', 'module', 'main']`, `define` for `global` and `window` → `globalThis`, `build.target: 'esnext'`, and `optimizeDeps.exclude` for GJS-shaped deps that Vite's esbuild pre-bundler cannot crawl. |
 
 ### Options
 
-| Option | Default | Purpose |
+| Option | Default | What it does |
 |---|---|---|
-| `reflection` | `false` | Enable `@deepkit/type` runtime reflection. The type compiler stays uninstalled until you opt in. |
-| `aliases` | `{}` | Extra `resolve.alias` entries merged **over** the defaults — your entries win. |
+| `reflection` | `false` | Turn on `@deepkit/type` runtime reflection. The type compiler stays uninstalled until you ask for it. |
+| `aliases` | `{}` | Extra `resolve.alias` entries, merged over the defaults. Yours win. |
 | `optimizeDepsExclude` | `[]` | More packages for `optimizeDeps.exclude`. `@gjsify/unit` is always excluded. |
 | `cssAsString` | `false` | See below. |
 
-### `cssAsString` — one styling pattern for native *and* browser
+### Share one CSS pattern with the native target
 
-By default the preset leaves CSS to Vite's own pipeline (HMR, `<link>` extraction, PostCSS) — which is what a browser-native app wants.
+By default the preset leaves CSS to Vite: HMR, `<link>` extraction, PostCSS. That is what a
+browser-only app wants, so leave it alone unless you also ship a GTK build.
 
-Turn `cssAsString: true` on when you want the **native and browser targets to share one authoring pattern**. GJSify's `--app gjs` target always consumes CSS as a *string* (there is no stylesheet link in a GTK app), and `gjsify build --app browser` applies the same transform. With the flag on, Vite dev agrees:
+Turn on `cssAsString: true` when the same app builds for both. A GTK app has no stylesheet
+link, so `gjsify build --app gjs` and `gjsify build --app browser` both hand you the CSS as a
+string. With the flag on, Vite dev agrees:
 
 ```ts
-import css from './app.css';           // → the CSS *string*, on both targets
+import css from './app.css';           // the CSS string, on both targets
 
 // GJS:     Gtk.CssProvider.load_from_string(css)
 // Browser: document.head.append(Object.assign(document.createElement('style'), { textContent: css }))
 ```
 
-You author one real `.css` file and apply it per target. The trade is Vite's CSS HMR and `<link>` extraction.
+You author one real `.css` file and apply it per target. The trade is Vite's CSS HMR and
+`<link>` extraction.
 
-## NativeScript target
+## Build for NativeScript
+
+For a NativeScript app, use the one-file composer
+[`@gjsify/nativescript-vite`](https://www.npmjs.com/package/@gjsify/nativescript-vite). It
+adds the GJSify transforms and repairs several `@nativescript/vite` incompatibilities with
+Vite 8 and Rolldown:
 
 ```ts
+// vite.config.ts
+import { defineNativescriptConfig } from '@gjsify/nativescript-vite';
+
+export default defineNativescriptConfig();
+```
+
+If you need to compose the plugins yourself, `gjsifyNativescript()` is the lower-level form:
+
+```ts
+import { defineConfig } from 'vite';
 import nativescript from '@nativescript/vite';
 import { gjsifyNativescript } from '@gjsify/vite-plugin-gjsify';
 
@@ -95,26 +120,25 @@ export default defineConfig({
 });
 ```
 
-This is the low-level form. For a NativeScript app, prefer the one-file composer [`@gjsify/nativescript-vite`](https://www.npmjs.com/package/@gjsify/nativescript-vite), which additionally repairs several `@nativescript/vite` incompatibilities with Vite 8 / Rolldown:
-
-```ts
-// vite.config.ts
-import { defineNativescriptConfig } from '@gjsify/nativescript-vite';
-export default defineNativescriptConfig();
-```
+It takes the same `reflection`, `aliases` and `optimizeDepsExclude` options as
+`gjsifyBrowser()`, resolves `*.android` / `*.ios` / `*.native` source variants, and registers
+the barrel modules your XML references through an `xmlns` namespace.
 
 ## When you still want the CLI
 
-The plugin covers the *dev* half. The `gjsify` CLI is what you want for:
+The plugin covers development. Reach for `gjsify` when you need:
 
-- `gjsify build --app gjs` — the native GJS/GTK bundle. There is no Vite equivalent; Vite targets browsers.
-- `gjsify build --app browser` — the production browser bundle the preset mirrors. You can also just use `vite build`; the preset is what keeps them equivalent.
-- Everything not build-related: `gjsify install`, `tsc`, `lint`, `format`, `storybook`, `publish`.
+- `gjsify build --app gjs`, the native GJS/GTK bundle. Vite targets browsers; there is no
+  equivalent.
+- `gjsify build --app browser`, the production browser bundle this preset mirrors. Plain
+  `vite build` also works; the preset is what keeps the two equivalent.
+- Everything that is not a build: `gjsify install`, `tsc`, `lint`, `format`, `storybook`,
+  `publish`.
 
-A browser-only app can live entirely on Vite. A dual-target app uses both, and the preset is the seam that keeps them honest.
+A browser-only app can live entirely on Vite. A dual-target app uses both.
 
 ## Related
 
-- [How it works](../../how-it-works/) — the transforms behind the presets
-- [CLI reference](../../cli-reference/) — `gjsify build` and its targets
+- [How it works](../../how-it-works/) for the transforms behind the presets
+- [CLI reference](../../cli-reference/) for `gjsify build` and its targets
 - [`@gjsify/vite-plugin-gjsify` on npm](https://www.npmjs.com/package/@gjsify/vite-plugin-gjsify)

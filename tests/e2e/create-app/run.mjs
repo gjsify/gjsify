@@ -6,8 +6,8 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { execSync, execFileSync } from 'node:child_process';
-import { writeFileSync, readFileSync, existsSync, mkdtempSync } from 'node:fs';
+import { execSync, execFileSync, spawnSync } from 'node:child_process';
+import { writeFileSync, readFileSync, existsSync, mkdtempSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -25,6 +25,9 @@ import {
     spawnUntilReady,
     hasCommand,
 } from '../helpers.mjs';
+// Imported, not re-spelled: a second copy of the globals vocabulary is the one that drifts.
+import { GJS_GLOBALS_GROUPS, GJS_GLOBALS_MAP } from '../../../packages/infra/resolve-npm/lib/globals-map.mjs';
+import { ALIASES_WEB_FOR_GJS } from '../../../packages/infra/resolve-npm/lib/index.mjs';
 
 // Listing order matches the template catalog (simple first).
 const TEMPLATES = [
@@ -36,6 +39,45 @@ const TEMPLATES = [
     'web-server-hono',
     'web-server-express',
 ];
+
+const TEMPLATES_DIR = join(MONOREPO_ROOT, 'templates');
+
+/**
+ * The registers an EXPLICIT `--globals` list injects, mirroring `resolveGlobalsList`. `auto`
+ * and `none` are dropped: not identifiers, and what `auto` finds depends on the graph, which
+ * no manifest can promise. A template is held to the set it NAMES.
+ */
+function registerPathsFor(globalsArg) {
+    const out = new Set();
+    for (const token of globalsArg.split(',').map((t) => t.trim())) {
+        if (!token || token === 'auto' || token === 'none') continue;
+        const group = GJS_GLOBALS_GROUPS[token];
+        for (const id of group ?? [token]) {
+            const path = GJS_GLOBALS_MAP[id];
+            if (path) out.add(path);
+        }
+    }
+    return out;
+}
+
+/**
+ * The `@gjsify/*` spelling of a register path: the globals map stores the BARE specifier
+ * where the alias table rewrites at build time (`fetch/register/xhr`), so the name to find
+ * in `dependencies` is the alias target, not the prefix as written.
+ */
+function canonicalRegisterPath(registerPath) {
+    const direct = ALIASES_WEB_FOR_GJS[registerPath];
+    if (direct) return direct;
+    if (registerPath.startsWith('@')) return registerPath;
+    const head = packageNameOf(registerPath);
+    const aliased = ALIASES_WEB_FOR_GJS[head];
+    return aliased ? aliased + registerPath.slice(head.length) : registerPath;
+}
+
+function packageNameOf(registerPath) {
+    const parts = registerPath.split('/');
+    return registerPath.startsWith('@') ? parts.slice(0, 2).join('/') : parts[0];
+}
 
 // Templates that compile `.blp` files — require a blueprint-compiler the BUILD
 // can find. Asking the resolver rather than probing PATH ourselves is the whole
@@ -170,6 +212,45 @@ function scaffold(cwd, projectName, template, extraArgs = []) {
 }
 
 /**
+ * The TWO surfaces onto the same scaffolder, keyed by name.
+ *
+ * `npm create @gjsify/app` runs the standalone bin; `gjsify create` runs the CLI
+ * subcommand, which imports the very same package. They are separate argv
+ * parsers, which is how they drifted: the subcommand offered neither `--runtime`
+ * nor `--package-manager` and passed neither on, so `createProject` fell back to
+ * the host runtime and its first manager — `gjsify create --install` ran `npm
+ * install` without ever saying so, while the bin refused to guess.
+ */
+const SURFACES = {
+    'create-app': (argv) => [
+        'node',
+        [join(MONOREPO_ROOT, 'packages', 'infra', 'create-gjsify', 'lib', 'index.js'), ...argv],
+    ],
+    'gjsify create': (argv) => [
+        'node',
+        [join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js'), 'create', ...argv],
+    ],
+};
+
+/**
+ * Run `argv` on a surface with NO tty, and report everything a user would see.
+ *
+ * stdout and stderr are merged on purpose: which stream a notice goes to is part
+ * of the answer, but the parity assertion is about the answer itself, and the two
+ * surfaces would otherwise be free to agree on the text while disagreeing on
+ * where it lands. The cwd is scrubbed because it is the one legitimate difference
+ * — each surface scaffolds into its own directory.
+ */
+function runSurface(surface, cwd, argv) {
+    const [cmd, args] = SURFACES[surface](argv);
+    const r = spawnSync(cmd, args, { cwd, encoding: 'utf8' });
+    return {
+        status: r.status,
+        output: `${r.stdout ?? ''}${r.stderr ?? ''}`.split(cwd).join('<cwd>'),
+    };
+}
+
+/**
  * The build artifacts a scaffolded project DECLARES: `gjsify.main` (the
  * `--app gjs` bundle) plus `gjsify.example.node` (the `--app node` one, shared
  * by node/bun/deno).
@@ -223,6 +304,43 @@ describe('create-app launch coverage', () => {
     it('every template has a launch recipe', () => {
         for (const template of TEMPLATES) launchRecipe(template);
     });
+
+    // Templates only, because a template is the one package kind rebuilt OUTSIDE this
+    // monorepo by a manager we do not choose; a showcase ships a bundle built here, where
+    // everything is hoisted and the gap cannot bite. The incident is in the message below,
+    // where the next reader meets it.
+    it('every register a template asks for is a dependency it declares', () => {
+        for (const template of TEMPLATES) {
+            const pkg = JSON.parse(readFileSync(join(TEMPLATES_DIR, template, 'package.json'), 'utf8'));
+            const declared = new Set([
+                ...Object.keys(pkg.dependencies ?? {}),
+                ...Object.keys(pkg.devDependencies ?? {}),
+            ]);
+            for (const [script, body] of Object.entries(pkg.scripts ?? {})) {
+                if (typeof body !== 'string') continue;
+                for (const match of body.matchAll(/--globals\s+(\S+)/g)) {
+                    for (const registerPath of registerPathsFor(match[1])) {
+                        const owner = packageNameOf(canonicalRegisterPath(registerPath));
+                        assert.ok(
+                            declared.has(owner),
+                            `templates/${template}: script \`${script}\` passes --globals ${match[1]}, which injects ` +
+                                `\`${registerPath}\`, but the template declares no \`${owner}\`.\n` +
+                                '  It resolves only where the package manager HOISTS a transitive copy to the ' +
+                                'project root, which npm and bun do and the isolated layouts do not. Measured on the ' +
+                                'three adw templates: under pnpm, and under deno (the ONLY manager `gjsify create` ' +
+                                'offers for the deno runtime), `deno task build` — the next command the scaffolder ' +
+                                'prints — died on UnresolvedWorkspaceImportError, because `--app node` has no ' +
+                                'resolvable-register filter. The gjs half failed more quietly: it SKIPS an ' +
+                                'unresolvable register with a warning, so the build exited 0 without the DOM surface ' +
+                                'it had asked for (75 KB against npm 220 KB).\n' +
+                                `  Add \`${owner}\` to devDependencies — registers are bundled into the output, so it ` +
+                                'is not needed at runtime.',
+                        );
+                    }
+                }
+            }
+        }
+    });
 });
 
 // The D-Bus spec's rule for a well-known name, restated here rather than imported
@@ -249,6 +367,65 @@ describe('create-app scaffolding options', { timeout: 2 * 60 * 1000 }, () => {
         assert.match(stdout, /^ {2}gjsify install$/m, `next steps must install with gjsify. Output:\n${stdout}`);
         assert.match(stdout, /^ {2}gjsify run dev$/m, `next steps must run scripts with gjsify. Output:\n${stdout}`);
         assert.doesNotMatch(stdout, /npm run/, `no npm spelling may leak through. Output:\n${stdout}`);
+    });
+
+    // The argv shapes where the two surfaces can disagree at all: a flag the
+    // subcommand might not have, a default that has to be announced, a refusal
+    // that has to happen. `--install` appears WITHOUT a manager on purpose — it
+    // is the one default that would reach the user's disk, and the case where
+    // the drift was live rather than cosmetic. Nothing here installs: every one
+    // of these settles before `createProject` spawns anything.
+    const PARITY_ARGV = [
+        ['proj', '-t', 'cli'],
+        ['proj', '-t', 'cli', '-r', 'deno'],
+        ['proj', '-t', 'cli', '-p', 'bun'],
+        ['proj', '-t', 'cli', '--install'],
+        ['proj', '-t', 'cli', '-r', 'gjs', '-p', 'npm'],
+        ['proj', '-t', 'cli', '-r', 'bun', '-p', 'deno'],
+    ];
+
+    for (const argv of PARITY_ARGV) {
+        it(`answers \`${argv.slice(1).join(' ')}\` the same on both surfaces`, () => {
+            const results = Object.keys(SURFACES).map((surface) => {
+                const cwd = join(tmpDir, `parity-${surface.replace(/\W+/g, '-')}-${argv.join('-')}`);
+                mkdirSync(cwd, { recursive: true });
+                return { surface, ...runSurface(surface, cwd, argv) };
+            });
+            const [first, ...rest] = results;
+            for (const other of rest) {
+                assert.equal(
+                    other.status,
+                    first.status,
+                    `\`${argv.join(' ')}\` exits ${first.status} on ${first.surface} but ${other.status} on ${other.surface}`,
+                );
+                assert.equal(
+                    other.output,
+                    first.output,
+                    `\`${argv.join(' ')}\` answers differently on ${other.surface}:\n--- ${first.surface} ---\n${first.output}\n--- ${other.surface} ---\n${other.output}`,
+                );
+            }
+        });
+    }
+
+    it('refuses to pick an installer for you off a tty', () => {
+        // `--install` with no `--package-manager` and no terminal to ask: the
+        // manager writes node_modules and a lockfile, so a default here is a
+        // decision made ON the user rather than for them.
+        for (const surface of Object.keys(SURFACES)) {
+            const cwd = join(tmpDir, `no-silent-install-${surface.replace(/\W+/g, '-')}`);
+            mkdirSync(cwd, { recursive: true });
+            const { status, output } = runSurface(surface, cwd, ['proj', '-t', 'cli', '--install']);
+            assert.equal(status, 1, `${surface} must refuse. Output:\n${output}`);
+            assert.match(
+                output,
+                /--package-manager is required with --install/,
+                `${surface} must say which flag is missing. Output:\n${output}`,
+            );
+            assert.ok(
+                !existsSync(join(cwd, 'proj')),
+                `${surface} must not scaffold when it refuses. Output:\n${output}`,
+            );
+        }
     });
 
     it('derives the application id from the project name', () => {

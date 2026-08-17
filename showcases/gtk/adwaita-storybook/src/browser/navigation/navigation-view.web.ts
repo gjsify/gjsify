@@ -60,17 +60,27 @@ export class NavigationViewWebStory extends StoryElement {
         openButton.setAttribute('label', 'Open contact');
         openButton.setAttribute('pill', '');
         openButton.setAttribute('suggested', '');
-        openButton.classList.add('adw-navigation-view-root-action');
         openButton.addEventListener('click', () => {
             this._view?.push('detail');
         });
+
+        // The GJS story builds this button with `halign: CENTER, valign: CENTER`,
+        // because Adw.ToolbarView hands its content widget the whole rect and a
+        // widget that wants less says so through its alignment. This is that
+        // sentence in the web port: a centring box around the button. It used to be
+        // a bare `adw-navigation-view-root-action` class, which matched no rule in
+        // any stylesheet, so the button was laid out wherever it happened to land.
+        const rootAction = document.createElement('div');
+        rootAction.style.cssText =
+            'display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;';
+        rootAction.appendChild(openButton);
 
         const rootHeader = document.createElement('adw-header-bar');
         rootHeader.setAttribute('slot', 'top');
         rootHeader.appendChild(this._rootTitle);
 
         const rootToolbar = document.createElement('adw-toolbar-view');
-        rootToolbar.append(rootHeader, openButton);
+        rootToolbar.append(rootHeader, rootAction);
 
         const rootPage = document.createElement('adw-navigation-page');
         rootPage.setAttribute('tag', 'root');

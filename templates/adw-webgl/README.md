@@ -17,22 +17,45 @@ engine the build needs when it runs under GJS — is listed explicitly in
 ## Commands
 
 ```bash
-npm run dev       # build + run
-npm run build     # bundle for GJS  → dist/index.gjs.js
-npm start         # run the built bundle on GJS
-npm run check     # type-check
-npm run clear     # remove build output
+npm run dev         # build for GJS + run
+npm run build       # both bundles: dist/index.gjs.js and dist/index.node.mjs
+npm start           # run the built bundle on GJS
+npm run start:node  # …on Node.js   ┐
+npm run start:bun   # …on Bun       ├ all three share dist/index.node.mjs
+npm run start:deno  # …on Deno      ┘
+npm run check       # type-check
+npm run clear       # remove build output
 ```
 
 ## Runtimes
 
-This template targets **GJS**. It drives GTK/libadwaita through `gi://`, so GJS
-is where it belongs — `package.json` declares that as
-`gjsify.example.runtimes: ["gjs"]`, and the build passes `--app gjs` explicitly
-so the target does not silently follow whichever runtime happens to invoke it.
+This app runs on all four runtimes gjsify targets — **GJS, Node.js, Bun and
+Deno** — and opens the same GTK/libadwaita window with the same three.js scene on
+each. `package.json` declares that as
+`gjsify.example.runtimes: ["gjs", "node", "bun", "deno"]`.
 
-gjsify itself also targets Node.js, Bun and Deno; the `cli`, `web-server-hono`
-and `web-server-express` templates are the ones that ship bundles for all four.
+Two bundles, not four. `--app gjs` produces the native GJS bundle; `--app node`
+produces one bundle that Node, Bun and Deno all run, with `gi://` served by
+`@gjsify/node-gi`. It is a **runtime** dependency, not a build-time one: the node
+bundle does not inline it, it keeps `import … from '@gjsify/node-gi/cairo'` (and
+`/system`, `/gi`) as live imports, so the package has to be there when the app
+runs, not only when it builds. That is why it sits in `dependencies` — move it to
+`devDependencies` and the app still builds and still runs from a dev checkout,
+then dies with `Cannot find module '@gjsify/node-gi/gi'` the first time someone
+installs without dev deps.
+
+`--globals auto,dom` on the `--app node` build is not decoration. Auto-detection
+runs on the GJS target only; a node bundle routes the `@gjsify/*` register
+subpaths to `@gjsify/empty` unless the DOM surface is requested by name. Drop
+`dom` and the window still opens, but `canvas.getContext('webgl2')` throws
+`WebGL2RenderingContext is not a constructor` and the canvas stays empty.
+
+The entry point uses `await app.runAsync([])` rather than the synchronous
+`app.run([])`. It is the recommended `Gio.Application` lifecycle and the form the
+multi-runtime showcases use: a sync `run()` blocks the thread inside the GLib main
+loop, which hangs any startup that awaits something. This scene awaits nothing, so
+the sync form happens to work here too — the async one is what keeps working once
+you add a step that does.
 
 ## Operating systems
 

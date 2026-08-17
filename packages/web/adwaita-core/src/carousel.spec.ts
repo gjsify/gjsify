@@ -9,6 +9,7 @@ import {
     carouselClampPosition,
     carouselClosestSnapPoint,
     carouselNavigateTarget,
+    carouselPageAllocation,
     carouselPageAtPosition,
     carouselRange,
     carouselReorderShift,
@@ -22,6 +23,7 @@ import {
 import {
     CAROUSEL_CLAMP_VECTORS,
     CAROUSEL_NAVIGATE_VECTORS,
+    CAROUSEL_PAGE_ALLOCATION_VECTORS,
     CAROUSEL_PAGE_AT_POSITION_VECTORS,
     CAROUSEL_PAGE_LIST_VECTORS,
     CAROUSEL_PROPERTY_DEFAULT_VECTORS,
@@ -124,6 +126,26 @@ export default async () => {
                 recovered.forEach((size, index) => expect(size).toBeCloseTo(sizes[index]!, 12));
                 expect(recovered).toHaveLength(sizes.length);
             }
+        });
+    });
+
+    await describe('carouselPageAllocation (adw_carousel_size_allocate:748-767, :796-806)', async () => {
+        for (const { available, pages, pageSize, leadingInset, rule } of CAROUSEL_PAGE_ALLOCATION_VECTORS) {
+            await it(`${JSON.stringify(pages)} in ${available} → page ${pageSize}, inset ${leadingInset} — ${rule}`, () => {
+                expect(carouselPageAllocation(available, pages)).toStrictEqual({ pageSize, leadingInset });
+            });
+        }
+
+        await it('leaves the neighbours a peek of leadingInset minus spacing', () => {
+            // The composed quantity the reported defect was about: with the strip
+            // centred, the next page's left edge sits `distance` from the current
+            // page's, so what shows past the carousel edge is the inset less the gap.
+            const state = new CarouselState({ spacing: 8 });
+            const { pageSize, leadingInset } = carouselPageAllocation(480, [{ natural: 440 }]);
+            const distance = state.pageDistance(pageSize);
+            expect(distance).toBe(448);
+            // Next page starts at leadingInset + distance, and the carousel ends at 480.
+            expect(480 - (leadingInset + distance)).toBe(leadingInset - 8);
         });
     });
 

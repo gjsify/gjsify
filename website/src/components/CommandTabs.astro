@@ -64,8 +64,15 @@ const { title = 'Terminal', group = 'runtime', commands } = Astro.props;
  * gets no tab rather than a plausible-looking one.
  */
 const TAB_SETS: Record<string, { slot: string; label: string }[]> = {
+    // "GJSify" and not "GJS", because what this tab actually offers is the bare
+    // `gjsify` binary rather than a runtime. It used to say GJS on the reasoning
+    // that a `gjsify` on PATH is usually the GJS bootstrap, and that stopped being
+    // reliably true: the same binary is installed from npm, Bun and Deno, so the
+    // label was naming the runtime least likely to be running it for those readers.
+    // The other three tabs DO name runtimes, because `npx`, `bunx` and
+    // `deno run npm:` each pin one.
     runtime: [
-        { slot: 'gjsify', label: 'GJS' },
+        { slot: 'gjsify', label: 'GJSify' },
         { slot: 'npm', label: 'Node' },
         { slot: 'bun', label: 'Bun' },
         { slot: 'deno', label: 'Deno' },
@@ -126,7 +133,7 @@ const runtimesAttr = present.map((r) => r.slot).join(',');
             </button>
         </span>
     </div>
-    <adw-tab-view no-close expand-tabs>
+    <adw-tab-view no-close expand-tabs data-cmd-view>
         {present.map((r) =>
             r.code !== undefined ? (
                 <adw-tab-page title={r.label}>
@@ -155,7 +162,7 @@ const runtimesAttr = present.map((r) => r.slot).join(',');
         if (!runtime) return;
         for (const el of document.querySelectorAll<HTMLElement>('[data-command-tabs]')) {
             if (groupOf(el) !== group) continue;
-            const view = el.querySelector('adw-tab-view');
+            const view = el.querySelector('adw-tab-view[data-cmd-view]');
             if (!view || view === skip) continue;
             const runtimes = (el.dataset.runtimes ?? '').split(',');
             const index = runtimes.indexOf(runtime);
@@ -166,6 +173,10 @@ const runtimesAttr = present.map((r) => r.slot).join(',');
     // Follow user selection: persist + mirror to every other instance.
     document.addEventListener('notify::selected-page', (event) => {
         const view = event.target as HTMLElement;
+        // Same guard as AdwWidget, added before it bites rather than after: the
+        // event bubbles, so any `<adw-tab-view>` a page nests inside a command-tab
+        // window would otherwise be read as the reader choosing a runtime.
+        if (!view?.matches?.('[data-cmd-view]')) return;
         const host = view?.closest?.('[data-command-tabs]') as HTMLElement | null;
         if (!host) return;
         const runtimes = (host.dataset.runtimes ?? '').split(',');

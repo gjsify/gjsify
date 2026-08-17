@@ -1,80 +1,67 @@
 ---
 title: Install & Update
-description: Bootstrap @gjsify/cli on any GNOME machine — no Node, no npm.
+description: Install the gjsify CLI on GJS, Node.js, Bun or Deno, then keep it up to date.
 ---
 
 import CommandTabs from '../../../components/CommandTabs.astro';
 
-## Recommended: Node-free bootstrap (gjs ≥ 1.86)
+The CLI runs on all four runtimes, and it installs on all four. Pick the one you
+already have. Whichever you choose you get the same `gjsify` command, and the
+runtime you installed with becomes the one it builds for by default.
+
+| You have | Install with | Updates with |
+|---|---|---|
+| [GJS](#gjs) | one `curl` line, no Node.js anywhere | `gjsify self-update` |
+| [Node.js](#nodejs) | `npm` or `pnpm` | your package manager |
+| [Bun](#bun) | `bun add -g` | `bun add -g` again |
+| [Deno](#deno) | `deno install -g` | the same command with `-f` |
+
+On **Windows** take Node.js, Bun or Deno: the GJS route needs a `gjs` binary and
+there is none. On **macOS** all four are possible, but Node, Bun and Deno are the
+tested ones.
+
+A global install is not the only shape. You can also
+[add the CLI to a single project](#or-add-it-to-one-project) as a dev dependency,
+and for a browser or NativeScript build you
+[may not need the CLI at all](#do-you-need-the-cli).
+
+## GJS
+
+If you have `gjs` 1.86 or newer and `curl`, this is all you need:
 
 ```bash
 curl -fsSL https://github.com/gjsify/gjsify/releases/latest/download/install.mjs \
   -o /tmp/g.mjs && gjs -m /tmp/g.mjs && rm /tmp/g.mjs
 ```
 
-The `install.mjs` script is a tiny stock-GJS bootstrap (~250 LoC, only
-GLib / Gio / Soup 3) that:
-
-1. Downloads the pinned `cli.gjs.mjs` bundle from the GitHub release.
-2. Verifies its SHA-256 against a sidecar `.sha256` asset.
-3. Caches it under `$XDG_CACHE_HOME/gjsify/bootstrap/`.
-4. Spawns `gjs -m <bundle> install -g @gjsify/cli` — the full CLI then
-   handles transitive dependency resolution, native prebuilds, lockfile,
-   and the `~/.local/bin/gjsify` launcher.
-
-> **Platform support.** The global install additionally lays down the GJS-native
-> engine set — `@gjsify/rolldown-native`, `@gjsify/lightningcss-native`,
-> `@gjsify/oxfmt-native`. The CLI locates prebuilds for whatever host it runs on
-> (and exports `DYLD_LIBRARY_PATH` on macOS / `PATH` on Windows rather than
-> Linux's `LD_LIBRARY_PATH`). All three publish `linux-x64`, `linux-arm64`,
-> `darwin-arm64` and `darwin-x64`; none publishes a `win32-x64` prebuild, and
-> Windows has no GJS host to run one under in any case, so a Node-free toolchain
-> there is not a gap but a consequence. On macOS the engines are in place while no
-> CI leg yet drives the Node-free path end to end — if it does not work for you,
-> Node plus the npm `rolldown` / `lightningcss` / `oxfmt` packages is the fallback.
-> See
-> [Platform Support](/gjsify/platform-support/) for the per-package matrix and
-> [How It Works → Native prebuilds](/gjsify/how-it-works/#native-prebuilds-and-gjsify-run)
-> for how a prebuild directory is located.
-
-After install:
-
-- The CLI tree lives under `~/.local/share/gjsify/global/node_modules/`.
-- A POSIX `sh` launcher is written to `~/.local/bin/gjsify`. Add that
-  directory to your `PATH` if it isn't already:
-
-  ```bash
-  export PATH="$HOME/.local/bin:$PATH"
-  ```
-
-### Refresh in place
+It puts the CLI and its dependencies under
+`~/.local/share/gjsify/global/node_modules/` and writes a small `sh` launcher to
+`~/.local/bin/gjsify`. Add that directory to your `PATH` if it isn't there yet:
 
 ```bash
-gjsify self-update         # install the latest release
-gjsify self-update --check # check without installing
-gjsify self-update --tag next   # opt into a different dist-tag
+export PATH="$HOME/.local/bin:$PATH"
 ```
 
-### Pin a specific version
+The download is checksummed before it runs. If you want the details of the
+bootstrap and how the CLI finds its native prebuilds, see
+[How It Works](/gjsify/how-it-works/#native-prebuilds-and-gjsify-run).
 
-```bash
-gjs -m /tmp/g.mjs --tag 0.18.0
-```
+:::note[No Node.js required]
+This route needs no Node and no npm on the machine, at install time or ever
+after. That is the point of it: a GNOME box with `gjs` and `curl` is already a
+complete gjsify development machine. If you arrived here from the Node, Bun or
+Deno sections, you can ignore this.
+:::
 
-`--tag` accepts npm dist-tags (`latest`, `next`) or pinned versions (`0.18.0`).
+:::note[macOS and Windows]
+The bootstrap needs a `gjs` binary, so Windows has no GJS route: use Node, Bun or
+Deno there. On macOS the engines the CLI needs are published for both
+architectures, but no CI job drives the GJS path end to end yet, so treat it as
+untested rather than promised. [Platform Support](/gjsify/platform-support/) has
+the per-package picture.
+:::
 
-### Custom install location
-
-```bash
-GJSIFY_GLOBAL_PREFIX=$HOME/.gjsify GJSIFY_GLOBAL_BIN_DIR=$HOME/.gjsify/bin \
-  gjs -m /tmp/g.mjs
-```
-
-The install backend honors `GJSIFY_GLOBAL_PREFIX` (default
-`~/.local/share/gjsify/global`) and `GJSIFY_GLOBAL_BIN_DIR` (default
-`~/.local/bin`).
-
-## Alternative: npm install
+## Node.js
 
 <CommandTabs title="Install globally" group="pm">
   <Fragment slot="npm">
@@ -87,39 +74,230 @@ The install backend honors `GJSIFY_GLOBAL_PREFIX` (default
     pnpm add -g @gjsify/cli
     ```
   </Fragment>
+</CommandTabs>
+
+Node.js 24 or newer. Pick this route if you already manage your developer tools
+through npm.
+
+{/* No Yarn tab: Yarn 2+ dropped `global add` and offers no replacement that
+    installs a persistent bin. A tab is a promise the command works. */}
+
+Yarn has no equivalent, since Yarn 2 dropped `yarn global add`, so use npm or
+pnpm for the global install even when your projects are on Yarn.
+
+## Bun
+
+```bash
+bun add -g @gjsify/cli
+```
+
+The launcher lands in `$BUN_INSTALL/bin` (`~/.bun/bin` unless you moved it),
+which Bun's own installer normally put on your `PATH` already.
+
+Bun blocks lifecycle scripts it has not been told to trust, so the install prints
+something like *"Blocked 2 postinstalls"*. The CLI works anyway. Run
+`bun pm -g untrusted` to see which ones, and `bun pm trust` if you want them to
+run.
+
+## Deno
+
+```bash
+deno install -g -A -n gjsify npm:@gjsify/cli
+```
+
+Both flags are load-bearing. `-n gjsify` names the executable, because Deno does
+not take a bin name from an npm package by itself, and `-A` grants the
+permissions the CLI needs to read your project, write build output and reach the
+registry.
+
+The launcher lands in `$DENO_INSTALL_ROOT/bin`, or `~/.deno/bin` by default. Deno
+prints the directory and the `export PATH=…` line to add if it is not on your
+path yet.
+
+## Or add it to one project
+
+Nothing says the CLI has to be global. Add it as a dev dependency and it becomes
+one more tool in that project's toolchain, pinned in the lockfile with everything
+else, so a colleague who clones the repo gets the version you built against
+instead of whatever they happen to have installed.
+
+<CommandTabs title="Add to a project" group="pm">
+  <Fragment slot="npm">
+    ```bash
+    npm install -D @gjsify/cli
+    ```
+  </Fragment>
+  <Fragment slot="yarn">
+    ```bash
+    yarn add -D @gjsify/cli
+    ```
+  </Fragment>
+  <Fragment slot="pnpm">
+    ```bash
+    pnpm add -D @gjsify/cli
+    ```
+  </Fragment>
   <Fragment slot="bun">
     ```bash
-    bun add -g @gjsify/cli
+    bun add --dev @gjsify/cli
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno add -D npm:@gjsify/cli
     ```
   </Fragment>
 </CommandTabs>
 
-{/* No Yarn tab: Yarn 2+ dropped `global add` and offers no replacement that
-    installs a persistent bin, and no Deno tab: `deno install -g` needs an
-    explicit bin name for an npm package. A tab is a promise the command works;
-    an unverified spelling is worse than an absent tab. */}
+Then call it the way you call any other project-local binary. Inside a
+`package.json` script the bare name works, because the runner puts
+`node_modules/.bin` on the path:
 
-Still fully supported. Choose this if you already manage developer
-tooling via npm and don't mind keeping Node on the path.
+```json
+{
+  "scripts": {
+    "build": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
+    "start": "gjsify run dist/index.gjs.js"
+  }
+}
+```
 
-### Which runtime does the installed `gjsify` default to?
+From your shell, reach it through your runner: `npx gjsify …`, `pnpm exec gjsify …`,
+`yarn gjsify …`, `bunx gjsify …` or `deno run -A npm:@gjsify/cli …`.
 
-`gjsify` follows whichever runtime is running it. The Node-free bootstrap
-above installs a GJS bundle, so its `--app` build target and `--runtime`
-default to `gjs`; `npm install -g @gjsify/cli` runs on Node, so those default
-to `node`; invoking the CLI via `bunx @gjsify/cli` or `deno run
-npm:@gjsify/cli` defaults to `bun`/`deno` respectively (all three consume the
-same `--app node` bundle). Override explicitly with `--app`/`--runtime` — see
-[Runtimes](/gjsify/runtimes/). (`gjsify showcase` is the exception: a showcase's
-canonical artifact is its `--app gjs` bundle, so it defaults to `gjs` whenever
-`gjs` is installed, whatever the host.)
+This is how every template that `gjsify create` scaffolds is set up, so a project
+made that way already works this way and needs nothing installed globally.
 
-### Which VERSION does `npx` / `bunx` / `deno run` give you?
+## Do you need the CLI?
 
-Not necessarily the latest one, and the difference is not visible in the output
-of the command that fails because of it. All three runners reuse a **cached**
-copy of an unpinned bin, so the same `npx @gjsify/cli …` can keep serving a
-release from months ago. Pin the tag to force a resolve:
+For a **browser or NativeScript** build, no.
+[`@gjsify/vite-plugin-gjsify`](/gjsify/guides/vite-plugin/) is an ordinary npm
+package whose only peer dependency is `vite`. Spread a preset into
+`vite.config.ts` and run plain `vite` / `vite build`: your dev server resolves
+modules the same way `gjsify build --app browser` does, so dev and production
+agree, and no `gjsify` binary is involved anywhere.
+
+```bash
+npm install -D @gjsify/vite-plugin-gjsify vite
+```
+
+For a **native GJS or GTK** build the CLI is still the way. The Vite presets
+mirror the `--app browser` and `--app nativescript` targets; producing the
+`--app gjs` bundle a GNOME app ships as is the CLI's job.
+
+Two more plugins stand alone the same way, if all you want is one piece:
+[`@gjsify/vite-plugin-blueprint`](/gjsify/guides/vite-plugin/) compiles `.blp`
+templates, and `@gjsify/vite-plugin-gettext` runs the PO/MO pipeline.
+
+## Update
+
+There is no single update command, because it depends on how you installed.
+
+<CommandTabs title="Update the CLI">
+  <Fragment slot="gjsify">
+    ```bash
+    gjsify self-update              # install the latest release
+    gjsify self-update --check      # only tell me whether there is one
+    gjsify self-update --tag next   # follow a different dist-tag
+    gjsify self-update --force      # reinstall the same version
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    npm install -g @gjsify/cli@latest
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    bun add -g @gjsify/cli@latest
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno install -g -A -n gjsify -f npm:@gjsify/cli
+    ```
+  </Fragment>
+</CommandTabs>
+
+`gjsify self-update` only updates installs it owns, meaning the GJS bootstrap
+above and `gjsify install -g`. An npm, Bun or Deno install lands somewhere it
+does not manage, so it warns and stops rather than half-updating you. Use your
+package manager there.
+
+On the GJS route, `self-update` refreshes the CLI's runtime dependencies too (the
+bundler, the formatter, the native `gi://` bridges). Pass `--skip-deps` to update
+only the CLI bundle, which is faster but can leave those stale.
+
+Deno needs `-f` from the second install onwards: without it, it stops with
+*"Existing installation found"* rather than overwriting.
+
+## Pin a version
+
+<CommandTabs title="Install an exact version">
+  <Fragment slot="gjsify">
+    ```bash
+    gjs -m /tmp/g.mjs --tag 0.40.0
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    npm install -g @gjsify/cli@0.40.0
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    bun add -g @gjsify/cli@0.40.0
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno install -g -A -n gjsify -f npm:@gjsify/cli@0.40.0
+    ```
+  </Fragment>
+</CommandTabs>
+
+On the GJS route `--tag` takes an npm dist-tag (`latest`, `next`) or an exact
+version, and `gjsify self-update --tag 0.40.0` does the same for an install you
+already have.
+
+## Install somewhere else
+
+GJS only. npm, Bun and Deno each have their own prefix setting.
+
+```bash
+GJSIFY_GLOBAL_PREFIX=$HOME/.gjsify GJSIFY_GLOBAL_BIN_DIR=$HOME/.gjsify/bin \
+  gjs -m /tmp/g.mjs
+```
+
+`GJSIFY_GLOBAL_PREFIX` defaults to `~/.local/share/gjsify/global`, and
+`GJSIFY_GLOBAL_BIN_DIR` to `~/.local/bin`.
+
+## Which runtime will the CLI build for?
+
+`gjsify` follows whatever runtime is running it. Installed through the GJS
+bootstrap it runs on GJS, so `--app` and `--runtime` default to `gjs`; installed
+from npm it runs on Node, so they default to `node`; installed with Bun or Deno
+they default to `bun` and `deno` (all three consume the same `--app node`
+bundle). Override it per command with `--app` / `--runtime`, or per project with
+`gjsify.app` in `package.json`.
+
+Your operating system is never part of that decision. The CLI asks which runtime
+is executing it right now, nothing else (`buildAppForRuntime(hostRuntime())`). So
+on Windows it targets Node, Bun or Deno, but that is a consequence rather than a
+rule: it targets them because those are the only runtimes that can install and
+run it there. Give a machine `gjs` and the same CLI targets GJS, whatever the OS
+underneath.
+
+`gjsify showcase` is the one exception: a showcase's canonical build is its
+`--app gjs` bundle, so it picks `gjs` whenever `gjs` is installed, whatever the
+host.
+
+## Which version do `npx`, `bunx` and `deno run` give you?
+
+Not necessarily the newest one, and the command that fails because of it will not
+say so. All three runners reuse a cached copy of an unpinned bin, so the same
+`npx @gjsify/cli …` can keep serving a release from months ago. Pin the tag to
+force a fresh resolve:
 
 <CommandTabs title="Pin the tag to force a resolve">
   <Fragment slot="npm">
@@ -139,37 +317,63 @@ release from months ago. Pin the tag to force a resolve:
   </Fragment>
 </CommandTabs>
 
-The Deno tab carries a second flag because deno adds a second rule:
-`minimumDependencyAge` (24 h by default) refuses a version published more
-recently than that — so a same-day release is skipped in favour of an older one
-until it ages in. Deno says so explicitly when you pin the version; when you
-don't, it quietly resolves to the older one. That is the worst possible moment
-for it: you hit a bug, you are told to run `@latest`, and `@latest` hands back
-the same pre-fix binary. `--min-dep-age=0` waives it for one run (or set
-`"minimumDependencyAge"` in `deno.json`).
+Deno needs the extra flag because it applies a second rule: by default it refuses
+any version published in the last 24 hours and quietly falls back to an older one.
+That bites exactly when you have hit a bug, been told to run `@latest`, and got
+the same pre-fix binary back. `--min-dep-age=0` waives it for one run, or set
+`"minimumDependencyAge"` in your `deno.json`.
 
-`gjsify showcase` prints the CLI version it is running as (`[gjsify 0.24.1]`),
-so if a showcase misbehaves, check that line first.
+`gjsify showcase` prints the version it is running as (`[gjsify 0.40.0]`), so
+check that line first when a command misbehaves.
 
-## Prerequisites
+## What you need
 
-The bootstrap script requires:
+- **A runtime**: `gjs` 1.86+, Node.js 24+, Bun, or Deno 2.
+- **`gjs` 1.86 or newer** if you took the GJS route. Fedora 43+, Arch and Debian
+  forky/sid ship it. Debian 13 (trixie) ships 1.82.3 and is too old: Debian went
+  from 1.82 straight to 1.88 in forky, so no Debian *stable* clears the floor
+  yet. The bootstrap checks the version and stops with install commands for the
+  major distributions rather than failing later.
+- **`curl`** (or `wget`) for the GJS route.
+- **An internet connection** for the first run. Later installs and updates
+  resolve from cache where they can.
 
-- **gjs ≥ 1.86** — bundled with Fedora 43+, Arch, and Debian forky/sid.
-  **Not Debian 13 (trixie)**, which ships 1.82.3: Debian went straight to 1.88.1 in
-  forky, skipping 1.84 and 1.86, so no Debian *stable* satisfies the floor yet.
-- **curl** (or `wget`) — universally available
-- An internet connection for the initial bootstrap; subsequent
-  installs and updates resolve from cache when possible.
-
-If `gjs` is older than 1.86 the bootstrap aborts with a clear message
-pointing at install commands for the major distributions.
+Installing the CLI is not the same as being able to build a GTK app: that also
+needs the GNOME libraries themselves.
+[Getting Started](/gjsify/getting-started/) has the per-distribution package
+lists.
 
 ## Uninstall
+
+<CommandTabs title="Remove the CLI">
+  <Fragment slot="gjsify">
+    ```bash
+    gjsify uninstall -g @gjsify/cli
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    npm uninstall -g @gjsify/cli
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    bun remove -g @gjsify/cli
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno uninstall -g gjsify
+    ```
+  </Fragment>
+</CommandTabs>
+
+On the GJS route, add `--dry-run` to see what would go first. To remove
+everything by hand:
 
 ```bash
 rm -rf ~/.local/share/gjsify ~/.local/bin/gjsify
 ```
 
-The bootstrap cache at `~/.cache/gjsify/` is safe to delete at any
-time — the next install or update rebuilds it.
+The bootstrap cache at `~/.cache/gjsify/` is safe to delete at any time; the next
+install rebuilds it.

@@ -514,6 +514,7 @@ export {
     carouselClampPosition,
     carouselClosestSnapPoint,
     carouselNavigateTarget,
+    carouselPageAllocation,
     carouselPageAtPosition,
     carouselRange,
     carouselReorderShift,
@@ -525,7 +526,9 @@ export type {
     CarouselChangeReason,
     CarouselDirection,
     CarouselOrientation,
+    CarouselPageAllocation,
     CarouselPageChangedListener,
+    CarouselPageMeasurement,
     CarouselRange,
     CarouselReorderShiftInput,
     CarouselScrollOptions,
@@ -604,6 +607,21 @@ export type {
     ToolbarViewContentForSizeInput,
     ToolbarViewMeasureInput,
 } from './chrome.js';
+
+// --- Scroll edge indicators (GtkScrolledWindow undershoot + overshoot) ---
+export {
+    ADW_MAX_OVERSHOOT_DISTANCE,
+    ADW_OVERSHOOT_SETTLE_MS,
+    ADW_UNDERSHOOT_CLASSES,
+    ADW_UNDERSHOOT_SIZE,
+    accumulateOvershoot,
+    isScrolledFromEnd,
+    isScrolledFromStart,
+    overshootDistance,
+    scrollMaxValue,
+    scrollUndershootClasses,
+} from './scrolling.js';
+export type { ScrollAdjustment, ScrollAdjustments } from './scrolling.js';
 
 // --- Popover dismissal + keyboard navigation (GtkPopover surface, shared by
 // --- the menu button, drop-down and split button) ---

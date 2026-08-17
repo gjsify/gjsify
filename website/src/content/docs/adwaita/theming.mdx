@@ -1,0 +1,151 @@
+---
+title: Theming
+description: "Re-theme the Adwaita web components through their design tokens: colours, fonts, dark mode and the accent, without forking the stylesheet."
+---
+
+import { ADWAITA_TOKEN_COUNT, ADWAITA_TOKEN_GROUPS } from '../../../data/adwaita-tokens';
+
+Every colour, radius, spacing step and font in `@gjsify/adwaita-web` comes from a
+CSS custom property. Set one above the widgets and everything below picks it up.
+That is the whole theming API, and it is the part that keeps working across
+upgrades.
+
+## Re-theme a subtree
+
+Put the tokens on a container that wraps your widgets. This is the route that
+behaves the same in light and dark mode: the only rules that give a token a
+second, scheme-dependent value sit on `:root` and on the `.theme-dark` /
+`.theme-light` elements, so a container below them keeps your values in both.
+
+```css
+.app {
+    --accent-bg-color: #9141ac;
+    --accent-fg-color: #ffffff;
+    --window-bg-color: #f6f5f4;
+    --card-radius: 16px;
+}
+```
+
+```html
+<div class="app">
+    <adw-preferences-group title="Purple everything">
+        <adw-switch-row title="Wi-Fi" active></adw-switch-row>
+    </adw-preferences-group>
+</div>
+```
+
+## Re-theme the whole page
+
+`:root` works too, with one thing to watch: **most of the colour tokens get a
+second value in dark mode**, and that dark rule outranks a plain `:root`
+declaration. Tokens that mean the same thing in both schemes are safe on `:root`:
+the accent fill, the radii, the spacing scale, the fonts and the opacity tokens.
+
+```css
+:root {
+    --accent-bg-color: #9141ac;
+    --font-family: 'Inter', sans-serif;
+    --card-radius: 16px;
+}
+```
+
+If you want to move one of the scheme-dependent colours globally, give it a dark
+counterpart as well, or move the override into a container as above.
+
+## Switch light and dark
+
+Dark mode applies on its own under `prefers-color-scheme: dark`. To pin a scheme
+for part of the page, put `.theme-dark` or `.theme-light` on **any** element, not
+only on `<html>`:
+
+```html
+<div class="theme-dark">
+    <adw-preferences-group title="Always dark">
+        <adw-switch-row title="Wi-Fi" active></adw-switch-row>
+    </adw-preferences-group>
+</div>
+```
+
+Those two classes re-declare the full palette on the element they sit on. So if
+one element carries both your theme and a `.theme-*` class, write the selector so
+yours wins:
+
+```css
+.app.theme-dark {
+    --window-bg-color: #201d18;
+}
+```
+
+## Set the accent
+
+Adwaita has nine named accents: `blue` (the default), `teal`, `green`, `yellow`,
+`orange`, `red`, `pink`, `purple` and `slate`. Applying one sets both accent
+properties for you, picking the standalone variant that matches the target's
+current scheme:
+
+```ts
+import { applyAdwaitaAccent, clearAdwaitaAccent } from '@gjsify/adwaita-web';
+
+applyAdwaitaAccent('purple');                    // on <html>
+applyAdwaitaAccent('teal', { target: panel });   // on one element
+applyAdwaitaAccent('teal', { target: panel, dark: true });
+
+clearAdwaitaAccent();                            // back to the stylesheet's own value
+```
+
+## The tokens
+
+The values below are the light defaults, read out of the stylesheet that declares
+them when this page is built.
+
+<div class="adw-token-tables">
+  {ADWAITA_TOKEN_GROUPS.map((group) => (
+    <div key={group.title}>
+      <h3 id={group.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}>{group.title}</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Token</th>
+            <th>Light default</th>
+          </tr>
+        </thead>
+        <tbody>
+          {group.tokens.map((token) => (
+            <tr key={token.name}>
+              <td><code>{token.name}</code></td>
+              <td><code>{token.value}</code></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  ))}
+</div>
+
+<p>
+  <strong>{ADWAITA_TOKEN_COUNT} tokens</strong> in {ADWAITA_TOKEN_GROUPS.length} groups.
+</p>
+
+Three of them move on their own: under `prefers-contrast: more` the stylesheet
+changes `--border-opacity`, `--dim-opacity` and `--disabled-opacity`. Every
+colour derived from those follows, so `--border-color` sharpens without a query
+of your own.
+
+## When tokens are not enough
+
+You can also write plain CSS. The components render in the light DOM, so a
+higher-specificity rule of yours wins the way it normally would. Tokens are the
+route that survives upgrades; a rule targeting internal markup is not. See
+[How It Works](/gjsify/how-it-works/#adwaita-on-the-web-light-dom-and-design-tokens)
+for what that boundary does and does not guarantee.
+
+If you would rather build a skin from the source, the SCSS partials ship with the
+package at `@gjsify/adwaita-web/scss/…`, with `@gjsify/adwaita-web/scss` as the
+entry point.
+
+## On the desktop, the accent is not yours to set
+
+A native GTK app takes its accent from the user's GNOME setting through
+`AdwStyleManager`. If your app renders on both, set the token for the web and
+leave the desktop alone: someone who picked an accent in Settings expects your app
+to use it.

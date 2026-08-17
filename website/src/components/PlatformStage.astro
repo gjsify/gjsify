@@ -1,0 +1,844 @@
+---
+// Platform independence, shown rather than claimed: ONE Adwaita app window sits on
+// a desktop that cross-fades between a GNOME, a Windows 11 and a macOS shell. The
+// app never changes; only the desktop under it does.
+//
+// The three desktops are DRAWN, not screenshotted. Partly because shipping real
+// Windows and macOS shell captures means shipping someone else's artwork, and
+// partly because a stylised shell is the honest claim: the point is "your users'
+// desktop", not "this exact build of Windows". Each is a wallpaper gradient plus
+// the two or three chrome elements that make the desktop recognisable in half a
+// second — GNOME's top bar, Windows' centred taskbar, macOS' menu bar and dock.
+//
+// The window is real `adw-*` custom elements from @gjsify/adwaita-web, not a
+// picture of one, so what the section claims about the toolkit is on screen as the
+// toolkit.
+import { RUNTIME_INVOCATION } from './runtime-invocations.ts';
+
+/**
+ * The desktops, in rotation order. `label` is what the caption says while that
+ * desktop is showing; `runtimes` is how the app gets there on it.
+ *
+ * GNOME first: it is the desktop the toolkit is native to, and the one where a
+ * GJSify app is running against the system's own libadwaita rather than through
+ * the node-gi bridge.
+ */
+const DESKTOPS = [
+  {
+    id: 'gnome',
+    name: 'GNOME',
+    caption: 'Native GJS on the system libadwaita.',
+    clock: 'Mon 14:32',
+  },
+  {
+    id: 'windows',
+    name: 'Windows 11',
+    caption: 'Node, Bun or Deno through the node-gi bridge.',
+    clock: '14:32',
+  },
+  {
+    id: 'macos',
+    name: 'macOS',
+    caption: 'Node, Bun or Deno through the node-gi bridge.',
+    clock: 'Mon 17 Aug  14:32',
+  },
+] as const;
+
+/** How long one desktop holds before the next fades in, in ms. */
+const HOLD_MS = 5200;
+
+/**
+ * The watermark drawn into each wallpaper, one flat silhouette per system.
+ *
+ * Drawn here rather than fetched as brand assets: these render at one colour and
+ * about 7% opacity, so all a file download would buy is a licence question. They
+ * are identifying which desktop is on screen, the same job the taskbar and the
+ * dock are already doing, just legible from across the room.
+ *
+ * `currentColor` throughout, so the CSS below owns the colour and the opacity.
+ */
+const MARKS: Record<string, string> = {
+  // The GNOME foot: a sole and four toes arcing away from it.
+  gnome: `<svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">
+      <ellipse cx="41" cy="66" rx="27" ry="31" transform="rotate(-18 41 66)" />
+      <circle cx="56" cy="20" r="10.5" />
+      <circle cx="74" cy="29" r="8.5" />
+      <circle cx="86" cy="44" r="7" />
+      <circle cx="92" cy="61" r="5.5" />
+    </svg>`,
+  // Windows 11: four panes in a square, no perspective.
+  windows: `<svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">
+      <rect x="3" y="3" width="44" height="44" rx="3" />
+      <rect x="53" y="3" width="44" height="44" rx="3" />
+      <rect x="3" y="53" width="44" height="44" rx="3" />
+      <rect x="53" y="53" width="44" height="44" rx="3" />
+    </svg>`,
+  // macOS: the apple. Body plus leaf, the silhouette everyone reads instantly.
+  //
+  // The alternative kept in mind here was the command glyph (U+2318), which says
+  // "Mac" to developers without touching anyone's brand book: Apple's identity
+  // guidelines are stricter than Microsoft's or GNOME's about third parties
+  // drawing their mark. Swapping back is this one entry.
+  macos: `<svg viewBox="0 0 100 100" fill="currentColor" aria-hidden="true">
+      <path d="M74 53c-.1-11 9-16 9.4-16.3-5.1-7.5-13.1-8.5-16-8.6-6.8-.7-13.3 4-16.7 4
+               -3.4 0-8.7-3.9-14.3-3.8-7.4.1-14.2 4.3-18 10.9-7.7 13.3-2 33 5.5 43.8
+               3.7 5.3 8 11.2 13.7 11 5.5-.2 7.6-3.5 14.2-3.5 6.6 0 8.5 3.5 14.3 3.4
+               5.9-.1 9.6-5.4 13.2-10.7 4.2-6.1 5.9-12.1 6-12.4-.1-.1-11.5-4.4-11.6-17.4z" />
+      <path d="M63.3 20.6C66.3 17 68.3 12 67.8 7c-4.3.2-9.5 2.9-12.6 6.4
+               -2.8 3.1-5.2 8.2-4.6 13 4.8.4 9.7-2.4 12.7-5.8z" />
+    </svg>`,
+};
+---
+
+{/* `not-content` is load-bearing, not tidiness. Starlight's content flow puts a
+    `margin-top` on every `* + *` inside `.sl-markdown-content`, and that reached
+    all the way down here: the second and third desktops sat 16px lower than the
+    first (so two of the three shells looked like they had a gap above them), and
+    every taskbar icon after the first sat 8px lower than its neighbour. Same trap
+    CommandTabs documents; the spacing in this section is all explicit. */}
+<section class="platform-stage not-content" aria-labelledby="platform-stage-title">
+  <div class="platform-stage-intro">
+    <h2 id="platform-stage-title" class="platform-stage-title">One app. Every desktop.</h2>
+    <p class="platform-stage-lead">
+      The same TypeScript, the same Adwaita widgets, the same <code>{RUNTIME_INVOCATION.gjs}</code>
+      commands. GJSify talks to the real GTK&nbsp;4 libraries on each system — no
+      embedded browser, no per-platform rewrite.
+    </p>
+  </div>
+
+  <div class="platform-stage-frame" data-platform-stage data-hold={HOLD_MS} data-active={DESKTOPS[0].id}>
+    {/* The desktops are stacked; exactly one carries `.is-active` at a time. */}
+    {
+      DESKTOPS.map((desktop, index) => (
+        <div
+          class:list={['platform-desktop', `platform-desktop--${desktop.id}`, index === 0 && 'is-active']}
+          data-desktop={desktop.id}
+          aria-hidden="true"
+        >
+          {/* A single-colour mark of the system, washed into the wallpaper. The
+              shell chrome already says which desktop this is, but it says it in
+              a 6%-tall strip at one edge; the mark is readable in the half second
+              a visitor actually spends here.
+              Kept deliberately faint and monochrome so it reads as "this is a
+              picture of that desktop" rather than as a badge claiming any kind of
+              endorsement. Each mark is its own block below, so swapping one for an
+              official asset is a single edit. */}
+          <span class="platform-mark" set:html={MARKS[desktop.id]} />
+          {/* GNOME 4x, not GNOME 3: there is no "Activities" label any more. The
+              left is the workspace indicator (a dash for the active workspace,
+              dots for the others), the centre is the clock, and the right is the
+              quick-settings cluster. */}
+          {desktop.id === 'gnome' && (
+            <div class="platform-shell platform-shell--gnome">
+              <div class="platform-gnome-bar">
+                <span class="platform-gnome-workspaces">
+                  <i class="platform-ws platform-ws--active" />
+                  <i class="platform-ws" />
+                  <i class="platform-ws" />
+                </span>
+                <span class="platform-gnome-clock">{desktop.clock}</span>
+                <span class="platform-gnome-status">
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                      d="M8 12.5a1.15 1.15 0 1 0 0 2.3 1.15 1.15 0 0 0 0-2.3Zm0-3.4c-1.2 0-2.3.45-3.1 1.2l1.2 1.2A2.7 2.7 0 0 1 8 10.7c.75 0 1.45.28 1.95.75l1.2-1.2A4.5 4.5 0 0 0 8 9.1Zm0-3.4a7.9 7.9 0 0 0-5.5 2.2l1.2 1.2A6.2 6.2 0 0 1 8 6.85c1.7 0 3.25.64 4.35 1.7l1.2-1.2A7.9 7.9 0 0 0 8 5.7Z"
+                    />
+                  </svg>
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path d="M8.6 2.2 5 5.2H2.4v5.6H5l3.6 3v-11.6Zm2.2 3a4 4 0 0 1 0 5.6l-1-1a2.6 2.6 0 0 0 0-3.6l1-1Z" />
+                  </svg>
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                      d="M2.2 4.6h9.1c.6 0 1.1.5 1.1 1.1v.9h1v2.8h-1v.9c0 .6-.5 1.1-1.1 1.1H2.2c-.6 0-1.1-.5-1.1-1.1V5.7c0-.6.5-1.1 1.1-1.1Zm.7 1.7v3.4h5.8V6.3H2.9Z"
+                    />
+                  </svg>
+                </span>
+              </div>
+            </div>
+          )}
+
+          {desktop.id === 'windows' && (
+            <div class="platform-shell platform-shell--windows">
+              <div class="platform-win-taskbar">
+                <span class="platform-win-icons">
+                  <i class="platform-win-icon platform-win-icon--start" />
+                  <i class="platform-win-icon" />
+                  <i class="platform-win-icon" />
+                  <i class="platform-win-icon platform-win-icon--running" />
+                  <i class="platform-win-icon" />
+                </span>
+                <span class="platform-win-tray">{desktop.clock}</span>
+              </div>
+            </div>
+          )}
+
+          {desktop.id === 'macos' && (
+            <div class="platform-shell platform-shell--macos">
+              <div class="platform-mac-menubar">
+                <span class="platform-mac-menus">
+                  <b class="platform-mac-logo" />
+                  <span>My App</span>
+                  <span>File</span>
+                  <span>Edit</span>
+                  <span>View</span>
+                </span>
+                <span class="platform-mac-status">{desktop.clock}</span>
+              </div>
+              <div class="platform-mac-dock">
+                <i class="platform-mac-dock-icon" />
+                <i class="platform-mac-dock-icon" />
+                <i class="platform-mac-dock-icon platform-mac-dock-icon--running" />
+                <i class="platform-mac-dock-icon" />
+                <i class="platform-mac-dock-icon" />
+              </div>
+            </div>
+          )}
+        </div>
+      ))
+    }
+
+    {/* The constant. Deliberately OUTSIDE the fading stack. */}
+    <div class="platform-app">
+      {/* One group, three rows. The window has to stay a MINORITY of the stage:
+          the desktop around it is the thing that changes, and a window filling the
+          frame leaves nothing to notice. What runtime it is running on is said by
+          the caption, so no row repeats it. */}
+      <adw-window class="platform-app-window">
+        <adw-toolbar-view>
+          <adw-header-bar slot="top">
+            {/* An app's MAIN window, which is why it has a control set worth
+                showing at all — a dialog carries a close button and nothing else
+                on every platform, so the earlier "Preferences" window could not
+                have had three of anything.
+                The set is the one part of the app that legitimately differs per
+                desktop: GTK follows each platform's decoration layout, so the same
+                binary gets one close button on GNOME, minimize/maximize/close on
+                Windows, and macOS' traffic lights on the LEFT. All three are
+                rendered; the stage shows the one matching the desktop below.
+
+                The macOS row is not a guess. `gdk_macos_toplevel_surface`
+                constructs a real NSWindow with
+                `Titled | Closable | Miniaturizable | Resizable`
+                (refs/gtk/gdk/macos/gdkmacostoplevelsurface.c:617-620), and that
+                mask is exactly what makes AppKit draw its own three traffic
+                lights at the top-left. Adwaita's buttons never appear there. */}
+            <span class="platform-controls platform-controls--macos" slot="start" aria-hidden="true">
+              <i class="platform-traffic platform-traffic--close" />
+              <i class="platform-traffic platform-traffic--min" />
+              <i class="platform-traffic platform-traffic--zoom" />
+            </span>
+            <adw-window-title slot="center" title="My App"></adw-window-title>
+            {/* The two end sets share one slot and are STACKED, not laid out side
+                by side: they cross-fade into each other, so both must occupy the
+                same cell — in the flow, the hidden set would push the visible one
+                away from the window edge. */}
+            <span class="platform-controls-end" slot="end" aria-hidden="true">
+              <span class="platform-controls platform-controls--gnome">
+                <span class="adw-header-btn platform-app-btn">
+                  <span class="adw-icon adw-icon--window-close"></span>
+                </span>
+              </span>
+              <span class="platform-controls platform-controls--windows">
+                <span class="adw-header-btn platform-app-btn">
+                  <span class="adw-icon adw-icon--window-minimize"></span>
+                </span>
+                <span class="adw-header-btn platform-app-btn">
+                  <span class="adw-icon adw-icon--window-maximize"></span>
+                </span>
+                <span class="adw-header-btn platform-app-btn">
+                  <span class="adw-icon adw-icon--window-close"></span>
+                </span>
+              </span>
+            </span>
+          </adw-header-bar>
+          <div class="platform-app-page">
+            <adw-preferences-group title="Appearance">
+              <adw-switch-row title="Dark style" subtitle="Use a dark colour scheme" active></adw-switch-row>
+              <adw-combo-row title="Accent colour" items='["Blue","Teal","Green","Orange","Purple"]' selected="0"
+              ></adw-combo-row>
+              <adw-switch-row title="Native GTK 4" subtitle="No embedded browser" active></adw-switch-row>
+            </adw-preferences-group>
+          </div>
+        </adw-toolbar-view>
+      </adw-window>
+    </div>
+  </div>
+
+  {/* Below the stage, not over it: two of the three shells put their own chrome
+      along the bottom edge (the Windows taskbar, the macOS dock), and those are
+      exactly what identifies the desktop being shown. */}
+  <p class="platform-stage-caption" aria-live="polite">
+    <strong data-platform-name>{DESKTOPS[0].name}</strong>
+    <span data-platform-detail>{DESKTOPS[0].caption}</span>
+  </p>
+
+  {/* The rotation is decorative, so the list is the accessible statement of it. */}
+  <p class="sr-only">
+    The same application is shown running on {DESKTOPS.map((d) => d.name).join(', ')}.
+  </p>
+</section>
+
+<script is:inline define:vars={{ DESKTOPS: DESKTOPS.map((d) => ({ id: d.id, name: d.name, caption: d.caption })) }}>
+  // Inline + `define:vars` rather than a module import: this is a self-contained
+  // decorative rotation with no dependencies, and the caption text has to come from
+  // the same array the markup was rendered from or the two drift.
+  for (const stage of document.querySelectorAll('[data-platform-stage]')) {
+    const desktops = [...stage.querySelectorAll('[data-desktop]')];
+    // The caption sits outside the stage frame, so it is looked up on the section.
+    const section = stage.closest('.platform-stage') ?? document;
+    const nameEl = section.querySelector('[data-platform-name]');
+    const detailEl = section.querySelector('[data-platform-detail]');
+    const hold = Number(stage.dataset.hold) || 5200;
+    if (desktops.length < 2) continue;
+
+    let index = 0;
+    let timer = 0;
+
+    const show = (next) => {
+      index = next % desktops.length;
+      desktops.forEach((el, i) => el.classList.toggle('is-active', i === index));
+      const meta = DESKTOPS[index];
+      if (!meta) return;
+      // Drives the window controls, which are the one part of the app that
+      // follows the platform (see the decoration-layout note in the markup).
+      stage.dataset.active = meta.id;
+      if (nameEl && detailEl) {
+        nameEl.textContent = meta.name;
+        detailEl.textContent = meta.caption;
+      }
+    };
+
+    const start = () => {
+      clearInterval(timer);
+      timer = setInterval(() => show(index + 1), hold);
+    };
+    const stop = () => clearInterval(timer);
+
+    // Reduced motion keeps the first desktop and never cross-fades: the section
+    // still makes its point as a still image, which is why nothing else here
+    // depends on the rotation having run.
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) continue;
+
+    // Only animate while on screen — an off-screen crossfade is composited work
+    // nobody sees, and it keeps the tab quiet when the reader has scrolled past.
+    if (typeof IntersectionObserver === 'function') {
+      new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) (entry.isIntersecting ? start : stop)();
+        },
+        { threshold: 0.2 },
+      ).observe(stage);
+    } else {
+      start();
+    }
+  }
+</script>
+
+<style is:global>
+  /* Global, not scoped: Astro's scoped rules compile to `:where()` (specificity 0),
+     which Starlight's own content styles then win against. Same reason as Hero. */
+  .platform-stage {
+    max-width: 1100px;
+    margin-inline: auto;
+    padding: clamp(3rem, 6vw, 5rem) 1.5rem 0;
+  }
+
+  .platform-stage-intro {
+    text-align: center;
+    max-width: 46rem;
+    margin-inline: auto;
+    margin-bottom: clamp(2rem, 4vw, 3rem);
+  }
+
+  .platform-stage-title {
+    font-size: clamp(1.6rem, 3.2vw, 2.25rem);
+    font-weight: 800;
+    color: var(--sl-color-white);
+    margin: 0 0 0.75rem;
+    letter-spacing: -0.02em;
+  }
+
+  .platform-stage-lead {
+    margin: 0;
+    font-size: clamp(0.95rem, 1.5vw, 1.05rem);
+    line-height: 1.6;
+    color: var(--sl-color-gray-2);
+  }
+
+  .platform-stage-lead code {
+    background: var(--sl-color-gray-6);
+    border-radius: 5px;
+    padding: 0.1em 0.4em;
+    font-size: 0.9em;
+  }
+
+  /* --- The stage --- */
+  .platform-stage-frame {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    border-radius: 14px;
+    overflow: hidden;
+    /* The stage is a screen, so it keeps a real edge in both themes rather than
+       bleeding into the page background. */
+    box-shadow:
+      0 24px 60px -20px rgb(0 0 0 / 45%),
+      0 0 0 1px rgb(0 0 6 / 12%);
+    isolation: isolate;
+  }
+
+  :root[data-theme='dark'] .platform-stage-frame {
+    box-shadow:
+      0 24px 60px -20px rgb(0 0 0 / 65%),
+      0 0 0 1px rgb(255 255 255 / 8%);
+  }
+
+  /* --- Desktops: stacked, cross-faded --- */
+  .platform-desktop {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    /* Slow enough to read as a dissolve rather than a switch. Both halves of the
+       cross-fade run the same curve, so the total luminance stays flat. */
+    transition: opacity 1400ms ease-in-out;
+  }
+
+  .platform-desktop.is-active {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .platform-desktop {
+      transition: none;
+    }
+  }
+
+  .platform-shell {
+    position: absolute;
+    inset: 0;
+  }
+
+  /* --- The system watermark ---
+     Sized off the frame's HEIGHT, not its width, and that is the whole trick: it
+     has to come out TALLER than the app window or it is simply invisible. At
+     260px square it was, because the window is 475×264 and swallowed it whole.
+     Keyed to the height it stays bigger than the window at every breakpoint, so
+     the mark reads as something the window is sitting on, the way a logo on a
+     wallpaper does.
+     Lifted a little above centre because the bottom of the stage belongs to the
+     taskbar and the dock. */
+  .platform-mark {
+    position: absolute;
+    left: 50%;
+    top: 47%;
+    transform: translate(-50%, -50%);
+    height: min(88%, 500px);
+    aspect-ratio: 1;
+    color: #fff;
+    /* Strong enough to be read in the half second before the window is noticed,
+       faint enough to stay wallpaper. At 0.07 it was technically on screen and
+       practically invisible, which bought nothing. */
+    opacity: 0.13;
+    pointer-events: none;
+    display: block;
+  }
+
+  .platform-mark svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+
+  /* GNOME: the blue-violet default wallpaper family + the top bar. */
+  .platform-desktop--gnome {
+    background:
+      radial-gradient(120% 90% at 20% 0%, #6c4ea8 0%, transparent 60%),
+      radial-gradient(110% 90% at 85% 100%, #1c71d8 0%, transparent 55%),
+      linear-gradient(160deg, #241f31 0%, #1b2a4a 55%, #12172b 100%);
+  }
+
+  .platform-gnome-bar {
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 6.5%;
+    min-height: 22px;
+    display: flex;
+    align-items: center;
+    padding: 0 1rem;
+    background: rgb(0 0 0 / 55%);
+    color: rgb(255 255 255 / 88%);
+    font-size: clamp(0.6rem, 1.05vw, 0.78rem);
+    font-weight: 600;
+  }
+
+  .platform-gnome-workspaces {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* The workspace indicator: a dash for the workspace you are on, dots for the
+     rest — GNOME 4x's replacement for the "Activities" label. */
+  .platform-ws {
+    display: block;
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: currentColor;
+    opacity: 0.45;
+  }
+
+  .platform-ws--active {
+    width: 16px;
+    opacity: 1;
+  }
+
+  .platform-gnome-clock {
+    flex: 0 0 auto;
+  }
+
+  .platform-gnome-status {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 7px;
+  }
+
+  .platform-gnome-status svg {
+    display: block;
+    width: 13px;
+    height: 13px;
+    fill: currentColor;
+  }
+
+  /* Windows 11: the bloom wallpaper + a centred, floating taskbar. */
+  .platform-desktop--windows {
+    background:
+      radial-gradient(75% 65% at 50% 55%, #2f6fd0 0%, transparent 62%),
+      radial-gradient(60% 50% at 50% 45%, #63b3f5 0%, transparent 45%),
+      linear-gradient(150deg, #08142c 0%, #0d2a52 45%, #050b1a 100%);
+  }
+
+  .platform-win-taskbar {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    height: 8%;
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgb(24 26 33 / 72%);
+    backdrop-filter: blur(12px);
+    border-top: 1px solid rgb(255 255 255 / 8%);
+  }
+
+  .platform-win-icons {
+    display: flex;
+    align-items: center;
+    gap: clamp(6px, 1vw, 12px);
+  }
+
+  .platform-win-icon {
+    width: clamp(12px, 1.6vw, 18px);
+    aspect-ratio: 1;
+    border-radius: 4px;
+    background: rgb(255 255 255 / 55%);
+    position: relative;
+  }
+
+  .platform-win-icon--start {
+    background: linear-gradient(135deg, #4cc2ff, #0a84e0);
+  }
+
+  /* The running app gets Windows' underline indicator — it is what says the app in
+     the middle of the stage is THIS desktop's foreground window. */
+  .platform-win-icon--running {
+    background: linear-gradient(135deg, #7dc0f7, #3584e4);
+  }
+
+  .platform-win-icon--running::after {
+    content: '';
+    position: absolute;
+    left: 25%;
+    right: 25%;
+    bottom: -5px;
+    height: 2px;
+    border-radius: 2px;
+    background: #6cb6f5;
+  }
+
+  .platform-win-tray {
+    position: absolute;
+    right: clamp(8px, 1.5vw, 18px);
+    color: rgb(255 255 255 / 85%);
+    font-size: clamp(0.55rem, 0.95vw, 0.72rem);
+  }
+
+  /* macOS: a warm graphite wallpaper, the menu bar and the dock. */
+  .platform-desktop--macos {
+    background:
+      radial-gradient(90% 70% at 70% 10%, #b06a8c 0%, transparent 55%),
+      radial-gradient(90% 80% at 15% 90%, #3d5a8a 0%, transparent 55%),
+      linear-gradient(155deg, #2b2233 0%, #1d2333 50%, #14161f 100%);
+  }
+
+  .platform-mac-menubar {
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 5.5%;
+    min-height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0.85rem;
+    background: rgb(255 255 255 / 12%);
+    backdrop-filter: blur(14px);
+    color: rgb(255 255 255 / 92%);
+    font-size: clamp(0.55rem, 0.95vw, 0.72rem);
+  }
+
+  .platform-mac-menus {
+    display: flex;
+    align-items: center;
+    gap: clamp(6px, 1.1vw, 14px);
+  }
+
+  .platform-mac-menus span:first-of-type {
+    font-weight: 700;
+  }
+
+  /* An apple would be someone's trademark; a neutral rounded mark reads as "the
+     system menu" without borrowing a logo. */
+  .platform-mac-logo {
+    width: 9px;
+    height: 9px;
+    border-radius: 50% 50% 50% 12%;
+    background: currentColor;
+    display: inline-block;
+  }
+
+  .platform-mac-dock {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: 2.5%;
+    display: flex;
+    align-items: flex-end;
+    gap: clamp(5px, 0.9vw, 10px);
+    padding: clamp(4px, 0.7vw, 7px);
+    border-radius: 14px;
+    background: rgb(255 255 255 / 14%);
+    backdrop-filter: blur(14px);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 14%);
+  }
+
+  .platform-mac-dock-icon {
+    width: clamp(16px, 2.2vw, 26px);
+    aspect-ratio: 1;
+    border-radius: 22%;
+    background: linear-gradient(160deg, rgb(255 255 255 / 70%), rgb(255 255 255 / 40%));
+    position: relative;
+  }
+
+  .platform-mac-dock-icon--running {
+    background: linear-gradient(160deg, #7dc0f7, #3584e4);
+  }
+
+  .platform-mac-dock-icon--running::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: -4px;
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: rgb(255 255 255 / 85%);
+  }
+
+  /* --- The app: one window, unchanged across all three --- */
+  .platform-app {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: min(46%, 380px);
+    /* Above every desktop layer, and never fading with them. */
+    z-index: 2;
+    /* Deepens `adw-window`'s own shadow for a photographic wallpaper, and stays
+       CENTRED while doing it. It was `0 26px 46px`, and a 26px downward offset on
+       a 300px window pushes the whole shadow below the header bar — so the
+       window's top edge had no shade at all while its sides and bottom did, which
+       is what made the header look like it carried a different border. */
+    filter: drop-shadow(0 4px 20px rgb(0 0 0 / 45%));
+  }
+
+  /* NOT restated here: the radius, the 7%-white outline, the shadow and the
+     overflow clip are `adw-window`'s own — it already ships libadwaita's
+     `window.csd` recipe verbatim. This element only has to be told how wide it is. */
+  .platform-app-window {
+    display: block;
+    width: 100%;
+  }
+
+  /* The window is a PORTRAIT of an app, so it is exactly as tall as its content —
+     a scrollbar inside it would be describing this stage's layout rather than the
+     app's, and the toolbar view's content area scrolls by default. */
+  .platform-app-window .adw-toolbar-view-content {
+    overflow: hidden;
+  }
+
+  .platform-app-page {
+    padding: 10px 12px 14px;
+  }
+
+  /* --- Window controls: whichever set the desktop below prescribes ---
+     Cross-faded on the SAME curve as the desktops, because the two are one
+     event: swapping the control set with `display` made the window snap while
+     the wallpaper behind it dissolved, which read as a glitch rather than as the
+     app following the platform. */
+  .platform-controls-end {
+    display: grid;
+    justify-items: end;
+  }
+
+  .platform-controls-end > * {
+    grid-area: 1 / 1;
+  }
+
+  .platform-controls {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    /* Decorative: there is nothing behind these to press. */
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 1400ms ease-in-out;
+  }
+
+  .platform-stage-frame[data-active='gnome'] .platform-controls--gnome,
+  .platform-stage-frame[data-active='windows'] .platform-controls--windows,
+  .platform-stage-frame[data-active='macos'] .platform-controls--macos {
+    opacity: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .platform-controls {
+      transition: none;
+    }
+  }
+
+  /* Slightly tighter than a real header button: this window is drawn at about
+     three-quarters of desktop scale, so full-size controls read as oversized.
+     Qualified by `.adw-header-btn` because the skin's own `adw-header-bar
+     .adw-header-btn` is two classes deep — a bare `.platform-app-btn` lost the
+     cascade and the buttons silently stayed 34px, which made the end section
+     122px wide and shoved the title left into the macOS traffic lights. */
+  .platform-app-window .adw-header-btn.platform-app-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+  }
+
+  .platform-app-window .platform-app-btn .adw-icon {
+    width: 14px;
+    height: 14px;
+  }
+
+  /* macOS: GTK follows the platform decoration layout, so the controls move to
+     the LEFT and become the system's traffic lights rather than Adwaita's own
+     buttons. 12px across with 8px between them is the system's own metric — at
+     the 4px this started with, the three read as one striped pill. */
+  .platform-controls--macos {
+    gap: 8px;
+    padding-inline: 2px;
+  }
+
+  .platform-traffic {
+    display: block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+  }
+
+  .platform-traffic--close {
+    background: #ff5f57;
+  }
+
+  .platform-traffic--min {
+    background: #febc2e;
+  }
+
+  .platform-traffic--zoom {
+    background: #28c840;
+  }
+
+  /* --- Caption --- */
+  .platform-stage-caption {
+    margin: 1rem 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: baseline;
+    gap: 0.5rem;
+    text-align: center;
+    font-size: clamp(0.8rem, 1.2vw, 0.92rem);
+    color: var(--sl-color-gray-2);
+    /* The line changes text as the stage rotates; a fixed height keeps the
+       section from reflowing every five seconds. */
+    min-height: 1.6em;
+  }
+
+  .platform-stage-caption strong {
+    font-weight: 700;
+    color: var(--sl-color-white);
+  }
+
+  /* A phone gets a taller stage so the shell chrome — the top bar, the taskbar,
+     the dock — still has room above and below the window. That chrome is the only
+     thing that says WHICH desktop this is, so the window has to stay a minority
+     of the frame here too: at 86% it covered the dock entirely and the stage was
+     three wallpapers with an app on them. The rows shrink with it, since a 254px
+     window rendering desktop-sized rows reads as a zoomed screenshot. */
+  @media (max-width: 640px) {
+    .platform-stage-frame {
+      aspect-ratio: 3 / 4;
+    }
+
+    .platform-app {
+      width: min(74%, 320px);
+      font-size: 0.85em;
+    }
+
+    .platform-app-page {
+      padding: 8px 8px 10px;
+    }
+
+    /* The controls are fixed px, so they do not shrink with the window's own
+       font-size — at 218px wide the traffic lights ran straight into the title. */
+    .platform-controls--macos {
+      gap: 6px;
+    }
+
+    .platform-traffic {
+      width: 10px;
+      height: 10px;
+    }
+
+    .platform-app-window .adw-header-btn.platform-app-btn {
+      width: 22px;
+      height: 22px;
+    }
+
+    .platform-app-window .platform-app-btn .adw-icon {
+      width: 12px;
+      height: 12px;
+    }
+  }
+</style>

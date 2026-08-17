@@ -1,58 +1,48 @@
 ---
 title: Platform Support
-description: Which operating systems GJSify actually runs on today — per runtime, per native bridge, with the known gaps named.
+description: Which operating systems gjsify runs on today, per build target, with the gaps named.
 ---
 
 import CommandTabs from '../../components/CommandTabs.astro';
-import { platformColumns, platformLegend, platformMatrix } from '../../data/platform-matrix';
+import PlatformMatrix from '../../components/PlatformMatrix.astro';
 
-GJSify has **two independent axes**, and they are easy to confuse:
-
-- The **runtime** axis — GJS, Node.js, Bun, Deno, the browser, NativeScript. This is
-  what [Runtimes](/gjsify/runtimes/) describes, and what each package declares in
-  `package.json#gjsify.runtimes`.
-- The **operating system** axis — Linux, macOS, Windows. A package can be perfectly
-  cross-*runtime* and still be Linux-only, because the native bridge underneath it
-  only ever gets built for Linux.
-
-This page is about the second axis. It exists because the first one used to be the
-only one anybody tracked, and that is how a set of Linux-only native bridges ended
-up underneath a project that described itself as platform-independent.
+This page answers one question: **will this work on my operating system?** Which
+runtime to build for is a separate question, and [Runtimes](/gjsify/runtimes/) has
+it. The two do not line up: a package can be fully cross-runtime and still be
+Linux-only, because the native library underneath it is.
 
 ## The short answer
 
 | | Linux | macOS | Windows |
 |---|---|---|---|
-| **Apps on GJS** (`--app gjs`) | supported | partial — see below | not available (no GJS host) |
+| **Apps on GJS** (`--app gjs`) | supported | partial, see below | not available (no GJS host) |
 | **Apps on Node/Bun/Deno** (`--app node`, via `@gjsify/node-gi`) | supported | supported | supported |
 | **Browser builds** (`--app browser`) | supported | supported | supported |
-| **The Node-free toolchain** (`gjsify build` under GJS) | supported | engines ship; not exercised in CI | not available |
+| **The CLI on a `gjs` host** (no Node, Bun or Deno on the machine) | supported | engines ship, not exercised in CI | not available (no GJS host) |
+| **The CLI on Node, Bun or Deno** | supported, all three exercised in CI | supported, Node exercised in CI | supported, Node exercised in CI |
 
-Browser builds carry no native bridge at all, so they are portable by
-construction. The GJS side is where the operating system matters.
+The last two rows are the same `gjsify` binary, asked which runtime is executing
+it. You pick by what the machine already has: the `gjs` route installs with a
+`curl` line and no package manager, the other three install from npm, Bun or
+Deno. Off Linux, the CI leg that drives the toolchain end to end is the Node one
+(`cli-cross-platform.yml`).
 
-## Why Windows has no GJS host
+Browser builds carry no native code at all, so they are portable by
+construction. The rows that name a `gjs` process are where the operating system
+matters.
 
-`@gjsify/node-gi` runs on Windows because it links the portable
-GObject-Introspection stack, which gvsbuild ships. Anything that needs **GJS
-itself** does not, because there is no prebuilt `libgjs` for Windows: GNOME's own
-gjs CI is Linux-only, and gjs must be source-built against a SpiderMonkey that
-Windows package managers do not provide in a form its build system consumes.
+## Windows
 
-This is a genuine upstream blocker, not a missing task. It is tracked in
-`status/open-todos.md` with the exact conditions that would unblock it.
+There is no GJS on Windows, so anything ending in a `gjs` process is out:
+`--app gjs` bundles, `test:gjs`, and the examples built around them. That is an
+upstream gap, not a missing task here: nobody ships a prebuilt `libgjs` for
+Windows, and gjs has to be built against a SpiderMonkey that Windows package
+managers do not provide in a form its build system takes.
 
-## Working on gjsify FROM Windows
-
-No GJS host does not mean no development host. Under Node, a Windows machine
-runs the toolchain: `gjsify install`, `gjsify run build:infra`, `gjsify build`
-(`--app node`, `--app browser`, and `--library`), `gjsify check`, `gjsify clear`,
-`gjsify copy`, the conformance audit (`node scripts/audit-runtimes.mjs --check`),
-the install backend with its `.cmd`/`.ps1`/`sh` bin shims, and `@gjsify/cli`'s
-own test suite. All of that is verified on win32 x64 / Node 24 with no POSIX
-utilities on PATH.
-
-Showcases run too, on the runtimes that are not GJS:
+Everything else works. On Node, Bun or Deno a Windows machine runs the toolchain
+(`gjsify install`, `gjsify build` for `--app node`, `--app browser` and
+`--library`, `gjsify check`, `gjsify clear`, `gjsify copy`), and showcases run on
+those three:
 
 ```powershell
 gjsify showcase                                   # list them
@@ -60,395 +50,136 @@ gjsify showcase express-webserver                 # runs on node here
 gjsify showcase express-webserver --runtime bun   # or deno
 ```
 
-`gjsify showcase` picks the runtime itself — gjs when a gjs is installed,
-otherwise the host runtime — so on Windows that middle line runs the showcase's
-`--app node` bundle without being told to. A showcase that declares no support
-for the chosen runtime says so instead of crashing.
+`gjsify showcase` picks the runtime itself, so that middle line runs the
+showcase's `--app node` bundle without being told to. A showcase that declares no
+support for the chosen runtime says so instead of crashing. Install the CLI with
+npm, Bun or Deno on Windows: the `curl` bootstrap needs a `gjs` binary, and there
+is none here.
 
-Read the consequence plainly: on Windows the `gjsify` invocation and the `npx`
-invocation execute the **same** bundle on the **same** runtime. The fallback is
-sound, but it means "the same GObject code runs on Windows" rests entirely on
-`@gjsify/node-gi`, and a green Windows result says nothing about the GJS path.
-Installing the CLI follows from the same fact: the Node-free bootstrap
-(`gjs -m install.mjs`) needs a `gjs` binary, so on Windows the CLI comes from
-npm.
+The Windows leg CI walks is the Node one: `cli-cross-platform.yml` installs the
+published CLI, builds `--app node`, runs the output and drives a showcase on
+`windows-latest`. Bun and Deno install the same package and are not covered by
+that leg.
 
-### Measuring Windows needs an interactive session
+You do not have to supply GTK yourself. `@gjsify/gtk-runtime-win32-x64` ships the
+GTK 4 / Adwaita closure that `@gjsify/node-gi` loads `gi://` namespaces from, so
+there is no gvsbuild or system GTK to install. CI runs a real GTK window and the
+full Adwaita storybook against that bundle.
 
-Recorded because it cost a cross-platform verification run an entire discarded
-pass. Win32-OpenSSH puts its session in **session 0, which has no desktop**, so
-every GTK showcase driven over SSH died with an `0xC0000005` access violation
-inside `gtk-4-1.dll` — a crash with a plausible stack and no hint of the real
-cause, which reads like a gjsify defect and is not one. Re-run as an interactive
-scheduled task in the logged-on session, the same commands render. Anyone
-automating Windows checks for this project needs the interactive session, or the
-results will be confidently wrong:
+Two host settings are worth getting right before you start, because both fail in
+ways that do not name themselves:
 
-```powershell
-schtasks /create /tn gjsifyTest /tr "%USERPROFILE%\test\run.cmd" `
-         /sc once /st 23:59 /ru %USERNAME% /it /f
-schtasks /run /tn gjsifyTest
-```
+- **Long paths.** Set
+  `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled` to `1`
+  (needs elevation) and keep your checkout short, `C:\src\…` rather than a deep
+  home directory. Nested `node_modules` runs past `MAX_PATH` quickly.
+- **Line endings.** Prefer `core.autocrlf=false`. A default Git for Windows clone
+  is not dirty, and `.gitattributes` already pins the byte-verified artifacts to
+  LF whatever you configure.
 
-Write output under `%USERPROFILE%` — an unelevated task may not write to `C:\`.
+Real file symlinks are optional: `gjsify install` links workspace packages with
+NTFS junctions, which need no privilege. Turning on Developer Mode enables the
+handful of tests that do want symlinks; without it they report themselves as
+skipped.
 
-The second trap is the CLI's own version. A run that reported every WebGL
-showcase failing under deno with `Failed to require Gwebgl 0.1: Typelib file for
-namespace 'Gwebgl' (any version) not found` was measured against the box's
-npm-global gjsify **0.33.0**. Re-measured on 0.37.0 in an interactive session,
-all four WebGL showcases reach the GL bridge under **both** deno and bun
-(`three-geometry-teapot` at `Context version: OpenGL 4.6`), and that error does
-not occur at all. Check the `[gjsify x.y.z]` version the command prints before
-believing a Windows result.
+## macOS
 
-What a Windows checkout cannot do is anything that ends in a `gjs` process:
-`--app gjs` bundles, `test:gjs`, and the showcases and examples built around
-them. That is the same upstream blocker as above, not a separate gap. Concretely
-it means a showcase's `build:node` succeeds where its sibling `build:gjs` cannot,
-so build the target you can actually run.
+`--app node` is fully supported: builds, conformance and a real GTK/Adwaita
+window are all exercised on Apple silicon, and `@gjsify/gtk-runtime-darwin-arm64`
+ships the GTK 4 / Adwaita closure so you do not need a Homebrew GTK. Intel Macs
+get the same treatment against `@gjsify/gtk-runtime-darwin-x64`: the same builds,
+the same display-free conformance and the same windowed GUI proof, each one a
+matrix leg beside its Apple-silicon twin rather than a reduced substitute.
 
-Two host settings matter, and both fail in ways that do not name themselves:
+What is not proven is the CLI on a `gjs` host. `gjsify build` under GJS needs a
+bundler, `@gjsify/rolldown-native` is the one that runs there, and it does
+publish `darwin-arm64` and `darwin-x64` prebuilds, along with
+`@gjsify/lightningcss-native` and `@gjsify/oxfmt-native`. What is missing is a CI
+job that drives `gjs -m install.mjs` all the way to `gjsify build` with no Node
+on the machine. It may well work for you; nothing here promises it does.
 
-- **Long paths.** Set `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem
-  \LongPathsEnabled` to `1` (needs elevation), and keep the checkout short —
-  `C:\src\…` rather than a deep home directory. A monorepo with nested
-  `node_modules` exceeds `MAX_PATH` quickly.
-- **Line endings.** `core.autocrlf=false` is still the setting to prefer, but a
-  default Git for Windows clone is **not** dirty: measured at `main`, a
-  `core.autocrlf=true` checkout of all 4781 tracked entries reports zero
-  modified files, and no tracked blob contains a CR byte. (An earlier note here
-  claimed 744 committed-CRLF files and a needed repo-wide renormalisation; it
-  did not reproduce — see `status/open-todos.md`.) What the setting protects is
-  the byte-verified artifacts, and `.gitattributes` already pins those to LF
-  with `-text` whatever you configure, because otherwise
-  `verify-committed-bundles.mjs` reports them stale for files you never touched.
+The Node route is the one a macOS CI leg does walk end to end:
+`cli-cross-platform.yml` installs the published CLI, builds `--app node` and runs
+the output on `macos-latest`. Bun and Deno install the same package and are not
+covered by that leg.
 
-Optionally, enable **Developer Mode** so unprivileged file symlinks work. It is
-not required: `gjsify install` links workspace packages with NTFS junctions,
-which need no privilege. Three test rows do need real file symlinks and report
-themselves as skipped with that reason when the capability is absent.
+## Which native bridges reach your platform
 
-One caveat when testing, because it produces false greens: run commands the way
-npm does, through `cmd.exe`. A git-bash shell puts `C:\Program Files\Git\usr\bin`
-on PATH, so `chmod`, `cp`, `rm` and `which` resolve there and a script that
-cannot work for a normal user appears to.
-
-## What the Node-free toolchain on macOS still owes
-
-`gjsify build` under GJS needs a bundler, and `@gjsify/rolldown-native` is the only
-bundler engine that runs there.
-
-**The engines ship.** All three — `@gjsify/rolldown-native`,
-`@gjsify/lightningcss-native`, `@gjsify/oxfmt-native` — publish `darwin-arm64` and
-`darwin-x64` prebuilds, and the matrix below marks each of those cells `✓`: declared, a
-CI job targets it, artifact committed. The Rust-level blocker that once stood in the way
-is long gone — the wakeup channel driving the plugin bridge used to be three
-`eventfd(2)` descriptors, a Linux-only syscall the `libc` crate does not expose on Apple
-targets; it is now three anonymous pipes, one portable implementation everywhere.
-
-**What is missing is a leg that exercises the Node-free path end to end.** The two
-darwin suites install the workspace, bootstrap the toolchain and build it by invoking
-the CLI *under Node* (`node …/@gjsify/cli/lib/index.js`), which is the right shape for
-testing the Node pillar and says nothing about `gjs -m install.mjs` → `gjsify build`
-with no Node on the box. So the prerequisite is met and the claim is untested: a macOS
-user may well find the Node-free toolchain works, and nothing here promises it does.
-
-That gap is a CI leg, not an engineering unknown, and it is tracked in
-`status/open-todos.md`.
-
-## Native bridge matrix
-
-Native bridges are the packages that ship a compiled artifact. Each declares the
-`<os>-<arch>` targets it promises in `package.json#gjsify.platforms`, and CI is held
-to that declaration in both directions — a promised target that nothing builds and a
-built target that nothing promises are both hard failures.
-
-A declaration is not enough on its own, so `scripts/audit-runtimes.mjs --check` also
-holds the promise to a **body**: every declared target of a package that names a
-committed `prebuilds/` directory must have that directory, holding a shared library
-in that OS's format plus the GI typelib that names it. Those artifacts are then
-verified as far as the checking host allows — see
-[What the checks actually prove](#what-the-checks-actually-prove) below.
+A native bridge is a gjsify package that ships a compiled artifact. Each one
+declares the `<os>-<arch>` targets it promises, and CI is held to that
+declaration in both directions.
 
 {/* Rendered from src/data/platform-matrix.ts, regenerated on every website build.
     Do not paste a table in here: the copy that used to live at this spot drifted
     twice, and by the time anyone measured it, it showed @gjsify/webgl as unsupported
-    on win32-x64 — the one cell a Windows reader comes here to check. */}
+    on win32-x64, the one cell a Windows reader comes here to check. */}
 
-{/* No `key` props: Astro renders this once to static HTML with no reconciler, so a
-    `key` is not consumed — it is emitted verbatim as an invalid DOM attribute. */}
-<table>
-  <thead>
-    <tr>
-      <th>package</th>
-      <th>tier</th>
-      {platformColumns.map((target) => <th>{target}</th>)}
-    </tr>
-  </thead>
-  <tbody>
-    {platformMatrix.map((row) => (
-      <tr>
-        <td><code>{row.name}</code></td>
-        <td>{row.tier ?? '—'}</td>
-        {platformColumns.map((target) => <td>{row.cells[target]}</td>)}
-      </tr>
-    ))}
-  </tbody>
-</table>
+<PlatformMatrix />
 
-{/* A `<p>`, not a bare run of spans: Starlight's markdown stylesheet keys the
-    flow margin on adjacent block elements, so a loose span sequence takes the
-    following paragraph's `margin-top` with it. */}
-<p>
-  {platformLegend.map((entry, index) => (
-    <span>
-      {index > 0 && ' · '}<code>{entry.mark}</code> {entry.meaning}
-    </span>
-  ))}
-</p>
+Read `✓` as "you can install this and it will have a binary for your platform".
+`○` means the binary is built and published to npm but not committed to the
+gjsify repository, which matters only if you are building gjsify from a clone.
+`·` means that platform is not supported at all. The marks come from the same
+rule the CI gate runs, so this table and the audit cannot disagree; the
+[Internals page](/gjsify/how-it-works/#what-the-platform-marks-prove) explains
+what each mark does and does not assert.
 
-The marks are read out of the workflow YAML, so "a CI job targets it" is exactly
-what they claim — not that a green run of that job exists. `○` in particular says
-nothing about whether the job currently succeeds.
+Column names are real directory names, spelled the way a running process computes
+them about itself (`${process.platform}-${process.arch}`), so the declaration,
+the committed prebuild, the CI job and the loader all use the same string.
 
-One row per bridge, and `✓` means the binary is committed **in this repository** —
-in the bridge's per-target package (`@gjsify/<bridge>-<os>-<arch>`, an
-`optionalDependencies` entry a package manager installs or silently skips), not in
-the bridge's own tarball. Since that split the bridge itself carries no
-`prebuilds/` directory at all, so a cell that asked the bridge alone answered
-"declared and built" and printed `✓` for two bridges that commit nothing anywhere;
-the glyphs are now machine-checked against the directories on disk
-(`tests/e2e/ci-runner-arch`).
-
-Every column above is a real directory name. Targets are spelled the one way a running
-process can compute about itself — `${process.platform}-${process.arch}` — so
-`gjsify.platforms`, the committed `prebuilds/<target>/`, the CI job that builds it and
-the resolver that loads it all use the same string, with nothing to translate between them.
-
-### `○` — declared and built, artifact not in this repository
-
-`○` is the one state that needs reading carefully: CI produces the artifact, but
-this repository does not carry it, so a `git clone` has nothing to load and an
-`npm install` gets whatever the last publish shipped. It is never a gap the audit
-overlooked — every `○` target is held to a `release.yml` job that builds,
-load-tests and uploads it, because a release cannot download another workflow's
-artifact and that tarball is the only route by which one reaches a consumer. The
-two current causes:
-
-- **`@gjsify/napi`, both targets** — `napi.yml` rebuilds and gates on the
-  linux-x64 prebuild, and its macOS job builds, load-tests and uploads the
-  darwin-arm64 one; no job commits either back, and each per-target package states
-  exactly that in `package.json#gjsify.platformsUncommitted`, printed on every
-  `--check` run. The linux-x64 directory used to be committed while its darwin
-  sibling was exempt — one bridge running two policies, where every job that
-  touched the path overwrote the checked-out bytes before reading them and the
-  declaration checks stayed green across a week of source drift. Deleting it made
-  freshness real by removal: the only linux-x64 artifact anyone can load is now one
-  CI just built.
-- **`@gjsify/node-gi`, every declared target** — it builds with node-gyp at install
-  time, or installs a prebuild straight from a release artifact, so there is no
-  committed directory anywhere and no exemption entry to key the cell on: the
-  absence *is* the state. `release.yml` carries a prebuild leg per target, which is
-  what the audit checks.
-
-The table above is generated from these same functions on every website build.
-Run them yourself at any time:
-
-<CommandTabs title="Audit the matrix">
+<CommandTabs title="Audit the matrix from a gjsify checkout">
   <Fragment slot="gjsify">
     ```bash
     gjsify run --node-script scripts/audit-runtimes.mjs --platforms            # human-readable
     gjsify run --node-script scripts/audit-runtimes.mjs --platforms --markdown # the same marks, as markdown
-    gjsify run --node-script scripts/audit-runtimes.mjs --check                # CI gate, every audit
+    gjsify run --node-script scripts/audit-runtimes.mjs --check                # the CI gate
     ```
   </Fragment>
   <Fragment slot="npm">
     ```bash
     node scripts/audit-runtimes.mjs --platforms            # human-readable
     node scripts/audit-runtimes.mjs --platforms --markdown # the same marks, as markdown
-    node scripts/audit-runtimes.mjs --check                # CI gate, every audit
+    node scripts/audit-runtimes.mjs --check                # the CI gate
     ```
   </Fragment>
   <Fragment slot="bun">
     ```bash
     bun scripts/audit-runtimes.mjs --platforms            # human-readable
     bun scripts/audit-runtimes.mjs --platforms --markdown # the same marks, as markdown
-    bun scripts/audit-runtimes.mjs --check                # CI gate, every audit
+    bun scripts/audit-runtimes.mjs --check                # the CI gate
     ```
   </Fragment>
   <Fragment slot="deno">
     ```bash
     deno run -A scripts/audit-runtimes.mjs --platforms            # human-readable
     deno run -A scripts/audit-runtimes.mjs --platforms --markdown # the same marks, as markdown
-    deno run -A scripts/audit-runtimes.mjs --check                # CI gate, every audit
+    deno run -A scripts/audit-runtimes.mjs --check                # the CI gate
     ```
   </Fragment>
 </CommandTabs>
 
-### What the checks actually prove
+## What a missing bridge costs you
 
-The audit runs wherever CI runs it — today an `ubuntu-latest` x64 Node runner — and a
-prebuild for another architecture cannot be loaded there. Rather than skip those, the
-audit splits what it verifies and says which it did:
-
-- **Structurally, on every committed artifact regardless of target.** The image's own
-  machine must match the directory it sits in (an ELF/Mach-O/PE header read, no
-  `readelf`/`otool`); every `libgjsify*` sibling it records must be staged beside it
-  and reachable through `$ORIGIN`/`@loader_path`; and every library leaf the typelib
-  records must be present, because that leaf is what GObject-Introspection hands to
-  the loader the moment a consumer resolves a class. This is the half that caught
-  both the missing macOS sibling cdylib and an emulated prebuild leg that compiled
-  **x86-64** and staged it into `prebuilds/linux-{ppc64,s390x,riscv64}/`:
-  `uraimo/run-on-arch-action` ignores its `arch` input whenever a custom
-  `base_image` is supplied, so every other check passed and the artifact even
-  loaded on the runner. Only reading the image's own machine field against its
-  directory name catches that.
-- **Functionally, only for the checking host's own target.** The library is
-  `dlopen`ed with every library-path environment variable stripped, which proves the
-  self-relative sibling hop for real instead of inferring it from the headers. A
-  bridge whose *system* dependencies the runner lacks (libsoup, GStreamer, libgda)
-  is reported as not-load-tested, never as broken — that would be a fact about the
-  runner, not the artifact.
-
-So a `✓` means "declared, targeted by a CI job, and committed with a structurally
-sound artifact"; it does not mean anyone has run that artifact on that architecture.
-The per-run summary states both numbers separately.
-
-## What a missing bridge actually costs you
-
-A native bridge is always optional at runtime — every one of them is loaded through
-a guarded `imports.gi` probe with a predicate (`hasNativeSab()`, `hasNativeTls()`,
-…), so a missing prebuild degrades rather than crashes. What you lose:
+Every native bridge is optional at runtime. Each one is loaded through a guarded
+probe, so a missing prebuild degrades the feature rather than crashing your app.
+What you lose:
 
 | bridge | without it |
 |---|---|
 | `@gjsify/http-soup-bridge` | `@gjsify/http`'s server loses its GC-safe Soup message wrapper |
 | `@gjsify/http2-native` | no raw h2c; `createServer()` stays HTTP/1.1 |
 | `@gjsify/tls-native` | no OCSP parsing, no TLS session resumption or channel binding |
-| `@gjsify/terminal-native` | `isatty`/window size/raw mode fall back to env heuristics |
+| `@gjsify/terminal-native` | `isatty`, window size and raw mode fall back to env heuristics |
 | `@gjsify/sab-native` | no cross-process `SharedBuffer`; the rest of `worker_threads` is unaffected |
-| `@gjsify/webgl`, `@gjsify/webrtc-native` | WebGL / WebRTC unavailable |
+| `@gjsify/webgl`, `@gjsify/webrtc-native` | WebGL and WebRTC unavailable |
 
-`@gjsify/sab-native` is the one bridge that is Linux-only **by design** rather than
-by missing CI: it is built on `memfd_create`, Linux `futex` syscalls and
-`SCM_RIGHTS`. The reasoning, including why the obvious "portable" rewrite is a worse
-contract, is written up in
-[ADR 0013](https://github.com/gjsify/gjsify/blob/main/docs/adr/0013-sab-native-platform-scope.md).
+`@gjsify/sab-native` is Linux-only by design rather than by missing CI: it is
+built on `memfd_create`, Linux `futex` syscalls and `SCM_RIGHTS`. The reasoning
+is in [ADR 0013](https://github.com/gjsify/gjsify/blob/main/docs/adr/0013-sab-native-platform-scope.md).
 
-## What is verified, and where
+## Related
 
-Following the project's own rule — describe what is actually validated, by name,
-rather than making a runtime-class claim:
-
-- **Linux** is the CI baseline. The full test suite (10,000+ cases across Node and
-  GJS), every e2e suite and every integration suite run on Fedora.
-- **macOS** is covered by `@gjsify/node-gi`'s own CI (build, conformance, a real
-  GTK/Adwaita window, the full Adwaita storybook), by `@gjsify/napi`'s build and
-  gates, and by the native-bridge prebuild job. Two jobs run the `@gjsify/*`
-  suites themselves: `main.yml`'s `macos` job executes a **named subset** of
-  `--app gjs` bundles on macOS/arm64 under Homebrew `gjs` 1.88 (see below), and
-  `macos-suites.yml` runs the Node-pillar suites on **both** `test:node` and
-  `test:gjs`, on darwin-arm64 **and** darwin-x64, on `main` and nightly rather
-  than per PR (ADR 0018 § 5). macOS is the only one of the three operating
-  systems where both legs can run at all, and that is the point of running them:
-  `test:node` says the spec is right, `test:gjs` says our port is.
-- **Windows** additionally runs the Node-pillar `@gjsify/*` suites — `utils`, `path`,
-  `os`, `process`, `util`, `fs`, `child_process`, `net`, `worker_threads`,
-  `node-globals` and `@gjsify/cli`'s own — in `windows-suites.yml`, on `main` and
-  nightly rather than per PR (ADR 0018 § 5). It runs under **cmd.exe with the
-  git-bash utilities stripped from `PATH`**, because Git for Windows supplies a real
-  `rm`/`cp`/`sh` that npm's `%COMSPEC%` scripts do not have — testing from git-bash
-  reports false greens. Note the runner is ELEVATED, so `@gjsify/fs`'s symlink specs
-  execute there; on an unprivileged host they are tolerated instead, and the leg
-  prints which of the two it measured.
-- **Windows** is also covered by `@gjsify/node-gi`'s CI, including a real GTK window and
-  the storybook, using a bundled GTK runtime rather than a system install.
-
-### The `@gjsify/*` GJS suites on macOS
-
-`main.yml`'s `macos` job runs these bundles under `gjs` on `macos-latest`
-(arm64). It is a curated subset, not the whole suite, and it is deliberately
-split into packages that dispatch on the host OS and pure-TS controls that must
-behave identically:
-
-| package | why it is in the set |
-|---|---|
-| `@gjsify/v8` | `src/heap/darwin.ts` reads process memory with `ps -o rss=,vsz=` (macOS has no procfs); the suite asserts `used_heap_size > 0`, so the reader is really exercised |
-| `@gjsify/child_process` | `src/platform/darwin.ts` — the BSD signal table (`SIGUSR1` is 30 on Darwin, 10 on Linux), `detached` without `setsid(1)`, and the in-process `communicate.ts` timeout that replaced GNU `timeout(1)` |
-| `@gjsify/path` | POSIX/Win32 dispatch plus the largest pure-logic suite in the set |
-| `@gjsify/querystring`, `@gjsify/string_decoder` | pure-logic controls |
-| `@gjsify/buffer` | control for macOS SpiderMonkey itself (`Blob`/`atob`/`btoa`) |
-
-The bundles are produced on the Fedora leg and executed on macOS. That split is
-forced, not incidental: `@gjsify/rolldown-native` has no Apple target (see
-above), so a build on macOS would have to run under Node — which means a full
-`gjsify install` on a runner billed at 10×. A `--app gjs` bundle is a single
-self-contained file whose only unbundled imports are `gi://GLib`, `gi://Gio` and
-`gi://GioUnix`, so building it on Linux and running it on macOS is sound. What
-this verifies is **runtime** behaviour on macOS; it does not verify the gjsify
-build toolchain there.
-
-The job runs on push-to-main and on the nightly sweep. On a pull request it is
-skipped unless the PR carries the `ci:macos` label.
-
-`@gjsify/os` **is** in the gated set now. It used to run as a non-gating probe;
-the reason given here — that `getOs()` shelled out to `uname -o`, a GNU
-extension Darwin's `uname` rejects — had already been fixed in the code and the
-note outlived it. What the probe was actually catching was `os.cpus()` returning
-a `times` object with no members. It now reports the documented all-zero
-contract, and the one reading macOS genuinely cannot produce is carried by an
-`it.failing(…, { when })` assertion rather than by keeping a whole package
-ungated.
-
-### What the darwin legs found
-
-The OS axis exists because a declaration nothing exercises is a guess. Measured
-on the darwin-x64 VM and on the arm64 runner, against a `main` every existing
-check called green:
-
-| package | symptom | mechanism |
-|---|---|---|
-| `@gjsify/child_process` | the whole suite: `spawnSync` returned `status: null`, `pid: 0`, empty stdout | the specs spawn `process.execPath`, and `@gjsify/process` reported the SCRIPT rather than the interpreter — so the file being spawned was the test bundle |
-| `@gjsify/process` | `pid`, `ppid` and `memoryUsage().rss` all `0` | three inline `/proc/self/*` reads with no fallback; `0` is a valid pid, so nothing could detect the wrong answer |
-| `@gjsify/os` | `cpu.times.user` `undefined` where Node guarantees a number | a getter that warned once per core and returned `{}` |
-| `@gjsify/net` | `isIP('01.02.03.04')` answered `4`; Node answers `0` | delegating to `Gio.InetAddress`, i.e. to the host's `inet_pton(3)` — BSD accepts leading zeros, glibc rejects them |
-
-Three of the four cannot fail on Linux at all, and the fourth cannot fail under
-native Node. That is the shape of hole a single-OS pipeline leaves.
-
-One macOS fact is worth stating separately because it invalidates the obvious
-fix for a dyld problem: **`DYLD_*` environment variables do not survive a shell
-boundary.** SIP strips them when a protected binary is exec'd, and `/bin/sh`
-and `/bin/bash` are protected — so `DYLD_LIBRARY_PATH=… ; some-script.sh` loses
-the value before the script's first command. Measured:
-
-```
-DYLD_LIBRARY_PATH=x /bin/sh -c 'echo $DYLD_LIBRARY_PATH'   # prints nothing
-DYLD_LIBRARY_PATH=x node -p 'process.env.DYLD_LIBRARY_PATH' # prints x
-```
-
-This is why `@gjsify/cli` repairs the loader path on the CHILD's launch env
-(`buildNativeEnv()` → `spawn('gjs', …, { env })`), where there is no shell in
-between, rather than exporting it anywhere — and why a workflow-level export is
-a no-op. `macos-suites.yml` prints the measurement on every run so the next
-person to reach for the variable is told why it cannot work.
-
-### The `@gjsify/*` suites on Bun and Deno
-
-Bun and Deno share the `node` runtime slot with Node through the Node-API common
-ABI. `main.yml`'s `cross-runtime` job tests that rather than assuming it: it
-builds one engine-agnostic `--app node` bundle per package and runs it on all
-three runtimes.
-
-Covered today: `@gjsify/cli`, `@gjsify/unit`, `@gjsify/adwaita-core`,
-`@gjsify/storybook-core`, `@gjsify/domparser`, `@gjsify/webstorage`,
-`@gjsify/semver`, `@gjsify/workspace`, `@gjsify/npm-registry`, `@gjsify/tar`.
-
-The selection rule matters. A spec that imports `node:path` gets the *host
-runtime's* builtin, because the `--app node` bundle externalises it — such a leg
-would test Bun, not the polyfill. Every package above either imports its own
-package by name, or imports a bare Web specifier that `ALIASES_WEB_FOR_NODE`
-routes to the polyfill, or is infra code that is nobody's builtin. Running the
-`node:`-backed polyfill suites against their own implementation on Bun/Deno needs
-the `--alias node:<name>=@gjsify/<name>` retarget that
-`scripts/node-gi-consumer-harness.mjs` performs; that is not wired into CI yet.
+- [Runtimes](/gjsify/runtimes/): GJS, Node.js, Bun, Deno and the browser
+- [Install & Update](/gjsify/guides/install/): getting the CLI onto each platform
+- [How It Works](/gjsify/how-it-works/#what-the-platform-marks-prove): what the platform checks actually prove

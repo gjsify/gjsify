@@ -1,45 +1,47 @@
 ---
 title: Feedback
-description: Adwaita feedback widgets — toast, alert dialog, about dialog and preferences dialog — described neutrally with a live preview and GJS, Web and NativeScript code.
+description: "Adwaita feedback widgets: toast, alert dialog, about dialog and preferences dialog. Live preview plus the code for GJS, Blueprint, the web and NativeScript."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
 
-**Feedback** widgets interrupt or annotate the current view to tell the user
-something: a **toast** slides a transient message over the content, while a
-**dialog** puts a modal surface in front of it and waits for a response. Adwaita
-draws them as real windows or floating sheets — a toast overlay layered above the
-page, an alert with a row of responses, the standard About window, a preferences
-sheet built from boxed lists.
+Two ways to tell the user something. A **toast** slides a short message over the
+content and gets out of the way on its own, so use it when nothing needs to
+happen next. A **dialog** puts a modal surface in front of the window and waits
+for an answer, so use it when something does. This page also covers the two
+dialogs every app is expected to have: About and Preferences.
 
-Every widget below is described independently of any one toolkit, then shown
-three ways. **Native GJS** (real Libadwaita through
-[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1)) is the primary
-implementation; the **Web** ([`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web))
-and **NativeScript** ([`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita))
-ports mirror it.
+Each preview below is the live web component, so it follows the light and dark
+toggle the way a real window would. Under it, the tabs give you the same widget
+four ways: `@girs` TypeScript (one program, running on GJS, Node, Bun and Deno),
+the matching Blueprint declaration, the web port and the NativeScript port.
+
+Libadwaita is the reference here, typed by
+[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
+[`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
+and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
+follow its naming, and where one of them differs, its tab says so.
 
 :::note
-The previews use the browser port, so each dialog is rendered in its **open**
-state and each toast in its **visible** state — natively these are real modal
-windows and transient overlays a user triggers, not steady content. Each preview
-is wrapped in a fixed-height stage so the overlay stays contained; a native
-window sizes and centres itself. Where a port diverges, its tab says so.
+The previews hold each dialog **open** and each toast **visible**, which is not
+how they behave in an app: there they are modal windows and transient overlays
+the user triggers. Each one also sits in a fixed-height stage here so it stays
+contained, while a real window sizes and centres itself.
 :::
 
 ## Toast
 
-A **toast** is a transient notification — a short line of text, optionally with a
-single action button, that floats over the content for a few seconds and then
-dismisses itself. It is shown through a **toast overlay** that wraps the page and
-layers toasts above the bottom edge, so it never displaces the content beneath.
+A short line of text, optionally with one action button, that floats over the
+content for a few seconds and then dismisses itself. You do not add a toast to
+your layout: you wrap the page in a **toast overlay** and hand it toasts at
+runtime. The overlay layers them above the bottom edge without displacing
+anything beneath.
 
-The overlay shows **one toast at a time**: adding a toast while another is
-visible queues it, and it appears only once the visible one is dismissed — by
-its timeout, its close button, its action button, or an explicit dismissal. All
-three ports share that queue: it lives in the headless
-[`@gjsify/adwaita-core`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-core)
-layer, which the Web and NativeScript renderers compose.
+The overlay shows **one toast at a time**. Add a second while the first is
+visible and it waits its turn, appearing once the visible one goes away, whether
+by its timeout, its close button, its action button or an explicit dismissal.
+Every port behaves the same way here, so a queue you tested in the browser holds
+on the desktop.
 
 <AdwWidget title="Adw.Toast" padding="flush">
   <Fragment slot="preview">
@@ -78,7 +80,7 @@ layer, which the Web and NativeScript renderers compose.
     using Gtk 4.0;
     using Adw 1;
 
-    // A toast is CONSTRUCTED, not declared — `Adw.ToastOverlay` is the part a
+    // A toast is CONSTRUCTED, not declared. `Adw.ToastOverlay` is the part a
     // blueprint carries, and `overlay.add_toast(...)` presents one at runtime.
     Adw.ToastOverlay overlay {
       child: Adw.StatusPage {
@@ -96,7 +98,7 @@ layer, which the Web and NativeScript renderers compose.
     </adw-toast-overlay>
 
     <script type="module">
-        // Toasts are shown imperatively — the overlay floats them over its content.
+        // Toasts are shown imperatively: the overlay floats them over its content.
         // The timeout is in seconds; a second toast added now would be queued and
         // shown once this one is dismissed.
         const overlay = document.getElementById('overlay');
@@ -125,11 +127,11 @@ layer, which the Web and NativeScript renderers compose.
 
 ## Alert Dialog
 
-An **alert dialog** is a modal message: a bold **heading**, some **body** text,
-and a row of **responses** the user must choose between. Each response is a
-button with a string ID; one may carry a **destructive** or **suggested**
-appearance, and a **default** and **close** response govern the Enter / Escape
-keys.
+Ask a question the user has to answer: a bold **heading**, some **body** text and
+a row of **responses** to choose between. Each response is a button with a string
+ID, and that ID is what reaches your code. Give one response a **destructive** or
+**suggested** appearance to mark the consequence, and set the **default** and
+**close** responses so Enter and Escape do the right thing.
 
 <AdwWidget title="Adw.AlertDialog" padding="flush">
   <Fragment slot="preview">
@@ -216,10 +218,10 @@ keys.
 
 ## About Dialog
 
-An **about dialog** is the standard application "About" window: a large app
-**icon**, the application **name**, a **developer** line and a **version** pill,
-with navigation into Details, Credits and Legal sub-pages built from the app
-metadata. It is the conventional destination of a primary-menu _About_ entry.
+Wire this to the _About_ entry in your primary menu and you are done. Fill in the
+app metadata and the dialog builds the rest: a large **icon**, the application
+**name**, a **developer** line, a **version** pill, and Details, Credits and
+Legal sub-pages you never lay out yourself.
 
 <AdwWidget title="Adw.AboutDialog" padding="flush">
   <Fragment slot="preview">
@@ -301,8 +303,8 @@ metadata. It is the conventional destination of a primary-menu _About_ entry.
     dialog.applicationName = 'Adwaita Storybook';
     dialog.applicationIcon = '🗔';
     dialog.version = '0.11.0';
-    // NS exposes only scalar fields — credits fold into the developer line.
-    dialog.developerName = 'A GJSify Project — Ada Lovelace, Grace Hopper';
+    // NS exposes only scalar fields: credits fold into the developer line.
+    dialog.developerName = 'A GJSify Project · Ada Lovelace, Grace Hopper';
     dialog.comments = 'A live catalogue of native GTK and Adwaita widgets, rendered under GJS.';
     dialog.website = 'https://github.com/gjsify/gjsify';
     dialog.copyright = '© 2026 The GJSify Project';
@@ -314,10 +316,11 @@ metadata. It is the conventional destination of a primary-menu _About_ entry.
 
 ## Preferences Dialog
 
-A **preferences dialog** is a settings window organized into **pages**, each
-holding **groups** of boxed-list rows — switches, drop-downs, spin buttons. It is
-the multi-page container behind an application's _Preferences_ command; the
-common single-page case is shown here.
+The container behind your _Preferences_ command. Organise it into **pages**, each
+holding **groups** of [boxed-list rows](../boxed-lists/): switches, drop-downs,
+spin buttons. Most apps need only one page, which is what the example shows. In a
+native window, extra pages sit behind a view switcher and you see one at a time;
+the web port renders them stacked instead.
 
 <AdwWidget title="Adw.PreferencesDialog" padding="flush">
   <Fragment slot="preview">
@@ -471,9 +474,10 @@ common single-page case is shown here.
 
 ## Related
 
-- [Boxed Lists](../boxed-lists/) — the preference rows a preferences dialog is
-  built from.
-- [Presentation](../presentation/) — the windows, header bars and views these
-  overlays sit above.
-- [Adwaita Storybook](../../showcases/adwaita-storybook/) — the same widgets in a
-  live, interactive component browser.
+- [Boxed Lists](../boxed-lists/): the rows a preferences dialog is built from.
+- [Presentation](../presentation/): banners and status pages, for messages that
+  do not interrupt.
+- [Layout](../layout/): the header bars and toolbar views these overlays sit
+  above.
+- [Adwaita Storybook](../../showcases/adwaita-storybook/): the same widgets in a
+  live component browser you can poke at.

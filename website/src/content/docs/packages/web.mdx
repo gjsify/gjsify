@@ -1,67 +1,96 @@
 ---
 title: Web APIs
-description: Web platform APIs implemented for GJS using native GNOME libraries
+description: The web platform APIs a GJSify build gives you, how they reach globalThis, and which package backs each one.
 ---
 
 import WebStandardsCoverage from '../../../components/WebStandardsCoverage.astro';
 
-19 Web platform API packages (plus `@gjsify/webrtc-native` Vala bridge and `@gjsify/web-polyfills` meta) implemented for GJS using native GNOME libraries.
-
-<WebStandardsCoverage />
-
-| Package | GNOME Libs | Implements |
-|---|---|---|
-| `abort-controller` | — | AbortController, AbortSignal (.abort, .timeout, .any) |
-| `compression-streams` | Gio | CompressionStream, DecompressionStream (gzip/deflate/deflate-raw) |
-| `dom-events` | — | Event, CustomEvent, EventTarget |
-| `dom-exception` | — | DOMException (WebIDL) |
-| `domparser` | — | DOMParser.parseFromString with minimal DOM (excalibur-tiled-sized) |
-| `eventsource` | Soup 3.0 | EventSource (Server-Sent Events), TextLineStream |
-| `fetch` | Soup 3.0, Gio, GLib | `fetch()`, Request (raw-body via `set_request_body_from_bytes`), Response, Headers |
-| `formdata` | — | FormData, File, multipart encoding |
-| `gamepad` | Manette 0.2 | Gamepad, GamepadButton, GamepadEvent, GamepadHapticActuator (dual-rumble) |
-| `message-channel` | — | MessageChannel, MessagePort (W3C Channel Messaging; backs `@gjsify/iframe` WebKit bridge and `worker_threads` cross-process IPC) |
-| `streams` | — | ReadableStream, WritableStream, TransformStream, TextEncoder/DecoderStream |
-| `web-globals` | — | Meta-register for every Web API global |
-| `webaudio` | Gst 1.0, GstApp 1.0 | AudioContext (GStreamer decodebin + playback chain), AudioBufferSourceNode, GainNode, AudioParam |
-| `webcrypto` | GLib | SubtleCrypto (AES, RSA-OAEP/PSS, ECDSA, HMAC, PBKDF2, HKDF, ECDH), CryptoKey, getRandomValues, randomUUID |
-| `webrtc` | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | Full W3C WebRTC (RTCPeerConnection, RTCDataChannel, RTCRtpSender/Receiver/Transceiver, MediaStream/Track, getUserMedia, RTCDTMFSender, RTCCertificate) |
-| `webrtc-native` | Gst 1.0, GstWebRTC 1.0 | Vala/GObject prebuild — main-thread signal bridges consumed by `@gjsify/webrtc` |
-| `websocket` | Soup 3.0 | WebSocket, MessageEvent, CloseEvent (NUL-byte-safe text frames, Autobahn-validated) |
-| `webassembly` | — | `WebAssembly.compile/instantiate/validate/compileStreaming/instantiateStreaming` — Promise-API polyfill wrapping SpiderMonkey's synchronous constructors; auto-detected by `--globals auto` |
-| `webstorage` | Gio | localStorage, sessionStorage |
-| `xmlhttprequest` | Soup 3.0, GLib | XMLHttpRequest (`responseType`: arraybuffer / blob / json / text / document), FakeBlob + temp-file plumbing for `URL.createObjectURL` |
-
-## Adwaita for browser targets
-
-| Package | Notes |
-|---|---|
-| `@gjsify/adwaita-web` | Web Components (AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwCard, AdwSwitchRow, AdwComboRow, AdwSpinRow, AdwToastOverlay, AdwOverlaySplitView) + SCSS partials. Renders the DOM; the behaviour comes from `@gjsify/adwaita-core` |
-| `@gjsify/adwaita-core` | Headless Adwaita behaviour — breakpoint conditions, color-scheme observable, toast queue (one at a time + FIFO + auto-dismiss), row state machines (expander / combo / spin / toggle group), alert-dialog response model. Pure TS, no platform imports; shared by the Web and NativeScript renderers |
-| `@gjsify/adwaita-fonts` | Adwaita Sans TTF files + `@font-face` CSS |
-| `@gjsify/adwaita-icons` | Adwaita symbolic icons as importable SVG strings |
-
-## Meta
-
-| Package | Purpose |
-|---|---|
-| `@gjsify/web-polyfills` | Umbrella dep — pulls every Web polyfill for scaffolding templates |
-
-## Usage
-
-Web APIs are available as bare specifiers in GJSify builds — on GJS they resolve to these GNOME-backed implementations, in the browser the native platform takes over, and 12 of these packages are additionally validated against real Firefox via Playwright (see [Runtimes](/gjsify/runtimes/)). The build handles the aliasing automatically:
+Web APIs are globals, so there is nothing to import. Write the code you would write in a browser:
 
 ```typescript
-// This works in GJS — Soup.Session under the hood
 const response = await fetch('https://api.example.com/data');
 const data = await response.json();
 
-// WebSocket via Soup.WebsocketConnection
-const ws = new WebSocket('wss://echo.example.com');
-ws.onmessage = (event) => console.log(event.data);
+const socket = new WebSocket('wss://echo.example.com');
+socket.addEventListener('message', (event) => console.log(event.data));
 
-// WebRTC via GStreamer webrtcbin
-const pc = new RTCPeerConnection();
-const offer = await pc.createOffer();
-await pc.setLocalDescription(offer);
+const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('hi'));
 ```
+
+An `--app gjs` build scans the bundled output, works out which globals your code actually reaches, and registers only those: `fetch` becomes a `Soup.Session` call, `WebSocket` a `Soup.WebsocketConnection`, `crypto.subtle` a GLib-backed implementation. An `--app browser` build uses the browser's own versions of the same source, and an `--app node` build leaves the ones Node, Bun and Deno already define to the runtime.
+
+## Import a class explicitly
+
+Sometimes you want the constructor as a value: to subclass it, to pass it around, or to keep a module free of globals. Every package exports its classes, and importing a package root has no side effects.
+
+```typescript
+import fetch, { Headers, Request, Response, FormData } from '@gjsify/fetch';
+import { WebSocket } from '@gjsify/websocket';
+import { localStorage } from '@gjsify/webstorage';
+```
+
+These specifiers only resolve in a GJSify build, so prefer the globals in code that also has to run on Node.js or in a browser.
+
+## A global is missing at runtime
+
+If a bundle dies with `ReferenceError: X is not defined`, the detector could not see `X`, usually because a library reads it through a stored `globalThis` reference. Keep auto detection on and name the identifier:
+
+```bash
+gjsify build src/index.ts -o dist/index.js --globals auto,matchMedia
+```
+
+Groups work too (`--globals auto,dom`). The full identifier and group list is in the [CLI Reference](/gjsify/cli-reference/#globals).
+
+## What is implemented
+
+<WebStandardsCoverage />
+
+| Package | Backed by | What you get |
+|---|---|---|
+| `@gjsify/abort-controller` | pure TS | AbortController, AbortSignal incl. `.abort`, `.timeout`, `.any` |
+| `@gjsify/compression-streams` | Gio | CompressionStream, DecompressionStream (gzip, deflate, deflate-raw). Routed through `node:zlib`, which is `Gio.ZlibCompressor` on GJS |
+| `@gjsify/dom-events` | pure TS | Event, CustomEvent, EventTarget, UIEvent, MouseEvent, PointerEvent, KeyboardEvent, WheelEvent, FocusEvent |
+| `@gjsify/dom-exception` | pure TS | DOMException per WebIDL |
+| `@gjsify/domparser` | pure TS | `DOMParser.parseFromString` over a minimal DOM. It parses as XML whatever `mimeType` you pass, which covers TMX and similar formats but not real-world HTML |
+| `@gjsify/eventsource` | Soup 3.0 | EventSource (Server-Sent Events), TextLineStream |
+| `@gjsify/fetch` | Soup 3.0, Gio, GLib | `fetch()`, Request, Response, Headers, redirects, `file://` and `data:` URIs |
+| `@gjsify/formdata` | pure TS | FormData, File, multipart encoding |
+| `@gjsify/gamepad` | Manette 0.2 | Gamepad, GamepadButton, GamepadEvent, GamepadHapticActuator (dual rumble) |
+| `@gjsify/message-channel` | pure TS | MessageChannel, MessagePort. Also the transport behind iframe messaging and worker IPC |
+| `@gjsify/web-streams` | pure TS | ReadableStream (incl. byte streams), WritableStream, TransformStream, TextEncoderStream, TextDecoderStream |
+| `@gjsify/web-globals` | pure TS | Named re-exports of the common Web classes in one place. Its `/register` subpath sets them all on `globalThis` |
+| `@gjsify/webassembly` | pure TS | `WebAssembly.compile`, `instantiate`, `validate` and the streaming variants, wrapping SpiderMonkey's synchronous constructors |
+| `@gjsify/webaudio` | Gst 1.0, GstApp 1.0 | AudioContext over a GStreamer decodebin and playback chain, AudioBufferSourceNode, GainNode, AudioParam |
+| `@gjsify/webcrypto` | GLib, Gio | SubtleCrypto (AES, AES-KW, RSA-OAEP, RSA-PSS, ECDSA, HMAC, PBKDF2, HKDF, ECDH), CryptoKey, getRandomValues, randomUUID. The primitives come from `node:crypto`, entropy from `/dev/urandom` |
+| `@gjsify/webrtc` | Gst 1.0, GstWebRTC 1.0, GstSDP 1.0 | RTCPeerConnection, RTCDataChannel, RTCRtpSender / Receiver / Transceiver, MediaStream, `getUserMedia`, RTCDTMFSender, RTCCertificate |
+| `@gjsify/webrtc-native` | Gst 1.0, GstWebRTC 1.0 | Prebuilt signal bridge that `@gjsify/webrtc` uses. You never import it directly |
+| `@gjsify/websocket` | Soup 3.0 | WebSocket, MessageEvent, CloseEvent, with NUL-safe text frames |
+| `@gjsify/webstorage` | pure TS | Storage, `localStorage`, `sessionStorage`. Import only, they are not injected as globals, and both are in memory, so nothing survives a restart yet |
+| `@gjsify/xmlhttprequest` | Soup 3.0, GLib | XMLHttpRequest with `responseType` arraybuffer, blob, json, text and document |
+
+Fifteen further standards are tracked as planned but not built yet, and ten are marked out of scope because they make no sense in a desktop GTK app. The dashboard above names each one.
+
+## Adwaita in the browser
+
+For `--app browser` builds, the Adwaita design system comes over as Web Components:
+
+| Package | What you get |
+|---|---|
+| `@gjsify/adwaita-web` | Adwaita as custom elements (AdwWindow, AdwHeaderBar, AdwPreferencesGroup, AdwCard, AdwSwitchRow, AdwComboRow, AdwSpinRow, AdwToastOverlay, AdwOverlaySplitView and more) plus the compiled stylesheet |
+| `@gjsify/adwaita-core` | The behaviour behind those widgets, with no rendering: breakpoints, color scheme, toast queue, row state machines, alert-dialog responses |
+| `@gjsify/adwaita-fonts` | Adwaita Sans as TTF files plus the `@font-face` CSS |
+| `@gjsify/adwaita-icons` | Adwaita symbolic icons as importable SVG strings, plus a `toDataUri()` helper |
+
+Start at the [Adwaita gallery](/gjsify/adwaita/): it shows every widget with a live preview and the code for GJS, Blueprint, the web and NativeScript.
+
+## The umbrella package
+
+| Package | What it is for |
+|---|---|
+| `@gjsify/web-polyfills` | A dependency-only umbrella that pulls in every Web polyfill. `@gjsify/cli` already depends on it, so scaffolds resolve every Web API out of the box |
+
+## Where each API also runs
+
+Every package declares the runtimes it supports, in a `gjsify.runtimes` field, and the answer differs per standard. `fetch`, `WebSocket`, `crypto.subtle`, `FormData`, `WebAssembly` and the compression streams are native on Node, Bun and Deno, so a build for those runtimes polyfills nothing. `EventSource`, `DOMParser`, `localStorage` and the DOM event classes carry a polyfill for them as well, and most of the pure TypeScript packages run in the browser and under NativeScript too. The GStreamer-backed `AudioContext` and `RTCPeerConnection`, and `XMLHttpRequest`, are declared for GJS and the browser only.
+
+More than 50 packages across the Node, Web and DOM pillars ship a browser test suite that CI runs against real Firefox with Playwright. [Runtimes](/gjsify/runtimes/) has the full picture.

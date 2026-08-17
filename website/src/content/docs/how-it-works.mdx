@@ -1,17 +1,28 @@
 ---
 title: How It Works
-description: Auto-aliasing, automatic globals detection and the GJS build pipeline
+description: What gjsify build and gjsify run actually do, from import aliasing and automatic globals detection to native prebuilds and location-independent bundles.
 ---
 
 import CommandTabs from '../../components/CommandTabs.astro';
 
-GJSify lets you write code against familiar Node.js and Web APIs while running natively on GJS. This page explains the three pieces that make that possible: **automatic module aliasing** at build time, **automatic globals detection via `--globals auto`**, and **automatic native library loading** at runtime.
+This page is optional. You can write, build and ship a gjsify app without reading a line of it, because everything described here happens on its own when you run `gjsify build` and `gjsify run`.
 
-The same pipeline works for every build target — `gjsify build --app gjs|node|browser` swaps the alias layer, and for `--app node` it even runs in reverse: `gi://` imports resolve through the [node-gi bridge](/gjsify/projects/node-gi/) so GObject code runs on Node.js, Bun and Deno. See [Runtimes](/gjsify/runtimes/) for the target overview; the rest of this page walks through the GJS direction.
+Read it when you want to know what those two commands actually did, or when a build behaves in a way the task guides don't explain. Each section stands on its own, so jump straight to the one you care about.
 
-## Automatic module aliasing
+For the short version of which target runs where, see [Runtimes](/gjsify/runtimes/). For every flag, see the [CLI Reference](/gjsify/cli-reference/).
 
-When you run `gjsify build --app gjs`, the Rolldown plugin rewrites every Node.js and Web API import to its `@gjsify/*` equivalent before bundling:
+## Import aliasing
+
+The bundler plugin rewrites imports so that one source file builds for a runtime that does not ship them. Which imports get rewritten is decided by `--app`, and the two app targets rewrite in opposite directions:
+
+| Target | What it rewrites | Why |
+|---|---|---|
+| `--app gjs` | Node.js and Web API imports, to their `@gjsify/*` equivalents | GJS has no `node:` builtins and no DOM |
+| `--app node` | `gi://` imports, onto the [node-gi bridge](/gjsify/projects/node-gi/) | Node.js, Bun and Deno have no GObject Introspection |
+
+Each leaves the other side alone. `--app gjs` keeps `gi://*`, `cairo`, `system` and `gettext` untouched, because the GJS runtime resolves those itself. `--app node` keeps the `node:` imports untouched, because the host runtime already has them, and one such bundle runs on Node, Bun and Deno alike.
+
+Here is the `--app gjs` direction in full:
 
 ```typescript
 // You write:
@@ -22,249 +33,211 @@ const ws = new WebSocket('wss://echo.example.com')
 ```
 
 ```typescript
-// The Rolldown plugin effectively resolves to:
+// The plugin resolves that to:
 import { readFileSync } from '@gjsify/fs'       // → Gio.File
 import { createServer } from '@gjsify/http'     // → Soup.Server
-// fetch    → Soup.Session   (via @gjsify/fetch)
-// WebSocket → Soup.WebsocketConnection (via @gjsify/websocket)
+// fetch     → Soup.Session               (via @gjsify/fetch)
+// WebSocket → Soup.WebsocketConnection   (via @gjsify/websocket)
 ```
 
-The full alias table lives in `@gjsify/resolve-npm` and covers every Node.js builtin and Web API that GJSify implements. You can see the current coverage in the [Packages Overview](/gjsify/packages/overview/).
+The alias table lives in `@gjsify/resolve-npm` and covers every Node.js builtin and Web API gjsify implements. Current coverage is in the [Packages Overview](/gjsify/packages/overview/).
 
-Two things follow from this:
+Two things follow from this. First, the bare specifier is the canonical form: no gjsify-specific import ever appears in your source, so the same file type-checks against `@types/node` and builds for GJS or for Node depending on `--app`. Second, the `@gjsify/*` packages still have to be resolvable from your project. `gjsify create` puts the ones a template needs into `package.json`, and if you reach for a new API later you add the matching package like any other dependency.
 
-- **You do not install `@gjsify/*` packages yourself.** The GJSify CLI pulls them in on demand and the plugin resolves the aliases during the build.
-- **The bare specifier `import fs from 'node:fs'` is the canonical form.** No GJSify-specific imports leak into your source code, so the same file can be type-checked with `@types/node` and shipped to GJS or Node.js depending on the `--app` target.
+The GJS target compiles down to `firefox140`, which is SpiderMonkey 140, the engine in GJS 1.86.
 
-The GJS build targets `firefox140` (SpiderMonkey 140, shipped with GJS 1.86) and externalises `gi://*`, `cairo`, `system` and `gettext` — those are resolved by the GJS runtime itself.
+## Automatic globals detection
 
-## Automatic globals detection via `--globals auto`
+Most of what follows is the `--app gjs` story, because that is the target where the Node and Web surface has to be installed in the first place: Node, Bun and Deno already define `process`, `Buffer`, `fetch` and the rest. `--globals` is not inert on `--app node`, though. There the default `auto` looks for GJS's own ambient globals (`print`, `imports`, …) and side-effect imports `@gjsify/node-gi/globals` only when the bundled output references them, and naming globals explicitly (`--globals auto,dom`) requests the same `@gjsify/*` register bodies the GJS target gets, which is what a `gi://` source needs when it runs through the reverse bridge. `--app browser` uses the host's own globals and injects nothing.
 
-Auto-aliasing turns `import { createServer } from 'node:http'` into the right Gio/Soup-backed module. But plenty of Node.js code also reaches for globals without any imports — `process.env.FOO`, `Buffer.from(data)`, `new URL('https://…')`, `await fetch(...)`. On GJS those globals don't exist until something registers them on `globalThis`.
+Aliasing handles imports. Plenty of npm code also reaches for globals with no import at all: `process.env.FOO`, `Buffer.from(data)`, `new URL('https://…')`, `await fetch(...)`. On GJS those don't exist until something registers them on `globalThis`.
 
-Every `@gjsify/*` package that provides a Node or Web global exposes one or more `/register` subpaths (e.g. `@gjsify/fetch/register/fetch`, `@gjsify/node-globals/register/process`). Importing a subpath as a side-effect runs the registration; importing only named exports from the root module stays completely tree-shakeable.
+Every `@gjsify/*` package that provides a Node or Web global exposes one or more `/register` subpaths, for instance `@gjsify/fetch/register/fetch` and `@gjsify/node-globals/register/process`. Importing a subpath for its side effect runs the registration; importing only named exports from the package root stays tree-shakeable.
 
-The CLI's default `--globals auto` discovers which registers your project needs by analysing the bundled output:
+The default `--globals auto` works out which registers your project needs by analysing the bundled output, so most projects never pass the flag:
 
 <CommandTabs title="Build the bundle">
   <Fragment slot="gjsify">
     ```bash
-    gjsify build src/index.ts --outfile dist/index.js
-    # (--globals auto is the default — no flag needed)
+    gjsify build src/index.ts --app gjs --outfile dist/index.js
+    # --globals auto is the default, so there is no flag to pass
     ```
   </Fragment>
   <Fragment slot="npm">
     ```bash
-    npx @gjsify/cli@latest build src/index.ts --outfile dist/index.js
-    # (--globals auto is the default — no flag needed)
+    npx @gjsify/cli@latest build src/index.ts --app gjs --outfile dist/index.js
+    # --globals auto is the default, so there is no flag to pass
     ```
   </Fragment>
   <Fragment slot="bun">
     ```bash
-    bunx @gjsify/cli@latest build src/index.ts --outfile dist/index.js
-    # (--globals auto is the default — no flag needed)
+    bunx @gjsify/cli@latest build src/index.ts --app gjs --outfile dist/index.js
+    # --globals auto is the default, so there is no flag to pass
     ```
   </Fragment>
   <Fragment slot="deno">
     ```bash
-    deno run -A --reload --min-dep-age 0 npm:@gjsify/cli@latest build src/index.ts --outfile dist/index.js
-    # (--globals auto is the default — no flag needed)
+    deno run -A --reload --min-dep-age 0 npm:@gjsify/cli@latest build src/index.ts --app gjs --outfile dist/index.js
+    # --globals auto is the default, so there is no flag to pass
     ```
   </Fragment>
 </CommandTabs>
 
-### How auto detection works
+Every tab above passes `--app gjs` explicitly, because `--app` defaults to the target of whichever runtime the CLI is on: `gjs` under gjs, `node` under node, bun and deno. Set `gjsify.app` in `package.json` to fix the target for a project and the flag becomes optional again.
 
-The CLI runs an iterative multi-pass build:
+### What auto detection does
 
-1. **Pass 1** bundles your code into memory (no disk I/O, no minification, no globals injected). [acorn](https://github.com/acornjs/acorn) parses the resulting JavaScript and walks the AST looking for two patterns:
-   - **Free identifiers** (`Buffer`, `fetch`, `process`) — references that are not declared anywhere in the bundle scope.
-   - **Host-object member expressions** (`globalThis.Buffer`, `global.Buffer`, `window.Buffer`, `self.Buffer`) — many npm packages access globals through these wrappers.
-   Each match against the [known-globals table](/gjsify/cli-reference/#known-identifiers) is a discovered global.
-2. **Pass N** builds again with the discovered globals injected via tiny `register` stubs. The newly injected modules can pull in code that references *more* globals, so the loop repeats until the detected set stabilises (typically 2–3 iterations, capped at 5).
-3. The final real build uses the converged set and writes to disk.
+It is an iterative build:
 
-Use `--verbose` to see what auto mode detected per iteration:
+1. **Pass 1** bundles your code in memory, unminified, with no globals injected. [acorn](https://github.com/acornjs/acorn) parses the result and looks for two patterns: free identifiers (`Buffer`, `fetch`, `process`) that nothing in the bundle declares, and host-object member expressions (`globalThis.Buffer`, `global.Buffer`, `window.Buffer`, `self.Buffer`), which is how many npm packages reach a global. Every match against the known-identifier table counts as a discovered global.
+2. **Pass 2** rebuilds with those globals injected as small `register` stubs, seeded with the precomputed set of globals the registers themselves reference. Injected code can pull in more code, so the loop repeats until the detected set stops growing. Two passes is the normal case, five is the hard cap.
+3. The final build uses the converged set and writes to disk.
+
+Detection runs on the **bundled, tree-shaken** output rather than on your source tree, and that one choice is what makes it dependable. If an identifier survives dead-code elimination it is genuinely reachable, so an isomorphic dependency that guards `document` behind `typeof document !== 'undefined'` produces no false positive, and a file the bundler loaded and then shook away contributes nothing.
+
+Use `--verbose` to watch it converge:
 
 <CommandTabs title="Auto detection, per iteration">
   <Fragment slot="gjsify">
     ```bash
-    gjsify build src/index.ts -o dist/index.js --verbose
+    gjsify build src/index.ts --app gjs -o dist/index.js --verbose
     # [gjsify] --globals auto: iteration 1, 7 global(s): Buffer, fetch, process, …
-    # [gjsify] --globals auto: iteration 2, 11 global(s): + AbortSignal, Headers, …
+    # [gjsify] --globals auto: iteration 2, 11 global(s): AbortSignal, Buffer, Headers, …
     # [gjsify] --globals auto: converged after 2 iteration(s), 11 global(s)
     ```
   </Fragment>
   <Fragment slot="npm">
     ```bash
-    npx @gjsify/cli@latest build src/index.ts -o dist/index.js --verbose
+    npx @gjsify/cli@latest build src/index.ts --app gjs -o dist/index.js --verbose
     # [gjsify] --globals auto: iteration 1, 7 global(s): Buffer, fetch, process, …
-    # [gjsify] --globals auto: iteration 2, 11 global(s): + AbortSignal, Headers, …
+    # [gjsify] --globals auto: iteration 2, 11 global(s): AbortSignal, Buffer, Headers, …
     # [gjsify] --globals auto: converged after 2 iteration(s), 11 global(s)
     ```
   </Fragment>
   <Fragment slot="bun">
     ```bash
-    bunx @gjsify/cli@latest build src/index.ts -o dist/index.js --verbose
+    bunx @gjsify/cli@latest build src/index.ts --app gjs -o dist/index.js --verbose
     # [gjsify] --globals auto: iteration 1, 7 global(s): Buffer, fetch, process, …
-    # [gjsify] --globals auto: iteration 2, 11 global(s): + AbortSignal, Headers, …
+    # [gjsify] --globals auto: iteration 2, 11 global(s): AbortSignal, Buffer, Headers, …
     # [gjsify] --globals auto: converged after 2 iteration(s), 11 global(s)
     ```
   </Fragment>
   <Fragment slot="deno">
     ```bash
-    deno run -A --reload --min-dep-age 0 npm:@gjsify/cli@latest build src/index.ts -o dist/index.js --verbose
+    deno run -A --reload --min-dep-age 0 npm:@gjsify/cli@latest build src/index.ts --app gjs -o dist/index.js --verbose
     # [gjsify] --globals auto: iteration 1, 7 global(s): Buffer, fetch, process, …
-    # [gjsify] --globals auto: iteration 2, 11 global(s): + AbortSignal, Headers, …
+    # [gjsify] --globals auto: iteration 2, 11 global(s): AbortSignal, Buffer, Headers, …
     # [gjsify] --globals auto: converged after 2 iteration(s), 11 global(s)
     ```
   </Fragment>
 </CommandTabs>
 
-### Why analyse the bundled output, not the source?
+### When auto can't see a global
 
-Earlier design iterations tried to scan your source tree (and transitive npm dependencies) directly. That approach kept leaking:
+The analyser follows identifiers, not values. If a package stores `globalThis` in a field and then calls a method on that field, neither the bare name nor `globalThis.<name>` ever appears in the bundle, so the detector misses it.
 
-- **Isomorphic npm packages** reference `document` or `window` behind `typeof document !== 'undefined'` feature-detection guards — a source-level scan cannot tell the difference between guarded compat code and real DOM use.
-- **Dynamic imports** (`import(expr)`), bracket-notation global access (`globalThis['fetch']`) and runtime code-string execution can't be statically analysed at all.
-- **Tree-shaking interactions**: files that Rolldown loaded for analysis but then tree-shook away would still contribute false-positive injections.
-
-Analysing the **already-bundled, tree-shaken** output sidesteps every one of these problems — if a global identifier survives Rolldown's dead-code elimination, it is genuinely reachable. False positives drop to zero, and the detection cost is just one extra Rolldown pass per iteration.
-
-### When auto can't see a global: `--globals auto,<extras>`
-
-The acorn analyser cannot follow value-flow indirection. The canonical example is Excalibur, which stores `globalThis` in `BrowserComponent.nativeComponent` and then calls `nativeComponent.matchMedia(...)` — neither bare `matchMedia` nor `globalThis.matchMedia` appears in the bundle, so the detector misses it.
-
-The fix is to keep auto detection on and add an explicit safety net:
+Keep auto on and add a safety net. Extras are seeded into the very first pass, so code reachable only through them becomes visible too:
 
 <CommandTabs title="Auto plus an explicit safety net">
   <Fragment slot="gjsify">
     ```bash
-    # Auto + the entire DOM group
-    gjsify build src/gjs/gjs.ts -o dist/gjs.js --globals auto,dom
+    # Auto plus the entire DOM group
+    gjsify build src/index.ts --app gjs -o dist/index.js --globals auto,dom
 
-    # Auto + a single identifier we know auto can't see
-    gjsify build src/index.ts -o dist/index.js --globals auto,matchMedia,FontFace
+    # Auto plus single identifiers you know auto can't see
+    gjsify build src/index.ts --app gjs -o dist/index.js --globals auto,matchMedia,FontFace
     ```
   </Fragment>
   <Fragment slot="npm">
     ```bash
-    # Auto + the entire DOM group
-    npx @gjsify/cli@latest build src/gjs/gjs.ts -o dist/gjs.js --globals auto,dom
+    # Auto plus the entire DOM group
+    npx @gjsify/cli@latest build src/index.ts --app gjs -o dist/index.js --globals auto,dom
 
-    # Auto + a single identifier we know auto can't see
-    npx @gjsify/cli@latest build src/index.ts -o dist/index.js --globals auto,matchMedia,FontFace
+    # Auto plus single identifiers you know auto can't see
+    npx @gjsify/cli@latest build src/index.ts --app gjs -o dist/index.js --globals auto,matchMedia,FontFace
     ```
   </Fragment>
   <Fragment slot="bun">
     ```bash
-    # Auto + the entire DOM group
-    bunx @gjsify/cli@latest build src/gjs/gjs.ts -o dist/gjs.js --globals auto,dom
+    # Auto plus the entire DOM group
+    bunx @gjsify/cli@latest build src/index.ts --app gjs -o dist/index.js --globals auto,dom
 
-    # Auto + a single identifier we know auto can't see
-    bunx @gjsify/cli@latest build src/index.ts -o dist/index.js --globals auto,matchMedia,FontFace
+    # Auto plus single identifiers you know auto can't see
+    bunx @gjsify/cli@latest build src/index.ts --app gjs -o dist/index.js --globals auto,matchMedia,FontFace
     ```
   </Fragment>
   <Fragment slot="deno">
     ```bash
-    # Auto + the entire DOM group
-    deno run -A --reload --min-dep-age 0 npm:@gjsify/cli@latest build src/gjs/gjs.ts -o dist/gjs.js --globals auto,dom
+    # Auto plus the entire DOM group
+    deno run -A --reload --min-dep-age 0 npm:@gjsify/cli@latest build src/index.ts --app gjs -o dist/index.js --globals auto,dom
 
-    # Auto + a single identifier we know auto can't see
-    deno run -A --reload --min-dep-age 0 npm:@gjsify/cli@latest build src/index.ts -o dist/index.js --globals auto,matchMedia,FontFace
+    # Auto plus single identifiers you know auto can't see
+    deno run -A --reload --min-dep-age 0 npm:@gjsify/cli@latest build src/index.ts --app gjs -o dist/index.js --globals auto,matchMedia,FontFace
     ```
   </Fragment>
 </CommandTabs>
 
-The extras are seeded into the very first pass, so any code reachable only through them is also visible to the analyser.
-
-### Other modes
+The other modes:
 
 | Mode | Behaviour |
 |---|---|
-| `--globals auto` | Default — fully automatic detection |
-| `--globals auto,<extras>` | Auto + explicit safety net for hard-to-detect cases |
-| `--globals fetch,Buffer,…` | Fully explicit list (or groups: `node`, `web`, `dom`). No auto detection. |
-| `--globals none` | Disable globals injection entirely |
+| `--globals auto` | The default: fully automatic detection |
+| `--globals auto,<extras>` | Auto plus an explicit safety net |
+| `--globals fetch,Buffer,…` | A fully explicit list, or the groups `node`, `web`, `dom`. No auto detection. |
+| `--globals none` | No globals injection at all |
+| `--exclude-globals <list>` | Drop identifiers auto found but you do not want, for example a `fetch` reference sitting in dead browser-compat code |
 
-The full table of identifiers and groups lives in the [CLI Reference → Globals](/gjsify/cli-reference/#globals).
+The full identifier table, and the register subpath each name maps to, lives in the [CLI Reference](/gjsify/cli-reference/#known-identifiers).
 
-### Granular register subpaths
+### Registers are granular
 
-Each polyfill package splits its register code into per-feature subpaths. Detecting `Buffer` injects only `@gjsify/buffer/register`; detecting `process` injects only `@gjsify/node-globals/register/process` — not the entire `node-globals` register module. This means `--globals auto` produces bundles that contain only the register code for identifiers your app actually uses.
+Each polyfill package splits its register code per feature. Detecting `Buffer` injects `@gjsify/node-globals/register/buffer` and nothing else; detecting `process` injects `@gjsify/node-globals/register/process`, not the whole `node-globals` register module. An app that uses only `process.env` and `fetch` gets two small stubs, not the entire Node and Web groups.
 
-For example, an app that uses just `process.env` and `fetch` injects two tiny register stubs (`process` + `fetch`), not the entire Node + Web group.
+If a detected global maps to a package your project doesn't have, the build says so and skips it rather than failing:
 
-### Projects scaffolded via `npx @gjsify/cli@latest create`
-
-Scaffolded projects rely on the default `auto` mode and don't pass `--globals` at all:
-
-```jsonc
-"scripts": {
-  "build": "gjsify build src/index.ts --outfile dist/index.js",
-  "start": "gjsify run dist/index.js"
-}
+```
+[gjsify] --globals auto: skipping register import '@gjsify/webgl/register'
+package '@gjsify/webgl' is not installed in this project.
 ```
 
-`gjsify install && gjsify run build` is enough — no global lists to maintain, no `ReferenceError`s to chase down.
+Add the package if you need that global, or silence the warning with `--exclude-globals`.
 
-### Troubleshooting: `ReferenceError: X is not defined`
+### Fixing `ReferenceError: X is not defined`
 
-If your GJS bundle crashes with `ReferenceError: X is not defined`, the global `X` was not detected. Fix:
+If your GJS bundle crashes with `ReferenceError: X is not defined`, the global `X` was not detected.
 
-1. Look up `X` in the [Known Identifiers table](/gjsify/cli-reference/#known-identifiers).
-2. If `X` is listed, add it as an extra: edit your build script to use `--globals auto,X` (or use a group: `--globals auto,dom`).
+1. Look `X` up in the identifier table in the [CLI Reference](/gjsify/cli-reference/#known-identifiers).
+2. If it is listed, add it as an extra: `--globals auto,X`, or take its whole group with `--globals auto,dom`.
 3. Rebuild and rerun.
 
-If `X` is not in the table, it is not yet implemented in GJSify — check the [Packages Overview](/gjsify/packages/overview/) or open an issue.
+If `X` is not in the table, gjsify does not implement it yet. Check the [Packages Overview](/gjsify/packages/overview/) or open an issue.
 
 ## Native prebuilds and `gjsify run`
 
-Some GJSify packages need native code. For example, `@gjsify/webgl` ships a Vala-built shared library + GIR typelib to bridge WebGL calls to OpenGL ES through `libepoxy`. These packages publish their binaries under `prebuilds/<os>-<arch>/`, declare the directory via `"gjsify": { "prebuilds": "prebuilds" }` and the targets they promise via `"gjsify": { "platforms": ["linux-x64", "darwin-arm64", …] }` in their `package.json`.
+Some gjsify packages need native code. `@gjsify/webgl`, for example, ships a Vala-built shared library plus a GIR typelib that bridges WebGL calls, through libepoxy, to whichever OpenGL the host offers: GLES where GDK provides it, desktop GL on macOS, whose backend goes through CGL and exposes no GLES profile at all.
 
-### How a prebuild directory is located
+Those binaries do not sit in the main package. A native package declares the targets it promises in `"gjsify": { "platforms": [...] }` and lists one companion package per target as an `optionalDependency`, so an install only fetches the binary for the machine you are on. The companion carries the files under `prebuilds/<os>-<arch>/`:
 
-There is one `<os>-<arch>` spelling: <code>&#36;&#123;process.platform&#125;-&#36;&#123;process.arch&#125;</code> — `linux-x64`,
-`linux-arm64`, `darwin-arm64`, `win32-x64`. (`linux-ppc64`, `linux-s390x` and `linux-riscv64`
-are spelled the same in every vocabulary.) It is what a running process can compute about
-itself, so locating the directory needs no translation step.
+```
+node_modules/@gjsify/webgl-linux-x64/prebuilds/linux-x64/
+  Gwebgl-0.1.gir
+  Gwebgl-0.1.typelib
+  libgwebgl.so
+```
 
-The CLI probes the package's own declared spelling from `gjsify.platforms` first, then that
-canonical name, then — for backward compatibility only — the retired uname spelling
-(`prebuilds/linux-x86_64/`) that the Vala/meson bridges staged before the rename, so a
-tarball published back then still loads. A package that ships nothing for your platform is
-skipped silently — every native bridge is optional at runtime.
+There is one spelling for that directory, the same one a running process can compute about itself: `linux-x64`, `linux-arm64`, `darwin-arm64`, `win32-x64`, plus a `-musl` suffix on Linux hosts whose C library needs it. Because the process derives its own name, locating the directory needs no translation step. A package that ships nothing for your platform is skipped in silence, since every native bridge is optional at runtime.
 
 ### The environment it sets
 
-`gjsify run` scans your `node_modules` for these packages and prepends the directories it
-finds to `GI_TYPELIB_PATH` plus **the library-search variable your operating system's loader
-actually reads**:
+`gjsify run` sweeps your `node_modules` for these packages and prepends what it finds to `GI_TYPELIB_PATH`, plus the library-search variable your operating system's loader actually reads:
 
-| host | variable | separator |
+| Host | Variable | Separator |
 |---|---|---|
 | Linux | `LD_LIBRARY_PATH` | `:` |
-| macOS | `DYLD_LIBRARY_PATH` — `dyld` ignores `LD_LIBRARY_PATH` entirely | `:` |
-| Windows | `PATH` — `LoadLibrary` has no dedicated variable | `;` |
+| macOS | `DYLD_LIBRARY_PATH` (dyld ignores `LD_LIBRARY_PATH` entirely) | `:` |
+| Windows | `PATH` (`LoadLibrary` has no dedicated variable) | `;` |
 
-:::caution[Which prebuilds exist is a separate question]
-Resolution is cross-platform; the *artifacts* are not yet. Every native bridge ships
-`linux-x64` and `linux-arm64`; most also ship `linux-ppc64`, `linux-s390x` and
-`linux-riscv64`. `darwin-arm64` is built for `lightningcss-native`, `oxfmt-native`,
-`terminal-native`, `tls-native`, `http-soup-bridge` and `http2-native`.
-
-This matters most for the **Node-free toolchain**: `gjsify install -g` lays down
-`@gjsify/rolldown-native`, `@gjsify/lightningcss-native` and `@gjsify/oxfmt-native`, and
-`@gjsify/rolldown-native` is the *only* bundler engine `gjsify build` has under GJS. It no
-longer has a Rust-level macOS blocker (its wakeup channel is a portable pipe, not
-`eventfd(2)`), but its darwin prebuild has not been built or load-tested yet — so on macOS
-GJSify still needs Node present for the build step, falling back to the npm `rolldown` /
-`lightningcss` / `oxfmt` packages.
-
-The per-package matrix lives in [Platform Support](/gjsify/platform-support/).
-:::
-
-Then it spawns `gjs -m <bundle>`:
+Then it launches the bundle: `gjs -m <bundle>` for an `--app gjs` bundle, or the runtime's own binary for an `--app node` one, which you select with `--runtime node`, `bun` or `deno`. The sweep is the same either way, because a Vala bridge ships its typelib under `prebuilds/` no matter which runtime loads it. With no `--runtime`, `gjsify run` uses `gjs` when it is the host or when the file is recognisably a GJS bundle, and otherwise the runtime it is already on.
 
 <CommandTabs title="Run the bundle">
   <Fragment slot="gjsify">
@@ -289,7 +262,13 @@ Then it spawns `gjs -m <bundle>`:
   </Fragment>
 </CommandTabs>
 
-If you want to run `gjs` directly (for example from a systemd unit or a packaged Flatpak), you can ask the CLI to print the environment for you:
+:::note[Resolution is portable, the binaries are a separate question]
+The lookup above behaves the same on every host. Which prebuilt artifacts actually exist, per package and per platform, is tracked in [Platform Support](/gjsify/platform-support/), generated from the same rule the CI audit runs.
+:::
+
+### Running `gjs` yourself
+
+If you want to call `gjs` directly, from a systemd unit or inside a packaged Flatpak, ask the CLI to print the environment:
 
 <CommandTabs title="Export the environment">
   <Fragment slot="gjsify">
@@ -318,32 +297,188 @@ If you want to run `gjs` directly (for example from a systemd unit or a packaged
   </Fragment>
 </CommandTabs>
 
-Use `gjsify info` without `--export` for a human-readable report of every detected native package and the exact env vars needed.
+`gjsify info` without `--export` prints the same information for humans: every native package it detected and the exact variables needed to run the bundle.
 
-## GLib MainLoop
+## The GLib main loop
 
-Node.js servers (`http.Server.listen()`, `net.Server.listen()`, `dgram.Socket.bind()`) need a running GLib MainLoop to drive the underlying Gio async I/O. GJSify starts it for you via an internal `ensureMainLoop()` helper — you do not need to call it from application code. GTK applications keep using `Gtk.Application.runAsync()` as usual.
+On `--app gjs`, a Node-style server runs on Gio async I/O, and that needs a running GLib main loop. `http.Server.listen()`, `net.Server.listen()` and `dgram.Socket.bind()` start one for you through an internal helper, so there is nothing to call from application code. GTK applications carry on using `Gtk.Application.runAsync()` as usual.
 
-## Vite-plugin track (browser / web-content targets)
+On `--app node` there is nothing to arrange for a server, because it is the host runtime's own on the host's own event loop. The case that needs both loops live at once is a `gi://` bundle there, and [node-gi](/gjsify/projects/node-gi/) arranges that per runtime.
 
-GJSify's build plugins are Rollup-shaped, which means they run under both Rolldown (via the `gjsify build` CLI) and Vite (for HMR-enabled dev servers). For web-content targets — browser extensions, GJS-WebKit hybrid apps, or games running in a WebView — you can use Vite during development for fast module reloads, then switch to `gjsify build --app browser` for the production bundle.
+## Vite and the CLI run the same plugins
 
-Two plugins that always work under Vite are already published:
+Gjsify's build plugins are Rollup-shaped, so the same plugin objects load under Rolldown (which `gjsify build` drives) and under Vite. That is why a dev server with hot module reload and a production `gjsify build --app browser` produce the same output instead of two pipelines that drift apart.
 
-| Plugin | Purpose |
+Two of them are useful on their own, with or without the gjsify CLI:
+
+| Plugin | What it does |
 |---|---|
-| `@gjsify/vite-plugin-blueprint` | `.blp` → XML string via `blueprint-compiler`; `import T from './window.blp'` works in both Vite dev and Rolldown prod |
-| `@gjsify/vite-plugin-gettext` | `xgettext` / `msgfmt` / `po2json` pipeline; same plugin in both environments |
+| `@gjsify/vite-plugin-blueprint` | Compiles `.blp` to an XML string via `blueprint-compiler`, so `import T from './window.blp'` works in Vite dev and in a production build |
+| `@gjsify/vite-plugin-gettext` | Runs the `xgettext` / `msgfmt` / `po2json` pipeline, the same plugin in both environments |
 
-The same plugins are composed by `gjsify build` under the hood — there is no divergence between your dev and prod pipelines.
+The presets that mirror `gjsify build --app browser` and `--app nativescript` ship as `@gjsify/vite-plugin-gjsify`. The [Vite Plugin guide](/gjsify/guides/vite-plugin/) has the config.
 
-## Location-independent published bundles
+## Location-independent bundles
 
-GJS bundles built with GJSify resolve their bundled dependencies' data files at runtime from the bundle's actual on-disk location. A dep that loads its own `package.json`, i18n files, or templates via `import.meta.url` continues to work after the bundle is installed globally — even if the bundle ends up at a different `node_modules` depth than where it was built. This is handled transparently by `@gjsify/module`'s PnP-aware `createRequire`; no special configuration is required.
+A GJS bundle built with gjsify resolves its bundled dependencies' data files from the bundle's real on-disk location at runtime. A dependency that loads its own `package.json`, translation catalogue or templates through `import.meta.url` keeps working after the bundle is installed globally, even when it lands at a different `node_modules` depth than the one it was built at.
+
+Yarn PnP workspaces are covered too: `@gjsify/module`'s `createRequire` reads the `.pnp.cjs` resolution table directly, so packages living inside `.yarn/cache` zips resolve like any other. Neither case needs configuration.
+
+## Adwaita on the web: light DOM and design tokens
+
+[`@gjsify/adwaita-web`](/gjsify/adwaita/) renders each widget as a **light-DOM custom element** styled by one global stylesheet, rather than hiding its markup inside a shadow root. That buys two things: every rule stays reachable, so a higher-specificity selector of yours wins the way it normally would, and the components render server-side with nothing extra.
+
+The cost is the same openness in reverse: a host page's own CSS reaches into the widgets. So each widget re-establishes the Adwaita typographic and box-model context at its own boundary instead of inheriting whatever the surrounding page set.
+
+That is why the [design tokens](/gjsify/adwaita/theming/) are the supported way to re-theme. Custom properties cross a shadow boundary and ordinary CSS rules do not, so a theme written against the tokens keeps working even if a component later moves behind one. See [ADR 0010](https://github.com/gjsify/gjsify/blob/main/docs/adr/0010-adwaita-web-style-isolation.md) for the full decision.
+
+## One behaviour layer behind the Adwaita ports
+
+The web and NativeScript Adwaita ports do not each implement widget behaviour. Both compose [`@gjsify/adwaita-core`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-core), a pure-TypeScript package with no platform imports ([ADR 0004](https://github.com/gjsify/gjsify/blob/main/docs/adr/0004-headless-adwaita-core.md)). It owns the parts that are logic rather than rendering:
+
+| Behaviour | What the core decides |
+|---|---|
+| Toast overlay | one toast visible at a time, FIFO queue, auto-dismiss lifecycle |
+| Combo row | the options list, index-to-value mapping, out-of-range guards |
+| Spin row | value, min, max and step, clamped on every mutation |
+| Toggle group | the segment list and the guarded active index |
+| Expander row | expanded and collapsed disclosure |
+| Alert dialog | the response registry, default and close responses |
+| Accent colours | the nine named accents and the OkLab standalone derivation |
+| Breakpoints | the condition grammar and the colour-scheme observable |
+
+Each port keeps only its own half: markup and CSS classes on the web, real views on NativeScript. A behaviour fix lands once and both pick it up.
+
+## Bridge packages and their globals
+
+Importing a [bridge package](/gjsify/patterns/bridges/) has no side effects.
+`import { Canvas2DBridge } from '@gjsify/canvas2d'` gives you the named exports and writes
+nothing to `globalThis`.
+
+The browser globals each package owns live behind a `/register` subpath instead:
+
+| Subpath | What it installs |
+|---|---|
+| `@gjsify/canvas2d/register` | `globalThis.ImageData` and `globalThis.Path2D`, plus the DOM pillar's `@gjsify/dom-elements/register/canvas` (the canvas element, its 2D context, `DOMMatrix` and the `'2d'` context factory) |
+| `@gjsify/webgl/register` | `globalThis.WebGLRenderingContext` and `globalThis.WebGL2RenderingContext`. The `'webgl'` / `'webgl2'` factories are not here: they come from the canvas subclass `WebGLBridge` creates. |
+| `@gjsify/iframe/register` | `globalThis.HTMLIFrameElement` and the `document.createElement('iframe')` factory |
+
+You normally import none of them. `gjsify build`'s default `--globals auto` reads the
+identifiers in the bundled output and injects the matching subpath. The bridges themselves
+do not depend on those globals, so they also work under `--globals none`.
+
+`bridge.installGlobals()` is the imperative alternative, and each bridge installs only what
+it owns: `Canvas2DBridge` publishes `requestAnimationFrame` and `performance`, `WebGLBridge`
+adds `cancelAnimationFrame`, `devicePixelRatio` and the two context constructors,
+`VideoBridge` publishes `HTMLVideoElement`, and `IFrameBridge` publishes `HTMLIFrameElement`
+plus the element factory. The `/register` subpaths leave an existing global alone, while an
+explicit `installGlobals()` means "make mine the one everybody gets" and overwrites. That is
+why two bridges calling it in the same process leaves the second one in charge.
+[ADR 0012](https://github.com/gjsify/gjsify/blob/main/docs/adr/0012-framework-register-ownership.md)
+records the split.
+
+`document` and `window` come from neither: they are the shared polyfill in
+`@gjsify/dom-elements/register`, which `--globals auto` injects on the same rules. The one
+exception is `@gjsify/video`, whose `VideoBridge` also keeps a private `document` / `window`
+pair on `bridge.environment` for code that wants a DOM tree scoped to one widget.
+
+## How gjsify install resolves a tree
+
+`gjsify install` builds `node_modules` itself, without shelling out to npm. The resolver follows npm v3 and later semantics, so the layout it produces is the one every other tool expects.
+
+For each `(requester → dependency → range)` edge, it checks the ancestor `node_modules` chain first. If a placement it finds there satisfies the range, that placement is reused, which is what flattens the tree. If it conflicts, the dependency is nested under the requester instead. The result is a lockfile whose `packages` map is keyed by install path, at `lockfileVersion` 4.
+
+Two escape hatches let a workspace root pin a transitive dependency the deduplicated tree would otherwise resolve differently: npm's top-level `overrides` and yarn's `resolutions`. Both are read from `package.json`, and both apply to every edge regardless of who requested it.
+
+A resolve that has to run preserves the versions already pinned in the lockfile and only resolves what is genuinely new or changed, exactly as npm, yarn and pnpm do. `--refresh-lockfile` is the opt-in that re-resolves everything to the newest in-range version.
+
+## Reproducible ship artifacts
+
+Packing the same build twice with [`gjsify ship`](/gjsify/cli-reference/#gjsify-ship) gives byte-identical files. Timestamps come from the built bundle's mtime, or from `SOURCE_DATE_EPOCH` when that is set, and it is that environment variable which lets two different checkouts of the same source produce identical bytes.
+
+The guarantee holds per JavaScript runtime. The payload is gzipped through the Web `CompressionStream`, whose deflate output is implementation-defined, so a Node-built and a GJS-built artifact of the same input need not match each other byte for byte. Pick one runtime for your release builds and the artifacts stay comparable.
+
+## What the platform marks prove
+
+The `<os>-<arch>` marks in the [Platform Support](/gjsify/platform-support/) table are generated from the same rule the CI gate runs (`scripts/audit-runtimes.mjs --check`), so the page and the audit cannot disagree. What each mark asserts is narrower than it looks.
+
+The marks are read out of the workflow YAML, so "a CI job targets it" claims exactly that, never that a green run of that job exists. `○` in particular says nothing about whether the job currently succeeds.
+
+`✓` means the binary is committed in this repository, in the bridge's per-target package (`@gjsify/<bridge>-<os>-<arch>`, an `optionalDependencies` entry a package manager installs or silently skips), not in the bridge's own tarball. Since that split the bridge itself carries no `prebuilds/` directory at all, so a cell that asked the bridge alone answered "declared and built" and printed `✓` for two bridges that commit nothing anywhere. The glyphs are now machine-checked against the directories on disk (`tests/e2e/ci-runner-arch`).
+
+`○` is the state to read carefully: CI produces the artifact, but this repository does not carry it, so a `git clone` has nothing to load and an `npm install` gets whatever the last publish shipped. It is never a gap the audit overlooked. Every `○` target is held to a `release.yml` job that builds, load-tests and uploads it, because a release cannot download another workflow's artifact and that tarball is the only route by which one reaches a consumer. Two packages are in that state:
+
+- **`@gjsify/napi`, both targets.** `napi.yml` rebuilds and gates on the linux-x64 prebuild, and its macOS job builds, load-tests and uploads the darwin-arm64 one. No job commits either back, and each per-target package says so in `package.json#gjsify.platformsUncommitted`, printed on every `--check` run. The linux-x64 directory used to be committed while its darwin sibling was exempt: one bridge running two policies, where every job that touched the path overwrote the checked-out bytes before reading them, and the declaration checks stayed green across a week of source drift. Deleting it made freshness real by removal, since the only linux-x64 artifact anyone can load is now the one CI produced in that same run.
+- **`@gjsify/node-gi`, every declared target.** It builds with node-gyp at install time, or installs a prebuild straight from a release artifact, so there is no committed directory anywhere and no exemption entry to key the cell on: the absence *is* the state. `release.yml` carries a prebuild leg per target, which is what the audit checks.
+
+### What the audit actually verifies
+
+It runs wherever CI runs it, today an `ubuntu-latest` x64 Node runner, and a prebuild for another architecture cannot be loaded there. Rather than skip those, the audit splits what it verifies and reports which half it did:
+
+- **Structurally, on every committed artifact regardless of target.** The image's own machine field must match the directory it sits in (an ELF/Mach-O/PE header read, no `readelf` or `otool`); every `libgjsify*` sibling it records must be staged beside it and reachable through `$ORIGIN` or `@loader_path`; and every library leaf the typelib records must be present, because that leaf is what GObject-Introspection hands to the loader the moment a consumer resolves a class. This half caught both a missing macOS sibling cdylib and an emulated prebuild leg that compiled **x86-64** and staged it into `prebuilds/linux-{ppc64,s390x,riscv64}/`: `uraimo/run-on-arch-action` ignores its `arch` input whenever a custom `base_image` is supplied, so every other check passed and the artifact even loaded on the runner. Only reading the machine field against the directory name catches that.
+- **Functionally, only for the checking host's own target.** The library is `dlopen`ed with every library-path environment variable stripped, which proves the self-relative sibling hop for real instead of inferring it from the headers. A bridge whose *system* dependencies the runner lacks (libsoup, GStreamer, libgda) is reported as not-load-tested, never as broken, because that would be a fact about the runner rather than the artifact.
+
+So `✓` means "declared, targeted by a CI job, and committed with a structurally sound artifact". It does not mean anyone has run that artifact on that architecture. The per-run summary states both numbers separately.
+
+Every column name is a real directory name. Targets are spelled the one way a running process can compute about itself, `${process.platform}-${process.arch}`, so `gjsify.platforms`, the committed `prebuilds/<target>/`, the CI job that builds it and the resolver that loads it all use the same string, with nothing to translate between them.
+
+## How the cross-runtime claims are checked
+
+A golden-diff conformance harness runs the same programs on `gjs`, `node`, `bun` and `deno` and requires **byte-identical output**. A diff needs one side to diff against, and that side is the `gjs` output, itself checked against a committed golden file wherever the scenario has one. That makes gjs the yardstick for the comparison, which is a fact about the test rig and not advice about which runtime to build on. The ported GNOME GIMarshallingTests currently stand at 370 passing and none failing.
+
+Linux is the CI baseline: the full suite (10,000+ cases across Node and GJS), every e2e suite and every integration suite run on Fedora. The other two operating systems are covered by named jobs rather than by a runtime-class claim:
+
+- **macOS** runs `@gjsify/node-gi`'s own CI (build, conformance, a real GTK/Adwaita window, the full Adwaita storybook), `@gjsify/napi`'s build and gates, and the native-bridge prebuild job. Two jobs run the `@gjsify/*` suites themselves: `main.yml`'s `macos` job executes a curated subset of `--app gjs` bundles on arm64 under Homebrew `gjs` 1.88, and `macos-suites.yml` runs the Node-pillar suites on both `test:node` and `test:gjs`, on darwin-arm64 and darwin-x64, on `main` and nightly rather than per PR. macOS is the only one of the three where both legs can run at all, which is the point of running them: `test:node` says the spec is right, `test:gjs` says the port is.
+- **Windows** runs `@gjsify/node-gi`'s CI including a real GTK window and the storybook, using a bundled GTK runtime rather than a system install, plus the Node-pillar `@gjsify/*` suites in `windows-suites.yml` on `main` and nightly. Those run under **cmd.exe with the git-bash utilities stripped from `PATH`**, because Git for Windows supplies a real `rm`, `cp` and `sh` that npm's `%COMSPEC%` scripts do not have, and testing from git-bash reports false greens.
+
+The macOS `--app gjs` bundles are built on the Fedora leg and executed on macOS. That split is a cost decision rather than a capability one. `@gjsify/rolldown-native`, the bundler engine `gjsify build` uses under GJS, is built, staged and load-tested under Homebrew `gjs` on both darwin arches by `prebuilds.yml`, and its `darwin-arm64` and `darwin-x64` artifacts are committed. What no job does yet is drive `gjsify build` under GJS on macOS end to end, and standing that up would mean a full `gjsify install` on a runner billed at 10x. A `--app gjs` bundle is a single self-contained file whose only unbundled imports are `gi://GLib`, `gi://Gio` and `gi://GioUnix`, so building it on Linux and running it on macOS is sound. It verifies **runtime** behaviour on macOS, not the build toolchain there.
+
+Bun and Deno share the `node` runtime slot through the Node-API common ABI, and `main.yml`'s `cross-runtime` job tests that rather than assuming it: one engine-agnostic `--app node` bundle per package, run on all three runtimes. The selection rule matters. A spec that imports `node:path` gets the *host runtime's* builtin, because the `--app node` bundle externalises it, so such a leg would test Bun rather than the polyfill. Every covered package either imports its own package by name, imports a bare Web specifier that the alias table routes to the polyfill, or is infra code that is nobody's builtin.
+
+### What the darwin legs found
+
+The OS axis exists because a declaration nothing exercises is a guess. Measured on darwin-x64 and arm64 against a `main` that every existing check called green:
+
+| package | symptom | mechanism |
+|---|---|---|
+| `@gjsify/child_process` | the whole suite: `spawnSync` returned `status: null`, `pid: 0`, empty stdout | the specs spawn `process.execPath`, and `@gjsify/process` reported the SCRIPT rather than the interpreter, so the file being spawned was the test bundle |
+| `@gjsify/process` | `pid`, `ppid` and `memoryUsage().rss` all `0` | three inline `/proc/self/*` reads with no fallback; `0` is a valid pid, so nothing could detect the wrong answer |
+| `@gjsify/os` | `cpu.times.user` `undefined` where Node guarantees a number | a getter that warned once per core and returned `{}` |
+| `@gjsify/net` | `isIP('01.02.03.04')` answered `4`; Node answers `0` | delegating to `Gio.InetAddress`, i.e. to the host's `inet_pton(3)`: BSD accepts leading zeros, glibc rejects them |
+
+Three of the four cannot fail on Linux at all, and the fourth cannot fail under native Node. That is the shape of hole a single-OS pipeline leaves.
+
+One macOS fact invalidates the obvious fix for a dyld problem: **`DYLD_*` environment variables do not survive a shell boundary.** SIP strips them when a protected binary is exec'd, and `/bin/sh` and `/bin/bash` are protected, so `DYLD_LIBRARY_PATH=… ; some-script.sh` loses the value before the script's first command:
+
+```
+DYLD_LIBRARY_PATH=x /bin/sh -c 'echo $DYLD_LIBRARY_PATH'    # prints nothing
+DYLD_LIBRARY_PATH=x node -p 'process.env.DYLD_LIBRARY_PATH' # prints x
+```
+
+This is why `@gjsify/cli` repairs the loader path on the child's launch environment (`buildNativeEnv()` feeding `spawn('gjs', …, { env })`), where no shell sits in between, rather than exporting it anywhere. A workflow-level export is a no-op, and `macos-suites.yml` prints the measurement on every run so the next person reaching for the variable is told why.
+
+## Measuring gjsify on Windows
+
+Two traps cost a cross-platform verification run an entire discarded pass, so they are written down here.
+
+**Win32-OpenSSH puts its session in session 0, which has no desktop.** Every GTK showcase driven over SSH died with an `0xC0000005` access violation inside `gtk-4-1.dll`, a crash with a plausible stack and no hint of the real cause, which reads like a gjsify defect and is not one. Re-run as an interactive scheduled task in the logged-on session, the same commands render:
+
+```powershell
+schtasks /create /tn gjsifyTest /tr "%USERPROFILE%\test\run.cmd" `
+         /sc once /st 23:59 /ru %USERNAME% /it /f
+schtasks /run /tn gjsifyTest
+```
+
+Write output under `%USERPROFILE%`: an unelevated task may not write to `C:\`.
+
+**Check the CLI version before believing a Windows result.** A run reporting every WebGL showcase failing under deno with `Failed to require Gwebgl 0.1: Typelib file for namespace 'Gwebgl' (any version) not found` was measured against that box's npm-global gjsify 0.33.0. Re-measured on 0.37.0 in an interactive session, all four WebGL showcases reach the GL bridge under both deno and bun, and the error does not occur at all. `gjsify showcase` prints the version it is running as, so read that line first.
+
+One more, because it produces false greens: run commands the way npm does, through `cmd.exe`. A git-bash shell puts `C:\Program Files\Git\usr\bin` on `PATH`, so `chmod`, `cp`, `rm` and `which` resolve there and a script that cannot work for a normal user appears to.
 
 ## Where to go next
 
-- [Getting Started](/gjsify/getting-started/) — scaffold and run your first app
-- [Runtimes](/gjsify/runtimes/) — what runs on GJS, Node.js, Deno, Bun and the browser
-- [CLI Reference](/gjsify/cli-reference/) — full command list
-- [Packages Overview](/gjsify/packages/overview/) — every API and its GNOME backend
+- [Getting Started](/gjsify/getting-started/) scaffolds and runs your first app
+- [Runtimes](/gjsify/runtimes/) covers what runs on GJS, Node.js, Deno, Bun and the browser
+- [Platform Support](/gjsify/platform-support/) covers Linux, macOS and Windows per package
+- [CLI Reference](/gjsify/cli-reference/) lists every command and flag
+- [Packages Overview](/gjsify/packages/overview/) lists every API and the GNOME library behind it

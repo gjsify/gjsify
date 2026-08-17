@@ -22,12 +22,19 @@ adw-view-switcher {
         min-height: 34px;
     }
 
-    // Each tab is a flat, transparent toggle that lights up with a subtle fill
-    // when hovered and shows the active page with an accent-tinted background.
+    // Each tab is a flat, transparent toggle that lights up with a subtle
+    // neutral fill when hovered and a slightly stronger one while selected.
     .adw-view-switcher-button {
         box-sizing: border-box;
         display: inline-flex;
         flex: 1 1 0; // homogeneous — every tab gets equal width
+        // `min-width: auto` is the flex-item default, and it floors every tab at
+        // its own min-content width, so a long title made ITS tab wider than the
+        // others and homogeneity silently stopped holding at exactly the widths
+        // where it matters. GTK's homogeneous box has no such floor
+        // (adw-view-switcher.c:475) and the labels ellipsize instead
+        // (adw-view-switcher-button.ui:42), which is what the 0 restores.
+        min-width: 0;
         align-items: center;
         justify-content: center;
         margin: 0;
@@ -63,6 +70,10 @@ adw-view-switcher {
         }
 
         .adw-view-switcher-label {
+            // Same min-content floor as the button, one level down: without it the
+            // `overflow: hidden` box never shrinks, so the ellipsis never appears
+            // and the label pushes its tab wide instead.
+            min-width: 0;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -99,12 +110,27 @@ adw-view-switcher {
             }
         }
 
+        // AdwViewSwitcherButton is a `.flat` GtkToggleButton
+        // (adw-view-switcher-button.ui:5-7), so its five states are
+        // `%button_basic_flat`'s currentColor alpha ladder, NOT the filled-button
+        // tokens: hover 7% / pressed 16%, and checked 10% / 13% / 19%
+        // (_buttons.scss:250-269 over _colors.scss:268-272). The same ladder the
+        // tab bar and the sidebar rows already spell out.
+        //
+        // It used to spend the FILLED-button tokens here: `--button-active-color`
+        // (.19 light / .22 dark) for the selected tab AND for its hover, and
+        // `--button-hover-color` (.13 / .15) for an unselected hover. Two defects
+        // in one rule. The selected tab sat at the shade upstream keeps for HELD
+        // DOWN, so it read as permanently pressed; and pinning its hover to that
+        // same value left the selected tab answering the pointer with nothing.
+        // Those tokens are also a FIXED rgba, so unlike the ladder they do not
+        // follow the foreground of whatever bar the switcher was dropped into.
         &:hover {
-            background-color: var(--button-hover-color);
+            background-color: color-mix(in srgb, currentColor 7%, transparent);
         }
 
         &:active {
-            background-color: var(--button-active-color);
+            background-color: color-mix(in srgb, currentColor 16%, transparent);
         }
 
         &:focus-visible {
@@ -112,15 +138,17 @@ adw-view-switcher {
             outline-offset: -2px;
         }
 
-        // The selected view — a neutral filled chip (libadwaita darkens the
-        // whole button; the icon/label keep the normal foreground colour
-        // rather than turning accent).
+        // The selected view: a neutral fill over the whole tab. libadwaita leaves
+        // the foreground alone here, so no accent recolouring of icon or label.
         &.active {
-            background-color: var(--button-active-color);
-            color: var(--window-fg-color);
+            background-color: color-mix(in srgb, currentColor 10%, transparent);
 
             &:hover {
-                background-color: var(--button-active-color);
+                background-color: color-mix(in srgb, currentColor 13%, transparent);
+            }
+
+            &:active {
+                background-color: color-mix(in srgb, currentColor 19%, transparent);
             }
         }
     }
@@ -141,8 +169,15 @@ adw-view-switcher {
         .adw-view-switcher-button {
             flex-direction: column;
             gap: 1px;
-            padding-top: 4px;
-            padding-bottom: 2px;
+            // The narrow box carries NO horizontal padding upstream: only
+            // `padding-top: 4px`, and the 3px per side plus the 2px below sit on
+            // the LABEL (_view-switcher.scss:15-24). Aggregated onto the button
+            // here because this port has no separate box node between button and
+            // label, which is the same geometry for every label at least as wide
+            // as the 16px icon. Overriding only the vertical halves left the wide
+            // policy's `2px 12px` standing, so a narrow tab spent 24px on side
+            // padding where libadwaita spends 6px.
+            padding: 4px 3px 2px;
             font-size: 0.75rem;
 
             .adw-view-switcher-label {
@@ -152,22 +187,47 @@ adw-view-switcher {
         }
     }
 
-    // The paired content area showing the active page — a card-like surface
-    // below the switcher (the web stand-in for the Adw.ViewStack body).
+    // The paired content area showing the active page: the Adw.ViewStack half of
+    // this composite, and it draws NOTHING. libadwaita's recommended arrangement
+    // is an AdwToolbarView whose top bar holds the switcher and whose `content`
+    // is the bare AdwViewStack (adw-view-switcher.c:41-73); no rule in
+    // `_view-switcher.scss`, `_toolbars.scss` or `_views.scss` frames that stack,
+    // and the standalone `adw-view-stack` element here says the same in its own
+    // words.
+    //
+    // It used to be a card: a 1px separator outline, a 12px radius, a 9px gap
+    // under the row and 12px of padding inside. On a page that gives the switcher
+    // its full width, that outline runs down the container's own left and right
+    // edges with its corners curling away from them, which reads as a broken
+    // frame rather than as a view. libadwaita has no line between the row and the
+    // content at all: a FLAT top bar (the default, adw-toolbar-view.c:731) has no
+    // background and no shade, and the only shading that ever appears is the
+    // scroller's undershoot, which `_scrolling.scss` owns per scroller for the
+    // reason `_toolbar_view.scss` records.
+    //
+    // `display: flex` is load-bearing, not decoration: this box is the stack, and
+    // `adw-view-stack` is a flex COLUMN for the same reason. Without it the box
+    // stays block-level, its child's `flex: 1 1 auto` below has no flex container
+    // to answer and is silently inert, and the visible page keeps stopping at its
+    // own text in a pane many times its height.
     .adw-view-switcher-content {
+        display: flex;
+        flex-direction: column;
         flex: 1 1 auto;
-        margin-top: var(--spacing-s);
-        padding: var(--spacing-m);
-        background-color: var(--view-bg-color);
-        border: 1px solid var(--separator-color);
-        border-radius: var(--card-radius);
+        min-height: 0;
     }
 
+    // Mirrors `.adw-view-stack-child`: the visible page is handed the whole
+    // content area, which is what lets a status page centre itself in it the way
+    // AdwViewStack allocates to its visible child.
     .adw-view-switcher-page {
         display: none;
 
         &.active-view {
-            display: block;
+            display: flex;
+            flex-direction: column;
+            flex: 1 1 auto;
+            min-height: 0;
         }
     }
 }

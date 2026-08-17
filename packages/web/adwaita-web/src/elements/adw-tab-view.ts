@@ -57,6 +57,9 @@ export type AdwTabViewPageSpec = AdwTabPageSpec<HTMLElement>;
 /** The live `<adw-tab-page>` properties, each mapped onto a state setter. */
 const PAGE_ATTRIBUTES = ['title', 'tooltip', 'icon', 'indicator-icon', 'loading', 'needs-attention', 'pinned'];
 
+/** `SPACING`: the slack `scroll_to_tab_full` allows before it scrolls (adw-tab-box.c:24). */
+const TAB_SPACING = 5;
+
 /**
  * A single page. Declared as a child of <adw-tab-view>; the element itself becomes the
  * page panel, so its attributes keep driving the tab after connect — a renderer that
@@ -582,6 +585,20 @@ export class AdwTabView extends HTMLElement {
     }
 
     /**
+     * `get_tab_position` in the BAR's scroll space: how far the chip sits from the
+     * strip's scroll origin, the one coordinate both `scroll_to_tab_full` and
+     * `update_visible` compare against the adjustment.
+     *
+     * Never `offsetLeft`. Nothing in this widget is positioned, so a chip's offsetParent
+     * is whichever positioned ancestor the HOST page happens to have; a tab view that
+     * merely sits indented then measured every chip against the wrong origin and
+     * reported all of them clipped.
+     */
+    private _tabPosition(tab: HTMLElement): number {
+        return tab.getBoundingClientRect().left - this._barEl.getBoundingClientRect().left + this._barEl.scrollLeft;
+    }
+
+    /**
      * `tabCloseVisible`, with its pinned gate. `dragging` is constantly false — tab
      * drag-and-drop is compositor work and is not modelled — and `fullyVisible` is
      * measured against the bar's scroll window, which is what the C term means for a
@@ -595,8 +612,14 @@ export class AdwTabView extends HTMLElement {
         if (!close) return;
 
         const barLeft = this._barEl.scrollLeft;
-        const fullyVisible =
-            tab.offsetLeft >= barLeft && tab.offsetLeft + tab.offsetWidth <= barLeft + this._barEl.clientWidth;
+        const pos = this._tabPosition(tab);
+        // `update_visible` (adw-tab-box.c:769-797). C also demands SPACING of slack on
+        // both sides; that term is deliberately NOT transplanted, because it is not
+        // slack there either: the allocation loop starts the first tab at `pos = SPACING`
+        // and puts SPACING between tabs (:3270-3286), so `pos - SPACING >= value` is
+        // exactly "flush against the leading edge". This strip has no such gaps, so the
+        // same term would report the first chip clipped and hide its close button.
+        const fullyVisible = pos >= barLeft && pos + tab.offsetWidth <= barLeft + this._barEl.clientWidth;
         close.hidden = !tabCloseVisible({
             hovering: this._hovered.has(id),
             fullyVisible,
@@ -608,6 +631,7 @@ export class AdwTabView extends HTMLElement {
 
     private _onSelectionChange(change: TabViewSelectionChange): void {
         this._applyActiveState();
+        this._scrollSelectedTabIntoBar();
         this._reflectSelected();
         this.dispatchEvent(
             new CustomEvent('notify::selected-page', {
@@ -639,6 +663,34 @@ export class AdwTabView extends HTMLElement {
             }
             this._refreshCloseVisibility(page.id);
         }
+    }
+
+    /**
+     * `scroll_to_tab_full` (adw-tab-box.c:928-961), called on every selection the way
+     * `select_page` calls it (:1728): bring the selected chip inside the BAR's own
+     * scroll window, padded by half of whichever is smaller, the chip or the leftover.
+     *
+     * The bar is the only thing C ever scrolls for a tab: `scroll_to_tab_full` writes
+     * `self->adjustment`, the strip's own adjustment, and nothing else. The DOM has no
+     * such narrow API: `focus()` and `scrollIntoView()` both walk EVERY scrollable
+     * ancestor up to the window. So this moves `scrollLeft` by hand, and the focus call
+     * below passes `preventScroll`.
+     */
+    private _scrollSelectedTabIntoBar(): void {
+        const id = this._state.selectedId;
+        const tab = id === null ? undefined : this._tabs.get(id);
+        if (!tab) return;
+        const pageSize = this._barEl.clientWidth;
+        const width = tab.offsetWidth;
+        // Unmeasured (detached, or still inside connectedCallback): nothing to scroll to.
+        if (pageSize <= 0 || width <= 0) return;
+
+        const value = this._barEl.scrollLeft;
+        const pos = this._tabPosition(tab);
+        const padding = Math.min(width, pageSize - width) / 2;
+        if (pos - TAB_SPACING < value) this._barEl.scrollLeft = pos - padding;
+        else if (pos + width + TAB_SPACING > value + pageSize)
+            this._barEl.scrollLeft = pos + width + padding - pageSize;
     }
 
     private _applyBarVisibility(): void {
@@ -710,9 +762,17 @@ export class AdwTabView extends HTMLElement {
         event.preventDefault();
         // Roving tabindex: the newly-active tab is the only focusable one, so
         // focus has to travel with it or the next keypress goes nowhere.
+        //
+        // `preventScroll` because a bare `focus()` scrolls every scrollable ancestor
+        // up to and including the WINDOW, while C only ever moves the tab strip
+        // (`scroll_to_tab_full` writes `self->adjustment`, adw-tab-box.c:928-961).
+        // Measured in a long documentation page: one ArrowRight took the window from
+        // y=1800 to y=8367, i.e. switching a tab yanked the whole document to the widget.
+        // `_scrollSelectedTabIntoBar` (already run by the selection change) is the
+        // strip-local scroll that is supposed to happen instead.
         if (inBar) {
             const id = this._state.selectedId;
-            if (id !== null) this._tabs.get(id)?.focus();
+            if (id !== null) this._tabs.get(id)?.focus({ preventScroll: true });
         }
     }
 

@@ -1,6 +1,10 @@
 // Chrome styles, shipped as a string and injected once on mount (as adwaita-web's own
 // stylesheet and the native renderer's STORYBOOK_CSS are). Driven entirely by the
 // adwaita-web CSS custom properties, so it follows the active light/dark theme.
+//
+// The whole sheet below is ONE template literal, so a backtick anywhere in it (a CSS
+// comment quoting a selector, say) ends the string and the bundler reports a syntax
+// error somewhere else entirely. Quote selectors with plain text.
 
 export const STORYBOOK_WEB_CSS = `
 /* Appearance dialog — round swatches with a selection ring. The web twin of the GTK
@@ -110,17 +114,26 @@ export const STORYBOOK_WEB_CSS = `
 /* Background scheme: the content header + preview + controls all sit on the
    window (story) background as one surface; only the left story-list column
    (its header + list) keeps the distinct sidebar shade. Matches the native
-   renderer. The default adw-header-bar background is its own headerbar shade,
-   so override it per pane here. */
-.sb-content-pane adw-header-bar {
+   renderer.
+
+   On the PANE, not on the header bar. A header bar inside a toolbar view is flat
+   — no background of its own — so it shows whatever surface it sits on, exactly
+   as native does; painting the bar instead means colouring one strip and hoping
+   it matches the pane under it, which is how the two panes' bars ended up looking
+   like separate widgets rather than the top of their column. */
+.sb-content-pane {
     background-color: var(--window-bg-color);
 }
-.sb-sidebar-pane adw-header-bar {
+.sb-sidebar-pane {
     background-color: var(--sidebar-bg-color);
 }
 
+/* No flex-grow here any more. This is the toolbar view's content widget, and filling
+   the rect between the bars is the TOOLBAR VIEW's job: see the only-child rule in
+   adwaita-web's _toolbar_view.scss, which is adw_toolbar_view_size_allocate handing
+   self->content the whole rect. The copy that used to sit here kept this one consumer
+   upright while every other one still ended at its last row. */
 .sb-sidebar-scroll {
-    flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
     background-color: var(--sidebar-bg-color);

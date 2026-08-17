@@ -1,66 +1,84 @@
 ---
 title: "Jelly Jumper (Excalibur)"
-description: Excalibur.js 0.32 platformer with Tiled tilemaps — runs on GJS through @gjsify/webgl + @gjsify/xmlhttprequest + @gjsify/domparser without an Excalibur.js fork.
+description: A 2D platformer built on the unmodified Excalibur.js engine, running in a GTK 4 window on GJS, Node, Bun and Deno, and in the browser.
 ---
 
 import ShowcaseEmbed from '../../../components/ShowcaseEmbed.astro';
 
-A small 2D platformer built with the unmodified [Excalibur.js](https://excaliburjs.com/) game engine and [Tiled](https://www.mapeditor.org/) tilemaps. The same `npm` package runs in the browser and on GJS — Excalibur reaches for `<canvas>`, `WebGL`, `XMLHttpRequest`, `DOMParser`, `ResizeObserver`, and `requestAnimationFrame`, and every one of those calls is served by the corresponding `@gjsify/*` package on GJS.
+A 2D platformer built with [Excalibur.js](https://excaliburjs.com/) 0.32 and [Tiled](https://www.mapeditor.org/) tilemaps. The engine comes straight from npm with no fork and no patch.
+
+That is the thing to take away: a game engine written for the browser, reaching for WebGL2, `<canvas>`, `XMLHttpRequest`, `DOMParser`, `ResizeObserver`, `requestAnimationFrame` and WebAudio, runs inside a native Adwaita window. If gjsify can carry Excalibur, it can carry the npm library you had in mind.
+
+Based on [sample-jelly-jumper](https://github.com/excaliburjs/sample-jelly-jumper) by the Excalibur team.
 
 ## Live demo
 
 <ShowcaseEmbed name="excalibur-jelly-jumper" />
 
-## What it exercises
+## Run it
 
-| Pillar | What Excalibur needs |
-|---|---|
-| [`@gjsify/webgl`](https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl) | `WebGLBridge` → `Gtk.GLArea` (Excalibur's WebGL renderer) |
-| [`@gjsify/dom-elements`](https://github.com/gjsify/gjsify/tree/main/packages/dom/dom-elements) | `HTMLCanvasElement`, `ResizeObserver` (the ancestor-walking one — see [Bridges](../../patterns/bridges/#resizeobserver-wires-through-bridges)) |
-| [`@gjsify/xmlhttprequest`](https://github.com/gjsify/gjsify/tree/main/packages/web/xmlhttprequest) | Excalibur's asset loader (`responseType: 'arraybuffer'` + `'blob'`) |
-| [`@gjsify/domparser`](https://github.com/gjsify/gjsify/tree/main/packages/web/domparser) | excalibur-tiled parses the `.tmx` XML map files |
-| [`@gjsify/event-bridge`](https://github.com/gjsify/gjsify/tree/main/packages/framework/event-bridge) | Keyboard input (jump / move / restart) |
-| [`@gjsify/webaudio`](https://github.com/gjsify/gjsify/tree/main/packages/web/webaudio) | Sound effects via Excalibur's WebAudio backend (GStreamer pipeline on GJS) |
-
-This is the showcase that surfaced the [ResizeObserver-on-bridge](../../patterns/bridges/#resizeobserver-wires-through-bridges) bug in v0.4.20 — `DisplayMode.FillContainer` mode observes `canvas.parentElement`, which only fires when the bridge's GTK resize signal walks the polyfill DOM tree's ancestors. The fix lives in [`@gjsify/dom-elements`'s notify-resize](https://github.com/gjsify/gjsify/blob/main/packages/dom/dom-elements/src/notify-resize.ts) and is what makes this showcase reflow correctly on window resize.
-
-## Run it on GJS
+This showcase declares all four runtimes, so pick the one you already have:
 
 ```bash
-gjsify showcase excalibur-jelly-jumper
-```
-
-Opens a GTK4 window with the GLArea-backed canvas filling it. Arrow keys move, space jumps, R restarts. The Excalibur engine ticks at the GTK frame clock's vsync.
-
-## Run it on Node.js
-
-This showcase also declares `node` in `package.json#gjsify.example.runtimes` (`["gjs", "node"]`), so the full Excalibur.js game — WebGL rendering, tilemap loading, input, WebAudio — renders through the [`@gjsify/node-gi`](/gjsify/projects/node-gi/) reverse bridge, no Excalibur fork needed there either:
-
-```bash
+gjsify showcase excalibur-jelly-jumper --runtime gjs
 gjsify showcase excalibur-jelly-jumper --runtime node
+gjsify showcase excalibur-jelly-jumper --runtime bun
+gjsify showcase excalibur-jelly-jumper --runtime deno
 ```
 
-Bun and Deno are not declared for this showcase yet — [`canvas2d-fireworks`](../canvas2d-fireworks/) is the one verified on all four runtimes.
+A GTK 4 window opens with the game filling it and pause and mute buttons in the header bar. Same window and same game on all four.
+
+| Action | Keyboard | Gamepad |
+|---|---|---|
+| Move | Arrow keys | D-pad |
+| Jump | `A` | Face button 1 (A on an Xbox pad) |
+| Run | `S` | Face button 3 (X on an Xbox pad) |
+| Performance overlay | `F1` | |
+
+The engine renders through WebGL2 on `Gtk.GLArea`. If no GL2 context is available it falls back to Canvas 2D over Cairo, the same fallback the browser build takes.
+
+Under `gjs` the game runs the `--app gjs` bundle against GJS's native `gi://`. Under `node`, `bun` and `deno` it runs one shared `--app node` bundle, where `gi://` goes through the [node-gi](/gjsify/projects/node-gi/) bridge. [Choose the runtime](/gjsify/showcases/#choose-the-runtime) covers what the CLI does when you leave the flag off.
 
 ## Run it in the browser
 
 ```ts
 import { mount } from '@gjsify/example-dom-excalibur-jelly-jumper/browser';
-mount(document.getElementById('app')!);
+
+const handle = mount(document.getElementById('app')!, {
+  assetBase: '/demos/jelly-jumper/',   // where the tilemaps and spritesheets live
+  startMuted: true,
+});
+
+handle.unmute();
+handle.pause();
 ```
 
-The asset loader fetches tilemaps + spritesheets from `@gjsify/example-dom-excalibur-jelly-jumper/assets/*` (resolved via `require.resolve` in both targets — the browser bundles them via the website's Vite config).
+`assetBase` is what makes one resource table serve both targets: the game's `/res/...` paths are rewritten against it at load time. The handle also exposes `resume()`, `mute()`, `isPaused` and `isMuted`.
 
-## Source
+Tilemaps and spritesheets ship with the package under `@gjsify/example-dom-excalibur-jelly-jumper/assets/*`.
 
-[`showcases/dom/excalibur-jelly-jumper/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/excalibur-jelly-jumper) — entry points: `src/gjs/gjs.ts` (Adw.Application + `JellyJumperWindow`), `src/browser/browser.ts` (mount module — Adwaita-styled shell + `startGame(canvas)`), `src/browser/browser-main.ts` (standalone fullscreen browser entry). Shared scene/actor code lives at the top level — `src/game.ts`, `src/resources.ts`, `src/scenes/`, `src/actors/`, `src/components/`, `src/physics/`, `src/state/`, `src/ui/` — and runs unchanged in both targets.
+## What it uses
 
-## Why this showcase is load-bearing
+| Package | What Excalibur needs it for |
+|---|---|
+| [`@gjsify/webgl`](https://github.com/gjsify/gjsify/tree/main/packages/framework/webgl) | `WebGLBridge` on `Gtk.GLArea`, Excalibur's WebGL2 renderer |
+| [`@gjsify/canvas2d`](https://github.com/gjsify/gjsify/tree/main/packages/framework/canvas2d) | The Cairo fallback renderer when GL2 is unavailable |
+| [`@gjsify/dom-elements`](https://github.com/gjsify/gjsify/tree/main/packages/dom/dom-elements) | `HTMLCanvasElement` and the `ResizeObserver` that `DisplayMode.FitContainerAndFill` watches |
+| [`@gjsify/xmlhttprequest`](https://github.com/gjsify/gjsify/tree/main/packages/web/xmlhttprequest) and [`@gjsify/fetch`](https://github.com/gjsify/gjsify/tree/main/packages/web/fetch) | The asset loader, including `arraybuffer` and `blob` responses |
+| [`@gjsify/domparser`](https://github.com/gjsify/gjsify/tree/main/packages/web/domparser) | `@excaliburjs/plugin-tiled` parsing `.tmx` map files |
+| [`@gjsify/event-bridge`](https://github.com/gjsify/gjsify/tree/main/packages/framework/event-bridge) | Keyboard and gamepad input |
+| [`@gjsify/webaudio`](https://github.com/gjsify/gjsify/tree/main/packages/web/webaudio) | Sound effects, played through GStreamer in the GTK build |
 
-Excalibur is the canonical real-world consumer of the full WebGL + Canvas + WebAudio + XHR + DOMParser stack. Every time we promote a `@gjsify/*` package from Partial → Full, this showcase is one of the first regression checks — if Excalibur's "FillContainer" mode reflows correctly, if its asset loader resolves binary blobs without truncation, if its WebAudio mixer plays a multi-channel sound effect without artifacts, then the GJSify port of the underlying API is genuinely production-grade.
+## Copy the structure
+
+[`showcases/dom/excalibur-jelly-jumper/`](https://github.com/gjsify/gjsify/tree/main/showcases/dom/excalibur-jelly-jumper)
+
+Every target enters the same `startGame(canvas, options)` in `src/game.ts`. The scenes, actors, physics, components, state and UI all sit at the top level of `src/` and never mention a platform. Only the shell differs: `src/gjs/gjs.ts` builds the `Adw.Application` and its window, `src/browser/browser.ts` exports `mount()`, and `src/browser/browser-main.ts` runs it full-page.
+
+Per-target tuning goes through options on that one function (`pixelRatio`, `fixedUpdateFps`, `enablePerf`) rather than through forked code.
 
 ## Related
 
-- [`refs/excalibur/`](https://github.com/gjsify/gjsify/tree/main/refs/excalibur) — Excalibur source, used for gap analysis against the bundled showcase.
-- [Bridge widgets pattern](../../patterns/bridges/) — covers the WebGLBridge lifecycle that this showcase uses.
-- [`pixel-rpg/map-editor`](https://github.com/PixelRPG/map-editor) — companion downstream project that built atop the same Excalibur + Tiled stack.
+- [Bridge widgets](/gjsify/patterns/bridges/) covers the `WebGLBridge` lifecycle this game sits on, including how resizes reach a `ResizeObserver`.
+- [`canvas2d-fireworks`](../canvas2d-fireworks/) is the smaller demo on the same bridges.
+- [`pixel-rpg/map-editor`](https://github.com/PixelRPG/map-editor) is a downstream project built on the same Excalibur and Tiled stack.

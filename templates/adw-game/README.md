@@ -17,22 +17,50 @@ engine the build needs when it runs under GJS — is listed explicitly in
 ## Commands
 
 ```bash
-npm run dev       # build + run
-npm run build     # bundle for GJS  → dist/index.gjs.js
-npm start         # run the built bundle on GJS
-npm run check     # type-check
-npm run clear     # remove build output
+npm run dev            # build for GJS + run
+npm run build          # bundle for every runtime (dist/index.gjs.js + dist/index.node.mjs)
+npm start              # run on GJS
+npm run start:node     # run on Node.js
+npm run start:bun      # run on Bun
+npm run start:deno     # run on Deno
+npm run check          # type-check
+npm run clear          # remove build output
 ```
 
 ## Runtimes
 
-This template targets **GJS**. It drives GTK/libadwaita through `gi://`, so GJS
-is where it belongs — `package.json` declares that as
-`gjsify.example.runtimes: ["gjs"]`, and the build passes `--app gjs` explicitly
-so the target does not silently follow whichever runtime happens to invoke it.
+This template runs on **GJS, Node.js, Bun and Deno**, declared in `package.json`
+as `gjsify.example.runtimes`. Two bundles cover all four: `--app gjs` produces
+`dist/index.gjs.js`, and `--app node` produces `dist/index.node.mjs`, which
+Node, Bun and Deno all consume (Node-API is their common ABI). The GTK and
+libadwaita widgets are the same on every one — off GJS they come through
+`@gjsify/node-gi`, which is why it is a runtime dependency rather than a
+build-time one.
 
-gjsify itself also targets Node.js, Bun and Deno; the `cli`, `web-server-hono`
-and `web-server-express` templates are the ones that ship bundles for all four.
+The build names its target explicitly. Without `--app`, `gjsify build` follows
+the runtime that happens to be invoking it, so the same `npm run build` would
+produce a different artifact on a contributor's machine than in CI.
+
+`src/index.ts` awaits `app.runAsync()` rather than calling the blocking
+`app.run()`. Excalibur boots through promises, and `runAsync` defers the main
+loop by one macrotask so that work settles first. The blocking call still boots
+the starter game on all four runtimes; `runAsync` is what a game that loads
+resources before its first frame needs.
+
+### The `--globals` list
+
+Both builds inject the same set, so a global cannot be present on one runtime
+and missing on the other:
+
+- `auto,dom` — what the detector finds plus the DOM group Excalibur draws into
+  (`document`, `HTMLCanvasElement`, `Image`, `ResizeObserver`, …).
+- `XMLHttpRequest`, `ProgressEvent` — Excalibur's resource loader is XHR-based,
+  and the XHR implementation reports progress by constructing `ProgressEvent`.
+  Not detectable statically: `auto,dom` alone builds fine and then fails at
+  `engine.start()` with `XMLHttpRequest is not defined`.
+- `PointerEvent`, `MouseEvent`, `KeyboardEvent`, `WheelEvent` — Excalibur
+  constructs all four when it synthesises input events. Nothing in the starter
+  game reads input, so the failure would first appear in *your* code.
 
 ## Operating systems
 

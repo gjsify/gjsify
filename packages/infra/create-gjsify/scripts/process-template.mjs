@@ -80,6 +80,30 @@ function resolveWorkspaceDeps(deps, versionMap, templateName) {
                     return [name, spec.replace(/^workspace:/, '')];
                 }
             }
+            // `file:` gets the SAME treatment as `workspace:`: both are
+            // checkout-relative and mean nothing in a scaffolded project. It is not
+            // interchangeable at the source — `@gjsify/node-gi` is deliberately not a
+            // workspace member, so templates spell that edge the way showcases do.
+            // Left unrewritten, `npm create @gjsify/app` produced a project whose
+            // very first `npm install` died on a path outside it.
+            if (typeof spec === 'string' && spec.startsWith('file:')) {
+                const depDir = join(templatesSrcRoot, templateName, spec.slice('file:'.length));
+                const depPkgPath = join(depDir, 'package.json');
+                if (!existsSync(depPkgPath)) {
+                    throw new Error(
+                        `process-template: "${name}" in template "${templateName}" points at ${spec}, ` +
+                            `which has no package.json (looked in ${depDir}).`,
+                    );
+                }
+                const { version } = JSON.parse(readFileSync(depPkgPath, 'utf8'));
+                if (typeof version !== 'string') {
+                    throw new Error(
+                        `process-template: "${name}" in template "${templateName}" points at ${spec}, ` +
+                            `whose package.json declares no version — nothing to publish a range against.`,
+                    );
+                }
+                return [name, `^${version}`];
+            }
             return [name, spec];
         }),
     );

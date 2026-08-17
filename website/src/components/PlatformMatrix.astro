@@ -1,0 +1,313 @@
+---
+// The per-package platform matrix, rendered as an Adwaita data grid.
+//
+// It was a bare `<table>` with eight `<os>-<arch>` columns, and it was the least
+// readable thing on the site: the header cells wrapped mid-identifier
+// ("darwin- arm64"), package names wrapped three ways ("@gjsify/ http-soup-
+// bridge"), the table ran off the right edge with nothing pinned, and the legend
+// was one long run-on line of marks.
+//
+// Three changes carry the readability, and each is a fact about the data rather
+// than decoration:
+//
+//   1. The columns are GROUPED BY OS. Every column is `<os>-<arch>`, so darwin
+//      and linux each get one header spanning their architectures. That alone
+//      removes most of the width, because "darwin" is written once instead of
+//      twice and "linux" once instead of five times.
+//   2. The package column is STICKY. The grid still scrolls sideways on a narrow
+//      screen, and a mark is meaningless without the row it belongs to.
+//   3. Each mark becomes a coloured pip carrying its legend text as a `title`
+//      and as screen-reader text, so the reader does not have to hold six
+//      symbols in their head while scanning.
+//
+// The DATA is untouched and still comes from `src/data/platform-matrix.ts`,
+// which the build regenerates from the same rule the CI gate runs. The old
+// comment on the page warned that a hand-pasted copy had drifted twice and once
+// showed `@gjsify/webgl` as unsupported on win32-x64, the one cell a Windows
+// reader comes here to check. That warning still applies: this component
+// re-presents the generated data and never restates it.
+import { platformColumns, platformLegend, platformMatrix } from '../data/platform-matrix';
+
+/** `linux-x64` → `{ os: 'linux', arch: 'x64' }`, the spelling a process computes about itself. */
+function split(column: string): { os: string; arch: string } {
+  const at = column.indexOf('-');
+  return { os: column.slice(0, at), arch: column.slice(at + 1) };
+}
+
+// Column order is preserved exactly as generated; this only records where each
+// OS run starts and how long it is, so the header can span it.
+const groups: { os: string; columns: string[] }[] = [];
+for (const column of platformColumns) {
+  const { os } = split(column);
+  const last = groups.at(-1);
+  if (last && last.os === os) last.columns.push(column);
+  else groups.push({ os, columns: [column] });
+}
+
+/** Mark → the modifier that colours its pip. Unlisted marks fall back to neutral. */
+const TONE: Record<string, string> = {
+  '✓': 'ok',
+  '○': 'partial',
+  '⚠': 'warn',
+  '!': 'warn',
+  '?': 'unknown',
+  '·': 'none',
+};
+
+const meaningOf = new Map(platformLegend.map((entry) => [entry.mark, entry.meaning]));
+---
+
+<div class="platform-matrix not-content">
+  <div class="platform-matrix-scroll">
+    <table class="platform-matrix-grid">
+      <thead>
+        <tr>
+          <th class="platform-matrix-pkg" rowspan="2" scope="col">Package</th>
+          <th class="platform-matrix-tier" rowspan="2" scope="col">Tier</th>
+          {
+            groups.map((group) => (
+              <th class="platform-matrix-os" colspan={group.columns.length} scope="colgroup">
+                {group.os}
+              </th>
+            ))
+          }
+        </tr>
+        <tr>
+          {
+            platformColumns.map((column) => (
+              <th class="platform-matrix-arch" scope="col">
+                {split(column).arch}
+              </th>
+            ))
+          }
+        </tr>
+      </thead>
+      <tbody>
+        {
+          platformMatrix.map((row) => (
+            <tr>
+              <th class="platform-matrix-pkg" scope="row">
+                <code>{row.name}</code>
+              </th>
+              <td class="platform-matrix-tier">{row.tier ?? '·'}</td>
+              {platformColumns.map((column) => {
+                const mark = row.cells[column];
+                const meaning = meaningOf.get(mark) ?? 'unsupported';
+                return (
+                  <td class="platform-matrix-cell">
+                    <span
+                      class:list={['platform-pip', `is-${TONE[mark] ?? 'unknown'}`]}
+                      title={`${row.name} on ${column}: ${meaning}`}
+                    >
+                      <span aria-hidden="true">{mark}</span>
+                      <span class="platform-matrix-sr">{`${column}: ${meaning}`}</span>
+                    </span>
+                  </td>
+                );
+              })}
+            </tr>
+          ))
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <ul class="platform-matrix-legend">
+    {
+      platformLegend.map((entry) => (
+        <li>
+          <span class:list={['platform-pip', `is-${TONE[entry.mark] ?? 'unknown'}`]} aria-hidden="true">
+            <span>{entry.mark}</span>
+          </span>
+          {entry.meaning}
+        </li>
+      ))
+    }
+  </ul>
+</div>
+
+<style is:global>
+  /* Global rather than scoped for the reason the other components state: Astro's
+     scoped rules compile to `:where()`, which Starlight's markdown styles then
+     win against. */
+  .platform-matrix {
+    margin-top: 1.5rem;
+    border-radius: var(--adw-card-radius, 12px);
+    border: 1px solid var(--adw-card-border, var(--sl-color-gray-5));
+    background: var(--adw-view-bg, var(--sl-color-black));
+    overflow: hidden;
+  }
+
+  /* The scroll container, so the sideways scroll belongs to the grid and never
+     to the page. */
+  .platform-matrix-scroll {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+
+  .platform-matrix-grid {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0;
+    font-size: 0.85rem;
+  }
+
+  .platform-matrix-grid th,
+  .platform-matrix-grid td {
+    border: none;
+    padding: 0.4rem 0.6rem;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .platform-matrix-grid thead th {
+    background: var(--adw-headerbar-bg, var(--sl-color-gray-6));
+    color: var(--sl-color-white);
+    font-weight: 700;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+  }
+
+  .platform-matrix-os {
+    font-family: var(--sl-font-system-mono, monospace);
+    letter-spacing: 0.02em;
+    border-inline: 1px solid var(--adw-card-border, var(--sl-color-gray-5)) !important;
+  }
+
+  .platform-matrix-arch {
+    font-family: var(--sl-font-system-mono, monospace);
+    font-weight: 500 !important;
+    opacity: 0.85;
+    font-size: 0.92em;
+  }
+
+  /* The row label stays put while the architectures scroll past it: a mark with
+     no package name beside it says nothing. */
+  .platform-matrix-pkg {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    text-align: left !important;
+    background: var(--adw-view-bg, var(--sl-color-black));
+    box-shadow: inset -1px 0 var(--adw-card-border, var(--sl-color-gray-5));
+    font-weight: 400 !important;
+  }
+
+  .platform-matrix-grid thead .platform-matrix-pkg {
+    background: var(--adw-headerbar-bg, var(--sl-color-gray-6));
+    z-index: 4;
+  }
+
+  .platform-matrix-pkg code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.95em;
+    white-space: nowrap;
+  }
+
+  .platform-matrix-tier {
+    opacity: 0.7;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .platform-matrix-grid tbody tr:nth-child(odd) td,
+  .platform-matrix-grid tbody tr:nth-child(odd) .platform-matrix-pkg {
+    background: color-mix(in srgb, currentColor 3%, transparent);
+  }
+
+  .platform-matrix-grid tbody tr:hover td,
+  .platform-matrix-grid tbody tr:hover .platform-matrix-pkg {
+    background: color-mix(in srgb, var(--adw-accent, #3584e4) 10%, transparent);
+  }
+
+  /* Its own visually-hidden class rather than Starlight's `.sr-only`: the
+     component has to carry its rules with it, and borrowing a utility from the
+     host theme means the text is simply VISIBLE anywhere that theme is not
+     loaded. Measured on a bare preview route, where every cell's caption printed
+     across the grid. */
+  .platform-matrix-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* --- The marks --- */
+  .platform-pip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.55em;
+    height: 1.55em;
+    border-radius: 50%;
+    font-size: 0.9em;
+    line-height: 1;
+    cursor: default;
+  }
+
+  .platform-pip.is-ok {
+    background: color-mix(in srgb, var(--success-bg-color, #2ec27e) 22%, transparent);
+    color: var(--success-bg-color, #2ec27e);
+  }
+
+  .platform-pip.is-partial {
+    background: color-mix(in srgb, var(--adw-accent, #3584e4) 22%, transparent);
+    color: var(--adw-accent, #3584e4);
+  }
+
+  .platform-pip.is-warn {
+    background: color-mix(in srgb, var(--warning-bg-color, #e5a50a) 24%, transparent);
+    color: var(--warning-bg-color, #e5a50a);
+  }
+
+  .platform-pip.is-unknown {
+    background: color-mix(in srgb, currentColor 12%, transparent);
+    opacity: 0.85;
+  }
+
+  /* Deliberately the quietest of the six: "unsupported" is the answer that should
+     read as absence rather than as a state worth looking at. */
+  .platform-pip.is-none {
+    background: none;
+    opacity: 0.35;
+  }
+
+  /* --- Legend --- */
+  .platform-matrix-legend {
+    list-style: none;
+    margin: 0;
+    padding: 0.7rem 0.9rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+    gap: 0.35rem 1.2rem;
+    border-top: 1px solid var(--adw-card-border, var(--sl-color-gray-5));
+    background: var(--adw-window-bg, var(--sl-color-gray-6));
+    font-size: 0.82rem;
+  }
+
+  .platform-matrix-legend li {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0;
+    color: var(--sl-color-gray-2);
+  }
+
+  @media (max-width: 640px) {
+    .platform-matrix-grid {
+      font-size: 0.78rem;
+    }
+
+    .platform-matrix-grid th,
+    .platform-matrix-grid td {
+      padding: 0.32rem 0.45rem;
+    }
+  }
+</style>

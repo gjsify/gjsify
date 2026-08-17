@@ -1,0 +1,137 @@
+---
+title: Ship your app
+description: Turn a built GJS app into something other people can install. One command gives you a .deb and an .rpm; this page also points at Flatpak, the one-line installer, self-executing bundles and dlx.
+---
+
+import CommandTabs from '../../../components/CommandTabs.astro';
+
+Your app runs on your machine. This section is about getting it onto someone
+else's.
+
+The shortest path is `gjsify ship`. Run it in your project and you get a `.deb`
+and an `.rpm`, ready to hand to a Linux user:
+
+<CommandTabs title="Ship it">
+  <Fragment slot="gjsify">
+    ```bash
+    gjsify ship
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    npx @gjsify/cli ship
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    bunx @gjsify/cli ship
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno run -A npm:@gjsify/cli ship
+    ```
+  </Fragment>
+</CommandTabs>
+
+That runs your project's `build` script, collects everything the app needs into
+one payload, and wraps that payload once per format. There is no manifest to
+write, no meson, and no packaging file to keep in your repo.
+
+## What comes out
+
+```
+ship/
+├── stage/              the payload: bin/, lib/<name>/, share/
+├── overlay/<format>/   what one format wants elsewhere (today: the licence)
+└── out/
+    ├── my-app_1.2.3-1_all.deb
+    └── my-app-1.2.3-1.noarch.rpm
+```
+
+The payload in `ship/stage/` is built once, and both packers read it back off
+disk. Whatever you find in there is what a user gets, so it is worth a look
+before you publish anything.
+
+## Give it to someone
+
+<CommandTabs title="Install the artifact" group="distro">
+  <Fragment slot="fedora">
+    ```bash
+    sudo dnf install ./ship/out/my-app-1.2.3-1.noarch.rpm
+    ```
+  </Fragment>
+  <Fragment slot="debian">
+    ```bash
+    sudo apt install ./ship/out/my-app_1.2.3-1_all.deb
+    ```
+  </Fragment>
+</CommandTabs>
+
+The app lands in `/usr/bin/my-app`, its desktop entry and icon show up in the
+menu, and `dnf remove` / `apt remove` takes it all away again. Nothing about
+GJSify needs to be on that machine: the package depends on the distribution's
+own `gjs`, GTK and typelib packages, and `gjsify ship` works out which ones by
+reading your built bundle.
+
+Full walkthrough, including every flag and what to do when the build refuses:
+[deb & rpm packages](/gjsify/ship/linux-packages/).
+
+## Pick your distribution channel
+
+`gjsify ship` is one option of several, and they answer different questions.
+They also stack: the same built bundle feeds all of them.
+
+| You want | Reach for | Guide |
+|---|---|---|
+| A file a Linux user installs with their own package manager | `gjsify ship` | [deb & rpm packages](/gjsify/ship/linux-packages/) |
+| A GUI app on Flathub, sandboxed, with a pinned GTK on every distro | `gjsify flatpak init` | [Flatpak: GUI app](/gjsify/guides/flatpak-app/) |
+| The same for a headless command-line tool | `gjsify flatpak init --kind cli` | [Flatpak: CLI tool](/gjsify/guides/flatpak-cli-tool/) |
+| A `curl … \| gjs` one-liner that installs into `~/.local`, no root | `gjsify generate-installer` | [One-line installer](/gjsify/guides/distributing-gjs-apps/) |
+| A single executable file people download, `chmod +x` and run | `gjsify build --shebang` | [Self-executing bundle](/gjsify/guides/self-executing-package/) |
+| No installation at all, run it straight from npm | publish a `dlx`-friendly package | [Run via dlx](/gjsify/guides/dlx-packaging/) |
+
+A rough rule of thumb. Choose **Flatpak** when you want a store listing and a
+GTK version you control. Choose **`gjsify ship`** when you want a user to type
+`dnf install` once and forget about it. Choose the **one-line installer** while
+you are still iterating quickly and your users are early adopters. Choose
+**dlx** for a tool nobody wants permanently installed.
+
+**Looking for an AppImage?** There isn't one, and the nearest thing that exists
+today is a single-file Flatpak bundle: one file, no repository, works offline.
+
+```bash
+gjsify flatpak build --repo=/tmp/repo --bundle=my-app.flatpak
+flatpak install my-app.flatpak
+```
+
+One thing to weigh before you promise a `.deb`: the dependency `gjsify ship`
+emits is `gjs (>= 1.86)`, and no released Debian satisfies that yet. Debian went
+from 1.82.3 in trixie straight to 1.88.1 in forky, skipping 1.84 and 1.86. Your
+package installs on forky, on sid, on Fedora and on anything else with a current
+GJS; on trixie apt will refuse it. `gjsify ship` prints this at package time, and
+[Choose the GJS floor](/gjsify/ship/linux-packages/#choose-the-gjs-floor) covers
+your options.
+
+## What ship covers today
+
+Linux, and apps built for the `gjs` target. The build target is enforced: a
+project declaring anything other than `gjsify.app: "gjs"` is refused with a
+message saying so, instead of producing a package that installs and then fails
+to start. The Linux half is not enforced, only true. Both packers are plain
+JavaScript with no `dpkg-deb` or `rpmbuild` behind them, so the command runs
+anywhere; what you get on a Mac is a Linux package built on a Mac.
+
+macOS bundles, Windows installers, and Flatpak as a target of this command are
+planned but not here yet. Use `gjsify flatpak` for Flatpak in the meantime, and
+see [Platform Support](/gjsify/platform-support/) for where gjsify apps run at
+all.
+
+## Next
+
+- [deb & rpm packages](/gjsify/ship/linux-packages/) walks through the
+  prerequisites, every flag, the staged tree and the configuration block.
+- [CLI Reference → `gjsify ship`](/gjsify/cli-reference/#gjsify-ship) is the
+  terse version of the same material.
+- [How It Works](/gjsify/how-it-works/) explains what a `gjsify build` bundle
+  contains, which is what ends up inside the package.

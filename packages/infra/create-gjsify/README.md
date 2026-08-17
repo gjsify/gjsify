@@ -16,36 +16,61 @@ yarn create @gjsify/app my-app
 pnpm create @gjsify/app my-app
 ```
 
+On a terminal it asks three questions in order — template, runtime, package
+manager — each narrowing the next. Every question can be answered by a flag
+instead, which is also how it is driven without a TTY.
+
 ### Options
 
 | | |
 |---|---|
 | `-t, --template <name>` | Template to scaffold from. Required when stdin is not a TTY; otherwise prompted for. |
+| `-r, --runtime <rt>` | Runtime to set the project up for — one of the runtimes the chosen template declares. Decides which package managers are offered and which start script the next steps name. |
 | `-f, --force` | Scaffold into a non-empty directory. |
 | `--install` | Install dependencies after scaffolding. |
-| `-p, --package-manager <pm>` | `npm` (default), `yarn`, `pnpm` or `gjsify`. Used for `--install` and for the commands printed in the next steps. |
+| `-p, --package-manager <pm>` | Must be one the chosen runtime can install for (see below). Used for `--install` and for the commands printed in the next steps. |
 
-`gjsify` is gjsify's own installer and the only one of the four that works on a
-host with no Node.js at all.
+### Runtime → package manager
+
+An installer has to produce the module layout its runtime resolves against, so
+the runtime decides which managers are on offer:
+
+| Runtime | Package managers |
+|---|---|
+| `gjs` | `gjsify` |
+| `node` | `npm`, `yarn`, `pnpm`, `gjsify` |
+| `bun` | `bun` |
+| `deno` | `deno` |
+
+Where a runtime offers exactly one, nothing is asked — it is used and named.
+`gjsify` is gjsify's own installer and the only one of the six that works on a
+host with no Node.js at all, which is why it is what the `gjs` column installs
+with.
+
+Passing `-p` without `-r` settles the runtime too: `-p bun` sets the project up
+for Bun, `-p gjsify` for GJS. Off a TTY, `--runtime` and `--package-manager` are
+reported when they fall back to a default rather than being assumed silently —
+and `--package-manager` is *required* alongside `--install`, since that is the
+one flag whose default would reach your disk.
 
 ## Templates
 
-| Template | Runtimes | |
-|---|---|---|
-| `gtk-minimal` | GJS | `Gtk.Window` + `Gtk.Label`; no Adwaita, no Blueprint. |
-| `adw-canvas2d` | GJS | Adwaita app rendering through the HTML Canvas 2D API (Blueprint UI). |
-| `adw-webgl` | GJS | Adwaita app rendering through WebGL + three.js (Blueprint UI). |
-| `adw-game` | GJS | Adwaita game shell on Excalibur.js; WebGL with a Canvas 2D fallback. |
-| `cli` | GJS · Node · Bun · Deno | Command-line tool using yargs. |
-| `web-server-hono` | GJS · Node · Bun · Deno | HTTP server using Hono (Web-standard fetch-style API). |
-| `web-server-express` | GJS · Node · Bun · Deno | HTTP server using Express. |
+| Template | |
+|---|---|
+| `gtk-minimal` | `Gtk.Window` + `Gtk.Label`; no Adwaita, no Blueprint. |
+| `adw-canvas2d` | Adwaita app rendering through the HTML Canvas 2D API (Blueprint UI). |
+| `adw-webgl` | Adwaita app rendering through WebGL + three.js (Blueprint UI). |
+| `adw-game` | Adwaita game shell on Excalibur.js; WebGL with a Canvas 2D fallback. |
+| `cli` | Command-line tool using yargs. |
+| `web-server-hono` | HTTP server using Hono (Web-standard fetch-style API). |
+| `web-server-express` | HTTP server using Express. |
 
-The GTK/Adwaita templates drive libadwaita through `gi://`, so GJS is where they
-belong. The other three ship two bundles — `--app gjs` and `--app node`, the
-latter shared by Node, Bun and Deno, whose common ABI is Node-API. Each template
-declares its own reach in `package.json` as `gjsify.example.runtimes`, and every
-build names its `--app` target explicitly rather than inheriting whichever
-runtime happens to invoke it.
+Each template declares its own reach in `package.json` as
+`gjsify.example.runtimes`, and the runtime prompt offers exactly that — no list
+is kept here, because a second copy is the one that goes stale. Templates ship
+two bundles, `--app gjs` and `--app node`, the latter shared by Node, Bun and
+Deno, whose common ABI is Node-API; every build names its `--app` target
+explicitly rather than inheriting whichever runtime happens to invoke it.
 
 ## Operating systems
 

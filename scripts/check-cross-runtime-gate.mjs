@@ -22,8 +22,18 @@
 // three runtimes by hand before being listed. A derived list would quietly enrol
 // packages whose "green" leg tests the host's builtin instead of our polyfill.
 // So: the human picks the set, and this makes the machine agree with itself.
+//
+// WHAT IT ALSO CHECKS, and did not at first. Declaring `test:cross-runtime` is
+// the manifest SAYING the suite runs on bun and deno. Nothing made that true:
+// `@gjsify/create-app` shipped the script, plus two source comments citing it as
+// the reason a `hostRuntime()` branch is proven, while CI ran only its gjs and
+// node legs via `gjsify foreach test`. Both directions above compare CI's two
+// copies of the set to each other, so neither could see a package that is in
+// NEITHER. Hence the third direction: a manifest that declares the script must be
+// covered. Judgement still picks the set — the script is how a human records the
+// judgement, and this only holds CI to it.
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -103,6 +113,29 @@ for (const name of gated) {
         failures.push(
             `${name}: in the cross-runtime job's \`if:\` chain but not in CROSS_RUNTIME_PACKAGES, so the job is ` +
                 'triggered for it and then does not run its suite. Add it to the list, or drop it from the chain.',
+        );
+    }
+}
+
+// Third direction: manifest → CI. `@gjsify/cli` is the one package covered by
+// dedicated steps rather than the list, so being named in the chain is enough
+// for it; everything else has to be in the list the loop actually iterates.
+const CHAIN_ONLY = new Set(['@gjsify/cli']);
+for (const group of readdirSync(join(ROOT, 'packages'), { withFileTypes: true })) {
+    if (!group.isDirectory()) continue;
+    for (const pkg of readdirSync(join(ROOT, 'packages', group.name), { withFileTypes: true })) {
+        if (!pkg.isDirectory()) continue;
+        const rel = `packages/${group.name}/${pkg.name}`;
+        const manifest = join(ROOT, rel, 'package.json');
+        if (!existsSync(manifest)) continue;
+        const { name, scripts } = JSON.parse(readFileSync(manifest, 'utf-8'));
+        if (typeof scripts?.['test:cross-runtime'] !== 'string') continue;
+        if (listed.has(name) || (CHAIN_ONLY.has(name) && gated.has(name))) continue;
+        failures.push(
+            `${name} (${rel}): declares \`test:cross-runtime\`, which asserts the suite runs on bun and deno, but ` +
+                'it is in neither CROSS_RUNTIME_PACKAGES nor the dedicated steps, so no CI leg ever runs it. Run ' +
+                'the suite on node + bun + deno locally, then add it to CROSS_RUNTIME_PACKAGES and the `if:` chain ' +
+                '(or drop the script).',
         );
     }
 }

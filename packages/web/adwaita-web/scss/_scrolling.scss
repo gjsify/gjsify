@@ -1,0 +1,107 @@
+// _scrolling.scss — GtkScrolledWindow's edge indicators.
+//
+// The two states are drawn by ONE pseudo-element per edge, because they cannot be
+// live at once: an undershoot means content is hidden past the edge, an overshoot
+// means the position is past it. `src/scroll-shading.ts` decides which, and carries
+// the overshoot's size in `--adw-overshoot`.
+//
+// Both boxes are sticky with a negative margin of their own height, so they weld to
+// the scrollport edge and consume no layout — an absolutely positioned child of a
+// scroll container scrolls away with the content instead of staying at the edge.
+//
+// Reference: refs/libadwaita/src/stylesheet/_drawing.scss (undershoot/overshoot mixins)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_scrolling.scss
+// Reference: refs/gtk/gtk/gtkscrolledwindow.c (UNDERSHOOT_SIZE, MAX_OVERSHOOT_DISTANCE)
+// Copyright (c) GNOME contributors (GTK, libadwaita). LGPLv2.1+.
+// Modifications: Adapted for @gjsify/adwaita-web.
+
+// `UNDERSHOOT_SIZE` — the band the node is allocated. Mostly transparent: the
+// gradient over it is done after 4px.
+$undershoot_size: 40px;
+
+// The shade both gradients start from — `color-mix(… var(--shade-color) 75% …)`.
+$undershoot_shade: color-mix(in srgb, var(--shade-color) 75%, transparent);
+
+.adw-scroll-shaded {
+  // The two indicator boxes exist for every shaded scroller and stay invisible
+  // until a state class turns them on, so nothing has to be inserted or removed
+  // while scrolling.
+  &::before,
+  &::after {
+    content: '';
+    display: block;
+    position: sticky;
+    z-index: 1;
+    flex-shrink: 0;
+    pointer-events: none;
+    height: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  &::before {
+    top: 0;
+  }
+
+  &::after {
+    bottom: 0;
+  }
+
+  // --- Undershoot: "there is content past this edge" ---
+  //
+  // A 1px line at the very edge plus a 4px fade, both at 75% of the shade colour.
+  // Constant size: it says THAT content is hidden, never how much.
+  &.undershoot-top::before {
+    height: $undershoot_size;
+    margin-bottom: -$undershoot_size;
+    box-shadow: inset 0 1px $undershoot_shade;
+    background: linear-gradient(to bottom, $undershoot_shade, transparent 4px);
+  }
+
+  &.undershoot-bottom::after {
+    height: $undershoot_size;
+    margin-top: -$undershoot_size;
+    box-shadow: inset 0 -1px $undershoot_shade;
+    background: linear-gradient(to top, $undershoot_shade, transparent 4px);
+  }
+
+  // --- Overshoot: "there is nothing past this edge" ---
+  //
+  // Two stacked radial gradients in the CURRENT text colour — a tight 3% band at
+  // the edge over a soft 50% wash — sized to how far past the edge the position
+  // was pushed. `--adw-overshoot` is set per scroller by the shading controller.
+  &.overshoot-top::before,
+  &.overshoot-bottom::after {
+    height: var(--adw-overshoot, 0px);
+    background-repeat: no-repeat;
+    box-shadow: none;
+    // The spring-back: the size is driven from JS, the fade rides the transition
+    // so releasing the wheel eases out instead of cutting.
+    transition: height 200ms ease-out, opacity 200ms ease-out;
+  }
+
+  &.overshoot-top::before {
+    margin-bottom: calc(var(--adw-overshoot, 0px) * -1);
+    background-image:
+      radial-gradient(farthest-side at top, color-mix(in srgb, currentColor 12%, transparent) 85%, transparent),
+      radial-gradient(farthest-side at top, color-mix(in srgb, currentColor 5%, transparent), transparent);
+    background-size: 100% 3%, 100% 50%;
+    background-position: top;
+  }
+
+  &.overshoot-bottom::after {
+    margin-top: calc(var(--adw-overshoot, 0px) * -1);
+    background-image:
+      radial-gradient(farthest-side at bottom, color-mix(in srgb, currentColor 12%, transparent) 85%, transparent),
+      radial-gradient(farthest-side at bottom, color-mix(in srgb, currentColor 5%, transparent), transparent);
+    background-size: 100% 3%, 100% 50%;
+    background-position: bottom;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    &.overshoot-top::before,
+    &.overshoot-bottom::after {
+      transition: none;
+    }
+  }
+}
