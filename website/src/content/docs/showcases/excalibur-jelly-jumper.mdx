@@ -1,6 +1,6 @@
 ---
 title: "Jelly Jumper (Excalibur)"
-description: A 2D platformer built on the unmodified Excalibur.js engine, running in a GTK 4 window, on Node, Bun, Deno and in the browser.
+description: A 2D platformer built on the unmodified Excalibur.js engine, running in a GTK 4 window on GJS, Node, Bun and Deno, and in the browser.
 ---
 
 import ShowcaseEmbed from '../../../components/ShowcaseEmbed.astro';
@@ -15,13 +15,18 @@ Based on [sample-jelly-jumper](https://github.com/excaliburjs/sample-jelly-jumpe
 
 <ShowcaseEmbed name="excalibur-jelly-jumper" />
 
-## Run it on GJS
+## Run it
+
+This showcase declares all four runtimes, so pick the one you already have:
 
 ```bash
-gjsify showcase excalibur-jelly-jumper
+gjsify showcase excalibur-jelly-jumper --runtime gjs
+gjsify showcase excalibur-jelly-jumper --runtime node
+gjsify showcase excalibur-jelly-jumper --runtime bun
+gjsify showcase excalibur-jelly-jumper --runtime deno
 ```
 
-A GTK 4 window opens with the game filling it and pause and mute buttons in the header bar.
+A GTK 4 window opens with the game filling it and pause and mute buttons in the header bar. Same window and same game on all four.
 
 | Action | Keyboard | Gamepad |
 |---|---|---|
@@ -32,13 +37,7 @@ A GTK 4 window opens with the game filling it and pause and mute buttons in the 
 
 The engine renders through WebGL2 on `Gtk.GLArea`. If no GL2 context is available it falls back to Canvas 2D over Cairo, the same fallback the browser build takes.
 
-## Run it on Node, Bun or Deno
-
-```bash
-gjsify showcase excalibur-jelly-jumper --runtime node   # or bun / deno
-```
-
-Same window, same game, with GTK reached through the [node-gi](/gjsify/projects/node-gi/) bridge. One `--app node` bundle serves all three.
+Under `gjs` the game runs the `--app gjs` bundle against GJS's native `gi://`. Under `node`, `bun` and `deno` it runs one shared `--app node` bundle, where `gi://` goes through the [node-gi](/gjsify/projects/node-gi/) bridge. [Choose the runtime](/gjsify/showcases/#choose-the-runtime) covers what the CLI does when you leave the flag off.
 
 ## Run it in the browser
 
@@ -68,7 +67,7 @@ Tilemaps and spritesheets ship with the package under `@gjsify/example-dom-excal
 | [`@gjsify/xmlhttprequest`](https://github.com/gjsify/gjsify/tree/main/packages/web/xmlhttprequest) and [`@gjsify/fetch`](https://github.com/gjsify/gjsify/tree/main/packages/web/fetch) | The asset loader, including `arraybuffer` and `blob` responses |
 | [`@gjsify/domparser`](https://github.com/gjsify/gjsify/tree/main/packages/web/domparser) | `@excaliburjs/plugin-tiled` parsing `.tmx` map files |
 | [`@gjsify/event-bridge`](https://github.com/gjsify/gjsify/tree/main/packages/framework/event-bridge) | Keyboard and gamepad input |
-| [`@gjsify/webaudio`](https://github.com/gjsify/gjsify/tree/main/packages/web/webaudio) | Sound effects, played through GStreamer on GJS |
+| [`@gjsify/webaudio`](https://github.com/gjsify/gjsify/tree/main/packages/web/webaudio) | Sound effects, played through GStreamer in the GTK build |
 
 ## Copy the structure
 

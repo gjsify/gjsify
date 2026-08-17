@@ -15,6 +15,8 @@ The demo shows how to embed web content inside a GTK app. Write against `HTMLIFr
 
 ## Run it on GJS
 
+This is one of two showcases that declare `["gjs"]` rather than all four runtimes. Its content area is a `WebKit.WebView` reached through a typelib, so it ships no `--app node` bundle and `--runtime node` tells you so instead of crashing:
+
 ```bash
 gjsify showcase minimalist-browser
 ```
@@ -29,8 +31,6 @@ The URL bar takes two kinds of address:
 - A real URL like `https://example.com` is loaded by WebKit.
 
 Every built-in page posts `{ type: 'page-loaded', title, url }` to its parent on `DOMContentLoaded`, and the status bar shows it. That round trip is the same code in both targets.
-
-This showcase is GJS only. Its content area is a WebKit view, so there is no `--app node` bundle and `--runtime node` will tell you so.
 
 ## Run it in the browser
 

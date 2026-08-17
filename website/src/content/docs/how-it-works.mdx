@@ -13,7 +13,16 @@ For the short version of which target runs where, see [Runtimes](/gjsify/runtime
 
 ## Import aliasing
 
-When you run `gjsify build --app gjs`, the bundler plugin rewrites every Node.js and Web API import to its `@gjsify/*` equivalent before bundling:
+The bundler plugin rewrites imports so that one source file builds for a runtime that does not ship them. Which imports get rewritten is decided by `--app`, and the two app targets rewrite in opposite directions:
+
+| Target | What it rewrites | Why |
+|---|---|---|
+| `--app gjs` | Node.js and Web API imports, to their `@gjsify/*` equivalents | GJS has no `node:` builtins and no DOM |
+| `--app node` | `gi://` imports, onto the [node-gi bridge](/gjsify/projects/node-gi/) | Node.js, Bun and Deno have no GObject Introspection |
+
+Each leaves the other side alone. `--app gjs` keeps `gi://*`, `cairo`, `system` and `gettext` untouched, because the GJS runtime resolves those itself. `--app node` keeps the `node:` imports untouched, because the host runtime already has them, and one such bundle runs on Node, Bun and Deno alike.
+
+Here is the `--app gjs` direction in full:
 
 ```typescript
 // You write:
@@ -35,11 +44,11 @@ The alias table lives in `@gjsify/resolve-npm` and covers every Node.js builtin 
 
 Two things follow from this. First, the bare specifier is the canonical form: no gjsify-specific import ever appears in your source, so the same file type-checks against `@types/node` and builds for GJS or for Node depending on `--app`. Second, the `@gjsify/*` packages still have to be resolvable from your project. `gjsify create` puts the ones a template needs into `package.json`, and if you reach for a new API later you add the matching package like any other dependency.
 
-The GJS target compiles down to `firefox140` (SpiderMonkey 140, the engine in GJS 1.86) and leaves `gi://*`, `cairo`, `system` and `gettext` alone, because the GJS runtime resolves those itself.
-
-The same pipeline serves the other targets. `--app node` runs it in reverse: `gi://` imports resolve through the [node-gi bridge](/gjsify/projects/node-gi/) so GObject code runs on Node.js, Bun and Deno.
+The GJS target compiles down to `firefox140`, which is SpiderMonkey 140, the engine in GJS 1.86.
 
 ## Automatic globals detection
+
+Most of what follows is the `--app gjs` story, because that is the target where the Node and Web surface has to be installed in the first place: Node, Bun and Deno already define `process`, `Buffer`, `fetch` and the rest. `--globals` is not inert on `--app node`, though. There the default `auto` looks for GJS's own ambient globals (`print`, `imports`, …) and side-effect imports `@gjsify/node-gi/globals` only when the bundled output references them, and naming globals explicitly (`--globals auto,dom`) requests the same `@gjsify/*` register bodies the GJS target gets, which is what a `gi://` source needs when it runs through the reverse bridge. `--app browser` uses the host's own globals and injects nothing.
 
 Aliasing handles imports. Plenty of npm code also reaches for globals with no import at all: `process.env.FOO`, `Buffer.from(data)`, `new URL('https://…')`, `await fetch(...)`. On GJS those don't exist until something registers them on `globalThis`.
 
@@ -74,7 +83,7 @@ The default `--globals auto` works out which registers your project needs by ana
   </Fragment>
 </CommandTabs>
 
-Pass `--app gjs` explicitly whenever the CLI itself runs on Node, Bun or Deno. The default target follows the host runtime, and globals injection only applies to GJS builds.
+Every tab above passes `--app gjs` explicitly, because `--app` defaults to the target of whichever runtime the CLI is on: `gjs` under gjs, `node` under node, bun and deno. Set `gjsify.app` in `package.json` to fix the target for a project and the flag becomes optional again.
 
 ### What auto detection does
 
@@ -228,7 +237,7 @@ There is one spelling for that directory, the same one a running process can com
 | macOS | `DYLD_LIBRARY_PATH` (dyld ignores `LD_LIBRARY_PATH` entirely) | `:` |
 | Windows | `PATH` (`LoadLibrary` has no dedicated variable) | `;` |
 
-Then it spawns `gjs -m <bundle>`:
+Then it launches the bundle: `gjs -m <bundle>` for an `--app gjs` bundle, or the runtime's own binary for an `--app node` one, which you select with `--runtime node`, `bun` or `deno`. The sweep is the same either way, because a Vala bridge ships its typelib under `prebuilds/` no matter which runtime loads it. With no `--runtime`, `gjsify run` uses `gjs` when it is the host or when the file is recognisably a GJS bundle, and otherwise the runtime it is already on.
 
 <CommandTabs title="Run the bundle">
   <Fragment slot="gjsify">
@@ -292,7 +301,9 @@ If you want to call `gjs` directly, from a systemd unit or inside a packaged Fla
 
 ## The GLib main loop
 
-Node.js servers need a running GLib main loop to drive the Gio async I/O underneath them. `http.Server.listen()`, `net.Server.listen()` and `dgram.Socket.bind()` start one for you through an internal helper, so there is nothing to call from application code. GTK applications carry on using `Gtk.Application.runAsync()` as usual.
+On `--app gjs`, a Node-style server runs on Gio async I/O, and that needs a running GLib main loop. `http.Server.listen()`, `net.Server.listen()` and `dgram.Socket.bind()` start one for you through an internal helper, so there is nothing to call from application code. GTK applications carry on using `Gtk.Application.runAsync()` as usual.
+
+On `--app node` there is nothing to arrange for a server, because it is the host runtime's own on the host's own event loop. The case that needs both loops live at once is a `gi://` bundle there, and [node-gi](/gjsify/projects/node-gi/) arranges that per runtime.
 
 ## Vite and the CLI run the same plugins
 
@@ -397,7 +408,7 @@ The marks are read out of the workflow YAML, so "a CI job targets it" claims exa
 
 `○` is the state to read carefully: CI produces the artifact, but this repository does not carry it, so a `git clone` has nothing to load and an `npm install` gets whatever the last publish shipped. It is never a gap the audit overlooked. Every `○` target is held to a `release.yml` job that builds, load-tests and uploads it, because a release cannot download another workflow's artifact and that tarball is the only route by which one reaches a consumer. Two packages are in that state:
 
-- **`@gjsify/napi`, both targets.** `napi.yml` rebuilds and gates on the linux-x64 prebuild, and its macOS job builds, load-tests and uploads the darwin-arm64 one. No job commits either back, and each per-target package says so in `package.json#gjsify.platformsUncommitted`, printed on every `--check` run. The linux-x64 directory used to be committed while its darwin sibling was exempt: one bridge running two policies, where every job that touched the path overwrote the checked-out bytes before reading them, and the declaration checks stayed green across a week of source drift. Deleting it made freshness real by removal, since the only linux-x64 artifact anyone can load is now one CI just built.
+- **`@gjsify/napi`, both targets.** `napi.yml` rebuilds and gates on the linux-x64 prebuild, and its macOS job builds, load-tests and uploads the darwin-arm64 one. No job commits either back, and each per-target package says so in `package.json#gjsify.platformsUncommitted`, printed on every `--check` run. The linux-x64 directory used to be committed while its darwin sibling was exempt: one bridge running two policies, where every job that touched the path overwrote the checked-out bytes before reading them, and the declaration checks stayed green across a week of source drift. Deleting it made freshness real by removal, since the only linux-x64 artifact anyone can load is now the one CI produced in that same run.
 - **`@gjsify/node-gi`, every declared target.** It builds with node-gyp at install time, or installs a prebuild straight from a release artifact, so there is no committed directory anywhere and no exemption entry to key the cell on: the absence *is* the state. `release.yml` carries a prebuild leg per target, which is what the audit checks.
 
 ### What the audit actually verifies
@@ -413,7 +424,7 @@ Every column name is a real directory name. Targets are spelled the one way a ru
 
 ## How the cross-runtime claims are checked
 
-A golden-diff conformance harness runs the same programs on `gjs`, `node`, `bun` and `deno` and requires **byte-identical output**. The ported GNOME GIMarshallingTests currently stand at 370 passing and none failing.
+A golden-diff conformance harness runs the same programs on `gjs`, `node`, `bun` and `deno` and requires **byte-identical output**. A diff needs one side to diff against, and that side is the `gjs` output, itself checked against a committed golden file wherever the scenario has one. That makes gjs the yardstick for the comparison, which is a fact about the test rig and not advice about which runtime to build on. The ported GNOME GIMarshallingTests currently stand at 370 passing and none failing.
 
 Linux is the CI baseline: the full suite (10,000+ cases across Node and GJS), every e2e suite and every integration suite run on Fedora. The other two operating systems are covered by named jobs rather than by a runtime-class claim:
 

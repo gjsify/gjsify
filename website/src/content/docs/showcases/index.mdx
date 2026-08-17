@@ -7,35 +7,37 @@ Showcases are finished, runnable apps. Each one starts with a single command, op
 
 ## Run one
 
-You need the `gjsify` CLI plus GJS 1.86 with GTK 4. There is nothing to clone:
+You need the `gjsify` CLI and at least one of `gjs`, `node`, `bun` and `deno`; two of the ten below declare `gjs` only, and the table says which. There is nothing to clone:
 
 ```bash
 gjsify showcase                          # list every showcase
 gjsify showcase canvas2d-fireworks       # run one, opens a GTK 4 window
 ```
 
-The CLI fetches the showcase's npm package on demand, sets up the native typelibs it needs, and launches it. If a system library is missing, `gjsify system-check` names it.
+The CLI fetches the showcase's npm package on demand, sets up the native typelibs it needs, and launches it. If a system library is missing, `gjsify system-check` names it. Add `--runtime` to say which of the four runs it, or leave it off and let the CLI resolve one: [Choose the runtime](#choose-the-runtime) below spells out both.
+
+On Linux the GTK 4 stack comes from your distribution on every runtime. On macOS and Windows the `node`, `bun` and `deno` route pulls a prebuilt GTK 4 and Adwaita closure (`@gjsify/gtk-runtime-<os>-<arch>`) into the same cache, so there is no system GTK to install either.
 
 ## Pick a showcase
 
-| Showcase | What it shows | Also runs on |
+| Showcase | What it shows | Runs on |
 |---|---|---|
-| [`adwaita-storybook`](./adwaita-storybook/) | Every Libadwaita widget, live, with a two-way controls panel | Node, Bun, Deno, browser |
-| [`canvas2d-fireworks`](./canvas2d-fireworks/) | Particle fireworks on a 2D `<canvas>` with Adwaita controls | Node, Bun, Deno, browser |
-| [`excalibur-jelly-jumper`](./excalibur-jelly-jumper/) | A 2D platformer on the unmodified Excalibur.js engine | Node, Bun, Deno, browser |
-| [`three-geometry-teapot`](./three-geometry-teapot/) | A Three.js scene driven by native Adwaita rows | Node, Bun, Deno, browser |
-| [`three-loader-ldraw`](./three-loader-ldraw/) | Three.js models streamed from disk over `fetch` | Node, Bun, Deno, browser |
-| [`three-postprocessing-pixel`](./three-postprocessing-pixel/) | A Three.js `EffectComposer` post-processing chain | Node, Bun, Deno, browser |
-| [`minimalist-browser`](./minimalist-browser/) | A browser shell: URL bar plus an `<iframe>` backed by WebKit | Browser |
-| [`webrtc-loopback`](./webrtc-loopback/) | Two peers in one process talking over an `RTCDataChannel` | Browser |
-| [`express-webserver`](./express-webserver/) | An unmodified Express 5 app serving HTTP and JSON | Node, Bun, Deno |
-| [`webrtc-video`](./webrtc-video/) | A webcam preview through `getUserMedia` | Browser (from a checkout) |
+| [`adwaita-storybook`](./adwaita-storybook/) | Every Libadwaita widget, live, with a two-way controls panel | GJS, Node, Bun, Deno, browser |
+| [`canvas2d-fireworks`](./canvas2d-fireworks/) | Particle fireworks on a 2D `<canvas>` with Adwaita controls | GJS, Node, Bun, Deno, browser |
+| [`excalibur-jelly-jumper`](./excalibur-jelly-jumper/) | A 2D platformer on the unmodified Excalibur.js engine | GJS, Node, Bun, Deno, browser |
+| [`three-geometry-teapot`](./three-geometry-teapot/) | A Three.js scene driven by native Adwaita rows | GJS, Node, Bun, Deno, browser |
+| [`three-loader-ldraw`](./three-loader-ldraw/) | Three.js models streamed from disk over `fetch` | GJS, Node, Bun, Deno, browser |
+| [`three-postprocessing-pixel`](./three-postprocessing-pixel/) | A Three.js `EffectComposer` post-processing chain | GJS, Node, Bun, Deno, browser |
+| [`express-webserver`](./express-webserver/) | An unmodified Express 5 app serving HTTP and JSON | GJS, Node, Bun, Deno |
+| [`minimalist-browser`](./minimalist-browser/) | A browser shell: URL bar plus an `<iframe>` backed by WebKit | GJS, browser |
+| [`webrtc-loopback`](./webrtc-loopback/) | Two peers in one process talking over an `RTCDataChannel` | GJS, browser |
+| [`webrtc-video`](./webrtc-video/) | A webcam preview through `getUserMedia` | GJS, browser (from a checkout) |
 
 Nine of these ship in the CLI catalog. `webrtc-video` needs a camera and extra GStreamer plugins, so it runs from a checkout instead.
 
-## Run it on Node, Bun or Deno
+## Choose the runtime
 
-Most showcases open the same GTK 4 window on a different JavaScript engine. Add `--runtime`:
+Seven of the ten run on all four runtimes, and `--runtime` says which one:
 
 ```bash
 gjsify showcase canvas2d-fireworks --runtime gjs
@@ -44,11 +46,17 @@ gjsify showcase canvas2d-fireworks --runtime bun
 gjsify showcase canvas2d-fireworks --runtime deno
 ```
 
-GTK is reached through the [node-gi](/gjsify/projects/node-gi/) bridge on Node, Bun and Deno. Without the flag, gjsify uses `gjs` when it is installed and otherwise the runtime the CLI itself is running on.
+Same window, same code, and here is what actually differs underneath:
 
-Each showcase declares the runtimes it supports in `package.json` under `gjsify.example.runtimes`. Ask for one it does not support and you get a clear error rather than a crash deep in the bundle. `minimalist-browser` and `webrtc-loopback` declare `["gjs"]`, because their native side is a WebKit view and a GStreamer pipeline, so `--runtime` has nothing to offer them. Their browser builds are unaffected: those run on the browser's own WebKit and WebRTC.
+- `--runtime gjs` runs the showcase's `--app gjs` bundle. GJS is GNOME's own JavaScript runtime, so `gi://Gtk` is native and nothing bridges into GTK.
+- `--runtime node`, `bun` and `deno` run its `--app node` bundle, where `gi://` goes through the [node-gi](/gjsify/projects/node-gi/) bridge. One bundle serves all three, because Node-API is their shared native ABI.
+- GJS is packaged for Linux and, partially, macOS; there is no GJS host on Windows. Node, Bun and Deno reach all three operating systems. [Platform Support](/gjsify/platform-support/) has the per-OS state.
 
-More detail: [Runtimes](/gjsify/runtimes/) and the [CLI reference](/gjsify/cli-reference/#run-a-showcase-on-node-bun-or-deno).
+With no `--runtime` flag, the CLI runs the `--app gjs` bundle when `gjs` is on PATH, and otherwise the `--app node` bundle on whichever runtime the CLI itself is running on. That default follows from packaging rather than from a preference: a showcase's canonical build is its `--app gjs` bundle, declared as `gjsify.main`, and every showcase ships one, while not every showcase ships an `--app node` bundle.
+
+Each showcase declares the runtimes it supports in `package.json` under `gjsify.example.runtimes`. Ask for one it does not declare and you get a clear error rather than a crash deep in the bundle. `minimalist-browser` and `webrtc-loopback` declare `["gjs"]`, because their native side is a WebKit view and a GStreamer pipeline reached through a typelib, so neither ships an `--app node` bundle. Their browser builds are unaffected: those run on the browser's own WebKit and WebRTC.
+
+More detail: [Runtimes](/gjsify/runtimes/) and the [CLI reference](/gjsify/cli-reference/#gjsify-showcase).
 
 ## Put one in a web page
 

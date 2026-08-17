@@ -89,6 +89,12 @@ For the full lifecycle, the resize behaviour and the traps worth knowing about a
 
 Importing a bridge package root has no side effects: `import { Canvas2DBridge } from '@gjsify/canvas2d'` gives you the class and nothing else. The browser globals each package owns live behind a `/register` subpath, and the default `--globals auto` injects them for you when your code references them. `@gjsify/canvas2d/register` covers `ImageData` and `Path2D`; `@gjsify/iframe/register` covers `HTMLIFrameElement` and `document.createElement('iframe')`.
 
+## Where these run
+
+The bridges are GTK code, so the machine needs the GNOME stack whichever runtime you use. What differs is how your JavaScript reaches it: on GJS the `gi://` imports above are the runtime's own module loader, with nothing in between, and on Node, Bun and Deno the same source builds with `--app node` and goes through [`@gjsify/node-gi`](/gjsify/projects/node-gi/).
+
+The Canvas 2D and WebGL showcases (`canvas2d-fireworks`, `three-geometry-teapot`, `excalibur-jelly-jumper`) declare all four runtimes. The ones built on `@gjsify/iframe` (WebKit) and `@gjsify/webrtc` (GStreamer WebRTC) declare `gjs` only, so `gjsify showcase <name> --runtime node` refuses them up front instead of crashing. CI launches the `gjs` column of that matrix; the other three are declared and not yet exercised there.
+
 ## Related
 
 - [Bridge Widgets](/gjsify/patterns/bridges/), the lifecycle in depth plus four worked examples

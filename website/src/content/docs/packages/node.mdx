@@ -1,6 +1,6 @@
 ---
 title: Node.js Modules
-description: The Node.js builtins you can import on GJS, what each one is backed by, and how complete it is.
+description: The Node.js builtins you can import in a GJSify build, what backs each one on GJS, and how complete it is.
 ---
 
 import NodeApiCoverage from '../../../components/NodeApiCoverage.astro';
@@ -15,13 +15,13 @@ import { EventEmitter } from 'node:events';
 import path from 'node:path';
 ```
 
-At build time each import is rewritten to its `@gjsify/*` implementation: `node:fs` to `Gio.File`, `node:http` to `Soup.Server`, `node:crypto` to `GLib.Checksum` and `GLib.Hmac`. Your source file stays portable, so the same file also builds for `--app node` and runs on stock Node.js.
+In an `--app gjs` build each import is rewritten to its `@gjsify/*` implementation: `node:fs` to `Gio.File`, `node:http` to `Soup.Server`, `node:crypto` to `GLib.Checksum` and `GLib.Hmac`. Your source file stays portable either way, so the same file also builds for `--app node`, where the imports stay as written and Node, Bun and Deno answer them from their own builtins.
 
 The bare form works too. `import fs from 'fs'` resolves the same way, which is why dependencies written before the `node:` prefix existed keep working unchanged.
 
 ## Globals come along for free
 
-`process`, `Buffer`, `URL`, `structuredClone`, `queueMicrotask` and `setImmediate` need no import. `gjsify build` scans the bundled output, finds the ones you actually reach, and injects only those.
+`process`, `Buffer`, `URL`, `structuredClone`, `queueMicrotask` and `setImmediate` need no import. An `--app gjs` build scans the bundled output, finds the ones you actually reach, and injects only those. An `--app node` build injects none of them, since Node, Bun and Deno already define them.
 
 ```typescript
 const port = Number(process.env.PORT ?? '8080');
@@ -82,7 +82,7 @@ Three levels of completeness. **Full** means the surface a normal app touches is
 
 ## Where each module also runs
 
-Every package declares which runtimes it supports. Pure TypeScript modules such as `path`, `buffer`, `events`, `querystring` and `string_decoder` also run in the browser and under NativeScript. Gio-backed ones such as `fs` are GJS-first. [Runtimes](/gjsify/runtimes/) has the whole picture, and [Platform Support](/gjsify/platform-support/) covers which operating systems each native bridge reaches.
+Every package declares which runtimes it supports, in a `gjsify.runtimes` field. Pure TypeScript modules such as `path`, `buffer`, `events`, `querystring` and `string_decoder` also run in the browser and under NativeScript. The Gio-backed ones such as `fs`, `net`, `http` and `crypto` declare an implementation for GJS only: they call into GIO and Soup directly, and on Node, Bun and Deno the same import resolves to that runtime's own builtin instead. [Runtimes](/gjsify/runtimes/) has the whole picture, and [Platform Support](/gjsify/platform-support/) covers which operating systems each native bridge reaches.
 
 ## The umbrella package
 

@@ -5,7 +5,7 @@ description: Run unchanged gi:// and GObject code on Node.js, Bun and Deno. The 
 
 [`@gjsify/node-gi`](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/node-gi) runs the rest of gjsify backwards. Instead of bringing Node and Web APIs to GJS, it brings GObject Introspection to Node.js, Bun and Deno, so the same unchanged `gi://` source runs natively under GJS *and* on every Node-API runtime.
 
-You care about this if you want your GTK app, or a library that talks to GLib, to run where GJS isn't. That is mostly two situations: shipping to Windows, which has no GJS host at all ([Platform Support](/gjsify/platform-support/) explains why), and running a test suite or a headless tool on the runtime your CI already has. If you only ever target GJS you can skip this page; nothing on the GJS side depends on node-gi at runtime.
+You care about this if your GTK app, or a library that talks to GLib, should run on Node.js, Bun or Deno. Three common reasons: you already work in one of those runtimes and would rather stay in it; you are shipping to Windows, which has no GJS host at all ([Platform Support](/gjsify/platform-support/) explains why); or you want a test suite or a headless tool on the runtime your CI already has. If you build only for GJS you can skip this page, and nothing on the GJS side depends on node-gi at runtime.
 
 :::note[Stability]
 node-gi is tested and released with every gjsify release, and real consumers exercise it. It is still a younger part of the framework than the GJS side, so a breaking change occasionally ships in a minor release, always with a changelog note. Details in the [stability model](/gjsify/versioning/#how-much-stability-to-expect).
@@ -37,7 +37,7 @@ print(file.get_basename()); // "share"
 
 One Node-API binary loads on all three runtimes. `index.js` detects the runtime and prefers a shipped `prebuilds/<platform>-<arch>/` binary. Deno runs no postinstall build, so a prebuild is its only install path.
 
-GJS is the reference implementation, with native `gi://`. Against it:
+GJS is the reference implementation, with native `gi://`. That is a statement about the test rig: the conformance harness runs each program on all four runtimes and diffs the other three against the GJS output byte for byte, so "reference" means "the expected answer here", not "the runtime to choose". Against it:
 
 | Capability | Node | Bun | Deno |
 |---|:--:|:--:|:--:|
@@ -67,7 +67,7 @@ The operating system axis is separate from the runtime axis above, and `prebuild
 - **macOS, Apple silicon and Intel.** node-gi builds and passes the display-free conformance suite on Node, Bun and Deno, and the GTK GUI renders (render to texture, no visible desktop): an `Adw.ApplicationWindow` realizes, renders and reacts to input. [`@gjsify/gtk-runtime-darwin-arm64`](https://www.npmjs.com/package/@gjsify/gtk-runtime-darwin-arm64) and [`@gjsify/gtk-runtime-darwin-x64`](https://www.npmjs.com/package/@gjsify/gtk-runtime-darwin-x64) ship a prebuilt GTK 4 and Adwaita closure, so no system GTK and no Homebrew are required. CI proves that on runners where GTK was never installed.
 - **Windows, x64.** node-gi builds with MSVC and gvsbuild, and passes the display-free conformance suite on Node. Beyond that, the GTK GUI renders and the full Libadwaita Storybook renders, both proven in CI. [`@gjsify/gtk-runtime-win32-x64`](https://www.npmjs.com/package/@gjsify/gtk-runtime-win32-x64) ships the prebuilt GTK 4 and Adwaita closure, so no gvsbuild is needed to consume it.
 
-GTK and GNOME GUI apps stay Linux-first, and also work on Windows. The cross-OS reach is the node-gi path on Node, Bun and Deno. The per-package matrix is in [Platform Support](/gjsify/platform-support/).
+So the operating system decides how much choice you have. On Linux both paths are open: native `gi://` under GJS, and node-gi under Node, Bun and Deno. On macOS `--app node` is the supported path, and on Windows it is the only one, since there is no GJS host there. The per-package matrix is in [Platform Support](/gjsify/platform-support/).
 
 ## Getting started
 
@@ -90,7 +90,7 @@ The native engine is derived from [node-gtk](https://github.com/romgrk/node-gtk)
 
 ## How it is tested
 
-The [example](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/example) is the capstone: several deterministic `gi://` sources each build `--app gjs` and `--app node`, then run under GJS, Node, Bun and Deno, with the harness asserting byte-identical output on every one and GJS as the reference. It runs in CI on Fedora across all four.
+The [example](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/example) is the capstone: several deterministic `gi://` sources each build `--app gjs` and `--app node`, then run under GJS, Node, Bun and Deno, with the harness asserting byte-identical output on every one and GJS as the reference. The GJS output is not taken on trust either: where a scenario carries a committed golden file, GJS is diffed against that first, and only then do the other three get compared to it. It runs in CI on Fedora across all four.
 
 Nine `@gjsify/*` packages also run their own test suites through node-gi in CI: `sqlite`, `http2`, `zlib`, `tls`, `ws`, `dom-elements`, `node-globals`, `crypto` and `string_decoder`. That is what keeps the bridge honest against real consumer code rather than against tests written for it.
 

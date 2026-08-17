@@ -1,6 +1,6 @@
 ---
 title: Web APIs
-description: The web platform APIs that work on GJS, how they reach globalThis, and which package backs each one.
+description: The web platform APIs a GJSify build gives you, how they reach globalThis, and which package backs each one.
 ---
 
 import WebStandardsCoverage from '../../../components/WebStandardsCoverage.astro';
@@ -17,7 +17,7 @@ socket.addEventListener('message', (event) => console.log(event.data));
 const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('hi'));
 ```
 
-`gjsify build` scans the bundled output, works out which globals your code actually reaches, and registers only those. `fetch` becomes a `Soup.Session` call, `WebSocket` a `Soup.WebsocketConnection`, `crypto.subtle` a GLib-backed implementation. In a `--app browser` build the same source uses the browser's own versions instead.
+An `--app gjs` build scans the bundled output, works out which globals your code actually reaches, and registers only those: `fetch` becomes a `Soup.Session` call, `WebSocket` a `Soup.WebsocketConnection`, `crypto.subtle` a GLib-backed implementation. An `--app browser` build uses the browser's own versions of the same source, and an `--app node` build leaves the ones Node, Bun and Deno already define to the runtime.
 
 ## Import a class explicitly
 
@@ -91,4 +91,6 @@ Start at the [Adwaita gallery](/gjsify/adwaita/): it shows every widget with a l
 
 ## Where each API also runs
 
-Every package declares the runtimes it supports, and the pure TypeScript ones run in the browser and under NativeScript as well as on GJS. More than 50 packages across the Node, Web and DOM pillars ship a browser test suite that CI runs against real Firefox with Playwright. [Runtimes](/gjsify/runtimes/) has the full picture.
+Every package declares the runtimes it supports, in a `gjsify.runtimes` field, and the answer differs per standard. `fetch`, `WebSocket`, `crypto.subtle`, `FormData`, `WebAssembly` and the compression streams are native on Node, Bun and Deno, so a build for those runtimes polyfills nothing. `EventSource`, `DOMParser`, `localStorage` and the DOM event classes carry a polyfill for them as well, and most of the pure TypeScript packages run in the browser and under NativeScript too. The GStreamer-backed `AudioContext` and `RTCPeerConnection`, and `XMLHttpRequest`, are declared for GJS and the browser only.
+
+More than 50 packages across the Node, Web and DOM pillars ship a browser test suite that CI runs against real Firefox with Playwright. [Runtimes](/gjsify/runtimes/) has the full picture.

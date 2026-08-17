@@ -16,6 +16,19 @@ and no separate renderer process.
 Every bridge is a subclass of the GTK widget it renders into, so `bridge.set_size_request()`,
 `bridge.add_css_class()` and `win.set_child(bridge)` all work the way you expect.
 
+They follow the GTK layer rather than one runtime. Build `--app gjs` and the `gi://` imports
+below resolve in the `gjs` host itself; build `--app node` and the same source runs on Node,
+Bun and Deno with `gi://` going through [`@gjsify/node-gi`](/gjsify/projects/node-gi/).
+
+That is the shape. How far each bridge is *measured* is a separate question and the answer
+differs per package, so go by the numbers rather than the shape. The headless Canvas 2D core
+(`@gjsify/canvas2d-core`) is measured at 578/578 on Node, Bun and Deno; the GTK-backed
+`@gjsify/canvas2d` at 191/191 on Node. `@gjsify/webgl` and `@gjsify/iframe` run their suites
+on `gjs` and carry no node-family measurement, and `@gjsify/video` ships no suite at all, so
+off `gjs` treat those three as untested rather than promised. The iframe showcases say so in
+their own manifest: they declare `gjs` only, so `gjsify showcase <name> --runtime node`
+refuses them up front instead of crashing.
+
 ## The shape of every bridge
 
 Three steps, the same for all four:
@@ -66,7 +79,7 @@ bridge.onReady((canvas, ctx) => {
 
     ctx.font = '24px Adwaita Sans';
     ctx.fillStyle = '#fff';
-    ctx.fillText('Hello from GJS', 20, 40);
+    ctx.fillText('Hello from GTK', 20, 40);
 });
 
 const win = new Adw.ApplicationWindow({ application: app });
@@ -215,7 +228,7 @@ win.present();
 `IFrameBridge` is the one that really does ship a browser: it extends `WebKit.WebView`. Use it
 to embed genuine web content (a third-party site, a sandboxed app, an HTML report) inside a
 GTK app. The other three bridges are for the opposite job, running browser-shaped code
-natively on GJS.
+directly on GTK with no browser engine underneath.
 
 Use `loadUri(url)` and `loadHtml(html, baseUri?)` to navigate, because they keep WebKit and
 the iframe element's attributes in step. `bridge.goBack()`, `bridge.goForward()` and

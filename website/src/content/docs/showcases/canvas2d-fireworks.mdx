@@ -13,27 +13,24 @@ Adapted from [a CodePen by @juliangarnier](https://codepen.io/juliangarnier/pen/
 
 <ShowcaseEmbed name="canvas2d-fireworks" />
 
-## Run it on GJS
+## Run it
+
+This showcase declares all four runtimes, so pick the one you already have:
 
 ```bash
-gjsify showcase canvas2d-fireworks
+gjsify showcase canvas2d-fireworks --runtime gjs
+gjsify showcase canvas2d-fireworks --runtime node
+gjsify showcase canvas2d-fireworks --runtime bun
+gjsify showcase canvas2d-fireworks --runtime deno
 ```
 
 A GTK 4 window opens with the canvas on the right and an Adwaita sidebar on the left. Click the canvas to fire a firework. The sidebar rows adjust particle count, auto-fire interval, maximum burst radius, and whether fireworks fire on their own.
 
 The animation ticks on the GTK frame clock, so `requestAnimationFrame` lands on vsync exactly as it does in a browser.
 
-## Run it on Node, Bun or Deno
+Under `gjs` this runs the `--app gjs` bundle against GJS's native `gi://`. Under `node`, `bun` and `deno` it runs the `--app node` bundle, where `gi://` goes through the [node-gi](/gjsify/projects/node-gi/) bridge. Drop the flag and the CLI runs the `--app gjs` bundle when `gjs` is on PATH, otherwise the `--app node` bundle on the runtime it is already on.
 
-The same window on a different engine, through the [node-gi](/gjsify/projects/node-gi/) bridge:
-
-```bash
-gjsify showcase canvas2d-fireworks --runtime node
-gjsify showcase canvas2d-fireworks --runtime bun
-gjsify showcase canvas2d-fireworks --runtime deno
-```
-
-This is also the showcase to reach for when you want to see [devtools](/gjsify/guides/devtools/) working off GJS. Start it with `GJSIFY_DEVTOOLS=1` and you get the same `GetStatus`, `DumpTree` and `Screenshot` D-Bus calls on all four runtimes.
+This is also the showcase to reach for when you want to see [devtools](/gjsify/guides/devtools/) at work. Start it with `GJSIFY_DEVTOOLS=1` and you get the same `GetStatus`, `DumpTree` and `Screenshot` D-Bus calls on all four runtimes.
 
 ## Run it in the browser
 

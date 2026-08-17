@@ -143,25 +143,39 @@ gjsify storybook --stories widgets  # scan a different directory
 ```
 
 The bundle lands in `node_modules/.cache/gjsify-storybook` unless you pass `--out`. For CI,
-build without launching:
+build without launching, and name the target you are building for:
 
 ```bash
 gjsify storybook --build-only --out dist/storybook.gjs.mjs
+gjsify storybook --build-only --runtime node --out dist/storybook.node.mjs
 ```
 
-## Run it on Node, Bun or Deno
+## Pick the runtime
+
+Left alone, `gjsify storybook` builds and launches on whichever runtime the CLI itself is
+running on. `--runtime` says which one you want, and you can set the same value as
+`"runtime"` in the config block:
 
 ```bash
+gjsify storybook --runtime gjs
 gjsify storybook --runtime node
 gjsify storybook --runtime bun
 gjsify storybook --runtime deno
 ```
 
-All three build the identical storybook as an `--app node` bundle and run it through the
-[node-gi bridge](/gjsify/projects/node-gi/), which is how you get a GTK component browser on
-a machine without GJS (CI, a container, editor tooling). It needs `@gjsify/node-gi` as a
-project `devDependency`. You can set the same value as `"runtime"` in the config block.
-Leaving `--runtime` off uses whichever runtime the CLI itself is running on.
+What actually differs is one layer:
+
+- **gjs** builds an `--app gjs` bundle. `gi://Gtk` and `gi://Adw` resolve in the host
+  itself, so nothing sits between a story and GTK. Needs a `gjs` binary, which exists on
+  Linux and not on Windows.
+- **node, bun and deno** build one shared `--app node` bundle (Node-API is their common
+  ABI) and resolve `gi://` through [`@gjsify/node-gi`](/gjsify/projects/node-gi/), which
+  the project needs as a `devDependency`. This is the route that reaches macOS and Windows,
+  and the one CI drives the full Adwaita gallery through: the same prebuilt bundle renders
+  the gallery under Node on Linux (system GTK, Xvfb) and on Windows (the bundled GTK
+  runtime, no gvsbuild).
+
+Same stories, same sidebar, same controls panel either way.
 
 ## Screenshot a story from CI or an agent
 

@@ -15,23 +15,22 @@ Two things to take from it. It is the fastest way to see what a Libadwaita widge
 
 Pick a widget in the sidebar, change its controls, watch it update. This is the browser rendering of the same stories the native window shows.
 
-## Run it on GJS
+## Run it
+
+This showcase declares all four runtimes, so pick the one you already have:
 
 ```bash
-gjsify showcase adwaita-storybook
+gjsify showcase adwaita-storybook --runtime gjs
+gjsify showcase adwaita-storybook --runtime node
+gjsify showcase adwaita-storybook --runtime bun
+gjsify showcase adwaita-storybook --runtime deno
 ```
 
-A native GTK 4 window opens with real `Adw.*` widgets: an `Adw.NavigationSplitView` for the sidebar, and an `Adw.Breakpoint` that folds it into single-pane navigation when the window gets narrow.
+A native GTK 4 window opens with real `Adw.*` widgets: an `Adw.NavigationSplitView` for the sidebar, and an `Adw.Breakpoint` that folds it into single-pane navigation when the window gets narrow. The window is the same on all four.
 
-From a checkout of the showcase, `gjsify storybook` does the same thing, and `gjsify storybook --watch` rebuilds and relaunches when you edit a story.
+Under `gjs` the widgets come from GJS's native `gi://`. Under `node`, `bun` and `deno` they come through the [node-gi](/gjsify/projects/node-gi/) bridge, and one `--app node` bundle serves all three, so there is no per-runtime build and no third copy of a story. [Choose the runtime](/gjsify/showcases/#choose-the-runtime) covers what the CLI does when you leave the flag off.
 
-## Run it on Node, Bun or Deno
-
-```bash
-gjsify showcase adwaita-storybook --runtime node   # or bun / deno
-```
-
-The same native window, with GTK reached through the [node-gi](/gjsify/projects/node-gi/) bridge. One `--app node` bundle serves all three, so there is no per-runtime build and no third copy of a story.
+From a checkout of the showcase, `gjsify storybook` does the same thing, and `gjsify storybook --watch` rebuilds and relaunches when you edit a story. It takes the same `--runtime` flag, and because it builds the bundle itself rather than fetching a published one, its default is whichever runtime the CLI is running on.
 
 ## Run it in the browser
 

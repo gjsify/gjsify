@@ -37,6 +37,8 @@ gjsify system-check          # reports GJS plus the optional GStreamer pieces
 
 ## Run it on GJS
 
+This is one of two showcases that declare `["gjs"]` rather than all four runtimes. Its native side is a GStreamer pipeline reached through a typelib, so it ships no `--app node` bundle and `--runtime node` tells you so instead of crashing:
+
 ```bash
 gjsify showcase webrtc-loopback
 ```
@@ -57,8 +59,6 @@ This one is a console program, not a window. It prints the handshake as it happe
 ```
 
 If it stops at "checking" and never reaches "connected", one of the two GStreamer plugins above is missing.
-
-This showcase is GJS only. The native side is a GStreamer pipeline reached through a typelib, so there is no `--app node` bundle and `--runtime node` will tell you so.
 
 ## Run it in the browser
 

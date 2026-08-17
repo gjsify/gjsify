@@ -49,8 +49,12 @@ It does nothing unless `GJSIFY_DEVTOOLS` is set, so leave it in your release bui
 the gate on:
 
 ```bash
-GJSIFY_DEVTOOLS=1 gjsify run dist/index.js
+GJSIFY_DEVTOOLS=1 gjsify run dist/app.gjs.mjs                  # an --app gjs bundle, on gjs
+GJSIFY_DEVTOOLS=1 gjsify run --runtime node dist/app.node.mjs  # an --app node bundle
 ```
+
+Bun and Deno take that second bundle too, and the whole control plane is identical on all
+four; [step 7](#7-gjs-nodejs-bun-and-deno) has the detail.
 
 `installDevtools` never throws. If it cannot come up it prints why on stderr and returns
 `null`, so a devtools problem can never cost you your window.
@@ -214,20 +218,24 @@ and bridge with `--profile storybook`; you get `list_stories`, `get_current_stor
 `open_story` and `set_story_arg`, so an agent can open a widget in isolation, flip its args
 and `screenshot` each variant.
 
-## 7. Node.js, Bun and Deno
+## 7. GJS, Node.js, Bun and Deno
 
-If your GTK app runs through [`@gjsify/node-gi`](/gjsify/projects/node-gi/) instead of GJS,
-nothing changes. Same `installDevtools(app, …)` call, same interface, same MCP profiles:
+The control plane belongs to your app, not to a runtime. One `installDevtools(app, …)`
+call, one interface, the same MCP profiles, on all four. The layer underneath is what
+differs: on `gjs` your `--app gjs` bundle resolves `gi://` in the host itself, while Node,
+Bun and Deno run the same `--app node` bundle with `gi://` going through
+[`@gjsify/node-gi`](/gjsify/projects/node-gi/).
 
 ```bash
+GJSIFY_DEVTOOLS=1 gjsify run                dist/app.gjs.mjs
 GJSIFY_DEVTOOLS=1 gjsify run --runtime node dist/app.node.mjs
 GJSIFY_DEVTOOLS=1 gjsify run --runtime bun  dist/app.node.mjs
 GJSIFY_DEVTOOLS=1 gjsify run --runtime deno dist/app.node.mjs
 ```
 
-`GetStatus`, `DumpTree`, `ListToplevels` and the async `Screenshot` all produce the same
-results, real PNGs included, and `DumpTree` reports the same concrete runtime GTypes as it
-does on GJS.
+`GetStatus`, `DumpTree`, `ListToplevels` and the async `Screenshot` produce the same results
+across the four, real PNGs included, and `DumpTree` reports the same concrete runtime GTypes
+whichever bundle is loaded.
 
 ## Pausing external control
 

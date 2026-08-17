@@ -4,7 +4,7 @@ description: Which operating systems gjsify runs on today, per build target, wit
 ---
 
 import CommandTabs from '../../components/CommandTabs.astro';
-import { platformColumns, platformLegend, platformMatrix } from '../../data/platform-matrix';
+import PlatformMatrix from '../../components/PlatformMatrix.astro';
 
 This page answers one question: **will this work on my operating system?** Which
 runtime to build for is a separate question, and [Runtimes](/gjsify/runtimes/) has
@@ -18,10 +18,18 @@ Linux-only, because the native library underneath it is.
 | **Apps on GJS** (`--app gjs`) | supported | partial, see below | not available (no GJS host) |
 | **Apps on Node/Bun/Deno** (`--app node`, via `@gjsify/node-gi`) | supported | supported | supported |
 | **Browser builds** (`--app browser`) | supported | supported | supported |
-| **The Node-free toolchain** (`gjsify build` under GJS) | supported | engines ship, not exercised in CI | not available |
+| **The CLI on a `gjs` host** (no Node, Bun or Deno on the machine) | supported | engines ship, not exercised in CI | not available (no GJS host) |
+| **The CLI on Node, Bun or Deno** | supported, all three exercised in CI | supported, Node exercised in CI | supported, Node exercised in CI |
+
+The last two rows are the same `gjsify` binary, asked which runtime is executing
+it. You pick by what the machine already has: the `gjs` route installs with a
+`curl` line and no package manager, the other three install from npm, Bun or
+Deno. Off Linux, the CI leg that drives the toolchain end to end is the Node one
+(`cli-cross-platform.yml`).
 
 Browser builds carry no native code at all, so they are portable by
-construction. The GJS side is where the operating system matters.
+construction. The rows that name a `gjs` process are where the operating system
+matters.
 
 ## Windows
 
@@ -31,10 +39,10 @@ upstream gap, not a missing task here: nobody ships a prebuilt `libgjs` for
 Windows, and gjs has to be built against a SpiderMonkey that Windows package
 managers do not provide in a form its build system takes.
 
-Everything else works. Under Node, a Windows machine runs the toolchain
+Everything else works. On Node, Bun or Deno a Windows machine runs the toolchain
 (`gjsify install`, `gjsify build` for `--app node`, `--app browser` and
 `--library`, `gjsify check`, `gjsify clear`, `gjsify copy`), and showcases run on
-the runtimes that are not GJS:
+those three:
 
 ```powershell
 gjsify showcase                                   # list them
@@ -44,8 +52,14 @@ gjsify showcase express-webserver --runtime bun   # or deno
 
 `gjsify showcase` picks the runtime itself, so that middle line runs the
 showcase's `--app node` bundle without being told to. A showcase that declares no
-support for the chosen runtime says so instead of crashing. Install the CLI from
-npm on Windows: the Node-free bootstrap needs a `gjs` binary.
+support for the chosen runtime says so instead of crashing. Install the CLI with
+npm, Bun or Deno on Windows: the `curl` bootstrap needs a `gjs` binary, and there
+is none here.
+
+The Windows leg CI walks is the Node one: `cli-cross-platform.yml` installs the
+published CLI, builds `--app node`, runs the output and drives a showcase on
+`windows-latest`. Bun and Deno install the same package and are not covered by
+that leg.
 
 You do not have to supply GTK yourself. `@gjsify/gtk-runtime-win32-x64` ships the
 GTK 4 / Adwaita closure that `@gjsify/node-gi` loads `gi://` namespaces from, so
@@ -76,13 +90,17 @@ ships the GTK 4 / Adwaita closure so you do not need a Homebrew GTK. Intel Macs
 get the same builds and the same display-free conformance run against
 `@gjsify/gtk-runtime-darwin-x64`; only the windowed GUI proof is arm64-only.
 
-What is not proven is the **Node-free toolchain**. `gjsify build` under GJS needs
-a bundler, `@gjsify/rolldown-native` is the one that runs there, and it does
+What is not proven is the CLI on a `gjs` host. `gjsify build` under GJS needs a
+bundler, `@gjsify/rolldown-native` is the one that runs there, and it does
 publish `darwin-arm64` and `darwin-x64` prebuilds, along with
 `@gjsify/lightningcss-native` and `@gjsify/oxfmt-native`. What is missing is a CI
-job that drives `gjs -m install.mjs` all the way to `gjsify build` with no Node on
-the machine. It may well work for you; nothing here promises it does. With Node
-installed, the npm route is the fallback.
+job that drives `gjs -m install.mjs` all the way to `gjsify build` with no Node
+on the machine. It may well work for you; nothing here promises it does.
+
+The Node route is the one a macOS CI leg does walk end to end:
+`cli-cross-platform.yml` installs the published CLI, builds `--app node` and runs
+the output on `macos-latest`. Bun and Deno install the same package and are not
+covered by that leg.
 
 ## Which native bridges reach your platform
 
@@ -95,37 +113,7 @@ declaration in both directions.
     twice, and by the time anyone measured it, it showed @gjsify/webgl as unsupported
     on win32-x64, the one cell a Windows reader comes here to check. */}
 
-{/* No `key` props: Astro renders this once to static HTML with no reconciler, so a
-    `key` is not consumed. It is emitted verbatim as an invalid DOM attribute. */}
-<table>
-  <thead>
-    <tr>
-      <th>package</th>
-      <th>tier</th>
-      {platformColumns.map((target) => <th>{target}</th>)}
-    </tr>
-  </thead>
-  <tbody>
-    {platformMatrix.map((row) => (
-      <tr>
-        <td><code>{row.name}</code></td>
-        <td>{row.tier ?? '-'}</td>
-        {platformColumns.map((target) => <td>{row.cells[target]}</td>)}
-      </tr>
-    ))}
-  </tbody>
-</table>
-
-{/* A `<p>`, not a bare run of spans: Starlight's markdown stylesheet keys the
-    flow margin on adjacent block elements, so a loose span sequence takes the
-    following paragraph's `margin-top` with it. */}
-<p>
-  {platformLegend.map((entry, index) => (
-    <span>
-      {index > 0 && ' · '}<code>{entry.mark}</code> {entry.meaning}
-    </span>
-  ))}
-</p>
+<PlatformMatrix />
 
 Read `✓` as "you can install this and it will have a binary for your platform".
 `○` means the binary is built and published to npm but not committed to the

@@ -15,21 +15,20 @@ Ported from the upstream [`webgl_postprocessing_pixel`](https://threejs.org/exam
 
 <ShowcaseEmbed name="three-postprocessing-pixel" />
 
-## Run it on GJS
+## Run it
+
+This showcase declares all four runtimes, so pick the one you already have:
 
 ```bash
-gjsify showcase three-postprocessing-pixel
+gjsify showcase three-postprocessing-pixel --runtime gjs
+gjsify showcase three-postprocessing-pixel --runtime node
+gjsify showcase three-postprocessing-pixel --runtime bun
+gjsify showcase three-postprocessing-pixel --runtime deno
 ```
 
-A GTK 4 window opens as an `Adw.OverlaySplitView` with the controls in the sidebar. **Pixel Size** crushes the resolution into bigger cells. **Normal Edge** and **Depth Edge** set how strongly the shader outlines geometry. **Pixel-Aligned Panning** snaps camera movement to the pixel grid so the image stops shimmering as it moves.
+A GTK 4 window opens as an `Adw.OverlaySplitView` with the controls in the sidebar. **Pixel Size** crushes the resolution into bigger cells. **Normal Edge** and **Depth Edge** set how strongly the shader outlines geometry. **Pixel-Aligned Panning** snaps camera movement to the pixel grid so the image stops shimmering as it moves. Same window and same pipeline on all four.
 
-## Run it on Node, Bun or Deno
-
-```bash
-gjsify showcase three-postprocessing-pixel --runtime node   # or bun / deno
-```
-
-Same window and same pipeline, with GTK reached through the [node-gi](/gjsify/projects/node-gi/) bridge.
+Under `gjs` this runs the `--app gjs` bundle against GJS's native `gi://`. Under `node`, `bun` and `deno` it runs one shared `--app node` bundle, where `gi://` goes through the [node-gi](/gjsify/projects/node-gi/) bridge. [Choose the runtime](/gjsify/showcases/#choose-the-runtime) covers what the CLI does when you leave the flag off.
 
 ## Run it in the browser
 
@@ -48,7 +47,7 @@ The browser build rebuilds the same sidebar from `@gjsify/adwaita-web` custom el
 
 ## What the pipeline does
 
-The composer chain is the standard Three.js one, and it runs unchanged on GJS:
+The composer chain is the standard Three.js one, and nothing in it is modified for the GTK window:
 
 1. `EffectComposer` wraps the renderer and owns the off-screen targets.
 2. `RenderPixelatedPass` renders the scene at a reduced resolution and applies the edge detection, with its own GLSL compiled at runtime.

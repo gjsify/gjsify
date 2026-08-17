@@ -1,6 +1,6 @@
 ---
 title: Native Adwaita Apps
-description: Build a GNOME/Adwaita app on GJS with @gjsify/adwaita-app. Application shell, sidebar split view, async view loading, and promise-based dialogs, toasts and file pickers.
+description: Build a GNOME/Adwaita app with @gjsify/adwaita-app, on GJS or on Node, Bun and Deno. Application shell, sidebar split view, async view loading, and promise-based dialogs, toasts and file pickers.
 ---
 
 Every native GNOME app starts with the same code: an `Adw.Application`, a CSS bootstrap,
@@ -16,6 +16,34 @@ real Adwaita objects, and you can drop any helper you don't want.
 ```bash
 gjsify install @gjsify/adwaita-app
 ```
+
+## Which runtime
+
+The package is written against `gi://` and `@girs/*`, so one source builds for either
+target and you pick by the runtime you already have:
+
+```bash
+gjsify build src/main.ts --app gjs  --outfile dist/app.gjs.mjs   # for gjs
+gjsify build src/main.ts --app node --outfile dist/app.node.mjs  # for node, bun and deno
+
+gjsify run dist/app.gjs.mjs
+gjsify run --runtime node dist/app.node.mjs   # or --runtime bun / --runtime deno
+```
+
+With no `--app` the CLI targets whatever runtime is executing it, so a bare `gjsify build`
+follows your install. What actually differs is one layer: on `gjs` the `Adw` and `Gtk`
+namespaces resolve in the host itself, with nothing in between, and `gjs` exists on Linux
+but not on Windows. Node, Bun and Deno share a single `--app node` bundle (Node-API is
+their common ABI) and reach `gi://` through
+[`@gjsify/node-gi`](/gjsify/projects/node-gi/), which is the route that also covers macOS
+and Windows.
+
+The shell's own suites (the nav model, `LoadToken`, the dialog model) are built and run
+twice, `--app gjs` on `gjs` and `--app node` on Node. Bun and Deno load that same
+`--app node` bundle but are not exercised for this package yet, so take them as untested
+here rather than promised. Its widget modules need a display, so what CI proves there is GTK and
+Adwaita under node-gi generally: an unchanged `Adw.Application` on Linux, and the full
+Adwaita storybook gallery on Linux and Windows.
 
 ## Show a window
 
@@ -75,6 +103,9 @@ import system from 'system';
 
 await runApplication(myApp, [system.programInvocationName, ...system.programArgs]);
 ```
+
+`system` is a bare built-in module, not a GJS-only import: `@gjsify/node-gi` carries it
+across, so that line resolves in an `--app node` bundle too.
 
 ## Add a sidebar and views
 
@@ -210,7 +241,8 @@ if (hooks.debug) console.log('verbose load logging on');
 | `MYAPP_DEBUG` | `true` unless unset, empty, `0`, `false` or `no`. |
 
 ```bash
-MYAPP_VIEW=reports gjsify run dist/index.js
+MYAPP_VIEW=reports gjsify run dist/app.gjs.mjs
+MYAPP_VIEW=reports gjsify run --runtime node dist/app.node.mjs
 ```
 
 ## See also

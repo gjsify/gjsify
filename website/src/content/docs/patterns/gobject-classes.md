@@ -7,6 +7,15 @@ description: How to register a TypeScript class with the GObject type system - p
 can see its properties, signals, vfuncs and interfaces. You need it for every widget
 subclass you write.
 
+It belongs to the GObject layer rather than to one runtime, so everything on this page
+holds for an `--app gjs` build and an `--app node` one alike:
+[`@gjsify/node-gi`](/gjsify/projects/node-gi/) carries `registerClass`, the dual
+snake_case/camelCase accessors and `Gio._promisify` across for Node, Bun and Deno.
+
+The samples below print with `print()`, one of the GJS ambient globals. A `--app node`
+build injects a shim for those when your bundled output still reaches for one, and
+`console.log()` needs no shim anywhere.
+
 ## Write it like this
 
 If you don't have a reason to do otherwise, use a static block at the **bottom** of the
@@ -53,7 +62,8 @@ the code stays correct after a rename.
 ## Add a property
 
 Properties are GObject `ParamSpec`s, keyed by their kebab-case GObject name. Read and write
-them from JS with the camelCase or snake_case accessor GJS generates.
+them from JS with the camelCase or snake_case accessor the GObject layer generates for
+them. Both spellings exist on `gjs` and under node-gi, so pick one and stay with it.
 
 ```ts
 class Counter extends GObject.Object {
@@ -159,9 +169,10 @@ class Foo extends GObject.Object {
 // Gjs-CRITICAL: Could not find definition of virtual function init
 ```
 
-On current GJS the error is thrown while the class declaration is being evaluated, so the
-whole module fails to load. Older GJS deferred the same error to the first `.init()` call.
-Either way it is a source-ordering bug, not a missing API.
+The ordering itself is plain ECMAScript, so the bug is the same wherever you build. What
+differs is only the message. On current GJS the error is thrown while the class declaration
+is being evaluated, so the whole module fails to load; older GJS deferred the same error to
+the first `.init()` call. Either way it is a source-ordering bug, not a missing API.
 
 Two ways out, both fine:
 

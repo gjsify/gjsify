@@ -1,6 +1,6 @@
 ---
 title: Coverage
-description: Check whether the Node.js module, Web API or npm package you need already works on GJS.
+description: Check whether the Node.js module, Web API or npm package you need is already implemented.
 ---
 
 import PillarCoverage from '../../components/PillarCoverage.astro';
@@ -14,7 +14,9 @@ Expand a category to see every module or standard with its status. **Full** mean
 
 Everything below is generated from the package manifests on every site build, so it cannot drift away from what actually ships.
 
-These dashboards cover GJS, the primary target. For what is validated on Node.js, Bun, Deno and in the browser, see [Runtimes](/gjsify/runtimes/); for which operating systems each native bridge reaches, see [Platform Support](/gjsify/platform-support/).
+**What the numbers measure:** the APIs gjsify implements itself, on top of GNOME libraries. That surface is at its largest on GJS, which has no `node:fs`, no `fetch` and no `<canvas>` of its own. Node, Bun and Deno have those, so a `--app node` build takes them straight from the runtime and most of the Node and Web entries below never enter that bundle. What all four lack (`DOMParser`, `EventSource` and WebGL, among others) is the same gjsify code everywhere, and the Adwaita, framework and tooling entries are runtime-independent to begin with.
+
+For what is validated on Node.js, Bun, Deno and in the browser, see [Runtimes](/gjsify/runtimes/); for which operating systems each native bridge reaches, see [Platform Support](/gjsify/platform-support/).
 
 <PillarCoverage />
 

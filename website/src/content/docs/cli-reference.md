@@ -5,14 +5,22 @@ description: Every gjsify command, with the flags, defaults and examples you act
 
 `gjsify` is the only binary a GJSify project needs. It scaffolds, builds, runs, tests, formats, packages and publishes.
 
-The recommended install needs no Node at all:
+Get it with the runtime you already have. The bootstrap script installs a standalone `gjsify` and is itself run by `gjs`, so it works on a machine with no Node on it:
 
 ```bash
 curl -fsSL https://github.com/gjsify/gjsify/releases/latest/download/install.mjs \
   -o /tmp/g.mjs && gjs -m /tmp/g.mjs && rm /tmp/g.mjs
 ```
 
-See [Install & Update](/gjsify/guides/install/) for the details. If you already have Node, `npx @gjsify/cli@latest <command>` works too, and so do `bunx @gjsify/cli@latest` and `deno run -A --reload --min-dep-age=0 npm:@gjsify/cli@latest`.
+The three package runners fetch the CLI from npm and run it in place:
+
+```bash
+npx @gjsify/cli@latest <command>
+bunx @gjsify/cli@latest <command>
+deno run -A --reload --min-dep-age=0 npm:@gjsify/cli@latest <command>
+```
+
+See [Install & Update](/gjsify/guides/install/) for the details.
 
 Keep the `@latest` tag. All three runners reuse a cached copy of an unpinned bin, so a plain `npx @gjsify/cli …` can go on serving a release from months ago, and Deno adds a second rule that refuses anything published in the last 24 hours. Neither one tells you it happened; [Which version do `npx`, `bunx` and `deno run` give you?](/gjsify/guides/install/#which-version-do-npx-bunx-and-deno-run-give-you) has the measurement. Every example below writes plain `gjsify`; swap in whichever launcher you use.
 
@@ -47,18 +55,18 @@ gjsify create my-app --template cli --package-manager pnpm --install
 gjsify create                       # pick template, runtime and manager interactively
 ```
 
-On a terminal it asks three questions in order — template, runtime, package manager — each narrowing the next. Every one can be answered by a flag instead, which is also how it is driven without a TTY. `npm create @gjsify/app` is the same scaffolder and takes the same flags.
+On a terminal it asks three questions in order (template, runtime, package manager), each narrowing the next. Every one can be answered by a flag instead, which is also how it is driven without a TTY. `npm create @gjsify/app` is the same scaffolder and takes the same flags.
 
 | Option | Default | Description |
 |---|---|---|
 | `[project-name]` | `my-gjs-app` | Directory to create. |
 | `-t`, `--template <name>` | prompted | Which template to scaffold from. Required when stdin is not a TTY. |
 | `-r`, `--runtime <rt>` | the host runtime | One of the runtimes the chosen template declares. Decides which package managers are on offer and which start script the next steps name. |
-| `-p`, `--package-manager <pm>` | the runtime's first | Must be one the chosen runtime can install for. Required alongside `--install` when there is no TTY — that default would write your `node_modules` and lockfile. |
+| `-p`, `--package-manager <pm>` | the runtime's first | Must be one the chosen runtime can install for. Required alongside `--install` when there is no TTY, since that default would write your `node_modules` and lockfile. |
 | `-f`, `--force` | `false` | Scaffold into a directory that already has files in it. |
 | `--install` | `false` | Run an install right after scaffolding. |
 
-An installer has to produce the module layout its runtime resolves against, so the runtime decides which managers are offered: `gjs` → `gjsify`; `node` → `npm`, `yarn`, `pnpm`, `gjsify`; `bun` → `bun`; `deno` → `deno`. Where a runtime offers exactly one, nothing is asked — it is used and announced. Passing `-p` without `-r` settles the runtime too, since a pinned manager already names one (`-p bun` sets the project up for Bun).
+An installer has to produce the module layout its runtime resolves against, so the runtime decides which managers are offered: `gjs` → `gjsify`; `node` → `npm`, `yarn`, `pnpm`, `gjsify`; `bun` → `bun`; `deno` → `deno`. Where a runtime offers exactly one, nothing is asked: it is used and announced. Passing `-p` without `-r` settles the runtime too, since a pinned manager already names one (`-p bun` sets the project up for Bun).
 
 The templates:
 
@@ -68,11 +76,11 @@ The templates:
 | `adw-canvas2d` | Adwaita app rendering through HTML Canvas 2D, Blueprint UI. |
 | `adw-webgl` | Adwaita app with WebGL and three.js, Blueprint UI. |
 | `adw-game` | Adwaita game shell on Excalibur.js, WebGL with a Canvas2D fallback. |
-| `cli` | Command-line tool built on yargs, runs on Node.js and GJS. |
+| `cli` | Command-line tool built on yargs. |
 | `web-server-express` | HTTP server on Express. |
 | `web-server-hono` | HTTP server on Hono, fetch-style API. |
 
-Every template ships `src/`, a `tsconfig.json` and a `package.json` with `build`, `start`, `dev`, `check` and `clear` scripts. Scaffolding is done by [`@gjsify/create-app`](https://www.npmjs.com/package/@gjsify/create-app).
+Every template ships `src/`, a `tsconfig.json` and a `package.json` with `build`, `start`, `dev`, `check` and `clear` scripts. All seven declare `gjs`, `node`, `bun` and `deno` in `gjsify.example.runtimes` and build both bundles (`build:gjs` and `build:node`), so `-r` decides which start script the printed next steps name (`start` for gjs, `start:node`, `start:bun` or `start:deno` for the others), not what the project can do later. The GTK templates list `@gjsify/node-gi` as a dependency, which is what carries `gi://` on the three non-GJS runtimes. Scaffolding is done by [`@gjsify/create-app`](https://www.npmjs.com/package/@gjsify/create-app).
 
 ## Build and run
 
@@ -251,7 +259,7 @@ GJS provides `setTimeout` and `setInterval` natively, but their return value is 
 | `MediaStream`, `MediaStreamTrack`, `RTCTrackEvent` | `@gjsify/webrtc/register/media` |
 | `MediaDevices` (`navigator.mediaDevices`) | `@gjsify/webrtc/register/media-devices` |
 
-**DOM and browser compatibility (GJS and GTK only)**
+**DOM and browser compatibility (GTK backed)**
 
 | Identifier(s) | Register subpath |
 |---|---|
@@ -264,7 +272,7 @@ GJS provides `setTimeout` and `setInterval` natively, but their return value is 
 | `location` | `@gjsify/dom-elements/register/location` |
 | `navigator` | `@gjsify/dom-elements/register/navigator` |
 
-**Canvas 2D, iframe and WebGL (GTK, WebKit and GLArea backed, GJS only)**
+**Canvas 2D, iframe and WebGL (GTK, WebKit and GLArea backed)**
 
 These are deliberately not part of the coarse `dom` group. Injecting one requires its package (and WebKitGTK for the iframe) to be installed, so auto detection pulls them in only when the identifier really appears in the bundle.
 
@@ -275,6 +283,12 @@ These are deliberately not part of the coarse `dom` group. Injecting one require
 | `WebGLRenderingContext`, `WebGL2RenderingContext` | `@gjsify/webgl/register` |
 
 Identifiers outside this table are ignored. If you still hit `ReferenceError: X is not defined`, add `X` as an extra: `--globals auto,X`.
+
+The two GTK-backed groups are the ones an `--app node` build can also ask for. A plain `--globals auto` node build injects nothing, because Node, Bun and Deno bring their own `fetch`, streams, crypto and events. Name a group or an identifier explicitly and it injects the same register modules the `--app gjs` target would, reaching GTK through [`@gjsify/node-gi`](/gjsify/projects/node-gi/). That is what the GTK templates' `build:node` script does:
+
+```bash
+gjsify build src/index.ts --app node --outfile dist/index.node.mjs --globals auto,dom
+```
 
 ### `gjsify run`
 
@@ -353,6 +367,8 @@ gjsify test --rebuild           # rebuild even if bundles look fresh
 | `--build` | `true` | Build before running. `--no-build` skips it when bundles already exist. |
 | `--verbose` | `false` | Print the resolved entry and outdir plus per-step timing. |
 
+`gjs` and `node` are the only two runtimes this command drives: it builds the `--app gjs` and `--app node` bundles and runs each on its own runtime. Bun and Deno consume the same `--app node` bundle, so you can point them at it yourself with [`gjsify run --runtime`](#gjsify-run), but `gjsify test` does not drive them.
+
 A runtime you did not ask for explicitly is skipped when its binary is not on `PATH`, with a line saying so. Set defaults in `package.json`:
 
 ```json
@@ -422,8 +438,8 @@ Anything you would pass repeatedly on the command line can live in the `gjsify` 
 | `globals` | Default `--globals` value. |
 | `excludeGlobals` | Identifiers to drop from the auto-detected set. |
 | `exclude` | Glob patterns to exclude from entry points and aliases. |
-| `consoleShim` | Inject the GJS console shim. Default `true`. |
-| `shebang` | `true` for the default `#!/usr/bin/env -S gjs -m` line, `false` for none, or your own string. |
+| `consoleShim` | Inject the GJS console shim. Default `true`, and read by `--app gjs` builds only. |
+| `shebang` | `true` for the built target's own line (`#!/usr/bin/env -S gjs -m` for `--app gjs`, `#!/usr/bin/env node` for `--app node`), `false` for none, or your own string. |
 | `aliases` | Extra module aliases, the config form of `--alias`. |
 | `loaders` | Extension to loader kind, for files Rolldown does not classify. |
 | `defineFromPackageJson` | Compile-time constants read out of `package.json`. |
@@ -502,7 +518,7 @@ A leading `#!` is added if you leave it out.
 
 ### `gjsify install`
 
-Install npm dependencies, with no Node or npm CLI needed at runtime. A drop-in for `npm install` and `yarn install`.
+Install npm dependencies. A drop-in for `npm install` and `yarn install`. Its default backend resolves, downloads and unpacks the tree itself, so neither Node nor the npm CLI has to be on the machine.
 
 ```bash
 gjsify install                  # full project install
@@ -789,14 +805,14 @@ In a workspace root it walks every package that defines a `check` script and run
 
 ### `gjsify tsc`
 
-Run the TypeScript compiler under GJS, through the `@gjsify/tsc` bundle. Every argument is passed straight to `tsc`, so this is the Node-free equivalent of `npx tsc`.
+Run the TypeScript compiler, with every argument passed straight through. Same job as `npx tsc`.
 
 ```bash
 gjsify tsc --noEmit
 gjsify tsc -p tsconfig.build.json
 ```
 
-It is the same thing as the `gjsify-tsc` bin from `@gjsify/tsc`. Most templates wire it into their `check` script.
+Two engines back it, picked by what is on the machine: the `@gjsify/tsc` bundle spawned as `gjs -m <bundle>` when that bundle resolves and `gjs` is on `PATH`, otherwise upstream npm `typescript` spawned on Node. If neither is there it says so and exits 1, naming both fixes. It is the same thing as the `gjsify-tsc` bin from `@gjsify/tsc`. Most templates wire it into their `check` script.
 
 ### `gjsify format`
 
@@ -821,7 +837,7 @@ gjsify format --no-write src/    # report drift locally without writing
 
 A bare `gjsify format` writes. There is no flagless report mode: `--check` is the read-only CI mode and `--no-write` the read-only local one.
 
-Under GJS, formatting runs in-process through the `@gjsify/oxfmt-native` bridge, so no Node is involved. On Node, the `oxfmt` npm launcher is resolved from `node_modules` and spawned. Set `GJSIFY_OXFMT=npm` to force the Node launcher, or `GJSIFY_OXFMT=native` to fail instead of falling back when the prebuild is missing. From inside a sub-workspace, resolution walks up to the workspace root, so a single `.oxfmtrc.json` there applies everywhere.
+Under GJS, formatting runs in-process through the `@gjsify/oxfmt-native` bridge. Everywhere else the `oxfmt` npm launcher is resolved from `node_modules` and spawned with `node`. Set `GJSIFY_OXFMT=npm` to force the launcher, or `GJSIFY_OXFMT=native` to fail instead of falling back when the prebuild is missing. From inside a sub-workspace, resolution walks up to the workspace root, so a single `.oxfmtrc.json` there applies everywhere.
 
 oxfmt handles JS, TS and TOML. It does not format CSS or JSON, and GJSify does not substitute another formatter for those.
 
@@ -906,7 +922,7 @@ gjsify system-check --json
 |---|---|---|
 | `--json` | `false` | Emit the results as JSON. |
 
-It reports an install command for your detected package manager when something is missing, and exits 1 if any required dependency is absent.
+It reports an install command for your detected package manager when something is missing, and exits 1 if any required dependency is absent. The required set is fixed rather than read off your project: the GNOME stack a GTK app links against, plus the `gjs` binary. Only the optional rows follow your dependencies. So a `--app node` project that reaches GTK through `@gjsify/node-gi` is still told to install `gjs`, even though it never runs it.
 
 This used to be called `gjsify check`. The bare name now runs the TypeScript checks described above.
 
@@ -915,7 +931,7 @@ This used to be called `gjsify check`. The bare name now runs the TypeScript che
 
 **Required.** Always checked, and a miss is fatal: `gjs`, `pkg-config`, `meson`, `blueprint-compiler`, plus `gtk4`, `libadwaita-1`, `libsoup-3.0` and `gobject-introspection-1.0`. On Windows the Microsoft Visual C++ runtime is checked too, because the GTK bundle's DLLs will not load without it.
 
-**Node.js** is reported but never required. The Node-free bootstrap does not need it, so "not installed" is a legitimate answer.
+**Node.js** is reported but never required. The `install.mjs` bootstrap is run by `gjs`, so "not installed" is a legitimate answer here.
 
 **Build toolchain, optional.** `ninja` and `vala` for the Vala bridges, `cargo` for the three Rust-backed engines (`@gjsify/rolldown-native`, `@gjsify/lightningcss-native`, `@gjsify/oxfmt-native`). You only need these if you rebuild a prebuild from source.
 
@@ -1075,7 +1091,7 @@ Before launching a showcase on `gjs`, it verifies the required system libraries 
 
 The default is `gjs` whenever a `gjs` binary is available, because a showcase's canonical artifact is its `--app gjs` bundle. Only on a host without gjs does the default follow the host runtime.
 
-`node`, `bun` and `deno` resolve the showcase's `--app node` bundle and run it there. The runtime is validated against the showcase's [`gjsify.example.runtimes`](#per-example-runtime-declaration) declaration, so a GTK or Adwaita showcase asked for under `node` fails with a clear message rather than crashing.
+`node`, `bun` and `deno` resolve the showcase's `--app node` bundle and run it there. The runtime is validated against the showcase's [`gjsify.example.runtimes`](#per-example-runtime-declaration) declaration, so a showcase that does not declare the runtime you asked for fails with a clear message rather than crashing. Most do ship one: the Adwaita storybook, the Express server and the Canvas 2D, three.js and Excalibur showcases all declare `gjs`, `node`, `bun` and `deno`.
 
 ```bash
 gjsify showcase express-webserver                  # gjs
@@ -1098,7 +1114,7 @@ An example or showcase can declare which runtimes it supports, so `--runtime` va
 }
 ```
 
-Leaving `runtimes` out is permissive. A GTK or Adwaita showcase declares `["gjs"]`, so `--runtime node` errors cleanly. When `node` is omitted, the node bundle is derived from the GJS entry by convention: `dist/<name>.gjs.js` becomes `dist/<name>.node.mjs`.
+Leaving `runtimes` out is permissive. The showcases built on `@gjsify/iframe` (WebKit) and `@gjsify/webrtc` (GStreamer WebRTC) declare `["gjs"]`, so `--runtime node` errors cleanly. When `node` is omitted, the node bundle is derived from the GJS entry by convention: `dist/<name>.gjs.js` becomes `dist/<name>.node.mjs`.
 
 ## Debug a running app
 
@@ -1149,7 +1165,7 @@ gjsify debug --build-only --out dist/bridge.gjs.mjs   # build once, point .mcp.j
 | `--out <path>` | `node_modules/.cache/gjsify-debug` | Output bundle path. |
 | `--build-only` | `false` | Build the bridge bundle without launching it. |
 
-`gjsify debug` logs to stderr only, because stdout is the JSON-RPC channel. The bridge resolves `@gjsify/devtools-mcp` from your project's `node_modules`. Full workflow: [Debugging and remote control](/gjsify/guides/devtools/).
+`gjsify debug` logs to stderr only, because stdout is the JSON-RPC channel. The bridge resolves `@gjsify/devtools-mcp` from your project's `node_modules`. There is no `--runtime` here: the bridge bundle is always built `--app gjs` and launched with `gjs`, whichever runtime the CLI itself is on. The app it talks to can be on any of the four, since the two only ever meet over D-Bus. Full workflow: [Debugging and remote control](/gjsify/guides/devtools/).
 
 ### `gjsify browse`
 
@@ -1174,7 +1190,7 @@ gjsify browse https://localhost:8080 --screenshot shot.png
 | `--screenshot <path>` | none | One-shot: load the URL, capture a WebKit screenshot to this path, exit. Handy in CI. |
 | `--build-only` | `false` | Build the bundle without launching it. |
 
-The browser is built on [`@gjsify/iframe`](https://www.npmjs.com/package/@gjsify/iframe), a `WebKit.WebView` postMessage bridge. With `--inspector-port` it also sets `WEBKIT_INSPECTOR_HTTP_SERVER` and exposes the [`@gjsify/devtools-cdp`](https://www.npmjs.com/package/@gjsify/devtools-cdp) methods (`CdpDiscoverTargets`, `CdpConnect`, `CdpSend`, `CdpDrainEvents`) over the control plane, which is the deep Runtime, DOM, CSS, Network, Console and Debugger protocol. Drive it with `gjsify debug --profile browser`, described in the [Debugging and remote control guide](/gjsify/guides/devtools/).
+The browser is built on [`@gjsify/iframe`](https://www.npmjs.com/package/@gjsify/iframe), a `WebKit.WebView` postMessage bridge, and it is always built `--app gjs` and launched with `gjs`, whichever runtime the CLI itself is on. With `--inspector-port` it also sets `WEBKIT_INSPECTOR_HTTP_SERVER` and exposes the [`@gjsify/devtools-cdp`](https://www.npmjs.com/package/@gjsify/devtools-cdp) methods (`CdpDiscoverTargets`, `CdpConnect`, `CdpSend`, `CdpDrainEvents`) over the control plane, which is the deep Runtime, DOM, CSS, Network, Console and Debugger protocol. Drive it with `gjsify debug --profile browser`, described in the [Debugging and remote control guide](/gjsify/guides/devtools/).
 
 ## Ship it
 
@@ -1594,7 +1610,7 @@ gjsify whoami --json
 
 ### `gjsify login`
 
-Log in to an npm registry and write the token to `~/.npmrc`, with no Node needed.
+Log in to an npm registry and write the token to `~/.npmrc`.
 
 ```bash
 gjsify login
