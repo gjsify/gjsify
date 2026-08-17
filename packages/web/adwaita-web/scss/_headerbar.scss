@@ -5,8 +5,23 @@
 // Copyright (c) 2025 csm (adwaita-web). MIT License.
 // Modifications: Adapted for @gjsify/adwaita-web Web Components.
 
+// A GRID, not a flex row, because `Adw.HeaderBar` puts its three sections in a
+// `GtkCenterBox` (adw-header-bar.c:992) — and a center box centres its middle
+// child in the WHOLE box, not in whatever space the sides left over. As a flex
+// row with `flex: 1` on the centre, the title was centred between the buttons
+// instead: any bar whose two sides differ in width — which is most of them, e.g.
+// a storybook preview header with no start buttons and two end buttons — drew its
+// title visibly off-centre.
+//
+// `1fr` is `minmax(auto, 1fr)`, and that auto floor is what makes this the LOOSE
+// centering policy (the default) rather than STRICT: the side tracks share the
+// free space equally, so the title sits dead centre while both sides fit, but a
+// side whose content is wider than its share pushes the title off centre rather
+// than truncating itself. STRICT — `adw_header_bar_set_centering_policy`, which
+// size-groups the two sides — would instead keep the title centred at all cost.
 adw-header-bar {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr minmax(0, auto) 1fr;
   align-items: center;
   min-height: 47px;
   padding: 0 6px;
@@ -18,10 +33,12 @@ adw-header-bar {
   flex-shrink: 0;
 
   .adw-header-bar-center {
-    flex: 1;
+    justify-self: center;
     display: flex;
     justify-content: center;
     // min-width: 0 prevents the title from pushing the end buttons off-screen.
+    // `shrink-center-last` is FALSE on the center box, so the TITLE is what gives
+    // way when the bar runs out of room, not the buttons.
     min-width: 0;
   }
 
@@ -34,15 +51,15 @@ adw-header-bar {
   }
 
   .adw-header-bar-start {
+    justify-self: start;
     display: flex;
     align-items: center;
     padding: 0 6px;
     gap: 4px;
-    // flex-shrink: 0 keeps the start buttons visible when the window is narrow.
-    flex-shrink: 0;
   }
 
   .adw-header-bar-end {
+    justify-self: end;
     display: flex;
     align-items: center;
     // justify-content: flex-end aligns end buttons to the right edge of the
@@ -50,8 +67,6 @@ adw-header-bar {
     justify-content: flex-end;
     padding: 0 6px;
     gap: 4px;
-    // flex-shrink: 0 keeps the end buttons visible when the window is narrow.
-    flex-shrink: 0;
   }
 
   .adw-header-btn {
