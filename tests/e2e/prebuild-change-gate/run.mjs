@@ -882,6 +882,62 @@ done`;
         assert.equal(spawnSync('bash', ['-n', emulated]).status, 0, 'emulated-build.sh must parse');
     });
 
+    /**
+     * Which parser is the honest one for a script, decided by its shebang.
+     *
+     * TWO WAYS THIS WAS WRONG, and both reached `main` and reddened it.
+     *
+     * 1. The spelling. The first cut matched `#!/bin/bash` literally, so the two scripts
+     *    written `#!/usr/bin/env bash` — `sync-and-stage.sh` and `gate-pushed-tree.sh` —
+     *    were checked with `sh -n`.
+     *
+     * 2. `sh` is not a POSIX shell just because it is called `sh`. On Fedora — this
+     *    suite's own container, and the workstation — `/bin/sh` IS bash, so `sh -n` on a
+     *    bash script passes and the POSIX claim is verified by nothing. That is why (1)
+     *    survived every PR: it could only bite inside `commit-prebuilds`, which runs on a
+     *    bare `ubuntu-latest` where `sh` is dash, and that job is main-only by
+     *    construction. Measured under real dash: `sync-and-stage.sh` exits 2,
+     *    `gate-pushed-tree.sh` happens to parse, which is why only one of the two showed.
+     *
+     * So an sh-shebang script is checked with a REAL POSIX shell when the host has one
+     * (`dash`, or busybox's `ash` — what `alpine:3.24` runs these under), and the
+     * fallback SAYS it is a fallback rather than passing quietly.
+     */
+    const posixShell = (() => {
+        for (const [bin, args] of [
+            ['dash', []],
+            ['busybox', ['sh']],
+        ]) {
+            if (spawnSync(bin, [...args, '-c', 'true'], { stdio: 'ignore' }).status === 0) {
+                return { bin, args, why: 'real POSIX shell' };
+            }
+        }
+        // `bash --posix` still accepts most bashisms, so this is weaker on purpose and
+        // labelled as such: it catches a syntax error, not a portability one.
+        return { bin: 'sh', args: [], why: 'no dash/busybox here — sh may be bash, so syntax only' };
+    })();
+
+    /** True when the shebang names bash, in any of the spellings this repo uses. */
+    const wantsBash = (source) => /^#!.*\bbash\b/.test(source.split('\n', 1)[0]);
+
+    const parserFor = (source) =>
+        wantsBash(source)
+            ? { bin: 'bash', args: ['-n'], why: 'bash shebang' }
+            : { bin: posixShell.bin, args: [...posixShell.args, '-n'], why: posixShell.why };
+
+    it('picks the parser from the shebang, in either bash spelling', () => {
+        // The assertion that would have caught the original miss, and the reason it is
+        // separate from the parse loop below: on a host where `sh` is bash, checking a
+        // bash script with `sh -n` PASSES, so a wrong choice is invisible exactly where
+        // these tests run. This pins the CHOICE, which is host-independent.
+        assert.equal(parserFor('#!/usr/bin/env bash\nfoo=(a b)\n').bin, 'bash');
+        assert.equal(parserFor('#!/bin/bash\n').bin, 'bash');
+        assert.equal(parserFor('#!/usr/bin/bash\n').bin, 'bash');
+        assert.notEqual(parserFor('#!/bin/sh\n').bin, 'bash');
+        // Only the shebang LINE decides — a later mention of bash in a comment must not.
+        assert.notEqual(parserFor('#!/bin/sh\n# portable, not bash\n').bin, 'bash');
+    });
+
     // DERIVED, not listed. This assertion used to name `musl-build.sh` alone, and a
     // hand-maintained list of scripts is the same shape as a hand-maintained list of
     // packages in a workflow: the entry that is missing is invisible, and the one added
@@ -898,12 +954,16 @@ done`;
         assert.ok(scripts.length >= 4, `expected several .sh scripts in ${dir}, found ${scripts.length}`);
         for (const name of scripts) {
             const path = join(dir, name);
-            // `sh -n`, not `bash -n`, for anything that runs in `alpine:3.24`, whose only
-            // shell is busybox ash: a bashism passes a bash check and then fails inside the
-            // container, the one place these legs cannot be debugged cheaply. The shebang
-            // decides which parser is the honest one.
-            const shell = readFileSync(path, 'utf8').startsWith('#!/bin/bash') ? 'bash' : 'sh';
-            assert.equal(spawnSync(shell, ['-n', path]).status, 0, `${name} must parse under ${shell}`);
+            // The shebang decides the parser (see `parserFor`): a bashism must not be
+            // checked with a POSIX shell, and an Alpine script must not be checked with
+            // bash — it runs under busybox ash, the one place these legs cannot be
+            // debugged cheaply.
+            const parser = parserFor(readFileSync(path, 'utf8'));
+            assert.equal(
+                spawnSync(parser.bin, [...parser.args, path]).status,
+                0,
+                `${name} must parse under ${parser.bin} (${parser.why})`,
+            );
             // Invoked as `sh <script>`, so the bit is not strictly required — but every one
             // of these headers tells a human to run it by hand, and that should work.
             assert.ok(statSync(path).mode & 0o111, `${name} must be executable`);
