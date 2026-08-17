@@ -176,12 +176,27 @@ export const tscCommand: Command<unknown, TscOptions> = {
                 console.error('  …or install Node.js so the upstream `typescript` fallback can be spawned.');
                 return forceExit(1);
             }
+            // `forceExit` runs from the child's own `'close'` DISPATCH, never from a
+            // promise continuation — which is why this awaits a promise that only
+            // ever REJECTS instead of `await`ing the completion.
+            //
+            // Under GJS `forceExit` ends the process by THROWING SpiderMonkey's
+            // uncatchable exit exception. Thrown inside an `await` continuation that
+            // exception is captured by the async machinery as a rejection rather than
+            // unwinding the stack, so nothing exits — and the GLib main loop the spawn
+            // armed then keeps the process alive with nothing left to quit it.
+            // Measured: `gjsify tsc --version` printed `Version 6.0.3` and hung
+            // forever, which in CI is a 30-minute step timeout.
             try {
-                const result = await spawnToCompletion(nodeBin, [nodeTscPath as string, ...tscArgs], {
-                    completion: 'exit',
-                    env,
+                await new Promise<void>((_never, reject) => {
+                    void spawnToCompletion(nodeBin, [nodeTscPath as string, ...tscArgs], {
+                        completion: 'exit',
+                        env,
+                        onSpawn: (child) => {
+                            child.on('close', (code) => forceExit(code ?? 1));
+                        },
+                    }).catch(reject);
                 });
-                return forceExit(result.code ?? 1);
             } catch (err) {
                 const e = err as NodeJS.ErrnoException;
                 if (e.code === 'ENOENT') {
@@ -209,25 +224,31 @@ export const tscCommand: Command<unknown, TscOptions> = {
             // promise cannot both reject and resolve, so routing through
             // `spawnToCompletion` makes that race structurally impossible rather
             // than guarded by a flag.
+            // Same shape, and the same reason, as `runNodeTsc` above: exit from the
+            // child's `'close'` dispatch, await a promise that only rejects.
             try {
-                const result = await spawnToCompletion('gjs', ['-m', bundlePath, ...tscArgs], {
-                    completion: 'exit',
-                    env,
+                await new Promise<void>((_never, reject) => {
+                    void spawnToCompletion('gjs', ['-m', bundlePath, ...tscArgs], {
+                        completion: 'exit',
+                        env,
+                        onSpawn: (child) => {
+                            child.on('close', (code) => forceExit(code ?? 1));
+                        },
+                    }).catch(reject);
                 });
-                forceExit(result.code ?? 1);
             } catch (err) {
                 const e = err as NodeJS.ErrnoException;
                 if (e.code === 'ENOENT' && nodeTscPath) {
                     // No gjs on PATH — run upstream typescript under Node.
-                    await runNodeTsc();
-                } else if (e.code === 'ENOENT') {
+                    return await runNodeTsc();
+                }
+                if (e.code === 'ENOENT') {
                     console.error('gjsify tsc: `gjs` not found on PATH and no npm `typescript` fallback.');
                     console.error('  Install GJS (e.g. `dnf install gjs`), or add `typescript` to the project.');
-                    forceExit(1);
                 } else {
                     console.error(`gjsify tsc: ${e.message}`);
-                    forceExit(1);
                 }
+                return forceExit(1);
             }
         } else {
             // No GJS bundle resolvable — go straight to the Node fallback.
