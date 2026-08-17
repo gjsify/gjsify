@@ -35,3 +35,20 @@ export function invocationCommands(suffix: string): { runtime: string; code: str
         code: `${RUNTIME_INVOCATION[rt]} ${suffix}`,
     }));
 }
+
+/**
+ * The same four tabs for a SCRIPT of several commands, each introduced by a
+ * comment LINE.
+ *
+ * Above the command, not trailing it: the deno invocation is 58 characters before
+ * its own arguments start, so a trailing comment puts the explanation past 90
+ * columns in a window that shows about 55. Comments on their own line leave the
+ * longest line exactly as long as the command itself — the width these windows
+ * were already sized for.
+ */
+export function invocationScript(steps: { args: string; comment: string }[]): { runtime: string; code: string }[] {
+    return (Object.keys(RUNTIME_INVOCATION) as Runtime[]).map((rt) => ({
+        runtime: RUNTIME_TAB[rt],
+        code: steps.map((step) => `# ${step.comment}\n${RUNTIME_INVOCATION[rt]} ${step.args}`).join('\n\n'),
+    }));
+}

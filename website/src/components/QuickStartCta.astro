@@ -6,9 +6,16 @@
 import CommandTabs from './CommandTabs.astro';
 // One definition of how each runtime invokes the toolchain — see
 // `runtime-invocations.ts` for why the deno line carries two extra flags.
-import { invocationCommands } from './runtime-invocations.ts';
+import { invocationScript } from './runtime-invocations.ts';
 
-const createCommands = invocationCommands('create my-app');
+// `--help` sits IN the terminal, above `create`, rather than in a line of prose
+// beneath it: the tabs promise the toolchain on four runtimes, and a prose hint
+// can only spell one of them — it read `npx …`, which is the wrong command in
+// three of the four tabs a reader may be looking at.
+const createCommands = invocationScript([
+  { args: '--help', comment: 'See every command, from create to ship' },
+  { args: 'create my-app', comment: 'Scaffold a new app' },
+]);
 ---
 
 <section class="quick-start-cta">
@@ -16,9 +23,6 @@ const createCommands = invocationCommands('create my-app');
 
   <CommandTabs title="Terminal" commands={createCommands} />
 
-  <p class="quick-start-hint">
-    or run <code>npx @gjsify/cli@latest --help</code> to explore all commands
-  </p>
   <div class="quick-start-links">
     <a class="quick-start-btn quick-start-btn-primary" href="/gjsify/getting-started/">Getting Started Guide</a>
     <a class="quick-start-btn quick-start-btn-minimal" href="/gjsify/cli-reference/">CLI Reference</a>
@@ -190,20 +194,9 @@ const createCommands = invocationCommands('create my-app');
     user-select: none;
   }
 
-  /* ── Hint ── */
-  .quick-start-hint {
-    margin: 1.25rem 0 1.5rem;
-    font-size: 0.9rem;
-    color: var(--sl-color-gray-3);
-  }
-
-  .quick-start-hint code {
-    font-size: 0.85rem;
-    color: var(--sl-color-gray-2);
-  }
-
   /* ── CTA buttons (same style as Hero) ── */
   .quick-start-links {
+    margin-top: 1.75rem;
     display: flex;
     gap: 0.75rem;
     justify-content: center;
