@@ -16,6 +16,15 @@ runtime you installed with becomes the one it builds for by default.
 | [Bun](#bun) | `bun add -g` | `bun add -g` again |
 | [Deno](#deno) | `deno install -g` | the same command with `-f` |
 
+On **Windows** take Node.js, Bun or Deno: the GJS route needs a `gjs` binary and
+there is none. On **macOS** all four are possible, but Node, Bun and Deno are the
+tested ones.
+
+A global install is not the only shape. You can also
+[add the CLI to a single project](#or-add-it-to-one-project) as a dev dependency,
+and for a browser or NativeScript build you
+[may not need the CLI at all](#do-you-need-the-cli).
+
 ## GJS
 
 If you have `gjs` 1.86 or newer and `curl`, this is all you need:
@@ -104,6 +113,81 @@ registry.
 The launcher lands in `$DENO_INSTALL_ROOT/bin`, or `~/.deno/bin` by default. Deno
 prints the directory and the `export PATH=…` line to add if it is not on your
 path yet.
+
+## Or add it to one project
+
+Nothing says the CLI has to be global. Add it as a dev dependency and it becomes
+one more tool in that project's toolchain, pinned in the lockfile with everything
+else, so a colleague who clones the repo gets the version you built against
+instead of whatever they happen to have installed.
+
+<CommandTabs title="Add to a project" group="pm">
+  <Fragment slot="npm">
+    ```bash
+    npm install -D @gjsify/cli
+    ```
+  </Fragment>
+  <Fragment slot="yarn">
+    ```bash
+    yarn add -D @gjsify/cli
+    ```
+  </Fragment>
+  <Fragment slot="pnpm">
+    ```bash
+    pnpm add -D @gjsify/cli
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    bun add --dev @gjsify/cli
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno add -D npm:@gjsify/cli
+    ```
+  </Fragment>
+</CommandTabs>
+
+Then call it the way you call any other project-local binary. Inside a
+`package.json` script the bare name works, because the runner puts
+`node_modules/.bin` on the path:
+
+```json
+{
+  "scripts": {
+    "build": "gjsify build src/index.ts --app gjs --outfile dist/index.gjs.js",
+    "start": "gjsify run dist/index.gjs.js"
+  }
+}
+```
+
+From your shell, reach it through your runner: `npx gjsify …`, `pnpm exec gjsify …`,
+`yarn gjsify …`, `bunx gjsify …` or `deno run -A npm:@gjsify/cli …`.
+
+This is how every template that `gjsify create` scaffolds is set up, so a project
+made that way already works this way and needs nothing installed globally.
+
+## Do you need the CLI?
+
+For a **browser or NativeScript** build, no.
+[`@gjsify/vite-plugin-gjsify`](/gjsify/guides/vite-plugin/) is an ordinary npm
+package whose only peer dependency is `vite`. Spread a preset into
+`vite.config.ts` and run plain `vite` / `vite build`: your dev server resolves
+modules the same way `gjsify build --app browser` does, so dev and production
+agree, and no `gjsify` binary is involved anywhere.
+
+```bash
+npm install -D @gjsify/vite-plugin-gjsify vite
+```
+
+For a **native GJS or GTK** build the CLI is still the way. The Vite presets
+mirror the `--app browser` and `--app nativescript` targets; producing the
+`--app gjs` bundle a GNOME app ships as is the CLI's job.
+
+Two more plugins stand alone the same way, if all you want is one piece:
+[`@gjsify/vite-plugin-blueprint`](/gjsify/guides/vite-plugin/) compiles `.blp`
+templates, and `@gjsify/vite-plugin-gettext` runs the PO/MO pipeline.
 
 ## Update
 
@@ -196,6 +280,13 @@ from npm it runs on Node, so they default to `node`; installed with Bun or Deno
 they default to `bun` and `deno` (all three consume the same `--app node`
 bundle). Override it per command with `--app` / `--runtime`, or per project with
 `gjsify.app` in `package.json`.
+
+Your operating system is never part of that decision. The CLI asks which runtime
+is executing it right now, nothing else (`buildAppForRuntime(hostRuntime())`). So
+on Windows it targets Node, Bun or Deno, but that is a consequence rather than a
+rule: it targets them because those are the only runtimes that can install and
+run it there. Give a machine `gjs` and the same CLI targets GJS, whatever the OS
+underneath.
 
 `gjsify showcase` is the one exception: a showcase's canonical build is its
 `--app gjs` bundle, so it picks `gjs` whenever `gjs` is installed, whatever the
