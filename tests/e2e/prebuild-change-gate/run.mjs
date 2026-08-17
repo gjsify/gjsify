@@ -925,6 +925,27 @@ done`;
             ? { bin: 'bash', args: ['-n'], why: 'bash shebang' }
             : { bin: posixShell.bin, args: [...posixShell.args, '-n'], why: posixShell.why };
 
+    it('its trigger covers what it runs', () => {
+        // An allow-list that stops covering an input fails SILENT, and this one had
+        // stopped: `gate-pushed-tree.sh` runs four e2e suites, and `prebuilds.yml`'s
+        // `paths:` named none of them. Measured — the change that fixed a red
+        // `commit-prebuilds` edited THIS FILE and produced no prebuilds run at all,
+        // neither on the PR nor on the merge, so the repair could not be seen where it
+        // mattered. The gate's content and the gate's trigger are one claim; this
+        // derives the first from the script and holds the second to it.
+        const gate = readFileSync(gatePushedTree, 'utf8');
+        const suites = [...gate.matchAll(/tests\/e2e\/([a-z0-9-]+)\/run\.mjs/g)].map(([, name]) => name);
+        assert.ok(suites.length >= 4, `expected the gate to name several suites, found ${suites.length}`);
+        const triggers = readFileSync(workflow, 'utf8');
+        for (const name of new Set(suites)) {
+            assert.ok(
+                triggers.includes(`tests/e2e/${name}/**`),
+                `prebuilds.yml must trigger on tests/e2e/${name}/** — gate-pushed-tree.sh runs it, so a change ` +
+                    'there changes what the gate asserts, and nothing would rebuild',
+            );
+        }
+    });
+
     it('picks the parser from the shebang, in either bash spelling', () => {
         // The assertion that would have caught the original miss, and the reason it is
         // separate from the parse loop below: on a host where `sh` is bash, checking a

@@ -124,6 +124,16 @@ on:
       - 'scripts/check-refs-pin.mjs'
       - 'scripts/check-prebuild-loader-path.mjs'
       - 'scripts/manifest-conformance/**'
+      # The four suites `gate-pushed-tree.sh` RUNS. Absent until now, so editing the
+      # gate's own content did not trigger the workflow that runs it — measured: the
+      # fix for a red `commit-prebuilds` touched `tests/e2e/prebuild-change-gate/` and
+      # produced no prebuilds run at all, on the PR or on the merge. Held by
+      # `prebuild-change-gate`'s own "its trigger covers what it runs" case.
+      - 'tests/e2e/platform-exemption-clearing/**'
+      - 'tests/e2e/prebuild-declaration-invariant/**'
+      - 'tests/e2e/prebuild-loader-path/**'
+      - 'tests/e2e/prebuild-change-gate/**'
+      - 'tests/e2e/stage-prebuild/**'
 
   # Repeated VERBATIM from `push` above — GitHub Actions supports no YAML
   # anchors, and the two lists MUST stay identical: a path that can change a
@@ -163,6 +173,16 @@ on:
       - 'scripts/check-refs-pin.mjs'
       - 'scripts/check-prebuild-loader-path.mjs'
       - 'scripts/manifest-conformance/**'
+      # The four suites `gate-pushed-tree.sh` RUNS. Absent until now, so editing the
+      # gate's own content did not trigger the workflow that runs it — measured: the
+      # fix for a red `commit-prebuilds` touched `tests/e2e/prebuild-change-gate/` and
+      # produced no prebuilds run at all, on the PR or on the merge. Held by
+      # `prebuild-change-gate`'s own "its trigger covers what it runs" case.
+      - 'tests/e2e/platform-exemption-clearing/**'
+      - 'tests/e2e/prebuild-declaration-invariant/**'
+      - 'tests/e2e/prebuild-loader-path/**'
+      - 'tests/e2e/prebuild-change-gate/**'
+      - 'tests/e2e/stage-prebuild/**'
 
 # Least privilege at the workflow level; each job adds only what it needs. This
 # is what keeps the new PR trigger from ever handing a write-capable token to a
