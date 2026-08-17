@@ -634,4 +634,153 @@ export const AdwViewSwitcherTest = async () => {
             to.remove();
         });
     });
+
+    // The chrome around the row, which had drifted from the C source in four places
+    // at once. Computed-style assertions, because every one of them is invisible to
+    // the DOM conformance vectors above: those check WHAT is rendered, this checks
+    // what it looks like.
+    await describe('adw-view-switcher chrome (libadwaita _view-switcher.scss)', async () => {
+        const CHROME_PAGES = [
+            { name: 'inbox', title: 'Inbox', iconName: 'mail-unread-symbolic', visible: true },
+            { name: 'starred', title: 'Starred', iconName: 'starred-symbolic', visible: true },
+            { name: 'archive', title: 'Archive of everything ever kept', iconName: 'folder-symbolic', visible: true },
+        ] as ViewSwitcherVectorPage[];
+
+        /**
+         * The computed value of `expr` evaluated with `color` as currentColor.
+         * Comparing two COMPUTED strings keeps the assertion independent of how the
+         * engine serialises a `color-mix`, so it checks the ratio and not a spelling.
+         */
+        function resolveAgainst(expr: string, color: string): string {
+            const probe = document.createElement('div');
+            probe.style.color = color;
+            probe.style.backgroundColor = expr;
+            document.body.appendChild(probe);
+            const value = getComputedStyle(probe).backgroundColor;
+            probe.remove();
+            return value;
+        }
+
+        await it('draws no card around the content: libadwaita frames the stack with nothing', () => {
+            const { element, host } = mountSwitcher(CHROME_PAGES, 'wide');
+            const content = element.querySelector('.adw-view-switcher-content') as HTMLElement;
+            const style = getComputedStyle(content);
+
+            // adw-view-switcher.c:41-73 puts the bare AdwViewStack in
+            // AdwToolbarView:content, and nothing in _view-switcher.scss,
+            // _toolbars.scss or _views.scss gives that stack a border, a radius, a
+            // margin or padding.
+            const borders = [
+                style.borderTopWidth,
+                style.borderRightWidth,
+                style.borderBottomWidth,
+                style.borderLeftWidth,
+            ];
+            for (const width of borders) expect(width).toBe('0px');
+            expect(style.borderTopLeftRadius).toBe('0px');
+            expect(style.borderTopRightRadius).toBe('0px');
+            expect(style.marginTop).toBe('0px');
+            expect(style.paddingTop).toBe('0px');
+            expect(style.paddingLeft).toBe('0px');
+            // Transparent rather than `--view-bg-color`: the surface belongs to
+            // whatever holds the switcher, exactly as `adw-view-stack` leaves it.
+            expect(style.backgroundColor).toBe('rgba(0, 0, 0, 0)');
+
+            host.remove();
+        });
+
+        await it('hands the visible page the whole content rect, not just its own text height', () => {
+            // The other half of the card removal, and the half nothing else pins: with
+            // the frame gone the page still has to FILL what AdwViewStack allocates to
+            // its visible child, or a status page inside it top-aligns in a tall pane
+            // instead of centring. `.adw-view-stack-child` in `_view_stack.scss` is the
+            // same four declarations for the standalone element.
+            const { element, host } = mountSwitcher(CHROME_PAGES, 'wide');
+            host.style.height = '400px';
+            element.style.height = '100%';
+
+            const content = element.querySelector('.adw-view-switcher-content') as HTMLElement;
+            const page = element.querySelector('.adw-view-switcher-page.active-view') as HTMLElement;
+            expect(getComputedStyle(page).display).toBe('flex');
+            expect(Math.round(page.getBoundingClientRect().height)).toBe(
+                Math.round(content.getBoundingClientRect().height),
+            );
+
+            host.remove();
+        });
+
+        await it('fills the selected tab with the flat :checked shade, not the pressed one', () => {
+            const { element, host } = mountSwitcher(CHROME_PAGES, 'wide');
+            const buttons = buttonsOf(element, '.adw-view-switcher-button');
+            const selected = buttons[0];
+            const unselected = buttons[1];
+
+            expect(selected.classList.contains('active')).toBe(true);
+
+            // %button_basic_flat:checked is `$selected_color`, currentColor at 10%
+            // (_buttons.scss:259 over _colors.scss:270). 19% is
+            // `$selected_active_color`, which belongs to the selected tab while it
+            // is HELD DOWN, and is what this used to paint at rest.
+            const foreground = getComputedStyle(selected).color;
+            expect(getComputedStyle(selected).backgroundColor).toBe(
+                resolveAgainst('color-mix(in srgb, currentColor 10%, transparent)', foreground),
+            );
+            expect(getComputedStyle(selected).backgroundColor).not.toBe(
+                resolveAgainst('color-mix(in srgb, currentColor 19%, transparent)', foreground),
+            );
+            // An unselected tab stays transparent until it is hovered.
+            expect(getComputedStyle(unselected).backgroundColor).toBe('rgba(0, 0, 0, 0)');
+
+            host.remove();
+        });
+
+        await it('keeps every tab the same width however long one title is', () => {
+            const { element, host } = mountSwitcher(CHROME_PAGES, 'wide');
+            // Narrow enough that the long title cannot fit. GTK's homogeneous box
+            // (adw-view-switcher.c:475) still hands out equal widths there and lets
+            // the label ellipsize (adw-view-switcher-button.ui:42).
+            host.style.width = '240px';
+            const widths = buttonsOf(element, '.adw-view-switcher-button').map((button) =>
+                Math.round(button.getBoundingClientRect().width),
+            );
+
+            expect(widths.length).toBe(3);
+            for (const width of widths) expect(width).toBe(widths[0]);
+            // And the row must not have burst its container to manage it.
+            const bar = element.querySelector('.adw-view-switcher-bar') as HTMLElement;
+            expect(Math.round(bar.getBoundingClientRect().width) <= 240).toBe(true);
+
+            host.remove();
+        });
+
+        await it('gives a narrow tab the upstream padding, not the wide policy leftovers', () => {
+            const { element, host } = mountSwitcher(CHROME_PAGES, 'narrow');
+            const button = buttonsOf(element, '.adw-view-switcher-button')[0];
+            const style = getComputedStyle(button);
+
+            // _view-switcher.scss:15-24: 4px above on the box, 3px per side and 2px
+            // below on the label. Never the wide policy's 12px sides.
+            expect(style.paddingTop).toBe('4px');
+            expect(style.paddingBottom).toBe('2px');
+            expect(style.paddingLeft).toBe('3px');
+            expect(style.paddingRight).toBe('3px');
+
+            host.remove();
+        });
+
+        await it('spaces the row and the wide tab the way border-spacing does', () => {
+            // The two values that were already right, locked so the fixes above
+            // cannot drift them: `border-spacing: 3px` plus `min-height: 34px` on the
+            // switcher node (_view-switcher.scss:2-3) and 6px inside a wide tab
+            // (line 29).
+            const { element, host } = mountSwitcher(CHROME_PAGES, 'wide');
+            const bar = element.querySelector('.adw-view-switcher-bar') as HTMLElement;
+            expect(getComputedStyle(bar).columnGap).toBe('3px');
+            expect(getComputedStyle(bar).minHeight).toBe('34px');
+            const button = buttonsOf(element, '.adw-view-switcher-button')[0];
+            expect(getComputedStyle(button).columnGap).toBe('6px');
+
+            host.remove();
+        });
+    });
 };

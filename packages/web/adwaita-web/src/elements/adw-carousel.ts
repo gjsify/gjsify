@@ -27,7 +27,7 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as Web Components for @gjsify/adwaita-web.
 
-import { CarouselState } from '@gjsify/adwaita-core';
+import { CarouselState, carouselPageAllocation } from '@gjsify/adwaita-core';
 import type { CarouselScrollRequest, CarouselScrollSource, CarouselStateChange } from '@gjsify/adwaita-core';
 
 /** Common surface an indicator binds to. The concrete element is AdwCarousel. */
@@ -79,12 +79,21 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
     /** A declared `position` waiting for the track to have a width. */
     private _pendingPosition: number | null = null;
     private _pendingLayout: ResizeObserver | undefined;
+    /** Watches the carousel's own width, which caps the page size. */
+    private _layoutObserver: ResizeObserver | undefined;
     /**
      * `interactive` for the scroll now in flight: the flag of the request that
      * started it, or `null` for a scroll we did not start — which is a user drag,
      * and therefore interactive.
      */
     private _pendingInteractive: boolean | null = null;
+    /**
+     * The page an issued scroll is travelling TO, `null` once it has arrived:
+     * `self->animation_target_child`. Held as the page's ID and not its index, for the
+     * same reason C holds a widget, since an insert or a reorder in between moves the
+     * index while the target page stays the target.
+     */
+    private _scrollTargetId: string | null = null;
 
     static get observedAttributes() {
         return ['allow-scroll-wheel', 'allow-long-swipes', 'interactive', 'spacing', 'position'];
@@ -159,7 +168,13 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
     }
 
     connectedCallback() {
-        if (this._initialized) return;
+        if (!this._initialized) this._build();
+        // Re-armed on every connect, because `disconnectedCallback` drops it: a
+        // carousel moved into another parent has a new width to follow.
+        this._observeLayout();
+    }
+
+    private _build(): void {
         this._initialized = true;
 
         this._trackEl = document.createElement('div');
@@ -200,6 +215,28 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
         // A pending declared position watches the track for its first layout; a
         // carousel removed before that must not keep the observer alive.
         this._cancelPendingPosition();
+        this._layoutObserver?.disconnect();
+        this._layoutObserver = undefined;
+    }
+
+    /**
+     * Re-run the page allocation whenever the carousel's own width changes: the page
+     * size is capped by it, so a resize can turn a peek into a full-width page and back.
+     */
+    private _observeLayout(): void {
+        if (this._layoutObserver) return;
+        this._layoutObserver = new ResizeObserver(() => {
+            // Only when the PITCH changed. The scroll offset is `position * distance`,
+            // so a resize that leaves the page size alone leaves the offset meaning
+            // exactly what it meant. Re-applying it unconditionally rewound every scroll
+            // still in flight: the observer's first delivery lands in the same frame as
+            // the wheel or drag that started one, and the model only learns the new
+            // offset from the scroll event that has not arrived yet.
+            if (this._allocatePages()) this._applyScrollFromModel();
+        });
+        // The BORDER box: the inset is written as track padding, and observing the
+        // content box would report that write back to us as a resize.
+        this._layoutObserver.observe(this._trackEl, { box: 'border-box' });
     }
 
     private _applyAttribute(name: string, value: string | null): void {
@@ -378,7 +415,62 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
             }
         });
         this._applySnapStop();
+        this._allocatePages();
         this._applyScrollFromModel();
+    }
+
+    /**
+     * Size the pages as `adw_carousel_size_allocate` does, and centre the strip in the
+     * carousel.
+     *
+     * A page is NOT the carousel's width. Every page is allocated the same size, the
+     * largest natural one capped at the carousel (adw-carousel.c:748-765), and the strip
+     * is drawn at an offset of `-(width - child_width) / 2` (:801), so whatever is left
+     * over shows the previous and next page at the two edges. The `flex: 0 0 100%` this
+     * replaces reproduced only the case where nothing is left over: the 440px pages of
+     * the Carousel story sat in a 480px carousel with both neighbours entirely off
+     * screen, where GTK shows 20px of each.
+     *
+     * The inset is track PADDING paired with `scroll-snap-align: center`, which is what
+     * keeps `scrollLeft = position * distance` true either way: page i then snaps at
+     * `inset + i * distance + pageSize / 2 - available / 2`, and the two insets cancel.
+     *
+     * Returns whether the page size, and with it the scroll pitch, actually moved.
+     */
+    private _allocatePages(): boolean {
+        const slots = [...this._slots.values()];
+        if (slots.length === 0) return false;
+
+        // What the pages are laid out at RIGHT NOW, read before the reset below. "Did
+        // the pitch change" has to be answered from the DOM rather than from a
+        // remembered write, or the first pass over an already-correct layout counts as
+        // a change and moves a scroll that had no reason to move.
+        const before = slots[0]!.getBoundingClientRect().width;
+
+        // Measure against the FULL-width allocation: a page whose content is
+        // `width: 100%` reports back whatever the slot currently is, so measuring it
+        // inside an already narrowed slot would shrink the pages again on every pass.
+        this._trackEl.style.removeProperty('padding-inline');
+        for (const slot of slots) slot.style.removeProperty('flex-basis');
+
+        const available = this._trackEl.clientWidth;
+        if (!(available > 0)) return false;
+
+        // `natural` only: CSS has already resolved a page's own `min-width` and every
+        // spelling of "fill the carousel" into the width it renders at, so there is no
+        // separate minimum or hexpand left for the renderer to pass.
+        const measurements = slots.map((slot) => ({
+            natural: (slot.firstElementChild as HTMLElement | null)?.getBoundingClientRect().width ?? 0,
+        }));
+        const { pageSize, leadingInset } = carouselPageAllocation(available, measurements);
+        // A page that measures nothing yet (an image still loading, a font not
+        // applied) would collapse the whole strip; the full-width fallback stands
+        // until the resize that gives it a size.
+        if (!(pageSize > 0)) return false;
+
+        for (const slot of slots) slot.style.flexBasis = `${pageSize}px`;
+        if (leadingInset > 0) this._trackEl.style.paddingInline = `${leadingInset}px`;
+        return Math.round(pageSize) !== Math.round(before);
     }
 
     /**
@@ -391,7 +483,29 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
     private _applyScrollFromModel(): void {
         const distance = this._distance();
         if (!(distance > 0)) return;
-        this._trackEl.scrollTo({ left: this._state.position * distance, behavior: 'instant' });
+        this._trackEl.scrollTo({ left: this._restorePosition() * distance, behavior: 'instant' });
+    }
+
+    /**
+     * Which position that write must aim at. Normally the model's, but a scroll still
+     * in flight has not reached the model yet: `scrollTo` only ASKS, and `position`
+     * catches up from the `scroll` event a frame later. Re-applying the stale position
+     * there parks the carousel back where it started and swallows the scroll, which is
+     * how `<adw-carousel position="2">` lost its page: the pending-position observer
+     * and the layout observer are delivered in ONE resize pass, so the very first
+     * allocation landed on a scroll it had just issued.
+     *
+     * `size_allocate` reaches the same moment and re-aims rather than rewinds: it
+     * pushes the recomputed snap point of `animation_target_child` into the running
+     * animation (adw-carousel.c:786-788).
+     */
+    private _restorePosition(): number {
+        if (this._scrollTargetId === null) return this._state.position;
+        const index = this._state.ids.indexOf(this._scrollTargetId);
+        // The target page was removed while the scroll ran; the model's position is
+        // then the only thing left that means anything.
+        if (index < 0) return this._state.position;
+        return this._state.snapPointOf(index) ?? this._state.position;
     }
 
     /**
@@ -416,6 +530,7 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
         const distance = this._distance();
         if (!(distance > 0)) return;
         this._pendingInteractive = request.interactive;
+        this._scrollTargetId = this._state.ids[request.index] ?? null;
         // `offset = distance * position`, NOT `slot.offsetLeft` — that is measured from
         // the nearest POSITIONED ancestor and coincides with the scroll offset only by
         // accident.
@@ -454,7 +569,9 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
         // `scroll_animation_done_cb` has an animation to tell it the scroll
         // finished; scroll-snap has only the offset, so the core stands ARRIVAL
         // at a snap point in for it.
-        if (this._state.settleIfArrived()) this._pendingInteractive = null;
+        if (!this._state.settleIfArrived()) return;
+        this._pendingInteractive = null;
+        this._scrollTargetId = null;
     }
 
     private _onStateChange(change: CarouselStateChange): void {

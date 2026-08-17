@@ -128,6 +128,62 @@ export function carouselSizesFromSnapPoints(points: readonly number[]): number[]
 }
 
 /**
+ * One page's measurement along the carousel's axis, in the terms
+ * `adw_carousel_size_allocate` asks each child for.
+ */
+export interface CarouselPageMeasurement {
+    /** What `gtk_widget_measure` reports as the natural size along that axis. */
+    natural: number;
+    /** What it reports as the minimum, `CLAMP`'s LOW bound. Defaults to 0. */
+    minimum?: number;
+    /** `gtk_widget_get_hexpand` (`get_vexpand` when vertical): this page wants the whole carousel. */
+    expand?: boolean;
+}
+
+/** The two lengths `adw_carousel_size_allocate` settles before it places anything. */
+export interface CarouselPageAllocation {
+    /** `child_width` / `child_height`: the size EVERY page is allocated, not just the current one. */
+    pageSize: number;
+    /** `(width − child_width) / 2`: the empty half-gap the page strip starts at. */
+    leadingInset: number;
+}
+
+/**
+ * How big every page is, and how far in from the carousel's edge the strip of pages
+ * starts (`adw_carousel_size_allocate`, adw-carousel.c:748-767 and :796-806).
+ *
+ * A page is NOT "the carousel's size". Every page is allocated the SAME size, the
+ * largest of what the pages ask for and never more than the carousel has: a page that
+ * expands takes the whole carousel, any other takes `CLAMP (natural, minimum,
+ * available)`. Whatever is left over is then split in half, because the strip is drawn
+ * at an offset of `-(width - child_width) / 2`, which centres the current page and lets
+ * the two neighbours show through at the edges by `leadingInset - spacing` each.
+ *
+ * That peek is why this is core arithmetic rather than a renderer's CSS: the web port
+ * pinned its pages at 100% of the carousel, which is right only when `leadingInset`
+ * happens to be 0, so a 440px page in a 480px carousel had both neighbours entirely off
+ * screen where GTK shows 20px of each.
+ *
+ * `glibClamp`, not `Math.min`/`Math.max`: `CLAMP` tests its HIGH bound first, so a page
+ * whose MINIMUM exceeds the carousel gets its minimum and the strip legitimately
+ * overhangs, with `leadingInset` going negative.
+ *
+ * The gap BETWEEN pages is not here: that is `spacing`, which
+ * {@link CarouselState.pageDistance} adds to this size to get `self->distance`.
+ */
+export function carouselPageAllocation(
+    available: number,
+    pages: readonly CarouselPageMeasurement[],
+): CarouselPageAllocation {
+    let pageSize = 0;
+    for (const page of pages) {
+        const size = page.expand ? available : glibClamp(page.natural, page.minimum ?? 0, available);
+        pageSize = Math.max(pageSize, size);
+    }
+    return { pageSize, leadingInset: (available - pageSize) / 2 };
+}
+
+/**
  * The scrollable range — `get_range`. `positionShift` is the pending compensation an
  * insert/remove/reorder accumulates before the next allocation, and is part of the bound
  * because C adds it there: a shift large enough to cancel the last snap point collapses

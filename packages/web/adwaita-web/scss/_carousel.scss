@@ -36,13 +36,27 @@ adw-carousel {
     }
   }
 
+  // `100%` is the FALLBACK basis, used until the element has measured its pages:
+  // libadwaita gives every page the largest natural size capped at the carousel
+  // (adw-carousel.c:748-765), which is only 100% when a page asks for it all. The
+  // element narrows `flex-basis` to the measured size and pads the track by the
+  // half-gap that leaves, so the neighbours peek in as they do in GTK.
+  //
+  // `center` and not `start` for the same reason: the strip is drawn centred
+  // (:801), and centre-snapping is what makes the track padding cancel out of the
+  // scroll offset, leaving `scrollLeft = position * distance` exactly true.
+  //
+  // `min-width: 0` because a flex item floors at its own min-content size: without
+  // it a page whose content is wider than the carousel keeps that width instead of
+  // being capped at it, and GTK allocates the capped one (:754) and clips.
   .adw-carousel-page {
     flex: 0 0 100%;
+    min-width: 0;
     box-sizing: border-box;
     display: flex;
     align-items: center;
     justify-content: center;
-    scroll-snap-align: start;
+    scroll-snap-align: center;
     scroll-snap-stop: always;
   }
 }

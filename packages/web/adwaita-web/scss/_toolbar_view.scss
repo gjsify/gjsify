@@ -31,6 +31,35 @@ adw-toolbar-view {
     background-color: var(--window-bg-color);
   }
 
+  // THE CONTENT WIDGET FILLS THE CONTENT RECT. `adw_toolbar_view_size_allocate`
+  // (adw-toolbar-view.c:390-397) hands `self->content` the whole rect between the
+  // bars, and a GTK widget that wants less of it says so through its own
+  // alignment. This port collects the content into a flex COLUMN, where an item
+  // declaring no `flex-grow` is content-sized instead, so the child stopped
+  // wherever its content did and the pane below it stayed empty. Measured on the
+  // docs Navigation Split View preview: a 293px sidebar pane holding a 176px
+  // `adw-sidebar`, i.e. 117px of window-coloured dead strip under the last row,
+  // and beside it a status page top-aligned in a pane it was supposed to centre in.
+  // The web storybook had been papering over it in its own sheet
+  // (`.sb-sidebar-scroll { flex: 1 1 auto }`), deleted now that the widget carries
+  // it: a per-consumer copy is what a missing widget rule looks like from the
+  // outside, and it keeps the widget green while the next consumer hits the same
+  // wall.
+  //
+  // `:only-child` because Adw.ToolbarView HAS one content widget. Several stacked
+  // children are this port's own extension, and GTK defines no distribution for
+  // them, so inventing one here would be a claim rather than a copy.
+  //
+  // NO `min-height: 0` alongside it, deliberately: the automatic minimum size is
+  // already the right answer per child. A scroller (`adw-sidebar`, any
+  // `overflow: auto` box) gets an automatic minimum of 0 and shrinks to scroll
+  // itself, as its GtkScrolledWindow would; a status page keeps its content-based
+  // minimum, so a pane too short to hold it scrolls THIS box instead of crushing a
+  // centred column into overflow its reader cannot scroll back up to.
+  .adw-toolbar-view-content > :only-child {
+    flex: 1 1 auto;
+  }
+
   // top-bar-style / bottom-bar-style: an opaque background plus a persistent
   // shadow, which `.border` swaps for a hairline (adw-toolbar-view.c:1011-1024,
   // _toolbars.scss `> .top-bar.raised`).

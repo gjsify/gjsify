@@ -366,6 +366,21 @@ export const BOTTOM_SHEET_PRESENTATION_VECTORS: ReadonlyArray<BottomSheetPresent
     {
         steps: [
             { kind: 'setOpen', open: true },
+            { kind: 'requestClose', source: 'dimming' },
+            { kind: 'setOpen', open: true },
+        ],
+        outcomes: ['close'],
+        notifications: [true, false, true],
+        callbacks: ['closing'],
+        open: true,
+        hasBeenOpen: true,
+        rule: 'a dismissed sheet re-opens, and notifies a third time. Every other row stops at its first close, so a close path that latched (a listener torn down and never re-attached, a state that only travels one way) would leave the whole table green',
+        derivedFrom:
+            'adw_bottom_sheet_set_open adw-bottom-sheet.c:1661-1778: has_been_open (:1673) gates only the teardown replay, never a later open',
+    },
+    {
+        steps: [
+            { kind: 'setOpen', open: true },
             { kind: 'setCanClose', canClose: false },
             { kind: 'requestClose', source: 'dimming' },
             { kind: 'requestClose', source: 'escape' },

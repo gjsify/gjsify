@@ -201,6 +201,93 @@ export const AdwBottomSheetTest = async () => {
             sheet.remove();
         });
 
+        await it('a dismissed sheet re-opens, through either toggle spelling', () => {
+            // Reported as "the sheet never comes back": a preview that mounts open, gets
+            // dismissed by a scrim click, and then stays closed. Every other case here
+            // stops at its FIRST close, so a close path that latched (a listener torn
+            // down and never re-attached, a state that only travels one way) could have
+            // kept the suite green. The two spellings are the two a host actually
+            // writes: `sheet.open = !sheet.open`, and `toggleAttribute('open')` (what the
+            // storybook story uses), which only works while the element keeps reflecting
+            // the state back onto the attribute.
+            const sheet = document.createElement('adw-bottom-sheet') as AdwBottomSheet;
+            // `open="true"`, not a bare `open`: that is what Astro's MDX compiler emits
+            // for the documentation preview, so it is the markup that gets upgraded.
+            sheet.setAttribute('open', 'true');
+            sheet.innerHTML =
+                '<adw-bottom-sheet-content><button id="under">Under</button></adw-bottom-sheet-content>' +
+                '<adw-bottom-sheet-sheet><button id="inside">Inside</button></adw-bottom-sheet-sheet>';
+            document.body.appendChild(sheet);
+            expect(sheet.open).toBe(true);
+
+            const payloads: boolean[] = [];
+            sheet.addEventListener('notify::open', (event) => {
+                payloads.push((event as CustomEvent).detail.open);
+            });
+
+            dimming(sheet).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            expect(sheet.open).toBe(false);
+            expect(sheet.hasAttribute('open')).toBe(false);
+
+            sheet.open = true;
+            expect(sheet.open).toBe(true);
+            expect(sheet.hasAttribute('open')).toBe(true);
+            expect(sheet.classList.contains('open')).toBe(true);
+            // The scrim has to become interactive again, or the sheet is dismissible
+            // exactly once even though the state reopened.
+            expect(dimming(sheet).classList.contains('visible')).toBe(true);
+
+            sheet.toggleAttribute('open');
+            expect(sheet.open).toBe(false);
+            sheet.toggleAttribute('open');
+            expect(sheet.open).toBe(true);
+
+            expect(payloads).toStrictEqual([false, true, false, true]);
+            sheet.remove();
+        });
+
+        await it('survives the template-clone mount the docs preview uses, and reopens from it', () => {
+            // Every other case here builds the sheet with createElement, so the element
+            // is upgraded before it has children. The documentation site never does
+            // that: it clones an inert <template> and appends the whole subtree in ONE
+            // insertion, so the sheet is constructed, gets its attributes and is
+            // connected while the same walk is still upgrading its descendants, and its
+            // connectedCallback moves those descendants into the content/sheet layers
+            // mid-walk. That is the mount the reported "the sheet never comes back" was
+            // seen in, and the toggle button has to come back out of it wired and
+            // reachable or the preview has no way back from a scrim dismissal.
+            const tpl = document.createElement('template');
+            tpl.innerHTML =
+                '<adw-bottom-sheet open="true" modal="true" can-close="true">' +
+                '<adw-bottom-sheet-content><adw-button pill>Toggle sheet</adw-button></adw-bottom-sheet-content>' +
+                '<adw-bottom-sheet-sheet><button id="inside">Inside</button></adw-bottom-sheet-sheet>' +
+                '</adw-bottom-sheet>';
+            const stage = document.createElement('div');
+            document.body.appendChild(stage);
+            stage.append(tpl.content.cloneNode(true));
+
+            const sheet = stage.querySelector('adw-bottom-sheet') as AdwBottomSheet;
+            expect(sheet.open).toBe(true);
+
+            const toggle = sheet.querySelector('.adw-bottom-sheet-content adw-button') as HTMLElement;
+            expect(toggle).toBeTruthy();
+            expect(insideSheet(sheet).id).toBe('inside');
+            // What the page binds: a listener on the custom element, driven by a click
+            // on the inner native button.
+            toggle.addEventListener('click', () => sheet.toggleAttribute('open'));
+            const inner = toggle.querySelector('button') as HTMLElement;
+
+            dimming(sheet).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            expect(sheet.open).toBe(false);
+
+            inner.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+            expect(sheet.open).toBe(true);
+            expect(sheet.classList.contains('open')).toBe(true);
+            expect(dimming(sheet).classList.contains('visible')).toBe(true);
+
+            stage.remove();
+        });
+
         await it('a dimming click on a CLOSED sheet does nothing and signals nothing', () => {
             // The scrim is `can_target = open`, so it is not reachable at all — unlike
             // Escape, it does not signal.

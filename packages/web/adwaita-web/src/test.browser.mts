@@ -28,7 +28,6 @@ import { AdwDialogTest } from './adw-dialog.spec.js';
 import { AdwDropDownTest } from './adw-drop-down.spec.js';
 import { AdwRowStateTest } from './adw-row-state.spec.js';
 import { AdwTabViewTest } from './adw-tab-view.spec.js';
-import { AdwTabScrollProbe } from './tab-scroll-probe.spec.js';
 import { AdwToastOverlayTest } from './adw-toast-overlay.spec.js';
 import { AdwViewSwitcherBarTest } from './adw-view-switcher-bar.spec.js';
 import { AdwStyleIsolationTest } from './style-isolation.spec.js';
@@ -47,10 +46,8 @@ import { AdwAboutDialogTest } from './adw-about-dialog.spec.js';
 import { AdwStyleClassesTest } from './style-classes.spec.js';
 import { AdwAccentTest } from './adw-accent.spec.js';
 import { AdwShortcutLabelTest } from './adw-shortcut-label.spec.js';
-import { AdwProbeTest } from './zz-probe.spec.js';
 
 run({
-    AdwProbeTest,
     AdwStyleClassesTest,
     AdwAccentTest,
     AdwShortcutLabelTest,
@@ -78,7 +75,6 @@ run({
     AdwDropDownTest,
     AdwRowStateTest,
     AdwTabViewTest,
-    AdwTabScrollProbe,
     AdwToastOverlayTest,
     AdwViewSwitcherBarTest,
     AdwStyleIsolationTest,

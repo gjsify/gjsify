@@ -227,6 +227,16 @@ jobs:
       - name: Check website package names resolve
         run: node scripts/check-website-package-names.mjs
 
+      # Starlight lays out `.sl-markdown-content` as prose: every element FOLLOWING a
+      # sibling gets `margin-top: 1rem` unless it is under `.not-content`. On a widget
+      # that reads as anything but a margin bug: a gallery card's first button 8px
+      # above its own row, a boxed list rendered as floating cards. Eight components
+      # mounted adw-* markup, a hand sweep fixed six and missed two, which is the
+      # argument for a check over a ninth pair of eyes. CSS cannot replace the marker:
+      # `adw-*` is a tag-name PREFIX and CSS has nothing to match one on.
+      - name: Check Adwaita previews opt out of prose layout
+        run: node scripts/check-website-preview-not-content.mjs
+
       # A multi-line inline `node -e '…'` whose body contains the quote that opened
       # it: the shell truncates the program and the step dies before asserting
       # anything, so the gate reports nothing about what it was gating. Belongs here

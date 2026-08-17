@@ -21,7 +21,12 @@
 // Reference: refs/libadwaita/src/adw-carousel-indicator-dots.c (the snap-point inverse)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
-import type { CarouselDirection, CarouselOrientation, CarouselScrollSource } from '../carousel.js';
+import type {
+    CarouselDirection,
+    CarouselOrientation,
+    CarouselPageMeasurement,
+    CarouselScrollSource,
+} from '../carousel.js';
 
 /** One `carouselSnapPoints` expectation. */
 export interface CarouselSnapPointVector {
@@ -71,6 +76,81 @@ export const CAROUSEL_SIZES_FROM_SNAP_POINTS_VECTORS: ReadonlyArray<CarouselSize
     { snapPoints: [-1, 0, 1], sizes: [0, 1, 1], rule: 'the +1 offset recovers a just-inserted page as size 0' },
     { snapPoints: [0], sizes: [1], rule: 'an EMPTY carousel still measures as one page (:1269 pads to a single 0)' },
     { snapPoints: [], sizes: [], rule: 'nothing in, nothing out' },
+];
+
+/** One `carouselPageAllocation` expectation. */
+export interface CarouselPageAllocationVector {
+    /** The carousel's own size along its axis: `width` as `size_allocate` receives it. */
+    available: number;
+    /** What each page measures, in C's terms. */
+    pages: readonly CarouselPageMeasurement[];
+    /** `child_width`: the size every page is allocated. */
+    pageSize: number;
+    /** `(available − pageSize) / 2`, the half-gap the strip starts at. */
+    leadingInset: number;
+    rule: string;
+}
+
+/**
+ * `adw_carousel_size_allocate`'s page sizing (:748-767) and the centring offset it
+ * feeds (:796-806).
+ *
+ * The regression pin for the peek: in GTK the pages of the Carousel story (440px cards
+ * in a 480px carousel) leave 20px of the previous and next page showing at the two
+ * edges, and the web port showed neither, because its pages were CSS `flex: 0 0 100%`.
+ * A row here is a page size and the inset that follows from it; where the neighbours
+ * then land is `distance` away from that, which CAROUSEL_PAGE_LIST_VECTORS already owns.
+ */
+export const CAROUSEL_PAGE_ALLOCATION_VECTORS: ReadonlyArray<CarouselPageAllocationVector> = [
+    {
+        available: 480,
+        pages: [{ natural: 440 }, { natural: 440 }, { natural: 440 }],
+        pageSize: 440,
+        leadingInset: 20,
+        rule: 'a page narrower than the carousel keeps its natural size, and the 40px left over is split so BOTH neighbours peek in by 20px',
+    },
+    {
+        available: 480,
+        pages: [{ natural: 200 }, { natural: 440 }, { natural: 300 }],
+        pageSize: 440,
+        leadingInset: 20,
+        rule: 'every page is allocated the SAME size, the largest of them (:764)',
+    },
+    {
+        available: 480,
+        pages: [{ natural: 900 }],
+        pageSize: 480,
+        leadingInset: 0,
+        rule: 'a page wider than the carousel is capped at it (:754), the only case in which a page IS the carousel width',
+    },
+    {
+        available: 480,
+        pages: [{ natural: 200, expand: true }, { natural: 200 }],
+        pageSize: 480,
+        leadingInset: 0,
+        rule: 'an expanding page takes the whole carousel (:751-752), and one expanding page sizes them all',
+    },
+    {
+        available: 480,
+        pages: [{ natural: 450, minimum: 600 }],
+        pageSize: 600,
+        leadingInset: -60,
+        rule: 'CLAMP tests the HIGH bound first, so a page whose MINIMUM exceeds the carousel gets its minimum and the strip overhangs both edges',
+    },
+    {
+        available: 0,
+        pages: [{ natural: 440 }],
+        pageSize: 0,
+        leadingInset: 0,
+        rule: 'a carousel with no width allocates no page, which is why a renderer must wait for its first layout before measuring anything',
+    },
+    {
+        available: 480,
+        pages: [],
+        pageSize: 0,
+        leadingInset: 240,
+        rule: 'no pages, no size: `size` starts at 0 (:738) with nothing to MAX it against',
+    },
 ];
 
 /** One `carouselRange` expectation. */

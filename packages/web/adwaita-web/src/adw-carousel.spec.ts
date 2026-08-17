@@ -9,7 +9,12 @@
 // element sets it as an inline style precisely so it stays overridable.
 import { describe, expect, it } from '@gjsify/unit';
 
-import { CAROUSEL_PAGE_AT_POSITION_VECTORS, CAROUSEL_PAGE_LIST_VECTORS } from '@gjsify/adwaita-core/conformance';
+import type { CarouselPageMeasurement } from '@gjsify/adwaita-core';
+import {
+    CAROUSEL_PAGE_ALLOCATION_VECTORS,
+    CAROUSEL_PAGE_AT_POSITION_VECTORS,
+    CAROUSEL_PAGE_LIST_VECTORS,
+} from '@gjsify/adwaita-core/conformance';
 import type { CarouselPageOp } from '@gjsify/adwaita-core/conformance';
 
 /** The carousel surface this suite drives — the element's own public API. */
@@ -60,6 +65,45 @@ function mount(labels: readonly string[], attributes: Record<string, string> = {
     track.style.setProperty('scroll-behavior', 'auto');
     track.style.setProperty('scroll-snap-type', 'none');
     return { carousel, host, track };
+}
+
+/**
+ * One page that MEASURES what a conformance row says it does. `expand` is spelled
+ * `width: 100%`, the CSS of hexpand; `flex: none` keeps the slot's own flex layout from
+ * shrinking a natural size that is wider than the carousel before it can be measured.
+ */
+function sizedCard(page: CarouselPageMeasurement, index: number): HTMLElement {
+    const element = document.createElement('div');
+    element.dataset.label = `p${index}`;
+    const width = page.expand ? '100%' : `${page.natural}px`;
+    element.style.cssText = `flex:none;height:100%;width:${width};`;
+    return element;
+}
+
+/** Mount a carousel `available` px wide whose pages measure what `pages` says. */
+function mountSized(available: number, pages: readonly CarouselPageMeasurement[]) {
+    const host = document.createElement('div');
+    host.style.cssText = `width:${available}px;height:80px;`;
+    document.body.appendChild(host);
+
+    const carousel = document.createElement('adw-carousel') as CarouselElement;
+    carousel.style.cssText = `display:block;width:${available}px;height:80px;`;
+    pages.forEach((page, index) => carousel.appendChild(sizedCard(page, index)));
+    host.appendChild(carousel);
+
+    const track = carousel.querySelector('.adw-carousel-track') as HTMLElement;
+    // Instant scrolls; snapping stays ON here, because where a page SNAPS is half of
+    // what these tests are about.
+    track.style.setProperty('scroll-behavior', 'auto');
+    return { carousel, host, track };
+}
+
+/** Each page's left edge relative to the carousel, rounded off the subpixel noise. */
+function pageEdges(carousel: HTMLElement): number[] {
+    const origin = carousel.getBoundingClientRect().left;
+    return Array.from(carousel.querySelectorAll('.adw-carousel-page')).map((slot) =>
+        Math.round(slot.getBoundingClientRect().left - origin),
+    );
 }
 
 /** The page labels in DOM order — what the user actually sees, not what the model says. */
@@ -157,6 +201,102 @@ export const AdwCarouselTest = async () => {
                 host.remove();
             });
         }
+    });
+
+    await describe('adw-carousel page allocation (libadwaita conformance vectors)', async () => {
+        // The rows the DOM can express. The element measures a RENDERED width, so a page
+        // whose MINIMUM exceeds the carousel has already been resolved by CSS before the
+        // element sees it, and a carousel with no pages has nothing to measure at all.
+        const measurable = CAROUSEL_PAGE_ALLOCATION_VECTORS.filter(
+            (vector) => vector.pages.length > 0 && vector.pages.every((page) => page.minimum === undefined),
+        );
+
+        for (const vector of measurable) {
+            await it(vector.rule, async () => {
+                const { carousel, host, track } = mountSized(vector.available, vector.pages);
+                await flush();
+
+                const widths = Array.from(carousel.querySelectorAll('.adw-carousel-page')).map((slot) =>
+                    Math.round(slot.getBoundingClientRect().width),
+                );
+                expect(widths).toStrictEqual(vector.pages.map(() => vector.pageSize));
+                // The half-gap is the track's own padding, which is what lets the page
+                // strip start inside the carousel instead of flush against its edge.
+                expect(Math.round(Number.parseFloat(getComputedStyle(track).paddingInlineStart))).toBe(
+                    vector.leadingInset,
+                );
+                host.remove();
+            });
+        }
+
+        await it('shows the previous and next page at the edges', async () => {
+            // THE REPORTED DEFECT. With `flex: 0 0 100%` the pages of the Carousel story
+            // (440px cards in a 480px carousel) filled the width and both neighbours sat
+            // entirely off screen, where GTK leaves 20px of each showing.
+            const pages: CarouselPageMeasurement[] = [{ natural: 440 }, { natural: 440 }, { natural: 440 }];
+            const { carousel, host } = mountSized(480, pages);
+            await flush();
+
+            // At rest on page 0: centred, with page 1 starting 20px before the right edge.
+            expect(pageEdges(carousel)).toStrictEqual([20, 460, 900]);
+
+            carousel.scrollToPage(1);
+            await flush();
+            // Page 1 centred, 20px of page 0 showing at the left and 20px of page 2 at the right.
+            expect(pageEdges(carousel)).toStrictEqual([-420, 20, 460]);
+            host.remove();
+        });
+
+        await it('leaves the LAST page room to centre as well', async () => {
+            // The trailing half-gap is track padding too. A scroll container that dropped
+            // its end padding would stop `leadingInset` short of the last snap point, and
+            // the last page would never reach the middle.
+            const pages: CarouselPageMeasurement[] = [{ natural: 440 }, { natural: 440 }, { natural: 440 }];
+            const { carousel, host, track } = mountSized(480, pages);
+            await flush();
+
+            carousel.scrollToPage(2);
+            await flush();
+            expect(Math.round(track.scrollLeft)).toBe(880);
+            expect(carousel.currentPage).toBe(2);
+            expect(pageEdges(carousel)).toStrictEqual([-860, -420, 20]);
+            host.remove();
+        });
+
+        await it('re-aims the scroll in flight instead of rewinding it', async () => {
+            // Mounted inside a HIDDEN ancestor, which is how real markup reaches this:
+            // `connectedCallback` measures 0, so the declared position waits for a
+            // layout, and revealing the host delivers the pending-position observer and
+            // the layout observer in ONE resize pass. The first fires a scroll to page
+            // 2 at the fallback pitch; the second narrows the pages and has to put the
+            // offset back, and `state.position` is still 0 there, because the `scroll`
+            // event that will teach it 2 fires a frame later. Restoring THAT parks the
+            // carousel on page 0 and swallows `position="2"`. GTK re-aims instead: it
+            // pushes the recomputed snap point into the running animation (:786-788).
+            //
+            // A carousel already laid out when it is mounted does NOT reach this: it
+            // allocates during `connectedCallback` and the pending observer never
+            // arms, which is why the mounted-visible spelling of this test passes
+            // either way and is not the one kept.
+            const host = document.createElement('div');
+            host.style.cssText = 'width:480px;height:80px;display:none;';
+            document.body.appendChild(host);
+
+            const carousel = document.createElement('adw-carousel') as CarouselElement;
+            carousel.style.cssText = 'display:block;width:480px;height:80px;';
+            carousel.setAttribute('position', '2');
+            for (let index = 0; index < 3; index++) carousel.appendChild(sizedCard({ natural: 440 }, index));
+            host.appendChild(carousel);
+            await flush();
+
+            host.style.display = 'block';
+            await flush();
+
+            const track = carousel.querySelector('.adw-carousel-track') as HTMLElement;
+            expect(Math.round(track.scrollLeft)).toBe(880);
+            expect(carousel.currentPage).toBe(2);
+            host.remove();
+        });
     });
 
     await describe('adw-carousel page lookup (libadwaita conformance vectors)', async () => {
