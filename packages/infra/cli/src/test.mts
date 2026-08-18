@@ -39,6 +39,7 @@ import installOptionalEdgesSuite from './utils/install-optional-edges.spec.js';
 import detectNativePackagesSuite from './utils/detect-native-packages.spec.js';
 import giSearchPathSuite from './utils/gi-search-path.spec.js';
 import systemGiSuite from './utils/system-gi.spec.js';
+import giTypelibSuite from './utils/gi-typelib.spec.js';
 import platformCheckSuite from './utils/platform-check.spec.js';
 import binShimSuite from './utils/bin-shim.spec.js';
 import gjsifyShimSuite from './utils/gjsify-shim.spec.js';
@@ -223,6 +224,7 @@ run(
         detectNativePackagesSuite,
         giSearchPathSuite,
         systemGiSuite,
+        giTypelibSuite,
         platformCheckSuite,
         binShimSuite,
         gjsifyShimSuite,

@@ -20,6 +20,7 @@ import { readFileSync, existsSync, readdirSync } from 'node:fs';
 // pull vite/execa/minify-xml into a system CHECK.
 import { resolveBlueprintCompiler } from '@gjsify/vite-plugin-blueprint/resolve';
 import { isNode } from '@gjsify/rolldown-plugin-gjsify/runtime';
+import { findSystemTypelib } from './gi-typelib.js';
 
 export type DepSeverity = 'required' | 'optional';
 
@@ -108,6 +109,43 @@ function checkPkgConfig(
     const version = tryExecFile('pkg-config', ['--modversion', libName]);
     if (version === null) return { id, name, found: false, severity, requiredBy };
     return { id, name, found: true, version: version.split('\n')[0], severity, requiredBy };
+}
+
+/**
+ * Check a GI library the way a RUNNING app needs it: by its typelib.
+ *
+ * `checkPkgConfig` answers a different question — "is the DEVELOPMENT package
+ * installed" — and for a library an app merely loads, that question has the
+ * wrong answer on every distribution that splits `-dev` out. Measured on
+ * postmarketOS v26.06 / aarch64 (OnePlus 6T, gjs 1.88.1): libadwaita 1.9.2
+ * installed, `Adw-1.typelib` present, Adwaita apps running, and `system-check`
+ * printing `✗ libadwaita` under **Required** and exiting 1 because
+ * `libadwaita-dev` was absent. The install hint then named a package the user
+ * had no reason to install.
+ *
+ * So PRESENCE comes from {@link findSystemTypelib} — the same file
+ * `gi_repository_require()` resolves — and the VERSION still comes from
+ * pkg-config, which is a perfectly good version oracle when it happens to be
+ * there. A bare `✓ libadwaita` with no version is the honest reading of "the
+ * library is here and the `.pc` file is not"; `✗` was not.
+ *
+ * pkg-config remains the sole oracle for anything whose subject genuinely IS the
+ * development package (`gobject-introspection-1.0` gates `g-ir-scanner`, a build
+ * tool with no typelib of its own).
+ */
+function checkGiLibrary(
+    id: string,
+    name: string,
+    namespace: string,
+    apiVersion: string,
+    pkgConfigName: string,
+    severity: DepSeverity,
+    requiredBy?: string[],
+): DepCheck {
+    const found = findSystemTypelib(namespace, apiVersion) !== null;
+    if (!found) return { id, name, found: false, severity, requiredBy };
+    const version = tryExecFile('pkg-config', ['--modversion', pkgConfigName]);
+    return { id, name, found: true, version: version?.split('\n')[0], severity, requiredBy };
 }
 
 /**
@@ -543,17 +581,22 @@ export function checkGwebgl(cwd: string): DepCheck {
 function runRequiredChecks(_cwd: string): DepCheck[] {
     const results: DepCheck[] = [];
 
-    // Build toolchain
-    results.push(
-        checkBinary('blueprint-compiler', 'Blueprint Compiler', 'blueprint-compiler', ['--version'], 'required'),
-    );
+    // Build toolchain. NO blueprint-compiler here: it is checked by
+    // `checkBlueprintCompiler()` among the build toolchain below, through the
+    // SAME resolver the build uses. A second `checkBinary` probe lived here and
+    // was wrong twice over — it reported a PATH miss on win32, where the
+    // compiler is normally an MSYS2 script deliberately off PATH (the exact case
+    // that function's comment exists to explain), and it made `system-check`
+    // exit 1 on any host without it, `.blp` files in the project or not. It also
+    // printed a second entry under a second display name and put
+    // `blueprint-compiler` into the install hint twice.
     results.push(checkBinary('pkg-config', 'pkg-config', 'pkg-config', ['--version'], 'required'));
     results.push(checkBinary('meson', 'Meson', 'meson', ['--version'], 'required'));
 
-    // Foundational libraries
-    results.push(checkPkgConfig('gtk4', 'GTK4', 'gtk4', 'required'));
-    results.push(checkPkgConfig('libadwaita', 'libadwaita', 'libadwaita-1', 'required'));
-    results.push(checkPkgConfig('libsoup3', 'libsoup3', 'libsoup-3.0', 'required'));
+    // Foundational libraries — by TYPELIB, the runtime question. See checkGiLibrary.
+    results.push(checkGiLibrary('gtk4', 'GTK4', 'Gtk', '4.0', 'gtk4', 'required'));
+    results.push(checkGiLibrary('libadwaita', 'libadwaita', 'Adw', '1', 'libadwaita-1', 'required'));
+    results.push(checkGiLibrary('libsoup3', 'libsoup3', 'Soup', '3.0', 'libsoup-3.0', 'required'));
     results.push(
         checkPkgConfig('gobject-introspection', 'GObject Introspection', 'gobject-introspection-1.0', 'required'),
     );
@@ -912,7 +955,12 @@ export function buildInstallCommand(pm: PackageManager, missing: DepCheck[]): st
 
     const lines: string[] = [];
     if (pkgs.length > 0) {
-        lines.push(`${PM_INSTALL_PREFIX[pm]} ${pkgs.join(' ')}`);
+        // Deduplicated because the command is COPY-PASTED: two checks mapping to
+        // one system package (or one check reported under two ids) produced
+        // `apk add blueprint-compiler libadwaita-dev … blueprint-compiler`,
+        // which is how the duplicate blueprint check first became visible.
+        // Dropping the second occurrence cannot change what gets installed.
+        lines.push(`${PM_INSTALL_PREFIX[pm]} ${[...new Set(pkgs)].join(' ')}`);
     }
     if (npmDeps.length > 0) {
         lines.push(`npm install ${npmDeps.join(' ')}`);
