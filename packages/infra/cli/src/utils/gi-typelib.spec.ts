@@ -31,7 +31,7 @@ export default async () => {
                 listDirs: () => [],
                 searchDirs: noPkgConfig,
             });
-            expect(dirs).toEqual(['/usr/lib/girepository-1.0']);
+            expect(dirs).toStrictEqual(['/usr/lib/girepository-1.0']);
         });
 
         await it('finds a Fedora lib64 layout', async () => {
@@ -42,7 +42,7 @@ export default async () => {
                 listDirs: () => [],
                 searchDirs: noPkgConfig,
             });
-            expect(dirs).toEqual(['/usr/lib64/girepository-1.0']);
+            expect(dirs).toStrictEqual(['/usr/lib64/girepository-1.0']);
         });
 
         // Debian/Ubuntu. The triplet is discovered, never derived from
@@ -55,7 +55,7 @@ export default async () => {
                 listDirs: (dir) => (dir === '/usr/lib' ? ['aarch64-linux-gnu', 'systemd'] : []),
                 searchDirs: noPkgConfig,
             });
-            expect(dirs).toEqual(['/usr/lib/aarch64-linux-gnu/girepository-1.0']);
+            expect(dirs).toStrictEqual(['/usr/lib/aarch64-linux-gnu/girepository-1.0']);
         });
 
         // An explicit statement from the host is not second-guessed against the
@@ -68,7 +68,7 @@ export default async () => {
                 listDirs: () => [],
                 searchDirs: noPkgConfig,
             });
-            expect(dirs).toEqual(['/opt/app/typelibs', '/usr/lib/girepository-1.0']);
+            expect(dirs).toStrictEqual(['/opt/app/typelibs', '/usr/lib/girepository-1.0']);
         });
 
         await it('drops a GI_TYPELIB_PATH entry that does not exist', async () => {
@@ -79,7 +79,7 @@ export default async () => {
                 listDirs: () => [],
                 searchDirs: noPkgConfig,
             });
-            expect(dirs).toEqual(['/usr/lib/girepository-1.0']);
+            expect(dirs).toStrictEqual(['/usr/lib/girepository-1.0']);
         });
 
         // The general mechanism: a prefix no list here names.
@@ -91,7 +91,7 @@ export default async () => {
                 listDirs: () => [],
                 searchDirs: () => ['/home/dev/jhbuild/lib/pkgconfig'],
             });
-            expect(dirs).toEqual(['/home/dev/jhbuild/lib/girepository-1.0']);
+            expect(dirs).toStrictEqual(['/home/dev/jhbuild/lib/girepository-1.0']);
         });
 
         await it('never returns a directory twice', async () => {
@@ -102,7 +102,7 @@ export default async () => {
                 listDirs: () => [],
                 searchDirs: () => ['/usr/lib/pkgconfig'],
             });
-            expect(dirs).toEqual(['/usr/lib/girepository-1.0']);
+            expect(dirs).toStrictEqual(['/usr/lib/girepository-1.0']);
         });
 
         await it('returns nothing when the marker is nowhere', async () => {
@@ -113,7 +113,7 @@ export default async () => {
                 listDirs: () => [],
                 searchDirs: noPkgConfig,
             });
-            expect(dirs).toEqual([]);
+            expect(dirs).toStrictEqual([]);
         });
 
         // Reuses systemGiLibraryDirs, so Homebrew/MacPorts prefixes come for free
@@ -126,7 +126,7 @@ export default async () => {
                 listDirs: () => [],
                 searchDirs: noPkgConfig,
             });
-            expect(dirs).toEqual(['/opt/homebrew/lib/girepository-1.0']);
+            expect(dirs).toStrictEqual(['/opt/homebrew/lib/girepository-1.0']);
         });
 
         // POSIX separators and semantics must NOT leak into a win32 answer — the
@@ -139,7 +139,7 @@ export default async () => {
                 listDirs: () => [],
                 searchDirs: noPkgConfig,
             });
-            expect(dirs).toEqual(['C:\\msys64\\mingw64\\lib\\girepository-1.0']);
+            expect(dirs).toStrictEqual(['C:\\msys64\\mingw64\\lib\\girepository-1.0']);
         });
     });
 
