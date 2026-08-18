@@ -1,5 +1,58 @@
 # Changelog
 
+## [0.41.0](https://github.com/gjsify/gjsify/compare/v0.40.0...v0.41.0) (2026-08-18)
+
+### Features
+
+* **cli:** prune what the prefix cannot use ([#1226](https://github.com/gjsify/gjsify/issues/1226)) ([373478c](https://github.com/gjsify/gjsify/commit/373478c1c4e3f8dca5f76a3718b4abce39eed24b))
+* **cli:** ship gjsify itself, and stop self-update from fighting the package manager ([#1209](https://github.com/gjsify/gjsify/issues/1209)) ([777e376](https://github.com/gjsify/gjsify/commit/777e376e25d14f32221c96991aec0825839acd3b)), closes [#1193](https://github.com/gjsify/gjsify/issues/1193)
+* **website:** polish the homepage, and fix what that surfaced ([#1228](https://github.com/gjsify/gjsify/issues/1228)) ([e09d927](https://github.com/gjsify/gjsify/commit/e09d927fe607ebd81fdd99d8a1f696a1dcc1019e))
+
+### Bug Fixes
+
+* **cli:** make classifyInstall answer for the target platform ([#1217](https://github.com/gjsify/gjsify/issues/1217)) ([d0f705d](https://github.com/gjsify/gjsify/commit/d0f705d6f0799c9c2de2289f64346b4de658ef4c)), closes [#1209](https://github.com/gjsify/gjsify/issues/1209)
+* **e2e:** pick the shell parser from the shebang ([cc77599](https://github.com/gjsify/gjsify/commit/cc77599367722f508541a4ee791eac98c7f74944))
+* **gtk-runtime:** declare the licence the tarball actually has ([#1208](https://github.com/gjsify/gjsify/issues/1208)) ([c288e34](https://github.com/gjsify/gjsify/commit/c288e34ad51f545bf92b35cd77372fb12a49450e))
+* **node-gi:** read a field array's length from its sibling ([#1204](https://github.com/gjsify/gjsify/issues/1204)) ([d342363](https://github.com/gjsify/gjsify/commit/d34236328cd3d66f17cf5e6804c76840bebba3c9))
+* **process:** make process.exit() not come back ([ba64356](https://github.com/gjsify/gjsify/commit/ba64356b6e4a3e66603f37c9debee0e0005c6a31))
+* **vite-plugin-blueprint:** prove every OS branch ([#1224](https://github.com/gjsify/gjsify/issues/1224)) ([3588348](https://github.com/gjsify/gjsify/commit/3588348277e9a2ec27855e0ac583a6c9b8131530)), closes [#1098](https://github.com/gjsify/gjsify/issues/1098)
+
+### Documentation
+
+* bring the documentation back in line with the tree ([#1206](https://github.com/gjsify/gjsify/issues/1206)) ([0cb9d1d](https://github.com/gjsify/gjsify/commit/0cb9d1dc942473aee6b165fd8ff1f4acf8b3f417)), closes [#1025](https://github.com/gjsify/gjsify/issues/1025) [#1193](https://github.com/gjsify/gjsify/issues/1193) [#886](https://github.com/gjsify/gjsify/issues/886)
+* correct the claims the tree disproves ([#1203](https://github.com/gjsify/gjsify/issues/1203)) ([8d1638d](https://github.com/gjsify/gjsify/commit/8d1638defbedf534e502ad93c209fb590e72191c))
+* **release:** write the v0.41.0 preamble ([#1229](https://github.com/gjsify/gjsify/issues/1229)) ([f8240bd](https://github.com/gjsify/gjsify/commit/f8240bd3db170d17f8aacfefa22af00dca654290)), closes [#1206](https://github.com/gjsify/gjsify/issues/1206) [#1203](https://github.com/gjsify/gjsify/issues/1203) [#1205](https://github.com/gjsify/gjsify/issues/1205) [#1226](https://github.com/gjsify/gjsify/issues/1226) [#1209](https://github.com/gjsify/gjsify/issues/1209) [#1221](https://github.com/gjsify/gjsify/issues/1221) [#1208](https://github.com/gjsify/gjsify/issues/1208) [#1215](https://github.com/gjsify/gjsify/issues/1215) [#1228](https://github.com/gjsify/gjsify/issues/1228)
+* **status:** make the counts say what they count ([#1211](https://github.com/gjsify/gjsify/issues/1211)) ([e1817c8](https://github.com/gjsify/gjsify/commit/e1817c805844e222ce8c5603c9e2a243b160e6d8))
+* **status:** the gate-fixture check is not a grep, measured ([#1212](https://github.com/gjsify/gjsify/issues/1212)) ([fed4172](https://github.com/gjsify/gjsify/commit/fed41724825c3c2a37c6025554e7985823d1dd40))
+* track the integration suites the comment said were tracked ([#1216](https://github.com/gjsify/gjsify/issues/1216)) ([ff98af7](https://github.com/gjsify/gjsify/commit/ff98af79a7f3cd524690a5ca7260b7ae115c6b61))
+
+### Code Refactoring
+
+* **e2e:** one mock registry, not twenty ([#1227](https://github.com/gjsify/gjsify/issues/1227)) ([7d16cc2](https://github.com/gjsify/gjsify/commit/7d16cc2ce55c9a0aba8eab105185791a585461f0)), closes [#1044](https://github.com/gjsify/gjsify/issues/1044)
+
+### Continuous Integration
+
+* build the NativeScript bridges ([#1214](https://github.com/gjsify/gjsify/issues/1214)) ([93d19dc](https://github.com/gjsify/gjsify/commit/93d19dcc4b4feb536a725ab87777a04a7473c110))
+* check the committed prebuilds on musl ([0191064](https://github.com/gjsify/gjsify/commit/01910640afa897d904d9acdf699bae935e025cd5))
+* gate the integration suites that are green ([41a2bf6](https://github.com/gjsify/gjsify/commit/41a2bf64d672b43d363aeaf076aa11ab5c6564d7))
+* give each landed run a group of its own ([#1205](https://github.com/gjsify/gjsify/issues/1205)) ([40b9c72](https://github.com/gjsify/gjsify/commit/40b9c7222776292fbe80f9144230bc93ad7ba22a)), closes [#1170](https://github.com/gjsify/gjsify/issues/1170)
+* launch the showcases that declare gjs ([#1213](https://github.com/gjsify/gjsify/issues/1213)) ([3a1fba3](https://github.com/gjsify/gjsify/commit/3a1fba326ef1423dff4c67f18026110abc1fdb0d))
+* read the PowerShell blocks too, where a parser exists ([#1207](https://github.com/gjsify/gjsify/issues/1207)) ([7eea7bf](https://github.com/gjsify/gjsify/commit/7eea7bfa8cfd1216a2c9a531b6d1d38d83c23437))
+* run the OS suites before the merge, not after ([c863f7e](https://github.com/gjsify/gjsify/commit/c863f7e770523fd803dd5ca3fd73755ad341e172)), closes [#1209](https://github.com/gjsify/gjsify/issues/1209) [#1217](https://github.com/gjsify/gjsify/issues/1217) [#1183](https://github.com/gjsify/gjsify/issues/1183) [#1208](https://github.com/gjsify/gjsify/issues/1208)
+* run the runtime detector on the runtimes it detects ([#1210](https://github.com/gjsify/gjsify/issues/1210)) ([fb99f6f](https://github.com/gjsify/gjsify/commit/fb99f6f10f15b4ee4101dd4f0c5bbacb8bc35d6c))
+* trigger prebuilds on the suites its gate runs ([55a4cdd](https://github.com/gjsify/gjsify/commit/55a4cddc4551825ac0ff6485c68bfca4c9b5c152)), closes [#1222](https://github.com/gjsify/gjsify/issues/1222) [#1028](https://github.com/gjsify/gjsify/issues/1028) [#1149](https://github.com/gjsify/gjsify/issues/1149) [#1173](https://github.com/gjsify/gjsify/issues/1173)
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([9a1dc1f](https://github.com/gjsify/gjsify/commit/9a1dc1fd0f32326baada45ed2a4ba134e501c3db))
+* update native prebuilds [skip ci] ([a9658c4](https://github.com/gjsify/gjsify/commit/a9658c407531d4e1e089c9698b857dabdcb5f17f))
+* update native prebuilds [skip ci] ([e933809](https://github.com/gjsify/gjsify/commit/e933809d69b225d78d7f28b100196b70e80551c9))
+* update native prebuilds [skip ci] ([687e228](https://github.com/gjsify/gjsify/commit/687e2282b55699cb19c2c2a11d90d8e2456722ab))
+
+### Tests
+
+* **create-app:** start the scaffolded apps, and fix what that finds ([#1215](https://github.com/gjsify/gjsify/issues/1215)) ([3240e36](https://github.com/gjsify/gjsify/commit/3240e36c55be32b30e793c05a2e3aaf06f5e00b6))
+
 ## [0.40.0](https://github.com/gjsify/gjsify/compare/v0.39.0...v0.40.0) (2026-08-15)
 
 ### Features
