@@ -84,8 +84,14 @@ const PROBED_GI_LIBDIRS = {
     darwin: ['/opt/homebrew/lib', '/usr/local/lib', '/opt/local/lib'],
 };
 
-/** The subdir GI installs typelibs into — historically `1.0` even for the girepository-2.0 API. */
-const TYPELIB_SUBDIR = 'girepository-1.0';
+/**
+ * The subdir GI installs typelibs into — historically `1.0` even for the girepository-2.0 API.
+ *
+ * Exported so `gi-typelib.ts` shares it rather than keeping a third copy of the
+ * one string this whole layout rule turns on. Both mirrors export it, so the
+ * agreement suite still compares two files that differ only in language.
+ */
+export const TYPELIB_SUBDIR = 'girepository-1.0';
 
 /** Memoized `pkg-config` answer: the spawn happens at most once per process. */
 let pkgConfigDirsCache = null;

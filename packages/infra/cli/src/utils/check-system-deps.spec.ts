@@ -132,6 +132,29 @@ export default async () => {
             expect(hint.includes('winget install')).toBe(false);
         });
 
+        await it('never names one system package twice', async () => {
+            // The command is copy-pasted, so a repeat is a defect in the thing the
+            // user runs. Measured on postmarketOS: `sudo apk add blueprint-compiler
+            // libadwaita-dev nodejs blueprint-compiler …`, because blueprint was
+            // checked twice under one id. The duplicate check is gone; the dedup
+            // stays, so the next pair of checks mapping to one package cannot
+            // reintroduce it.
+            //
+            // Off win32: there blueprint takes the MSYS2 `standalone` branch, which
+            // is a different code path with its own test above.
+            if (process.platform === 'win32') return;
+            const missing: DepCheck[] = [
+                { id: 'libadwaita', name: 'libadwaita', found: false, severity: 'required' },
+                { id: 'blueprint-compiler', name: 'a', found: false, severity: 'optional' },
+                { id: 'blueprint-compiler', name: 'b', found: false, severity: 'optional' },
+            ];
+            for (const pm of ['apk', 'apt', 'dnf', 'pacman', 'zypper', 'brew'] as const) {
+                const hint = buildInstallCommand(pm, missing) ?? '';
+                const words = hint.split(/\s+/).filter(Boolean);
+                expect(words.length).toBe(new Set(words).size);
+            }
+        });
+
         await it('the blueprint check agrees with the resolver the BUILD uses', async () => {
             // On win32 the compiler is normally an MSYS2 script deliberately kept OFF
             // PATH, so a PATH-only check would report "missing" on a host where every
