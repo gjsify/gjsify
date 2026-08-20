@@ -22,8 +22,7 @@
 
 import { describe, it, expect } from '@gjsify/unit';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -38,7 +37,8 @@ import { pathToFileURL } from 'node:url';
 // nothing to do with what they assert. `pathToFileURL` also escapes the spaces
 // and `#` a checkout path may contain, which plain interpolation mangles on
 // every platform.
-const CLI_LIB = pathToFileURL(resolve(process.cwd(), 'lib')).href;
+const PKG_ROOT = process.cwd();
+const CLI_LIB = pathToFileURL(resolve(PKG_ROOT, 'lib')).href;
 
 // A minimal GJS ESM module (no imports needed — print/ARGV are GJS globals):
 //   - Prints a fixed marker on stdout  →  assert no banner leaked in
@@ -66,8 +66,21 @@ await runGjsBundle(bundlePath, extraArgs, { completion: 'exit' });
 
 let tmpDir: string | undefined;
 
+// INSIDE `@gjsify/cli`, not the OS temp dir, and that is a resolution
+// requirement rather than tidiness. Deno resolves a bare specifier against the
+// nearest `package.json` ABOVE THE ENTRY; a runner under `/tmp` has none, so
+// its dependency set is empty. `run-gjs.js` reaches
+// `@gjsify/rolldown-plugin-gjsify/runtime` (through `utils/spawn.js`, for
+// `isGjs()`), and Deno refused the whole graph with `Import "…" not a
+// dependency` while node and bun resolved it by walking `node_modules` — three
+// tests red on the `cross-runtime` leg alone. `@gjsify/cli` DECLARES that
+// dependency, so anchoring the runner in its directory is what makes all three
+// runtimes agree. `tmp/` is gitignored tree-wide, so a crashed run leaves
+// nothing behind that `git status` will show.
 function setup(): { bundlePath: string; runnerPath: string } {
-    tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-run-spec-'));
+    const scratch = join(PKG_ROOT, 'tmp');
+    mkdirSync(scratch, { recursive: true });
+    tmpDir = mkdtempSync(join(scratch, 'run-stdio-safe-'));
     const bundlePath = join(tmpDir, 'child.mjs');
     writeFileSync(bundlePath, GJS_BUNDLE_SRC);
     const runnerPath = join(tmpDir, 'runner.mjs');
