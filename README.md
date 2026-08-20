@@ -93,16 +93,20 @@ remove. Already manage CLIs through Node? `npm install -g @gjsify/cli` works too
 **Create and run a project:**
 
 ```bash
-gjsify create my-app
+gjsify create my-app --template gtk-minimal
 cd my-app
-gjsify install --immutable   # resolves npm deps via the Node-free CLI bundle
-gjsify build                 # Rolldown-based, GJS target by default
-gjsify run start
+gjsify install      # resolves npm deps via the Node-free CLI bundle
+gjsify run build    # the template's own build script — Rolldown, GJS + Node bundles
+gjsify run start    # launch the GJS bundle
 ```
 
-`gjsify create` scaffolds a ready-to-run GTK 4 + TypeScript application. Pass
-`--immutable` to `install` for reproducible CI installs (gjsify-lock.json must
-match `package.json`).
+`gjsify create` scaffolds a ready-to-run GTK 4 + TypeScript application, build
+scripts included. `run build` emits a GJS bundle and a Node/Bun/Deno one from the
+same `src/index.ts`; `gjsify run dev` builds only the GJS half and launches it,
+which is the loop you want while editing. Leave `--template` off and the CLI asks
+which template you want. Once you commit the `gjsify-lock.json` that `install`
+writes, CI can use `gjsify install --immutable` for a reproducible tree — it fails
+when the lockfile is missing or has drifted from `package.json`.
 
 ### Using the CLI directly
 
@@ -135,15 +139,22 @@ Node.js 24+ is **optional** — needed only to run the cross-validation test tra
 
 ### Ship your own app
 
-- **A one-line installer:** `gjsify generate-installer` scaffolds an `install.mjs`
-  parameterised to your package, so your users install with a single
-  `curl … | gjs -m -` — no npm / Node on their machine.
+- **A `.deb` and an `.rpm`:** `gjsify ship` runs your project's `build` script,
+  stages one payload and wraps it per format — no packaging manifest in your repo,
+  and no `dpkg-deb` / `rpmbuild` on the machine. The package depends on the
+  distribution's own `gjs`, GTK and typelibs, worked out by reading your bundle.
+  Linux and `--app gjs` today; see [Ship your app](https://gjsify.github.io/gjsify/ship/).
 - **A Flatpak:** `gjsify flatpak init` generates the full Flathub asset set
   (manifest + MetaInfo + `.desktop` + `flathub.json`) from one `package.json`
   block; `gjsify flatpak check` runs `appstreamcli` + `flatpak-builder-lint`
   locally; `gjsify flatpak build` wraps `flatpak-builder`. See the
   [Flatpak app](https://gjsify.github.io/gjsify/guides/flatpak-app/) and
   [Flatpak CLI](https://gjsify.github.io/gjsify/guides/flatpak-cli-tool/) guides.
+- **A one-line installer:** `gjsify generate-installer` scaffolds an `install.mjs`
+  parameterised to your package, so your users install with a single
+  `curl … | gjs -m -` — no npm / Node on their machine.
+- **A single executable file:** `gjsify build --shebang` marks the bundle
+  executable with a target-appropriate shebang, to download and run as-is.
 
 ## Package status
 
