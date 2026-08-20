@@ -464,7 +464,7 @@ async function runShowcaseOnRuntime(
     // thrown: an exception escaping the handler makes yargs dump the command's
     // full `--help` above the message, which buries it.
     try {
-        await runRuntimeBundle(runtime, entry, [], { exitOnSuccess: true });
+        await runRuntimeBundle(runtime, entry, [], { completion: 'exit', exitOnSuccess: true });
     } catch (err) {
         console.error(
             `${(err as Error).message}\n\n` +

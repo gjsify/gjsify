@@ -16,8 +16,8 @@
 
 import { readFileSync, statSync } from 'node:fs';
 import { basename, delimiter, join, resolve } from 'node:path';
-import { spawn } from 'node:child_process';
 import type { Command } from '../types/index.js';
+import { describeExit, spawnToCompletion } from '../utils/spawn.js';
 import { runGjsBundle } from '../utils/run-gjs.js';
 import { runRuntimeBundle } from '../utils/run-node.js';
 import { readPackageJson } from '../utils/pkg-json-edit.js';
@@ -150,7 +150,7 @@ export const runCommand: Command<unknown, RunOptions> = {
                 console.error(`gjsify run: --node-script cannot be combined with ${clash}.`);
                 return process.exit(1);
             }
-            await runNodeScript(target, extraArgs, { exitOnSuccess: true });
+            await runNodeScript(target, extraArgs, { completion: 'exit', exitOnSuccess: true });
             return;
         }
 
@@ -206,9 +206,9 @@ export const runCommand: Command<unknown, RunOptions> = {
             // Terminal calls — exit on success, or the GJS main loop parks
             // this process forever (see RunGjsBundleOptions.exitOnSuccess).
             if (runtime === 'gjs') {
-                await runGjsBundle(file, extraArgs, { exitOnSuccess: true });
+                await runGjsBundle(file, extraArgs, { completion: 'exit', exitOnSuccess: true });
             } else {
-                await runRuntimeBundle(runtime, file, extraArgs, { exitOnSuccess: true });
+                await runRuntimeBundle(runtime, file, extraArgs, { completion: 'exit', exitOnSuccess: true });
             }
             return;
         }
@@ -248,9 +248,9 @@ async function runTargetOnRuntime(runtime: ExampleRuntime, target: string, extra
     const file = resolve(target);
     // Terminal call — exit on success (the GJS/GLib loop would otherwise park).
     if (runtime === 'gjs') {
-        await runGjsBundle(file, extraArgs, { exitOnSuccess: true });
+        await runGjsBundle(file, extraArgs, { completion: 'exit', exitOnSuccess: true });
     } else {
-        await runRuntimeBundle(runtime, file, extraArgs, { exitOnSuccess: true });
+        await runRuntimeBundle(runtime, file, extraArgs, { completion: 'exit', exitOnSuccess: true });
     }
 }
 
@@ -473,21 +473,22 @@ async function runScript(script: string, extraArgs: readonly string[], cwd: stri
     }
 
     const fullCmd = extraArgs.length > 0 ? `${literal} ${extraArgs.map(shellEscape).join(' ')}` : literal;
-    // ensureMainLoop() (called inside spawn) keeps GJS alive after the
-    // child exits — without an explicit process.exit() the success path
-    // would park the loop forever. The error path already exits.
-    await new Promise<void>((resolveOk, reject) => {
-        const child = spawn(fullCmd, [], { cwd, env, stdio: 'inherit', shell: true });
-        child.on('close', (code) => {
-            if (code === 0) resolveOk();
-            else reject(new Error(`script "${script}" exited with code ${code}`));
-        });
-        child.on('error', reject);
-    }).catch((err: Error) => {
-        console.error(err.message);
-        process.exit(1);
-    });
-    process.exit(0);
+    // `completion: 'exit'` — ensureMainLoop() (called inside the async spawn) keeps
+    // GJS alive after the child exits, and both paths below end in `process.exit`,
+    // which is what tears it down. `shell: true` deliberately skips the win32
+    // rewrite: this is a command LINE, and Node routes it through %COMSPEC%.
+    let result;
+    try {
+        result = await spawnToCompletion(fullCmd, [], { completion: 'exit', cwd, env, shell: true });
+    } catch (err) {
+        console.error((err as Error).message);
+        return process.exit(1);
+    }
+    if (result.code !== 0) {
+        console.error(`script "${script}" exited with ${describeExit(result)}`);
+        return process.exit(1);
+    }
+    return process.exit(0);
 }
 
 function shellEscape(arg: string): string {

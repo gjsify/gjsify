@@ -5,6 +5,7 @@
 // property visible only in a real bundle, guarded by
 // `tests/e2e/spawn-gjs-teardown`.
 
+import type { ChildProcess } from 'node:child_process';
 import { describe, expect, it } from '@gjsify/unit';
 import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -98,6 +99,26 @@ export default async () => {
             });
             expect(r.code).toBe(0);
             expect(out).toContain('hello-from-child');
+        });
+
+        await it("completion: 'daemon' hands back a live handle and takes the streaming path", async () => {
+            // The third row of the teardown table. A supervisor never awaits the
+            // completion promise — it holds the handle and kills the child on the next
+            // rebuild — so what must hold is that the handle EXISTS (the blocking path
+            // has none to give) and that killing it is what settles the promise.
+            let handle: ChildProcess | undefined;
+            const done = spawnToCompletion(...node('setTimeout(() => {}, 60_000)'), {
+                completion: 'daemon',
+                onSpawn: (child) => {
+                    handle = child;
+                },
+            });
+            expect(handle).not.toBe(undefined);
+            expect(typeof handle?.pid).toBe('number');
+            handle?.kill();
+            const r = await done;
+            // Killed, not exited on its own: the child would have run for a minute.
+            expect(r.code === null || r.code !== 0).toBe(true);
         });
 
         await it('resolves only after piped output has drained (close, not exit)', async () => {

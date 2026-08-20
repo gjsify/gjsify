@@ -133,7 +133,7 @@ export const dlxCommand: Command<unknown, DlxOptions> = {
 
         // Terminal call — exit on success, or the GJS main loop parks this
         // process forever (see RunGjsBundleOptions.exitOnSuccess).
-        await runGjsBundle(entry.bundlePath, extraArgs, { exitOnSuccess: true });
+        await runGjsBundle(entry.bundlePath, extraArgs, { completion: 'exit', exitOnSuccess: true });
     },
 };
 

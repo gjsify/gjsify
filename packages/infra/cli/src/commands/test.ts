@@ -8,9 +8,9 @@
 
 import { existsSync, statSync, readdirSync } from 'node:fs';
 import { join, dirname, resolve, relative } from 'node:path';
-import { spawn } from 'node:child_process';
 import { isRuntimeAvailable, RUNTIMES } from '../utils/runtimes.js';
 import { nodeBinary } from '../utils/run-node.js';
+import { describeExit, spawnToCompletion } from '../utils/spawn.js';
 import type { Command } from '../types/index.js';
 import { Config } from '../config.js';
 import { BuildAction } from '../actions/build.js';
@@ -232,21 +232,18 @@ async function buildTestBundle(
 /** Run a single test bundle and reject on non-zero exit. */
 async function runTestBundle(outfile: string, runtime: Runtime): Promise<void> {
     if (runtime === 'gjs') {
-        await runGjsBundle(outfile);
+        // `completion: 'exit'` (this handler ends in `process.exit`) WITHOUT
+        // `exitOnSuccess`: the two answer different questions, and exiting here
+        // would truncate the multi-runtime loop after the first bundle.
+        await runGjsBundle(outfile, [], { completion: 'exit' });
         return;
     }
-    await new Promise<void>((resolvePromise, reject) => {
-        // `nodeBinary()`, never a bare `'node'`: under GJS `process.execPath` is
-        // the `gjs` interpreter, which cannot run a `--app node` bundle, and on a
-        // host without Node a bare literal dies `spawn node ENOENT` — which is
-        // how a fully passing GJS suite was reported as a failed run.
-        const child = spawn(nodeBinary(), [outfile], { stdio: 'inherit' });
-        child.on('error', reject);
-        child.on('exit', (code) => {
-            if (code === 0) resolvePromise();
-            else reject(new Error(`node exited with code ${code}`));
-        });
-    });
+    // `nodeBinary()`, never a bare `'node'`: under GJS `process.execPath` is
+    // the `gjs` interpreter, which cannot run a `--app node` bundle, and on a
+    // host without Node a bare literal dies `spawn node ENOENT` — which is
+    // how a fully passing GJS suite was reported as a failed run.
+    const result = await spawnToCompletion(nodeBinary(), [outfile], { completion: 'exit' });
+    if (result.code !== 0) throw new Error(`node exited with ${describeExit(result)}`);
 }
 
 /** True when `outfile` exists and is newer than every `.ts`/`.mts` file under the entry's directory tree. */

@@ -10,9 +10,9 @@
 // Env composition is split out as the pure `computeNativeEnvForBundle()` so the e2e tests can
 // assert the env without spawning gjs.
 
-import { spawn } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { detectNativePackages, buildNativeEnv, type NativeEnv } from './detect-native-packages.js';
+import { type SpawnCompletionContract, describeExit, spawnToCompletion } from './spawn.js';
 
 /**
  * Pure env computation: the typelib + shared-library search paths {@link runGjsBundle} would
@@ -58,6 +58,16 @@ export function computeNativeEnvForBundle(
  */
 export interface RunGjsBundleOptions {
     /**
+     * The teardown contract of the command that will end this process — the same field,
+     * and the same reason, `spawnToCompletion` demands. Required rather than defaulted:
+     * absent, a caller silently inherited the side that ARMS the GJS main loop.
+     *
+     * Distinct from {@link exitOnSuccess}, which asks WHO performs the exit. `gjsify test`
+     * is `'exit'` — its handler exits at the end of `commands/test.ts` — while leaving
+     * `exitOnSuccess` off, because an exit HERE would truncate its multi-runtime loop.
+     */
+    completion: SpawnCompletionContract;
+    /**
      * Exit this process with code 0 once the child succeeds. Under GJS, `ensureMainLoop()`
      * (armed by spawn) keeps the parent's GLib loop alive after the child exits, so a TERMINAL
      * caller (`gjsify run <file>`, `dlx`) must opt in or it parks forever — this gap hung CI's
@@ -77,7 +87,7 @@ export interface RunGjsBundleOptions {
 export async function runGjsBundle(
     bundlePath: string,
     extraArgs: string[] = [],
-    options: RunGjsBundleOptions = {},
+    options: RunGjsBundleOptions,
 ): Promise<void> {
     const { env: nativeEnv, envPrefix } = computeNativeEnvForBundle(bundlePath);
 
@@ -93,36 +103,29 @@ export async function runGjsBundle(
     const gjsCommand = ['gjs', ...gjsArgs.map((a) => (a.includes(' ') ? `"${a}"` : a))].join(' ');
     if (!options.quiet) console.error(`$ ${envPrefix ? `${envPrefix} ` : ''}${gjsCommand}`);
 
-    const child = spawn('gjs', gjsArgs, { env, stdio: 'inherit' });
+    // The CHILD's own exit code is re-raised verbatim; a spawn error (no `gjs` on PATH) has
+    // none of its own and falls back to 1. Collapsing every failure to 1 lost information
+    // callers act on — a chain reading `$?` to tell "tool failed" from "tool says no" saw 1
+    // for both.
+    const failed = (code: number): never => {
+        // `process.exitCode` is set BEFORE exiting because `gjsify run <script>` dispatches a
+        // nested `gjsify run <bundle>` IN PROCESS: the outer command reads `process.exitCode`
+        // to propagate. Without it a failing `test:gjs` returned 0 through the `test` chain,
+        // and through `gjsify foreach test` in CI. The `return` guards a fall-through exit.
+        process.exitCode = code;
+        return process.exit(code);
+    };
 
-    let failed = false;
-    // The CHILD's own exit code, re-raised verbatim; a spawn error (no `gjs` on PATH) has none
-    // of its own and falls back to 1. Collapsing every failure to 1 lost information callers
-    // act on — a chain reading `$?` to tell "tool failed" from "tool says no" saw 1 for both.
-    let childCode = 1;
-    await new Promise<void>((resolvePromise, reject) => {
-        child.on('close', (code) => {
-            if (code !== 0) {
-                childCode = code ?? 1;
-                reject(new Error(`gjs exited with code ${code}`));
-            } else {
-                resolvePromise();
-            }
-        });
-        child.on('error', reject);
-    }).catch((err) => {
-        console.error(err.message);
-        failed = true;
-    });
-    if (failed) {
-        // Set `process.exitCode` synchronously BEFORE exiting: under GJS `process.exit()` is
-        // deferred (the GLib main loop is armed), so under run.ts's in-process script dispatch
-        // execution returns to the caller, which propagates by reading `process.exitCode`.
-        // Without it, `gjsify run <script>` wrapping `gjsify run <bundle>` swallowed a non-zero
-        // gjs exit and returned 0 — masking a failing `test:gjs` in the `test` chain, and via
-        // `gjsify foreach test` in CI. The `return` guards a fall-through second `exit`.
-        process.exitCode = childCode;
-        return process.exit(childCode);
+    let result;
+    try {
+        result = await spawnToCompletion('gjs', gjsArgs, { completion: options.completion, env });
+    } catch (err) {
+        console.error((err as Error).message);
+        return failed(1);
+    }
+    if (result.code !== 0) {
+        console.error(`gjs exited with ${describeExit(result)}`);
+        return failed(result.code ?? 1);
     }
     // See RunGjsBundleOptions.exitOnSuccess — terminal callers opt in,
     // mid-flow callers (test.ts's runtime loop) keep the process alive.

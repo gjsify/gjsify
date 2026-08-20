@@ -16,12 +16,12 @@
 // The node binary is `process.execPath` when the CLI runs under Node, else PATH `node` — under
 // the GJS bundle `process.execPath` is `gjs`, which cannot run a `--app node` bundle.
 
-import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { isNode } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { computeNativeEnvForBundle } from './run-gjs.js';
 import { RUNTIMES, type ExampleRuntime } from './runtimes.js';
+import { type SpawnCompletionContract, describeExit, spawnToCompletion } from './spawn.js';
 
 /**
  * Walk up from `startDir` for `<node_modules>/@gjsify/node-gi`, returning its package directory
@@ -60,6 +60,8 @@ export function nodeBinary(): string {
 }
 
 export interface RunNodeBundleOptions {
+    /** The caller's teardown contract — see `RunGjsBundleOptions.completion`. */
+    completion: SpawnCompletionContract;
     /** Exit this process with code 0 once the child succeeds (terminal callers). */
     exitOnSuccess?: boolean;
     /** Suppress the `$ <env> node …` echo — see `RunGjsBundleOptions.quiet`. */
@@ -73,7 +75,7 @@ export interface RunNodeBundleOptions {
 export async function runNodeBundle(
     bundlePath: string,
     extraArgs: string[] = [],
-    options: RunNodeBundleOptions = {},
+    options: RunNodeBundleOptions,
 ): Promise<void> {
     const cwd = process.cwd();
     if (!resolveNodeGiForBundle(bundlePath, cwd)) {
@@ -93,20 +95,19 @@ export async function runNodeBundle(
     const cmd = [nodeBin, ...nodeArgs.map((a) => (a.includes(' ') ? `"${a}"` : a))].join(' ');
     console.error(`$ ${envPrefix ? `${envPrefix} ` : ''}${cmd}`);
 
-    const child = spawn(nodeBin, nodeArgs, { env, stdio: 'inherit' });
-
-    await new Promise<void>((resolvePromise, reject) => {
-        child.on('close', (code) => {
-            if (code !== 0) reject(new Error(`node exited with code ${code}`));
-            else resolvePromise();
-        });
-        child.on('error', reject);
-    }).catch((err) => {
+    let result;
+    try {
+        result = await spawnToCompletion(nodeBin, nodeArgs, { completion: options.completion, env });
+    } catch (err) {
         console.error((err as Error).message);
-        process.exit(1);
-    });
+        return process.exit(1);
+    }
+    if (result.code !== 0) {
+        console.error(`node exited with ${describeExit(result)}`);
+        return process.exit(result.code ?? 1);
+    }
 
-    if (options.exitOnSuccess) process.exit(0);
+    if (options.exitOnSuccess) return process.exit(0);
 }
 
 /**
@@ -135,7 +136,7 @@ export async function runRuntimeBundle(
     runtime: Exclude<ExampleRuntime, 'gjs'>,
     bundlePath: string,
     extraArgs: string[] = [],
-    options: RunNodeBundleOptions = {},
+    options: RunNodeBundleOptions,
 ): Promise<void> {
     const cwd = process.cwd();
     const resolvedBundle = resolve(bundlePath);
@@ -161,32 +162,24 @@ export async function runRuntimeBundle(
     const shown = [cmd, ...launchArgs.map((a) => (a.includes(' ') ? `"${a}"` : a))].join(' ');
     if (!options.quiet) console.error(`$ ${envPrefix ? `${envPrefix} ` : ''}${shown}`);
 
-    const child = spawn(cmd, launchArgs, { env, stdio: 'inherit' });
-
     // Re-raise the CHILD's own code rather than a blanket 1 — a script run through
     // `--node-script` reports its status through this path, and a caller reading `$?` needs
-    // the real one.
-    let failed = false;
-    let childCode = 1;
-    await new Promise<void>((resolvePromise, reject) => {
-        child.on('close', (code) => {
-            if (code !== 0) {
-                childCode = code ?? 1;
-                reject(new Error(`${runtime} exited with code ${code}`));
-            } else resolvePromise();
-        });
-        child.on('error', reject);
-    }).catch((err) => {
-        console.error((err as Error).message);
-        failed = true;
-    });
+    // the real one. A spawn failure has no code of its own and falls back to 1.
+    const failed = (code: number): never => {
+        process.exitCode = code;
+        return process.exit(code);
+    };
 
-    // `return process.exit(…)`, and a flag rather than an exit inside the `catch`: under GJS
-    // `process.exit()` is deferred and RETURNS, so a bare call in the catch fell through to the
-    // `exitOnSuccess` line below and scheduled a second exit.
-    if (failed) {
-        process.exitCode = childCode;
-        return process.exit(childCode);
+    let result;
+    try {
+        result = await spawnToCompletion(cmd, launchArgs, { completion: options.completion, env });
+    } catch (err) {
+        console.error((err as Error).message);
+        return failed(1);
+    }
+    if (result.code !== 0) {
+        console.error(`${runtime} exited with ${describeExit(result)}`);
+        return failed(result.code ?? 1);
     }
 
     if (options.exitOnSuccess) return process.exit(0);

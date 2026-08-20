@@ -209,6 +209,6 @@ export const debugCommand: Command<unknown, DebugCliOptions> = {
         }
 
         const { runGjsBundle } = await import('../utils/run-gjs.js');
-        await runGjsBundle(outPath, [], { exitOnSuccess: true });
+        await runGjsBundle(outPath, [], { completion: 'exit', exitOnSuccess: true });
     },
 };

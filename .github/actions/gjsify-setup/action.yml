@@ -227,6 +227,10 @@ runs:
     #     under `src/**` and not in the key, so two revisions differing only
     #     there share a key. That is incident #821. They travel as the
     #     `bootstrap-bundles-fedora<v>` run artifact instead.
+    # They are kept as DOCUMENTATION of that intent, not as enforcement: a `!`
+    # on a file cannot subtract from `packages/*/*/dist`, which matches the
+    # DIRECTORY and is archived whole. `Drop cache-restored toolchain bundles`
+    # below is what actually holds the line — see its comment for the incident.
     - name: Restore build output (lib/ + tsbuildinfo)
       id: build-cache
       uses: actions/cache/restore@v6
@@ -277,6 +281,44 @@ runs:
           echo "$SHADOWED"
         else
           echo "Tracked build outputs match the checkout."
+        fi
+
+    # The UNTRACKED half of the same repair, and the reason the `!` excludes on
+    # the cache path list cannot do it.
+    #
+    # `actions/cache` expands `packages/*/*/dist` to DIRECTORIES, and tar then
+    # archives each one whole — so `!packages/infra/cli/dist/cli.gjs.mjs` and
+    # `!packages/infra/tsc/dist/tsc.gjs.mjs` remove nothing, and every archive
+    # carries both bundles. Measured on PR #1225: a `build-v3` archive from
+    # 2026-08-17 restored a **0.40.0** `cli.gjs.mjs` into a 0.41.0 tree, and
+    # `node_modules/.bin/gjsify` PREFERS `dist/cli.gjs.mjs` over `lib/index.js`
+    # whenever `gjs` exists — so every job ran a CLI one release old. Its
+    # `gjsify tsc` never exited under GJS, which parked `build:infra` until the
+    # job timeout: 60 min in `deploy-docs`, 3 h in `Build Fedora 44`, with the
+    # last log line being whatever the previous clause printed. Three separate
+    # pushes hung identically while `main` stayed green, because `main`'s own
+    # builds keep rewriting the bundle they cache.
+    #
+    # `git clean` rather than an `rm -f` list, for the reason the step above
+    # re-checks-out a DIRECTORY: it is exhaustive by construction. It removes
+    # every ignored/untracked file under these two dirs — including one added
+    # later that nobody remembered to list — and cannot touch `affected.gjs.mjs`,
+    # which is tracked. Jobs that legitimately need the bundles take them from
+    # the `bootstrap-bundles-fedora<v>` artifact, downloaded by the NEXT step;
+    # the rest fall back to `lib/index.js` under Node, which is the documented
+    # path for a tree that has been installed but not yet built.
+    - name: Drop cache-restored toolchain bundles
+      shell: bash
+      run: |
+        REMOVED=$(su testuser -c "git -c safe.directory='*' clean -fdx --dry-run -- \
+          packages/infra/cli/dist packages/infra/tsc/dist")
+        su testuser -c "git -c safe.directory='*' clean -fdx -- \
+          packages/infra/cli/dist packages/infra/tsc/dist" >/dev/null
+        if [ -n "$REMOVED" ]; then
+          echo "Dropped cache-restored bundle(s) — the build cache is not their transport:"
+          echo "$REMOVED"
+        else
+          echo "No cache-restored toolchain bundles to drop."
         fi
 
     # ONE download block, not one per calling job. Deliberately AFTER the
