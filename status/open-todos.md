@@ -2087,7 +2087,7 @@ parsing out of the file it names, because a pasted structure is unambiguously a
 quote rather than a mention. There is about one such fragment here, so that
 machinery would be honest and nearly idle, which is the correct size for it.
 
-### Four adwaita-core modules have no conformance vector table
+### adwaita-core modules with no conformance vector table
 
 `breakpoint.ts`, `color-scheme.ts`, `scrolling.ts` and `toast.ts` export shared
 behaviour and are covered by nothing in `@gjsify/adwaita-core/conformance` — no
@@ -2108,6 +2108,52 @@ against `refs/libadwaita/src/adw-breakpoint.c`; scrolling wants the undershoot
 and overshoot arithmetic; the toast queue wants a scheduler seam both renderers
 already have. `color-scheme` is entangled with the divergence below and should be
 vectored after it is decided, not before.
+
+The heading carries no count on purpose. It named "Four" while four
+`MODULE_REASONS` entries matched it as a literal string, so closing one gap
+would have made the heading false and correcting it would have required editing
+`scripts/check-adwaita-conformance-drivers.mjs` in the same change — a live
+count, load-bearing inside a required check.
+
+### adwaita-core modules whose only vector table is core-only
+
+`easing.ts`, `glib.ts` and `length-unit.ts` DO have vectors — respectively
+`SPINNER_ARC_PHASE_VECTORS`, `GLIB_CLAMP_VECTORS` and `ADW_LENGTH_UNIT_VECTORS`
+— but every one of those tables is itself `CORE-ONLY:`, so no renderer suite is
+held to any of the three modules. `length-unit.ts` was worse than invisible: the
+module arm counted it covered because `conformance/split-view.ts` carries
+`import type { AdwLengthUnit } from '../length-unit.js'`, a type-only import
+that borrows a name for a field and proves nothing about vectors.
+
+Not the same gap as the four above, and it should not be filed under their
+heading: those modules have no table to drive, these have one nobody drives.
+`glibClamp` is the sharpest case — `adw-progress-bar.ts` calls it directly in
+the browser, so the seam exists; what is missing is a spec row that varies the
+bounds far enough to tell `CLAMP` from `Math.min`/`Math.max`. The
+`resolveNavigationSidebarWidth` path already does that through
+`SIDEBAR_WIDTH_VECTORS`, which is why `GLIB_CLAMP_VECTORS`' own exemption is a
+chain rather than a gap; the module is still held to nothing under its own name.
+
+### A table can be "driven" while the rows that matter are skipped
+
+`consumersUnder()` counts a table driven when a renderer's `*.spec.ts` names it
+outside a comment. That cannot distinguish iterating the table from importing it
+and filtering the interesting rows away, and six tables are only ever referenced
+through a `.filter(` today: `ABOUT_DIALOG_DETAILS_VECTORS`,
+`ABOUT_DIALOG_SUPPORT_VECTORS`, `ABOUT_DIALOG_CREDITS_LEGAL_VECTORS`,
+`BUTTON_STYLE_CLASS_VECTORS`, `CAROUSEL_PAGE_ALLOCATION_VECTORS` and
+`CLAMP_ALLOCATE_VECTORS`. Both renderer suites filter `CLAMP_ALLOCATE_VECTORS`
+to `params.childMin === 0`, and three `CLAMP_*` tables are exempted as an
+internal step of the pipeline it composes — a chain that does not carry the
+non-zero-`childMin` rows. `adw-about-dialog.spec.ts` does the same thing with a
+`continue` guard rather than a filter, which no textual rule sees at all.
+
+The measurable half (`X_VECTORS.filter(`) is about six lines of gate. It is
+deliberately NOT implemented yet, because it catches the filter form and not the
+`continue` form that motivated the finding, and a rule that covers two of three
+shapes of a class reads as covering the class. Closing this means deciding per
+chain whether the conceded rows matter, then either widening the specs or
+narrowing the reasons to the rows they really carry — reason work, not gate work.
 
 ### adwaita-web does not use the color-scheme singleton at all
 

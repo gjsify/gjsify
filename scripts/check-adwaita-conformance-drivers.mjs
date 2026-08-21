@@ -69,10 +69,19 @@
 // citation. Three of the 43 exemptions were that shape.
 //
 // MODULE arm — the table arm is TABLE-keyed, so core behaviour with no table at
-// all is invisible to it. Every module in `adwaita-core/src` therefore needs a
-// conformance file of its own, a conformance file that imports it, or an entry in
-// MODULE_REASONS below — itself checked, against the declared tables and against
+// all is invisible to it. Every module under `adwaita-core/src` that exports
+// behaviour therefore needs a conformance file of its own, a conformance file that
+// imports it FOR VALUE, or an entry in MODULE_REASONS below — itself checked,
+// against the declared tables, against whether a renderer drives them, and against
 // the open-item ledger.
+//
+// WHAT IT DOES NOT CHECK: "driven" is a name used outside a comment in a spec, so a
+// spec that imports a table and filters the interesting rows away still counts as
+// driving it. Six tables are referenced only through a `.filter(` today. Measured
+// and ledgered under "A table can be 'driven' while the rows that matter are
+// skipped" rather than half-guarded: the `.filter(` form is mechanical, the
+// `continue`-guard form beside it is not, and a rule that catches two shapes of a
+// three-shape class reads as covering the class.
 //
 // The `CORE-ONLY:` line belongs in the TABLE's own header, not a renderer's
 // source: #1072 found three `TOOLBAR_VIEW_*` tables whose reason lived in both
@@ -101,20 +110,29 @@ const OPEN_TODOS = join(ROOT, 'status/open-todos.md');
 /** The marker a core-only table must carry, in its own header. */
 const CORE_ONLY_MARKER = 'CORE-ONLY:';
 
-/** The open-item heading the four table-less core modules are ledgered under. */
-const NO_TABLE_LEDGER = 'Four adwaita-core modules have no conformance vector table';
+/**
+ * The open-item headings a module-level gap is ledgered under. Count-free ON PURPOSE: the
+ * first spelling was "Four adwaita-core modules …", matched here as a literal string, so
+ * closing one gap made the heading false and correcting it meant editing THIS FILE in the
+ * same change. AGENTS.md forbids a live count in a comment; inside a required check it is
+ * worse than drift.
+ */
+const NO_TABLE_LEDGER = 'adwaita-core modules with no conformance vector table';
+const NO_DRIVER_LEDGER = 'adwaita-core modules whose only vector table is core-only';
 
 /**
- * Core modules with no conformance file named after them and no conformance file
- * importing them. `table` — its vectors live in another file under that name;
- * `gap` — no vector table exists, and the named `###` heading must be an open item
- * in `status/open-todos.md`, so the gap has a place to be closed from.
+ * Core modules with no conformance file named after them and none importing them for VALUE.
+ * `table` — its vectors live in another file under that name; `gap` — the named `###` heading
+ * must be an open item in `status/open-todos.md`, so the gap has a place to be closed from.
+ * Both, where the vectors exist but no renderer drives THEM either: those are different facts
+ * and the entry has to state both, or "explained" quietly means "unexamined".
  */
 const MODULE_REASONS = {
     breakpoint: { gap: NO_TABLE_LEDGER },
     'color-scheme': { gap: NO_TABLE_LEDGER },
-    easing: { table: 'SPINNER_ARC_PHASE_VECTORS' },
-    glib: { table: 'GLIB_CLAMP_VECTORS' },
+    easing: { table: 'SPINNER_ARC_PHASE_VECTORS', gap: NO_DRIVER_LEDGER },
+    glib: { table: 'GLIB_CLAMP_VECTORS', gap: NO_DRIVER_LEDGER },
+    'length-unit': { table: 'ADW_LENGTH_UNIT_VECTORS', gap: NO_DRIVER_LEDGER },
     scrolling: { gap: NO_TABLE_LEDGER },
     toast: { gap: NO_TABLE_LEDGER },
 };
@@ -487,19 +505,30 @@ for (const dir of [CORE_SUITE_DIR, ...RENDERERS.map((renderer) => renderer.dir)]
 // `scrolling` and `toast` had no vector table at all, three of them named in
 // packages/web/AGENTS.md as the core's flagship shared behaviour, and the ledger that
 // reported "156 tables, every one driven or explained" said nothing about any of them.
-const conformanceSource = walk(CONFORMANCE_DIR)
-    .map((file) => readFileSync(file, 'utf8'))
-    .join('\n');
+const conformanceFiles = walk(CONFORMANCE_DIR);
+const conformanceSource = conformanceFiles.map((file) => readFileSync(file, 'utf8')).join('\n');
 const openTodos = readFileSync(OPEN_TODOS, 'utf8');
 
-for (const entry of readdirSync(CORE_SUITE_DIR, { withFileTypes: true })) {
-    if (!entry.isFile() || !entry.name.endsWith('.ts') || entry.name.endsWith('.spec.ts')) continue;
-    const module = entry.name.slice(0, -3);
+/** Does this module export anything a renderer could be held to? */
+const HAS_BEHAVIOUR = /^export\s+(?:async\s+)?(?:const|function|class|let|var|enum|default)\b/m;
+
+for (const file of walk(CORE_SUITE_DIR)) {
+    // Recursive, unlike the readdir this arm started with — the arm exists because the table
+    // arm had an invisible set, and a non-recursive scan reproduces that one directory down.
+    if (file.startsWith(CONFORMANCE_DIR) || file.endsWith('.spec.ts')) continue;
+    const module = relative(CORE_SUITE_DIR, file).slice(0, -3);
     if (module === 'index') continue;
-    const where = `packages/web/adwaita-core/src/${entry.name}`;
+    const source = readFileSync(file, 'utf8');
+    // A module of pure types has no behaviour to vector, so demanding vectors for it would
+    // force the author to invent a table or a ledger item. Derived, not allowlisted.
+    if (!HAS_BEHAVIOUR.test(source)) continue;
+    const where = `${relative(ROOT, file)}`;
+    // A VALUE import. `import type { AdwLengthUnit } from '../length-unit.js'` proves nothing
+    // about vectors — it borrows a name for a field — and that is the whole of what covered
+    // `length-unit.ts`.
+    const valueImport = new RegExp(`import\\s+(?!type\\b)[^;]*?from '\\.\\./${module}\\.js'`);
     const covered =
-        walk(CONFORMANCE_DIR).some((file) => file.endsWith(`/${entry.name}`)) ||
-        conformanceSource.includes(`from '../${module}.js'`);
+        conformanceFiles.some((candidate) => candidate.endsWith(`/${module}.ts`)) || valueImport.test(conformanceSource);
     const reason = MODULE_REASONS[module];
     if (covered) {
         if (reason) failures.push(`${where}: listed in MODULE_REASONS, but conformance covers it now — drop the entry.`);
@@ -507,12 +536,24 @@ for (const entry of readdirSync(CORE_SUITE_DIR, { withFileTypes: true })) {
     }
     if (!reason) {
         failures.push(
-            `${where}: no conformance file names or imports it, so no renderer is held to any of its ` +
-                `behaviour. Add vectors for it, or a MODULE_REASONS entry saying which table carries them.`,
+            `${where}: no conformance file is named after it and none imports it for value, so nothing ` +
+                `tables its behaviour. Add vectors for it, or a MODULE_REASONS entry saying which table carries them.`,
         );
-    } else if (reason.table && !declared.has(reason.table)) {
+        continue;
+    }
+    if (reason.table && !declared.has(reason.table)) {
         failures.push(`${where}: MODULE_REASONS points at ${reason.table}, which no conformance file declares.`);
-    } else if (reason.gap && !openTodos.includes(`### ${reason.gap}`)) {
+    }
+    // A `table:` naming a table no renderer drives explains where the vectors LIVE and nothing
+    // about who is held to them — which is the question this arm's finding text asks. Left at
+    // `declared.has()`, the entry reads as resolved while the module is held to nothing at all.
+    if (reason.table && declared.has(reason.table) && !byRenderer.has(reason.table) && !reason.gap) {
+        failures.push(
+            `${where}: its vectors live in ${reason.table}, which no renderer drives either — so no ` +
+                `renderer is held to this module. That is a gap; give the entry a ledger heading too.`,
+        );
+    }
+    if (reason.gap && !openTodos.includes(`### ${reason.gap}`)) {
         failures.push(`${where}: MODULE_REASONS calls this a gap under "${reason.gap}", which is not an open item.`);
     }
 }
