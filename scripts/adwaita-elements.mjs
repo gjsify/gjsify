@@ -2,28 +2,24 @@
 //
 // THE INCIDENT
 //
-// Three scripts need the same fact — which custom elements adwaita-web ships —
-// and three scripts derived it separately. `check-adwaita-reset-components.mjs`
-// scanned `customElements.define` over all of `src/`; `generate-status.mjs` and
-// `check-storybook-widget-coverage.mjs` each listed FILENAMES matching
-// `adw-*.ts` in `src/elements/`, non-recursively. In the same CI job the first
-// reported 65 elements and the other two 50, and the smaller number was the one
-// feeding the published widget matrix.
+// Three scripts needed one fact — which elements adwaita-web ships — and derived it
+// separately. `check-adwaita-reset-components.mjs` scanned `customElements.define`
+// over all of `src/`; `generate-status.mjs` and `check-storybook-widget-coverage.mjs`
+// each listed FILENAMES matching `adw-*.ts` in `src/elements/`, non-recursively. Same
+// CI job, 65 against 50, and the smaller answer fed the published widget matrix.
 //
 // A filename is not the element. `adw-checks.ts` defines `adw-checkbox` and
-// `adw-radio`, so the matrix scored a widget `adw-checks` that no page can use
-// and had no row for either that it can. `adw-preferences-dialog.ts` also
-// defines `adw-preferences-page`, so the matrix stated adwaita-web does not have
-// a preferences page while consumers were using one. `adw-source-view` lives in
-// `src/source-view/` and was invisible to both filename readers — the same
-// blindness that had already kept it out of the ADR 0010 reset list.
+// `adw-radio`: the matrix scored a widget no page can use, and none for either it can.
+// `adw-preferences-dialog.ts` also defines `adw-preferences-page`, so the matrix
+// published "adwaita-web does not have it" about an element consumers already use.
+// `adw-source-view` sits in `src/source-view/`, invisible to both filename readers —
+// the same blindness that had kept it out of the ADR 0010 reset list.
 //
-// So this module is the ONE reader — of both renderers, because the NativeScript
-// widget scan was a second copy in the same two files, with the same drift ahead of
-// it. `adw-` is the whole naming rule the tree follows, which is what lets a tag
-// address a matrix row: {@link elementName} strips it, and what is left is the bare
-// widget name the NativeScript widget files and the `*.meta.ts` story names are
-// already spelled in.
+// So this module is the ONE reader, of BOTH renderers: the NativeScript widget scan
+// was a second copy in the same two files, with the same drift ahead of it. `adw-` is
+// the whole naming rule the tree follows, which is what lets a tag address a matrix
+// row — {@link elementName} strips it, and the rest is the bare name the NativeScript
+// files and the `*.meta.ts` story names are already spelled in.
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -47,22 +43,16 @@ function sourceFiles(dir) {
     return found;
 }
 
-/**
- * The tag every matrix row, ledger entry and story name is keyed by.
- *
- * @param {string} tag e.g. `adw-preferences-page`
- * @returns {string} e.g. `preferences-page`
- */
+/** `adw-preferences-page` → `preferences-page`: the key rows, ledger entries and stories share. */
 export const elementName = (tag) => tag.slice('adw-'.length);
 
 /**
  * Every custom element adwaita-web defines → the file defining it, so a failure
  * can name the file to open. Sorted by tag; several files define two or three.
  *
- * THROWS on an empty scan. A reader that finds nothing lets every consumer pass
- * vacuously — the tag set is empty, so nothing is missing from anything — and
- * that is exactly the state a moved package or a stale pattern produces. It is
- * a failure, not a pass.
+ * THROWS on an empty scan: nothing is missing from an empty set, so a reader that
+ * finds nothing lets every consumer pass vacuously — which is exactly what a moved
+ * package or a stale pattern produces.
  *
  * @param {string} root repository root
  * @returns {Map<string, string>} tag → repo-relative defining file
@@ -100,19 +90,15 @@ const widgetClass = (name) =>
  * Every widget the NativeScript Adwaita port ships → its repo-relative file.
  *
  * NativeScript has no `customElements.define`. A widget here is a class extending a
- * `@nativescript/core` view, named `Adw<Widget>` in `adw-<name>.ts` — 46 files out of
- * 47. The 47th is `adw-accent.ts`, two functions that push CSS at `Application`: no
- * view, nothing to place in a layout, and reading the directory as a widget list
- * scored it as a NativeScript-only WIDGET the browser had yet to port.
+ * `@nativescript/core` view, named `Adw<Widget>` in `adw-<name>.ts` — 46 files of 47.
+ * The 47th is `adw-accent.ts`, two functions that push CSS at `Application`: no view,
+ * nothing to place in a layout, and the directory listing scored it as a
+ * NativeScript-only WIDGET the browser had yet to port.
  *
- * So NO CLASS is the exemption, and it is the only one — a file exporting classes
- * but not the one its name promises THROWS instead of quietly dropping out of the
- * widget set, which is how a rename would otherwise shrink every consumer's input
- * without failing anything.
- *
- * Same vacuous-scan contract as {@link adwaitaWebElements}: nothing found is a
- * failure, because an empty widget set makes every consumer's question trivially
- * satisfied.
+ * NO CLASS is therefore the exemption and the only one: a file exporting classes but
+ * not the one its name promises THROWS rather than quietly leaving the widget set,
+ * which is how a rename would otherwise shrink every consumer's input without failing
+ * anything. Same vacuous-scan contract as {@link adwaitaWebElements}.
  *
  * @param {string} root repository root
  * @returns {Map<string, string>} bare widget name → repo-relative file

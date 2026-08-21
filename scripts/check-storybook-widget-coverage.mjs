@@ -30,15 +30,11 @@
 // three-target story, so demanding one here would demand a port, and that is a
 // product decision this check has no business making.
 //
-// (4) is here because it is the same question — what does each renderer ship — asked
-// by the surface that PUBLISHES the answer. The matrix builds its browser column in a
-// different file, and for a long time it built it differently: filenames, not defines.
-// A ROW-PRESENCE check would not have caught that, and this scoping is measured, not
-// guessed: `adw-preferences-page` HAD a row the whole time, put there by the
-// NativeScript filename scan, with an empty adwaita-web cell beside it. So the
-// assertion is on the CELL. The reverse arm is deliberately narrower — a row CLAIMING
-// a web cell with no define behind it — because rows with no define are ordinary and
-// legitimate: a NativeScript-only widget, a GTK-only story.
+// (4) asks the same question of the surface that PUBLISHES the answer, and its scoping
+// is measured. Forward: on the CELL, because `adw-preferences-page` HAD a row the whole
+// time — the NativeScript scan put it there — beside an empty adwaita-web cell, so row
+// presence stays green on the defect. Reverse: only a row CLAIMING a web cell with no
+// define, since rows without one are ordinary NativeScript-only widgets and GTK stories.
 //
 // Plain Node over the repo's own files — no install, no build — so it runs in
 // `audit-runtimes.yml` next to the other repo-scoped guards.
@@ -106,8 +102,7 @@ try {
     defines = adwaitaWebElements(ROOT);
     ns = adwaitaNativeScriptWidgets(ROOT);
 } catch (error) {
-    // Both readers throw on a vacuous scan by design; catching keeps this script's
-    // own `name: message` shape and exit code instead of a stack trace.
+    // Both readers throw on a vacuous scan by design; catch to keep this script's prefix.
     console.error(`check-storybook-widget-coverage: ${error.message}`);
     process.exit(1);
 }
@@ -122,8 +117,7 @@ if (stories.size === 0) {
     process.exit(1);
 }
 
-// Rule 4 — the published matrix's browser column IS the define set, both ways.
-// Runs first: a matrix that disagrees about what adwaita-web ships makes every
+// Rule 4, first: a matrix that disagrees about what adwaita-web ships makes every
 // verdict below a claim about a different tree than the one readers are shown.
 const matrix = new Map(collectAdwaitaCoverage(ROOT).map((row) => [row.name, row]));
 const mismatches = [];

@@ -8,9 +8,8 @@
 // typography and the box model at each widget boundary, so a host page's inherited
 // `font-family`/`color`/`letter-spacing` and its `* { box-sizing }` reset stop
 // there. A tag missing from the list gets no floor — it renders in the host's font
-// and colour, and nothing fails. The list is hand-written, while the truth is
-// dozens of `customElements.define` calls scattered over as many files, several
-// defining two or three tags each.
+// and colour, and nothing fails. The list is hand-written; the truth is the defines
+// `scripts/adwaita-elements.mjs` reads.
 //
 // It had already drifted: `adw-source-view` was defined for its whole life and
 // never listed. The regression test ADR 0010 points at as the guard,
@@ -51,8 +50,7 @@ let defined;
 try {
     defined = adwaitaWebElements(ROOT);
 } catch (error) {
-    // The reader throws on a vacuous scan by design; catching keeps this script's
-    // own `name: message` shape and exit code instead of a stack trace.
+    // The reader throws on a vacuous scan by design; catch to keep this script's prefix.
     fail([error.message]);
 }
 

@@ -217,22 +217,17 @@ function scanGnomeNamespaces(pkgDir) {
  * maintained by hand. It WAS, in `status/sections/adwaita-web-roadmap.md`, and
  * it drifted: twelve widgets sat under "Planned" long after they shipped.
  *
- * ONE ROW PER `adw-<name>`, and `<name>` is read from a different thing on each
- * renderer, because each renderer states what it ships in a different place: the
- * browser column is one row per `customElements.define('adw-…')` tag, minus the
- * prefix ({@link elementName}); the NativeScript column is one row per
- * `adw-<name>.ts` file that exports an `Adw*` view class; the GTK column is one
- * row per `<name>.meta.ts` story. The three vocabularies agree on the bare name,
- * so this needs no alias table. Upstream partials that no renderer has yet are a
- * genuinely authored judgement (three different naming conventions) and stay in
- * the roadmap section.
+ * ONE ROW PER `adw-<name>`, read from what each renderer REGISTERS, which is a
+ * different thing on each: `customElements.define('adw-…')` tags minus the prefix
+ * ({@link elementName}), NativeScript `Adw*` view classes, GTK `<name>.meta.ts`
+ * stories. The three vocabularies agree on the bare name, so this needs no alias
+ * table. Upstream partials that no renderer has yet are a genuinely authored
+ * judgement (three naming conventions) and stay in the roadmap section.
  *
- * The browser column was a filename scan too, and a filename is not an element:
- * it scored `adw-checks` (a file defining `adw-checkbox` and `adw-radio`, so a
- * widget nobody can use and no row for either they can), it stated adwaita-web
- * has no `adw-preferences-page` while `adw-preferences-dialog.ts` defines one,
- * and it could not see `adw-source-view` at all — that file is not under
- * `elements/`. Full incident: `scripts/adwaita-elements.mjs`.
+ * Both renderer columns were FILENAME scans, which is not the same question — the
+ * phantom `adw-checks`, the denied `adw-preferences-page`, the invisible
+ * `adw-source-view` and the accent function pair scored as a widget are the
+ * incident in `scripts/adwaita-elements.mjs`.
  *
  * TWO false gaps this used to score, both fixed by DERIVING harder rather than
  * by an exception list — an allowlist here would reintroduce exactly the
@@ -254,8 +249,7 @@ function scanGnomeNamespaces(pkgDir) {
 export function collectAdwaitaCoverage(root) {
     const absolute = (entries) => new Map([...entries].map(([name, file]) => [name, join(root, file)]));
 
-    // A file may define three tags (`adw-sidebar.ts` → sidebar, sidebar-item,
-    // sidebar-section), so each gets its own row pointing at the same file.
+    // `adw-sidebar.ts` defines three tags, so three rows point at the same file.
     const web = absolute([...adwaitaWebElements(root)].map(([tag, file]) => [elementName(tag), file]));
     const ns = absolute(adwaitaNativeScriptWidgets(root));
 
