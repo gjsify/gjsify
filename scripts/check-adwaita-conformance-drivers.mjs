@@ -430,16 +430,16 @@ for (const table of tables) {
         .flatMap((citation) => citation.names)
         .filter((name) => name !== table.name);
     const coverage = coverageCitedIn(reason).filter((name) => name !== table.name);
-    if (named.length === 0) {
-        if (!GAP_REASON.test(reason)) {
-            failures.push(
-                `${where}: its ${CORE_ONLY_MARKER} reason names no table, so no part of it is checkable. ` +
-                    `Name the table whose coverage makes this one redundant, or spell it ` +
-                    `"${CORE_ONLY_MARKER} GAP — <why no renderer can drive it>. Tracked in #<issue>".`,
-            );
-        } else if (!GAP_ANCHOR.test(reason)) {
-            failures.push(`${where}: a ${CORE_ONLY_MARKER} GAP with no issue anchor has no owner and no retirement.`);
-        }
+    if (named.length === 0 && !GAP_REASON.test(reason)) {
+        failures.push(
+            `${where}: its ${CORE_ONLY_MARKER} reason names no table, so no part of it is checkable. ` +
+                `Name the table whose coverage makes this one redundant, or spell it ` +
+                `"${CORE_ONLY_MARKER} GAP — <why no renderer can drive it>. Tracked in #<issue>".`,
+        );
+    }
+    // Regardless of what a GAP cites — several name the table they USED to be exempted by.
+    if (GAP_REASON.test(reason) && !GAP_ANCHOR.test(reason)) {
+        failures.push(`${where}: a ${CORE_ONLY_MARKER} GAP with no issue anchor has no owner and no retirement.`);
     }
     for (const name of coverage) {
         resolved.chains += 1;

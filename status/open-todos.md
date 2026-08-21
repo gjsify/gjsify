@@ -2204,7 +2204,10 @@ class called `AdwToastOverlay` taking an options bag whose field is called
   `AdwToastOptions` interface). Its spec writes `{ timeout: 3 }` for three seconds.
 - `@gjsify/adwaita-nativescript` — `showToast(title, { timeout })` passes the
   bag straight to `new AdwToast(...)`, so it is the CORE's `AdwToastOptions`,
-  i.e. MILLISECONDS. Its spec writes `{ timeout: 3000 }` for the same three seconds.
+  i.e. MILLISECONDS. This wrapper has NO spec of its own: `widgets/adw-toast-overlay.ts`
+  is untested, and the `{ timeout: 3000 }` at `index.spec.ts:731` constructs
+  `AdwToast`/`AdwToastQueue` directly, never reaching the overlay. That makes the case
+  stronger, not weaker — the diverging wrapper is the untested one.
 
 `{ timeout: 5 }` is therefore a five-second toast in the browser and a five-
 MILLISECOND toast on NativeScript. Each suite is internally consistent, which is
