@@ -9,7 +9,7 @@
 // subtitle at all. So a header bar could not show what its own NativeScript twin
 // could, and the fix is delegation rather than a fourth copy of the derivation.
 //
-// CORE-VIA: ./adw-window-title.js — the derived centre IS that element, and the three rules above run in its WindowTitleState.
+// CORE-VIA: ./adw-window-title.js — the derived centre IS that element, so the three rules run in its WindowTitleState.
 //
 // Reference: refs/libadwaita/src/adw-header-bar.c
 // Adapted from Adwaita Web UI Framework (https://github.com/mclellac/adwaita-web).
