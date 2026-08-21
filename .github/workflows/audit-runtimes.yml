@@ -352,6 +352,20 @@ jobs:
       - name: Check the style-class ledger covers libadwaita's documented surface
         run: node scripts/check-adwaita-style-classes.mjs
 
+      # A `refs/<submodule>/<path>` coordinate IS the evidence behind a core-backed
+      # claim — the upstream file a reader opens to check that a behaviour really came
+      # from there. NINETEEN of the Adwaita ones named a file that has never existed in
+      # libadwaita's 5325 commits: the spellings a reader would guess
+      # (`_action-row.scss`, `_toast.scss`, `_status-page.scss`, where upstream files by
+      # family in `_lists.scss` and `_misc.scss`), plus `adw-menu-button.c` for a type
+      # libadwaita does not have. `status/sections/adwaita-web-roadmap.md` warned about
+      # exactly this in prose, and named the right spellings — and it happened nineteen
+      # times anyway, because prose cannot fail. The step above checks out ONE submodule
+      # of the pool, so this step holds what that one contains and no more — its summary
+      # line prints how many were checked out, and every skip is named.
+      - name: Check every refs/ citation points at a file that exists
+        run: node scripts/check-refs-citations.mjs
+
       # `packages/web/adwaita-web` has no `test` script: its spec files reach a runner
       # only through the `run({…})` in `src/test.browser.mts`, and nothing read that
       # call. An import dropped from it is silent — the entry is outside the package's
@@ -389,6 +403,28 @@ jobs:
       # was a gap or a decision (#1195).
       - name: Check every widget is storyed, ledgered or verdicted
         run: node scripts/check-storybook-widget-coverage.mjs
+
+      # The website's Adwaita gallery is HAND-derived from that same story set: a
+      # person reads the metas and writes an `<AdwWidget>` block per widget. It was
+      # 35-against-35 on 2026-07-24; five metas landed after it, and the pages were
+      # re-authored WHOLESALE in #1228 three days after four of them — by someone
+      # with every page open — and still came out 35 against 40. Two of the missing
+      # five were the entire `Controls` category, which the storybook's own
+      # STORYBOOK_CATEGORY_ORDER already declared, so the site's category list was a
+      # strict subset with nothing saying so. A hand is not a mechanism.
+      - name: Check the website gallery documents every storybook widget
+        run: node scripts/check-website-adwaita-gallery.mjs
+
+      # One meta drives all three panels, so the three ALWAYS look identical — which
+      # is exactly why a control wired on one target and not the others cannot be
+      # seen. `entry-row`'s `showApplyButton` switch rendered on all three and was
+      # read only by GTK; both other renderers implement `show-apply-button` in full,
+      # the STORY never wired it. Six more were measured on NativeScript. A control
+      # that measurably switches and is measurably inert is the most expensive shape
+      # this repo ships, and no other storybook gate can reach it: parity compares
+      # the story SET, category order the sidebar, coverage the widget SET.
+      - name: Check every story control is read by all three renderings
+        run: node scripts/check-storybook-control-parity.mjs
 
       # A NativeScript widget's className and the theme's selector are two halves of
       # one decision that nothing compares. Renaming the shortcut-label keycap class
@@ -745,6 +781,20 @@ jobs:
       - name: Check the style-class ledger covers libadwaita's documented surface
         run: node scripts/check-adwaita-style-classes.mjs
 
+      # A `refs/<submodule>/<path>` coordinate IS the evidence behind a core-backed
+      # claim — the upstream file a reader opens to check that a behaviour really came
+      # from there. NINETEEN of the Adwaita ones named a file that has never existed in
+      # libadwaita's 5325 commits: the spellings a reader would guess
+      # (`_action-row.scss`, `_toast.scss`, `_status-page.scss`, where upstream files by
+      # family in `_lists.scss` and `_misc.scss`), plus `adw-menu-button.c` for a type
+      # libadwaita does not have. `status/sections/adwaita-web-roadmap.md` warned about
+      # exactly this in prose, and named the right spellings — and it happened nineteen
+      # times anyway, because prose cannot fail. The step above checks out ONE submodule
+      # of the pool, so this step holds what that one contains and no more — its summary
+      # line prints how many were checked out, and every skip is named.
+      - name: Check every refs/ citation points at a file that exists
+        run: node scripts/check-refs-citations.mjs
+
       # `packages/web/adwaita-web` has no `test` script: its spec files reach a runner
       # only through the `run({…})` in `src/test.browser.mts`, and nothing read that
       # call. An import dropped from it is silent — the entry is outside the package's
@@ -782,6 +832,28 @@ jobs:
       # was a gap or a decision (#1195).
       - name: Check every widget is storyed, ledgered or verdicted
         run: node scripts/check-storybook-widget-coverage.mjs
+
+      # The website's Adwaita gallery is HAND-derived from that same story set: a
+      # person reads the metas and writes an `<AdwWidget>` block per widget. It was
+      # 35-against-35 on 2026-07-24; five metas landed after it, and the pages were
+      # re-authored WHOLESALE in #1228 three days after four of them — by someone
+      # with every page open — and still came out 35 against 40. Two of the missing
+      # five were the entire `Controls` category, which the storybook's own
+      # STORYBOOK_CATEGORY_ORDER already declared, so the site's category list was a
+      # strict subset with nothing saying so. A hand is not a mechanism.
+      - name: Check the website gallery documents every storybook widget
+        run: node scripts/check-website-adwaita-gallery.mjs
+
+      # One meta drives all three panels, so the three ALWAYS look identical — which
+      # is exactly why a control wired on one target and not the others cannot be
+      # seen. `entry-row`'s `showApplyButton` switch rendered on all three and was
+      # read only by GTK; both other renderers implement `show-apply-button` in full,
+      # the STORY never wired it. Six more were measured on NativeScript. A control
+      # that measurably switches and is measurably inert is the most expensive shape
+      # this repo ships, and no other storybook gate can reach it: parity compares
+      # the story SET, category order the sidebar, coverage the widget SET.
+      - name: Check every story control is read by all three renderings
+        run: node scripts/check-storybook-control-parity.mjs
 
       # A NativeScript widget's className and the theme's selector are two halves of
       # one decision that nothing compares. Renaming the shortcut-label keycap class

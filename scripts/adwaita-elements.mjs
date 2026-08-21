@@ -25,12 +25,91 @@
 // never runs, so nothing could fail on a `CORE-VIA:` declaration that had stopped
 // holding.
 
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
+
+import { toPosixPath } from '../packages/infra/manifest-conformance/lib/index.mjs';
 
 /** Repo-relative source roots, so callers can name them in their own messages. */
 export const ADWAITA_WEB_SRC = 'packages/web/adwaita-web/src';
 export const ADWAITA_NS_WIDGETS = 'packages/nativescript-bridge/adwaita/src/widgets';
+/** The GTK showcase owns the renderer-agnostic metas all three targets import. */
+export const ADWAITA_STORY_SRC = 'showcases/gtk/adwaita-storybook/src';
+/** …and the NativeScript showcase imports those metas and adds its own rendering. */
+export const ADWAITA_NS_STORY_SRC = 'showcases/dom/adwaita-storybook-nativescript/src';
+
+/**
+ * Story files carrying `suffix`, anywhere under `dir` — `name` → absolute path.
+ *
+ * Four checks asked the same question of the same tree and each walked it itself.
+ * The copies had not drifted yet, which is exactly the moment to lift one: it is
+ * the same argument {@link elementName} above makes one level down.
+ */
+export function storyFilesWith(dir, suffix) {
+    /** @type {Map<string, string>} */
+    const found = new Map();
+    const walk = (current) => {
+        for (const entry of readdirSync(current, { withFileTypes: true })) {
+            const child = join(current, entry.name);
+            if (entry.isDirectory()) walk(child);
+            else if (entry.name.endsWith(suffix)) found.set(entry.name.slice(0, -suffix.length), child);
+        }
+    };
+    walk(dir);
+    return found;
+}
+
+/** {@link storyFilesWith} for a caller that only needs the story SET. */
+export const storyNamesWith = (dir, suffix) => new Set(storyFilesWith(dir, suffix).keys());
+
+// A story's category is the part of its title before the first `/` — the same split
+// StorybookController._groupByCategory makes. EVERY `title:` is read, not the first:
+// three meta files declare two metas each, and a reader that stops at one would let
+// the second land in an undeclared category with nothing failing.
+const META_TITLE = /^\s*title:\s*'([^']+)'/gm;
+
+/**
+ * Every renderer-agnostic story meta, keyed by the bare name the widget files, the
+ * three story renderings, the ledgers and the website gallery all spell it in.
+ *
+ * THROWS on an empty scan, for the reason {@link adwaitaWebElements} does: nothing
+ * is missing from an empty set, so a moved showcase passes every consumer at once.
+ *
+ * @param {string} root repository root
+ * @returns {Map<string, {path: string, file: string, titles: string[], source: string}>}
+ */
+export function adwaitaStoryMetas(root) {
+    const dir = join(root, ADWAITA_STORY_SRC);
+    /** @type {Map<string, {path: string, file: string, titles: string[], source: string}>} */
+    const metas = new Map();
+    const walk = (current) => {
+        for (const entry of readdirSync(current, { withFileTypes: true })) {
+            const path = join(current, entry.name);
+            if (entry.isDirectory()) {
+                walk(path);
+                continue;
+            }
+            if (!entry.name.endsWith('.meta.ts')) continue;
+            const source = readFileSync(path, 'utf8');
+            metas.set(entry.name.slice(0, -'.meta.ts'.length), {
+                path,
+                file: toPosixPath(relative(root, path)),
+                titles: [...source.matchAll(META_TITLE)].map(([, title]) => title),
+                source,
+            });
+        }
+    };
+    if (existsSync(dir)) walk(dir);
+
+    if (metas.size === 0) {
+        throw new Error(
+            `no *.meta.ts under ${ADWAITA_STORY_SRC}. Either the showcase moved or the naming ` +
+                'convention changed — a scan that finds nothing passes vacuously, so this is a ' +
+                'failure, not a pass.',
+        );
+    }
+    return new Map([...metas].sort(([a], [b]) => a.localeCompare(b)));
+}
 
 // The registration WITH the class it registers, in any quote style: reading the class
 // is what makes a HALF rename fail instead of shrinking the set (see the throw below).
@@ -116,6 +195,17 @@ function bindsOnlyTypes(clause) {
 export function stripComments(text) {
     return text.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/(^|[^:])\/\/[^\n]*/g, '$1');
 }
+
+/**
+ * Every property a widget class lets a caller SET — `set <name>(`.
+ *
+ * The question is "can this target honour that control at all", and a settable
+ * property of the control's own name is the answer a story cannot argue with.
+ * Accessors only: a `setFoo(value)` method is the widget's internal wiring, and
+ * a control is bound to a property.
+ */
+export const settableProperties = (text) =>
+    new Set([...stripComments(text).matchAll(/\bset\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g)].map(([, name]) => name));
 
 /**
  * What a module imports or re-exports AS VALUES — comments out, and BOTH `type`

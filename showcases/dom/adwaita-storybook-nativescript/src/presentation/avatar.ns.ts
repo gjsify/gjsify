@@ -29,11 +29,14 @@ export class AvatarNsStory extends StoryView {
 
     private _sync(): void {
         if (!this._avatar) return;
-        // AdwAvatar (NS) supports `text` (→ derived initials) and `size`. The
-        // `showInitials`/`iconName` args have no NS equivalent — the CSS-subset
-        // avatar has no icon-theme lookup, so it always shows derived initials.
         this._avatar.text = this.args.text as string;
         this._avatar.size = this.args.size as number;
+        // AdwAvatar (NS) supports `text` (→ derived initials) and `size` only: the
+        // CSS-subset avatar has no icon-theme lookup, so it always shows derived
+        // initials and there is nothing `showInitials`/`iconName` could switch. Read
+        // them so the controls stay bound to this rendering too.
+        void (this.args.showInitials as boolean);
+        void (this.args.iconName as string);
     }
 }
 

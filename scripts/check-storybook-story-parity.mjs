@@ -35,44 +35,36 @@
 //
 // Usage: node scripts/check-storybook-story-parity.mjs [--root <dir>]
 
-import { readdirSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { ADWAITA_NS_STORY_SRC, ADWAITA_STORY_SRC, adwaitaStoryMetas, storyNamesWith } from './adwaita-elements.mjs';
 
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : args[rootFlag + 1];
 
 /** The GTK showcase owns the metas and both the GTK and browser renderings. */
-const GTK_SRC = join(ROOT, 'showcases/gtk/adwaita-storybook/src');
+const GTK_SRC = join(ROOT, ADWAITA_STORY_SRC);
 /** The NativeScript showcase imports those metas and adds its own rendering. */
-const NS_SRC = join(ROOT, 'showcases/dom/adwaita-storybook-nativescript/src');
+const NS_SRC = join(ROOT, ADWAITA_NS_STORY_SRC);
 
-/** Story names carrying `suffix`, anywhere under `dir`. */
-function namesWith(dir, suffix) {
-    const found = new Set();
-    const walk = (current) => {
-        for (const entry of readdirSync(current, { withFileTypes: true })) {
-            const path = join(current, entry.name);
-            if (entry.isDirectory()) walk(path);
-            else if (entry.name.endsWith(suffix)) found.add(entry.name.slice(0, -suffix.length));
-        }
-    };
-    walk(dir);
-    return found;
-}
-
-const metas = namesWith(GTK_SRC, '.meta.ts');
-const targets = [
-    { label: 'GTK (*.story.ts)', names: namesWith(GTK_SRC, '.story.ts') },
-    { label: 'browser (*.web.ts)', names: namesWith(GTK_SRC, '.web.ts') },
-    { label: 'NativeScript (*.ns.ts)', names: namesWith(NS_SRC, '.ns.ts') },
-];
-
-if (metas.size === 0) {
-    console.error('check-storybook-story-parity: found no *.meta.ts — the scan is broken, not the showcases.');
+/** @type {Map<string, {path: string, file: string, titles: string[], source: string}>} */
+let metaFiles;
+try {
+    metaFiles = adwaitaStoryMetas(ROOT);
+} catch (error) {
+    // The reader throws on a vacuous scan by design; catch to keep this script's prefix.
+    console.error(`check-storybook-story-parity: ${error.message}`);
     process.exit(1);
 }
+
+const metas = new Set(metaFiles.keys());
+const targets = [
+    { label: 'GTK (*.story.ts)', names: storyNamesWith(GTK_SRC, '.story.ts') },
+    { label: 'browser (*.web.ts)', names: storyNamesWith(GTK_SRC, '.web.ts') },
+    { label: 'NativeScript (*.ns.ts)', names: storyNamesWith(NS_SRC, '.ns.ts') },
+];
 
 const failures = [];
 for (const target of targets) {
@@ -94,7 +86,7 @@ if (failures.length > 0) {
         `\nThe three targets exist to be compared. A story on one of them and not the others is the one\n` +
             `state where no comparison is possible — which is exactly what the unimplemented screenshot\n` +
             `harness was claimed to catch (#1052).\n` +
-            `  metas: ${relative(ROOT, GTK_SRC)}    NativeScript: ${relative(ROOT, NS_SRC)}`,
+            `  metas: ${ADWAITA_STORY_SRC}    NativeScript: ${ADWAITA_NS_STORY_SRC}`,
     );
     process.exit(1);
 }

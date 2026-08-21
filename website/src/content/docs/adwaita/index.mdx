@@ -68,7 +68,15 @@ To change how any of it looks, set the [design tokens](./theming/).
       </adw-preferences-group>
     </Fragment>
   </AdwGalleryCard>
-  <AdwGalleryCard title="Buttons" href="/gjsify/adwaita/buttons/" description="Button content, the style classes, split buttons and linked toggle groups.">
+  <AdwGalleryCard title="Controls" href="/gjsify/adwaita/controls/" description="The standalone entry and drop down — GTK widgets Adwaita styles, with row twins in the boxed lists.">
+    <Fragment slot="preview">
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;max-width:240px;">
+        <adw-entry placeholder="Search files…" style="width:100%;"></adw-entry>
+        <adw-drop-down options='["Automatic","Always","Never"]' selected="0"></adw-drop-down>
+      </div>
+    </Fragment>
+  </AdwGalleryCard>
+  <AdwGalleryCard title="Buttons" href="/gjsify/adwaita/buttons/" description="Button content, the style classes, menu buttons, split buttons and linked toggle groups.">
     <Fragment slot="preview">
       <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;">
         <adw-button label="Suggested" suggested></adw-button>
@@ -98,7 +106,7 @@ To change how any of it looks, set the [design tokens](./theming/).
       </adw-sidebar>
     </Fragment>
   </AdwGalleryCard>
-  <AdwGalleryCard title="View Switching" href="/gjsify/adwaita/view-switching/" description="View switchers, tab views and carousels over a stack that shows one page at a time.">
+  <AdwGalleryCard title="View Switching" href="/gjsify/adwaita/view-switching/" description="View switchers, the switcher bar, tab views and carousels over a stack that shows one page at a time.">
     <Fragment slot="preview">
       <adw-inline-view-switcher display-mode="both">
         <adw-view-stack-page title="Overview" icon-name="view-grid"><div></div></adw-view-stack-page>
@@ -107,7 +115,7 @@ To change how any of it looks, set the [design tokens](./theming/).
       </adw-inline-view-switcher>
     </Fragment>
   </AdwGalleryCard>
-  <AdwGalleryCard title="Presentation" href="/gjsify/adwaita/presentation/" description="Avatars, banners, spinners, status pages and window titles for showing state.">
+  <AdwGalleryCard title="Presentation" href="/gjsify/adwaita/presentation/" description="Avatars, banners, shortcut labels, spinners, status pages and window titles for showing state.">
     <Fragment slot="preview">
       <adw-avatar text="Ada Lovelace" size="72" show-initials icon="avatar-default"></adw-avatar>
     </Fragment>

@@ -131,6 +131,7 @@ export default defineConfig({
                     items: [
                         { slug: 'adwaita', label: 'Gallery' },
                         { slug: 'adwaita/boxed-lists' },
+                        { slug: 'adwaita/controls' },
                         { slug: 'adwaita/buttons' },
                         { slug: 'adwaita/layout' },
                         { slug: 'adwaita/navigation' },

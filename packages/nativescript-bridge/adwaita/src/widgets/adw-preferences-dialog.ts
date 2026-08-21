@@ -20,7 +20,8 @@
 // what a UI would bind to.
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-preferences-dialog`.
-// Reference: refs/libadwaita/src/stylesheet/widgets/_dialog.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_preferences.scss (preferencespage/group)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_dialogs.scss (AdwDialog sheet + dimming)
 // Reference: refs/libadwaita/src/adw-preferences-dialog.c (add/remove, search)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 

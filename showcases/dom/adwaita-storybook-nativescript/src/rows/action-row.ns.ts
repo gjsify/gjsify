@@ -73,9 +73,7 @@ export class ActionRowNsStory extends StoryView {
         if (!this._row) return;
         this._row.title = this.args.title as string;
         this._row.subtitle = this.args.subtitle as string;
-        // `activatable` has no NS equivalent on AdwActionRow (no row-press chrome in
-        // the CSS subset); the arg stays bound but drives no visible change.
-        void (this.args.activatable as boolean);
+        this._row.activatable = this.args.activatable as boolean;
     }
 }
 

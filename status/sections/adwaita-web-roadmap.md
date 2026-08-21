@@ -1,7 +1,7 @@
 ### Adwaita Web framework roadmap
 
 Long-term goal: complete `@gjsify/adwaita-web` so it can replace the styling layer of
-`refs/adwaita-web/scss/` while keeping our Web Components abstraction. Every port adds a custom
+`refs/adwaita-web/adwaita-web/scss/` while keeping our Web Components abstraction. Every port adds a custom
 element + SCSS partial + a SPDX header citing `refs/adwaita-web/adwaita-web/scss/_<name>.scss`
 and/or `refs/libadwaita/src/stylesheet/widgets/_<name>.scss`.
 
@@ -14,8 +14,8 @@ that table by hand, and it drifted twelve widgets behind the code: `<adw-button>
 `<adw-avatar>` and `<adw-wrap-box>` all sat under "Planned" long after they shipped. Nothing that
 a script can read belongs in this file.
 
-What DOES belong here is the judgement a script cannot make. Two questions were tracked by hand
-in this file and BOTH are machine-checked now, which is why the table that used to sit here is
+What DOES belong here is the judgement a script cannot make. Three questions were tracked by hand
+in this file and ALL THREE are machine-checked now, which is why the table that used to sit here is
 gone:
 
 - **Which documented style classes have no rule?** `scripts/check-adwaita-style-classes.mjs` holds
@@ -29,6 +29,14 @@ gone:
 - **Do the three storybook targets render the same stories?**
   `scripts/check-storybook-story-parity.mjs`, which is what replaced the never-built screenshot
   harness (#1052).
+- **Does a cited upstream partial exist?** `scripts/check-refs-citations.mjs`. This paragraph used
+  to ASK for that check in prose and got nineteen headers naming a libadwaita file that never
+  existed. What stays here is the judgement it cannot make — WHY the wrong spellings look right:
+  the singular ones (`_checkbox.scss`, `_radio.scss`, `_progressbar.scss`, `_label.scss`,
+  `_icon.scss`, `_shortcut_label.scss`) are the vendored adwaita-web tree's, not libadwaita's,
+  which merges check and radio into ONE `_checks.scss`, spells the others `_progress-bar.scss` /
+  `_labels.scss`, and has neither an `_icon.scss` nor a `_shortcut_label.scss` at all. Reach for
+  the wrong tree's name and the gate now says so.
 
 The one documented class deliberately unported is `.inline`: it applies to `GtkSearchBar`,
 `AdwTabBar` and `GtkTextView`, this renderer has none of the three (`<adw-tab-view>` is the tab
@@ -47,13 +55,6 @@ GtkLabel plumbing plus a dozen UTILITY CLASSES. Those classes ship (`scss/_label
 actually hit; an ELEMENT would wrap a `<span>`, add nothing a class does not, and put one more tag
 in `$adw-components` for no behaviour — ADR 0004's trivial-behaviour clause, and ADR 0010 already
 makes the token/class surface the public contract.
-
-When citing a partial in an SPDX header, verify it exists: the singular spellings
-(`_checkbox.scss`, `_radio.scss`, `_progressbar.scss`, `_label.scss`, `_icon.scss`,
-`_shortcut_label.scss`) are `refs/adwaita-web`'s, not libadwaita's — libadwaita merges check and
-radio into ONE `_checks.scss`, spells the others `_progress-bar.scss` / `_labels.scss`, and has no
-`_icon.scss` or `_shortcut_label.scss` at all. A header naming a file that is not there is worse
-than none.
 
 Which widget is missing from which renderer is an asymmetric row in the derived matrix, so it is
 not listed here — the copy that used to sit here named `adw-icon` as NativeScript-only and

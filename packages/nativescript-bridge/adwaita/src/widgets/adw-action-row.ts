@@ -14,7 +14,7 @@
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-action-row` / `_row.scss`.
 // Reference: refs/libadwaita/src/adw-action-row.c, adw-action-row.ui
-// Reference: refs/libadwaita/src/stylesheet/widgets/_action-row.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss (AdwActionRow)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout, ItemSpec, StackLayout, Label, View, type EventData } from '@nativescript/core';

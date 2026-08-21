@@ -39,6 +39,7 @@ export class EntryRowNsStory extends StoryView {
         if (!this._row) return;
         this._row.title = this.args.title as string;
         this._row.text = this.args.text as string;
+        this._row.showApplyButton = this.args.showApplyButton as boolean;
     }
 }
 

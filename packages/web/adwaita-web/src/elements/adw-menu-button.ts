@@ -1,7 +1,7 @@
-// <adw-menu-button> — the web counterpart of Adw.MenuButton / Gtk.MenuButton: by
-// default the flat `open-menu-symbolic` app-menu button used at the end of a header
-// bar. Clicking it toggles an Adwaita-styled popover under the button, dismissed on
-// an outside click or Escape, with arrow-key navigation.
+// <adw-menu-button> — the web counterpart of Gtk.MenuButton, which libadwaita styles
+// but never subclassed: by default the flat `open-menu-symbolic` app-menu button used
+// at the end of a header bar. Clicking it toggles an Adwaita-styled popover under the
+// button, dismissed on an outside click or Escape, with arrow-key navigation.
 //
 // The popover is `<adw-popover>` and the dismissal/keyboard machine is
 // `@gjsify/adwaita-core`'s (ADR 0004); this element keeps only what is a menu button:
@@ -14,7 +14,8 @@
 // detail `{ id, label, index }`) with `id` falling back to `label`, matching the NS
 // twin.
 //
-// Reference: refs/libadwaita/src/adw-menu-button.c (AdwMenuButton)
+// Reference: refs/gtk/gtk/gtkmenubutton.c (GtkMenuButton)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss (menubutton)
 // Reference: refs/libadwaita/src/stylesheet/widgets/_menus.scss (popover.menu / modelbutton)
 // Reference: packages/nativescript-bridge/adwaita/src/widgets/adw-menu-button.ts (NS twin)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.

@@ -21,7 +21,7 @@
 // falling back to an instant `visibility` swap off-screen / off-device. The
 // `_transitionSidebar()` seam keeps structural re-layouts instant.
 //
-// Reference: refs/libadwaita/src/stylesheet/widgets/_navigation-split-view.scss
+// Reference: refs/libadwaita/src/adw-navigation-split-view.c, adw-overlay-split-view.c
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { type Cancelable, type EventData, GridLayout, ItemSpec, type View } from '@nativescript/core';

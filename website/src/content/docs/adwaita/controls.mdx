@@ -1,0 +1,161 @@
+---
+title: Controls
+description: "Adwaita's standalone controls: the text entry and the drop down. Live preview plus the code for GJS, Blueprint, the web and NativeScript."
+---
+
+import AdwWidget from '../../../components/AdwWidget.astro';
+
+Two controls on this page stand on their own rather than inside a boxed list: a
+single-line **entry** for typed text, and a **drop down** for picking one value
+out of a list. Both have a boxed-list twin — `Adw.EntryRow` and `Adw.ComboRow` —
+and which one you want is a question about the surrounding layout, not about the
+control: a preferences page uses the rows, a toolbar or a dialog uses these.
+
+Neither carries an `Adw` prefix, and that is the point worth knowing about them:
+Libadwaita ships no entry and no drop down of its own. They are `Gtk.Entry` and
+`Gtk.DropDown`, and what makes them look Adwaita is the stylesheet. The widgets
+with an `Adw` prefix are the row variants built on top.
+
+Each preview below is the live web component, so it follows the light and dark
+toggle the way a real window would. Under it, the tabs give you the same widget
+four ways: `@girs` TypeScript (one program, running on GJS, Node, Bun and Deno),
+the matching Blueprint declaration, the web port and the NativeScript port.
+
+Libadwaita is the reference here, typed by
+[`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
+[`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
+and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
+follow its naming, and where one of them differs, its tab says so.
+
+:::note
+The previews run the browser port, so behaviour the toolkits drive natively can
+be simplified here. Two divergences are worth knowing: `<adw-entry>` has no
+`editable`, so a field you may read but not change is spelled `disabled`, which
+also greys it; and the NativeScript drop down opens the platform action sheet,
+which has no search field.
+:::
+
+## Entry
+
+A single-line text field. Give it a **placeholder** to say what belongs in it
+while it is empty, a **value** for the text itself, and `disabled` when it should
+be read-only. For a field that belongs in a preferences group, use
+[Entry Row](../boxed-lists/#entry-row) instead — same control, row presentation,
+and the label doubles as the row title.
+
+<AdwWidget title="Gtk.Entry">
+  <Fragment slot="preview">
+    <adw-entry placeholder="Search files…" style="min-width: 280px;"></adw-entry>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from '@girs/gtk-4.0';
+
+    const entry = new Gtk.Entry({
+        placeholderText: 'Search files…',
+        widthRequest: 280,
+        halign: Gtk.Align.CENTER,
+    });
+
+    entry.text = 'notes.md';
+    entry.editable = false; // read but do not change
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Gtk.Entry {
+      placeholder-text: _("Search files…");
+      width-request: 280;
+      halign: center;
+    }
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-entry placeholder="Search files…" style="min-width: 280px;"></adw-entry>
+
+    <!-- `<adw-entry>` has no `editable`: the browser spelling of a field you may
+         read but not change is `disabled`, which also greys it. -->
+    <adw-entry value="notes.md" disabled></adw-entry>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwEntry } from '@gjsify/adwaita-nativescript';
+
+    const entry = new AdwEntry();
+    entry.placeholder = 'Search files…';
+    entry.text = 'notes.md';
+    entry.editable = false;
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Drop Down
+
+Pick one value from a list. The button shows the current selection and the list
+opens in a popover; **selected** is the zero-based index of the chosen option,
+and `enable-search` adds a filter field for a long list. For the same choice
+presented as a boxed-list row, use [Combo Row](../boxed-lists/#combo-row).
+
+<AdwWidget title="Gtk.DropDown">
+  <Fragment slot="preview">
+    <adw-drop-down options='["Automatic","Always","Never","When busy"]' selected="0"></adw-drop-down>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gtk from '@girs/gtk-4.0';
+
+    const dropDown = Gtk.DropDown.new_from_strings(['Automatic', 'Always', 'Never', 'When busy']);
+    // Without an expression the search field has nothing to match against.
+    dropDown.expression = Gtk.PropertyExpression.new(Gtk.StringObject.$gtype, null, 'string');
+    dropDown.selected = 0;
+    dropDown.enableSearch = false;
+    dropDown.halign = Gtk.Align.CENTER;
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Gtk.DropDown {
+      selected: 0;
+      halign: center;
+
+      model: Gtk.StringList {
+        strings [_("Automatic"), _("Always"), _("Never"), _("When busy")]
+      };
+    }
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <!-- `options` is a JSON array of strings, or of { label, value } objects. -->
+    <adw-drop-down options='["Automatic","Always","Never","When busy"]' selected="0"></adw-drop-down>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwDropDown } from '@gjsify/adwaita-nativescript';
+
+    const dropDown = new AdwDropDown();
+    dropDown.options = ['Automatic', 'Always', 'Never', 'When busy'].map((label) => ({ value: label, label }));
+    dropDown.selected = 0;
+    // The list opens as the platform action sheet, which has no search field —
+    // so `enableSearch` has no NativeScript equivalent.
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Related
+
+- [Boxed Lists](../boxed-lists/): the row twins of both controls — entry row,
+  password entry row, combo row and spin row.
+- [Buttons](../buttons/): the menu button and split button, the other two
+  controls that open a popover.
+- [Adwaita Storybook](../../showcases/adwaita-storybook/): the same widgets in a
+  live component browser you can poke at.

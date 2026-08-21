@@ -1,15 +1,16 @@
 ---
 title: Buttons
-description: "Adwaita buttons: icon-plus-label content, the style classes, split buttons and toggle groups. Live preview plus the code for GJS, Blueprint, the web and NativeScript."
+description: "Adwaita buttons: icon-plus-label content, the style classes, menu buttons, split buttons and toggle groups. Live preview plus the code for GJS, Blueprint, the web and NativeScript."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
 
 A button is the most direct control Adwaita has: you press it and something
-happens. This page covers the four things you will want from one. Give it an
+happens. This page covers the five things you will want from one. Give it an
 **icon plus a label**, apply a **style class** to set its shape and intent, use a
-**split button** to pair an action with a menu of alternatives, or a **toggle
-group** when a row of linked buttons should act as a single-choice selector.
+**menu button** when the press should only open a menu, a **split button** to
+pair an action with a menu of alternatives, or a **toggle group** when a row of
+linked buttons should act as a single-choice selector.
 
 Each preview below is the live web component, so it follows the light and dark
 toggle the way a real window would. Under it, the tabs give you the same widget
@@ -226,6 +227,95 @@ like one in a dialog.
     flat.text = 'Flat';
     flat.variant = 'flat';
     box.add(flat);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Menu Button
+
+When a button's only job is to open a menu, use a **menu button**. It is the
+hamburger at the end of a header bar: no primary action of its own, every choice
+in the popover it opens. Libadwaita ships no menu button — this is
+`Gtk.MenuButton`, which the Adwaita stylesheet gives its flat, rounded-square
+shape.
+
+<AdwWidget title="Gtk.MenuButton">
+  <Fragment slot="preview">
+    <adw-menu-button
+      icon-name="open-menu"
+      menu-title="Document"
+      menu='[{"label":"Save as…"},{"label":"Export"},{"label":"Print"}]'
+    ></adw-menu-button>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Gio from '@girs/gio-2.0';
+    import Gtk from '@girs/gtk-4.0';
+
+    const menu = new Gio.Menu();
+    menu.append('Save as…', 'app.save-as');
+    menu.append('Export', 'app.export');
+    menu.append('Print', 'app.print');
+
+    const button = new Gtk.MenuButton({
+        iconName: 'open-menu-symbolic',
+        menuModel: menu,
+        primary: true, // opens on F10, the way an app menu should
+    });
+    button.add_css_class('flat');
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Gtk.MenuButton {
+      icon-name: "open-menu-symbolic";
+      primary: true;
+      menu-model: menu primary-menu;
+
+      styles ["flat"]
+    }
+
+    menu primary-menu {
+      section {
+        item {
+          label: _("Save as…");
+          action: "app.save-as";
+        }
+
+        item {
+          label: _("Export");
+          action: "app.export";
+        }
+
+        item {
+          label: _("Print");
+          action: "app.print";
+        }
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-menu-button
+        icon-name="open-menu"
+        menu-title="Document"
+        menu='[{"label":"Save as…"},{"label":"Export"},{"label":"Print"}]'
+    ></adw-menu-button>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwMenuButton } from '@gjsify/adwaita-nativescript';
+
+    const button = new AdwMenuButton();
+    button.icon = openMenuSymbolic; // an Adwaita symbolic icon (SVG string)
+    button.menuTitle = 'Document';
+    button.menuItems = [{ label: 'Save as…' }, { label: 'Export' }, { label: 'Print' }];
+    // NativeScript has no popover, so the menu opens as the platform action sheet.
     ```
   </Fragment>
 </AdwWidget>

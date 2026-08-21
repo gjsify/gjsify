@@ -36,6 +36,7 @@ export class EntryRowWebStory extends StoryElement {
         if (!this._row) return;
         this._row.setAttribute('title', this.args.title as string);
         this._row.setAttribute('text', this.args.text as string);
+        this._row.toggleAttribute('show-apply-button', this.args.showApplyButton as boolean);
     }
 }
 

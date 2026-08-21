@@ -1,15 +1,16 @@
 ---
 title: View Switching
-description: "Adwaita view-switching widgets: view switcher, tab view, inline view switcher and carousel. Live preview plus the code for GJS, Blueprint, the web and NativeScript."
+description: "Adwaita view-switching widgets: view switcher, view switcher bar, tab view, inline view switcher and carousel. Live preview plus the code for GJS, Blueprint, the web and NativeScript."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
 
 When your window has several peer pages and shows one at a time, put the pages in
-a **view stack** and give the user a **switcher** to pick between them. Four
-switchers are on this page: a segmented bar, a strip of tabs, a compact toolbar
-control and a swipeable pager. All of them adapt to the window, so a wide desktop
-gets the full switcher and a narrow phone gets a collapsed one.
+a **view stack** and give the user a **switcher** to pick between them. Five
+switchers are on this page: a segmented bar, the same bar pinned to the bottom
+edge for a narrow window, a strip of tabs, a compact toolbar control and a
+swipeable pager. All of them adapt to the window, so a wide desktop gets the full
+switcher and a narrow phone gets a collapsed one.
 
 Each preview below is the live web component, so it follows the light and dark
 toggle the way a real window would. Under it, the tabs give you the same widget
@@ -176,6 +177,160 @@ swaps between the two on a breakpoint.
         { title: 'Starred', icon: starredSymbolic, content: page(starredSymbolic, 'Starred', 'Messages you have marked as important.') },
         { title: 'Archive', icon: folderSymbolic, content: page(folderSymbolic, 'Archive', 'Older conversations kept for reference.') },
     ] satisfies AdwViewPage[]);
+    ```
+  </Fragment>
+</AdwWidget>
+
+## View Switcher Bar
+
+The **narrow-window** half of the same pattern. When the window is too slim for a
+switcher in the header bar, put one at the bottom edge instead — that is a view
+switcher bar, pinned into a toolbar view's bottom slot and bound to the same
+stack. `reveal` is a **request, not a state**: a stack with fewer than two pages
+stays collapsed however loudly it is asked, so a bar over a one-page stack simply
+does not appear.
+
+<AdwWidget title="Adw.ViewSwitcherBar" padding="flush">
+  <Fragment slot="preview">
+    <div style="height: 340px; width: 100%; display: flex; flex-direction: column;">
+      <adw-toolbar-view style="flex: 1; width: 100%;">
+        <adw-view-stack id="gallery-switcher-bar-stack" style="flex: 1;">
+          <adw-view-stack-page name="inbox" title="Inbox" icon-name="mail-unread">
+            <adw-status-page icon="mail-unread" title="Inbox" description="The inbox page."></adw-status-page>
+          </adw-view-stack-page>
+          <adw-view-stack-page name="starred" title="Starred" icon-name="starred">
+            <adw-status-page icon="starred" title="Starred" description="The starred page."></adw-status-page>
+          </adw-view-stack-page>
+          <adw-view-stack-page name="archive" title="Archive" icon-name="folder">
+            <adw-status-page icon="folder" title="Archive" description="The archive page."></adw-status-page>
+          </adw-view-stack-page>
+        </adw-view-stack>
+        <adw-view-switcher-bar data-adw-slot="bottom" stack="gallery-switcher-bar-stack" reveal></adw-view-switcher-bar>
+      </adw-toolbar-view>
+    </div>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+
+    const stack = new Adw.ViewStack();
+    stack.add_titled_with_icon(
+        new Adw.StatusPage({ iconName: 'mail-unread-symbolic', title: 'Inbox', description: 'The inbox page.' }),
+        'inbox', 'Inbox', 'mail-unread-symbolic',
+    );
+    stack.add_titled_with_icon(
+        new Adw.StatusPage({ iconName: 'starred-symbolic', title: 'Starred', description: 'The starred page.' }),
+        'starred', 'Starred', 'starred-symbolic',
+    );
+    stack.add_titled_with_icon(
+        new Adw.StatusPage({ iconName: 'folder-symbolic', title: 'Archive', description: 'The archive page.' }),
+        'archive', 'Archive', 'folder-symbolic',
+    );
+
+    // `reveal` ASKS for the bar; the widget still hides it below two pages.
+    const bar = new Adw.ViewSwitcherBar({ stack, reveal: true });
+
+    const view = new Adw.ToolbarView({ content: stack });
+    view.add_bottom_bar(bar);
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Adw.ToolbarView {
+      content: Adw.ViewStack stack {
+        Adw.ViewStackPage {
+          name: "inbox";
+          title: _("Inbox");
+          icon-name: "mail-unread-symbolic";
+
+          child: Adw.StatusPage {
+            icon-name: "mail-unread-symbolic";
+            title: _("Inbox");
+            description: _("The inbox page.");
+          };
+        }
+
+        Adw.ViewStackPage {
+          name: "starred";
+          title: _("Starred");
+          icon-name: "starred-symbolic";
+
+          child: Adw.StatusPage {
+            icon-name: "starred-symbolic";
+            title: _("Starred");
+            description: _("The starred page.");
+          };
+        }
+
+        Adw.ViewStackPage {
+          name: "archive";
+          title: _("Archive");
+          icon-name: "folder-symbolic";
+
+          child: Adw.StatusPage {
+            icon-name: "folder-symbolic";
+            title: _("Archive");
+            description: _("The archive page.");
+          };
+        }
+      };
+
+      [bottom]
+      Adw.ViewSwitcherBar {
+        stack: stack;
+        reveal: true;
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <!-- `stack` takes the id of the <adw-view-stack> to bind to. -->
+    <adw-toolbar-view>
+        <adw-view-stack id="mail-stack">
+            <adw-view-stack-page name="inbox" title="Inbox" icon-name="mail-unread">
+                <adw-status-page icon="mail-unread" title="Inbox"></adw-status-page>
+            </adw-view-stack-page>
+            <adw-view-stack-page name="starred" title="Starred" icon-name="starred">
+                <adw-status-page icon="starred" title="Starred"></adw-status-page>
+            </adw-view-stack-page>
+            <adw-view-stack-page name="archive" title="Archive" icon-name="folder">
+                <adw-status-page icon="folder" title="Archive"></adw-status-page>
+            </adw-view-stack-page>
+        </adw-view-stack>
+        <adw-view-switcher-bar slot="bottom" stack="mail-stack" reveal></adw-view-switcher-bar>
+    </adw-toolbar-view>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwStatusPage, AdwToolbarView, AdwViewStack, AdwViewSwitcherBar } from '@gjsify/adwaita-nativescript';
+
+    const stack = new AdwViewStack();
+    for (const page of [
+        { name: 'inbox', title: 'Inbox', icon: mailUnreadSymbolic },
+        { name: 'starred', title: 'Starred', icon: starredSymbolic },
+        { name: 'archive', title: 'Archive', icon: folderSymbolic },
+    ]) {
+        const status = new AdwStatusPage();
+        status.icon = page.icon; // an Adwaita symbolic icon (SVG string)
+        status.title = page.title;
+        stack.add(status, page.name, page.title, page.icon);
+    }
+
+    const bar = new AdwViewSwitcherBar();
+    bar.stack = stack;
+    // The NativeScript stack has no `items-changed`, so a bar bound before the pages
+    // exist would render no buttons. `refresh()` is that missing signal, by hand.
+    bar.refresh();
+    bar.reveal = true;
+
+    const view = new AdwToolbarView();
+    view.setContent(stack);
+    view.addBottomBar(bar);
     ```
   </Fragment>
 </AdwWidget>

@@ -28,16 +28,13 @@ export class TabViewNsStory extends StoryView {
         const tabView = new AdwTabView();
         tabView.setViews(TABS.map((tab): AdwViewPage => ({ title: tab.title, content: this._buildPageBody(tab) })));
         this._tabView = tabView;
-        // autohide (hide the tab bar when one tab remains) has no NS equivalent —
-        // the flat tab strip is always shown (see fidelity note). Read it to keep
-        // the control bound.
-        void (this.args.autohide as boolean);
+        tabView.autohide = this.args.autohide as boolean;
         this.addContent(tabView);
     }
 
     updateArgs(_args: StoryArgs): void {
         if (!this._tabView) return;
-        void (this.args.autohide as boolean);
+        this._tabView.autohide = this.args.autohide as boolean;
     }
 
     // `▦` glyph stands in for the native `view-paged-symbolic` — the NS subset has

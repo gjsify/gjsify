@@ -2,17 +2,19 @@
 //
 // A flat icon button (extends {@link AdwImageButton}) that, when tapped, opens a
 // native `action()` menu built from {@link AdwMenuButton.menuItems} and emits
-// `menuItemActivated` with the chosen item. Mirrors `Adw.MenuButton` used with a
+// `menuItemActivated` with the chosen item. Mirrors `Gtk.MenuButton` used with a
 // `Gio.Menu` model — the app/primary-menu pattern in an Adwaita header bar
-// (`open-menu-symbolic` → About / Preferences / Quit …).
+// (`open-menu-symbolic` → About / Preferences / Quit …). libadwaita has no menu
+// button of its own; it styles the GTK one.
 //
-// FIDELITY: approximated for the popover. `Adw.MenuButton` shows an in-app popover
+// FIDELITY: approximated for the popover. `Gtk.MenuButton` shows an in-app popover
 // menu; the NS subset has no popover, so the button opens the platform `action()`
 // sheet (the same substitution `AdwSplitButton` / `AdwComboRow` make). The flat
 // rounded-square icon-button shape + press feedback are inherited from
 // {@link AdwImageButton} and are faithful.
 //
-// Reference: refs/libadwaita/src/menu-button (Adw.MenuButton)
+// Reference: refs/gtk/gtk/gtkmenubutton.c (GtkMenuButton)
+// Reference: refs/libadwaita/src/stylesheet/widgets/_buttons.scss (menubutton)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import type { AdwMenuEntry } from '@gjsify/adwaita-core';

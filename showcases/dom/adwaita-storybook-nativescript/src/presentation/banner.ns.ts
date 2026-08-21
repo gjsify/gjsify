@@ -29,12 +29,10 @@ export class BannerNsStory extends StoryView {
 
     private _sync(): void {
         if (!this._banner) return;
-        // AdwBanner (NS) supports `title`, `buttonLabel`, `revealed`. The
-        // `useMarkup` arg has no NS equivalent — the banner label is plain text
-        // (the CSS subset has no markup/rich-text rendering).
         this._banner.title = this.args.title as string;
         this._banner.buttonLabel = this.args.buttonLabel as string;
         this._banner.revealed = this.args.revealed as boolean;
+        this._banner.useMarkup = this.args.useMarkup as boolean;
     }
 }
 

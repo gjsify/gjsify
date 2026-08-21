@@ -73,9 +73,7 @@ export class NavigationViewNsStory extends StoryView {
 
     updateArgs(_args: StoryArgs): void {
         if (!this._view) return;
-        // `animateTransitions` has no NS equivalent — the CSS subset has no
-        // slide/transition, so push/pop is an instant visibility swap. Only the
-        // titles are live-bound.
+        this._view.animateTransitions = this.args.animateTransitions as boolean;
         if (this._rootHeader) this._rootHeader.title = this.args.rootTitle as string;
         const detailTitle = this.args.detailTitle as string;
         if (this._detailHeader) this._detailHeader.title = detailTitle;

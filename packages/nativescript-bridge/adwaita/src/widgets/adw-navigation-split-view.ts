@@ -22,7 +22,6 @@
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-navigation-split-view`.
 // Reference: refs/libadwaita/src/adw-navigation-split-view.c
-// Reference: refs/libadwaita/src/stylesheet/widgets/_navigation-split-view.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout, type View } from '@nativescript/core';

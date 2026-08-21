@@ -18,7 +18,7 @@
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-navigation-view`.
 // Reference: refs/libadwaita/src/adw-navigation-view.c
-// Reference: refs/libadwaita/src/stylesheet/widgets/_navigation-view.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_misc.scss (navigation-view transition shadows)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout, ItemSpec, type EventData, type View } from '@nativescript/core';
