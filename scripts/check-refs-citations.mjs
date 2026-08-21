@@ -130,10 +130,10 @@ const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: ROOT, maxBuffer: 
 /** coordinate → the tracked files citing it, in posix spelling on every platform. */
 const cited = new Map();
 let placeholders = 0;
-for (const relative of tracked) {
+for (const trackedFile of tracked) {
     let text;
     try {
-        text = readFileSync(join(ROOT, relative), 'utf8');
+        text = readFileSync(join(ROOT, trackedFile), 'utf8');
     } catch {
         // A tracked path that is not readable here (a submodule gitlink, a file
         // removed in the working tree) cites nothing.
@@ -153,7 +153,7 @@ for (const relative of tracked) {
         if (!declared.has(submodule) && !SOURCE_FILE.test(raw)) continue;
         for (const coordinate of expandBraces(raw)) {
             if (!cited.has(coordinate)) cited.set(coordinate, new Set());
-            cited.get(coordinate).add(toPosixPath(relative));
+            cited.get(coordinate).add(toPosixPath(trackedFile));
         }
     }
 }

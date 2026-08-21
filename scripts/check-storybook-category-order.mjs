@@ -38,7 +38,7 @@
 // Usage: node scripts/check-storybook-category-order.mjs [--root <dir>]
 
 import { readFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { adwaitaStoryMetas } from './adwaita-elements.mjs';
@@ -47,17 +47,15 @@ const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : args[rootFlag + 1];
 
-/** Where the order is declared. */
-const ORDER_SRC = join(ROOT, 'packages/framework/storybook-core/src/category-order.ts');
+/** Where the order is declared — posix-spelled, because failures PRINT it. */
+const ORDER_SRC = 'packages/framework/storybook-core/src/category-order.ts';
 
 const declared = [];
 {
-    const source = readFileSync(ORDER_SRC, 'utf8');
+    const source = readFileSync(join(ROOT, ORDER_SRC), 'utf8');
     const block = source.match(/STORYBOOK_CATEGORY_ORDER[^=]*=\s*\[([^\]]*)\]/);
     if (!block) {
-        console.error(
-            `check-storybook-category-order: no STORYBOOK_CATEGORY_ORDER array in ${relative(ROOT, ORDER_SRC)}.`,
-        );
+        console.error(`check-storybook-category-order: no STORYBOOK_CATEGORY_ORDER array in ${ORDER_SRC}.`);
         process.exit(1);
     }
     for (const match of block[1].matchAll(/'([^']+)'/g)) declared.push(match[1]);
@@ -112,7 +110,7 @@ if (failures.length > 0) {
     for (const failure of failures) console.error(`  - ${failure}`);
     console.error(
         `\nThe order is what a reader meets first, and it used to differ per target while a comment said\n` +
-            `it did not. Declare the category in ${relative(ROOT, ORDER_SRC)} rather than letting\n` +
+            `it did not. Declare the category in ${ORDER_SRC} rather than letting\n` +
             `enumeration decide where it lands.`,
     );
     process.exit(1);

@@ -35,7 +35,7 @@
 //
 // Usage: node scripts/check-storybook-story-parity.mjs [--root <dir>]
 
-import { dirname, join, relative } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { ADWAITA_NS_STORY_SRC, ADWAITA_STORY_SRC, adwaitaStoryMetas, storyNamesWith } from './adwaita-elements.mjs';
@@ -86,7 +86,7 @@ if (failures.length > 0) {
         `\nThe three targets exist to be compared. A story on one of them and not the others is the one\n` +
             `state where no comparison is possible — which is exactly what the unimplemented screenshot\n` +
             `harness was claimed to catch (#1052).\n` +
-            `  metas: ${relative(ROOT, GTK_SRC)}    NativeScript: ${relative(ROOT, NS_SRC)}`,
+            `  metas: ${ADWAITA_STORY_SRC}    NativeScript: ${ADWAITA_NS_STORY_SRC}`,
     );
     process.exit(1);
 }
