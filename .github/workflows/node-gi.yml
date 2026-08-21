@@ -76,8 +76,14 @@ jobs:
   # per-RUNNER rather than per-job — everything on `ubuntu-latest` always runs,
   # the scarce runners run when node-gi's own sources changed — because a
   # per-job "could a consumer change move this?" list is a second copy of the
-  # dependency graph, and the copy is what drifts. ADR 0018 § 5 already settles
-  # the residual: the OS axis is verified on main and nightly, not per PR.
+  # dependency graph, and the copy is what drifts. This is a per-RUNNER cost
+  # control on THIS workflow's own matrix, not an application of ADR 0018 § 5's
+  # PR asymmetry — that half was re-measured on 2026-08-16 and superseded, and
+  # the OS legs elsewhere (`macos-suites.yml`, `windows-suites.yml`, `napi.yml`)
+  # now run on every PR. What separates the two is what the gate keys on: this
+  # one asks which FILES changed, the superseded asymmetry asked which EVENT it
+  # was — and only the second leaves a PR structurally unable to see what its own
+  # merge will.
   scope:
     name: Scope the OS legs
     runs-on: ubuntu-latest
