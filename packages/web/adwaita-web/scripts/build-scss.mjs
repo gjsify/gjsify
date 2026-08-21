@@ -12,7 +12,6 @@ import {
     documentOpenSymbolic,
     documentSaveSymbolic,
     editCopySymbolic,
-    editPasteSymbolic,
     goDownSymbolic,
     goHomeSymbolic,
     goNextSymbolic,
@@ -28,11 +27,13 @@ import {
     viewConcealSymbolic,
     viewGridSymbolic,
     viewListSymbolic,
+    viewPagedSymbolic,
     viewRefreshSymbolic,
     viewRevealSymbolic,
 } from '@gjsify/adwaita-icons/actions';
 import { cameraPhotoSymbolic, networkWirelessSymbolic } from '@gjsify/adwaita-icons/devices';
 import {
+    folderDocumentsSymbolic,
     folderDownloadSymbolic,
     folderMusicSymbolic,
     folderSymbolic,
@@ -65,8 +66,27 @@ const distDir = resolve(pkgRoot, 'dist');
 // `.adw-icon--<name>` mask class are both generated from this map, so adding an icon used
 // by a component or story is one entry here. Names are the libadwaita symbolic names with
 // the `-symbolic` suffix dropped.
+//
+// THE MEMBERSHIP RULE, and the constraint behind it. `@gjsify/adwaita-icons` exports 644
+// icons; inlining all of them costs a MEASURED 1 095 098 bytes of data-URI (mean 1700 per
+// icon, the largest 47 KB) on a 190 KB stylesheet, so the compiled set has to be a chosen
+// subset. The rule is: every icon name a WEB-FACING surface in this repo emits, and nothing
+// else — the widgets and stylesheet here, the browser storybook, the story metas' icon
+// control values, and the rendered web panes of the website. Deliberately NOT "every name
+// any renderer emits": a GTK pane names icons the SYSTEM theme resolves, and
+// `@gjsify/adwaita-core`'s conformance vectors name deliberately malformed inputs
+// (`go_next`, `GoNext2`) that must never become classes.
+//
+// `scripts/check-adwaita-icon-masks.mjs` holds the rule in BOTH directions — it reads THIS
+// map (the generated partial is gitignored, and the audit job neither installs nor builds)
+// and fails on an emitted name with no entry AND on an entry nothing emits. Before the gate
+// existed, an unresolvable name was not an error of any kind: `_icon.scss` set
+// `background-color: currentColor` with no `mask-image`, so the icon painted as a solid
+// 16px square in the widget's text colour, and `adw-icon.spec.ts` asserted only that the
+// class STRING had been applied. That is why the browser storybook drew `view-grid` where
+// its GTK twin drew `view-paged-symbolic`: the right name resolved to a square, so a
+// different one was substituted and the divergence recorded as prose.
 const ICONS = {
-    'edit-paste': editPasteSymbolic,
     'go-down': goDownSymbolic,
     'sidebar-show': sidebarShowSymbolic,
     'go-previous': goPreviousSymbolic,
@@ -91,9 +111,11 @@ const ICONS = {
     'document-save': documentSaveSymbolic,
     'mail-send': mailSendSymbolic,
     'mail-reply-sender': mailReplySenderSymbolic,
+    'folder-documents': folderDocumentsSymbolic,
     'folder-download': folderDownloadSymbolic,
     'view-grid': viewGridSymbolic,
     'view-list': viewListSymbolic,
+    'view-paged': viewPagedSymbolic,
     'view-columns': viewColumnsSymbolic,
     'list-remove': listRemoveSymbolic,
     'send-to': sendToSymbolic,

@@ -49,3 +49,45 @@
     display: none;
   }
 }
+
+// THE FALLBACK GLYPH — what a name the stylesheet cannot draw resolves to.
+//
+// Until this rule existed there was no `mask-image` on `.adw-icon` at all, so an
+// icon whose name has no generated class kept `background-color: currentColor`
+// over an empty mask and painted a SOLID 16px square in the widget's text
+// colour. Measured in Firefox: `.adw-icon.adw-icon--dialog-error` reported
+// `mask-image: none`, `background-color: rgb(0, 128, 0)`, box 16x16 — visually a
+// deliberate colour swatch, which is why three renderer-comparison surfaces
+// carried substituted glyphs and nobody read it as a bug.
+//
+// `image-missing` is libadwaita's OWN answer to "I have no icon to draw here":
+// C substitutes exactly that name for a NULL icon-name in three widgets
+// (adw-button-content.c:294,356 · adw-view-switcher-button.c:286,347,405 ·
+// adw-inline-view-switcher.c:142), and GTK's icon theme returns the same
+// broken-image paintable for a name it cannot find. So the three renderers end
+// up on ONE glyph: GTK draws it from the system theme, the web draws it from
+// here, and NativeScript cannot reach the state at all — its AdwIcon takes SVG
+// SOURCE, not a name, so a missing icon there is a missing import the compiler
+// rejects. Nothing THROWS, on any of the three: an icon is decorative and taking
+// an application down over a glyph is a failure mode none of them has.
+//
+// `:where()` and not `.adw-icon`, and that is the load-bearing detail:
+// `adwaita-skin.scss` @uses `icons.generated` BEFORE `icon`, so at equal
+// specificity this rule would come last and override every generated mask class
+// — every icon in the package would draw the broken glyph. `:where()` scores
+// 0,0,0, so ANY `.adw-icon--<name>` rule beats it wherever it sits in the
+// cascade, including one `registerIcon()` inserts at runtime.
+:where(.adw-icon) {
+  mask-image: var(--icon-image-missing);
+  -webkit-mask-image: var(--icon-image-missing);
+}
+
+// …and NO name at all draws nothing, rather than the broken glyph. The element
+// adds no `adw-icon--*` class when `icon-name` is absent, empty, or not one CSS
+// token, and that is the state where the HOST decided against an icon — the tab
+// strip's indicator slot, the avatar's fallback while initials show. `Gtk.Image`
+// with a NULL icon-name draws nothing too; it is only a name that was GIVEN and
+// could not be resolved that earns the broken glyph.
+.adw-icon:not([class*='adw-icon--']) {
+  background-color: transparent;
+}
