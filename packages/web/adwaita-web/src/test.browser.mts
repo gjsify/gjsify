@@ -48,6 +48,7 @@ import { AdwAccentTest } from './adw-accent.spec.js';
 import { AdwShortcutLabelTest } from './adw-shortcut-label.spec.js';
 import { AdwConnectLifecycleTest } from './connect-lifecycle.spec.js';
 import { AdwEmptySectionsTest } from './empty-sections.spec.js';
+import { AdwFontsTest } from './adw-fonts.spec.js';
 
 run({
     AdwConnectLifecycleTest,
@@ -92,4 +93,9 @@ run({
     AdwSidebarTest,
     AdwEntryRowsTest,
     AdwSplitButtonTest,
+    // LAST on purpose: it registers real webfaces in `document.fonts`, which
+    // changes text metrics for the whole document. Nothing that measures text may
+    // run while they swap in — see `adw-fonts.spec.ts` § "leaves the document as
+    // it found it".
+    AdwFontsTest,
 });
