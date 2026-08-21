@@ -8,6 +8,7 @@
 
 import { run } from '@gjsify/unit';
 
+import entitiesSuite from './entities.spec.js';
 import treeSuite from './tree.spec.js';
 
-run({ treeSuite });
+run({ entitiesSuite, treeSuite });

@@ -7,5 +7,5 @@
         "skipLibCheck": true,
         "strict": false
     },
-    "files": ["src/test.mts", "src/fixtures.ts", "src/parse5-reader.ts", "src/tree.spec.ts"]
+    "files": ["src/test.mts", "src/entities.spec.ts", "src/fixtures.ts", "src/parse5-reader.ts", "src/tree.spec.ts"]
 }

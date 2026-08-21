@@ -81,11 +81,13 @@ DeltaChat / chatmail core (`@deltachat/jsonrpc-client` + `@deltachat/stdio-rpc-s
 
 ## domparser
 
-The differential oracle for `@gjsify/domparser`'s HTML mode (ADR 0026). Not a port of an upstream
-suite: parse5 is the REFERENCE, and each fixture is parsed twice — by us and by parse5 with
+TWO differential oracles for `@gjsify/domparser` (ADR 0026), neither a port of an upstream suite.
+**Node: 267/267 green. GJS: 267/267 green, 0 skips.**
+
+**Tree shape — parse5 is the REFERENCE.** Each fixture is parsed twice — by us and by parse5 with
 `scriptingEnabled: false` — then printed by the SAME `canonicalize()` through two `TreeReader`s and
 compared with `toBe`. Two canonicalizers would be two chances to agree on the same mistake.
-**Node: 169/169 green. GJS: 169/169 green, 0 skips.** 32 fixtures: 29 asserted IDENTICAL to parse5
+32 fixtures: 29 asserted IDENTICAL to parse5
 (implied `li`/`p`/`td`/`dt` end tags, void elements mid-tree, raw text vs RCDATA, the script escape
 levels, the full entity table, the attribute query-string rule, implicit `html`/`head`/`body`,
 in-head `noscript`, `<template>` content, EOF auto-close, whitespace placement, a data-state NUL,
@@ -99,8 +101,22 @@ Every fixture carries its discriminators — `minElements` (one below its real e
 `mustContain` list of DECODED content — asserted BEFORE the comparison, because two empty strings
 compare equal and `27 === 27` was green against the tree this parser replaces.
 
-That parse5 runs unmodified under gjsify/GJS is what makes the oracle possible at all, and the GJS
-leg of this suite is the standing proof of it.
+**Character references — `entities` is the REFERENCE**, the decoder parse5 itself uses, declared
+here as a devDependency rather than taken from the copy parse5 drags in: an oracle that arrives
+transitively stops arriving when that dependency changes, and nothing says so. All 2,231 named
+references are swept in text and attribute context, plus ~25,000 numeric forms and 20,000
+seeded-random ampersand runs; every sweep counts how many inputs it actually CHANGED, so two
+no-ops cannot agree their way to green. One divergence is deliberate and pinned as an exact
+26-element set: `entities` applies the Windows-1252 remap in XML mode and we do not — expat, a
+third implementation, agrees with us that `&#128;` is U+0080 in XML.
+
+Completeness is asserted separately from correctness, because a sweep over
+`Object.keys(NAMED_REFERENCES)` can only try names the table already has: deleting `hellip;`,
+`euro;` and `uuml;` left every sweep green. The suite therefore also names 36 references in its own
+source and pins the table size at exactly 2,231.
+
+That parse5 and `entities` run unmodified under gjsify/GJS is what makes both oracles possible at
+all, and the GJS leg of this suite is the standing proof of it.
 
 ## devtools-cdp
 
