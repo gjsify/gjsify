@@ -74,11 +74,11 @@ export function adwaitaWebElements(root) {
     const src = join(root, ADWAITA_WEB_SRC);
     /** @type {Map<string, string>} */
     const defined = new Map();
-    let calls = 0;
-    let matched = 0;
+    const unreadable = [];
     for (const file of sourceFiles(src)) {
         const text = readFileSync(file, 'utf8');
-        calls += (text.match(DEFINE_CALL) ?? []).length;
+        const calls = (text.match(DEFINE_CALL) ?? []).length;
+        let matched = 0;
         for (const [, tag, registered] of text.matchAll(DEFINE_PATTERN)) {
             matched += 1;
             const expected = widgetClass(elementName(tag));
@@ -91,13 +91,14 @@ export function adwaitaWebElements(root) {
             }
             defined.set(tag, relative(root, file));
         }
+        if (matched < calls) unreadable.push(relative(root, file));
     }
 
-    if (matched < calls) {
+    if (unreadable.length > 0) {
         throw new Error(
-            `${calls - matched} customElements.define(…) call(s) under ${ADWAITA_WEB_SRC} that this ` +
-                'reader could not parse: a tag outside the `adw-` rule, or a spelling DEFINE_PATTERN ' +
-                'does not match. Either way the element has no matrix row and no ADR 0010 reset entry.',
+            `customElements.define(…) this reader could not parse, in ${unreadable.join(', ')}: a tag ` +
+                'outside the `adw-` rule, or a spelling DEFINE_PATTERN does not match. Either way that ' +
+                'element has no matrix row and no ADR 0010 reset entry, and nothing else would say so.',
         );
     }
 
@@ -117,8 +118,8 @@ export function adwaitaWebElements(root) {
 // other dotted name — `adw-button.d.ts` — is not a widget name and is not read as one.
 const NS_WIDGET_FILE = /^adw-([a-z0-9-]+)(?:\.(?:android|ios))?\.ts$/;
 
-/** Whether the file has a class AT ALL — the one thing that makes it a widget file. */
-const CLASS_DECLARATION = /\bclass\s+[A-Za-z0-9_]+/;
+/** Declaring a class AT ALL is what makes a file a widget file — the word in prose is not. */
+const CLASS_DECLARATION = /^\s*(?:export\s+)?(?:default\s+)?(?:abstract\s+)?class\s+[A-Za-z0-9_]+/m;
 
 /** The class must LEAVE the file; how it is spelled on the way out is free. */
 const exportsClass = (text, name) =>
