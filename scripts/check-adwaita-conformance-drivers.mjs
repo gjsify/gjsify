@@ -108,8 +108,13 @@ const CITATION =
     /\b([A-Z][A-Z0-9_]*_)\*(?:_VECTORS)?|\b([A-Z][A-Z0-9_]*)\/([A-Z][A-Z0-9_]*_VECTORS)|\b[A-Z][A-Z0-9_]*_VECTORS\b/g;
 /** "for the same reason as X" — cites X as a precedent, not as coverage. */
 const PRECEDENT = /\bsame (?:as|reason as|rule as|gap as)\b/i;
-/** The three spellings that occur; two of the three false claims used the rarer two. */
-const BOTH_CLAIM = /\bboth\s+(?:renderer\s+suites?|renderers?|ports?|suites?|elements?|drive)\b/i;
+/**
+ * Three spellings OCCUR — "both renderers", "both drive", "Both ports" — and two of the three
+ * false claims used the rarer two, so a checker that knows one spelling misses most of them.
+ * "both sides" and "the two ports" say the same thing and are matched pre-emptively.
+ */
+const BOTH_CLAIM =
+    /\bboth\s+(?:renderer\s+suites?|renderers?|ports?|suites?|elements?|sides|drive)\b|\bthe two (?:renderers?|ports?|suites?)\b/i;
 /** A named renderer plus a coverage verb — "driven by the browser suite", "NativeScript drives X". */
 const SUITE_CLAIMS = [
     { label: 'adwaita-web', pattern: /\b(?:browser|adwaita-web)\b/i },
@@ -232,12 +237,16 @@ function citationsIn(text, declared) {
     return found;
 }
 
-/** The count word immediately before a citation, if the sentence states one. */
-function statedCount(sentence, index) {
+/**
+ * The count word immediately before a citation, if the sentence states one. Digits count only
+ * for a glob: before a single name, "at 96 dpi ADW_LENGTH_UNIT_VECTORS" is arithmetic and not
+ * arity, and reading it as arity is how a checker invents findings.
+ */
+function statedCount(sentence, index, kind) {
     const before = sentence.slice(0, index).replace(/[`'"\s]+$/, '');
     const word = /([A-Za-z]+|\d+)$/.exec(before)?.[1];
     if (!word) return undefined;
-    if (/^\d+$/.test(word)) return Number(word);
+    if (/^\d+$/.test(word)) return kind === 'glob' ? Number(word) : undefined;
     const spelled = COUNT_WORDS.indexOf(word.toLowerCase());
     return spelled === -1 ? undefined : spelled;
 }
@@ -350,12 +359,14 @@ for (const dir of [CORE_SUITE_DIR, ...RENDERERS.map((renderer) => renderer.dir)]
                     failures.push(`${where}: the glob ${citation.spelling} matches no declared table.`);
                     continue;
                 }
-                const stated = statedCount(sentence, citation.index);
-                if (citation.kind === 'glob' && stated !== undefined) resolved.counted += 1;
-                if (citation.kind === 'glob' && stated !== undefined && stated !== citation.names.length) {
-                    failures.push(
-                        `${where}: says ${stated} ${citation.spelling} tables; the tree declares ${citation.names.length}.`,
-                    );
+                const stated = statedCount(sentence, citation.index, citation.kind);
+                if (stated !== undefined) {
+                    resolved.counted += 1;
+                    if (stated !== citation.names.length) {
+                        failures.push(
+                            `${where}: says ${stated} ${citation.spelling} table(s); the tree declares ${citation.names.length}.`,
+                        );
+                    }
                 }
                 if (citation.names.length === 0) continue;
                 if (BOTH_CLAIM.test(sentence)) {
