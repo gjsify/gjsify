@@ -1,7 +1,7 @@
 ### Adwaita Web framework roadmap
 
 Long-term goal: complete `@gjsify/adwaita-web` so it can replace the styling layer of
-`refs/adwaita-web/scss/` while keeping our Web Components abstraction. Every port adds a custom
+`refs/adwaita-web/adwaita-web/scss/` while keeping our Web Components abstraction. Every port adds a custom
 element + SCSS partial + a SPDX header citing `refs/adwaita-web/adwaita-web/scss/_<name>.scss`
 and/or `refs/libadwaita/src/stylesheet/widgets/_<name>.scss`.
 

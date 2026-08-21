@@ -13,7 +13,7 @@
 // the `expanded` attribute reflection and the event.
 //
 // Reference: refs/adwaita-web/adwaita-web/scss/_expander_row.scss
-// Reference: refs/libadwaita/src/stylesheet/widgets/_expander-row.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss (AdwExpanderRow)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
 // disclosure state machine composed from @gjsify/adwaita-core, the enable

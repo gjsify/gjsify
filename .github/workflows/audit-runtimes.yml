@@ -352,6 +352,19 @@ jobs:
       - name: Check the style-class ledger covers libadwaita's documented surface
         run: node scripts/check-adwaita-style-classes.mjs
 
+      # A `refs/<submodule>/<path>` coordinate IS the evidence behind a core-backed
+      # claim — the upstream file a reader opens to check that a behaviour really came
+      # from there. 180 of them name the Adwaita family, and NINETEEN named a file that
+      # has never existed in libadwaita's 5325 commits: the spellings a reader would
+      # guess (`_action-row.scss`, `_toast.scss`, `_status-page.scss`, where upstream
+      # files by family in `_lists.scss` and `_misc.scss`), plus `adw-menu-button.c`
+      # for a type libadwaita does not have. `status/sections/adwaita-web-roadmap.md`
+      # warned about exactly this in prose, and named the right spellings — and it
+      # happened nineteen times anyway, because prose cannot fail. A submodule the
+      # step above does not check out SKIPs and the run says so.
+      - name: Check every refs/ citation points at a file that exists
+        run: node scripts/check-refs-citations.mjs
+
       # `packages/web/adwaita-web` has no `test` script: its spec files reach a runner
       # only through the `run({…})` in `src/test.browser.mts`, and nothing read that
       # call. An import dropped from it is silent — the entry is outside the package's
@@ -744,6 +757,19 @@ jobs:
       # so the step above going missing again is loud rather than green.
       - name: Check the style-class ledger covers libadwaita's documented surface
         run: node scripts/check-adwaita-style-classes.mjs
+
+      # A `refs/<submodule>/<path>` coordinate IS the evidence behind a core-backed
+      # claim — the upstream file a reader opens to check that a behaviour really came
+      # from there. 180 of them name the Adwaita family, and NINETEEN named a file that
+      # has never existed in libadwaita's 5325 commits: the spellings a reader would
+      # guess (`_action-row.scss`, `_toast.scss`, `_status-page.scss`, where upstream
+      # files by family in `_lists.scss` and `_misc.scss`), plus `adw-menu-button.c`
+      # for a type libadwaita does not have. `status/sections/adwaita-web-roadmap.md`
+      # warned about exactly this in prose, and named the right spellings — and it
+      # happened nineteen times anyway, because prose cannot fail. A submodule the
+      # step above does not check out SKIPs and the run says so.
+      - name: Check every refs/ citation points at a file that exists
+        run: node scripts/check-refs-citations.mjs
 
       # `packages/web/adwaita-web` has no `test` script: its spec files reach a runner
       # only through the `run({…})` in `src/test.browser.mts`, and nothing read that

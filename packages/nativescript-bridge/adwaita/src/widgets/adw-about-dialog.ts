@@ -15,7 +15,7 @@
 // rows, not tappable hyperlinks.
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-about-dialog`.
-// Reference: refs/libadwaita/src/stylesheet/widgets/_dialog.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_dialogs.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { aboutDialogVisibility } from '@gjsify/adwaita-core';

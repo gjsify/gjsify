@@ -2,7 +2,7 @@
 // icon, a title, a description and an optional action (slotted child).
 // Attributes: icon (symbolic name, with or without -symbolic), title, description.
 // Reference: refs/adwaita-web/adwaita-web/scss/_status_page.scss
-// Reference: refs/libadwaita/src/stylesheet/widgets/_status-page.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_misc.scss (AdwStatusPage)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web; the
 // icon node is <adw-icon>.

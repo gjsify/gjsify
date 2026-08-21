@@ -24,7 +24,7 @@
 // rather than present and inert.
 //
 // Reference: refs/libadwaita/src/adw-carousel.c (Adw.Carousel)
-// Reference: refs/libadwaita/src/stylesheet/widgets/_carousel.scss
+// Reference: refs/libadwaita/src/adw-carousel-indicator-dots.c (the animated dots)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout, ItemSpec, Label, ScrollView, StackLayout, View, type EventData } from '@nativescript/core';

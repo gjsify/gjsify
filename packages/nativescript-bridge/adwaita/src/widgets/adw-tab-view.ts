@@ -24,7 +24,7 @@
 //
 // Reference: refs/libadwaita/src/adw-tab-view.c (Adw.TabView)
 // Reference: refs/libadwaita/src/adw-tab-bar.c (Adw.TabBar autohide)
-// Reference: refs/libadwaita/src/stylesheet/widgets/_tab-bar.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_tab-view.scss (tabbar/tabbox)
 // Reference: packages/web/adwaita-web/src/elements/adw-tab-view.ts (web twin)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 

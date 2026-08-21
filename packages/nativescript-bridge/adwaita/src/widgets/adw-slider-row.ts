@@ -8,7 +8,7 @@
 // snaps to `step`, updates the value label and emits `notify::value`.
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `.sb-range-row` + the GTK
-// `Gtk.Scale` card. Reference: refs/libadwaita/src/stylesheet/widgets/_scales.scss
+// `Gtk.Scale` card. Reference: refs/libadwaita/src/stylesheet/widgets/_scale.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout, ItemSpec, Label, Slider, StackLayout, type EventData } from '@nativescript/core';

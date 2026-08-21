@@ -19,7 +19,7 @@
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-overlay-split-view`.
 // Reference: refs/libadwaita/src/adw-overlay-split-view.c
-// Reference: refs/libadwaita/src/stylesheet/widgets/_overlay-split-view.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_misc.scss (overlay-split-view transition shadows)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout } from '@nativescript/core';

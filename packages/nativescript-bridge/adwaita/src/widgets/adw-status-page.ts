@@ -17,7 +17,7 @@
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-status-page`.
 // Reference: refs/libadwaita/src/adw-status-page.c (:83-96)
 // Reference: refs/libadwaita/src/adw-status-page.ui
-// Reference: refs/libadwaita/src/stylesheet/widgets/_status-page.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_misc.scss (AdwStatusPage)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { GridLayout, ItemSpec, Label, StackLayout, View } from '@nativescript/core';

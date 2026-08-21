@@ -18,7 +18,7 @@
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `_combo_row.scss` (dim value +
 // `go-down` chevron).
-// Reference: refs/libadwaita/src/stylesheet/widgets/_combo-row.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_lists.scss (AdwComboRow)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { panDownSymbolic } from '@gjsify/adwaita-icons/ui';

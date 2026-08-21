@@ -13,7 +13,6 @@
 // in the C when `animate` is FALSE.
 //
 // Reference: refs/libadwaita/src/adw-navigation-view.c
-// Reference: refs/libadwaita/src/stylesheet/widgets/_navigation-view.scss
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { NavigationViewState } from '@gjsify/adwaita-core';

@@ -21,7 +21,7 @@
 // action) and the queued, timed auto-dismiss + action-button behaviour are faithful.
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-toast-overlay`.
-// Reference: refs/libadwaita/src/stylesheet/widgets/_toast.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_misc.scss (Toasts)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { Button, GridLayout, ItemSpec, Label, View, type EventData } from '@nativescript/core';
