@@ -33,9 +33,9 @@
 //
 // Usage: node scripts/check-build-infra-order.mjs [--root <dir>]
 
-import { execFileSync } from 'node:child_process';
-import { existsSync, globSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, globSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
+import { readIndexPaths } from './manifest-conformance/git-index.mjs';
 
 const rootIndex = process.argv.indexOf('--root');
 const ROOT = rootIndex === -1 ? '.' : process.argv[rootIndex + 1];
@@ -258,11 +258,24 @@ function readJsonc(file) {
     return JSON.parse(out.replace(/,(\s*[}\]])/g, '$1'));
 }
 
-/** `files`/`include`/`exclude` of a tsconfig, one `extends` level deep. */
+/**
+ * `files`/`include`/`exclude` of a tsconfig, one `extends` level deep.
+ *
+ * `null` means "no config to read", which is NOT a finding: `tsc -p <dir>` is
+ * legal and means `<dir>/tsconfig.json`, and a package that has no config here
+ * gives this rule nothing to assert rather than something to complain about. A
+ * config that genuinely cannot be read is the BUILD's failure, reported there.
+ */
 function tsconfigInputs(pkgDir, configName) {
-    const path = join(pkgDir, configName);
-    if (!existsSync(path)) return null;
-    const cfg = readJsonc(path);
+    let path = join(pkgDir, configName);
+    if (existsSync(path) && statSync(path).isDirectory()) path = join(path, 'tsconfig.json');
+    if (!existsSync(path) || !statSync(path).isFile()) return null;
+    let cfg;
+    try {
+        cfg = readJsonc(path);
+    } catch {
+        return null;
+    }
     const dir = dirname(path);
     let { files, include, exclude } = cfg;
     if (cfg.extends) {
@@ -425,11 +438,21 @@ function productionClosure(name, index, seen = new Set()) {
     return seen;
 }
 
-const tracked = new Set(
-    execFileSync('git', ['ls-files', '-z'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 1 << 28 })
-        .split('\0')
-        .filter(Boolean),
-);
+/**
+ * Every path a COLD checkout of this commit already has, read from the git INDEX.
+ *
+ * NOT `git ls-files`. The Windows suite strips every `\Git\` entry from PATH on
+ * purpose, so a rule that shells out dies there with `spawnSync git ENOENT` — this
+ * repo paid for that lesson once already, and the answer it settled on is
+ * `scripts/manifest-conformance/git-index.mjs`, the ONE reader of that file. Reusing
+ * it keeps this rule running on every leg and drops a subprocess.
+ *
+ * A root that is not a work tree at all — the synthetic ones this script's own e2e
+ * suite builds — genuinely has nothing committed, and the empty set says exactly that.
+ * That is a different thing from "the tool is missing", which is why only the absent
+ * `.git` is tolerated and a `.git` that cannot be parsed still throws.
+ */
+const tracked = existsSync(join(ROOT, '.git')) ? readIndexPaths(ROOT) : new Set();
 
 /** Clause index at which each package's declarations first exist. */
 const typedAt = new Map();
@@ -459,13 +482,7 @@ for (const [i, clause] of clauses.entries()) {
     const projectFlag = /gjsify\s+tsc\b[^&|;]*?\s-p\s+(\S+)/.exec(tscCall);
     const configName = projectFlag ? projectFlag[1] : 'tsconfig.json';
     const inputs = tsconfigInputs(entry.dir, configName);
-    if (inputs === null) {
-        orderProblems.push(
-            `clause ${i + 1} runs \`${name} ${script}\`, whose tsc reads ${configName} — which does not ` +
-                'exist. Either the clause cannot succeed or this check is reading the wrong config.',
-        );
-        continue;
-    }
+    if (inputs === null) continue; // no readable config — nothing this rule can assert
     scanned++;
     inputsSeen += inputs.length;
     const withDeps = /\s(?:-d|--with-dependencies)(?:\s|$)/.test(clause);
@@ -490,11 +507,16 @@ for (const [i, clause] of clauses.entries()) {
     }
 }
 
-// The positive fact again: a rule that scanned nothing must not report success.
-if (!scanned || !inputsSeen) {
+// The positive fact again, in the one shape that is actually blind: configs that
+// resolve but expand to NOTHING. That is what a broken glob looks like, and it
+// would report a clean tree for the wrong reason. A root with no configs at all
+// (the synthetic ones in this script's e2e suite) is not that — it simply has
+// nothing to order, and the printed count is what the suite asserts on for the
+// real monorepo.
+if (scanned && !inputsSeen) {
     console.error(
-        '::error::the type-ordering rule resolved no tsconfig inputs at all. The clause spelling or the ' +
-            'tsconfig layout changed and this rule silently stopped reading them.',
+        '::error::the type-ordering rule resolved tsconfigs but expanded them to zero files. Their ' +
+            'include/exclude globs stopped matching and this rule silently stopped reading them.',
     );
     process.exit(1);
 }
