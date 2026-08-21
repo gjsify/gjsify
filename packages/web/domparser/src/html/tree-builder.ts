@@ -120,6 +120,19 @@ const SCOPED_END_TAGS: ReadonlySet<string> = new Set([
     'ul',
 ]);
 
+/** The subset of SCOPED_END_TAGS whose scope is the TABLE one. */
+const SCOPED_TABLE_END_TAGS: ReadonlySet<string> = new Set([
+    'caption',
+    'colgroup',
+    'table',
+    'tbody',
+    'td',
+    'tfoot',
+    'th',
+    'thead',
+    'tr',
+]);
+
 /** Elements that swallow a line feed immediately after their start tag. */
 const SKIPS_LEADING_NEWLINE: ReadonlySet<string> = new Set(['listing', 'pre', 'textarea']);
 
@@ -713,18 +726,6 @@ class TreeBuilder implements TreeSink {
         if (this.mode === MODE_AFTER_HEAD) this.openBody([]);
     }
 }
-
-const SCOPED_TABLE_END_TAGS: ReadonlySet<string> = new Set([
-    'caption',
-    'colgroup',
-    'table',
-    'tbody',
-    'td',
-    'tfoot',
-    'th',
-    'thead',
-    'tr',
-]);
 
 /** Parse `source` as an HTML document. Never throws on malformed input: HTML has
  *  no fatal parse errors, and a scraper that gets an exception instead of a tree
