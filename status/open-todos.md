@@ -2235,3 +2235,10 @@ change as this entry, since the browser half is held to none of them.
 normalisers from the core), so this is missing coverage rather than a known
 drift. Closing it is a browser-side spec over the five tables, in the shape
 `split-views.spec.ts` already uses.
+
+The correction BLINDED the gate that ledgered this, for one commit. Spelling the
+five names out in an `adwaita-web` comment made all five read as browser-driven,
+because "driven by X" was a plain text scan over every `.ts` under X — comments
+included. The original defect was caught only because it used the glob spelling
+`DATA_GRID_*_VECTORS`, which contains no individual name. Fixed by resolving
+drivers from usage: names outside a comment, in a `*.spec.ts`.
