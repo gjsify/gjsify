@@ -133,7 +133,7 @@ function valueImports(text) {
  * erased `import type` are not — both were counted: `adw-header-bar` imports core
  * NOWHERE and was published core-backed off a comment, `adw-menu-button` off a type.
  *
- * ONE HOP, and never into another renderer element. A renderer delegates through a
+ * ONE HOP, and never DERIVED into another renderer element. A renderer delegates through a
  * helper for a reason the tree makes visible: an NS spec cannot import a module that
  * `extends GridLayout`, so the pure half moves out (`chrome.ts`, `avatar-color.ts`)
  * and the helper is where the core edge lives. A transitive walk would report a
