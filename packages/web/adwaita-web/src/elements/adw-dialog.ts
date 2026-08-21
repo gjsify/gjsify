@@ -24,20 +24,13 @@
 // Copyright (c) 2023-2024 GNOME Foundation Inc. (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
+import { AdwModalSurface } from './modal-surface.js';
+
 /** Adaptive presentation of the dialog — mirrors Adw.DialogPresentationMode. */
 export type AdwDialogPresentationMode = 'auto' | 'floating' | 'bottom-sheet';
 
 const DEFAULT_CONTENT_WIDTH = 360;
 const PRESENTATION_MODES: readonly AdwDialogPresentationMode[] = ['auto', 'floating', 'bottom-sheet'];
-
-const FOCUSABLE_SELECTOR = [
-    'a[href]',
-    'button:not([disabled])',
-    'input:not([disabled])',
-    'select:not([disabled])',
-    'textarea:not([disabled])',
-    '[tabindex]:not([tabindex="-1"])',
-].join(',');
 
 export class AdwDialog extends HTMLElement {
     private _initialized = false;
@@ -47,8 +40,7 @@ export class AdwDialog extends HTMLElement {
     private _titleEl!: HTMLSpanElement;
     private _closeBtn!: HTMLButtonElement;
     private _contentEl!: HTMLDivElement;
-    // The element focused before present(), restored on close (return-focus).
-    private _previouslyFocused: HTMLElement | null = null;
+    private _modal!: AdwModalSurface;
 
     static get observedAttributes() {
         return ['title', 'open', 'can-close', 'content-width', 'content-height', 'presentation-mode', 'show-header'];
@@ -157,15 +149,19 @@ export class AdwDialog extends HTMLElement {
         this._scrimEl.className = 'adw-dialog-scrim';
         this._scrimEl.addEventListener('click', () => this._attemptClose());
 
-        // Focusable so the box receives keys even when the content has none, and clicks
-        // inside must not reach the scrim's dismiss handler.
+        // Clicks inside must not reach the scrim's dismiss handler. The role, `aria-modal`
+        // and the -1 tabindex that lets the box hold focus when its content has none all
+        // come from the modal surface below.
         this._boxEl = document.createElement('div');
         this._boxEl.className = 'adw-dialog-box';
-        this._boxEl.setAttribute('role', 'dialog');
-        this._boxEl.setAttribute('aria-modal', 'true');
-        this._boxEl.tabIndex = -1;
         this._boxEl.addEventListener('click', (event) => event.stopPropagation());
-        this._boxEl.addEventListener('keydown', (event) => this._onBoxKeyDown(event));
+        this._modal = new AdwModalSurface({
+            host: this,
+            surface: this._boxEl,
+            role: 'dialog',
+            isOpen: () => this.open,
+            onEscape: () => this._attemptClose(),
+        });
 
         this._headerEl = document.createElement('div');
         this._headerEl.className = 'adw-dialog-header';
@@ -206,7 +202,7 @@ export class AdwDialog extends HTMLElement {
         this._render();
         if (name === 'open') {
             this.dispatchEvent(new CustomEvent('notify::open', { bubbles: true, detail: { open: this.open } }));
-            if (this.open) this._onPresented();
+            if (this.open) this._modal.present();
             else this._onClosed();
         }
     }
@@ -222,53 +218,10 @@ export class AdwDialog extends HTMLElement {
         this.open = false;
     }
 
-    /** Focus trap + Escape while the box has focus. */
-    private _onBoxKeyDown(event: KeyboardEvent): void {
-        if (event.key === 'Escape' && this.open) {
-            event.stopPropagation();
-            this._attemptClose();
-            return;
-        }
-        if (event.key !== 'Tab') return;
-        const focusables = this._focusables();
-        if (focusables.length === 0) {
-            // Nothing tabbable inside — keep focus on the box.
-            event.preventDefault();
-            this._boxEl.focus();
-            return;
-        }
-        const first = focusables[0];
-        const last = focusables[focusables.length - 1];
-        const active = document.activeElement;
-        if (event.shiftKey && (active === first || active === this._boxEl)) {
-            event.preventDefault();
-            last.focus();
-        } else if (!event.shiftKey && active === last) {
-            event.preventDefault();
-            first.focus();
-        }
-    }
-
-    private _focusables(): HTMLElement[] {
-        return Array.from(this._boxEl.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
-            (el) => !el.hasAttribute('disabled') && !el.hidden,
-        );
-    }
-
-    /** On present: remember focus, then move it into the dialog. */
-    private _onPresented(): void {
-        const active = document.activeElement;
-        this._previouslyFocused = active instanceof HTMLElement && active !== this ? active : null;
-        const target = this._focusables()[0] ?? this._boxEl;
-        target.focus();
-    }
-
-    /** On close: emit `closed` and return focus to where it was before present. */
+    /** On close: emit `closed`, then let the surface return focus to where it was. */
     private _onClosed(): void {
         this.dispatchEvent(new CustomEvent('closed', { bubbles: true }));
-        const restore = this._previouslyFocused;
-        this._previouslyFocused = null;
-        if (restore && restore.isConnected) restore.focus();
+        this._modal.dismiss();
     }
 
     private _render(): void {
