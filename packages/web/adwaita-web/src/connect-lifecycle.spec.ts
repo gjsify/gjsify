@@ -133,7 +133,7 @@ function visibleHost(): HTMLElement {
     return host;
 }
 
-/** A slotted split-view pane — `innerHTML` on a widget that already built its subtree is not one. */
+/** A slotted split-view pane, so the two slot names are spelled once and not inside markup. */
 function pane(slot: string): HTMLElement {
     const el = document.createElement('div');
     el.setAttribute('slot', slot);
