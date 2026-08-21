@@ -36,6 +36,15 @@ for (const bundle of bundles) {
 
         expect(results, 'window.__gjsify_test_results not set — @gjsify/unit may not have run').toBeDefined();
 
+        // `failed === 0` alone is satisfied by a bundle that registered NOTHING:
+        // `browserSignalDone()` sets the results and `data-tests-done` unconditionally, so
+        // `run({})` reports 0/0/0 and every assertion below it holds. Measured by driving a
+        // patched `run({})` through this harness — green. What this floor does NOT catch is a
+        // PARTIAL shrink: 38 of adwaita-web's 39 suites can vanish and one is still > 0. The
+        // static half of that lives in `scripts/check-browser-test-registration.mjs`, and the
+        // rest of the residual is written down in `main.yml`'s `browser` job.
+        expect(results.total, `${bundle.url} reported 0 tests — the bundle registered no suite`).toBeGreaterThan(0);
+
         const errorSummary = results.errors.map((e) => `  [${e.suite}] ${e.test}: ${e.message}`).join('\n');
 
         expect(results.failed, `${results.failed} of ${results.total} tests failed:\n${errorSummary}`).toBe(0);
