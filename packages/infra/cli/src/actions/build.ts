@@ -13,7 +13,7 @@ import {
 } from '@gjsify/rolldown-plugin-gjsify/globals';
 import { pnpPlugin } from '@gjsify/rolldown-plugin-pnp';
 import { basename, dirname, extname, join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { chmod, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { normalizeBundlerOptions, mergeBundlerOptions } from '../utils/normalize-bundler-options.js';
 import { inputSourceDirs, isOutdirInsideSource, libraryOutputLeakError } from '../utils/library-output.js';
@@ -589,14 +589,23 @@ export class BuildAction {
                 output: { file: outfile },
                 ...(opts.define ? { transform: { define: opts.define } } : {}),
             },
-        }).buildApp('gjs', { preserveDefaultExport: opts.preserveDefaultExport ?? true });
+        }).buildApp('gjs', {
+            preserveDefaultExport: opts.preserveDefaultExport ?? true,
+            // Everything routed through here is TOOLCHAIN — a repo build script, a
+            // user plugin, a config file — never the user's application. So a
+            // `@gjsify/*` the project cannot resolve may fall back to the copy
+            // installed beside the running CLI, which is built by construction.
+            // `gjsify build` proper never sets this: there, an unresolvable
+            // dependency is the user's bug and must stay fatal.
+            toolchainAnchorDir: dirname(fileURLToPath(import.meta.url)),
+        });
         return outfile;
     }
 
     /** Application mode */
     async buildApp(
         app: App = 'gjs',
-        opts: { watch?: boolean; preserveDefaultExport?: boolean } = {},
+        opts: { watch?: boolean; preserveDefaultExport?: boolean; toolchainAnchorDir?: string } = {},
     ): Promise<RolldownOutput[]> {
         const { verbose, typescript, exclude, library: pkg, aliases, excludeGlobals } = this.configData;
 
@@ -666,6 +675,7 @@ export class BuildAction {
             consoleShim,
             ...(aliases ? { aliases } : {}),
             ...(opts.preserveDefaultExport ? { preserveDefaultExport: true } : {}),
+            ...(opts.toolchainAnchorDir !== undefined ? { toolchainAnchorDir: opts.toolchainAnchorDir } : {}),
         };
 
         const { autoMode, extras } = this.parseGlobalsValue(globals);

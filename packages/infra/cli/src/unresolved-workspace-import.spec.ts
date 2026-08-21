@@ -22,6 +22,7 @@ import {
     createGjsExternalsPredicate,
     formatUnresolvedWorkspaceImport,
     isWorkspaceSpecifier,
+    resolveFromToolchain,
     unresolvedWorkspaceImportPlugin,
     UnresolvedWorkspaceImportError,
 } from '@gjsify/rolldown-plugin-gjsify';
@@ -333,6 +334,66 @@ export default async () => {
             const ctx = mockCtx();
             expect(await handler.call(ctx, '@gjsify/fs', null as unknown as undefined)).toBeNull();
             expect(ctx.asked).toStrictEqual([]);
+        });
+    });
+
+    // A repo build script re-entered as `gjsify run --node-script` on a Node-less
+    // host must not depend on the WORKSPACE having built its polyfills: measured on
+    // postmarketOS/aarch64, `--globals auto` pulls twenty-one `@gjsify` register
+    // subpaths into a one-line script, none of which a cold clone has built, and the
+    // ADR 0002 bootstrap dies at its third step. The rescue is the copy installed
+    // beside the running CLI — the same two-anchor shape `commands/tsc.ts` uses.
+    await describe('unresolved-workspace-import: toolchain fallback', async () => {
+        const ANCHOR = '/opt/cli/dist';
+        /** Resolver standing in for the CLI's own install. */
+        const toolchain = (map: Record<string, string>) => (candidate: string, anchorDir: string) => {
+            expect(anchorDir).toBe(ANCHOR);
+            return map[candidate] ?? null;
+        };
+
+        await it('resolves from the anchor when the project cannot', () => {
+            const hit = resolveFromToolchain(
+                '@gjsify/fs',
+                ANCHOR,
+                toolchain({ '@gjsify/fs': '/opt/cli/node_modules/@gjsify/fs/lib/esm/index.js' }),
+            );
+            expect(hit?.id).toBe('/opt/cli/node_modules/@gjsify/fs/lib/esm/index.js');
+        });
+
+        // Without an anchor the guard must behave exactly as it always has — this is
+        // what keeps an ordinary `gjsify build` failing loudly on a missing dep.
+        await it('is inert when no anchor is set', () => {
+            expect(resolveFromToolchain('@gjsify/fs', undefined, toolchain({}))).toBeNull();
+        });
+
+        await it('returns null when the anchor does not have it either', () => {
+            expect(resolveFromToolchain('@gjsify/nope', ANCHOR, toolchain({}))).toBeNull();
+        });
+
+        // A resolver throwing (ERR_PACKAGE_PATH_NOT_EXPORTED for a subpath the
+        // exports map does not declare) is a miss, not a crash: the caller still has
+        // the full diagnostic to throw.
+        await it('treats a throwing resolver as a miss', () => {
+            expect(
+                resolveFromToolchain('@gjsify/fs/register', ANCHOR, () => {
+                    throw new Error('ERR_PACKAGE_PATH_NOT_EXPORTED');
+                }),
+            ).toBeNull();
+        });
+
+        // PROJECT FIRST: the fallback may never shadow a package the workspace has.
+        await it('never consults the anchor when the project resolved it', async () => {
+            const plugin = unresolvedWorkspaceImportPlugin({
+                target: 'gjs',
+                aliases: GJS_ALIASES,
+                toolchainAnchorDir: ANCHOR,
+            });
+            const handler = handlerOf(plugin);
+            const ctx = mockCtx({ '@gjsify/fs': '/proj/node_modules/@gjsify/fs/lib/esm/index.js' });
+            const out = await handler.call(ctx, 'node:fs', IMPORTER);
+            // The real anchor `/opt/cli/dist` does not exist, so a fallback consult
+            // would resolve to null and this would throw instead of returning.
+            expect((out as { id: string }).id).toBe('/proj/node_modules/@gjsify/fs/lib/esm/index.js');
         });
     });
 };

@@ -69,4 +69,12 @@ export interface PluginOptions {
      * the wrapper. Defaults to `false`.
      */
     preserveDefaultExport?: boolean;
+    /**
+     * Where to look for a `@gjsify/*` the PROJECT cannot resolve, when the input
+     * is TOOLCHAIN rather than user code — the running CLI's own directory. Set
+     * only by `BuildAction.bundleFileForGjsCached`; unset for every ordinary
+     * `gjsify build`, so a user's app still fails loudly on a missing dependency.
+     * Rationale and the measured incident: `WorkspaceImportGuardOptions`.
+     */
+    toolchainAnchorDir?: string;
 }

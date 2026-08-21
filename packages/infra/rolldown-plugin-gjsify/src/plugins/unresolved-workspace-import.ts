@@ -20,7 +20,9 @@
 // on the old fall-through instead of promoting a user's own mapping mistake to a
 // fatal error in a plugin they did not ask for.
 
-import { dirname } from 'node:path';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import type { Plugin } from 'rolldown';
 
 /** Bare `@gjsify/*` package specifier — the workspace edge this guard protects. */
@@ -51,6 +53,33 @@ export interface WorkspaceImportGuardOptions {
      * (plus exact-name membership) so the two cannot drift.
      */
     isExternal?: (id: string) => boolean;
+    /**
+     * Last-resort anchor for a `@gjsify/*` the PROJECT cannot resolve — set only
+     * when the thing being bundled is TOOLCHAIN rather than user code, and unset
+     * for every ordinary `gjsify build`.
+     *
+     * A repo build script (`node scripts/x.mjs`, re-entered as `gjsify run
+     * --node-script` on a Node-less host) does not need the WORKSPACE's copy of
+     * `@gjsify/fs` — it needs a working one. Anchored at the script, resolution
+     * finds the workspace symlink, whose `lib/esm` a cold clone has not built
+     * yet; anchored additionally at the running CLI, it finds the published copy
+     * installed beside it, which is built by construction.
+     *
+     * Measured on postmarketOS/aarch64 (gjs 1.88.1, no node): without this the
+     * ADR 0002 bootstrap fails at its third step. `--globals auto` alone pulls
+     * twenty-one `@gjsify/<pkg>/register` subpaths into a one-line script, so the
+     * alternative is building most of the polyfill tree before the first script
+     * runs — on every host, including the ones that never bundle one.
+     *
+     * The precedent is `commands/tsc.ts`, which resolves `@gjsify/tsc/bundle`
+     * from the project first and the running CLI second for exactly this reason;
+     * `tests/e2e/node-free-bootstrap` states that invariant.
+     *
+     * PROJECT FIRST, ALWAYS: consulted only after normal resolution returns
+     * null, so a workspace that HAS the package keeps using it and nothing about
+     * a warm tree changes.
+     */
+    toolchainAnchorDir?: string;
 }
 
 /**
@@ -212,8 +241,42 @@ export function buildReverseAliasIndex(aliases: Record<string, string> | undefin
  * (`this.resolve(…, { skipSelf })`) and returns that, so a healthy build resolves
  * each specifier exactly once and behaves identically. Only a genuine `null` throws.
  */
+/**
+ * Resolve `candidate` from `anchorDir` — the running CLI's own location — or
+ * `null`.
+ *
+ * `createRequire` as a NAMED import from `node:module`, which is the sanctioned
+ * spelling for an exports-map-aware RESOLVER (see the repo's CJS-ESM rules): a
+ * `@gjsify/*` edge is routinely a subpath (`@gjsify/fs/register`) that only the
+ * exports map can answer, so a hand-rolled `join(anchorDir, 'node_modules', …)`
+ * would resolve the root and miss every subpath.
+ *
+ * Returns null on ANY failure. This is a last resort whose absence is already
+ * handled by the caller, which throws the full diagnostic — swallowing here
+ * cannot hide a problem, it only declines to rescue one.
+ */
+export function resolveFromToolchain(
+    candidate: string,
+    anchorDir: string | undefined,
+    resolveFrom: ToolchainResolver = defaultToolchainResolver,
+): { id: string } | null {
+    if (anchorDir === undefined) return null;
+    try {
+        const id = resolveFrom(candidate, anchorDir);
+        return id === null ? null : { id };
+    } catch {
+        return null;
+    }
+}
+
+/** How a candidate is resolved from the anchor. Injected so the branch is unit-testable. */
+export type ToolchainResolver = (candidate: string, anchorDir: string) => string | null;
+
+const defaultToolchainResolver: ToolchainResolver = (candidate, anchorDir) =>
+    createRequire(pathToFileURL(join(anchorDir, '_resolve_.js')).href).resolve(candidate);
+
 export function unresolvedWorkspaceImportPlugin(options: WorkspaceImportGuardOptions): Plugin {
-    const { target, aliases, isExternal } = options;
+    const { target, aliases, isExternal, toolchainAnchorDir } = options;
     // Re-entrancy belt: `skipSelf: true` should keep our own `this.resolve` out of
     // this hook, but a hang is a far worse failure than a missed check. Keyed by
     // `candidate\0importer` — the same package legitimately resolves from many.
@@ -268,6 +331,15 @@ export function unresolvedWorkspaceImportPlugin(options: WorkspaceImportGuardOpt
                 if (resolved) {
                     resolvedCache.set(key, resolved);
                     return resolved;
+                }
+                // Toolchain fallback — see `toolchainAnchorDir`. Cached like a
+                // normal hit: it IS the answer for this (candidate, importer dir)
+                // pair, and re-running a filesystem walk per module is the cost
+                // the cache above exists to avoid.
+                const fromToolchain = resolveFromToolchain(verdict.candidate, toolchainAnchorDir);
+                if (fromToolchain) {
+                    resolvedCache.set(key, fromToolchain);
+                    return fromToolchain;
                 }
                 throw new UnresolvedWorkspaceImportError({
                     target,
