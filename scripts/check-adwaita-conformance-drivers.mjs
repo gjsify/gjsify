@@ -35,8 +35,14 @@
 //   4. driven by nothing at all                                            → FAIL
 //   5. renderer-driven AND still carrying `CORE-ONLY:`                     → FAIL
 //
-// CLAIM arm — every comment SENTENCE in the core or either renderer that names a
-// vector table is resolved against reality:
+// "Driven" means a renderer's `*.spec.ts` names the table OUTSIDE a comment. Both
+// halves were bought: this branch's own corrective comment spelled five table names
+// out in a renderer file, and thereby made the gate read them as browser-driven.
+//
+// CLAIM arm — every comment CLAUSE in the core or either renderer that names a
+// vector table is resolved against reality. The clause, not the sentence: "only
+// NativeScript drives X" and "…, unlike Y, which stays core-only" are how English
+// states single-renderer coverage, and both were rejected as false claims.
 //   6. a `*_VECTORS` name or `A/B_VECTORS` pair that matches no declared table → FAIL
 //      (a `PREFIX_*` glob expanding to nothing is NOT a citation — these trees
 //      are ports of C and cite upstream enum families the same way)
@@ -49,11 +55,18 @@
 //      does not drive                                                      → FAIL
 //  10. a `CORE-ONLY:` reason citing a table as its coverage, where no chain of
 //      citations from it reaches a renderer-driven table                   → FAIL
+//  11. a `CORE-ONLY:` reason that names no table and is not a ledgered GAP  → FAIL
 //
-// A citation is exempt from 10 when the sentence spells a PRECEDENT ("same as X")
-// rather than coverage: `TOOLBAR_VIEW_MEASURE_VECTORS` says its reason is the one
-// `TOOLBAR_VIEW_ALLOCATE_VECTORS` gives, which is not a claim that ALLOCATE covers
-// it. A checker that cannot tell those apart reports a true sentence as false.
+// 10 reads only citations whose own clause is PHRASED as coverage. A reason cites a
+// table for other reasons too — as a precedent (`TOOLBAR_VIEW_MEASURE_VECTORS` says
+// its reason is the one `TOOLBAR_VIEW_ALLOCATE_VECTORS` gives, which is not a claim
+// that ALLOCATE covers it), as a concession, as a contrast. Precedents are not left
+// unchecked by that: the cited table is a table, so the TABLE arm holds its header.
+//
+// 11 is what makes an exemption falsifiable at all. Without it the cheapest way to
+// write one is to name nothing — `CORE-ONLY: both renderers exercise this already
+// through their real widgets` passed every other arm, because they all key off a
+// citation. Three of the 43 exemptions were that shape.
 //
 // MODULE arm — the table arm is TABLE-keyed, so core behaviour with no table at
 // all is invisible to it. Every module in `adwaita-core/src` therefore needs a
@@ -109,8 +122,15 @@ const MODULE_REASONS = {
 /** `PREFIX_*[_VECTORS]` glob | `A/B_VECTORS` pair | a plain table name. */
 const CITATION =
     /\b([A-Z][A-Z0-9_]*_)\*(?:_VECTORS)?|\b([A-Z][A-Z0-9_]*)\/([A-Z][A-Z0-9_]*_VECTORS)|\b[A-Z][A-Z0-9_]*_VECTORS\b/g;
-/** "for the same reason as X" — cites X as a precedent, not as coverage. */
-const PRECEDENT = /\bsame (?:as|reason as|rule as|gap as)\b/i;
+/**
+ * A citation is a COVERAGE claim only where the clause around it says so. The default is
+ * the other way: a reason cites a table for lots of reasons — as a precedent ("same as X"),
+ * as a concession ("its other reachers go through X, which stays core-only"), as a contrast.
+ * This started as a four-phrase whitelist of precedent spellings, which reported "GAP for the
+ * reason X gives" as a coverage claim: an unrecognised TRUE spelling became an accusation.
+ * Naming the coverage spellings instead makes an unrecognised one silent.
+ */
+const COVERAGE_PHRASING = /\b(?:driven|drives?|driving|covered|asserted|asserts|held to|the RESULT is|same thing twice)\b/i;
 /**
  * Three spellings OCCUR — "both renderers", "both drive", "Both ports" — and two of the three
  * false claims used the rarer two, so a checker that knows one spelling misses most of them.
@@ -124,6 +144,9 @@ const SUITE_CLAIMS = [
     { label: 'nativescript', pattern: /\bNativeScript\b/i },
 ];
 const COVERAGE_VERB = /\b(?:suite|drives?|driven by|held to|asserts)\b/i;
+/** An exemption that offers no coverage is a GAP, and a GAP with no anchor has no retirement. */
+const GAP_REASON = /\bGAP\b/;
+const GAP_ANCHOR = /#\d+/;
 const COUNT_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
 
 function walk(dir) {
@@ -218,6 +241,25 @@ const lineOf = (block, spelling) => block.segments.find((segment) => segment.tex
 const sentencesIn = (text) => text.split(/(?<=\.)\s+(?=[A-Z`(])/);
 
 /**
+ * A sentence, cut where it turns: at the words that switch which side of a contrast you
+ * are on. The claim arms read CLAUSES, not sentences, because a sentence is not one claim.
+ * Three TRUE sentences were rejected while it was:
+ *   "Both renderers consume the derivation … and NEITHER is held to TAB_TOOLTIP_VECTORS"
+ *   "The browser works in CSS pixels …, so ONLY NativeScript drives SIDEBAR_WIDTH_VECTORS."
+ *   "Both renderers drive TOOLBAR_VIEW_CLASS_VECTORS, UNLIKE TOOLBAR_VIEW_ALLOCATE_VECTORS…"
+ * Every one names the OTHER renderer, or the table that is NOT covered, in the same
+ * sentence — which is how you state single-renderer coverage in English. The tree was green
+ * only because its reasons had been worded around this: the split-view fix puts browser and
+ * NativeScript in separate sentences, and the TAB_TOOLTIP reason writes "these rows" rather
+ * than naming its own table. Dodged by wording is not satisfied.
+ *
+ * The marker STARTS the next clause, so the contrasted half is still read — it just no
+ * longer inherits the claim from the half before it.
+ */
+const CLAUSE_TURN = /(?=\b(?:but|unlike|neither|nor|rather than|instead|whereas|while|except|not|no|none|only)\b)/i;
+const clausesIn = (sentence) => sentence.split(CLAUSE_TURN);
+
+/**
  * The tables a citation names. `missing` is what the spelling promised and the tree
  * does not have; for a glob an empty `names` IS the miss.
  */
@@ -259,11 +301,15 @@ function citationsIn(text, declared) {
 }
 
 /**
- * The count word immediately before a citation, if the sentence states one. Digits count only
- * for a glob: before a single name, "at 96 dpi ADW_LENGTH_UNIT_VECTORS" is arithmetic and not
- * arity, and reading it as arity is how a checker invents findings.
+ * The count word immediately before a citation, if the sentence states one — for a spelling
+ * that CAN expand to several tables. A plain name always expands to exactly one, so the only
+ * count that ever passes is "one", and "the three TAB_TOOLTIP_VECTORS rows below" — counting
+ * ROWS, which is ordinary prose here — reads as an arity of three and fails. The digit case
+ * was already excluded for this reason ("at 96 dpi ADW_LENGTH_UNIT_VECTORS" is arithmetic);
+ * the spelled-word path was left open.
  */
 function statedCount(sentence, index, kind) {
+    if (kind === 'name') return undefined;
     const before = sentence.slice(0, index).replace(/[`'"\s]+$/, '');
     const word = /([A-Za-z]+|\d+)$/.exec(before)?.[1];
     if (!word) return undefined;
@@ -300,6 +346,19 @@ for (const table of tables) {
     reasons.set(table.name, text);
 }
 
+/** The unit both claim arms read: one clause of one sentence. */
+const claimUnitsIn = (text) => sentencesIn(text).flatMap(clausesIn);
+
+/** The tables a reason offers AS ITS COVERAGE — a citation whose own clause says so. */
+function coverageCitedIn(reason) {
+    const cited = [];
+    for (const clause of claimUnitsIn(reason)) {
+        if (!COVERAGE_PHRASING.test(clause)) continue;
+        for (const citation of citationsIn(clause, declared)) cited.push(...citation.names);
+    }
+    return cited;
+}
+
 /**
  * Does the exemption chain from `name` end at a table a renderer actually drives?
  * One hop is the common case (an intermediate step naming its composed result); the
@@ -312,12 +371,7 @@ function reachesADriver(name, seen = new Set()) {
     seen.add(name);
     const reason = reasons.get(name);
     if (!reason) return false;
-    for (const citation of citationsIn(reason, declared)) {
-        for (const cited of citation.names) {
-            if (cited !== name && reachesADriver(cited, seen)) return true;
-        }
-    }
-    return false;
+    return coverageCitedIn(reason).some((cited) => cited !== name && reachesADriver(cited, seen));
 }
 
 const failures = [];
@@ -347,18 +401,35 @@ for (const table of tables) {
         continue;
     }
     resolved.exempted += 1;
-    for (const sentence of sentencesIn(reason)) {
-        if (PRECEDENT.test(sentence)) continue;
-        const cited = citationsIn(sentence, declared).flatMap((citation) => citation.names);
-        for (const name of cited) {
-            if (name === table.name) continue;
-            resolved.chains += 1;
-            if (reachesADriver(name)) continue;
+    // Every exemption is one of exactly two things, and it has to say which. A reason that
+    // rests on another table NAMES it — as coverage (chain-resolved below) or as a precedent,
+    // whose own header the table arm checks in its own right. A reason that rests on nothing
+    // is a GAP, and says so with somewhere to close it from. The third shape — prose that
+    // reads like coverage and names nothing — is the cheapest unfalsifiable exemption there
+    // is, and no arm can see it: `CORE-ONLY: both renderers exercise this through their real
+    // widgets` passed everything. Three of the 43 were that shape; two were measurably false.
+    const named = citationsIn(reason, declared)
+        .flatMap((citation) => citation.names)
+        .filter((name) => name !== table.name);
+    const coverage = coverageCitedIn(reason).filter((name) => name !== table.name);
+    if (named.length === 0) {
+        if (!GAP_REASON.test(reason)) {
             failures.push(
-                `${where}: its reason cites ${name} as the coverage that makes this table redundant, but ` +
-                    `no chain of citations from ${name} reaches a table any renderer drives.`,
+                `${where}: its ${CORE_ONLY_MARKER} reason names no table, so no part of it is checkable. ` +
+                    `Name the table whose coverage makes this one redundant, or spell it ` +
+                    `"${CORE_ONLY_MARKER} GAP — <why no renderer can drive it>. Tracked in #<issue>".`,
             );
+        } else if (!GAP_ANCHOR.test(reason)) {
+            failures.push(`${where}: a ${CORE_ONLY_MARKER} GAP with no issue anchor has no owner and no retirement.`);
         }
+    }
+    for (const name of coverage) {
+        resolved.chains += 1;
+        if (reachesADriver(name)) continue;
+        failures.push(
+            `${where}: its reason cites ${name} as the coverage that makes this table redundant, but ` +
+                `no chain of citations from ${name} reaches a table any renderer drives.`,
+        );
     }
 }
 
@@ -367,8 +438,8 @@ for (const table of tables) {
 // `adw-data-grid.ts` put its "Both ports" a renderer-tree away from any conformance file.
 for (const dir of [CORE_SUITE_DIR, ...RENDERERS.map((renderer) => renderer.dir)]) {
     for (const block of walk(dir).flatMap(commentBlocks)) {
-        for (const sentence of sentencesIn(block.text)) {
-            const citations = citationsIn(sentence, declared);
+        for (const clause of claimUnitsIn(block.text)) {
+            const citations = citationsIn(clause, declared);
             if (citations.length === 0) continue;
             for (const citation of citations) {
                 const where = `${relative(ROOT, block.file)}:${lineOf(block, citation.spelling)}`;
@@ -376,7 +447,7 @@ for (const dir of [CORE_SUITE_DIR, ...RENDERERS.map((renderer) => renderer.dir)]
                 for (const name of citation.missing) {
                     failures.push(`${where}: names ${name}, which no conformance file declares.`);
                 }
-                const stated = statedCount(sentence, citation.index, citation.kind);
+                const stated = statedCount(clause, citation.index, citation.kind);
                 if (stated !== undefined) {
                     resolved.counted += 1;
                     if (stated !== citation.names.length) {
@@ -386,7 +457,7 @@ for (const dir of [CORE_SUITE_DIR, ...RENDERERS.map((renderer) => renderer.dir)]
                     }
                 }
                 if (citation.names.length === 0) continue;
-                if (BOTH_CLAIM.test(sentence)) {
+                if (BOTH_CLAIM.test(clause)) {
                     resolved.both += 1;
                     for (const { label } of RENDERERS) {
                         const undriven = citation.names.filter((name) => !byLabel.get(label).has(name));
@@ -399,7 +470,7 @@ for (const dir of [CORE_SUITE_DIR, ...RENDERERS.map((renderer) => renderer.dir)]
                     }
                 }
                 for (const { label, pattern } of SUITE_CLAIMS) {
-                    if (!pattern.test(sentence) || !COVERAGE_VERB.test(sentence)) continue;
+                    if (!pattern.test(clause) || !COVERAGE_VERB.test(clause)) continue;
                     resolved.suite += 1;
                     const undriven = citation.names.filter((name) => !byLabel.get(label).has(name));
                     if (undriven.length > 0) {
