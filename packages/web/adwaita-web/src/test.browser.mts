@@ -93,9 +93,9 @@ run({
     AdwSidebarTest,
     AdwEntryRowsTest,
     AdwSplitButtonTest,
-    // LAST on purpose: it registers real webfaces in `document.fonts`, which
-    // changes text metrics for the whole document. Nothing that measures text may
-    // run while they swap in — see `adw-fonts.spec.ts` § "leaves the document as
-    // it found it".
+    // Last, because it registers real webfaces in `document.fonts` and that
+    // changes text metrics for the whole document. Defence in depth only: the
+    // suite removes them in a `finally`, so appending a suite after this line
+    // cannot break it — see `adw-fonts.spec.ts`.
     AdwFontsTest,
 });
