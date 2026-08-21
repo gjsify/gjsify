@@ -15,6 +15,7 @@ import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 import type { PluginOptions } from './types/plugin-options.js';
 import { setupForGjs, setupForNode, setupForBrowser, setupForNativescript } from './app/index.js';
 import { setupLib } from './library/index.js';
+import type { GiSystemProbe } from './plugins/gi-runtime-paths.js';
 
 export interface GjsifyConfig {
     options: RolldownOptions;
@@ -34,6 +35,15 @@ export interface GjsifyPluginInput {
      *   `"…"`   → custom line, supports `${env:NAME[:-default]}` placeholders
      */
     shebang?: boolean | string;
+    /**
+     * `--app gjs` only: system GI library dirs the byte-1 prologue probes on the RUNNING
+     * host. The bundle-relative half of that prologue is deliberately NOT plumbed here —
+     * `processStubPlugin`'s `giRuntimePaths` still takes it, but nothing in this repo can
+     * fill it with a path that is true on the machine a shipped bundle runs on
+     * (`packages/infra/cli/src/utils/gi-runtime-paths.ts` records what was measured), and
+     * an option no caller fills is the defect this wiring was added to remove.
+     */
+    giSystemProbes?: readonly GiSystemProbe[];
 }
 
 /**
@@ -70,6 +80,7 @@ export const gjsifyPlugin = async (
                 userBanner: input.userBanner,
                 userAliases: input.userAliases,
                 shebang: input.shebang,
+                giSystemProbes: input.giSystemProbes,
                 pluginOptions,
             });
         case 'node':

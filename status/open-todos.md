@@ -527,17 +527,70 @@ loader resolves those and GI never sees them, so only `@rpath`/`$ORIGIN` in the
 binaries reaches them — the same distinction ADR 0023 § 4 draws, and the reason
 #1144 is not fixed by this.
 
-**The one open decision before implementing.** The dirs have to come from
-somewhere the bundle can import. Two of the three sources are relative to the app
-tree (gjsify's own `prebuilds/<target>` dirs, a chosen GTK bundle's `libDir`) and
-need nothing new. The SYSTEM dirs need `systemGiLibraryDirs()`, which lives in
-`@gjsify/node-gi` — a package with exactly ONE dependency (`node-addon-api`) and
-not a workspace member, so importing it from a bundle, or giving it a
-`@gjsify/utils` dependency, both change a posture that looks deliberate. Lifting
-the canonical copy to `@gjsify/utils/core` (pure, already the home for this kind
-of helper) and keeping node-gi's as the pinned mirror it already is would leave the
-copy count unchanged and make it importable — but that is node-gi's dependency
-posture, so it wants a deliberate call rather than a drive-by.
+**The open decision is now MADE, and it came out the other way round.** It read:
+the two app-relative sources (gjsify's own `prebuilds/<target>` dirs, a chosen GTK
+bundle's `libDir`) "need nothing new", only the SYSTEM dirs are awkward because
+`systemGiLibraryDirs()` lives in `@gjsify/node-gi`. Both halves were wrong.
+
+The system dirs need no lifting at all: what a bundle can carry is not that
+function's ANSWER — it measures the BUILD host, and answers `[]` on the Linux
+runner that builds most releases — but the CANDIDATE table it probes, which
+`@gjsify/cli` already mirrors (`utils/system-gi.ts`, held to node-gi's copy by an
+output-comparing agreement suite). So the candidates travel and the probe moves
+into the bundle, gated on TWO markers: each prefix's own `girepository-1.0`, and a
+path that says the running host is darwin at all. The second one is not
+belt-and-braces — the table is keyed BY PLATFORM and `systemGiLibraryDirs()` is
+empty off darwin on purpose (ld.so's system-wide cache already resolves these
+leaves), while `/usr/local/lib/girepository-1.0` is a perfectly normal Linux shape
+(`meson setup --prefix=/usr/local`, jhbuild). A bundle cannot read
+`process.platform`, so that scope has to travel as a marker path too; without it
+every such Linux host would get `/usr/local/lib` prepended ahead of its distro
+typelibs AND libraries, which is the two-stacks precedence ADR 0023 § 4 describes.
+The marker is the plist `@gjsify/child_process`'s `detectPlatform()` already
+probes, so the two cannot drift into two answers.
+
+The app-relative dirs are the ones that do not work. Measured in this workspace,
+`detectNativePackages()` answers with ten paths shaped
+`../../../../node_modules/@gjsify/webgl-linux-x64/prebuilds/linux-x64` — the BUILD
+host's target twice over (ADR 0017 gives every target its own package) at the BUILD
+tree's depth, so on the macOS install this entry is about it names nothing, and
+baking it would make `dist/affected.gjs.mjs` — a `--app gjs` bundle
+`scripts/verify-committed-bundles.mjs` rebuilds and compares byte for byte — encode
+which platform siblings the committing machine happened to have. They are left out;
+`activateNativePrebuilds()` already handles them where the fact is true, inside the
+running process.
+
+**Landed:** the prologue ships in every `--app gjs` bundle, carrying the system
+candidates only (`packages/infra/cli/src/utils/gi-runtime-paths.ts`, e2e
+`gi-runtime-prologue`).
+
+**And it reaches less than this entry assumed — measured, gjs 1.88.1, linux.** A
+banner is the entry chunk's BODY, and ESM evaluates a module's imports before its
+body, so every STATIC `import … from 'gi://Ns'` in a bundle has already loaded its
+typelib — and failed or not — before byte 1 of the prologue runs. Pinned in
+`tests/e2e/gi-runtime-prologue`: with the banner text FIRST and `import
+'gi://NoSuchNamespace'` after it, the banner's `print` never appears. `data:` module
+URLs, which would let one file still import a prologue ahead of them, are rejected
+by GJS (`Unsupported URI scheme for importing: data`).
+
+So the prologue covers what loads LATER — `await import('gi://…')`, the established
+gjsify shape for exactly the optional namespaces this is about (`@gjsify/fetch`'s
+Soup, `@gjsify/dom-elements`' PangoCairo, `@gjsify/gamepad`'s Manette, the prebuilt
+`gi://Gjsify*` bridges) — and NOT a GTK app whose `gi://Gtk` is a static import.
+
+**Still open here**, in the order they gate each other:
+
+1. Make the prologue precede the static imports. Every shape found so far changes
+   how a `--app gjs` bundle acquires GI namespaces (a second emitted file imported
+   first, or lowering the externals to `globalThis.imports.gi.Ns` accessors in the
+   body), which also moves the ground under `ship/gi-namespaces.ts` — it reads the
+   `gi://` specifiers off the emitted bundle to compute package dependencies. ADR
+   first, per § Governance.
+2. A darwin end-to-end run: the PREPEND is macOS-measured (the table above) and the
+   wiring is measured on linux — against a stand-in host for the darwin side, since
+   this workspace has no Mac in it — but no Mac has yet run a bundle carrying it.
+   That covers the host marker too: its absence is what a Linux run measures.
+3. The link-closure half below, which no prologue can reach.
 
 ### Bun DID hard-crash in the N-API teardown class — the first one, and the note that predicted it asked to be told
 

@@ -20,6 +20,7 @@ import { getAliasesForGjs } from '../utils/alias.js';
 import { globToEntryPoints } from '../utils/entry-points.js';
 import { nodeModulesPathRewritePlugin, getBundleDirFromOutput } from '../plugins/rewrite-node-modules-paths.js';
 import { processStubPlugin } from '../plugins/process-stub.js';
+import type { GiSystemProbe } from '../plugins/gi-runtime-paths.js';
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 import { shebangPlugin, resolveShebangLine, inputShebangStripPlugin } from '../plugins/shebang.js';
 import { wrapInputWithSideEffects } from '../utils/entry-wrapper.js';
@@ -78,6 +79,13 @@ export interface GjsFactoryInput {
      *   `"…"`   → custom line, supports `${env:NAME[:-default]}` placeholders
      */
     shebang?: boolean | string;
+    /**
+     * System GI library dirs the byte-1 prologue tries at RUNTIME — see `GiSystemProbe`.
+     * The only half a build can honestly fill: the build machine is not the host that
+     * runs the bundle, so what travels is a candidate plus the markers that decide it
+     * there. See `GjsifyPluginInput.giSystemProbes` for why the relative half is absent.
+     */
+    giSystemProbes?: readonly GiSystemProbe[];
     /** Plugin options forwarded to sub-plugins (deepkit, css, …). */
     pluginOptions: PluginOptions;
 }
@@ -237,7 +245,11 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         // into the subset GTK4 understands.
         cssAsStringPlugin({ targets: { firefox: 60 << 16 } }),
         nodeModulesPathRewritePlugin({ bundleDir, runtimeResolve: format === 'esm' }),
-        processStubPlugin({ userBanner: input.userBanner, captureBundleUrl: format === 'esm' }),
+        processStubPlugin({
+            userBanner: input.userBanner,
+            captureBundleUrl: format === 'esm',
+            giSystemProbes: input.giSystemProbes,
+        }),
         // resolveShebangLine returns null when disabled, else the resolved line
         // with `${env:…}` expanded.
         (() => {
