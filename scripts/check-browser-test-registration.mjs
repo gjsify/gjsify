@@ -230,9 +230,7 @@ for (const { name, src, entry, browserOnly } of entries) {
     if (keys === null) {
         const delegate = delegatedEntry(src, source);
         if (delegate === undefined) {
-            problems.push(
-                `${where}: no \`run({…})\` and no \`./test.mjs\` re-export — the bundle registers nothing.`,
-            );
+            problems.push(`${where}: no \`run({…})\` and no \`./test.mjs\` re-export — the bundle registers nothing.`);
             continue;
         }
         keys = registeredKeys(stripComments(readFileSync(delegate, 'utf8')));
