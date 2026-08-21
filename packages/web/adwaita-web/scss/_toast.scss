@@ -120,12 +120,14 @@ adw-toast-overlay {
     }
   }
 
-  // Close affordance — a CSS-drawn "×" (mirrors adw-tab-view's .adw-tab-close;
-  // no symbolic close icon ships in the curated adwaita-web icon set).
+  // Close affordance — `window-close-symbolic` in a 24px circle, as upstream builds it
+  // (adw-toast-widget.ui:64). The element supplies the <adw-icon>; this only places it.
   .adw-toast-close-button {
     box-sizing: border-box;
     flex-shrink: 0;
-    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 24px;
     height: 24px;
     margin: 0;
@@ -148,26 +150,6 @@ adw-toast-overlay {
     &:focus-visible {
       outline: 2px solid var(--accent-color);
       outline-offset: 1px;
-    }
-
-    &::before,
-    &::after {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 11px;
-      height: 1.5px;
-      background-color: currentColor;
-      border-radius: 1px;
-    }
-
-    &::before {
-      transform: translate(-50%, -50%) rotate(45deg);
-    }
-
-    &::after {
-      transform: translate(-50%, -50%) rotate(-45deg);
     }
   }
 }

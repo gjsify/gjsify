@@ -83,8 +83,9 @@ adw-preferences-dialog {
     padding: 0 6px;
   }
 
-  // Round flat close button drawing a CSS "×" glyph (no symbolic close icon
-  // ships in @gjsify/adwaita-icons — same approach as <adw-tab-view>).
+  // Round flat close button drawing a CSS "×" glyph — same approach as
+  // <adw-tab-view>, and for the sizing reason recorded there. `windowCloseSymbolic`
+  // does ship, and is compiled.
   .adw-preferences-dialog-close {
     appearance: none;
     border: none;

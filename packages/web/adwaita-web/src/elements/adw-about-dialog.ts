@@ -385,10 +385,11 @@ export class AdwAboutDialog extends HTMLElement {
         header.setAttribute('title', headerTitle);
 
         if (showClose) {
-            // The close button — drawn with a CSS "×" glyph, the same approach as
-            // adw-tab-view's close affordance: `window-close` has no mask class,
-            // because it is not in the ICONS map in `scripts/build-scss.mjs` that
-            // generates them (`@gjsify/adwaita-icons` does export the SVG).
+            // The close button — drawn with a CSS "×" glyph, the same approach and the
+            // same reason as adw-tab-view's close affordance: `window-close` IS compiled
+            // and does have a mask class; what differs from upstream's
+            // `window-close-symbolic` (adw-sheet-controls.c:118) is the button size this
+            // header budgets for it.
             const close = document.createElement('button');
             close.type = 'button';
             close.className = 'adw-button flat circular adw-about-dialog-close';

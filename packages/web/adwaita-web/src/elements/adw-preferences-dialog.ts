@@ -241,8 +241,8 @@ export class AdwPreferencesDialog extends HTMLElement {
         this._closeBtn.type = 'button';
         this._closeBtn.className = 'adw-preferences-dialog-close';
         this._closeBtn.setAttribute('aria-label', 'Close');
-        // The "×" is a CSS glyph: `window-close` has no mask class, because it is not in
-        // the ICONS map in `scripts/build-scss.mjs` that generates them.
+        // The "×" is a CSS glyph, for the sizing reason adw-tab-view's close affordance
+        // records — not for want of a mask class, which `window-close` has.
         this._closeBtn.addEventListener('click', () => this._attemptClose());
         trailing.appendChild(this._closeBtn);
 

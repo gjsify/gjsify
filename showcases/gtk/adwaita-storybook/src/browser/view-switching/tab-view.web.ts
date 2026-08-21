@@ -44,11 +44,14 @@ export class TabViewWebStory extends StoryElement {
         this._applyAutohide(this.args.autohide as boolean);
     }
 
-    // `view-grid` stands in for the native `view-paged-symbolic` — the closest
-    // icon in @gjsify/adwaita-icons.
+    // The SAME name the GTK twin uses. It stood in as `view-grid` under a comment
+    // blaming @gjsify/adwaita-icons for not having the glyph — which exports it at
+    // actions.ts:981; what was missing was a `.adw-icon--view-paged` mask class, so
+    // the right name drew a solid square and a different glyph was substituted.
+    // `scripts/check-adwaita-icon-masks.mjs` now fails that state instead.
     private _buildPageBody(title: string, body: string): HTMLElement {
         const status = document.createElement('adw-status-page');
-        status.setAttribute('icon', 'view-grid');
+        status.setAttribute('icon', 'view-paged');
         status.setAttribute('title', title);
         status.setAttribute('description', body);
         return status;

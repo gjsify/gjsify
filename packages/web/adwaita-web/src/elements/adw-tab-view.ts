@@ -500,10 +500,13 @@ export class AdwTabView extends HTMLElement {
 
         tab.appendChild(createAdwIcon(null, 'adw-tab-indicator'));
 
-        // Close affordance — a small flat button drawn with a CSS "×" glyph, because
-        // `window-close` has no mask class: it is not in the ICONS map in
-        // `scripts/build-scss.mjs` that generates them. `can-focus=False` in C, so it
-        // stays out of the tab order here too.
+        // Close affordance — a small flat button drawn with a CSS "×" glyph. NOT because
+        // the glyph is unavailable: `window-close` is in the ICONS map and has a mask class
+        // (the comment that used to stand here said otherwise, and was read by two more
+        // widgets). It is a SIZING difference — upstream's close button is 24px around a
+        // 16px symbolic (adw-tab.ui:77), this strip's chip budgets 18px, and a 16px-grid
+        // symbolic scaled into it is a design change, not a rename.
+        // `can-focus=False` in C, so it stays out of the tab order here too.
         const close = document.createElement('button');
         close.type = 'button';
         close.className = 'adw-tab-close';
