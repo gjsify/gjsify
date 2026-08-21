@@ -25,7 +25,7 @@
 // never runs, so nothing could fail on a `CORE-VIA:` declaration that had stopped
 // holding.
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 
 /** Repo-relative source roots, so callers can name them in their own messages. */
@@ -71,9 +71,11 @@ const CORE_PACKAGE = '@gjsify/adwaita-core';
 // header, where `CORE-ONLY:` already puts this kind of claim. Spelled with the
 // specifier the file imports, so declaration and code stay one vocabulary.
 const CORE_VIA = 'CORE-VIA:';
-const CORE_VIA_PATTERN = /CORE-VIA:\s*(\S+)\s*—\s*([^\n]*)/;
+const CORE_VIA_PATTERN = /CORE-VIA:\s*(\S+)\s*—\s*([^\n]*)/g;
 
-/** Shortest reason that can name the sibling and say what it carries. */
+// A floor on length, not on meaning — filler clears it, and no check reads a sentence.
+// It is the LAST arm for that reason: what stands between an arbitrary sibling and a
+// published `✅ core` is the import arm in {@link coreReach}, never this one.
 const MIN_REASON = 40;
 
 /** The leading comment block: a claim a reader of this file meets before the code. */
@@ -87,13 +89,39 @@ function fileHeader(text) {
     return header.join('\n');
 }
 
-/** What a module imports or re-exports AS VALUES — comments out, `import type` out. */
+/**
+ * `{ type A, type B }` — a named clause with no value binding at all. Neither renderer
+ * sets `verbatimModuleSyntax`, so TypeScript erases such a statement whole; the web
+ * `adw-menu-button` carries a separate side-effect import for precisely that reason.
+ */
+function bindsOnlyTypes(clause) {
+    const named = /^\{([^}]*)\}$/.exec(clause.trim());
+    if (named === null) return false;
+    const entries = named[1]
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter((entry) => entry !== '');
+    return entries.length > 0 && entries.every((entry) => /^type\s+\S/.test(entry));
+}
+
+/**
+ * What a module imports or re-exports AS VALUES — comments out, and BOTH `type`
+ * spellings out: the statement-level `import type { X } from` and the inline
+ * `import { type X } from`, which emits nothing either ({@link bindsOnlyTypes}).
+ *
+ * A clause this cannot read as a value binding counts as no edge. That direction is
+ * deliberate: an unseen edge under-claims a widget, which the matrix already words as
+ * "no path is VISIBLE", while a claimed edge nothing runs is the incident below.
+ */
 function valueImports(text) {
     const code = text.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/(^|[^:])\/\/[^\n]*/g, '$1');
-    return [
-        ...code.matchAll(/(?:^|[\n;])\s*(?:import|export)\s+(?!type[\s{])[^'"]*from\s*['"]([^'"]+)['"]/g),
-        ...code.matchAll(/(?:^|[\n;])\s*import\s*['"]([^'"]+)['"]/g),
-    ].map(([, spec]) => spec);
+    const specs = [...code.matchAll(/(?:^|[\n;])\s*import\s*['"]([^'"]+)['"]/g)].map(([, spec]) => spec);
+    for (const [, clause, spec] of code.matchAll(
+        /(?:^|[\n;])\s*(?:import|export)\s+(?!type[\s{])([^'"]*)from\s*['"]([^'"]+)['"]/g,
+    )) {
+        if (!bindsOnlyTypes(clause)) specs.push(spec);
+    }
+    return specs;
 }
 
 /**
@@ -113,9 +141,13 @@ function valueImports(text) {
  * claim about the source view. The verdict is per FILE: every tag
  * `adw-alert-dialog.ts` registers carries that one file's edge, no finer.
  *
- * THROWS on a `CORE-VIA:` header that does not hold — see {@link CORE_VIA}. The
- * named module must reach core BY IMPORT, not by a marker of its own: a chain of
- * declarations is a ledger, and only the first link of it stays checkable.
+ * THROWS on a `CORE-VIA:` header that does not hold — see {@link CORE_VIA}. Held in
+ * order: the declaring file must IMPORT the specifier it names (a declaration whose
+ * own first edge is missing is the incident above, restored — the marker outlives the
+ * import and the widget stays core-backed off prose); the named module must be a
+ * SIBLING ELEMENT of this renderer, because a helper is what the one hop already
+ * covers and needs no marker; and it must reach core BY IMPORT, not by a marker of its
+ * own, since a chain of declarations is a ledger whose first link alone stays checkable.
  *
  * @param {Set<string>} rendererFiles absolute paths of the renderer element files
  * @param {string} root repository root, for naming files in a failure
@@ -149,34 +181,50 @@ export function coreReach(rendererFiles, root) {
         if (!text.includes(CORE_VIA)) return direct;
 
         const where = `${relative(root, file)}: CORE-VIA`;
-        const marker = CORE_VIA_PATTERN.exec(fileHeader(text));
-        if (marker === null) {
+        // EVERY occurrence is held, not the first one found: an unread marker is
+        // decoration, it can carry a second module that never gets checked, and a bare
+        // `TODO` parked in it hides from `gjsify/todo-needs-anchor` at the same time.
+        const markers = [...fileHeader(text).matchAll(CORE_VIA_PATTERN)];
+        if (markers.length !== text.split(CORE_VIA).length - 1) {
             throw new Error(
                 `${where} is not in the file header, or is not spelled \`CORE-VIA: <module> — <reason>\`. ` +
                     'Nothing reads it where it stands, so the widget is scored as if it were not there.',
             );
         }
-        const [, spec, reason] = marker;
         if (direct) {
             throw new Error(
-                `${where} names ${spec}, but this file reaches ${CORE_PACKAGE} on its own. ` +
+                `${where} declares a delegation, but this file reaches ${CORE_PACKAGE} on its own. ` +
                     'The marker carries nothing and outlives its reason — delete it.',
             );
         }
-        const target = sibling(file, spec);
-        if (!existsSync(target)) {
-            throw new Error(`${where} names ${spec}, which does not resolve to a module (${relative(root, target)}).`);
-        }
-        if (!byImport(target)) {
-            throw new Error(
-                `${where} names ${spec}, which does not reach ${CORE_PACKAGE} itself. ` +
-                    'Delegating to a second copy is still two copies.',
-            );
-        }
-        if (reason.trim().length < MIN_REASON) {
-            throw new Error(
-                `${where} names ${spec} with no real reason — say what behaviour runs there instead of here.`,
-            );
+        const imported = valueImports(text);
+        for (const [, spec, reason] of markers) {
+            if (!imported.includes(spec)) {
+                throw new Error(
+                    `${where} names ${spec}, which this file does not import as a value. ` +
+                        'A delegation with no import edge behind it is a sentence, and a sentence is ' +
+                        'what published this widget core-backed the first time.',
+                );
+            }
+            const target = sibling(file, spec);
+            if (!rendererFiles.has(target)) {
+                throw new Error(
+                    `${where} names ${spec} (${relative(root, target)}), which is not an element of ` +
+                        'this renderer. A helper is already the one hop above and needs no marker; a ' +
+                        'sibling ELEMENT is the only edge that hop deliberately refuses to see.',
+                );
+            }
+            if (!byImport(target)) {
+                throw new Error(
+                    `${where} names ${spec}, which does not reach ${CORE_PACKAGE} itself. ` +
+                        'Delegating to a second copy is still two copies.',
+                );
+            }
+            if (reason.trim().length < MIN_REASON) {
+                throw new Error(
+                    `${where} names ${spec} with no real reason — say what behaviour runs there instead of here.`,
+                );
+            }
         }
         return true;
     };
