@@ -88,12 +88,11 @@ const UNDECLARED_SUBMODULES = {
 /** This gate's own tracked path, posix-spelled — see {@link vouchedFor}. */
 const SELF = 'scripts/check-refs-citations.mjs';
 
-// ONE extension list, read from both ends: which tracked files this gate OPENS,
-// and which path shapes count as a citation once opened. They were two lists, and
-// the smaller one silently decided coverage — 28 tracked files (18 `.cc`, 4
-// `.vala`, 2 `.rs`, 2 `.toml`, an `.astro` and a `meson.build`) cited upstream
-// coordinates the scan never read while the other list already blessed them as
-// citable, hiding the whole native/Rust/Vala provenance surface.
+// ONE extension list, read from both ends: which tracked files this gate OPENS, and
+// which path shapes count as a citation once opened. They were two, and the smaller
+// silently decided coverage — 28 files (18 `.cc`, 4 `.vala`, 2 `.rs`, 2 `.toml`, an
+// `.astro`, a `meson.build`) cited coordinates the scan never read, which is the
+// whole native/Rust/Vala provenance surface.
 const CITABLE =
     'c|h|cpp|cc|m|rs|vala|py|sh|ts|tsx|mts|cts|js|mjs|cjs|jsx|scss|sass|css|md|mdx|html|xml|ui|json|ya?ml|svg|blp|gir|toml|astro|txt|build';
 
@@ -123,12 +122,11 @@ const SOURCE_FILE = new RegExp(`\\.(?:${CITABLE})$`);
 const ELIDED_SEGMENT = /(?:^|\/)(?:…|\.{1,3})(?:\/|$)/;
 
 // One Reference line, several files in ONE directory: only the first carries the
-// `refs/` prefix, so only the first was ever checked. 29 lines spell it that way,
-// 14 in the Adwaita family. A continuation is a file name right after a comma —
-// optionally over a comment-line break — and CLOSED by end of line, another comma,
-// a `)` or a parenthetical. That closer is the whole discriminator: it keeps
-// `refs/create-ecdh/browser.js, Node.js lib/internal/…` out, where "Node.js" is a
-// sentence, not a sibling file.
+// `refs/` prefix, so only the first was ever checked — 29 lines spell it that way,
+// 14 of them Adwaita. A continuation is a file name after a comma, optionally over
+// a comment-line break, CLOSED by end of line, another comma, `)` or a parenthetical.
+// That closer is the whole discriminator: it keeps `refs/create-ecdh/browser.js,
+// Node.js lib/internal/…` out, where "Node.js" is a sentence, not a sibling file.
 const CONTINUATION =
     /^,[ \t]*(?:\r?\n[ \t]*(?:\/\/|\*|#)[ \t]*)?([A-Za-z0-9_][A-Za-z0-9._-]*\.[A-Za-z0-9]+)(?=$|[\n,)]|[ \t]\()/;
 

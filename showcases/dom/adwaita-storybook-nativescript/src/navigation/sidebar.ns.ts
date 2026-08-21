@@ -59,10 +59,9 @@ export class SidebarNsStory extends StoryView {
 
     updateArgs(_args: StoryArgs): void {
         if (!this._sidebar) return;
-        // The `mode` arg (sidebar/page) has no NS equivalent — AdwSidebar has no
-        // mode switch in this surface, so only the selection is live-bound. Read it
-        // so the control stays bound to this rendering too.
-        void (this.args.mode as string);
+        // Narrowed, not cast: the two-option SELECT arrives as a bare string, and
+        // the GTK rendering's modeFromArg makes the same total function of it.
+        this._sidebar.mode = this.args.mode === 'page' ? 'page' : 'sidebar';
         this._sidebar.selected = this.args.selected as number;
         this._syncContent();
     }

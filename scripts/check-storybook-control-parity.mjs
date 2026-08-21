@@ -30,6 +30,15 @@
 // ledger here nearly empty: the answer to "this target cannot do it" is a read
 // and a sentence in the file, not an entry in a list nobody opens.
 //
+// AND THE SENTENCE IS HELD, because "this target cannot honour it" IS derivable —
+// not from the story, from the WIDGET it drives. A `void`-only read whose renderer
+// declares a settable property of that name is a control the target CAN honour and
+// the story did not wire; five were, three of the sentences measurably false
+// (`AdwTabView.autohide` hides the very bar its comment said NativeScript cannot).
+// Same shape as `coreReach`'s `CORE-VIA:` arm: a claim in a comment needs an edge
+// in the tree behind it. Comments are stripped first, because that reason sits
+// beside the read it explains and the comment ALONE satisfied the raw-file scan.
+//
 // Plain Node over the repo's own files — no install, no build — so it runs in
 // `audit-runtimes.yml` next to the other repo-scoped guards.
 //
@@ -39,7 +48,17 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { ADWAITA_NS_STORY_SRC, ADWAITA_STORY_SRC, adwaitaStoryMetas, storyFilesWith } from './adwaita-elements.mjs';
+import {
+    ADWAITA_NS_STORY_SRC,
+    ADWAITA_STORY_SRC,
+    adwaitaNativeScriptWidgets,
+    adwaitaStoryMetas,
+    adwaitaWebElements,
+    elementName,
+    settableProperties,
+    storyFilesWith,
+    stripComments,
+} from './adwaita-elements.mjs';
 
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
@@ -55,12 +74,26 @@ const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..
  */
 const CANNOT_HONOUR = {};
 
-/** Where each rendering of a story lives. */
+/**
+ * Where each rendering lives, and — where the widgets it drives are in THIS repo —
+ * how to find the widget file behind a story name. GTK has none: its stories build
+ * `@girs/*` classes out of the GNOME typelibs, so nothing here can read what
+ * `Adw.Sidebar` accepts, and its `void` reads are taken at their word.
+ */
 const TARGETS = [
-    { suffix: '.story.ts', label: 'GTK', src: ADWAITA_STORY_SRC },
-    { suffix: '.web.ts', label: 'browser', src: ADWAITA_STORY_SRC },
-    { suffix: '.ns.ts', label: 'NativeScript', src: ADWAITA_NS_STORY_SRC },
+    { suffix: '.story.ts', label: 'GTK', src: ADWAITA_STORY_SRC, widgets: null },
+    {
+        suffix: '.web.ts',
+        label: 'browser',
+        src: ADWAITA_STORY_SRC,
+        widgets: (root) => new Map([...adwaitaWebElements(root)].map(([tag, file]) => [elementName(tag), file])),
+    },
+    { suffix: '.ns.ts', label: 'NativeScript', src: ADWAITA_NS_STORY_SRC, widgets: adwaitaNativeScriptWidgets },
 ];
+
+// The sanctioned "cannot honour it" read. Stripping these is how the arm above
+// asks whether anything ELSE in the rendering reads the arg.
+const VOID_READ = /\bvoid\s*\([^;]*\);?/g;
 
 // A control is an object literal carrying `type: ControlType.…`, and the set is
 // read from THOSE rather than from the `controls: [ … ]` array around them. The
@@ -149,14 +182,32 @@ try {
     process.exit(1);
 }
 
-const renderings = TARGETS.map((target) => ({
-    ...target,
-    files: storyFilesWith(join(ROOT, target.src), target.suffix),
-}));
+let renderings;
+try {
+    renderings = TARGETS.map((target) => ({
+        ...target,
+        files: storyFilesWith(join(ROOT, target.src), target.suffix),
+        widgetFiles: target.widgets === null ? null : target.widgets(ROOT),
+    }));
+} catch (error) {
+    // The widget readers throw on a vacuous scan and on a broken `CORE-VIA:`, by design.
+    console.error(`check-storybook-control-parity: ${error.message}`);
+    process.exit(1);
+}
 
 const failures = [];
+/** Every `<meta>.<control>@<target>` key the walk below actually reached. */
+const visited = new Set();
+/** widget file → the properties it lets a caller set; read once per file. */
+const setters = new Map();
+const settersOf = (file) => {
+    if (!setters.has(file)) setters.set(file, settableProperties(readFileSync(join(ROOT, file), 'utf8')));
+    return setters.get(file);
+};
+
 let declared = 0;
 let held = 0;
+let voided = 0;
 
 for (const [name, meta] of metas) {
     // Per FILE, not per meta: three files declare two metas each, and the matching
@@ -179,15 +230,26 @@ for (const [name, meta] of metas) {
             // this one's — reporting it twice would make one fix look like two.
             continue;
         }
-        const source = readFileSync(file, 'utf8');
+        const code = stripComments(readFileSync(file, 'utf8'));
+        const live = code.replaceAll(VOID_READ, '');
+        const widgetFile = target.widgetFiles?.get(name);
         for (const control of controls) {
             declared += 1;
             const key = `${name}.${control}@${target.label}`;
-            if (readsArg(source, control)) {
+            visited.add(key);
+            if (readsArg(code, control)) {
                 if (key in CANNOT_HONOUR) {
                     failures.push(`${key}: ledgered as unreadable, but the rendering reads it — drop the stale entry.`);
-                } else {
+                } else if (readsArg(live, control)) {
                     held += 1;
+                } else if (widgetFile !== undefined && settersOf(widgetFile).has(control)) {
+                    failures.push(
+                        `${key}: read with \`void\` and a sentence saying this target cannot honour the\n` +
+                            `    control — but ${widgetFile} declares \`set ${control}\`, so it can. The switch still\n` +
+                            '    moves and still does nothing. Wire it, and delete the sentence that says otherwise.',
+                    );
+                } else {
+                    voided += 1;
                 }
                 continue;
             }
@@ -210,10 +272,15 @@ if (declared === 0) {
     process.exit(1);
 }
 
+// Against the keys the walk REACHED, not against the meta names: an entry naming a
+// deleted control, or a target label spelled `web` instead of `browser`, passed a
+// meta-only test and was counted in the summary — a ledger figure naming nothing.
 for (const key of Object.keys(CANNOT_HONOUR)) {
-    const [, metaName] = /^([^.]+)\./.exec(key) ?? [];
-    if (metaName !== undefined && metas.has(metaName)) continue;
-    failures.push(`${key}: ledgered here, but no meta of that name exists — the entry covers nothing.`);
+    if (visited.has(key)) continue;
+    failures.push(
+        `${key}: ledgered here, but no rendering declares that control — the entry covers nothing.\n` +
+            '    Check the meta name, the control name and the target label against the summary line.',
+    );
 }
 
 if (failures.length > 0) {
@@ -229,6 +296,7 @@ if (failures.length > 0) {
 
 const ledgered = Object.keys(CANNOT_HONOUR).length;
 console.log(
-    `check-storybook-control-parity: ${declared} (control, rendering) pairs — ${held} read, ` +
+    `check-storybook-control-parity: ${declared} (control, rendering) pairs — ${held} wired, ` +
+        `${voided} read for parity where the target has no property to set, ` +
         `${ledgered} ledgered as unreadable.`,
 );

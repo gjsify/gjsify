@@ -197,6 +197,17 @@ export function stripComments(text) {
 }
 
 /**
+ * Every property a widget class lets a caller SET — `set <name>(`.
+ *
+ * The question is "can this target honour that control at all", and a settable
+ * property of the control's own name is the answer a story cannot argue with.
+ * Accessors only: a `setFoo(value)` method is the widget's internal wiring, and
+ * a control is bound to a property.
+ */
+export const settableProperties = (text) =>
+    new Set([...stripComments(text).matchAll(/\bset\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g)].map(([, name]) => name));
+
+/**
  * What a module imports or re-exports AS VALUES — comments out, and BOTH `type`
  * spellings out: the statement-level `import type { X } from` and the inline
  * `import { type X } from`, which emits nothing either ({@link bindsOnlyTypes}).

@@ -32,10 +32,7 @@ export class BannerNsStory extends StoryView {
         this._banner.title = this.args.title as string;
         this._banner.buttonLabel = this.args.buttonLabel as string;
         this._banner.revealed = this.args.revealed as boolean;
-        // The NS banner label is plain text — the CSS subset has no markup or
-        // rich-text rendering — so `useMarkup` has nothing to switch. Read it so the
-        // control stays bound to this rendering too.
-        void (this.args.useMarkup as boolean);
+        this._banner.useMarkup = this.args.useMarkup as boolean;
     }
 }
 
