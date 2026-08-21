@@ -299,6 +299,15 @@ jobs:
       - name: Check every adwaita-web teardown has a rebind behind it
         run: node scripts/check-adwaita-connect-rebind.mjs
 
+      # Deleting one name from the `run({ … })` literal in adwaita-web's
+      # `test.browser.mts` — leaving the import, so nothing lints or type-checks
+      # differently — took a whole spec out of the suite and reported the exact
+      # pre-change baseline, green, with no warning anywhere. A spec file can sit in
+      # `src/` forever and never execute, which is the one failure a test suite cannot
+      # report about itself.
+      - name: Check every adwaita-web spec is enrolled in its browser run
+        run: node scripts/check-adwaita-web-specs-run.mjs
+
       # A conformance table with no RENDERER behind it asserts a derivation against
       # itself. A census (#1072) found 43 such tables, 16 of them silent gaps rather
       # than deliberate — and two headers in the same area were asserting coverage
@@ -676,6 +685,15 @@ jobs:
       # so no spec could have gone red. Full incident in the script header.
       - name: Check every adwaita-web teardown has a rebind behind it
         run: node scripts/check-adwaita-connect-rebind.mjs
+
+      # Deleting one name from the `run({ … })` literal in adwaita-web's
+      # `test.browser.mts` — leaving the import, so nothing lints or type-checks
+      # differently — took a whole spec out of the suite and reported the exact
+      # pre-change baseline, green, with no warning anywhere. A spec file can sit in
+      # `src/` forever and never execute, which is the one failure a test suite cannot
+      # report about itself.
+      - name: Check every adwaita-web spec is enrolled in its browser run
+        run: node scripts/check-adwaita-web-specs-run.mjs
 
       # A conformance table with no RENDERER behind it asserts a derivation against
       # itself. A census (#1072) found 43 such tables, 16 of them silent gaps rather
