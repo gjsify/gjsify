@@ -37,8 +37,9 @@
 //
 // CLAIM arm — every comment SENTENCE in the core or either renderer that names a
 // vector table is resolved against reality:
-//   6. a name, `PREFIX_*` glob or `A/B_VECTORS` pair that matches no declared
-//      table                                                               → FAIL
+//   6. a `*_VECTORS` name or `A/B_VECTORS` pair that matches no declared table → FAIL
+//      (a `PREFIX_*` glob expanding to nothing is NOT a citation — these trees
+//      are ports of C and cite upstream enum families the same way)
 //   7. a counted citation ("the five OVERLAY_SWIPE_* tables") whose count is
 //      wrong. `OVERLAY_SWIPE_*` IS five real tables, so the arity is the whole
 //      question: a checker that rejected globs would reject a true sentence  → FAIL
@@ -225,13 +226,14 @@ function citationsIn(text, declared) {
     for (const match of text.matchAll(CITATION)) {
         const [spelling, globPrefix, pairHead, pairTail] = match;
         if (globPrefix) {
-            found.push({
-                spelling,
-                kind: 'glob',
-                index: match.index,
-                names: [...declared].filter((name) => name.startsWith(globPrefix)),
-                missing: [],
-            });
+            const expanded = [...declared].filter((name) => name.startsWith(globPrefix));
+            // A glob that expands to NOTHING is not a citation. These trees are ports of C
+            // and cite upstream constant families the same way — `GTK_STATE_FLAG_*`,
+            // `ADW_TOAST_PRIORITY_*`, and `O_*`/`DH_CHECK_*` elsewhere in the repo. Reading
+            // those as broken table citations rejected true sentences, and this gate carries
+            // no `paths:` filter, so one such comment blocks every merge in the repo.
+            if (expanded.length === 0) continue;
+            found.push({ spelling, kind: 'glob', index: match.index, names: expanded, missing: [] });
         } else if (pairHead) {
             const shared = pairHead.slice(0, pairHead.lastIndexOf('_') + 1);
             const expanded = [`${pairHead}_VECTORS`, `${shared}${pairTail}`];
@@ -373,10 +375,6 @@ for (const dir of [CORE_SUITE_DIR, ...RENDERERS.map((renderer) => renderer.dir)]
                 resolved.citations += 1;
                 for (const name of citation.missing) {
                     failures.push(`${where}: names ${name}, which no conformance file declares.`);
-                }
-                if (citation.kind === 'glob' && citation.names.length === 0) {
-                    failures.push(`${where}: the glob ${citation.spelling} matches no declared table.`);
-                    continue;
                 }
                 const stated = statedCount(sentence, citation.index, citation.kind);
                 if (stated !== undefined) {
