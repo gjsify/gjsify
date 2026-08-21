@@ -64,6 +64,7 @@ import {
 } from '../../scripts/gl-implementation.mjs';
 import { decodeProbeProblems, spawnDecodeProbe } from '../../scripts/decode-probe.mjs';
 import { isBundledGstPlugin } from '../../scripts/gst-plugins.mjs';
+import { bundleRelativeLoaderCache, loaderCacheProblems } from '../../scripts/pixbuf-loader-cache.mjs';
 import {
     REQUIRED_NAMESPACES,
     WINDOWING_REQUIRED_NAMESPACES,
@@ -435,10 +436,16 @@ const windowing = {
     gtksource: false,
 };
 if (WINDOWING) {
-    // 4a. gdk-pixbuf loaders + a bundle-relative loaders.cache. The cache maps each
-    // decoder DLL to its mime/extensions; gdk-pixbuf resolves the DLL paths in it
-    // relative to GDK_PIXBUF_MODULEDIR when set (node-gi sets it), so we rewrite the
-    // absolute build paths the query tool emits down to leaf names.
+    // 4a. gdk-pixbuf loaders + a TOPLEVEL-relative loaders.cache. The cache maps each
+    // decoder DLL to its mime/extensions, and the query tool emits absolute build paths
+    // that resolve on this machine alone, so the module lines get rewritten.
+    //
+    // Rewritten to `lib/gdk-pixbuf-2.0/2.10.0/loaders/<leaf>`, NOT to `<leaf>`. gdk-pixbuf
+    // joins a relative cache entry with the bundle TOPLEVEL and never consults
+    // GDK_PIXBUF_MODULEDIR, which is a generator-only variable — the leaf this used to
+    // write resolved to `<bundle>\<leaf>`, so every SVG icon shipped undecodable while the
+    // cache still parsed and still advertised `svg`. pixbuf-loader-cache.mjs carries the
+    // measurement; `loaderCacheProblems` below is what makes the class fail the build.
     if (existsSync(gdkPixbufLoaderDir)) {
         const loadersOut = join(OUT, 'lib', 'gdk-pixbuf-2.0', '2.10.0', 'loaders');
         mkdirSync(loadersOut, { recursive: true });
@@ -460,9 +467,17 @@ if (WINDOWING) {
             } catch (error) {
                 cache = typeof error?.stdout === 'string' ? error.stdout : '';
             }
-            // A loader header line is a quoted absolute path; strip it to the leaf so
-            // GDK_PIXBUF_MODULEDIR resolves it in the consumer's bundle.
-            const rel = cache.replace(/^"(.*[\\/])?([^"\\/]+\.dll)"\s*$/gim, '"$2"');
+            const rel = bundleRelativeLoaderCache(cache);
+            // Asserted BEFORE the write, and against the bundle on disk: a cache naming a
+            // module that is not there is the defect above, and it is invisible to every
+            // other check here (§ 5b counts the files, and they are all present).
+            const cacheProblems = loaderCacheProblems(rel, { bundleDir: OUT });
+            if (cacheProblems.length > 0) {
+                console.error(
+                    `build-gtk-runtime: THE LOADER CACHE POINTS OUTSIDE THE BUNDLE —\n  ${cacheProblems.join('\n  ')}`,
+                );
+                process.exit(1);
+            }
             writeFileSync(cacheOut, rel);
             console.log(`build-gtk-runtime: wrote loaders.cache (${windowing.pixbufLoaders} loaders, bundle-relative)`);
         } else {
@@ -724,11 +739,12 @@ if (WINDOWING) {
 // `verified icons: 863`; nobody has ever run a decode against the win32 bundle at all,
 // which is the same missing signal with no measurement behind it yet.
 //
-// This is where the win32 loader mechanism finally gets exercised rather than reasoned
-// about: the bundle's `loaders.cache` names its modules by BARE LEAF and relies on
-// gdk-pixbuf honouring `GDK_PIXBUF_MODULEDIR` (gvsbuild's build IS relocatable, unlike
-// Homebrew's — see § 4a), and node-gi's gtk-runtime.js sets that variable. A decode
-// through node-gi therefore exercises exactly that chain end to end.
+// This is where the win32 loader mechanism finally got exercised rather than reasoned
+// about, and it FAILED on its first run: the cache named its modules by BARE LEAF on the
+// theory that gdk-pixbuf honours `GDK_PIXBUF_MODULEDIR`, which it does not, so the
+// bundle's one external loader resolved to a path nothing writes and the probe recorded
+// `0x0` for an SVG the manifest counted among 820 icon files. § 4a writes the cache
+// toplevel-relative now and asserts it; this decode is what says the chain WORKS.
 //
 // The RECORD goes into the manifest and `verify-bundle-manifest.mjs` requires it, so a
 // bundle built by an older builder, or with this step bypassed, cannot publish.
