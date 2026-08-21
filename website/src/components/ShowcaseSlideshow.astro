@@ -1,6 +1,7 @@
 ---
 // Showcase slideshow — cycles through 3 interactive demos with code overlays.
 // Each slide lazy-mounts its demo on first view to avoid loading all 3 at once.
+// oxlint-disable-next-line gjsify/no-css-side-effect-import -- Astro IS a real CSS pipeline: measured, website/dist/_astro/common.*.css carries @font-face{font-family:Coming Soon and the emitted .woff2
 import '@fontsource/coming-soon';
 import { Code } from '@astrojs/starlight/components';
 import CommandTabs from './CommandTabs.astro';

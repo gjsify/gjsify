@@ -1,42 +1,25 @@
 // `gjsify/no-css-side-effect-import` — a bare `import '<something that is CSS>';`
 // registers nothing in a gjsify build, and says so nowhere.
 //
-// THE MECHANISM. `cssAsStringPlugin` (`@gjsify/rolldown-plugin-gjsify`) hooks
-// `load` for `.css`/`.scss`/`.sass` and returns `export default "<css>"` — a JS
-// module, deliberately, because Rolldown removed its CSS bundling and would
-// otherwise error on the extension. Every `--app browser` and `--app gjs` build
-// composes it. A module whose entire body is a string literal has NO side effect,
-// so a side-effect import of it is tree-shaken, and the build exits 0.
+// THE MECHANISM. `cssAsStringPlugin` (`@gjsify/rolldown-plugin-gjsify`, composed by
+// every `--app browser`/`--app gjs` build) hooks `load` for `.css`/`.scss`/`.sass`
+// and returns `export default "<css>"` — a JS module, because Rolldown dropped CSS
+// bundling and would otherwise error on the extension. A module whose whole body is
+// a string literal has NO side effect, so a side-effect import of it is tree-shaken
+// and the build exits 0.
 //
-// THE MEASUREMENT. `packages/web/adwaita-web/src/index.ts` opened with
-// `import '@gjsify/adwaita-fonts';` and the comment "Registers @font-face
-// (fontsource pattern)" for the package's whole life. A probe entry whose only
-// statement is that import builds, on 0.41.0, to a ZERO-BYTE bundle with zero
-// `@font-face`. Nobody noticed because the workstation is a GNOME desktop with
-// `adwaita-sans-fonts` installed system-wide, so every screenshot and every
-// computed `font-family` looked right over a tree that shipped no font.
+// THE INCIDENT it was written for — a 0-byte bundle, exit 0, invisible on a GNOME
+// host — is `docs/code-anti-patterns.md` § "a side-effect import that has no side
+// effect". Repo-wide there were exactly TWO instances, and both had the convention
+// already written down beside them (`@gjsify/adwaita-web`'s entry comment,
+// `style.css.d.ts`): two files followed it and one did not, which is the
+// measurement that turns a comment into a check.
 //
-// Repo-wide there were exactly two of these, and the second says the same thing
-// from the other end: `showcases/dom/three-loader-ldraw` imported
-// `@gjsify/adwaita-web/style.css` for its side effect, one line under
-// `import '@gjsify/adwaita-web'` — which self-applies that stylesheet precisely
-// BECAUSE the CSS import cannot. The convention was already written down, in the
-// entry's own comment and in `style.css.d.ts`. Two files followed it and one did
-// not, which is the measurement that turns a comment into a check.
-//
-// WHY NOT IN THE PLUGIN, where the knowledge is. That was the first choice and it
-// does not survive the two-engine constraint. The hooks that could see it —
-// `generateBundle`/`renderChunk` payloads, `this.getModuleInfo(id).importers` —
-// are argument-less no-ops on the `@gjsify/rolldown-native` bridge
-// (`src/ts/plugins.ts`: lifecycle hooks are invoked as `handler.call(ctx)`, and
-// the context exposes only `resolve`/`warn`/`error`). A diagnostic built on them
-// would fire under Node and silently not exist under GJS — the runtime this repo
-// targets. The engine-symmetric hooks are `resolveId` and `transform`, and both
-// are per-import/per-module: under the native bridge that is an extra IPC round
-// trip per specifier, or every module's source across the GI boundary, paid by
-// every build to catch a two-site class. A lint rule costs one AST visit in a
-// gate that already runs. The consumer-facing half — a build that names the
-// import — stays open in `status/open-todos.md`.
+// WHY A LINT RULE AND NOT THE PLUGIN, where the knowledge is: the hooks that
+// could see a dropped module are argument-less no-ops on the
+// `@gjsify/rolldown-native` bridge, so the diagnostic would exist under Node and
+// not under GJS. Full reasoning, and the consumer-facing half that is still
+// missing, in `status/open-todos.md`.
 //
 // WHAT IT FLAGS. An `ImportDeclaration` with NO specifiers whose source is CSS:
 // either by extension (`./app.css`), or because the package it names exports CSS
@@ -49,16 +32,11 @@
 // bare import of anything that resolves to JS, which is the ordinary `/register`
 // pattern and must stay silent.
 //
-// SCOPE. Repo-wide, with exactly ONE override: `website/**`. Under a REAL CSS
-// pipeline a bare CSS import is the correct spelling, and Astro is one —
-// `import '@fontsource/coming-soon'` in `ShowcaseSlideshow.astro` really does put
-// `@font-face{font-family:Coming Soon` and an emitted `.woff2` into
-// `website/dist/_astro/common.*.css`, which is how that override was decided
-// rather than assumed. The rule found that file on its first repo-wide run; the
-// author's own grep had missed it, because it did not read `.astro`.
-// `@gjsify/vite-plugin-gjsify` installs no `cssAsStringPlugin` unless a project
-// asks for `cssAsString: true`, so a Vite tree that opts INTO the string form
-// drops the override with it.
+// SCOPE. Repo-wide, no config override: the one legitimate site (an Astro component
+// — Astro IS a CSS pipeline) carries a per-line reasoned disable, which
+// `reportUnusedDisableDirectives` retires the day the import goes. The rule found
+// that file on its first run; the author's own grep had missed it, not reading
+// `.astro`.
 
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve as resolvePath } from 'node:path';
@@ -197,9 +175,12 @@ export const noCssSideEffectImportRule: Rule = {
                         'and the build exits 0 with the stylesheet nowhere in it (measured: a probe entry whose ' +
                         'only statement was this import produced a 0-byte bundle). Import the VALUE and apply it ' +
                         `(\`import css from '${value}'\`, then a <style> whose textContent is that string), or ` +
-                        'drop the line if the stylesheet is already applied elsewhere. Under a real CSS pipeline ' +
-                        '(Vite/webpack) the side-effect form IS correct — say so in a reasoned oxlint-disable ' +
-                        'comment.',
+                        'drop the line if the stylesheet is already applied elsewhere. For a FONT that is still ' +
+                        "only half of it: a relative `url()` inside the recovered string resolves against the " +
+                        'document, and an `--app browser` build emits one file and no assets, so the rule parses ' +
+                        'and the face 404s — it needs a `data:` URI or an asset-emitting pipeline. Under a real ' +
+                        'CSS pipeline (Vite/webpack) the side-effect form IS correct — say so in a reasoned ' +
+                        'oxlint-disable comment.',
                     node,
                 });
             },

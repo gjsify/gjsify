@@ -127,23 +127,6 @@
     },
     "overrides": [
         {
-            // `website/` is an ASTRO app — a real CSS pipeline, which is the one
-            // place a bare CSS import is the CORRECT spelling. Measured rather than
-            // assumed: `website/dist/_astro/common.*.css` carries the
-            // `@font-face{font-family:Coming Soon` rule and the emitted
-            // `coming-soon-latin-400-normal.*.woff2` asset that
-            // `import '@fontsource/coming-soon'` in `ShowcaseSlideshow.astro` put
-            // there. The rule is about a build that turns CSS into a STRING, and
-            // this tree has none. Its own `@gjsify/adwaita-web` imports are JS and
-            // stay covered — `@gjsify/vite-plugin-gjsify` only installs
-            // `cssAsStringPlugin` behind an explicit `cssAsString: true`, and a
-            // website that opted into that would drop this override with it.
-            "files": ["website/**"],
-            "rules": {
-                "gjsify/no-css-side-effect-import": "off"
-            }
-        },
-        {
             // A `.cjs` file IS CommonJS — `require` is its only module syntax,
             // not a mistake. These are the `cjs-compat.cjs` publishing shims
             // (`@gjsify/{stream,events,assert}`, reached via `exports['.'].require`
