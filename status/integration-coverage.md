@@ -79,6 +79,28 @@ Phase D-1 Workstream W — the Deepkit TypeScript type compiler consumed by `@gj
 
 DeltaChat / chatmail core (`@deltachat/jsonrpc-client` + `@deltachat/stdio-rpc-server`) on Node + GJS. **43/43 green on both.** Validates the pure-JS JSON-RPC client speaking to the Rust core process over stdio via `@gjsify/child_process` — the canonical real-world consumer for a future native Adwaita+GJS DeltaChat app.
 
+## domparser
+
+The differential oracle for `@gjsify/domparser`'s HTML mode (ADR 0026). Not a port of an upstream
+suite: parse5 is the REFERENCE, and each fixture is parsed twice — by us and by parse5 with
+`scriptingEnabled: false` — then printed by the SAME `canonicalize()` through two `TreeReader`s and
+compared with `toBe`. Two canonicalizers would be two chances to agree on the same mistake.
+**Node: 153/153 green. GJS: 153/153 green, 0 skips.** 29 fixtures: 26 asserted IDENTICAL to parse5
+(implied `li`/`p`/`td`/`dt` end tags, void elements mid-tree, raw text vs RCDATA, the script escape
+levels, the full entity table, the attribute query-string rule, implicit `html`/`head`/`body`,
+in-head `noscript`, `<template>` content, EOF auto-close, whitespace placement) and 3 asserted
+DIVERGENT against a committed golden — the adoption agency algorithm, foster parenting and SVG
+foreign content, each scoped out in ADR 0026 § 6. A divergent fixture also asserts
+`not.toBe(parse5)`, so the day one of those algorithms lands the test fails and forces this ledger
+to move; it retires itself the way `it.failing` does.
+
+Every fixture carries its discriminators — `minElements` (one below its real element count) and a
+`mustContain` list of DECODED content — asserted BEFORE the comparison, because two empty strings
+compare equal and `27 === 27` was green against the tree this parser replaces.
+
+That parse5 runs unmodified under gjsify/GJS is what makes the oracle possible at all, and the GJS
+leg of this suite is the standing proof of it.
+
 ## devtools-cdp
 
 Validates `@gjsify/devtools-cdp`'s `InspectorProtocolClient` against a **live WebKit remote inspector** (CDP-shaped JSON-RPC over a per-target WebSocket), ported from `refs/webkit/LayoutTests/inspector/{runtime,dom}`. Opt-in + skip-if-unreachable: with `GJSIFY_CDP_INSPECTOR_PORT` unset it registers a single passing "skipped" test; pointed at a reachable inspector it asserts real `Runtime.evaluate` / `DOM.getDocument`/`querySelector`/`getOuterHTML`/`querySelectorAll` round-trips. Launch recipe: `gjsify browse <url> --inspector-port 9222`, then `GJSIFY_CDP_INSPECTOR_PORT=9222 gjsify workspace @gjsify/integration-devtools-cdp test`. **Not wired into CI** — needs a real WebKitGTK display.

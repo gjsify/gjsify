@@ -1319,6 +1319,7 @@ jobs:
           --include @gjsify/integration-cosmiconfig
           --include @gjsify/integration-deepkit-type-compiler
           --include @gjsify/integration-deltachat
+          --include @gjsify/integration-domparser
           --include @gjsify/integration-dotenv
           --include @gjsify/integration-execa
           --include @gjsify/integration-fast-glob

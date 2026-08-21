@@ -109,6 +109,7 @@
     "debug@^4.4.3",
     "@deltachat/jsonrpc-client@^2.53.0",
     "@deltachat/stdio-rpc-server@^2.53.0",
+    "parse5@^7.3.0",
     "dotenv@^17.4.2",
     "@modelcontextprotocol/inspector@^0.22.0",
     "zod@4.3.6",
