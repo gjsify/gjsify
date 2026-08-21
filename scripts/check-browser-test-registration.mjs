@@ -255,7 +255,7 @@ for (const { name, src, entry, browserOnly } of entries) {
     // What the ENTRY binds a spec's default export to, and — separately — every file
     // anything in the package imports. A `*.spec.ts` can legitimately be a helper module
     // rather than a suite (`packages/node/fs/src/capabilities.spec.ts` measures host
-    // capabilities for six siblings); it reaches the runner through its importer, so
+    // capabilities for its siblings); it reaches the runner through its importer, so
     // "exports no suite" is only a fault when nothing imports it either.
     const bindings = new Map();
     for (const [binding, specifier] of [...source.matchAll(DEFAULT_IMPORT)].map((m) => [m[1], m[2]]))
