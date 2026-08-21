@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { discoverBundles } from '../scripts/discover-bundles.mjs';
 
-// REAL key presses against adwaita-web's keyboard contracts — three reproductions, one
+// REAL key presses against adwaita-web's keyboard contracts — four reproductions, one
 // per shape measured broken.
 //
 // It exists beside `packages/web/adwaita-web/src/keyboard-operable.spec.ts` (which holds
@@ -22,16 +23,28 @@ const BUNDLE_TIMEOUT = 110_000;
 
 const adwaita = discoverBundles().find((bundle) => bundle.packageName === 'adwaita-web');
 
-// A MISSING bundle fails rather than skips. Skipping would take the only real-key
-// coverage in the repo out of the run with nothing saying so, which is the shape this
-// whole area keeps being bitten by; `main.yml` stages every bundle before this job.
-test('adwaita-web keyboard operability (real key presses)', async ({ page }) => {
-    expect(
-        adwaita,
-        'no packages/web/adwaita-web/dist/test.browser.mjs — build it first: node tests/browser/scripts/build-bundles.mjs',
-    ).toBeDefined();
+// BOUND TO THE STAGED SET, the way `unit.spec.ts` is, and that is not caution. A
+// selective CI run stages only the affected closure (`build-bundles.mjs $INCLUDE_ARGS`),
+// so a PR touching a browser-capable package that is not this one stages a NON-EMPTY
+// bundle set with no adwaita-web in it — and an unconditional test would then fail that
+// PR over a package it never touched. The other half, that this file must not vanish
+// unnoticed, is held statically by `scripts/check-adwaita-keyboard-contract.mjs`, which
+// fails when it is gone: a claim about the tree belongs in a reader of the tree, and that
+// one runs on every PR instead of only the ones that stage this bundle.
+if (adwaita === undefined) {
+    test('adwaita-web keyboard operability — bundle not staged', () => {
+        console.warn(
+            'No packages/web/adwaita-web/dist/test.browser.mjs — the real-key keyboard spec did not run.\n' +
+                'Build it: node tests/browser/scripts/build-bundles.mjs --include @gjsify/adwaita-web',
+        );
+    });
+} else {
+    const bundleUrl = adwaita.url;
+    test('adwaita-web keyboard operability (real key presses)', ({ page }) => driveKeys(page, bundleUrl));
+}
 
-    await page.goto(`${HARNESS_PATH}?bundle=${encodeURIComponent(adwaita!.url)}`);
+async function driveKeys(page: Page, bundleUrl: string) {
+    await page.goto(`${HARNESS_PATH}?bundle=${encodeURIComponent(bundleUrl)}`);
     // Done is the cheapest signal that the import — and with it the registration — ran.
     await page.waitForSelector(DONE_SELECTOR, { timeout: BUNDLE_TIMEOUT });
 
@@ -80,6 +93,37 @@ test('adwaita-web keyboard operability (real key presses)', async ({ page }) => 
     // Closing hands focus back to the opener rather than leaving it wherever it escaped.
     await page.keyboard.press('Escape');
     expect(await page.evaluate(() => document.activeElement?.id)).toBe('opener');
+
+    // ---- Shape 1b: a modal whose requested initial focus cannot take focus ----------
+    // The trap's listener sits on the dialog HOST, so a `present()` that leaves focus
+    // outside is not a cosmetic miss: no key ever reaches the trap. Measured before the
+    // surface filtered its `initialFocus` result, with the default response DISABLED —
+    // `focus()` on a disabled button is a no-op — the dialog opened with focus still on
+    // `#behind`, and a real Escape did nothing at all: `open` stayed true. Only a routed
+    // key press shows that second half.
+    await page.evaluate(() => {
+        document.body.replaceChildren();
+        const behind = document.createElement('button');
+        behind.id = 'behind';
+        behind.textContent = 'Behind';
+        // oxlint-disable-next-line typescript/no-explicit-any -- the element's own response API, unavailable to a Playwright spec
+        const dialog = document.createElement('adw-alert-dialog') as any;
+        dialog.id = 'alert';
+        dialog.setAttribute('heading', 'Heading');
+        dialog.innerHTML =
+            '<adw-alert-response id="ok">OK</adw-alert-response>' +
+            '<adw-alert-response id="cancel">Cancel</adw-alert-response>';
+        document.body.append(behind, dialog);
+        dialog.setDefaultResponse('ok');
+        dialog.setResponseEnabled('ok', false);
+        behind.focus();
+        dialog.setAttribute('open', '');
+    });
+
+    expect(await focusedId()).toContain('inside:');
+    await page.keyboard.press('Escape');
+    expect(await page.evaluate(() => document.getElementById('alert')?.hasAttribute('open'))).toBe(false);
+    expect(await page.evaluate(() => document.activeElement?.id)).toBe('behind');
 
     // ---- Shape 2: a real arrow press must move a roving tabindex --------------------
     await page.evaluate(() => {
@@ -133,4 +177,4 @@ test('adwaita-web keyboard operability (real key presses)', async ({ page }) => 
 
     await page.keyboard.press('Tab');
     expect(await page.evaluate(() => document.activeElement?.id)).toBe('after');
-});
+}
