@@ -78,6 +78,14 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { toPosixPath } from '../packages/infra/manifest-conformance/lib/index.mjs';
+
+// Every repo-relative path below is COMPARED against a `/`-spelled literal and printed into a
+// finding. On win32 `relative()` hands back `packages\web\…`, so the module arm matched nothing
+// and reported all 18 core modules as untabled — a red gate saying the opposite of the truth.
+// `toPosixPath` and not `replaceAll('\', '/')`: a backslash is a legal POSIX filename character.
+const rel = (from, to) => toPosixPath(relative(from, to));
+
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : args[rootFlag + 1];
@@ -365,7 +373,7 @@ const failures = [];
 /** What each arm actually resolved. A gate that reports only "green" cannot show it ran. */
 const resolved = { chains: 0, citations: 0, both: 0, suite: 0, counted: 0, exempted: 0 };
 for (const table of tables) {
-    const where = `${relative(ROOT, table.file)}:${table.line} → ${table.name}`;
+    const where = `${rel(ROOT, table.file)}:${table.line} → ${table.name}`;
     if (byRenderer.has(table.name)) {
         // The exemption is a claim about TODAY. Without this direction it only ever
         // ratchets one way: a table that gains a driver keeps its excuse forever, and
@@ -429,7 +437,7 @@ for (const dir of [CORE_SUITE_DIR, ...RENDERERS.map((renderer) => renderer.dir)]
             const citations = citationsIn(clause, declared);
             if (citations.length === 0) continue;
             for (const citation of citations) {
-                const where = `${relative(ROOT, block.file)}:${lineOf(block, citation.spelling)}`;
+                const where = `${rel(ROOT, block.file)}:${lineOf(block, citation.spelling)}`;
                 resolved.citations += 1;
                 for (const name of citation.missing) {
                     failures.push(`${where}: names ${name}, which no conformance file declares.`);
@@ -487,18 +495,18 @@ for (const file of walk(CORE_SUITE_DIR)) {
     // Recursive, unlike the readdir this arm started with: the arm exists because the table arm
     // had an invisible set, and a non-recursive scan reproduces that one directory down.
     if (file.startsWith(CONFORMANCE_DIR) || file.endsWith('.spec.ts')) continue;
-    const module = relative(CORE_SUITE_DIR, file).slice(0, -3);
+    const module = rel(CORE_SUITE_DIR, file).slice(0, -3);
     if (module === 'index') continue;
     const source = readFileSync(file, 'utf8');
     // Skipping a types-only module is DERIVED, not allowlisted — there is nothing to vector, so
     // demanding vectors forces the author to invent a table or a ledger item.
     if (!HAS_BEHAVIOUR.test(source)) continue;
-    const where = `${relative(ROOT, file)}`;
+    const where = rel(ROOT, file);
     // A VALUE import: `import type { AdwLengthUnit } from '../length-unit.js'` borrows a name
     // for a field and proves nothing, and it was the whole of what covered `length-unit.ts`.
     const valueImport = new RegExp(`import\\s+(?!type\\b)[^;]*?from '\\.\\./${module}\\.js'`);
     const covered =
-        conformanceFiles.some((candidate) => candidate.endsWith(`/${module}.ts`)) ||
+        conformanceFiles.some((candidate) => toPosixPath(candidate).endsWith(`/${module}.ts`)) ||
         valueImport.test(conformanceSource);
     const reason = MODULE_REASONS[module];
     if (covered) {
@@ -531,7 +539,7 @@ for (const file of walk(CORE_SUITE_DIR)) {
 
 if (failures.length > 0) {
     console.error(`check-adwaita-conformance-drivers: ${failures.length} finding(s):\n`);
-    for (const failure of [...new Set(failures)]) console.error(`  - ${failure}`);
+    for (const failure of new Set(failures)) console.error(`  - ${failure}`);
     console.error(
         `\nA table with no renderer behind it asserts a derivation against itself. That is sometimes right —\n` +
             `an intermediate step whose composed result IS renderer-driven — and sometimes a silent gap. The\n` +
