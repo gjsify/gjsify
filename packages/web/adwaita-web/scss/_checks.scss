@@ -2,13 +2,12 @@
 //
 // WHY ONE FILE FOR TWO ELEMENTS. Upstream's
 // `refs/libadwaita/src/stylesheet/widgets/_checks.scss` merges them deliberately:
-// everything but the corner radius and the glyph is a shared
-// `check, radio { … }` block (:20-65), and the
-// indeterminate dash is re-declared for BOTH at the end (:79-81). There is no
-// `_radio.scss` upstream to mirror. `refs/adwaita-web` does split them into
-// `_checkbox.scss` + `_radio.scss`, and the split is exactly where it drifted:
-// its two indicators grew different sizes, different border treatments and
-// different selection-mode rules, and only one of them has a hover state.
+// everything but the corner radius and the glyph is a shared `check, radio { … }`
+// block (:20-65), and the indeterminate dash is re-declared for BOTH at the end
+// (:79-81). There is no `_radio.scss` upstream to mirror. `refs/adwaita-web` does
+// split them into `_checkbox.scss` + `_radio.scss`, and the split is exactly where
+// it drifted: its two indicators grew different sizes, different border treatments
+// and different selection-mode rules, and only one of them has a hover state.
 //
 // TWO PLACES THE VENDORED WEB PORT DISAGREES WITH LIBADWAITA. libadwaita is
 // followed in both:
