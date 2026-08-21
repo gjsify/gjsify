@@ -1485,8 +1485,33 @@ jobs:
         working-directory: tests/browser
         run: npx playwright install --with-deps firefox
 
-      # The gate. `--pass-with-no-tests` because a selective closure can leave
-      # this set empty (e.g. only a probe-listed package was affected).
+      # The gate. `--pass-with-no-tests` covers ONE emptiness: `--grep-invert` removing
+      # every staged bundle because all of them are probe-listed. An empty bundle SET
+      # never gets here — the `if:` below skips the step at count 0.
+      #
+      # WHAT THIS GATE CANNOT SEE — read it before treating a green run as coverage.
+      # It is bounded by the bundle SET, and the set is a `find` over what the `build`
+      # job staged. So:
+      #   · a package that stops declaring `build:test:browser` AND stops shipping
+      #     `src/test.browser.mts` leaves `discoverBuildablePackages`, no build is
+      #     attempted, and the count simply gets smaller. Dropping only ONE of the two
+      #     is red — `check-browser-test-registration.mjs` holds the pairing — and so is
+      #     a build that exits 0 writing no bundle, which `build-bundles.mjs` asserts;
+      #   · a package ledgered in `$BROWSER_KNOWN_BROKEN_BUILDS` fails its build without
+      #     failing the `build` job, so it is absent here by design;
+      #   · at count 0 every step here is skipped and the job is green having run
+      #     nothing, which is also the correct outcome for a selective closure — the two
+      #     are indistinguishable from the outside;
+      #   · a bundle named in `$BROWSER_PROBE_GREP` is grep-inverted OUT of this
+      #     invocation, so the `results.total > 0` floor is ADVISORY for it: it only
+      #     executes inside the `continue-on-error` probe below. `@gjsify/events` is
+      #     covered by neither arm — it delegates to the shared entry, where the static
+      #     check demands one namespace and no particular suite.
+      # The spec-level floor (`results.total > 0` in `tests/browser/specs/unit.spec.ts`)
+      # closes the case where a bundle IS staged and registers nothing; the static
+      # `check-browser-test-registration.mjs` in the required audit job closes the case
+      # where a browser-only package's spec file exists but was never registered. Neither
+      # can speak for a bundle that is not here.
       - name: Run the browser test suite
         if: ${{ steps.bundles.outputs.count != '0' }}
         working-directory: tests/browser

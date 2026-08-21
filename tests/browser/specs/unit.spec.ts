@@ -36,6 +36,20 @@ for (const bundle of bundles) {
 
         expect(results, 'window.__gjsify_test_results not set — @gjsify/unit may not have run').toBeDefined();
 
+        // `failed === 0` is satisfied by a bundle that registered NOTHING: `browserSignalDone()`
+        // sets the results and `data-tests-done` unconditionally, so `run({})` reports 0/0/0 and
+        // passes — measured through this harness. `total` is @gjsify/unit's `countTestsOverall`,
+        // which `expect()` and the `assert*` family increment and a stood-down `on(…)` test does
+        // NOT: a floor over ASSERTIONS, so the message names all three ways to reach zero. Every
+        // browser entry clears it today (fewest ungated assertions reachable: web/gamepad, 5).
+        // A floor cannot see a PARTIAL shrink — that is
+        // `scripts/check-browser-test-registration.mjs`; the rest of the residual is in main.yml.
+        expect(
+            results.total,
+            `${bundle.url} ran 0 assertions — the bundle registered no suite, its suites assert ` +
+                'nothing, or every test stood down on an `on(…)` gate',
+        ).toBeGreaterThan(0);
+
         const errorSummary = results.errors.map((e) => `  [${e.suite}] ${e.test}: ${e.message}`).join('\n');
 
         expect(results.failed, `${results.failed} of ${results.total} tests failed:\n${errorSummary}`).toBe(0);
