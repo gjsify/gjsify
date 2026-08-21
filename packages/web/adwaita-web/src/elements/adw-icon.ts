@@ -31,8 +31,12 @@
 
 import { normalizeIconName } from '@gjsify/adwaita-core';
 
-/** The generated mask-class prefix — the one place the `--` spelling appears. */
-const MASK_CLASS_PREFIX = 'adw-icon--';
+/**
+ * The generated mask-class prefix — the one place the `--` spelling appears. `icon-registry`
+ * builds the same class for a runtime registration and imports it from here rather than
+ * spelling it twice.
+ */
+export const MASK_CLASS_PREFIX = 'adw-icon--';
 
 export class AdwIcon extends HTMLElement {
     static get observedAttributes() {

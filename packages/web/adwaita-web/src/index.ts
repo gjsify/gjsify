@@ -57,6 +57,12 @@ export type { ApplyAccentOptions } from './accent.js';
 export { AdwScrollShading } from './scroll-shading.js';
 export type { AdwUndershootEdges } from './scroll-shading.js';
 
+// The stylesheet compiles a chosen SUBSET of `@gjsify/adwaita-icons` (the whole set is
+// ~1.07 MB of data-URI), so a name outside it draws the `image-missing` fallback. This is
+// the way in for an app that needs a glyph this package does not ship — see
+// `icon-registry.ts` for the full recipe.
+export { isIconAvailable, registerIcon } from './icon-registry.js';
+
 export { AdwAvatar } from './elements/adw-avatar.js';
 export { AdwBanner } from './elements/adw-banner.js';
 export { AdwCard } from './elements/adw-card.js';
