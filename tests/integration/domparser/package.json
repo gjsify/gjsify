@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/integration-domparser",
-    "description": "Integration tests: @gjsify/domparser against parse5 on GJS and Node. Differential — the same canonicalizer reads both trees and the two strings are compared, so a divergence is a finding rather than an opinion (ADR 0026).",
+    "description": "Integration tests: @gjsify/domparser against parse5 and css-select on GJS and Node. Differential \u2014 the same canonicalizer reads both trees and the same selectors run through both engines, so a divergence is a finding rather than an opinion (ADR 0026).",
     "type": "module",
     "private": true,
     "engines": {
@@ -24,8 +24,10 @@
         "@gjsify/runtime": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",
+        "css-select": "^5.2.2",
         "entities": "^6.0.1",
         "parse5": "^7.3.0",
+        "parse5-htmlparser2-tree-adapter": "^7.1.0",
         "typescript": "^6.0.3"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",

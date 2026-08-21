@@ -254,6 +254,30 @@ export const FIXTURES: Fixture[] = [
         minElements: 2,
         mustContain: ['a="1"', 'b="9"', 'c="3"'],
     },
+    {
+        // The selector corpus: ids, classes, hyphenated data attributes, a
+        // language tag, form controls and links — the shapes `selectors.spec.ts`
+        // sweeps. The rest of the corpus is thin on exactly these.
+        name: 'selector-corpus',
+        html:
+            '<div id="page" class="wrap"><section id="results" class="list">' +
+            '<article class="aditem" data-adid="1"><h2 class="title">One</h2>' +
+            '<p class="price big">10 &euro;</p></article>' +
+            '<article class="aditem featured" data-adid="2"><h2 class="title">Two</h2></article>' +
+            '<article class="other" data-adid="13"><p class="price">13</p></article></section>' +
+            '<aside id="side" lang="de-AT"><ul class="nav"><li><a href="?page=1">1</a></li>' +
+            '<li class="cur"><a href="?page=2">2</a></li><li></li></ul>' +
+            // Two inputs, one `type` spelled each way: HTML compares this
+            // attribute's VALUE case-insensitively, so `[type=text]` finds both
+            // and `[type=text s]` finds one. A corpus with only one spelling
+            // cannot tell the `s` flag from a no-op.
+            '<input type="TEXT" name="q"><input type="text" name="r">' +
+            '<select><option>a</option><option selected>b</option></select>' +
+            '</aside></div>',
+        expect: 'identical',
+        minElements: 23,
+        mustContain: ['data-adid="13"', '10 €', 'lang="de-AT"', 'type="TEXT"'],
+    },
     // --- declared divergent, ADR 0026 § 6 --------------------------------
     {
         name: 'misnested-formatting',

@@ -81,13 +81,13 @@ DeltaChat / chatmail core (`@deltachat/jsonrpc-client` + `@deltachat/stdio-rpc-s
 
 ## domparser
 
-TWO differential oracles for `@gjsify/domparser` (ADR 0026), neither a port of an upstream suite.
-**Node: 267/267 green. GJS: 267/267 green, 0 skips.**
+THREE differential oracles for `@gjsify/domparser` (ADR 0026), none a port of an upstream suite.
+**Node: 1526/1526 green. GJS: 1526/1526 green, 0 skips.**
 
 **Tree shape — parse5 is the REFERENCE.** Each fixture is parsed twice — by us and by parse5 with
 `scriptingEnabled: false` — then printed by the SAME `canonicalize()` through two `TreeReader`s and
 compared with `toBe`. Two canonicalizers would be two chances to agree on the same mistake.
-32 fixtures: 29 asserted IDENTICAL to parse5
+33 fixtures: 30 asserted IDENTICAL to parse5
 (implied `li`/`p`/`td`/`dt` end tags, void elements mid-tree, raw text vs RCDATA, the script escape
 levels, the full entity table, the attribute query-string rule, implicit `html`/`head`/`body`,
 in-head `noscript`, `<template>` content, EOF auto-close, whitespace placement, a data-state NUL,
@@ -100,6 +100,23 @@ to move; it retires itself the way `it.failing` does.
 Every fixture carries its discriminators — `minElements` (one below its real element count) and a
 `mustContain` list of DECODED content — asserted BEFORE the comparison, because two empty strings
 compare equal and `27 === 27` was green against the tree this parser replaces.
+
+**Selectors — `css-select` is the REFERENCE.** The same 41 selectors run through our engine and
+through css-select over the same markup, and the two answers are compared by the INDEX PATH of
+every match, never by how many there were: a count cannot tell two engines apart that found the
+same NUMBER of different elements, and `27 === 27` is exactly the comparison that was green against
+the tree this parser replaces. css-select reads a parse5 tree built with the htmlparser2 adapter,
+so it runs on its own default adapter — no code of this suite's sits between the oracle and its
+tree — and each fixture asserts the two trees are node-for-node comparable BEFORE a selector runs.
+The sweep asserts that every selector matched somewhere (a typo matches nothing everywhere, and
+two engines that both found nothing agree perfectly) and that the total number of compared matches
+exceeds a floor; 590 measured today.
+
+One fixture is outside the sweep and says so in a test rather than a skip: the htmlparser2 tree
+adapter hangs `<template>` content in `children`, so css-select walks into it, while the DOM — and
+this parser — keep it in a fragment `querySelectorAll` does not enter. `:scope`, `:enabled` and
+`:nth-child(an+b of S)` are likewise out, the first context-dependent and the other two answered by
+rules css-select invented for itself; the package's own spec covers all three.
 
 **Character references — `entities` is the REFERENCE**, the decoder parse5 itself uses, declared
 here as a devDependency rather than taken from the copy parse5 drags in: an oracle that arrives
@@ -115,8 +132,8 @@ Completeness is asserted separately from correctness, because a sweep over
 `euro;` and `uuml;` left every sweep green. The suite therefore also names 36 references in its own
 source and pins the table size at exactly 2,231.
 
-That parse5 and `entities` run unmodified under gjsify/GJS is what makes both oracles possible at
-all, and the GJS leg of this suite is the standing proof of it.
+That parse5, `css-select` and `entities` run unmodified under gjsify/GJS is what makes these
+oracles possible at all, and the GJS leg of this suite is the standing proof of it.
 
 ## devtools-cdp
 
