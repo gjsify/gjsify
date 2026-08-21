@@ -297,20 +297,37 @@ jobs:
       # The gate below reads ONE 26 KB file out of `refs/libadwaita`, and until this step
       # existed nothing put it on disk: no workflow here passes `submodules:` to
       # actions/checkout, so the gate exited 0 having compared nothing on every pull
-      # request it ever ran on. Targeted rather than `submodules: true` — this repo has 93
-      # `refs/` submodules and the realized tree is ~150 GB, against ~13 MB for libadwaita.
-      # The price is a build dependency on gitlab.gnome.org inside a REQUIRED check, paid
-      # deliberately: the alternative is the gate that cannot fail.
+      # request it ever ran on. Targeted rather than `submodules: true` — realizing every
+      # `refs/` submodule costs ~150 GB, against ~13 MB for libadwaita alone.
+      #
+      # That puts gitlab.gnome.org in the path of a REQUIRED check, so it gets the same
+      # treatment as the actionlint download further down, for the reason that step
+      # records: a non-retrying fetch reddened this exact check on two PRs on 2026-08-12,
+      # neither of which had touched a workflow file. git does retry a failed clone, once
+      # and IMMEDIATELY — no back-off, which is the whole point — so the loop supplies
+      # one. `timeout-minutes` bounds a HANG, which no retry count can: the Linux job
+      # declares none, so a stalled fetch would otherwise hold it for the 360-minute
+      # default while the neighbouring curl caps its connect at 30 s.
       - name: Check out refs/libadwaita (the style-class gate reads it)
-        run: git submodule update --init --depth 1 refs/libadwaita
+        timeout-minutes: 5
+        run: |
+          for attempt in 1 2 3; do
+            if git submodule update --init --depth 1 refs/libadwaita; then break; fi
+            if [ "$attempt" = 3 ]; then
+              echo "::error::could not check out refs/libadwaita after 3 attempts"
+              exit 1
+            fi
+            echo "::warning::refs/libadwaita checkout failed (attempt $attempt/3) — retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
 
       # The style-class LEDGER against libadwaita's own style-classes.md. 21 documented
       # classes (`.card`, `.boxed-list`, `.toolbar`, `.linked`, `.osd`, …) had no rule in
       # adwaita-web at all (#1049) while the roadmap tracked "missing partials" by
       # filename — a diff that reports gaps that are not gaps and misses the ones that
       # are. The rules themselves are asserted against the COMPILED css by the browser
-      # suite's style-classes.spec.ts. Absent input SKIPS locally and FAILS under CI, so
-      # the step above going missing again is loud rather than green.
+      # suite's style-classes.spec.ts. Absent input SKIPS locally and FAILS on a runner,
+      # so the step above going missing again is loud rather than green.
       - name: Check the style-class ledger covers libadwaita's documented surface
         run: node scripts/check-adwaita-style-classes.mjs
 
@@ -645,20 +662,41 @@ jobs:
       # The gate below reads ONE 26 KB file out of `refs/libadwaita`, and until this step
       # existed nothing put it on disk: no workflow here passes `submodules:` to
       # actions/checkout, so the gate exited 0 having compared nothing on every pull
-      # request it ever ran on. Targeted rather than `submodules: true` — this repo has 93
-      # `refs/` submodules and the realized tree is ~150 GB, against ~13 MB for libadwaita.
-      # The price is a build dependency on gitlab.gnome.org inside a REQUIRED check, paid
-      # deliberately: the alternative is the gate that cannot fail.
+      # request it ever ran on. Targeted rather than `submodules: true` — realizing every
+      # `refs/` submodule costs ~150 GB, against ~13 MB for libadwaita alone.
+      #
+      # That puts gitlab.gnome.org in the path of a REQUIRED check, so it gets the same
+      # treatment as the actionlint download further down, for the reason that step
+      # records: a non-retrying fetch reddened this exact check on two PRs on 2026-08-12,
+      # neither of which had touched a workflow file. git does retry a failed clone, once
+      # and IMMEDIATELY — no back-off, which is the whole point — so the loop supplies
+      # one. `timeout-minutes` bounds a HANG, which no retry count can: the Linux job
+      # declares none, so a stalled fetch would otherwise hold it for the 360-minute
+      # default while the neighbouring curl caps its connect at 30 s.
       - name: Check out refs/libadwaita (the style-class gate reads it)
-        run: git submodule update --init --depth 1 refs/libadwaita
+        timeout-minutes: 5
+        # windows-latest defaults `run:` to pwsh, which has no `for … in`/`$(( ))`.
+        # bash ships with Git for Windows on the runner image, so the loop stays
+        # the SAME text as the Linux job — a divergence between the two is a finding.
+        shell: bash
+        run: |
+          for attempt in 1 2 3; do
+            if git submodule update --init --depth 1 refs/libadwaita; then break; fi
+            if [ "$attempt" = 3 ]; then
+              echo "::error::could not check out refs/libadwaita after 3 attempts"
+              exit 1
+            fi
+            echo "::warning::refs/libadwaita checkout failed (attempt $attempt/3) — retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
 
       # The style-class LEDGER against libadwaita's own style-classes.md. 21 documented
       # classes (`.card`, `.boxed-list`, `.toolbar`, `.linked`, `.osd`, …) had no rule in
       # adwaita-web at all (#1049) while the roadmap tracked "missing partials" by
       # filename — a diff that reports gaps that are not gaps and misses the ones that
       # are. The rules themselves are asserted against the COMPILED css by the browser
-      # suite's style-classes.spec.ts. Absent input SKIPS locally and FAILS under CI, so
-      # the step above going missing again is loud rather than green.
+      # suite's style-classes.spec.ts. Absent input SKIPS locally and FAILS on a runner,
+      # so the step above going missing again is loud rather than green.
       - name: Check the style-class ledger covers libadwaita's documented surface
         run: node scripts/check-adwaita-style-classes.mjs
 
