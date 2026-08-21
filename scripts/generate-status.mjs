@@ -221,8 +221,8 @@ function scanGnomeNamespaces(pkgDir) {
  * renderer, because each renderer states what it ships in a different place: the
  * browser column is one row per `customElements.define('adw-…')` tag, minus the
  * prefix ({@link elementName}); the NativeScript column is one row per
- * `adw-<name>.ts` widget file; the GTK column is one row per `<name>.meta.ts`
- * story. The three vocabularies agree on the bare name,
+ * `adw-<name>.ts` file that exports an `Adw*` view class; the GTK column is one
+ * row per `<name>.meta.ts` story. The three vocabularies agree on the bare name,
  * so this needs no alias table. Upstream partials that no renderer has yet are a
  * genuinely authored judgement (three different naming conventions) and stay in
  * the roadmap section.
@@ -734,7 +734,7 @@ function adwaitaCoverageSection(coverage) {
     out.push(
         'Derived from the tree at generation time. One row per `adw-<name>`, read from',
         "what each renderer ships: browser `customElements.define('adw-…')` tags,",
-        'NativeScript `adw-<name>.ts` widget files, storybook `<name>.meta.ts`, and the',
+        'NativeScript `Adw*` view classes, storybook `<name>.meta.ts`, and the actual',
         '`@gjsify/adwaita-core` import edges. None of it is maintained by hand; the',
         'table this replaced drifted twelve widgets behind the code.',
         '',

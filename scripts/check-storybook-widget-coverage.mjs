@@ -18,8 +18,8 @@
 // WHAT IT CHECKS
 //
 //   1. Every `adw-<name>` the browser DEFINES as a custom element and NativeScript
-//      ships as `adw-<name>.ts` has a `<name>.meta.ts` in the GTK showcase — or an
-//      entry below saying why not.
+//      ships as an `Adw*` view class has a `<name>.meta.ts` in the GTK showcase — or
+//      an entry below saying why not.
 //   2. No ledger entry names a widget that HAS a story (a stale exemption reads as
 //      considered when it is merely forgotten).
 //   3. No ledger entry names a widget the rule cannot reach — one renderer only, or

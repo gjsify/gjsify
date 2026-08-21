@@ -1,4 +1,4 @@
-// The adwaita-web element set, read from the calls that create it.
+// What each Adwaita renderer ships, read from the code that registers it.
 //
 // THE INCIDENT
 //
@@ -87,8 +87,28 @@ export function adwaitaWebElements(root) {
     return new Map([...defined].sort(([a], [b]) => a.localeCompare(b)));
 }
 
+const EXPORTED_CLASS = /export\s+(?:abstract\s+)?class\s+([A-Za-z0-9_]+)/g;
+
+/** `preferences-page` → `AdwPreferencesPage`, the class `adw-preferences-page.ts` must export. */
+const widgetClass = (name) =>
+    `Adw${name
+        .split('-')
+        .map((part) => part[0].toUpperCase() + part.slice(1))
+        .join('')}`;
+
 /**
- * Every `adw-<name>.ts` the NativeScript Adwaita port ships → its repo-relative file.
+ * Every widget the NativeScript Adwaita port ships → its repo-relative file.
+ *
+ * NativeScript has no `customElements.define`. A widget here is a class extending a
+ * `@nativescript/core` view, named `Adw<Widget>` in `adw-<name>.ts` — 46 files out of
+ * 47. The 47th is `adw-accent.ts`, two functions that push CSS at `Application`: no
+ * view, nothing to place in a layout, and reading the directory as a widget list
+ * scored it as a NativeScript-only WIDGET the browser had yet to port.
+ *
+ * So NO CLASS is the exemption, and it is the only one — a file exporting classes
+ * but not the one its name promises THROWS instead of quietly dropping out of the
+ * widget set, which is how a rename would otherwise shrink every consumer's input
+ * without failing anything.
  *
  * Same vacuous-scan contract as {@link adwaitaWebElements}: nothing found is a
  * failure, because an empty widget set makes every consumer's question trivially
@@ -104,12 +124,22 @@ export function adwaitaNativeScriptWidgets(root) {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
         const match = entry.isFile() && !entry.name.endsWith('.spec.ts') && /^adw-(.+)\.ts$/.exec(entry.name);
         if (!match) continue;
-        widgets.set(match[1], relative(root, join(dir, entry.name)));
+        const file = join(dir, entry.name);
+        const classes = [...readFileSync(file, 'utf8').matchAll(EXPORTED_CLASS)].map(([, name]) => name);
+        const expected = widgetClass(match[1]);
+        if (classes.includes(expected)) widgets.set(match[1], relative(root, file));
+        else if (classes.length > 0) {
+            throw new Error(
+                `${relative(root, file)} exports ${classes.join(', ')} but not ${expected}. ` +
+                    'A widget file names its class after itself; without that this file drops out ' +
+                    'of the widget set silently, and every consumer of it shrinks with no failure.',
+            );
+        }
     }
 
     if (widgets.size === 0) {
         throw new Error(
-            `no adw-<name>.ts file found under ${ADWAITA_NS_WIDGETS}. ` +
+            `no adw-<name>.ts file under ${ADWAITA_NS_WIDGETS} exports an Adw* class. ` +
                 'Either the package moved or the naming convention changed — a scan that ' +
                 'finds nothing passes vacuously, so this is a failure, not a pass.',
         );
