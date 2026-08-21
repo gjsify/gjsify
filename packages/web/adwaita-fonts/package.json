@@ -30,6 +30,7 @@
         "build": "node scripts/build-embedded.mjs"
     },
     "gjsify": {
+        "buildCache": false,
         "runtimes": {
             "gjs": "none",
             "node": "none",
