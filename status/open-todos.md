@@ -26,6 +26,64 @@ timers, runaway GUI processes.
 Deferred rather than half-built, and the two halves are not equally urgent: the
 build half had a live blocker behind it, this one has a verified-true claim.
 
+### The BUILD still does not name a discarded CSS side-effect import
+
+`gjsify/no-css-side-effect-import` (oxlint) catches the shape in THIS tree, on
+every PR. A consumer building through `gjsify build --app browser` does not run
+our lint config, and for them the discard is still a silent exit 0:
+`cssAsStringPlugin` returns `export default "<css>"`, tree-shaking removes it,
+nothing is emitted and nothing is said. Measured on 0.41.0: a probe entry whose
+only statement is `import '@gjsify/adwaita-fonts';` produces a **0-byte bundle
+with zero `@font-face`**.
+
+Why it is not in the plugin already, which is where it belongs. The hooks that
+can see "this module was loaded and then dropped" are
+`generateBundle`/`renderChunk` payloads and `this.getModuleInfo(id).importers`.
+None of them exists on the `@gjsify/rolldown-native` bridge:
+`packages/infra/rolldown-native/src/ts/plugins.ts` invokes every lifecycle hook as
+`handler.call(ctx)` with NO arguments, `renderChunk` receives only
+`{fileName,name,isEntry}`, and the plugin context exposes `resolve`/`warn`/`error`
+and nothing else. A diagnostic built on any of them would fire under npm rolldown
+and silently not exist under GJS — a green gate that checked nothing, on the
+runtime this repo targets.
+
+The engine-symmetric hooks are `resolveId` and `transform`, and both are
+per-import / per-module: under the native bridge that is one extra IPC round trip
+per specifier, or every module's source across the GI boundary, paid by every
+build. That is the trade to make deliberately, with a measurement of what it costs
+a real build (`dist/cli.gjs.mjs` is the honest subject — thousands of modules),
+and probably alongside extending the bridge so `generateBundle` carries its
+bundle. Until then the class is held by the lint rule, and this note is the record
+that the consumer-facing half is missing rather than solved.
+
+### `@gjsify/adwaita-fonts` ships desktop TTFs, which is why the web font is opt-in
+
+The package vendors `adwaita-sans-400.ttf` (880 KB) and its italic (910 KB) — the
+upstream DESKTOP faces, unsubsetted, not web fonts. That decides the shape of
+everything downstream. Inlined as base64 (the only form that survives a
+`--app browser` build, which emits one file and no assets):
+
+| | bytes | gzip -9 |
+|---|---:|---:|
+| `@gjsify/adwaita-web` stylesheet | 190 731 | 25 891 |
+| `+` sans 400 | 1 363 795 | 594 177 |
+| `+` sans 400 + italic | 2 577 599 | 1 205 683 |
+
+So the faces travel behind an explicit `applyAdwaitaFonts()`
+(`@gjsify/adwaita-web/fonts`) rather than in the root entry, and
+`status/stylesheet-font-families.json` carries that as the reason the stylesheet
+names a family it does not carry. A fontsource-style **woff2, subsetted per
+unicode-range**, is 15-40 KB a slice — at which point inlining by default stops
+being a question and the ledger entry retires itself.
+
+What blocks it is not code: producing woff2 means committing NEW font binaries
+(or adding a font toolchain to the build), and that is a licensing and repository
+decision, not a fix. Same call for **Adwaita Mono**, which this package does not
+ship at all: `refs/adwaita-fonts/mono/` carries four faces of 1.4-1.5 MB each,
+`--monospace-font-family` heads with `'Adwaita Mono'` for the GNOME hosts that
+have it installed, and `<adw-source-view>` falls through to `ui-monospace`
+everywhere else.
+
 ### Two CI comments still say rolldown-native has no Apple target
 
 `.github/workflows/main.yml:736-739` says it "does not compile for Apple targets

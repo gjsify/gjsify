@@ -42,7 +42,10 @@ const registeredFaces = (): FontFace[] => [...document.fonts].filter((face) => u
 /** Every `@font-face` rule of every same-origin sheet, as `CSSFontFaceRule`s. */
 const fontFaceRules = (sheet: CSSStyleSheet): CSSFontFaceRule[] => {
     const out: CSSFontFaceRule[] = [];
-    for (const rule of [...sheet.cssRules]) {
+    // Indexed, not spread: `cssRules` is a LIVE list, and `unicorn/no-useless-spread`
+    // is right that copying it to iterate buys nothing.
+    for (let index = 0; index < sheet.cssRules.length; index++) {
+        const rule = sheet.cssRules[index];
         if (rule instanceof CSSFontFaceRule) out.push(rule);
     }
     return out;

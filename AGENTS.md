@@ -97,6 +97,7 @@ are in [docs/code-anti-patterns.md](docs/code-anti-patterns.md) — read them be
 |**scattered lifecycle** — cleanup beside creation, ownership in ONE place, wired to the exit the host actually has
 |**shelling out where an API exists** — pass an argv array (`Gio.Subprocess`), never an interpolated command line
 |**monolithic entry points** — `index.ts` = barrel re-exports only
+|**a side-effect import that has no side effect** — css-as-string makes any CSS import `export default "<css>"`, so a bare `import './x.css'` (or of a package whose `.` export IS css) tree-shakes away, exit 0. `@gjsify/adwaita-web` shipped no font that way for its whole life, invisible on a GNOME host. Import the VALUE and apply it; enforced by `gjsify/no-css-side-effect-import`
 |**toolkit imports in shared code** — declare `gjsify.headless` so CI holds the claim instead of relying on discipline
 |**a deferral marker that names nothing** — a `TODO`/`FIXME`/`HACK`/`XXX` opening a comment line must anchor to `#123`, a forge issue URL, `open-todos` (the `status/` ledger) or `fixed upstream in …`; better still, fix it in the PR that exposed it. A bare marker has no owner and no retirement. Enforced at `error` by `gjsify/todo-needs-anchor`
 
