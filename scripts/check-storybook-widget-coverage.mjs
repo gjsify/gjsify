@@ -17,9 +17,9 @@
 //
 // WHAT IT CHECKS
 //
-//   1. Every `adw-<name>` present in BOTH `packages/web/adwaita-web/src/elements/` and
-//      `packages/nativescript-bridge/adwaita/src/widgets/` has a `<name>.meta.ts` in
-//      the GTK showcase — or an entry below saying why not.
+//   1. Every `adw-<name>` the browser DEFINES as a custom element and NativeScript
+//      ships as `adw-<name>.ts` has a `<name>.meta.ts` in the GTK showcase — or an
+//      entry below saying why not.
 //   2. No ledger entry names a widget that HAS a story (a stale exemption reads as
 //      considered when it is merely forgotten).
 //   3. No ledger entry names a widget the rule cannot reach — one renderer only, or
@@ -38,11 +38,12 @@ import { readdirSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ADWAITA_WEB_SRC, adwaitaWebElements, elementName } from './adwaita-elements.mjs';
+
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : args[rootFlag + 1];
 
-const WEB_ELEMENTS = join(ROOT, 'packages/web/adwaita-web/src/elements');
 const NS_WIDGETS = join(ROOT, 'packages/nativescript-bridge/adwaita/src/widgets');
 const GTK_SRC = join(ROOT, 'showcases/gtk/adwaita-storybook/src');
 
@@ -57,6 +58,8 @@ const NO_STORY_OF_ITS_OWN = {
     button: 'Buttons/Button Styles IS the button story — its `component` is `Gtk.Button.$gtype`, and it renders the plain button beside .pill/.circular/.suggested-action/.destructive-action/.flat. A second story would show the same widget with fewer states.',
     'toast-overlay':
         'Feedback/Toast renders it. The overlay is only ever the surface a toast appears on, so the story is named after the thing the reader is looking for.',
+    'preferences-page':
+        'Feedback/Preferences Dialog renders it — the story builds an `Adw.PreferencesPage`, fills it with a group of rows and adds it to the dialog. A page only ever appears inside a preferences dialog, so the story is named after the thing the reader is looking for.',
     'view-stack':
         'A stack shows exactly one page and offers no way to change it — alone it is a blank preview. Every switcher story builds one and drives it: View Switcher, Inline View Switcher, View Switcher Bar.',
     icon: 'There is no Adwaita or GTK icon WIDGET to reference. GTK draws a `Gtk.Image` inline (the navigation stories do), and the browser element exists because CSS needs a box to hang a symbolic on. A story would demonstrate a GTK primitive, not an Adwaita widget.',
@@ -89,14 +92,25 @@ function storyNames(dir) {
     return found;
 }
 
-const web = widgetNames(WEB_ELEMENTS);
+/** @type {Map<string, string>} */
+let defines;
+try {
+    defines = adwaitaWebElements(ROOT);
+} catch (error) {
+    // The reader throws on a vacuous scan by design; catching keeps this script's
+    // own `name: message` shape and exit code instead of a stack trace.
+    console.error(`check-storybook-widget-coverage: ${error.message}`);
+    process.exit(1);
+}
+
+const web = new Set([...defines.keys()].map(elementName));
 const ns = widgetNames(NS_WIDGETS);
 const stories = storyNames(GTK_SRC);
 
-if (web.size === 0 || ns.size === 0 || stories.size === 0) {
+if (ns.size === 0 || stories.size === 0) {
     console.error(
-        'check-storybook-widget-coverage: one of the three scans came back empty ' +
-            `(web ${web.size}, nativescript ${ns.size}, stories ${stories.size}) — that is a broken scan, not a clean tree.`,
+        'check-storybook-widget-coverage: one of the scans came back empty ' +
+            `(nativescript ${ns.size}, stories ${stories.size}) — that is a broken scan, not a clean tree.`,
     );
     process.exit(1);
 }
@@ -131,7 +145,7 @@ if (failures.length > 0) {
         '\nThe GTK storybook is the reference the other two targets are aligned against, so a widget it\n' +
             'never shows is a widget with no reference — and story-set parity cannot see that, because a\n' +
             'story missing from all three targets is perfectly symmetric.\n' +
-            `  elements: ${relative(ROOT, WEB_ELEMENTS)}    widgets: ${relative(ROOT, NS_WIDGETS)}    stories: ${relative(ROOT, GTK_SRC)}`,
+            `  elements: ${ADWAITA_WEB_SRC}    widgets: ${relative(ROOT, NS_WIDGETS)}    stories: ${relative(ROOT, GTK_SRC)}`,
     );
     process.exit(1);
 }

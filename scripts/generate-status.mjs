@@ -75,6 +75,7 @@ import {
     prebuildOwnership,
 } from '../packages/infra/manifest-conformance/lib/platform-packages.mjs';
 import { posixRelative } from '../packages/infra/manifest-conformance/lib/index.mjs';
+import { adwaitaWebElements, elementName } from './adwaita-elements.mjs';
 
 // ─── Authored-data model ────────────────────────────────────────────────────
 
@@ -216,10 +217,21 @@ function scanGnomeNamespaces(pkgDir) {
  * maintained by hand. It WAS, in `status/sections/adwaita-web-roadmap.md`, and
  * it drifted: twelve widgets sat under "Planned" long after they shipped.
  *
- * Widgets align by their `adw-<name>` filename across all three, so this needs
- * no alias table. Upstream partials that no renderer has yet are a genuinely
- * authored judgement (three different naming conventions) and stay in the
- * roadmap section.
+ * ONE ROW PER `adw-<name>`, and `<name>` is read from a different thing on each
+ * renderer, because each renderer states what it ships in a different place: the
+ * browser column is one row per `customElements.define('adw-…')` tag, minus the
+ * prefix ({@link elementName}); the NativeScript column is one row per
+ * `adw-<name>.ts` widget file; the GTK column is one row per `<name>.meta.ts`
+ * story. The three vocabularies agree on the bare name, so this needs no alias
+ * table. Upstream partials that no renderer has yet are a genuinely authored
+ * judgement (three different naming conventions) and stay in the roadmap section.
+ *
+ * The browser column was a filename scan too, and a filename is not an element:
+ * it scored `adw-checks` (a file defining `adw-checkbox` and `adw-radio`, so a
+ * widget nobody can use and no row for either they can), it stated adwaita-web
+ * has no `adw-preferences-page` while `adw-preferences-dialog.ts` defines one,
+ * and it could not see `adw-source-view` at all — that file is not under
+ * `elements/`. Full incident: `scripts/adwaita-elements.mjs`.
  *
  * TWO false gaps this used to score, both fixed by DERIVING harder rather than
  * by an exception list — an allowlist here would reintroduce exactly the
@@ -238,7 +250,7 @@ function scanGnomeNamespaces(pkgDir) {
  *     while it was already sharing it. The edge is now followed instead of
  *     guessed at, one hop through the package's own modules.
  */
-function collectAdwaitaCoverage(root) {
+export function collectAdwaitaCoverage(root) {
     const names = (dir, re) => {
         if (!existsSync(dir)) return new Map();
         const out = new Map();
@@ -249,7 +261,9 @@ function collectAdwaitaCoverage(root) {
         return out;
     };
 
-    const web = names(join(root, 'packages/web/adwaita-web/src/elements'), /^adw-(.+)\.ts$/);
+    // A file may define three tags (`adw-sidebar.ts` → sidebar, sidebar-item,
+    // sidebar-section), so each gets its own row pointing at the same file.
+    const web = new Map([...adwaitaWebElements(root)].map(([tag, file]) => [elementName(tag), join(root, file)]));
     const ns = names(join(root, 'packages/nativescript-bridge/adwaita/src/widgets'), /^adw-(.+)\.ts$/);
 
     // The GTK renderer's coverage IS its story set (one `.meta.ts` per widget).
@@ -725,10 +739,11 @@ function adwaitaCoverageSection(coverage) {
     const shared = both.filter((w) => w.webCore && w.nsCore);
     const out = ['## Adwaita widget coverage', ''];
     out.push(
-        'Derived from the tree at generation time — element files, NativeScript widget',
-        'files, storybook `*.meta.ts`, and the actual `@gjsify/adwaita-core` import edges.',
-        'None of it is maintained by hand; the table this replaced drifted twelve widgets',
-        'behind the code.',
+        'Derived from the tree at generation time. One row per `adw-<name>`, read from',
+        "what each renderer ships: browser `customElements.define('adw-…')` tags,",
+        'NativeScript `adw-<name>.ts` widget files, storybook `<name>.meta.ts`, and the',
+        'actual `@gjsify/adwaita-core` import edges. None of it is maintained by hand;',
+        'the table this replaced drifted twelve widgets behind the code.',
         '',
     );
     out.push(table(['Widget', 'GTK story', 'adwaita-web', 'adwaita-nativescript'], rows));
