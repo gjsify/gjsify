@@ -246,7 +246,7 @@ function scanGnomeNamespaces(pkgDir) {
  *     while it was already sharing it. The edge is now followed instead of
  *     guessed at, one hop through the package's own modules.
  */
-export function collectAdwaitaCoverage(root) {
+function collectAdwaitaCoverage(root) {
     const absolute = (entries) => new Map([...entries].map(([name, file]) => [name, resolve(root, file)]));
 
     // `adw-sidebar.ts` defines three tags, so three rows point at the same file.
