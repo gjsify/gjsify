@@ -32,10 +32,15 @@
 // From the day it was written until the checkout step landed beside it, this exited 0
 // having compared nothing.
 //
-// So an absent input SKIPS locally, where a contributor without 93 submodules realized
-// is the normal case, and FAILS under CI, where it can only mean the checkout step went
-// missing. That is the discriminator — it turns "the checkout quietly stopped happening"
-// from invisible into loud.
+// So an absent input SKIPS locally, where a contributor with no `refs/` submodule
+// realized is the normal case, and FAILS on the runner, where it can only mean the
+// checkout step went missing. That is the discriminator — it turns "the checkout quietly
+// stopped happening" from invisible into loud.
+//
+// The discriminator is `GITHUB_ACTIONS`, not `CI`, for two reasons: the step it names
+// exists only in a GitHub workflow, and `CI` is set — often to `false` or `0`, both
+// truthy as strings — by local runners and agent sandboxes that are running no workflow
+// at all. Same spelling `verify-package-outputs.mjs` and its two siblings already use.
 //
 // Usage: node scripts/check-adwaita-style-classes.mjs [--root <dir>]
 
@@ -50,17 +55,18 @@ const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..
 const DOC = join(ROOT, 'refs/libadwaita/doc/style-classes.md');
 const LEDGER = join(ROOT, 'packages/web/adwaita-web/src/style-classes.spec.ts');
 
-const CHECKOUT_STEP =
-    '  - name: Check out refs/libadwaita (the style-class gate reads it)\n' +
-    '    run: git submodule update --init --depth 1 refs/libadwaita';
+// Named, not reproduced: pasting the step's YAML here would be a second copy of it,
+// stale the first time the step is touched — and the reader needs the address, not the
+// body.
+const CHECKOUT_STEP = '`Check out refs/libadwaita` in .github/workflows/audit-runtimes.yml';
 
 if (!existsSync(DOC)) {
-    if (process.env.CI) {
+    if (process.env.GITHUB_ACTIONS) {
         console.error(
-            `check-adwaita-style-classes: ${relative(ROOT, DOC)} is absent and this is CI, so the\n` +
-                'workflow step that checks the submodule out is missing or failed. Passing here would\n' +
-                'report a green gate that compared nothing — the state this check spent its whole life\n' +
-                `in. Restore the step that precedes it:\n\n${CHECKOUT_STEP}\n`,
+            `check-adwaita-style-classes: ${relative(ROOT, DOC)} is absent on a GitHub runner, so\n` +
+                'the step that checks the submodule out is missing or failed. Passing here would\n' +
+                'report a green gate that compared nothing — the state this check spent its whole\n' +
+                `life in. Restore the step that precedes it: ${CHECKOUT_STEP}.`,
         );
         process.exit(1);
     }
