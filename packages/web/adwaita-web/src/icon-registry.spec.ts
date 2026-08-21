@@ -175,5 +175,50 @@ export const AdwIconRegistryTest = async () => {
             expect(() => registerIcon('a b', PROBE_SVG)).toThrow();
             expect(() => registerIcon('', PROBE_SVG)).toThrow();
         });
+
+        await it('throws on a payload that is not SVG source, and registers nothing', () => {
+            // The NAME was checked from the start; the payload was not, and a wrong payload
+            // is worse than no registration at all: `toDataUri` percent-encodes anything, so
+            // the mask comes out well-formed and masks NOTHING, the registered class beats
+            // `:where(.adw-icon)` and switches this PR's fallback off, and `isIconAvailable`
+            // answers `true`. Measured in Firefox before the guard: `'not an svg at all'`
+            // gave `url("data:image/svg+xml,not%20an%20svg%20at%20all")` on a box painted 0 %,
+            // where the unregistered control painted the 30 % image-missing glyph.
+            const REJECTED = 'gjsify-registry-payload-probe';
+            expect(() => registerIcon(REJECTED, 'not an svg at all')).toThrow();
+            expect(() => registerIcon(REJECTED, '')).toThrow();
+            // The likeliest wrong argument of all: what the custom property HOLDS, handed
+            // over instead of what it was made from.
+            expect(() => registerIcon(REJECTED, 'url("data:image/svg+xml,%3Csvg%3E%3C/svg%3E")')).toThrow();
+            expect(isIconAvailable(REJECTED)).toBe(false);
+
+            const { el, host } = mount(REJECTED);
+            expect(maskOf(el)).toBe(fallbackMask());
+            host.remove();
+        });
+
+        await it('rebuilds its rules after the <style> element is taken away', () => {
+            // What an SPA head swap or an Astro view transition does. The record of inserted
+            // rules is module-level and outlives the element it describes, so the early
+            // return above used to skip the insert forever: the custom property was re-set
+            // and the rule that consumes it never came back.
+            const LOST = 'gjsify-registry-sheet-probe';
+            registerIcon(LOST, PROBE_SVG);
+            document.getElementById('adwaita-web-icon-registry')?.remove();
+
+            registerIcon(LOST, PROBE_SVG);
+
+            expect(document.getElementById('adwaita-web-icon-registry')).not.toBe(null);
+            const { el, host } = mount(LOST);
+            expect(maskOf(el).includes('m%204%204')).toBe(true);
+            host.remove();
+
+            // …and the names registered BEFORE the swap are on the rebuilt sheet too. Their
+            // custom properties survived on the document element, so re-issuing only the
+            // one name being registered would leave every earlier icon on the fallback.
+            const { el: earlier, host: earlierHost } = mount(ABSENT);
+            expect(maskOf(earlier)).not.toBe(fallbackMask());
+            earlierHost.remove();
+        });
     });
 };

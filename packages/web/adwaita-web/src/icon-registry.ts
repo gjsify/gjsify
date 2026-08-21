@@ -42,6 +42,15 @@ const REGISTRY_STYLE_ID = 'adwaita-web-icon-registry';
  */
 const ruled = new Set<string>();
 
+/** The one rule a registration adds: the class, pointing at the custom property. */
+function insertMaskRule(sheet: CSSStyleSheet, name: string): void {
+    sheet.insertRule(
+        `.${MASK_CLASS_PREFIX}${name} { mask-image: var(--icon-${name}); ` +
+            `-webkit-mask-image: var(--icon-${name}); }`,
+        sheet.cssRules.length,
+    );
+}
+
 /** This module's stylesheet, created on first use and appended last so nothing hides it. */
 function registrySheet(): CSSStyleSheet {
     const existing = document.getElementById(REGISTRY_STYLE_ID) as HTMLStyleElement | null;
@@ -52,19 +61,44 @@ function registrySheet(): CSSStyleSheet {
     document.head.appendChild(style);
     // `sheet` is non-null the moment a <style> is in a document — the property is only
     // null while the element is disconnected, which the append above rules out.
-    return style.sheet as CSSStyleSheet;
+    const sheet = style.sheet as CSSStyleSheet;
+
+    // Reaching here a SECOND time means the previous element was taken away — an SPA head
+    // swap, an Astro view transition — and every rule it held went with it. The custom
+    // properties did NOT: they sit on the document element. So re-issue the rules, or every
+    // name registered before the swap keeps its glyph in a property nothing consumes and
+    // draws the fallback forever. Nothing observes the head, so the recovery happens on the
+    // next `registerIcon` call rather than at the moment of the swap.
+    for (const name of ruled) insertMaskRule(sheet, name);
+    return sheet;
+}
+
+/**
+ * The second argument has to be SVG SOURCE, and nothing else can tell us so: `toDataUri`
+ * percent-encodes whatever it is handed, so `registerIcon('x', 'not an svg')` produces a
+ * perfectly well-formed `mask-image` that masks NOTHING — an icon strictly worse than an
+ * unregistered one, because the registered class beats `:where(.adw-icon)` and switches the
+ * `image-missing` fallback OFF, while `isIconAvailable` reports `true`. Measured in Firefox:
+ * `url("data:image/svg+xml,not%20an%20svg")`, 0 % of the box painted, no throw, no warning.
+ *
+ * A real parser rather than a `^<svg` test: an icon read from a file carries an XML prolog
+ * or a DOCTYPE before its root element, and both are legitimate here.
+ */
+function svgRootOf(source: string): Element {
+    return new DOMParser().parseFromString(source, 'image/svg+xml').documentElement;
 }
 
 /**
  * Make `name` drawable by every `.adw-icon` in the document, from an Adwaita symbolic SVG
  * source string (what `@gjsify/adwaita-icons` exports).
  *
- * The name is normalized exactly as `<adw-icon icon-name>` normalizes it — a single
- * `-symbolic` suffix comes off, and the rest must be one CSS token. A name that survives
- * neither THROWS rather than registering nothing: unlike a render, this is an explicit call
- * with a wrong argument, and silently doing nothing is the failure mode this whole area
- * exists to end. `<adw-icon>` keeps resolving an unusable name to "no icon", because there
- * the name came from markup and taking the page down over a typo is not proportionate.
+ * BOTH arguments are checked and a wrong one THROWS rather than registering nothing: unlike
+ * a render, this is an explicit call with a wrong argument, and silently doing nothing is
+ * the failure mode this whole area exists to end. The name is normalized exactly as
+ * `<adw-icon icon-name>` normalizes it — a single `-symbolic` suffix comes off, and the rest
+ * must be one CSS token; the SVG has to parse to an `<svg>` root. `<adw-icon>` keeps
+ * resolving an unusable name to "no icon", because there the name came from markup and
+ * taking the page down over a typo is not proportionate.
  *
  * Registering a name the stylesheet already compiles is allowed and REPLACES the glyph:
  * the property is set on the document element, so it wins over the `:root` rule.
@@ -78,15 +112,22 @@ export function registerIcon(name: string, svg: string): void {
         );
     }
 
+    const root = svgRootOf(svg);
+    if (root.tagName !== 'svg') {
+        throw new TypeError(
+            `registerIcon(${JSON.stringify(resolved)}): the second argument has to be SVG SOURCE — the ` +
+                'kind of string `@gjsify/adwaita-icons` exports, not a URL, a data-URI or a DOM node. ' +
+                `Parsing it produced <${root.tagName}>, so it would have masked nothing at all.`,
+        );
+    }
+
     document.documentElement.style.setProperty(`--icon-${resolved}`, toDataUri(svg));
 
-    if (ruled.has(resolved)) return;
+    // BEFORE the `ruled` early return: taking the sheet is what detects a lost <style>,
+    // and a name already in `ruled` is exactly the one the early return would skip.
     const sheet = registrySheet();
-    sheet.insertRule(
-        `.${MASK_CLASS_PREFIX}${resolved} { mask-image: var(--icon-${resolved}); ` +
-            `-webkit-mask-image: var(--icon-${resolved}); }`,
-        sheet.cssRules.length,
-    );
+    if (ruled.has(resolved)) return;
+    insertMaskRule(sheet, resolved);
     ruled.add(resolved);
 }
 
