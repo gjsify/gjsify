@@ -71,7 +71,11 @@ export interface GlibClampVector {
  * `high` there, and `allocate_uncollapsed` reaches inverted bounds whenever the
  * content pane's own minimum leaves less room than `min-sidebar-width`.
  *
- * CORE-ONLY: GLib’s CLAMP itself — a primitive with no widget surface; every widget that reaches it does so through a table that IS driven
+ * CORE-ONLY: GLib’s CLAMP itself, a primitive with no widget surface. What separates it from
+ * `Math.min`/`Math.max` is the inverted rows, and those ARE driven — `resolveNavigationSidebarWidth`
+ * inverts the bounds at 300px total width, which is a row of SIDEBAR_WIDTH_VECTORS.
+ * Its other reachers, `toolbarViewAllocate` and `carouselClampPosition`, do not reach a driven table;
+ * the earlier wording here claimed every reacher did, which was false in two places.
  */
 export const GLIB_CLAMP_VECTORS: ReadonlyArray<GlibClampVector> = [
     { x: 250, low: 180, high: 280, clamped: 250, rule: 'inside the range, untouched' },
@@ -392,7 +396,11 @@ export interface SplitViewMeasureVector {
  * Without this container minimum the content pane shrinks to nothing instead of the window
  * refusing to get narrower.
  *
- * CORE-ONLY: the container minimum lands as `min-width: min-content` on the content pane, which is CSS’s own spelling of the same rule — there is no computed number of ours to compare. Asserted in the renderer as "the pane is not crushable" instead
+ * CORE-ONLY: GAP — the container minimum lands as `min-width: min-content` on the content pane,
+ * CSS’s own spelling of the same rule, so there is no computed number of ours for a renderer to
+ * compare against. What the browser suite checks is the weaker property that the pane is not
+ * crushable (`getComputedStyle(content).minWidth !== '0px'`, split-views.spec.ts); the numbers in
+ * these rows reach no renderer. Tracked in #1072
  */
 export const SPLIT_VIEW_MEASURE_VECTORS: ReadonlyArray<SplitViewMeasureVector> = [
     {

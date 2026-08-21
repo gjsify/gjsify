@@ -1446,7 +1446,7 @@ export interface TabTooltipVector {
  * browser sets `tab.title = tabTooltip(page)` (`elements/adw-tab-view.ts`),
  * NativeScript re-exports it as `tabTooltipText` (`widgets/tab-view-state.ts`) —
  * and neither is held to these rows. Both surfaces are readable from their own
- * suites, so wiring them is a loop, not new capability.
+ * suites, so wiring them is a loop, not new capability. Tracked in #1072
  */
 export const TAB_TOOLTIP_VECTORS: ReadonlyArray<TabTooltipVector> = [
     {
