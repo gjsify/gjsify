@@ -128,7 +128,7 @@ const NO_STORY_OF_ITS_OWN = {
  * primitive in an element is a rendering idiom, not a missing port; five are not a
  * rendered thing at all — a GtkBuildable markup child, a GtkWidget-typed property, a
  * different library, and `view-switcher-page`, which has no upstream spelling
- * whatsoever. Which shape a widget is is stated in ITS entry.
+ * whatsoever. Which of the three a given widget is, its OWN entry states.
  *
  * `vectors` is optional and names conformance tables in `@gjsify/adwaita-core` that the
  * decision leaves driven from ONE side. It is checked (see {@link vectorFailures}), so
