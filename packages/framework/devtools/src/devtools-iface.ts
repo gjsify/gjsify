@@ -55,6 +55,11 @@ const GENERIC_METHODS_XML = `    <method name="GetStatus">
       <arg type="s" direction="in" name="selector"/>
       <arg type="s" direction="out" name="path"/>
     </method>
+    <method name="SendKey">
+      <arg type="s" direction="in" name="accelerator"/>
+      <arg type="s" direction="in" name="path"/>
+      <arg type="b" direction="out" name="delivered"/>
+    </method>
     <method name="DumpGSettings">
       <arg type="s" direction="in" name="schema_id"/>
       <arg type="s" direction="out" name="settings_json"/>

@@ -8,6 +8,7 @@ import {
     findWidgetPath,
     parseWidgetPath,
     parseWidgetSelector,
+    sendKeyToWidget,
     widgetType,
 } from './widget-tree.js';
 
@@ -245,6 +246,46 @@ export default async () => {
             };
             expect(activateWidget(asWidget(btn))).toBe(true);
             expect(touched).toBe(false);
+        });
+    });
+
+    await describe('sendKeyToWidget', async () => {
+        // Duck-typed like the rest of this module: a controller is identified by its GType NAME,
+        // not by instanceof — see gtypeName for why that matters under node-gi.
+        const controller = (type: string, onEmit?: (...a: unknown[]) => void): object => ({
+            constructor: { $gtype: { name: type } },
+            emit: (...a: unknown[]) => onEmit?.(...a),
+        });
+        const withControllers = (items: object[]): Gtk.Widget =>
+            asWidget({
+                observe_controllers: () => ({
+                    get_n_items: () => items.length,
+                    get_item: (i: number) => items[i] ?? null,
+                }),
+            });
+
+        await it('emits key-pressed on every key controller of the widget', async () => {
+            const seen: unknown[][] = [];
+            const one = controller('GtkEventControllerKey', (...a) => seen.push(a));
+            const two = controller('GtkEventControllerKey', (...a) => seen.push(a));
+            expect(sendKeyToWidget(withControllers([one, two]), 0xffff, 4)).toBe(true);
+            expect(seen).toStrictEqual([
+                ['key-pressed', 0xffff, 0, 4],
+                ['key-pressed', 0xffff, 0, 4],
+            ]);
+        });
+
+        await it('reports false when the widget has no key controller', async () => {
+            // The honest answer to "does this widget handle keys": no, rather than a silent success
+            // that reads as a working keyboard.
+            expect(sendKeyToWidget(withControllers([]), 0xffff, 0)).toBe(false);
+        });
+
+        await it('ignores controllers that are not key controllers', async () => {
+            const gesture = controller('GtkGestureClick', () => {
+                throw new Error('a click gesture must never be sent a key');
+            });
+            expect(sendKeyToWidget(withControllers([gesture]), 0xffff, 0)).toBe(false);
         });
     });
 };

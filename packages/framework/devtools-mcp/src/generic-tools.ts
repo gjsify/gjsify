@@ -348,6 +348,40 @@ export function registerGenericTools(ctx: McpToolContext, which: GenericToolName
         );
     }
 
+    if (want('send_key')) {
+        server.registerTool(
+            'send_key',
+            {
+                description:
+                    "Deliver a key to a widget's key controllers — the half of headless GUI driving that " +
+                    'activate_widget does not cover. Accelerator syntax is GTK\'s own: "Delete", "Left", ' +
+                    '"<primary>s", "<shift>Up". Omit path to target whatever has the keyboard focus. ' +
+                    'Proves the HANDLER runs and what it changes, not that GDK would route a real key ' +
+                    'press there — for that, also read get_property(path, "focusable"), since an ' +
+                    'unfocusable widget swallows every key silently.',
+                inputSchema: z.object({ accelerator: z.string(), path: z.string().optional(), ...instanceArg }),
+            },
+            async ({ accelerator, path, instance }) => {
+                try {
+                    const reply = await client.control(
+                        instance,
+                        'SendKey',
+                        GLib.Variant.new_tuple([strv(accelerator), strv(path ?? '')]),
+                        '(b)',
+                    );
+                    const [delivered] = reply.recursiveUnpack() as [boolean];
+                    return ok(
+                        delivered
+                            ? `Sent "${accelerator}" to ${path || 'the focused widget'}.`
+                            : `${path || 'The focused widget'} has no key controller — "${accelerator}" went nowhere.`,
+                    );
+                } catch (error) {
+                    return dbusError(error, instance);
+                }
+            },
+        );
+    }
+
     if (want('dump_gsettings')) {
         server.registerTool(
             'dump_gsettings',

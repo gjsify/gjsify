@@ -21,6 +21,7 @@ export type GenericToolName =
     | 'get_focused'
     | 'find_widget'
     | 'activate_widget'
+    | 'send_key'
     | 'dump_gsettings'
     | 'dump_css'
     | 'swap_css';

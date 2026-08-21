@@ -46,12 +46,21 @@ export function buildWidgetPath(toplevel: number, children: readonly number[]): 
  *   `$typeName` — prefer it when present. (GJS has no `$typeName` on instances.)
  */
 export function widgetType(widget: Gtk.Widget): string {
-    const w = widget as unknown as {
-        $typeName?: unknown;
-        constructor?: { $gtype?: { name?: string } };
-    };
-    if (typeof w.$typeName === 'string' && w.$typeName.length > 0) return w.$typeName;
-    return w.constructor?.$gtype?.name ?? 'GtkWidget';
+    return gtypeName(widget) ?? 'GtkWidget';
+}
+
+/**
+ * The runtime GType name of any GObject, or null when it cannot be read.
+ *
+ * The body {@link widgetType} used to hold inline, lifted because the same question gets asked of
+ * things that are not widgets — a `Gtk.EventController`, say. `instanceof` is NOT the alternative:
+ * under node-gi a returned handle is a GENERIC wrapper, so `instanceof Gtk.EventControllerKey`
+ * answers false for an object that IS one, which is the very reason this reads `$typeName` first.
+ */
+function gtypeName(object: unknown): string | null {
+    const o = object as { $typeName?: unknown; constructor?: { $gtype?: { name?: string } } } | null;
+    if (typeof o?.$typeName === 'string' && o.$typeName.length > 0) return o.$typeName;
+    return o?.constructor?.$gtype?.name ?? null;
 }
 
 /**
@@ -101,6 +110,39 @@ export function activateWidget(widget: Gtk.Widget): boolean {
         return activated;
     }
     return false;
+}
+
+/**
+ * Deliver a key to a widget's own key controllers — how external tooling proves a KEYBOARD works.
+ *
+ * The control plane could already press buttons and fire actions, so a GUI could be driven and
+ * screenshotted headlessly — but not TYPED INTO. Anything handled by a `Gtk.EventControllerKey`
+ * (an editor's arrow keys, Delete in a canvas, Escape in a picker) was therefore unverifiable: the
+ * code looked right, the screenshot looked right, and whether a key ever reached the handler was
+ * nobody's measurement. A `Gtk.DrawingArea` that is not `focusable` swallows every key silently,
+ * which is exactly the shape of bug that survives review.
+ *
+ * It emits `key-pressed` on the controllers ATTACHED TO THE WIDGET rather than fabricating a
+ * `Gdk.Event`: GTK4 made events opaque with no public constructor, so no binding can construct
+ * one. Say what that means honestly — this proves the HANDLER runs and what it does, not that GDK
+ * would route a real key press here. The two differ exactly when the widget cannot take focus, so
+ * a caller checking a keyboard should read `focusable` as well.
+ *
+ * Returns true if some controller claimed the key (its handler returned true).
+ */
+export function sendKeyToWidget(widget: Gtk.Widget, keyval: number, modifiers: number): boolean {
+    const controllers = widget.observe_controllers();
+    let handled = false;
+    for (let i = 0; i < controllers.get_n_items(); i++) {
+        const controller = controllers.get_item(i);
+        if (gtypeName(controller) !== 'GtkEventControllerKey') continue;
+        // Signal return values are not surfaced by GJS' `emit`, so "handled" here means the key was
+        // delivered to at least one key controller, not that a handler consumed it. A caller that
+        // needs the outcome observes the EFFECT — which is the point of sending the key at all.
+        (controller as unknown as Gtk.EventControllerKey).emit('key-pressed', keyval, 0, modifiers);
+        handled = true;
+    }
+    return handled;
 }
 
 function nthChild(widget: Gtk.Widget, index: number): Gtk.Widget | null {
