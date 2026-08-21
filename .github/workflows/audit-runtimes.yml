@@ -414,6 +414,17 @@ jobs:
       - name: Check the website gallery documents every storybook widget
         run: node scripts/check-website-adwaita-gallery.mjs
 
+      # One meta drives all three panels, so the three ALWAYS look identical — which
+      # is exactly why a control wired on one target and not the others cannot be
+      # seen. `entry-row`'s `showApplyButton` switch rendered on all three and was
+      # read only by GTK; both other renderers implement `show-apply-button` in full,
+      # the STORY never wired it. Six more were measured on NativeScript. A control
+      # that measurably switches and is measurably inert is the most expensive shape
+      # this repo ships, and no other storybook gate can reach it: parity compares
+      # the story SET, category order the sidebar, coverage the widget SET.
+      - name: Check every story control is read by all three renderings
+        run: node scripts/check-storybook-control-parity.mjs
+
       # A NativeScript widget's className and the theme's selector are two halves of
       # one decision that nothing compares. Renaming the shortcut-label keycap class
       # from `keycap` to `adw-keycap` was measured: 3221 tests stayed GREEN while
@@ -830,6 +841,17 @@ jobs:
       # strict subset with nothing saying so. A hand is not a mechanism.
       - name: Check the website gallery documents every storybook widget
         run: node scripts/check-website-adwaita-gallery.mjs
+
+      # One meta drives all three panels, so the three ALWAYS look identical — which
+      # is exactly why a control wired on one target and not the others cannot be
+      # seen. `entry-row`'s `showApplyButton` switch rendered on all three and was
+      # read only by GTK; both other renderers implement `show-apply-button` in full,
+      # the STORY never wired it. Six more were measured on NativeScript. A control
+      # that measurably switches and is measurably inert is the most expensive shape
+      # this repo ships, and no other storybook gate can reach it: parity compares
+      # the story SET, category order the sidebar, coverage the widget SET.
+      - name: Check every story control is read by all three renderings
+        run: node scripts/check-storybook-control-parity.mjs
 
       # A NativeScript widget's className and the theme's selector are two halves of
       # one decision that nothing compares. Renaming the shortcut-label keycap class

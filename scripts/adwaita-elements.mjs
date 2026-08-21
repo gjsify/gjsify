@@ -39,24 +39,28 @@ export const ADWAITA_STORY_SRC = 'showcases/gtk/adwaita-storybook/src';
 export const ADWAITA_NS_STORY_SRC = 'showcases/dom/adwaita-storybook-nativescript/src';
 
 /**
- * Story names carrying `suffix`, anywhere under `dir` — `<name>.meta.ts` → `name`.
+ * Story files carrying `suffix`, anywhere under `dir` — `name` → absolute path.
  *
  * Four checks asked the same question of the same tree and each walked it itself.
  * The copies had not drifted yet, which is exactly the moment to lift one: it is
  * the same argument {@link elementName} above makes one level down.
  */
-export function storyNamesWith(dir, suffix) {
-    const found = new Set();
+export function storyFilesWith(dir, suffix) {
+    /** @type {Map<string, string>} */
+    const found = new Map();
     const walk = (current) => {
         for (const entry of readdirSync(current, { withFileTypes: true })) {
             const child = join(current, entry.name);
             if (entry.isDirectory()) walk(child);
-            else if (entry.name.endsWith(suffix)) found.add(entry.name.slice(0, -suffix.length));
+            else if (entry.name.endsWith(suffix)) found.set(entry.name.slice(0, -suffix.length), child);
         }
     };
     walk(dir);
     return found;
 }
+
+/** {@link storyFilesWith} for a caller that only needs the story SET. */
+export const storyNamesWith = (dir, suffix) => new Set(storyFilesWith(dir, suffix).keys());
 
 // A story's category is the part of its title before the first `/` — the same split
 // StorybookController._groupByCategory makes. EVERY `title:` is read, not the first:

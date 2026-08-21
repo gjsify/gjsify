@@ -93,6 +93,8 @@ export class BottomSheetNsStory extends StoryView {
         // `requestClose(source)`.
         this._sheet.canClose = this.args.canClose as boolean;
         this._sheet.openState = this.args.open as boolean;
+        // Read so the control stays bound to this rendering too.
+        void (this.args.modal as boolean);
     }
 }
 
