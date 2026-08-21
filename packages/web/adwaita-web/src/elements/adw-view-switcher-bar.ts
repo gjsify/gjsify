@@ -24,6 +24,7 @@ import { ViewSwitcherBarState, buildViewSwitcherButtons, viewSwitcherPagesFromSt
 import type { AdwViewStack } from './adw-view-stack.js';
 import { applyDescription, applyIndicator, applySwitcherIcon } from './view-switcher-dom.js';
 import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+import { attachRovingFocus } from './roving-focus.js';
 
 /** The DOM nodes one bar button owns — the bar paints the derived model onto them. */
 interface BarButtonNodes {
@@ -88,6 +89,20 @@ export class AdwViewSwitcherBar extends HTMLElement {
             this._barEl.className = 'adw-view-switcher-bar-box';
             this._barEl.setAttribute('role', 'tablist');
             this.replaceChildren(this._barEl);
+            // What makes the roving tabindex below navigable: without it the unselected
+            // buttons are reachable by no key at all.
+            attachRovingFocus({
+                host: this,
+                orientation: 'horizontal',
+                items: () => this._nodes.map((nodes) => nodes.button).filter((button) => !button.hidden),
+                select: (item) => {
+                    const stack = this._stack;
+                    if (!stack) return;
+                    const index = Number(item.dataset.pageIndex);
+                    // Re-assigning the current index would re-run the stack's transition.
+                    if (stack.visibleChildIndex !== index) stack.visibleChildIndex = index;
+                },
+            });
         }
         this._barState.setReveal(this._readReveal());
 
@@ -208,6 +223,9 @@ export class AdwViewSwitcherBar extends HTMLElement {
         button.type = 'button';
         button.className = 'adw-view-switcher-bar-button';
         button.setAttribute('role', 'tab');
+        // The page index, so a keyboard move resolves an item back to a page without
+        // recomputing the mapping — the spelling `<adw-inline-view-switcher>` uses.
+        button.dataset.pageIndex = String(pageIndex);
 
         const icon = createAdwIcon(null, 'adw-view-switcher-bar-icon');
 

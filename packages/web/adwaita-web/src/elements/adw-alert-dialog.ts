@@ -45,6 +45,7 @@ import { AdwAlertResponses } from '@gjsify/adwaita-core';
 import type { AdwResponseAppearance } from '@gjsify/adwaita-core';
 
 import { bindEmptySections } from '../empty-sections.js';
+import { AdwModalSurface } from './modal-surface.js';
 
 /** Response button appearance — mirrors Adw.ResponseAppearance. */
 export type { AdwResponseAppearance } from '@gjsify/adwaita-core';
@@ -69,6 +70,7 @@ export class AdwAlertDialog extends HTMLElement {
     private _bodyEl!: HTMLParagraphElement;
     private _childEl!: HTMLDivElement;
     private _responseAreaEl!: HTMLDivElement;
+    private _modal!: AdwModalSurface;
 
     /** The headless response registry + default/close semantics + resolution (ADR 0004). */
     private _model = new AdwAlertResponses();
@@ -151,10 +153,17 @@ export class AdwAlertDialog extends HTMLElement {
 
         this._dialogEl = document.createElement('div');
         this._dialogEl.className = 'adw-alert-dialog-box';
-        this._dialogEl.setAttribute('role', 'alertdialog');
-        this._dialogEl.setAttribute('aria-modal', 'true');
         // Clicks inside the box must not bubble to the scrim's dismiss handler.
         this._dialogEl.addEventListener('click', (event) => event.stopPropagation());
+        // The role, `aria-modal`, Escape, the Tab trap and the return-focus.
+        this._modal = new AdwModalSurface({
+            host: this,
+            surface: this._dialogEl,
+            role: 'alertdialog',
+            isOpen: () => this.open,
+            onEscape: () => this._dismiss(),
+            initialFocus: (focusables) => this._initialFocusTarget(focusables),
+        });
 
         const messageArea = document.createElement('div');
         messageArea.className = 'adw-alert-dialog-message';
@@ -179,15 +188,6 @@ export class AdwAlertDialog extends HTMLElement {
 
         this._dialogEl.append(messageArea, this._responseAreaEl);
         this.replaceChildren(this._scrimEl, this._dialogEl);
-
-        // Escape dismisses the dialog when open (the AdwDialog Escape shortcut →
-        // close-response).
-        this.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && this.open) {
-                event.stopPropagation();
-                this._dismiss();
-            }
-        });
 
         for (const el of declared) {
             const id = el.getAttribute('id');
@@ -222,7 +222,8 @@ export class AdwAlertDialog extends HTMLElement {
             this.dispatchEvent(new CustomEvent('notify::body', { bubbles: true, detail: { body: this.body } }));
         } else if (name === 'open') {
             this.dispatchEvent(new CustomEvent('notify::open', { bubbles: true, detail: { open: this.open } }));
-            if (this.open) this._focusInitial();
+            if (this.open) this._modal.present();
+            else this._modal.dismiss();
         }
     }
 
@@ -356,14 +357,29 @@ export class AdwAlertDialog extends HTMLElement {
         this.dispatchEvent(new CustomEvent('response', { bubbles: true, detail: { response } }));
     }
 
-    /** Move focus to the default response button (or the first enabled one). */
-    private _focusInitial(): void {
+    /**
+     * Where a presented alert puts focus, in the three steps `adw_alert_dialog_grab_focus`
+     * takes (refs/libadwaita/src/adw-alert-dialog.c:382): the CONTENT first
+     * (`adw_widget_grab_focus_child (priv->scrolled_window)`, :397), then the default
+     * widget (:406), then the first response whose `enabled` is set (:413). The default
+     * response is rarely the first button — a destructive alert opens on Cancel — and
+     * content beats it: an alert carrying an entry is answered by typing into it.
+     *
+     * `focusables` is the surface's own list, so what "focusable" means is decided once.
+     */
+    private _initialFocusTarget(focusables: readonly HTMLElement[]): HTMLElement | undefined {
+        return focusables.find((el) => this._childEl.contains(el)) ?? this._defaultResponseButton();
+    }
+
+    /** The default response button, or the first enabled one. */
+    private _defaultResponseButton(): HTMLElement | undefined {
         const defaultId = this._model.defaultResponse;
         const firstEnabledId = this._model.responses.find((response) => response.enabled)?.id;
-        const target =
-            (defaultId ? this._buttons.get(defaultId) : undefined) ??
-            (firstEnabledId ? this._buttons.get(firstEnabledId) : undefined);
-        target?.focus();
+        // The enabled check covers the DEFAULT too: `focus()` on a disabled button is a
+        // no-op, so handing one back left the dialog open with focus outside itself.
+        const defaultButton =
+            defaultId !== null && this._model.getResponseEnabled(defaultId) ? this._buttons.get(defaultId) : undefined;
+        return defaultButton ?? (firstEnabledId ? this._buttons.get(firstEnabledId) : undefined);
     }
 
     private _render(): void {

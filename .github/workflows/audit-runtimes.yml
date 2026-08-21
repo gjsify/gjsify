@@ -376,6 +376,15 @@ jobs:
       - name: Check every browser-only spec is registered in its bundle
         run: node scripts/check-browser-test-registration.mjs
 
+      # A keyboard affordance adwaita-web DECLARES has an implementation behind it:
+      # `aria-modal` is set in exactly one module, which is also the Tab trap, and a
+      # negative tabindex on a repeated child has a keydown listener behind it. Whether
+      # either WORKS is the two browser specs. Both shapes shipped declared-but-not-
+      # implemented and were green under a suite that read state — the incident, the
+      # arms and the ledger are in the script header.
+      - name: Check declared keyboard affordances have an implementation
+        run: node scripts/check-adwaita-keyboard-contract.mjs
+
       # Three READMEs promised the three storybook targets "compare 1:1 by screenshot"
       # (#1052) and no such harness existed. It was not built — three rasterisers cannot
       # be compared pixel-for-pixel, and the NativeScript leg needs a device CI has not
@@ -804,6 +813,15 @@ jobs:
       # bundle was staged for main.yml's `browser` job.
       - name: Check every browser-only spec is registered in its bundle
         run: node scripts/check-browser-test-registration.mjs
+
+      # A keyboard affordance adwaita-web DECLARES has an implementation behind it:
+      # `aria-modal` is set in exactly one module, which is also the Tab trap, and a
+      # negative tabindex on a repeated child has a keydown listener behind it. Whether
+      # either WORKS is the two browser specs. Both shapes shipped declared-but-not-
+      # implemented and were green under a suite that read state — the incident, the
+      # arms and the ledger are in the script header.
+      - name: Check declared keyboard affordances have an implementation
+        run: node scripts/check-adwaita-keyboard-contract.mjs
 
       # Three READMEs promised the three storybook targets "compare 1:1 by screenshot"
       # (#1052) and no such harness existed. It was not built — three rasterisers cannot

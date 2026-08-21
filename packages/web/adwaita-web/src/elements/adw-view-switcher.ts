@@ -55,6 +55,7 @@ import {
     readSwitcherPage,
 } from './view-switcher-dom.js';
 import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+import { attachRovingFocus } from './roving-focus.js';
 
 /** The DOM nodes one page owns — the switcher paints the derived model onto them. */
 interface PageNodes {
@@ -171,6 +172,16 @@ export class AdwViewSwitcher extends HTMLElement {
         this._barEl = document.createElement('div');
         this._barEl.className = 'adw-view-switcher-bar';
         this._barEl.setAttribute('role', 'tablist');
+        // What makes the roving tabindex below navigable: without it the unselected
+        // buttons are reachable by no key at all.
+        attachRovingFocus({
+            host: this,
+            orientation: 'horizontal',
+            items: () => this._nodes.map((nodes) => nodes.button).filter((button) => !button.hidden),
+            select: (item) => {
+                this._state.setSelected(Number(item.dataset.pageIndex));
+            },
+        });
 
         this._contentEl = document.createElement('div');
         this._contentEl.className = 'adw-view-switcher-content';
@@ -254,6 +265,9 @@ export class AdwViewSwitcher extends HTMLElement {
         button.type = 'button';
         button.className = 'adw-view-switcher-button';
         button.setAttribute('role', 'tab');
+        // The page index, so a keyboard move resolves an item back to a page without
+        // recomputing the mapping — the spelling `<adw-inline-view-switcher>` uses.
+        button.dataset.pageIndex = String(index);
 
         // Both children always exist, as in AdwViewSwitcherButton's template — the icon
         // carries `image-missing` rather than disappearing.

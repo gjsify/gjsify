@@ -68,6 +68,7 @@ import {
 } from '@gjsify/adwaita-core';
 
 import { createAdwIcon } from './adw-icon.js';
+import { AdwModalSurface } from './modal-surface.js';
 
 /** A template label with its mnemonic marker removed — this renderer has no accelerator layer. */
 function rowLabel(key: keyof typeof ADW_ABOUT_DIALOG_LABELS): string {
@@ -80,6 +81,7 @@ export class AdwAboutDialog extends HTMLElement {
     // Layout nodes (rebuilt from attributes on each render).
     private _scrimEl!: HTMLDivElement;
     private _sheetEl!: HTMLDivElement;
+    private _modal!: AdwModalSurface;
     private _navView!: HTMLElement;
     private _scrollEl!: HTMLDivElement;
     private _mainToolbarEl!: HTMLDivElement;
@@ -260,8 +262,6 @@ export class AdwAboutDialog extends HTMLElement {
 
         this._sheetEl = document.createElement('div');
         this._sheetEl.className = 'adw-about-dialog-sheet';
-        this._sheetEl.setAttribute('role', 'dialog');
-        this._sheetEl.setAttribute('aria-modal', 'true');
         // AdwDialog:title, whose template default is the bare word. The application
         // name is announced by the title-1 label inside, exactly as the header
         // revealer shows it separately in GTK.
@@ -269,12 +269,15 @@ export class AdwAboutDialog extends HTMLElement {
 
         this.replaceChildren(this._scrimEl, this._sheetEl);
 
-        // Escape dismisses while open (mirrors AdwDialog's close shortcut).
-        this.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && this.open) {
-                event.stopPropagation();
-                this.close();
-            }
+        // The role, `aria-modal`, Escape, the Tab trap and the return-focus. No
+        // `initialFocus`: the sheet itself is the fallback, which is what this element
+        // used to focus by hand, and the navigation view's first control is better.
+        this._modal = new AdwModalSurface({
+            host: this,
+            surface: this._sheetEl,
+            role: 'dialog',
+            isOpen: () => this.open,
+            onEscape: () => this.close(),
         });
 
         this._render();
@@ -301,8 +304,9 @@ export class AdwAboutDialog extends HTMLElement {
             nav.replace?.(['main']);
             this._scrollEl.scrollTop = 0;
             this._updateHeaderTitle();
-            // Move focus into the sheet for keyboard dismissal.
-            requestAnimationFrame(() => this._sheetEl.focus());
+            this._modal.present();
+        } else {
+            this._modal.dismiss();
         }
     }
 
@@ -352,7 +356,6 @@ export class AdwAboutDialog extends HTMLElement {
         if (visibility.legalRow) this._navView.append(this._buildLegalPage());
 
         this._sheetEl.replaceChildren(this._navView);
-        this._sheetEl.tabIndex = -1;
 
         this.classList.toggle('open', this.open);
     }

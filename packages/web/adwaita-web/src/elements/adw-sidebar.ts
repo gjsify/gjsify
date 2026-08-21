@@ -57,6 +57,7 @@ import {
 } from '@gjsify/adwaita-core';
 
 import { createAdwIcon } from './adw-icon.js';
+import { attachRovingFocus } from './roving-focus.js';
 
 // The sidebar consumes its declared children and drops them from the tree, so a later
 // `setAttribute` on one cannot find its sidebar with `closest()`. These keep the link —
@@ -161,6 +162,20 @@ export class AdwSidebar extends HTMLElement {
         this._listEl = document.createElement('div');
         this._listEl.className = 'adw-sidebar-list';
         this._listEl.setAttribute('role', 'listbox');
+        // What makes the roving tabindex in `_applySelection` navigable: without it the
+        // unselected rows are reachable by no key at all. `setSelected` and NOT
+        // `_activate`: an arrow key is `GtkListBox`'s `row-selected`, and firing
+        // `activated` on every press would navigate a split view on each keystroke.
+        // Enter and Space still activate — the row IS a <button>.
+        attachRovingFocus({
+            host: this,
+            orientation: 'vertical',
+            items: () => this._rows.filter((row) => !row.el.hidden && !row.el.disabled).map((row) => row.el),
+            select: (item) => {
+                const row = this._rows.find((candidate) => candidate.el === item);
+                if (row !== undefined) this._state.setSelected(row.index);
+            },
+        });
 
         // Seed the model BEFORE subscribing: connecting is not a change anyone
         // asked to hear about, and `setSections` runs the 0 → n auto-select.

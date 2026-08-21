@@ -50,6 +50,7 @@
 
 import type { PreferencesSearchResult, SearchPreferencesOptions } from '@gjsify/adwaita-core';
 import { searchPreferencesDom } from '../preferences-search.js';
+import { AdwModalSurface } from './modal-surface.js';
 
 const DEFAULT_CONTENT_WIDTH = 640;
 
@@ -106,6 +107,7 @@ export class AdwPreferencesDialog extends HTMLElement {
     private _bodyEl!: HTMLDivElement;
     private _pagesEl!: HTMLDivElement;
     private _closeBtn!: HTMLButtonElement;
+    private _modal!: AdwModalSurface;
 
     static get observedAttributes() {
         return ['title', 'open', 'can-close', 'content-width'];
@@ -218,8 +220,6 @@ export class AdwPreferencesDialog extends HTMLElement {
 
         this._dialogEl = document.createElement('div');
         this._dialogEl.className = 'adw-preferences-dialog-box';
-        this._dialogEl.setAttribute('role', 'dialog');
-        this._dialogEl.setAttribute('aria-modal', 'true');
         // Clicks inside the dialog must not bubble to the scrim's dismiss handler.
         this._dialogEl.addEventListener('click', (event) => event.stopPropagation());
 
@@ -260,14 +260,14 @@ export class AdwPreferencesDialog extends HTMLElement {
 
         this.replaceChildren(this._scrimEl, this._dialogEl);
 
-        // Escape closes the dialog while open (Adw.Dialog's Escape shortcut →
-        // `maybe_close_cb`). The element is focusable so it can receive the key event.
-        if (!this.hasAttribute('tabindex')) this.tabIndex = -1;
-        this.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape' && this.open) {
-                event.stopPropagation();
-                this._attemptClose();
-            }
+        // The role, `aria-modal`, Escape (Adw.Dialog's shortcut → `maybe_close_cb`), the
+        // Tab trap and the return-focus.
+        this._modal = new AdwModalSurface({
+            host: this,
+            surface: this._dialogEl,
+            role: 'dialog',
+            isOpen: () => this.open,
+            onEscape: () => this._attemptClose(),
         });
 
         this._render();
@@ -279,7 +279,12 @@ export class AdwPreferencesDialog extends HTMLElement {
         this._render();
         if (name === 'open') {
             this.dispatchEvent(new CustomEvent('notify::open', { bubbles: true, detail: { open: this.open } }));
-            if (!this.open) this.dispatchEvent(new CustomEvent('closed', { bubbles: true }));
+            if (this.open) {
+                this._modal.present();
+            } else {
+                this.dispatchEvent(new CustomEvent('closed', { bubbles: true }));
+                this._modal.dismiss();
+            }
         }
     }
 
@@ -304,9 +309,6 @@ export class AdwPreferencesDialog extends HTMLElement {
         const locked = !this.canClose;
         this._closeBtn.disabled = locked;
         this._closeBtn.classList.toggle('locked', locked);
-
-        // Move focus into the dialog on present so Escape works immediately.
-        if (this.open) this.focus();
     }
 }
 

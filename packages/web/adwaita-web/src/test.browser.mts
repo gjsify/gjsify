@@ -48,9 +48,11 @@ import { AdwAccentTest } from './adw-accent.spec.js';
 import { AdwShortcutLabelTest } from './adw-shortcut-label.spec.js';
 import { AdwConnectLifecycleTest } from './connect-lifecycle.spec.js';
 import { AdwEmptySectionsTest } from './empty-sections.spec.js';
+import { AdwKeyboardOperableTest } from './keyboard-operable.spec.js';
 import { AdwFontsTest } from './adw-fonts.spec.js';
 
 run({
+    AdwKeyboardOperableTest,
     AdwConnectLifecycleTest,
     AdwEmptySectionsTest,
     AdwStyleClassesTest,
