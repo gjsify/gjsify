@@ -85,6 +85,12 @@ export class AdwOverlaySplitView extends HTMLElement {
     private _backdropEl!: HTMLDivElement;
     private _disposeBreakpoint: (() => void) | undefined;
     /**
+     * What the breakpoint last SET, carried across every rebind. Not read off the
+     * attribute: a `collapsed` the markup declared was never this breakpoint's doing,
+     * and unapplying it at connect would undo the author.
+     */
+    private _breakpointApplied = false;
+    /**
      * The property interplay, shared with the NativeScript renderer (ADR 0004): the
      * element owns the attributes and the painting, core owns what `collapsed` +
      * `show-sidebar` + `pin-sidebar` mean together, held to `OVERLAY_COLLAPSE_VECTORS`.
@@ -335,9 +341,15 @@ export class AdwOverlaySplitView extends HTMLElement {
 
     private _syncBreakpoint() {
         this._disposeBreakpoint?.();
-        this._disposeBreakpoint = bindBreakpointSetter(this, this.getAttribute('breakpoint'), (active) => {
-            this.collapsed = active;
-        });
+        this._disposeBreakpoint = bindBreakpointSetter(
+            this,
+            this.getAttribute('breakpoint'),
+            (active) => {
+                this._breakpointApplied = active;
+                this.collapsed = active;
+            },
+            this._breakpointApplied,
+        );
     }
 
     openSidebar() {

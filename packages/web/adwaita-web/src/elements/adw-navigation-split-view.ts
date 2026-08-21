@@ -50,6 +50,12 @@ export class AdwNavigationSplitView extends HTMLElement {
     private _contentEl!: HTMLDivElement;
     private _initialized = false;
     private _disposeBreakpoint: (() => void) | undefined;
+    /**
+     * What the breakpoint last SET, carried across every rebind. Not read off the
+     * attribute: a `collapsed` the markup declared was never this breakpoint's doing,
+     * and unapplying it at connect would undo the author.
+     */
+    private _breakpointApplied = false;
     /** The ordering table, the tag guard and the action routing (ADR 0004). */
     private _state = new NavigationSplitViewState();
     /** Re-entrancy guard for the `show-content` reflection. */
@@ -119,12 +125,13 @@ export class AdwNavigationSplitView extends HTMLElement {
 
     connectedCallback() {
         this._buildOnce();
-        // EVERY connect, not only the first — see `_bindToDocument` on the overlay view,
-        // which this mirrors. `_syncBreakpoint` re-establishes the ResizeObserver that
-        // `disconnectedCallback` disposed; without it a view MOVED between parents (a
-        // slideshow slide, a client-side route change) stops tracking its condition for
-        // good, and `<adw-navigation-split-view breakpoint="max-width: 720px">` never
-        // collapses again however narrow the page gets.
+        // `_syncBreakpoint` is the one that HAS to run on EVERY connect: it re-establishes
+        // the ResizeObserver `disconnectedCallback` disposed, and without it a view MOVED
+        // between parents (a slideshow slide, a client-side route change) stops tracking
+        // its condition for good — `<adw-navigation-split-view breakpoint="max-width: 720px">`
+        // never collapses again however narrow the page gets. The three above it are the
+        // post-build derivations, idempotent on a later connect and left in the order
+        // `<adw-overlay-split-view>` runs them so the two views read alike.
         this._reflectShowContent();
         this._syncWidth();
         this._syncClasses();
@@ -294,9 +301,15 @@ export class AdwNavigationSplitView extends HTMLElement {
 
     private _syncBreakpoint() {
         this._disposeBreakpoint?.();
-        this._disposeBreakpoint = bindBreakpointSetter(this, this.getAttribute('breakpoint'), (active) => {
-            this.collapsed = active;
-        });
+        this._disposeBreakpoint = bindBreakpointSetter(
+            this,
+            this.getAttribute('breakpoint'),
+            (active) => {
+                this._breakpointApplied = active;
+                this.collapsed = active;
+            },
+            this._breakpointApplied,
+        );
     }
 }
 

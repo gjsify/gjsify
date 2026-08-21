@@ -133,6 +133,14 @@ function visibleHost(): HTMLElement {
     return host;
 }
 
+/** A slotted split-view pane — `innerHTML` on a widget that already built its subtree is not one. */
+function pane(slot: string): HTMLElement {
+    const el = document.createElement('div');
+    el.setAttribute('slot', slot);
+    el.textContent = slot;
+    return el;
+}
+
 /** A child with a size of its OWN, so the box measured is the container's answer, not the content's. */
 function probe(): HTMLElement {
     const box = document.createElement('div');
@@ -286,7 +294,7 @@ export const AdwConnectLifecycleTest = async () => {
                 const first = visibleHost();
                 const view = document.createElement(tag);
                 view.setAttribute('breakpoint', 'max-width: 720px');
-                view.innerHTML = '<div slot="sidebar">s</div><div slot="content">c</div>';
+                view.append(pane('sidebar'), pane('content'));
                 first.appendChild(view);
                 await settle();
                 const wide = view.hasAttribute('collapsed') ? 'collapsed' : 'expanded';
@@ -297,9 +305,24 @@ export const AdwConnectLifecycleTest = async () => {
                 await settle();
                 const narrow = view.hasAttribute('collapsed') ? 'collapsed' : 'expanded';
 
+                // BOTH directions, because only one of them needs the carried state.
+                // Collapsing after a move works off a fresh breakpoint (false → true is a
+                // transition); coming back WIDE does not, and a breakpoint rebuilt at
+                // `applied = false` matches its own start state and never unapplies. The
+                // view stayed collapsed at 900px in both engines until the rebind carried
+                // what the last one had set.
+                const third = visibleHost();
+                third.style.width = '900px';
+                third.appendChild(view);
+                await settle();
+                const again = view.hasAttribute('collapsed') ? 'collapsed' : 'expanded';
+
                 first.remove();
                 second.remove();
-                expect(`<${tag}> 800px:${wide} → 500px:${narrow}`).toBe(`<${tag}> 800px:expanded → 500px:collapsed`);
+                third.remove();
+                expect(`<${tag}> 800px:${wide} → 500px:${narrow} → 900px:${again}`).toBe(
+                    `<${tag}> 800px:expanded → 500px:collapsed → 900px:expanded`,
+                );
             });
         }
 

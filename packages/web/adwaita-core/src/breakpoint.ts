@@ -163,9 +163,20 @@ export class AdwBreakpoint {
     private _handlers: AdwBreakpointHandlers;
     private _applied = false;
 
-    constructor(condition: string | BreakpointConditionNode | null, handlers: AdwBreakpointHandlers) {
+    /**
+     * `applied` is the state this breakpoint INHERITS — the one a breakpoint it replaces
+     * had reached. It exists because {@link evaluate} fires on a TRANSITION only: a
+     * renderer that has to rebuild the object (a browser element rebinding its
+     * ResizeObserver after a re-parent) otherwise restarts at `false`, and a view the
+     * old breakpoint had collapsed, re-evaluated where the condition is FALSE, matches
+     * its own starting state and never hears `onUnapply`. Measured: a
+     * `<adw-navigation-split-view>` moved 800px → 500px → 900px stayed collapsed at
+     * 900px, and only a narrow→wide cycle IN PLACE healed it.
+     */
+    constructor(condition: string | BreakpointConditionNode | null, handlers: AdwBreakpointHandlers, applied = false) {
         this.condition = typeof condition === 'string' ? parseBreakpointCondition(condition) : (condition ?? null);
         this._handlers = handlers;
+        this._applied = applied;
     }
 
     /** Whether the condition is currently satisfied (apply has fired, not unapply). */
