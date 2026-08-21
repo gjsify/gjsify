@@ -62,6 +62,7 @@ import {
     describeGlImplementation,
     formatMissingGlImplementation,
 } from '../../scripts/gl-implementation.mjs';
+import { decodeProbeProblems, spawnDecodeProbe } from '../../scripts/decode-probe.mjs';
 import { isBundledGstPlugin } from '../../scripts/gst-plugins.mjs';
 import {
     REQUIRED_NAMESPACES,
@@ -87,6 +88,10 @@ function argValue(flag) {
 }
 const OUT = argValue('--out') ?? join(pkgRoot, 'gtk');
 const PREFIX = argValue('--prefix') ?? process.env.GTK_PREFIX;
+// The node-gi addon that DECODES one of the bundled icons in § 5c. Required under
+// --windowing; nothing else here uses it, and there is deliberately no relocation pass
+// for it (Windows resolves DLLs by search path — node-gi puts the bundle's bin/ first).
+const ADDON = argValue('--addon');
 // The full-windowing SUPERSET: also collect the runtime data a real GTK window needs.
 const WINDOWING = process.argv.includes('--windowing');
 // Make "this windowing bundle resolves no GL implementation" FATAL rather than a
@@ -709,6 +714,58 @@ if (WINDOWING) {
         `build-gtk-runtime: windowing data verified — ${data.applied
             .map((a) => `${a.id} (${a.files} file(s))`)
             .join(', ')}`,
+    );
+}
+
+// --- 5c. WINDOWING: DECODE an icon this bundle just shipped ----------------
+// The assertion § 5b cannot make, and the reason this file changed at all (#996): § 5b
+// counts the files in each declared data set, and a count is not a capability. The
+// darwin sibling shipped 860 icon files of which zero decoded while its manifest read
+// `verified icons: 863`; nobody has ever run a decode against the win32 bundle at all,
+// which is the same missing signal with no measurement behind it yet.
+//
+// This is where the win32 loader mechanism finally gets exercised rather than reasoned
+// about: the bundle's `loaders.cache` names its modules by BARE LEAF and relies on
+// gdk-pixbuf honouring `GDK_PIXBUF_MODULEDIR` (gvsbuild's build IS relocatable, unlike
+// Homebrew's — see § 4a), and node-gi's gtk-runtime.js sets that variable. A decode
+// through node-gi therefore exercises exactly that chain end to end.
+//
+// The RECORD goes into the manifest and `verify-bundle-manifest.mjs` requires it, so a
+// bundle built by an older builder, or with this step bypassed, cannot publish.
+if (WINDOWING) {
+    if (!ADDON) {
+        console.error(
+            'build-gtk-runtime: --windowing needs --addon <node_gi.node> so the bundle can DECODE one of ' +
+                'its own icons before it is published. Without it the only evidence the icon theme works ' +
+                'is a file count, which is what the darwin bundle passed with zero decodable icons.',
+        );
+        process.exit(1);
+    }
+    if (!existsSync(ADDON)) {
+        console.error(`build-gtk-runtime: --addon ${ADDON} not found`);
+        process.exit(1);
+    }
+    // `hostPrefixes: [PREFIX]` is load-bearing HERE and not a precaution: the job that
+    // runs this puts `<PREFIX>\bin` on GITHUB_PATH one step earlier (the bundle-data
+    // tools need it), and Windows resolves a DLL by SEARCH PATH — so without the scrub a
+    // DLL missing from the bundle resolves from the gvsbuild prefix and the probe
+    // records a pass for a bundle that works on this runner alone.
+    const probe = spawnDecodeProbe({ bundleDir: OUT, addon: ADDON, hostPrefixes: [PREFIX] });
+    const probeProblems = decodeProbeProblems(probe);
+    if (probeProblems.length > 0) {
+        console.error(
+            `build-gtk-runtime: THE BUNDLE CANNOT DECODE ITS OWN ICONS —\n  ${probeProblems.join('\n  ')}\n` +
+                `record: ${JSON.stringify(probe, null, 2)}\n` +
+                'Do NOT relax this check: a bundle that ships an icon theme no loader can read is the ' +
+                'defect this build exists to stop shipping.',
+        );
+        process.exit(1);
+    }
+    windowing.decodeProbe = probe;
+    console.log(
+        `build-gtk-runtime: decode probe passed — ${probe.svg.file} ${probe.svg.width}x${probe.svg.height}, ` +
+            `${probe.png.file} ${probe.png.width}x${probe.png.height} (${probe.loaderModules} loader module(s), ` +
+            `${probe.formats.length} format(s))`,
     );
 }
 

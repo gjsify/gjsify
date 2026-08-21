@@ -109,14 +109,24 @@ by the main (ubuntu) release publish. A dedicated macOS job in
 1. On `release: published` it checks out the tag (the version `@release-it/bumper`
    already bumped in this package's `package.json`, in lockstep with the train).
 2. `brew install`s the GTK/GI stack as the build-time closure **source**.
-3. Runs `../scripts/build-gtk-runtime-darwin.mjs --windowing --out gtk` to populate
-   `gtk/` (relocated dylibs + backed typelibs + runtime data + licenses +
+3. Runs `../scripts/build-gtk-runtime-darwin.mjs --windowing --out gtk --addon … --stage …`
+   to populate `gtk/` (relocated dylibs + backed typelibs + runtime data + licenses +
    `manifest.json`). The script itself fails on a surviving Homebrew-prefix reference,
-   on an unbacked typelib and on an unattributable dylib; the job then asserts what the
-   ARTIFACT must contain: `gtk/lib` + `gtk/girepository-1.0` (the two dirs
-   [`index.js`](./index.js)'s `isPresent` gate checks), `Adw-1.typelib` beside a
+   on an unbacked typelib and on an unattributable dylib — and, under `--windowing`, on
+   a bundle that cannot DECODE one of its own icons: it stages a relocated copy of the
+   node-gi addon beside a copy of the bundle and loads an `.svg` and a `.png` through
+   the bundle's own loader (the bundled PNG when one ships, otherwise the decoded SVG
+   saved to a temp PNG and read back), recording the measured pixel sizes as
+   `windowingData.decodeProbe` (hence the `--addon`, which is why the job now waits on
+   `node-gi-prebuild-darwin`). The probe child runs with the host GTK environment
+   scrubbed — no inherited `DYLD_FALLBACK_LIBRARY_PATH`, no Homebrew prefix on PATH —
+   and the record states which GTK answered, so a decode Homebrew performed cannot pass
+   for the bundle's. The job then
+   asserts what the ARTIFACT must contain: `gtk/lib` + `gtk/girepository-1.0` (the two
+   dirs [`index.js`](./index.js)'s `isPresent` gate checks), `Adw-1.typelib` beside a
    libadwaita dylib, `gschemas.compiled`, `share/icons`, `THIRD-PARTY-NOTICES.md`, and
-   a manifest that says `windowing: true` with non-zero `dataBytes`.
+   a manifest that says `windowing: true` with non-zero `dataBytes` and a PASSING decode
+   probe.
 4. OIDC-publishes **only this package** (Trusted Publisher configured for
    `release.yml`), so `files: ["gtk"]` ships the whole bundle recursively (the
    gjsify packer expands a plain-directory `files` entry). Consumers then see

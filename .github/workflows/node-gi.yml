@@ -1997,7 +1997,12 @@ jobs:
   # consume the addon). Uploads the bundle for the windowing proof job below.
   windows-gtk-windowing-runtime:
     name: Windows FULL-windowing GTK runtime bundle (build / windows-2022 x64)
-    needs: scope
+    # `windows` because the builder now DECODES one of the icons it just bundled and
+    # records the result for the release gate (#996). That needs a node-gi addon, and
+    # the `windows` job already builds + uploads the win32-x64 one — building a second
+    # copy here would be the duplication, and this job's runner is pinned to
+    # windows-2022 (see below) where the addon is deliberately not built.
+    needs: [scope, windows]
     if: ${{ needs.scope.outputs.engine == 'true' }}
     # PINNED TO windows-2022, and not for nostalgia. Two reasons, both measured:
     #
@@ -2148,13 +2153,23 @@ jobs:
         shell: pwsh
         run: '"$env:GTK_PREFIX\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8'
 
+      # The decode probe's consumer half. The MSVC C ABI is what makes a
+      # windows-latest-built addon fine on windows-2022 — the same property this job's
+      # header already relies on for the DLLs it bundles.
+      - name: Download node-gi addon prebuild (from the windows job)
+        uses: actions/download-artifact@v4
+        with:
+          name: node-gi-prebuild-win32-x64
+          path: addon
+
       - name: Build the FULL-windowing GTK runtime bundle (--windowing)
         shell: pwsh
         run: |
           node packages/node-gi/gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs `
             --windowing `
             --out packages/node-gi/gtk-runtime-win32-x64/gtk `
-            --prefix $env:GTK_PREFIX
+            --prefix $env:GTK_PREFIX `
+            --addon (Join-Path $PWD 'addon\node_gi.node')
 
       - name: Report bundle size + assert the windowing data is present
         shell: pwsh

@@ -266,7 +266,22 @@ jobs:
   # installs it to drive the OIDC publish) and the publish legs are serialized.
   publish-gtk-runtime-darwin:
     name: Publish @gjsify/gtk-runtime-darwin-${{ matrix.arch }} (macOS bundle)
-    needs: publish
+    # `node-gi-prebuild-darwin` because the builder now DECODES one of the icons it just
+    # bundled and records the result for the gate (#996) — which needs a node-gi addon,
+    # and the one this run built is the only one reachable (a GitHub artifact belongs to
+    # the run that produced it, so node-gi.yml's upload is not). Same `if` on both jobs,
+    # so they skip and run together.
+    #
+    # THIS WIDENS THE COUPLING, deliberately: `needs` is per-JOB, and
+    # node-gi-prebuild-darwin is a two-arch MATRIX that GitHub reports failed if either
+    # leg failed — so an Intel Homebrew hiccup now also skips the arm64 bundle publish,
+    # not just the arm64 one, which is a weaker promise than the `fail-fast: false`
+    # note below makes on its own. Accepted rather than repaired by splitting the matrix
+    # into two per-arch jobs: publish-node-gi already needs the WHOLE matrix (a
+    # single-arch prebuild set must never publish), so that scenario already degrades
+    # the release, and a split would put a THIRD verbatim copy of the brew formula line
+    # on the release path — the copy that job's own header argues hardest against.
+    needs: [publish, node-gi-prebuild-darwin]
     # Same gate as the ubuntu npm-publish step: a real release, or a dispatch that
     # opts INTO publishing; never in verify_only (audit) mode. On an asset-only
     # re-upload dispatch (skip_publish=true) this whole job is skipped.
@@ -274,9 +289,10 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     strategy:
-      # NOT fail-fast: one arch's Homebrew hiccup must not cancel the other arch's
-      # publish. A failed leg leaves that ONE package at the previous version, which
-      # is recoverable by re-dispatching; cancelling both is not better.
+      # NOT fail-fast: one arch's leg here must not CANCEL the other arch's publish. A
+      # failed leg leaves that ONE package at the previous version, which is recoverable
+      # by re-dispatching; cancelling both is not better. NB this covers THIS matrix
+      # only — the `needs:` note above records the case where neither leg starts.
       fail-fast: false
       matrix:
         include:
@@ -323,9 +339,10 @@ jobs:
           node-version: '24'
 
       # Populate the gitignored gtk/ bundle so `files: ["gtk"]` ships it (the packer
-      # expands a plain-dir entry recursively). The --addon/--stage relocation is
-      # node-gi's OWN prebuilds concern (node-gi.yml), NOT part of this tarball — so no
-      # node-gyp addon build here.
+      # expands a plain-dir entry recursively). `--addon`/`--stage` relocate a THROWAWAY
+      # copy of the addon beside a throwaway copy of the bundle, in RUNNER_TEMP: that
+      # sibling layout is what the decode probe loads (#996), and none of it is in
+      # `files`, so nothing about it reaches the tarball.
       #
       # --windowing, i.e. the SUPERSET, because this is the bundle that gets PUBLISHED.
       # Up to and including 0.27.1 this step built the display-free variant, and the
@@ -337,11 +354,21 @@ jobs:
       # variant is the CONFORMANCE bundle (its closure is exactly what the display-free
       # conformance loads) and node-gi.yml keeps building it; a consumer installing
       # "batteries-included GTK" wants the complete runtime.
+      # The decode probe's consumer half. NOT part of this tarball: the builder stages a
+      # relocated COPY beside a copy of the bundle, loads it there and throws both away.
+      - name: Download node-gi addon prebuild (for the decode probe)
+        uses: actions/download-artifact@v4
+        with:
+          name: node-gi-prebuild-darwin-${{ matrix.arch }}
+          path: addon
+
       - name: Build the GTK runtime bundle (--windowing superset, populate gtk/)
         run: |
           node packages/node-gi/scripts/build-gtk-runtime-darwin.mjs \
             --windowing \
-            --out packages/node-gi/gtk-runtime-darwin-${{ matrix.arch }}/gtk
+            --out packages/node-gi/gtk-runtime-darwin-${{ matrix.arch }}/gtk \
+            --addon "$PWD/addon/node_gi.node" \
+            --stage "$RUNNER_TEMP/decode-probe-stage"
 
       # Gate the publish on a genuinely populated, portable, COMPLETE bundle. The build
       # step is already the hard gate on relocation (it fails on any surviving reference
@@ -442,7 +469,8 @@ jobs:
   # publish legs are serialized.
   publish-gtk-runtime-win32-x64:
     name: Publish @gjsify/gtk-runtime-win32-x64 (Windows bundle)
-    needs: publish
+    # `node-gi-prebuild-win32-x64` for the decode probe — see the darwin sibling.
+    needs: [publish, node-gi-prebuild-win32-x64]
     if: ${{ (github.event_name == 'release' || inputs.skip_publish == false) && inputs.verify_only != true }}
     # windows-2022, for the reasons node-gi.yml's windows-gtk-windowing-runtime
     # records: libvpx's configure has no VS 18 target, so the gvsbuild GStreamer
@@ -498,7 +526,8 @@ jobs:
           Remove-Item gtk4.zip
 
       # Populate the gitignored gtk/ bundle so `files: ["gtk"]` ships it. No addon
-      # relocation on Windows.
+      # relocation on Windows — `--addon` here is read by the decode probe alone
+      # (Windows resolves DLLs by search path, so there is nothing to rewrite).
       #
       # --windowing, i.e. the SUPERSET, because this is the bundle that gets PUBLISHED —
       # the same correction the darwin leg above documents. Up to and including 0.27.1
@@ -597,13 +626,21 @@ jobs:
           if (-not $plugins) { Write-Host "no GStreamer plugins in the prefix"; exit 1 }
           Write-Host "GStreamer: $($plugins.Count) plugin DLL(s) in the prefix"
 
+      # The decode probe's consumer half (#996). NOT part of this tarball.
+      - name: Download node-gi addon prebuild (for the decode probe)
+        uses: actions/download-artifact@v4
+        with:
+          name: node-gi-prebuild-win32-x64
+          path: addon
+
       - name: Build the GTK runtime bundle (--windowing superset, populate gtk/)
         shell: pwsh
         run: |
           node packages/node-gi/gtk-runtime-win32-x64/scripts/build-gtk-runtime.mjs `
             --windowing `
             --out packages/node-gi/gtk-runtime-win32-x64/gtk `
-            --prefix $env:GTK_PREFIX
+            --prefix $env:GTK_PREFIX `
+            --addon (Join-Path $PWD 'addon\node_gi.node')
 
       # Gate the publish on the properties of the ARTIFACT. The build step already hard-
       # fails on typelib/library symmetry and license coverage; this asserts what a

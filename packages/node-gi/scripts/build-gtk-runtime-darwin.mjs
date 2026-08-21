@@ -89,6 +89,7 @@ import {
     renderThirdPartyNotice,
     writeLicensePayload,
 } from './bundle-licenses.mjs';
+import { decodeProbeProblems, spawnDecodeProbe } from './decode-probe.mjs';
 import { isBundledGstPlugin } from './gst-plugins.mjs';
 import {
     REQUIRED_NAMESPACES,
@@ -940,17 +941,21 @@ console.log(
 // The addon (built against Homebrew) carries absolute Homebrew refs. Rewrite them to
 // @rpath/<leaf> + add an rpath to the SIBLING bundle so it loads the bundled
 // libgirepository with NO Homebrew — the env-free core-conformance path.
+//
+// The sibling layout it produces, `<stage>/{node_gi.node, gtk/}`, is the shape a
+// consumer actually loads — which is why § 6b decodes through THAT and not through OUT.
+let stagedAddonDir = null;
 if (ADDON) {
     if (!existsSync(ADDON)) {
         console.error(`build-gtk-runtime: --addon ${ADDON} not found`);
         process.exit(1);
     }
-    const stageDir = STAGE ?? join(OUT, '..', 'staged');
-    mkdirSync(stageDir, { recursive: true });
-    const addonDest = join(stageDir, 'node_gi.node');
+    stagedAddonDir = STAGE ?? join(OUT, '..', 'staged');
+    mkdirSync(stagedAddonDir, { recursive: true });
+    const addonDest = join(stagedAddonDir, 'node_gi.node');
     copyFileSync(ADDON, addonDest);
     // Point the addon at the bundle staged as its sibling `gtk/`.
-    cpSync(OUT, join(stageDir, 'gtk'), { recursive: true });
+    cpSync(OUT, join(stagedAddonDir, 'gtk'), { recursive: true });
 
     for (const dep of otoolDeps(addonDest)) {
         // Any non-system dep (Homebrew absolute path OR @rpath leaf we bundle).
@@ -969,6 +974,58 @@ if (ADDON) {
     // and until now only the dylibs were checked for it.
     verifyRelocation([addonDest]);
     console.log(`build-gtk-runtime: relocated addon → ${addonDest} (rpath @loader_path/gtk/lib)`);
+}
+
+// --- 6b. WINDOWING: DECODE an icon this bundle just shipped ----------------
+// The assertion § 4e cannot make. § 4e counts the files in each declared data set, and
+// the published darwin-x64 0.28.0 bundle satisfied it perfectly — 860 icon files,
+// `verified icons: 863` — while ZERO of them decoded: the addon kept its absolute
+// Homebrew install names, so a Mac with Homebrew glib loaded TWO GObject registries and
+// `Pixbuf.new_from_file()` on the bundle's own Adwaita SVG returned −1×−1. A file count
+// is not a capability (ADR 0018).
+//
+// This runs HERE, after § 6, and against the STAGED sibling layout rather than against
+// OUT: `<stage>/{node_gi.node, gtk/}` is the shape a consumer loads, install names
+// rewritten to @rpath and all. Probing OUT with an unrelocated addon would measure a
+// machine, not a tarball.
+//
+// The RECORD goes into the manifest and `verify-bundle-manifest.mjs` requires it — so a
+// bundle built by an older builder, or with this step bypassed, cannot publish. It does
+// not degrade to "unverified".
+if (WINDOWING) {
+    if (!stagedAddonDir) {
+        console.error(
+            'build-gtk-runtime: --windowing needs --addon <node_gi.node> so the bundle can DECODE one of ' +
+                'its own icons before it is published. Without it the only evidence the icon theme works ' +
+                'is a file count, which is exactly what the 0.28.0 darwin bundle passed with zero ' +
+                'decodable icons.',
+        );
+        process.exit(1);
+    }
+    const probe = spawnDecodeProbe({
+        bundleDir: join(stagedAddonDir, 'gtk'),
+        addon: join(stagedAddonDir, 'node_gi.node'),
+        // Homebrew's own prefix leaves the child's PATH, and its GTK env vars leave with
+        // it — the probe must fail on a bundle that only works because this machine has
+        // brew, which is the 0.28.0 defect stated the other way round.
+        hostPrefixes: [brewPrefix],
+    });
+    const probeProblems = decodeProbeProblems(probe);
+    if (probeProblems.length > 0) {
+        console.error(
+            `build-gtk-runtime: THE BUNDLE CANNOT DECODE ITS OWN ICONS —\n  ${probeProblems.join('\n  ')}\n` +
+                `record: ${JSON.stringify(probe, null, 2)}\n` +
+                'Do NOT relax this check: a bundle that ships an icon theme no loader can read is the ' +
+                'defect this build exists to stop shipping.',
+        );
+        process.exit(1);
+    }
+    windowing.decodeProbe = probe;
+    console.log(
+        `build-gtk-runtime: decode probe passed — ${probe.svg.file} ${probe.svg.width}x${probe.svg.height}, ` +
+            `${probe.png.file} ${probe.png.width}x${probe.png.height} (${probe.loaderModules} loader module(s), ` +
+            `${probe.formats.length} format(s))`,
+    );
 }
 
 // --- manifest + size -------------------------------------------------------
