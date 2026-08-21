@@ -29,53 +29,31 @@
 //
 // Usage: node scripts/check-adwaita-reset-components.mjs [--root <dir>]
 
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { adwaitaWebElements } from './adwaita-elements.mjs';
 
 const args = process.argv.slice(2);
 const rootIndex = args.indexOf('--root');
 const ROOT = rootIndex === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : args[rootIndex + 1];
 
-const PACKAGE = join(ROOT, 'packages', 'web', 'adwaita-web');
-const SRC = join(PACKAGE, 'src');
-const RESET = join(PACKAGE, 'scss', '_reset.scss');
+const RESET = join(ROOT, 'packages', 'web', 'adwaita-web', 'scss', '_reset.scss');
 
 function fail(lines) {
     console.error(`check-adwaita-reset-components: ${lines.join('\n  ')}`);
     process.exit(1);
 }
 
-/** Every `.ts` under `src/` — elements live outside `elements/` too (`source-view/`). */
-function sourceFiles(dir) {
-    const found = [];
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        const path = join(dir, entry.name);
-        if (entry.isDirectory()) found.push(...sourceFiles(path));
-        else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')) found.push(path);
-    }
-    return found;
-}
-
-// Both quote styles: the formatter uses single, but a matcher that only sees one
-// is a matcher that misses a rename.
-const DEFINE_PATTERN = /customElements\s*\.\s*define\(\s*['"](adw-[a-z0-9-]+)['"]/g;
-
 /** tag → the file that defines it, so a failure can name the file to open. */
-const defined = new Map();
-for (const file of sourceFiles(SRC)) {
-    const text = readFileSync(file, 'utf8');
-    for (const match of text.matchAll(DEFINE_PATTERN)) {
-        defined.set(match[1], relative(ROOT, file));
-    }
-}
-
-if (defined.size === 0) {
-    fail([
-        `no customElements.define('adw-…') calls found under ${relative(ROOT, SRC)}.`,
-        'Either the package moved or DEFINE_PATTERN stopped matching — a check that',
-        'finds nothing passes vacuously, so this is a failure, not a pass.',
-    ]);
+let defined;
+try {
+    defined = adwaitaWebElements(ROOT);
+} catch (error) {
+    // The reader throws on a vacuous scan by design; catching keeps this script's
+    // own `name: message` shape and exit code instead of a stack trace.
+    fail([error.message]);
 }
 
 let resetText;
