@@ -153,10 +153,11 @@ shows the **disabled-text** placeholder instead.
 <AdwWidget title="Adw.ShortcutLabel">
   <Fragment slot="preview">
     <div style="display:flex;flex-wrap:wrap;gap:24px;justify-content:center;align-items:center;">
-      <adw-shortcut-label accelerator="&lt;Control&gt;C" disabled-text="Disabled"></adw-shortcut-label>
-      <adw-shortcut-label accelerator="&lt;Shift&gt;A Home" disabled-text="Disabled"></adw-shortcut-label>
-      <adw-shortcut-label accelerator="&lt;Alt&gt;1...9" disabled-text="Disabled"></adw-shortcut-label>
-      <adw-shortcut-label accelerator="Control_L&amp;Control_R" disabled-text="Disabled"></adw-shortcut-label>
+      <adw-shortcut-label accelerator="&lt;Control&gt;C"></adw-shortcut-label>
+      <adw-shortcut-label accelerator="&lt;Shift&gt;A Home"></adw-shortcut-label>
+      <adw-shortcut-label accelerator="&lt;Alt&gt;1...9"></adw-shortcut-label>
+      <adw-shortcut-label accelerator="Control_L&amp;Control_R"></adw-shortcut-label>
+      <adw-shortcut-label accelerator="" disabled-text="Disabled"></adw-shortcut-label>
     </div>
   </Fragment>
   <Fragment slot="gjs">
@@ -187,7 +188,6 @@ shows the **disabled-text** placeholder instead.
 
       Adw.ShortcutLabel {
         accelerator: "<Control>C";
-        disabled-text: _("Disabled");
       }
 
       Adw.ShortcutLabel {
@@ -201,15 +201,21 @@ shows the **disabled-text** placeholder instead.
       Adw.ShortcutLabel {
         accelerator: "Control_L&Control_R";
       }
+
+      Adw.ShortcutLabel {
+        accelerator: "";
+        disabled-text: _("Disabled");
+      }
     }
     ```
   </Fragment>
   <Fragment slot="web">
     ```html
-    <adw-shortcut-label accelerator="&lt;Control&gt;C" disabled-text="Disabled"></adw-shortcut-label>
+    <adw-shortcut-label accelerator="&lt;Control&gt;C"></adw-shortcut-label>
     <adw-shortcut-label accelerator="&lt;Shift&gt;A Home"></adw-shortcut-label>
     <adw-shortcut-label accelerator="&lt;Alt&gt;1...9"></adw-shortcut-label>
     <adw-shortcut-label accelerator="Control_L&amp;Control_R"></adw-shortcut-label>
+    <adw-shortcut-label accelerator="" disabled-text="Disabled"></adw-shortcut-label>
     ```
   </Fragment>
   <Fragment slot="nativescript">
