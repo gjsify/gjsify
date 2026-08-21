@@ -22,20 +22,28 @@
 // files and the `*.meta.ts` story names are already spelled in.
 
 import { readdirSync, readFileSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { basename, join, relative } from 'node:path';
 
 /** Repo-relative source roots, so callers can name them in their own messages. */
 export const ADWAITA_WEB_SRC = 'packages/web/adwaita-web/src';
 export const ADWAITA_NS_WIDGETS = 'packages/nativescript-bridge/adwaita/src/widgets';
 
-// Both quote styles: the formatter uses single, but a matcher that only sees one
-// is a matcher that misses a rename.
-const DEFINE_PATTERN = /customElements\s*\.\s*define\(\s*['"](adw-[a-z0-9-]+)['"]/g;
+// The registration WITH the class it registers, in any quote style. Reading the class
+// is what makes a HALF rename fail: rename the tag and leave `AdwAvatar` alone and the
+// widget silently leaves the set both renderers share, with every gate still green.
+const DEFINE_PATTERN = /customElements\s*\.\s*define\(\s*['"`](adw-[a-z0-9-]+)['"`]\s*,\s*([A-Za-z0-9_]+)/g;
+
+// The discriminator for the pattern itself. A call it cannot read — a tag held in a
+// variable, a template with a substitution — is an element with no matrix row and no
+// ADR 0010 isolation floor, and a reader that counts only what matched cannot see it.
+const DEFINE_CALL = /customElements\s*\.\s*define\(/g;
 
 /** Every `.ts` under `dir` — elements live outside `elements/` too (`source-view/`). */
 function sourceFiles(dir) {
     const found = [];
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        // A vendored copy under `src/` would register its own tags into a required check.
+        if (entry.name === 'node_modules') continue;
         const path = join(dir, entry.name);
         if (entry.isDirectory()) found.push(...sourceFiles(path));
         else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')) found.push(path);
@@ -46,13 +54,22 @@ function sourceFiles(dir) {
 /** `adw-preferences-page` → `preferences-page`: the key rows, ledger entries and stories share. */
 export const elementName = (tag) => tag.slice('adw-'.length);
 
+/** `preferences-page` → `AdwPreferencesPage`: the class both renderers name it after. */
+const widgetClass = (name) =>
+    `Adw${name
+        .split('-')
+        .map((part) => part[0].toUpperCase() + part.slice(1))
+        .join('')}`;
+
 /**
  * Every custom element adwaita-web defines → the file defining it, so a failure
  * can name the file to open. Sorted by tag; several files define two or three.
  *
  * THROWS on an empty scan: nothing is missing from an empty set, so a reader that
  * finds nothing lets every consumer pass vacuously — which is exactly what a moved
- * package or a stale pattern produces.
+ * package or a stale pattern produces. Throws the same way on a `define(` call it
+ * could not read, and on a tag registering a class other than the `Adw<Tag>` its
+ * name promises: both are the whole set shrinking with nothing to show for it.
  *
  * @param {string} root repository root
  * @returns {Map<string, string>} tag → repo-relative defining file
@@ -61,9 +78,31 @@ export function adwaitaWebElements(root) {
     const src = join(root, ADWAITA_WEB_SRC);
     /** @type {Map<string, string>} */
     const defined = new Map();
+    let calls = 0;
+    let matched = 0;
     for (const file of sourceFiles(src)) {
         const text = readFileSync(file, 'utf8');
-        for (const match of text.matchAll(DEFINE_PATTERN)) defined.set(match[1], relative(root, file));
+        calls += (text.match(DEFINE_CALL) ?? []).length;
+        for (const [, tag, registered] of text.matchAll(DEFINE_PATTERN)) {
+            matched += 1;
+            const expected = widgetClass(elementName(tag));
+            if (registered !== expected) {
+                throw new Error(
+                    `${relative(root, file)} registers <${tag}> as ${registered}, not ${expected}. ` +
+                        'A tag and its class are renamed together or not at all: rename one alone and ' +
+                        'the widget drops out of the set both renderers share with no gate failing.',
+                );
+            }
+            defined.set(tag, relative(root, file));
+        }
+    }
+
+    if (matched < calls) {
+        throw new Error(
+            `${calls - matched} customElements.define(…) call(s) under ${ADWAITA_WEB_SRC} that this ` +
+                'reader could not parse: a tag outside the `adw-` rule, or a spelling DEFINE_PATTERN ' +
+                'does not match. Either way the element has no matrix row and no ADR 0010 reset entry.',
+        );
     }
 
     if (defined.size === 0) {
@@ -77,28 +116,33 @@ export function adwaitaWebElements(root) {
     return new Map([...defined].sort(([a], [b]) => a.localeCompare(b)));
 }
 
-const EXPORTED_CLASS = /export\s+(?:abstract\s+)?class\s+([A-Za-z0-9_]+)/g;
+// `adw-button.ts`, and the `.android`/`.ios` halves NativeScript splits a module into
+// (`icons.android.ts` beside `icons.ios.ts`): two files, one widget. Anything else
+// dotted — `adw-button.d.ts` — is not a widget name and must not be read as one.
+const NS_WIDGET_FILE = /^adw-([a-z0-9-]+)(?:\.(?:android|ios))?\.ts$/;
 
-/** `preferences-page` → `AdwPreferencesPage`, the class `adw-preferences-page.ts` must export. */
-const widgetClass = (name) =>
-    `Adw${name
-        .split('-')
-        .map((part) => part[0].toUpperCase() + part.slice(1))
-        .join('')}`;
+/** Whether the file has a class AT ALL — the one thing that makes it a widget file. */
+const CLASS_DECLARATION = /\bclass\s+[A-Za-z0-9_]+/;
+
+/** The class must LEAVE the file; how it is spelled on the way out is free. */
+const exportsClass = (text, name) =>
+    new RegExp(`export\\s+(?:default\\s+)?(?:abstract\\s+)?class\\s+${name}\\b`).test(text) ||
+    new RegExp(`export\\s*\\{[^}]*\\b${name}\\b[^}]*\\}`).test(text);
 
 /**
  * Every widget the NativeScript Adwaita port ships → its repo-relative file.
  *
  * NativeScript has no `customElements.define`. A widget here is a class extending a
- * `@nativescript/core` view, named `Adw<Widget>` in `adw-<name>.ts` — 46 files of 47.
- * The 47th is `adw-accent.ts`, two functions that push CSS at `Application`: no view,
- * nothing to place in a layout, and the directory listing scored it as a
- * NativeScript-only WIDGET the browser had yet to port.
+ * `@nativescript/core` view, named `Adw<Widget>` in `adw-<name>.ts`, and every file
+ * here but one is that. The exception is `adw-accent.ts`, two functions that push CSS
+ * at `Application`: no view, nothing to place in a layout, and the directory listing
+ * scored it as a NativeScript-only WIDGET the browser had yet to port.
  *
- * NO CLASS is therefore the exemption and the only one: a file exporting classes but
- * not the one its name promises THROWS rather than quietly leaving the widget set,
- * which is how a rename would otherwise shrink every consumer's input without failing
- * anything. Same vacuous-scan contract as {@link adwaitaWebElements}.
+ * DECLARING NO CLASS is therefore the exemption and the only one: a file that declares
+ * one and does not export it under the name its filename promises THROWS rather than
+ * quietly leaving the widget set, which is how a rename would otherwise shrink every
+ * consumer's input without failing anything. Same vacuous-scan contract as
+ * {@link adwaitaWebElements}.
  *
  * @param {string} root repository root
  * @returns {Map<string, string>} bare widget name → repo-relative file
@@ -107,20 +151,20 @@ export function adwaitaNativeScriptWidgets(root) {
     const dir = join(root, ADWAITA_NS_WIDGETS);
     /** @type {Map<string, string>} */
     const widgets = new Map();
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        const match = entry.isFile() && !entry.name.endsWith('.spec.ts') && /^adw-(.+)\.ts$/.exec(entry.name);
+    for (const file of sourceFiles(dir)) {
+        const match = NS_WIDGET_FILE.exec(basename(file));
         if (!match) continue;
-        const file = join(dir, entry.name);
-        const classes = [...readFileSync(file, 'utf8').matchAll(EXPORTED_CLASS)].map(([, name]) => name);
+        const text = readFileSync(file, 'utf8');
+        if (!CLASS_DECLARATION.test(text)) continue;
         const expected = widgetClass(match[1]);
-        if (classes.includes(expected)) widgets.set(match[1], relative(root, file));
-        else if (classes.length > 0) {
+        if (!exportsClass(text, expected)) {
             throw new Error(
-                `${relative(root, file)} exports ${classes.join(', ')} but not ${expected}. ` +
+                `${relative(root, file)} declares a class but does not export ${expected}. ` +
                     'A widget file names its class after itself; without that this file drops out ' +
                     'of the widget set silently, and every consumer of it shrinks with no failure.',
             );
         }
+        widgets.set(match[1], relative(root, file));
     }
 
     if (widgets.size === 0) {
