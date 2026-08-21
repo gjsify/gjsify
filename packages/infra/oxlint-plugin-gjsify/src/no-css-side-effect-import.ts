@@ -176,7 +176,7 @@ export const noCssSideEffectImportRule: Rule = {
                         'only statement was this import produced a 0-byte bundle). Import the VALUE and apply it ' +
                         `(\`import css from '${value}'\`, then a <style> whose textContent is that string), or ` +
                         'drop the line if the stylesheet is already applied elsewhere. For a FONT that is still ' +
-                        "only half of it: a relative `url()` inside the recovered string resolves against the " +
+                        'only half of it: a relative `url()` inside the recovered string resolves against the ' +
                         'document, and an `--app browser` build emits one file and no assets, so the rule parses ' +
                         'and the face 404s — it needs a `data:` URI or an asset-emitting pipeline. Under a real ' +
                         'CSS pipeline (Vite/webpack) the side-effect form IS correct — say so in a reasoned ' +

@@ -29,8 +29,7 @@ import { tags } from '@lezer/highlight';
  * `_variables.scss` is where that stack is argued about (it explains why
  * 'Cantarell' is dropped from it), so it is where it lives.
  */
-const MONO_FONT =
-    "var(--monospace-font-family, 'Adwaita Mono', ui-monospace, 'SF Mono', 'Menlo', monospace)";
+const MONO_FONT = "var(--monospace-font-family, 'Adwaita Mono', ui-monospace, 'SF Mono', 'Menlo', monospace)";
 
 /** The CodeMirror EditorView theme mapping `.cm-*` chrome to Adwaita tokens. */
 export const adwaitaEditorTheme = EditorView.theme({

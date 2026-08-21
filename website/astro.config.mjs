@@ -203,11 +203,7 @@ export default defineConfig({
                     ],
                 },
             ],
-            customCss: [
-                '@gjsify/adwaita-fonts',
-                '@gjsify/adwaita-web/style.css',
-                './src/styles/custom.css',
-            ],
+            customCss: ['@gjsify/adwaita-fonts', '@gjsify/adwaita-web/style.css', './src/styles/custom.css'],
             defaultLocale: 'root',
             locales: {
                 root: { label: 'English', lang: 'en' },

@@ -72,7 +72,12 @@ const pkgRoot = resolve(__dirname, '..');
  */
 const FACES = [
     { const: 'ADWAITA_SANS_400_CSS', file: 'files/adwaita-sans-400.ttf', style: 'normal', weight: '100 900' },
-    { const: 'ADWAITA_SANS_400_ITALIC_CSS', file: 'files/adwaita-sans-400-italic.ttf', style: 'italic', weight: '100 900' },
+    {
+        const: 'ADWAITA_SANS_400_ITALIC_CSS',
+        file: 'files/adwaita-sans-400-italic.ttf',
+        style: 'italic',
+        weight: '100 900',
+    },
 ];
 
 /** `font/ttf` is the registered media type for TrueType (RFC 8081 § 4.4.4). */
