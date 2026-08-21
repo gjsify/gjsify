@@ -35,17 +35,11 @@
 //   4. driven by nothing at all                                            → FAIL
 //   5. renderer-driven AND still carrying `CORE-ONLY:`                     → FAIL
 //
-// "Driven" means a renderer's `*.spec.ts` names the table OUTSIDE a comment. Both
-// halves were bought: this branch's own corrective comment spelled five table names
-// out in a renderer file, and thereby made the gate read them as browser-driven.
+// "Driven" = a renderer `*.spec.ts` names the table OUTSIDE a comment (consumersUnder).
 //
 // CLAIM arm — every comment CLAUSE in the core or either renderer that names a
-// vector table is resolved against reality. The clause, not the sentence: "only
-// NativeScript drives X" and "…, unlike Y, which stays core-only" are how English
-// states single-renderer coverage, and both were rejected as false claims.
+// vector table is resolved against reality (clause, not sentence — see clausesIn):
 //   6. a `*_VECTORS` name or `A/B_VECTORS` pair that matches no declared table → FAIL
-//      (a `PREFIX_*` glob expanding to nothing is NOT a citation — these trees
-//      are ports of C and cite upstream enum families the same way)
 //   7. a counted citation ("the five OVERLAY_SWIPE_* tables") whose count is
 //      wrong. `OVERLAY_SWIPE_*` IS five real tables, so the arity is the whole
 //      question: a checker that rejected globs would reject a true sentence  → FAIL
@@ -57,16 +51,10 @@
 //      citations from it reaches a renderer-driven table                   → FAIL
 //  11. a `CORE-ONLY:` reason that names no table and is not a ledgered GAP  → FAIL
 //
-// 10 reads only citations whose own clause is PHRASED as coverage. A reason cites a
-// table for other reasons too — as a precedent (`TOOLBAR_VIEW_MEASURE_VECTORS` says
-// its reason is the one `TOOLBAR_VIEW_ALLOCATE_VECTORS` gives, which is not a claim
-// that ALLOCATE covers it), as a concession, as a contrast. Precedents are not left
-// unchecked by that: the cited table is a table, so the TABLE arm holds its header.
-//
-// 11 is what makes an exemption falsifiable at all. Without it the cheapest way to
-// write one is to name nothing — `CORE-ONLY: both renderers exercise this already
-// through their real widgets` passed every other arm, because they all key off a
-// citation. Three of the 43 exemptions were that shape.
+// 10 reads only citations whose clause is PHRASED as coverage (COVERAGE_PHRASING); a
+// precedent citation is held by the TABLE arm instead, on the table it names. 11 is what
+// makes an exemption falsifiable — every other arm keys off a citation, so naming none
+// was the cheapest way to write one.
 //
 // MODULE arm — the table arm is TABLE-keyed, so core behaviour with no table at
 // all is invisible to it. Every module under `adwaita-core/src` that exports
@@ -75,13 +63,10 @@
 // against the declared tables, against whether a renderer drives them, and against
 // the open-item ledger.
 //
-// WHAT IT DOES NOT CHECK: "driven" is a name used outside a comment in a spec, so a
-// spec that imports a table and filters the interesting rows away still counts as
-// driving it. Six tables are referenced only through a `.filter(` today. Measured
-// and ledgered under "A table can be 'driven' while the rows that matter are
-// skipped" rather than half-guarded: the `.filter(` form is mechanical, the
-// `continue`-guard form beside it is not, and a rule that catches two shapes of a
-// three-shape class reads as covering the class.
+// WHAT IT DOES NOT CHECK: a spec that imports a table and filters the interesting rows
+// away still counts as driving it. Measured (six tables) and ledgered under "A table can
+// be 'driven' while the rows that matter are skipped" rather than half-guarded — a rule
+// catching two shapes of a three-shape class reads as covering the class.
 //
 // The `CORE-ONLY:` line belongs in the TABLE's own header, not a renderer's
 // source: #1072 found three `TOOLBAR_VIEW_*` tables whose reason lived in both
@@ -111,11 +96,9 @@ const OPEN_TODOS = join(ROOT, 'status/open-todos.md');
 const CORE_ONLY_MARKER = 'CORE-ONLY:';
 
 /**
- * The open-item headings a module-level gap is ledgered under. Count-free ON PURPOSE: the
- * first spelling was "Four adwaita-core modules …", matched here as a literal string, so
- * closing one gap made the heading false and correcting it meant editing THIS FILE in the
- * same change. AGENTS.md forbids a live count in a comment; inside a required check it is
- * worse than drift.
+ * The open-item headings a module-level gap is ledgered under. Count-free ON PURPOSE: spelled
+ * "Four adwaita-core modules …" and matched here as a literal, closing one gap made the heading
+ * false and correcting it meant editing THIS FILE in the same change.
  */
 const NO_TABLE_LEDGER = 'adwaita-core modules with no conformance vector table';
 const NO_DRIVER_LEDGER = 'adwaita-core modules whose only vector table is core-only';
@@ -124,8 +107,8 @@ const NO_DRIVER_LEDGER = 'adwaita-core modules whose only vector table is core-o
  * Core modules with no conformance file named after them and none importing them for VALUE.
  * `table` — its vectors live in another file under that name; `gap` — the named `###` heading
  * must be an open item in `status/open-todos.md`, so the gap has a place to be closed from.
- * Both, where the vectors exist but no renderer drives THEM either: those are different facts
- * and the entry has to state both, or "explained" quietly means "unexamined".
+ * Both, where the vectors exist but no renderer drives THEM either — different facts, and an
+ * entry that states only the first reads as explained while the module is held to nothing.
  */
 const MODULE_REASONS = {
     breakpoint: { gap: NO_TABLE_LEDGER },
@@ -141,12 +124,9 @@ const MODULE_REASONS = {
 const CITATION =
     /\b([A-Z][A-Z0-9_]*_)\*(?:_VECTORS)?|\b([A-Z][A-Z0-9_]*)\/([A-Z][A-Z0-9_]*_VECTORS)|\b[A-Z][A-Z0-9_]*_VECTORS\b/g;
 /**
- * A citation is a COVERAGE claim only where the clause around it says so. The default is
- * the other way: a reason cites a table for lots of reasons — as a precedent ("same as X"),
- * as a concession ("its other reachers go through X, which stays core-only"), as a contrast.
- * This started as a four-phrase whitelist of precedent spellings, which reported "GAP for the
- * reason X gives" as a coverage claim: an unrecognised TRUE spelling became an accusation.
- * Naming the coverage spellings instead makes an unrecognised one silent.
+ * A citation is a COVERAGE claim only where its clause says so — a reason also cites a table as
+ * a precedent, a concession, a contrast. Naming the four PRECEDENT spellings instead, as this
+ * started out, made an unrecognised TRUE one ("GAP for the reason X gives") an accusation.
  */
 const COVERAGE_PHRASING = /\b(?:driven|drives?|driving|covered|asserted|asserts|held to|the RESULT is|same thing twice)\b/i;
 /**
@@ -196,23 +176,19 @@ function tablesIn(file) {
     return found;
 }
 
-/** Comment bodies, blanked. `[^:]` before `//` keeps `https://` out of it. */
+/** Comment bodies, blanked; `[^:]` keeps `https://` out of it. */
 const withoutComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
 
 /**
- * Which of `names` a suite under `dir` DRIVES: names used outside a comment, in a
- * `*.spec.ts`. Both halves are load-bearing, and a plain text scan had neither.
+ * Which of `names` a suite under `dir` DRIVES: names used outside a comment, in a `*.spec.ts`.
  *
- * Comments, because a claim must not supply its own evidence. This branch's own fix
- * spelled the five `DATA_GRID_*_VECTORS` out in an adwaita-web comment saying the
- * browser drives NONE of them — and thereby made all five read as browser-driven,
- * silencing the gate on the exact defect it was built for. It cuts the other way too:
- * a truthful cross-reference to an exempt table flipped it to "renderer-driven", and
- * the staleness arm then demanded the true marker be deleted.
- *
- * `*.spec.ts`, because driving a table means ITERATING it in a test. Today every
- * non-spec mention in either renderer is prose, so this changes nothing on its own —
- * it is what keeps the comment rule from being one file's move away from useless.
+ * Outside a comment, because a claim must not supply its own evidence — this branch's own fix
+ * spelled the five `DATA_GRID_*_VECTORS` out in an adwaita-web comment saying the browser drives
+ * NONE of them, and thereby made all five read as browser-driven. It cut the other way too: a
+ * truthful cross-reference to an exempt table flipped it to "renderer-driven", and the staleness
+ * arm then demanded the true marker be deleted. `*.spec.ts`, because driving means ITERATING in
+ * a test; every non-spec mention in either renderer is prose today, so that half only keeps the
+ * first from being one file's move away from useless.
  */
 function consumersUnder(dir, names) {
     const seen = new Set();
@@ -259,20 +235,16 @@ const lineOf = (block, spelling) => block.segments.find((segment) => segment.tex
 const sentencesIn = (text) => text.split(/(?<=\.)\s+(?=[A-Z`(])/);
 
 /**
- * A sentence, cut where it turns: at the words that switch which side of a contrast you
- * are on. The claim arms read CLAUSES, not sentences, because a sentence is not one claim.
- * Three TRUE sentences were rejected while it was:
- *   "Both renderers consume the derivation … and NEITHER is held to TAB_TOOLTIP_VECTORS"
- *   "The browser works in CSS pixels …, so ONLY NativeScript drives SIDEBAR_WIDTH_VECTORS."
- *   "Both renderers drive TOOLBAR_VIEW_CLASS_VECTORS, UNLIKE TOOLBAR_VIEW_ALLOCATE_VECTORS…"
- * Every one names the OTHER renderer, or the table that is NOT covered, in the same
- * sentence — which is how you state single-renderer coverage in English. The tree was green
- * only because its reasons had been worded around this: the split-view fix puts browser and
- * NativeScript in separate sentences, and the TAB_TOOLTIP reason writes "these rows" rather
- * than naming its own table. Dodged by wording is not satisfied.
+ * A sentence, cut where it turns. The claim arms read CLAUSES because a sentence is not one
+ * claim: three TRUE ones were rejected while they read whole sentences, e.g. "The browser works
+ * in CSS pixels …, so ONLY NativeScript drives SIDEBAR_WIDTH_VECTORS", credited to the browser
+ * for naming it. Stating single-renderer coverage NAMES the other renderer, or the table that is
+ * not covered, in the same sentence. The tree was green only because its reasons had been worded
+ * around that — split browser and NativeScript into two sentences, write "these rows" instead of
+ * the table's name — and dodged by wording is not satisfied.
  *
- * The marker STARTS the next clause, so the contrasted half is still read — it just no
- * longer inherits the claim from the half before it.
+ * The marker STARTS the next clause, so the contrasted half is still read; it just stops
+ * inheriting the claim from the half before it.
  */
 const CLAUSE_TURN = /(?=\b(?:but|unlike|neither|nor|rather than|instead|whereas|while|except|not|no|none|only)\b)/i;
 const clausesIn = (sentence) => sentence.split(CLAUSE_TURN);
@@ -287,11 +259,9 @@ function citationsIn(text, declared) {
         const [spelling, globPrefix, pairHead, pairTail] = match;
         if (globPrefix) {
             const expanded = [...declared].filter((name) => name.startsWith(globPrefix));
-            // A glob that expands to NOTHING is not a citation. These trees are ports of C
-            // and cite upstream constant families the same way — `GTK_STATE_FLAG_*`,
-            // `ADW_TOAST_PRIORITY_*`, and `O_*`/`DH_CHECK_*` elsewhere in the repo. Reading
-            // those as broken table citations rejected true sentences, and this gate carries
-            // no `paths:` filter, so one such comment blocks every merge in the repo.
+            // A glob that expands to NOTHING is not a citation: these trees are ports of C and
+            // cite upstream constant families the same way (`GTK_STATE_FLAG_*`, `O_*`). Reading
+            // one as a broken citation blocked every merge — this gate has no `paths:` filter.
             if (expanded.length === 0) continue;
             found.push({ spelling, kind: 'glob', index: match.index, names: expanded, missing: [] });
         } else if (pairHead) {
@@ -319,12 +289,10 @@ function citationsIn(text, declared) {
 }
 
 /**
- * The count word immediately before a citation, if the sentence states one — for a spelling
- * that CAN expand to several tables. A plain name always expands to exactly one, so the only
- * count that ever passes is "one", and "the three TAB_TOOLTIP_VECTORS rows below" — counting
- * ROWS, which is ordinary prose here — reads as an arity of three and fails. The digit case
- * was already excluded for this reason ("at 96 dpi ADW_LENGTH_UNIT_VECTORS" is arithmetic);
- * the spelled-word path was left open.
+ * The count word immediately before a citation — only for a spelling that CAN expand to several
+ * tables. A plain name always expands to one, so the only count that passes is "one", and "the
+ * three TAB_TOOLTIP_VECTORS rows below" fails on an arity nobody stated. Digits were already
+ * excluded for that reason ("at 96 dpi ADW_LENGTH_UNIT_VECTORS" is arithmetic).
  */
 function statedCount(sentence, index, kind) {
     if (kind === 'name') return undefined;
@@ -364,7 +332,6 @@ for (const table of tables) {
     reasons.set(table.name, text);
 }
 
-/** The unit both claim arms read: one clause of one sentence. */
 const claimUnitsIn = (text) => sentencesIn(text).flatMap(clausesIn);
 
 /** The tables a reason offers AS ITS COVERAGE — a citation whose own clause says so. */
@@ -419,13 +386,11 @@ for (const table of tables) {
         continue;
     }
     resolved.exempted += 1;
-    // Every exemption is one of exactly two things, and it has to say which. A reason that
-    // rests on another table NAMES it — as coverage (chain-resolved below) or as a precedent,
-    // whose own header the table arm checks in its own right. A reason that rests on nothing
-    // is a GAP, and says so with somewhere to close it from. The third shape — prose that
-    // reads like coverage and names nothing — is the cheapest unfalsifiable exemption there
-    // is, and no arm can see it: `CORE-ONLY: both renderers exercise this through their real
-    // widgets` passed everything. Three of the 43 were that shape; two were measurably false.
+    // An exemption either rests on another table and NAMES it — as coverage (chain-resolved
+    // below) or as a precedent, whose own header the table arm holds — or rests on nothing and
+    // is a GAP with somewhere to close it from. The third shape reads like coverage and names
+    // nothing: `CORE-ONLY: both renderers exercise this through their real widgets` passed
+    // every arm. Three of the 43 were that shape; two were measurably false.
     const named = citationsIn(reason, declared)
         .flatMap((citation) => citation.names)
         .filter((name) => name !== table.name);
@@ -513,19 +478,18 @@ const openTodos = readFileSync(OPEN_TODOS, 'utf8');
 const HAS_BEHAVIOUR = /^export\s+(?:async\s+)?(?:const|function|class|let|var|enum|default)\b/m;
 
 for (const file of walk(CORE_SUITE_DIR)) {
-    // Recursive, unlike the readdir this arm started with — the arm exists because the table
-    // arm had an invisible set, and a non-recursive scan reproduces that one directory down.
+    // Recursive, unlike the readdir this arm started with: the arm exists because the table arm
+    // had an invisible set, and a non-recursive scan reproduces that one directory down.
     if (file.startsWith(CONFORMANCE_DIR) || file.endsWith('.spec.ts')) continue;
     const module = relative(CORE_SUITE_DIR, file).slice(0, -3);
     if (module === 'index') continue;
     const source = readFileSync(file, 'utf8');
-    // A module of pure types has no behaviour to vector, so demanding vectors for it would
-    // force the author to invent a table or a ledger item. Derived, not allowlisted.
+    // Skipping a types-only module is DERIVED, not allowlisted — there is nothing to vector, so
+    // demanding vectors forces the author to invent a table or a ledger item.
     if (!HAS_BEHAVIOUR.test(source)) continue;
     const where = `${relative(ROOT, file)}`;
-    // A VALUE import. `import type { AdwLengthUnit } from '../length-unit.js'` proves nothing
-    // about vectors — it borrows a name for a field — and that is the whole of what covered
-    // `length-unit.ts`.
+    // A VALUE import: `import type { AdwLengthUnit } from '../length-unit.js'` borrows a name
+    // for a field and proves nothing, and it was the whole of what covered `length-unit.ts`.
     const valueImport = new RegExp(`import\\s+(?!type\\b)[^;]*?from '\\.\\./${module}\\.js'`);
     const covered =
         conformanceFiles.some((candidate) => candidate.endsWith(`/${module}.ts`)) || valueImport.test(conformanceSource);
@@ -544,9 +508,8 @@ for (const file of walk(CORE_SUITE_DIR)) {
     if (reason.table && !declared.has(reason.table)) {
         failures.push(`${where}: MODULE_REASONS points at ${reason.table}, which no conformance file declares.`);
     }
-    // A `table:` naming a table no renderer drives explains where the vectors LIVE and nothing
-    // about who is held to them — which is the question this arm's finding text asks. Left at
-    // `declared.has()`, the entry reads as resolved while the module is held to nothing at all.
+    // A `table:` naming an undriven table says where the vectors LIVE and nothing about who is
+    // held to them. Left at `declared.has()`, the entry reads as resolved either way.
     if (reason.table && declared.has(reason.table) && !byRenderer.has(reason.table) && !reason.gap) {
         failures.push(
             `${where}: its vectors live in ${reason.table}, which no renderer drives either — so no ` +
