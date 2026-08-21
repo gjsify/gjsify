@@ -178,7 +178,9 @@ export class AdwViewSwitcher extends HTMLElement {
             host: this,
             orientation: 'horizontal',
             items: () => this._nodes.map((nodes) => nodes.button).filter((button) => !button.hidden),
-            select: (item) => this._state.setSelected(Number(item.dataset.pageIndex)),
+            select: (item) => {
+                this._state.setSelected(Number(item.dataset.pageIndex));
+            },
         });
 
         this._contentEl = document.createElement('div');

@@ -71,8 +71,11 @@ export interface AdwRovingFocusInit {
      * `focus()` the browser refuses.
      */
     items: () => readonly HTMLElement[];
-    /** Select `item`. @returns whether the selection actually moved. */
-    select: (item: HTMLElement) => boolean;
+    /**
+     * Select `item`. Whether the selection actually MOVED is the widget's own business:
+     * focus travels with the key either way ({@link attachRovingFocus}).
+     */
+    select: (item: HTMLElement) => void;
 }
 
 /** The arrow pair that moves along each axis. */
@@ -118,12 +121,22 @@ export function attachRovingFocus(init: AdwRovingFocusInit): void {
                 return;
         }
 
-        // Claimed even at the ends: an ArrowDown at the last row that fell through to the
-        // browser would scroll the page out from under a user who is inside the widget.
+        // Claimed even when nothing moves: an ArrowDown at the last row that fell through
+        // to the browser would scroll the page out from under a user who is inside the
+        // widget.
         event.preventDefault();
         const target = items[to];
         if (target === undefined || target === items[from]) return;
-        if (!init.select(target)) return;
+
+        // Selection is attempted, and focus moves REGARDLESS of whether it took. Gating
+        // the focus move on the selection having changed put the user back in the state
+        // this module exists to remove: with focus on row 0 and the selection already on
+        // row 1 — reachable by setting `selected` while focus sits elsewhere — the
+        // sidebar's `select` returned false for the row the arrow key targeted, so the
+        // press was swallowed and focus stayed on a row the roving tabindex had taken out
+        // of the Tab order. Measured in Firefox: tabIndex `[-1, 0, -1]`, two ArrowDowns,
+        // `document.activeElement` unmoved both times.
+        init.select(target);
 
         // Focus travels with the roving tabindex or the next keypress goes nowhere — the
         // rule `<adw-tab-view>` states. Plain `focus()`, deliberately, and NOT because

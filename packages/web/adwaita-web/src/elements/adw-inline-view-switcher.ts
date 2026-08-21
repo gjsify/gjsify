@@ -174,7 +174,9 @@ export class AdwInlineViewSwitcher extends HTMLElement {
             host: this,
             orientation: 'horizontal',
             items: () => this._toggles,
-            select: (item) => this._state.setSelected(Number(item.dataset.pageIndex)),
+            select: (item) => {
+                this._state.setSelected(Number(item.dataset.pageIndex));
+            },
         });
 
         this._pagesEl = document.createElement('div');

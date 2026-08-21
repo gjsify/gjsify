@@ -407,6 +407,33 @@ export const AdwKeyboardOperableTest = async () => {
             });
         });
 
+        await it('adw-sidebar arrow moves focus even when the selection refuses', async () => {
+            const el = document.createElement('adw-sidebar');
+            el.innerHTML =
+                '<adw-sidebar-section title="Section">' +
+                ['One', 'Two', 'Three'].map((t) => `<adw-sidebar-item title="${t}"></adw-sidebar-item>`).join('') +
+                '</adw-sidebar-section>';
+            document.body.appendChild(el);
+
+            const rows = Array.from(el.querySelectorAll<HTMLElement>('[role="option"]'));
+            rows[0].focus();
+            // Focus and selection on DIFFERENT rows — reachable by setting `selected`
+            // while focus sits elsewhere. The arrow now targets the row that is already
+            // selected, so the widget's `select` refuses.
+            el.setAttribute('selected', '1');
+            expect(rows.map((row) => row.tabIndex)).toStrictEqual([-1, 0, -1]);
+            expect(document.activeElement).toBe(rows[0]);
+
+            press(rows[0], 'ArrowDown');
+            // Focus travels with the KEY, not with the selection. Gating it on the
+            // selection having moved swallowed the press and left the user standing on a
+            // row the roving tabindex had taken out of the Tab order — reachable by no
+            // key, which is the whole defect this module removes.
+            expect(document.activeElement).toBe(rows[1]);
+
+            el.remove();
+        });
+
         await it('adw-sidebar arrow skips a disabled row', async () => {
             const el = document.createElement('adw-sidebar');
             el.innerHTML =

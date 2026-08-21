@@ -173,7 +173,7 @@ export class AdwSidebar extends HTMLElement {
             items: () => this._rows.filter((row) => !row.el.hidden && !row.el.disabled).map((row) => row.el),
             select: (item) => {
                 const row = this._rows.find((candidate) => candidate.el === item);
-                return row !== undefined && this._state.setSelected(row.index);
+                if (row !== undefined) this._state.setSelected(row.index);
             },
         });
 

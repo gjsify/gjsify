@@ -97,11 +97,10 @@ export class AdwViewSwitcherBar extends HTMLElement {
                 items: () => this._nodes.map((nodes) => nodes.button).filter((button) => !button.hidden),
                 select: (item) => {
                     const stack = this._stack;
-                    if (!stack) return false;
+                    if (!stack) return;
                     const index = Number(item.dataset.pageIndex);
-                    if (stack.visibleChildIndex === index) return false;
-                    stack.visibleChildIndex = index;
-                    return true;
+                    // Re-assigning the current index would re-run the stack's transition.
+                    if (stack.visibleChildIndex !== index) stack.visibleChildIndex = index;
                 },
             });
         }
