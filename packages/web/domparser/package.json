@@ -14,6 +14,10 @@
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
         },
+        "./html": {
+            "types": "./lib/types/html/index.d.ts",
+            "default": "./lib/esm/html/index.js"
+        },
         "./entities": {
             "types": "./lib/types/entities/index.d.ts",
             "default": "./lib/esm/entities/index.js"

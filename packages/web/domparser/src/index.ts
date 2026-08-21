@@ -9,6 +9,10 @@
 export { DOMNode } from './dom/node.js';
 export { DOMElement } from './dom/element.js';
 export { DOMDocument } from './dom/document.js';
+export { DOMComment } from './dom/comment.js';
+export { DOMDocumentType } from './dom/doctype.js';
+export { DOMDocumentFragment } from './dom/fragment.js';
+export { DOMCDATASection, DOMText } from './dom/text.js';
 export { domTreeReader } from './dom/reader.js';
 export { canonicalize } from './canonical.js';
 export type { ReadAttribute, TreeReader } from './canonical.js';
