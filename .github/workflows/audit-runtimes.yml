@@ -314,6 +314,16 @@ jobs:
       - name: Check the style-class ledger covers libadwaita's documented surface
         run: node scripts/check-adwaita-style-classes.mjs
 
+      # `packages/web/adwaita-web` has no `test` script: its spec files reach a runner
+      # only through the `run({…})` in `src/test.browser.mts`, and nothing read that
+      # call. An import dropped from it is silent — the entry is outside the package's
+      # tsconfig program (`include: src/**/*.ts` does not match `.mts`), so the orphaned
+      # spec still type-checks and simply stops running. Lexical, so it holds on every
+      # PR; the runtime half (`results.total > 0` in tests/browser) only runs when a
+      # bundle was staged for main.yml's `browser` job.
+      - name: Check every browser-only spec is registered in its bundle
+        run: node scripts/check-browser-test-registration.mjs
+
       # Three READMEs promised the three storybook targets "compare 1:1 by screenshot"
       # (#1052) and no such harness existed. It was not built — three rasterisers cannot
       # be compared pixel-for-pixel, and the NativeScript leg needs a device CI has not
@@ -651,6 +661,16 @@ jobs:
       # the step above going missing again is loud rather than green.
       - name: Check the style-class ledger covers libadwaita's documented surface
         run: node scripts/check-adwaita-style-classes.mjs
+
+      # `packages/web/adwaita-web` has no `test` script: its spec files reach a runner
+      # only through the `run({…})` in `src/test.browser.mts`, and nothing read that
+      # call. An import dropped from it is silent — the entry is outside the package's
+      # tsconfig program (`include: src/**/*.ts` does not match `.mts`), so the orphaned
+      # spec still type-checks and simply stops running. Lexical, so it holds on every
+      # PR; the runtime half (`results.total > 0` in tests/browser) only runs when a
+      # bundle was staged for main.yml's `browser` job.
+      - name: Check every browser-only spec is registered in its bundle
+        run: node scripts/check-browser-test-registration.mjs
 
       # Three READMEs promised the three storybook targets "compare 1:1 by screenshot"
       # (#1052) and no such harness existed. It was not built — three rasterisers cannot
