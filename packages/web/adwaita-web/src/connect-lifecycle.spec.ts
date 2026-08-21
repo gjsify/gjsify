@@ -9,22 +9,21 @@
 //      `[hidden] { display: none !important }`, so the widget's own `display: flex` does
 //      not win — while the IDENTICAL declared bar renders at 48px. Six getters across
 //      three files had it.
-//   2. 33 element classes open `connectedCallback` with an `_initialized` early return.
-//      For the three that also tear something down in `disconnectedCallback`, a bare
-//      re-parent — a slideshow slide, a client-side route, moving a node between two
-//      containers — dropped the outside binding and never restored it.
+//   2. Most element classes open `connectedCallback` with an `_initialized` early
+//      return. For the ones that also tear something down in `disconnectedCallback`, a
+//      bare re-parent — a slideshow slide, a client-side route, moving a node between
+//      two containers — dropped the outside binding and never restored it.
 //
 // A per-widget spec is one more spec per widget to forget, and both shapes were found
 // by reading rather than by a failing test. So neither list here is written down:
-// {@link registeredTags} reads the CustomElementRegistry, {@link containerGetters} reads
-// the accessor shape, and a container added tomorrow enrols itself.
+// {@link registeredElements} reads the CustomElementRegistry and {@link containerGetters}
+// reads the accessor shape, so a container written in that shape enrols itself.
 //
 // Its static sibling is `scripts/check-adwaita-connect-rebind.mjs`, which holds shape 2
 // at the source level, where a missing rebind is visible without a widget that shows it.
 import { describe, expect, it } from '@gjsify/unit';
 
 import * as adwaitaWeb from './index.js';
-import type { AdwDialog } from './elements/adw-dialog.js';
 
 /**
  * Elements that cannot RENDER a child, however the DOM lets you append one. A container
@@ -50,35 +49,49 @@ const NON_RENDERING = new Set([
 ]);
 
 /**
- * The two containers that read `display: none` for a LEGITIMATE reason, with what makes
- * each one present. Both cost a reviewer real time: a driver without this goes red on
- * correct code, which is worse than the bug it hunts.
+ * Undo the two states in which a correctly-built widget legitimately reads
+ * `display: none`, so the driver measures the widget and not the state. Both cost a
+ * reviewer real time: a driver without this goes red on correct code, which is worse
+ * than the bug it hunts.
  *
- *   - `<adw-expander-row>.contentSection` is merely COLLAPSED — it is the disclosure.
- *   - `<adw-dialog>.contentArea` is merely not PRESENTED — the dialog is `display: none`
- *     until `present()`, exactly as `Adw.Dialog` is until it is pushed.
+ * Asked of the ELEMENT, not looked up per tag: every dialog answers `present()`, so a
+ * fifth one enrols itself instead of failing the day it grows a container getter. The
+ * expander is keyed by tag because "collapsed" is its own idea and nothing else has it.
  *
  * Everything else is expected to lay a child out with no setup at all, which is what
  * "append here imperatively" promises.
  */
-const PRESENT: Record<string, (el: HTMLElement) => void> = {
-    'adw-expander-row': (el) => el.setAttribute('expanded', ''),
-    'adw-dialog': (el) => (el as AdwDialog).present(),
-};
+function reveal(el: HTMLElement): void {
+    // `<adw-dialog>.contentArea` and every dialog after it are merely not PRESENTED —
+    // `display: none` until `present()`, exactly as `Adw.Dialog` is until it is pushed.
+    const dialog = el as HTMLElement & { present?: () => void };
+    if (typeof dialog.present === 'function') dialog.present();
+    // `<adw-expander-row>.contentSection` is merely COLLAPSED — it is the disclosure.
+    if (el.localName === 'adw-expander-row') el.setAttribute('expanded', '');
+}
 
-/** Every tag the package registers, asked of the registry that registered them. */
-function registeredTags(): string[] {
+/**
+ * Every tag the package registers, asked of the registry that registered them, next to
+ * every exported element class the registry does NOT know.
+ *
+ * The second half is a `define` that was dropped or renamed: those tags would silently
+ * leave this whole driver. It is REPORTED rather than asserted here, because this runs
+ * at namespace level — an `expect` that throws out here escapes `runTests`, and the
+ * runner's promise chain never reaches `browserSignalDone()`, so the page never sets
+ * `data-tests-done` and Playwright kills the leg on a timeout naming no test. This
+ * namespace is registered FIRST, so that would take all of adwaita-web's browser
+ * assertions with it and report none of them.
+ */
+function registeredElements(): { tags: string[]; unregistered: string[] } {
     const tags: string[] = [];
+    const unregistered: string[] = [];
     for (const exported of Object.values(adwaitaWeb)) {
         if (typeof exported !== 'function' || !(exported.prototype instanceof HTMLElement)) continue;
         const tag = customElements.getName(exported as CustomElementConstructor);
-        // An exported element class the registry does not know is a `define` that was
-        // dropped or renamed: it would silently leave this whole driver, so it fails
-        // here rather than shrinking the set.
-        expect(`${exported.name} → ${tag}`).toBe(`${exported.name} → ${tag ?? 'NOT REGISTERED'}`);
-        if (tag !== null) tags.push(tag);
+        if (tag === null) unregistered.push(exported.name);
+        else tags.push(tag);
     }
-    return tags.sort();
+    return { tags: tags.sort(), unregistered: unregistered.sort() };
 }
 
 /**
@@ -91,6 +104,10 @@ function registeredTags(): string[] {
  * own subtree — `<adw-popover>.anchor` defaults to `parentElement` and is not. And a
  * value that is not an element at all (`items`, `groups`, a `null` slot on an empty
  * widget) is nothing to append to.
+ *
+ * So this enrols the SHAPE the six containers of the incident have, not every possible
+ * one: a container exposed as a get/set pair, or one the widget only attaches once it
+ * has children, is invisible here and needs its own coverage.
  */
 function containerGetters(el: HTMLElement): Array<[string, HTMLElement]> {
     const found: Array<[string, HTMLElement]> = [];
@@ -136,6 +153,10 @@ async function settle(): Promise<void> {
 function verdict(el: HTMLElement): string {
     const box = el.getBoundingClientRect();
     if (box.width <= 0 || box.height <= 0) return `collapsed ${Math.round(box.width)}x${Math.round(box.height)}`;
+    // A box is not a pixel. `visibility` INHERITS, so a container that hid its subtree
+    // that way leaves the child measuring its full 24x24 — one read on the CHILD is
+    // enough to tell the two apart, and no walk up the tree is needed.
+    if (getComputedStyle(el).visibility === 'hidden') return 'invisible';
     const onScreen = box.bottom > 0 && box.top < window.innerHeight && box.right > 0 && box.left < window.innerWidth;
     return onScreen ? 'laid out' : `off-screen at ${Math.round(box.left)},${Math.round(box.top)}`;
 }
@@ -163,10 +184,13 @@ function skeleton(el: Element): string {
 }
 
 export const AdwConnectLifecycleTest = async () => {
-    const tags = registeredTags();
+    const { tags, unregistered } = registeredElements();
 
     await describe('imperative append points', async () => {
         await it('finds the elements and their containers', async () => {
+            // A dropped or renamed `define`, named as ONE failing test: the tags it
+            // carries would otherwise leave this driver with nothing going red.
+            expect(`unregistered: ${unregistered.join(', ')}`).toBe('unregistered: ');
             // A scan that finds nothing passes vacuously, and every `it` below it would
             // report a green it never earned. Floors, not exact counts: the point of the
             // derivation is that both numbers grow without this file being edited.
@@ -175,7 +199,7 @@ export const AdwConnectLifecycleTest = async () => {
                 const host = visibleHost();
                 const el = document.createElement(tag);
                 host.appendChild(el);
-                PRESENT[tag]?.(el);
+                reveal(el);
                 const names = containerGetters(el).map(([name]) => `${tag}.${name}`);
                 host.remove();
                 return names;
@@ -188,7 +212,7 @@ export const AdwConnectLifecycleTest = async () => {
                 const host = visibleHost();
                 const el = document.createElement(tag);
                 host.appendChild(el);
-                PRESENT[tag]?.(el);
+                reveal(el);
 
                 const containers = containerGetters(el);
                 const probes = containers.map(([name, container]) => {
@@ -219,7 +243,7 @@ export const AdwConnectLifecycleTest = async () => {
                 dark.style.display = 'none';
                 const moved = document.createElement(tag);
                 dark.appendChild(moved);
-                PRESENT[tag]?.(moved);
+                reveal(moved);
 
                 // THREE hosts, one widget each. Put the two in one host and the row
                 // stylesheets separate them for us: `:last-child` drops the hairline, so
@@ -228,11 +252,11 @@ export const AdwConnectLifecycleTest = async () => {
                 const control = visibleHost();
                 const fresh = document.createElement(tag);
                 control.appendChild(fresh);
-                PRESENT[tag]?.(fresh);
+                reveal(fresh);
 
                 const light = visibleHost();
                 light.appendChild(moved);
-                PRESENT[tag]?.(moved);
+                reveal(moved);
                 await settle();
 
                 // Built in the dark and moved into the light, a widget must be
