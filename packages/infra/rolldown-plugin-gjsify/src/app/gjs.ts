@@ -267,8 +267,8 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
             target: 'gjs',
             aliases: aliasEntries,
             isExternal: external,
-            ...(input.pluginOptions.toolchainAnchorDir !== undefined
-                ? { toolchainAnchorDir: input.pluginOptions.toolchainAnchorDir }
+            ...(input.pluginOptions.toolchainAnchor !== undefined
+                ? { toolchainAnchor: input.pluginOptions.toolchainAnchor }
                 : {}),
         }),
     ];

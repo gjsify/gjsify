@@ -92,16 +92,40 @@ async function newestLockfileMtime(cwd: string): Promise<number> {
 }
 
 /**
+ * Absolute path of the CLI module that is running, or `null` when it did not come
+ * from a `file:` URL.
+ *
+ * The conversion happens ONCE, here, inside a catch. A CLI loaded from a non-`file:`
+ * origin — the bundled/Flatpak shape `commands/tsc.ts` names as the reason its second
+ * anchor exists — would otherwise make `fileURLToPath` throw on the path that loads
+ * every config file and every plugin, not merely lose the fallback.
+ */
+function runningCliFile(): string | null {
+    try {
+        return fileURLToPath(import.meta.url);
+    } catch {
+        return null;
+    }
+}
+
+/**
  * Fresh when the cached GJS bundle is newer than BOTH the source file AND the
  * project's lockfile (the dep-change signal). Missing bundle/source → not fresh
  * (rebuild). Shared by the plugin + config GJS-bundle caches.
+ *
+ * `anchorFile` is the running CLI, and only set when this bundle was allowed the
+ * toolchain fallback. Such a bundle can carry code from the CLI's OWN install,
+ * which neither the entry mtime nor the project lockfile tracks — so after a
+ * `gjsify self-update` a cached config/plugin bundle holding the previous CLI's
+ * `@gjsify/*` would otherwise stay "fresh" forever.
  */
-async function isBundleFresh(outfile: string, sourcePath: string, cwd: string): Promise<boolean> {
+async function isBundleFresh(outfile: string, sourcePath: string, cwd: string, anchorFile?: string): Promise<boolean> {
     try {
         const outStat = await stat(outfile);
         const srcStat = await stat(sourcePath);
         const depMtime = await newestLockfileMtime(cwd);
-        return outStat.mtimeMs >= Math.max(srcStat.mtimeMs, depMtime);
+        const anchorMtime = anchorFile === undefined ? 0 : (await stat(anchorFile)).mtimeMs;
+        return outStat.mtimeMs >= Math.max(srcStat.mtimeMs, depMtime, anchorMtime);
     } catch {
         return false;
     }
@@ -479,6 +503,9 @@ export class BuildAction {
                 label: pluginName,
                 verbose,
                 noCacheEnv: 'GJSIFY_NO_PLUGIN_CACHE',
+                // A bundler plugin runs inside the CLI process — toolchain by
+                // construction, not by where its file happens to sit.
+                resolveFromToolchain: true,
             });
         } catch (err) {
             throw new Error(
@@ -546,6 +573,19 @@ export class BuildAction {
              */
             globals?: string;
             excludeGlobals?: string[];
+            /**
+             * Allow a `@gjsify/*` this project cannot resolve to come from the copy
+             * installed beside the RUNNING CLI.
+             *
+             * OPT-IN PER CALLER, never inferred here, because this helper does NOT
+             * only bundle toolchain — the `node` shim `gjsify run` puts on the PATH
+             * routes any project's `node <file>` through `utils/node-script.ts` and
+             * into this same function, a consumer's `"start": "node ./src/main.mjs"`
+             * included. Each caller states what it is bundling and why that earns the
+             * fallback; `gjsify build` sets nothing, so a user's missing dependency
+             * stays fatal there.
+             */
+            resolveFromToolchain?: boolean;
         },
     ): Promise<string> {
         const cwd = process.cwd();
@@ -555,10 +595,14 @@ export class BuildAction {
         // policies is two artifacts, and the freshness check below (entry mtime + lockfile)
         // cannot see the `package.json` edit that changed one. Callers without a policy keep
         // their existing cache filenames.
+        // The anchor belongs in the key for the same reason: with it the artifact may
+        // contain code from a DIFFERENT install than without it, and two CLIs on one
+        // machine resolve to two different paths.
+        const anchorFile = opts.resolveFromToolchain === true ? runningCliFile() : null;
         const cacheKey =
-            opts.globals === undefined && opts.excludeGlobals === undefined
+            opts.globals === undefined && opts.excludeGlobals === undefined && anchorFile === null
                 ? inputPath
-                : `${inputPath} ${JSON.stringify([opts.globals ?? null, opts.excludeGlobals ?? null])}`;
+                : `${inputPath} ${JSON.stringify([opts.globals ?? null, opts.excludeGlobals ?? null, anchorFile])}`;
         // THE HASH GOES IN THE DIRECTORY, THE FILE KEEPS THE SOURCE'S NAME. As
         // `<name>-<hash>.mjs` it broke every script guarding its body with the standard
         // is-entry test: `audit-runtimes.mjs` asks whether `process.argv[1]` ENDS WITH its
@@ -573,7 +617,7 @@ export class BuildAction {
 
         const cacheDisabled =
             opts.cache === false || (opts.noCacheEnv ? isTruthyEnv(process.env[opts.noCacheEnv]) : false);
-        if (!cacheDisabled && (await isBundleFresh(outfile, inputPath, cwd))) {
+        if (!cacheDisabled && (await isBundleFresh(outfile, inputPath, cwd, anchorFile ?? undefined))) {
             if (opts.verbose) console.debug(`[gjsify] reusing cached GJS bundle ${outfile}`);
             return outfile;
         }
@@ -591,13 +635,10 @@ export class BuildAction {
             },
         }).buildApp('gjs', {
             preserveDefaultExport: opts.preserveDefaultExport ?? true,
-            // Everything routed through here is TOOLCHAIN — a repo build script, a
-            // user plugin, a config file — never the user's application. So a
-            // `@gjsify/*` the project cannot resolve may fall back to the copy
-            // installed beside the running CLI, which is built by construction.
-            // `gjsify build` proper never sets this: there, an unresolvable
-            // dependency is the user's bug and must stay fatal.
-            toolchainAnchorDir: dirname(fileURLToPath(import.meta.url)),
+            // See `opts.resolveFromToolchain`: the CALLER decides whether this input is
+            // toolchain, because this helper alone cannot tell a config file from a
+            // consumer's `node ./src/main.mjs`.
+            ...(anchorFile === null ? {} : { toolchainAnchor: anchorFile }),
         });
         return outfile;
     }
@@ -605,7 +646,7 @@ export class BuildAction {
     /** Application mode */
     async buildApp(
         app: App = 'gjs',
-        opts: { watch?: boolean; preserveDefaultExport?: boolean; toolchainAnchorDir?: string } = {},
+        opts: { watch?: boolean; preserveDefaultExport?: boolean; toolchainAnchor?: string } = {},
     ): Promise<RolldownOutput[]> {
         const { verbose, typescript, exclude, library: pkg, aliases, excludeGlobals } = this.configData;
 
@@ -675,7 +716,7 @@ export class BuildAction {
             consoleShim,
             ...(aliases ? { aliases } : {}),
             ...(opts.preserveDefaultExport ? { preserveDefaultExport: true } : {}),
-            ...(opts.toolchainAnchorDir !== undefined ? { toolchainAnchorDir: opts.toolchainAnchorDir } : {}),
+            ...(opts.toolchainAnchor !== undefined ? { toolchainAnchor: opts.toolchainAnchor } : {}),
         };
 
         const { autoMode, extras } = this.parseGlobalsValue(globals);

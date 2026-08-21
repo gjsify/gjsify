@@ -23,10 +23,18 @@
 // `main` names a file that does not exist is exactly that bit, in a directory
 // the suite owns.
 //
-// The FAKE `node` on PATH exits 127 and announces itself, so any fallback to
-// Node is a loud failure rather than a test that passed while proving nothing.
+// THE FAKE `node`/`npm`/`npx` ON PATH are a cheap belt, NOT the proof that the
+// GJS path was taken. `runNodeScript` branches on `hostRuntime()`, not on PATH:
+// under `gjs -m cli.gjs.mjs` it bundles and spawns `gjs`, and nothing on that
+// branch looks `node` up at all. The assertion is a guard against a future
+// regression that starts shelling out — in `tests/e2e/node-free-bootstrap` the
+// same device IS load-bearing, because that suite drives `install`, which can.
 //
-// SKIP when off a capable host (non-Linux / no gjs / no built CLI bundle).
+// NO SKIP GUARD. `dist/cli.gjs.mjs` is untracked since ADR 0002, so an
+// `existsSync` predicate turns the one suite that measures this fix into a green
+// run that measured nothing — exactly what `node-free-bootstrap` rejects in
+// writing. The host requirements are HARD ASSERTS inside the test; only the
+// non-Linux leg, which cannot host it at all, still skips.
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -39,15 +47,10 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..', '..', '..');
 const CLI_BUNDLE = join(REPO_ROOT, 'packages', 'infra', 'cli', 'dist', 'cli.gjs.mjs');
+const SUITE_OPTS = { skip: process.platform !== 'linux', timeout: 5 * 60 * 1000 };
 
-function hasGjs() {
-    const r = spawnSync('gjs', ['--version'], { stdio: 'ignore' });
-    return r.status === 0 && r.error === undefined;
-}
-
-const SKIP = process.platform !== 'linux' || !hasGjs() || !existsSync(CLI_BUNDLE);
-
-describe('node-script bundling against a cold workspace', { skip: SKIP, timeout: 5 * 60 * 1000 }, () => {
+// Only the non-Linux leg skips: it cannot host gjs + the GI prebuilds at all.
+describe('node-script bundling against a cold workspace', SUITE_OPTS, () => {
     let tmpDir;
     let projectDir;
     let fakeBinDir;
@@ -103,6 +106,10 @@ describe('node-script bundling against a cold workspace', { skip: SKIP, timeout:
             );
         }
 
+        const gjs = spawnSync('gjs', ['--version'], { stdio: 'ignore' });
+        assert.equal(gjs.status, 0, 'this suite needs gjs — it is the runtime under test');
+        assert.ok(existsSync(CLI_BUNDLE), `${CLI_BUNDLE} missing — build it before running this suite`);
+
         // FAKE node/npm/npx: present, on PATH, and fatal if used.
         fakeBinDir = join(tmpDir, 'fakebin');
         mkdirSync(fakeBinDir, { recursive: true });
@@ -136,6 +143,16 @@ describe('node-script bundling against a cold workspace', { skip: SKIP, timeout:
         assert.ok(
             !/unresolved-workspace-import/i.test(output),
             `The unbuilt workspace @gjsify/fs must be rescued from the CLI's own install, not reported.\n${output}`,
+        );
+
+        // The rescue must leave a trace. Without this the suite cannot tell a build
+        // that fell back to the CLI's copies from one whose project resolved
+        // everything — the two would have byte-identical logs, which is the whole
+        // reason the fallback warns.
+        assert.match(
+            output,
+            /did not resolve from the project/,
+            `every toolchain rescue must name itself in the log.\n${output}`,
         );
 
         const marker = join(projectDir, 'generated.txt');

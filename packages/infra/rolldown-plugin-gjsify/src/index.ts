@@ -35,7 +35,6 @@ export {
     isWorkspaceSpecifier,
     formatUnresolvedWorkspaceImport,
     buildReverseAliasIndex,
-    resolveFromToolchain,
     UnresolvedWorkspaceImportError,
 } from './plugins/unresolved-workspace-import.js';
 export type {
@@ -43,7 +42,6 @@ export type {
     WorkspaceImportGuardTarget,
     ImportVerdict,
     ClassifyImportInput,
-    ToolchainResolver,
     UnresolvedWorkspaceImportDetails,
 } from './plugins/unresolved-workspace-import.js';
 export {
