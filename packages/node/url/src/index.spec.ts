@@ -72,6 +72,144 @@ export default async () => {
             expect(params.get('a')).toBe(null);
         });
 
+        await it('writes back when an EXISTING parameter is overwritten', async () => {
+            // `set()` has two branches, and only this one looks like nothing happened when the
+            // update steps are missing: the value changes in place, so a test that only ever adds
+            // new names stays green while overwriting silently stops reaching href.
+            const u = new URL('https://example.com/p?a=1&b=2');
+            u.searchParams.set('a', '9');
+            expect(u.search).toBe('?a=9&b=2');
+            expect(u.href).toBe('https://example.com/p?a=9&b=2');
+        });
+
+        await it('keeps the rest of the URL when the query changes', async () => {
+            const u = new URL('https://user:pw@example.com:8443/p?a=1#frag');
+            u.searchParams.set('b', '2');
+            expect(u.href).toBe('https://user:pw@example.com:8443/p?a=1&b=2#frag');
+            u.searchParams.delete('a');
+            u.searchParams.delete('b');
+            expect(u.href).toBe('https://user:pw@example.com:8443/p#frag');
+        });
+
+        await it('percent-encodes a query assigned as a raw string', async () => {
+            // Without the query-state parse an assigned '#' escapes into the fragment and the URL
+            // re-parses as a DIFFERENT url; a raw space is not even a legal HTTP request target,
+            // and @gjsify/http builds one straight from `pathname + search`.
+            const u = new URL('https://example.com/p#frag');
+            u.search = 'a=b#fake';
+            expect(u.href).toBe('https://example.com/p?a=b%23fake#frag');
+            expect(new URL(u.href).hash).toBe('#frag');
+            u.search = 'q=a b';
+            expect(u.search).toBe('?q=a%20b');
+            expect(new URL(u.href).search).toBe('?q=a%20b');
+        });
+
+        await it('strips ASCII tab and newline from an assigned query', async () => {
+            const u = new URL('https://example.com/p');
+            u.search = 'a=b\nc\td';
+            expect(u.search).toBe('?a=bcd');
+        });
+
+        await it('decodes what an assignment to search puts into the parameters', async () => {
+            const u = new URL('https://example.com/p');
+            u.search = '?x=%C3%A4&y=a+b';
+            expect(u.searchParams.get('x')).toBe('ä');
+            expect(u.searchParams.get('y')).toBe('a b');
+            // …and a later mutation must not double-encode what it re-serialises.
+            u.searchParams.append('z', '1');
+            expect(u.href).toBe('https://example.com/p?x=%C3%A4&y=a+b&z=1');
+        });
+
+        await it('stringifies a non-string assigned to search', async () => {
+            // `search` is a non-nullable USVString: null is the four characters "null", not a clear.
+            const u = new URL('https://example.com/p');
+            (u as unknown as { search: unknown }).search = null;
+            expect(u.href).toBe('https://example.com/p?null');
+            u.search = '';
+            expect(u.href).toBe('https://example.com/p');
+        });
+
+        await it('tells an empty query from no query at all', async () => {
+            const u = new URL('https://example.com/p');
+            u.search = '?';
+            expect(u.search).toBe('');
+            expect(u.href).toBe('https://example.com/p?');
+            u.search = '';
+            expect(u.href).toBe('https://example.com/p');
+        });
+
+        await it('does not invent a parameter from an empty pair', async () => {
+            // A trailing `&` is ordinary. Before the update steps existed, inventing a nameless
+            // parameter for it only polluted the params object; now any mutation — even a delete
+            // that removes nothing — would write the invention into href.
+            const u = new URL('https://example.com/v1/items?type=release&');
+            u.searchParams.delete('cursor');
+            expect(u.href).toBe('https://example.com/v1/items?type=release');
+            u.searchParams.set('page', '2');
+            expect(u.href).toBe('https://example.com/v1/items?type=release&page=2');
+            expect(new URL('https://example.com/p?a&&b').searchParams.size).toBe(2);
+        });
+
+        await it('serialises with the urlencoded set, not encodeURIComponent', async () => {
+            const u = new URL('https://example.com/p');
+            u.searchParams.set('k', "a!b~c'd(e)");
+            expect(u.search).toBe('?k=a%21b%7Ec%27d%28e%29');
+        });
+
+        await it('replaces a lone surrogate instead of throwing mid-update', async () => {
+            // The update steps run AFTER _entries changed. A throw there leaves href stale while
+            // the params object already holds the value — the exact drift this suite guards
+            // against — and every later mutation throws too.
+            const u = new URL('https://example.com/s?lang=de');
+            u.searchParams.set('q', '\uD83D');
+            expect(u.href).toBe('https://example.com/s?lang=de&q=%EF%BF%BD');
+            u.searchParams.set('page', '2');
+            expect(u.searchParams.get('page')).toBe('2');
+        });
+
+        await it('honours the value argument of has() and delete()', async () => {
+            const u = new URL('https://example.com/p?a=1&a=2');
+            expect(u.searchParams.has('a', '9')).toBe(false);
+            expect(u.searchParams.has('a', '1')).toBe(true);
+            u.searchParams.delete('a', '1');
+            expect(u.href).toBe('https://example.com/p?a=2');
+        });
+
+        await it('keeps duplicate names and empty values', async () => {
+            const u = new URL('https://example.com/p');
+            u.searchParams.append('a', '1');
+            u.searchParams.append('a', '2');
+            u.searchParams.set('e', '');
+            expect(u.search).toBe('?a=1&a=2&e=');
+            expect(new URL(u.href).searchParams.getAll('a').length).toBe(2);
+        });
+
+        await it('reflects a mutation made after the URL was serialised', async () => {
+            const u = new URL('https://example.com/p');
+            expect(u.toString()).toBe('https://example.com/p');
+            u.searchParams.set('a', '1');
+            expect(u.toString()).toBe('https://example.com/p?a=1');
+        });
+
+        await it('keeps the update steps off the public surface', async () => {
+            // On Node `Object.keys` of a URLSearchParams is empty. An enumerable hook would also
+            // ride along through `Object.assign` and could be switched off by assigning over it.
+            const u = new URL('https://example.com/p?a=1');
+            expect(Object.keys(u.searchParams).includes('_onUpdate')).toBe(false);
+        });
+
+        await it('works on a base-only URL and on file:', async () => {
+            const a = new URL('https://example.com');
+            a.searchParams.set('q', '1');
+            expect(a.href).toBe('https://example.com/?q=1');
+            const b = new URL('/p', 'https://example.com');
+            b.searchParams.set('q', '1');
+            expect(b.href).toBe('https://example.com/p?q=1');
+            const f = new URL('file:///tmp/x');
+            f.searchParams.set('q', '1');
+            expect(f.href).toBe('file:///tmp/x?q=1');
+        });
+
         await it('encodes values on the way into the URL', async () => {
             const u = new URL('https://example.com/p');
             u.searchParams.set('q', 'Bandsäge gebraucht');
@@ -483,6 +621,10 @@ export default async () => {
                 url.searchParams.delete(param);
             }
             expect(url.searchParams.toString()).toBe('');
+            // The assertions that would have caught the original defect: the params object was
+            // always right, `search` and `href` were not.
+            expect(url.search).toBe('');
+            expect(url.href).toBe('http://domain/');
         });
     });
 
@@ -605,6 +747,9 @@ export default async () => {
             }
             expect(keys[0]).toBe('a');
             expect(keys[1]).toBe('z');
+            // The iterator order alone said nothing about the URL — sort() is a mutation and has
+            // to reach href like every other one.
+            expect(url.search).toBe('?a=2&z=1');
         });
 
         await it('should be stable sort for same keys', async () => {

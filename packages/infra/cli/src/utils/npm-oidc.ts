@@ -114,11 +114,14 @@ export async function fetchGithubOidcToken(audience: string, log?: (msg: string)
         );
     }
 
-    // Append the audience by STRING CONCATENATION, as @actions/core's getIDToken does. Do NOT
-    // use `URL.searchParams.set` + `.href`: under GJS that serialization dropped the `audience`
-    // param, so GitHub issued an id-token with the DEFAULT audience (the repo API URL) and npm
-    // rejected an otherwise-valid token with 401 — repository/workflow_ref/sub all matched the
-    // Trusted Publisher, only `aud` was wrong.
+    // Append the audience by STRING CONCATENATION, as @actions/core's getIDToken does.
+    //
+    // fixed upstream in gjsify: `URL.searchParams.set` + `.href` used to DROP the parameter under
+    // GJS — the mutation never reached the serialisation — so GitHub issued an id-token with the
+    // DEFAULT audience (the repo API URL) and npm rejected an otherwise-valid token with 401:
+    // repository/workflow_ref/sub all matched the Trusted Publisher, only `aud` was wrong. The
+    // URL live view now works, so the ban is lifted; the concatenation stays because it is what
+    // the reference implementation does, not because the alternative is broken.
     const sep = url.includes('?') ? '&' : '?';
     const requestUrl = `${url}${sep}audience=${encodeURIComponent(audience)}`;
 

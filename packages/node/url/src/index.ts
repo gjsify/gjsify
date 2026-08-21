@@ -27,22 +27,23 @@ function platformOrShapeIsWindows(filepath: string): boolean {
     return hostOs() === undefined ? isWindowsPath(filepath) : isWin32();
 }
 
+/**
+ * The WHATWG "update steps", keyed by the params object the owning {@link URL} installed them on.
+ *
+ * The spec makes `url.searchParams` a LIVE view: mutating it re-serialises the list back into the
+ * URL's query. Without this the two drifted — the params object was correct and `url.href` silently
+ * kept the query it was parsed with, so a URL built the ordinary way (`new URL(base);
+ * u.searchParams.set(...)`) serialised with NO query string at all. On Node the same code produced
+ * the full URL, so nothing failed locally; the request just went out unfiltered.
+ *
+ * A WeakMap and not a property, so it cannot be enumerated (`Object.keys(params)` must be `[]`, as
+ * on Node), cannot be carried to another object by `Object.assign`, and cannot be switched off by
+ * assigning over it.
+ */
+const UPDATE_STEPS = new WeakMap<URLSearchParams, () => void>();
+
 export class URLSearchParams {
     _entries: [string, string][] = [];
-
-    /**
-     * The WHATWG "update steps", installed by the {@link URL} that owns this object.
-     *
-     * The spec makes `url.searchParams` a LIVE view: mutating it re-serialises the list back
-     * into the URL's query. Without this hook the two drifted — the params object was correct
-     * and `url.href` silently kept the query it was parsed with, so a URL built the ordinary way
-     * (`new URL(base); u.searchParams.set(...)`) serialised with NO query string at all. On Node
-     * the same code produced the full URL, so nothing failed locally; the request just went out
-     * unfiltered.
-     *
-     * Internal: not part of the public surface, and `undefined` on a standalone URLSearchParams.
-     */
-    _onUpdate: (() => void) | undefined = undefined;
 
     constructor(init?: string | Record<string, string> | [string, string][] | URLSearchParams) {
         if (!init) return;
@@ -50,6 +51,12 @@ export class URLSearchParams {
             const s = init.startsWith('?') ? init.slice(1) : init;
             if (s) {
                 for (const pair of s.split('&')) {
+                    // "If bytes is the empty byte sequence, then continue." A trailing or doubled
+                    // `&` is ordinary in real query strings, and inventing a nameless empty
+                    // parameter for it used to be invisible — it only polluted the params object.
+                    // Now that mutations write back, that invention lands in `href`: one no-op
+                    // `delete()` on `?type=release&` turned it into `?type=release&=`.
+                    if (pair === '') continue;
                     const eqIdx = pair.indexOf('=');
                     if (eqIdx === -1) {
                         this._entries.push([decodeComponent(pair), '']);
@@ -107,21 +114,30 @@ export class URLSearchParams {
         } else {
             this._entries.push([name, value]);
         }
-        this._onUpdate?.();
+        UPDATE_STEPS.get(this)?.();
     }
 
-    has(name: string): boolean {
-        return this._entries.some(([k]) => k === name);
+    has(name: string, value?: string): boolean {
+        if (value === undefined) return this._entries.some(([k]) => k === name);
+        return this._entries.some(([k, v]) => k === name && v === value);
     }
 
-    delete(name: string): void {
-        this._entries = this._entries.filter(([k]) => k !== name);
-        this._onUpdate?.();
+    /**
+     * The `value` argument is not optional decoration: ignoring it silently — as this did — turns
+     * `delete('a', '1')` on `?a=1&a=2` into "delete every a", and with the update steps in place
+     * that wipes the whole query out of `href` instead of leaving `?a=2`.
+     */
+    delete(name: string, value?: string): void {
+        this._entries =
+            value === undefined
+                ? this._entries.filter(([k]) => k !== name)
+                : this._entries.filter(([k, v]) => !(k === name && v === value));
+        UPDATE_STEPS.get(this)?.();
     }
 
     append(name: string, value: string): void {
         this._entries.push([name, value]);
-        this._onUpdate?.();
+        UPDATE_STEPS.get(this)?.();
     }
 
     sort(): void {
@@ -130,7 +146,7 @@ export class URLSearchParams {
             if (a[0] > b[0]) return 1;
             return 0;
         });
-        this._onUpdate?.();
+        UPDATE_STEPS.get(this)?.();
     }
 
     toString(): string {
@@ -172,8 +188,60 @@ function decodeComponent(s: string): string {
     }
 }
 
+/**
+ * Percent-encode one code point as UTF-8.
+ *
+ * Iterating by code point rather than by UTF-16 unit is what makes a lone surrogate survivable:
+ * `TextEncoder` maps one to U+FFFD, exactly as Node does, where `encodeURIComponent` throws
+ * `URIError` instead.
+ */
+function percentEncodeUtf8(ch: string): string {
+    let out = '';
+    for (const b of new TextEncoder().encode(ch)) out += `%${b.toString(16).toUpperCase().padStart(2, '0')}`;
+    return out;
+}
+
+/**
+ * The `application/x-www-form-urlencoded` serializer.
+ *
+ * Only `A-Za-z0-9 * - . _` stay literal and a space becomes `+`. `encodeURIComponent` is NOT that
+ * set — it also leaves `!`, `~`, `'`, `(` and `)` alone, which is a wire-format difference for
+ * anything that canonicalises and signs a query — and, worse, it THROWS on a lone surrogate. That
+ * throw happens inside the update steps, i.e. after `_entries` has already changed, leaving the
+ * params object ahead of `href` and every later mutation throwing too: precisely the drift the
+ * update steps exist to prevent, reintroduced by one truncated emoji.
+ */
 function encodeComponent(s: string): string {
-    return encodeURIComponent(s).replace(/%20/g, '+');
+    let out = '';
+    for (const ch of s) {
+        if (ch === ' ') out += '+';
+        else if (/^[A-Za-z0-9*\-._]$/.test(ch)) out += ch;
+        else out += percentEncodeUtf8(ch);
+    }
+    return out;
+}
+
+/** Schemes whose query percent-encode set also covers `'`. */
+const SPECIAL_SCHEMES = new Set(['http:', 'https:', 'ws:', 'wss:', 'ftp:', 'file:']);
+
+/**
+ * The WHATWG query percent-encode set: C0 controls, everything above `~`, and `space " # < >` —
+ * plus `'` for special schemes.
+ *
+ * `#` is the one that matters. Assigning a query containing it without encoding lets it escape into
+ * the fragment, so `u.search = 'q=C#&lang=de'` produces a URL that re-parses as a DIFFERENT url —
+ * `q=C`, no `lang`, and the rest swallowed as a fragment. A raw space is not even a legal HTTP
+ * request target, and `@gjsify/http` builds one straight from `pathname + search`.
+ */
+function encodeQuery(query: string, special: boolean): string {
+    let out = '';
+    for (const ch of query) {
+        const cp = ch.codePointAt(0)!;
+        const encode =
+            cp <= 0x20 || cp > 0x7e || ch === '"' || ch === '#' || ch === '<' || ch === '>' || (special && ch === "'");
+        out += encode ? percentEncodeUtf8(ch) : ch;
+    }
+    return out;
 }
 
 export class URL {
@@ -211,10 +279,12 @@ export class URL {
 
         this.#query = this.#uri.get_query() ?? null;
         this.#searchParams = new URLSearchParams(this.#query || '');
-        this.#searchParams._onUpdate = () => {
+        UPDATE_STEPS.set(this.#searchParams, () => {
+            // "If query is the empty string, then set url's query to null" — so removing the last
+            // parameter takes the `?` with it.
             const serialised = this.#searchParams.toString();
             this.#query = serialised === '' ? null : serialised;
-        };
+        });
     }
 
     get protocol(): string {
@@ -263,9 +333,23 @@ export class URL {
      * the assignment must still see the new values.
      */
     set search(value: string) {
-        const raw = value == null ? '' : String(value);
-        const query = raw.startsWith('?') ? raw.slice(1) : raw;
-        this.#query = query === '' ? null : query;
+        // The spec's steps, and each one earns its line:
+        //   - `search` is a non-nullable USVString, so `null` stringifies to "null" rather than
+        //     clearing the query. Being helpful here is a silent divergence from Node.
+        //   - the empty string sets the query to null (no `?`); a bare "?" sets it to the EMPTY
+        //     query, which still serialises as `?`. Three states, not two.
+        //   - ASCII tab and newline are removed, then the rest is run through the query
+        //     percent-encode set. Without that, an assigned `#` escapes into the fragment.
+        // `_entries` is filled from the UNENCODED text, so `get()` keeps returning decoded values,
+        // and refilled IN PLACE because the spec makes `searchParams`' identity stable.
+        const stripped = String(value).replace(/[\t\n\r]/g, '');
+        if (stripped === '') {
+            this.#query = null;
+            this.#searchParams._entries = [];
+            return;
+        }
+        const query = stripped.startsWith('?') ? stripped.slice(1) : stripped;
+        this.#query = encodeQuery(query, SPECIAL_SCHEMES.has(this.protocol));
         this.#searchParams._entries = new URLSearchParams(query)._entries;
     }
 
@@ -319,7 +403,9 @@ export class URL {
         const pathname = this.pathname;
         result += pathname;
 
-        result += this.search;
+        // NOT `this.search`: the getter answers '' for both a null and an empty query, but only
+        // one of them drops the `?` from the URL.
+        result += this.#query === null ? '' : `?${this.#query}`;
         result += this.hash;
 
         return result;
