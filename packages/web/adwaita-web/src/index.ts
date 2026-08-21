@@ -5,8 +5,25 @@
 // SCSS partials at `@gjsify/adwaita-web/scss/...` for custom theming.
 // Reference: refs/libadwaita (colors/sizing), refs/adwaita-web (component patterns).
 
-import '@gjsify/adwaita-fonts'; // Registers @font-face (fontsource pattern)
 import { ADWAITA_WEB_CSS } from './styles.generated.js';
+
+// NO font import here, and the absence is the decision. This line used to be
+// `import '@gjsify/adwaita-fonts';` with the comment "Registers @font-face
+// (fontsource pattern)". It registered nothing: that package's `.` export is
+// `index.css`, css-as-string turns it into `export default "<css>"`, and a
+// SIDE-EFFECT import of a module with no side effect is tree-shaken — measured
+// on 0.41.0 as a 0-byte bundle with zero `@font-face`, exit 0. It was invisible
+// because the primary target platform installs the typeface system-wide, so
+// every local screenshot looked right.
+//
+// The faces now travel through `@gjsify/adwaita-web/fonts` → the generated
+// `@gjsify/adwaita-fonts/embedded`, as `data:` URIs behind a VALUE import, which
+// is the shape a bundler cannot discard. It stays OUT of this entry because it
+// is 2.39 MB / 1.18 MB gzip of base64 against a 190 KB / 26 KB stylesheet, and
+// `--app browser` has no code splitting (`output.inlineDynamicImports`), so a
+// lazy face would cost the same bytes as an eager one. The stacks that head with
+// `'Adwaita Sans'` / `'Adwaita Mono'` are a progressive enhancement over a
+// system-installed face, declared as such in `status/stylesheet-font-families.json`.
 
 // Self-applied so `import '@gjsify/adwaita-web'` styles the components under ANY bundler:
 // a separate `import '@gjsify/adwaita-web/style.css'` is a no-op under a gjsify
