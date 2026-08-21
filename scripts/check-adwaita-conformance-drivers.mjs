@@ -128,7 +128,8 @@ const CITATION =
  * a precedent, a concession, a contrast. Naming the four PRECEDENT spellings instead, as this
  * started out, made an unrecognised TRUE one ("GAP for the reason X gives") an accusation.
  */
-const COVERAGE_PHRASING = /\b(?:driven|drives?|driving|covered|asserted|asserts|held to|the RESULT is|same thing twice)\b/i;
+const COVERAGE_PHRASING =
+    /\b(?:driven|drives?|driving|covered|asserted|asserts|held to|the RESULT is|same thing twice)\b/i;
 /**
  * Three spellings OCCUR — "both renderers", "both drive", "Both ports" — and two of the three
  * false claims used the rarer two, so a checker that knows one spelling misses most of them.
@@ -229,7 +230,8 @@ function commentBlocks(file) {
 }
 
 /** The source line a citation sits on — a 50-line header is not an address. */
-const lineOf = (block, spelling) => block.segments.find((segment) => segment.text.includes(spelling))?.line ?? block.line;
+const lineOf = (block, spelling) =>
+    block.segments.find((segment) => segment.text.includes(spelling))?.line ?? block.line;
 
 /** Split on sentence ends only where a new sentence plausibly starts — `adw-tab-view.ts` must not split. */
 const sentencesIn = (text) => text.split(/(?<=\.)\s+(?=[A-Z`(])/);
@@ -369,7 +371,9 @@ for (const table of tables) {
         // ratchets one way: a table that gains a driver keeps its excuse forever, and
         // the next reader takes "CORE-ONLY" for the current state of the port.
         if (reasons.has(table.name)) {
-            failures.push(`${where}: renderer-driven, but still carries "${CORE_ONLY_MARKER}" — it landed, drop the marker.`);
+            failures.push(
+                `${where}: renderer-driven, but still carries "${CORE_ONLY_MARKER}" — it landed, drop the marker.`,
+            );
         }
         continue;
     }
@@ -457,7 +461,9 @@ for (const dir of [CORE_SUITE_DIR, ...RENDERERS.map((renderer) => renderer.dir)]
                     resolved.suite += 1;
                     const undriven = citation.names.filter((name) => !byLabel.get(label).has(name));
                     if (undriven.length > 0) {
-                        failures.push(`${where}: credits the ${label} suite with ${undriven.join(', ')}, which it does not drive.`);
+                        failures.push(
+                            `${where}: credits the ${label} suite with ${undriven.join(', ')}, which it does not drive.`,
+                        );
                     }
                 }
             }
@@ -492,10 +498,12 @@ for (const file of walk(CORE_SUITE_DIR)) {
     // for a field and proves nothing, and it was the whole of what covered `length-unit.ts`.
     const valueImport = new RegExp(`import\\s+(?!type\\b)[^;]*?from '\\.\\./${module}\\.js'`);
     const covered =
-        conformanceFiles.some((candidate) => candidate.endsWith(`/${module}.ts`)) || valueImport.test(conformanceSource);
+        conformanceFiles.some((candidate) => candidate.endsWith(`/${module}.ts`)) ||
+        valueImport.test(conformanceSource);
     const reason = MODULE_REASONS[module];
     if (covered) {
-        if (reason) failures.push(`${where}: listed in MODULE_REASONS, but conformance covers it now — drop the entry.`);
+        if (reason)
+            failures.push(`${where}: listed in MODULE_REASONS, but conformance covers it now — drop the entry.`);
         continue;
     }
     if (!reason) {
