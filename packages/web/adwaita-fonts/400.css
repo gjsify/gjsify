@@ -1,9 +1,13 @@
-/* Adwaita Sans — Regular 400 */
+/* Adwaita Sans — normal. Named `400` for the fontsource-style layout and because
+   that is the upstream file name; the TTF is a VARIABLE font (`fvar`: wght
+   100-900, opsz 14-32), so the face is declared over the whole range. Pinning
+   `font-weight: 400` here makes the engine synthesise every bolder weight —
+   measured, 700 and 800 came out pixel-identical. */
 /* Source: refs/adwaita-fonts (SIL OFL 1.1, GNOME contributors) */
 @font-face {
   font-family: 'Adwaita Sans';
   font-style: normal;
   font-display: swap;
-  font-weight: 400;
+  font-weight: 100 900;
   src: url('./files/adwaita-sans-400.ttf') format('truetype');
 }

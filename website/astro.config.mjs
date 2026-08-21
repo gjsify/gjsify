@@ -205,7 +205,6 @@ export default defineConfig({
             ],
             customCss: [
                 '@gjsify/adwaita-fonts',
-                '@gjsify/adwaita-fonts/400-italic.css',
                 '@gjsify/adwaita-web/style.css',
                 './src/styles/custom.css',
             ],

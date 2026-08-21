@@ -19,13 +19,18 @@ yarn add @gjsify/adwaita-fonts
 ## Usage
 
 ```css
-/* Import the full @font-face declaration (weight 400, normal) */
+/* Both faces — the same two `./embedded` carries */
 @import '@gjsify/adwaita-fonts';
 
-/* Or import a specific weight variant directly */
+/* Or one face at a time */
 @import '@gjsify/adwaita-fonts/400.css';
 @import '@gjsify/adwaita-fonts/400-italic.css';
 ```
+
+Both TTFs are **variable** fonts (`fvar`: `wght 100-900`, `opsz 14-32`) despite
+the `400` in their upstream names, so each `@font-face` declares
+`font-weight: 100 900`. Pinning a single weight makes the browser synthesise
+every bolder one — measured in Firefox, 700 and 800 then render pixel-identical.
 
 Both forms above resolve `src: url('./files/adwaita-sans-400.ttf')` through the consuming CSS pipeline, which emits the TTF as an asset and serves it. That is the default and it is correct wherever such a pipeline exists — Vite, webpack, a plain `<link>`.
 
