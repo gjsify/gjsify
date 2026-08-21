@@ -37,36 +37,18 @@
 //
 // Usage: node scripts/check-storybook-category-order.mjs [--root <dir>]
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { adwaitaStoryMetas } from './adwaita-elements.mjs';
 
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : args[rootFlag + 1];
 
-/** The GTK showcase owns the renderer-agnostic metas all three targets import. */
-const GTK_SRC = join(ROOT, 'showcases/gtk/adwaita-storybook/src');
 /** Where the order is declared. */
 const ORDER_SRC = join(ROOT, 'packages/framework/storybook-core/src/category-order.ts');
-
-/** Absolute paths of every `*.meta.ts` under `dir`. */
-function metaFiles(dir) {
-    const found = [];
-    const walk = (current) => {
-        for (const entry of readdirSync(current, { withFileTypes: true })) {
-            const path = join(current, entry.name);
-            if (entry.isDirectory()) walk(path);
-            else if (entry.name.endsWith('.meta.ts')) found.push(path);
-        }
-    };
-    walk(dir);
-    return found;
-}
-
-// A story's category is the part of its title before the first `/` — the same
-// split StorybookController._groupByCategory makes.
-const TITLE_RE = /^\s*title:\s*'([^']+)'/m;
 
 const declared = [];
 {
@@ -82,11 +64,17 @@ const declared = [];
 }
 
 const used = new Map(); // category -> the meta file that first carried it
-for (const file of metaFiles(GTK_SRC)) {
-    const title = readFileSync(file, 'utf8').match(TITLE_RE);
-    if (!title) continue;
-    const category = title[1].split('/')[0];
-    if (!used.has(category)) used.set(category, file);
+try {
+    for (const meta of adwaitaStoryMetas(ROOT).values()) {
+        for (const title of meta.titles) {
+            const category = title.split('/')[0];
+            if (!used.has(category)) used.set(category, meta.file);
+        }
+    }
+} catch (error) {
+    // The reader throws on a vacuous scan by design; catch to keep this script's prefix.
+    console.error(`check-storybook-category-order: ${error.message}`);
+    process.exit(1);
 }
 
 if (used.size === 0) {
@@ -103,7 +91,7 @@ const failures = [];
 const unlisted = [...used.keys()].filter((name) => !declared.includes(name)).sort();
 for (const name of unlisted) {
     failures.push(
-        `"${name}" is carried by ${relative(ROOT, used.get(name))} but is not in STORYBOOK_CATEGORY_ORDER — ` +
+        `"${name}" is carried by ${used.get(name)} but is not in STORYBOOK_CATEGORY_ORDER — ` +
             'it would render last on every target, in whatever order discovery happened to hand it over.',
     );
 }

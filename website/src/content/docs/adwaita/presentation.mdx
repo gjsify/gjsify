@@ -1,14 +1,15 @@
 ---
 title: Presentation
-description: "Adwaita presentation widgets: avatar, banner, spinner, status page and window title. Live preview plus the code for GJS, Blueprint, the web and NativeScript."
+description: "Adwaita presentation widgets: avatar, banner, shortcut label, spinner, status page and window title. Live preview plus the code for GJS, Blueprint, the web and NativeScript."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
 
 These widgets show state and identity rather than collect input. Use an
 **avatar** for a person or account, a **banner** for an in-context message, a
-**spinner** while work is running, a **status page** for an empty or error state,
-and a **window title** in a header bar.
+**shortcut label** to draw a keyboard shortcut as keycaps, a **spinner** while
+work is running, a **status page** for an empty or error state, and a **window
+title** in a header bar.
 
 Each preview below is the live web component, so it follows the light and dark
 toggle the way a real window would. Under it, the tabs give you the same widget
@@ -136,6 +137,90 @@ space while the message applies.
     banner.buttonLabel = 'Resume';
     banner.revealed = true;
     // No `useMarkup`: the NS banner label is plain text (no rich-text subset).
+    ```
+  </Fragment>
+</AdwWidget>
+
+## Shortcut Label
+
+Draw a keyboard shortcut as **keycaps** instead of writing it out in prose. You
+give it one **accelerator** string and it renders the keys in GTK's fixed order,
+whatever order you wrote the modifiers in. The string has four levels: a space
+lists **alternatives**, `...` is a **range**, `+` means the shortcuts are pressed
+**in sequence**, and `&` means they are held **together**. An empty accelerator
+shows the **disabled-text** placeholder instead.
+
+<AdwWidget title="Adw.ShortcutLabel">
+  <Fragment slot="preview">
+    <div style="display:flex;flex-wrap:wrap;gap:24px;justify-content:center;align-items:center;">
+      <adw-shortcut-label accelerator="&lt;Control&gt;C" disabled-text="Disabled"></adw-shortcut-label>
+      <adw-shortcut-label accelerator="&lt;Shift&gt;A Home" disabled-text="Disabled"></adw-shortcut-label>
+      <adw-shortcut-label accelerator="&lt;Alt&gt;1...9" disabled-text="Disabled"></adw-shortcut-label>
+      <adw-shortcut-label accelerator="Control_L&amp;Control_R" disabled-text="Disabled"></adw-shortcut-label>
+    </div>
+  </Fragment>
+  <Fragment slot="gjs">
+    ```ts
+    import Adw from '@girs/adw-1';
+
+    // Ctrl+C. The keycap order is GTK's, not the string's: `<Shift><Control>a`
+    // renders as Ctrl Shift A.
+    const shortcut = new Adw.ShortcutLabel({ accelerator: '<Control>C' });
+
+    // A space lists alternatives, `...` a range, `+` a sequence, `&` keys held together.
+    const alternatives = new Adw.ShortcutLabel({ accelerator: '<Shift>A Home' });
+    const range = new Adw.ShortcutLabel({ accelerator: '<Alt>1...9' });
+    const together = new Adw.ShortcutLabel({ accelerator: 'Control_L&Control_R' });
+
+    // With no accelerator the placeholder is shown instead.
+    const unset = new Adw.ShortcutLabel({ accelerator: '', disabledText: 'Disabled' });
+    ```
+  </Fragment>
+  <Fragment slot="blueprint">
+    ```blueprint
+    using Gtk 4.0;
+    using Adw 1;
+
+    Gtk.Box {
+      orientation: horizontal;
+      spacing: 24;
+
+      Adw.ShortcutLabel {
+        accelerator: "<Control>C";
+        disabled-text: _("Disabled");
+      }
+
+      Adw.ShortcutLabel {
+        accelerator: "<Shift>A Home";
+      }
+
+      Adw.ShortcutLabel {
+        accelerator: "<Alt>1...9";
+      }
+
+      Adw.ShortcutLabel {
+        accelerator: "Control_L&Control_R";
+      }
+    }
+    ```
+  </Fragment>
+  <Fragment slot="web">
+    ```html
+    <adw-shortcut-label accelerator="&lt;Control&gt;C" disabled-text="Disabled"></adw-shortcut-label>
+    <adw-shortcut-label accelerator="&lt;Shift&gt;A Home"></adw-shortcut-label>
+    <adw-shortcut-label accelerator="&lt;Alt&gt;1...9"></adw-shortcut-label>
+    <adw-shortcut-label accelerator="Control_L&amp;Control_R"></adw-shortcut-label>
+    ```
+  </Fragment>
+  <Fragment slot="nativescript">
+    ```ts
+    import { AdwShortcutLabel } from '@gjsify/adwaita-nativescript';
+
+    const shortcut = new AdwShortcutLabel();
+    // `disabledText` first: an empty accelerator renders the placeholder, so the
+    // placeholder has to be in place before the accelerator triggers the rebuild.
+    shortcut.disabledText = 'Disabled';
+    shortcut.accelerator = '<Control>C';
     ```
   </Fragment>
 </AdwWidget>

@@ -63,8 +63,10 @@ import { fileURLToPath } from 'node:url';
 import { toPosixPath } from '../packages/infra/manifest-conformance/lib/index.mjs';
 import {
     ADWAITA_NS_WIDGETS,
+    ADWAITA_STORY_SRC,
     ADWAITA_WEB_SRC,
     adwaitaNativeScriptWidgets,
+    adwaitaStoryMetas,
     adwaitaWebElements,
     elementName,
     stripComments,
@@ -74,8 +76,6 @@ import { todoAnchorMatches, todoSections } from './generate-status.mjs';
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : args[rootFlag + 1];
-
-const GTK_SRC = join(ROOT, 'showcases/gtk/adwaita-storybook/src');
 
 /**
  * Widgets on both renderers that deliberately have no story of their own, and why.
@@ -251,20 +251,6 @@ const ONE_RENDERER_ONLY = {
     },
 };
 
-/** Story names — every `<name>.meta.ts` anywhere under the GTK showcase. */
-function storyNames(dir) {
-    const found = new Set();
-    const walk = (current) => {
-        for (const entry of readdirSync(current, { withFileTypes: true })) {
-            const path = join(current, entry.name);
-            if (entry.isDirectory()) walk(path);
-            else if (entry.name.endsWith('.meta.ts')) found.add(entry.name.slice(0, -'.meta.ts'.length));
-        }
-    };
-    walk(dir);
-    return found;
-}
-
 /**
  * The floor `check-nativescript-theme-classes.mjs` set: it refuses a blank, it judges
  * nothing. BOTH ledgers here buy an exemption with a sentence, so both apply it.
@@ -383,24 +369,19 @@ function vectorFailures(name, entry, exported) {
 let defines;
 /** @type {Map<string, string>} */
 let ns;
+/** @type {Set<string>} */
+let stories;
 try {
     defines = adwaitaWebElements(ROOT);
     ns = adwaitaNativeScriptWidgets(ROOT);
+    stories = new Set(adwaitaStoryMetas(ROOT).keys());
 } catch (error) {
-    // Both readers throw on a vacuous scan by design; catch to keep this script's prefix.
+    // All three readers throw on a vacuous scan by design; catch to keep this script's prefix.
     console.error(`check-storybook-widget-coverage: ${error.message}`);
     process.exit(1);
 }
 
 const web = new Set([...defines.keys()].map(elementName));
-const stories = storyNames(GTK_SRC);
-
-if (stories.size === 0) {
-    console.error(
-        'check-storybook-widget-coverage: the story scan came back empty — that is a broken scan, not a clean tree.',
-    );
-    process.exit(1);
-}
 
 const onBothRenderers = [...web].filter((name) => ns.has(name)).sort();
 const failures = [];
@@ -525,7 +506,7 @@ if (failures.length > 0) {
         '\nThe GTK storybook is the reference the other two targets are aligned against, so a widget it\n' +
             'never shows is a widget with no reference — and story-set parity cannot see that, because a\n' +
             'story missing from all three targets is perfectly symmetric.\n' +
-            `  elements: ${ADWAITA_WEB_SRC}    widgets: ${ADWAITA_NS_WIDGETS}    stories: ${toPosixPath(relative(ROOT, GTK_SRC))}`,
+            `  elements: ${ADWAITA_WEB_SRC}    widgets: ${ADWAITA_NS_WIDGETS}    stories: ${ADWAITA_STORY_SRC}`,
     );
 }
 

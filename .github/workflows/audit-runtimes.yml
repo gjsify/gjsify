@@ -403,6 +403,17 @@ jobs:
       - name: Check every widget is storyed, ledgered or verdicted
         run: node scripts/check-storybook-widget-coverage.mjs
 
+      # The website's Adwaita gallery is HAND-derived from that same story set: a
+      # person reads the metas and writes an `<AdwWidget>` block per widget. It was
+      # 35-against-35 on 2026-07-24; five metas landed after it, and the pages were
+      # re-authored WHOLESALE in #1228 three days after four of them — by someone
+      # with every page open — and still came out 35 against 40. Two of the missing
+      # five were the entire `Controls` category, which the storybook's own
+      # STORYBOOK_CATEGORY_ORDER already declared, so the site's category list was a
+      # strict subset with nothing saying so. A hand is not a mechanism.
+      - name: Check the website gallery documents every storybook widget
+        run: node scripts/check-website-adwaita-gallery.mjs
+
       # A NativeScript widget's className and the theme's selector are two halves of
       # one decision that nothing compares. Renaming the shortcut-label keycap class
       # from `keycap` to `adw-keycap` was measured: 3221 tests stayed GREEN while
@@ -808,6 +819,17 @@ jobs:
       # was a gap or a decision (#1195).
       - name: Check every widget is storyed, ledgered or verdicted
         run: node scripts/check-storybook-widget-coverage.mjs
+
+      # The website's Adwaita gallery is HAND-derived from that same story set: a
+      # person reads the metas and writes an `<AdwWidget>` block per widget. It was
+      # 35-against-35 on 2026-07-24; five metas landed after it, and the pages were
+      # re-authored WHOLESALE in #1228 three days after four of them — by someone
+      # with every page open — and still came out 35 against 40. Two of the missing
+      # five were the entire `Controls` category, which the storybook's own
+      # STORYBOOK_CATEGORY_ORDER already declared, so the site's category list was a
+      # strict subset with nothing saying so. A hand is not a mechanism.
+      - name: Check the website gallery documents every storybook widget
+        run: node scripts/check-website-adwaita-gallery.mjs
 
       # A NativeScript widget's className and the theme's selector are two halves of
       # one decision that nothing compares. Renaming the shortcut-label keycap class
