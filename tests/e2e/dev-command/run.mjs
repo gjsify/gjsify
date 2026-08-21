@@ -162,8 +162,40 @@ function readPid(pidFile) {
     return Number.isInteger(pid) && pid > 0 ? pid : null;
 }
 
-/** Whether `pid` still exists. Signal 0 is the portable liveness probe. */
+/**
+ * Whether `pid` is still RUNNING — a zombie counts as gone.
+ *
+ * Signal 0 alone cannot answer this. It succeeds on a zombie too, because the
+ * pid still exists until someone reaps it, and the reaper is exactly what
+ * differs between the two places this suite runs: a desktop session reparents
+ * an orphan onto an init that reaps it within milliseconds, while the CI
+ * container's pid 1 is the job shell, which reaps nothing. So a child that
+ * `gjsify dev` correctly killed on its way out stays visible to `kill(pid, 0)`
+ * FOREVER there — measured: this test timed out after 20 s in the container
+ * while passing in 0.8 s locally, on a process that was already dead.
+ *
+ * `/proc` gives the state directly. Elsewhere signal 0 is the best available
+ * answer, and the platforms without `/proc` are also the ones that reap.
+ */
+function processState(pid) {
+    try {
+        const stat = readFileSync(`/proc/${pid}/stat`, 'utf-8');
+        // The comm field is parenthesised and may itself contain ')' — the
+        // state is the first token after the LAST one.
+        return (
+            stat
+                .slice(stat.lastIndexOf(')') + 1)
+                .trim()
+                .split(/\s+/)[0] ?? null
+        );
+    } catch {
+        return null;
+    }
+}
+
 function isAlive(pid) {
+    const state = processState(pid);
+    if (state !== null) return state !== 'Z';
     try {
         process.kill(pid, 0);
         return true;
@@ -277,7 +309,8 @@ describe('gjsify dev E2E', { timeout: 5 * 60 * 1000 }, () => {
             ]);
             await waitFor(
                 () => !isAlive(appPid),
-                () => `the app (pid ${appPid}) was orphaned when dev exited`,
+                () =>
+                    `the app (pid ${appPid}) was orphaned when dev exited (state: ${processState(appPid) ?? 'unknown'})`,
                 20 * 1000,
             );
         } finally {
