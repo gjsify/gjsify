@@ -247,7 +247,7 @@ function scanGnomeNamespaces(pkgDir) {
  *     guessed at, one hop through the package's own modules.
  */
 export function collectAdwaitaCoverage(root) {
-    const absolute = (entries) => new Map([...entries].map(([name, file]) => [name, join(root, file)]));
+    const absolute = (entries) => new Map([...entries].map(([name, file]) => [name, resolve(root, file)]));
 
     // `adw-sidebar.ts` defines three tags, so three rows point at the same file.
     const web = absolute([...adwaitaWebElements(root)].map(([tag, file]) => [elementName(tag), file]));
@@ -268,29 +268,45 @@ export function collectAdwaitaCoverage(root) {
             return null;
         }
     };
-    // "Backed by core" is not a claim — it is an import edge we can see.
-    const importsCore = (src) => src !== null && /@gjsify\/adwaita-core/.test(src);
+    /** What a module imports or re-exports AS VALUES — comments out, `import type` out. */
+    const valueImports = (src) => {
+        if (src === null) return [];
+        const code = src.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/(^|[^:])\/\/[^\n]*/g, '$1');
+        return [
+            ...code.matchAll(/(?:^|[\n;])\s*(?:import|export)\s+(?!type[\s{])[^'"]*from\s*['"]([^'"]+)['"]/g),
+            ...code.matchAll(/(?:^|[\n;])\s*import\s*['"]([^'"]+)['"]/g),
+        ].map(([, spec]) => spec);
+    };
+
+    // "Backed by core" is an import edge we can SEE, which a sentence about core and
+    // an erased `import type` are not — both were counted: `adw-header-bar` imports core
+    // NOWHERE and was published core-backed off a comment, `adw-menu-button` off a type.
+    const importsCore = (src) => valueImports(src).some((spec) => spec.startsWith('@gjsify/adwaita-core'));
+
+    // A hop lands in a HELPER, never in another renderer element: `adw-source-view`
+    // embeds `adw-icon`, and the icon's edge is not a claim about the source view.
+    const renderers = new Set([...web.values(), ...ns.values()]);
 
     /**
-     * Does this widget reach `@gjsify/adwaita-core` — itself, or through a module
-     * of its own package that it imports?
+     * Does this widget reach `@gjsify/adwaita-core` — itself, or through a helper
+     * module of its own package that it imports?
      *
      * ONE HOP, deliberately. A renderer delegates through a helper for a reason
      * the tree makes visible: an NS spec cannot import a module that
      * `extends GridLayout`, so the pure half moves out (`chrome.ts`,
-     * `avatar-color.ts`, `split-view-width.ts`), and that helper is where the core
-     * edge lives. One hop is the delegation; a transitive walk would report a
-     * widget as core-backed because something four modules away happens to import
-     * core, which is not the same claim.
+     * `avatar-color.ts`), and that helper is where the core edge lives. A transitive
+     * walk would report a widget as core-backed because something four modules away
+     * imports core, which is not the same claim. And the verdict is per FILE: every
+     * tag `adw-alert-dialog.ts` registers carries that one file's edge, no finer.
      */
     const reachesCore = (file) => {
         const src = read(file);
-        if (src === null) return false;
         if (importsCore(src)) return true;
-        for (const [, spec] of src.matchAll(/from\s+['"](\.[^'"]*)['"]/g)) {
+        for (const spec of valueImports(src)) {
+            if (!spec.startsWith('.')) continue;
             // TS sources import the EMITTED `.js` sibling; the file on disk is `.ts`.
             const helper = resolve(file, '..', spec.replace(/\.js$/, '.ts'));
-            if (importsCore(read(helper))) return true;
+            if (!renderers.has(helper) && importsCore(read(helper))) return true;
         }
         return false;
     };
