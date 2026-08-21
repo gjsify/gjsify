@@ -16,6 +16,8 @@
 
 import { ActionRowState } from '@gjsify/adwaita-core';
 
+import { bindEmptySections } from '../empty-sections.js';
+
 /**
  * Attributes whose change means the activatable widget's sensitivity may have
  * changed. `disabled` is the DOM's `GtkWidget:sensitive` for form controls;
@@ -105,6 +107,11 @@ export class AdwActionRow extends HTMLElement {
         for (const child of suffixChildren) this._suffixEl.appendChild(child);
 
         this.replaceChildren(this._prefixEl, textEl, this._suffixEl);
+        // `_render` runs from `attributeChangedCallback`, which a control appended into
+        // `suffixSection` never triggers — the section stayed `hidden` and the control
+        // measured 0x0. The observer is what keeps the two sections in step with what
+        // they actually hold.
+        bindEmptySections(this._prefixEl, this._suffixEl);
         // `attributeChangedCallback` was guarded until now, so a parsed row would
         // otherwise start with a stale state.
         this._adoptAttributes();
@@ -178,8 +185,6 @@ export class AdwActionRow extends HTMLElement {
         this._titleEl.hidden = !titleVisible;
         this._subtitleEl.textContent = subtitle;
         this._subtitleEl.hidden = !subtitleVisible;
-        this._prefixEl.hidden = this._prefixEl.childElementCount === 0;
-        this._suffixEl.hidden = this._suffixEl.childElementCount === 0;
         this.classList.toggle('activatable', this._state.activatable);
     }
 }

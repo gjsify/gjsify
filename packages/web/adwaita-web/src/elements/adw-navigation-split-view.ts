@@ -118,6 +118,20 @@ export class AdwNavigationSplitView extends HTMLElement {
     }
 
     connectedCallback() {
+        this._buildOnce();
+        // EVERY connect, not only the first — see `_bindToDocument` on the overlay view,
+        // which this mirrors. `_syncBreakpoint` re-establishes the ResizeObserver that
+        // `disconnectedCallback` disposed; without it a view MOVED between parents (a
+        // slideshow slide, a client-side route change) stops tracking its condition for
+        // good, and `<adw-navigation-split-view breakpoint="max-width: 720px">` never
+        // collapses again however narrow the page gets.
+        this._reflectShowContent();
+        this._syncWidth();
+        this._syncClasses();
+        this._syncBreakpoint();
+    }
+
+    private _buildOnce() {
         if (this._initialized) return;
         this._initialized = true;
 
@@ -160,10 +174,6 @@ export class AdwNavigationSplitView extends HTMLElement {
             this._reflectShowContent();
             this._syncClasses();
         });
-
-        this._syncWidth();
-        this._syncClasses();
-        this._syncBreakpoint();
     }
 
     /** `Adw.NavigationPage:tag` off the slotted pane, or `null` when untagged. */

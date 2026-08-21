@@ -21,6 +21,8 @@
 
 import { ExpanderState, deriveRowLabels } from '@gjsify/adwaita-core';
 
+import { bindEmptySections } from '../empty-sections.js';
+
 // SIDE-EFFECT import, deliberately separate from the type import below: it guarantees
 // `adw-switch` is defined before this module's `customElements.define` can upgrade a
 // server-rendered `<adw-expander-row>` and build one. A combined
@@ -133,6 +135,12 @@ export class AdwExpanderRow extends HTMLElement {
         this._suffixEl.className = 'adw-expander-row-suffix';
         for (const child of suffixChildren) this._suffixEl.appendChild(child);
 
+        // Same reason as the action row's: `_render` is attribute-driven, and a widget
+        // appended into `prefixSection` after connect is a childList change nothing else
+        // hears. `contentSection` is NOT in here — an empty disclosure is still the
+        // disclosure, and `.expanded` alone decides whether it shows.
+        bindEmptySections(this._prefixEl, this._suffixEl);
+
         this._headerEl.append(this._prefixEl, textEl, this._suffixEl, this._enableSwitch, this._chevronEl);
 
         this._contentEl = document.createElement('div');
@@ -200,9 +208,6 @@ export class AdwExpanderRow extends HTMLElement {
         this._reflectingEnable = true;
         this._enableSwitch.active = this.enableExpansion;
         this._reflectingEnable = false;
-
-        this._prefixEl.hidden = this._prefixEl.childElementCount === 0;
-        this._suffixEl.hidden = this._suffixEl.childElementCount === 0;
 
         this.classList.toggle('expanded', this.expanded);
         this._contentEl.classList.toggle('expanded', this.expanded);
