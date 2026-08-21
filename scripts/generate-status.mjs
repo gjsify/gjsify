@@ -673,10 +673,11 @@ function table(header, rows) {
  * Render the derived per-widget coverage matrix.
  *
  * "Core" is not a claim about intent — it is whether that renderer's widget
- * reaches `@gjsify/adwaita-core`, itself or one hop through a helper of its own
- * package. A widget present on both sides with no core edge is a
- * duplicated-behaviour candidate, which is precisely the ADR-0004 backlog,
- * computed instead of remembered.
+ * reaches `@gjsify/adwaita-core`: itself, one hop through a helper of its own
+ * package, or the sibling element a `CORE-VIA:` header names. An import edge is
+ * the whole of what that measures, so the remainder is where ADR-0004
+ * duplication would sit, not a count of measured copies — and the sentence below
+ * says so, because it once said the opposite about a widget that delegates.
  *
  * Core-modelled DATA objects are listed apart from the widget table rather than
  * inside it: an `Adw.Toast` has no renderer element on either side by design, so
@@ -698,20 +699,28 @@ function adwaitaCoverageSection(coverage) {
     out.push(
         'Derived from the tree at generation time. One row per `adw-<name>`, read from',
         "what each renderer ships: browser `customElements.define('adw-…')` tags,",
-        'NativeScript `Adw*` view classes, storybook `<name>.meta.ts`, and the actual',
-        '`@gjsify/adwaita-core` import edges. None of it is maintained by hand; the',
-        'table this replaced drifted twelve widgets behind the code.',
+        'NativeScript `Adw*` view classes, storybook `<name>.meta.ts`, the actual',
+        '`@gjsify/adwaita-core` import edges, and the `CORE-VIA:` header a widget',
+        'carries when its edge runs through a sibling element. None of it is maintained',
+        'by hand; the table this replaced drifted twelve widgets behind the code.',
         '',
     );
     out.push(table(['Widget', 'GTK story', 'adwaita-web', 'adwaita-nativescript'], rows));
     out.push('');
-    // The backlog sentence is CONDITIONAL: naming a remainder that is empty is the
+    // The remainder sentence is CONDITIONAL: naming a remainder that is empty is the
     // same drift as any other stale claim — it reads as work outstanding when there
     // is none, and nobody re-reads a generated line to check.
+    const unshared = both.filter((w) => !w.webCore || !w.nsCore);
     out.push(
-        `**${shared.length} of ${both.length}** widgets implemented on BOTH renderers share their behaviour ` +
-            'through `@gjsify/adwaita-core`.' +
-            (shared.length < both.length ? ' The remainder still carry two copies (ADR 0004 backlog).' : ''),
+        `**${shared.length} of ${both.length}** widgets implemented on BOTH renderers have a value-import path ` +
+            'to `@gjsify/adwaita-core` from each side — direct, one hop through a helper of the same package, or ' +
+            'through the sibling element a `CORE-VIA:` header names.' +
+            (unshared.length > 0
+                ? ` No such path is visible from at least one side for ${unshared
+                      .map((w) => `\`adw-${w.name}\``)
+                      .join(', ')} — an import edge is all this measures, so those are ADR 0004 duplication` +
+                  ' candidates, not measured copies.'
+                : ''),
     );
     if (dataObjects.length) {
         out.push('');
