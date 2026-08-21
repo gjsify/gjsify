@@ -20,8 +20,8 @@
 // the whole naming rule the tree follows, and stripping it ({@link elementName}) leaves
 // the bare name widget files and `*.meta.ts` story names are already spelled in.
 
-import { readdirSync, readFileSync } from 'node:fs';
-import { basename, join, relative } from 'node:path';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { basename, join, relative, resolve } from 'node:path';
 
 /** Repo-relative source roots, so callers can name them in their own messages. */
 export const ADWAITA_WEB_SRC = 'packages/web/adwaita-web/src';
@@ -58,6 +58,125 @@ const widgetClass = (name) =>
         .map((part) => part[0].toUpperCase() + part.slice(1))
         .join('')}`;
 
+/** The shared headless behaviour both renderers are meant to delegate to. */
+const CORE_PACKAGE = '@gjsify/adwaita-core';
+
+// USING a sibling element and DELEGATING to one are the same import edge, so the
+// difference is not derivable and is declared instead — in the delegating file's own
+// header, where `CORE-ONLY:` already puts this kind of claim. Spelled with the
+// specifier the file imports, so declaration and code stay one vocabulary.
+const CORE_VIA = 'CORE-VIA:';
+const CORE_VIA_PATTERN = /CORE-VIA:\s*(\S+)\s*—\s*([^\n]*)/;
+
+/** Shortest reason that can name the sibling and say what it carries. */
+const MIN_REASON = 40;
+
+/** The leading comment block: a claim a reader of this file meets before the code. */
+function fileHeader(text) {
+    const header = [];
+    for (const line of text.split('\n')) {
+        const trimmed = line.trim();
+        if (trimmed !== '' && !trimmed.startsWith('//') && !trimmed.startsWith('/*') && !trimmed.startsWith('*')) break;
+        header.push(trimmed);
+    }
+    return header.join('\n');
+}
+
+/** What a module imports or re-exports AS VALUES — comments out, `import type` out. */
+function valueImports(text) {
+    const code = text.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/(^|[^:])\/\/[^\n]*/g, '$1');
+    return [
+        ...code.matchAll(/(?:^|[\n;])\s*(?:import|export)\s+(?!type[\s{])[^'"]*from\s*['"]([^'"]+)['"]/g),
+        ...code.matchAll(/(?:^|[\n;])\s*import\s*['"]([^'"]+)['"]/g),
+    ].map(([, spec]) => spec);
+}
+
+/**
+ * Does a module reach `@gjsify/adwaita-core`? — the question the matrix's "core"
+ * cell asks, for `rendererFiles`, the element files of the renderer(s) in scope.
+ *
+ * "Backed by core" is an import edge we can SEE, which a sentence about core and an
+ * erased `import type` are not — both were counted: `adw-header-bar` imports core
+ * NOWHERE and was published core-backed off a comment, `adw-menu-button` off a type.
+ *
+ * ONE HOP, and never into another renderer element. A renderer delegates through a
+ * helper for a reason the tree makes visible: an NS spec cannot import a module that
+ * `extends GridLayout`, so the pure half moves out (`chrome.ts`, `avatar-color.ts`)
+ * and the helper is where the core edge lives. A transitive walk would report a
+ * widget as core-backed because something four modules away imports core, which is
+ * not the same claim; and `adw-source-view` embeds `adw-icon`, whose edge is not a
+ * claim about the source view. The verdict is per FILE: every tag
+ * `adw-alert-dialog.ts` registers carries that one file's edge, no finer.
+ *
+ * THROWS on a `CORE-VIA:` header that does not hold — see {@link CORE_VIA}. The
+ * named module must reach core BY IMPORT, not by a marker of its own: a chain of
+ * declarations is a ledger, and only the first link of it stays checkable.
+ *
+ * @param {Set<string>} rendererFiles absolute paths of the renderer element files
+ * @param {string} root repository root, for naming files in a failure
+ * @returns {(file: string) => boolean}
+ */
+export function coreReach(rendererFiles, root) {
+    const read = (file) => {
+        try {
+            return readFileSync(file, 'utf8');
+        } catch {
+            return '';
+        }
+    };
+    const importsCore = (text) => valueImports(text).some((spec) => spec.startsWith(CORE_PACKAGE));
+    // TS sources import the EMITTED `.js` sibling; the file on disk is `.ts`.
+    const sibling = (file, spec) => resolve(file, '..', spec.replace(/\.js$/, '.ts'));
+    const byImport = (file) => {
+        const text = read(file);
+        if (importsCore(text)) return true;
+        return valueImports(text).some(
+            (spec) =>
+                spec.startsWith('.') &&
+                !rendererFiles.has(sibling(file, spec)) &&
+                importsCore(read(sibling(file, spec))),
+        );
+    };
+
+    return (file) => {
+        const text = read(file);
+        const direct = byImport(file);
+        if (!text.includes(CORE_VIA)) return direct;
+
+        const where = `${relative(root, file)}: CORE-VIA`;
+        const marker = CORE_VIA_PATTERN.exec(fileHeader(text));
+        if (marker === null) {
+            throw new Error(
+                `${where} is not in the file header, or is not spelled \`CORE-VIA: <module> — <reason>\`. ` +
+                    'Nothing reads it where it stands, so the widget is scored as if it were not there.',
+            );
+        }
+        const [, spec, reason] = marker;
+        if (direct) {
+            throw new Error(
+                `${where} names ${spec}, but this file reaches ${CORE_PACKAGE} on its own. ` +
+                    'The marker carries nothing and outlives its reason — delete it.',
+            );
+        }
+        const target = sibling(file, spec);
+        if (!existsSync(target)) {
+            throw new Error(`${where} names ${spec}, which does not resolve to a module (${relative(root, target)}).`);
+        }
+        if (!byImport(target)) {
+            throw new Error(
+                `${where} names ${spec}, which does not reach ${CORE_PACKAGE} itself. ` +
+                    'Delegating to a second copy is still two copies.',
+            );
+        }
+        if (reason.trim().length < MIN_REASON) {
+            throw new Error(
+                `${where} names ${spec} with no real reason — say what behaviour runs there instead of here.`,
+            );
+        }
+        return true;
+    };
+}
+
 /**
  * Every custom element adwaita-web defines → the file defining it, so a failure
  * can name the file to open. Sorted by tag; several files define two or three.
@@ -75,7 +194,9 @@ export function adwaitaWebElements(root) {
     /** @type {Map<string, string>} */
     const defined = new Map();
     const unreadable = [];
-    for (const file of sourceFiles(src)) {
+    const files = sourceFiles(src);
+    const elements = new Set();
+    for (const file of files) {
         const text = readFileSync(file, 'utf8');
         const calls = (text.match(DEFINE_CALL) ?? []).length;
         let matched = 0;
@@ -90,6 +211,7 @@ export function adwaitaWebElements(root) {
                 );
             }
             defined.set(tag, relative(root, file));
+            elements.add(file);
         }
         if (matched < calls) unreadable.push(relative(root, file));
     }
@@ -110,7 +232,22 @@ export function adwaitaWebElements(root) {
         );
     }
 
+    verifyCoreVia(files, elements, root);
     return new Map([...defined].sort(([a], [b]) => a.localeCompare(b)));
+}
+
+/**
+ * Every `CORE-VIA:` declaration in one renderer package, held against that package's
+ * tree — {@link coreReach} throws on one that does not.
+ *
+ * IT RUNS HERE because `generate-status.mjs`, the only consumer that asks about core
+ * edges, is not a gate: CI never runs it, so an arm living there could never fail a
+ * PR. This reader is what `check-adwaita-reset-components` and
+ * `check-storybook-widget-coverage` call, and both already refuse whatever it refuses.
+ */
+function verifyCoreVia(files, elements, root) {
+    const reach = coreReach(elements, root);
+    for (const file of files) reach(file);
 }
 
 // `adw-button.ts`, plus the `.android`/`.ios` halves NativeScript splits a module into
@@ -146,7 +283,9 @@ export function adwaitaNativeScriptWidgets(root) {
     const dir = join(root, ADWAITA_NS_WIDGETS);
     /** @type {Map<string, string>} */
     const widgets = new Map();
-    for (const file of sourceFiles(dir)) {
+    const files = sourceFiles(dir);
+    const elements = new Set();
+    for (const file of files) {
         const match = NS_WIDGET_FILE.exec(basename(file));
         if (!match) continue;
         const text = readFileSync(file, 'utf8');
@@ -160,6 +299,7 @@ export function adwaitaNativeScriptWidgets(root) {
             );
         }
         widgets.set(match[1], relative(root, file));
+        elements.add(file);
     }
 
     if (widgets.size === 0) {
@@ -170,5 +310,6 @@ export function adwaitaNativeScriptWidgets(root) {
         );
     }
 
+    verifyCoreVia(files, elements, root);
     return new Map([...widgets].sort(([a], [b]) => a.localeCompare(b)));
 }

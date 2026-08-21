@@ -75,7 +75,7 @@ import {
     prebuildOwnership,
 } from '../packages/infra/manifest-conformance/lib/platform-packages.mjs';
 import { posixRelative } from '../packages/infra/manifest-conformance/lib/index.mjs';
-import { adwaitaNativeScriptWidgets, adwaitaWebElements, elementName } from './adwaita-elements.mjs';
+import { adwaitaNativeScriptWidgets, adwaitaWebElements, coreReach, elementName } from './adwaita-elements.mjs';
 
 // ─── Authored-data model ────────────────────────────────────────────────────
 
@@ -261,55 +261,9 @@ function collectAdwaitaCoverage(root) {
         stories.add(base.replace(/\.meta\.ts$/, ''));
     }
 
-    const read = (file) => {
-        try {
-            return readFileSync(file, 'utf8');
-        } catch {
-            return null;
-        }
-    };
-    /** What a module imports or re-exports AS VALUES — comments out, `import type` out. */
-    const valueImports = (src) => {
-        if (src === null) return [];
-        const code = src.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/(^|[^:])\/\/[^\n]*/g, '$1');
-        return [
-            ...code.matchAll(/(?:^|[\n;])\s*(?:import|export)\s+(?!type[\s{])[^'"]*from\s*['"]([^'"]+)['"]/g),
-            ...code.matchAll(/(?:^|[\n;])\s*import\s*['"]([^'"]+)['"]/g),
-        ].map(([, spec]) => spec);
-    };
-
-    // "Backed by core" is an import edge we can SEE, which a sentence about core and
-    // an erased `import type` are not — both were counted: `adw-header-bar` imports core
-    // NOWHERE and was published core-backed off a comment, `adw-menu-button` off a type.
-    const importsCore = (src) => valueImports(src).some((spec) => spec.startsWith('@gjsify/adwaita-core'));
-
-    // A hop lands in a HELPER, never in another renderer element: `adw-source-view`
-    // embeds `adw-icon`, and the icon's edge is not a claim about the source view.
-    const renderers = new Set([...web.values(), ...ns.values()]);
-
-    /**
-     * Does this widget reach `@gjsify/adwaita-core` — itself, or through a helper
-     * module of its own package that it imports?
-     *
-     * ONE HOP, deliberately. A renderer delegates through a helper for a reason
-     * the tree makes visible: an NS spec cannot import a module that
-     * `extends GridLayout`, so the pure half moves out (`chrome.ts`,
-     * `avatar-color.ts`), and that helper is where the core edge lives. A transitive
-     * walk would report a widget as core-backed because something four modules away
-     * imports core, which is not the same claim. And the verdict is per FILE: every
-     * tag `adw-alert-dialog.ts` registers carries that one file's edge, no finer.
-     */
-    const reachesCore = (file) => {
-        const src = read(file);
-        if (importsCore(src)) return true;
-        for (const spec of valueImports(src)) {
-            if (!spec.startsWith('.')) continue;
-            // TS sources import the EMITTED `.js` sibling; the file on disk is `.ts`.
-            const helper = resolve(file, '..', spec.replace(/\.js$/, '.ts'));
-            if (!renderers.has(helper) && importsCore(read(helper))) return true;
-        }
-        return false;
-    };
+    // The rule, its two incidents and the `CORE-VIA:` declaration it honours live with
+    // the reader — where the two CI gates inherit them (`scripts/adwaita-elements.mjs`).
+    const reachesCore = coreReach(new Set([...web.values(), ...ns.values()]), root);
 
     // Upstream data objects — `Adw.Toast` is state, not a widget, and the renderer
     // that draws it is a different one (`adw-toast-overlay`). Derived from the
