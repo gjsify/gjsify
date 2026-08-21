@@ -14,6 +14,7 @@ this repository has:
 | `platforms-ci` | Parses `.github/workflows/prebuilds.yml`'s matrix by filename |
 | `pr-trigger-parity` | Reads `.github/workflows/*.yml`, and names `main` as the branch this repo merges into |
 | `refs-pin` | `refs/` submodules + Cargo path deps, verified against this repo's git index |
+| `workflow-rev-pin` | Pairs a named workflow `env:` with a `refs/` gitlink of this repository |
 
 Scope is not a quality judgement — `runtimes-drift` is the most battle-tested
 check in the set. It is about whether the rule would still be *true* somewhere
@@ -31,6 +32,18 @@ can see which `gjsify.*` declaration kinds have an owner. Which rules actually
 | `scripts/verify-package-outputs.mjs` (`main.yml` build job) | `package-outputs` — a POST-condition needing a built tree |
 | `scripts/check-refs-pin.mjs <pkg>` (every `build:meson`) | `refs-pin`, for one package, before it produces a prebuild |
 | `scripts/check-prebuild-loader-path.mjs <dir>` (`stage-prebuild.mjs`, `prebuilds.yml`) | the directory check — takes a path, not a manifest |
+
+`refs-pin` and `workflow-rev-pin` split the same subject along that line: the first
+compares the gitlink to a working COPY and therefore needs initialised submodules, the
+second compares it to a workflow `env:` and needs only this checkout's `.git/index`, so
+only the second can run on every PR — which is where a submodule sweep lands.
+
+That index is read as a FILE, by [`git-index.mjs`](./git-index.mjs), never through
+`git ls-files`. `windows-suites.yml` runs the same `--check` with every `\Git\` entry
+removed from PATH — a deliberate part of what that leg measures — so it has a complete
+checkout and no `git` binary, and a rule that shelled out died there. Skipping when the
+binary is missing would have been a rule that passes everywhere without comparing
+anything; `git-index.mjs` carries the full argument.
 
 `node scripts/audit-runtimes.mjs --rules` prints the registry.
 

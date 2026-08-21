@@ -82,6 +82,7 @@ import './manifest-conformance/rules/platform-packages.mjs';
 import './manifest-conformance/rules/release-train.mjs';
 import './manifest-conformance/rules/node-script-globals.mjs';
 import './manifest-conformance/rules/pr-trigger-parity.mjs';
+import './manifest-conformance/rules/workflow-rev-pin.mjs';
 
 // Re-exported for `tests/e2e/prebuild-declaration-invariant`, which drives the prebuild
 // invariant against SYNTHETIC packages: proving that a MISSING prebuild directory fails
@@ -1370,6 +1371,14 @@ const CHECK_RULES = [
     // a workflow that does not run on a PR: put it anywhere path-filtered and the check
     // for post-merge-only coverage would itself be post-merge-only.
     'pr-trigger-parity',
+    // Reads one workflow `env:` and this checkout's `.git/index` — two FILES a bare
+    // `actions/checkout` already leaves behind, with no `git` binary and no initialised
+    // submodules involved. So unlike `refs-pin`, this half of the `refs/` contract can be
+    // held on every PR, which is where it has to be: the drift it found arrived inside a
+    // submodule SWEEP, touching no file this workflow builds. The binary-free reading is
+    // load-bearing, not tidiness — `windows-suites.yml` runs this same `--check` with
+    // `\Git\` stripped from PATH, and the first draft's `git ls-files` died there.
+    'workflow-rev-pin',
     'field-coverage',
     'status-data',
 ];
@@ -1468,6 +1477,14 @@ async function main() {
         // the accountant at the end of this branch.
         const platformPackages = byId.get('platform-packages');
         const prTriggerParity = byId.get('pr-trigger-parity');
+        // Fetched in the same breath as the rule was added, because the two omissions
+        // recorded on either side of this line are what a selected-but-unfetched rule costs:
+        // it passes silently and reports only through the accountant, which mislabels it.
+        // Only HALF that lesson took the first time: the summary below was wired up and the
+        // FAILURE block was not, so the accountant caught the rule's very first finding and
+        // announced it as a REPORTER bug. Fetching a rule here is not the contract — having
+        // a print block in BOTH branches is.
+        const workflowRevPin = byId.get('workflow-rev-pin');
         // Same omission as `platform-packages` above, found while adding the rule beside
         // it: selected by CHECK_RULES since #1208 and fetched in NEITHER branch, so it
         // printed no summary when it passed and reached a reader only through the
@@ -1491,6 +1508,7 @@ async function main() {
             console.log(releaseTrain.summary);
             console.log(bundledLicense.summary);
             console.log(prTriggerParity.summary);
+            console.log(workflowRevPin.summary);
             console.log(coverage.summary);
             console.log(statusData.summary);
             console.log(platformPackages.summary);
@@ -1788,6 +1806,23 @@ async function main() {
             );
             console.error('');
         }
+        if ((workflowRevPin.failures ?? []).length > 0) {
+            console.error(`WORKFLOW-REV-PIN FAILURES on ${workflowRevPin.failures.length} finding(s):`);
+            for (const line of workflowRevPin.failures) {
+                console.error(`  - ${line}`);
+            }
+            console.error('');
+            console.error(
+                'A workflow `env:` that hard-codes an upstream revision and the matching `refs/` gitlink are two ' +
+                    'names for ONE commit, and each environment reads only one of them: CI reads the env, a ' +
+                    'maintainer regenerating goldens reads the gitlink. Point both at the same sha in the SAME ' +
+                    'change, and regenerate whatever the old revision produced. The pairings are declared in ' +
+                    '`WORKFLOW_REV_PINS` (scripts/manifest-conformance/rules/workflow-rev-pin.mjs) — dropping one is ' +
+                    'a legitimate answer, but it has to be an edit to that table that says what reads the revision ' +
+                    'instead, never a rename that lets the check pass by finding nothing.',
+            );
+            console.error('');
+        }
         for (const note of coverage.notes ?? []) console.error(`  · ${note}`);
         renderReachabilityNotes(reach);
 
@@ -1831,6 +1866,7 @@ async function main() {
             'platform-packages',
             'bundled-license',
             'pr-trigger-parity',
+            'workflow-rev-pin',
         ]);
         const unreported = run.results.filter(
             ({ rule, result }) => (result.failures ?? []).length > 0 && !REPORTED_RULE_IDS.has(rule.id),

@@ -1371,7 +1371,7 @@ jobs:
   # (mozjs-140) pairing the Fedora job pins, so no source build is needed; meson
   # branches to ld64's -exported_symbols_list and the .dylib leaf (see
   # meson.build). Verbatim from napi.yml's `macos` job, minus the node-gyp gates
-  # (napi.yml runs those on every packages/napi/** push/PR).
+  # (napi.yml runs those on every push/PR that is not docs-only).
   napi-prebuild-darwin-arm64:
     name: Build @gjsify/napi darwin-arm64 prebuild
     needs: publish

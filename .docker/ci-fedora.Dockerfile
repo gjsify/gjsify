@@ -36,6 +36,19 @@ FROM fedora:${FEDORA_VERSION}
 # cheaply. `tests/e2e/prebuild-change-gate` prefers a real POSIX shell and says so when
 # it finds none; without this package it always took that weaker path. Measured cost: a
 # few hundred KB, and nothing else on the image resolves `sh` through it.
+#
+# `openssl` is the CLI, not the library: the Fedora base ships `openssl-libs` and no
+# `openssl(1)` (measured on `fedora:44`), and nothing else installed here pulls the
+# binary in. That single absence is what held `@gjsify/integration-tls-session` out
+# of `main.yml`'s integration gate — its `scripts/setup-fixtures.mjs` shells out to
+# one `openssl req -x509` to make the server cert, so the suite died with
+# `spawnSync openssl ENOENT` at prebuild, before a single assertion ran, and it is
+# green on any workstation, which is why nobody noticed. It is the only thing in the
+# tree that drives `@gjsify/tls-native`'s Path-A C shim through a REAL handshake —
+# session resumption and channel binding (`getFinished()`/`getPeerFinished()` on
+# TLS 1.2 `tls-unique` and TLS 1.3 `tls-exporter`). `prebuilds.yml` builds that shim
+# and `tls/src/session-access.gjs.spec.ts` covers the pre-handshake API shape;
+# neither observes a byte that crossed the wire.
 RUN dnf install -y \
     git \
     tar \
@@ -43,6 +56,7 @@ RUN dnf install -y \
     findutils \
     libatomic \
     dash \
+    openssl \
     && dnf clean all
 
 # GJS + GNOME devel libs. gstreamer1-{,plugins-base-,plugins-bad-free-}

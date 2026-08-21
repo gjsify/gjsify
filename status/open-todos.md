@@ -1855,7 +1855,9 @@ at 20 minutes. Per-suite causes are recorded beside each suite in
 The blanket phrase this entry set out to test, "CI-incompatible preconditions", is retired: it
 holds for four suites (podman for `autobahn`, an Android device for `nativescript`, the native
 `node_datachannel.node` for `webtorrent`, `openssl(1)` for `tls-session`) and covered nine others
-that had simply never been run and are failing.
+that had simply never been run and are failing. Of the four, only `tls-session`'s is retired —
+`.docker/ci-fedora.Dockerfile` bakes `openssl`, and the suite rejoins `main.yml`'s `--include`
+once `build-ci-image` has republished the tag; see its note in `status/integration-coverage.md`.
 
 The remaining work, in the shape it should be done:
 
