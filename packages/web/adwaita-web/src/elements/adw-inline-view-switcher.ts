@@ -55,6 +55,7 @@ import {
     domViewSwitcherScheduler,
     readSwitcherPage,
 } from './view-switcher-dom.js';
+import { attachRovingFocus } from './roving-focus.js';
 
 /** A single page. Children of <adw-inline-view-switcher>; consumed at connect time. */
 export class AdwViewStackPage extends HTMLElement {
@@ -166,6 +167,15 @@ export class AdwInlineViewSwitcher extends HTMLElement {
         this._groupEl = document.createElement('div');
         this._groupEl.className = 'adw-inline-view-switcher-group';
         this._groupEl.setAttribute('role', 'tablist');
+        // What makes the roving tabindex in `_render` navigable: without it the
+        // unselected toggles are reachable by no key at all. `_toggles` is already the
+        // COMPACTED list — a hidden page produces no toggle — so it needs no filter.
+        attachRovingFocus({
+            host: this,
+            orientation: 'horizontal',
+            items: () => this._toggles,
+            select: (item) => this._state.setSelected(Number(item.dataset.pageIndex)),
+        });
 
         this._pagesEl = document.createElement('div');
         this._pagesEl.className = 'adw-inline-view-switcher-pages';
