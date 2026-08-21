@@ -279,8 +279,8 @@ jobs:
       - name: Check the ADR index lists every ADR
         run: node scripts/check-adr-index.mjs
 
-      # `$adw-components` in adwaita-web's `_reset.scss` is a hand-written copy of 58
-      # `customElements.define('adw-…')` calls, and it is what applies the ADR 0010
+      # `$adw-components` in adwaita-web's `_reset.scss` is a hand-written copy of every
+      # `customElements.define('adw-…')` call, and it is what applies the ADR 0010
       # style-isolation floor. A tag missing from it renders in the host page's font and
       # colour, silently. It had already drifted — `adw-source-view` was never listed —
       # and the spec ADR 0010 names as the guard instantiates exactly one element.
@@ -606,8 +606,8 @@ jobs:
       - name: Check the ADR index lists every ADR
         run: node scripts/check-adr-index.mjs
 
-      # `$adw-components` in adwaita-web's `_reset.scss` is a hand-written copy of 58
-      # `customElements.define('adw-…')` calls, and it is what applies the ADR 0010
+      # `$adw-components` in adwaita-web's `_reset.scss` is a hand-written copy of every
+      # `customElements.define('adw-…')` call, and it is what applies the ADR 0010
       # style-isolation floor. A tag missing from it renders in the host page's font and
       # colour, silently. It had already drifted — `adw-source-view` was never listed —
       # and the spec ADR 0010 names as the guard instantiates exactly one element.

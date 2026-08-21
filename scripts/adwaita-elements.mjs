@@ -1,0 +1,369 @@
+// What each Adwaita renderer ships, read from the code that registers it.
+//
+// THE INCIDENT
+//
+// Three scripts needed one fact — which elements adwaita-web ships — and derived it
+// separately. `check-adwaita-reset-components.mjs` scanned `customElements.define`
+// over all of `src/`; `generate-status.mjs` and `check-storybook-widget-coverage.mjs`
+// each listed FILENAMES matching `adw-*.ts` in `src/elements/`, non-recursively. Same
+// CI job, 65 against 50, and the smaller answer fed the published widget matrix.
+//
+// A filename is not the element. `adw-checks.ts` defines `adw-checkbox` and
+// `adw-radio`: the matrix scored a widget no page can use, and none for either it can.
+// `adw-preferences-dialog.ts` also defines `adw-preferences-page`, so the matrix
+// published "adwaita-web does not have it" about an element consumers already use.
+// `adw-source-view` sits in `src/source-view/`, invisible to both filename readers —
+// the same blindness that had kept it out of the ADR 0010 reset list.
+//
+// So this module is the ONE reader, of BOTH renderers: the NativeScript widget scan
+// was a second copy in the same two files, with the same drift ahead of it. `adw-` is
+// the whole naming rule the tree follows, and stripping it ({@link elementName}) leaves
+// the bare name widget files and `*.meta.ts` story names are already spelled in.
+//
+// It answers the core-edge question here too ({@link coreReach}), for the same reason
+// and one more: that derivation lived privately in `generate-status.mjs`, which CI
+// never runs, so nothing could fail on a `CORE-VIA:` declaration that had stopped
+// holding.
+
+import { readdirSync, readFileSync } from 'node:fs';
+import { basename, join, relative, resolve } from 'node:path';
+
+/** Repo-relative source roots, so callers can name them in their own messages. */
+export const ADWAITA_WEB_SRC = 'packages/web/adwaita-web/src';
+export const ADWAITA_NS_WIDGETS = 'packages/nativescript-bridge/adwaita/src/widgets';
+
+// The registration WITH the class it registers, in any quote style: reading the class
+// is what makes a HALF rename fail instead of shrinking the set (see the throw below).
+const DEFINE_PATTERN = /customElements\s*\.\s*define\(\s*['"`](adw-[a-z0-9-]+)['"`]\s*,\s*([A-Za-z0-9_]+)/g;
+
+// The discriminator for the pattern itself: a call it cannot read is an element the
+// whole tree is blind to, and counting only what matched can never show that.
+const DEFINE_CALL = /customElements\s*\.\s*define\(/g;
+
+/** Every `.ts` under `dir` — elements live outside `elements/` too (`source-view/`). */
+function sourceFiles(dir) {
+    const found = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        // A vendored copy under `src/` would register its own tags into a required check.
+        if (entry.name === 'node_modules') continue;
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) found.push(...sourceFiles(path));
+        else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')) found.push(path);
+    }
+    return found;
+}
+
+/** `adw-preferences-page` → `preferences-page`: the key rows, ledger entries and stories share. */
+export const elementName = (tag) => tag.slice('adw-'.length);
+
+/** `preferences-page` → `AdwPreferencesPage`: the class both renderers name it after. */
+const widgetClass = (name) =>
+    `Adw${name
+        .split('-')
+        .map((part) => part[0].toUpperCase() + part.slice(1))
+        .join('')}`;
+
+/** The shared headless behaviour both renderers are meant to delegate to. */
+const CORE_PACKAGE = '@gjsify/adwaita-core';
+
+// USING a sibling element and DELEGATING to one are the same import edge, so the
+// difference is not derivable and is declared instead — in the delegating file's own
+// header, where `CORE-ONLY:` already puts this kind of claim. Spelled with the
+// specifier the file imports and HELD to it, so a declaration cannot outlive the
+// edge it describes — which is how the last one survived its own deletion.
+const CORE_VIA = 'CORE-VIA:';
+const CORE_VIA_PATTERN = /CORE-VIA:\s*(\S+)\s*—\s*([^\n]*)/g;
+
+// A floor on length, not on meaning — filler clears it, and no check reads a sentence.
+// It is the LAST arm for that reason: what stands between an arbitrary sibling and a
+// published `✅ core` is the import arm in {@link coreReach}, never this one.
+const MIN_REASON = 40;
+
+/** The leading comment block: a claim a reader of this file meets before the code. */
+function fileHeader(text) {
+    const header = [];
+    for (const line of text.split('\n')) {
+        const trimmed = line.trim();
+        if (trimmed !== '' && !trimmed.startsWith('//') && !trimmed.startsWith('/*') && !trimmed.startsWith('*')) break;
+        header.push(trimmed);
+    }
+    return header.join('\n');
+}
+
+/**
+ * `{ type A, type B }` — a named clause with no value binding at all. Neither renderer
+ * sets `verbatimModuleSyntax`, so TypeScript erases such a statement whole; the web
+ * `adw-menu-button` carries a separate side-effect import for precisely that reason.
+ */
+function bindsOnlyTypes(clause) {
+    const named = /^\{([^}]*)\}$/.exec(clause.trim());
+    if (named === null) return false;
+    const entries = named[1]
+        .split(',')
+        .map((entry) => entry.trim())
+        .filter((entry) => entry !== '');
+    return entries.length > 0 && entries.every((entry) => /^type\s+\S/.test(entry));
+}
+
+/**
+ * What a module imports or re-exports AS VALUES — comments out, and BOTH `type`
+ * spellings out: the statement-level `import type { X } from` and the inline
+ * `import { type X } from`, which emits nothing either ({@link bindsOnlyTypes}).
+ *
+ * A clause this cannot read as a value binding counts as no edge. That direction is
+ * deliberate: an unseen edge under-claims a widget, which the matrix already words as
+ * "no path is VISIBLE", while a claimed edge nothing runs is the incident below.
+ */
+function valueImports(text) {
+    const code = text.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/(^|[^:])\/\/[^\n]*/g, '$1');
+    const specs = [...code.matchAll(/(?:^|[\n;])\s*import\s*['"]([^'"]+)['"]/g)].map(([, spec]) => spec);
+    for (const [, clause, spec] of code.matchAll(
+        /(?:^|[\n;])\s*(?:import|export)\s+(?!type[\s{])([^'"]*)from\s*['"]([^'"]+)['"]/g,
+    )) {
+        if (!bindsOnlyTypes(clause)) specs.push(spec);
+    }
+    return specs;
+}
+
+/**
+ * Does a module reach `@gjsify/adwaita-core`? — the question the matrix's "core"
+ * cell asks, for `rendererFiles`, the element files of the renderer(s) in scope.
+ *
+ * "Backed by core" is an import edge we can SEE, which a sentence about core and an
+ * erased `import type` are not — both were counted: `adw-header-bar` imports core
+ * NOWHERE and was published core-backed off a comment, `adw-menu-button` off a type.
+ *
+ * ONE HOP, and never DERIVED into another renderer element. A renderer delegates through a
+ * helper for a reason the tree makes visible: an NS spec cannot import a module that
+ * `extends GridLayout`, so the pure half moves out (`chrome.ts`, `avatar-color.ts`)
+ * and the helper is where the core edge lives. A transitive walk would report a
+ * widget as core-backed because something four modules away imports core, which is
+ * not the same claim; and `adw-source-view` embeds `adw-icon`, whose edge is not a
+ * claim about the source view. The verdict is per FILE: every tag
+ * `adw-alert-dialog.ts` registers carries that one file's edge, no finer.
+ *
+ * THROWS on a `CORE-VIA:` header that does not hold — see {@link CORE_VIA}. Held in
+ * order: the declaring file must IMPORT the specifier it names (a declaration whose
+ * own first edge is missing is the incident above, restored — the marker outlives the
+ * import and the widget stays core-backed off prose); the named module must be a
+ * SIBLING ELEMENT of this renderer, because a helper is what the one hop already
+ * covers and needs no marker; and it must reach core BY IMPORT, not by a marker of its
+ * own, since a chain of declarations is a ledger whose first link alone stays checkable.
+ *
+ * @param {Set<string>} rendererFiles absolute paths of the renderer element files
+ * @param {string} root repository root, for naming files in a failure
+ * @returns {(file: string) => boolean}
+ */
+export function coreReach(rendererFiles, root) {
+    const read = (file) => {
+        try {
+            return readFileSync(file, 'utf8');
+        } catch {
+            return '';
+        }
+    };
+    const importsCore = (text) => valueImports(text).some((spec) => spec.startsWith(CORE_PACKAGE));
+    // TS sources import the EMITTED `.js` sibling; the file on disk is `.ts`.
+    const sibling = (file, spec) => resolve(file, '..', spec.replace(/\.js$/, '.ts'));
+    const byImport = (file) => {
+        const text = read(file);
+        if (importsCore(text)) return true;
+        return valueImports(text).some(
+            (spec) =>
+                spec.startsWith('.') &&
+                !rendererFiles.has(sibling(file, spec)) &&
+                importsCore(read(sibling(file, spec))),
+        );
+    };
+
+    return (file) => {
+        const text = read(file);
+        const direct = byImport(file);
+        if (!text.includes(CORE_VIA)) return direct;
+
+        const where = `${relative(root, file)}: CORE-VIA`;
+        // EVERY occurrence is held, not the first one found: an unread marker is
+        // decoration, it can carry a second module that never gets checked, and a bare
+        // `TODO` parked in it hides from `gjsify/todo-needs-anchor` at the same time.
+        const markers = [...fileHeader(text).matchAll(CORE_VIA_PATTERN)];
+        if (markers.length !== text.split(CORE_VIA).length - 1) {
+            throw new Error(
+                `${where} is not in the file header, or is not spelled \`CORE-VIA: <module> — <reason>\`. ` +
+                    'Nothing reads it where it stands, so the widget is scored as if it were not there.',
+            );
+        }
+        if (direct) {
+            throw new Error(
+                `${where} declares a delegation, but this file reaches ${CORE_PACKAGE} on its own. ` +
+                    'The marker carries nothing and outlives its reason — delete it.',
+            );
+        }
+        const imported = valueImports(text);
+        for (const [, spec, reason] of markers) {
+            if (!imported.includes(spec)) {
+                throw new Error(
+                    `${where} names ${spec}, which this file does not import as a value. ` +
+                        'A delegation with no import edge behind it is a sentence, and a sentence is ' +
+                        'what published this widget core-backed the first time.',
+                );
+            }
+            const target = sibling(file, spec);
+            if (!rendererFiles.has(target)) {
+                throw new Error(
+                    `${where} names ${spec} (${relative(root, target)}), which is not an element of ` +
+                        'this renderer. A helper is already the one hop above and needs no marker; a ' +
+                        'sibling ELEMENT is the only edge that hop deliberately refuses to see.',
+                );
+            }
+            if (!byImport(target)) {
+                throw new Error(
+                    `${where} names ${spec}, which does not reach ${CORE_PACKAGE} itself. ` +
+                        'Delegating to a second copy is still two copies.',
+                );
+            }
+            if (reason.trim().length < MIN_REASON) {
+                throw new Error(
+                    `${where} names ${spec} with no real reason — say what behaviour runs there instead of here.`,
+                );
+            }
+        }
+        return true;
+    };
+}
+
+/**
+ * Every custom element adwaita-web defines → the file defining it, so a failure
+ * can name the file to open. Sorted by tag; several files define two or three.
+ *
+ * THROWS on an empty scan: nothing is missing from an empty set, so a reader that
+ * finds nothing lets every consumer pass vacuously — which is exactly what a moved
+ * package or a stale pattern produces. An unreadable `define(` and a tag registering
+ * something other than its `Adw<Tag>` throw for the same reason: both shrink the set.
+ *
+ * @param {string} root repository root
+ * @returns {Map<string, string>} tag → repo-relative defining file
+ */
+export function adwaitaWebElements(root) {
+    const src = join(root, ADWAITA_WEB_SRC);
+    /** @type {Map<string, string>} */
+    const defined = new Map();
+    const unreadable = [];
+    const files = sourceFiles(src);
+    const elements = new Set();
+    for (const file of files) {
+        const text = readFileSync(file, 'utf8');
+        const calls = (text.match(DEFINE_CALL) ?? []).length;
+        let matched = 0;
+        for (const [, tag, registered] of text.matchAll(DEFINE_PATTERN)) {
+            matched += 1;
+            const expected = widgetClass(elementName(tag));
+            if (registered !== expected) {
+                throw new Error(
+                    `${relative(root, file)} registers <${tag}> as ${registered}, not ${expected}. ` +
+                        'A tag and its class are renamed together or not at all: rename one alone and ' +
+                        'the widget drops out of the set both renderers share with no gate failing.',
+                );
+            }
+            defined.set(tag, relative(root, file));
+            elements.add(file);
+        }
+        if (matched < calls) unreadable.push(relative(root, file));
+    }
+
+    if (unreadable.length > 0) {
+        throw new Error(
+            `customElements.define(…) this reader could not parse, in ${unreadable.join(', ')}: a tag ` +
+                'outside the `adw-` rule, or a spelling DEFINE_PATTERN does not match. Either way that ' +
+                'element has no matrix row and no ADR 0010 reset entry, and nothing else would say so.',
+        );
+    }
+
+    if (defined.size === 0) {
+        throw new Error(
+            `no customElements.define('adw-…') calls found under ${ADWAITA_WEB_SRC}. ` +
+                'Either the package moved or DEFINE_PATTERN stopped matching — a scan that ' +
+                'finds nothing passes vacuously, so this is a failure, not a pass.',
+        );
+    }
+
+    verifyCoreVia(files, elements, root);
+    return new Map([...defined].sort(([a], [b]) => a.localeCompare(b)));
+}
+
+/**
+ * Every `CORE-VIA:` declaration in one renderer package, held against that package's
+ * tree — {@link coreReach} throws on one that does not.
+ *
+ * IT RUNS HERE because `generate-status.mjs`, the only consumer that asks about core
+ * edges, is not a gate: CI never runs it, so an arm living there could never fail a
+ * PR. This reader is what `check-adwaita-reset-components` and
+ * `check-storybook-widget-coverage` call, and both already refuse whatever it refuses.
+ */
+function verifyCoreVia(files, elements, root) {
+    const reach = coreReach(elements, root);
+    for (const file of files) reach(file);
+}
+
+// `adw-button.ts`, plus the `.android`/`.ios` halves NativeScript splits a module into
+// (`icons.android.ts` beside `icons.ios.ts` here already): two files, one widget. Any
+// other dotted name — `adw-button.d.ts` — is not a widget name and is not read as one.
+const NS_WIDGET_FILE = /^adw-([a-z0-9-]+)(?:\.(?:android|ios))?\.ts$/;
+
+/** Declaring a class AT ALL is what makes a file a widget file — the word in prose is not. */
+const CLASS_DECLARATION = /^\s*(?:export\s+)?(?:default\s+)?(?:abstract\s+)?class\s+[A-Za-z0-9_]+/m;
+
+/** The class must LEAVE the file; how it is spelled on the way out is free. */
+const exportsClass = (text, name) =>
+    new RegExp(`export\\s+(?:default\\s+)?(?:abstract\\s+)?class\\s+${name}\\b`).test(text) ||
+    new RegExp(`export\\s*\\{[^}]*\\b${name}\\b[^}]*\\}`).test(text);
+
+/**
+ * Every widget the NativeScript Adwaita port ships → its repo-relative file.
+ *
+ * NativeScript has no `customElements.define`. A widget here is a class extending a
+ * `@nativescript/core` view, named `Adw<Widget>` in `adw-<name>.ts`, and every file
+ * here but one is that. The exception is `adw-accent.ts`, two functions that push CSS
+ * at `Application`: no view, nothing to place in a layout, and the directory listing
+ * scored it as a NativeScript-only WIDGET the browser had yet to port.
+ *
+ * DECLARING NO CLASS is therefore the exemption and the only one — a file that declares
+ * one and does not export it under the name its filename promises THROWS. Same
+ * vacuous-scan contract as {@link adwaitaWebElements}.
+ *
+ * @param {string} root repository root
+ * @returns {Map<string, string>} bare widget name → repo-relative file
+ */
+export function adwaitaNativeScriptWidgets(root) {
+    const dir = join(root, ADWAITA_NS_WIDGETS);
+    /** @type {Map<string, string>} */
+    const widgets = new Map();
+    const files = sourceFiles(dir);
+    const elements = new Set();
+    for (const file of files) {
+        const match = NS_WIDGET_FILE.exec(basename(file));
+        if (!match) continue;
+        const text = readFileSync(file, 'utf8');
+        if (!CLASS_DECLARATION.test(text)) continue;
+        const expected = widgetClass(match[1]);
+        if (!exportsClass(text, expected)) {
+            throw new Error(
+                `${relative(root, file)} declares a class but does not export ${expected}. ` +
+                    'A widget file names its class after itself; without that this file drops out ' +
+                    'of the widget set silently, and every consumer of it shrinks with no failure.',
+            );
+        }
+        widgets.set(match[1], relative(root, file));
+        elements.add(file);
+    }
+
+    if (widgets.size === 0) {
+        throw new Error(
+            `no adw-<name>.ts file under ${ADWAITA_NS_WIDGETS} exports an Adw* class. ` +
+                'Either the package moved or the naming convention changed — a scan that ' +
+                'finds nothing passes vacuously, so this is a failure, not a pass.',
+        );
+    }
+
+    verifyCoreVia(files, elements, root);
+    return new Map([...widgets].sort(([a], [b]) => a.localeCompare(b)));
+}

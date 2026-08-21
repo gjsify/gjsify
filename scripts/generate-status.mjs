@@ -75,6 +75,7 @@ import {
     prebuildOwnership,
 } from '../packages/infra/manifest-conformance/lib/platform-packages.mjs';
 import { posixRelative } from '../packages/infra/manifest-conformance/lib/index.mjs';
+import { adwaitaNativeScriptWidgets, adwaitaWebElements, coreReach, elementName } from './adwaita-elements.mjs';
 
 // ─── Authored-data model ────────────────────────────────────────────────────
 
@@ -216,10 +217,17 @@ function scanGnomeNamespaces(pkgDir) {
  * maintained by hand. It WAS, in `status/sections/adwaita-web-roadmap.md`, and
  * it drifted: twelve widgets sat under "Planned" long after they shipped.
  *
- * Widgets align by their `adw-<name>` filename across all three, so this needs
- * no alias table. Upstream partials that no renderer has yet are a genuinely
- * authored judgement (three different naming conventions) and stay in the
- * roadmap section.
+ * ONE ROW PER `adw-<name>`, read from what each renderer REGISTERS, which is a
+ * different thing on each: `customElements.define('adw-…')` tags minus the prefix
+ * ({@link elementName}), NativeScript `Adw*` view classes, GTK `<name>.meta.ts`
+ * stories. The three vocabularies agree on the bare name, so this needs no alias
+ * table. Upstream partials that no renderer has yet are a genuinely authored
+ * judgement (three naming conventions) and stay in the roadmap section.
+ *
+ * Both renderer columns were FILENAME scans, which is not the same question — the
+ * phantom `adw-checks`, the denied `adw-preferences-page`, the invisible
+ * `adw-source-view` and the accent function pair scored as a widget are the
+ * incident in `scripts/adwaita-elements.mjs`.
  *
  * TWO false gaps this used to score, both fixed by DERIVING harder rather than
  * by an exception list — an allowlist here would reintroduce exactly the
@@ -239,18 +247,11 @@ function scanGnomeNamespaces(pkgDir) {
  *     guessed at, one hop through the package's own modules.
  */
 function collectAdwaitaCoverage(root) {
-    const names = (dir, re) => {
-        if (!existsSync(dir)) return new Map();
-        const out = new Map();
-        for (const entry of readdirSync(dir)) {
-            const match = re.exec(entry);
-            if (match) out.set(match[1], join(dir, entry));
-        }
-        return out;
-    };
+    const absolute = (entries) => new Map([...entries].map(([name, file]) => [name, resolve(root, file)]));
 
-    const web = names(join(root, 'packages/web/adwaita-web/src/elements'), /^adw-(.+)\.ts$/);
-    const ns = names(join(root, 'packages/nativescript-bridge/adwaita/src/widgets'), /^adw-(.+)\.ts$/);
+    // `adw-sidebar.ts` defines three tags, so three rows point at the same file.
+    const web = absolute([...adwaitaWebElements(root)].map(([tag, file]) => [elementName(tag), file]));
+    const ns = absolute(adwaitaNativeScriptWidgets(root));
 
     // The GTK renderer's coverage IS its story set (one `.meta.ts` per widget).
     const stories = new Set();
@@ -260,39 +261,9 @@ function collectAdwaitaCoverage(root) {
         stories.add(base.replace(/\.meta\.ts$/, ''));
     }
 
-    const read = (file) => {
-        try {
-            return readFileSync(file, 'utf8');
-        } catch {
-            return null;
-        }
-    };
-    // "Backed by core" is not a claim — it is an import edge we can see.
-    const importsCore = (src) => src !== null && /@gjsify\/adwaita-core/.test(src);
-
-    /**
-     * Does this widget reach `@gjsify/adwaita-core` — itself, or through a module
-     * of its own package that it imports?
-     *
-     * ONE HOP, deliberately. A renderer delegates through a helper for a reason
-     * the tree makes visible: an NS spec cannot import a module that
-     * `extends GridLayout`, so the pure half moves out (`chrome.ts`,
-     * `avatar-color.ts`, `split-view-width.ts`), and that helper is where the core
-     * edge lives. One hop is the delegation; a transitive walk would report a
-     * widget as core-backed because something four modules away happens to import
-     * core, which is not the same claim.
-     */
-    const reachesCore = (file) => {
-        const src = read(file);
-        if (src === null) return false;
-        if (importsCore(src)) return true;
-        for (const [, spec] of src.matchAll(/from\s+['"](\.[^'"]*)['"]/g)) {
-            // TS sources import the EMITTED `.js` sibling; the file on disk is `.ts`.
-            const helper = resolve(file, '..', spec.replace(/\.js$/, '.ts'));
-            if (importsCore(read(helper))) return true;
-        }
-        return false;
-    };
+    // The rule, its two incidents and the `CORE-VIA:` declaration it honours live with
+    // the reader — where the two CI gates inherit them (`scripts/adwaita-elements.mjs`).
+    const reachesCore = coreReach(new Set([...web.values(), ...ns.values()]), root);
 
     // Upstream data objects — `Adw.Toast` is state, not a widget, and the renderer
     // that draws it is a different one (`adw-toast-overlay`). Derived from the
@@ -702,10 +673,11 @@ function table(header, rows) {
  * Render the derived per-widget coverage matrix.
  *
  * "Core" is not a claim about intent — it is whether that renderer's widget
- * reaches `@gjsify/adwaita-core`, itself or one hop through a helper of its own
- * package. A widget present on both sides with no core edge is a
- * duplicated-behaviour candidate, which is precisely the ADR-0004 backlog,
- * computed instead of remembered.
+ * reaches `@gjsify/adwaita-core`: itself, one hop through a helper of its own
+ * package, or the sibling element a `CORE-VIA:` header names. An import edge is
+ * the whole of what that measures, so the remainder is where ADR-0004
+ * duplication would sit, not a count of measured copies — and the sentence below
+ * says so, because it once said the opposite about a widget that delegates.
  *
  * Core-modelled DATA objects are listed apart from the widget table rather than
  * inside it: an `Adw.Toast` has no renderer element on either side by design, so
@@ -725,21 +697,34 @@ function adwaitaCoverageSection(coverage) {
     const shared = both.filter((w) => w.webCore && w.nsCore);
     const out = ['## Adwaita widget coverage', ''];
     out.push(
-        'Derived from the tree at generation time — element files, NativeScript widget',
-        'files, storybook `*.meta.ts`, and the actual `@gjsify/adwaita-core` import edges.',
-        'None of it is maintained by hand; the table this replaced drifted twelve widgets',
-        'behind the code.',
+        'Derived from the tree at generation time. One row per `adw-<name>`, read from',
+        "the FILE that registers it: browser `customElements.define('adw-…')` tags,",
+        'NativeScript `Adw*` view classes, storybook `<name>.meta.ts`, and the actual',
+        '`@gjsify/adwaita-core` import edges — so a file registering several tags gives',
+        'the same core verdict to each of them. The one AUTHORED input is the',
+        '`CORE-VIA:` header a widget carries when its edge runs through a sibling',
+        'element, and a CI gate rejects one whose import is not there. Nothing else is',
+        'maintained by hand; the table this replaced drifted twelve widgets behind the',
+        'code.',
         '',
     );
     out.push(table(['Widget', 'GTK story', 'adwaita-web', 'adwaita-nativescript'], rows));
     out.push('');
-    // The backlog sentence is CONDITIONAL: naming a remainder that is empty is the
+    // The remainder sentence is CONDITIONAL: naming a remainder that is empty is the
     // same drift as any other stale claim — it reads as work outstanding when there
     // is none, and nobody re-reads a generated line to check.
+    const unshared = both.filter((w) => !w.webCore || !w.nsCore);
     out.push(
-        `**${shared.length} of ${both.length}** widgets implemented on BOTH renderers share their behaviour ` +
-            'through `@gjsify/adwaita-core`.' +
-            (shared.length < both.length ? ' The remainder still carry two copies (ADR 0004 backlog).' : ''),
+        `**${shared.length} of ${both.length}** widgets implemented on BOTH renderers have a value-import path ` +
+            'to `@gjsify/adwaita-core` from each side — direct, one hop through a helper of the same package, or ' +
+            'through the sibling element a `CORE-VIA:` header names.' +
+            (unshared.length > 0
+                ? ` No such path is visible from at least one side for ${unshared
+                      .map((w) => `\`adw-${w.name}\``)
+                      .join(', ')} — an import edge is all this measures, so those are ADR 0004 duplication` +
+                  ' candidates, not measured copies. A widget that does delegate to a sibling element says so' +
+                  ' in its own header (`CORE-VIA:`), and a missing one lands it here.'
+                : ''),
     );
     if (dataObjects.length) {
         out.push('');

@@ -17,9 +17,9 @@
 //
 // WHAT IT CHECKS
 //
-//   1. Every `adw-<name>` present in BOTH `packages/web/adwaita-web/src/elements/` and
-//      `packages/nativescript-bridge/adwaita/src/widgets/` has a `<name>.meta.ts` in
-//      the GTK showcase — or an entry below saying why not.
+//   1. Every `adw-<name>` the browser DEFINES as a custom element and NativeScript
+//      ships as an `Adw*` view class has a `<name>.meta.ts` in the GTK showcase — or
+//      an entry below saying why not.
 //   2. No ledger entry names a widget that HAS a story (a stale exemption reads as
 //      considered when it is merely forgotten).
 //   3. No ledger entry names a widget the rule cannot reach — one renderer only, or
@@ -28,6 +28,10 @@
 // The both-renderers scope is deliberate. A widget on ONE renderer cannot have a
 // three-target story, so demanding one here would demand a port, and that is a
 // product decision this check has no business making.
+//
+// STATUS.md's widget matrix is NOT checked here: an arm that did was removed, because
+// its column and this check both call `adwaitaWebElements()` — `f(x)` against `f(x)`,
+// green for every tree, and only an EDIT to the generator could ever make it fire.
 //
 // Plain Node over the repo's own files — no install, no build — so it runs in
 // `audit-runtimes.yml` next to the other repo-scoped guards.
@@ -38,12 +42,18 @@ import { readdirSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+    ADWAITA_NS_WIDGETS,
+    ADWAITA_WEB_SRC,
+    adwaitaNativeScriptWidgets,
+    adwaitaWebElements,
+    elementName,
+} from './adwaita-elements.mjs';
+
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : args[rootFlag + 1];
 
-const WEB_ELEMENTS = join(ROOT, 'packages/web/adwaita-web/src/elements');
-const NS_WIDGETS = join(ROOT, 'packages/nativescript-bridge/adwaita/src/widgets');
 const GTK_SRC = join(ROOT, 'showcases/gtk/adwaita-storybook/src');
 
 /**
@@ -57,23 +67,14 @@ const NO_STORY_OF_ITS_OWN = {
     button: 'Buttons/Button Styles IS the button story — its `component` is `Gtk.Button.$gtype`, and it renders the plain button beside .pill/.circular/.suggested-action/.destructive-action/.flat. A second story would show the same widget with fewer states.',
     'toast-overlay':
         'Feedback/Toast renders it. The overlay is only ever the surface a toast appears on, so the story is named after the thing the reader is looking for.',
+    'preferences-page':
+        'Feedback/Preferences Dialog renders it — the story builds an `Adw.PreferencesPage`, fills it with a group of rows and adds it to the dialog. A page only ever appears inside a preferences dialog, so the story is named after the thing the reader is looking for.',
     'view-stack':
         'A stack shows exactly one page and offers no way to change it — alone it is a blank preview. Every switcher story builds one and drives it: View Switcher, Inline View Switcher, View Switcher Bar.',
     icon: 'There is no Adwaita or GTK icon WIDGET to reference. GTK draws a `Gtk.Image` inline (the navigation stories do), and the browser element exists because CSS needs a box to hang a symbolic on. A story would demonstrate a GTK primitive, not an Adwaita widget.',
     'data-grid':
         'The one widget here with no GTK renderer at all — it is an original @gjsify widget, not a libadwaita port. A GTK story would have to hand-assemble a `Gtk.Grid`, i.e. put a fourth implementation in a showcase where no package owns it. If a GTK data grid is wanted it starts as a package (#1050).',
 };
-
-/** `adw-<name>.ts` files directly under `dir`. */
-function widgetNames(dir) {
-    const found = new Set();
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        if (!entry.isFile()) continue;
-        const match = entry.name.match(/^adw-(.+)\.ts$/);
-        if (match && !entry.name.endsWith('.spec.ts')) found.add(match[1]);
-    }
-    return found;
-}
 
 /** Story names — every `<name>.meta.ts` anywhere under the GTK showcase. */
 function storyNames(dir) {
@@ -89,14 +90,25 @@ function storyNames(dir) {
     return found;
 }
 
-const web = widgetNames(WEB_ELEMENTS);
-const ns = widgetNames(NS_WIDGETS);
+/** @type {Map<string, string>} */
+let defines;
+/** @type {Map<string, string>} */
+let ns;
+try {
+    defines = adwaitaWebElements(ROOT);
+    ns = adwaitaNativeScriptWidgets(ROOT);
+} catch (error) {
+    // Both readers throw on a vacuous scan by design; catch to keep this script's prefix.
+    console.error(`check-storybook-widget-coverage: ${error.message}`);
+    process.exit(1);
+}
+
+const web = new Set([...defines.keys()].map(elementName));
 const stories = storyNames(GTK_SRC);
 
-if (web.size === 0 || ns.size === 0 || stories.size === 0) {
+if (stories.size === 0) {
     console.error(
-        'check-storybook-widget-coverage: one of the three scans came back empty ' +
-            `(web ${web.size}, nativescript ${ns.size}, stories ${stories.size}) — that is a broken scan, not a clean tree.`,
+        'check-storybook-widget-coverage: the story scan came back empty — that is a broken scan, not a clean tree.',
     );
     process.exit(1);
 }
@@ -131,7 +143,7 @@ if (failures.length > 0) {
         '\nThe GTK storybook is the reference the other two targets are aligned against, so a widget it\n' +
             'never shows is a widget with no reference — and story-set parity cannot see that, because a\n' +
             'story missing from all three targets is perfectly symmetric.\n' +
-            `  elements: ${relative(ROOT, WEB_ELEMENTS)}    widgets: ${relative(ROOT, NS_WIDGETS)}    stories: ${relative(ROOT, GTK_SRC)}`,
+            `  elements: ${ADWAITA_WEB_SRC}    widgets: ${ADWAITA_NS_WIDGETS}    stories: ${relative(ROOT, GTK_SRC)}`,
     );
     process.exit(1);
 }
