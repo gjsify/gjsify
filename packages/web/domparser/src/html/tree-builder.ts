@@ -386,6 +386,16 @@ class TreeBuilder implements TreeSink {
                 if (ws > 0) this.insertText(text.slice(0, ws));
                 const rest = text.slice(ws);
                 if (rest === '') return;
+                // Content leaves an in-head `<noscript>` before it leaves the head.
+                // Skipping this puts the right nodes in the right places anyway —
+                // insertion reads the TOP of the stack — but leaves the noscript on
+                // it under everything that follows, where a later scope walk finds
+                // an element that is not an ancestor.
+                if (this.mode === MODE_IN_HEAD && this.currentName() === 'noscript') {
+                    this.open.pop();
+                    this.onText(rest);
+                    return;
+                }
                 if (this.mode === MODE_IN_HEAD) this.popHead();
                 else this.openBody([]);
                 this.onText(rest);
@@ -619,6 +629,15 @@ class TreeBuilder implements TreeSink {
                 }
                 return;
             case MODE_IN_HEAD:
+                if (HEAD_ELEMENTS.has(name) || name === 'noscript') {
+                    this.closeElement(name);
+                    return;
+                }
+                if (this.currentName() === 'noscript') {
+                    this.open.pop();
+                    this.onCloseTag(name);
+                    return;
+                }
                 if (name === 'head') {
                     this.popHead();
                     return;
@@ -626,9 +645,7 @@ class TreeBuilder implements TreeSink {
                 if (name === 'body' || name === 'html' || name === 'br') {
                     this.popHead();
                     this.onCloseTag(name);
-                    return;
                 }
-                if (HEAD_ELEMENTS.has(name) || name === 'noscript') this.closeElement(name);
                 return;
             case MODE_AFTER_HEAD:
                 if (name === 'body' || name === 'html' || name === 'br') {

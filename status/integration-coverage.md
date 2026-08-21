@@ -85,7 +85,7 @@ The differential oracle for `@gjsify/domparser`'s HTML mode (ADR 0026). Not a po
 suite: parse5 is the REFERENCE, and each fixture is parsed twice — by us and by parse5 with
 `scriptingEnabled: false` — then printed by the SAME `canonicalize()` through two `TreeReader`s and
 compared with `toBe`. Two canonicalizers would be two chances to agree on the same mistake.
-**Node: 163/163 green. GJS: 163/163 green, 0 skips.** 31 fixtures: 28 asserted IDENTICAL to parse5
+**Node: 169/169 green. GJS: 169/169 green, 0 skips.** 32 fixtures: 29 asserted IDENTICAL to parse5
 (implied `li`/`p`/`td`/`dt` end tags, void elements mid-tree, raw text vs RCDATA, the script escape
 levels, the full entity table, the attribute query-string rule, implicit `html`/`head`/`body`,
 in-head `noscript`, `<template>` content, EOF auto-close, whitespace placement, a data-state NUL,

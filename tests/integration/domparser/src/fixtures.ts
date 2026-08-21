@@ -224,6 +224,17 @@ export const FIXTURES: Fixture[] = [
         mustContain: ['optgroup', '#text "c"'],
     },
     {
+        // An in-head `<noscript>` is left by CONTENT before the head is. The tree
+        // comes out right either way — insertion reads the top of the stack — so
+        // only a fixture that also exercises what follows the noscript catches a
+        // parser that left it on the stack.
+        name: 'head-noscript-content',
+        html: '<head><noscript>text<p>q</noscript><title>t</title></head><body>b</body>',
+        expect: 'identical',
+        minElements: 5,
+        mustContain: ['noscript', '#text "text"', '#text "b"'],
+    },
+    {
         // The tokenizer passes a data-state NUL through by spec; the tree builder
         // is what drops it. Without that, every tree built from a page with a
         // stray NUL diverges — and nothing else in the suite would say so.
