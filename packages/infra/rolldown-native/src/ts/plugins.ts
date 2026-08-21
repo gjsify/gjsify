@@ -229,6 +229,32 @@ const activeSessions = new Set<SessionInstance>();
  * Throws if the prebuild isn't loadable. Rejects the returned Promise
  * if the underlying build fails.
  */
+/**
+ * Does a `context_resolve` error string mean "nothing resolved" rather than "the
+ * resolve itself failed"?
+ *
+ * THE TWO ENGINES HAVE TO AGREE, and this is where ours was wrong. `ctx.resolve`
+ * is declared (`NativePluginContext.resolve`) to return `null` when the specifier
+ * doesn't resolve, because that is what npm `rolldown` does and what every caller
+ * in `@gjsify/rolldown-plugin-gjsify` assumes — nine of them, `alias.ts`,
+ * `platform-resolve.ts`, `entry-wrapper.ts` and five in `napi-node-addon.ts`,
+ * none with a catch, one of them a bare presence probe
+ * (`Boolean(await ctx.resolve(…))`). The Rust side maps EVERY `ResolveError`
+ * through `format!("{resolve_err:?}")` into `error`, so a plain miss arrived as a
+ * REJECTION and those call sites threw instead of taking their not-found branch.
+ * Measured on gjs 1.88.1 with the real prebuild: an unresolvable bare specifier
+ * rejected with `NotFound("@gjsify/definitely-not-there")`.
+ *
+ * Only `NotFound` is a miss. `InvalidPackageConfig`, `PackagePathNotExported`,
+ * `IOError`, a `BuildError` from another plugin's hook, and the two bridge-internal
+ * faults below (malformed payload, unknown parent req_id) are all real failures and
+ * keep rejecting — turning those into `null` is how a bridge bug ends up reported
+ * as the user's missing dependency.
+ */
+export function isResolveMiss(error: string): boolean {
+    return error.startsWith('NotFound(');
+}
+
 export function bundleWithPlugins(options: BundleOptions, plugins: NativePlugin[]): Promise<BundleResult> {
     const native = loadNativeRolldown();
     if (!native) {
@@ -254,7 +280,9 @@ export function bundleWithPlugins(options: BundleOptions, plugins: NativePlugin[
             slot.reject(e instanceof Error ? e : new Error(String(e)));
             return;
         }
-        if (parsed.error) {
+        if (parsed.error && isResolveMiss(parsed.error)) {
+            slot.resolve(null);
+        } else if (parsed.error) {
             slot.reject(new Error(parsed.error));
         } else if (parsed.id) {
             slot.resolve({ id: parsed.id, external: parsed.external ?? false });

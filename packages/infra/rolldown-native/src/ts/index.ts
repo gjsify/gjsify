@@ -117,6 +117,7 @@ function getGLib(): typeof GLib {
 // Re-export Phase B plugin facade.
 export {
     bundleWithPlugins,
+    isResolveMiss,
     type NativePlugin,
     type NativePluginContext,
     type PluginIdFilter,
