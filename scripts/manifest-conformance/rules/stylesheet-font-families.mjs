@@ -25,7 +25,8 @@
  *
  * For every stylesheet a PUBLISHED package actually ships (`.css`/`.scss` covered by
  * `package.json#files`), the FIRST named family of every `font-family` declaration —
- * including the `--*-font-family` custom properties that feed them — must resolve to
+ * the `font:` shorthand and the `--*-font-family` custom properties that feed them
+ * included — must resolve to
  * an `@font-face` rule in ONE OF THAT PACKAGE'S OWN shipped stylesheets, whose `src:`
  * targets are `data:` URIs, `local()`, or files that exist and are themselves shipped.
  * Otherwise the pair needs an entry in `status/stylesheet-font-families.json`.
@@ -66,6 +67,19 @@
  *     `dist/adwaita-web.css` is absent in a fresh checkout; its `scss/` sources carry
  *     the same declarations and are committed, so the claim is inspected either way.
  *     The count of stylesheets inspected is printed so a run that saw none says so.
+ *   - A custom property whose name does not END in `font-family`. `--code-font:
+ *     'Ghost Sans', monospace` is silent. Deciding from a value whether an arbitrary
+ *     `--*` holds a font stack means guessing, and a guess here accuses; the naming
+ *     convention is what `_variables.scss` uses and what this rule keys on.
+ *   - `.sass` files. The parser is brace-based (`@font-face { … }`, `prop: value;`),
+ *     and indented Sass has neither, so scanning one would report nothing while
+ *     LOOKING like coverage. There are none in this tree; adding one means teaching
+ *     the parser first. `.css` and `.scss` are read, and the `font:` SHORTHAND is
+ *     read alongside `font-family` (see {@link shorthandFamilies}).
+ *   - A font stack in a JS/TS string literal — the shape `source-view/theme.ts`
+ *     carried for its whole life while `_variables.scss` claimed the stack had one
+ *     home. The repair was to make that code read the token, not to widen this rule
+ *     into a JS parser.
  *
  * REPO-SCOPED because it reads a ledger under `status/` and names this repository's
  * own packages in its diagnostics — neither exists in a consumer's tree.
@@ -107,6 +121,55 @@ const GENERIC_FAMILIES = new Set([
     'revert',
     'revert-layer',
 ]);
+
+/** `font-size` keywords, absolute and relative — the token that ENDS a `font:` shorthand's prelude. */
+const FONT_SIZE_KEYWORDS = new Set([
+    'xx-small',
+    'x-small',
+    'small',
+    'medium',
+    'large',
+    'x-large',
+    'xx-large',
+    'xxx-large',
+    'smaller',
+    'larger',
+]);
+
+/** `font: caption` and friends ask the host for a system font and name no family (CSS Fonts 4 § 15.6). */
+const SYSTEM_FONT_KEYWORDS = new Set(['caption', 'icon', 'menu', 'message-box', 'small-caption', 'status-bar']);
+
+/**
+ * The family list of a `font:` SHORTHAND value, or `undefined` when it names none.
+ *
+ * The shorthand is `[<style> || <variant> || <weight> || <stretch>]? <font-size>
+ * [/ <line-height>]? <font-family>`, so the families are everything after the SIZE —
+ * the first token that is a length/percentage/number or a size keyword. Included
+ * because the shorthand is an ordinary way to declare a family and the rule was
+ * silent on it: a synthetic `:root { font: 12px 'Ghost Sans', sans-serif; }` produced
+ * zero claims. No live instance in-tree (the only `font:` is `font: inherit` in
+ * `_split_button.scss`), so this is coverage for the next one, not a repair.
+ */
+function shorthandFamilies(value) {
+    const trimmed = value.trim();
+    const head = trimmed.split(/[\s,/]+/)[0].toLowerCase();
+    // A system-font or CSS-wide keyword IS the whole value.
+    if (SYSTEM_FONT_KEYWORDS.has(head) || GENERIC_FAMILIES.has(head)) return undefined;
+
+    const tokens = trimmed.split(/\s+/);
+    for (let index = 0; index < tokens.length; index++) {
+        const size = tokens[index].split('/')[0].toLowerCase();
+        if (!/^[\d.]+[a-z%]*$/.test(size) && !FONT_SIZE_KEYWORDS.has(size)) continue;
+        // Drop a `/ <line-height>` written apart from the size token.
+        const rest = tokens
+            .slice(index + 1)
+            .join(' ')
+            .replace(/^\/\s*\S+\s*/, '')
+            .trim();
+        return rest.length === 0 ? undefined : rest;
+    }
+    return undefined;
+}
 
 /**
  * Comments, stripped the way each SYNTAX defines them.
@@ -197,9 +260,10 @@ function parseStylesheet(path, source) {
 
     const claims = [];
     const outsideFaces = text.replace(/@font-face\s*\{[^}]*\}/g, ' ');
-    for (const match of outsideFaces.matchAll(/(?:^|[\s;{])(--[\w-]*font-family|font-family)\s*:\s*([^;}]+)/g)) {
-        const value = match[2].trim();
-        if (value.startsWith('var(')) continue;
+    for (const match of outsideFaces.matchAll(/(?:^|[\s;{])(--[\w-]*font-family|font-family|font)\s*:\s*([^;}]+)/g)) {
+        const raw = match[2].trim();
+        const value = match[1] === 'font' ? shorthandFamilies(raw) : raw;
+        if (value === undefined || value.startsWith('var(')) continue;
         const first = unquote(value.split(',')[0]);
         if (first.length === 0 || GENERIC_FAMILIES.has(first.toLowerCase())) continue;
         claims.push({ property: match[1], family: first });
