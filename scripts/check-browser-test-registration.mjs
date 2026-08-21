@@ -22,10 +22,10 @@
 // package with both legitimately registers a browser-APPROPRIATE SUBSET there while its
 // remaining specs reach a runner through `src/test.mts`, so an unregistered spec is not
 // orphaned. (`tests/AGENTS.md` § Browser tests answers a different question — it forbids
-// importing "`@gjsify/<pkg>` impls or spec files that do" — and eleven entries here
-// re-export the shared spec set wholesale, which this check inspects and passes.) When
-// this landed the browser-only set was adwaita-web, adwaita-storybook and xmlhttprequest;
-// it is DERIVED on every run rather than listed, so a new one is covered the day it lands.
+// importing "`@gjsify/<pkg>` impls or spec files that do" — and the entries that re-export
+// the shared spec set wholesale are inspected and passed here.) When this landed the
+// browser-only set was adwaita-web, adwaita-storybook and xmlhttprequest; it is DERIVED on
+// every run rather than listed, so a new one is covered the day it lands.
 //
 // Two rules ARE repo-wide, both weaker and lexical: an entry must register at least one
 // namespace, and `build:test:browser` must pair with the entry file. Neither costs
@@ -56,18 +56,43 @@ function fail(lines) {
 }
 
 /**
- * Comments out, before anything below reads the text.
+ * Comments out, string literals through untouched.
  *
- * Every scan here is LEXICAL, and a comment is the one place a suite name can appear
+ * Every scan below is LEXICAL, and a comment is the one place a suite name can appear
  * while registering nothing. Both directions were measured on a copy of the real
  * adwaita-web tree: a block-commented `{ AdwSwitchTest }` left as the last element of
- * the object passed GREEN over a suite that ran nowhere, and a block comment anywhere
- * inside the object swallowed the following key and falsely accused it. A line
+ * the object passed GREEN over a suite that ran nowhere, a block comment anywhere inside
+ * the object swallowed the following key and falsely accused it, and a line
  * `// e.g. run({ … })` above the real call captured the `run(` search outright and
- * reported all 39 specs as unregistered. These files are imports plus one `run()`, with
- * no string literal carrying a comment opener, so stripping lexically is safe here.
+ * reported every spec as unregistered.
+ *
+ * A regex pair would be shorter and WRONG: `packages/node/url/src/test.browser.mts` is
+ * built out of `'http://example.com/…'` literals, and a `//`-to-end-of-line strip eats
+ * the rest of every line one of them sits on — measured, it deletes real code from that
+ * entry today. So this walks the source and skips quoted runs, because a check that
+ * reads the file differently from the engine that runs it is the bug, not the guard.
  */
-const stripComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+function stripComments(source) {
+    let out = '';
+    let i = 0;
+    while (i < source.length) {
+        const c = source[i];
+        if (c === '/' && source[i + 1] === '/') {
+            while (i < source.length && source[i] !== '\n') i++;
+        } else if (c === '/' && source[i + 1] === '*') {
+            const end = source.indexOf('*/', i + 2);
+            i = end === -1 ? source.length : end + 2;
+        } else if (c === "'" || c === '"' || c === '`') {
+            const start = i++;
+            while (i < source.length && source[i] !== c) i += source[i] === '\\' ? 2 : 1;
+            out += source.slice(start, ++i);
+        } else {
+            out += c;
+            i++;
+        }
+    }
+    return out;
+}
 
 /**
  * Every `<pillar>/<pkg>` with a browser test entry, plus the ones whose entry and
@@ -75,7 +100,7 @@ const stripComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replac
  *
  * The pairing is the discovery's own blind spot: `tests/browser/scripts/build-bundles.mjs`
  * requires BOTH, and so does this file, so dropping either drops the package out of both
- * without failing anything — a one-file deletion orphaned all 39 adwaita-web specs and the
+ * without failing anything — a one-file deletion orphaned every adwaita-web spec and the
  * whole battery stayed green. Nothing in the tree violates it, so it is free to hold.
  */
 function browserPackages() {
