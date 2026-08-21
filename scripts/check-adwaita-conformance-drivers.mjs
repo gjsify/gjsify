@@ -39,7 +39,9 @@
 // vector table is resolved against reality:
 //   6. a name, `PREFIX_*` glob or `A/B_VECTORS` pair that matches no declared
 //      table                                                               → FAIL
-//   7. a counted glob ("the five OVERLAY_SWIPE_* tables") whose count is wrong → FAIL
+//   7. a counted citation ("the five OVERLAY_SWIPE_* tables") whose count is
+//      wrong. `OVERLAY_SWIPE_*` IS five real tables, so the arity is the whole
+//      question: a checker that rejected globs would reject a true sentence  → FAIL
 //   8. "both renderers / both ports / both drive" over tables one renderer
 //      does not drive                                                      → FAIL
 //   9. "the browser suite" / "the NativeScript suite" over tables THAT suite
