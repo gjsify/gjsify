@@ -288,7 +288,7 @@ export const AdwKeyboardOperableTest = async () => {
             expect(surface.contains(document.activeElement)).toBe(true);
             expect((document.activeElement as HTMLButtonElement).disabled).toBe(false);
             // The C skips a disabled response and takes the next enabled one
-            // (adw-alert-dialog.c:409), which is the only one left here.
+            // (adw-alert-dialog.c:413), which is the only one left here.
             expect(document.activeElement?.textContent).toBe('Cancel');
 
             press(el, 'Escape');
@@ -308,7 +308,7 @@ export const AdwKeyboardOperableTest = async () => {
             el.setDefaultResponse('ok');
             el.setAttribute('open', '');
 
-            // `adw_alert_dialog_grab_focus` tries the CONTENT first (adw-alert-dialog.c:396)
+            // `adw_alert_dialog_grab_focus` tries the CONTENT first (adw-alert-dialog.c:397)
             // and only then the default widget: an alert carrying an entry is answered by
             // typing into it, not by tabbing back to it.
             expect(document.activeElement).toBe(el.querySelector('.field'));

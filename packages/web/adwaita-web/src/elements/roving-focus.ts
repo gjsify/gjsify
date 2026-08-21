@@ -20,20 +20,30 @@
 //
 // WHAT THE KEYS DO, and where each behaviour comes from
 //
-// Arrows MOVE THE SELECTION and take focus with it, rather than moving focus alone:
+// The SHAPE — Tab enters and leaves at the active item, arrows travel inside — is what
+// the C establishes:
 //   - `refs/libadwaita/src/adw-toggle-group.c:1045` (`adw_toggle_group_focus`) — Tab
 //     forward/backward is PROPAGATED, i.e. focus leaves the group, and every other
-//     direction goes to `adw_widget_focus_child`, i.e. moves within it. That is the
-//     roving-tabindex contract: Tab enters and leaves at the active item, arrows travel
-//     inside. `AdwInlineViewSwitcher` builds exactly this widget with
+//     direction goes to `adw_widget_focus_child`, i.e. moves within it.
+//     `AdwInlineViewSwitcher` builds exactly this widget with
 //     `accessible-role: GTK_ACCESSIBLE_ROLE_TAB_LIST` (adw-inline-view-switcher.c:702).
+//   - `refs/libadwaita/src/adw-sidebar.c:2168` — `gtk_list_box_set_tab_behavior (…,
+//     GTK_LIST_TAB_ITEM)`: Tab moves BETWEEN rows and their contents, i.e. the list is one
+//     stop from outside, which is the roving tabindex spelled in GTK's own vocabulary.
+//
+// That SELECTION follows focus is grounded for the sidebar and conventional for the two
+// tab lists, and the difference is worth keeping straight:
 //   - `refs/libadwaita/src/adw-sidebar.c:2167` — the sidebar's list is a `GtkListBox` in
 //     `GTK_SELECTION_SINGLE`, where moving the cursor with an unmodified arrow key selects
 //     the row it lands on. The WAI-ARIA listbox practice for a single-select listbox says
-//     the same: selection follows focus.
+//     the same.
 //   - `refs/libadwaita/src/adw-view-switcher.c:467` and `adw-view-switcher-button.c:337`
-//     declare `TAB_LIST` / `TAB`, and the WAI-ARIA tabs practice's automatic-activation
-//     pattern is the one `<adw-tab-view>` already follows here.
+//     declare `TAB_LIST` / `TAB`, but nothing in `AdwToggleGroup` changes `active` on
+//     focus: `set_active_toggle` is reached only from `toggle_active_cb`
+//     (adw-toggle-group.c:818), which fires on a real toggle. So GTK arrows those two
+//     WITHOUT switching the page — manual activation. Selection-follows-focus here is the
+//     WAI-ARIA tabs AUTOMATIC-activation pattern, chosen for consistency with
+//     `<adw-tab-view>`, which already behaves that way. Not a claim about the C.
 //
 // SELECTION IS NOT ACTIVATION. `<adw-sidebar>` emits `activated` — the documented way to
 // reveal a split view's content pane — and an arrow key must not fire it, or every press
@@ -116,10 +126,16 @@ export function attachRovingFocus(init: AdwRovingFocusInit): void {
         if (!init.select(target)) return;
 
         // Focus travels with the roving tabindex or the next keypress goes nowhere — the
-        // rule `<adw-tab-view>` states. Plain `focus()`, deliberately: `<adw-tab-view>`
-        // passes `preventScroll` because it scrolls its own strip instead, and none of
-        // these widgets do, so the browser scrolling the newly focused item into view is
-        // the behaviour a keyboard user needs.
+        // rule `<adw-tab-view>` states. Plain `focus()`, deliberately, and NOT because
+        // these widgets have no scroller of their own: `adw-sidebar` is `overflow-y: auto`
+        // (scss/_sidebar.scss) and does. `focus()` walks every scrollable ancestor up to
+        // the window, and here that is what a GtkListBox cursor move does too — the
+        // enclosing scrolled window scrolls, and an outer one follows. Measured in Firefox
+        // on a 4000 px page: 25 ArrowDowns moved the sidebar's own `scrollTop` 0 → 898 and
+        // left `window.scrollY` at 0. `<adw-tab-view>` needs `preventScroll` for the
+        // opposite reason — C only ever writes the strip's own adjustment
+        // (`scroll_to_tab_full`), so a window scroll there is a divergence, and one
+        // ArrowRight was measured taking the window from y=1800 to y=8367.
         init.items()[to]?.focus();
     });
 }

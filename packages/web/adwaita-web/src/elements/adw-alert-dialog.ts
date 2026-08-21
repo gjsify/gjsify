@@ -359,9 +359,9 @@ export class AdwAlertDialog extends HTMLElement {
 
     /**
      * Where a presented alert puts focus, in the three steps `adw_alert_dialog_grab_focus`
-     * takes (refs/libadwaita/src/adw-alert-dialog.c:381): the CONTENT first
-     * (`adw_widget_grab_focus_child (priv->scrolled_window)`, :396), then the default
-     * widget (:405), then the first response whose `enabled` is set (:409). The default
+     * takes (refs/libadwaita/src/adw-alert-dialog.c:382): the CONTENT first
+     * (`adw_widget_grab_focus_child (priv->scrolled_window)`, :397), then the default
+     * widget (:406), then the first response whose `enabled` is set (:413). The default
      * response is rarely the first button — a destructive alert opens on Cancel — and
      * content beats it: an alert carrying an entry is answered by typing into it.
      *
