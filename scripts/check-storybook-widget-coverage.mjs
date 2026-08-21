@@ -112,13 +112,23 @@ const NO_STORY_OF_ITS_OWN = {
  *
  * THE UPSTREAM FACT that settles most of them, read off `G_DECLARE_*_TYPE` in the
  * headers `src/meson.build` names: only `dialog`, `window`, `navigation-page` and the
- * two carousel indicators have an Adw WIDGET behind them at all. A handful more are
- * public Adw GObjects — DATA, which the browser needs a tag to declare in markup and
- * NativeScript passes as an object. The rest have no Adw type of any kind: they are
- * stylesheet partials over a GTK primitive (`.card` in `_misc.scss`, `_switch.scss`,
- * `_popovers.scss`, `_progress-bar.scss`, `_checks.scss`, `.image-button` in
- * `_buttons.scss`, `_scale.scss`), where WHICH renderer wrapped the primitive in an
- * element of its own is a rendering idiom, not a missing port.
+ * two carousel indicators have an Adw WIDGET behind them at all. Five more are public
+ * Adw GObjects — DATA, which the browser needs a tag to declare in markup and
+ * NativeScript passes as an object. The remaining thirteen have no Adw type of any
+ * kind, and they are not one bucket but two:
+ *
+ *   - EIGHT are stylesheet partials over a GTK primitive (`.card` in `_misc.scss`,
+ *     `_switch.scss`, `_popovers.scss`, `_progress-bar.scss`, `_checks.scss`,
+ *     `.image-button` in `_buttons.scss`, `_scale.scss`), where WHICH renderer wrapped
+ *     the primitive in an element of its own is a rendering idiom, not a missing port.
+ *   - FIVE have no upstream style class either, because they are not a rendered thing
+ *     at all: a GtkBuildable markup child (`alert-response`), a GtkWidget-typed
+ *     PROPERTY (the two bottom-sheet slots), a different library (`source-view`), and
+ *     one — `view-switcher-page` — with no upstream spelling whatsoever, since a view
+ *     switcher reads an AdwViewStack's own pages.
+ *
+ * Which bucket a widget is in is stated in ITS entry; this paragraph exists so the
+ * three are not collapsed into the first one, which reads as tidier than the tree is.
  *
  * `vectors` is optional and names conformance tables in `@gjsify/adwaita-core` that the
  * decision leaves driven from ONE side. It is checked (see {@link vectorFailures}), so
@@ -134,17 +144,17 @@ const ONE_RENDERER_ONLY = {
     'bottom-sheet-content': {
         only: 'web',
         decision:
-            '`adw_bottom_sheet_set_content()` is a GtkWidget-typed PROPERTY on AdwBottomSheet (adw-bottom-sheet.h:32), not a type. NativeScript calls the setter; HTML has no way to route one child into a named slot without a tag for it.',
+            '`adw_bottom_sheet_set_content()` is a GtkWidget-typed PROPERTY on AdwBottomSheet (adw-bottom-sheet.h:32), not a type. NativeScript calls the setter; the browser element is the markup spelling of GtkBuilder\'s `<child type="content">`, which leaves nothing in the tree. It is the markup form, not the only route: `_collectSlot` (packages/web/adwaita-web/src/elements/adw-bottom-sheet.ts:252) accepts a plain `slot="content"` child too.',
     },
     'bottom-sheet-sheet': {
         only: 'web',
         decision:
-            '`adw_bottom_sheet_set_sheet()` is a GtkWidget-typed PROPERTY on AdwBottomSheet (adw-bottom-sheet.h:38), not a type. NativeScript calls the setter; HTML has no way to route one child into a named slot without a tag for it.',
+            '`adw_bottom_sheet_set_sheet()` is a GtkWidget-typed PROPERTY on AdwBottomSheet (adw-bottom-sheet.h:38), not a type. NativeScript calls the setter; the browser element is the markup spelling of GtkBuilder\'s `<child type="sheet">`, which leaves nothing in the tree. It is the markup form, not the only route: `_collectSlot` (packages/web/adwaita-web/src/elements/adw-bottom-sheet.ts:252) accepts a plain `slot="sheet"` child too.',
     },
     card: {
         only: 'web',
         decision:
-            "`.card` is a libadwaita STYLE CLASS (stylesheet/widgets/_misc.scss:197) with no Adw type behind it. `<adw-card>` is a style class packaged as an element — its whole body is `classList.add('adw-card')` — and a NativeScript view sets `className` directly, so a widget class there would carry no behaviour at all.",
+            "`.card` is a libadwaita STYLE CLASS (stylesheet/widgets/_misc.scss:197) with no Adw type behind it. `<adw-card>` is a style class packaged as an element — its whole body is `classList.add('adw-card')` — and a NativeScript view sets `className` directly (showcases/dom/adwaita-storybook-nativescript/src/view-switching/carousel.ns.ts:28 already does), so a widget class there would carry no behaviour at all. The LOOK is a separate, open matter: no `.adw-card` rule exists in packages/nativescript-bridge/adwaita/src/theme/adwaita.css, so that className renders nothing today — a theme gap, not a widget one.",
     },
     'carousel-indicator-dots': {
         only: 'web',
@@ -167,7 +177,7 @@ const ONE_RENDERER_ONLY = {
     'image-button': {
         only: 'nativescript',
         decision:
-            'Recorded in adw-image-button.ts:6-7: "NativeScript\'s `Button` is text-only (it cannot host a child view), so an icon button is a tappable `GridLayout` holding a centered `Image`." Upstream `.image-button` is a style class (_buttons.scss:66), and the browser uses it as one — `<adw-split-button>` toggles it on a plain button.',
+            'Recorded in adw-image-button.ts:6-8: "NativeScript\'s `Button` is text-only (it cannot host a child view), so an icon button is a tappable `GridLayout` holding a centered `Image`." Upstream `.image-button` is a style class (_buttons.scss:66); on the browser it exists only as the split button\'s CSS-node-contract mirror (adw-split-button.ts:372 toggles it on the HOST, per `splitbutton[.image-button]`) and is styled in no adwaita-web stylesheet, so no browser element carries the idiom either.',
     },
     'navigation-page': {
         only: 'web',
@@ -177,7 +187,7 @@ const ONE_RENDERER_ONLY = {
     popover: {
         only: 'web',
         decision:
-            'Recorded in adw-drop-down.ts:14-16: "the NS subset has none, so the options open in the platform `action()` sheet, the same substitution `AdwComboRow`, `AdwSplitButton` and `AdwMenuButton` make." Upstream has no AdwPopover either — GtkPopover styled by _popovers.scss.',
+            'Recorded in packages/nativescript-bridge/adwaita/src/widgets/adw-drop-down.ts:14-16 — the NativeScript file, not the browser one of the same name: "the NS subset has none, so the options open in the platform `action()` sheet, the same substitution `AdwComboRow`, `AdwSplitButton` and `AdwMenuButton` make." Upstream has no AdwPopover either — GtkPopover styled by _popovers.scss.',
         vectors: ['POPOVER_SURFACE_VECTORS', 'POPOVER_KEY_VECTORS'],
     },
     'progress-bar': {
@@ -202,7 +212,7 @@ const ONE_RENDERER_ONLY = {
     'slider-row': {
         only: 'nativescript',
         decision:
-            'Recorded in adw-slider-row.ts:3-6: it is "the NS counterpart of the GTK storybook\'s `Gtk.Scale` RANGE card and the browser\'s `input[type=range]` `.sb-range-row`". Both renderers HAVE a range control; upstream has no AdwSliderRow (no such public header), and only NativeScript needed a widget class to get one that looks native.',
+            "Recorded in adw-slider-row.ts:3-6: it is \"the NS counterpart of the GTK storybook's `Gtk.Scale` RANGE card and the browser's `input[type=range]` `.sb-range-row`\". Both renderers SHOW a range control, but the browser's is the storybook's `.sb-range-row` (packages/web/adwaita-storybook/src/styles.ts:291), not an adwaita-web element — inside this ledger's universe the browser has none. Upstream has no AdwSliderRow (no such public header), and only NativeScript needed a widget class to get one that looks native.",
     },
     'source-view': {
         only: 'web',
@@ -237,7 +247,7 @@ const ONE_RENDERER_ONLY = {
     window: {
         only: 'web',
         decision:
-            'NativeScript\'s `Page` IS the window: the storybook\'s Page carries `class="adw-window"` (showcases/dom/adwaita-storybook-nativescript/app/storybook-page.xml) and the theme styles `Page.adw-window` (theme/adwaita.css:23-24). `<adw-window>` exists because a browser document has no page object to hang the frame on.',
+            'NativeScript\'s `Page` IS the window: the storybook\'s Page carries `class="adw-window"` (showcases/dom/adwaita-storybook-nativescript/app/storybook-page.xml) and the theme styles `Page.adw-window` (packages/nativescript-bridge/adwaita/src/theme/adwaita.css:23-24). `<adw-window>` exists because a browser document has no page object to hang the frame on.',
     },
 };
 

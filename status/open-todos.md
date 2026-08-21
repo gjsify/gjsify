@@ -2258,15 +2258,22 @@ exactly why they must not be written as decisions.
 
 - **`adw-checkbox` and `adw-radio` on NativeScript.** The headless half already
   exists: `@gjsify/adwaita-core` carries `RadioGroupState` and `RADIO_GROUP_VECTORS`,
-  driven today by the browser suite alone. What does not exist is the decision.
-  `@nativescript/core` ships no checkbox view, and libadwaita's own phone idiom for a
+  driven today by core's own spec (`checks.spec.ts`) and the browser suite, by no
+  NativeScript spec. What does not exist is the decision. `@nativescript/core` ships no
+  checkbox view (nothing under its `ui/`), and libadwaita's own phone idiom for a
   boolean is `AdwSwitchRow`, which this port already has — so the question is whether
   a checkbox belongs on a touch target at all, not how to build one.
 - **`adw-progress-bar` on NativeScript.** libadwaita styles the GtkProgressBar node in
   `stylesheet/widgets/_progress-bar.scss` and the browser ships the element; the
-  NativeScript port has no progress widget of any kind. `AdwSpinner` wraps
-  `ActivityIndicator`, which is indeterminate only, so determinate progress has no
-  Adwaita expression there today.
+  NativeScript port has no progress widget. The PLATFORM half is not what is missing:
+  `@nativescript/core` ships a determinate `Progress` (`value`/`maxValue`, `ui/progress`),
+  exported from the same package root this port already takes `Switch`, `Slider` and
+  `ActivityIndicator` from — unlike the checkbox above, this is not a platform survey.
+  What is open is the Adwaita EXPRESSION: `progressbar > trough > progress` has no
+  equivalent in the NativeScript CSS subset this theme is confined to, and `.osd`, the
+  text label and the fraction have no counterpart at all. So the question is what a
+  determinate Adwaita progress bar should even look like there, not whether one is
+  buildable.
 - **`adw-dialog` on NativeScript.** `AdwDialog` is a real upstream widget
   (`adw-dialog.h`) and the port has the three SPECIALISED dialogs — alert, about,
   preferences — but no generic one. Every NativeScript dialog here is deliberately the

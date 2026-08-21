@@ -65,7 +65,9 @@ work is tracked, and the gate fails on an asymmetric widget with neither.
 
 Most of those verdicts were settled by reading `refs/libadwaita` rather than judged: only
 `adw-dialog`, `adw-window`, `adw-navigation-page` and the two carousel indicators have an Adw
-WIDGET upstream at all. The rest are stylesheet partials over a GTK primitive, or public Adw
-GObjects that are DATA rather than views — and for both, which renderer wrapped the thing in an
-element of its own is a rendering idiom, not a missing port. The ones nobody can settle from
-outside the ports are gaps, and `status/open-todos.md` says what each is waiting on.
+WIDGET upstream at all. The rest fall into three buckets — stylesheet partials over a GTK
+primitive, public Adw GObjects that are DATA rather than views, and markup or property forms with
+no upstream type of any kind (a GtkBuildable `<response>` child, a GtkWidget-typed property, a
+different library) — and for all three, which renderer wrapped the thing in an element of its own
+is a rendering idiom, not a missing port. The ones nobody can settle from outside the ports are
+gaps, and `status/open-todos.md` says what each is waiting on.
