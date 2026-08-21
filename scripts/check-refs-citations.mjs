@@ -16,8 +16,11 @@
 // `_combo-row.scss`, `_expander-row.scss`, `_status-page.scss`, `_toast.scss`,
 // `_dialog.scss`, `_tab-bar.scss`, `_carousel.scss`, `_banner.scss`. One named
 // `adw-menu-button.c` for a type libadwaita does not have at all (it is
-// `GtkMenuButton`), and one named `refs/adwaita-web/scss/` where that vendored
-// tree keeps its partials one level deeper.
+// `GtkMenuButton`), and one pointed at a top-level `scss/` directory of the
+// vendored adwaita-web tree, which keeps its partials one level deeper.
+//
+// That last one is why no wrong spelling appears here in full: written out, it is
+// a citation, and this check flags its own explanation. It did.
 //
 // `status/sections/adwaita-web-roadmap.md` ALREADY warned about this in prose, and
 // named the right spellings. It happened nineteen times anyway, because prose
@@ -81,9 +84,9 @@ const CITATION = /\brefs\/([A-Za-z0-9._-]+)((?:\/(?:\{[^}\s]*\}|[A-Za-z0-9._*-])
 // What separates a citation from a slash-joined phrase. `refs/heads/main` is a git
 // ref namespace and `refs/finalizer/wrap/external/tags` is prose about weak refs —
 // both match the shape, neither is provenance. A DECLARED submodule name settles it
-// on its own (`refs/adwaita-web/scss/` is a real directory citation with no
-// extension, and finding it wrong is half the point); for anything else, only a
-// path ending in a source-file extension counts.
+// on its own — a bare directory under one is a real citation with no extension, and
+// the adwaita-web incident above was exactly that; for anything else, only a path
+// ending in a source-file extension counts.
 const SOURCE_FILE =
     /\.(c|h|cpp|cc|m|rs|vala|py|sh|ts|tsx|mts|cts|js|mjs|cjs|jsx|scss|sass|css|md|html|xml|ui|json|ya?ml|svg|blp|gir|txt|build)$/;
 
