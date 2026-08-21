@@ -301,13 +301,14 @@ jobs:
       # `refs/` submodule costs ~150 GB, against ~13 MB for libadwaita alone.
       #
       # That puts gitlab.gnome.org in the path of a REQUIRED check, so it gets the same
-      # treatment as the actionlint download further down, for the reason that step
-      # records: a non-retrying fetch reddened this exact check on two PRs on 2026-08-12,
-      # neither of which had touched a workflow file. git does retry a failed clone, once
-      # and IMMEDIATELY — no back-off, which is the whole point — so the loop supplies
-      # one. `timeout-minutes` bounds a HANG, which no retry count can: the Linux job
-      # declares none, so a stalled fetch would otherwise hold it for the 360-minute
-      # default while the neighbouring curl caps its connect at 30 s.
+      # treatment as the actionlint download in this workflow, for the reason that step
+      # records: a non-retrying fetch reddened a required check on two PRs on 2026-08-12,
+      # neither of which had touched a workflow file. git DOES re-clone a failed submodule
+      # fetch on its own — measured under GIT_TRACE, twice, ~40 ms apart — but that is a
+      # repeat, not a back-off, and the back-off is the whole point of the 2026-08-12 fix.
+      # So the loop supplies one. `timeout-minutes` covers what no retry count can, a
+      # HANG: the Linux job declares none, so a stalled fetch would otherwise hold it for
+      # the 360-minute default while the neighbouring curl caps its connect at 30 s.
       - name: Check out refs/libadwaita (the style-class gate reads it)
         timeout-minutes: 5
         run: |
@@ -666,13 +667,14 @@ jobs:
       # `refs/` submodule costs ~150 GB, against ~13 MB for libadwaita alone.
       #
       # That puts gitlab.gnome.org in the path of a REQUIRED check, so it gets the same
-      # treatment as the actionlint download further down, for the reason that step
-      # records: a non-retrying fetch reddened this exact check on two PRs on 2026-08-12,
-      # neither of which had touched a workflow file. git does retry a failed clone, once
-      # and IMMEDIATELY — no back-off, which is the whole point — so the loop supplies
-      # one. `timeout-minutes` bounds a HANG, which no retry count can: the Linux job
-      # declares none, so a stalled fetch would otherwise hold it for the 360-minute
-      # default while the neighbouring curl caps its connect at 30 s.
+      # treatment as the actionlint download in this workflow, for the reason that step
+      # records: a non-retrying fetch reddened a required check on two PRs on 2026-08-12,
+      # neither of which had touched a workflow file. git DOES re-clone a failed submodule
+      # fetch on its own — measured under GIT_TRACE, twice, ~40 ms apart — but that is a
+      # repeat, not a back-off, and the back-off is the whole point of the 2026-08-12 fix.
+      # So the loop supplies one. `timeout-minutes` covers what no retry count can, a
+      # HANG: the Linux job declares none, so a stalled fetch would otherwise hold it for
+      # the 360-minute default while the neighbouring curl caps its connect at 30 s.
       - name: Check out refs/libadwaita (the style-class gate reads it)
         timeout-minutes: 5
         # windows-latest defaults `run:` to pwsh, which has no `for … in`/`$(( ))`.
