@@ -22,7 +22,7 @@
 // them).
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-alert-dialog`.
-// Reference: refs/libadwaita/src/stylesheet/widgets/_dialogs.scss
+// Reference: refs/libadwaita/src/stylesheet/widgets/_message-dialog.scss (dialog.alert)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
 import { action, confirm, Observable, type EventData } from '@nativescript/core';
