@@ -94,6 +94,32 @@ export const AdwIconRegistryTest = async () => {
         });
     });
 
+    await describe('a name carried by STATE still resolves', async () => {
+        await it("the password row's peek toggle draws both of its glyphs", () => {
+            // `check-adwaita-icon-masks.mjs` cannot see these two: they reach
+            // `<adw-icon>.iconName` as `state.peekIconName`, a property of the core's
+            // `PasswordEntryRowState`, so no literal in the tree spells them at the point
+            // of use. The gate says so and this covers what it cannot — measured, not
+            // asserted against the same constant the widget writes, which is how
+            // `entry-rows.spec.ts` reads `dataset.iconName` and agrees with itself.
+            const host = document.createElement('div');
+            document.body.appendChild(host);
+            const row = document.createElement('adw-password-entry-row') as HTMLElement & { revealed: boolean };
+            host.appendChild(row);
+
+            const toggleIcon = row.querySelector('.adw-password-entry-row-toggle .adw-icon') as HTMLElement;
+            const masked = maskOf(toggleIcon);
+            expect(masked).not.toBe(fallbackMask());
+
+            row.revealed = true;
+            const revealed = maskOf(toggleIcon);
+            expect(revealed).not.toBe(fallbackMask());
+            // …and the two are DIFFERENT glyphs, or one of them is drawing the other's.
+            expect(revealed).not.toBe(masked);
+            host.remove();
+        });
+    });
+
     await describe('registerIcon — the documented way out of the compiled set', async () => {
         await it('reports an unshipped name as unavailable before registration', () => {
             expect(isIconAvailable(ABSENT)).toBe(false);

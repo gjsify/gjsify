@@ -1,0 +1,6 @@
+{
+    "reviewed": {
+        "view-reveal": "The password row's peek toggle while the contents are masked. It reaches <adw-icon>.iconName as `state.peekIconName`, a property of @gjsify/adwaita-core's PasswordEntryRowState (entry-row.ts, PASSWORD_REVEAL_ICON_NAME), so no literal at the point of use spells it and this gate is blind to it by construction. Covered at runtime instead: icon-registry.spec.ts, 'the password row's peek toggle draws both of its glyphs', measures both computed masks against the image-missing fallback and against each other.",
+        "view-conceal": "The counterpart of view-reveal \u2014 the same toggle while the contents are shown (PASSWORD_CONCEAL_ICON_NAME). Reaches the element by the same state property, is invisible to the same lexical scan, and is the second half of the same runtime assertion in icon-registry.spec.ts."
+    }
+}
