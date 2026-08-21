@@ -75,7 +75,7 @@ import {
     prebuildOwnership,
 } from '../packages/infra/manifest-conformance/lib/platform-packages.mjs';
 import { posixRelative } from '../packages/infra/manifest-conformance/lib/index.mjs';
-import { adwaitaWebElements, elementName } from './adwaita-elements.mjs';
+import { adwaitaNativeScriptWidgets, adwaitaWebElements, elementName } from './adwaita-elements.mjs';
 
 // ─── Authored-data model ────────────────────────────────────────────────────
 
@@ -222,9 +222,10 @@ function scanGnomeNamespaces(pkgDir) {
  * browser column is one row per `customElements.define('adw-…')` tag, minus the
  * prefix ({@link elementName}); the NativeScript column is one row per
  * `adw-<name>.ts` widget file; the GTK column is one row per `<name>.meta.ts`
- * story. The three vocabularies agree on the bare name, so this needs no alias
- * table. Upstream partials that no renderer has yet are a genuinely authored
- * judgement (three different naming conventions) and stay in the roadmap section.
+ * story. The three vocabularies agree on the bare name,
+ * so this needs no alias table. Upstream partials that no renderer has yet are a
+ * genuinely authored judgement (three different naming conventions) and stay in
+ * the roadmap section.
  *
  * The browser column was a filename scan too, and a filename is not an element:
  * it scored `adw-checks` (a file defining `adw-checkbox` and `adw-radio`, so a
@@ -251,20 +252,12 @@ function scanGnomeNamespaces(pkgDir) {
  *     guessed at, one hop through the package's own modules.
  */
 export function collectAdwaitaCoverage(root) {
-    const names = (dir, re) => {
-        if (!existsSync(dir)) return new Map();
-        const out = new Map();
-        for (const entry of readdirSync(dir)) {
-            const match = re.exec(entry);
-            if (match) out.set(match[1], join(dir, entry));
-        }
-        return out;
-    };
+    const absolute = (entries) => new Map([...entries].map(([name, file]) => [name, join(root, file)]));
 
     // A file may define three tags (`adw-sidebar.ts` → sidebar, sidebar-item,
     // sidebar-section), so each gets its own row pointing at the same file.
-    const web = new Map([...adwaitaWebElements(root)].map(([tag, file]) => [elementName(tag), join(root, file)]));
-    const ns = names(join(root, 'packages/nativescript-bridge/adwaita/src/widgets'), /^adw-(.+)\.ts$/);
+    const web = absolute([...adwaitaWebElements(root)].map(([tag, file]) => [elementName(tag), file]));
+    const ns = absolute(adwaitaNativeScriptWidgets(root));
 
     // The GTK renderer's coverage IS its story set (one `.meta.ts` per widget).
     const stories = new Set();
@@ -742,8 +735,8 @@ function adwaitaCoverageSection(coverage) {
         'Derived from the tree at generation time. One row per `adw-<name>`, read from',
         "what each renderer ships: browser `customElements.define('adw-…')` tags,",
         'NativeScript `adw-<name>.ts` widget files, storybook `<name>.meta.ts`, and the',
-        'actual `@gjsify/adwaita-core` import edges. None of it is maintained by hand;',
-        'the table this replaced drifted twelve widgets behind the code.',
+        '`@gjsify/adwaita-core` import edges. None of it is maintained by hand; the',
+        'table this replaced drifted twelve widgets behind the code.',
         '',
     );
     out.push(table(['Widget', 'GTK story', 'adwaita-web', 'adwaita-nativescript'], rows));

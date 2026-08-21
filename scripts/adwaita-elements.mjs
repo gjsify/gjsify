@@ -18,16 +18,19 @@
 // `src/source-view/` and was invisible to both filename readers — the same
 // blindness that had already kept it out of the ADR 0010 reset list.
 //
-// So this module is the ONE reader. `adw-` is the whole naming rule the tree
-// follows, which is what lets a tag address a matrix row: {@link elementName}
-// strips it, and what is left is the bare widget name the NativeScript widget
-// files and the storybook `*.meta.ts` names are already spelled in.
+// So this module is the ONE reader — of both renderers, because the NativeScript
+// widget scan was a second copy in the same two files, with the same drift ahead of
+// it. `adw-` is the whole naming rule the tree follows, which is what lets a tag
+// address a matrix row: {@link elementName} strips it, and what is left is the bare
+// widget name the NativeScript widget files and the `*.meta.ts` story names are
+// already spelled in.
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
-/** Repo-relative source root, so callers can name it in their own messages. */
+/** Repo-relative source roots, so callers can name them in their own messages. */
 export const ADWAITA_WEB_SRC = 'packages/web/adwaita-web/src';
+export const ADWAITA_NS_WIDGETS = 'packages/nativescript-bridge/adwaita/src/widgets';
 
 // Both quote styles: the formatter uses single, but a matcher that only sees one
 // is a matcher that misses a rename.
@@ -82,4 +85,35 @@ export function adwaitaWebElements(root) {
     }
 
     return new Map([...defined].sort(([a], [b]) => a.localeCompare(b)));
+}
+
+/**
+ * Every `adw-<name>.ts` the NativeScript Adwaita port ships → its repo-relative file.
+ *
+ * Same vacuous-scan contract as {@link adwaitaWebElements}: nothing found is a
+ * failure, because an empty widget set makes every consumer's question trivially
+ * satisfied.
+ *
+ * @param {string} root repository root
+ * @returns {Map<string, string>} bare widget name → repo-relative file
+ */
+export function adwaitaNativeScriptWidgets(root) {
+    const dir = join(root, ADWAITA_NS_WIDGETS);
+    /** @type {Map<string, string>} */
+    const widgets = new Map();
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const match = entry.isFile() && !entry.name.endsWith('.spec.ts') && /^adw-(.+)\.ts$/.exec(entry.name);
+        if (!match) continue;
+        widgets.set(match[1], relative(root, join(dir, entry.name)));
+    }
+
+    if (widgets.size === 0) {
+        throw new Error(
+            `no adw-<name>.ts file found under ${ADWAITA_NS_WIDGETS}. ` +
+                'Either the package moved or the naming convention changed — a scan that ' +
+                'finds nothing passes vacuously, so this is a failure, not a pass.',
+        );
+    }
+
+    return new Map([...widgets].sort(([a], [b]) => a.localeCompare(b)));
 }

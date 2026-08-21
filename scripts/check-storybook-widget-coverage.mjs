@@ -49,14 +49,19 @@ import { readdirSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { ADWAITA_WEB_SRC, adwaitaWebElements, elementName } from './adwaita-elements.mjs';
+import {
+    ADWAITA_NS_WIDGETS,
+    ADWAITA_WEB_SRC,
+    adwaitaNativeScriptWidgets,
+    adwaitaWebElements,
+    elementName,
+} from './adwaita-elements.mjs';
 import { collectAdwaitaCoverage } from './generate-status.mjs';
 
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : args[rootFlag + 1];
 
-const NS_WIDGETS = join(ROOT, 'packages/nativescript-bridge/adwaita/src/widgets');
 const GTK_SRC = join(ROOT, 'showcases/gtk/adwaita-storybook/src');
 
 /**
@@ -79,17 +84,6 @@ const NO_STORY_OF_ITS_OWN = {
         'The one widget here with no GTK renderer at all — it is an original @gjsify widget, not a libadwaita port. A GTK story would have to hand-assemble a `Gtk.Grid`, i.e. put a fourth implementation in a showcase where no package owns it. If a GTK data grid is wanted it starts as a package (#1050).',
 };
 
-/** `adw-<name>.ts` files directly under `dir`. */
-function widgetNames(dir) {
-    const found = new Set();
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        if (!entry.isFile()) continue;
-        const match = entry.name.match(/^adw-(.+)\.ts$/);
-        if (match && !entry.name.endsWith('.spec.ts')) found.add(match[1]);
-    }
-    return found;
-}
-
 /** Story names — every `<name>.meta.ts` anywhere under the GTK showcase. */
 function storyNames(dir) {
     const found = new Set();
@@ -106,23 +100,24 @@ function storyNames(dir) {
 
 /** @type {Map<string, string>} */
 let defines;
+/** @type {Map<string, string>} */
+let ns;
 try {
     defines = adwaitaWebElements(ROOT);
+    ns = adwaitaNativeScriptWidgets(ROOT);
 } catch (error) {
-    // The reader throws on a vacuous scan by design; catching keeps this script's
+    // Both readers throw on a vacuous scan by design; catching keeps this script's
     // own `name: message` shape and exit code instead of a stack trace.
     console.error(`check-storybook-widget-coverage: ${error.message}`);
     process.exit(1);
 }
 
 const web = new Set([...defines.keys()].map(elementName));
-const ns = widgetNames(NS_WIDGETS);
 const stories = storyNames(GTK_SRC);
 
-if (ns.size === 0 || stories.size === 0) {
+if (stories.size === 0) {
     console.error(
-        'check-storybook-widget-coverage: one of the scans came back empty ' +
-            `(nativescript ${ns.size}, stories ${stories.size}) — that is a broken scan, not a clean tree.`,
+        'check-storybook-widget-coverage: the story scan came back empty — that is a broken scan, not a clean tree.',
     );
     process.exit(1);
 }
@@ -189,7 +184,7 @@ if (failures.length > 0) {
         '\nThe GTK storybook is the reference the other two targets are aligned against, so a widget it\n' +
             'never shows is a widget with no reference — and story-set parity cannot see that, because a\n' +
             'story missing from all three targets is perfectly symmetric.\n' +
-            `  elements: ${ADWAITA_WEB_SRC}    widgets: ${relative(ROOT, NS_WIDGETS)}    stories: ${relative(ROOT, GTK_SRC)}`,
+            `  elements: ${ADWAITA_WEB_SRC}    widgets: ${ADWAITA_NS_WIDGETS}    stories: ${relative(ROOT, GTK_SRC)}`,
     );
     process.exit(1);
 }
