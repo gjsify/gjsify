@@ -108,6 +108,22 @@ const CITATION = /\brefs\/([A-Za-z0-9._-]+)((?:\/(?:\{[^}\s]*\}|[A-Za-z0-9._*-])
 // ending in a source-file extension counts.
 const SOURCE_FILE = new RegExp(`\\.(?:${CITABLE})$`);
 
+// `refs/deno/ext/{web,fetch,crypto,…}` and `refs/npm-cli/.../semver/.` elide a
+// segment the way `*` elides a name — but `…` and `...` survive expansion as
+// addressable-looking coordinates, so the day their submodule is checked out the
+// gate fails on a path nobody wrote. Skipped for the same reason `*` is.
+const ELIDED_SEGMENT = /(?:^|\/)(?:…|\.{1,3})(?:\/|$)/;
+
+// One Reference line, several files in ONE directory: only the first carries the
+// `refs/` prefix, so only the first was ever checked. 29 lines spell it that way,
+// 14 in the Adwaita family. A continuation is a file name right after a comma —
+// optionally over a comment-line break — and CLOSED by end of line, another comma,
+// a `)` or a parenthetical. That closer is the whole discriminator: it keeps
+// `refs/create-ecdh/browser.js, Node.js lib/internal/…` out, where "Node.js" is a
+// sentence, not a sibling file.
+const CONTINUATION =
+    /^,[ \t]*(?:\r?\n[ \t]*(?:\/\/|\*|#)[ \t]*)?([A-Za-z0-9_][A-Za-z0-9._-]*\.[A-Za-z0-9]+)(?=$|[\n,)]|[ \t]\()/;
+
 /** `{a,b}/c` → `a/c`, `b/c`. Left to right, so nested groups resolve too. */
 function expandBraces(path) {
     const group = /\{([^}]*)\}/.exec(path);
@@ -169,9 +185,25 @@ for (const trackedFile of tracked) {
             continue;
         }
         if (!declared.has(submodule) && !SOURCE_FILE.test(raw)) continue;
-        for (const coordinate of expandBraces(raw)) {
-            if (!cited.has(coordinate)) cited.set(coordinate, new Set());
-            cited.get(coordinate).add(toPosixPath(trackedFile));
+
+        // The listed siblings resolve in the first path's directory.
+        const paths = [raw];
+        const directory = raw.slice(0, raw.lastIndexOf('/'));
+        let rest = text.slice(match.index + match[0].length);
+        for (let tail = CONTINUATION.exec(rest); tail !== null; tail = CONTINUATION.exec(rest)) {
+            paths.push(`${directory}/${tail[1]}`);
+            rest = rest.slice(tail[0].length);
+        }
+
+        for (const path of paths) {
+            for (const coordinate of expandBraces(path)) {
+                if (ELIDED_SEGMENT.test(coordinate)) {
+                    placeholders += 1;
+                    continue;
+                }
+                if (!cited.has(coordinate)) cited.set(coordinate, new Set());
+                cited.get(coordinate).add(toPosixPath(trackedFile));
+            }
         }
     }
 }
