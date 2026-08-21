@@ -95,7 +95,6 @@ export const SECTION_FILES = [
     'webrtc-status.md',
     'adwaita-web-roadmap.md',
     'webgl-known-issues.md',
-    'missing-web-apis.md',
     'priorities.md',
 ];
 
@@ -1127,7 +1126,6 @@ export function renderStatus(root, facts, data) {
     out.push('---', '');
     out.push(pillarSection('Framework Packages (`packages/framework/`)', groups.framework));
     if (data.sections['webgl-known-issues.md']) out.push(data.sections['webgl-known-issues.md'], '');
-    if (data.sections['missing-web-apis.md']) out.push(data.sections['missing-web-apis.md'], '');
     out.push('---', '');
     out.push(pillarSection('NativeScript Bridge Packages (`packages/nativescript-bridge/`)', groups.ns));
     out.push('---', '');

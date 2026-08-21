@@ -8,136 +8,164 @@ import { describe, it, expect, on } from '@gjsify/unit';
 import { Worker } from 'node:worker_threads';
 import { SharedBuffer, atomics, hasNativeSab } from '@gjsify/sab-native';
 
+// The tests below are `it.failing` scoped on `!hasNativeSab()` rather than
+// guarded away, because the previous shape was a lie: with no prebuild the suite
+// substituted an `it('skipped …')` whose only assertion was `expect(true)`, so a
+// platform with ZERO cross-process shared memory reported a passing suite. Scoping
+// the expectation keeps both halves — on Linux with the prebuild these are ordinary
+// `it()` that must pass, and on a platform without one they still RUN and fail the
+// run the day they start working, which is when the marker should go.
+const NO_NATIVE_SAB =
+    '@gjsify/sab-native declares linux only (ADR 0013) and every one of its five declared ' +
+    'targets ships a committed prebuild, so hasNativeSab() is false exactly on darwin and ' +
+    'win32, where SharedBuffer.create() throws NATIVE_SAB_UNAVAILABLE. There is no ' +
+    'in-engine fallback to degrade to: SharedArrayBuffer and Atomics are both undefined under ' +
+    'GJS (measured on gjs 1.88.1), which is why the native bridge exists at all. Tracked in ' +
+    'status/open-todos.md — "Two packages have no darwin target at all".';
+
 export default async () => {
     await on('Gjs', async () => {
-        if (!hasNativeSab()) {
-            await describe('SharedBuffer cross-process (worker_threads × sab-native)', async () => {
-                await it('skipped — @gjsify/sab-native prebuild missing', async () => {
-                    expect(true).toBe(true);
-                });
-            });
-            return;
-        }
+        const xfail = { when: !hasNativeSab() };
 
         await describe('SharedBuffer cross-process (worker_threads × sab-native)', async () => {
-            await it('child writes a marker the parent reads via atomic_load_i32', async () => {
-                const sb = SharedBuffer.create(64);
-                atomics.store32(sb, 0, 0);
+            await it.failing(
+                'child writes a marker the parent reads via atomic_load_i32',
+                async () => {
+                    const sb = SharedBuffer.create(64);
+                    atomics.store32(sb, 0, 0);
 
-                const w = new Worker(
-                    `
-          const sb = workerData.sab;
-          sb._nativeHandle.atomic_store_i32(0, 42);
-          parentPort.postMessage({ done: true });
-        `,
-                    { eval: true, workerData: { sab: sb } },
-                );
+                    const w = new Worker(
+                        `
+              const sb = workerData.sab;
+              sb._nativeHandle.atomic_store_i32(0, 42);
+              parentPort.postMessage({ done: true });
+            `,
+                        { eval: true, workerData: { sab: sb } },
+                    );
 
-                const msg = await new Promise<{ done: boolean }>((resolve, reject) => {
-                    w.once('message', (m: unknown) => resolve(m as { done: boolean }));
-                    w.once('error', reject);
-                });
-
-                expect(msg.done).toBe(true);
-                expect(atomics.load32(sb, 0)).toBe(42);
-
-                await w.terminate();
-            });
-
-            await it('parent writes typed values, child reads them back', async () => {
-                const sb = SharedBuffer.create(64);
-                sb.setInt32LE(0, -12345);
-                sb.setUint32LE(4, 0xdeadbeef);
-                sb.setUint8(8, 0xab);
-
-                const w = new Worker(
-                    `
-          const sb = workerData.sab;
-          parentPort.postMessage({
-            i32: sb.getInt32LE(0),
-            u32: sb.getUint32LE(4),
-            u8:  sb.getUint8(8),
-            len: sb.byteLength,
-          });
-        `,
-                    { eval: true, workerData: { sab: sb } },
-                );
-
-                const msg = await new Promise<{ i32: number; u32: number; u8: number; len: number }>(
-                    (resolve, reject) => {
-                        w.once('message', (m: unknown) =>
-                            resolve(m as { i32: number; u32: number; u8: number; len: number }),
-                        );
+                    const msg = await new Promise<{ done: boolean }>((resolve, reject) => {
+                        w.once('message', (m: unknown) => resolve(m as { done: boolean }));
                         w.once('error', reject);
-                    },
-                );
+                    });
 
-                expect(msg.i32).toBe(-12345);
-                expect(msg.u32).toBe(0xdeadbeef);
-                expect(msg.u8).toBe(0xab);
-                expect(msg.len).toBe(64);
+                    expect(msg.done).toBe(true);
+                    expect(atomics.load32(sb, 0)).toBe(42);
 
-                await w.terminate();
-            });
+                    await w.terminate();
+                },
+                NO_NATIVE_SAB,
+                xfail,
+            );
 
-            await it('Worker.postMessage delivers a SharedBuffer mid-stream (not just at construction)', async () => {
-                const sb = SharedBuffer.create(64);
-                atomics.store32(sb, 0, 100);
+            await it.failing(
+                'parent writes typed values, child reads them back',
+                async () => {
+                    const sb = SharedBuffer.create(64);
+                    sb.setInt32LE(0, -12345);
+                    sb.setUint32LE(4, 0xdeadbeef);
+                    sb.setUint8(8, 0xab);
 
-                // Worker waits for a postMessage carrying a SharedBuffer, then mutates it.
-                const w = new Worker(
-                    `
-          parentPort.on('message', (msg) => {
-            const sb = msg.sab;
-            sb._nativeHandle.atomic_store_i32(4, 777);
-            parentPort.postMessage({ ack: true });
-          });
-        `,
-                    { eval: true },
-                );
+                    const w = new Worker(
+                        `
+              const sb = workerData.sab;
+              parentPort.postMessage({
+                i32: sb.getInt32LE(0),
+                u32: sb.getUint32LE(4),
+                u8:  sb.getUint8(8),
+                len: sb.byteLength,
+              });
+            `,
+                        { eval: true, workerData: { sab: sb } },
+                    );
 
-                // Give the worker a moment to register its 'message' listener.
-                await new Promise((r) => setTimeout(r, 50));
+                    const msg = await new Promise<{ i32: number; u32: number; u8: number; len: number }>(
+                        (resolve, reject) => {
+                            w.once('message', (m: unknown) =>
+                                resolve(m as { i32: number; u32: number; u8: number; len: number }),
+                            );
+                            w.once('error', reject);
+                        },
+                    );
 
-                w.postMessage({ sab: sb });
+                    expect(msg.i32).toBe(-12345);
+                    expect(msg.u32).toBe(0xdeadbeef);
+                    expect(msg.u8).toBe(0xab);
+                    expect(msg.len).toBe(64);
 
-                const ack = await new Promise<{ ack: boolean }>((resolve, reject) => {
-                    w.once('message', (m: unknown) => resolve(m as { ack: boolean }));
-                    w.once('error', reject);
-                });
+                    await w.terminate();
+                },
+                NO_NATIVE_SAB,
+                xfail,
+            );
 
-                expect(ack.ack).toBe(true);
-                expect(atomics.load32(sb, 4)).toBe(777);
+            await it.failing(
+                'Worker.postMessage delivers a SharedBuffer mid-stream (not just at construction)',
+                async () => {
+                    const sb = SharedBuffer.create(64);
+                    atomics.store32(sb, 0, 100);
 
-                await w.terminate();
-            });
+                    // Worker waits for a postMessage carrying a SharedBuffer, then mutates it.
+                    const w = new Worker(
+                        `
+              parentPort.on('message', (msg) => {
+                const sb = msg.sab;
+                sb._nativeHandle.atomic_store_i32(4, 777);
+                parentPort.postMessage({ ack: true });
+              });
+            `,
+                        { eval: true },
+                    );
 
-            await it('atomic add round-trip — parent + child see consistent counter', async () => {
-                const sb = SharedBuffer.create(64);
-                atomics.store32(sb, 0, 0);
+                    // Give the worker a moment to register its 'message' listener.
+                    await new Promise((r) => setTimeout(r, 50));
 
-                // Child adds 5 atomically, posts back the prior-value.
-                const w = new Worker(
-                    `
-          const sb = workerData.sab;
-          const prev = sb._nativeHandle.atomic_add_i32(0, 5);
-          parentPort.postMessage({ prev });
-        `,
-                    { eval: true, workerData: { sab: sb } },
-                );
+                    w.postMessage({ sab: sb });
 
-                const msg = await new Promise<{ prev: number }>((resolve, reject) => {
-                    w.once('message', (m: unknown) => resolve(m as { prev: number }));
-                    w.once('error', reject);
-                });
+                    const ack = await new Promise<{ ack: boolean }>((resolve, reject) => {
+                        w.once('message', (m: unknown) => resolve(m as { ack: boolean }));
+                        w.once('error', reject);
+                    });
 
-                expect(msg.prev).toBe(0);
-                // Parent now adds 10 — counter should land at 15.
-                atomics.add32(sb, 0, 10);
-                expect(atomics.load32(sb, 0)).toBe(15);
+                    expect(ack.ack).toBe(true);
+                    expect(atomics.load32(sb, 4)).toBe(777);
 
-                await w.terminate();
-            });
+                    await w.terminate();
+                },
+                NO_NATIVE_SAB,
+                xfail,
+            );
+
+            await it.failing(
+                'atomic add round-trip — parent + child see consistent counter',
+                async () => {
+                    const sb = SharedBuffer.create(64);
+                    atomics.store32(sb, 0, 0);
+
+                    // Child adds 5 atomically, posts back the prior-value.
+                    const w = new Worker(
+                        `
+              const sb = workerData.sab;
+              const prev = sb._nativeHandle.atomic_add_i32(0, 5);
+              parentPort.postMessage({ prev });
+            `,
+                        { eval: true, workerData: { sab: sb } },
+                    );
+
+                    const msg = await new Promise<{ prev: number }>((resolve, reject) => {
+                        w.once('message', (m: unknown) => resolve(m as { prev: number }));
+                        w.once('error', reject);
+                    });
+
+                    expect(msg.prev).toBe(0);
+                    // Parent now adds 10 — counter should land at 15.
+                    atomics.add32(sb, 0, 10);
+                    expect(atomics.load32(sb, 0)).toBe(15);
+
+                    await w.terminate();
+                },
+                NO_NATIVE_SAB,
+                xfail,
+            );
         });
     });
 };

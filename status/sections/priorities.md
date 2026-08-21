@@ -11,12 +11,26 @@ package it named had reached `full`.
 
 1. **Finish the platforms that already ship.** linux-x64 is not the frontier; the other legs
    are. Open and unowned: no darwin gamepad backend (the only route to macOS support, and a
-   separate project); `@gjsify/webgl` renders on darwin-x64 but no WebGL2 *content* can; two
-   packages have no darwin target at all; nothing exercises the node-free toolchain on macOS,
-   although all three engines now publish darwin prebuilds; and the musl legs are blocked on
-   named symbols (`@gjsify/lightningcss-native` references `gnu_get_libc_version`,
-   `@gjsify/webrtc` finds no `webrtcbin` on Alpine). `win32-arm64` is measured as blocked
-   upstream rather than on effort, so it is not on this list.
+   separate project); `@gjsify/webgl` now draws WebGL2 content on darwin, but HiDPI is unproven
+   there and two GLES 3.0 API spellings are still missing; two packages have no darwin target at
+   all; and nothing exercises the node-free toolchain on macOS, although all three engines now
+   publish darwin prebuilds. `win32-arm64` is measured as blocked upstream rather than on
+   effort, so it is not on this list.
+
+   musl is HALF covered, and the two halves are different jobs — read a green run accordingly.
+   `check-committed-musl` asks whether the committed glibc prebuilds resolve on real Alpine; it
+   is ungated, so it runs on every PR and push the workflow's paths reach, and it is green, with
+   `@gjsify/lightningcss-native`'s `gnu_get_libc_version` carried as a DECLARED accepted gap
+   that fails the check the day it stops applying. What is unproven is the leg that would BUILD
+   the `-musl` siblings: `build-prebuilds-musl` is `workflow_dispatch`-only and
+   `continue-on-error`, deliberately, because no package declares a `-musl` target yet and the
+   declared-vs-built invariant is symmetric — so it must go green before the declaration can
+   exist. Its last dispatch was red on both arches, and not on either named symbol: the staged
+   `GjsifySabNative` typelib did not resolve under `gjs`.
+
+   `@gjsify/webrtc` is blocked a layer below all of that and not by us: Alpine ships libnice
+   0.1.22 where GStreamer 1.28's nice plugin needs 0.1.23, so `webrtcbin` is not built at all —
+   the prebuild links cleanly and the element still does not exist.
 
 2. **Make the gates prove what they claim.** A gate that passes without measuring anything is
    the most expensive defect class in this repository's history, and it keeps arriving in the
