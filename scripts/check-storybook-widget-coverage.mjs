@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Every widget both renderers ship is either IN the storybook or in this ledger.
+// Every widget both renderers ship is either IN the storybook or in a ledger here,
+// and every widget only ONE of them ships says whether that is a gap or a decision.
 //
 // WHAT THIS ADDS TO PARITY
 //
@@ -15,11 +16,11 @@
 // reference implementation the other two are aligned against; a widget it never shows
 // is a widget with no reference.
 //
-// WHAT IT CHECKS
+// WHAT IT CHECKS — the story ledger
 //
 //   1. Every `adw-<name>` the browser DEFINES as a custom element and NativeScript
 //      ships as an `Adw*` view class has a `<name>.meta.ts` in the GTK showcase — or
-//      an entry below saying why not.
+//      an entry in `NO_STORY_OF_ITS_OWN` saying why not.
 //   2. No ledger entry names a widget that HAS a story (a stale exemption reads as
 //      considered when it is merely forgotten).
 //   3. No ledger entry names a widget the rule cannot reach — one renderer only, or
@@ -28,6 +29,19 @@
 // The both-renderers scope is deliberate. A widget on ONE renderer cannot have a
 // three-target story, so demanding one here would demand a port, and that is a
 // product decision this check has no business making.
+//
+// WHAT IT CHECKS — the asymmetry ledger
+//
+// Which is why the widgets that scope EXCLUDES need a ledger of their own
+// (`ONE_RENDERER_ONLY`, #1195): the derived matrix already shows each of them as an
+// asymmetric row, and a row cannot say whether the asymmetry is a GAP or a DECISION.
+//
+//   4. Every widget on exactly one renderer has an entry.
+//   5. No entry names a widget now on BOTH renderers — it landed, drop it.
+//   6. No entry names a widget on NEITHER — it went away, drop it.
+//   7. An entry's `only` MATCHES the side the tree puts the widget on. Without this
+//      an asymmetry that FLIPPED — ported one way, dropped the other — keeps reading
+//      as covered while the reason next to it now describes the wrong renderer.
 //
 // STATUS.md's widget matrix is NOT checked here: an arm that did was removed, because
 // its column and this check both call `adwaitaWebElements()` — `f(x)` against `f(x)`,
@@ -38,10 +52,11 @@
 //
 // Usage: node scripts/check-storybook-widget-coverage.mjs [--root <dir>]
 
-import { readdirSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { readFileSync, readdirSync } from 'node:fs';
+import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { toPosixPath } from '../packages/infra/manifest-conformance/lib/index.mjs';
 import {
     ADWAITA_NS_WIDGETS,
     ADWAITA_WEB_SRC,
@@ -76,6 +91,156 @@ const NO_STORY_OF_ITS_OWN = {
         'The one widget here with no GTK renderer at all — it is an original @gjsify widget, not a libadwaita port. A GTK story would have to hand-assemble a `Gtk.Grid`, i.e. put a fourth implementation in a showcase where no package owns it. If a GTK data grid is wanted it starts as a package (#1050).',
 };
 
+/**
+ * Widgets on exactly ONE renderer, and what that asymmetry IS.
+ *
+ *   { only: 'web' | 'nativescript', decision: '<reason>' }   the other renderer has no
+ *       such concept, or expresses it differently;
+ *   { only: …, gap: '#123' | an open-todos anchor }         a port nobody has written,
+ *       pointing at where the work is tracked ({@link todoAnchors}).
+ *
+ * A DISCRIMINATED pair rather than one free-text field, because the whole value of the
+ * ledger is telling those two apart: the moment "we would have to build it" is allowed
+ * to sit in `decision`, every gap can be spelled as a reason and nothing is recorded.
+ *
+ * WHY THE ENTRIES READ LIKE CITATIONS. #1195 deliberately refused to fill this in from
+ * outside the ports — "guessing eleven verdicts into a ledger produces exactly the kind
+ * of confident-looking claim this repo has now deleted twice in one week (#1172,
+ * #1188)". So an entry here either MOVES a reason already recorded in a source header,
+ * or DERIVES one from `refs/libadwaita`; the ones that need a product decision nobody
+ * has made are gaps with a pointer, and stayed gaps.
+ *
+ * THE UPSTREAM FACT that settles most of them, read off `G_DECLARE_*_TYPE` in the
+ * headers `src/meson.build` names: only `dialog`, `window`, `navigation-page` and the
+ * two carousel indicators have an Adw WIDGET behind them at all. A handful more are
+ * public Adw GObjects — DATA, which the browser needs a tag to declare in markup and
+ * NativeScript passes as an object. The rest have no Adw type of any kind: they are
+ * stylesheet partials over a GTK primitive (`.card` in `_misc.scss`, `_switch.scss`,
+ * `_popovers.scss`, `_progress-bar.scss`, `_checks.scss`, `.image-button` in
+ * `_buttons.scss`, `_scale.scss`), where WHICH renderer wrapped the primitive in an
+ * element of its own is a rendering idiom, not a missing port.
+ *
+ * `vectors` is optional and names conformance tables in `@gjsify/adwaita-core` that the
+ * decision leaves driven from ONE side. It is checked (see {@link vectorFailures}), so
+ * the ledger doubles as the port-cost record: the tables a second renderer would
+ * inherit for free are exactly the ones listed here.
+ */
+const ONE_RENDERER_ONLY = {
+    'alert-response': {
+        only: 'web',
+        decision:
+            'No `AdwAlertResponse` type upstream — a response is an id passed to `adw_alert_dialog_add_response()`, whose MARKUP form is a GtkBuildable `<response>` child, which is what this element mirrors. NativeScript calls the method against the same `AdwAlertResponses` in adwaita-core, so only the browser needs a tag to declare one in.',
+    },
+    'bottom-sheet-content': {
+        only: 'web',
+        decision:
+            '`adw_bottom_sheet_set_content()` is a GtkWidget-typed PROPERTY on AdwBottomSheet (adw-bottom-sheet.h:32), not a type. NativeScript calls the setter; HTML has no way to route one child into a named slot without a tag for it.',
+    },
+    'bottom-sheet-sheet': {
+        only: 'web',
+        decision:
+            '`adw_bottom_sheet_set_sheet()` is a GtkWidget-typed PROPERTY on AdwBottomSheet (adw-bottom-sheet.h:38), not a type. NativeScript calls the setter; HTML has no way to route one child into a named slot without a tag for it.',
+    },
+    card: {
+        only: 'web',
+        decision:
+            "`.card` is a libadwaita STYLE CLASS (stylesheet/widgets/_misc.scss:197) with no Adw type behind it. `<adw-card>` is a style class packaged as an element — its whole body is `classList.add('adw-card')` — and a NativeScript view sets `className` directly, so a widget class there would carry no behaviour at all.",
+    },
+    'carousel-indicator-dots': {
+        only: 'web',
+        decision:
+            '`AdwCarouselIndicatorDots` is placeable anywhere in GTK, but the NativeScript carousel builds its own dot row (row 1 of its GridLayout) and projects the shared `CarouselState` onto it through `applyCarouselDots` in its carousel-state.ts. The indicator is present there, just not detachable — its FIDELITY note (3) records the look that costs.',
+    },
+    'carousel-indicator-lines': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    checkbox: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+        vectors: ['RADIO_GROUP_VECTORS'],
+    },
+    dialog: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    'image-button': {
+        only: 'nativescript',
+        decision:
+            'Recorded in adw-image-button.ts:6-7: "NativeScript\'s `Button` is text-only (it cannot host a child view), so an icon button is a tappable `GridLayout` holding a centered `Image`." Upstream `.image-button` is a style class (_buttons.scss:66), and the browser uses it as one — `<adw-split-button>` toggles it on a plain button.',
+    },
+    'navigation-page': {
+        only: 'web',
+        decision:
+            'The only widget here whose upstream type IS a widget and whose properties are already shared: tag/title/can-pop are `AdwNavigationPageProps` in adwaita-core, and NativeScript pushes any `View` with that object (`NsNavigationStack.push(viewOrTag, options)`). The page exists there as data plus a plain view; only the browser needs an element to carry the attributes.',
+    },
+    popover: {
+        only: 'web',
+        decision:
+            'Recorded in adw-drop-down.ts:14-16: "the NS subset has none, so the options open in the platform `action()` sheet, the same substitution `AdwComboRow`, `AdwSplitButton` and `AdwMenuButton` make." Upstream has no AdwPopover either — GtkPopover styled by _popovers.scss.',
+        vectors: ['POPOVER_SURFACE_VECTORS', 'POPOVER_KEY_VECTORS'],
+    },
+    'progress-bar': {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+    },
+    radio: {
+        only: 'web',
+        gap: 'open-todos: Adwaita renderer asymmetries with no verdict',
+        vectors: ['RADIO_GROUP_VECTORS'],
+    },
+    'sidebar-item': {
+        only: 'web',
+        decision:
+            '`AdwSidebarItem` is declared against GObject, not GtkWidget (adw-sidebar-item.h) — it is DATA. NativeScript holds the same data as an `AdwSidebarItemSpec` in the shared `SidebarState`, so this element is the markup form of a model both renderers already run.',
+    },
+    'sidebar-section': {
+        only: 'web',
+        decision:
+            '`AdwSidebarSection` is declared against GObject, not GtkWidget (adw-sidebar-section.h) — it is DATA. NativeScript holds the same data as an `AdwSidebarSectionSpec` in the shared `SidebarState`, so this element is the markup form of a model both renderers already run.',
+    },
+    'slider-row': {
+        only: 'nativescript',
+        decision:
+            'Recorded in adw-slider-row.ts:3-6: it is "the NS counterpart of the GTK storybook\'s `Gtk.Scale` RANGE card and the browser\'s `input[type=range]` `.sb-range-row`". Both renderers HAVE a range control; upstream has no AdwSliderRow (no such public header), and only NativeScript needed a widget class to get one that looks native.',
+    },
+    'source-view': {
+        only: 'web',
+        decision:
+            'Not a libadwaita widget at all — the GTK twin is GtkSourceView, a separate library, and no Adw type exists. The element is an opt-in subpath (`@gjsify/adwaita-web/source-view`) binding CodeMirror 6, which renders into a DOM NativeScript does not have, so there is no port of THIS element to write.',
+    },
+    switch: {
+        only: 'web',
+        decision:
+            'Upstream has no AdwSwitch: _switch.scss styles the GtkSwitch node. `@nativescript/core` ships a real `Switch` view, which `AdwSwitchRow` installs directly; the browser has no such control, so `<adw-switch>` is the 44x24 track a hidden checkbox needs to look like one. Its own header records there is no behaviour to port either — "the state is one boolean with no derivation" (adw-switch.ts:7-8).',
+    },
+    'tab-page': {
+        only: 'web',
+        decision:
+            '`AdwTabPage` is declared against GObject, not GtkWidget (adw-tab-view.h) — it is DATA, held on NativeScript by `TabViewState` and projected through tab-view-state.ts. The browser element is that descriptor in markup, and doubles as the page panel the tab reveals.',
+    },
+    toggle: {
+        only: 'web',
+        decision:
+            '`AdwToggle` is declared against GObject, not GtkWidget (adw-toggle-group.h) — it is DATA. NativeScript passes the same labels and icons through `options` / `setToggles` into the shared `ToggleGroupState`, so only the browser needs a tag to declare one in.',
+    },
+    'view-stack-page': {
+        only: 'web',
+        decision:
+            '`AdwViewStackPage` is declared against GObject, not GtkWidget (adw-view-stack.h) — it is DATA. NativeScript passes the same page descriptors to `AdwViewSwitcherBase.setViews`, so only the browser needs a tag to declare one in.',
+    },
+    'view-switcher-page': {
+        only: 'web',
+        decision:
+            "There is no AdwViewSwitcherPage upstream at all: a view switcher takes an AdwViewStack and reads its AdwViewStackPages. This element is this port's markup form of that same page descriptor, and NativeScript passes the descriptors to `AdwViewSwitcherBase.setViews`.",
+    },
+    window: {
+        only: 'web',
+        decision:
+            'NativeScript\'s `Page` IS the window: the storybook\'s Page carries `class="adw-window"` (showcases/dom/adwaita-storybook-nativescript/app/storybook-page.xml) and the theme styles `Page.adw-window` (theme/adwaita.css:23-24). `<adw-window>` exists because a browser document has no page object to hang the frame on.',
+    },
+};
+
 /** Story names — every `<name>.meta.ts` anywhere under the GTK showcase. */
 function storyNames(dir) {
     const found = new Set();
@@ -88,6 +253,105 @@ function storyNames(dir) {
     };
     walk(dir);
     return found;
+}
+
+/** The floor `check-nativescript-theme-classes.mjs` set: it refuses a blank, it judges nothing. */
+const MIN_REASON = 40;
+
+/** Where a `gap` may point, in the two spellings `gjsify/todo-needs-anchor` already accepts. */
+const GAP_ISSUE = /^#\d+$/;
+const GAP_TODO = /^open-todos: (\S.*)$/;
+const OPEN_TODOS = 'status/open-todos.md';
+
+/**
+ * Every `### <title>` in the open-TODO ledger, so a `gap` pointing at one can be
+ * resolved — matched by containment with markdown emphasis stripped, exactly the way
+ * `generate-status.mjs` resolves a deferral marker that names that ledger.
+ *
+ * IT IS RESOLVED HERE rather than left to that rule, which does walk `scripts/`:
+ * measured, its anchor pattern has to reach a `)` before the next `*`, which is the
+ * shape of the `TODO(…)` comment markers it was written for. A pointer sitting in a
+ * data field reaches neither, so it matches nothing at all and passes in silence — and
+ * a pointer nothing resolves is precisely the failure this ledger exists to stop.
+ *
+ * Which is also why no comment or message in this file spells a WHOLE anchor: that rule
+ * reads any complete one it finds here as a marker of this file's own, so an EXAMPLE of
+ * the shape is a dangling anchor. Measured on the first run — two findings, both prose.
+ */
+function todoAnchors() {
+    const text = readFileSync(join(ROOT, OPEN_TODOS), 'utf8');
+    return [...text.matchAll(/^### ([^\n]+)$/gm)].map(([, heading]) => heading.replaceAll(/[`*_]/g, '').trim());
+}
+
+/** Every `.ts` under `dir`, specs INCLUDED — a conformance table is driven from a spec. */
+function typescriptFiles(dir) {
+    const found = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (entry.name === 'node_modules') continue;
+        const path = join(dir, entry.name);
+        if (entry.isDirectory()) found.push(...typescriptFiles(path));
+        else if (entry.name.endsWith('.ts')) found.push(path);
+    }
+    return found;
+}
+
+/** The conformance tables `@gjsify/adwaita-core` publishes — what a `vectors` entry may name. */
+const CORE_CONFORMANCE = 'packages/web/adwaita-core/src/conformance';
+
+/** Each renderer's package source root, which is where its specs live too. */
+const RENDERER_SRC = {
+    web: join(ROOT, ADWAITA_WEB_SRC),
+    nativescript: resolve(ROOT, ADWAITA_NS_WIDGETS, '..'),
+};
+
+const OTHER_RENDERER = { web: 'nativescript', nativescript: 'web' };
+const SIDE_LABEL = { web: 'the browser only', nativescript: 'NativeScript only' };
+
+/** @param {string} dir @param {RegExp} pattern @returns {Set<string>} */
+function tableNames(dir, pattern) {
+    const found = new Set();
+    for (const file of typescriptFiles(dir)) {
+        for (const [, name] of readFileSync(file, 'utf8').matchAll(pattern)) found.add(name);
+    }
+    return found;
+}
+
+/**
+ * Hold a `vectors` claim: each table must EXIST in adwaita-core, and the renderer that
+ * does NOT have the widget must not drive it.
+ *
+ * Only that direction. The renderer that HAS the widget is not required to drive the
+ * table, because a table may legitimately be driven by core's own spec alone —
+ * `POPOVER_KEY_VECTORS` is, today. Requiring the positive arm would fail on the honest
+ * case and teach people to delete the claim.
+ *
+ * What it buys: the entry retires itself. The day a NativeScript checkbox spec drives
+ * `RADIO_GROUP_VECTORS`, the port has happened and this says so.
+ *
+ * @param {string} name widget name, for the message
+ * @param {{only: string, vectors?: string[]}} entry
+ * @param {() => Set<string>} exported
+ * @returns {string[]}
+ */
+function vectorFailures(name, entry, exported) {
+    if (entry.vectors === undefined) return [];
+    const problems = [];
+    const other = OTHER_RENDERER[entry.only];
+    const driven = tableNames(RENDERER_SRC[other], /\b([A-Z][A-Z0-9_]*_VECTORS)\b/g);
+    for (const table of entry.vectors) {
+        if (!exported().has(table)) {
+            problems.push(
+                `adw-${name}: \`vectors\` names ${table}, which ${CORE_CONFORMANCE} does not export. ` +
+                    'A table that is not there strands nothing.',
+            );
+        } else if (driven.has(table)) {
+            problems.push(
+                `adw-${name}: \`vectors\` claims ${table} is driven from one side, but the ${other} renderer ` +
+                    'drives it too — the asymmetry this entry describes is over, so re-read the entry.',
+            );
+        }
+    }
+    return problems;
 }
 
 /** @type {Map<string, string>} */
@@ -136,20 +400,104 @@ for (const name of Object.keys(NO_STORY_OF_ITS_OWN)) {
     }
 }
 
+/** Widget name → the side the TREE puts it on. The question `only` has to agree with. */
+const asymmetric = new Map();
+for (const name of web) if (!ns.has(name)) asymmetric.set(name, 'web');
+for (const name of ns.keys()) if (!web.has(name)) asymmetric.set(name, 'nativescript');
+
+const unverdicted = [];
+let exportedTables;
+const exported = () =>
+    (exportedTables ??= tableNames(join(ROOT, CORE_CONFORMANCE), /export const ([A-Z][A-Z0-9_]*_VECTORS)\b/g));
+const anchors = todoAnchors();
+
+for (const [name, side] of [...asymmetric].sort()) {
+    if (name in ONE_RENDERER_ONLY) continue;
+    const file = toPosixPath(defines.get(`adw-${name}`) ?? ns.get(name) ?? '');
+    unverdicted.push(
+        `adw-${name} (${file}): on ${SIDE_LABEL[side]}, and nothing says whether that is a gap or a\n` +
+            `    decision. Add it to ONE_RENDERER_ONLY as { only: '${side}', decision: '…' } — or, if the port\n` +
+            `    is simply unwritten, { only: '${side}', gap: '#<issue>' } — or an open-todos anchor.`,
+    );
+}
+
+for (const [name, entry] of Object.entries(ONE_RENDERER_ONLY)) {
+    const side = asymmetric.get(name);
+    if (side === undefined) {
+        const where = web.has(name) && ns.has(name) ? 'on BOTH renderers now — it landed' : 'on NEITHER renderer';
+        unverdicted.push(`adw-${name}: ledgered as one-renderer-only, but it is ${where}. Drop the entry.`);
+        continue;
+    }
+    if (entry.only !== side) {
+        unverdicted.push(
+            `adw-${name}: ledgered as \`only: '${entry.only}'\`, but the tree has it on ${SIDE_LABEL[side]}. ` +
+                'The asymmetry flipped, so the reason recorded here is about the wrong renderer — re-read it.',
+        );
+        continue;
+    }
+
+    const gap = typeof entry.gap === 'string';
+    if (gap === (typeof entry.decision === 'string')) {
+        unverdicted.push(
+            `adw-${name}: needs exactly one of \`decision\` (the other renderer expresses it differently) ` +
+                'and `gap` (a port nobody has written). Neither, or both, records nothing.',
+        );
+    } else if (gap) {
+        const todo = GAP_TODO.exec(entry.gap);
+        if (!GAP_ISSUE.test(entry.gap) && todo === null) {
+            unverdicted.push(
+                `adw-${name}: \`gap\` must be \`#<issue>\`, or the open-todos anchor — that word, a colon and ` +
+                    `enough of a \`### \` heading in ${OPEN_TODOS} to name it. "${entry.gap}" points nowhere.`,
+            );
+        } else if (todo !== null && !anchors.some((heading) => heading.includes(todo[1]))) {
+            unverdicted.push(
+                `adw-${name}: \`gap\` anchors to "${entry.gap}", but no \`### \` heading in ${OPEN_TODOS} ` +
+                    'contains that text — the entry was renamed or deleted, or it was never written.',
+            );
+        }
+    } else if (entry.decision.trim().length < MIN_REASON) {
+        unverdicted.push(
+            `adw-${name}: \`decision\` with no real reason — say what the other renderer does INSTEAD, or ` +
+                'why there is nothing there to do.',
+        );
+    }
+
+    unverdicted.push(...vectorFailures(name, entry, exported));
+}
+
+let failed = false;
+
 if (failures.length > 0) {
-    console.error(`check-storybook-widget-coverage: ${failures.length} problem(s):\n`);
+    failed = true;
+    console.error(`check-storybook-widget-coverage: ${failures.length} story problem(s):\n`);
     for (const failure of failures) console.error(`  - ${failure}`);
     console.error(
         '\nThe GTK storybook is the reference the other two targets are aligned against, so a widget it\n' +
             'never shows is a widget with no reference — and story-set parity cannot see that, because a\n' +
             'story missing from all three targets is perfectly symmetric.\n' +
-            `  elements: ${ADWAITA_WEB_SRC}    widgets: ${ADWAITA_NS_WIDGETS}    stories: ${relative(ROOT, GTK_SRC)}`,
+            `  elements: ${ADWAITA_WEB_SRC}    widgets: ${ADWAITA_NS_WIDGETS}    stories: ${toPosixPath(relative(ROOT, GTK_SRC))}`,
     );
-    process.exit(1);
 }
 
+if (unverdicted.length > 0) {
+    failed = true;
+    console.error(`\ncheck-storybook-widget-coverage: ${unverdicted.length} asymmetry problem(s):\n`);
+    for (const failure of unverdicted) console.error(`  - ${failure}`);
+    console.error(
+        '\nA widget on one renderer only is either a DECISION (the other has no such concept, or expresses\n' +
+            'it differently) or a GAP (a port nobody has written). The derived matrix shows the asymmetry and\n' +
+            'cannot tell you which, so the verdict is recorded next to the widget — and a gap may not be\n' +
+            'spelled as a reason, which is why the two are separate keys.\n' +
+            `  ledger: ONE_RENDERER_ONLY in ${toPosixPath(relative(ROOT, fileURLToPath(import.meta.url)))}`,
+    );
+}
+
+if (failed) process.exit(1);
+
 const exempt = Object.keys(NO_STORY_OF_ITS_OWN).length;
+const gaps = Object.values(ONE_RENDERER_ONLY).filter((entry) => typeof entry.gap === 'string').length;
 console.log(
     `check-storybook-widget-coverage: ${onBothRenderers.length} widgets on both renderers — ` +
-        `${onBothRenderers.length - exempt} with a story, ${exempt} ledgered with a reason.`,
+        `${onBothRenderers.length - exempt} with a story, ${exempt} ledgered with a reason; ` +
+        `${asymmetric.size} on one renderer — ${asymmetric.size - gaps} a decision, ${gaps} an open gap.`,
 );
