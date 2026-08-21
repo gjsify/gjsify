@@ -2248,3 +2248,6 @@ export const NAMED_REFERENCES: Record<string, string> = {
     'zwj;': '\u200D',
     'zwnj;': '\u200C',
 };
+
+/** Length of the longest key above, so the matcher's window follows the data. */
+export const MAX_NAMED_REFERENCE_LENGTH = 32;

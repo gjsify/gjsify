@@ -283,13 +283,15 @@ round-trip, and the XML golden.
   tree builder and the node classes together. For comparison, the npm stack this replaces
   (`htmlparser2 + css-select + domutils + entities`) is 107,071 bytes. Only bundles that
   actually name the global pay it (`--globals auto` injects on a detected identifier).
-- **The `entities` subpath is not yet a leaf in the sense its header claims.** Importing
-  `decodeXml` alone bundles to **38,030 bytes**: it reaches `NAMED_REFERENCES` through the
-  matcher it shares with the HTML contexts, so an XML-only consumer carries all 2,231 HTML
-  names it can never resolve. No consumer pays this today — `DOMParser` references both
-  paths, so the table is live regardless — which is why it is recorded here rather than
-  fixed in passing. Splitting the shared matcher so the table is a parameter is what makes
-  the claim true.
+- **The named table is a PARAMETER of the matcher, not a branch inside it**, and that is
+  what makes the `entities` subpath the leaf its header claims. While the matcher chose the
+  table itself, every entry point reached `NAMED_REFERENCES`: importing `decodeXml` alone —
+  a function that cannot resolve one HTML name — bundled all 2,231 of them, **38,030 bytes**.
+  It is now **1,702**, a factor of 22. `MAX_NAMED_REFERENCE_LENGTH` is emitted by the
+  generator for the same reason: derived at run time from `Object.keys(...)` it was a
+  module-level call, which a bundler must assume matters, pinning the table live on its own.
+  `decodeHtml(input, ctx)` still reaches both tables, because `ctx` is a value — which is
+  precisely why the three context-specific functions exist beside it.
 - **`@gjsify/dom-elements` gains its first Web-pillar dependency that is pure TS**, and
   loses four methods that answered without looking.
 - **The status data becomes true.** `status/status.json` and
