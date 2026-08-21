@@ -147,7 +147,7 @@ function leadingWhitespaceLength(text: string): number {
 }
 
 class TreeBuilder implements TreeSink {
-    readonly document = new DOMDocument();
+    readonly document = new DOMDocument(true);
     /** Quirks mode. Its only observable here is whether `<table>` closes an open
      *  `<p>`, which is exactly the spec's rule. */
     private quirks = false;

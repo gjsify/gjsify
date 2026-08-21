@@ -1,3 +1,6 @@
+import { HTML_ADAPTER, XML_ADAPTER } from '../dom-adapter.js';
+import type { Adapter } from '../selectors/index.js';
+import { closestSelector, matchesSelector, quoteSelectorString, selectAll, selectOne } from '../selectors/index.js';
 import type { DOMDocumentFragment } from './fragment.js';
 import { CDATA_SECTION_NODE, DOMNode, ELEMENT_NODE, TEXT_NODE } from './node.js';
 
@@ -12,6 +15,12 @@ export class DOMElement extends DOMNode {
     localName: string;
     /** `<template>` holds its children here, never in `childNodes`. */
     content?: DOMDocumentFragment;
+    /**
+     * Which document this node belongs to, in the only terms selectors need:
+     * HTML folds type and attribute names to lowercase, XML does not. There is
+     * no `ownerDocument` to ask — one node model is § Deferred in ADR 0026.
+     */
+    protected readonly _html: boolean;
     private _attrs: Map<string, string> = new Map();
 
     constructor(tagName: string, html = false) {
@@ -19,6 +28,7 @@ export class DOMElement extends DOMNode {
         super(ELEMENT_NODE, html ? localName.toUpperCase() : tagName.toUpperCase());
         this.localName = localName;
         this.tagName = html ? localName.toUpperCase() : localName;
+        this._html = html;
     }
 
     get id(): string {
@@ -100,57 +110,33 @@ export class DOMElement extends DOMNode {
         return '<' + this.localName + attrs + '>' + this.innerHTML + '</' + this.localName + '>';
     }
 
+    protected _adapter(): Adapter<DOMNode> {
+        return this._html ? HTML_ADAPTER : XML_ADAPTER;
+    }
+
     querySelector(selector: string): DOMElement | null {
-        const parts = selector.trim().split(/\s*>\s*/);
-        if (parts.length > 1) return this._queryChildChain(parts);
-        const parts2 = selector.trim().split(/\s+/);
-        if (parts2.length > 1) return this._queryDescendantChain(parts2);
-        return this._find(selector.trim().toLowerCase()) ?? null;
+        return selectOne<DOMNode>(selector, this, this._adapter()) as DOMElement | null;
     }
 
     querySelectorAll(selector: string): DOMElement[] {
-        const tag = selector.trim().toLowerCase();
-        const results: DOMElement[] = [];
-        this._findAll(tag, results);
-        return results;
+        return selectAll<DOMNode>(selector, this, this._adapter()) as DOMElement[];
     }
 
-    _find(tag: string): DOMElement | undefined {
-        for (const child of this.children) {
-            if (child.localName === tag) return child;
-            const found = child._find(tag);
-            if (found) return found;
-        }
-        return undefined;
+    matches(selector: string): boolean {
+        return matchesSelector<DOMNode>(selector, this, this._adapter());
     }
 
-    _findAll(tag: string, results: DOMElement[]): void {
-        for (const child of this.children) {
-            if (child.localName === tag) results.push(child);
-            child._findAll(tag, results);
-        }
+    closest(selector: string): DOMElement | null {
+        return closestSelector<DOMNode>(selector, this, this._adapter()) as DOMElement | null;
     }
 
-    private _queryChildChain(parts: string[]): DOMElement | null {
-        const [first, ...rest] = parts;
-        const matching = this.children.filter((c) => c.localName === first.trim().toLowerCase());
-        if (rest.length === 0) return matching[0] ?? null;
-        for (const el of matching) {
-            const found = el._queryChildChain(rest);
-            if (found) return found;
-        }
-        return null;
-    }
-
-    private _queryDescendantChain(parts: string[]): DOMElement | null {
-        const [first, ...rest] = parts;
-        const candidates: DOMElement[] = [];
-        this._findAll(first.trim().toLowerCase(), candidates);
-        if (rest.length === 0) return candidates[0] ?? null;
-        for (const el of candidates) {
-            const found = el._queryDescendantChain(rest);
-            if (found) return found;
-        }
-        return null;
+    /** A space-separated list, and EVERY name in it has to be present. */
+    getElementsByClassName(names: string): DOMElement[] {
+        const wanted = names
+            .trim()
+            .split(/\s+/)
+            .filter((name) => name !== '');
+        if (wanted.length === 0) return [];
+        return this.querySelectorAll(wanted.map((name) => '[class~=' + quoteSelectorString(name) + ']').join(''));
     }
 }

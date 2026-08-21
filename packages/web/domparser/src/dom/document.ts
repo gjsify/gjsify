@@ -1,3 +1,4 @@
+import { quoteSelectorString } from '../selectors/index.js';
 import type { DOMDocumentType } from './doctype.js';
 import { DOMElement } from './element.js';
 import { DOCUMENT_NODE, DOCUMENT_TYPE_NODE, ELEMENT_NODE } from './node.js';
@@ -5,10 +6,13 @@ import { DOCUMENT_NODE, DOCUMENT_TYPE_NODE, ELEMENT_NODE } from './node.js';
 export class DOMDocument extends DOMElement {
     documentElement: DOMElement | null = null;
 
-    constructor() {
-        super('#document');
+    constructor(html = false) {
+        super('#document', html);
+        // `DOMElement` derives these three from a real tag name; a document has
+        // none, and the two it already spelled out are observable.
         this.nodeType = DOCUMENT_NODE;
         this.nodeName = '#document';
+        this.tagName = '#document';
     }
 
     /** Computed rather than stored, so a document assembled by hand answers too. */
@@ -27,6 +31,10 @@ export class DOMDocument extends DOMElement {
         return this._documentChild('body');
     }
 
+    getElementById(id: string): DOMElement | null {
+        return this.querySelector('[id=' + quoteSelectorString(id) + ']');
+    }
+
     private _documentChild(name: string): DOMElement | null {
         const root = this.documentElement;
         if (root === null) return null;
@@ -36,24 +44,5 @@ export class DOMDocument extends DOMElement {
             }
         }
         return null;
-    }
-
-    querySelector(selector: string): DOMElement | null {
-        if (this.documentElement) {
-            const tag = selector.trim().toLowerCase();
-            if (this.documentElement.localName === tag) return this.documentElement;
-            return this.documentElement.querySelector(selector);
-        }
-        return super.querySelector(selector);
-    }
-
-    querySelectorAll(selector: string): DOMElement[] {
-        const tag = selector.trim().toLowerCase();
-        const results: DOMElement[] = [];
-        if (this.documentElement) {
-            if (this.documentElement.localName === tag) results.push(this.documentElement);
-            this.documentElement._findAll(tag, results);
-        }
-        return results;
     }
 }
