@@ -22,7 +22,16 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { writeFileSync, readFileSync, mkdirSync, existsSync, mkdtempSync, rmSync, symlinkSync, statSync } from 'node:fs';
+import {
+    writeFileSync,
+    readFileSync,
+    mkdirSync,
+    existsSync,
+    mkdtempSync,
+    rmSync,
+    symlinkSync,
+    statSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -227,7 +236,11 @@ describe('gjsify dev E2E', { timeout: 5 * 60 * 1000 }, () => {
             const firstPid = readPid(join(projectDir, 'app.pid'));
             assert.ok(firstPid, 'the launched app never recorded a pid');
 
-            writeFileSync(join(projectDir, 'src', 'index.ts'), longRunningApp(join(projectDir, 'app.pid'), 'BOOT-B'), 'utf-8');
+            writeFileSync(
+                join(projectDir, 'src', 'index.ts'),
+                longRunningApp(join(projectDir, 'app.pid'), 'BOOT-B'),
+                'utf-8',
+            );
             await waitFor(
                 () => session.output().includes('started BOOT-B'),
                 () => `app never relaunched; output:\n${session.output()}`,
@@ -365,7 +378,11 @@ describe('gjsify dev under GJS', { skip: SKIP_GJS, timeout: 8 * 60 * 1000 }, () 
             // settled. `spawnUntilReady` would then have reported an exit before
             // ready — but only if it got there before the marker; the edit below
             // is what needs the loop to still be running.
-            writeFileSync(join(projectDir, 'src', 'index.ts'), longRunningApp(join(projectDir, 'app.pid'), 'GJS-B'), 'utf-8');
+            writeFileSync(
+                join(projectDir, 'src', 'index.ts'),
+                longRunningApp(join(projectDir, 'app.pid'), 'GJS-B'),
+                'utf-8',
+            );
             await waitFor(
                 () => session.output().includes('started GJS-B'),
                 () => `no rebuild under GJS; output:\n${session.output()}`,
@@ -429,7 +446,10 @@ describe('gjsify dev under GJS', { skip: SKIP_GJS, timeout: 8 * 60 * 1000 }, () 
                 // of the probe — reporting a mid-write moment as a failure.
                 () => {
                     try {
-                        return statSync(outfile).mtimeMs > firstBuild && readFileSync(outfile, 'utf-8').includes('run-second');
+                        return (
+                            statSync(outfile).mtimeMs > firstBuild &&
+                            readFileSync(outfile, 'utf-8').includes('run-second')
+                        );
                     } catch {
                         return false;
                     }
