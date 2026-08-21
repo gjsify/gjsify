@@ -1,26 +1,13 @@
 #!/usr/bin/env node
 // A keyboard affordance adwaita-web DECLARES has an implementation behind it.
 //
-// THE INCIDENT
-//
-// Two shapes, one root: the widget announced a keyboard contract to assistive technology
-// and to the browser, and then did not keep it. Both were measured in Firefox, and both
-// were GREEN in a suite of 4321 assertions, because every one of them read state.
-//
-//   1. `aria-modal="true"` on four surfaces — `<adw-dialog>`, `<adw-alert-dialog>`,
-//      `<adw-about-dialog>`, `<adw-preferences-dialog>` — honoured by ONE. Focus the last
-//      control inside `<adw-alert-dialog>` and press Tab: focus landed on
-//      `.adw-view-switcher-bar-button`, outside the dialog, behind its own scrim, on a
-//      control the user cannot see. Closing then left it there — none of the three
-//      returned focus to whatever opened them. `aria-modal` tells AT the rest of the page
-//      is inert; it changes NOTHING about where the browser sends Tab.
-//   2. `role="tablist"` / `role="listbox"` plus `tabIndex = -1` on every unselected item
-//      — the roving tabindex — on four composites, with no keydown listener anywhere.
-//      Three items, tabIndex `[0, -1, -1]`, and ArrowLeft/ArrowRight/ArrowUp/ArrowDown/
-//      Home/End all left `document.activeElement` exactly where it was. The two
-//      unselected items were reachable by NO key: the roving tabindex had taken them out
-//      of the Tab order and nothing put them back. Strictly worse than the plain tab
-//      stops it replaced.
+// THE INCIDENT, in one line each — the modules hold them in full, and a third copy here
+// is what drifts: `elements/modal-surface.ts` for the trap, `elements/roving-focus.ts`
+// for the roving tabindex. `aria-modal="true"` was set on four dialog surfaces and
+// honoured by ONE, a real Tab walking out of the other three onto a control behind their
+// own scrim; a roving `tabIndex = -1` was set on four composites with no keydown listener
+// anywhere, leaving every unselected item reachable by NO key. Both were GREEN in a suite
+// of 4321 assertions, because every one of them read state.
 //
 // ONE SCRIPT, THREE ARMS, deliberately. They are the same invariant at three spellings,
 // and the alternative is three more steps in BOTH copies of the required job for a rule
@@ -40,7 +27,12 @@
 // fixed node this element owns, anything else (`item`, `row.el`, `nodes.button`) is built
 // per item in a loop. Both spellings again — `x.tabIndex = -1` and
 // `x.setAttribute('tabindex', '-1')`. Three arms discharge the obligation, all DERIVED
-// from the tree, and {@link ROVING_LEDGER} records WHICH one per file.
+// from the tree, and {@link ROVING_LEDGER} records WHICH one per file. A `KEYNAV-BY:`
+// header marker in the `CORE-VIA:` style was considered and REJECTED: every delegation in
+// the tree today is visible as an import edge or a tag, so the marker would be an escape
+// hatch nothing needs, and an unused escape hatch is what a later reader reaches for
+// instead of fixing the widget. Add one when a real case cannot be derived — with the
+// case, here.
 //
 // SPECS — the two files this script points at as the "does it WORK" half must exist. A
 // pointer at a file nobody holds is how `check-adwaita-modal-trap.mjs`, a script that was
