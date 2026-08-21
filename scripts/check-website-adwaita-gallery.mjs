@@ -25,15 +25,22 @@
 //      widget no target is held to render.
 //   3. No ledger entry names a widget that HAS a block, so a stale exemption cannot
 //      read as considered when it is merely forgotten.
+//   4. Every gallery page is in the site's SIDEBAR. Arm 1 makes a new meta demand a
+//      new page, and Starlight's `items` list is hand-written: a page missing from it
+//      exists at its URL and is offered to nobody, so the gate would force a page no
+//      reader can reach. `adwaita/controls` was added there by hand in the very
+//      commit that first satisfied arm 1.
 //
 // The `title` IS the join: `Adw.ViewSwitcherBar` → `view-switcher-bar`, the same
 // bare name the widget files, the story metas and the ledgers are already spelled
 // in. Deriving it beats a second hand-written table, which is the thing that drifted.
 //
-// Plain Node over the repo's own files — no install, no build, no astro render —
-// so it runs in `audit-runtimes.yml` next to the other repo-scoped guards. It
-// therefore says NOTHING about whether a page renders; the docs-site build on
-// every PR (`deploy-docs.yml`) is what holds that.
+// Plain Node over the repo's own files — no install, no build, no astro render — so
+// it runs in `audit-runtimes.yml` next to the other repo-scoped guards. It therefore
+// says NOTHING about whether a page RENDERS: `deploy-docs.yml` builds the site on
+// pull requests touching `website/`, `packages/` or `showcases/`, which is every
+// change to the gallery — but it is path-filtered and so advisory, a signal to read
+// rather than a check that blocks.
 //
 // Usage: node scripts/check-website-adwaita-gallery.mjs [--root <dir>]
 
@@ -88,20 +95,32 @@ const TITLED_AFTER = {
     },
 };
 
+/** The gallery's own pages — the input to both the title arm and the sidebar arm. */
+const galleryPages = (root) =>
+    readdirSync(join(root, GALLERY), { withFileTypes: true })
+        .filter((entry) => entry.isFile() && entry.name.endsWith('.mdx'))
+        .map((entry) => entry.name)
+        .sort();
+
 /** `<AdwWidget … title="X">` → X, for every page in the gallery. */
-function galleryTitles(root) {
-    const dir = join(root, GALLERY);
+function galleryTitles(root, pages) {
     /** @type {Map<string, string>} */
     const found = new Map();
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        if (!entry.isFile() || !entry.name.endsWith('.mdx')) continue;
-        const text = readFileSync(join(dir, entry.name), 'utf8');
+    for (const page of pages) {
+        const text = readFileSync(join(root, GALLERY, page), 'utf8');
         for (const [, title] of text.matchAll(/<AdwWidget\b[^>]*?\btitle="([^"]+)"/g)) {
-            if (!found.has(title)) found.set(title, `${GALLERY}/${entry.name}`);
+            if (!found.has(title)) found.set(title, `${GALLERY}/${page}`);
         }
     }
     return found;
 }
+
+/** Where the site's navigation is hand-written, and how a page is spelled in it. */
+const SIDEBAR = 'website/astro.config.mjs';
+const SIDEBAR_SLUG = /\bslug:\s*'(adwaita(?:\/[a-z0-9-]+)?)'/g;
+
+/** `controls.mdx` → `adwaita/controls`; the index page is the bare section slug. */
+const pageSlug = (page) => (page === 'index.mdx' ? 'adwaita' : `adwaita/${page.slice(0, -'.mdx'.length)}`);
 
 /** @type {Map<string, {path: string, file: string, titles: string[], source: string}>} */
 let metas;
@@ -113,7 +132,8 @@ try {
     process.exit(1);
 }
 
-const gallery = galleryTitles(ROOT);
+const pages = galleryPages(ROOT);
+const gallery = galleryTitles(ROOT, pages);
 if (gallery.size === 0) {
     console.error(
         `check-website-adwaita-gallery: no <AdwWidget> block found under ${GALLERY} — that is a broken\n` +
@@ -180,6 +200,25 @@ for (const [name, entry] of Object.entries(TITLED_AFTER)) {
     );
 }
 
+const navigated = new Set(
+    [...readFileSync(join(ROOT, SIDEBAR), 'utf8').matchAll(SIDEBAR_SLUG)].map(([, slug]) => slug),
+);
+if (navigated.size === 0) {
+    console.error(
+        `check-website-adwaita-gallery: no adwaita entry found in ${SIDEBAR} — that is a broken scan,\n` +
+            '  not a site with no navigation.',
+    );
+    process.exit(1);
+}
+for (const page of pages) {
+    if (navigated.has(pageSlug(page))) continue;
+    failures.push(
+        `${GALLERY}/${page} is in no sidebar group of ${SIDEBAR}. Starlight lists what that array\n` +
+            `    names and nothing else, so the page exists at /${pageSlug(page)}/ and is offered to nobody.\n` +
+            `    Add { slug: '${pageSlug(page)}' }, in the position the storybook's category order puts it.`,
+    );
+}
+
 if (failures.length > 0) {
     console.error(`check-website-adwaita-gallery: ${failures.length} gallery/storybook disagreement(s):\n`);
     for (const failure of failures) console.error(`  - ${failure}`);
@@ -194,5 +233,6 @@ if (failures.length > 0) {
 const exempt = Object.keys(NOT_IN_THE_GALLERY).length;
 console.log(
     `check-website-adwaita-gallery: ${metas.size} story metas — ${metas.size - exempt} documented by ` +
-        `${gallery.size} <AdwWidget> blocks, ${exempt} ledgered with a reason.`,
+        `${gallery.size} <AdwWidget> blocks across ${pages.length} pages, all of them in the sidebar, ` +
+        `${exempt} ledgered with a reason.`,
 );
