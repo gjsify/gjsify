@@ -69,7 +69,8 @@ const CORE_PACKAGE = '@gjsify/adwaita-core';
 // USING a sibling element and DELEGATING to one are the same import edge, so the
 // difference is not derivable and is declared instead — in the delegating file's own
 // header, where `CORE-ONLY:` already puts this kind of claim. Spelled with the
-// specifier the file imports, so declaration and code stay one vocabulary.
+// specifier the file imports and HELD to it, so a declaration cannot outlive the
+// edge it describes — which is how the last one survived its own deletion.
 const CORE_VIA = 'CORE-VIA:';
 const CORE_VIA_PATTERN = /CORE-VIA:\s*(\S+)\s*—\s*([^\n]*)/g;
 
