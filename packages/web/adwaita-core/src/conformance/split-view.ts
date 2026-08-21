@@ -39,7 +39,11 @@ export interface AdwLengthUnitVector {
 /**
  * `adw_length_unit_to_px`.
  *
- * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (SIDEBAR_BOUNDS_VECTORS, which both renderers drive)
+ * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it
+ * separately would assert the same thing twice (SIDEBAR_BOUNDS_VECTORS, driven by the browser suite).
+ * ONE renderer, not two: NativeScript drives SIDEBAR_WIDTH_VECTORS instead, and works in DIPs, so
+ * `split-view-width.spec.ts` skips every row that sets a unit or a dpi — no NativeScript surface
+ * reaches this conversion at all.
  */
 export const ADW_LENGTH_UNIT_VECTORS: ReadonlyArray<AdwLengthUnitVector> = [
     { unit: 'px', value: 180, dpi: 96, px: 180, rule: 'px is a passthrough' },

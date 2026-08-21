@@ -2086,3 +2086,54 @@ check — a JSON or YAML FRAGMENT an entry pastes verbatim can be held to still
 parsing out of the file it names, because a pasted structure is unambiguously a
 quote rather than a mention. There is about one such fragment here, so that
 machinery would be honest and nearly idle, which is the correct size for it.
+
+### Four adwaita-core modules have no conformance vector table
+
+`breakpoint.ts`, `color-scheme.ts`, `scrolling.ts` and `toast.ts` export shared
+behaviour and are covered by nothing in `@gjsify/adwaita-core/conformance` — no
+vector table names them, and no conformance file imports them. Three of the four
+are what `packages/web/AGENTS.md` advertises as the core's flagship shared
+behaviour ("Breakpoints (grammar/parser/evaluator + transition-only
+`AdwBreakpoint`), color-scheme observable, toast queue").
+
+They were invisible rather than under-covered: `check-adwaita-conformance-drivers.mjs`
+is keyed by TABLE, so it reported "156 vector tables, every one driven or
+explained" over a set none of these four is in. The gate now carries a
+module-keyed arm and these four are its declared exceptions
+(`MODULE_REASONS`), which is what makes them countable.
+
+Each needs its own vectors before a renderer can be held to it, and each is a
+different shape of work: the breakpoint grammar wants a parse/evaluate table
+against `refs/libadwaita/src/adw-breakpoint.c`; scrolling wants the undershoot
+and overshoot arithmetic; the toast queue wants a scheduler seam both renderers
+already have. `color-scheme` is entangled with the divergence below and should be
+vectored after it is decided, not before.
+
+### adwaita-web does not use the color-scheme singleton at all
+
+`packages/web/adwaita-core/src/color-scheme.ts` documents itself as "the single
+source of truth for the current Adwaita color scheme plus a change notifier,
+shared by every renderer (ADR 0004)". Measured 2026-08-21: `adwaita-web` calls
+none of its seven exports — not `adwaitaColorScheme`, `setAdwaitaColorScheme`,
+`toggleAdwaitaColorScheme`, `onAdwaitaColorSchemeChanged`, `themeIconColor`,
+`isThemeIconColor`, nor either `DEFAULT_ICON_COLOR*`. It answers the question
+itself in `src/accent.ts:55` (`isAdwaitaDark`), reading `.theme-dark` /
+`.theme-light` and falling back to `matchMedia('(prefers-color-scheme: dark)')`.
+The NativeScript bridge, by contrast, re-exports all of it and subscribes from
+`adw-icon` and `adw-image-button`.
+
+So `setAdwaitaColorScheme('dark')` is a no-op in the browser, and the two ports
+disagree about where the scheme lives while the core claims to be that place.
+Not obviously a bug in adwaita-web: a browser renderer that ignored
+`prefers-color-scheme` and the stylesheet's own manual override classes would be
+the wrong thing, and the core's own header already concedes that "applying the
+scheme to a surface is the renderer's job". What is wrong is the core's claim to
+be the SOURCE, which nothing holds it to on the browser side.
+
+The decision to make is which way the singleton points: either the browser
+element learns to seed and follow it (`isAdwaitaDark` becomes the platform half
+that feeds `setAdwaitaColorScheme`, media-query listener included), or the core
+docblock stops calling itself shared and the field narrows to the NativeScript
+theming path it actually serves. Deferred out of the gate PR that measured it,
+because either direction is a behaviour change and would make a review of the
+gate impossible.

@@ -1068,7 +1068,10 @@ export interface LicenseSetterVector {
  * licence-type change DOES switch the type, while assigning `""` to an already
  * empty licence does not.
  *
- * CORE-ONLY: a property-ordering table with no rendered surface — the RESULT is ABOUT_DIALOG_CREDITS_LEGAL_VECTORS, which both renderers drive
+ * CORE-ONLY: a property-ordering table with no rendered surface — the RESULT is
+ * ABOUT_DIALOG_CREDITS_LEGAL_VECTORS, driven by the browser suite. ONE renderer, not two: the
+ * NativeScript bridge ships an `adw-about-dialog` widget and no spec for it, so nothing on that
+ * side is held to ANY about-dialog vector.
  */
 export const LICENSE_SETTER_VECTORS: ReadonlyArray<LicenseSetterVector> = [
     {
