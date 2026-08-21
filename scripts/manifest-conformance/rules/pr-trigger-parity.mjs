@@ -29,9 +29,15 @@
  * deciding whether one glob list covers another needs a solver, and every conforming
  * workflow in this repository already spells the two sides the same.
  *
- * NOT checked: whether a filter's globs actually cover what the workflow guards
- * (`napi.yml`'s allow-list misses inputs it depends on, and this rule passes it —
- * both sides agree, and agreeing is all it can see); `types:` narrowing on a
+ * NOT checked: whether a filter's globs actually cover what the workflow guards. Two
+ * sides that are equally wrong look like parity, and agreeing is all this rule can
+ * see. `napi.yml` was the worked example until it went deny-list; the open one is
+ * `deploy-docs.yml`, whose `paths:` allow-list omits `scripts/**` while its job runs
+ * `gjsify run build:infra` (which runs `node scripts/bootstrap-native-facades.mjs`) and
+ * builds a website whose `generate-coverage.mjs` imports
+ * `../../scripts/generate-status.mjs` and whose `generate-platform-matrix.mjs` imports
+ * `../../scripts/audit-runtimes.mjs`. Closing that one is a separate decision — a
+ * deny-list there re-triggers a Pages DEPLOY, not just a check. `types:` narrowing on a
  * `pull_request` (`commitlint.yml` narrows it deliberately, and a types list is not a
  * coverage claim about the tree); and whether the PR run is a REQUIRED check, which is
  * a governance decision documented in `docs/governance.md`, not a conformance fact.

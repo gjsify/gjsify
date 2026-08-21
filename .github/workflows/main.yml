@@ -1262,6 +1262,15 @@ jobs:
   # out and carry their measured cause in `status/integration-coverage.md`;
   # each returns here in the commit that makes it green, one cause per commit.
   #
+  # A suite blocked on a MISSING IMAGE PACKAGE returns one merge later than the
+  # commit that bakes it, and that is not slack. `build-ci-image.yml` pushes
+  # `ghcr.io/gjsify/ci-fedora:<major>` on a push to main and deliberately never
+  # pushes from a pull request (a fork PR's token cannot authenticate to GHCR),
+  # while the `container:` below resolves the MUTABLE tag at job start. So adding
+  # the package and the `--include` in one commit runs the suite against the image
+  # from before the package: red on its own PR, then red on main. `openssl` for
+  # `@gjsify/integration-tls-session` is the open instance — see that suite's note.
+  #
   # The list is spelled out rather than globbed on purpose. `gjsify foreach`
   # makes an `--include` PATTERN matching zero workspaces a hard error, so a
   # renamed or deleted suite fails this job loudly — where a glob would quietly

@@ -44,7 +44,7 @@ package it named had reached `full`.
    the merge. It does not pass without measuring — it is simply absent from the PR, which reads
    identically. `pr-trigger-parity` now holds every workflow's `pull_request` trigger to its
    `push`-to-`main` one; what it deliberately cannot see is whether a filter's globs still cover
-   the inputs the workflow guards (`napi.yml` is the open instance).
+   the inputs the workflow guards (`deploy-docs.yml` is the open instance).
 
 3. **Keep the ledger measurable — the guards are exhausted, the reading pass is not.** Entries
    here and in `open-todos.md` describe a tree that moves faster than prose, and a stale entry

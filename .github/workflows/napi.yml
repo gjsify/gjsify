@@ -10,28 +10,80 @@ name: napi
 # the Node N-API test addons with node-gyp, and runs every gate + the
 # golden-diff conformance oracle on Fedora 44 (GJS 1.88 / mozjs-140).
 
+# THE TRIGGER IS A DENY-LIST, and for this workflow that is not a preference (#1173).
+# The allow-list it replaced named four paths; the jobs below read far more. They run
+# `gjs -m install.mjs` + `gjsify foreach build:gjsify` over the WHOLE workspace, build
+# `@gjsify/create-app`, take the published-CLI version out of
+# `packages/infra/cli/package.json`, key the polyfill-libs cache on `gjsify-lock.json`,
+# and shell out to `.github/scripts/install-published-cli.sh`. A change to any of those
+# could red this workflow and none of them could trigger it. (`packages/infra/tsc` and
+# `packages/infra/resolve-npm` are the counter-example, and their `!…/lib` carve-outs
+# from that cache key say so: the foreach excludes the first and the second ships no
+# `build:gjsify` at all, so this job never produces either tree.)
+#
+# `scripts/manifest-conformance/rules/pr-trigger-parity.mjs` names this exact file in
+# its docblock and passes it: it compares the `push` filter to the `pull_request` one,
+# never to what the jobs read, so two sides that are equally wrong look like parity.
+#
+# The bill is bigger here than for any other workflow because `packages/napi` is NOT a
+# gjsify workspace member — `main.yml` neither builds nor tests it, so this file is the
+# only CI the whole N-API pillar has. An allow-list fails SILENT: an input nobody listed
+# produces no run, and no run reads as no problem. Same class as #1028 (an e2e guard
+# firing only on `tests/e2e/**`) and #1173 (node-gi's own three-path list).
+#
+# `refs/**` is deliberately NOT on the list, which is where this deny-list parts company
+# with `node-gi.yml`'s otherwise identical one — as accepted over-triggering, not as a
+# dependency. No run here reads the gitlink at all: the fetch step wipes `refs/node` and
+# clones nodejs/node at `NODE_TEST_REV` (below), so a submodule bump produces a
+# byte-identical run. What it costs to leave the directory off is therefore a few
+# redundant runs on a pin nothing here consumes, and `paths-ignore` has no negation, so
+# ignoring `refs/**` to save them is all-or-nothing. Erring towards RUNNING is the only
+# direction a guard may fail in — and the pin the run DOES depend on is held to the
+# gitlink by the `workflow-rev-pin` conformance rule, on every PR.
+#
+# The width has a price and it is paid deliberately: the `macos` job below now runs on
+# every PR, where the allow-list gave it four paths. That is the arrangement ADR 0018
+# § 5 was AMENDED to after its 2026-08-16 re-measurement — the original "the OS axis is
+# verified on main and the nightly, not per PR" is superseded, because the runners are
+# unbilled on a public repo, neither OS leg is the critical path, and the withdrawal is
+# what let #1209 merge green and leave a suite red across eight further merges. It
+# matters more here than there: this macOS leg is the ONLY proof of the tsfn
+# use-after-free fix (see its own comment — the team is Linux-only locally), and there
+# is no second workflow to catch a darwin break. If macOS CONCURRENCY becomes the
+# constraint, the answer is still not a `scope` gate — but the ADR's fallback (narrow
+# the macOS MATRIX) has nothing to narrow here: this is ONE `macos-latest` job with no
+# matrix. What is left to trade is the GATE SET that job runs, already the shortest in
+# the file (the conformance oracle, the better-sqlite3 consumer gate, the
+# node-gi-under-shim oracle and the valgrind legs are all deferred off it). Never
+# withdraw the leg from PRs.
 on:
   push:
     branches: [main]
-    paths:
-      - 'packages/napi/**'
-      # The nodegi-shim job below BUILDS + TESTS @gjsify/node-gi under the shim
-      # (the N-API fidelity oracle), so a node-gi change that could break the
-      # oracle must re-run this workflow too.
-      - 'packages/node-gi/**'
-      # The transparent addon matrix in the `consumer` job below covers
-      # `napiNodeAddonPlugin`, which LIVES here — so a change to the plugin is
-      # exactly what must re-run this workflow. Without this path the matrix
-      # would still not have caught the six defects it exists for (#840): they
-      # were all in rolldown-plugin-gjsify, which triggers main.yml, not napi.yml.
-      - 'packages/infra/rolldown-plugin-gjsify/**'
-      - '.github/workflows/napi.yml'
+    # Every entry has to be a path that CANNOT change what the jobs below build or
+    # run — when in doubt it belongs off the list, because an entry added by guess
+    # restores the silence this deny-list exists to end. Spelled out again under
+    # `pull_request` rather than shared: a YAML anchor is not part of the workflow
+    # syntax GitHub parses, and `pr-trigger-parity` compares the two lists literally.
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      # `@gjsify/website` is a workspace member, but it ships no `build:gjsify` script
+      # (so the polyfill foreach skips it) and lives outside `packages/`, so it is not
+      # in the libs cache key either. Nothing here can resolve it.
+      - 'website/**'
   pull_request:
-    paths:
-      - 'packages/napi/**'
-      - 'packages/node-gi/**'
-      - 'packages/infra/rolldown-plugin-gjsify/**'
-      - '.github/workflows/napi.yml'
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - 'website/**'
+  schedule:
+    # 04:41 UTC — off the hour so this does not queue behind everything scheduled at
+    # :00, and off node-gi.yml's 03:17 so the two heavy addon builds do not contend.
+    # The nightly is what bounds how long a break can hide when nobody pushes at all:
+    # the shim links a distro gjs + mozjs-140 and the addons are built by node-gyp
+    # against a downloaded Node, so this pillar can go red from a Fedora or nodejs.org
+    # update with no commit in the repository at all.
+    - cron: '41 4 * * *'
   # Manual driver for the experimental `windows` job below (gated on this event)
   # — the from-source gjs + mozjs-140 Windows attempt is opt-in so it never reds
   # a normal push/PR while gjs-on-Windows remains blocked (see status/open-todos.md).
