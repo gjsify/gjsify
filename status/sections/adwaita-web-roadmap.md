@@ -58,5 +58,14 @@ than none.
 Which widget is missing from which renderer is an asymmetric row in the derived matrix, so it is
 not listed here — the copy that used to sit here named `adw-icon` as NativeScript-only and
 `adw-data-grid` as browser-only after both had shipped on both sides. What a matrix cannot say is
-whether an asymmetry is a GAP or a DECISION; when one is settled, the reason goes next to the
-widget, the way `.inline` carries its reason in the style-class ledger.
+whether an asymmetry is a GAP or a DECISION, so that verdict sits next to the widget in
+`ONE_RENDERER_ONLY` (`scripts/check-storybook-widget-coverage.mjs`), the way `.inline` carries its
+reason in the style-class ledger: a `decision` with its reason, or a `gap` pointing at where the
+work is tracked, and the gate fails on an asymmetric widget with neither.
+
+Most of those verdicts were settled by reading `refs/libadwaita` rather than judged: only
+`adw-dialog`, `adw-window`, `adw-navigation-page` and the two carousel indicators have an Adw
+WIDGET upstream at all. The rest are stylesheet partials over a GTK primitive, or public Adw
+GObjects that are DATA rather than views — and for both, which renderer wrapped the thing in an
+element of its own is a rendering idiom, not a missing port. The ones nobody can settle from
+outside the ports are gaps, and `status/open-todos.md` says what each is waiting on.

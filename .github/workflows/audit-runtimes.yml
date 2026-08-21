@@ -384,7 +384,10 @@ jobs:
       # construction to the story that exists NOWHERE — a widget with no meta at all is
       # perfectly symmetric across three targets. Measured: nine widgets shipped on both
       # renderers had no story anywhere, `adw-entry` and `adw-drop-down` among them.
-      - name: Check every shared widget is in the storybook or ledgered
+      # The second ledger covers what the story rule deliberately cannot: a widget on
+      # ONE renderer, where the matrix shows the asymmetry and nothing said whether it
+      # was a gap or a decision (#1195).
+      - name: Check every widget is storyed, ledgered or verdicted
         run: node scripts/check-storybook-widget-coverage.mjs
 
       # A NativeScript widget's className and the theme's selector are two halves of
@@ -774,7 +777,10 @@ jobs:
       # construction to the story that exists NOWHERE — a widget with no meta at all is
       # perfectly symmetric across three targets. Measured: nine widgets shipped on both
       # renderers had no story anywhere, `adw-entry` and `adw-drop-down` among them.
-      - name: Check every shared widget is in the storybook or ledgered
+      # The second ledger covers what the story rule deliberately cannot: a widget on
+      # ONE renderer, where the matrix shows the asymmetry and nothing said whether it
+      # was a gap or a decision (#1195).
+      - name: Check every widget is storyed, ledgered or verdicted
         run: node scripts/check-storybook-widget-coverage.mjs
 
       # A NativeScript widget's className and the theme's selector are two halves of
