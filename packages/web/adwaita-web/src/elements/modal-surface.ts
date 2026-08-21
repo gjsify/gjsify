@@ -15,8 +15,9 @@
 //
 // WHY IT IS A MODULE AND NOT A COPY
 //
-// `setAttribute('aria-modal', …)` now lives HERE and nowhere else, held by
-// `scripts/check-adwaita-modal-trap.mjs`. That is what makes a fifth modal surface
+// `aria-modal` — the attribute and the reflected `.ariaModal` property alike — now lives
+// HERE and nowhere else, held by the `[trap]` arm of
+// `scripts/check-adwaita-keyboard-contract.mjs`. That is what makes a fifth modal surface
 // impossible to add without a trap: the declaration and the behaviour it promises are
 // the same call.
 //
@@ -63,10 +64,14 @@ export interface AdwModalSurfaceInit {
     /**
      * Where focus goes on present, when the element wants something other than the first
      * focusable control — `<adw-alert-dialog>` starts on its DEFAULT response, not on the
-     * leftmost button. Returning nothing falls back to the first focusable, then to the
-     * surface itself.
+     * leftmost button. It is handed {@link AdwModalSurface.focusables}, so a rule like
+     * "the first control in the content area" is a `find` over that list rather than a
+     * second copy of the filter.
+     *
+     * Returning nothing — or an element that is not in that list — falls back to the
+     * first focusable, then to the surface itself.
      */
-    initialFocus?: () => HTMLElement | null | undefined;
+    initialFocus?: (focusables: readonly HTMLElement[]) => HTMLElement | null | undefined;
 }
 
 /**
@@ -116,7 +121,18 @@ export class AdwModalSurface {
     present(): void {
         const active = document.activeElement;
         this._previouslyFocused = active instanceof HTMLElement && active !== this._init.host ? active : null;
-        const target = this._init.initialFocus?.() ?? this.focusables()[0] ?? this._init.surface;
+        const focusables = this.focusables();
+        // A `??` chain falls through when the element asks for NOTHING, never when it asks
+        // for something the browser refuses — so a request is honoured only if it is in the
+        // list, the same test the trap uses for its edges. Measured in Firefox before this
+        // filter: an `<adw-alert-dialog>` whose default response was DISABLED handed that
+        // button back, `focus()` on it was a no-op, and the dialog opened with
+        // `document.activeElement` still on the opener OUTSIDE it. The keydown listener
+        // sits on the host, so focus never entered, no key ever reached the trap, and a
+        // real Escape left `open` true — unreachable and undismissable at once.
+        const wanted = this._init.initialFocus?.(focusables);
+        const target =
+            (wanted && focusables.includes(wanted) ? wanted : undefined) ?? focusables[0] ?? this._init.surface;
         target.focus();
     }
 

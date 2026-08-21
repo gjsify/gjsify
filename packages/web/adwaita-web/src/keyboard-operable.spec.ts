@@ -20,6 +20,8 @@
 // `tests/browser/specs/adwaita-keyboard.spec.ts`.
 import { describe, expect, it } from '@gjsify/unit';
 
+import type { AdwAlertDialog } from './elements/adw-alert-dialog.js';
+
 /** Unique per element so a spec's `stack="…"` reference cannot pick up an earlier one. */
 let seq = 0;
 const uniqueId = (prefix: string) => `${prefix}-${(seq += 1)}`;
@@ -194,6 +196,15 @@ const ROVING_CASES: RovingCase[] = [
     },
 ];
 
+/** A connected `<adw-alert-dialog>` carrying `inner` as its declared markup. */
+function makeAlertDialog(inner: string): AdwAlertDialog {
+    const el = document.createElement('adw-alert-dialog') as AdwAlertDialog;
+    el.setAttribute('heading', 'Heading');
+    el.innerHTML = inner;
+    document.body.appendChild(el);
+    return el;
+}
+
 /** Connect, run, disconnect — including whatever model the case put beside the widget. */
 function withWidget(make: () => HTMLElement, body: (el: HTMLElement) => void): void {
     const el = make();
@@ -256,6 +267,54 @@ export const AdwKeyboardOperableTest = async () => {
                 opener.remove();
             });
         }
+
+        await it('adw-alert-dialog with a disabled default response still focuses inside', async () => {
+            const opener = document.createElement('button');
+            document.body.appendChild(opener);
+            const el = makeAlertDialog(
+                '<adw-alert-response id="ok">OK</adw-alert-response>' +
+                    '<adw-alert-response id="cancel">Cancel</adw-alert-response>',
+            );
+            el.setDefaultResponse('ok');
+            el.setResponseEnabled('ok', false);
+            opener.focus();
+            el.setAttribute('open', '');
+
+            const surface = el.querySelector('.adw-alert-dialog-box') as HTMLElement;
+            // The element asked for a control `focus()` REFUSES. Measured in Firefox before
+            // the surface checked that: the dialog opened with focus still on the opener
+            // OUTSIDE it, no key reached the trap (its listener is on the host), and Escape
+            // left `open` true — unreachable and undismissable at once.
+            expect(surface.contains(document.activeElement)).toBe(true);
+            expect((document.activeElement as HTMLButtonElement).disabled).toBe(false);
+            // The C skips a disabled response and takes the next enabled one
+            // (adw-alert-dialog.c:409), which is the only one left here.
+            expect(document.activeElement?.textContent).toBe('Cancel');
+
+            press(el, 'Escape');
+            expect(el.hasAttribute('open')).toBe(false);
+            expect(document.activeElement).toBe(opener);
+
+            el.remove();
+            opener.remove();
+        });
+
+        await it('adw-alert-dialog focuses its content before its default response', async () => {
+            const el = makeAlertDialog(
+                '<input class="field">' +
+                    '<adw-alert-response id="ok">OK</adw-alert-response>' +
+                    '<adw-alert-response id="cancel">Cancel</adw-alert-response>',
+            );
+            el.setDefaultResponse('ok');
+            el.setAttribute('open', '');
+
+            // `adw_alert_dialog_grab_focus` tries the CONTENT first (adw-alert-dialog.c:396)
+            // and only then the default widget: an alert carrying an entry is answered by
+            // typing into it, not by tabbing back to it.
+            expect(document.activeElement).toBe(el.querySelector('.field'));
+
+            el.remove();
+        });
 
         await it('adw-dialog with nothing focusable inside holds focus on the box', async () => {
             const el = document.createElement('adw-dialog');

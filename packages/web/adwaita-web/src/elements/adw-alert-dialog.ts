@@ -162,9 +162,7 @@ export class AdwAlertDialog extends HTMLElement {
             role: 'alertdialog',
             isOpen: () => this.open,
             onEscape: () => this._dismiss(),
-            // AdwAlertDialog:default-response is where GTK puts the initial focus, and it
-            // is rarely the first button — a destructive alert opens on Cancel.
-            initialFocus: () => this._defaultResponseButton(),
+            initialFocus: (focusables) => this._initialFocusTarget(focusables),
         });
 
         const messageArea = document.createElement('div');
@@ -359,14 +357,29 @@ export class AdwAlertDialog extends HTMLElement {
         this.dispatchEvent(new CustomEvent('response', { bubbles: true, detail: { response } }));
     }
 
-    /** The default response button, or the first enabled one — `adw_alert_dialog_present`. */
+    /**
+     * Where a presented alert puts focus, in the three steps `adw_alert_dialog_grab_focus`
+     * takes (refs/libadwaita/src/adw-alert-dialog.c:381): the CONTENT first
+     * (`adw_widget_grab_focus_child (priv->scrolled_window)`, :396), then the default
+     * widget (:405), then the first response whose `enabled` is set (:409). The default
+     * response is rarely the first button — a destructive alert opens on Cancel — and
+     * content beats it: an alert carrying an entry is answered by typing into it.
+     *
+     * `focusables` is the surface's own list, so what "focusable" means is decided once.
+     */
+    private _initialFocusTarget(focusables: readonly HTMLElement[]): HTMLElement | undefined {
+        return focusables.find((el) => this._childEl.contains(el)) ?? this._defaultResponseButton();
+    }
+
+    /** The default response button, or the first enabled one. */
     private _defaultResponseButton(): HTMLElement | undefined {
         const defaultId = this._model.defaultResponse;
         const firstEnabledId = this._model.responses.find((response) => response.enabled)?.id;
-        return (
-            (defaultId ? this._buttons.get(defaultId) : undefined) ??
-            (firstEnabledId ? this._buttons.get(firstEnabledId) : undefined)
-        );
+        // The enabled check covers the DEFAULT too: `focus()` on a disabled button is a
+        // no-op, so handing one back left the dialog open with focus outside itself.
+        const defaultButton =
+            defaultId !== null && this._model.getResponseEnabled(defaultId) ? this._buttons.get(defaultId) : undefined;
+        return defaultButton ?? (firstEnabledId ? this._buttons.get(firstEnabledId) : undefined);
     }
 
     private _render(): void {
