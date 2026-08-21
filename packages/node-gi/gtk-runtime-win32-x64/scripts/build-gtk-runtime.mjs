@@ -62,7 +62,9 @@ import {
     describeGlImplementation,
     formatMissingGlImplementation,
 } from '../../scripts/gl-implementation.mjs';
+import { decodeProbeProblems, spawnDecodeProbe } from '../../scripts/decode-probe.mjs';
 import { isBundledGstPlugin } from '../../scripts/gst-plugins.mjs';
+import { bundleRelativeLoaderCache, loaderCacheProblems } from '../../scripts/pixbuf-loader-cache.mjs';
 import {
     REQUIRED_NAMESPACES,
     WINDOWING_REQUIRED_NAMESPACES,
@@ -87,6 +89,10 @@ function argValue(flag) {
 }
 const OUT = argValue('--out') ?? join(pkgRoot, 'gtk');
 const PREFIX = argValue('--prefix') ?? process.env.GTK_PREFIX;
+// The node-gi addon that DECODES one of the bundled icons in § 5c. Required under
+// --windowing; nothing else here uses it, and there is deliberately no relocation pass
+// for it (Windows resolves DLLs by search path — node-gi puts the bundle's bin/ first).
+const ADDON = argValue('--addon');
 // The full-windowing SUPERSET: also collect the runtime data a real GTK window needs.
 const WINDOWING = process.argv.includes('--windowing');
 // Make "this windowing bundle resolves no GL implementation" FATAL rather than a
@@ -430,10 +436,16 @@ const windowing = {
     gtksource: false,
 };
 if (WINDOWING) {
-    // 4a. gdk-pixbuf loaders + a bundle-relative loaders.cache. The cache maps each
-    // decoder DLL to its mime/extensions; gdk-pixbuf resolves the DLL paths in it
-    // relative to GDK_PIXBUF_MODULEDIR when set (node-gi sets it), so we rewrite the
-    // absolute build paths the query tool emits down to leaf names.
+    // 4a. gdk-pixbuf loaders + a TOPLEVEL-relative loaders.cache. The cache maps each
+    // decoder DLL to its mime/extensions, and the query tool emits absolute build paths
+    // that resolve on this machine alone, so the module lines get rewritten.
+    //
+    // Rewritten to `lib/gdk-pixbuf-2.0/2.10.0/loaders/<leaf>`, NOT to `<leaf>`. gdk-pixbuf
+    // joins a relative cache entry with the bundle TOPLEVEL and never consults
+    // GDK_PIXBUF_MODULEDIR, which is a generator-only variable — the leaf this used to
+    // write resolved to `<bundle>\<leaf>`, so every SVG icon shipped undecodable while the
+    // cache still parsed and still advertised `svg`. pixbuf-loader-cache.mjs carries the
+    // measurement; `loaderCacheProblems` below is what makes the class fail the build.
     if (existsSync(gdkPixbufLoaderDir)) {
         const loadersOut = join(OUT, 'lib', 'gdk-pixbuf-2.0', '2.10.0', 'loaders');
         mkdirSync(loadersOut, { recursive: true });
@@ -455,9 +467,17 @@ if (WINDOWING) {
             } catch (error) {
                 cache = typeof error?.stdout === 'string' ? error.stdout : '';
             }
-            // A loader header line is a quoted absolute path; strip it to the leaf so
-            // GDK_PIXBUF_MODULEDIR resolves it in the consumer's bundle.
-            const rel = cache.replace(/^"(.*[\\/])?([^"\\/]+\.dll)"\s*$/gim, '"$2"');
+            const rel = bundleRelativeLoaderCache(cache);
+            // Asserted BEFORE the write, and against the bundle on disk: a cache naming a
+            // module that is not there is the defect above, and it is invisible to every
+            // other check here (§ 5b counts the files, and they are all present).
+            const cacheProblems = loaderCacheProblems(rel, { bundleDir: OUT });
+            if (cacheProblems.length > 0) {
+                console.error(
+                    `build-gtk-runtime: THE LOADER CACHE POINTS OUTSIDE THE BUNDLE —\n  ${cacheProblems.join('\n  ')}`,
+                );
+                process.exit(1);
+            }
             writeFileSync(cacheOut, rel);
             console.log(`build-gtk-runtime: wrote loaders.cache (${windowing.pixbufLoaders} loaders, bundle-relative)`);
         } else {
@@ -709,6 +729,59 @@ if (WINDOWING) {
         `build-gtk-runtime: windowing data verified — ${data.applied
             .map((a) => `${a.id} (${a.files} file(s))`)
             .join(', ')}`,
+    );
+}
+
+// --- 5c. WINDOWING: DECODE an icon this bundle just shipped ----------------
+// The assertion § 5b cannot make, and the reason this file changed at all (#996): § 5b
+// counts the files in each declared data set, and a count is not a capability. The
+// darwin sibling shipped 860 icon files of which zero decoded while its manifest read
+// `verified icons: 863`; nobody has ever run a decode against the win32 bundle at all,
+// which is the same missing signal with no measurement behind it yet.
+//
+// This is where the win32 loader mechanism finally got exercised rather than reasoned
+// about, and it FAILED on its first run: the cache named its modules by BARE LEAF on the
+// theory that gdk-pixbuf honours `GDK_PIXBUF_MODULEDIR`, which it does not, so the
+// bundle's one external loader resolved to a path nothing writes and the probe recorded
+// `0x0` for an SVG the manifest counted among 820 icon files. § 4a writes the cache
+// toplevel-relative now and asserts it; this decode is what says the chain WORKS.
+//
+// The RECORD goes into the manifest and `verify-bundle-manifest.mjs` requires it, so a
+// bundle built by an older builder, or with this step bypassed, cannot publish.
+if (WINDOWING) {
+    if (!ADDON) {
+        console.error(
+            'build-gtk-runtime: --windowing needs --addon <node_gi.node> so the bundle can DECODE one of ' +
+                'its own icons before it is published. Without it the only evidence the icon theme works ' +
+                'is a file count, which is what the darwin bundle passed with zero decodable icons.',
+        );
+        process.exit(1);
+    }
+    if (!existsSync(ADDON)) {
+        console.error(`build-gtk-runtime: --addon ${ADDON} not found`);
+        process.exit(1);
+    }
+    // `hostPrefixes: [PREFIX]` is load-bearing HERE and not a precaution: the job that
+    // runs this puts `<PREFIX>\bin` on GITHUB_PATH one step earlier (the bundle-data
+    // tools need it), and Windows resolves a DLL by SEARCH PATH — so without the scrub a
+    // DLL missing from the bundle resolves from the gvsbuild prefix and the probe
+    // records a pass for a bundle that works on this runner alone.
+    const probe = spawnDecodeProbe({ bundleDir: OUT, addon: ADDON, hostPrefixes: [PREFIX] });
+    const probeProblems = decodeProbeProblems(probe);
+    if (probeProblems.length > 0) {
+        console.error(
+            `build-gtk-runtime: THE BUNDLE CANNOT DECODE ITS OWN ICONS —\n  ${probeProblems.join('\n  ')}\n` +
+                `record: ${JSON.stringify(probe, null, 2)}\n` +
+                'Do NOT relax this check: a bundle that ships an icon theme no loader can read is the ' +
+                'defect this build exists to stop shipping.',
+        );
+        process.exit(1);
+    }
+    windowing.decodeProbe = probe;
+    console.log(
+        `build-gtk-runtime: decode probe passed — ${probe.svg.file} ${probe.svg.width}x${probe.svg.height}, ` +
+            `${probe.png.file} ${probe.png.width}x${probe.png.height} (${probe.loaderModules} loader module(s), ` +
+            `${probe.formats.length} format(s))`,
     );
 }
 

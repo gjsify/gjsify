@@ -14,9 +14,9 @@
 // it — deliberately the manifest and not the build log, because the build log is not shipped. Each
 // names a v0.27.1 defect (display-free variant published as the release; unfiltered typelib copy
 // advertising constructible types with no backing library; relocated LGPL/MPL/GPL libraries with
-// no license file) — detail in docs/node-gi-platform-notes.md. `windowingData.verified` requires
-// the builder's RECORD, so a bundle built by an older builder, or with the gate bypassed, cannot
-// publish.
+// no license file) — detail in docs/node-gi-platform-notes.md. `windowingData.verified` and
+// `windowingData.decodeProbe` require the builder's RECORD, so a bundle built by an older builder,
+// or with the gate bypassed, cannot publish.
 //
 // Usage:
 //   node packages/node-gi/scripts/verify-bundle-manifest.mjs --bundle <dir>
@@ -24,6 +24,7 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { decodeProbeProblems } from './decode-probe.mjs';
 
 const args = process.argv.slice(2);
 
@@ -97,6 +98,18 @@ if (!verified.length) {
     }
 }
 
+// And the check the counts above CANNOT make. The darwin-x64 0.28.0 bundle satisfied every
+// line so far — `iconFiles: 860`, `verified icons: 863` — while zero of those files decoded:
+// two GObject registries (the addon kept absolute Homebrew install names, the bundle shipped
+// its own libgio/libgobject) meant `Pixbuf.new_from_file()` on the bundle's own Adwaita SVG
+// returned −1×−1. A file count is not a capability. The builder, which is the only thing that
+// runs on the target platform, decodes one bundled icon and records the pixel dimensions; this
+// asserts that record. Requiring it — rather than treating its absence as "unverified" — is
+// what stops a bundle built by an older builder, or with the probe bypassed, from publishing.
+// The count checks above stay: they still catch an EMPTY data set, which fails earlier and
+// with a clearer cause than a decode that found nothing to open.
+problems.push(...decodeProbeProblems(manifest.windowingData?.decodeProbe));
+
 if (problems.length) {
     console.error(`verify-bundle-manifest: ${manifestPath} FAILED ${problems.length} check(s)`);
     for (const problem of problems) console.error(`  - ${problem}`);
@@ -104,8 +117,11 @@ if (problems.length) {
 }
 
 const sets = verified.map((set) => `${set.id}:${set.files}`).join(' ');
+const probe = manifest.windowingData.decodeProbe;
 console.log(
     `verify-bundle-manifest: ${manifest.platform} clean — windowing superset, ` +
         `${manifest.typelibSymmetry.backed} backed typelibs, ${manifest.licenses.texts} license texts, ` +
-        `${manifest.dataBytes} data bytes, sets ${sets}`,
+        `${manifest.dataBytes} data bytes, sets ${sets}, ` +
+        `decoded ${probe.svg.file} ${probe.svg.width}x${probe.svg.height} + ` +
+        `${probe.png.file} ${probe.png.width}x${probe.png.height} through the ${probe.gtkSource} GTK`,
 );

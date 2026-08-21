@@ -39,6 +39,37 @@ const GUARD = join(MONOREPO_ROOT, 'scripts', 'check-workflow-inline-scripts.mjs'
 const IMAGE_GUARD = join(MONOREPO_ROOT, 'scripts', 'check-ci-image-packages.mjs');
 const ORDER_GUARD = join(MONOREPO_ROOT, 'scripts', 'check-build-infra-order.mjs');
 
+/**
+ * A passing decode probe, in the shape the builders record it. The dimensions are the
+ * ones the #996 investigation measured on a WORKING darwin stack (bundle dylibs forced
+ * to win via DYLD_LIBRARY_PATH): SVG 16x16, PNG 16x16, 14 formats.
+ *
+ * `platform`/`gtkSource`/`bundleIsProbeTarget` are what the probe read off the RUNNING
+ * process — the manifest is otherwise all disk facts, and the host GTK decoding a file
+ * that merely sits at the bundle's path satisfies every one of them.
+ */
+function goodProbe(overrides = {}) {
+    return {
+        ok: true,
+        platform: 'darwin',
+        gtkSource: 'bundle',
+        bundleIsProbeTarget: true,
+        addon: 'node_gi.node',
+        loaderCache: 'lib/gdk-pixbuf-2.0/2.10.0/loaders.cache',
+        loaderDir: 'lib/gdk-pixbuf-2.0/2.10.0/loaders',
+        loaderModules: 12,
+        svg: { file: 'share/icons/Adwaita/symbolic/actions/open-menu-symbolic.svg', width: 16, height: 16 },
+        png: {
+            file: 'share/icons/Adwaita/16x16/devices/audio-headphones.png',
+            width: 16,
+            height: 16,
+            source: 'bundled',
+        },
+        formats: ['png', 'svg', 'jpeg', 'gif'],
+        ...overrides,
+    };
+}
+
 /** The measured shape of a good v0.28.0 darwin-arm64 bundle manifest. */
 function goodManifest(overrides = {}) {
     return {
@@ -53,6 +84,7 @@ function goodManifest(overrides = {}) {
                 { id: 'icons', files: 863 },
                 { id: 'gtksource', files: 6 },
             ],
+            decodeProbe: goodProbe(),
         },
         ...overrides,
     };
@@ -83,6 +115,8 @@ describe('verify-bundle-manifest: the release gate', () => {
         assert.match(result.stdout, /clean — windowing superset/);
         assert.match(result.stdout, /25 backed typelibs/);
         assert.match(result.stdout, /65 license texts/);
+        assert.match(result.stdout, /decoded .*open-menu-symbolic\.svg 16x16/);
+        assert.match(result.stdout, /through the bundle/);
     });
 
     it('rejects the v0.27.1 display-free bundle on every count it shipped wrong', () => {
@@ -91,11 +125,12 @@ describe('verify-bundle-manifest: the release gate', () => {
         // no license texts beside 37-45 relocated LGPL/MPL/GPL libraries.
         const result = runVerify({ platform: `${process.platform}-${process.arch}`, windowing: false, dataBytes: 0 });
         assert.equal(result.status, 1);
-        assert.match(result.stderr, /FAILED 4 check\(s\)/);
+        assert.match(result.stderr, /FAILED 5 check\(s\)/);
         assert.match(result.stderr, /windowing=false dataBytes=0/);
         assert.match(result.stderr, /no verified typelib symmetry/);
         assert.match(result.stderr, /no license texts/);
         assert.match(result.stderr, /no verified windowing data sets/);
+        assert.match(result.stderr, /no windowingData\.decodeProbe/);
     });
 
     it('rejects a declared data set that holds no files', () => {
@@ -105,6 +140,122 @@ describe('verify-bundle-manifest: the release gate', () => {
         assert.equal(result.status, 1);
         assert.match(result.stderr, /verified windowing data sets with no files/);
         assert.match(result.stderr, /"id":"icons"/);
+    });
+
+    // #996, the defect this gate was blind to. Everything above is a COUNT — and the
+    // published darwin-x64 0.28.0 bundle passed every one of them (860 icon files,
+    // `verified icons: 863`) while `Pixbuf.new_from_file()` on its own Adwaita SVG
+    // returned −1×−1: the addon kept absolute Homebrew install names, so a Mac with
+    // Homebrew glib loaded two GObject registries and type identity failed across the
+    // boundary. A file count is not a capability.
+    it('rejects a manifest with no decode probe at all, rather than waving it through', () => {
+        // FAIL CLOSED. The precedent being avoided is the arch guard that degraded to
+        // GREEN instead of to "unverified" — a bundle whose icons nobody decoded must
+        // not publish, and "the builder is too old to say" is not a pass.
+        const manifest = goodManifest();
+        delete manifest.windowingData.decodeProbe;
+        const result = runVerify(manifest);
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /no windowingData\.decodeProbe/);
+        assert.match(result.stderr, /860 icon files of which zero decoded/);
+    });
+
+    it('rejects a probe the builder recorded as failed', () => {
+        const result = runVerify(
+            goodManifest({
+                windowingData: {
+                    verified: [{ id: 'icons', files: 863 }],
+                    decodeProbe: goodProbe({
+                        ok: false,
+                        error: 'gdk-pixbuf: Unrecognized image file format',
+                        svg: { file: 'share/icons/Adwaita/x.svg', width: -1, height: -1 },
+                    }),
+                },
+            }),
+        );
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /decode probe did not pass: gdk-pixbuf: Unrecognized image file format/);
+        assert.match(result.stderr, /decoded svg .* to -1x-1 — a failed load, not an image/);
+    });
+
+    it('does not take `ok: true` on trust — the dimensions decide', () => {
+        // The exact 0.28.0 measurement wearing a green badge: a builder (or a hand
+        // edit) that stamps ok:true over a −1×−1 decode still cannot publish, because
+        // the gate re-derives the verdict from the numbers rather than reading a flag.
+        const result = runVerify(
+            goodManifest({
+                windowingData: {
+                    verified: [{ id: 'icons', files: 863 }],
+                    decodeProbe: goodProbe({
+                        svg: {
+                            file: 'share/icons/Adwaita/symbolic/actions/open-menu-symbolic.svg',
+                            width: -1,
+                            height: -1,
+                        },
+                    }),
+                },
+            }),
+        );
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /open-menu-symbolic\.svg to -1x-1/);
+    });
+
+    it('rejects a probe the HOST GTK answered, not the bundle', () => {
+        // The half a pixel count cannot see. Pointing node-gi at a bundle does not make
+        // it load one — index.js wraps the activation in a never-fatal try/catch and
+        // `activateBundledGtkRuntime()` returns null whenever the policy did not pick
+        // the bundle — so Homebrew (macOS runner) or gvsbuild (Windows runner) decodes
+        // the file at the bundle's path and records real, passing dimensions.
+        const result = runVerify(
+            goodManifest({
+                windowingData: {
+                    verified: [{ id: 'icons', files: 863 }],
+                    decodeProbe: goodProbe({ gtkSource: 'system' }),
+                },
+            }),
+        );
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /gtkSource=system on darwin/);
+        assert.match(result.stderr, /the bundle itself is unproven/);
+    });
+
+    it('rejects a probe that resolved a different bundle than the one it decoded', () => {
+        // `resolveGtkRuntimeBundle()` has four candidates and three of them exist on a
+        // builder (prebuilds/, the sibling monorepo package, an installed optional dep).
+        const result = runVerify(
+            goodManifest({
+                windowingData: {
+                    verified: [{ id: 'icons', files: 863 }],
+                    decodeProbe: goodProbe({ bundleIsProbeTarget: false }),
+                },
+            }),
+        );
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /activated a DIFFERENT bundle/);
+    });
+
+    it('rejects a probe that cannot say which GTK decoded the file', () => {
+        // A record from a builder that predates the provenance fields. Fails closed for
+        // the same reason the absent record does: nobody checked is not a pass.
+        const probe = goodProbe();
+        delete probe.platform;
+        const result = runVerify(
+            goodManifest({ windowingData: { verified: [{ id: 'icons', files: 863 }], decodeProbe: probe } }),
+        );
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /records no platform/);
+    });
+
+    it('rejects a probe that decoded the svg but never the png', () => {
+        // win32 ships exactly ONE loader module (the svg one), so "one format works" is
+        // a state this bundle family can genuinely be in.
+        const probe = goodProbe();
+        delete probe.png;
+        const result = runVerify(
+            goodManifest({ windowingData: { verified: [{ id: 'icons', files: 863 }], decodeProbe: probe } }),
+        );
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /carries no png result/);
     });
 
     it('rejects a bundle built for another architecture than the host', () => {

@@ -132,12 +132,24 @@ both sufficient and the simplest mechanism.
     share/icons/{Adwaita,hicolor}/        icon themes + icon-theme.cache
     etc/fonts/fonts.conf                  Fontconfig config (+ cache), when present
     manifest.json                         windowing:true + windowingData counts
+                                          + decodeProbe (measured pixel sizes)
   ```
 
   Built on the Windows runner:
   ```
-  node scripts/build-gtk-runtime.mjs --windowing --prefix C:\gtk-build\gtk\x64\release --out gtk
+  node scripts/build-gtk-runtime.mjs --windowing --prefix C:\gtk-build\gtk\x64\release --out gtk ^
+    --addon <node_gi.node>
   ```
+  `--addon` is required under `--windowing`: the builder DECODES a `.svg` and a `.png`
+  through node-gi and the bundle's OWN loader (the bundled PNG when one ships, otherwise
+  the decoded SVG saved to a temp PNG and read back) and records the measured sizes as
+  `windowingData.decodeProbe`, which the release gate then requires. A file count is not
+  a capability — the darwin sibling shipped 860 icon files of which zero decoded while
+  every count was correct. The probe child runs with the host GTK env scrubbed and
+  `<PREFIX>\bin` filtered off PATH, and the record states which GTK answered
+  (`gtkSource` must be `bundle`), so a DLL missing from the bundle cannot be answered by
+  the gvsbuild prefix this job puts on PATH. Nothing relocates the addon here; Windows
+  resolves DLLs by search path.
   The GdkWin32 backend is compiled **into** `libgtk-4-*.dll` (GTK4 builds every
   backend in), so there is no separate backend DLL — the caches (`loaders.cache`,
   `gschemas.compiled`, `icon-theme.cache`) + the librsvg backer are the
