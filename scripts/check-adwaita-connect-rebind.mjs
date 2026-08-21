@@ -3,13 +3,13 @@
 //
 // THE INCIDENT
 //
-// 33 of adwaita-web's element classes open `connectedCallback` with
+// Most of adwaita-web's element classes open `connectedCallback` with
 // `if (this._initialized) return;` — the guard that keeps a custom element from
-// rebuilding its subtree every time it enters a document. Three of them ALSO define a
-// `disconnectedCallback`, and for those the guard is a leak: the teardown runs on the
-// way out, the early return skips the rebind on the way back in, and the widget is deaf
-// from then on. A bare RE-PARENT is enough — a slideshow slide, a client-side route
-// change, moving a node between two containers. Measured:
+// rebuilding its subtree every time it enters a document. The ones that ALSO tear
+// something down are where that guard becomes a leak: the teardown runs on the way out,
+// the early return skips the rebind on the way back in, and the widget is deaf from then
+// on. A bare RE-PARENT is enough — a slideshow slide, a client-side route change, moving
+// a node between two containers. Measured:
 //
 //   - `<adw-navigation-split-view breakpoint="max-width: 720px">` lost its
 //     ResizeObserver and never collapsed again, however narrow the page got;
@@ -32,12 +32,26 @@
 //
 // WHAT IT CHECKS
 //
-// For every class that guards its build with `_initialized` AND tears something down:
-// every `this._<field>` the teardown touches must be reachable again from the path that
-// runs on a SECOND connect — directly, or one hop into a method that path calls.
-// Nothing here proves the rebind is CORRECT; it proves one exists. The other half is
+// For EVERY class that defines both callbacks — guarded or not: every outside binding
+// the teardown releases must be re-established on the path that runs on a SECOND
+// connect, directly or one hop into a method that path calls. Nothing here proves the
+// rebind is CORRECT; it proves one exists. The other half is
 // `packages/web/adwaita-web/src/connect-lifecycle.spec.ts`, which moves every registered
 // element between parents in a real browser and measures what comes back.
+//
+// SCOPE IS "DEFINES BOTH CALLBACKS", never "spells its guard `_initialized`". Keying
+// scope on the field NAME was measured: renaming it to `_built` dropped the pre-fix
+// `<adw-popover>` out of the check entirely, the class count fell 13 → 12 and the gate
+// printed OK on the byte-identical defect. The guard field is DERIVED instead — the
+// private flag `connectedCallback` (or the method it calls as its FIRST statement)
+// both branches on and sets to `true` — and it narrows the reconnect PATH, not the set
+// of classes. An unguarded class is held to the same rule with its whole callback body
+// as that path, since that is what a second connect runs.
+//
+// THE GUARD MUST BE THE FIRST STATEMENT of `connectedCallback`, or of the one method it
+// calls first. That is a rule the tree now follows rather than a property of the
+// invariant: a correct rebind written above the guard is rejected. It buys the reader
+// the right to say what runs on a second connect without tracking control flow.
 //
 // KNOWN EDGE, deliberately not chased: a virtual hook pair split across a base and its
 // subclass (`AdwCheckBase.onConnected` / `onDisconnected`, overridden by `AdwRadio`) is
@@ -182,19 +196,30 @@ function methods(classBody) {
 const receivers = (code, method) =>
     [...code.matchAll(new RegExp(`([A-Za-z0-9_$.?]*)\\.${method}\\s*\\(`, 'g'))].map(([, target]) => target);
 
+/** `undefined` / `null` / `void 0` — a value that RELEASES a disposer field rather than filling it. */
+const CLEARS = /^\s*(?:undefined|null|void\s+0)\s*$/;
+
 /**
- * What a body BINDS or RELEASES that outlives this element, by kind.
+ * What a body BINDS or RELEASES that outlives this element.
  *
- * Kind, not resource: the invariant from the incident is "only what reaches OUTSIDE the
- * element needs a teardown AND a rebind" — an observer, a listener on someone else's
- * node, a disposer handed back by a helper. An `addEventListener` on `this` is
- * deliberately NOT in here: it survives a detach and is collected with the element, which
- * is why `<adw-overlay-split-view>` binds its keydown handler once and never removes it.
+ * The invariant from the incident is "only what reaches OUTSIDE the element needs a
+ * teardown AND a rebind" — an observer, a listener on someone else's node, a disposer
+ * handed back by a helper. A listener on `this` is deliberately NOT in here: it survives
+ * a detach and is collected with the element, which is why `<adw-overlay-split-view>`
+ * binds its keydown handler once and never removes it.
  *
- * Coarse on purpose for the first two kinds: a class that disconnects two observers and
- * re-observes one passes here. That is the honest limit of a source-level reader — it
- * holds that a rebind EXISTS. Whether the rebind WORKS is measured in a real browser by
- * `connect-lifecycle.spec.ts`, which moves every registered element between parents.
+ * Listeners are keyed by RECEIVER, not by the fact that a listener exists. Both looser
+ * spellings were measured to pass on a real defect: with "some receiver other than
+ * `this`" a single `this._arrowEl.addEventListener(…)` — a node this element BUILT —
+ * satisfied the pre-fix `<adw-popover>`, whose document listeners were still never
+ * re-added; and on the disposer side, matching any assignment let
+ * `this._disposeBreakpoint = undefined` — a RELEASE — count as the rebind for the
+ * pre-fix `<adw-navigation-split-view>`. Hence {@link CLEARS}.
+ *
+ * Observers stay coarse: a class that disconnects two and re-observes one passes here.
+ * That is the honest limit of a source-level reader — it holds that a rebind EXISTS.
+ * Whether the rebind WORKS is measured in a real browser by `connect-lifecycle.spec.ts`,
+ * which moves every registered element between parents.
  */
 function outsideBindings(code, classMethods, direction) {
     const kinds = new Set();
@@ -202,7 +227,11 @@ function outsideBindings(code, classMethods, direction) {
         kinds.add('observer');
     }
     const listener = direction === 'release' ? 'removeEventListener' : 'addEventListener';
-    if (receivers(code, listener).some((target) => target !== 'this')) kinds.add('outside listener');
+    for (const target of receivers(code, listener)) {
+        // A bare call and an explicit `this.` are the same receiver: the element itself.
+        const on = target.replace(/\?$/, '');
+        if (on !== '' && on !== 'this') kinds.add(`listener on ${on}`);
+    }
     if (direction === 'release') {
         // `this._disposeBreakpoint?.()` — calling a FIELD is calling back whatever handed
         // it over; calling a method of this class is just control flow.
@@ -210,8 +239,8 @@ function outsideBindings(code, classMethods, direction) {
             if (!classMethods.has(name)) kinds.add(`disposer ${name}`);
         }
     } else {
-        for (const [, name] of code.matchAll(/\bthis\.(_[A-Za-z0-9_]*)\s*(?:\?\?|\|\||&&)?=[^=]/g)) {
-            if (!classMethods.has(name)) kinds.add(`disposer ${name}`);
+        for (const [, name, value] of code.matchAll(/\bthis\.(_[A-Za-z0-9_]*)\s*(?:\?\?|\|\||&&)?=(?!=)([^;\n]*)/g)) {
+            if (!classMethods.has(name) && !CLEARS.test(value)) kinds.add(`disposer ${name}`);
         }
     }
     return kinds;
@@ -235,21 +264,62 @@ function reach(code, classMethods) {
 }
 
 /**
- * What runs on a SECOND connect — the empty string when the guard returns and nothing
- * else can run. `null` means "not guarded at all", where every connect rebuilds and
- * there is nothing for this check to hold.
+ * The private flag this `connectedCallback` guards its build with — DERIVED from what
+ * the code does with it, never from what it is called.
  *
- * THROWS on a guard shape it cannot read: an unreadable guard would fall through as
- * "not guarded" and pass vacuously, which is the failure mode this whole file exists to
- * remove.
+ * A build guard is a field the connect path both BRANCHES on and sets to `true`; the
+ * two together are what no other private boolean here does. `AdwCarouselIndicator` sets
+ * `_initialized` and branches on nothing, so it has no guard and every connect
+ * re-attaches — which is the honest reading, not a shape to be told apart by name.
+ *
+ * The scope searched is the callback body plus the body of the ONE method it calls
+ * first, the `_buildOnce()` shape. Deliberately not one hop into every method it calls:
+ * `_reflectShowContent()` opens `if (this._reflecting) return;` and sets the same flag
+ * true, and a wider scope reads that re-entrancy latch as a second build guard.
+ *
+ * `null` when there is none. THROWS on two, because which one gates the build decides
+ * what a second connect runs, and guessing is how a wrong answer passes vacuously.
  */
-function reconnectPath(connected, classMethods, where) {
+function guardField(connected, classMethods, where) {
     const body = connected.replace(/^\s+/, '');
+    const first = /^this\.([A-Za-z0-9_]+)\(\)\s*;/.exec(body);
+    const scope = `${body}\n${(first && classMethods.get(first[1])) ?? ''}`;
 
-    const earlyReturn = /^if\s*\(\s*this\._initialized\s*\)\s*return\s*;/.exec(body);
+    const branched = new Set();
+    for (const [, test] of scope.matchAll(/\bif\s*\(([^)]*)\)/g)) {
+        for (const [, name] of test.matchAll(/\bthis\.(_[A-Za-z0-9_]*)\b/g)) branched.add(name);
+    }
+    const found = [...branched].filter((name) => new RegExp(`\\bthis\\.${name}\\s*=\\s*true\\b`).test(scope));
+    if (found.length === 0) return null;
+    if (found.length > 1) {
+        throw new Error(
+            `${where}: connectedCallback branches on and sets ${found.join(' and ')}, so which one ` +
+                'guards the build is ambiguous. Split the build into `_buildOnce()` so one flag ' +
+                'gates it, or teach this reader which is which — a guess here decides what the ' +
+                'check believes runs on a second connect.',
+        );
+    }
+    return found[0];
+}
+
+/**
+ * What runs on a SECOND connect — the empty string when the guard returns and nothing
+ * else can run, and the WHOLE body when there is no guard, because then every connect
+ * runs all of it.
+ *
+ * THROWS on a guard shape it cannot read: an unreadable guard would otherwise be read as
+ * "nothing to hold" and pass vacuously, which is the failure mode this whole file exists
+ * to remove.
+ */
+function reconnectPath(connected, classMethods, guard, where) {
+    const body = connected.replace(/^\s+/, '');
+    if (guard === null) return body;
+    const flag = `this\\.${guard}`;
+
+    const earlyReturn = new RegExp(`^if\\s*\\(\\s*${flag}\\s*\\)\\s*return\\s*;`).exec(body);
     if (earlyReturn !== null) return '';
 
-    const guardedBranch = /^if\s*\(\s*this\._initialized\s*\)\s*\{/.exec(body);
+    const guardedBranch = new RegExp(`^if\\s*\\(\\s*${flag}\\s*\\)\\s*\\{`).exec(body);
     if (guardedBranch !== null) {
         const scope = block(body, body.indexOf('{'));
         // A branch that returns is the whole reconnect path; one that falls through
@@ -257,34 +327,29 @@ function reconnectPath(connected, classMethods, where) {
         return /\breturn\s*;/.test(scope.body) ? scope.body : scope.body + body.slice(scope.end);
     }
 
-    const guardedBuild = /^if\s*\(\s*!\s*this\._initialized\s*\)\s*\{/.exec(body);
+    const guardedBuild = new RegExp(`^if\\s*\\(\\s*!\\s*${flag}\\s*\\)\\s*\\{`).exec(body);
     if (guardedBuild !== null) {
         const scope = block(body, body.indexOf('{'));
         return body.slice(scope.end);
     }
 
-    const guardedCall = /^if\s*\(\s*!\s*this\._initialized\s*\)\s*this\.[A-Za-z0-9_]+\(\)\s*;/.exec(body);
+    const guardedCall = new RegExp(`^if\\s*\\(\\s*!\\s*${flag}\\s*\\)\\s*this\\.[A-Za-z0-9_]+\\(\\)\\s*;`).exec(body);
     if (guardedCall !== null) return body.slice(guardedCall[0].length);
 
     const buildOnce = /^this\.([A-Za-z0-9_]+)\(\)\s*;/.exec(body);
     if (
         buildOnce !== null &&
-        /^\s*if\s*\(\s*this\._initialized\s*\)\s*return\s*;/.test(classMethods.get(buildOnce[1]) ?? '')
+        new RegExp(`^\\s*if\\s*\\(\\s*${flag}\\s*\\)\\s*return\\s*;`).test(classMethods.get(buildOnce[1]) ?? '')
     ) {
         return body.slice(buildOnce[0].length);
     }
 
-    // `AdwCarouselIndicator` sets `_initialized` and guards nothing with it — every
-    // connect re-attaches. Reading the flag is not the same as branching on it, and a
-    // callback that branches on it in a shape none of the five above match is the one
-    // case that must not fall through as "unguarded".
-    if (!/\bif\s*\([^)]*\b_initialized\b/.test(body)) return null;
-
     throw new Error(
-        `${where}: connectedCallback branches on \`_initialized\` in a shape this check cannot classify. ` +
+        `${where}: connectedCallback branches on \`${guard}\` in a shape this check cannot classify. ` +
             'Use one of the three the tree already has — reset the flag in the teardown, guard the ' +
             'build and keep going, or rebind inside the guarded branch — or teach this reader the ' +
-            'new one. An unreadable guard passes vacuously, which is the bug this file is about.',
+            'new one. The guard has to be the FIRST statement, of the callback or of the one method ' +
+            'it calls first. An unreadable guard passes vacuously, which is the bug this file is about.',
     );
 }
 
@@ -298,7 +363,7 @@ try {
 
 const files = [...new Set(defined.values())].sort();
 const problems = [];
-let guarded = 0;
+let inScope = 0;
 
 for (const file of files) {
     const masked = maskNonCode(readFileSync(join(ROOT, file), 'utf8'));
@@ -314,18 +379,21 @@ for (const file of files) {
         const disconnected = classMethods.get('disconnectedCallback');
         if (connected === undefined || disconnected === undefined) continue;
 
+        inScope += 1;
+        const where = `${file}: ${name}`;
+        let guard;
         let path;
         try {
-            path = reconnectPath(connected, classMethods, `${file}: ${name}`);
+            guard = guardField(connected, classMethods, where);
+            path = reconnectPath(connected, classMethods, guard, where);
         } catch (error) {
             fail([error.message]);
         }
-        if (path === null) continue;
-        guarded += 1;
 
         // The escape hatch that needs nothing else: the flag is cleared, so the next
         // connect runs the whole build again.
-        if (/\bthis\._initialized\s*=\s*false\b/.test(reach(disconnected, classMethods))) continue;
+        if (guard !== null && new RegExp(`\\bthis\\.${guard}\\s*=\\s*false\\b`).test(reach(disconnected, classMethods)))
+            continue;
 
         const released = outsideBindings(reach(disconnected, classMethods), classMethods, 'release');
         const rebound = outsideBindings(reach(path, classMethods), classMethods, 'bind');
@@ -336,11 +404,11 @@ for (const file of files) {
             `${file}: ${name} releases ${lost.join(' + ')} in disconnectedCallback and never re-establishes ` +
                 `${lost.length === 1 ? 'it' : 'them'} on a later connect — a re-parent leaves it deaf.`,
             path.trim() === ''
-                ? '    The `_initialized` early return IS the whole reconnect path, so nothing runs at all.'
+                ? `    The \`${guard}\` early return IS the whole reconnect path, so nothing runs at all.`
                 : `    What does run on a second connect re-establishes: ${[...rebound].sort().join(' + ') || 'nothing'}.`,
             '    Fix: split the build into `_buildOnce()` and leave the binding unguarded (see ' +
                 '`adw-overlay-split-view`), rebind inside the guarded branch (see `adw-action-row`), or ' +
-                'reset `_initialized` in the teardown (see `adw-source-view`).',
+                'reset the guard flag in the teardown (see `adw-source-view`).',
         );
     }
 }
@@ -349,14 +417,16 @@ if (problems.length > 0) fail(problems);
 
 // A floor, not a count: the point is that it grows without this file being edited. Zero
 // classes in scope would mean the reader stopped matching, and every element would pass.
-if (guarded === 0) {
+// Scope is "defines both callbacks", so no rename can move a class out of it quietly —
+// which is what the count itself used to hide.
+if (inScope === 0) {
     fail([
-        'no element class was found that guards its build with `_initialized` AND defines a ' +
-            'disconnectedCallback. Either the package moved or the method reader stopped matching — ' +
-            'a scan with nothing in scope passes vacuously, so this is a failure, not a pass.',
+        'no element class was found that defines both connectedCallback and disconnectedCallback. ' +
+            'Either the package moved or the method reader stopped matching — a scan with nothing ' +
+            'in scope passes vacuously, so this is a failure, not a pass.',
     ]);
 }
 
 console.log(
-    `check-adwaita-connect-rebind: OK — ${guarded} guarded element class(es) across ${files.length} files re-establish everything their teardown releases.`,
+    `check-adwaita-connect-rebind: OK — ${inScope} element class(es) with a teardown, across ${files.length} files, re-establish everything it releases.`,
 );

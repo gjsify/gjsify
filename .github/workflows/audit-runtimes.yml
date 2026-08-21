@@ -287,15 +287,15 @@ jobs:
       - name: Check adwaita-web's style-isolation list covers every element
         run: node scripts/check-adwaita-reset-components.mjs
 
-      # 33 adwaita-web element classes open `connectedCallback` with an `_initialized`
-      # early return. For the three that also tear something down on the way out, that
-      # guard is a leak: a bare re-parent — a slideshow slide, a client-side route change
-      # — released the binding and never restored it. `<adw-navigation-split-view>` lost
-      # its ResizeObserver and never collapsed again however narrow the page got;
-      # `<adw-popover>` came back visible with neither outside-click nor Escape
-      # dismissal, the only two ways it could have re-armed them. Both were found by
-      # READING: a dead media query and a dead document listener change no markup, no
-      # class list and no box until something fires them, so no spec could have gone red.
+      # An `_initialized` early return in `connectedCallback` is a leak for any element
+      # class that also tears something down: a bare re-parent — a slideshow slide, a
+      # client-side route change — released the binding and never restored it.
+      # `<adw-navigation-split-view>` lost its ResizeObserver and never collapsed again
+      # however narrow the page got; `<adw-popover>` came back visible with neither
+      # outside-click nor Escape dismissal, the only two ways it could have re-armed
+      # them. Both were found by READING: a dead media query and a dead document
+      # listener change no markup, no class list and no box until something fires them,
+      # so no spec could have gone red. Full incident in the script header.
       - name: Check every adwaita-web teardown has a rebind behind it
         run: node scripts/check-adwaita-connect-rebind.mjs
 
@@ -665,15 +665,15 @@ jobs:
       - name: Check adwaita-web's style-isolation list covers every element
         run: node scripts/check-adwaita-reset-components.mjs
 
-      # 33 adwaita-web element classes open `connectedCallback` with an `_initialized`
-      # early return. For the three that also tear something down on the way out, that
-      # guard is a leak: a bare re-parent — a slideshow slide, a client-side route change
-      # — released the binding and never restored it. `<adw-navigation-split-view>` lost
-      # its ResizeObserver and never collapsed again however narrow the page got;
-      # `<adw-popover>` came back visible with neither outside-click nor Escape
-      # dismissal, the only two ways it could have re-armed them. Both were found by
-      # READING: a dead media query and a dead document listener change no markup, no
-      # class list and no box until something fires them, so no spec could have gone red.
+      # An `_initialized` early return in `connectedCallback` is a leak for any element
+      # class that also tears something down: a bare re-parent — a slideshow slide, a
+      # client-side route change — released the binding and never restored it.
+      # `<adw-navigation-split-view>` lost its ResizeObserver and never collapsed again
+      # however narrow the page got; `<adw-popover>` came back visible with neither
+      # outside-click nor Escape dismissal, the only two ways it could have re-armed
+      # them. Both were found by READING: a dead media query and a dead document
+      # listener change no markup, no class list and no box until something fires them,
+      # so no spec could have gone red. Full incident in the script header.
       - name: Check every adwaita-web teardown has a rebind behind it
         run: node scripts/check-adwaita-connect-rebind.mjs
 
