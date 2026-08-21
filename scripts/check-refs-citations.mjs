@@ -20,7 +20,11 @@
 // vendored adwaita-web tree, which keeps its partials one level deeper.
 //
 // That last one is why no wrong spelling appears here in full: written out, it is
-// a citation, and this check flags its own explanation. It did.
+// a citation, and this check flags its own explanation. It did. The same edge runs
+// the other way and was missed there — a ledger entry that spells the coordinate it
+// excuses becomes that coordinate's last citer, so the "nothing cites this any more"
+// arm can never fire for it. Hence {@link SELF}: this file explains coordinates, it
+// does not vouch for them.
 //
 // `status/sections/adwaita-web-roadmap.md` ALREADY warned about this in prose, and
 // named the right spellings. It happened nineteen times anyway, because prose
@@ -72,6 +76,9 @@ const UNDECLARED_SUBMODULES = {
     'unicorn-magic':
         'One shim (packages/infra/rolldown-plugin-gjsify/src/shims/unicorn-magic.ts) declares its own deferral in the same sentence — "refs/unicorn-magic/node.js (when added — for now mirrored from node_modules/unicorn-magic@0.3.0)". Fix = add the submodule, or drop the marker and cite the npm version it really mirrors.',
 };
+
+/** This gate's own tracked path, posix-spelled — see {@link vouchedFor}. */
+const SELF = 'scripts/check-refs-citations.mjs';
 
 // ONE extension list, read from both ends: which tracked files this gate OPENS,
 // and which path shapes count as a citation once opened. They were two lists, and
@@ -179,6 +186,12 @@ if (cited.size === 0) {
 const failures = [];
 const skipped = new Map(); // submodule -> how many of its coordinates went unchecked
 const undeclared = new Map(); // submodule -> coordinates
+// Submodules something OTHER than this file cites. A ledger entry has to spell the
+// coordinate it excuses, and this gate scans its own tracked file — so the entry
+// was its own last citer: with the shim's marker deleted, `refs/unicorn-magic`
+// stayed "cited" by the sentence explaining why it is ledgered, and the stale-entry
+// arm below could never fire for it. Explaining a coordinate is not citing one.
+const vouchedFor = new Set();
 let checked = 0;
 
 for (const [coordinate, files] of [...cited].sort()) {
@@ -188,6 +201,7 @@ for (const [coordinate, files] of [...cited].sort()) {
     if (!declared.has(submodule)) {
         if (!undeclared.has(submodule)) undeclared.set(submodule, []);
         undeclared.get(submodule).push(coordinate);
+        if ([...files].some((file) => file !== SELF)) vouchedFor.add(submodule);
         if (submodule in UNDECLARED_SUBMODULES) continue;
         failures.push(
             `${coordinate} names refs/${submodule}, which .gitmodules does not declare — there is nothing to\n` +
@@ -214,10 +228,11 @@ for (const [coordinate, files] of [...cited].sort()) {
 }
 
 for (const [submodule, reason] of Object.entries(UNDECLARED_SUBMODULES)) {
-    if (undeclared.has(submodule)) continue;
+    if (vouchedFor.has(submodule)) continue;
     failures.push(
-        `refs/${submodule} is ledgered here as undeclared, but nothing cites it any more — drop the stale\n` +
-            `    entry rather than leaving cover it no longer gives. (${reason.slice(0, 60)}…)`,
+        `refs/${submodule} is ledgered here as undeclared, but nothing outside this script cites it any\n` +
+            `    more — drop the stale entry rather than leaving cover it no longer gives.\n` +
+            `    (${reason.slice(0, 60)}…)`,
     );
 }
 
