@@ -2235,11 +2235,15 @@ preferences rows declare no role of their own and inherit the list-item one.
 
 DELIBERATELY NOT FIXED beside the modal trap and the roving tabindex (which are
 invisible until pressed, and were): this one MOVES TAB ORDER on every page that
-uses a row. `showcases/` and `website/` alone hold 308 row instances — 225
-`<adw-action-row>`, 50 `<adw-expander-row>`, 13 `<adw-switch-row>`, plus the entry,
-combo, spin, password and button rows — and each becomes a new tab stop, or must
-be argued out of becoming one. Rolling it in would have made the two fixes that
-change nothing visible indistinguishable from the one that changes every page.
+uses a row, and every row instance under `website/` — where they are concentrated
+— either becomes a new tab stop or has to be argued out of becoming one. Rolling
+it in would have made the two fixes that change nothing visible indistinguishable
+from the one that changes every page. (An earlier draft of this entry justified
+the deferral with a count in the hundreds; it had been taken over `website/dist`
+and `website/.astro`, Astro build output, i.e. the same source pages many times
+over. Over tracked sources it is well under a hundred. The decision does not turn
+on the number — it turns on the change being visible on every page — which is why
+the number is not restated here.)
 
 What it costs, in the order the questions have to be answered:
 
@@ -2261,6 +2265,20 @@ What it costs, in the order the questions have to be answered:
 `scripts/check-adwaita-keyboard-contract.mjs` does not see this class: the rows
 assign no negative tabIndex, they assign nothing at all, which is exactly why it
 went unnoticed. A gate for it wants the container question answered first.
+
+`<adw-toggle-group>` is the same blind spot from the other side, and belongs in
+this entry rather than a new one. Upstream it is the fifth member of the roving
+family: `AdwInlineViewSwitcher` builds exactly this widget with
+`GTK_ACCESSIBLE_ROLE_TAB_LIST` (`adw-inline-view-switcher.c:702`), and
+`adw_toggle_group_focus` (`adw-toggle-group.c:1045`) is the citation
+`elements/roving-focus.ts` is built on. The web element has none of it — no role,
+no roving tabindex, no arrow keys. Measured in Firefox: three toggles report
+`tabIndex` `[0, 0, 0]`, the host has no `role`, and ArrowRight/ArrowLeft/Home/End
+all leave `document.activeElement` exactly where it was. It stays OPERABLE, every
+toggle being its own tab stop, so it is not the defect class the gate was written
+against — and the gate structurally cannot see it either, since there is no
+negative tabindex to trigger on. Its zero finding there is a scope limit, not a
+clean bill.
 
 ### adwaita-core modules with no conformance vector table
 
