@@ -19,6 +19,7 @@ import { normalizeBundlerOptions, mergeBundlerOptions } from '../utils/normalize
 import { inputSourceDirs, isOutdirInsideSource, libraryOutputLeakError } from '../utils/library-output.js';
 import { detectHtmlEntry, parseHtmlEntry, emitBrowserHtml, htmlOutPathFor } from '../utils/html-entry.js';
 import { assertGjsBundleLoadable } from '../utils/gjs-bundle-guard.js';
+import { giSystemProbes } from '../utils/gi-runtime-paths.js';
 import { escapeRawNulForGjs } from '../utils/gjs-source-escape.js';
 import { assertNodeBundleGlobalsShimmed } from '../utils/node-bundle-guard.js';
 
@@ -818,6 +819,14 @@ export class BuildAction {
             pluginOpts.autoGlobalsInject = await this.resolveGlobalsInject(app, extras, verbose);
         }
 
+        // Fills the byte-1 GI prologue — built across #1152/#1160/#1026 and called by
+        // nothing, so every `--app gjs` bundle ever built shipped the empty string
+        // `giRuntimePathsStub` returns for an empty input. Only the FINAL build: the
+        // two analysis passes above bundle in memory to be PARSED for free globals,
+        // never written and never run, so a prologue there is work whose result is
+        // discarded.
+        const giProbes = app === 'gjs' ? giSystemProbes() : undefined;
+
         // Final build: orchestrator → rolldown → write
         const cfg = await gjsifyPlugin(
             {
@@ -827,6 +836,7 @@ export class BuildAction {
                 userBanner,
                 userAliases: aliases,
                 shebang: this.configData.shebang,
+                giSystemProbes: giProbes,
             },
             pluginOpts,
         );

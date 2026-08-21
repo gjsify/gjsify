@@ -75,8 +75,13 @@ export interface SystemGiOptions {
  * whole GTK stack and no `pkg-config` at all (a BUILD dependency of those
  * formulae). The pkg-config source below is the general mechanism — it finds a
  * jhbuild or otherwise bespoke prefix — but it cannot be the only one.
+ *
+ * Exported because a `--app gjs` BUNDLE has to carry the candidates rather than this
+ * function's answer: it runs on a host the build machine never saw, so the probe moves
+ * into the emitted prologue (`gi-runtime-paths.ts`). `@gjsify/utils`' copy of this rule
+ * exports it too; node-gi's does not, and the mirror suite compares OUTPUTS, not surface.
  */
-const PROBED_GI_LIBDIRS: Record<string, readonly string[]> = {
+export const PROBED_GI_LIBDIRS: Record<string, readonly string[]> = {
     darwin: ['/opt/homebrew/lib', '/usr/local/lib', '/opt/local/lib'],
 };
 

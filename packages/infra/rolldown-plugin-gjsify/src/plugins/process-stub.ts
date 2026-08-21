@@ -17,7 +17,7 @@ import type { Plugin } from 'rolldown';
 
 import { BUNDLE_URL_BANNER } from './bundle-url-banner.js';
 import { GJS_WELLKNOWN_SYMBOLS_STUB } from './wellknown-symbols-banner.js';
-import { giRuntimePathsStub } from './gi-runtime-paths.js';
+import { giRuntimePathsStub, type GiSystemProbe } from './gi-runtime-paths.js';
 
 // Every GJS ambient global is reached through `globalThis.` — NEVER as a bare
 // identifier. The banner shares the module's top-level scope with the bundled
@@ -111,6 +111,12 @@ export interface ProcessStubPluginOptions {
      * Empty or unset emits nothing.
      */
     giRuntimePaths?: readonly string[];
+    /**
+     * Absolute system GI library directories, each paired with the path that proves the
+     * host really has one. Prepended BEHIND {@link giRuntimePaths} and only where the
+     * marker exists at RUNTIME. Empty or unset emits nothing.
+     */
+    giSystemProbes?: readonly GiSystemProbe[];
 }
 
 /** Inject the byte-1 banner as a chunk banner, after any user `output.banner`. */
@@ -124,7 +130,7 @@ export function processStubPlugin(options: ProcessStubPluginOptions = {}): Plugi
         (options.captureBundleUrl ? BUNDLE_URL_BANNER : '') +
         GJS_WELLKNOWN_SYMBOLS_STUB +
         GJS_PROCESS_STUB +
-        giRuntimePathsStub(options.giRuntimePaths ?? []);
+        giRuntimePathsStub(options.giRuntimePaths ?? [], options.giSystemProbes ?? []);
     const banner = composeBanner(stub, options.userBanner ?? '');
     return {
         name: 'gjsify-process-stub',
