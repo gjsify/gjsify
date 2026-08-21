@@ -278,8 +278,8 @@ const CLAUSE_TURN = /(?=\b(?:but|unlike|neither|nor|rather than|instead|whereas|
 const clausesIn = (sentence) => sentence.split(CLAUSE_TURN);
 
 /**
- * The tables a citation names. `missing` is what the spelling promised and the tree
- * does not have; for a glob an empty `names` IS the miss.
+ * The tables a citation names. `missing` is what the spelling promised and the tree does not
+ * have — a name or a pair half. A glob that expands to nothing is not in `found` at all.
  */
 function citationsIn(text, declared) {
     const found = [];
@@ -572,7 +572,8 @@ if (failures.length > 0) {
 }
 
 console.log(
-    `check-adwaita-conformance-drivers: ${tables.length} vector tables, ${resolved.exempted} core-only. ` +
-        `Resolved ${resolved.citations} citation(s): ${resolved.chains} coverage chain(s), ${resolved.both} ` +
-        `both-renderer claim(s), ${resolved.suite} single-suite claim(s), ${resolved.counted} counted glob(s).`,
+    `check-adwaita-conformance-drivers: ${tables.length} vector tables, ${resolved.exempted} core-only, ` +
+        `${resolved.chains} coverage chain(s) walked to a driver. Read ${resolved.citations} prose citation(s), ` +
+        `of which ${resolved.both} both-renderer claim(s), ${resolved.suite} single-suite claim(s) and ` +
+        `${resolved.counted} counted glob(s) were resolved against the tree.`,
 );

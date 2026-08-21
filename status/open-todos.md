@@ -2145,8 +2145,13 @@ through a `.filter(` today: `ABOUT_DIALOG_DETAILS_VECTORS`,
 `CLAMP_ALLOCATE_VECTORS`. Both renderer suites filter `CLAMP_ALLOCATE_VECTORS`
 to `params.childMin === 0`, and three `CLAMP_*` tables are exempted as an
 internal step of the pipeline it composes — a chain that does not carry the
-non-zero-`childMin` rows. `adw-about-dialog.spec.ts` does the same thing with a
-`continue` guard rather than a filter, which no textual rule sees at all.
+non-zero-`childMin` rows. Two of the three now say so in their own reason
+(`CLAMP_THRESHOLD_VECTORS`, three rows; `CLAMP_CHILD_SIZE_VECTORS`, one);
+`CLAMP_SIZE_FROM_CHILD_VECTORS` needs nothing, every row of it runs at
+`childMin: 0`. `adw-about-dialog.spec.ts` does the same thing with a `continue`
+guard rather than a filter, which no textual rule sees at all — that is what put
+the `g_strsplit ("")` translator-credits trap behind a false chain, now re-filed
+as a GAP.
 
 The measurable half (`X_VECTORS.filter(`) is about six lines of gate. It is
 deliberately NOT implemented yet, because it catches the filter form and not the
