@@ -43,13 +43,19 @@ export function canRealizeSurface(os: TargetOs | undefined, env: DisplayEnv): bo
  *
  * STRICTLY narrower than {@link canRealizeSurface}, and the reason the two carry
  * different names. macOS has a window server without `DISPLAY`, so it passes the
- * surface gate — but CGL caps out at GL 4.1 while WebGL2 content needs
- * `#version 300 es` (ARB_ES3_compatibility, core in GL 4.3), which the driver
- * refuses outright. Answering the GL question with the surface answer turns macOS
- * red for a reason the WebGL suite does not own; answering the surface question
- * with the GL answer is what kept darwin silent. win32 is excluded for the
- * measured reason in #1097: the bundled GTK resolves epoxy with no GL
+ * surface gate — but no CI leg has ever realized a GL context there: every darwin
+ * GL measurement in `status/open-todos.md` was taken by hand on the test VM, with
+ * `DYLD_LIBRARY_PATH` exported by the operator, because the `Gtk-4.0` typelib's
+ * bare `libgtk-4.1.dylib` leaf does not otherwise resolve on that host (#973). So
+ * the darwin answer is unknown, not no. Answering the GL question with the surface
+ * answer turns macOS red for a reason the WebGL suite does not own; answering the
+ * surface question with the GL answer is what kept darwin silent. win32 is excluded
+ * for the measured reason in #1097: the bundled GTK resolves epoxy with no GL
  * implementation behind it.
+ *
+ * The GL 4.1 ceiling is NOT a reason to exclude darwin any more — `shaderSource()`
+ * rewrites `#version 300 es` for a desktop context without ARB_ES3_compatibility,
+ * and WebGL2 content draws there (measured, macOS 15.7.9 / GL 4.1 core).
  *
  * Widen this the day a leg proves the context — not the day it seems plausible.
  */
