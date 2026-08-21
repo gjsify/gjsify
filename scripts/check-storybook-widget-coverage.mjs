@@ -24,17 +24,14 @@
 //      considered when it is merely forgotten).
 //   3. No ledger entry names a widget the rule cannot reach — one renderer only, or
 //      no renderer at all. Same reason: it would look like cover it does not give.
-//   4. STATUS.md's widget matrix agrees with the defines, per tag, both ways.
 //
 // The both-renderers scope is deliberate. A widget on ONE renderer cannot have a
 // three-target story, so demanding one here would demand a port, and that is a
 // product decision this check has no business making.
 //
-// (4) asks the same question of the surface that PUBLISHES the answer, and its scoping
-// is measured. Forward: on the CELL, because `adw-preferences-page` HAD a row the whole
-// time — the NativeScript scan put it there — beside an empty adwaita-web cell, so row
-// presence stays green on the defect. Reverse: only a row CLAIMING a web cell with no
-// define, since rows without one are ordinary NativeScript-only widgets and GTK stories.
+// STATUS.md's widget matrix is NOT checked here: an arm that did was removed, because
+// its column and this check both call `adwaitaWebElements()` — `f(x)` against `f(x)`,
+// green for every tree, and only an EDIT to the generator could ever make it fire.
 //
 // Plain Node over the repo's own files — no install, no build — so it runs in
 // `audit-runtimes.yml` next to the other repo-scoped guards.
@@ -52,7 +49,6 @@ import {
     adwaitaWebElements,
     elementName,
 } from './adwaita-elements.mjs';
-import { collectAdwaitaCoverage } from './generate-status.mjs';
 
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
@@ -117,37 +113,6 @@ if (stories.size === 0) {
     process.exit(1);
 }
 
-// Rule 4, first: a matrix that disagrees about what adwaita-web ships makes every
-// verdict below a claim about a different tree than the one readers are shown.
-const matrix = new Map(collectAdwaitaCoverage(ROOT).map((row) => [row.name, row]));
-const mismatches = [];
-
-for (const [tag, file] of defines) {
-    const row = matrix.get(elementName(tag));
-    if (row === undefined) {
-        mismatches.push(`${tag}: defined in ${file}, and the widget matrix has no row for it at all.`);
-    } else if (!row.web) {
-        mismatches.push(`${tag}: defined in ${file}, and the widget matrix leaves its adwaita-web cell empty.`);
-    }
-}
-
-for (const row of matrix.values()) {
-    if (!row.web || defines.has(`adw-${row.name}`)) continue;
-    mismatches.push(`adw-${row.name}: the widget matrix claims an adwaita-web cell, but nothing defines that tag.`);
-}
-
-if (mismatches.length > 0) {
-    console.error(`check-storybook-widget-coverage: ${mismatches.length} widget-matrix mismatch(es):\n`);
-    for (const mismatch of mismatches) console.error(`  - ${mismatch}`);
-    console.error(
-        '\nSTATUS.md is where this fact is published, and `collectAdwaitaCoverage()` in\n' +
-            'scripts/generate-status.mjs builds that column. It must read the same defines this check\n' +
-            `does (scripts/adwaita-elements.mjs, over ${ADWAITA_WEB_SRC}) — the two derivations disagreeing\n` +
-            'silently, one by define and one by filename, is the whole reason this arm exists.',
-    );
-    process.exit(1);
-}
-
 const onBothRenderers = [...web].filter((name) => ns.has(name)).sort();
 const failures = [];
 
@@ -186,6 +151,5 @@ if (failures.length > 0) {
 const exempt = Object.keys(NO_STORY_OF_ITS_OWN).length;
 console.log(
     `check-storybook-widget-coverage: ${onBothRenderers.length} widgets on both renderers — ` +
-        `${onBothRenderers.length - exempt} with a story, ${exempt} ledgered with a reason; ` +
-        `${defines.size} defined tags, each with its adwaita-web cell in the widget matrix.`,
+        `${onBothRenderers.length - exempt} with a story, ${exempt} ledgered with a reason.`,
 );

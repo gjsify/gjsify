@@ -325,11 +325,7 @@ jobs:
       # construction to the story that exists NOWHERE — a widget with no meta at all is
       # perfectly symmetric across three targets. Measured: nine widgets shipped on both
       # renderers had no story anywhere, `adw-entry` and `adw-drop-down` among them.
-      # The same script also holds STATUS.md's widget matrix to the defines, per tag and
-      # both ways: that column was derived from `adw-*.ts` FILENAMES, so it published a
-      # phantom `adw-checks` widget and denied `adw-preferences-page` while consumers
-      # were using one — and a row-presence check could not see it, the row existed.
-      - name: Check every shared widget is storied and matches the matrix
+      - name: Check every shared widget is in the storybook or ledgered
         run: node scripts/check-storybook-widget-coverage.mjs
 
       # A NativeScript widget's className and the theme's selector are two halves of
@@ -656,11 +652,7 @@ jobs:
       # construction to the story that exists NOWHERE — a widget with no meta at all is
       # perfectly symmetric across three targets. Measured: nine widgets shipped on both
       # renderers had no story anywhere, `adw-entry` and `adw-drop-down` among them.
-      # The same script also holds STATUS.md's widget matrix to the defines, per tag and
-      # both ways: that column was derived from `adw-*.ts` FILENAMES, so it published a
-      # phantom `adw-checks` widget and denied `adw-preferences-page` while consumers
-      # were using one — and a row-presence check could not see it, the row existed.
-      - name: Check every shared widget is storied and matches the matrix
+      - name: Check every shared widget is in the storybook or ledgered
         run: node scripts/check-storybook-widget-coverage.mjs
 
       # A NativeScript widget's className and the theme's selector are two halves of

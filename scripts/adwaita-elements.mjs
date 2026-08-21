@@ -17,9 +17,8 @@
 //
 // So this module is the ONE reader, of BOTH renderers: the NativeScript widget scan
 // was a second copy in the same two files, with the same drift ahead of it. `adw-` is
-// the whole naming rule the tree follows, which is what lets a tag address a matrix
-// row — {@link elementName} strips it, and the rest is the bare name the NativeScript
-// files and the `*.meta.ts` story names are already spelled in.
+// the whole naming rule the tree follows, and stripping it ({@link elementName}) leaves
+// the bare name widget files and `*.meta.ts` story names are already spelled in.
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
@@ -28,14 +27,12 @@ import { basename, join, relative } from 'node:path';
 export const ADWAITA_WEB_SRC = 'packages/web/adwaita-web/src';
 export const ADWAITA_NS_WIDGETS = 'packages/nativescript-bridge/adwaita/src/widgets';
 
-// The registration WITH the class it registers, in any quote style. Reading the class
-// is what makes a HALF rename fail: rename the tag and leave `AdwAvatar` alone and the
-// widget silently leaves the set both renderers share, with every gate still green.
+// The registration WITH the class it registers, in any quote style: reading the class
+// is what makes a HALF rename fail instead of shrinking the set (see the throw below).
 const DEFINE_PATTERN = /customElements\s*\.\s*define\(\s*['"`](adw-[a-z0-9-]+)['"`]\s*,\s*([A-Za-z0-9_]+)/g;
 
-// The discriminator for the pattern itself. A call it cannot read — a tag held in a
-// variable, a template with a substitution — is an element with no matrix row and no
-// ADR 0010 isolation floor, and a reader that counts only what matched cannot see it.
+// The discriminator for the pattern itself: a call it cannot read is an element the
+// whole tree is blind to, and counting only what matched can never show that.
 const DEFINE_CALL = /customElements\s*\.\s*define\(/g;
 
 /** Every `.ts` under `dir` — elements live outside `elements/` too (`source-view/`). */
@@ -67,9 +64,8 @@ const widgetClass = (name) =>
  *
  * THROWS on an empty scan: nothing is missing from an empty set, so a reader that
  * finds nothing lets every consumer pass vacuously — which is exactly what a moved
- * package or a stale pattern produces. Throws the same way on a `define(` call it
- * could not read, and on a tag registering a class other than the `Adw<Tag>` its
- * name promises: both are the whole set shrinking with nothing to show for it.
+ * package or a stale pattern produces. An unreadable `define(` and a tag registering
+ * something other than its `Adw<Tag>` throw for the same reason: both shrink the set.
  *
  * @param {string} root repository root
  * @returns {Map<string, string>} tag → repo-relative defining file
@@ -116,9 +112,9 @@ export function adwaitaWebElements(root) {
     return new Map([...defined].sort(([a], [b]) => a.localeCompare(b)));
 }
 
-// `adw-button.ts`, and the `.android`/`.ios` halves NativeScript splits a module into
-// (`icons.android.ts` beside `icons.ios.ts`): two files, one widget. Anything else
-// dotted — `adw-button.d.ts` — is not a widget name and must not be read as one.
+// `adw-button.ts`, plus the `.android`/`.ios` halves NativeScript splits a module into
+// (`icons.android.ts` beside `icons.ios.ts` here already): two files, one widget. Any
+// other dotted name — `adw-button.d.ts` — is not a widget name and is not read as one.
 const NS_WIDGET_FILE = /^adw-([a-z0-9-]+)(?:\.(?:android|ios))?\.ts$/;
 
 /** Whether the file has a class AT ALL — the one thing that makes it a widget file. */
@@ -138,11 +134,9 @@ const exportsClass = (text, name) =>
  * at `Application`: no view, nothing to place in a layout, and the directory listing
  * scored it as a NativeScript-only WIDGET the browser had yet to port.
  *
- * DECLARING NO CLASS is therefore the exemption and the only one: a file that declares
- * one and does not export it under the name its filename promises THROWS rather than
- * quietly leaving the widget set, which is how a rename would otherwise shrink every
- * consumer's input without failing anything. Same vacuous-scan contract as
- * {@link adwaitaWebElements}.
+ * DECLARING NO CLASS is therefore the exemption and the only one — a file that declares
+ * one and does not export it under the name its filename promises THROWS. Same
+ * vacuous-scan contract as {@link adwaitaWebElements}.
  *
  * @param {string} root repository root
  * @returns {Map<string, string>} bare widget name → repo-relative file
