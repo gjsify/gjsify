@@ -16,6 +16,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from '@gjsify/unit';
+import { isResolveMiss } from '@gjsify/rolldown-native';
 import {
     toNativePlugin,
     isPluginObject,
@@ -487,6 +488,35 @@ export default async () => {
                 { type: 'named', from: 'es6-promise', imported: 'Promise', alias: 'Promise' },
                 { type: 'namespace', from: 'some-mod', alias: 'ns' },
             ]);
+        });
+    });
+    // The bridge's `ctx.resolve` is DECLARED to answer `null` for a specifier that
+    // doesn't resolve, because that is what npm `rolldown` does and what every
+    // caller in `@gjsify/rolldown-plugin-gjsify` assumes — nine `this.resolve` /
+    // `ctx.resolve` call sites, none with a catch, one of them a bare presence probe
+    // (`Boolean(await ctx.resolve(…))`). The Rust side stringifies EVERY
+    // `ResolveError` into one `error` field, so a plain miss used to arrive as a
+    // rejection and those call sites threw instead of taking their not-found branch.
+    // Measured on gjs 1.88.1 with the real prebuild: an unresolvable bare specifier
+    // rejected with `NotFound("@gjsify/definitely-not-there")`.
+    await describe('isResolveMiss — only NotFound is "nothing there"', async () => {
+        await it('treats NotFound as a miss', () => {
+            expect(isResolveMiss('NotFound("@gjsify/fs")')).toBe(true);
+        });
+
+        // Everything else is a real failure. Folding these into `null` is how a
+        // bridge bug or an EACCES gets reported as the user's missing dependency.
+        await it('keeps every other shape a rejection', () => {
+            for (const e of [
+                'InvalidPackageConfig { path: "/p/package.json" }',
+                'PackagePathNotExported { subpath: "./register" }',
+                'IOError(Os { code: 13, kind: PermissionDenied })',
+                'MatchedAliasNotFound { alias: "x" }',
+                "@gjsify/rolldown-native: ctx.resolve('x') failed — parent req_id 7 unknown",
+                'rolldown: malformed context_resolve args JSON: expected value',
+            ]) {
+                expect(isResolveMiss(e)).toBe(false);
+            }
         });
     });
 };

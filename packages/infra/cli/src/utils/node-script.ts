@@ -111,6 +111,22 @@ export async function runNodeScript(
             define: { 'import.meta.url': JSON.stringify(pathToFileURL(scriptPath).href) },
             globals,
             excludeGlobals,
+            // OPT-IN, and the widest of the three call sites — say what it does and
+            // does not mean. This function is reached through the `node` shim `gjsify
+            // run` puts on the PATH, so it also bundles a consumer's
+            // `"start": "node ./src/main.mjs"`, not only a repo build script. The
+            // discriminator is therefore "the CLI is bundling this on the project's
+            // behalf", NOT "this is toolchain".
+            //
+            // Narrowing it to the CLI's own tree was considered and does not work: in
+            // the ADR 0002 bootstrap the CLI is a GLOBAL install (`install.mjs` →
+            // `gjsify install -g`) and the script is in the user's clone, so no
+            // containment test relates them. What contains the hazard instead is
+            // PROJECT FIRST (a resolvable dependency is never shadowed) plus the
+            // `this.warn` the guard emits on every rescue, which names the package and
+            // the anchor — so a mixed artifact is visible in the build log rather than
+            // byte-identical to a healthy one.
+            resolveFromToolchain: true,
         });
     } catch (err) {
         throw new Error(

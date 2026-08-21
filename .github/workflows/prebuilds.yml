@@ -763,6 +763,26 @@ jobs:
       # it, since a missing target directory is a stat and not a failure there.
       # `nodejs` is already installed above for `stage-prebuild.mjs`.
       - name: Gate on the glibc floor of what this leg just built
+        # THE TWO VALUES THAT LET IT TELL THE TWO ZEROS APART. `report` is the
+        # `changes` job's own per-package decision — the one that was ACTED on,
+        # and the same output `prebuilds-summary` renders — so the gate never
+        # re-derives "which packages does this workflow gate"; `PREBUILD_TARGET`
+        # is the single target this leg stages, without which every linux
+        # platform package in the tree looks like one of its candidates.
+        #
+        # #1232 is why they are here: a PR editing TypeScript under
+        # `packages/infra/rolldown-native/src/ts/` matched the `src/**` trigger,
+        # the `changes` job correctly skipped all eight packages the emulated
+        # legs build, every upload skipped with them — and this step read the
+        # resulting zero as "the collect steps did not run" and failed all three.
+        #
+        # A BROKEN WIRE HERE STILL REDS THE LEG: without them the gate cannot
+        # explain a zero, and an unexplained zero remains an error. It is the
+        # fail-closed direction, and `tests/e2e/staged-prebuild-libc-gate` holds
+        # both keys to this step so the wire cannot go missing quietly.
+        env:
+          PREBUILD_TARGET: linux-${{ matrix.arch }}
+          PREBUILD_REPORT: ${{ needs.changes.outputs.report }}
         run: node scripts/check-staged-prebuild-libc.mjs
 
   # ----------------------------------------------------------------
@@ -1008,6 +1028,26 @@ jobs:
       # it, since a missing target directory is a stat and not a failure there.
       # `nodejs` is already installed above for `stage-prebuild.mjs`.
       - name: Gate on the glibc floor of what this leg just built
+        # THE TWO VALUES THAT LET IT TELL THE TWO ZEROS APART. `report` is the
+        # `changes` job's own per-package decision — the one that was ACTED on,
+        # and the same output `prebuilds-summary` renders — so the gate never
+        # re-derives "which packages does this workflow gate"; `PREBUILD_TARGET`
+        # is the single target this leg stages, without which every linux
+        # platform package in the tree looks like one of its candidates.
+        #
+        # #1232 is why they are here: a PR editing TypeScript under
+        # `packages/infra/rolldown-native/src/ts/` matched the `src/**` trigger,
+        # the `changes` job correctly skipped all eight packages the emulated
+        # legs build, every upload skipped with them — and this step read the
+        # resulting zero as "the collect steps did not run" and failed all three.
+        #
+        # A BROKEN WIRE HERE STILL REDS THE LEG: without them the gate cannot
+        # explain a zero, and an unexplained zero remains an error. It is the
+        # fail-closed direction, and `tests/e2e/staged-prebuild-libc-gate` holds
+        # both keys to this step so the wire cannot go missing quietly.
+        env:
+          PREBUILD_TARGET: linux-${{ matrix.arch }}
+          PREBUILD_REPORT: ${{ needs.changes.outputs.report }}
         run: node scripts/check-staged-prebuild-libc.mjs
 
   # ----------------------------------------------------------------

@@ -335,4 +335,136 @@ export default async () => {
             expect(ctx.asked).toStrictEqual([]);
         });
     });
+
+    // A repo build script re-entered as `gjsify run --node-script` on a Node-less
+    // host must not depend on the WORKSPACE having built its polyfills: measured on
+    // postmarketOS/aarch64, `--globals auto` pulls the whole `@gjsify/<pkg>/register`
+    // closure into a one-line script (the count and the incident are recorded in the
+    // plugin package's AGENTS.md § toolchainAnchor), none of which a cold clone has
+    // built, and the ADR 0002 bootstrap dies at its third step. The rescue is the copy
+    // installed beside the running CLI — the same two-anchor shape `commands/tsc.ts`
+    // uses.
+    await describe('unresolved-workspace-import: toolchain fallback', async () => {
+        const ANCHOR = '/opt/cli/dist/cli.gjs.mjs';
+        const PROJECT_FS = '/proj/node_modules/@gjsify/fs/lib/esm/index.js';
+        const TOOLCHAIN_FS = '/opt/cli/node_modules/@gjsify/fs/lib/esm/index.js';
+
+        /**
+         * Importer-aware context: the SAME specifier answers differently from the
+         * project and from the anchor. That is what makes "project first" measurable
+         * at all — a fixture whose anchor has nothing passes no matter which order
+         * the code consults them in, and this suite had exactly that hole.
+         */
+        function twoAnchorCtx(opts: {
+            project?: Record<string, string>;
+            toolchain?: Record<string, string>;
+            projectThrows?: Error;
+        }) {
+            const calls: Array<{ id: string; importer: string | undefined }> = [];
+            const warnings: string[] = [];
+            return {
+                calls,
+                warnings,
+                /** Every consult of the anchor, however it was reached. */
+                anchorConsults: () => calls.filter((c) => c.importer === ANCHOR),
+                async resolve(id: string, importer: string | undefined) {
+                    calls.push({ id, importer });
+                    if (importer === ANCHOR) {
+                        const hit = opts.toolchain?.[id];
+                        return hit ? { id: hit } : null;
+                    }
+                    if (opts.projectThrows) throw opts.projectThrows;
+                    const hit = opts.project?.[id];
+                    return hit ? { id: hit } : null;
+                },
+                warn(message: string) {
+                    warnings.push(message);
+                },
+            };
+        }
+
+        const guard = (anchor: string | undefined) =>
+            handlerOf(
+                unresolvedWorkspaceImportPlugin({
+                    target: 'gjs',
+                    aliases: GJS_ALIASES,
+                    ...(anchor === undefined ? {} : { toolchainAnchor: anchor }),
+                }),
+            );
+
+        // PROJECT FIRST, ALWAYS — the PR's headline property. The anchor HAS the
+        // package here, so consulting it first would change the answer.
+        await it('prefers the project even when the anchor also has it', async () => {
+            const ctx = twoAnchorCtx({
+                project: { '@gjsify/fs': PROJECT_FS },
+                toolchain: { '@gjsify/fs': TOOLCHAIN_FS },
+            });
+            const out = await guard(ANCHOR).call(ctx, 'node:fs', IMPORTER);
+            expect((out as { id: string }).id).toBe(PROJECT_FS);
+            expect(ctx.anchorConsults()).toStrictEqual([]);
+        });
+
+        await it('rescues from the anchor when the project has nothing', async () => {
+            const ctx = twoAnchorCtx({ toolchain: { '@gjsify/fs': TOOLCHAIN_FS } });
+            const handler = guard(ANCHOR);
+            const out = await handler.call(ctx, 'node:fs', IMPORTER);
+            expect((out as { id: string }).id).toBe(TOOLCHAIN_FS);
+            // A rescued build must not look byte-identical to a healthy one.
+            expect(ctx.warnings.length).toBe(1);
+            expect(ctx.warnings[0]).toContain('@gjsify/fs');
+            expect(ctx.warnings[0]).toContain(ANCHOR);
+            // Second edge, same (candidate, importer dir): served from the cache, so
+            // the rescue is not re-walked per module and does not re-warn.
+            const again = await handler.call(ctx, 'node:fs', '/proj/src/other.ts');
+            expect((again as { id: string }).id).toBe(TOOLCHAIN_FS);
+            expect(ctx.calls.length).toBe(2);
+            expect(ctx.warnings.length).toBe(1);
+        });
+
+        // Without an anchor the guard must behave exactly as it always has — this is
+        // what keeps an ordinary `gjsify build` failing loudly on a missing dep. The
+        // probe is OBSERVABLE, not assertive: an `expect` inside the fake resolver
+        // would be a test that cannot fail if the guard swallowed it.
+        await it('is inert when no anchor is set', async () => {
+            const ctx = twoAnchorCtx({ toolchain: { '@gjsify/fs': TOOLCHAIN_FS } });
+            await expect(guard(undefined).call(ctx, 'node:fs', IMPORTER)).rejects.toThrow(
+                UnresolvedWorkspaceImportError,
+            );
+            expect(ctx.anchorConsults()).toStrictEqual([]);
+        });
+
+        await it('throws when neither the project nor the anchor has it', async () => {
+            const ctx = twoAnchorCtx({});
+            await expect(guard(ANCHOR).call(ctx, 'node:fs', IMPORTER)).rejects.toThrow(UnresolvedWorkspaceImportError);
+            expect(ctx.anchorConsults().length).toBe(1);
+        });
+
+        // A REJECTING `this.resolve` is not a miss. It re-runs the whole `pre`-order
+        // chain, so it can carry an EACCES, a corrupt package.json, or a hook that
+        // throws on purpose — and rescuing there would make "project first, always"
+        // into "project first unless the project errors".
+        await it('does not rescue when the project resolver threw, and keeps the cause', async () => {
+            const boom = new Error("EACCES: permission denied, scandir '/proj/node_modules'");
+            const ctx = twoAnchorCtx({ projectThrows: boom, toolchain: { '@gjsify/fs': TOOLCHAIN_FS } });
+            let caught: unknown;
+            try {
+                await guard(ANCHOR).call(ctx, 'node:fs', IMPORTER);
+            } catch (e) {
+                caught = e;
+            }
+            expect(caught instanceof UnresolvedWorkspaceImportError).toBe(true);
+            expect((caught as Error).cause).toBe(boom);
+            expect((caught as Error).message).toContain('The project resolver failed with');
+            expect((caught as Error).message).toContain('EACCES');
+            expect(ctx.anchorConsults()).toStrictEqual([]);
+        });
+
+        // The fallback re-enters this same hook with the anchor as importer; without
+        // the early decline that probe would try to rescue itself, unbounded.
+        await it('declines the anchor probe itself', async () => {
+            const ctx = twoAnchorCtx({ toolchain: { '@gjsify/fs': TOOLCHAIN_FS } });
+            expect(await guard(ANCHOR).call(ctx, '@gjsify/fs', ANCHOR)).toBeNull();
+            expect(ctx.calls).toStrictEqual([]);
+        });
+    });
 };

@@ -42,6 +42,10 @@ async function loadConfigViaGjsBundle(filepath: string, verbose: boolean): Promi
             // import.meta.url)), 'package.json'))`) relative to ITS OWN location.
             // Bake the original config's URL so those reads hit the real dir.
             define: { 'import.meta.url': JSON.stringify(pathToFileURL(filepath).href) },
+            // A config file is evaluated INSIDE the CLI process — toolchain by
+            // construction, so a `@gjsify/*` the project cannot resolve may come
+            // from the CLI's own install.
+            resolveFromToolchain: true,
         });
     } catch (bundleErr) {
         throw new Error(

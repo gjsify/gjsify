@@ -263,7 +263,14 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         // Unsupported URI scheme for importing: node`) — the same failure
         // `utils/gjs-bundle-guard.ts` catches at emit time, caught here at its
         // source with the importer and cause named.
-        unresolvedWorkspaceImportPlugin({ target: 'gjs', aliases: aliasEntries, isExternal: external }),
+        unresolvedWorkspaceImportPlugin({
+            target: 'gjs',
+            aliases: aliasEntries,
+            isExternal: external,
+            ...(input.pluginOptions.toolchainAnchor !== undefined
+                ? { toolchainAnchor: input.pluginOptions.toolchainAnchor }
+                : {}),
+        }),
     ];
 
     return { options, plugins };
