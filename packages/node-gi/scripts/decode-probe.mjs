@@ -34,7 +34,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join, sep } from 'node:path';
+import { basename, dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -302,7 +302,17 @@ function decodeOne(Pixbuf, absolute, relPath) {
  * Run the probe. Returns the record the builder embeds in the manifest.
  * @param {{ bundleDir: string, addon: string }} options
  */
-export async function runDecodeProbe({ bundleDir, addon }) {
+export async function runDecodeProbe({ bundleDir: bundleArg, addon: addonArg }) {
+    // ABSOLUTE from here down. Both paths arrive from a builder's argv and both leave
+    // again as ENV — `NODE_GI_NATIVE` into a `require()`, `GJSIFY_GTK_RUNTIME` into a
+    // lookup that on darwin RE-EXECS the process — and a relative one survives every
+    // existence check on the way (they read it against the cwd) while meaning something
+    // else at the far end. node-gi.yml passes the darwin builder a repo-relative
+    // `--stage`, which is how all four darwin legs died at addon load; the loader half is
+    // fixed in native-paths.js, and this half is here because a probe whose meaning
+    // depends on its caller's cwd is measuring the caller.
+    const bundleDir = resolve(bundleArg);
+    const addon = resolve(addonArg);
     const images = selectProbeImages(bundleDir);
     // The addon by NAME only: the manifest ships to consumers, and a build-host path
     // in it is the thing every other record here is careful not to carry.
@@ -396,9 +406,13 @@ export async function runDecodeProbe({ bundleDir, addon }) {
  */
 export function spawnDecodeProbe({ bundleDir, addon, hostPrefixes = [] }) {
     const json = join(mkdtempSync(join(tmpdir(), 'gjsify-decode-probe-')), 'decode-probe.json');
+    // Resolved in the PARENT, whose cwd is the builder's, so the child is never asked to
+    // reinterpret a relative path against a cwd nobody promised it. `runDecodeProbe`
+    // resolves again for its own callers; both are cheap and neither is the other's
+    // precondition.
     const result = spawnSync(
         process.execPath,
-        [fileURLToPath(import.meta.url), '--bundle', bundleDir, '--addon', addon, '--json', json],
+        [fileURLToPath(import.meta.url), '--bundle', resolve(bundleDir), '--addon', resolve(addon), '--json', json],
         { stdio: 'inherit', env: probeChildEnv(process.env, { hostPrefixes }) },
     );
     if (!existsSync(json)) {

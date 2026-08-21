@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 // @gjsify/node-gi/load-diagnostics — what a user is told when the addon FILE is
-// present and still will not load.
+// present and still will not load. TWO causes reach the same catch and they get
+// DIFFERENT answers: the loader could not resolve the specifier, or it resolved
+// it and the OS refused the binary. Only the second is about GTK.
 //
 // A MODULE OF ITS OWN, and that is the point: `index.js` loads the native addon
 // at evaluation time, so anything living there can only be imported by a process
@@ -12,6 +14,41 @@
 // been printed by a job in this repository.
 import { hostTarget } from './native-paths.js';
 import { gtkSource } from './gtk-runtime.js';
+
+/**
+ * Did the loader fail to RESOLVE the specifier, rather than to load the binary?
+ *
+ * Two entirely different failures arrive at the same `catch`, and only one of
+ * them is about GTK:
+ *
+ *   • dlopen/LoadLibrary said no — the file was found, and its dependency
+ *     closure (or its ABI) is the problem. That is the case the long GTK
+ *     explanation below describes.
+ *   • `require()` never got as far as the file. The specifier was neither
+ *     absolute nor `./`-led, so it was looked up as a MODULE — against this
+ *     package's directory and node_modules, never against the process's cwd that
+ *     the `existsSync()` one line earlier had just resolved it against.
+ *
+ * THE INCIDENT (#996 / PR #1239), and why this discriminator exists at all:
+ * node-gi.yml hands the GTK bundle builder a repo-relative `--stage`, the builder
+ * passed that straight through as `NODE_GI_NATIVE`, and all four darwin bundle
+ * legs failed with `Cannot find module 'packages/node-gi/…'` underneath a
+ * confident five-line account of the Homebrew dependency closure ending in
+ * "Reinstall @gjsify/gtk-runtime-darwin-arm64". Every word of that advice was
+ * wrong for the cause, and it is the advice a stranger would have followed. The
+ * path bug itself is fixed in `native-paths.js#nativeCandidates()`; this stays
+ * because the next relative path to reach a `require()` will not come from there.
+ * @param {unknown} err
+ * @returns {boolean}
+ */
+function isResolutionFailure(err) {
+    if (!err || typeof err !== 'object') return false;
+    const { code, message } = /** @type {{ code?: unknown, message?: unknown }} */ (err);
+    if (code === 'MODULE_NOT_FOUND' || code === 'ERR_MODULE_NOT_FOUND') return true;
+    // Bun, Deno and the GJS napi shim raise the same condition without Node's
+    // code, so the message is a fallback rather than the primary test.
+    return typeof message === 'string' && /cannot find module|module not found/i.test(message);
+}
 
 /**
  * Turn a failed addon load into something the reader can act on.
@@ -33,6 +70,27 @@ export function describeAddonLoadFailure(addonPath, err, ctx = {}) {
     const source = ctx.source ?? gtkSource();
     const target = ctx.target ?? hostTarget();
     const reason = err instanceof Error ? err.message : String(err);
+
+    // A resolution failure gets no GTK answer. Returning early is what keeps the
+    // dependency-closure explanation for the case it actually describes — see
+    // isResolutionFailure() for what it cost when the two shared one message.
+    if (isResolutionFailure(err)) {
+        return [
+            `@gjsify/node-gi: the native addon path could not be RESOLVED.`,
+            `  addon: ${addonPath}`,
+            `  cause: ${reason}`,
+            '',
+            `This is a module-RESOLUTION failure, NOT a missing GTK dependency: the`,
+            `loader never reached the file, so nothing here is evidence about glib,`,
+            `gobject, girepository or a runtime bundle. A path that is neither absolute`,
+            `nor written with a leading ./ is resolved by require() as a MODULE`,
+            `specifier — against @gjsify/node-gi's own directory and node_modules,`,
+            `never against the working directory of the process that set it.`,
+            '',
+            `Pass an ABSOLUTE path:`,
+            `  NODE_GI_NATIVE=/absolute/path/to/node_gi.node`,
+        ].join('\n');
+    }
 
     const lines = [
         `@gjsify/node-gi: the native addon exists but could not be loaded.`,

@@ -26,7 +26,7 @@
 // definitions; this file is the authority for node-gi's own binary, and the third
 // copy is the one that must never be written.
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 /**
  * The package root. This module sits beside `index.js`, so its own directory IS
@@ -89,6 +89,15 @@ export function buildAddonPath(flavor = 'Release') {
  * Default order: prefer a shipped prebuild so a consumer needs no C toolchain and
  * no node-gyp — the only install path Deno supports (it runs no postinstall build
  * script). Fall back to a locally built addon (Release, then Debug).
+ *
+ * Every candidate is ABSOLUTE, including a pinned one, and that is load-bearing
+ * rather than tidiness: `loadNative()` tests a candidate with `existsSync()` (which
+ * reads a relative path against the CWD) and hands the SAME string to `require()`
+ * (which reads a bare one as a MODULE specifier, against this package's directory).
+ * A relative pin therefore passed the check and failed the load. Resolving HERE,
+ * where the string enters the package, is what makes the two ask about one file.
+ * The incident it cost, and the misdiagnosis it wore: load-diagnostics.js
+ * `isResolutionFailure`.
  * @param {Record<string, string | undefined>} [env] defaults to `process.env`
  * @returns {string[]}
  */
@@ -99,6 +108,9 @@ export function nativeCandidates(env = process.env) {
     const prefer = env.NODE_GI_NATIVE;
     if (prefer === 'build') return [release, debug, prebuild];
     if (prefer === 'prebuild') return [prebuild];
-    if (prefer) return [prefer]; // an explicit path to a node_gi.node
+    // An explicit path to a node_gi.node. `resolve()` keeps an absolute path
+    // byte-identical and gives a relative one the cwd meaning `existsSync` would
+    // have read into it anyway — so the check and the load name the same file.
+    if (prefer) return [resolve(prefer)];
     return [prebuild, release, debug];
 }

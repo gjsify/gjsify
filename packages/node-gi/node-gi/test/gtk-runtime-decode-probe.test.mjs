@@ -175,7 +175,40 @@ test('the builder half fails CLOSED when the addon cannot be loaded at all', () 
     // deliberately nonexistent.
     const record = spawnDecodeProbe({ bundleDir: fakeBundle(), addon: join(tmpdir(), 'no-such-node_gi.node') });
     assert.equal(record.ok, false);
+    assert.equal(record.error?.includes('Cannot find module'), false, record.error);
     assert.ok(decodeProbeProblems(record).length > 0, 'the gate must reject this record');
+});
+
+test('RELATIVE paths reach the child as paths, not as module specifiers', () => {
+    // THE REGRESSION (#1239): the darwin builder is invoked with a repo-relative
+    // `--stage`, handed that on as NODE_GI_NATIVE, and every darwin bundle leg died at
+    // `Cannot find module 'packages/node-gi/…'` — so the record said the bundle could not
+    // read its own icons when nothing had tried to. Incident: node-gi/load-diagnostics.js.
+    //
+    // Provable on any host and WITHOUT a real addon: a 4-byte file is refused by dlopen,
+    // never by the module resolver, so `ERR_DLOPEN_FAILED` is the positive evidence that
+    // the path survived the trip. Before the fix this case reports `Cannot find module`.
+    const dir = fakeBundle();
+    const relAddon = join('staged', 'node_gi.node');
+    mkdirSync(join(dir, 'staged'), { recursive: true });
+    writeFileSync(join(dir, relAddon), Buffer.alloc(4));
+    const cwd = process.cwd();
+    process.chdir(dir);
+    try {
+        // '.' as the bundle: relative, and exactly what a builder invoked from the repo
+        // root would produce for a bundle sitting under the checkout.
+        const record = spawnDecodeProbe({ bundleDir: '.', addon: relAddon });
+        assert.equal(record.ok, false, 'a 4-byte addon cannot decode anything');
+        assert.doesNotMatch(
+            String(record.error),
+            /Cannot find module|could not be RESOLVED/,
+            `the relative path must not be re-read as a module specifier: ${record.error}`,
+        );
+        assert.match(String(record.error), /ERR_DLOPEN_FAILED|dlopen|too short|not a valid|invalid ELF/i, record.error);
+        assert.ok(decodeProbeProblems(record).length > 0, 'and it still fails the gate');
+    } finally {
+        process.chdir(cwd);
+    }
 });
 
 // The decode itself, on any host that HAS an addon and a GdkPixbuf typelib. There is no
