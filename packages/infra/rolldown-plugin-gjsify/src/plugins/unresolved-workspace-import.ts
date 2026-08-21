@@ -325,6 +325,26 @@ export function unresolvedWorkspaceImportPlugin(options: WorkspaceImportGuardOpt
                         skipSelf: true,
                         kind: extraOptions?.kind,
                     });
+                } catch {
+                    // THE TWO ENGINES DISAGREE ABOUT FAILURE, and the difference is
+                    // the whole reason this plugin's message was invisible under GJS.
+                    // npm `rolldown` returns `null` for an unresolvable specifier;
+                    // `@gjsify/rolldown-native` maps rolldown's own
+                    // `ResolveError::NotFound` onto a REJECTED promise
+                    // (`plugins.ts`: `i.error ? reject(...) : resolve(id ?? null)`).
+                    // Without this catch the rejection escaped the hook, so neither
+                    // the fallback below nor the diagnostic at the end ever ran —
+                    // every unresolvable `@gjsify/*` under the GJS bundler surfaced
+                    // as a bare "plugin `gjsify-alias` threw an error" with a stack
+                    // frame in the bridge, naming neither the specifier nor the
+                    // importer. Measured on postmarketOS/aarch64; it is why
+                    // diagnosing the cold-tree bootstrap took sixteen rebuilt
+                    // packages instead of reading one line.
+                    //
+                    // A rejection means exactly what `null` means here — nothing
+                    // resolved — so both take the same path, and the caller still
+                    // gets this plugin's full diagnostic when the fallback misses.
+                    resolved = null;
                 } finally {
                     inFlight.delete(key);
                 }

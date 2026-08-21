@@ -82,14 +82,26 @@ describe('node-script bundling against a cold workspace', { skip: SKIP, timeout:
             ].join('\n'),
         );
 
-        // A workspace copy that RESOLVES AS A PACKAGE and whose entry is absent —
-        // the cold-clone shape, planted deterministically.
-        const brokenPkg = join(projectDir, 'node_modules', '@gjsify', 'fs');
-        mkdirSync(brokenPkg, { recursive: true });
-        writeFileSync(
-            join(brokenPkg, 'package.json'),
-            JSON.stringify({ name: '@gjsify/fs', version: '0.0.0', type: 'module', main: 'lib/esm/index.js' }, null, 2),
-        );
+        // The cold-clone shape: every package a real `gjsify install` would have
+        // placed is PRESENT as a directory with a manifest, and none has a built
+        // `lib/esm`. Both halves matter and the suite got this wrong once:
+        // planting only `@gjsify/fs` is NOT a cold clone, it is an uninstalled
+        // project, and `--globals auto` then SKIPS the register import for every
+        // absent package with a warning — so the bundle came out without `URL`
+        // and died at `normalizePath`, a failure that says nothing about the
+        // resolution this suite is here to test.
+        for (const name of ['fs', 'path', 'url', 'process', 'console', 'node-globals']) {
+            const pkgDir = join(projectDir, 'node_modules', '@gjsify', name);
+            mkdirSync(pkgDir, { recursive: true });
+            writeFileSync(
+                join(pkgDir, 'package.json'),
+                JSON.stringify(
+                    { name: `@gjsify/${name}`, version: '0.0.0', type: 'module', main: 'lib/esm/index.js' },
+                    null,
+                    2,
+                ),
+            );
+        }
 
         // FAKE node/npm/npx: present, on PATH, and fatal if used.
         fakeBinDir = join(tmpDir, 'fakebin');
