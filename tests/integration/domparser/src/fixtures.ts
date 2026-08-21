@@ -264,7 +264,11 @@ export const FIXTURES: Fixture[] = [
             '<article class="aditem" data-adid="1"><h2 class="title">One</h2>' +
             '<p class="price big">10 &euro;</p></article>' +
             '<article class="aditem featured" data-adid="2"><h2 class="title">Two</h2></article>' +
-            '<article class="other" data-adid="13"><p class="price">13</p></article></section>' +
+            '<article class="other" data-adid="13"><p class="price">13</p></article>' +
+            // `31` alongside `13`: with only `1`/`2`/`13` in the corpus, `^=`,
+            // `$=` and `*=` on `data-adid` answer the same set, so `^=` quietly
+            // degraded to `*=` matched the oracle everywhere. Measured.
+            '<article class="other" data-adid="31"><p class="price">31</p></article></section>' +
             '<aside id="side" lang="de-AT"><ul class="nav"><li><a href="?page=1">1</a></li>' +
             '<li class="cur"><a href="?page=2">2</a></li><li></li></ul>' +
             // Two inputs, one `type` spelled each way: HTML compares this
@@ -275,8 +279,8 @@ export const FIXTURES: Fixture[] = [
             '<select><option>a</option><option selected>b</option></select>' +
             '</aside></div>',
         expect: 'identical',
-        minElements: 23,
-        mustContain: ['data-adid="13"', '10 €', 'lang="de-AT"', 'type="TEXT"'],
+        minElements: 25,
+        mustContain: ['data-adid="13"', 'data-adid="31"', '10 €', 'lang="de-AT"', 'type="TEXT"'],
     },
     // --- declared divergent, ADR 0026 § 6 --------------------------------
     {

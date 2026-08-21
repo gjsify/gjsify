@@ -43,6 +43,11 @@ export default async () => {
             expect(adids(doc.querySelectorAll('[data-adid]'))).toBe('1,2,13');
             expect(adids(doc.querySelectorAll('[data-adid^="1"]'))).toBe('1,13');
             expect(adids(doc.querySelectorAll('[data-adid$="3"]'))).toBe('13');
+            // Position, not presence: `1`/`2`/`13` answer the same for all three
+            // operators, so a `^=` quietly degraded to `*=` stayed green on the
+            // two lines above. These two put the digit where only one can find it.
+            expect(adids(doc.querySelectorAll('[data-adid^="3"]'))).toBe('');
+            expect(adids(doc.querySelectorAll('[data-adid$="1"]'))).toBe('1');
             expect(adids(doc.querySelectorAll('[class*="item"]'))).toBe('1,2,13');
             expect(adids(doc.querySelectorAll('[class~="featured"]'))).toBe('2');
         });

@@ -37,6 +37,7 @@ const SELECTORS = [
     '[data-adid]',
     '[data-adid^="1"]',
     '[data-adid$="3"]',
+    '[data-adid$="1"]',
     '[data-adid!="2"]',
     '[class*="item"]',
     '[class~="price"]',

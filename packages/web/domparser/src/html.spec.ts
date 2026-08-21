@@ -17,13 +17,20 @@ const parse = (html: string) => new DOMParser().parseFromString(html, 'text/html
 export default async () => {
     await describe('HTML tree — void elements', async () => {
         await it('does not swallow the rest of the document', async () => {
-            const doc = parse('<div id="a"><img src="x"></div><div id="b">B</div>');
+            // The `<br>` and the text AFTER the `<img>` are the discriminator:
+            // with `img` missing from the void set, `</div>` still pops it, so a
+            // fixture whose image is the LAST child comes out identical either
+            // way. Measured — that fixture stayed green with `img` deleted.
+            const doc = parse('<div id="a"><img src="x"><br>text</div><div id="b">B</div>');
             const a = doc.querySelectorAll('div')[0];
             const b = doc.querySelectorAll('div')[1];
             expect(doc.querySelectorAll('div').length).toBe(2);
             expect(a.getAttribute('id')).toBe('a');
-            expect(a.children.length).toBe(1);
+            expect(a.children.length).toBe(2);
             expect(a.children[0].localName).toBe('img');
+            expect(a.children[1].localName).toBe('br');
+            expect(a.children[0].children.length).toBe(0);
+            expect(a.childNodes[2].nodeValue).toBe('text');
             expect(b.getAttribute('id')).toBe('b');
             expect(b.textContent).toBe('B');
             expect(b.parentElement!.localName).toBe('body');

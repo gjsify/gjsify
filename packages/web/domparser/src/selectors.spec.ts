@@ -131,6 +131,16 @@ export default async () => {
             expect(ids('[data-adid^="9"]')).toBe('');
         });
 
+        await it('tells the three apart on the same attribute', async () => {
+            // Measured: swapping `startsWith`/`endsWith` for `includes` left the
+            // line above green, because `10`/`20`/`30` answer the same either
+            // way. These three probe the position, which is the only thing that
+            // separates the operators.
+            expect(ids('[data-adid*="0"]')).toBe('a1,a2,a3');
+            expect(ids('[data-adid^="0"]')).toBe('');
+            expect(ids('[data-adid$="1"]')).toBe('');
+        });
+
         await it('element and hyphen', async () => {
             expect(ids('[class~="price"]')).toBe('p1,p3');
             expect(ids('[class~="pri"]')).toBe('');
