@@ -2,8 +2,9 @@
 // document it never has to know the classes of.
 
 import type { ReadAttribute, TreeReader } from '../canonical.js';
-import { DOMElement } from './element.js';
-import { CDATA_SECTION_NODE, COMMENT_NODE, DOCUMENT_TYPE_NODE, DOMNode, ELEMENT_NODE, TEXT_NODE } from './node.js';
+import type { DOMElement } from './element.js';
+import type { DOMNode } from './node.js';
+import { CDATA_SECTION_NODE, COMMENT_NODE, DOCUMENT_TYPE_NODE, ELEMENT_NODE, TEXT_NODE } from './node.js';
 
 /** `<template>` keeps its children in a fragment, the shape the HTML spec gives it. */
 interface WithContent {

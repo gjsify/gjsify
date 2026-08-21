@@ -49,7 +49,7 @@ const GOLDEN = [
     '  map height="20" infinite="0" orientation="orthogonal" renderorder="right-down" tiledversion="1.10.2" tileheight="16" tilewidth="16" version="1.10" width="30"',
     '    properties',
     '      property name="title" value="Jelly Jumper"',
-    '      property name="credits" value="a &amp; b"',
+    '      property name="credits" value="a & b"',
     '    tileset columns="12" firstgid="1" name="terrain" tilecount="120" tileheight="16" tilewidth="16"',
     '      image height="160" source="terrain.png" width="192"',
     '      tile id="3"',
@@ -61,7 +61,7 @@ const GOLDEN = [
     '    objectgroup id="2" name="objects"',
     '      object height="16" id="1" name="spawn" width="16" x="32" y="48"',
     '        properties',
-    '          property name="note" value="start &gt; here"',
+    '          property name="note" value="start > here"',
 ].join('\n');
 
 export default async () => {
@@ -110,6 +110,12 @@ export default async () => {
             expect(layer.getAttribute('name')).toBe('ground');
             expect(layer.querySelector('data')!.textContent).toBe('1,2,3,4,5,6,7,8');
             expect(layer.innerHTML).toContain('<data encoding="csv">1,2,3,4,5,6,7,8</data>');
+
+            // Strict decoding is wired into the XML path too, and it is the only
+            // thing that moved in this tree: the golden above changed here and
+            // nowhere else.
+            const credits = doc.querySelectorAll('property')[1];
+            expect(credits.getAttribute('value')).toBe('a & b');
         });
     });
 };

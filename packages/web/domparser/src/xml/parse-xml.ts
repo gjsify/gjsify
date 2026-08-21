@@ -7,6 +7,7 @@
 import { DOMDocument } from '../dom/document.js';
 import { DOMElement } from '../dom/element.js';
 import { CDATA_SECTION_NODE, DOMNode, TEXT_NODE } from '../dom/node.js';
+import { decodeXml } from '../entities/decode.js';
 
 const ATTR_PATTERN = /\s+([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|(\S+))/g;
 
@@ -14,7 +15,7 @@ function parseAttributes(attrsStr: string, el: DOMElement): void {
     let m: RegExpExecArray | null;
     ATTR_PATTERN.lastIndex = 0;
     while ((m = ATTR_PATTERN.exec(attrsStr)) !== null) {
-        el.setAttribute(m[1], m[2] ?? m[3] ?? m[4] ?? '');
+        el.setAttribute(m[1], decodeXml(m[2] ?? m[3] ?? m[4] ?? ''));
     }
 }
 
@@ -29,7 +30,7 @@ export function parseXml(xml: string): DOMDocument {
         if (ltIdx === -1) {
             const text = xml.slice(i);
             if (text.trim()) {
-                const tn = new DOMNode(TEXT_NODE, '#text', text);
+                const tn = new DOMNode(TEXT_NODE, '#text', decodeXml(text));
                 const top = stack[stack.length - 1];
                 tn.parentNode = top;
                 top.childNodes.push(tn);
@@ -40,7 +41,7 @@ export function parseXml(xml: string): DOMDocument {
         if (ltIdx > i) {
             const text = xml.slice(i, ltIdx);
             if (text.trim()) {
-                const tn = new DOMNode(TEXT_NODE, '#text', text);
+                const tn = new DOMNode(TEXT_NODE, '#text', decodeXml(text));
                 const top = stack[stack.length - 1];
                 tn.parentNode = top;
                 top.childNodes.push(tn);
