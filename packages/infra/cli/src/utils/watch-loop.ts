@@ -129,12 +129,21 @@ export interface WatchLoopOptions {
  * `filename` is what `fs.watch` reports, relative to `dir` — `null` on the
  * platforms that cannot name the changed path, where the honest answer is "no
  * idea", i.e. rebuild.
+ *
+ * BOTH operands are resolved before they are compared. Resolving only the
+ * changed path is right on POSIX for as long as every caller happens to pass an
+ * already-absolute `output`, and silently wrong the moment one does not: on
+ * win32 `resolve()` also rewrites the separators and picks up the drive, so the
+ * two sides stop being the same spelling of the same file and every self-write
+ * reads as a source edit — which is the feedback loop this filter exists to
+ * stop. Caught by the win32 leg; on Linux all five cases passed.
  */
 export function isSelfWrite(dir: string, output: string | undefined, filename: string | null): boolean {
     if (output === undefined || filename === null) return false;
     const changed = resolve(dir, filename);
-    if (changed === output || changed.startsWith(`${output}.`)) return true;
-    const outDir = dirname(output);
+    const out = resolve(dir, output);
+    if (changed === out || changed.startsWith(`${out}.`)) return true;
+    const outDir = dirname(out);
     if (outDir === resolve(dir)) return false;
     return changed === outDir || changed.startsWith(`${outDir}${sep}`);
 }
