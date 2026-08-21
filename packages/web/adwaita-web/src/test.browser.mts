@@ -46,8 +46,12 @@ import { AdwAboutDialogTest } from './adw-about-dialog.spec.js';
 import { AdwStyleClassesTest } from './style-classes.spec.js';
 import { AdwAccentTest } from './adw-accent.spec.js';
 import { AdwShortcutLabelTest } from './adw-shortcut-label.spec.js';
+import { AdwConnectLifecycleTest } from './connect-lifecycle.spec.js';
+import { AdwEmptySectionsTest } from './empty-sections.spec.js';
 
 run({
+    AdwConnectLifecycleTest,
+    AdwEmptySectionsTest,
     AdwStyleClassesTest,
     AdwAccentTest,
     AdwShortcutLabelTest,

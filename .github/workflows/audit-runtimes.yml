@@ -287,6 +287,18 @@ jobs:
       - name: Check adwaita-web's style-isolation list covers every element
         run: node scripts/check-adwaita-reset-components.mjs
 
+      # An `_initialized` early return in `connectedCallback` is a leak for any element
+      # class that also tears something down: a bare re-parent — a slideshow slide, a
+      # client-side route change — released the binding and never restored it.
+      # `<adw-navigation-split-view>` lost its ResizeObserver and never collapsed again
+      # however narrow the page got; `<adw-popover>` came back visible with neither
+      # outside-click nor Escape dismissal, the only two ways it could have re-armed
+      # them. Both were found by READING: a dead media query and a dead document
+      # listener change no markup, no class list and no box until something fires them,
+      # so no spec could have gone red. Full incident in the script header.
+      - name: Check every adwaita-web teardown has a rebind behind it
+        run: node scripts/check-adwaita-connect-rebind.mjs
+
       # A conformance table with no RENDERER behind it asserts a derivation against
       # itself. A census (#1072) found 43 such tables, 16 of them silent gaps rather
       # than deliberate — and two headers in the same area were asserting coverage
@@ -652,6 +664,18 @@ jobs:
       # and the spec ADR 0010 names as the guard instantiates exactly one element.
       - name: Check adwaita-web's style-isolation list covers every element
         run: node scripts/check-adwaita-reset-components.mjs
+
+      # An `_initialized` early return in `connectedCallback` is a leak for any element
+      # class that also tears something down: a bare re-parent — a slideshow slide, a
+      # client-side route change — released the binding and never restored it.
+      # `<adw-navigation-split-view>` lost its ResizeObserver and never collapsed again
+      # however narrow the page got; `<adw-popover>` came back visible with neither
+      # outside-click nor Escape dismissal, the only two ways it could have re-armed
+      # them. Both were found by READING: a dead media query and a dead document
+      # listener change no markup, no class list and no box until something fires them,
+      # so no spec could have gone red. Full incident in the script header.
+      - name: Check every adwaita-web teardown has a rebind behind it
+        run: node scripts/check-adwaita-connect-rebind.mjs
 
       # A conformance table with no RENDERER behind it asserts a derivation against
       # itself. A census (#1072) found 43 such tables, 16 of them silent gaps rather

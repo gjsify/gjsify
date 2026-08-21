@@ -160,6 +160,17 @@ export class AdwPopover extends HTMLElement {
     }
 
     connectedCallback() {
+        this._buildOnce();
+        // EVERY connect, not only the first. The document listeners are bound from
+        // `_onStateChange` and released by `disconnectedCallback`, so a popover that was
+        // OPEN when it moved — a slideshow slide, a client-side route change — comes back
+        // visible with neither outside-click nor Escape dismissal, and no state change
+        // left to re-arm them: the only ways out are the two that just died. Idempotent
+        // by construction, the same function references and capture flag the unbind uses.
+        if (this._state.open) this._bindDocument();
+    }
+
+    private _buildOnce() {
         if (this._initialized) return;
         this._initialized = true;
 

@@ -9,6 +9,7 @@
 
 import { stringIsNotEmpty } from '@gjsify/adwaita-core';
 
+import { bindEmptySections } from '../empty-sections.js';
 import { type AdwIcon, createAdwIcon } from './adw-icon.js';
 
 export class AdwStatusPage extends HTMLElement {
@@ -41,6 +42,9 @@ export class AdwStatusPage extends HTMLElement {
         for (const child of children) this._childEl.appendChild(child);
 
         this.replaceChildren(this._iconEl, this._titleEl, this._descEl, this._childEl);
+        // `_render` only ever runs from `attributeChangedCallback`, which an action
+        // appended into the child slot after connect does not trigger.
+        bindEmptySections(this._childEl);
         this._render();
     }
 
@@ -63,8 +67,6 @@ export class AdwStatusPage extends HTMLElement {
         const description = this.getAttribute('description') ?? '';
         this._descEl.textContent = description;
         this._descEl.hidden = !stringIsNotEmpty(description);
-
-        this._childEl.hidden = this._childEl.childElementCount === 0;
     }
 }
 

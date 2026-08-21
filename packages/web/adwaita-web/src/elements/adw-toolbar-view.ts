@@ -30,6 +30,7 @@ import {
     parseToolbarStyle,
     toolbarViewClasses,
 } from '@gjsify/adwaita-core';
+import { bindEmptySections } from '../empty-sections.js';
 import { AdwScrollShading } from '../scroll-shading.js';
 
 export class AdwToolbarView extends HTMLElement {
@@ -88,8 +89,11 @@ export class AdwToolbarView extends HTMLElement {
             this._bottomEl.className = 'adw-toolbar-view-bottom';
             for (const child of bottomChildren) this._bottomEl.appendChild(child);
 
-            this._topEl.hidden = this._topEl.childElementCount === 0;
-            this._bottomEl.hidden = this._bottomEl.childElementCount === 0;
+            // A bar appended imperatively — which `topBar` invites — is a childList
+            // change, not an attribute one, so the empty/non-empty decision cannot be a
+            // one-shot read here. The ResizeObserver below then sees the bar go 0 → 48
+            // and the undershoot classes follow on their own.
+            bindEmptySections(this._topEl, this._bottomEl);
 
             this.replaceChildren(this._topEl, this._contentEl, this._bottomEl);
         }
