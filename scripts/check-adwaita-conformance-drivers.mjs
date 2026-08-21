@@ -20,6 +20,7 @@
 //      section comment above it) carries a `CORE-ONLY:` line               → pass
 //   3. driven only by the core suite with no such line                     → FAIL
 //   4. driven by nothing at all                                            → FAIL
+//   5. renderer-driven AND still carrying `CORE-ONLY:`                     → FAIL
 //
 // The `CORE-ONLY:` line belongs in the TABLE's own header, not a renderer's
 // source: #1072 found three `TOOLBAR_VIEW_*` tables whose reason lived in both
@@ -112,8 +113,16 @@ const byCore = consumersUnder([CORE_SUITE_DIR], names);
 
 const failures = [];
 for (const table of tables) {
-    if (byRenderer.get(table.name)) continue;
     const where = `${relative(ROOT, table.file)} → ${table.name}`;
+    if (byRenderer.get(table.name)) {
+        // The exemption is a claim about TODAY. Without this direction it only ever
+        // ratchets one way: a table that gains a driver keeps its excuse forever, and
+        // the next reader takes "CORE-ONLY" for the current state of the port.
+        if (table.header.includes(CORE_ONLY_MARKER)) {
+            failures.push(`${where}: renderer-driven, but still carries "${CORE_ONLY_MARKER}" — it landed, drop the marker.`);
+        }
+        continue;
+    }
     if (!byCore.get(table.name)) {
         failures.push(`${where}: driven by NOTHING — not even the core suite.`);
         continue;
