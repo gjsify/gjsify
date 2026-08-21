@@ -7,10 +7,9 @@
  * `@gjsify/adwaita-web`'s `_variables.scss` declared
  * `--monospace-font-family: 'Adwaita Mono', …` above a comment saying "Adwaita Mono
  * heads it because `@gjsify/adwaita-fonts` ships it". That package ships two Adwaita
- * SANS TTFs and no mono face at all. `<adw-source-view>` — the code editor, the one
- * widget whose whole point is a fixed pitch — therefore rendered in whatever the
- * generic tail resolved to, and on the workstation where it was written that was the
- * system `adwaita-mono-fonts`, so it looked exactly right. The NativeScript theme
+ * SANS TTFs and no mono face at all, so every `.monospace` label rendered in whatever
+ * the generic tail resolved to — and on the workstation where it was written that was
+ * the system `adwaita-mono-fonts`, so it looked exactly right. The NativeScript theme
  * carrying the SAME stack already said the opposite in prose
  * (`nativescript-bridge/adwaita/src/theme/adwaita.css`), which is the shape of every
  * claim nothing checks: two copies, one drifted, and the drifted one is the one an

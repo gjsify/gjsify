@@ -81,7 +81,8 @@ What blocks it is not code: producing woff2 means committing NEW font binaries
 decision, not a fix. Same call for **Adwaita Mono**, which this package does not
 ship at all: `refs/adwaita-fonts/mono/` carries four faces of 1.4-1.5 MB each,
 `--monospace-font-family` heads with `'Adwaita Mono'` for the GNOME hosts that
-have it installed, and `<adw-source-view>` falls through to `ui-monospace`
+have it installed, and everything reading that token — `.monospace` labels, the
+data-grid mono cell, `<adw-source-view>` — falls through to `ui-monospace`
 everywhere else.
 
 ### Two CI comments still say rolldown-native has no Apple target
