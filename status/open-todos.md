@@ -85,6 +85,54 @@ have it installed, and everything reading that token — `.monospace` labels, th
 data-grid mono cell, `<adw-source-view>` — falls through to `ui-monospace`
 everywhere else.
 
+### Nothing in this repo calls `applyAdwaitaFonts()`
+
+The opt-in works and is tested, but the count of in-repo CALL SITES is zero:
+`@gjsify/adwaita-web/fonts` is imported by `adw-fonts.spec.ts` and nothing else,
+and that suite removes the faces again when it finishes. Verified on real
+artifacts: a `--app browser` probe whose only statement is
+`import '@gjsify/adwaita-web';` has an EMPTY `document.fonts` (0 faces, 0
+`CSSFontFaceRule`) while `document.fonts.check("16px 'Adwaita Sans'")` still
+answers true from fontconfig; a freshly rebuilt
+`showcases/dom/three-loader-ldraw/dist/browser.js` (17.4 MB) carries 47 Adwaita
+stylesheet markers and ZERO `@font-face` — so dropping its dead `style.css`
+import regressed nothing, and it ships no typeface either.
+
+The one path that DOES ship the faces is the website, through
+`astro.config.mjs`'s Starlight `customCss` — a real CSS pipeline, so the `url()`
+form is enough there.
+
+This is a decision, not an accident, and it stays that way while the faces are
+unsubsetted desktop TTFs (the entry above). Two candidates when that changes:
+`@gjsify/adwaita-storybook`, whose whole purpose is to look like Adwaita, and the
+DOM showcases the website embeds as standalone pages. Neither gets it today,
+because at 1.18 MB gzip it is a size decision, and a library barrel is the wrong
+place to make one on a consumer's behalf. Whoever ships a browser artifact that
+must look like Adwaita off a GNOME host owns the call.
+
+### `<adw-source-view>` has no browser suite
+
+It is an opt-in subpath, so `test.browser.mts` never imports it and nothing in
+CI renders it. That is how `source-view/theme.ts` kept a second monospace stack
+in a TS literal for its whole life while `_variables.scss` claimed the stack had
+ONE home — measured on one page, `.cm-scroller` resolved to 'Adwaita Mono',
+'Cascadia Code', 'JetBrains Mono', … and a `.monospace` label beside it to the
+token's shorter stack. The editor now reads `var(--monospace-font-family, …)`,
+verified by hand in Firefox, but nothing HOLDS it: the `stylesheet-font-families`
+conformance rule reads `.css`/`.scss`, so a new literal would be invisible again.
+Registering a source-view suite pulls CodeMirror into the browser test bundle,
+which is why it is a note rather than part of the fix.
+
+### `tests/browser/test-results/.last-run.json` is tracked and rewritten by every run
+
+Every `npx playwright test` in `tests/browser` rewrites it, so verifying any
+browser-facing PR the way its description says it was verified dirties the tree,
+and a red run leaves a committed-looking failure record behind. Either gitignore
+`tests/browser/test-results/` and `git rm --cached` the file, or — if the
+last-run record is deliberately committed — say so where the browser-test
+workflow is described in `tests/AGENTS.md`. Pre-existing; noticed while running
+the Firefox suite for the fonts work.
+
 ### Two CI comments still say rolldown-native has no Apple target
 
 `.github/workflows/main.yml:736-739` says it "does not compile for Apple targets
