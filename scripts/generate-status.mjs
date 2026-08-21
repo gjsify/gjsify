@@ -388,6 +388,44 @@ export function collectPackageFacts(root) {
     return facts;
 }
 
+// ─── Open-TODO anchors ──────────────────────────────────────────────────────
+
+/**
+ * The `### <title>` sections of `status/open-todos.md`, each with the BODY up to the
+ * next heading.
+ *
+ * ONE parse, TWO consumers: this file resolves deferral markers against the headings,
+ * `check-storybook-widget-coverage.mjs` resolves a `gap` field the marker rule cannot
+ * structurally see. Its own copy had already drifted — emphasis stripped from the
+ * heading but not the anchor, so a `gap` quoting a heading VERBATIM was rejected there
+ * and accepted here.
+ *
+ * @param {string} text
+ * @returns {{heading: string, body: string}[]}
+ */
+export function todoSections(text) {
+    const headings = [...text.matchAll(/^### ([^\n]+)$/gm)];
+    return headings.map((match, index) => ({
+        heading: match[1].trim(),
+        body: text.slice(match.index, headings[index + 1]?.index ?? text.length),
+    }));
+}
+
+/**
+ * The sections `anchor` names, or an empty list. Emphasis stripped from BOTH sides — a
+ * heading may spell a symbol as `code`, a marker in a comment is plain text, and an
+ * anchor quoting the heading carries the punctuation along; all three must reach the
+ * same section. Containment, not equality: an anchor is a short handle against a whole
+ * sentence, so equality would force every marker to restate a title.
+ *
+ * @param {{heading: string, body: string}[]} sections
+ * @param {string} anchor
+ */
+export function todoAnchorMatches(sections, anchor) {
+    const plain = (text) => text.replaceAll(/[`*_]/g, '');
+    return sections.filter((section) => plain(section.heading).includes(plain(anchor)));
+}
+
 // ─── Authored-data loading + validation ─────────────────────────────────────
 
 /**
@@ -510,7 +548,8 @@ export function loadStatusData(root, facts) {
     // Open TODOs: `### <title>` sections; a resolved TODO is DELETED, never
     // struck through — that rule is now machine-checked instead of remembered.
     const todosMd = read('open-todos.md');
-    const todoHeadings = [...todosMd.matchAll(/^### ([^\n]+)$/gm)].map((m) => m[1].trim());
+    const todoSectionList = todoSections(todosMd);
+    const todoHeadings = todoSectionList.map((section) => section.heading);
     if (todosMd && todoHeadings.length === 0) {
         failures.push('status/open-todos.md has no `### <title>` sections — one heading per open TODO.');
     }
@@ -536,10 +575,7 @@ export function loadStatusData(root, facts) {
     // anchor is work with no heading. Both are the ledger disagreeing with
     // reality, so both belong here.
     //
-    // Matched by containment, not equality: an anchor is a short handle
-    // (`open-todos: 12 test sites are parked`) and the heading is the full
-    // sentence, so requiring equality would force every marker to restate a
-    // whole title and drift on the first reword.
+    // How an anchor reaches a heading is {@link todoAnchorMatches}, shared not restated.
     //
     // COST, measured rather than asserted, because this rule advertises itself as
     // cheap and runs on every PR with no install and no build: +0.27 s over three
@@ -584,12 +620,7 @@ export function loadStatusData(root, facts) {
                 for (const m of text.matchAll(ANCHOR)) {
                     const anchor = m[1].trim();
                     if (!anchor) continue;
-                    // Headings are markdown (backticks, emphasis); an anchor in
-                    // a code comment is plain text. Compare with the formatting
-                    // removed so a heading may name a symbol as `code` without
-                    // forcing every marker to reproduce the punctuation.
-                    const plain = (t) => t.replace(/[`*_]/g, '');
-                    if (todoHeadings.some((h) => plain(h).includes(plain(anchor)))) continue;
+                    if (todoAnchorMatches(todoSectionList, anchor).length > 0) continue;
                     const line = text.slice(0, m.index).split('\n').length;
                     failures.push(
                         `${relative(root, file)}:${line}: deferral marker anchors to "open-todos: ${anchor}", ` +

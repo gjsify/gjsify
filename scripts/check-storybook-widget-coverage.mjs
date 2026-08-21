@@ -42,6 +42,10 @@
 //   7. An entry's `only` MATCHES the side the tree puts the widget on. Without this
 //      an asymmetry that FLIPPED — ported one way, dropped the other — keeps reading
 //      as covered while the reason next to it now describes the wrong renderer.
+//   8. A `gap` resolves to a `### ` section of the open-TODO ledger that NAMES the
+//      widget. Heading-only was not enough: every gap points at one shared section
+//      whose own closing line retires a bullet once an issue exists, so following it
+//      emptied the section while all five entries stayed green.
 //
 // STATUS.md's widget matrix is NOT checked here: an arm that did was removed, because
 // its column and this check both call `adwaitaWebElements()` — `f(x)` against `f(x)`,
@@ -63,7 +67,9 @@ import {
     adwaitaNativeScriptWidgets,
     adwaitaWebElements,
     elementName,
+    stripComments,
 } from './adwaita-elements.mjs';
+import { todoAnchorMatches, todoSections } from './generate-status.mjs';
 
 const args = process.argv.slice(2);
 const rootFlag = args.indexOf('--root');
@@ -115,20 +121,14 @@ const NO_STORY_OF_ITS_OWN = {
  * two carousel indicators have an Adw WIDGET behind them at all. Five more are public
  * Adw GObjects — DATA, which the browser needs a tag to declare in markup and
  * NativeScript passes as an object. The remaining thirteen have no Adw type of any
- * kind, and they are not one bucket but two:
- *
- *   - EIGHT are stylesheet partials over a GTK primitive (`.card` in `_misc.scss`,
- *     `_switch.scss`, `_popovers.scss`, `_progress-bar.scss`, `_checks.scss`,
- *     `.image-button` in `_buttons.scss`, `_scale.scss`), where WHICH renderer wrapped
- *     the primitive in an element of its own is a rendering idiom, not a missing port.
- *   - FIVE have no upstream style class either, because they are not a rendered thing
- *     at all: a GtkBuildable markup child (`alert-response`), a GtkWidget-typed
- *     PROPERTY (the two bottom-sheet slots), a different library (`source-view`), and
- *     one — `view-switcher-page` — with no upstream spelling whatsoever, since a view
- *     switcher reads an AdwViewStack's own pages.
- *
- * Which bucket a widget is in is stated in ITS entry; this paragraph exists so the
- * three are not collapsed into the first one, which reads as tidier than the tree is.
+ * kind, in TWO shapes, and collapsing them into the first reads tidier than the tree
+ * is: eight are stylesheet partials over a GTK primitive (`.card` in `_misc.scss`,
+ * `_switch.scss`, `_popovers.scss`, `_progress-bar.scss`, `_checks.scss`,
+ * `.image-button` in `_buttons.scss`, `_scale.scss`), where WHICH renderer wrapped the
+ * primitive in an element is a rendering idiom, not a missing port; five are not a
+ * rendered thing at all — a GtkBuildable markup child, a GtkWidget-typed property, a
+ * different library, and `view-switcher-page`, which has no upstream spelling
+ * whatsoever. Which shape a widget is is stated in ITS entry.
  *
  * `vectors` is optional and names conformance tables in `@gjsify/adwaita-core` that the
  * decision leaves driven from ONE side. It is checked (see {@link vectorFailures}), so
@@ -265,7 +265,10 @@ function storyNames(dir) {
     return found;
 }
 
-/** The floor `check-nativescript-theme-classes.mjs` set: it refuses a blank, it judges nothing. */
+/**
+ * The floor `check-nativescript-theme-classes.mjs` set: it refuses a blank, it judges
+ * nothing. BOTH ledgers here buy an exemption with a sentence, so both apply it.
+ */
 const MIN_REASON = 40;
 
 /** Where a `gap` may point, in the two spellings `gjsify/todo-needs-anchor` already accepts. */
@@ -274,9 +277,10 @@ const GAP_TODO = /^open-todos: (\S.*)$/;
 const OPEN_TODOS = 'status/open-todos.md';
 
 /**
- * Every `### <title>` in the open-TODO ledger, so a `gap` pointing at one can be
- * resolved — matched by containment with markdown emphasis stripped, exactly the way
- * `generate-status.mjs` resolves a deferral marker that names that ledger.
+ * The open-TODO sections a `gap` may point at, via `generate-status.mjs`'s OWN resolver
+ * ({@link todoSections} / {@link todoAnchorMatches}) rather than a second copy — the
+ * copy this replaced stripped emphasis from the heading but not the anchor, so a `gap`
+ * quoting a heading verbatim was rejected here and accepted there.
  *
  * IT IS RESOLVED HERE rather than left to that rule, which does walk `scripts/`:
  * measured, its anchor pattern has to reach a `)` before the next `*`, which is the
@@ -289,8 +293,7 @@ const OPEN_TODOS = 'status/open-todos.md';
  * the shape is a dangling anchor. Measured on the first run — two findings, both prose.
  */
 function todoAnchors() {
-    const text = readFileSync(join(ROOT, OPEN_TODOS), 'utf8');
-    return [...text.matchAll(/^### ([^\n]+)$/gm)].map(([, heading]) => heading.replaceAll(/[`*_]/g, '').trim());
+    return todoSections(readFileSync(join(ROOT, OPEN_TODOS), 'utf8'));
 }
 
 /** Every `.ts` under `dir`, specs INCLUDED — a conformance table is driven from a spec. */
@@ -316,12 +319,20 @@ const RENDERER_SRC = {
 
 const OTHER_RENDERER = { web: 'nativescript', nativescript: 'web' };
 const SIDE_LABEL = { web: 'the browser only', nativescript: 'NativeScript only' };
+const SIDES = Object.keys(OTHER_RENDERER);
 
-/** @param {string} dir @param {RegExp} pattern @returns {Set<string>} */
+/**
+ * Table names matched in the CODE of `dir`, comments blanked out first — load-bearing
+ * on the `driven` side, where a MENTION is not a consumer: both trees name `_VECTORS`
+ * tables in prose, and `split-view-state.spec.ts` has a comment recording that a table
+ * has NO consumer there, the exact opposite of driving it.
+ *
+ * @param {string} dir @param {RegExp} pattern @returns {Set<string>}
+ */
 function tableNames(dir, pattern) {
     const found = new Set();
     for (const file of typescriptFiles(dir)) {
-        for (const [, name] of readFileSync(file, 'utf8').matchAll(pattern)) found.add(name);
+        for (const [, name] of stripComments(readFileSync(file, 'utf8')).matchAll(pattern)) found.add(name);
     }
     return found;
 }
@@ -345,6 +356,10 @@ function tableNames(dir, pattern) {
  */
 function vectorFailures(name, entry, exported) {
     if (entry.vectors === undefined) return [];
+    // Unchecked, a bare string spreads into 19 findings about the letter `R`.
+    if (!Array.isArray(entry.vectors)) {
+        return [`adw-${name}: \`vectors\` must be a LIST of conformance table names, not a ${typeof entry.vectors}.`];
+    }
     const problems = [];
     const other = OTHER_RENDERER[entry.only];
     const driven = tableNames(RENDERER_SRC[other], /\b([A-Z][A-Z0-9_]*_VECTORS)\b/g);
@@ -399,13 +414,20 @@ for (const name of onBothRenderers) {
     );
 }
 
-for (const name of Object.keys(NO_STORY_OF_ITS_OWN)) {
+for (const [name, reason] of Object.entries(NO_STORY_OF_ITS_OWN)) {
     if (stories.has(name)) {
         failures.push(`adw-${name}: exempted here, but ${name}.meta.ts exists — drop the stale exemption.`);
     } else if (!web.has(name) || !ns.has(name)) {
         const where = web.has(name) ? 'the browser only' : ns.has(name) ? 'NativeScript only' : 'neither renderer';
         failures.push(
             `adw-${name}: exempted here, but it is on ${where} — outside this check's scope, so the entry covers nothing.`,
+        );
+    } else if (reason.trim().length < MIN_REASON) {
+        // Without this, `icon: ''` bought a story exemption in silence while
+        // `decision: ''` did not — one file, two ledgers, one bar.
+        failures.push(
+            `adw-${name}: exempted here with no real reason — say where the reader finds this widget ` +
+                'instead, or why a GTK story could show nothing honest.',
         );
     }
 }
@@ -438,6 +460,15 @@ for (const [name, entry] of Object.entries(ONE_RENDERER_ONLY)) {
         unverdicted.push(`adw-${name}: ledgered as one-renderer-only, but it is ${where}. Drop the entry.`);
         continue;
     }
+    // BEFORE the side comparison: a missing or misspelled `only` is not a flipped
+    // asymmetry, and reporting it as one sends the author to re-read a sound reason.
+    if (!SIDES.includes(entry.only)) {
+        unverdicted.push(
+            `adw-${name}: \`only\` is \`${JSON.stringify(entry.only)}\` — it must be one of ${SIDES.map((s) => `'${s}'`).join(' / ')}, ` +
+                'the two renderers this ledger compares.',
+        );
+        continue;
+    }
     if (entry.only !== side) {
         unverdicted.push(
             `adw-${name}: ledgered as \`only: '${entry.only}'\`, but the tree has it on ${SIDE_LABEL[side]}. ` +
@@ -459,11 +490,20 @@ for (const [name, entry] of Object.entries(ONE_RENDERER_ONLY)) {
                 `adw-${name}: \`gap\` must be \`#<issue>\`, or the open-todos anchor — that word, a colon and ` +
                     `enough of a \`### \` heading in ${OPEN_TODOS} to name it. "${entry.gap}" points nowhere.`,
             );
-        } else if (todo !== null && !anchors.some((heading) => heading.includes(todo[1]))) {
-            unverdicted.push(
-                `adw-${name}: \`gap\` anchors to "${entry.gap}", but no \`### \` heading in ${OPEN_TODOS} ` +
-                    'contains that text — the entry was renamed or deleted, or it was never written.',
-            );
+        } else if (todo !== null) {
+            const matched = todoAnchorMatches(anchors, todo[1]);
+            if (matched.length === 0) {
+                unverdicted.push(
+                    `adw-${name}: \`gap\` anchors to "${entry.gap}", but no \`### \` heading in ${OPEN_TODOS} ` +
+                        'contains that text — the entry was renamed or deleted, or it was never written.',
+                );
+            } else if (!matched.some((section) => section.body.includes(`adw-${name}`))) {
+                unverdicted.push(
+                    `adw-${name}: \`gap\` anchors to "${entry.gap}", but that section of ${OPEN_TODOS} never ` +
+                        `names adw-${name}. A heading is not a record — either write what this gap is waiting ` +
+                        'on there, or re-point the `gap` at the issue that now tracks it.',
+                );
+            }
         }
     } else if (entry.decision.trim().length < MIN_REASON) {
         unverdicted.push(
