@@ -2137,3 +2137,52 @@ docblock stops calling itself shared and the field narrows to the NativeScript
 theming path it actually serves. Deferred out of the gate PR that measured it,
 because either direction is a behaviour change and would make a review of the
 gate impossible.
+
+### `AdwToastOverlay`'s `timeout` option means seconds on one port and milliseconds on the other
+
+Measured 2026-08-21, while checking a reported "the toast default is 5000 in the
+core and 5 in the browser element" — which is NOT a defect. `refs/libadwaita`
+settles the units: `adw-toast.c:385` documents `AdwToast:timeout` as "the timeout
+of the toast, **in seconds**" and `adw-toast.c:475` sets `self->timeout = 5`.
+adwaita-core counts MILLISECONDS and says so on every field, so
+`DEFAULT_TOAST_TIMEOUT = 5000` is 5 s and is right; `adw-toast-overlay.ts` takes
+SECONDS as its public unit, `DEFAULT_TIMEOUT_SECONDS = 5` mirrors
+`Adw.Toast:timeout` exactly, and it converts once at the boundary (`* 1000`,
+line 142) — also right. Nothing vanishes in 5 ms or lingers for 5000 s.
+
+The real divergence is one level out, between the two RENDERERS. Both export a
+class called `AdwToastOverlay` taking an options bag whose field is called
+`timeout`, and the two mean different things:
+
+- `adwaita-web` — `addToast(title, { timeout })` is SECONDS (its own
+  `AdwToastOptions` interface). Its spec writes `{ timeout: 3 }` for three seconds.
+- `@gjsify/adwaita-nativescript` — `showToast(title, { timeout })` passes the
+  bag straight to `new AdwToast(...)`, so it is the CORE's `AdwToastOptions`,
+  i.e. MILLISECONDS. Its spec writes `{ timeout: 3000 }` for the same three seconds.
+
+`{ timeout: 5 }` is therefore a five-second toast in the browser and a five-
+MILLISECOND toast on NativeScript. Each suite is internally consistent, which is
+why neither catches it, and no conformance vector table covers `toast.ts` at all
+(see the module-gap entry above), so nothing holds the two ports to one answer.
+
+Fixing it is a public-API change on one of the two ports and wants a decision
+first: libadwaita's own spelling is seconds, which argues for the browser being
+right and the NativeScript wrapper growing the same `* 1000` boundary — at the
+cost of breaking anyone passing milliseconds today. Deferred out of the gate PR
+that measured it; a behaviour change would have made that PR unreviewable.
+
+### Nothing holds `adwaita-web`'s data grid to the shared data-grid vectors
+
+`DATA_GRID_TRACK_VECTORS`, `DATA_GRID_COLUMN_CLASS_VECTORS`,
+`DATA_GRID_VARIANT_VECTORS`, `DATA_GRID_CELL_TEXT_VECTORS` and
+`DATA_GRID_INTERACTIVE_VECTORS` are driven by
+`packages/nativescript-bridge/adwaita/src/data-grid.spec.ts` alone. The string
+`DATA_GRID` occurred exactly once anywhere in `adwaita-web`, in a comment
+claiming "Both ports are held to `DATA_GRID_*_VECTORS`" — corrected in the same
+change as this entry, since the browser half is held to none of them.
+
+`adw-data-grid.ts` does delegate correctly (it imports `dataGridTracks`,
+`dataGridColumnClasses`, `dataGridCellText`, `dataGridRowInteractive` and both
+normalisers from the core), so this is missing coverage rather than a known
+drift. Closing it is a browser-side spec over the five tables, in the shape
+`split-views.spec.ts` already uses.
