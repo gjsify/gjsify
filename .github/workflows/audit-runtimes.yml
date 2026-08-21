@@ -294,12 +294,23 @@ jobs:
       - name: Check every conformance table is driven or explains why not
         run: node scripts/check-adwaita-conformance-drivers.mjs
 
+      # The gate below reads ONE 26 KB file out of `refs/libadwaita`, and until this step
+      # existed nothing put it on disk: no workflow here passes `submodules:` to
+      # actions/checkout, so the gate exited 0 having compared nothing on every pull
+      # request it ever ran on. Targeted rather than `submodules: true` — this repo has 93
+      # `refs/` submodules and the realized tree is ~150 GB, against ~13 MB for libadwaita.
+      # The price is a build dependency on gitlab.gnome.org inside a REQUIRED check, paid
+      # deliberately: the alternative is the gate that cannot fail.
+      - name: Check out refs/libadwaita (the style-class gate reads it)
+        run: git submodule update --init --depth 1 refs/libadwaita
+
       # The style-class LEDGER against libadwaita's own style-classes.md. 21 documented
       # classes (`.card`, `.boxed-list`, `.toolbar`, `.linked`, `.osd`, …) had no rule in
       # adwaita-web at all (#1049) while the roadmap tracked "missing partials" by
       # filename — a diff that reports gaps that are not gaps and misses the ones that
-      # are. SKIPs without `refs/libadwaita`; the rules themselves are asserted against
-      # the COMPILED css by the browser suite's style-classes.spec.ts.
+      # are. The rules themselves are asserted against the COMPILED css by the browser
+      # suite's style-classes.spec.ts. Absent input SKIPS locally and FAILS under CI, so
+      # the step above going missing again is loud rather than green.
       - name: Check the style-class ledger covers libadwaita's documented surface
         run: node scripts/check-adwaita-style-classes.mjs
 
@@ -621,12 +632,23 @@ jobs:
       - name: Check every conformance table is driven or explains why not
         run: node scripts/check-adwaita-conformance-drivers.mjs
 
+      # The gate below reads ONE 26 KB file out of `refs/libadwaita`, and until this step
+      # existed nothing put it on disk: no workflow here passes `submodules:` to
+      # actions/checkout, so the gate exited 0 having compared nothing on every pull
+      # request it ever ran on. Targeted rather than `submodules: true` — this repo has 93
+      # `refs/` submodules and the realized tree is ~150 GB, against ~13 MB for libadwaita.
+      # The price is a build dependency on gitlab.gnome.org inside a REQUIRED check, paid
+      # deliberately: the alternative is the gate that cannot fail.
+      - name: Check out refs/libadwaita (the style-class gate reads it)
+        run: git submodule update --init --depth 1 refs/libadwaita
+
       # The style-class LEDGER against libadwaita's own style-classes.md. 21 documented
       # classes (`.card`, `.boxed-list`, `.toolbar`, `.linked`, `.osd`, …) had no rule in
       # adwaita-web at all (#1049) while the roadmap tracked "missing partials" by
       # filename — a diff that reports gaps that are not gaps and misses the ones that
-      # are. SKIPs without `refs/libadwaita`; the rules themselves are asserted against
-      # the COMPILED css by the browser suite's style-classes.spec.ts.
+      # are. The rules themselves are asserted against the COMPILED css by the browser
+      # suite's style-classes.spec.ts. Absent input SKIPS locally and FAILS under CI, so
+      # the step above going missing again is loud rather than green.
       - name: Check the style-class ledger covers libadwaita's documented surface
         run: node scripts/check-adwaita-style-classes.mjs
 
