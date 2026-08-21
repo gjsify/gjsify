@@ -154,12 +154,29 @@ function tablesIn(file) {
     return found;
 }
 
-/** Which of `names` appear anywhere under `dir`, excluding the tables' own file. */
+/** Comment bodies, blanked. `[^:]` before `//` keeps `https://` out of it. */
+const withoutComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+/**
+ * Which of `names` a suite under `dir` DRIVES: names used outside a comment, in a
+ * `*.spec.ts`. Both halves are load-bearing, and a plain text scan had neither.
+ *
+ * Comments, because a claim must not supply its own evidence. This branch's own fix
+ * spelled the five `DATA_GRID_*_VECTORS` out in an adwaita-web comment saying the
+ * browser drives NONE of them — and thereby made all five read as browser-driven,
+ * silencing the gate on the exact defect it was built for. It cuts the other way too:
+ * a truthful cross-reference to an exempt table flipped it to "renderer-driven", and
+ * the staleness arm then demanded the true marker be deleted.
+ *
+ * `*.spec.ts`, because driving a table means ITERATING it in a test. Today every
+ * non-spec mention in either renderer is prose, so this changes nothing on its own —
+ * it is what keeps the comment rule from being one file's move away from useless.
+ */
 function consumersUnder(dir, names) {
     const seen = new Set();
     for (const file of walk(dir)) {
-        if (file.startsWith(CONFORMANCE_DIR)) continue;
-        const source = readFileSync(file, 'utf8');
+        if (file.startsWith(CONFORMANCE_DIR) || !file.endsWith('.spec.ts')) continue;
+        const source = withoutComments(readFileSync(file, 'utf8'));
         for (const name of names) {
             // Word-boundary, so `FOO_VECTORS` does not match `FOO_VECTORS_2`.
             if (!seen.has(name) && new RegExp(`\\b${name}\\b`).test(source)) seen.add(name);
