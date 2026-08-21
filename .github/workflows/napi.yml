@@ -52,10 +52,17 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # The pinned refs/node revision the conformance addon sources + committed
-# goldens are generated from. MUST match the refs/node submodule gitlink so the
-# UNMODIFIED addons + their Node-reference output stay byte-identical in CI.
+# goldens are generated from. The fetch step below WIPES refs/node and clones
+# nodejs/node at this sha, so CI never reads the gitlink — while a maintainer
+# running `test:conformance:update` reads nothing else (conformance.mjs copies
+# out of refs/node/test/*). One oracle, one upstream, so the two must be equal.
+# They were not: the `chore: release v0.23.0` submodule sweep moved the gitlink
+# to 0618e9f0 and left this on ed63b195, 109 commits behind. Nothing failed,
+# because both revisions carry byte-identical test/js-native-api + test/node-api
+# trees — which is the whole hazard, since the next sweep is not obliged to.
+# Now held by the `workflow-rev-pin` conformance rule on every PR.
 env:
-  NODE_TEST_REV: ed63b195cd61367db7b611cb601352197569ee0e
+  NODE_TEST_REV: 0618e9f0fc7606f7a7981b6a0bf28ec1606ae2b3
 
 jobs:
   build-test:
