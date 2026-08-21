@@ -1,25 +1,20 @@
 import { test, expect } from '@playwright/test';
 import { discoverBundles } from '../scripts/discover-bundles.mjs';
 
-// A REAL Tab press against a modal, and a REAL arrow press against a roving tabindex.
+// REAL key presses against adwaita-web's keyboard contracts — three reproductions, one
+// per shape measured broken.
 //
-// WHY THIS EXISTS BESIDE THE PACKAGE'S OWN SPECS
+// It exists beside `packages/web/adwaita-web/src/keyboard-operable.spec.ts` (which holds
+// the same contracts far more thoroughly) for one reason that file's header spells out:
+// a DISPATCHED event has no default action, so the escape itself — press Tab inside
+// `<adw-alert-dialog>`, land on a view-switcher button behind the scrim — is only
+// reproducible by a key press the browser routes. Hence `page.keyboard.press`.
 //
-// `packages/web/adwaita-web/src/keyboard-operable.spec.ts` dispatches `KeyboardEvent`s
-// and asserts `document.activeElement`. That is enough to hold the mechanics, but a
-// dispatched event has no default action: the browser does not move focus for it, so
-// "focus never left the dialog" is TRUE THERE EVEN WITH NO TRAP AT ALL. The escape this
-// whole change is about — focus the last control inside `<adw-alert-dialog>`, press Tab,
-// land on a view-switcher button behind the scrim — can only be reproduced by a key
-// press the browser itself routes. That is what `page.keyboard.press` does and what this
-// file is for. It is deliberately small: three reproductions, one per shape that was
-// measured broken, against the same bundle the unit suite runs.
-//
-// It reuses `dist/test.browser.mjs` rather than a second bundle, because importing the
-// package root is what registers the custom elements and that entry already does it. The
-// cost is one extra run of the package's own suite (~12 s); a dedicated entry would be a
-// second build artifact, a second `build:test:browser`-shaped script and a second thing
-// for `scripts/check-browser-test-registration.mjs` to reason about.
+// It reuses `dist/test.browser.mjs` rather than a second bundle: importing the package
+// root is what registers the custom elements, and that entry already does it. The cost
+// is one extra run of the package suite (~12 s) against a second build artifact, a
+// second `build:test:browser`-shaped script and a second case for
+// `scripts/check-browser-test-registration.mjs`.
 
 const HARNESS_PATH = '/tests/browser/harness/index.html';
 const DONE_SELECTOR = '[data-tests-done="true"]';
@@ -37,13 +32,11 @@ test('adwaita-web keyboard operability (real key presses)', async ({ page }) => 
     ).toBeDefined();
 
     await page.goto(`${HARNESS_PATH}?bundle=${encodeURIComponent(adwaita!.url)}`);
-    // The bundle registers the custom elements on import and runs the package suite;
-    // waiting for done is the cheapest way to know registration has happened.
+    // Done is the cheapest signal that the import — and with it the registration — ran.
     await page.waitForSelector(DONE_SELECTOR, { timeout: BUNDLE_TIMEOUT });
 
     // ---- Shape 1: a real Tab must not leave a modal --------------------------------
-    // The trailing button is the reproduction: it is what focus actually landed on when
-    // the alert dialog claimed `aria-modal` and trapped nothing.
+    // `#outside` is the reproduction: focus landed on the element after the dialog.
     await page.evaluate(() => {
         document.body.replaceChildren();
         const opener = document.createElement('button');
@@ -118,9 +111,8 @@ test('adwaita-web keyboard operability (real key presses)', async ({ page }) => 
     expect(await rowState()).toEqual({ focus: 0, roving: [0, -1, -1] });
 
     // ---- Shape 3: the rows are NOT reachable, and that is on the record -------------
-    // Ledgered in status/open-todos.md rather than fixed here: making the row family
-    // focusable moves tab order on every consumer page and needs its own before/after.
-    // Asserted so the day it changes, this says so instead of nothing.
+    // Ledgered in status/open-todos.md, not fixed here: making the row family focusable
+    // moves tab order on every consumer page. Asserted so the day it changes, this says so.
     await page.evaluate(() => {
         document.body.replaceChildren();
         const before = document.createElement('button');

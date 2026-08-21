@@ -376,6 +376,20 @@ jobs:
       - name: Check every browser-only spec is registered in its bundle
         run: node scripts/check-browser-test-registration.mjs
 
+      # A keyboard affordance adwaita-web DECLARES has an implementation behind it. Two
+      # shapes, one root, both measured in Firefox and both GREEN under 4321 assertions
+      # that all read state: `aria-modal="true"` on four dialog surfaces, honoured by ONE
+      # — a Tab out of `<adw-alert-dialog>` landed on a view-switcher button behind its
+      # own scrim, and closing left focus there; and `role=tablist`/`listbox` plus a
+      # roving `tabIndex = -1` on four composites with no keydown listener anywhere, so
+      # the unselected items were reachable by NO key, worse than the tab stops the
+      # roving tabindex replaced. The gate holds that an implementation EXISTS — that
+      # `aria-modal` is set in exactly one module, which traps Tab, and that a negative
+      # tabIndex on a repeated child has a keydown listener behind it. Whether either
+      # WORKS is the two browser specs; full incident in the script header.
+      - name: Check declared keyboard affordances have an implementation
+        run: node scripts/check-adwaita-keyboard-contract.mjs
+
       # Three READMEs promised the three storybook targets "compare 1:1 by screenshot"
       # (#1052) and no such harness existed. It was not built — three rasterisers cannot
       # be compared pixel-for-pixel, and the NativeScript leg needs a device CI has not
@@ -804,6 +818,20 @@ jobs:
       # bundle was staged for main.yml's `browser` job.
       - name: Check every browser-only spec is registered in its bundle
         run: node scripts/check-browser-test-registration.mjs
+
+      # A keyboard affordance adwaita-web DECLARES has an implementation behind it. Two
+      # shapes, one root, both measured in Firefox and both GREEN under 4321 assertions
+      # that all read state: `aria-modal="true"` on four dialog surfaces, honoured by ONE
+      # — a Tab out of `<adw-alert-dialog>` landed on a view-switcher button behind its
+      # own scrim, and closing left focus there; and `role=tablist`/`listbox` plus a
+      # roving `tabIndex = -1` on four composites with no keydown listener anywhere, so
+      # the unselected items were reachable by NO key, worse than the tab stops the
+      # roving tabindex replaced. The gate holds that an implementation EXISTS — that
+      # `aria-modal` is set in exactly one module, which traps Tab, and that a negative
+      # tabIndex on a repeated child has a keydown listener behind it. Whether either
+      # WORKS is the two browser specs; full incident in the script header.
+      - name: Check declared keyboard affordances have an implementation
+        run: node scripts/check-adwaita-keyboard-contract.mjs
 
       # Three READMEs promised the three storybook targets "compare 1:1 by screenshot"
       # (#1052) and no such harness existed. It was not built — three rasterisers cannot

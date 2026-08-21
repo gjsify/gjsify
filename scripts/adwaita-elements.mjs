@@ -119,6 +119,21 @@ const DEFINE_PATTERN = /customElements\s*\.\s*define\(\s*['"`](adw-[a-z0-9-]+)['
 // whole tree is blind to, and counting only what matched can never show that.
 const DEFINE_CALL = /customElements\s*\.\s*define\(/g;
 
+/**
+ * Every non-spec `.ts` source file of the web renderer, absolute.
+ *
+ * Exported because a check about the CODE — rather than about the element SET — still
+ * has to see the files no `customElements.define` names: `elements/modal-surface.ts`
+ * and `elements/roving-focus.ts` are exactly where the two keyboard contracts live, and
+ * a reader keyed on the element set is blind to both.
+ *
+ * @param {string} root repository root
+ * @returns {string[]} absolute paths
+ */
+export function adwaitaWebSources(root) {
+    return sourceFiles(join(root, ADWAITA_WEB_SRC));
+}
+
 /** Every `.ts` under `dir` — elements live outside `elements/` too (`source-view/`). */
 function sourceFiles(dir) {
     const found = [];

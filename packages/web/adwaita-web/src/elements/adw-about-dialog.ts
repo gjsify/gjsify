@@ -356,7 +356,6 @@ export class AdwAboutDialog extends HTMLElement {
         if (visibility.legalRow) this._navView.append(this._buildLegalPage());
 
         this._sheetEl.replaceChildren(this._navView);
-        this._sheetEl.tabIndex = -1;
 
         this.classList.toggle('open', this.open);
     }
