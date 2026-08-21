@@ -14,6 +14,10 @@
             "types": "./lib/types/source-view/index.d.ts",
             "default": "./src/source-view/index.ts"
         },
+        "./fonts": {
+            "types": "./lib/types/fonts.d.ts",
+            "default": "./src/fonts.ts"
+        },
         "./style.css": {
             "types": "./style.css.d.ts",
             "default": "./dist/adwaita-web.css"

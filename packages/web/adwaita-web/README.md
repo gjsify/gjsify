@@ -17,9 +17,21 @@ yarn add @gjsify/adwaita-web
 ## Usage
 
 ```typescript
-// Registers all custom elements, loads Adwaita fonts, and self-applies the
-// compiled stylesheet — this one import is all you need.
+// Registers all custom elements and self-applies the compiled stylesheet.
 import '@gjsify/adwaita-web';
+```
+
+It does **not** register the Adwaita Sans `@font-face`, and that is a size
+decision rather than an omission: the two faces inlined are 2.39 MB / 1.18 MB
+gzip against a 190 KB / 26 KB stylesheet, and `gjsify build --app browser` has no
+code splitting, so a lazy face costs the same bytes as an eager one. The
+stylesheet names the family; on a GNOME host the system install resolves it.
+Where that is not good enough — an app served to arbitrary browsers — opt in:
+
+```typescript
+import { applyAdwaitaFonts } from '@gjsify/adwaita-web/fonts';
+
+applyAdwaitaFonts(); // idempotent; injects both faces as `data:` URIs
 ```
 
 > The stylesheet is injected on import, so a separate `import '@gjsify/adwaita-web/style.css'` is not required (and under a bundler with its own CSS pipeline it injects the same rules twice). The compiled CSS is still exported at `@gjsify/adwaita-web/style.css` if you prefer a static `<link>` with no JS injection.
@@ -116,7 +128,7 @@ An Adwaita-styled source editor — the web twin of GtkSourceView — is availab
 an **opt-in subpath** so its CodeMirror dependency never bloats the core bundle:
 
 ```typescript
-import '@gjsify/adwaita-web';              // app chrome (theme variables, fonts)
+import '@gjsify/adwaita-web';              // app chrome (theme variables, components)
 import '@gjsify/adwaita-web/source-view';  // registers <adw-source-view>
 ```
 

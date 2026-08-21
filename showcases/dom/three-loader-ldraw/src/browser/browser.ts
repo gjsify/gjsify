@@ -4,8 +4,12 @@
 // Original: MIT license, three.js authors (https://threejs.org)
 // This software uses the LDraw Parts Library (http://www.ldraw.org), CC BY 2.0.
 
+// The root import self-applies the compiled stylesheet, which is why the
+// `@gjsify/adwaita-web/style.css` side-effect import that used to sit here was
+// dead twice over: under this build css-as-string turns it into a string a
+// side-effect import discards, and under a real CSS pipeline it injects the same
+// rules a SECOND time (`style.css.d.ts` says so).
 import '@gjsify/adwaita-web';
-import '@gjsify/adwaita-web/style.css';
 import type { AdwOverlaySplitView } from '@gjsify/adwaita-web';
 import { start, MODEL_LIST, DEFAULT_MODEL_INDEX, type LDrawDemo } from '../three-demo.js';
 

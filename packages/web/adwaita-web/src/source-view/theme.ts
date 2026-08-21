@@ -15,9 +15,21 @@ import { EditorView } from '@codemirror/view';
 import { HighlightStyle } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 
-/** Monospace stack — Adwaita Mono when present, else a portable code font. */
-const MONO_FONT =
-    "'Adwaita Mono', 'Cascadia Code', 'JetBrains Mono', 'Source Code Pro', ui-monospace, 'SF Mono', Menlo, Consolas, monospace";
+/**
+ * Monospace stack — the `--monospace-font-family` token, with its own value
+ * repeated as the `var()` fallback for a page that loads `@gjsify/adwaita-web`'s
+ * stylesheet without the theme tokens.
+ *
+ * It USED to be a second stack, written out here and longer (Cascadia Code,
+ * JetBrains Mono, Source Code Pro, Consolas). Two consequences, both real: the
+ * `stylesheet-font-families` conformance rule reads `.css`/`.scss` only, so a
+ * stack living in a TS string literal was outside every check the repo has; and
+ * on a host with, say, JetBrains Mono but no Adwaita Mono, an `<adw-source-view>`
+ * and a `.monospace` label on the SAME page rendered in DIFFERENT typefaces.
+ * `_variables.scss` is where that stack is argued about (it explains why
+ * 'Cantarell' is dropped from it), so it is where it lives.
+ */
+const MONO_FONT = "var(--monospace-font-family, 'Adwaita Mono', ui-monospace, 'SF Mono', 'Menlo', monospace)";
 
 /** The CodeMirror EditorView theme mapping `.cm-*` chrome to Adwaita tokens. */
 export const adwaitaEditorTheme = EditorView.theme({

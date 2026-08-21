@@ -26,6 +26,113 @@ timers, runaway GUI processes.
 Deferred rather than half-built, and the two halves are not equally urgent: the
 build half had a live blocker behind it, this one has a verified-true claim.
 
+### The BUILD still does not name a discarded CSS side-effect import
+
+`gjsify/no-css-side-effect-import` (oxlint) catches the shape in THIS tree, on
+every PR. A consumer building through `gjsify build --app browser` does not run
+our lint config, and for them the discard is still a silent exit 0:
+`cssAsStringPlugin` returns `export default "<css>"`, tree-shaking removes it,
+nothing is emitted and nothing is said. Measured on 0.41.0: a probe entry whose
+only statement is `import '@gjsify/adwaita-fonts';` produces a **0-byte bundle
+with zero `@font-face`**.
+
+Why it is not in the plugin already, which is where it belongs. The hooks that
+can see "this module was loaded and then dropped" are
+`generateBundle`/`renderChunk` payloads and `this.getModuleInfo(id).importers`.
+None of them exists on the `@gjsify/rolldown-native` bridge:
+`packages/infra/rolldown-native/src/ts/plugins.ts` invokes every lifecycle hook as
+`handler.call(ctx)` with NO arguments, `renderChunk` receives only
+`{fileName,name,isEntry}`, and the plugin context exposes `resolve`/`warn`/`error`
+and nothing else. A diagnostic built on any of them would fire under npm rolldown
+and silently not exist under GJS — a green gate that checked nothing, on the
+runtime this repo targets.
+
+The engine-symmetric hooks are `resolveId` and `transform`, and both are
+per-import / per-module: under the native bridge that is one extra IPC round trip
+per specifier, or every module's source across the GI boundary, paid by every
+build. That is the trade to make deliberately, with a measurement of what it costs
+a real build (`dist/cli.gjs.mjs` is the honest subject — thousands of modules),
+and probably alongside extending the bridge so `generateBundle` carries its
+bundle. Until then the class is held by the lint rule, and this note is the record
+that the consumer-facing half is missing rather than solved.
+
+### `@gjsify/adwaita-fonts` ships desktop TTFs, which is why the web font is opt-in
+
+The package vendors `adwaita-sans-400.ttf` (880 KB) and its italic (910 KB) — the
+upstream DESKTOP faces, unsubsetted, not web fonts. That decides the shape of
+everything downstream. Inlined as base64 (the only form that survives a
+`--app browser` build, which emits one file and no assets):
+
+| | bytes | gzip -9 |
+|---|---:|---:|
+| `@gjsify/adwaita-web` stylesheet | 190 731 | 25 891 |
+| `+` sans 400 | 1 363 795 | 594 177 |
+| `+` sans 400 + italic | 2 577 599 | 1 205 683 |
+
+So the faces travel behind an explicit `applyAdwaitaFonts()`
+(`@gjsify/adwaita-web/fonts`) rather than in the root entry, and
+`status/stylesheet-font-families.json` carries that as the reason the stylesheet
+names a family it does not carry. A fontsource-style **woff2, subsetted per
+unicode-range**, is 15-40 KB a slice — at which point inlining by default stops
+being a question and the ledger entry retires itself.
+
+What blocks it is not code: producing woff2 means committing NEW font binaries
+(or adding a font toolchain to the build), and that is a licensing and repository
+decision, not a fix. Same call for **Adwaita Mono**, which this package does not
+ship at all: `refs/adwaita-fonts/mono/` carries four faces of 1.4-1.5 MB each,
+`--monospace-font-family` heads with `'Adwaita Mono'` for the GNOME hosts that
+have it installed, and everything reading that token — `.monospace` labels, the
+data-grid mono cell, `<adw-source-view>` — falls through to `ui-monospace`
+everywhere else.
+
+### Nothing in this repo calls `applyAdwaitaFonts()`
+
+The opt-in works and is tested, but the count of in-repo CALL SITES is zero:
+`@gjsify/adwaita-web/fonts` is imported by `adw-fonts.spec.ts` and nothing else,
+and that suite removes the faces again when it finishes. Verified on real
+artifacts: a `--app browser` probe whose only statement is
+`import '@gjsify/adwaita-web';` has an EMPTY `document.fonts` (0 faces, 0
+`CSSFontFaceRule`) while `document.fonts.check("16px 'Adwaita Sans'")` still
+answers true from fontconfig; a freshly rebuilt
+`showcases/dom/three-loader-ldraw/dist/browser.js` (17.4 MB) carries 47 Adwaita
+stylesheet markers and ZERO `@font-face` — so dropping its dead `style.css`
+import regressed nothing, and it ships no typeface either.
+
+The one path that DOES ship the faces is the website, through
+`astro.config.mjs`'s Starlight `customCss` — a real CSS pipeline, so the `url()`
+form is enough there.
+
+This is a decision, not an accident, and it stays that way while the faces are
+unsubsetted desktop TTFs (the entry above). Two candidates when that changes:
+`@gjsify/adwaita-storybook`, whose whole purpose is to look like Adwaita, and the
+DOM showcases the website embeds as standalone pages. Neither gets it today,
+because at 1.18 MB gzip it is a size decision, and a library barrel is the wrong
+place to make one on a consumer's behalf. Whoever ships a browser artifact that
+must look like Adwaita off a GNOME host owns the call.
+
+### `<adw-source-view>` has no browser suite
+
+It is an opt-in subpath, so `test.browser.mts` never imports it and nothing in
+CI renders it. That is how `source-view/theme.ts` kept a second monospace stack
+in a TS literal for its whole life while `_variables.scss` claimed the stack had
+ONE home — measured on one page, `.cm-scroller` resolved to 'Adwaita Mono',
+'Cascadia Code', 'JetBrains Mono', … and a `.monospace` label beside it to the
+token's shorter stack. The editor now reads `var(--monospace-font-family, …)`,
+verified by hand in Firefox, but nothing HOLDS it: the `stylesheet-font-families`
+conformance rule reads `.css`/`.scss`, so a new literal would be invisible again.
+Registering a source-view suite pulls CodeMirror into the browser test bundle,
+which is why it is a note rather than part of the fix.
+
+### `tests/browser/test-results/.last-run.json` is tracked and rewritten by every run
+
+Every `npx playwright test` in `tests/browser` rewrites it, so verifying any
+browser-facing PR the way its description says it was verified dirties the tree,
+and a red run leaves a committed-looking failure record behind. Either gitignore
+`tests/browser/test-results/` and `git rm --cached` the file, or — if the
+last-run record is deliberately committed — say so where the browser-test
+workflow is described in `tests/AGENTS.md`. Pre-existing; noticed while running
+the Firefox suite for the fonts work.
+
 ### Two CI comments still say rolldown-native has no Apple target
 
 `.github/workflows/main.yml:736-739` says it "does not compile for Apple targets

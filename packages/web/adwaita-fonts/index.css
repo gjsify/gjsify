@@ -1,1 +1,7 @@
+/* Both faces this package ships, so the `.` export and `./embedded` agree on what
+   "Adwaita Sans" means. It used to be `400.css` alone: a CSS-pipeline consumer
+   following the documented route got no italic and no diagnostic, while
+   `applyAdwaitaFonts()` registered two — an asymmetry nothing stated. Import
+   `./400.css` directly for the normal face only. */
 @import './400.css';
+@import './400-italic.css';

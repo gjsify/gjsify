@@ -26,6 +26,19 @@
 // it matches only the OPENING word of a comment line, so prose ABOUT a
 // deferral is deliberately not a finding.
 //
+// `no-css-side-effect-import`: a bare `import '<something that is CSS>';`
+// registers nothing under a gjsify build — `cssAsStringPlugin` emits
+// `export default "<css>"`, a module with no side effect, so the import is
+// tree-shaken and the build exits 0. Measured on 0.41.0: a probe entry whose
+// only statement was `import '@gjsify/adwaita-fonts';` — the line
+// `@gjsify/adwaita-web` carried for its whole life — produced a ZERO-BYTE
+// bundle with zero `@font-face`. The half that can go silent is the
+// EXTENSIONLESS one: the rule reads the target package's `exports` off disk to
+// learn that `@gjsify/adwaita-fonts` means `index.css`, and if that walk ever
+// returned nothing the rule would keep passing over the exact shape it exists
+// for. So the fixture project below carries its own `node_modules` package and
+// the counted assertions cover both spellings.
+//
 // The plugin is loaded from its source path in this repo (oxlint `import()`s
 // the `.ts` file directly via Node type-stripping), so no tarball/install
 // dance is needed — this exercises the exact `jsPlugins` wiring the repo's
@@ -34,7 +47,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -446,6 +459,114 @@ describe('oxlint plugin gjsify/todo-needs-anchor E2E', { timeout: 5 * 60 * 1000 
         const res = runOxlint(file);
         const out = (res.stdout ?? '') + (res.stderr ?? '');
         assert.doesNotMatch(out, /todo-needs-anchor/, `directive did not suppress:\n${out}`);
+        // With reportUnusedDisableDirectives=error a directive suppressing
+        // nothing fails the run, so this also proves the finding was real.
+        assert.equal(res.status, 0, `disabled fixture must pass:\n${out}`);
+    });
+});
+
+// A tiny package whose `.` export IS a stylesheet — the `@gjsify/adwaita-fonts`
+// shape, and the reason this rule resolves rather than matching on `.css`.
+const CSS_PACKAGE_MANIFEST = JSON.stringify(
+    {
+        name: 'fixture-css-pkg',
+        version: '1.0.0',
+        exports: { '.': { types: './index.d.ts', default: './index.css' } },
+    },
+    null,
+    2,
+);
+
+const CSS_IMPORT_FIXTURE = `import 'fixture-css-pkg';
+import './local.css';
+import './side-effect.js';
+import css from './local.css';
+
+export const length = css.length;
+`;
+
+const CSS_VALUE_ONLY_FIXTURE = `import css from 'fixture-css-pkg';
+import './side-effect.js';
+
+export const length = css.length;
+`;
+
+const CSS_DISABLED_FIXTURE = `// oxlint-disable-next-line gjsify/no-css-side-effect-import -- fixture: proves the directive suppresses a real finding
+import 'fixture-css-pkg';
+
+export const first = 1;
+`;
+
+describe('oxlint plugin gjsify/no-css-side-effect-import E2E', { timeout: 5 * 60 * 1000 }, () => {
+    let tmpDir;
+    let configPath;
+
+    before(() => {
+        tmpDir = mkdtempSync(join(tmpdir(), 'gjsify-e2e-oxc-plugin-css-'));
+        const pkgDir = join(tmpDir, 'node_modules', 'fixture-css-pkg');
+        mkdirSync(pkgDir, { recursive: true });
+        writeFileSync(join(pkgDir, 'package.json'), `${CSS_PACKAGE_MANIFEST}\n`);
+        writeFileSync(join(pkgDir, 'index.css'), 'body { color: red; }\n');
+        writeFileSync(join(tmpDir, 'local.css'), 'body { color: blue; }\n');
+        writeFileSync(join(tmpDir, 'side-effect.js'), 'globalThis.__fixture = 1;\n');
+        configPath = join(tmpDir, '.oxlintrc.json');
+        writeFileSync(
+            configPath,
+            JSON.stringify(
+                {
+                    jsPlugins: [PLUGIN_ENTRY],
+                    options: { reportUnusedDisableDirectives: 'error' },
+                    rules: { 'gjsify/no-css-side-effect-import': 'error' },
+                },
+                null,
+                2,
+            ) + '\n',
+        );
+    });
+
+    after(() => {
+        rmSync(tmpDir, { recursive: true, force: true });
+    });
+
+    function runOxlint(file) {
+        return spawnSync(process.execPath, [OXLINT_BIN, '--config', configPath, file], {
+            encoding: 'utf-8',
+            timeout: 60 * 1000,
+        });
+    }
+
+    // TWO, counted: one for the resolved bare package and one for the plain
+    // `.css` extension. A bare `assert.match` would pass on either alone, and
+    // the resolving half is the one that can degrade to silence.
+    it('reports the extensionless CSS package AND the .css path, and nothing else', () => {
+        const file = join(tmpDir, 'imports.ts');
+        writeFileSync(file, CSS_IMPORT_FIXTURE);
+
+        const res = runOxlint(file);
+        const out = (res.stdout ?? '') + (res.stderr ?? '');
+        const matches = out.match(/gjsify\(no-css-side-effect-import\)/g) ?? [];
+        assert.equal(matches.length, 2, `expected 2 diagnostics, got ${matches.length}:\n${out}`);
+        assert.match(out, /fixture-css-pkg/, `the bare package must be named:\n${out}`);
+        assert.notEqual(res.status, 0, 'a finding must fail the run');
+    });
+
+    it('stays silent on a VALUE import and on a JS side-effect import', () => {
+        const file = join(tmpDir, 'value.ts');
+        writeFileSync(file, CSS_VALUE_ONLY_FIXTURE);
+
+        const res = runOxlint(file);
+        const out = (res.stdout ?? '') + (res.stderr ?? '');
+        assert.doesNotMatch(out, /no-css-side-effect-import/, `unexpected diagnostic:\n${out}`);
+        assert.equal(res.status, 0, `value fixture must pass:\n${out}`);
+    });
+
+    it('honours a reasoned disable directive', () => {
+        const file = join(tmpDir, 'disabled.ts');
+        writeFileSync(file, CSS_DISABLED_FIXTURE);
+
+        const res = runOxlint(file);
+        const out = (res.stdout ?? '') + (res.stderr ?? '');
+        assert.doesNotMatch(out, /no-css-side-effect-import/, `directive did not suppress:\n${out}`);
         // With reportUnusedDisableDirectives=error a directive suppressing
         // nothing fails the run, so this also proves the finding was real.
         assert.equal(res.status, 0, `disabled fixture must pass:\n${out}`);

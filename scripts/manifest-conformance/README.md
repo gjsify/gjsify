@@ -15,6 +15,7 @@ this repository has:
 | `pr-trigger-parity` | Reads `.github/workflows/*.yml`, and names `main` as the branch this repo merges into |
 | `refs-pin` | `refs/` submodules + Cargo path deps, verified against this repo's git index |
 | `workflow-rev-pin` | Pairs a named workflow `env:` with a `refs/` gitlink of this repository |
+| `stylesheet-font-families` | Reads the reason ledger `status/stylesheet-font-families.json` and names this repo's own packages in its diagnostics |
 
 Scope is not a quality judgement — `runtimes-drift` is the most battle-tested
 check in the set. It is about whether the rule would still be *true* somewhere

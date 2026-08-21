@@ -144,9 +144,29 @@
   // by AdwStyleManager from the desktop's font settings
   // (adw-style-manager.c:169-218), defaulting to `Sans 10` / `Monospace 10`
   // (:50-56). A browser has no style manager, so they are ordinary tokens here
-  // — same names, so re-theming goes through the documented contract. The
-  // monospace stack is the one `_data_grid.scss` used to inline; it has ONE home
-  // now, and Adwaita Mono heads it because `@gjsify/adwaita-fonts` ships it.
+  // — same names, so re-theming goes through the documented contract.
+  //
+  // The monospace stack has ONE home, and did not until recently: `_data_grid.scss`
+  // used to inline it, and `source-view/theme.ts` carried a SECOND, longer copy in
+  // a TS string literal (measured on one page, `.cm-scroller` resolved to
+  // 'Adwaita Mono', 'Cascadia Code', 'JetBrains Mono', … while a `.monospace`
+  // label beside it resolved to this token — two typefaces, same document).
+  // A literal in TS is also outside the `stylesheet-font-families` rule, which
+  // reads `.css`/`.scss`. Both now read this token; its consumers are
+  // `.monospace` (_labels.scss:128), `_action_row.scss:94`, the data-grid mono
+  // cell (via `@extend .monospace`) and `<adw-source-view>`.
+  //
+  // Adwaita Mono heads the stack as a PROGRESSIVE ENHANCEMENT, not because
+  // anything here ships it: `@gjsify/adwaita-fonts` vendors two Sans TTFs and no
+  // mono face at all (the upstream mono faces are 1.4-1.5 MB each). This comment
+  // used to claim the package ships it — a claim the NativeScript theme, which
+  // carries the same stack, already contradicted in prose
+  // (`nativescript-bridge/adwaita/src/theme/adwaita.css:769`). So on a GNOME
+  // desktop the system `adwaita-mono-fonts` resolves it; anywhere else the
+  // generic tail is what renders, which is the correct outcome and the reason the
+  // tail exists. Held honest by the `stylesheet-font-families` conformance rule,
+  // whose ledger carries this reason — never delete one without the other.
+  //
   // `'Cantarell'` is dropped from that stack on the way here: Cantarell is
   // GNOME's PROPORTIONAL UI font, so a monospace fallback chain that reaches it
   // second lands on a font whose figures do not line up — the exact property

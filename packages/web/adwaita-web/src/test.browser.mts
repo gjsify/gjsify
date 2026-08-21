@@ -48,6 +48,7 @@ import { AdwAccentTest } from './adw-accent.spec.js';
 import { AdwShortcutLabelTest } from './adw-shortcut-label.spec.js';
 import { AdwConnectLifecycleTest } from './connect-lifecycle.spec.js';
 import { AdwEmptySectionsTest } from './empty-sections.spec.js';
+import { AdwFontsTest } from './adw-fonts.spec.js';
 
 run({
     AdwConnectLifecycleTest,
@@ -92,4 +93,9 @@ run({
     AdwSidebarTest,
     AdwEntryRowsTest,
     AdwSplitButtonTest,
+    // Last, because it registers real webfaces in `document.fonts` and that
+    // changes text metrics for the whole document. Defence in depth only: the
+    // suite removes them in a `finally`, so appending a suite after this line
+    // cannot break it — see `adw-fonts.spec.ts`.
+    AdwFontsTest,
 });

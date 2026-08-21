@@ -110,7 +110,20 @@
         // warnings across five files name `nodeBinary()`, two of them in
         // capitals, and the single file that never got the memo is the one that
         // broke. That is the measurement which turns a comment into a check.
-        "gjsify/spawn-node-binary": "error"
+        "gjsify/spawn-node-binary": "error",
+        // A bare `import '<something that is CSS>';` registers nothing under
+        // any gjsify build. `cssAsStringPlugin` emits `export default "<css>"`,
+        // which has no side effect, so the import is tree-shaken and the build
+        // exits 0 — measured on 0.41.0 as a ZERO-BYTE bundle for a probe entry
+        // whose only statement was `import '@gjsify/adwaita-fonts';`, the line
+        // `@gjsify/adwaita-web` carried for its whole life while declaring
+        // `font-family: 'Adwaita Sans'` and registering no face. Invisible on a
+        // GNOME host, which supplies the typeface from fontconfig, so the
+        // screenshots were right about a tree that shipped no font. Repo-wide
+        // there were exactly two, and the convention was already written down in
+        // both files that got it right — one file did not, which is the
+        // measurement that turns a comment into a check.
+        "gjsify/no-css-side-effect-import": "error"
     },
     "overrides": [
         {

@@ -12,15 +12,25 @@
         },
         "./400.css": "./400.css",
         "./400-italic.css": "./400-italic.css",
+        "./embedded": {
+            "types": "./lib/types/embedded.d.ts",
+            "default": "./lib/esm/embedded.js"
+        },
         "./files/*": "./files/*"
     },
     "license": "OFL-1.1",
     "files": [
         "*.css",
         "*.d.ts",
-        "files"
+        "files",
+        "lib"
     ],
+    "scripts": {
+        "clear": "gjsify clear lib",
+        "build": "node scripts/build-embedded.mjs"
+    },
     "gjsify": {
+        "buildCache": false,
         "runtimes": {
             "gjs": "none",
             "node": "none",

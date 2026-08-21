@@ -83,6 +83,7 @@ import './manifest-conformance/rules/release-train.mjs';
 import './manifest-conformance/rules/node-script-globals.mjs';
 import './manifest-conformance/rules/pr-trigger-parity.mjs';
 import './manifest-conformance/rules/workflow-rev-pin.mjs';
+import './manifest-conformance/rules/stylesheet-font-families.mjs';
 
 // Re-exported for `tests/e2e/prebuild-declaration-invariant`, which drives the prebuild
 // invariant against SYNTHETIC packages: proving that a MISSING prebuild directory fails
@@ -1379,6 +1380,13 @@ const CHECK_RULES = [
     // load-bearing, not tidiness — `windows-suites.yml` runs this same `--check` with
     // `\Git\` stripped from PATH, and the first draft's `git ls-files` died there.
     'workflow-rev-pin',
+    // Reads `files` and the `.css`/`.scss` a published package ships — committed sources,
+    // no install and no build (a generated stylesheet is inspected too when a build left
+    // one behind, and its SCSS carries the same declarations either way). It belongs on
+    // every PR because the claim it holds is invisible in a rendering: a GNOME runner
+    // resolves 'Adwaita Sans'/'Adwaita Mono' from fontconfig, so a screenshot looks right
+    // over a tree that ships neither.
+    'stylesheet-font-families',
     'field-coverage',
     'status-data',
 ];
@@ -1491,6 +1499,7 @@ async function main() {
         // accountant — which labels its findings a REPORTER bug rather than a licence
         // drift. Being caught by the safety net is not the same as being reported.
         const bundledLicense = byId.get('bundled-license');
+        const stylesheetFontFamilies = byId.get('stylesheet-font-families');
         const reach = reachability.reach;
 
         if (run.ok) {
@@ -1507,6 +1516,7 @@ async function main() {
             console.log(nativescriptPlatforms.summary);
             console.log(releaseTrain.summary);
             console.log(bundledLicense.summary);
+            console.log(stylesheetFontFamilies.summary);
             console.log(prTriggerParity.summary);
             console.log(workflowRevPin.summary);
             console.log(coverage.summary);
@@ -1792,6 +1802,20 @@ async function main() {
             );
             console.error('');
         }
+        if ((stylesheetFontFamilies.failures ?? []).length > 0) {
+            console.error(`STYLESHEET-FONT-FAMILY FAILURES on ${stylesheetFontFamilies.failures.length} finding(s):`);
+            for (const line of stylesheetFontFamilies.failures) {
+                console.error(`  - ${line}`);
+            }
+            console.error('');
+            console.error(
+                'A shipped stylesheet heads a font stack with a family the package itself does not carry. Ship the face ' +
+                    '(a `@font-face` whose `src:` targets are in `files`, or a `data:` URI) or record the reason in ' +
+                    'status/stylesheet-font-families.json. Naming a system-installed family is often the RIGHT call — ' +
+                    'what is never right is nobody knowing which of the two it is.',
+            );
+            console.error('');
+        }
         if ((prTriggerParity.failures ?? []).length > 0) {
             console.error(`PR-TRIGGER-PARITY FAILURES on ${prTriggerParity.failures.length} finding(s):`);
             for (const line of prTriggerParity.failures) {
@@ -1867,6 +1891,7 @@ async function main() {
             'bundled-license',
             'pr-trigger-parity',
             'workflow-rev-pin',
+            'stylesheet-font-families',
         ]);
         const unreported = run.results.filter(
             ({ rule, result }) => (result.failures ?? []).length > 0 && !REPORTED_RULE_IDS.has(rule.id),
