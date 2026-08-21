@@ -286,6 +286,36 @@ export function registerGenericTools(ctx: McpToolContext, which: GenericToolName
         );
     }
 
+    if (want('find_widget')) {
+        server.registerTool(
+            'find_widget',
+            {
+                description:
+                    'Find the first widget matching a selector and return its widget path, searched ' +
+                    'depth-first from the active window. Selector is a GType name, a `:css-class`, or ' +
+                    'both (`GtkButton:suggested-action`). Invisible and unmapped subtrees are skipped, so ' +
+                    'a hit is something a user can actually reach. Saves dumping the whole tree to hunt ' +
+                    'for a path — and unlike a path written down earlier, a selector survives a widget ' +
+                    'being inserted above the target. Returns an empty result when nothing matches.',
+                inputSchema: z.object({ selector: z.string(), ...instanceArg }),
+            },
+            async ({ selector, instance }) => {
+                try {
+                    const reply = await client.control(
+                        instance,
+                        'FindWidget',
+                        GLib.Variant.new_tuple([strv(selector)]),
+                        '(s)',
+                    );
+                    const [path] = reply.recursiveUnpack() as [string];
+                    return ok(path ? path : `No visible widget matches "${selector}".`);
+                } catch (error) {
+                    return dbusError(error, instance);
+                }
+            },
+        );
+    }
+
     if (want('activate_widget')) {
         server.registerTool(
             'activate_widget',
@@ -310,6 +340,40 @@ export function registerGenericTools(ctx: McpToolContext, which: GenericToolName
                         activated
                             ? `Activated widget at "${path}".`
                             : `Widget at "${path}" is not activatable (no default activation).`,
+                    );
+                } catch (error) {
+                    return dbusError(error, instance);
+                }
+            },
+        );
+    }
+
+    if (want('send_key')) {
+        server.registerTool(
+            'send_key',
+            {
+                description:
+                    "Deliver a key to a widget's key controllers — the half of headless GUI driving that " +
+                    'activate_widget does not cover. Accelerator syntax is GTK\'s own: "Delete", "Left", ' +
+                    '"<primary>s", "<shift>Up". Omit path to target whatever has the keyboard focus. ' +
+                    'Proves the HANDLER runs and what it changes, not that GDK would route a real key ' +
+                    'press there — for that, also read get_property(path, "focusable"), since an ' +
+                    'unfocusable widget swallows every key silently.',
+                inputSchema: z.object({ accelerator: z.string(), path: z.string().optional(), ...instanceArg }),
+            },
+            async ({ accelerator, path, instance }) => {
+                try {
+                    const reply = await client.control(
+                        instance,
+                        'SendKey',
+                        GLib.Variant.new_tuple([strv(accelerator), strv(path ?? '')]),
+                        '(b)',
+                    );
+                    const [delivered] = reply.recursiveUnpack() as [boolean];
+                    return ok(
+                        delivered
+                            ? `Sent "${accelerator}" to ${path || 'the focused widget'}.`
+                            : `${path || 'The focused widget'} has no key controller — "${accelerator}" went nowhere.`,
                     );
                 } catch (error) {
                     return dbusError(error, instance);

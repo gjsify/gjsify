@@ -21,10 +21,13 @@ import { dumpGSettings } from './gsettings.js';
 import {
     activateWidget,
     dumpTree,
+    findWidgetPath,
     getWidgetProperty,
     listToplevels,
+    parseWidgetSelector,
     pathOfWidget,
     resolveWidgetPath,
+    sendKeyToWidget,
     widgetType,
 } from './widget-tree.js';
 
@@ -351,6 +354,58 @@ export class DevtoolsService {
         const resolved = this._resolveRootWidget(path);
         if (!resolved) throw new Error(formatDbusErrorMessage('not-found', `no widget at '${path}'`));
         return activateWidget(resolved.widget);
+    }
+
+    /** `FindWidget(selector) -> s` — path of the first widget matching
+     * `Type`, `:css-class` or `Type:css-class`, searched depth-first from the
+     * active window; `''` when nothing matches.
+     *
+     * The lookup every click-driving caller was doing by hand. Widget paths are
+     * POSITIONAL, so one written into a script is wrong as soon as a widget is
+     * inserted above it — callers therefore dumped the tree and walked the JSON
+     * themselves, reimplementing this same walk once per language. Empty string
+     * rather than an error for "no match": not finding a widget is an ordinary
+     * answer a caller acts on (wait and retry, or report), not a fault.
+     *
+     * Invisible and unmapped subtrees are skipped — see {@link findWidgetPath}. */
+    FindWidget(selector: string): string {
+        const parsed = parseWidgetSelector(selector);
+        if (!parsed) throw new Error(formatDbusErrorMessage('invalid-params', `empty selector '${selector}'`));
+        const resolved = this._resolveRootWidget('');
+        if (!resolved) return '';
+        return findWidgetPath(resolved.widget, parsed, resolved.path) ?? '';
+    }
+
+    /** `SendKey(accelerator, path) -> b` — deliver a key to the key controllers of the
+     * widget at `path` (empty path = the focused widget, else the active window).
+     *
+     * The half of headless GUI verification that was missing: buttons could be
+     * pressed and actions fired, but nothing could be TYPED, so every
+     * `Gtk.EventControllerKey` handler — an editor's arrow keys, Delete in a
+     * canvas — was unverifiable. Accelerator syntax is GTK's own
+     * (`Delete`, `Left`, `<primary>s`, `<shift>Up`).
+     *
+     * What it proves is the HANDLER, not GDK's routing — see
+     * {@link sendKeyToWidget}. Pair it with `GetProperty(path, "focusable")` when
+     * the question is whether a real key would arrive. */
+    SendKey(accelerator: string, path: string): boolean {
+        this._guard('SendKey');
+        const [ok, keyval, mods] = Gtk.accelerator_parse(accelerator);
+        if (!ok) throw new Error(formatDbusErrorMessage('invalid-params', `cannot parse accelerator '${accelerator}'`));
+
+        let target: Gtk.Widget | null;
+        if (path) {
+            target = this._resolveRootWidget(path)?.widget ?? null;
+        } else {
+            // No path: whatever has the keyboard right now, which is what a real key press would
+            // reach. Falling back to the window would send the key somewhere the user is not.
+            const win = this._app.get_active_window();
+            target = win?.get_focus() ?? null;
+        }
+        if (!target) throw new Error(formatDbusErrorMessage('not-found', `no widget at '${path || 'focus'}'`));
+        // `accelerator_parse` types its modifier out as nullable; a parse that SUCCEEDED with no
+        // modifier means zero, not "unknown".
+        return sendKeyToWidget(target, keyval, mods ?? 0);
     }
 
     /** `DumpGSettings(schema_id) -> s` — JSON of a schema's keys + values. */

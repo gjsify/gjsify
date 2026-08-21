@@ -46,12 +46,21 @@ export function buildWidgetPath(toplevel: number, children: readonly number[]): 
  *   `$typeName` — prefer it when present. (GJS has no `$typeName` on instances.)
  */
 export function widgetType(widget: Gtk.Widget): string {
-    const w = widget as unknown as {
-        $typeName?: unknown;
-        constructor?: { $gtype?: { name?: string } };
-    };
-    if (typeof w.$typeName === 'string' && w.$typeName.length > 0) return w.$typeName;
-    return w.constructor?.$gtype?.name ?? 'GtkWidget';
+    return gtypeName(widget) ?? 'GtkWidget';
+}
+
+/**
+ * The runtime GType name of any GObject, or null when it cannot be read.
+ *
+ * The body {@link widgetType} used to hold inline, lifted because the same question gets asked of
+ * things that are not widgets — a `Gtk.EventController`, say. `instanceof` is NOT the alternative:
+ * under node-gi a returned handle is a GENERIC wrapper, so `instanceof Gtk.EventControllerKey`
+ * answers false for an object that IS one, which is the very reason this reads `$typeName` first.
+ */
+function gtypeName(object: unknown): string | null {
+    const o = object as { $typeName?: unknown; constructor?: { $gtype?: { name?: string } } } | null;
+    if (typeof o?.$typeName === 'string' && o.$typeName.length > 0) return o.$typeName;
+    return o?.constructor?.$gtype?.name ?? null;
 }
 
 /**
@@ -103,6 +112,39 @@ export function activateWidget(widget: Gtk.Widget): boolean {
     return false;
 }
 
+/**
+ * Deliver a key to a widget's own key controllers — how external tooling proves a KEYBOARD works.
+ *
+ * The control plane could already press buttons and fire actions, so a GUI could be driven and
+ * screenshotted headlessly — but not TYPED INTO. Anything handled by a `Gtk.EventControllerKey`
+ * (an editor's arrow keys, Delete in a canvas, Escape in a picker) was therefore unverifiable: the
+ * code looked right, the screenshot looked right, and whether a key ever reached the handler was
+ * nobody's measurement. A `Gtk.DrawingArea` that is not `focusable` swallows every key silently,
+ * which is exactly the shape of bug that survives review.
+ *
+ * It emits `key-pressed` on the controllers ATTACHED TO THE WIDGET rather than fabricating a
+ * `Gdk.Event`: GTK4 made events opaque with no public constructor, so no binding can construct
+ * one. Say what that means honestly — this proves the HANDLER runs and what it does, not that GDK
+ * would route a real key press here. The two differ exactly when the widget cannot take focus, so
+ * a caller checking a keyboard should read `focusable` as well.
+ *
+ * Returns true if some controller claimed the key (its handler returned true).
+ */
+export function sendKeyToWidget(widget: Gtk.Widget, keyval: number, modifiers: number): boolean {
+    const controllers = widget.observe_controllers();
+    let handled = false;
+    for (let i = 0; i < controllers.get_n_items(); i++) {
+        const controller = controllers.get_item(i);
+        if (gtypeName(controller) !== 'GtkEventControllerKey') continue;
+        // Signal return values are not surfaced by GJS' `emit`, so "handled" here means the key was
+        // delivered to at least one key controller, not that a handler consumed it. A caller that
+        // needs the outcome observes the EFFECT — which is the point of sending the key at all.
+        (controller as unknown as Gtk.EventControllerKey).emit('key-pressed', keyval, 0, modifiers);
+        handled = true;
+    }
+    return handled;
+}
+
 function nthChild(widget: Gtk.Widget, index: number): Gtk.Widget | null {
     let child = widget.get_first_child();
     let i = 0;
@@ -150,6 +192,59 @@ export function resolveWidgetPath(path: string): Gtk.Widget | null {
         if (!node) return null;
     }
     return node;
+}
+
+/**
+ * A widget selector: `Type`, `:css-class`, or `Type:css-class`.
+ *
+ * Widget PATHS are positional (`toplevel:0/child:0/child:3/…`), which is what makes them stable to
+ * pass around and useless to write down: inserting one widget above the target renames every path
+ * below it. So a script that wants to press "the suggested-action button on the error page" had to
+ * dump the whole tree and walk the JSON itself — which is exactly the walk this module already
+ * does, reimplemented once per caller in whatever language the caller happens to be.
+ */
+export interface WidgetSelector {
+    /** GType name, e.g. `GtkButton`. Empty matches any type. */
+    type: string;
+    /** CSS class the widget must carry, e.g. `suggested-action`. Empty matches any. */
+    cssClass: string;
+}
+
+/** Parse `Type`, `Type:css-class` or `:css-class`. Returns null when both halves are empty. */
+export function parseWidgetSelector(selector: string): WidgetSelector | null {
+    const idx = selector.indexOf(':');
+    const type = (idx < 0 ? selector : selector.slice(0, idx)).trim();
+    const cssClass = (idx < 0 ? '' : selector.slice(idx + 1)).trim();
+    if (!type && !cssClass) return null;
+    return { type, cssClass };
+}
+
+/**
+ * Find the first widget matching `selector`, depth-first, and return its path — `null` if none.
+ *
+ * Depth-first means the first hit is the topmost one in reading order, which is what a person
+ * describing "the button" means.
+ *
+ * Invisible and unmapped widgets are SKIPPED, subtree and all. A GTK tree is full of widgets that
+ * exist but are not on screen — the other pages of a stack, a hidden row, the collapsed half of a
+ * split view — and activating one of those proves nothing about what a user can reach. Skipping the
+ * subtree as well as the node matters: the children of an unmapped stack page are unmapped too, but
+ * a caller checking only the leaf would happily match one.
+ */
+export function findWidgetPath(root: Gtk.Widget, selector: WidgetSelector, basePath: string): string | null {
+    if (!root.get_visible() || !root.get_mapped()) return null;
+    const typeOk = !selector.type || widgetType(root) === selector.type;
+    const classOk = !selector.cssClass || root.get_css_classes().includes(selector.cssClass);
+    if (typeOk && classOk) return basePath;
+    let child = root.get_first_child();
+    let i = 0;
+    while (child) {
+        const hit = findWidgetPath(child, selector, `${basePath}/child:${i}`);
+        if (hit) return hit;
+        child = child.get_next_sibling();
+        i++;
+    }
+    return null;
 }
 
 /** Dump a widget subtree to {@link NodeInfo}, bounded by `maxDepth`. */
