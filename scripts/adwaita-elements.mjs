@@ -106,6 +106,18 @@ function bindsOnlyTypes(clause) {
 }
 
 /**
+ * A source with its comments blanked out, so a static reader claims only what the
+ * module RUNS. `[^:]` before `//` keeps a `https://` inside a string intact. Shared,
+ * because #1123 is what a reader without it costs: `.osd` and `.linked` read as
+ * implemented off a comment while the code spelled something else.
+ *
+ * @param {string} text
+ */
+export function stripComments(text) {
+    return text.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/(^|[^:])\/\/[^\n]*/g, '$1');
+}
+
+/**
  * What a module imports or re-exports AS VALUES — comments out, and BOTH `type`
  * spellings out: the statement-level `import type { X } from` and the inline
  * `import { type X } from`, which emits nothing either ({@link bindsOnlyTypes}).
@@ -115,7 +127,7 @@ function bindsOnlyTypes(clause) {
  * "no path is VISIBLE", while a claimed edge nothing runs is the incident below.
  */
 function valueImports(text) {
-    const code = text.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/(^|[^:])\/\/[^\n]*/g, '$1');
+    const code = stripComments(text);
     const specs = [...code.matchAll(/(?:^|[\n;])\s*import\s*['"]([^'"]+)['"]/g)].map(([, spec]) => spec);
     for (const [, clause, spec] of code.matchAll(
         /(?:^|[\n;])\s*(?:import|export)\s+(?!type[\s{])([^'"]*)from\s*['"]([^'"]+)['"]/g,

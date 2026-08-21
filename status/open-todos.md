@@ -2247,3 +2247,43 @@ because "driven by X" was a plain text scan over every `.ts` under X — comment
 included. The original defect was caught only because it used the glob spelling
 `DATA_GRID_*_VECTORS`, which contains no individual name. Fixed by resolving
 drivers from usage: names outside a comment, in a `*.spec.ts`.
+
+### Adwaita renderer asymmetries with no verdict yet
+
+`scripts/check-storybook-widget-coverage.mjs` demands a verdict for every widget only
+one renderer ships (#1195): a `decision` with its reason, or a `gap` pointing here.
+Most are decisions with a reason next to them. These are the ones nobody has settled
+from outside the port — each is a product question, not scheduled work, which is
+exactly why they must not be written as decisions.
+
+- **`adw-checkbox` and `adw-radio` on NativeScript.** The headless half already
+  exists: `@gjsify/adwaita-core` carries `RadioGroupState` and `RADIO_GROUP_VECTORS`,
+  driven today by core's own spec (`checks.spec.ts`) and the browser suite, by no
+  NativeScript spec. What does not exist is the decision. `@nativescript/core` ships no
+  checkbox view (nothing under its `ui/`), and libadwaita's own phone idiom for a
+  boolean is `AdwSwitchRow`, which this port already has — so the question is whether
+  a checkbox belongs on a touch target at all, not how to build one.
+- **`adw-progress-bar` on NativeScript.** libadwaita styles the GtkProgressBar node in
+  `stylesheet/widgets/_progress-bar.scss` and the browser ships the element; the
+  NativeScript port has no progress widget. The PLATFORM half is not what is missing:
+  `@nativescript/core` ships a determinate `Progress` (`value`/`maxValue`, `ui/progress`),
+  exported from the same package root this port already takes `Switch`, `Slider` and
+  `ActivityIndicator` from — unlike the checkbox above, this is not a platform survey.
+  What is open is the Adwaita EXPRESSION: `progressbar > trough > progress` has no
+  equivalent in the NativeScript CSS subset this theme is confined to, and `.osd`, the
+  text label and the fraction have no counterpart at all. So the question is what a
+  determinate Adwaita progress bar should even look like there, not whether one is
+  buildable.
+- **`adw-dialog` on NativeScript.** `AdwDialog` is a real upstream widget
+  (`adw-dialog.h`) and the port has the three SPECIALISED dialogs — alert, about,
+  preferences — but no generic one. Every NativeScript dialog here is deliberately the
+  platform sheet ("There is NO custom in-app modal here", `adw-alert-dialog.ts`), and
+  a content-agnostic dialog has no platform sheet to be. Whether it becomes an in-app
+  card over the `AdwBottomSheet` overlay machinery, or is not offered at all, is the
+  open decision.
+- **`adw-carousel-indicator-lines` on NativeScript.** `AdwCarouselIndicatorLines` is a
+  public widget upstream (`adw-carousel-indicator-lines.h`). The NativeScript carousel
+  builds a DOT row inline and has no lines variant in any form.
+
+When an issue is opened for one of these, its ledger entry points at `#<number>`
+instead and the bullet is deleted from here.
