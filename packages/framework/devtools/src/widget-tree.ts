@@ -152,6 +152,59 @@ export function resolveWidgetPath(path: string): Gtk.Widget | null {
     return node;
 }
 
+/**
+ * A widget selector: `Type`, `:css-class`, or `Type:css-class`.
+ *
+ * Widget PATHS are positional (`toplevel:0/child:0/child:3/…`), which is what makes them stable to
+ * pass around and useless to write down: inserting one widget above the target renames every path
+ * below it. So a script that wants to press "the suggested-action button on the error page" had to
+ * dump the whole tree and walk the JSON itself — which is exactly the walk this module already
+ * does, reimplemented once per caller in whatever language the caller happens to be.
+ */
+export interface WidgetSelector {
+    /** GType name, e.g. `GtkButton`. Empty matches any type. */
+    type: string;
+    /** CSS class the widget must carry, e.g. `suggested-action`. Empty matches any. */
+    cssClass: string;
+}
+
+/** Parse `Type`, `Type:css-class` or `:css-class`. Returns null when both halves are empty. */
+export function parseWidgetSelector(selector: string): WidgetSelector | null {
+    const idx = selector.indexOf(':');
+    const type = (idx < 0 ? selector : selector.slice(0, idx)).trim();
+    const cssClass = (idx < 0 ? '' : selector.slice(idx + 1)).trim();
+    if (!type && !cssClass) return null;
+    return { type, cssClass };
+}
+
+/**
+ * Find the first widget matching `selector`, depth-first, and return its path — `null` if none.
+ *
+ * Depth-first means the first hit is the topmost one in reading order, which is what a person
+ * describing "the button" means.
+ *
+ * Invisible and unmapped widgets are SKIPPED, subtree and all. A GTK tree is full of widgets that
+ * exist but are not on screen — the other pages of a stack, a hidden row, the collapsed half of a
+ * split view — and activating one of those proves nothing about what a user can reach. Skipping the
+ * subtree as well as the node matters: the children of an unmapped stack page are unmapped too, but
+ * a caller checking only the leaf would happily match one.
+ */
+export function findWidgetPath(root: Gtk.Widget, selector: WidgetSelector, basePath: string): string | null {
+    if (!root.get_visible() || !root.get_mapped()) return null;
+    const typeOk = !selector.type || widgetType(root) === selector.type;
+    const classOk = !selector.cssClass || root.get_css_classes().includes(selector.cssClass);
+    if (typeOk && classOk) return basePath;
+    let child = root.get_first_child();
+    let i = 0;
+    while (child) {
+        const hit = findWidgetPath(child, selector, `${basePath}/child:${i}`);
+        if (hit) return hit;
+        child = child.get_next_sibling();
+        i++;
+    }
+    return null;
+}
+
 /** Dump a widget subtree to {@link NodeInfo}, bounded by `maxDepth`. */
 export function dumpTree(root: Gtk.Widget, maxDepth: number, basePath: string): NodeInfo {
     const node: NodeInfo = {

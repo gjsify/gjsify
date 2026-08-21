@@ -21,8 +21,10 @@ import { dumpGSettings } from './gsettings.js';
 import {
     activateWidget,
     dumpTree,
+    findWidgetPath,
     getWidgetProperty,
     listToplevels,
+    parseWidgetSelector,
     pathOfWidget,
     resolveWidgetPath,
     widgetType,
@@ -351,6 +353,26 @@ export class DevtoolsService {
         const resolved = this._resolveRootWidget(path);
         if (!resolved) throw new Error(formatDbusErrorMessage('not-found', `no widget at '${path}'`));
         return activateWidget(resolved.widget);
+    }
+
+    /** `FindWidget(selector) -> s` — path of the first widget matching
+     * `Type`, `:css-class` or `Type:css-class`, searched depth-first from the
+     * active window; `''` when nothing matches.
+     *
+     * The lookup every click-driving caller was doing by hand. Widget paths are
+     * POSITIONAL, so one written into a script is wrong as soon as a widget is
+     * inserted above it — callers therefore dumped the tree and walked the JSON
+     * themselves, reimplementing this same walk once per language. Empty string
+     * rather than an error for "no match": not finding a widget is an ordinary
+     * answer a caller acts on (wait and retry, or report), not a fault.
+     *
+     * Invisible and unmapped subtrees are skipped — see {@link findWidgetPath}. */
+    FindWidget(selector: string): string {
+        const parsed = parseWidgetSelector(selector);
+        if (!parsed) throw new Error(formatDbusErrorMessage('invalid-params', `empty selector '${selector}'`));
+        const resolved = this._resolveRootWidget('');
+        if (!resolved) return '';
+        return findWidgetPath(resolved.widget, parsed, resolved.path) ?? '';
     }
 
     /** `DumpGSettings(schema_id) -> s` — JSON of a schema's keys + values. */

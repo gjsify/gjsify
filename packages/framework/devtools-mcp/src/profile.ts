@@ -19,6 +19,7 @@ export type GenericToolName =
     | 'dump_tree'
     | 'get_property'
     | 'get_focused'
+    | 'find_widget'
     | 'activate_widget'
     | 'dump_gsettings'
     | 'dump_css'

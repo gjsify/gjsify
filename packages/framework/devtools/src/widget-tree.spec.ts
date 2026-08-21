@@ -2,7 +2,14 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 import type Gtk from '@girs/gtk-4.0';
-import { activateWidget, buildWidgetPath, parseWidgetPath, widgetType } from './widget-tree.js';
+import {
+    activateWidget,
+    buildWidgetPath,
+    findWidgetPath,
+    parseWidgetPath,
+    parseWidgetSelector,
+    widgetType,
+} from './widget-tree.js';
 
 // widgetType() is duck-typed on purpose (it reads runtime-provided accessors that
 // differ per runtime), so the specs feed it plain shapes cast to Gtk.Widget.
@@ -67,6 +74,94 @@ export default async () => {
             const noType = Object.create(null) as { $typeName?: string };
             noType.$typeName = '';
             expect(widgetType(asWidget(noType))).toBe('GtkWidget');
+        });
+    });
+
+    await describe('parseWidgetSelector', async () => {
+        await it('splits type and css class', async () => {
+            expect(parseWidgetSelector('GtkButton:suggested-action')).toStrictEqual({
+                type: 'GtkButton',
+                cssClass: 'suggested-action',
+            });
+            expect(parseWidgetSelector('GtkButton')).toStrictEqual({ type: 'GtkButton', cssClass: '' });
+            expect(parseWidgetSelector(':pill')).toStrictEqual({ type: '', cssClass: 'pill' });
+        });
+
+        await it('rejects a selector that would match everything', async () => {
+            // A selector with neither half is not "match anything" — it is a caller mistake, and
+            // answering it with the first widget in the window would be a confident wrong answer.
+            expect(parseWidgetSelector('')).toBe(null);
+            expect(parseWidgetSelector(':')).toBe(null);
+            expect(parseWidgetSelector('  :  ')).toBe(null);
+        });
+    });
+
+    await describe('findWidgetPath', async () => {
+        // A node shape with the four accessors findWidgetPath reads.
+        const node = (
+            type: string,
+            opts: { classes?: string[]; visible?: boolean; mapped?: boolean; children?: object[] } = {},
+        ): object => {
+            const kids = (opts.children ?? []) as Array<Record<string, unknown>>;
+            for (let i = 0; i < kids.length; i++) {
+                kids[i].get_next_sibling = () => kids[i + 1] ?? null;
+            }
+            return {
+                constructor: { $gtype: { name: type } },
+                get_visible: () => opts.visible !== false,
+                get_mapped: () => opts.mapped !== false,
+                get_css_classes: () => opts.classes ?? [],
+                get_first_child: () => kids[0] ?? null,
+                get_next_sibling: () => null,
+            };
+        };
+
+        await it('returns the path of the first depth-first match', async () => {
+            const tree = node('GtkBox', {
+                children: [
+                    node('GtkLabel'),
+                    node('GtkBox', { children: [node('GtkButton', { classes: ['pill'] })] }),
+                    node('GtkButton'),
+                ],
+            });
+            expect(findWidgetPath(asWidget(tree), { type: 'GtkButton', cssClass: '' }, 'toplevel:0')).toBe(
+                'toplevel:0/child:1/child:0',
+            );
+        });
+
+        await it('matches on css class alone, and on both halves together', async () => {
+            const tree = node('GtkBox', {
+                children: [node('GtkButton'), node('GtkButton', { classes: ['suggested-action'] })],
+            });
+            expect(findWidgetPath(asWidget(tree), { type: '', cssClass: 'suggested-action' }, 'toplevel:0')).toBe(
+                'toplevel:0/child:1',
+            );
+            expect(
+                findWidgetPath(asWidget(tree), { type: 'GtkButton', cssClass: 'suggested-action' }, 'toplevel:0'),
+            ).toBe('toplevel:0/child:1');
+        });
+
+        await it('skips invisible and unmapped widgets — and their children', async () => {
+            // The other pages of a stack are full of real, matching widgets nobody can click.
+            // Descending into them would hand back a path that activates nothing visible.
+            const hiddenPage = node('GtkBox', { visible: false, children: [node('GtkButton')] });
+            const unmappedPage = node('GtkBox', { mapped: false, children: [node('GtkButton')] });
+            const shown = node('GtkBox', { children: [node('GtkButton')] });
+            const tree = node('GtkStack', { children: [hiddenPage, unmappedPage, shown] });
+            expect(findWidgetPath(asWidget(tree), { type: 'GtkButton', cssClass: '' }, 'toplevel:0')).toBe(
+                'toplevel:0/child:2/child:0',
+            );
+        });
+
+        await it('returns null when nothing matches', async () => {
+            const tree = node('GtkBox', { children: [node('GtkLabel')] });
+            expect(findWidgetPath(asWidget(tree), { type: 'GtkButton', cssClass: '' }, 'toplevel:0')).toBe(null);
+        });
+
+        await it('matches the root itself', async () => {
+            expect(findWidgetPath(asWidget(node('GtkWindow')), { type: 'GtkWindow', cssClass: '' }, 'toplevel:0')).toBe(
+                'toplevel:0',
+            );
         });
     });
 
