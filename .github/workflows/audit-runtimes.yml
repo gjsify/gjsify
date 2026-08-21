@@ -302,8 +302,16 @@ jobs:
       # A conformance table with no RENDERER behind it asserts a derivation against
       # itself. A census (#1072) found 43 such tables, 16 of them silent gaps rather
       # than deliberate — and two headers in the same area were asserting coverage
-      # that did not exist, which reads as a reason not to look.
-      - name: Check every conformance table is driven or explains why not
+      # that did not exist, which reads as a reason not to look. The first version of
+      # this gate tested only that the marker was PRESENT, so three false "both
+      # renderers drive it" claims landed in the PR that built it and passed. It now
+      # resolves the reason's citations against the tree, requires every exemption to
+      # name its coverage or be a ledgered GAP, fails a marker whose table has since
+      # gained a driver, and holds every adwaita-core MODULE — not just every table —
+      # to having a conformance file or a ledgered reason. "Driven" is a name used
+      # OUTSIDE a comment in a `*.spec.ts`: the second version read comments too, so a
+      # comment claiming coverage supplied its own evidence.
+      - name: Check every conformance table is driven and every reason is true
         run: node scripts/check-adwaita-conformance-drivers.mjs
 
       # The gate below reads ONE 26 KB file out of `refs/libadwaita`, and until this step
@@ -680,8 +688,16 @@ jobs:
       # A conformance table with no RENDERER behind it asserts a derivation against
       # itself. A census (#1072) found 43 such tables, 16 of them silent gaps rather
       # than deliberate — and two headers in the same area were asserting coverage
-      # that did not exist, which reads as a reason not to look.
-      - name: Check every conformance table is driven or explains why not
+      # that did not exist, which reads as a reason not to look. The first version of
+      # this gate tested only that the marker was PRESENT, so three false "both
+      # renderers drive it" claims landed in the PR that built it and passed. It now
+      # resolves the reason's citations against the tree, requires every exemption to
+      # name its coverage or be a ledgered GAP, fails a marker whose table has since
+      # gained a driver, and holds every adwaita-core MODULE — not just every table —
+      # to having a conformance file or a ledgered reason. "Driven" is a name used
+      # OUTSIDE a comment in a `*.spec.ts`: the second version read comments too, so a
+      # comment claiming coverage supplied its own evidence.
+      - name: Check every conformance table is driven and every reason is true
         run: node scripts/check-adwaita-conformance-drivers.mjs
 
       # The gate below reads ONE 26 KB file out of `refs/libadwaita`, and until this step

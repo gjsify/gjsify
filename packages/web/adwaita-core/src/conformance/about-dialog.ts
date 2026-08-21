@@ -339,7 +339,12 @@ export interface TranslatorCreditsVector {
  * and no section is drawn, where JS `''.split('\n')` is `['']` and
  * draws the section with one blank row.
  *
- * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (ABOUT_DIALOG_CREDITS_LEGAL_VECTORS)
+ * CORE-ONLY: GAP — `adw-about-dialog` has no `translator-credits` property, and the browser
+ * spec skips every row that sets one (`if (input.translatorCredits !== undefined) continue`, in
+ * adw-about-dialog.spec.ts). So the empty-string row above — the one this docblock singles out
+ * as what a port gets wrong — reaches nothing outside the core suite. It was exempted here as an
+ * internal step of ABOUT_DIALOG_CREDITS_LEGAL_VECTORS, a three-boolean visibility table with no
+ * translator input at all. Tracked in #1072
  */
 export const TRANSLATOR_CREDITS_VECTORS: ReadonlyArray<TranslatorCreditsVector> = [
     { value: 'Ada Lovelace', people: ['Ada Lovelace'], rule: 'one translator, one row' },
@@ -881,7 +886,11 @@ export interface AboutDialogLabelVector {
  * page "About <app>" AND labelling the dialog "About <app>" says the app's name
  * three times on one screen.
  *
- * CORE-ONLY: a string table the renderers read THROUGH ADW_ABOUT_DIALOG_LABELS; the rendered text is asserted by ABOUT_DIALOG_HEADER/DETAILS_VECTORS
+ * CORE-ONLY: GAP — the renderers read these strings THROUGH `ADW_ABOUT_DIALOG_LABELS`, so a
+ * spec reading them back would be circular with respect to the `.ui` fidelity this table exists
+ * to pin. ABOUT_DIALOG_HEADER/DETAILS_VECTORS are about icon and name visibility and row
+ * presence, never the label text, and `whatsNewRow` — the U+2019 row above — is filtered out of
+ * the browser spec. Tracked in #1072
  */
 export const ABOUT_DIALOG_LABEL_VECTORS: ReadonlyArray<AboutDialogLabelVector> = [
     {
@@ -938,7 +947,12 @@ export interface LicenseInfoVector {
  * - 1 == GTK_LICENSE_0BSD)` is the C's own drift check; this is that
  * assertion, ported.
  *
- * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (ABOUT_DIALOG_CREDITS_LEGAL_VECTORS)
+ * CORE-ONLY: GAP — `adw-about-dialog` has no `license-type` property. It derives the type as
+ * CUSTOM or UNKNOWN from whether `license` is empty (elements/adw-about-dialog.ts), and nothing
+ * on either side reads an `spdxId` or a `url`, so rows 2, 7 and 18 reach no renderer; the
+ * NativeScript bridge ships the widget without a spec. It was exempted here as an internal step
+ * of ABOUT_DIALOG_CREDITS_LEGAL_VECTORS, a three-boolean visibility table whose only licence
+ * input is `hasLegal`. Tracked in #1072
  */
 export const LICENSE_INFO_VECTORS: ReadonlyArray<LicenseInfoVector> = [
     { licenseType: 0, spdxId: null, url: null, rule: 'unknown carries nothing (:216)' },
@@ -980,7 +994,8 @@ export interface LicenseSpdxVector {
 /**
  * The two lookup loops in `populate_from_appdata`.
  *
- * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (LICENSE_INFO_VECTORS → the legal section)
+ * CORE-ONLY: GAP — both lookups run inside `populate_from_appdata`, and neither renderer has an
+ * appdata path to route an SPDX id through. Tracked in #1072
  */
 export const LICENSE_SPDX_VECTORS: ReadonlyArray<LicenseSpdxVector> = [
     { spdxId: 'MIT', licenseType: 7, rule: 'an exact table match (:1227)' },
@@ -1006,7 +1021,10 @@ export interface LicenseTextVector {
 /**
  * `get_license_text`.
  *
- * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (ABOUT_DIALOG_CREDITS_LEGAL_VECTORS)
+ * CORE-ONLY: GAP — `getLicenseText` is called by no renderer. The browser element writes
+ * `this.license` straight into the Legal page and never builds the stock preamble with its URL
+ * and Pango markup, so the rows for types 7 and 18 reach nothing outside the core suite.
+ * Tracked in #1072
  */
 export const LICENSE_TEXT_VECTORS: ReadonlyArray<LicenseTextVector> = [
     {
@@ -1068,7 +1086,10 @@ export interface LicenseSetterVector {
  * licence-type change DOES switch the type, while assigning `""` to an already
  * empty licence does not.
  *
- * CORE-ONLY: a property-ordering table with no rendered surface — the RESULT is ABOUT_DIALOG_CREDITS_LEGAL_VECTORS, which both renderers drive
+ * CORE-ONLY: a property-ordering table with no rendered surface — the RESULT is
+ * ABOUT_DIALOG_CREDITS_LEGAL_VECTORS, driven by the browser suite. ONE renderer, not two: the
+ * NativeScript bridge ships an `adw-about-dialog` widget and no spec for it, so nothing on that
+ * side is held to ANY about-dialog vector.
  */
 export const LICENSE_SETTER_VECTORS: ReadonlyArray<LicenseSetterVector> = [
     {

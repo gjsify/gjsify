@@ -61,8 +61,11 @@ export interface SpinnerArcShapeVector {
 /**
  * The moments worth naming in one arc cycle.
  *
- * CORE-ONLY: the arc is drawn per frame from `spinnerArc` and a renderer can only show
- * the RESULT — the browser suite asserts the drawn envelope and the round caps.
+ * CORE-ONLY: GAP — the arc is drawn per frame from `spinnerArc` and a renderer can only show the
+ * RESULT. What the browser suite checks is the round caps, and that the arc BREATHES at all
+ * (`spread > 0`, whose discriminator is the constant 90° chase this element used to draw). The
+ * envelope these rows pin — never outside [MIN_ARC_LENGTH, MAX_ARC_LENGTH] — is checked by no
+ * renderer. Tracked in #1072
  */
 export const SPINNER_ARC_PHASE_VECTORS: ReadonlyArray<SpinnerArcShapeVector> = [
     { phase: 0, rule: 'the cycle boundary — the arc is at MIN_ARC_LENGTH, its shortest' },

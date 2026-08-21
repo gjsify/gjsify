@@ -52,8 +52,11 @@
 // column tracks, the cell classes, the two normalisers, the cell text and the activation
 // rule. `@gjsify/adwaita-nativescript` renders the same widget over `GridLayout`
 // `ItemSpec`s — NativeScript has no subgrid — so the TRACK rule is a renderer-neutral
-// descriptor and only the mapping onto `grid-template-columns` stays here. Both ports
-// are held to `@gjsify/adwaita-core/conformance`'s `DATA_GRID_*_VECTORS`.
+// descriptor and only the mapping onto `grid-template-columns` stays here. The NativeScript
+// suite is held to DATA_GRID_TRACK_VECTORS, DATA_GRID_COLUMN_CLASS_VECTORS,
+// DATA_GRID_VARIANT_VECTORS, DATA_GRID_CELL_TEXT_VECTORS and DATA_GRID_INTERACTIVE_VECTORS.
+// This element is held to none of them — the browser half of the shared derivation is
+// asserted only against itself, which is the gap, not the arrangement.
 // Reference: Gtk.Grid usage in the Buchhaltung BWA view (native financial grid).
 // Reference: refs/libadwaita/src/stylesheet/_colors.scss (separator / card tokens).
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.

@@ -2086,3 +2086,164 @@ check — a JSON or YAML FRAGMENT an entry pastes verbatim can be held to still
 parsing out of the file it names, because a pasted structure is unambiguously a
 quote rather than a mention. There is about one such fragment here, so that
 machinery would be honest and nearly idle, which is the correct size for it.
+
+### adwaita-core modules with no conformance vector table
+
+`breakpoint.ts`, `color-scheme.ts`, `scrolling.ts` and `toast.ts` export shared
+behaviour and are covered by nothing in `@gjsify/adwaita-core/conformance` — no
+vector table names them, and no conformance file imports them. Three of the four
+are what `packages/web/AGENTS.md` advertises as the core's flagship shared
+behaviour ("Breakpoints (grammar/parser/evaluator + transition-only
+`AdwBreakpoint`), color-scheme observable, toast queue").
+
+They were invisible rather than under-covered: `check-adwaita-conformance-drivers.mjs`
+is keyed by TABLE, so it reported "156 vector tables, every one driven or
+explained" over a set none of these four is in. The gate now carries a
+module-keyed arm and these four are its declared exceptions
+(`MODULE_REASONS`), which is what makes them countable.
+
+Each needs its own vectors before a renderer can be held to it, and each is a
+different shape of work: the breakpoint grammar wants a parse/evaluate table
+against `refs/libadwaita/src/adw-breakpoint.c`; scrolling wants the undershoot
+and overshoot arithmetic; the toast queue wants a scheduler seam both renderers
+already have. `color-scheme` is entangled with the divergence below and should be
+vectored after it is decided, not before.
+
+The heading carries no count on purpose. It named "Four" while four
+`MODULE_REASONS` entries matched it as a literal string, so closing one gap
+would have made the heading false and correcting it would have required editing
+`scripts/check-adwaita-conformance-drivers.mjs` in the same change — a live
+count, load-bearing inside a required check.
+
+### adwaita-core modules whose only vector table is core-only
+
+`easing.ts`, `glib.ts` and `length-unit.ts` DO have vectors — respectively
+`SPINNER_ARC_PHASE_VECTORS`, `GLIB_CLAMP_VECTORS` and `ADW_LENGTH_UNIT_VECTORS`
+— but every one of those tables is itself `CORE-ONLY:`, so no renderer suite is
+held to any of the three modules. `length-unit.ts` was worse than invisible: the
+module arm counted it covered because `conformance/split-view.ts` carries
+`import type { AdwLengthUnit } from '../length-unit.js'`, a type-only import
+that borrows a name for a field and proves nothing about vectors.
+
+Not the same gap as the four above, and it should not be filed under their
+heading: those modules have no table to drive, these have one nobody drives.
+`glibClamp` is the sharpest case — `adw-progress-bar.ts` calls it directly in
+the browser, so the seam exists; what is missing is a spec row that varies the
+bounds far enough to tell `CLAMP` from `Math.min`/`Math.max`. The
+`resolveNavigationSidebarWidth` path already does that through
+`SIDEBAR_WIDTH_VECTORS`, which is why `GLIB_CLAMP_VECTORS`' own exemption is a
+chain rather than a gap; the module is still held to nothing under its own name.
+
+### A table can be "driven" while the rows that matter are skipped
+
+`consumersUnder()` counts a table driven when a renderer's `*.spec.ts` names it
+outside a comment. That cannot distinguish iterating the table from importing it
+and filtering the interesting rows away, and six tables are only ever referenced
+through a `.filter(` today: `ABOUT_DIALOG_DETAILS_VECTORS`,
+`ABOUT_DIALOG_SUPPORT_VECTORS`, `ABOUT_DIALOG_CREDITS_LEGAL_VECTORS`,
+`BUTTON_STYLE_CLASS_VECTORS`, `CAROUSEL_PAGE_ALLOCATION_VECTORS` and
+`CLAMP_ALLOCATE_VECTORS`. Both renderer suites filter `CLAMP_ALLOCATE_VECTORS`
+to `params.childMin === 0`, and three `CLAMP_*` tables are exempted as an
+internal step of the pipeline it composes — a chain that does not carry the
+non-zero-`childMin` rows. Two of the three now say so in their own reason
+(`CLAMP_THRESHOLD_VECTORS`, three rows; `CLAMP_CHILD_SIZE_VECTORS`, one);
+`CLAMP_SIZE_FROM_CHILD_VECTORS` needs nothing, every row of it runs at
+`childMin: 0`. `adw-about-dialog.spec.ts` does the same thing with a `continue`
+guard rather than a filter, which no textual rule sees at all — that is what put
+the `g_strsplit ("")` translator-credits trap behind a false chain, now re-filed
+as a GAP.
+
+The measurable half (`X_VECTORS.filter(`) is about six lines of gate. It is
+deliberately NOT implemented yet, because it catches the filter form and not the
+`continue` form that motivated the finding, and a rule that covers two of three
+shapes of a class reads as covering the class. Closing this means deciding per
+chain whether the conceded rows matter, then either widening the specs or
+narrowing the reasons to the rows they really carry — reason work, not gate work.
+
+### adwaita-web does not use the color-scheme singleton at all
+
+`packages/web/adwaita-core/src/color-scheme.ts` documents itself as "the single
+source of truth for the current Adwaita color scheme plus a change notifier,
+shared by every renderer (ADR 0004)". Measured 2026-08-21: `adwaita-web` calls
+none of its seven exports — not `adwaitaColorScheme`, `setAdwaitaColorScheme`,
+`toggleAdwaitaColorScheme`, `onAdwaitaColorSchemeChanged`, `themeIconColor`,
+`isThemeIconColor`, nor either `DEFAULT_ICON_COLOR*`. It answers the question
+itself in `src/accent.ts:55` (`isAdwaitaDark`), reading `.theme-dark` /
+`.theme-light` and falling back to `matchMedia('(prefers-color-scheme: dark)')`.
+The NativeScript bridge, by contrast, re-exports all of it and subscribes from
+`adw-icon` and `adw-image-button`.
+
+So `setAdwaitaColorScheme('dark')` is a no-op in the browser, and the two ports
+disagree about where the scheme lives while the core claims to be that place.
+Not obviously a bug in adwaita-web: a browser renderer that ignored
+`prefers-color-scheme` and the stylesheet's own manual override classes would be
+the wrong thing, and the core's own header already concedes that "applying the
+scheme to a surface is the renderer's job". What is wrong is the core's claim to
+be the SOURCE, which nothing holds it to on the browser side.
+
+The decision to make is which way the singleton points: either the browser
+element learns to seed and follow it (`isAdwaitaDark` becomes the platform half
+that feeds `setAdwaitaColorScheme`, media-query listener included), or the core
+docblock stops calling itself shared and the field narrows to the NativeScript
+theming path it actually serves. Deferred out of the gate PR that measured it,
+because either direction is a behaviour change and would make a review of the
+gate impossible.
+
+### `AdwToastOverlay`'s `timeout` option means seconds on one port and milliseconds on the other
+
+Measured 2026-08-21, while checking a reported "the toast default is 5000 in the
+core and 5 in the browser element" — which is NOT a defect. `refs/libadwaita`
+settles the units: `adw-toast.c:385` documents `AdwToast:timeout` as "the timeout
+of the toast, **in seconds**" and `adw-toast.c:475` sets `self->timeout = 5`.
+adwaita-core counts MILLISECONDS and says so on every field, so
+`DEFAULT_TOAST_TIMEOUT = 5000` is 5 s and is right; `adw-toast-overlay.ts` takes
+SECONDS as its public unit, `DEFAULT_TIMEOUT_SECONDS = 5` mirrors
+`Adw.Toast:timeout` exactly, and it converts once at the boundary (`* 1000`,
+line 142) — also right. Nothing vanishes in 5 ms or lingers for 5000 s.
+
+The real divergence is one level out, between the two RENDERERS. Both export a
+class called `AdwToastOverlay` taking an options bag whose field is called
+`timeout`, and the two mean different things:
+
+- `adwaita-web` — `addToast(title, { timeout })` is SECONDS (its own
+  `AdwToastOptions` interface). Its spec writes `{ timeout: 3 }` for three seconds.
+- `@gjsify/adwaita-nativescript` — `showToast(title, { timeout })` passes the
+  bag straight to `new AdwToast(...)`, so it is the CORE's `AdwToastOptions`,
+  i.e. MILLISECONDS. This wrapper has NO spec of its own: `widgets/adw-toast-overlay.ts`
+  is untested, and the `{ timeout: 3000 }` at `index.spec.ts:731` constructs
+  `AdwToast`/`AdwToastQueue` directly, never reaching the overlay. That makes the case
+  stronger, not weaker — the diverging wrapper is the untested one.
+
+`{ timeout: 5 }` is therefore a five-second toast in the browser and a five-
+MILLISECOND toast on NativeScript. Each suite is internally consistent, which is
+why neither catches it, and no conformance vector table covers `toast.ts` at all
+(see the module-gap entry above), so nothing holds the two ports to one answer.
+
+Fixing it is a public-API change on one of the two ports and wants a decision
+first: libadwaita's own spelling is seconds, which argues for the browser being
+right and the NativeScript wrapper growing the same `* 1000` boundary — at the
+cost of breaking anyone passing milliseconds today. Deferred out of the gate PR
+that measured it; a behaviour change would have made that PR unreviewable.
+
+### Nothing holds `adwaita-web`'s data grid to the shared data-grid vectors
+
+`DATA_GRID_TRACK_VECTORS`, `DATA_GRID_COLUMN_CLASS_VECTORS`,
+`DATA_GRID_VARIANT_VECTORS`, `DATA_GRID_CELL_TEXT_VECTORS` and
+`DATA_GRID_INTERACTIVE_VECTORS` are driven by
+`packages/nativescript-bridge/adwaita/src/data-grid.spec.ts` alone. The string
+`DATA_GRID` occurred exactly once anywhere in `adwaita-web`, in a comment
+claiming "Both ports are held to `DATA_GRID_*_VECTORS`" — corrected in the same
+change as this entry, since the browser half is held to none of them.
+
+`adw-data-grid.ts` does delegate correctly (it imports `dataGridTracks`,
+`dataGridColumnClasses`, `dataGridCellText`, `dataGridRowInteractive` and both
+normalisers from the core), so this is missing coverage rather than a known
+drift. Closing it is a browser-side spec over the five tables, in the shape
+`split-views.spec.ts` already uses.
+
+The correction BLINDED the gate that ledgered this, for one commit. Spelling the
+five names out in an `adwaita-web` comment made all five read as browser-driven,
+because "driven by X" was a plain text scan over every `.ts` under X — comments
+included. The original defect was caught only because it used the glob spelling
+`DATA_GRID_*_VECTORS`, which contains no individual name. Fixed by resolving
+drivers from usage: names outside a comment, in a `*.spec.ts`.

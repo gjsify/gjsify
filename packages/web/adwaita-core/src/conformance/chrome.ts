@@ -38,6 +38,8 @@ export interface ClampThresholdsVector {
  * `lower`/`max`/`upper`.
  *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (CLAMP_ALLOCATE_VECTORS)
+ * Not for every row: both renderer suites filter that table to `params.childMin === 0`, so the
+ * three rows below that set a child minimum are asserted here alone. Tracked in #1072
  */
 export const CLAMP_THRESHOLD_VECTORS: ReadonlyArray<ClampThresholdsVector> = [
     {
@@ -99,6 +101,8 @@ const CLAMP_DEFAULT_PARAMS: ClampParams = {
  * `child_size_from_clamp`.
  *
  * CORE-ONLY: an internal step of a pipeline whose COMPOSED result is renderer-driven — driving it separately would assert the same thing twice (CLAMP_ALLOCATE_VECTORS)
+ * Not for every row: one row below sets `childMin: 150`, and both renderer suites filter that
+ * table to `params.childMin === 0`, so that row is asserted here alone. Tracked in #1072
  */
 export const CLAMP_CHILD_SIZE_VECTORS: ReadonlyArray<ClampChildSizeVector> = [
     {
