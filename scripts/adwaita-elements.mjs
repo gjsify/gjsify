@@ -19,6 +19,11 @@
 // was a second copy in the same two files, with the same drift ahead of it. `adw-` is
 // the whole naming rule the tree follows, and stripping it ({@link elementName}) leaves
 // the bare name widget files and `*.meta.ts` story names are already spelled in.
+//
+// It answers the core-edge question here too ({@link coreReach}), for the same reason
+// and one more: that derivation lived privately in `generate-status.mjs`, which CI
+// never runs, so nothing could fail on a `CORE-VIA:` declaration that had stopped
+// holding.
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
