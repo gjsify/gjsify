@@ -46,6 +46,17 @@ export default async () => {
             expect(isSelfWrite(PROJECT, flat, 'index.ts')).toBe(false);
         });
 
+        await it('compares normalised paths, not the spellings it was handed', () => {
+            // Linux passed all the cases above while win32 failed three: the
+            // changed path was resolved and `output` was not, so the two sides
+            // were different spellings of one file and every self-write read as
+            // a source edit. An unnormalised `output` reproduces that on ANY
+            // platform — which is what keeps this honest here rather than only
+            // on the one CI leg that happened to catch it.
+            expect(isSelfWrite(PROJECT, '/tmp/project/./dist/out.mjs', 'dist/out.mjs')).toBe(true);
+            expect(isSelfWrite(PROJECT, 'dist/out.mjs', 'dist/out.mjs')).toBe(true);
+        });
+
         await it('rebuilds when it cannot tell what changed', () => {
             // No declared output (`--build-only` on a project naming none), and
             // the platforms where `fs.watch` reports a null filename: neither
