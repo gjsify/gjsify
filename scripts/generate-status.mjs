@@ -698,11 +698,14 @@ function adwaitaCoverageSection(coverage) {
     const out = ['## Adwaita widget coverage', ''];
     out.push(
         'Derived from the tree at generation time. One row per `adw-<name>`, read from',
-        "what each renderer ships: browser `customElements.define('adw-…')` tags,",
-        'NativeScript `Adw*` view classes, storybook `<name>.meta.ts`, the actual',
-        '`@gjsify/adwaita-core` import edges, and the `CORE-VIA:` header a widget',
-        'carries when its edge runs through a sibling element. None of it is maintained',
-        'by hand; the table this replaced drifted twelve widgets behind the code.',
+        "the FILE that registers it: browser `customElements.define('adw-…')` tags,",
+        'NativeScript `Adw*` view classes, storybook `<name>.meta.ts`, and the actual',
+        '`@gjsify/adwaita-core` import edges — so a file registering several tags gives',
+        'the same core verdict to each of them. The one AUTHORED input is the',
+        '`CORE-VIA:` header a widget carries when its edge runs through a sibling',
+        'element, and a CI gate rejects one whose import is not there. Nothing else is',
+        'maintained by hand; the table this replaced drifted twelve widgets behind the',
+        'code.',
         '',
     );
     out.push(table(['Widget', 'GTK story', 'adwaita-web', 'adwaita-nativescript'], rows));
@@ -719,7 +722,8 @@ function adwaitaCoverageSection(coverage) {
                 ? ` No such path is visible from at least one side for ${unshared
                       .map((w) => `\`adw-${w.name}\``)
                       .join(', ')} — an import edge is all this measures, so those are ADR 0004 duplication` +
-                  ' candidates, not measured copies.'
+                  ' candidates, not measured copies. A widget that does delegate to a sibling element says so' +
+                  ' in its own header (`CORE-VIA:`), and a missing one lands it here.'
                 : ''),
     );
     if (dataObjects.length) {
