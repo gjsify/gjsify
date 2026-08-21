@@ -5,9 +5,11 @@
 //
 // ADR 0004's core-first arrangement and every "core-backed" claim in the Adwaita
 // tree rest on citations: a header says which upstream file a behaviour was ported
-// from, and a reader is expected to open it. 180 of those coordinates name the
-// Adwaita family alone. NINETEEN of them named a file that has never existed — not
-// in the pinned commit, and not in any of libadwaita's 5325 commits.
+// from, and a reader is expected to open it. NINETEEN of the Adwaita ones named a
+// file that has never existed — not in the pinned commit, and not in any of
+// libadwaita's 5325 commits. How MANY coordinates there are is printed by the
+// summary line and written nowhere: the figure this paragraph used to carry moved
+// twice while the extractor below was being fixed, and prose cannot notice that.
 //
 // They are not bump rot. They are the file names a reader would GUESS: libadwaita
 // spells its partials by widget FAMILY, so `_lists.scss` holds AdwActionRow,
@@ -43,6 +45,12 @@
 // them, and a skip is honest where a hard failure would only teach people to stop
 // citing. The Adwaita job initialises `refs/libadwaita` precisely so this gate has
 // something to check on every PR — see `audit-runtimes.yml`.
+//
+// THAT IS ONE SUBMODULE, and the summary line prints how many of the declared ones
+// were checked out so nobody reads the tick as repo-wide. `refs/adwaita-web` cannot
+// be a second: `.gitmodules` gives it an SSH url — as it does half the pool — so a
+// runner cannot init it, and the scss-directory incident above therefore lives in
+// the one tree this gate structurally cannot verify in CI.
 //
 // WHAT IT DOES NOT CHECK: `docs/attribution.md` also asks that provenance be
 // spelled as a `refs/` path rather than an upstream URL. This gate only holds the
@@ -281,8 +289,12 @@ if (failures.length > 0) {
 
 const ledgered = [...undeclared.keys()].length;
 const skippedTotal = [...skipped.values()].reduce((sum, count) => sum + count, 0);
+// How many DECLARED submodules were on disk is the gate's real coverage, so it is
+// the headline rather than a subtraction the reader has to do from the skip list.
+const checkable = [...declared].filter((name) => isCheckedOut(ROOT, name)).length;
 console.log(
     `check-refs-citations: ${cited.size} coordinates cited across ${new Set([...cited.keys()].map((c) => c.split('/')[1])).size} submodules — ` +
-        `${checked} resolved, ${skippedTotal} skipped (${[...skipped.keys()].sort().join(', ') || 'none'} not checked out), ` +
+        `${checked} resolved in the ${checkable} of ${declared.size} declared submodules checked out here, ` +
+        `${skippedTotal} skipped (${[...skipped.keys()].sort().join(', ') || 'none'}), ` +
         `${ledgered} undeclared submodule(s) ledgered, ${placeholders} family patterns not addressable.`,
 );

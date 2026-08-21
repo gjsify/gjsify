@@ -354,14 +354,15 @@ jobs:
 
       # A `refs/<submodule>/<path>` coordinate IS the evidence behind a core-backed
       # claim — the upstream file a reader opens to check that a behaviour really came
-      # from there. 180 of them name the Adwaita family, and NINETEEN named a file that
-      # has never existed in libadwaita's 5325 commits: the spellings a reader would
-      # guess (`_action-row.scss`, `_toast.scss`, `_status-page.scss`, where upstream
-      # files by family in `_lists.scss` and `_misc.scss`), plus `adw-menu-button.c`
-      # for a type libadwaita does not have. `status/sections/adwaita-web-roadmap.md`
-      # warned about exactly this in prose, and named the right spellings — and it
-      # happened nineteen times anyway, because prose cannot fail. A submodule the
-      # step above does not check out SKIPs and the run says so.
+      # from there. NINETEEN of the Adwaita ones named a file that has never existed in
+      # libadwaita's 5325 commits: the spellings a reader would guess
+      # (`_action-row.scss`, `_toast.scss`, `_status-page.scss`, where upstream files by
+      # family in `_lists.scss` and `_misc.scss`), plus `adw-menu-button.c` for a type
+      # libadwaita does not have. `status/sections/adwaita-web-roadmap.md` warned about
+      # exactly this in prose, and named the right spellings — and it happened nineteen
+      # times anyway, because prose cannot fail. The step above checks out ONE submodule
+      # of the pool, so this step holds what that one contains and no more — its summary
+      # line prints how many were checked out, and every skip is named.
       - name: Check every refs/ citation points at a file that exists
         run: node scripts/check-refs-citations.mjs
 
@@ -782,14 +783,15 @@ jobs:
 
       # A `refs/<submodule>/<path>` coordinate IS the evidence behind a core-backed
       # claim — the upstream file a reader opens to check that a behaviour really came
-      # from there. 180 of them name the Adwaita family, and NINETEEN named a file that
-      # has never existed in libadwaita's 5325 commits: the spellings a reader would
-      # guess (`_action-row.scss`, `_toast.scss`, `_status-page.scss`, where upstream
-      # files by family in `_lists.scss` and `_misc.scss`), plus `adw-menu-button.c`
-      # for a type libadwaita does not have. `status/sections/adwaita-web-roadmap.md`
-      # warned about exactly this in prose, and named the right spellings — and it
-      # happened nineteen times anyway, because prose cannot fail. A submodule the
-      # step above does not check out SKIPs and the run says so.
+      # from there. NINETEEN of the Adwaita ones named a file that has never existed in
+      # libadwaita's 5325 commits: the spellings a reader would guess
+      # (`_action-row.scss`, `_toast.scss`, `_status-page.scss`, where upstream files by
+      # family in `_lists.scss` and `_misc.scss`), plus `adw-menu-button.c` for a type
+      # libadwaita does not have. `status/sections/adwaita-web-roadmap.md` warned about
+      # exactly this in prose, and named the right spellings — and it happened nineteen
+      # times anyway, because prose cannot fail. The step above checks out ONE submodule
+      # of the pool, so this step holds what that one contains and no more — its summary
+      # line prints how many were checked out, and every skip is named.
       - name: Check every refs/ citation points at a file that exists
         run: node scripts/check-refs-citations.mjs
 
