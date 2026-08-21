@@ -73,8 +73,20 @@ const UNDECLARED_SUBMODULES = {
         'One shim (packages/infra/rolldown-plugin-gjsify/src/shims/unicorn-magic.ts) declares its own deferral in the same sentence — "refs/unicorn-magic/node.js (when added — for now mirrored from node_modules/unicorn-magic@0.3.0)". Fix = add the submodule, or drop the marker and cite the npm version it really mirrors.',
 };
 
+// ONE extension list, read from both ends: which tracked files this gate OPENS,
+// and which path shapes count as a citation once opened. They were two lists, and
+// the smaller one silently decided coverage — 28 tracked files (18 `.cc`, 4
+// `.vala`, 2 `.rs`, 2 `.toml`, an `.astro` and a `meson.build`) cited upstream
+// coordinates the scan never read while the other list already blessed them as
+// citable, hiding the whole native/Rust/Vala provenance surface.
+const CITABLE =
+    'c|h|cpp|cc|m|rs|vala|py|sh|ts|tsx|mts|cts|js|mjs|cjs|jsx|scss|sass|css|md|mdx|html|xml|ui|json|ya?ml|svg|blp|gir|toml|astro|txt|build';
+
 /** Text files only — `git ls-files` also lists PNGs, prebuilt `.so`s and typelibs. */
-const TEXT_FILE = /\.(ts|tsx|mts|cts|js|mjs|cjs|jsx|scss|css|md|ya?ml|json|blp|ui|c|h|py|sh)$/;
+const TEXT_FILE = new RegExp(`\\.(?:${CITABLE})$`);
+
+/** …plus the one build file that carries citations and has no extension to match. */
+const TEXT_BASENAME = /(?:^|\/)meson\.build$/;
 
 // A coordinate: `refs/<name>/<path>`, where a path segment may contain a brace
 // group so `{_checkbox,_radio}.scss` is read whole and expanded rather than
@@ -87,8 +99,7 @@ const CITATION = /\brefs\/([A-Za-z0-9._-]+)((?:\/(?:\{[^}\s]*\}|[A-Za-z0-9._*-])
 // on its own — a bare directory under one is a real citation with no extension, and
 // the adwaita-web incident above was exactly that; for anything else, only a path
 // ending in a source-file extension counts.
-const SOURCE_FILE =
-    /\.(c|h|cpp|cc|m|rs|vala|py|sh|ts|tsx|mts|cts|js|mjs|cjs|jsx|scss|sass|css|md|html|xml|ui|json|ya?ml|svg|blp|gir|txt|build)$/;
+const SOURCE_FILE = new RegExp(`\\.(?:${CITABLE})$`);
 
 /** `{a,b}/c` → `a/c`, `b/c`. Left to right, so nested groups resolve too. */
 function expandBraces(path) {
@@ -125,7 +136,7 @@ if (declared.size === 0) {
 const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: ROOT, maxBuffer: 64 * 1024 * 1024 })
     .toString('utf8')
     .split('\0')
-    .filter((path) => path !== '' && TEXT_FILE.test(path) && !path.startsWith('refs/'));
+    .filter((path) => path !== '' && (TEXT_FILE.test(path) || TEXT_BASENAME.test(path)) && !path.startsWith('refs/'));
 
 /** coordinate → the tracked files citing it, in posix spelling on every platform. */
 const cited = new Map();
