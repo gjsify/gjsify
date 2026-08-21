@@ -7,6 +7,8 @@
 // `Adw.HeaderBar`: start/end packing + a centered title-widget. A `flat` option
 // drops the bottom hairline / background fill for the "flat" header style.
 //
+// CORE-VIA: ./adw-window-title.js — the centred title IS that widget, and title/subtitle run in its WindowTitleState.
+//
 // FIDELITY: faithful for the structural layout (start / center / end + flat).
 // The NS CSS subset has no box-shadow, so the non-flat header's bottom separator
 // is a 1px bottom border rather than libadwaita's subtle shadow — a close visual
