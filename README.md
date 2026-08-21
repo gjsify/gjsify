@@ -111,10 +111,14 @@ when the lockfile is missing or has drifted from `package.json`.
 ### Using the CLI directly
 
 ```bash
-gjsify build src/index.ts --outfile dist/app.js   # build a TS file for GJS
-gjsify run dist/app.js                             # run it (native prebuild paths auto-set)
-gjsify dlx <pkg>                                   # try a published GJS app without installing
+gjsify build src/index.ts --app gjs --outfile dist/app.js  # build a TS file for GJS
+gjsify run dist/app.js                                     # run it (prebuild paths auto-set)
+gjsify dlx <pkg>                                           # try a published app, no install
 ```
+
+`--app` is spelled out because it has no fixed default: it follows the runtime the CLI
+itself is running on — `gjs` via the bootstrap above, `node` via `npm install -g`. Omit it
+on a Node-installed CLI and you get a Node bundle, not a GJS one.
 
 ### Prerequisites
 
