@@ -5,6 +5,82 @@ import { URL, URLSearchParams, fileURLToPath, pathToFileURL, parse, format, reso
 // Original: MIT license, Node.js contributors
 
 export default async () => {
+    // The live-view contract between `url.searchParams` and `url.href`.
+    //
+    // This block is the regression guard for a defect that produced no error anywhere: mutating
+    // `searchParams` updated the params object and left `href` with whatever query the URL was
+    // parsed with — which, for a URL built from a bare base, was none. Every request assembled
+    // that way went out without its query string, and on Node the identical code worked, so
+    // nothing looked wrong until the answers did.
+    //
+    // Each assertion below is Node's own behaviour, so this suite is meaningful on both runtimes
+    // rather than pinning a GJS-only quirk.
+    await describe('URL ↔ searchParams live view', async () => {
+        await it('reflects set() in search, href and toString', async () => {
+            const u = new URL('https://example.com/p');
+            u.searchParams.set('a', '1');
+            expect(u.search).toBe('?a=1');
+            expect(u.href).toBe('https://example.com/p?a=1');
+            expect(u.toString()).toBe('https://example.com/p?a=1');
+        });
+
+        await it('reflects append(), delete() and sort()', async () => {
+            const u = new URL('https://example.com/p');
+            u.searchParams.append('b', '2');
+            u.searchParams.append('a', '1');
+            expect(u.search).toBe('?b=2&a=1');
+            u.searchParams.sort();
+            expect(u.search).toBe('?a=1&b=2');
+            u.searchParams.delete('a');
+            expect(u.search).toBe('?b=2');
+        });
+
+        await it('drops the "?" entirely once the last parameter goes', async () => {
+            const u = new URL('https://example.com/p?a=1');
+            u.searchParams.delete('a');
+            expect(u.search).toBe('');
+            expect(u.href).toBe('https://example.com/p');
+        });
+
+        await it('adds to a query the URL was parsed with', async () => {
+            const u = new URL('https://example.com/p?a=1');
+            u.searchParams.set('b', '2');
+            expect(u.href).toBe('https://example.com/p?a=1&b=2');
+        });
+
+        await it('leaves a URL that is only READ byte-identical', async () => {
+            // Re-serialising on parse would re-encode a URL nobody asked to change.
+            const raw = 'https://example.com/p?a=%20b&c=d';
+            expect(new URL(raw).href).toBe(raw);
+        });
+
+        await it('accepts an assignment to search', async () => {
+            const u = new URL('https://example.com/p');
+            u.search = '?a=1&b=2';
+            expect(u.href).toBe('https://example.com/p?a=1&b=2');
+            expect(u.searchParams.get('b')).toBe('2');
+            u.search = '';
+            expect(u.href).toBe('https://example.com/p');
+        });
+
+        await it('keeps searchParams the same object across an assignment to search', async () => {
+            const u = new URL('https://example.com/p?a=1');
+            const params = u.searchParams;
+            u.search = '?b=2';
+            expect(u.searchParams === params).toBe(true);
+            expect(params.get('b')).toBe('2');
+            expect(params.get('a')).toBe(null);
+        });
+
+        await it('encodes values on the way into the URL', async () => {
+            const u = new URL('https://example.com/p');
+            u.searchParams.set('q', 'Bandsäge gebraucht');
+            expect(u.href.includes('Bands')).toBe(true);
+            expect(u.href.includes(' ')).toBe(false);
+            expect(new URL(u.href).searchParams.get('q')).toBe('Bandsäge gebraucht');
+        });
+    });
+
     await describe('URL constructor', async () => {
         await it('should parse HTTP URL', async () => {
             const u = new URL('http://example.com:8080/path?query=1#hash');

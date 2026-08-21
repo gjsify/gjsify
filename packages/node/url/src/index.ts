@@ -30,6 +30,20 @@ function platformOrShapeIsWindows(filepath: string): boolean {
 export class URLSearchParams {
     _entries: [string, string][] = [];
 
+    /**
+     * The WHATWG "update steps", installed by the {@link URL} that owns this object.
+     *
+     * The spec makes `url.searchParams` a LIVE view: mutating it re-serialises the list back
+     * into the URL's query. Without this hook the two drifted — the params object was correct
+     * and `url.href` silently kept the query it was parsed with, so a URL built the ordinary way
+     * (`new URL(base); u.searchParams.set(...)`) serialised with NO query string at all. On Node
+     * the same code produced the full URL, so nothing failed locally; the request just went out
+     * unfiltered.
+     *
+     * Internal: not part of the public surface, and `undefined` on a standalone URLSearchParams.
+     */
+    _onUpdate: (() => void) | undefined = undefined;
+
     constructor(init?: string | Record<string, string> | [string, string][] | URLSearchParams) {
         if (!init) return;
         if (typeof init === 'string') {
@@ -93,6 +107,7 @@ export class URLSearchParams {
         } else {
             this._entries.push([name, value]);
         }
+        this._onUpdate?.();
     }
 
     has(name: string): boolean {
@@ -101,10 +116,12 @@ export class URLSearchParams {
 
     delete(name: string): void {
         this._entries = this._entries.filter(([k]) => k !== name);
+        this._onUpdate?.();
     }
 
     append(name: string, value: string): void {
         this._entries.push([name, value]);
+        this._onUpdate?.();
     }
 
     sort(): void {
@@ -113,6 +130,7 @@ export class URLSearchParams {
             if (a[0] > b[0]) return 1;
             return 0;
         });
+        this._onUpdate?.();
     }
 
     toString(): string {
@@ -161,6 +179,16 @@ function encodeComponent(s: string): string {
 export class URL {
     #uri: GLib.Uri;
     #searchParams: URLSearchParams;
+    /**
+     * The URL's query, shadowing `GLib.Uri`'s.
+     *
+     * `GLib.Uri` is immutable, so the query cannot live there once it can change. Parsing keeps
+     * the RAW query — re-serialising it through URLSearchParams would re-encode a URL nobody
+     * asked to modify — and a mutation replaces it with the serialised parameter list. That is
+     * exactly what the WHATWG algorithm does, and it is why `new URL(s).href === s` still holds
+     * for a URL that is only read.
+     */
+    #query: string | null;
 
     constructor(url: string | URL, base?: string | URL) {
         const urlStr = url instanceof URL ? url.href : String(url);
@@ -181,7 +209,12 @@ export class URL {
             throw new TypeError(`Invalid URL: ${urlStr}`);
         }
 
-        this.#searchParams = new URLSearchParams(this.#uri.get_query() || '');
+        this.#query = this.#uri.get_query() ?? null;
+        this.#searchParams = new URLSearchParams(this.#query || '');
+        this.#searchParams._onUpdate = () => {
+            const serialised = this.#searchParams.toString();
+            this.#query = serialised === '' ? null : serialised;
+        };
     }
 
     get protocol(): string {
@@ -214,8 +247,26 @@ export class URL {
     }
 
     get search(): string {
-        const q = this.#uri.get_query();
-        return q ? '?' + q : '';
+        return this.#query ? '?' + this.#query : '';
+    }
+
+    /**
+     * Replace the whole query.
+     *
+     * A setter and not merely a getter: assigning `url.search` is how Node code sets a query in
+     * one go, and without it the obvious workaround for the missing write-back — building a
+     * string and assigning it — threw `TypeError: setting getter-only property`, leaving no way
+     * to put a query on a URL at all.
+     *
+     * The existing `searchParams` object is refilled in place rather than replaced, because the
+     * spec makes it a stable identity: code that captured `const p = url.searchParams` before
+     * the assignment must still see the new values.
+     */
+    set search(value: string) {
+        const raw = value == null ? '' : String(value);
+        const query = raw.startsWith('?') ? raw.slice(1) : raw;
+        this.#query = query === '' ? null : query;
+        this.#searchParams._entries = new URLSearchParams(query)._entries;
     }
 
     get hash(): string {
