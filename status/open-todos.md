@@ -2194,6 +2194,74 @@ parsing out of the file it names, because a pasted structure is unambiguously a
 quote rather than a mention. There is about one such fragment here, so that
 machinery would be honest and nearly idle, which is the correct size for it.
 
+### `<adw-about-dialog>` opens on its sheet, not on its close button
+
+`AdwModalSurface.present()` focuses the first focusable control inside the
+surface, falling back to the surface itself. For `<adw-about-dialog>` built and
+opened in ONE task the fallback is what runs, because the close button is
+appended from a `queueMicrotask` — `<adw-header-bar>` builds the section it goes
+in from its own `connectedCallback`, so it does not exist yet
+(`adw-about-dialog.ts`, `_buildPage`). Measured: `document.activeElement` is
+`div.adw-about-dialog-sheet`. A dialog that was already in the markup gets the
+button, so the two paths differ.
+
+Nothing is broken by it — focus is inside, Escape works, and Tab from the sheet
+reaches the button, which is the browser's own order. It is the one place in the
+four dialogs where initial focus is not the control the user wants, and the fix
+is in `<adw-header-bar>`: build the sections synchronously so a consumer can
+append to them in the same task, which removes the microtask from every consumer
+rather than adding a second one here.
+`packages/web/adwaita-web/src/keyboard-operable.spec.ts` awaits that microtask
+and says why.
+
+### The adwaita-web row family is not keyboard-reachable at all
+
+Measured in Firefox against a built `dist/test.browser.mjs`, on a
+`<adw-preferences-group>` holding an activatable `<adw-action-row>`, an
+`<adw-button-row>` and an `<adw-expander-row>`, with a `<button>` before and after
+it: Tab went straight from the button before the group to the button after it.
+All three rows report `tabIndex` `-1` and `role` `null`, and the expander
+publishes no `aria-expanded` — while all three activate on click. The whole group
+is invisible to a keyboard.
+
+GTK gives this free and adwaita-web does not inherit it: every one of these
+extends `GtkListBoxRow`, which is focusable by construction and activates on
+Enter/Space. The pieces the C declares that the web renderer does not are exact —
+`adw-expander-row.c:657` updates `GTK_ACCESSIBLE_STATE_EXPANDED` on the header
+row on every toggle (i.e. `aria-expanded`), `adw-switch-row.c:147` declares
+`GTK_ACCESSIBLE_ROLE_SWITCH`, `adw-combo-row.c:734` `GTK_ACCESSIBLE_ROLE_COMBO_BOX`,
+and `adw-preferences-group.c:319` `GTK_ACCESSIBLE_ROLE_GROUP`. Action, button and
+preferences rows declare no role of their own and inherit the list-item one.
+
+DELIBERATELY NOT FIXED beside the modal trap and the roving tabindex (which are
+invisible until pressed, and were): this one MOVES TAB ORDER on every page that
+uses a row. `showcases/` and `website/` alone hold 308 row instances — 225
+`<adw-action-row>`, 50 `<adw-expander-row>`, 13 `<adw-switch-row>`, plus the entry,
+combo, spin, password and button rows — and each becomes a new tab stop, or must
+be argued out of becoming one. Rolling it in would have made the two fixes that
+change nothing visible indistinguishable from the one that changes every page.
+
+What it costs, in the order the questions have to be answered:
+
+- WHICH rows become tab stops. `<adw-action-row>` only when `activatable`;
+  `<adw-button-row>` always (`BUTTON_ROW_ACTIVATABLE`, no opt-out upstream);
+  `<adw-expander-row>` always, since its header is the disclosure control. A
+  non-activatable action row must stay out, or every static label becomes a stop.
+- WHAT each declares. `aria-expanded` on the expander header, kept live;
+  `role="switch"` / `role="combobox"` on the two rows the C names; a list-item
+  role for the rest only if `<adw-preferences-group>` gains the matching container
+  role, since a list item outside a list is worse than none.
+- WHICH keys activate. Enter and Space, the way `GtkListBoxRow` does — and Space
+  must not also scroll the page.
+- The before/after this deserves: a tab-stop count per showcase page, measured,
+  not asserted. `tests/browser/specs/adwaita-keyboard.spec.ts` already pins the
+  CURRENT behaviour (Tab skips the group entirely), so the day it changes that
+  spec says so instead of nothing.
+
+`scripts/check-adwaita-keyboard-contract.mjs` does not see this class: the rows
+assign no negative tabIndex, they assign nothing at all, which is exactly why it
+went unnoticed. A gate for it wants the container question answered first.
+
 ### adwaita-core modules with no conformance vector table
 
 `breakpoint.ts`, `color-scheme.ts`, `scrolling.ts` and `toast.ts` export shared
