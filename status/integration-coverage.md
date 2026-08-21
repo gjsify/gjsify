@@ -85,10 +85,11 @@ The differential oracle for `@gjsify/domparser`'s HTML mode (ADR 0026). Not a po
 suite: parse5 is the REFERENCE, and each fixture is parsed twice — by us and by parse5 with
 `scriptingEnabled: false` — then printed by the SAME `canonicalize()` through two `TreeReader`s and
 compared with `toBe`. Two canonicalizers would be two chances to agree on the same mistake.
-**Node: 153/153 green. GJS: 153/153 green, 0 skips.** 29 fixtures: 26 asserted IDENTICAL to parse5
+**Node: 163/163 green. GJS: 163/163 green, 0 skips.** 31 fixtures: 28 asserted IDENTICAL to parse5
 (implied `li`/`p`/`td`/`dt` end tags, void elements mid-tree, raw text vs RCDATA, the script escape
 levels, the full entity table, the attribute query-string rule, implicit `html`/`head`/`body`,
-in-head `noscript`, `<template>` content, EOF auto-close, whitespace placement) and 3 asserted
+in-head `noscript`, `<template>` content, EOF auto-close, whitespace placement, a data-state NUL,
+repeated root tags) and 3 asserted
 DIVERGENT against a committed golden — the adoption agency algorithm, foster parenting and SVG
 foreign content, each scoped out in ADR 0026 § 6. A divergent fixture also asserts
 `not.toBe(parse5)`, so the day one of those algorithms lands the test fails and forces this ledger

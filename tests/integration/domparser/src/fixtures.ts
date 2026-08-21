@@ -30,6 +30,10 @@ export interface Fixture {
     mustContain: string[];
 }
 
+// Spelled by code point, never as an escape: a U+0000 literal in a source file
+// becomes a RAW NUL through the GJS minifier, which reads it as end-of-script.
+const NUL = String.fromCharCode(0);
+
 export const FIXTURES: Fixture[] = [
     {
         name: 'nested-articles',
@@ -218,6 +222,26 @@ export const FIXTURES: Fixture[] = [
         expect: 'identical',
         minElements: 7,
         mustContain: ['optgroup', '#text "c"'],
+    },
+    {
+        // The tokenizer passes a data-state NUL through by spec; the tree builder
+        // is what drops it. Without that, every tree built from a page with a
+        // stray NUL diverges — and nothing else in the suite would say so.
+        name: 'nul-in-text',
+        html: '<p>a' + NUL + 'b</p><div>' + NUL + '</div>',
+        expect: 'identical',
+        minElements: 4,
+        mustContain: ['#text "ab"'],
+    },
+    {
+        // A repeated `<html>`/`<body>` contributes only the attributes the element
+        // does not already have — it does not open a second element and does not
+        // overwrite.
+        name: 'repeated-root-tags',
+        html: '<html a="1"><body c="3">x<html a="2" b="9">',
+        expect: 'identical',
+        minElements: 2,
+        mustContain: ['a="1"', 'b="9"', 'c="3"'],
     },
     // --- declared divergent, ADR 0026 § 6 --------------------------------
     {
