@@ -1090,6 +1090,41 @@ The work: a darwin leg whose install+build steps go through the bootstrap the wa
 
 The style-isolation boundary reset (`scss/_reset.scss`) landed. Remaining: document the `--adw-*` / `--*` token set as the public theming contract on the website (the sanctioned external-override API — the counterpart to the isolation); if a second light-DOM Adwaita renderer ever appears, lift the boundary reset into `@gjsify/adwaita-core` (headless) so both share it; keep `$adw-components` in `_reset.scss` in sync with `src/elements/*` (guarded by `style-isolation.spec.ts`). Shadow DOM stays a documented FUTURE option, not adopted.
 
+### Three NS widgets hand-roll a sheet lookup the tree already solved
+
+`Dialogs.action()` returns the chosen STRING, so every NativeScript widget that
+substitutes a sheet for a popover has to map that string back to an entry. The
+tree has a correct answer for it and does not use it three times.
+
+`widgets/split-button.ts` exports `menuSheetActions()` + `resolveMenuChoice()`:
+the first seeds the used-label set with the dismiss text and appends zero-width
+spaces until every action is distinct, so a second entry with the same label and
+an entry literally called `Cancel` both stay addressable; the second returns `-1`
+for a dismissal. Both are spec'd (`split-button.spec.ts:144-174`, incl. the
+`Cancel` case). `adw-alert-dialog.ts` solves the same problem the other correct
+way, delegating to core's `resolveLabel`.
+
+`adw-menu-button.ts:85`, `adw-combo-row.ts:132` and `adw-drop-down.ts:116` each
+call `labels.indexOf(chosen)` over the raw labels with a bare
+`cancelButtonText: 'Cancel'` instead — the addressing core documents as wrong in
+`SplitButtonState.activateMenuEntry` ("silently dispatches the first of two
+identically named entries and cannot tell an entry called `Cancel` from a
+dismissed sheet"). `adw-menu-button` also carries its own `entry.id ?? entry.label`
+fallback, which the browser twin repeats at `adw-menu-button.ts:229`.
+
+Deferred rather than done here because the home is NOT the local helper: both
+renderers need it, so `menuSheetActions`/`resolveMenuChoice` belong in
+`@gjsify/adwaita-core` beside `parseMenuEntries`, with conformance vectors, and
+the web copies of the id-fallback go at the same time. That is a widget-behaviour
+change to four files across two renderers; it was found during a pass on the
+widget-coverage READER, and landing it there would have moved the published
+core-backed count for a reason that has nothing to do with how the count is read.
+
+It does move that count when it lands: `split-button.ts` imports
+`@gjsify/adwaita-core` for `splitButtonArrowIcon`, so `adw-menu-button` reaching
+the shared helper gives it the value edge the matrix asks for — flipping its row
+because it became true, not because a marker said so.
+
 ### Follow-up — adopt `@gjsify/adwaita-app` in the shell consumers (ADR 0009)
 
 Adoption is opportunistic, not a rewrite — wire each consumer onto the shell package on its next shell touch: `@gjsify/storybook` (re-base `StorybookApplication` onto `AdwaitaApp`/`runAdwaitaApp`), buchhaltung (`app/src/frontends/desktop` — replace its hand-rolled application/nav/loadIntoStack/toast/dialog code; follows the release train), eco-retrofit (`cli/src/app` — same; also fixes its latent `Adw.Application.run(null)` → `runAsync()` hang class).
