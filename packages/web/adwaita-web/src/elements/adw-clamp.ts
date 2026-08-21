@@ -40,8 +40,9 @@ export class AdwClamp extends HTMLElement {
         this._resize = new ResizeObserver(() => this._allocate());
         this._resize.observe(this);
         // Children appended AFTER connect are clamped too. Without this they
-        // would keep whatever width they came with — the same "evaluated once at
-        // connect time" bug the toolbar view's empty-bar handling still has.
+        // would keep whatever width they came with — the "evaluated once at
+        // connect time" bug that cost six container getters their layout;
+        // `src/empty-sections.ts` is the same technique for the `hidden` half.
         this._mutations = new MutationObserver(() => this._allocate());
         this._mutations.observe(this, { childList: true });
         this._allocate();

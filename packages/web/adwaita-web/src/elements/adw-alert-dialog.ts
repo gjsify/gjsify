@@ -44,6 +44,8 @@
 import { AdwAlertResponses } from '@gjsify/adwaita-core';
 import type { AdwResponseAppearance } from '@gjsify/adwaita-core';
 
+import { bindEmptySections } from '../empty-sections.js';
+
 /** Response button appearance — mirrors Adw.ResponseAppearance. */
 export type { AdwResponseAppearance } from '@gjsify/adwaita-core';
 
@@ -168,6 +170,9 @@ export class AdwAlertDialog extends HTMLElement {
         for (const child of extraChildren) this._childEl.appendChild(child);
 
         messageArea.append(this._headingEl, this._bodyEl, this._childEl);
+        // `_render` runs from `attributeChangedCallback` and from the response API, and
+        // an extra child appended after connect triggers neither.
+        bindEmptySections(this._childEl);
 
         this._responseAreaEl = document.createElement('div');
         this._responseAreaEl.className = 'adw-alert-dialog-responses';
@@ -371,8 +376,6 @@ export class AdwAlertDialog extends HTMLElement {
         const body = this.body;
         this._bodyEl.textContent = body;
         this._bodyEl.hidden = body.length === 0;
-
-        this._childEl.hidden = this._childEl.childElementCount === 0;
 
         // Horizontal only when prefer-wide-layout is set AND there are at most two
         // responses — the AdwAlertDialog heuristic for keeping wide buttons readable.

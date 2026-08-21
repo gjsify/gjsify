@@ -2,22 +2,25 @@
 //
 // THE INCIDENT
 //
-// Six container getters across three elements documented themselves as imperative
-// append points — `<adw-toolbar-view>.topBar`/`.bottomBar`,
-// `<adw-action-row>.prefixSection`/`.suffixSection`,
-// `<adw-expander-row>.prefixSection`/`.suffixSection` — and then derived
-// `hidden = childElementCount === 0` exactly once, inside the `_initialized` guard or
-// inside a `_render()` only `attributeChangedCallback` can reach. Neither hears a
-// childList change. So a header bar appended AFTER connect sat in the DOM with the
+// Eight sections across five elements derived `hidden = childElementCount === 0`
+// exactly once — inside the `_initialized` guard, or inside a `_render()` only
+// `attributeChangedCallback` can reach. Neither hears a childList change. Six of them
+// document themselves as imperative append points (`<adw-toolbar-view>.topBar`/
+// `.bottomBar`, `<adw-action-row>` and `<adw-expander-row>`'s `prefixSection`/
+// `.suffixSection`), and the other two are the child slots of `<adw-alert-dialog>` and
+// `<adw-status-page>`. So a header bar appended AFTER connect sat in the DOM with the
 // right classes at offsetHeight 0, while the identical DECLARED bar rendered at 48px:
 // the compiled sheet ends with a global `[hidden] { display: none !important }`, which
 // the widget's own `display: flex` cannot beat. Measured the same in Firefox and
 // Chromium.
 //
-// `<adw-clamp>` had already paid for this and fixed it with a MutationObserver on
-// `{ childList: true }`, in a comment naming the toolbar view's empty-bar handling as
-// the same bug. This is that fix, lifted so there is one copy rather than a seventh
-// site deriving it a seventh time.
+// `<adw-clamp>` had already paid for the same "evaluated once at connect time" shape
+// and fixed it with a MutationObserver on `{ childList: true }`. This is that TECHNIQUE
+// applied to the `hidden` derivation, with one home instead of an eighth site deriving
+// it an eighth time — the clamp keeps its own observer, because what it re-derives is a
+// width, not `hidden`. `<adw-preferences-group>` is the third live one: `hasHeaderSuffix`
+// feeds a core derivation rather than a `hidden` flag, so its existing host observer
+// watches the suffix instead.
 //
 // NOTHING TO TEAR DOWN, deliberately. The observed nodes are children this element
 // BUILT and owns, so the observer is unreachable the moment the element is, and is
@@ -28,8 +31,14 @@
 // behaviour: a bar appended to a parked widget is already right when it comes back.
 
 /**
- * Hide each of `sections` exactly while it holds no element children, now and on every
- * later childList change.
+ * Hide each of `sections` exactly while it holds no element children — now, and one
+ * MICROTASK after every later childList change.
+ *
+ * The deferral is what a MutationObserver is; it matters because the derivation used to
+ * run synchronously inside `_render()`. It lands before paint, so layout is never wrong,
+ * but a caller that appends and measures in the SAME task still reads the old answer —
+ * `<adw-toolbar-view>._syncClasses` does exactly that via `offsetHeight`, and its
+ * undershoot classes are corrected by the ResizeObserver on the next frame.
  *
  * Element children, not child NODES: whitespace between two slotted bars is a text node
  * and an empty bar full of indentation is still an empty bar — which is also why the

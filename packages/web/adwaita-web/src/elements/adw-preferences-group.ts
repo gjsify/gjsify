@@ -158,6 +158,9 @@ export class AdwPreferencesGroup extends HTMLElement {
         });
         this._observer.observe(this, { childList: true });
         this._observer.observe(this._listboxEl, { childList: true });
+        // The suffix too: `hasHeaderSuffix` is an INPUT to the header derivation, so a
+        // suffix appended after connect left the header hidden on a group with no title.
+        this._observer.observe(this._suffixEl, { childList: true });
     }
 
     private _renderHeader() {
