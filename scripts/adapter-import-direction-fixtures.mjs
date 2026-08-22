@@ -12,6 +12,23 @@
 // after it. Nothing checked the checker, so every one of those misses cost a human an A/B run.
 // These fixtures are that missing check: each one is a vector the pre-fix script got wrong.
 //
+// THE SECOND INCIDENT, from the rewrite that added these fixtures
+//
+// The stateful stripper did not know a REGEX LITERAL when it saw one, and both shapes that
+// follow from that are fixtures below. `const re = /[/*]/;` is valid JS; read as code, its
+// `/*` opened block-comment state that swallowed the REST OF THE FILE, so a widget name and a
+// placement call under it — which the PRE-rewrite script reported — vanished: one adapter,
+// "carry no widget knowledge", exit 0. Silent, and the exact class the rewrite was written to
+// indict. `/'/` was the loud half: an odd apostrophe left string state open, after which `//`
+// stopped being a comment and PROSE was reported as a placement method. Neither could be seen
+// by running the real scan. Fixing them needed a third fixture of its own, `jsx-closing-tag`:
+// `.tsx` is in SOURCE_EXT, and knowing a regex means deciding what `</div>` is.
+//
+// The last one is not a pattern but a PRESCRIPTION. `unreadable-file` said "add the extension
+// to SOURCE_EXT", and doing that for `.vue` — the extension the fixture below uses — makes this
+// suite fail, so the check still exits 1: a two-step remedy written as one. A remedy that does
+// not work is a defect in the check, so a fixture now asserts what the message NAMES.
+//
 // WHY THEY ARE TEMPLATE LITERALS AND NOT FILES ON DISK
 //
 // The whole-tree format gate (`oxfmt --check`, main.yml) owns every `.ts`/`.tsx`/`.js` byte in
@@ -75,6 +92,11 @@ export function mount(tag, parent) {
  *
  * `expect.files` is the number of adapter files the walk READ — the assertion that catches an
  * extension or a layout the walk skips, which is invisible in a problem count alone.
+ *
+ * A problem may be spelled `kind` or `kind@<line>`; one `@` in the list pins every entry in it.
+ * `expect.mentions` lists substrings the run's own messages must contain — what an error
+ * PRESCRIBES is part of the check, and one of these fixtures exists because a prescription was
+ * wrong while every kind and count was right.
  */
 export const ADAPTER_IMPORT_DIRECTION_FIXTURES = [
     {
@@ -126,7 +148,13 @@ export const ADAPTER_IMPORT_DIRECTION_FIXTURES = [
         // so `react.tsx` is the file that plausibly arrives — and it was read by nothing.
         name: 'adapter-spelled-tsx',
         files: { 'src/adapters/toy.ts': CLEAN_ADAPTER, 'src/adapters/react.tsx': CARRIES_WIDGET_KNOWLEDGE },
-        expect: { files: 2, problems: ['host-internal-import', 'widget-name', 'placement-method'], blockers: [] },
+        // Lines pinned here, and in the two regex fixtures below: a stripper that loses a line
+        // boundary still reports the right KINDS, and reported them at line 1 for a whole file.
+        expect: {
+            files: 2,
+            problems: ['host-internal-import@1', 'widget-name@4', 'placement-method@5'],
+            blockers: [],
+        },
     },
     {
         name: 'adapter-spelled-mts',
@@ -162,7 +190,7 @@ export const ADAPTER_IMPORT_DIRECTION_FIXTURES = [
             'src/adapters/toy.ts': CLEAN_ADAPTER,
             'src/adapters/leaky.ts': `const DOCS = 'https://example.invalid/x'; parent.append(child);\n`,
         },
-        expect: { files: 2, problems: ['placement-method'], blockers: [] },
+        expect: { files: 2, problems: ['placement-method@1'], blockers: [] },
     },
     {
         // Vector 5, the false POSITIVE: a `/* … */` block whose continuation lines carry no
@@ -177,6 +205,59 @@ export const ADAPTER_IMPORT_DIRECTION_FIXTURES = [
                 ' written the way a paragraph is written: no leading star per line.',
                 '*/',
                 `export const NAME = 'toy';`,
+                '',
+            ].join('\n'),
+        },
+        expect: { files: 2, problems: [], blockers: [] },
+    },
+    {
+        // Vector 6, and the SILENT one: an unescaped `/*` inside a regex CHARACTER CLASS is
+        // valid JS. Read as code it opened block-comment state that ran to EOF, so BOTH
+        // violations below disappeared and the run printed "1 adapter(s) carry no widget
+        // knowledge", exit 0 — a violation the pre-rewrite script reported, lost as green.
+        // The escaped form `/\/\*/` was always safe; it is the character class that pays.
+        name: 'regex-character-class-holding-a-comment-opener',
+        files: {
+            'src/adapters/toy.ts': CLEAN_ADAPTER,
+            'src/adapters/cls.ts': [
+                'const re = /[/*]/;',
+                `export const T = { box: 'GtkBox' };`,
+                'parent.append(child);',
+                '',
+            ].join('\n'),
+        },
+        expect: { files: 2, problems: ['widget-name@2', 'placement-method@3'], blockers: [] },
+    },
+    {
+        // Vector 7, the false POSITIVE from the same blindness: an ODD number of apostrophes
+        // inside a regex opened string state that never closed, and from there `//` was not a
+        // comment. Line 3 — prose — was reported as a placement method beside the real one on
+        // line 2. Only line 2 is a violation, which is what the pre-rewrite script said.
+        name: 'apostrophe-inside-a-regex-literal',
+        files: {
+            'src/adapters/toy.ts': CLEAN_ADAPTER,
+            'src/adapters/apos.ts': [
+                `export const strip = (s) => s.replace(/'/g, '');`,
+                'parent.append(child);',
+                '// prose naming set_child()',
+                '',
+            ].join('\n'),
+        },
+        expect: { files: 2, problems: ['placement-method@2'], blockers: [] },
+    },
+    {
+        // The guard the regex fix itself needed. `.tsx` is in SOURCE_EXT and a React adapter is
+        // named as next work, and JSX is full of `/` that no expression precedes: measured with
+        // `<` and `>` left out of the "ends an expression" set, `</div>` opened regex state and
+        // the `//` comment after it was reported as a placement method — defect class restored
+        // by its own fix. Nothing else in this suite contains JSX.
+        name: 'jsx-closing-tag-is-not-a-regex',
+        files: {
+            'src/adapters/toy.ts': CLEAN_ADAPTER,
+            'src/adapters/react.tsx': [
+                'export function Row({ label }) {',
+                '    return <div className="row">{label}</div>; // prose naming set_child()',
+                '}',
                 '',
             ].join('\n'),
         },
@@ -198,6 +279,25 @@ export const ADAPTER_IMPORT_DIRECTION_FIXTURES = [
             'src/adapters/react.vue': `<script>\n${CARRIES_WIDGET_KNOWLEDGE_JS}</script>\n`,
         },
         expect: { files: 1, problems: [], blockers: ['unreadable-file'] },
+    },
+    {
+        // Vector 8: the REMEDY an error prescribes is part of the check. The blocker above used
+        // to say "add the extension to SOURCE_EXT, or move the file out of the adapters tree" —
+        // and following the first half for `.vue` was measured to produce a SELF-TEST FAILURE,
+        // because the fixture above IS a `.vue` file. The check still exits 1, so a one-step
+        // remedy sent a reader into a dead end while every kind and count was right.
+        // (Control: `.css` keeps this suite green — the dead end is `.vue`-specific.)
+        name: 'unreadable-file-names-both-remedy-steps',
+        files: {
+            'src/adapters/toy.ts': CLEAN_ADAPTER,
+            'src/adapters/react.vue': `<script>\n${CARRIES_WIDGET_KNOWLEDGE_JS}</script>\n`,
+        },
+        expect: {
+            files: 1,
+            problems: [],
+            blockers: ['unreadable-file'],
+            mentions: ['SOURCE_EXT', 'adapter-import-direction-fixtures.mjs'],
+        },
     },
     {
         // The other half: an adapter the package PUBLISHES whose source the walk never reached

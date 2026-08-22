@@ -313,6 +313,17 @@ jobs:
       # the real scan can show a pattern that cannot see a violation — it prints the same
       # green as a clean tree. That is why the self-test is inside the invocation and not
       # a step of its own: a checker nobody checks is what this step was.
+      # The self-test then caught the REWRITE that added it. Its stateful comment stripper
+      # did not lex regex literals, so `const re = /[/*]/;` — valid JS — opened block-comment
+      # state that swallowed the rest of the file: two violations under it disappeared and the
+      # run printed "1 adapter(s) carry no widget knowledge", exit 0, where the version it
+      # replaced had failed them. `/'/` was the loud twin, left string state open and reported
+      # PROSE in a `//` comment as a placement method. Both are fixtures now, and they pin LINE
+      # NUMBERS, not only problem kinds — a stripper that loses a line boundary reports every
+      # kind correctly at the wrong line, which a kinds-only assertion passes (measured). One
+      # fixture asserts what an error PRESCRIBES: `unreadable-file` said "add the extension to
+      # SOURCE_EXT", and doing only that for `.vue` turns this suite red, so the check still
+      # exits 1 — a remedy that does not work is a defect in the check.
       - name: Check the framework adapters carry no widget knowledge (self-testing)
         run: node scripts/check-adapter-import-direction.mjs
 

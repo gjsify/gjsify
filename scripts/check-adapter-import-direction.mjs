@@ -28,6 +28,13 @@
 // `/* … */` block whose continuation lines carry no leading `*` was scanned as code, so
 // ordinary prose quoting a widget name FAILED the check. Prose may name a widget; code may not.
 //
+// It also lexes REGEX LITERALS, which the first stateful version did not — and that omission
+// cost a violation as GREEN. `const re = /[/*]/;` is valid JS; read as code its `/*` opened
+// block-comment state that ran to EOF, so a widget name and a placement call under it were
+// swallowed and the run printed "1 adapter(s) carry no widget knowledge", exit 0, on a file the
+// version this one replaced had failed. `/'/` was the loud twin: it left string state open,
+// after which `//` stopped being a comment and PROSE was reported as a placement method.
+//
 // The import matcher takes any RELATIVE specifier whose path segments include `descriptors`,
 // `policies` or `registry`, extension or not, at any depth. It used to demand
 // `../descriptors(/index)?.js` — which admitted neither `'../descriptors/gtk.js'` (the table is
@@ -109,17 +116,87 @@ const HOST_INTERNALS = new Set(['descriptors', 'policies', 'registry']);
  */
 const SPECIFIER_SOURCE = String.raw`(?:\bfrom|\bimport|\brequire)\s*\(?\s*(['"\x60])([^'"\x60\n]+)\1`;
 
+/** A character that ENDS an expression, so a `/` after it is division and never a regex. */
+const ENDS_EXPRESSION = /[\w$)\]'"`<>]/;
+
+/** Identifier characters, for the keyword lookback below. */
+const IDENTIFIER = /[\w$]/;
+
+/**
+ * Keywords a `/` may FOLLOW and still open a regex. The previous character alone cannot tell
+ * `return /x/` from `total / x`: both end in an identifier character.
+ */
+const REGEX_AFTER_KEYWORD = new Set([
+    'await',
+    'case',
+    'delete',
+    'do',
+    'else',
+    'in',
+    'instanceof',
+    'new',
+    'of',
+    'return',
+    'throw',
+    'typeof',
+    'void',
+    'yield',
+]);
+
+/**
+ * The index just past a regex literal starting at `start`, or -1 if it does not close on its
+ * line — in which case the `/` was division, or JSX, and reading it as a regex is what would
+ * cost the rest of the line. Character classes are a region where `/` is literal, which is the
+ * whole of `/[/*]/`; a backslash escapes the next character.
+ */
+function regexLiteralEnd(source, start) {
+    let i = start + 1;
+    let inClass = false;
+    while (i < source.length) {
+        const ch = source[i];
+        if (ch === '\n') return -1;
+        if (ch === '\\') {
+            if (source[i + 1] === undefined || source[i + 1] === '\n') return -1;
+            i += 2;
+            continue;
+        }
+        if (inClass) {
+            if (ch === ']') inClass = false;
+        } else if (ch === '[') {
+            inClass = true;
+        } else if (ch === '/') {
+            return i + 1;
+        }
+        i += 1;
+    }
+    return -1;
+}
+
 /**
  * Strip comments, keeping every other byte and every line boundary.
  *
- * Stateful because the three shapes a line-regex cannot decide are the ones that were wrong:
+ * Stateful because the four shapes a line-regex cannot decide are the ones that were wrong:
  * a `//` inside a string literal is not a comment, a `/* … *\/` block runs across lines whether
- * or not the continuation lines are decorated, and a `${…}` inside a template literal is code
- * again. Strings themselves are KEPT — a quoted widget name is the violation being looked for.
+ * or not the continuation lines are decorated, a `${…}` inside a template literal is code
+ * again, and a `/` may open a REGEX LITERAL. Strings are KEPT — a quoted widget name is the
+ * violation being looked for — and so is a regex body.
  *
- * Not tracked: a regex literal, whose `\/` escapes read as code here. It costs a false
- * negative on a line holding both a regex containing `//` and a violation after it; the
- * alternative is a parser, and the specifier/line patterns are lexical by design.
+ * The note that used to stand here called the untracked regex "a false negative on a line".
+ * It was measured, and it costs the FILE. `const re = /[/*]/;` is valid JS; read as code, its
+ * `/*` opened block-comment state that ran to EOF, so the `'GtkBox'` and the `.append()` under
+ * it vanished and the run printed "1 adapter(s) carry no widget knowledge", exit 0 — a
+ * violation the PRE-rewrite script caught, lost as GREEN. The mirror image was loud rather than
+ * dangerous: `/'/` left string state open, after which `//` stopped being a comment and prose
+ * was reported as a placement method. `//` costs a line; `/*` costs the file.
+ *
+ * So a `/` opens a regex only when the previous significant character cannot END an expression
+ * (or the word before it is a keyword like `return`) AND the literal CLOSES on its line — the
+ * second half is not a heuristic, ECMAScript forbids a LineTerminator in a
+ * RegularExpressionLiteral. Together they bound a miscall to the rest of ONE line.
+ *
+ * Still lexical, not a parser: `a < /re/.test(b)` reads as division, because `<` and `>` count
+ * as ending an expression. That is what keeps a `.tsx` adapter's `</div>` out of regex state,
+ * and `.tsx` is in SOURCE_EXT.
  */
 function stripComments(source) {
     const lines = [];
@@ -133,6 +210,9 @@ function stripComments(source) {
     const stack = ['code'];
     /** Brace depth per `code` frame, so a `}` knows whether it closes a `${…}`. */
     const depth = [0];
+    /** Whether a `/` here would open a regex, and the identifier before it for the keyword case. */
+    let regexAllowed = true;
+    let word = '';
 
     let i = 0;
     while (i < source.length) {
@@ -161,6 +241,18 @@ function stripComments(source) {
                 i += 2;
                 continue;
             }
+            // A regex literal, kept whole. Tested only HERE — after `//` and `/*`, exactly the
+            // order JS lexes them in — so `/[/*]/` is a regex and `/* … */` is still a comment.
+            if (ch === '/' && (regexAllowed || REGEX_AFTER_KEYWORD.has(word))) {
+                const end = regexLiteralEnd(source, i);
+                if (end !== -1) {
+                    current += source.slice(i, end);
+                    regexAllowed = false;
+                    word = '';
+                    i = end;
+                    continue;
+                }
+            }
             if (ch === "'" || ch === '"' || ch === '`') {
                 stack.push(ch === "'" ? 'single' : ch === '"' ? 'double' : 'template');
             } else if (ch === '{') {
@@ -172,6 +264,10 @@ function stripComments(source) {
                 } else if (depth[depth.length - 1] > 0) {
                     depth[depth.length - 1] -= 1;
                 }
+            }
+            if (!/\s/.test(ch)) {
+                word = IDENTIFIER.test(ch) ? word + ch : '';
+                regexAllowed = !ENDS_EXPRESSION.test(ch);
             }
             current += ch;
             i += 1;
@@ -195,6 +291,8 @@ function stripComments(source) {
             (top === 'template' && ch === '`')
         ) {
             stack.pop();
+            regexAllowed = false;
+            word = '';
             current += ch;
             i += 1;
             continue;
@@ -202,6 +300,8 @@ function stripComments(source) {
         if (top === 'template' && ch === '$' && next === '{') {
             stack.push('code');
             depth.push(0);
+            regexAllowed = true;
+            word = '';
             current += '${';
             i += 2;
             continue;
@@ -326,7 +426,10 @@ function evaluate(pkgDir) {
             kind: 'no-adapters-dir',
             message: `${dir} does not exist. If the adapters moved, update this script — do not delete it.`,
         });
-        return { dir, scanned: [], problems, blockers };
+        // Every array the reporter reads, even on the path that cannot reach it today: the
+        // reporter's `result.specs.length` is a TypeError the moment a non-fatal blocker kind
+        // is added, and the self-test below asserts these four exist for exactly that reason.
+        return { dir, scanned: [], specs: [], nonCode: [], unreadable: [], problems, blockers };
     }
 
     const { scanned, specs, nonCode, unreadable } = classify(walk(dir));
@@ -336,8 +439,13 @@ function evaluate(pkgDir) {
             kind: 'unreadable-file',
             message:
                 `${path} is in the adapters tree and this check does not read its extension. ` +
-                'A file it cannot read reports the same green as a clean one — add the extension to ' +
-                'SOURCE_EXT, or move the file out of the adapters tree.',
+                'A file it cannot read reports the same green as a clean one. Either move it out of ' +
+                'the adapters tree, or teach the check to read it — and that is TWO steps, not one: ' +
+                'add the extension to SOURCE_EXT AND move the fixtures in ' +
+                'adapter-import-direction-fixtures.mjs that MEASURE this blocker onto an extension ' +
+                'the walk still cannot read. Both of them spell it .vue today, so adding .vue alone ' +
+                'was measured to turn them into a SELF-TEST FAILURE: the check still exits 1, and ' +
+                'the first step on its own is a dead end.',
         });
     }
 
@@ -385,6 +493,17 @@ function evaluate(pkgDir) {
 
 const kinds = (entries) => entries.map((entry) => entry.kind).sort();
 
+/**
+ * Problems as the fixture spells them: `kind`, or `kind@<line>` where the LINE is the point.
+ * Asserting kinds alone passes a fix that reports the right kind at the wrong line — and the
+ * line is precisely what a comment stripper corrupts when it misreads a regex literal, so the
+ * regex fixtures pin it. One `@` in a fixture's list pins the whole list.
+ */
+const problemsAs = (problems, expected) =>
+    expected.some((entry) => entry.includes('@'))
+        ? problems.map((problem) => `${problem.kind}@${problem.line}`).sort()
+        : kinds(problems);
+
 /** Run every fixture through `evaluate` and return the mismatches. */
 function selfTest() {
     const root = mkdtempSync(join(tmpdir(), 'adapter-import-direction-'));
@@ -394,7 +513,7 @@ function selfTest() {
             const result = evaluate(materializeFixture(fixture, root));
             const actual = {
                 files: result.scanned.length,
-                problems: kinds(result.problems),
+                problems: problemsAs(result.problems, fixture.expect.problems),
                 blockers: kinds(result.blockers),
             };
             const expected = {
@@ -407,6 +526,22 @@ function selfTest() {
                     `${fixture.name}\n      expected ${JSON.stringify(expected)}\n      actual   ${JSON.stringify(actual)}` +
                         [...result.problems, ...result.blockers].map((entry) => `\n      · ${entry.message}`).join(''),
                 );
+            }
+            const absent = ['scanned', 'specs', 'nonCode', 'unreadable'].filter((key) => !Array.isArray(result[key]));
+            if (absent.length > 0) {
+                failures.push(
+                    `${fixture.name}\n      evaluate() returned no ${absent.join('/')} array. The reporter ` +
+                        'reads .length off each of them — this is a TypeError at report time, not a wrong count.',
+                );
+            }
+            const said = [...result.problems, ...result.blockers].map((entry) => entry.message).join('\n');
+            for (const needle of fixture.expect.mentions ?? []) {
+                if (!said.includes(needle)) {
+                    failures.push(
+                        `${fixture.name}\n      no message names ${JSON.stringify(needle)}. What an error ` +
+                            `PRESCRIBES is part of the check.\n      said     ${JSON.stringify(said)}`,
+                    );
+                }
             }
         }
     } finally {
@@ -427,14 +562,18 @@ const pkgDir = pkgIndex === -1 ? PKG : args[pkgIndex + 1];
 // them that no run of the real scan could ever have shown.
 const selfTestFailures = selfTest();
 if (selfTestFailures.length > 0) {
-    console.error(`check-adapter-import-direction: SELF-TEST FAILED, ${selfTestFailures.length} fixture(s).\n`);
+    console.error(`check-adapter-import-direction: SELF-TEST FAILED, ${selfTestFailures.length} finding(s).\n`);
     for (const failure of selfTestFailures) console.error(`  ${failure}`);
     console.error('\nThe patterns in this script no longer report what the fixtures measure. Fix the');
     console.error('pattern, or — if the expectation is what changed — say so in the fixture.');
     process.exit(1);
 }
 const vectors = ADAPTER_IMPORT_DIRECTION_FIXTURES.reduce(
-    (total, fixture) => total + fixture.expect.problems.length + fixture.expect.blockers.length,
+    (total, fixture) =>
+        total +
+        fixture.expect.problems.length +
+        fixture.expect.blockers.length +
+        (fixture.expect.mentions?.length ?? 0),
     0,
 );
 console.log(
