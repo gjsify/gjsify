@@ -32,10 +32,10 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as Web Components for @gjsify/adwaita-web.
 
-import { CarouselState, carouselPageAllocation } from '@gjsify/adwaita-core';
+import { CarouselState, carouselClosestSnapPoint, carouselPageAllocation } from '@gjsify/adwaita-core';
 import type { CarouselScrollRequest, CarouselScrollSource, CarouselStateChange } from '@gjsify/adwaita-core';
 
-import { attachSwipeDrag } from './swipe-drag.js';
+import { attachSwipeDrag, type AdwSwipeDrag } from './swipe-drag.js';
 
 /** Common surface an indicator binds to. The concrete element is AdwCarousel. */
 interface CarouselHost extends HTMLElement {
@@ -101,6 +101,8 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
      * index while the target page stays the target.
      */
     private _scrollTargetId: string | null = null;
+    /** The pointer-drag gesture, asked whether it owns the strip. See `_onWheel`. */
+    private _drag: AdwSwipeDrag | undefined;
 
     static get observedAttributes() {
         return ['allow-scroll-wheel', 'allow-mouse-drag', 'allow-long-swipes', 'interactive', 'spacing', 'position'];
@@ -220,7 +222,7 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
         this._trackEl.addEventListener('scroll', this._onScroll, { passive: true });
         this._trackEl.addEventListener('wheel', this._onWheel, { passive: false });
 
-        attachSwipeDrag({
+        this._drag = attachSwipeDrag({
             // On the TRACK, not on the host: the track is the scroll container the drag
             // writes `scrollLeft` on, and it is what the pages live in.
             host: this._trackEl,
@@ -236,13 +238,19 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
             // (adw-carousel.c:1294-1299) — the page nearest where the gesture was
             // interrupted, NOT the one it started from.
             //
-            // The POINT, not the index `pageAt` returns. They coincide only while every
-            // page has size 1: a page mid-reveal has a fractional size, so
-            // `carouselSnapPoints` (cumulative size − 1) hands back non-integers and an
-            // index used as a progress would jump the strip somewhere else entirely.
+            // `carouselClosestSnapPoint` and NOT `_state.pageAt`, for two reasons that
+            // both make the answer a different page. `pageAt` searches the VISIBLE snap
+            // points (it filters out children being removed) and returns an index into
+            // that filtered array, so subscripting the unfiltered list with it shifts by
+            // one for every removing child ahead of the target. And it is the
+            // `count_removing = FALSE` variant, while `get_closest_snap_point` passes
+            // TRUE (adw-carousel.c:1298) — this is the one call site that counts them.
+            //
+            // The POINT, not an index: a page mid-reveal has a fractional size, so
+            // `carouselSnapPoints` (cumulative size − 1) hands back non-integers.
             cancelProgress: () => {
                 const points = this._state.snapPoints;
-                return points[this._state.pageAt(this._state.position)] ?? this._state.position;
+                return points[carouselClosestSnapPoint(this._state.position, points)] ?? this._state.position;
             },
             // The DRAG writes the offset directly and the existing scroll handler reads
             // the position back off it — the same path a touch scroll takes, so there is
@@ -251,7 +259,7 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
                 const distance = this._distance();
                 if (distance > 0) this._trackEl.scrollLeft = progress * distance;
             },
-            // `scroll_to` with the swipe's velocity is what `end_swipe_cb` does (:433).
+            // `scroll_to` with the swipe's velocity is what `end_swipe_cb` does (:434).
             // Here the settle is the browser's smooth scroll, so the velocity is unused
             // — snap is already restored, and `to` is a snap point by construction.
             onEnd: (progress) => {
@@ -610,6 +618,15 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
     };
 
     private _onWheel = (event: WheelEvent): void => {
+        // A drag owns the offset while it is claimed. Without this a single wheel notch
+        // mid-drag ran the whole paging path and moved `scrollLeft` a full page in one
+        // frame — measured 80 → 440 — which the next pointer move then yanked back, and
+        // it left `_scrollTargetId` pointing at a page the drag overrode. `GDK_EVENT_STOP`
+        // rather than propagate, because the gesture IS handling this widget's scrolling.
+        if (this._drag?.dragging === true) {
+            event.preventDefault();
+            return;
+        }
         const step = this._state.handleWheel({
             deltaX: event.deltaX,
             deltaY: event.deltaY,

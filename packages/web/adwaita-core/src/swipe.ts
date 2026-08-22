@@ -13,9 +13,16 @@
 // Progress is in pages (or whatever a snap point counts). Velocity is NOT: the history
 // records the RAW delta the platform reported — pixels for a drag, scroll units for a
 // touchpad — so velocity is raw-units per millisecond, and `gesture_update` is the only
-// place the delta is divided by the page pitch (adw-swipe-tracker.c:749, :897). The
-// projection then multiplies that velocity by {@link swipeSlope} and adds the result to
-// a progress in pages.
+// place a delta is divided at all. For a DRAG the divisor is the page pitch
+// (adw-swipe-tracker.c:749); for a SCROLL it is a constant,
+// `TOUCHPAD_BASE_DISTANCE_H`/`_V` (:809, applied at :897), which is why those two are
+// exported here as well. The projection then multiplies the velocity by
+// {@link swipeSlope} and adds the result to a progress in pages.
+//
+// UPSTREAM MIXES THEM A SECOND TIME, which settles whether this is a bug to fix:
+// `end_swipe_cb` hands the same raw velocity to
+// `adw_spring_animation_set_initial_velocity` on a spring whose value range is snap
+// points (adw-carousel.c:394-395).
 //
 // So the two are bridged by a tuned constant and nothing else, and the consequence is
 // visible: a flick at the same finger speed projects the same NUMBER OF PAGES on a
@@ -29,8 +36,18 @@
 // never calls either setter — so this module clamps hard and the rubber-band arithmetic
 // (`adjust_for_overshoot`) is left for the first widget that needs it.
 //
+// NOT HERE, and each for a reason a reader will look for. `reversed` (RTL) — the web
+// carousel does not work in RTL at all yet, so a sign flip would be dead code
+// (`elements/swipe-drag.ts`, plus an entry in status/open-todos.md). `enabled` — that is
+// `AdwCarousel:interactive`, which `adw_carousel_set_interactive` forwards straight to
+// `adw_swipe_tracker_set_enabled` (adw-carousel.c:1705), so the renderer gates it. The
+// `prepare` SIGNAL — the tracker emits it so a widget can refuse a gesture before it
+// starts; `AdwCarousel` never connects to it, and the two widgets that do have their
+// gating ported already (`canStartSwipe` in `./split-view.ts`). The four animation
+// constants are dead in the C itself, referenced nowhere.
+//
 // Reference: refs/libadwaita/src/adw-swipe-tracker.c (get_end_progress, calculate_velocity,
-//   get_bounds, find_point_for_projection, trim_history)
+//   get_bounds, find_point_for_projection, trim_history, gesture_prepare)
 // Reference: refs/libadwaita/src/adw-carousel.c (begin_swipe_cb, update_swipe_cb, end_swipe_cb)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Ported to TypeScript for @gjsify/adwaita-core; the gesture source and
@@ -62,6 +79,30 @@ export const ADW_SWIPE_PARABOLA_MULTIPLIER = 0.35;
 
 /** `EPSILON` — how close to a snap point counts as being ON it. */
 export const ADW_SWIPE_EPSILON = 0.005;
+
+/**
+ * `TOUCHPAD_BASE_DISTANCE_H` / `_V` — what a SCROLL delta is divided by instead of the
+ * page pitch (adw-swipe-tracker.c:809).
+ *
+ * Exported although nothing divides by them yet: {@link AdwSwipeSource} offers
+ * `'touchpad'` and the two touchpad constants above, and a caller handed those without
+ * the divisor has half an API.
+ */
+export const ADW_SWIPE_TOUCHPAD_BASE_DISTANCE_H = 400;
+export const ADW_SWIPE_TOUCHPAD_BASE_DISTANCE_V = 300;
+
+/**
+ * GLib's `CLAMP`, which tests the HIGH bound first.
+ *
+ * Not the same function as `Math.min(Math.max(x, low), high)` when the range is inverted
+ * — `get_bounds` can produce `upper < lower` for a position past the last point — and
+ * this is the order every clamp in the C uses.
+ */
+function clamp(value: number, low: number, high: number): number {
+    if (value > high) return high;
+    if (value < low) return low;
+    return value;
+}
 
 /** Which input drove the gesture. It picks the threshold and the deceleration, nothing else. */
 export type AdwSwipeSource = 'touch' | 'touchpad';
@@ -104,7 +145,12 @@ export function swipeClosestPointIndex(points: readonly number[], position: numb
 /** Index of the first snap point at or after `position`, or `-1`. `find_next_point`. */
 export function swipeNextPointIndex(points: readonly number[], position: number): number {
     for (let i = 0; i < points.length; i++) {
-        if (points[i] >= position) return i;
+        // `G_APPROX_VALUE (points[i], pos, DBL_EPSILON) || points[i] > pos`, not `>=`.
+        // They differ when a point sits BELOW the position by less than one ULP, which is
+        // reachable for magnitudes under 1 — exactly the regime `carouselSnapPoints`
+        // produces mid-reveal, where a fractional accumulation meets a progress computed
+        // by a different route.
+        if (Math.abs(points[i] - position) < Number.EPSILON || points[i] > position) return i;
     }
     return -1;
 }
@@ -112,7 +158,7 @@ export function swipeNextPointIndex(points: readonly number[], position: number)
 /** Index of the last snap point at or before `position`, or `-1`. `find_previous_point`. */
 export function swipePreviousPointIndex(points: readonly number[], position: number): number {
     for (let i = points.length - 1; i >= 0; i--) {
-        if (points[i] <= position) return i;
+        if (Math.abs(points[i] - position) < Number.EPSILON || points[i] < position) return i;
     }
     return -1;
 }
@@ -180,14 +226,16 @@ export interface AdwSwipeEndInput {
  */
 export function swipeEndProgress(input: AdwSwipeEndInput): number {
     const { points, progress, velocity, source } = input;
-    if (points.length === 0) return progress;
+    // Cancelled first, as `get_end_progress` does (:449-450). The C never sees an empty
+    // array — `adw_carousel_get_snap_points` returns `MAX (n, 1)` points
+    // (adw-carousel.c:1269) — so the order only shows on a shape it cannot produce.
     if (input.cancelled === true) return input.cancelProgress ?? progress;
+    if (points.length === 0) return progress;
 
     const { lower, upper } = swipeBounds(points, input.initialProgress, input.allowLongSwipes);
 
     if (Math.abs(velocity) < swipeVelocityThreshold(source)) {
-        const closest = points[swipeClosestPointIndex(points, progress)];
-        return Math.min(Math.max(closest, lower), upper);
+        return clamp(points[swipeClosestPointIndex(points, progress)], lower, upper);
     }
 
     const slope = swipeSlope(source);
@@ -203,7 +251,7 @@ export function swipeEndProgress(input: AdwSwipeEndInput): number {
         projected = Math.abs(velocity) * slope;
     }
 
-    const target = Math.min(Math.max(projected * Math.sign(velocity) + progress, lower), upper);
+    const target = clamp(projected * Math.sign(velocity) + progress, lower, upper);
     return points[swipeProjectedPointIndex(points, target, input.initialProgress, velocity)];
 }
 
@@ -284,31 +332,64 @@ export class SwipeTracker {
         return this._initialProgress;
     }
 
-    /** Start a gesture at `progress`. `gesture_begin` plus the reset the C does in `reset`. */
-    begin(progress: number): void {
-        this._history.length = 0;
+    /**
+     * `gesture_prepare` — a gesture is now possible, at `progress`.
+     *
+     * Called on the FIRST move, not when the gesture is claimed, because that is where
+     * the C sets `initial_progress` (:202-204) and `initial_progress` is what bounds the
+     * whole gesture. Deliberately does NOT clear the history: {@link reset} does, at the
+     * end, which is what lets pre-claim moves count toward the velocity.
+     */
+    prepare(progress: number): void {
         this._initialProgress = progress;
         this._progress = progress;
         this._cancelled = false;
     }
 
     /**
-     * Feed one move: `delta` in the platform's raw units, `pitch` to divide it by,
-     * `time` in ms. Returns the progress to draw.
+     * `append_to_history` — record one raw platform delta.
      *
-     * The RAW delta goes into the history and the DIVIDED one into the progress — the
-     * split the header explains, and the reason this takes both.
+     * Called on EVERY move including the ones before the claim, which is where the C
+     * calls it: `append_to_history` sits ahead of the PENDING block in `drag_update_cb`
+     * (:670), and nothing clears the array until the gesture ends. Recording only from
+     * the claim cost a whole event: with the first record's delta discarded as the
+     * clock-starter (see {@link _velocity}), a flick that crossed the threshold on its
+     * first move and released on its second measured ZERO velocity and settled back
+     * instead of paging.
      */
-    update(delta: number, pitch: number, time: number): number {
-        this._appendToHistory(delta, time);
+    record(delta: number, time: number): void {
+        this._trimHistory(time);
+        this._history.push({ delta, time });
+    }
+
+    /**
+     * `gesture_update` — apply one move to the progress. Returns the progress to draw.
+     *
+     * Takes the RAW delta and the pitch to divide it by, and does NOT touch the history:
+     * the C's `gesture_update` only ever writes progress, because the append already
+     * happened. Call it only while the gesture is claimed.
+     */
+    advance(delta: number, pitch: number): number {
+        // A pitch of 0 is a carousel with nothing measurable in it. `0/0` is NaN, and a
+        // NaN progress poisons every later comparison silently — so it is refused where
+        // the division is, rather than guarded at each caller.
+        if (!(pitch > 0)) return this._progress;
 
         const points = this._options.points();
         const { lower, upper } = swipeBounds(points, this._initialProgress, this._options.allowLongSwipes());
         // Written back CLAMPED, unlike the overshoot path in the C, which keeps the
         // unclamped value to rubber-band from. AdwCarousel enables no overshoot, so the
         // two are the same thing here and one variable is one fewer way to drift.
-        this._progress = Math.min(Math.max(this._progress + delta / pitch, lower), upper);
+        this._progress = clamp(this._progress + delta / pitch, lower, upper);
         return this._progress;
+    }
+
+    /** `reset` — end of gesture. Clears the history so the next one starts from nothing. */
+    reset(): void {
+        this._history.length = 0;
+        this._initialProgress = 0;
+        this._progress = 0;
+        this._cancelled = false;
     }
 
     /** Mark the gesture cancelled: {@link end} will return the cancel progress. */
@@ -337,6 +418,7 @@ export class SwipeTracker {
             cancelled: this._cancelled,
             cancelProgress: this._options.cancelProgress?.() ?? this._initialProgress,
         });
+        this.reset();
         return { velocity, to };
     }
 
@@ -346,11 +428,6 @@ export class SwipeTracker {
         let keepFrom = 0;
         while (keepFrom < this._history.length && this._history[keepFrom].time < threshold) keepFrom++;
         if (keepFrom > 0) this._history.splice(0, keepFrom);
-    }
-
-    private _appendToHistory(delta: number, time: number): void {
-        this._trimHistory(time);
-        this._history.push({ delta, time });
     }
 
     /**

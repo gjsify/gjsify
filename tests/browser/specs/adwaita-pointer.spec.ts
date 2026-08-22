@@ -49,30 +49,47 @@ if (adwaita === undefined) {
 }
 
 /** Build a three-page carousel, optionally with attributes, and report its box. */
-async function mount(page: Page, attributes: Record<string, string> = {}) {
-    await page.evaluate((attrs) => {
-        document.body.replaceChildren();
-        document.body.style.margin = '0';
-        const carousel = document.createElement('adw-carousel');
-        carousel.id = 'carousel';
-        for (const [name, value] of Object.entries(attrs)) carousel.setAttribute(name, value);
-        carousel.style.cssText = 'width:440px;height:260px;';
-        for (const title of ['Welcome', 'Discover', 'Get started']) {
-            const child = document.createElement('div');
-            child.style.cssText = 'width:440px;height:260px;display:flex;align-items:center;justify-content:center;';
-            const button = document.createElement('button');
-            button.textContent = title;
-            button.className = 'page-button';
-            button.addEventListener('click', () => {
+async function mount(page: Page, attributes: Record<string, string> = {}, pageWidth = PAGE) {
+    await page.evaluate(
+        ({ attrs, width }) => {
+            document.body.replaceChildren();
+            document.body.style.margin = '0';
+            const carousel = document.createElement('adw-carousel');
+            carousel.id = 'carousel';
+            for (const [name, value] of Object.entries(attrs)) carousel.setAttribute(name, value);
+            // OFFSET FROM THE LEFT EDGE, so a drag longer than the carousel still has room
+            // inside the viewport: a synthetic pointer taken to a negative coordinate gets no
+            // ending event at all, and the gesture then never settles (see the header).
+            carousel.style.cssText = `width:${width}px;height:260px;margin-left:480px;`;
+            for (const title of ['Welcome', 'Discover', 'Get started']) {
+                const child = document.createElement('div');
+                child.style.cssText = `width:${width}px;height:260px;display:flex;align-items:center;justify-content:center;`;
+                const button = document.createElement('button');
+                button.textContent = title;
+                button.className = 'page-button';
+                // FILLS its page, so "did the click land" does not depend on where inside the
+                // carousel a drag happened to start. A press near an edge otherwise misses a
+                // centred button and reads as a swallowed click.
+                button.style.cssText = 'width:100%;height:100%;';
+
+                child.append(button);
+                carousel.append(child);
+            }
+            (window as unknown as { clicks: number }).clicks = 0;
+            // COUNTED ON THE CAROUSEL, in the BUBBLE phase, and not on the button — which is
+            // what a first draft did, vacuously. Pointer capture is set at the claim, so the
+            // `click` that follows any claimed drag is dispatched AT the capturing element:
+            // measured, a 30 px drag that began and ended inside a button still produced a
+            // click whose target was the track. A counter on a descendant is structurally
+            // blind to the suppression, so deleting the suppression left it green.
+            carousel.addEventListener('click', () => {
                 (window as unknown as { clicks: number }).clicks =
                     ((window as unknown as { clicks?: number }).clicks ?? 0) + 1;
             });
-            child.append(button);
-            carousel.append(child);
-        }
-        (window as unknown as { clicks: number }).clicks = 0;
-        document.body.append(carousel);
-    }, attributes);
+            document.body.append(carousel);
+        },
+        { attrs: attributes, width: pageWidth },
+    );
     // One frame for the ResizeObserver to measure the pages the scroll pitch comes from.
     await page.waitForTimeout(120);
     return page.evaluate(() => {
@@ -113,10 +130,13 @@ async function drag(
     const y = box.y + box.height / 2;
     // Start at the edge being dragged away from, so `travel` fits inside the viewport.
     const from = travel < 0 ? box.x + box.width - 8 : box.x + 8;
+    // Rounded: a fractional client coordinate is quantised by the browser, and an
+    // un-rounded step leaves the last move short of the intended travel.
+    const step = (i: number) => Math.round(from + (travel * i) / steps);
     await page.mouse.move(from, y);
     await page.mouse.down();
     for (let i = 1; i <= steps; i++) {
-        await page.mouse.move(from + (travel * i) / steps, y);
+        await page.mouse.move(step(i), y);
         await page.waitForTimeout(pause);
     }
     await page.mouse.up();
@@ -147,7 +167,7 @@ async function driveDrags(page: Page, bundleUrl: string) {
 
     // ---- and back ------------------------------------------------------------------
     await drag(page, box, 300, 15, 8);
-    expect(await state(page)).toMatchObject({ position: 0, scrollLeft: 0 });
+    expect(await state(page)).toMatchObject({ position: 0, scrollLeft: 0, snap: 'x mandatory' });
 
     // ---- A slow short drag snaps back ----------------------------------------------
     box = await mount(page);
@@ -155,15 +175,44 @@ async function driveDrags(page: Page, bundleUrl: string) {
     // (0.3): below the threshold `get_end_progress` takes the NEAREST snap point, and
     // from 0.09 of a page that is the one it started on.
     await drag(page, box, -40, 8, 40);
-    expect(await state(page)).toMatchObject({ position: 0, scrollLeft: 0 });
+    // `snap` in every assertion that has an object to put it in: a mutation restoring it
+    // on the forward path only would otherwise pass on all but one line.
+    expect(await state(page)).toMatchObject({ position: 0, scrollLeft: 0, snap: 'x mandatory' });
 
     // ---- A fast short flick pages anyway -------------------------------------------
     box = await mount(page);
-    // The same 40 px, delivered fast. Over the threshold the projection runs, and
-    // `find_point_for_projection` refuses to round back onto the page it started on —
-    // which is what makes a flick always move.
-    await drag(page, box, -40, 4, 4);
-    expect(await state(page)).toMatchObject({ position: 1, scrollLeft: PAGE });
+    // The same 40 px in TWO moves of 20, delivered fast. Over the threshold the
+    // projection runs, and `find_point_for_projection` refuses to round back onto the page
+    // it started on — which is what makes a flick always move.
+    //
+    // Two large moves rather than four small ones for margin: the velocity is the second
+    // move's delta over the gap between the two, so 20 px needs that gap under 66 ms to
+    // clear VELOCITY_THRESHOLD_TOUCH. Four moves of 10 px halve that budget, and a loaded
+    // machine stretching a requested 4 ms past 33 turns a real assertion into a flake —
+    // measured, this file failed exactly that way in a grouped run and passed alone.
+    await drag(page, box, -40, 2, 4);
+    expect(await state(page)).toMatchObject({ position: 1, scrollLeft: PAGE, snap: 'x mandatory' });
+
+    // ---- allow-long-swipes decides how far one drag may reach ----------------------
+    // The only pair in this file where the tracker's answer and the browser's own re-snap
+    // differ by more than one page, so it is what holds `swipeBounds` end to end.
+    //
+    // DELIBERATELY SLOW, and on a narrow carousel so the travel fits inside the viewport.
+    // A fast flick would reach page 2 through the velocity PROJECTION, whose input is
+    // wall-clock pacing — under load that turns into a flake. Dragging two full pages
+    // takes the projection out of it: the reach is then the bound and nothing else.
+    const narrow = 200;
+    box = await mount(page, {}, narrow);
+    await drag(page, box, -1.6 * narrow, 16, 12);
+    // Clamped to the ADJACENT page while the drag itself went past it — `get_bounds`
+    // measured from where the gesture began (adw-swipe-tracker.c:250-269), which is the
+    // whole meaning of the default.
+    expect(await state(page)).toMatchObject({ position: 1, scrollLeft: narrow, snap: 'x mandatory' });
+
+    box = await mount(page, { 'allow-long-swipes': '' }, narrow);
+    await drag(page, box, -1.6 * narrow, 16, 12);
+    // Unbounded: the same drag reaches the far page.
+    expect(await state(page)).toMatchObject({ position: 2, scrollLeft: 2 * narrow, snap: 'x mandatory' });
 
     // ---- A click that is not a drag still clicks -----------------------------------
     box = await mount(page);
@@ -178,7 +227,7 @@ async function driveDrags(page: Page, bundleUrl: string) {
     box = await mount(page, { 'allow-mouse-drag': 'false' });
     await drag(page, box, -300, 15, 8);
     // `allow-mouse-drag="false"` is upstream's "dragging is only available on touch".
-    expect(await state(page)).toMatchObject({ position: 0, scrollLeft: 0 });
+    expect(await state(page)).toMatchObject({ position: 0, scrollLeft: 0, snap: 'x mandatory', userSelect: 'auto' });
     expect(
         await page.evaluate(
             () => (document.getElementById('carousel') as HTMLElement & { allowMouseDrag: boolean }).allowMouseDrag,
@@ -209,9 +258,11 @@ async function driveDrags(page: Page, bundleUrl: string) {
     // stops going through CSS snap would need; what a test can hold is the ending.
     await page.evaluate(() => {
         const track = document.querySelector('.adw-carousel-track') as HTMLElement;
-        (window as unknown as { pointerId: number }).pointerId = 0;
+        // No default. Firefox's mouse `pointerId` is 0, so seeding it to 0 made the
+        // synthetic cancel below match even if this listener never ran.
+        (window as unknown as { pointerId: number | null }).pointerId = null;
         track.addEventListener('pointerdown', (event) => {
-            (window as unknown as { pointerId: number }).pointerId = event.pointerId;
+            (window as unknown as { pointerId: number | null }).pointerId = event.pointerId;
         });
     });
     {
@@ -222,6 +273,7 @@ async function driveDrags(page: Page, bundleUrl: string) {
         for (let i = 1; i <= 13; i++) await page.mouse.move(from - i * 20, y);
         // Claimed, so snapping is off and the gesture owns the strip.
         expect((await state(page)).snap).toBe('none');
+        expect(await page.evaluate(() => (window as unknown as { pointerId: number | null }).pointerId)).not.toBe(null);
         await page.evaluate(() => {
             const track = document.querySelector('.adw-carousel-track') as HTMLElement;
             const pointerId = (window as unknown as { pointerId: number }).pointerId;
@@ -236,6 +288,57 @@ async function driveDrags(page: Page, bundleUrl: string) {
     // Wherever it landed, it landed ON a page rather than between two.
     expect(cancelled.scrollLeft % PAGE).toBe(0);
     expect(cancelled.snap).toBe('x mandatory');
+
+    // ---- A drag that cannot go anywhere is not claimed, and keeps its click ---------
+    box = await mount(page);
+    // On the FIRST page, dragging backwards. Upstream refuses to claim at all: with
+    // overshoot disabled, `is_overshooting_lower` is true and `drag_update_cb` denies the
+    // sequence (adw-swipe-tracker.c:725-739). Claiming anyway would move nothing — the
+    // bound clamps it — and then suppress the click of whatever the drag started on.
+    await drag(page, box, 300, 15, 8);
+    const atLowerBound = await state(page);
+    expect(atLowerBound).toMatchObject({ position: 0, scrollLeft: 0 });
+    // The button under the cursor DID fire, because no gesture was ever claimed.
+    expect(atLowerBound.clicks).toBe(1);
+    expect(atLowerBound.snap).toBe('x mandatory');
+
+    // ---- and a one-page carousel is the same refusal --------------------------------
+    box = await mount(page);
+    const remaining = await page.evaluate(() => {
+        const carousel = document.getElementById('carousel') as HTMLElement & {
+            removePage(page: HTMLElement): boolean;
+            readonly nPages: number;
+        };
+        // Through the API, not by removing DOM nodes: the snap points come from the
+        // element's state, and a page pulled out from under it leaves the state — and so
+        // the refusal this asserts — still counting three.
+        const pages = Array.from(carousel.querySelectorAll('.adw-carousel-page'));
+        for (const slot of pages.slice(1)) carousel.removePage(slot.firstElementChild as HTMLElement);
+        (window as unknown as { clicks: number }).clicks = 0;
+        return carousel.nPages;
+    });
+    expect(remaining).toBe(1);
+    await page.waitForTimeout(150);
+    // `first_point ≈ last_point` — nowhere to swipe to (:720).
+    await drag(page, box, -300, 15, 8);
+    expect((await state(page)).clicks).toBe(1);
+
+    // ---- Vertical jitter at the start belongs to the page --------------------------
+    box = await mount(page);
+    {
+        const y = box.y + box.height / 2;
+        const x = box.x + box.width / 2;
+        await page.mouse.move(x, y);
+        await page.mouse.down();
+        // Two pixels DOWN first, then a long horizontal pull. The C tests the axis on the
+        // first move at STATE_NONE, at any distance (:673), so this whole gesture is the
+        // page's — deferring the test to the 16 px threshold claimed it instead.
+        await page.mouse.move(x, y + 2);
+        for (let i = 1; i <= 14; i++) await page.mouse.move(x - i * 20, y + 2);
+        await page.mouse.up();
+        await page.waitForTimeout(700);
+    }
+    expect(await state(page)).toMatchObject({ position: 0, scrollLeft: 0 });
 
     // ---- A vertical drag belongs to the page ---------------------------------------
     box = await mount(page);
