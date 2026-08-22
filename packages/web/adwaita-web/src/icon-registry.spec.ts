@@ -111,10 +111,11 @@ export const AdwIconRegistryTest = async () => {
 
     await describe('a name carried by STATE still resolves', async () => {
         await it("the password row's peek toggle draws both of its glyphs", () => {
-            // `check-adwaita-icon-masks.mjs` cannot see these two: they reach
-            // `<adw-icon>.iconName` as `state.peekIconName`, a property of the core's
-            // `PasswordEntryRowState`, so no literal in the tree spells them at the point
-            // of use. The gate says so and this covers what it cannot — measured, not
+            // These two reach `<adw-icon>.iconName` as `state.peekIconName`, a property of
+            // the core's `PasswordEntryRowState`, so no literal spells them at the point of
+            // use. `check-adwaita-icon-masks.mjs` reads their DECLARATIONS
+            // (`PASSWORD_REVEAL_ICON_NAME`), which proves the map entry exists — never that
+            // a glyph arrives on the element. That is this test, measured rather than
             // asserted against the same constant the widget writes, which is how
             // `entry-rows.spec.ts` reads `dataset.iconName` and agrees with itself.
             const host = document.createElement('div');

@@ -2,9 +2,10 @@
 //
 // `scripts/build-scss.mjs` inlines a chosen subset of `@gjsify/adwaita-icons` into the
 // stylesheet as `--icon-<name>` custom properties plus matching `.adw-icon--<name>` mask
-// classes. The subset exists because the whole set does not fit: 644 icons cost a measured
-// 1 095 098 bytes of data-URI against a 190 KB stylesheet, so a consumer whose app needs a
-// glyph this package does not ship needs a way in that is not "wait for a release".
+// classes. The subset exists because the whole set does not fit — inlining every icon that
+// package exports costs a measured ~1.07 MB of data-URI, some five times the stylesheet it
+// would sit in — so a consumer whose app needs a glyph this package does not ship needs a
+// way in that is not "wait for a release".
 //
 // That is this module. `registerIcon` writes the SAME pair the generator writes — the
 // custom property on the document element, the mask class into a stylesheet this module
@@ -96,12 +97,15 @@ function svgRootOf(source: string): Element {
  * a render, this is an explicit call with a wrong argument, and silently doing nothing is
  * the failure mode this whole area exists to end. The name is normalized exactly as
  * `<adw-icon icon-name>` normalizes it — a single `-symbolic` suffix comes off, and the rest
- * must be one CSS token; the SVG has to parse to an `<svg>` root. `<adw-icon>` keeps
- * resolving an unusable name to "no icon", because there the name came from markup and
+ * must be one CSS token; the SVG has to parse to an `<svg>` root. `<adw-icon>` draws
+ * `image-missing` for the same unusable name instead — there it came from markup, and
  * taking the page down over a typo is not proportionate.
  *
  * Registering a name the stylesheet already compiles is allowed and REPLACES the glyph:
  * the property is set on the document element, so it wins over the `:root` rule.
+ *
+ * CLIENT-SIDE ONLY: this touches `document.documentElement` and `document.head`, so at
+ * module top level in an SSR/SSG build it throws before a page is rendered.
  */
 export function registerIcon(name: string, svg: string): void {
     const resolved = normalizeIconName(name);
