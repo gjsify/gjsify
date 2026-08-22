@@ -28,6 +28,7 @@ import {
     setProp,
 } from './host.js';
 import { reorderMode } from './policies.js';
+import { gated } from './testing/gate.mjs';
 import { lookupWidget } from './registry.js';
 import type { HostElement } from './types.js';
 
@@ -959,10 +960,7 @@ export default async () => {
             });
         });
 
-        await describe('a self-anchored insert, and a chain that does not terminate', async () => {
-            beforeEach(() => diagnostics.reset());
-            afterEach(() => diagnostics.assertQuiet());
-
+        await gated(diagnostics, 'a self-anchored insert, and a chain that does not terminate', async () => {
             await it('anchoring a node on itself is a no-op, as in the DOM', async () => {
                 const box = createElement('GtkBox');
                 materialize(box);
