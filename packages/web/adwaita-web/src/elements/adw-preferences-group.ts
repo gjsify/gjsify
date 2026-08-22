@@ -115,6 +115,10 @@ export class AdwPreferencesGroup extends HTMLElement {
         for (const child of rowChildren) this._listboxEl.appendChild(child);
 
         this.replaceChildren(this._headerEl, this._listboxEl);
+        // adw-preferences-group.c:319 — GTK_ACCESSIBLE_ROLE_GROUP. A GROUP, not a list:
+        // that is why the rows inside carry no `listitem` role, which outside a list
+        // would be worse than none.
+        this.setAttribute('role', 'group');
 
         this._renderHeader();
         this._observeHost();

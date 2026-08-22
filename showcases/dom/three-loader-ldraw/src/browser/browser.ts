@@ -10,8 +10,18 @@
 // side-effect import discards, and under a real CSS pipeline it injects the same
 // rules a SECOND time (`style.css.d.ts` says so).
 import '@gjsify/adwaita-web';
+// A showcase is served to whatever browser opens it, so it cannot assume the host has
+// Adwaita Sans the way a GNOME desktop does. `import '@gjsify/adwaita-web'` names the
+// family and ships no `@font-face`, so without this call the chrome renders in the host's
+// default sans on macOS, on Windows and on any Linux that is not GNOME — and looks right
+// only on the machine it was written on.
+import { applyAdwaitaFonts } from '@gjsify/adwaita-web/fonts';
 import type { AdwOverlaySplitView } from '@gjsify/adwaita-web';
 import { start, MODEL_LIST, DEFAULT_MODEL_INDEX, type LDrawDemo } from '../three-demo.js';
+
+// Idempotent, and a no-op where there is no `document` — so a build-time import of this
+// module (the website slideshow does one) neither throws nor half-applies.
+applyAdwaitaFonts();
 
 export interface MountOptions {
     assetBase?: string;

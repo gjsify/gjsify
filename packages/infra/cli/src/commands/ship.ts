@@ -29,7 +29,7 @@ import { deriveDepends, warnAboutGjsFloor } from '../utils/ship/depends.js';
 import { discoverPayload } from '../utils/ship/discover.js';
 import { resolveFormats, FORMAT_IDS } from '../utils/ship/formats.js';
 import { scanGiNamespaces } from '../utils/ship/gi-namespaces.js';
-import { buildTimestamp, isArchIndependent } from '../utils/ship/payload.js';
+import { assertPayloadMatchesArch, buildTimestamp, isArchIndependent } from '../utils/ship/payload.js';
 import { planOverlay, planStage, type StageInputs } from '../utils/ship/plan.js';
 import { renderLauncher } from '../utils/ship/launcher.js';
 import { buildRpm } from '../utils/ship/rpm.js';
@@ -195,10 +195,15 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
         hasSchemas: settings.schemaFiles.length > 0,
         extra: settings.extraDepends[format.id],
         typelibPackages: settings.typelibPackages,
+        bundledTypelibs: settings.typelibFiles,
         minGjsVersion: settings.minGjsVersion,
     });
     for (const warning of warnAboutGjsFloor(format.id, settings.minGjsVersion)) console.warn(`${LOG} ${warning}`);
 
+    // Before the label is chosen, not after: `archName` collapses an
+    // arch-independent payload to `all`/`noarch`, and a mismatch only matters
+    // for a payload that IS architecture-specific.
+    assertPayloadMatchesArch(payload, settings.arch);
     const archLabel = format.archName(settings.arch, isArchIndependent(payload));
     const common = { settings, payload, prefix: format.prefix, depends, archLabel, mtime };
     const bytes = format.id === 'deb' ? await buildDeb(common) : await buildRpm(common);

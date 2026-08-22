@@ -73,6 +73,9 @@ result is wrapped:
 | macOS | `<App>.app/Contents/{MacOS,Resources,Frameworks}` | `.dmg`, zip |
 | Windows | program directory + shortcut metadata | installer, portable zip |
 
+**Amended 2026-08-21 (§ A5):** this table says which formats exist and not WHERE each is
+produced, which is a third axis — see the amendment.
+
 Per-format code exists only where the FORMAT differs; per-OS code only where the LAYOUT
 differs. A target that needs an extra file gets an overlay, never a branch in the staging code.
 This is what lets the Flatpak module become `buildsystem: simple` + `cp -a stage/.`, which is
@@ -140,6 +143,12 @@ What a Linux host cannot do is **Developer ID signing and notarisation** (`codes
 a signed artifact where neither is available fails with that sentence rather than producing an
 unsigned file that Gatekeeper or SmartScreen will refuse. An unsigned artifact is a legitimate
 output — it just has to say so.
+
+**Amended 2026-08-21 (§ A1, § A4, § A5):** the boundary falls one step earlier than this section
+draws it — a CONTAINER is produced where its format's tool lives, so a Linux host assembles the
+`.app` but cannot write the `.dmg` around it. "SmartScreen will refuse" is false: it warns until
+per-hash reputation accrues, signed or not. And signing is a payload MUTATION, not a wrapper —
+measured, 106 of 106 Mach-O images in the darwin closure already carry a signature.
 
 ### 6. A dependency that cannot be derived fails the build
 
@@ -314,3 +323,224 @@ is the app's, not Flatpak's. The AppStream and desktop-entry renderers moved out
 `commands/flatpak/scaffold.ts` into `utils/app-metadata.ts`, and `ConfigDataFlatpak` now extends a
 shared `AppMetadata`, so `gjsify.ship` reads the same fields with no second copy and no config
 rename. The command migration (§ 8's nine subcommands, the deprecation window) is still ahead.
+
+## Amendment, 2026-08-21 — the host that owns a format produces it
+
+Three sections above read as if a format this repository's Linux workstation cannot produce is a
+format to defer. That is a statement about one machine, not about the work. This project already
+builds per-platform native artifacts on per-platform runners — ADR 0017's distribution model,
+`prebuilds.yml`'s Vala-C-on-Fedora → MSVC-on-Windows split, `node-gi.yml`'s build-here /
+consume-there artifact pairs, `release.yml`'s per-OS publish legs. Host-bound formats are
+therefore **in**, and what they need is a *declaration*, not a deferral.
+
+Nothing here reverses a decision above; it moves one line and adds the field that keeps the move
+honest.
+
+### A1. The line falls between assembly and CONTAINER, one step before signing
+
+§ 5 puts the boundary at signing. Measured, it falls earlier: a `<App>.app` **tree** is file
+copying plus metadata and a Linux host does all of it, while the `.dmg` **around** it is a UDIF
+image over a real HFS+/APFS volume — and no HFS+/APFS writer exists anywhere in this tree, with
+`hdiutil` macOS-only. So the amended rule is:
+
+> Assembly is cross-platform. **A container is produced where its format's tool lives, and a
+> signature where its credentials live.** A format declares which of the three it needs.
+
+`status/open-todos.md`'s *"assembly is cross-platform … so a Linux host can build both"* is the
+half-sentence this corrects; it is true of the layouts and false of the `.dmg`.
+
+### A2. Two phases, one verb each
+
+```
+# PHASE 1 — assemble. Anywhere, under GJS, offline.
+gjsify ship linux   [--target deb,rpm] [--arch <process.arch>] [--stage]
+gjsify ship darwin  --stage  [--arch arm64|x64]
+gjsify ship windows --stage  [--arch x64]
+
+# PHASE 2 — finish. On the host the FORMAT declares.
+gjsify ship darwin  --format dmg --from-stage <dir> [--sign] [--notarize]
+gjsify ship windows --format msi --from-stage <dir> [--sign]
+
+gjsify ship plan [--json] [--host linux|darwin|win32]
+gjsify ship ci   [--out .github/workflows/gjsify-ship.yml] [--check] [--force]
+gjsify ship dispatch --format dmg [--ref <git-ref>]
+```
+
+`ship sign` and `ship notarize` as separate verbs are **rejected on mechanics**: `codesign` runs
+over the `.app` *before* the `.dmg` exists, then the image is signed, then notarised, then
+stapled. Three verbs force the `.app` to become a durable intermediate that a later command
+re-opens without the plan — exactly the divergence `utils/ship/stage-writer.ts` was built to
+prevent. `--sign` / `--notarize` are flags on the finish phase; `ship dispatch` stays a verb of
+its own because it touches no payload at all.
+
+Phase 2's only input is a directory, so phase 1 also writes `.gjsify-ship-stage.json` at the stage
+root carrying **the closure, not a settings dump**: `{ settings (with `arch` resolved at stage
+time), staged, overlay, namespaces, mtime }`. Measured, each omission fails silently at exit 0 —
+without `staged` the launcher packs 0644; without the pre-rendered overlay the `.deb` carries no
+`/usr/share/doc/<pkg>/copyright` (Debian Policy § 12.5); without `namespaces` its `Depends` loses
+`gir1.2-gtk-4.0` and `gir1.2-adw-1`, which is the failure § 6 exists to prevent.
+
+### A3. Host-boundness is data, and the independent oracle is a REQUIRED field
+
+This is what the amendment costs and how it is paid. Writing the RPM header ourselves is what made
+`rpm` an *independent* oracle, and it caught a real defect in the first artifact. A host-bound
+format built by the platform's own tool forfeits that: `hdiutil verify` reads what `hdiutil create`
+wrote. So the reader is not prose, it is a field:
+
+```ts
+export interface HostRequirement {
+    /** OSes whose tooling can run this packer. `'any'` = pure JS, under GJS, offline. */
+    finishOn: 'any' | readonly HostOs[];
+    /** Tools the packer EXECS. Empty iff we write the format ourselves. */
+    requiredTools: readonly string[];
+    oracle: {
+        /** Readers from a DIFFERENT implementation family than the packer. */
+        readWith: readonly string[];
+        /** Where each reader runs. A Linux-runnable reader is worth more. */
+        readOn: readonly HostOs[];
+        /** No independent discriminator yet. Legal to declare, ILLEGAL to release. */
+        selfReading: boolean;
+    };
+}
+```
+
+Three fields rather than one `hostOs`, because the measurements split three ways: `finishOn` is not
+`layout` (the `.app` tree is `'any'`, the `.dmg` is `['darwin']`); `requiredTools` is not implied by
+`finishOn` (an `.msi` we write ourselves is `'any'` with no tools); and `oracle` is derivable from
+neither. `selfReading: true` is the honest declaration that a format has no discriminator yet — the
+`ship` conformance rule lets it be declared and refuses to release it.
+
+### A4. Signing is a payload MUTATION, not a wrapper — measured, and it kills the obvious design
+
+Every shape of this handoff wants the stage to carry per-file `sha256` so the pack leg can prove it
+received the bytes the stage host produced. On darwin that guarantee contradicts itself, and the
+number is not close: **106 of 106** Mach-O images in `@gjsify/gtk-runtime-darwin-arm64@0.41.0` plus
+`@gjsify/node-gi`'s `prebuilds/darwin-arm64/node_gi.node` already carry an `LC_CODE_SIGNATURE`
+(read from Linux with `manifest-conformance/lib/binary.mjs`'s `readLibrary()`; 0 unsigned, 0 parse
+errors). They are ad-hoc signed at bundle-build time because `install_name_tool` invalidates the
+original and Apple silicon requires it. Under hardened runtime, library validation will not let a
+Developer-ID-signed main executable load ad-hoc-signed dylibs, so the darwin leg must **re-sign
+every one of them inside the stage** — at which point all 106 digests change, and the check that
+was meant to prove same-bytes either refuses the artifact it exists to produce or is relaxed to
+exempt 106 files and stops checking anything.
+
+The rule that follows: **the stage digest covers the pre-sign tree; the artifact carries a second
+digest set; and arrival is checked as "every non-Mach-O file byte-identical, every Mach-O identical
+outside `LC_CODE_SIGNATURE` and `LC_UUID`"** — i.e. with a Mach-O-aware comparator, which is
+`binary.mjs`, a dependency the CLI does not have today. `docs/prebuilds.md` already measures the
+same byte shape one layer down: all 16 committed darwin dylibs are rewritten on every run at
+identical size, every differing byte being `LC_UUID`, an `N_OSO` stab, or the ad-hoc signature.
+
+Two by-products of the same probe, recorded so nobody re-runs it: the closure is genuinely
+self-contained (**0** non-system dependencies unsatisfied inside it, 106 distinct leaf names), and
+only 2 of 106 images carry an absolute rpath (`/opt/homebrew/lib`, on `libjpeg.8.dylib` and the
+addon) — which `checkPrebuildDir` already decided is a working fallback rather than a defect,
+because dyld skips an `LC_RPATH` that does not exist while a missing absolute `LC_LOAD_DYLIB`
+aborts the load.
+
+### A5. Corrections to sections above — kept as the record, per § 7's precedent
+
+- **§ 2's table lists `.dmg` and zip for macOS and "installer, portable zip" for Windows** without
+  saying where each is produced. Amended: `.app` tree and zip are `finishOn: 'any'`; `.dmg` is
+  `['darwin']`; the Windows program directory and its zip are `'any'`; `.msi` is `'any'` if we
+  write it and `['win32']` if WiX does. `.pkg` belongs in that table and was missing.
+- **§ 5's "a Linux host can do all of it"** is true of `.app` and false of `.dmg` — see A1.
+- **§ 5's "an unsigned file that Gatekeeper or SmartScreen will refuse"** is half false. Gatekeeper
+  genuinely blocks; SmartScreen *warns* until per-file-hash download reputation accrues, signed or
+  not. Authenticode buys a named publisher and tamper-evidence, not acceptance.
+- **Apple is the binding constraint, not Microsoft** — § Consequences leaves both certificates open
+  as one question. They are not symmetric: Developer ID has no OIDC route (`.p12` in a keychain
+  plus an App Store Connect `.p8`), so stage 4 is what would introduce this repository's first
+  long-lived signing secret, while Windows has a cloud-signing route. Sequence stage 4's credential
+  question first. Note also that today's "no long-lived credential" baseline is false:
+  `PREBUILDS_DEPLOY_KEY` is a repo-write SSH key on the branch ruleset's bypass list.
+- **A universal `.app` stays rejected, and the evidence is replaced.** Do not cite
+  "`Graphene-1.0.typelib` differs in 1640 bytes": decoded, those are 410 FunctionBlob reserved-bit
+  fills with `is_static` identical on both sides, and a Fedora x86_64 build writes the *arm64*
+  pattern — the fill tracks the g-ir-compiler build, not the architecture. Cite instead:
+  `GLib-2.0.typelib` carries **969 directory entries on darwin-arm64 and 970 on darwin-x64**, the
+  extra one being `VA_COPY_AS_ARRAY` (x86-64 SysV only), while **44 of 47 typelibs are
+  byte-identical**. One arch-conditional entry plus `binary.mjs`'s refusal to parse fat Mach-O is
+  already sufficient; the false generality is what would reopen `lipo` later on "the measurement
+  was wrong".
+
+### A6. What stays rejected, and what unblocks it — in § 9's voice
+
+- **A hand-written HFS+/UDIF writer.** *A `.dmg` is the first thing in this design that is bigger
+  than the thing it wraps. Every other format here is a container: a table of contents over bytes
+  we already have. A UDIF is a container around a FILESYSTEM, and writing a filesystem is a project
+  rather than a target — 1200-2000 lines where the entire existing packer surface is 1036, and
+  every mistake is silent, because Finder mounts the image and shows an empty window. What it would
+  buy is an independent reader, and 7-Zip already advertises `Dmg`, `HFS` and `APFS` handlers
+  regardless of who wrote the file.* Unblocker: none wanted. `hdiutil` on a darwin runner, read back
+  on Linux with `7z` plus `dmg2img` → `fsck.hfsplus -n`.
+- **A hand-written MSI.** Feasible and ≈1300 lines, and the three constraints that forced the
+  hand-written deb/rpm writers have no subject here: § 4 records that there is no GJS host on
+  Windows at all. Unblocker: the day `ship` must pack an `.msi` inside a sandbox with no distro
+  packages. Until then, one authored `.wxs` with a host-selected backend, cross-checked between
+  `wixl` (Linux) and WiX (Windows) so the producer and the reader are not the same package —
+  `msitools` ships both `wixl` and `msiinfo`, so a wixl-only path would be a self-oracle.
+- **MSIX.** An unsigned one cannot be installed at all, and the property under test — "installs on a
+  machine that never saw our certificate" — cannot be measured by the leg that holds the
+  certificate. A self-signed cert in `TrustedPeople` buys a green leg that proves nothing.
+  Unblocker: the same certificate Authenticode needs, so it is one decision, not two.
+
+### A7. Consequence for the docs
+
+`website/src/content/docs/ship/index.mdx` says the packers are plain JavaScript *"so the command
+runs anywhere"*, and that there is *"no packaging file to keep in your repo"*. Both become false
+here: `--format dmg` refuses on Linux, and `gjsify ship ci` scaffolds a workflow into the
+consumer's repository. The honest replacement is A1's rule plus: *assemble anywhere, pack where the
+format's tool lives, and never claim a signature we could not make.*
+
+## Amendment, 2026-08-22 — translations are payload, and the prefix has to reach the app
+
+### A8. `localeDir`: compiled catalogues, staged in the only layout that is ever read
+
+§ 2 listed the payload as "the app bundle, its assets, its GSettings schemas, its icons and its
+metadata". Translations were not in it, and nothing else carried them: an app with a working
+gettext setup could be packaged and would show English on a German desktop, because the `.mo`
+files simply were not in the artifact.
+
+`gjsify.ship.localeDir` names a directory of COMPILED catalogues — `<lang>/LC_MESSAGES/<domain>.mo`,
+which is the default output of `@gjsify/vite-plugin-gettext`'s `gettextPlugin` — and they are
+staged into `share/locale/` with that structure preserved.
+
+The structure is not a stylistic choice: `bindtextdomain` looks in `<dir>/<lang>/LC_MESSAGES/` and
+nowhere else. So discovery REFUSES three shapes, all of them the same failure wearing different
+clothes — a package that installs its translations and shows none of them:
+
+| refused | why it would otherwise pass |
+|---|---|
+| a `.po` beside or instead of a `.mo` | `bindtextdomain` reads `.mo` only; a staged `.po` is a file nothing opens |
+| a `.mo` outside `<lang>/LC_MESSAGES/` | the commonest slip is `msgfmt` run without the `LC_MESSAGES` level |
+| a declared directory holding no `.mo` at all | a promise the package does not keep, and it packs green |
+
+That failure mode is why the refusals exist rather than warnings. An untranslated UI is
+indistinguishable from "this app has no German", so nobody reports it as a packaging bug — it is
+the quietest possible way for a release to be wrong.
+
+### A9. The launcher passes the locale directory, for the reason § 3 already gives
+
+§ 3 established that the launcher derives its prefix at runtime so ONE payload becomes `/usr` in a
+`.deb`, `/usr` in an `.rpm` and `/app` in a Flatpak. Catalogues inherit that problem exactly:
+`bindtextdomain` takes a directory, and there is no environment variable the *library* reads on its
+own (`TEXTDOMAINDIR` is honoured by the gettext command-line tools, not by glibc's
+`bindtextdomain`). A baked `/usr/share/locale` would be wrong in a Flatpak and in every
+`--prefix` tree.
+
+So the launcher exports `GJSIFY_LOCALE_DIR="$prefix"/share/locale` when — and only when — something
+was staged, and the app calls `bindtextdomain(domain, GLib.getenv('GJSIFY_LOCALE_DIR') ?? '/usr/share/locale')`.
+Same division of labour as `XDG_DATA_DIRS` for icons and schemas: the launcher knows the install
+layout, the app does not.
+
+### A10. The locale tree drops out of the wholesale bundle staging
+
+`discoverPayload` stages every file beside the bundle into `lib/<binary>/`, and `dist/locale/` sits
+beside `dist/app.gjs.mjs` in the layout above. Measured on a probe package: the same `.mo` came out
+at BOTH `share/locale/de/LC_MESSAGES/` and `lib/<binary>/locale/de/LC_MESSAGES/`. The second copy is
+dead weight — nothing looks there.
+
+This is the same class as `ship` once staging the test suite: whatever lies next to the bundle is
+carried, whether or not it belongs in a package. The subtraction is targeted at the DECLARED locale
+directory only, so a package that legitimately ships assets beside its bundle keeps them.

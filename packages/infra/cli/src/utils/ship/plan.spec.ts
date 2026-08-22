@@ -36,6 +36,8 @@ function settings(overrides: Partial<ShipSettings> = {}): ShipSettings {
         bundleDir: '/project/dist',
         iconFiles: [],
         schemaFiles: [],
+        typelibFiles: [],
+        localeFiles: [],
         extraFiles: {},
         execArgs: [],
         outDir: 'ship',
@@ -111,6 +113,38 @@ export default async () => {
             expect(() =>
                 planStage(settings({ schemaFiles: ['/project/data/settings.gschema.xml'] }), inputs()),
             ).toThrow('must be named');
+        });
+
+        await it('stages bundled typelibs beside the bundle, in gi/', async () => {
+            // gjsify's own GI libraries arrive as npm prebuilds, so an app using one must CARRY it:
+            // there is no `gir1.2-…` to depend on. A typelib without its shared library installs
+            // and then dies at the first import, so both are staged from the same directory.
+            const files = planStage(
+                { ...settings(), typelibFiles: ['/p/Gwebgl-0.1.typelib', '/p/libgwebgl.so'] },
+                inputs(),
+            );
+            const staged = files.map((file) => file.path);
+            expect(staged.includes('lib/hello/gi/Gwebgl-0.1.typelib')).toBe(true);
+            expect(staged.includes('lib/hello/gi/libgwebgl.so')).toBe(true);
+        });
+
+        await it('stages catalogues into share/locale, layout preserved', async () => {
+            // The LAYOUT is the point: `bindtextdomain` looks in
+            // `<dir>/<lang>/LC_MESSAGES/<domain>.mo` and nowhere else, so a catalogue staged by
+            // basename alone would install and never be found.
+            const files = planStage(
+                settings({
+                    localeFiles: [
+                        { rel: 'de/LC_MESSAGES/hello.mo', abs: '/p/dist/locale/de/LC_MESSAGES/hello.mo' },
+                        { rel: 'fr/LC_MESSAGES/hello.mo', abs: '/p/dist/locale/fr/LC_MESSAGES/hello.mo' },
+                    ],
+                }),
+                inputs(),
+            );
+            const staged = files.map((file) => file.path);
+            expect(staged.includes('share/locale/de/LC_MESSAGES/hello.mo')).toBe(true);
+            expect(staged.includes('share/locale/fr/LC_MESSAGES/hello.mo')).toBe(true);
+            expect(files.find((f) => f.path === 'share/locale/de/LC_MESSAGES/hello.mo')?.mode).toBe(0o644);
         });
 
         await it('refuses an extra file that escapes the prefix', async () => {

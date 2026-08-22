@@ -83,6 +83,12 @@ export const DOCUMENTED_STYLE_CLASSES: Record<string, { shipped: boolean; reason
     monospace: SHIPPED,
     numeric: SHIPPED,
     // Colors
+    // `accent` was missing from this list for as long as it has existed, and not by
+    // judgement: the gate that keeps the list honest read only the doc's BACKTICK
+    // spelling, and `.accent` is the one class upstream writes as `<tt>.accent</tt>`
+    // (style-classes.md:368). It has always been implemented (`scss/_labels.scss:53`);
+    // what was missing was anything that would notice if it stopped being.
+    accent: SHIPPED,
     error: SHIPPED,
     warning: SHIPPED,
     success: SHIPPED,

@@ -10,6 +10,16 @@
 // inlining, the bundle would crash with ENOENT from any location other than
 // the build site. With inlining, the bundle prints the embedded value and
 // runs from any directory.
+//
+// A SECOND fixture covers what the first structurally cannot: a FIRST-PARTY
+// TypeScript source. Until 2026-08-22 the inliner was gated on `node_modules`
+// and parsed with plain acorn, and this suite could see neither limitation —
+// an installed package ships JS, and the gate let it through. What that cost:
+// every static read in @gjsify/cli's own sources shipped LIVE into
+// `dist/cli.gjs.mjs`, so `gjs -m dist/cli.gjs.mjs ship --stage` died with ENOENT
+// on `templates/app/desktop.tmpl` while the identical command through
+// `lib/index.js` staged it fine. A fixture that only exercises the covered path
+// reports on the covered path.
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -175,5 +185,59 @@ describe('Inline static reads E2E', { timeout: 10 * 60 * 1000 }, () => {
         );
         rmSync(isolatedDir, { recursive: true, force: true });
         rmSync(movedDir, { recursive: true, force: true });
+    });
+
+    // The case the fixture above cannot reach: the source is first-party AND it
+    // is TypeScript, so it fails BOTH of the limitations this suite used to be
+    // blind to. Deleting the read's target before running is the discriminator —
+    // a bundle that still reads at runtime cannot pass, and without the deletion
+    // a live read would find the file and the test would be green having proven
+    // nothing.
+    it('inlines a static read from a first-party TypeScript source', () => {
+        const srcDir = join(projectDir, 'src');
+        writeFileSync(join(srcDir, 'greeting.txt'), 'first-party-inlined\n');
+        writeFileSync(
+            join(srcDir, 'first-party.ts'),
+            `import { readFileSync } from 'node:fs';\n` +
+                // A type annotation and an interface: the syntax that made the
+                // parser throw, which the catch then reported as "nothing to inline".
+                `interface Unused { readonly a: string }\n` +
+                `const greeting: string = readFileSync(new URL('./greeting.txt', import.meta.url), 'utf-8');\n` +
+                `console.log('FP:' + greeting.trim());\n`,
+        );
+
+        const bundlePath = join(projectDir, 'dist', 'first-party.js');
+        execFileSync(
+            'npx',
+            ['gjsify', 'build', 'src/first-party.ts', '--app', 'node', '--outfile', bundlePath, '--no-minify'],
+            { cwd: projectDir, stdio: 'pipe', timeout: 60 * 1000 },
+        );
+
+        const bundle = readFileSync(bundlePath, 'utf-8');
+        assert.ok(
+            bundle.includes('first-party-inlined'),
+            'bundle does not carry the template text — the inliner never saw the TypeScript source',
+        );
+        assert.ok(
+            !/readFileSync\(\s*new URL\(\s*["']\.\/greeting\.txt["']/m.test(bundle),
+            'bundle still reads greeting.txt at runtime — the call was repointed, not replaced',
+        );
+
+        if (!hasCommand('node')) return;
+
+        // Remove the file the read pointed at, then run the bundle from a
+        // directory with no project above it. Both halves matter: the deletion
+        // makes a surviving read fail, the isolation makes a surviving relative
+        // path fail.
+        rmSync(join(srcDir, 'greeting.txt'), { force: true });
+        const isolated = join('/tmp', `gjsify-inline-first-party-${Date.now()}`);
+        mkdirSync(isolated, { recursive: true });
+        cpSync(bundlePath, join(isolated, 'app.js'));
+        const out = execFileSync('node', [join(isolated, 'app.js')], {
+            stdio: 'pipe',
+            timeout: 30 * 1000,
+        }).toString();
+        assert.match(out, /^FP:first-party-inlined/, `first-party bundle failed. Got: ${out}`);
+        rmSync(isolated, { recursive: true, force: true });
     });
 });

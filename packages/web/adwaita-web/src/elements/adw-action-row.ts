@@ -17,6 +17,7 @@
 import { ActionRowState } from '@gjsify/adwaita-core';
 
 import { bindEmptySections } from '../empty-sections.js';
+import { type AdwRowActivation, attachRowActivation } from './row-activation.js';
 
 /**
  * Attributes whose change means the activatable widget's sensitivity may have
@@ -41,6 +42,8 @@ export class AdwActionRow extends HTMLElement {
     /** Watches the activatable widget's `disabled`/`aria-disabled` — the live binding. */
     private _sensitivityObserver: MutationObserver | null = null;
     private _initialized = false;
+    /** Tab stop + Enter/Space, re-derived whenever `activatable` moves. */
+    private _activation?: AdwRowActivation;
 
     static get observedAttributes() {
         return ['title', 'subtitle', 'activatable'];
@@ -118,6 +121,9 @@ export class AdwActionRow extends HTMLElement {
         this._render();
 
         this.addEventListener('click', (event) => this._onClick(event));
+        // Only while `activatable` — a plain action row is a label, and a label that
+        // takes Tab makes every static row in a group a stop.
+        this._activation = attachRowActivation({ row: this, activatable: () => this._state.activatable });
     }
 
     /** Copy the declarative attributes into the headless state. */
@@ -186,6 +192,7 @@ export class AdwActionRow extends HTMLElement {
         this._subtitleEl.textContent = subtitle;
         this._subtitleEl.hidden = !subtitleVisible;
         this.classList.toggle('activatable', this._state.activatable);
+        this._activation?.sync();
     }
 }
 

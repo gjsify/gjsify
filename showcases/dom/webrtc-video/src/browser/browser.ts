@@ -7,7 +7,17 @@
 // showcase. Standalone runs go through `browser-main.ts` (`mount(document.body)`).
 
 import '@gjsify/adwaita-web'; // registers the custom elements + self-injects the stylesheet
+// A showcase is served to whatever browser opens it, so it cannot assume the host has
+// Adwaita Sans the way a GNOME desktop does. `import '@gjsify/adwaita-web'` names the
+// family and ships no `@font-face`, so without this call the chrome renders in the host's
+// default sans on macOS, on Windows and on any Linux that is not GNOME — and looks right
+// only on the machine it was written on.
+import { applyAdwaitaFonts } from '@gjsify/adwaita-web/fonts';
 import { startVideo } from '../video-demo.js';
+
+// Idempotent, and a no-op where there is no `document` — so a build-time import of this
+// module (the website slideshow does one) neither throws nor half-applies.
+applyAdwaitaFonts();
 
 export interface MountOptions {
     /** Override the header bar title. */

@@ -3,10 +3,20 @@
 // pause/resume button only (no sidebar: the game has no configurable params).
 
 import '@gjsify/adwaita-web'; // registers the custom elements + self-injects the stylesheet
+// A showcase is served to whatever browser opens it, so it cannot assume the host has
+// Adwaita Sans the way a GNOME desktop does. `import '@gjsify/adwaita-web'` names the
+// family and ships no `@font-face`, so without this call the chrome renders in the host's
+// default sans on macOS, on Windows and on any Linux that is not GNOME — and looks right
+// only on the machine it was written on.
+import { applyAdwaitaFonts } from '@gjsify/adwaita-web/fonts';
 import type { AdwHeaderBar } from '@gjsify/adwaita-web';
 import { mediaPlaybackPauseSymbolic, mediaPlaybackStartSymbolic } from '@gjsify/adwaita-icons/actions';
 import { audioVolumeHighSymbolic, audioVolumeMutedSymbolic } from '@gjsify/adwaita-icons/status';
 import { startGame, type GameHandle } from '../game.js';
+
+// Idempotent, and a no-op where there is no `document` — so a build-time import of this
+// module (the website slideshow does one) neither throws nor half-applies.
+applyAdwaitaFonts();
 
 export interface MountOptions {
     /** Base URL for game assets (default: '/'). Used when embedded in the website. */

@@ -86,6 +86,7 @@ const ROVING_LEDGER = {
     'packages/web/adwaita-web/src/elements/adw-sidebar.ts': 'via ./roving-focus.js',
     'packages/web/adwaita-web/src/elements/adw-split-button.ts': 'via <adw-popover>',
     'packages/web/adwaita-web/src/elements/adw-tab-view.ts': 'own keydown listener',
+    'packages/web/adwaita-web/src/elements/adw-toggle-group.ts': 'via ./roving-focus.js',
     'packages/web/adwaita-web/src/elements/adw-view-switcher-bar.ts': 'via ./roving-focus.js',
     'packages/web/adwaita-web/src/elements/adw-view-switcher.ts': 'via ./roving-focus.js',
     // Not a roving widget: `init.surface.tabIndex = -1` is the ONE box a dialog owns, and

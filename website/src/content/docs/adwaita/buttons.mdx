@@ -25,8 +25,8 @@ follow its naming, and where one of them differs, its tab says so.
 
 :::note
 The previews run the browser port, so behaviour Libadwaita drives natively (a
-split button's popover, a toggle group's keyboard navigation) can be simplified
-here.
+split button's popover) can be simplified here. A toggle group's keyboard
+navigation is not: see below.
 :::
 
 ## Button Content
@@ -410,6 +410,18 @@ For a small set of mutually exclusive options, such as a view mode, use a
 **toggle group**: a linked row where exactly one toggle is active at a time. Each
 toggle takes an icon, a label, or both. The style classes `.flat` and `.round`
 adapt the group for a toolbar or give it a pill shape.
+
+A toggle group is a **single tab stop**, the way `Adw.ToggleGroup` routes focus:
+Tab enters on the active toggle and the next Tab leaves the group, while Left and
+Right move between toggles. Up and Down stay the page's, as they are upstream.
+Home and End jump to the ends — that pair is the WAI-ARIA pattern rather than
+anything GTK does, since GTK's focus directions have no Home or End. It announces itself as a radio group with one
+checked toggle — `GTK_ACCESSIBLE_ROLE_RADIO_GROUP` upstream — unless the element
+already carries a `role` when it connects, which it then keeps; `role="tablist"`
+additionally switches the toggles to tabs, the way `Adw.InlineViewSwitcher` does.
+Set it in markup or before the element is inserted: it is read once, which is all
+GTK allows too — `GtkAccessible:accessible-role` is documented "cannot be changed
+once set", and the only setter is class-level.
 
 <AdwWidget title="Adw.ToggleGroup">
   <Fragment slot="preview">

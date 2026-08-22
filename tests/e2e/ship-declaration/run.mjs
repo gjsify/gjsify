@@ -3,10 +3,18 @@
 //
 // WHY THIS SUITE EXISTS, and why it drives the rule through `createContext`
 // rather than through `audit-runtimes --check`: the rule is `scope: 'portable'`,
-// a claim that it is correct in ANY consumer's tree. Running it only against
-// this repository would leave that claim untested TWICE OVER, because no package
-// here declares `gjsify.ship` at all — the rule is vacuous in this checkout, and
-// a vacuous rule that stopped firing would look exactly like a passing one.
+// a claim that it is correct in ANY consumer's tree. Running it only against this
+// repository would leave that claim barely tested, because exactly ONE package
+// here declares `gjsify.ship` — `packages/infra/cli` itself, with `kind` resolved
+// from `gjsify.flatpak`, three keys, and both landed targets — so nearly every
+// branch of the rule would still never fire, and a rule that stopped firing would
+// look exactly like a passing one.
+//
+// Corrected 2026-08-21: this header (and `status/open-todos.md` with it) used to
+// say "no package here declares `gjsify.ship` at all". That was measurably false —
+// `release-cut.yml` runs `ship --skip-build` against that declaration on every
+// cut — and three separate design passes reasoned from it. The suite's shape is
+// unchanged; only the reason it gives for that shape was wrong.
 //
 // Synthetic roots in a tmpdir, never this checkout: a fixture that reads repo
 // state goes red when unrelated work lands (see the header of

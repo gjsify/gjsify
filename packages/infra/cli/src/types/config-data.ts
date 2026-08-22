@@ -421,6 +421,33 @@ export interface ConfigDataShip extends AppMetadata {
      * not silence the unmapped-namespace failure.
      */
     typelibPackages?: Record<string, { deb: string; rpm: string }>;
+    /**
+     * Directories whose `*.typelib` and `lib*.so*` the package CARRIES ITSELF, e.g.
+     * `["../node_modules/@gjsify/webgl-linux-x64/prebuilds/linux-x64"]`.
+     *
+     * gjsify's own GI libraries — `Gwebgl`, the GTK runtime bundles, the napi host — arrive as npm
+     * prebuilds, not as distro packages, so an app that imports one has no `gir1.2-…` to depend on.
+     * Staging them here puts them in `lib/<binary>/gi/` and makes the launcher point
+     * `GI_TYPELIB_PATH` and `LD_LIBRARY_PATH` at that directory.
+     *
+     * The namespaces this covers are read back off the STAGED FILES, not from a separate list:
+     * a declaration that a namespace is bundled, without the file being there, is exactly the lie
+     * the dependency check exists to prevent.
+     */
+    bundledTypelibs?: string[];
+    /**
+     * Directory holding COMPILED gettext catalogues in the layout `bindtextdomain` reads —
+     * `<lang>/LC_MESSAGES/<domain>.mo` — e.g. `"dist/locale"`, which is what
+     * `@gjsify/vite-plugin-gettext`'s `gettextPlugin` writes by default.
+     *
+     * Staged into `share/locale/` with that structure preserved, and the launcher then exports
+     * `GJSIFY_LOCALE_DIR` so the app can call `bindtextdomain(domain, dir)` without knowing which
+     * prefix it was installed under.
+     *
+     * `.po` sources are NOT accepted: `bindtextdomain` reads `.mo` only, and staging a `.po`
+     * produces a package that installs its translations and shows none of them.
+     */
+    localeDir?: string;
     /** Extra payload entries: prefix-relative destination → project-relative source. */
     extraFiles?: Record<string, string>;
     /** Arguments the launcher appends before the user's own. */

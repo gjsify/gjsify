@@ -17,6 +17,34 @@ const base = { kind: 'app' as const, hasSchemas: false, extra: [] };
 
 export default async () => {
     await describe('deriveDepends', async () => {
+        await it('needs no distro package for a typelib the payload carries', async () => {
+            // `Gwebgl` has no `gir1.2-…` anywhere: it arrives as an npm prebuild. Without this the
+            // check fails every project that uses gjsify's WebGL bridge.
+            const depends = deriveDepends('deb', {
+                namespaces: ['Gtk-4.0', 'Gwebgl-0.1'],
+                kind: 'app',
+                hasSchemas: false,
+                extra: [],
+                bundledTypelibs: ['/p/gi/Gwebgl-0.1.typelib', '/p/gi/libgwebgl.so'],
+            });
+            expect(depends.some((d) => d.includes('gwebgl'))).toBe(false);
+            expect(depends.some((d) => d.includes('gtk-4'))).toBe(true);
+        });
+
+        await it('still fails for a namespace nothing ships and nothing maps', async () => {
+            // The exemption is derived from the STAGED FILES. Shipping one typelib must not excuse a
+            // different namespace — that would turn the check into a way of silencing itself.
+            expect(() =>
+                deriveDepends('deb', {
+                    namespaces: ['Totally-1.0'],
+                    kind: 'app',
+                    hasSchemas: false,
+                    extra: [],
+                    bundledTypelibs: ['/p/gi/Gwebgl-0.1.typelib'],
+                }),
+            ).toThrow('no deb package is known');
+        });
+
         await it('maps namespaces to the package that ships the typelib, per format', async () => {
             const namespaces = ['Gtk-4.0', 'Adw-1', 'Gio-2.0'];
             expect(deriveDepends('deb', { ...base, namespaces })).toStrictEqual([

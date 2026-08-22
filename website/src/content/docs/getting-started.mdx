@@ -166,7 +166,7 @@ The scripts are the whole build system:
   "start:node": "gjsify run dist/index.node.mjs --runtime node",
   "start:bun":  "gjsify run dist/index.node.mjs --runtime bun",
   "start:deno": "gjsify run dist/index.node.mjs --runtime deno",
-  "dev":        "gjsify run build:gjs && gjsify run start"
+  "dev":        "gjsify dev --runtime gjs"
 }
 ```
 
@@ -176,6 +176,10 @@ common ABI and none of them needs a target of its own. Both builds name `--app`
 explicitly so the target cannot silently follow whichever runtime invoked the
 build.
 
+`dev` is the loop you will spend the most time in: it watches `src/`, rebuilds on
+every change and relaunches the app, with no separate watcher to install — see
+[`gjsify dev`](/gjsify/cli-reference/#gjsify-dev).
+
 Run them with whichever toolchain you picked above:
 
 <CommandTabs title="Build and run">
@@ -184,7 +188,7 @@ Run them with whichever toolchain you picked above:
     gjsify run build       # bundle both targets
     gjsify run build:gjs   # only dist/index.gjs.js
     gjsify run start       # launch it on GJS
-    gjsify run dev         # build:gjs + start, in one step
+    gjsify run dev         # watch src/, rebuild + relaunch on every save
     gjsify run check       # type-check without emitting
     ```
   </Fragment>

@@ -23,3 +23,23 @@ Button,
 TextField {
     font-family: 'AdwaitaSans-Regular', 'Adwaita Sans';
 }
+
+/* Showcase chrome: the Overview story's button pair. `adw-action-buttons` is a
+   name this showcase invents — no libadwaita style class and no bridge widget
+   emits it — so its rule belongs here and not in adwaita.css. It styled NOTHING
+   until now, and the browser twin sets the same two properties inline
+   (`gap: 12px; margin: 6px 0`, widgets.web.ts:111-112), so the two rendered the
+   row differently: buttons flush against each other on Android, spaced in the
+   browser.
+
+   NativeScript has no `gap` and no `:last-child`, so the space between the
+   buttons is half a gap on each side. That leaves 6 at the outer edges the
+   browser twin does not have — the closest the CSS subset gets, and visible only
+   against the group's own padding. */
+.adw-action-buttons {
+    margin: 6 0 6 0;
+}
+
+.adw-action-buttons .adw-button {
+    margin: 0 6 0 6;
+}

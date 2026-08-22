@@ -13,7 +13,7 @@ runtime (GJS 1.86+/SM140) this does **not** reproduce — microtasks drain
 correctly under a pending top-level await. What *is* real and reproducible is a
 narrower **process-teardown deadlock**, and the originally observed "MCP stdio
 hangs with zero output" turned out to be a **separate `process.stdin`
-auto-resume gap** (fixed independently on `fix/process-stdin-on-data-resume`).
+auto-resume gap** (fixed independently in #509).
 
 | Claim | Verdict on GJS 1.88/SM140 | Evidence |
 |---|---|---|
@@ -136,8 +136,8 @@ A minimal `process.stdin.on('data', …)` echo built with `@gjsify/*` reads
 is never resumed. Node auto-resumes a paused stream when a `'data'` listener is
 attached; gjsify did not. Calling `process.stdin.resume()` explicitly makes data
 flow — and crucially the Promise continuations after each data event **drain
-even under a pending top-level await**. The stdin-resume fix lands separately on
-`fix/process-stdin-on-data-resume` (`packages/node/process/src/streams.ts`).
+even under a pending top-level await**. The stdin-resume fix landed separately
+in #509 (`packages/node/process/src/streams.ts`).
 
 That gap, not microtask suppression, is the most likely cause of the original
 "MCP TypeScript SDK stdio processing hangs with zero output".
@@ -164,4 +164,4 @@ to a non-124 exit and need review).
 - `packages/gjs/utils/src/main-loop.ts` — `ensureMainLoop()` / `quitMainLoop()` (hook registration; carries the TLA-deadlock warning)
 - `packages/node/process/src/internal/exit.ts` — `exitProcess()` (the idle-scheduled exit that already escapes the deadlock)
 - `status/upstream-patch-candidates.md` — the deadlock entry
-- `fix/process-stdin-on-data-resume` — the separate stdin auto-resume fix
+- #509 (`7a29a0017`) — the separate stdin auto-resume fix

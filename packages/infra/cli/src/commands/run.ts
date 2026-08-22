@@ -24,6 +24,8 @@ import { readPackageJson } from '../utils/pkg-json-edit.js';
 import { runNodeScript } from '../utils/node-script.js';
 import { nodeShimDir } from '../utils/gjsify-shim.js';
 import { findWorkspaceRoot } from '../utils/workspace-root.js';
+import { gjsifyCommandArgv } from '../utils/simple-command.js';
+import { isDaemonCommand } from '../utils/daemon-command.js';
 import { discoverWorkspaces } from '@gjsify/workspace';
 import { isGjs, hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import {
@@ -456,6 +458,15 @@ async function runScript(script: string, extraArgs: readonly string[], cwd: stri
             console.error((err as Error).message);
             dispatchFailed = true;
         }
+        // A watch loop RESOLVES as soon as it is armed and then keeps running,
+        // so its resolution is not an ending to exit on: `gjsify run dev` used
+        // to take down the loop it had just started, the instant the first
+        // build+launch finished. Node never saw it — there the same script takes
+        // the shell-spawn path below — and it is the DOCUMENTED entry point:
+        // `gjsify create` prints `gjsify run dev`, and every template's `dev`
+        // script is a bare `gjsify dev`. Returning leaves the process on the
+        // main loop `runWatchLoop` holds, where Ctrl+C ends it.
+        if (!dispatchFailed && isDaemonCommand()) return;
         // A thrown command wins over `process.exitCode`; otherwise honour a
         // non-zero code the handler set instead of throwing (e.g. a failing
         // check) — a bare exit(0) here masked those as success too.
@@ -500,62 +511,10 @@ function shellEscape(arg: string): string {
  * If `literal` is a SINGLE `gjsify <subcommand> …` command with no shell
  * operators / substitutions / unquoted globs, return the argv to feed `runCli`
  * (the subcommand + its args, with `extraArgs` appended). Otherwise null — the
- * caller falls back to the shell spawn path. Quotes are honoured so a quoted
- * glob (`'src/**'`) survives as a single literal token, exactly as the shell
- * would hand it to `gjsify` (which does its own glob expansion).
+ * caller falls back to the shell spawn path.
  */
 function gjsifyInProcessArgv(literal: string, extraArgs: readonly string[]): string[] | null {
-    const tokens = tokenizeSimpleCommand(literal);
-    if (!tokens || tokens.length < 2 || tokens[0] !== 'gjsify') return null;
-    return [...tokens.slice(1), ...extraArgs];
-}
-
-/**
- * Quote-aware tokenizer for a SIMPLE command line (no shell features beyond
- * single/double quoting). Returns the tokens, or null if the string contains
- * anything the shell would treat specially — operators (`&& | ; < > &`),
- * substitutions (`$(...)` / backticks / `$VAR`), unquoted globs/expansions
- * (`* ? { } [ ] ~`), comments (`#`), or an unterminated quote — in which case
- * the caller MUST use the real shell instead.
- */
-function tokenizeSimpleCommand(cmd: string): string[] | null {
-    const tokens: string[] = [];
-    let cur = '';
-    let has = false;
-    let quote: "'" | '"' | null = null;
-    for (let i = 0; i < cmd.length; i++) {
-        const c = cmd[i]!;
-        if (quote === "'") {
-            if (c === "'") quote = null;
-            else cur += c;
-            continue;
-        }
-        if (quote === '"') {
-            if (c === '"') quote = null;
-            else if (c === '\\' && (cmd[i + 1] === '"' || cmd[i + 1] === '\\')) cur += cmd[++i];
-            else if (c === '$' || c === '`')
-                return null; // substitution inside "…"
-            else cur += c;
-            continue;
-        }
-        if (c === "'" || c === '"') {
-            quote = c;
-            has = true;
-            continue;
-        }
-        if (c === ' ' || c === '\t') {
-            if (has) {
-                tokens.push(cur);
-                cur = '';
-                has = false;
-            }
-            continue;
-        }
-        if ('|&;<>`$()\\\n\r*?{}[]~#!'.includes(c)) return null;
-        cur += c;
-        has = true;
-    }
-    if (quote) return null; // unterminated quote
-    if (has) tokens.push(cur);
-    return tokens;
+    const argv = gjsifyCommandArgv(literal);
+    if (!argv) return null;
+    return [...argv, ...extraArgs];
 }

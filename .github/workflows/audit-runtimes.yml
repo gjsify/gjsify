@@ -103,7 +103,7 @@ jobs:
       # a warm cache skips `build:infra` entirely, so only a COLD GJS tree can see
       # it. v0.31.0's `publish-napi` is such a tree — it failed there, and
       # `@gjsify/napi` did not publish. Incident + rule in the script header.
-      - name: Check build:infra is bundler-free before the bundler
+      - name: Check build:infra order (bundler-free prefix, type deps)
         run: node scripts/check-build-infra-order.mjs
 
       # A spec that writes `const O_CREAT = 64` or `expect(err.errno).toBe(-17)`
@@ -255,6 +255,15 @@ jobs:
       # a release. Incident + scope in the script header.
       - name: Check inline workflow scripts are not self-truncating
         run: node scripts/check-workflow-inline-scripts.mjs
+
+      # A release asset uploaded by GLOB with no `fail_on_unmatched_files` is the
+      # same failure one layer out: the glob matches nothing, the upload is empty,
+      # and the job is green. `release-cut.yml` is the only workflow that puts
+      # installable packages on a release and it never runs on a pull request, so
+      # this is the only place its upload gets read before a cut. Incident in the
+      # script header.
+      - name: Check release uploads cannot glob to nothing
+        run: node scripts/check-workflow-release-globs.mjs
 
       # An e2e suite on disk that no script names runs NOWHERE. 12 of 112 were in that
       # state, eleven of them by oversight — including the one written to cover the
@@ -658,7 +667,7 @@ jobs:
       # a warm cache skips `build:infra` entirely, so only a COLD GJS tree can see
       # it. v0.31.0's `publish-napi` is such a tree — it failed there, and
       # `@gjsify/napi` did not publish. Incident + rule in the script header.
-      - name: Check build:infra is bundler-free before the bundler
+      - name: Check build:infra order (bundler-free prefix, type deps)
         run: node scripts/check-build-infra-order.mjs
 
       # A spec that writes `const O_CREAT = 64` or `expect(err.errno).toBe(-17)`
@@ -701,6 +710,15 @@ jobs:
       # a release. Incident + scope in the script header.
       - name: Check inline workflow scripts are not self-truncating
         run: node scripts/check-workflow-inline-scripts.mjs
+
+      # A release asset uploaded by GLOB with no `fail_on_unmatched_files` is the
+      # same failure one layer out: the glob matches nothing, the upload is empty,
+      # and the job is green. `release-cut.yml` is the only workflow that puts
+      # installable packages on a release and it never runs on a pull request, so
+      # this is the only place its upload gets read before a cut. Incident in the
+      # script header.
+      - name: Check release uploads cannot glob to nothing
+        run: node scripts/check-workflow-release-globs.mjs
 
       # An e2e suite on disk that no script names runs NOWHERE. 12 of 112 were in that
       # state, eleven of them by oversight — including the one written to cover the

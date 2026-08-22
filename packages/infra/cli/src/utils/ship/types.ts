@@ -103,6 +103,22 @@ export interface ShipSettings {
     iconFiles: string[];
     /** Absolute paths of `*.gschema.xml` files to install. */
     schemaFiles: string[];
+    /**
+     * Typelibs + shared libraries the package carries itself (`gjsify.ship.bundledTypelibs`).
+     *
+     * gjsify's own GI libraries arrive as npm prebuilds, not distro packages, so an app using one
+     * has nothing to depend on and must ship the files — with the launcher pointing GI at them.
+     */
+    typelibFiles: string[];
+    /**
+     * Compiled gettext catalogues (`gjsify.ship.localeDir`), each keeping its
+     * `<lang>/LC_MESSAGES/<domain>.mo` path so `share/locale/` comes out in the layout
+     * `bindtextdomain` reads.
+     *
+     * `rel` rather than a bare list of absolute paths, because the LAYOUT is the whole point here:
+     * a `.mo` staged by basename alone lands where no catalogue lookup will ever look at it.
+     */
+    localeFiles: { rel: string; abs: string }[];
     /** `<dest relative to prefix>` → absolute source path. */
     extraFiles: Record<string, string>;
     /** Arguments appended to the launcher's `exec` line. */

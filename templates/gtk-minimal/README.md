@@ -17,7 +17,7 @@ engine the build needs when it runs under GJS — is listed explicitly in
 ## Commands
 
 ```bash
-npm run dev         # build for GJS + run
+npm run dev         # watch, rebuild + relaunch on GJS
 npm run build       # bundle both targets
 npm run build:gjs   # → dist/index.gjs.js
 npm run build:node  # → dist/index.node.mjs
