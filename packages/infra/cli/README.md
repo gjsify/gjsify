@@ -52,7 +52,7 @@ scaffolded template is wired. PATH notes and the update command for each route:
 gjsify create my-app --template gtk-minimal   # scaffold a GTK 4 + TypeScript app
 cd my-app
 gjsify install                                # resolve npm deps, no npm required
-gjsify run dev                                # build the GJS bundle and launch it
+gjsify run dev                                # watch, rebuild and relaunch on change
 ```
 
 `create` writes the build scripts too, so `gjsify run build`, `run start` and `run check`

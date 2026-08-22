@@ -176,6 +176,10 @@ common ABI and none of them needs a target of its own. Both builds name `--app`
 explicitly so the target cannot silently follow whichever runtime invoked the
 build.
 
+`dev` is the loop you will spend the most time in: it watches `src/`, rebuilds on
+every change and relaunches the app, with no separate watcher to install — see
+[`gjsify dev`](/gjsify/cli-reference/#gjsify-dev).
+
 Run them with whichever toolchain you picked above:
 
 <CommandTabs title="Build and run">
