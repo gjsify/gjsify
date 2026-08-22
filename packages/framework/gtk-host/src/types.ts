@@ -92,8 +92,16 @@ export type ChildPolicy =
     | { kind: 'indexed'; insert: string; remove: string; wrap: 'list-box-row' | 'flow-box-child' | null }
     /** `Adw.HeaderBar`, `Adw.ToolbarView`, `Adw.ActionRow`: named attachment points. */
     | { kind: 'slotted'; slots: Record<string, string>; defaultSlot: string; remove: string }
-    /** `Gtk.Stack`, `Adw.NavigationView`: children addressed by name/tag. */
-    | { kind: 'keyed'; add: string; remove: string; nameFrom: string }
+    /**
+     * `Gtk.Stack`, `Adw.NavigationView`: children addressed by name/tag.
+     *
+     * `titled` states the ARITY, because it differs and getting it wrong is not
+     * a type error: `gtk_stack_add_titled(child, name, title)` requires all
+     * three and GJS throws "At least 3 arguments required" (measured), while
+     * `adw_navigation_view_add(page)` takes one. `descriptorProblems()` checks
+     * that a method EXISTS, never how many arguments it wants.
+     */
+    | { kind: 'keyed'; add: string; remove: string; nameFrom: string; titled: boolean }
     /** `Gtk.Grid`: position is data on the child, so document order carries nothing. */
     | { kind: 'coords'; attach: string; remove: string };
 

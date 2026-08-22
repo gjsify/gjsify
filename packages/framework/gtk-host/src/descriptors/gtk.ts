@@ -100,7 +100,7 @@ export const GTK_DESCRIPTORS: readonly WidgetDescriptor[] = [
     {
         gtype: 'GtkStack',
         ctor: () => Gtk.Stack,
-        children: { kind: 'keyed', add: 'add_titled', remove: 'remove', nameFrom: 'name' },
+        children: { kind: 'keyed', add: 'add_titled', remove: 'remove', nameFrom: 'name', titled: true },
     },
     {
         gtype: 'GtkGrid',

@@ -86,9 +86,12 @@ table, not a surprise in an app.
 ## Lifetime
 
 `remove` detaches and is reversible, because frameworks move nodes. `destroy`
-disposes, is recursive and is the only place a signal handler dies — GJS blocks
-JS callbacks during GC, so nothing disconnected here stays connected for the life
-of the process.
+tears a subtree down: it disconnects every handler, unparents, drops the
+reference, and closes a toplevel window (the one node unparenting cannot reach —
+it has no parent and its `GtkApplication` still holds it). It is recursive, it is
+eager, and it is the only place a handler dies: GJS blocks JS callbacks during
+GC, so **whatever is not disconnected here stays connected for the life of the
+process**.
 
 Construct-only properties cannot be patched; GObject accepts the write and keeps
 the old value. Changing one **rebuilds** the widget in place, preserving position,

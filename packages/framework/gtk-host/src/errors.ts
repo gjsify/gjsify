@@ -44,6 +44,13 @@ export const err = {
             `<${tag}>.${prop} expects ${gtypeName}, and "${nick}" is not one of its values. ` +
                 `Note that GObject accepts the wrong string SILENTLY — the property would have kept its old value.`,
         ),
+    badBoolean: (tag: string, prop: string, value: string) =>
+        new GtkHostError(
+            'bad-boolean',
+            `<${tag}>.${prop} is a boolean and got the string "${value}". JS truthiness would make ` +
+                `"false" mean TRUE — the exact silent-wrong-value this host exists to refuse. ` +
+                `Pass a real boolean.`,
+        ),
     badFlags: (tag: string, prop: string, value: string, gtypeName: string) =>
         new GtkHostError(
             'bad-flags',

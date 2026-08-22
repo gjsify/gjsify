@@ -65,6 +65,42 @@ export default async () => {
             });
         });
 
+        await describe('coercion the review caught', async () => {
+            await it('reads the string "false" as FALSE, where JS truthiness says TRUE', async () => {
+                // `Boolean('false') === true`. A template or JSX attribute produces
+                // exactly this string, so the two exact spellings are honoured …
+                const label = createElement('GtkLabel');
+                const widget = materialize(label) as unknown as Gtk.Label;
+                setProp(label, 'visible', 'false');
+                expect(widget.visible).toBe(false);
+            });
+
+            await it('refuses any other string for a boolean, by name', async () => {
+                // … and everything else is refused rather than guessed at.
+                const label = createElement('GtkLabel');
+                materialize(label);
+                expect(() => setProp(label, 'visible', 'nope')).toThrow('boolean');
+            });
+
+            await it('accepts real booleans and the two exact strings', async () => {
+                const label = createElement('GtkLabel');
+                const widget = materialize(label) as unknown as Gtk.Label;
+                setProp(label, 'visible', false);
+                expect(widget.visible).toBe(false);
+                setProp(label, 'visible', 'true');
+                expect(widget.visible).toBe(true);
+            });
+
+            await it('resolves a Pango enum nick — GtkLabel is in the shipped table', async () => {
+                // `ellipsize` is PangoEllipsizeMode; without Pango in the namespace
+                // list a built-in widget had an unsettable property.
+                const label = createElement('GtkLabel');
+                const widget = materialize(label) as unknown as Gtk.Label;
+                setProp(label, 'ellipsize', 'end');
+                expect(widget.ellipsize).toBe(3);
+            });
+        });
+
         await describe('refusals', async () => {
             await it('refuses an unknown property instead of dropping it', async () => {
                 const btn = createElement('GtkButton');

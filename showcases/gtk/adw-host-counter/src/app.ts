@@ -34,6 +34,7 @@ registerBuiltinWidgets();
 
 interface Ui {
     window: HostElement;
+    buttons: HostElement;
     rows: HostElement[];
     group: HostElement;
     countRow: HostElement;
@@ -111,7 +112,7 @@ function buildUi(app: Adw.Application | null): Ui {
     setEventHandler(addButton, 'onClicked', addRow);
     setEventHandler(removeButton, 'onClicked', removeFirstRow);
 
-    return { window, rows, group, countRow, addRow, removeFirstRow, increment, count: () => count };
+    return { window, buttons, rows, group, countRow, addRow, removeFirstRow, increment, count: () => count };
 }
 
 /** First descendant matching `pred`, breadth-first over the REAL widget tree. */
@@ -144,9 +145,14 @@ function runProbe(): number {
         if (!ok) failures.push(what);
     };
 
-    // 1. The string enum nick reached GTK. GObject would have kept HORIZONTAL.
+    // 1. The string enum nick reached GTK. GObject would have kept HORIZONTAL —
+    //    so read the property back rather than assert that materialisation
+    //    returned something, which it always does or throws.
     const box = materialize(ui.window) as unknown as Adw.ApplicationWindow;
-    check('window materialised', box !== null);
+    check(
+        "orientation: 'vertical' reached GTK",
+        (materialize(ui.buttons) as unknown as Gtk.Box).orientation === Gtk.Orientation.VERTICAL,
+    );
 
     // 2. Slotted placement: the header is a top bar, the page is the content.
     //    Searched over DESCENDANTS, not direct children — Adw.ApplicationWindow

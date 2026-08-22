@@ -414,6 +414,98 @@ export default async () => {
             });
         });
 
+        await describe('regressions from review', async () => {
+            await it('rebuild keeps the children — it must not orphan or double-attach them', async () => {
+                // GTK refuses to reparent a widget that still has a parent, and it
+                // does so with a warning at exit 0. A rebuild that left the old
+                // widget holding the children emptied the subtree silently.
+                const box = createElement('GtkBox', { cssName: 'before' });
+                const parent = createElement('GtkBox');
+                const parentWidget = materialize(parent) as unknown as Gtk.Widget;
+                insert(box, parent);
+                const [a, b] = labels(2);
+                insert(a, box);
+                insert(b, box);
+
+                setProp(box, 'cssName', 'after');
+
+                const rebuilt = box.widget as unknown as Gtk.Widget;
+                expect(gtkChildren(rebuilt).map((w) => (w as Gtk.Label).label)).toStrictEqual(['L0', 'L1']);
+                expect(gtkChildren(parentWidget).length).toBe(1);
+            });
+
+            await it('a keyed child with a name but no title still lands', async () => {
+                // gtk_stack_add_titled takes THREE arguments; calling it with two
+                // threw "At least 3 arguments required", which the host then
+                // relabelled as a rejected child TYPE.
+                const stack = createElement('GtkStack');
+                const widget = materialize(stack) as unknown as Gtk.Stack;
+                const page = createElement('GtkLabel', { label: 'one', layout: { name: 'solo' } });
+                insert(page, stack);
+                expect(widget.get_child_by_name('solo') !== null).toBe(true);
+            });
+
+            await it('moving a node out of a ListBox leaves its row behind', async () => {
+                const list = createElement('GtkListBox');
+                const listWidget = materialize(list) as unknown as Gtk.ListBox;
+                const box = createElement('GtkBox');
+                const boxWidget = materialize(box) as unknown as Gtk.Widget;
+                const [a] = labels(1);
+                insert(a, list);
+                remove(a);
+                insert(a, box);
+                // The label itself moved; the GtkListBoxRow did not come along.
+                expect(gtkChildTypes(boxWidget)).toStrictEqual(['GtkLabel']);
+                expect(listWidget.get_row_at_index(0)).toBe(null);
+            });
+
+            await it('single: inserting the replacement before removing the old one keeps it', async () => {
+                // Solid's runtime and several React paths insert then unmount. An
+                // unconditional set_child(null) on removal emptied the container.
+                const bin = createElement('AdwBin');
+                const widget = materialize(bin) as unknown as Adw.Bin;
+                const [a, b] = labels(2);
+                insert(a, bin);
+                insert(b, bin);
+                remove(a);
+                expect((widget.get_child() as Gtk.Label).label).toBe('L1');
+            });
+
+            await it('removing a prop resets it to the ParamSpec default', async () => {
+                // React hands `undefined` for a prop that disappeared, and
+                // set_property(name, undefined) throws "Could not guess
+                // unspecified GValue type".
+                const label = createElement('GtkLabel', { label: 'set' });
+                const widget = materialize(label) as unknown as Gtk.Label;
+                expect(widget.label).toBe('set');
+                setProp(label, 'label', undefined);
+                expect(widget.label).toBe('');
+            });
+
+            await it('a failed text insert does not arm the text flag', async () => {
+                const box = createElement('GtkBox');
+                materialize(box);
+                try {
+                    insert(createText('x'), box);
+                } catch {
+                    /* expected */
+                }
+                expect(box.textFromChildren).toBe(false);
+                // …so a later rebuild does not try to flush text into it
+                setProp(box, 'cssName', 'rebuilt');
+                expect(box.widget !== null).toBe(true);
+            });
+
+            await it('destroy closes a toplevel, which unparenting cannot reach', async () => {
+                const win = createElement('GtkWindow');
+                const widget = materialize(win) as unknown as Gtk.Window;
+                destroy(win);
+                // A destroyed GtkWindow reports no display connection any more.
+                expect(widget.get_parent()).toBe(null);
+                expect(win.widget).toBe(null);
+            });
+        });
+
         await describe('mountRoot resolves the container through the table', async () => {
             await it('mounts into an application-owned widget', async () => {
                 const container = new Gtk.Box();

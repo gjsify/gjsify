@@ -12,7 +12,7 @@ import type Gtk from '@girs/gtk-4.0';
 import { err } from './errors.js';
 import { addressOf, insertChild, makeWrapper, removeChild, type Placement } from './policies.js';
 import { beginHostWrite, clearHandlers, endHostWrite, isEventProp, setHandler } from './signals.js';
-import { coerce, paramSpecs, requireSpec, toPropertyName } from './props.js';
+import { coerce, defaultValue, paramSpecs, requireSpec, toPropertyName } from './props.js';
 import { lookupWidget, nearestRegistered } from './registry.js';
 import type { HostAnchor, HostElement, HostNode, HostText, WidgetDescriptor } from './types.js';
 
@@ -128,11 +128,16 @@ export function setProp(el: HostElement, key: string, next: unknown, _prev?: unk
     const spec = requireSpec(specs, el.descriptor.gtype, name);
     if ((spec.flags & GObject.ParamFlags.CONSTRUCT_ONLY) !== 0) return rebuild(el);
 
+    // A renderer removing a prop hands `undefined`, which GObject cannot store:
+    // `set_property(name, undefined)` throws "Could not guess unspecified GValue
+    // type" (measured). The ParamSpec's own default is what "removed" means.
+    const value = next === undefined ? defaultValue(spec) : coerce(spec, next, el.descriptor.gtype);
+
     beginHostWrite();
     try {
         (el.widget as unknown as GObject.Object & { set_property(n: string, v: unknown): void }).set_property(
             name,
-            coerce(spec, next, el.descriptor.gtype),
+            value,
         );
     } finally {
         endHostWrite();
@@ -167,19 +172,23 @@ export function setSlot(el: HostElement, slot: string | null): void {
  */
 function rebuild(el: HostElement): void {
     const parent = el.parent;
-    const hadWidget = el.widget !== null;
-    if (hadWidget) {
+    if (el.widget) {
         clearHandlers(el);
+        // Detach the children from the OLD widget first. GTK refuses to reparent
+        // a widget that still has a parent — `gtk_widget_set_parent` warns
+        // "Cannot set parent on widget …, which already has parent …" and
+        // returns — so without this the subtree silently empties, at exit 0.
+        for (const child of childSnapshot(el)) {
+            if (child.kind === 'element') removeChild(el, child);
+        }
         if (parent) removeChild(parent, el);
     }
-    const children = childSnapshot(el);
     el.widget = null;
     el.wrapper = null;
+    // `materialize` replays the whole child list itself; a second pass here
+    // attached everything twice and made the remove-all policy re-append a tail
+    // that was already in place.
     materialize(el);
-    for (const child of children) {
-        if (child.kind === 'element') attach(el, child);
-    }
-    flushText(el);
     if (parent) attach(parent, el);
 }
 
@@ -212,8 +221,11 @@ function flushText(el: HostElement): void {
     // widget whose text was deleted keeps rendering the old string — and only
     // text children may clear it, never an authored `label` prop.
     if (!sawText && !el.textFromChildren) return;
-    el.textFromChildren = sawText;
+    // Set AFTER the write: `writeTextSink` throws for a sink-less widget, and a
+    // flag set before it survives the failed insert — a later rebuild would then
+    // flush text into a widget that never accepted any.
     writeTextSink(el, text);
+    el.textFromChildren = sawText;
 }
 
 function writeTextSink(el: HostElement, text: string): void {
@@ -335,7 +347,16 @@ export function insert(node: HostNode, parent: HostElement, anchor: HostNode | n
 /** Detach only — reversible. Frameworks move nodes; `remove` must not destroy one. */
 export function remove(node: HostNode): void {
     const parent = node.parent;
-    if (parent && node.kind === 'element') removeChild(parent, node);
+    if (parent && node.kind === 'element') {
+        removeChild(parent, node);
+        // The wrapper row belongs to the parent that demanded it, not to the
+        // child. Keeping it would drag a GtkListBoxRow into the next parent —
+        // and the real widget would still be inside it, hence still parented.
+        if (node.wrapper) {
+            (node.wrapper as unknown as { set_child(w: unknown): void }).set_child(null);
+            node.wrapper = null;
+        }
+    }
     unlink(node);
     if (parent && node.kind === 'text') flushText(parent);
 }
@@ -345,11 +366,14 @@ export function clearContainer(parent: HostElement): void {
 }
 
 /**
- * The only place a handler dies, and it is eager.
+ * Tear a subtree down: disconnect every handler, unparent, drop the reference.
  *
- * GJS blocks JS callbacks during GC ("The offending callback was `dispose()`"),
- * so there is no finaliser to fall back on: whatever is not disconnected here
- * stays connected for the life of the process.
+ * It is eager and it is the only place a handler dies. GJS blocks JS callbacks
+ * during GC ("The offending callback was `dispose()`"), so whatever is not
+ * disconnected here stays connected for the life of the process.
+ *
+ * A toplevel window is the one node unparenting cannot reach — it has no parent
+ * and its `GtkApplication` still holds it — so it is closed explicitly.
  */
 export function destroy(node: HostNode): void {
     if (node.kind === 'element') {
@@ -359,6 +383,15 @@ export function destroy(node: HostNode): void {
     }
     remove(node);
     if (node.kind === 'element') {
+        const widget = node.widget as unknown as { destroy?: () => void; get_parent?: () => unknown } | null;
+        if (
+            widget &&
+            typeof widget.destroy === 'function' &&
+            typeof widget.get_parent === 'function' &&
+            widget.get_parent() === null
+        ) {
+            widget.destroy();
+        }
         node.widget = null;
         node.wrapper = null;
     }

@@ -8,6 +8,7 @@ import GObject from 'gi://GObject';
 import Gtk from 'gi://Gtk?version=4.0';
 import Adw from 'gi://Adw?version=1';
 import Gdk from 'gi://Gdk?version=4.0';
+import Pango from 'gi://Pango';
 
 import { err } from './errors.js';
 
@@ -16,6 +17,10 @@ const ENUM_NAMESPACES: ReadonlyArray<readonly [string, Record<string, unknown>]>
     ['Gtk', Gtk as unknown as Record<string, unknown>],
     ['Adw', Adw as unknown as Record<string, unknown>],
     ['Gdk', Gdk as unknown as Record<string, unknown>],
+    // Pango owns the enums of the most-used GtkLabel properties — `ellipsize` is
+    // `PangoEllipsizeMode`, `wrap-mode` is `PangoWrapMode` — and GtkLabel is in
+    // the shipped table, so leaving it out made a built-in widget unsettable.
+    ['Pango', Pango as unknown as Record<string, unknown>],
     ['G', GObject as unknown as Record<string, unknown>],
 ];
 
@@ -52,17 +57,23 @@ export function constructOnlyNames(klass: GObject.ObjectClass, gtypeName: string
     return names;
 }
 
-function resolveEnumValue(gtypeName: string, nick: string): number | undefined {
+interface EnumLookup {
+    /** The enum object was found, so a miss is a bad NICK, not an unknown namespace. */
+    resolved: boolean;
+    value?: number;
+}
+
+function resolveEnumValue(gtypeName: string, nick: string): EnumLookup {
     for (const [prefix, ns] of ENUM_NAMESPACES) {
         if (!gtypeName.startsWith(prefix)) continue;
         const enumObject = ns[gtypeName.slice(prefix.length)] as Record<string, number> | undefined;
-        if (!enumObject) continue;
-        const key = nick.toUpperCase().replace(/-/g, '_');
-        const value = enumObject[key];
-        if (typeof value === 'number') return value;
-        return undefined; // namespace matched, nick did not — a real bad-enum, not a namespace miss
+        if (!enumObject) continue; // prefix matched by accident — keep looking
+        const value = enumObject[nick.toUpperCase().replace(/-/g, '_')];
+        return typeof value === 'number' ? { resolved: true, value } : { resolved: true };
     }
-    return undefined;
+    // The `G` prefix matches every GLib/Gio type, so deciding on the PREFIX alone
+    // reported "bad nick" for types whose enum object was never found at all.
+    return { resolved: false };
 }
 
 /**
@@ -80,12 +91,9 @@ export function coerce(spec: GObject.ParamSpec, value: unknown, tag: string): un
 
     if (GObject.type_is_a(valueType, GObject.TYPE_ENUM) && typeof value === 'string') {
         const gtypeName = GObject.type_name(valueType);
-        const resolved = resolveEnumValue(gtypeName, value);
-        if (resolved === undefined) {
-            const known = ENUM_NAMESPACES.some(([p]) => gtypeName.startsWith(p));
-            throw known ? err.badEnum(tag, spec.get_name(), value, gtypeName) : err.unresolvableEnum(gtypeName);
-        }
-        return resolved;
+        const lookup = resolveEnumValue(gtypeName, value);
+        if (lookup.value !== undefined) return lookup.value;
+        throw lookup.resolved ? err.badEnum(tag, spec.get_name(), value, gtypeName) : err.unresolvableEnum(gtypeName);
     }
 
     // Flags take the same silent-drop path as enums, and resolving a nick set
@@ -95,7 +103,16 @@ export function coerce(spec: GObject.ParamSpec, value: unknown, tag: string): un
         throw err.badFlags(tag, spec.get_name(), value, GObject.type_name(valueType));
     }
 
-    if (GObject.type_is_a(valueType, GObject.TYPE_BOOLEAN)) return Boolean(value);
+    if (GObject.type_is_a(valueType, GObject.TYPE_BOOLEAN)) {
+        // `Boolean('false')` is TRUE. In the one function whose job is to refuse
+        // what GObject would silently mis-store, a JS truthiness cast is the same
+        // defect wearing a different hat.
+        if (typeof value === 'boolean') return value;
+        if (value === 'true') return true;
+        if (value === 'false') return false;
+        if (typeof value === 'string') throw err.badBoolean(tag, spec.get_name(), value);
+        return Boolean(value);
+    }
 
     if (
         GObject.type_is_a(valueType, GObject.TYPE_INT) ||
@@ -107,6 +124,17 @@ export function coerce(spec: GObject.ParamSpec, value: unknown, tag: string): un
     }
 
     return value;
+}
+
+/**
+ * The value a property falls back to when a renderer removes it.
+ *
+ * React hands `undefined` for a prop that disappeared, and GObject cannot store
+ * that: `set_property(name, undefined)` throws "Could not guess unspecified
+ * GValue type" (measured). The ParamSpec knows the right answer.
+ */
+export function defaultValue(spec: GObject.ParamSpec): unknown {
+    return (spec as unknown as { get_default_value(): unknown }).get_default_value();
 }
 
 /** Look a property up, refusing the two silent failures: unknown and read-only. */

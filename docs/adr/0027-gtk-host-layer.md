@@ -73,9 +73,11 @@ gjsify owns a framework-agnostic GTK4/Adwaita host as a Tier-3 package,
    properties and listeners preserved — the move react-three-fiber makes for `args`.
    A construct-only property cannot be patched, and pretending otherwise is a
    silent no-op.
-6. **`remove` detaches, only `destroy` disposes,** because frameworks move nodes.
-   `destroy` is eager and is the only place a signal handler dies: GJS blocks JS
-   callbacks during GC, so there is no finaliser to fall back on.
+6. **`remove` detaches; `destroy` tears down,** because frameworks move nodes.
+   `destroy` disconnects every handler, unparents, drops the reference and closes
+   a toplevel window — the one node unparenting cannot reach. It is eager and is
+   the only place a handler dies: GJS blocks JS callbacks during GC, so there is
+   no finaliser to fall back on.
 7. **Adapters are subpaths of this package and carry no widget knowledge.** No
    adapter may contain a widget name literal or an insertion rule.
 8. **A GTK-backed DOM facade is not the foundation.** If a DOM sat underneath,

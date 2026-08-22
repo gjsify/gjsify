@@ -117,8 +117,10 @@ function placeChild(place: Placement): void {
         case 'keyed': {
             const name = (child.layout?.[policy.nameFrom] ?? child.slot) as string | undefined;
             const title = child.layout?.title as string | undefined;
-            if (title !== undefined) host[policy.add](address, name ?? '', title);
-            else if (name !== undefined) host[policy.add](address, name);
+            // Always the full arity when the container wants it: a name with no
+            // title used to call a 3-argument method with two, and GJS's
+            // "At least 3 arguments required" then read as a rejected child TYPE.
+            if (policy.titled) host[policy.add](address, name ?? null, title ?? name ?? '');
             else host[policy.add](address);
             return;
         }
@@ -147,9 +149,16 @@ export function removeChild(parent: HostElement, child: HostElement): void {
     switch (policy.kind) {
         case 'none':
             return;
-        case 'single':
-            host[policy.set](null);
+        case 'single': {
+            // Only clear if THIS child is still the one in place. Solid's runtime
+            // and several React paths insert the replacement before unmounting the
+            // old node, so an unconditional `set_child(null)` empties a container
+            // that already holds the new child.
+            const getter = policy.set.replace(/^set_/, 'get_');
+            const current = typeof host[getter] === 'function' ? host[getter]() : undefined;
+            if (current === undefined || current === address) host[policy.set](null);
             return;
+        }
         case 'ordered':
         case 'indexed':
         case 'slotted':
