@@ -435,6 +435,19 @@ export interface ConfigDataShip extends AppMetadata {
      * the dependency check exists to prevent.
      */
     bundledTypelibs?: string[];
+    /**
+     * Directory holding COMPILED gettext catalogues in the layout `bindtextdomain` reads —
+     * `<lang>/LC_MESSAGES/<domain>.mo` — e.g. `"dist/locale"`, which is what
+     * `@gjsify/vite-plugin-gettext`'s `gettextPlugin` writes by default.
+     *
+     * Staged into `share/locale/` with that structure preserved, and the launcher then exports
+     * `GJSIFY_LOCALE_DIR` so the app can call `bindtextdomain(domain, dir)` without knowing which
+     * prefix it was installed under.
+     *
+     * `.po` sources are NOT accepted: `bindtextdomain` reads `.mo` only, and staging a `.po`
+     * produces a package that installs its translations and shows none of them.
+     */
+    localeDir?: string;
     /** Extra payload entries: prefix-relative destination → project-relative source. */
     extraFiles?: Record<string, string>;
     /** Arguments the launcher appends before the user's own. */

@@ -52,6 +52,16 @@ export function renderLauncher(settings: ShipSettings, bundleRelPath: string): s
         }
     }
 
+    // Where the app's gettext catalogues landed. `bindtextdomain` takes a DIRECTORY and there is no
+    // standard environment variable it reads on its own (`TEXTDOMAINDIR` is honoured by the gettext
+    // command-line tools, not by the library), so the prefix has to reach the app somehow. Passing
+    // it from the launcher keeps the app free of install-layout knowledge, exactly as XDG_DATA_DIRS
+    // above does for icons and schemas — a baked `/usr/share/locale` would be wrong in a Flatpak
+    // and in any `--prefix` tree.
+    if (settings.localeFiles.length > 0) {
+        lines.push('GJSIFY_LOCALE_DIR="$prefix"/share/locale', 'export GJSIFY_LOCALE_DIR');
+    }
+
     lines.push(`exec gjs -m ${lib}/${bundleRelPath}${args ? ` ${args}` : ''} "$@"`, '');
     return lines.join('\n');
 }

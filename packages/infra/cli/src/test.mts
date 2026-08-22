@@ -11,6 +11,7 @@ import bundlerPickSuite from './bundler-pick.spec.js';
 import cliFailSuite from './cli-fail.spec.js';
 import shipPlanSuite from './utils/ship/plan.spec.js';
 import shipSettingsSuite from './utils/ship/settings.spec.js';
+import shipLocalesSuite from './utils/ship/discover-locales.spec.js';
 import shipDependsSuite from './utils/ship/depends.spec.js';
 import installProvenanceSuite from './utils/install-provenance.spec.js';
 import shipArchivesSuite from './utils/ship/archives.spec.js';
@@ -196,6 +197,7 @@ run(
         cliFailSuite,
         shipPlanSuite,
         shipSettingsSuite,
+        shipLocalesSuite,
         shipDependsSuite,
         installProvenanceSuite,
         shipArchivesSuite,

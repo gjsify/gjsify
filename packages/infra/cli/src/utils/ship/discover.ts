@@ -28,13 +28,24 @@ export function discoverPayload(input: DiscoverInput): DiscoveredPayload {
     const bundlePath = resolveBundle(input);
     const bundleDir = resolve(bundlePath, '..');
 
+    const localeFiles = discoverLocales(projectDir, ship.localeDir);
+
     return {
         bundlePath,
         bundleDir,
-        bundleFiles: listFilesRecursive(bundleDir),
+        // Everything beside the bundle, MINUS the locale tree when it lives there.
+        //
+        // `dist/locale/` sits next to `dist/app.gjs.mjs` in the layout
+        // `@gjsify/vite-plugin-gettext` writes by default, and the wholesale bundle staging would
+        // then put every catalogue in `lib/<binary>/locale/` as well as in `share/locale/`.
+        // Measured on a probe package: the same `.mo` appeared at both paths. The `lib/` copy is
+        // dead weight — nothing looks there — and it is the same failure that once shipped the test
+        // suite: whatever is beside the bundle gets carried whether or not it belongs in a package.
+        bundleFiles: withoutLocaleTree(listFilesRecursive(bundleDir), bundleDir, projectDir, ship.localeDir),
         iconFiles: discoverIcons(projectDir, ship.icon ?? input.flatpakIcon),
         schemaFiles: discoverSchemas(projectDir, ship.schemas),
         typelibFiles: discoverTypelibs(projectDir, ship.bundledTypelibs),
+        localeFiles,
         licenseFile: discoverLicense(projectDir, ship.licenseFile),
     };
 }
@@ -63,6 +74,83 @@ function discoverTypelibs(projectDir: string, dirs: string[] | undefined): strin
         for (const file of listFilesRecursive(root)) {
             if (/\.typelib$|\.so(\.\d+)*$/.test(file)) out.push(join(root, file));
         }
+    }
+    return out;
+}
+
+/**
+ * Drop the declared locale tree from the wholesale bundle staging.
+ *
+ * Only when it actually lies inside the bundle directory — a `localeDir` elsewhere in the project
+ * was never part of `bundleFiles` and there is nothing to subtract.
+ */
+function withoutLocaleTree(
+    bundleFiles: string[],
+    bundleDir: string,
+    projectDir: string,
+    localeDir: string | undefined,
+): string[] {
+    if (localeDir === undefined) return bundleFiles;
+    const localeRoot = resolve(projectDir, localeDir);
+    const rel = relative(bundleDir, localeRoot);
+    // Outside the bundle dir: `relative` climbs out (`..`) or returns an absolute path.
+    if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return bundleFiles;
+    // Only `rel` needs normalising: it comes from `relative`, so it is host-shaped, while
+    // `bundleFiles` is POSIX by `listFilesRecursive`'s contract. Comparing a host-shaped prefix
+    // against POSIX entries matches nothing on Windows — and matching nothing here means the
+    // catalogues quietly ship twice again, on that platform only.
+    const prefix = `${rel.split(sep).join(posix.sep)}${posix.sep}`;
+    return bundleFiles.filter((file) => !`${file}${posix.sep}`.startsWith(prefix));
+}
+
+/**
+ * Compiled gettext catalogues the project ships (`gjsify.ship.localeDir`).
+ *
+ * Only `.mo` files, and only in the layout `bindtextdomain` actually reads —
+ * `<lang>/LC_MESSAGES/<domain>.mo`. Both refusals cover the same failure, which is the quiet kind:
+ * a catalogue in the wrong place, or left as `.po`, installs perfectly and the app then shows the
+ * untranslated msgid forever. That is indistinguishable from "no translation exists", so it is not
+ * something a user or a maintainer would ever report as a packaging bug.
+ */
+function discoverLocales(projectDir: string, dir: string | undefined): { rel: string; abs: string }[] {
+    if (dir === undefined) return [];
+    const root = resolve(projectDir, dir);
+    if (!existsSync(root)) {
+        throw new Error(
+            `gjsify ship: \`gjsify.ship.localeDir\` names ${dir}, which does not exist. ` +
+                'Compile the catalogues first (msgfmt, or @gjsify/vite-plugin-gettext) — a missing ' +
+                'directory here means the package would install without the translations it promises.',
+        );
+    }
+    const out: { rel: string; abs: string }[] = [];
+    const strays: string[] = [];
+    for (const rel of listFilesRecursive(root)) {
+        if (rel.endsWith('.po') || rel.endsWith('.pot')) {
+            strays.push(`${rel} (a .po source; bindtextdomain reads .mo only)`);
+            continue;
+        }
+        if (!rel.endsWith('.mo')) continue;
+        // `listFilesRecursive` normalises to POSIX, so one separator is all there is to split on.
+        const parts = rel.split(posix.sep);
+        if (parts.length !== 3 || parts[1] !== 'LC_MESSAGES') {
+            strays.push(`${rel} (expected <lang>/LC_MESSAGES/<domain>.mo)`);
+            continue;
+        }
+        out.push({ rel: parts.join('/'), abs: join(root, rel) });
+    }
+    if (strays.length > 0) {
+        throw new Error(
+            `gjsify ship: \`gjsify.ship.localeDir\` (${dir}) holds files no catalogue lookup will find:\n` +
+                strays.map((s) => `  ${s}`).join('\n') +
+                '\nA misplaced catalogue installs and then shows nothing, which reads exactly like having ' +
+                'no translation at all. Lay them out as <lang>/LC_MESSAGES/<domain>.mo.',
+        );
+    }
+    if (out.length === 0) {
+        throw new Error(
+            `gjsify ship: \`gjsify.ship.localeDir\` (${dir}) contains no \`.mo\` catalogue. ` +
+                'Declaring a locale directory that ships nothing is a promise the package does not keep.',
+        );
     }
     return out;
 }

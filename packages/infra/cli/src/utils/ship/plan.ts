@@ -91,6 +91,16 @@ export function planStage(settings: ShipSettings, inputs: StageInputs): StagedFi
         });
     }
 
+    // Compiled gettext catalogues, layout preserved: `share/locale/<lang>/LC_MESSAGES/<domain>.mo`
+    // is where `bindtextdomain` looks, and nowhere else.
+    for (const locale of settings.localeFiles) {
+        files.push({
+            path: posix.join('share/locale', locale.rel),
+            mode: 0o644,
+            source: { kind: 'file', path: locale.abs },
+        });
+    }
+
     for (const [dest, source] of Object.entries(settings.extraFiles)) {
         files.push({ path: assertInsidePrefix(dest), mode: 0o644, source: { kind: 'file', path: source } });
     }
