@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { iconSizeDir, planOverlay, planStage, type StageInputs } from './plan.js';
+import { assertOverlayIsLicensed, iconSizeDir, planOverlay, planStage, type StageInputs } from './plan.js';
 import { FORMATS } from './formats.js';
 import type { ShipSettings } from './types.js';
 
@@ -178,8 +178,27 @@ export default async () => {
             expect(overlay[0]?.source.kind === 'text' ? overlay[0].source.text : '').toBe('MIT\n\nPermission…\n');
         });
 
-        await it('is empty when the project has no licence file', async () => {
-            expect(planOverlay(settings(), FORMATS.deb, inputs()).length).toBe(0);
+        // This case USED to assert `.length === 0`, and that empty overlay is
+        // precisely what shipped gjsify's own 0.42.0 `.deb` with no
+        // `/usr/share/doc/gjsify/copyright`. The package installed; only a real
+        // `lintian` on a bare-ubuntu leg ever said otherwise.
+        await it('refuses a project with no licence file, naming the file that would be missing', async () => {
+            expect(() => planOverlay(settings(), FORMATS.deb, inputs())).toThrow(/share\/doc\/hello\/copyright/);
+            expect(() => planOverlay(settings(), FORMATS.rpm, inputs())).toThrow(/share\/licenses\/hello\/LICENSE/);
+        });
+    });
+
+    await describe('assertOverlayIsLicensed', async () => {
+        // The `--from-stage` half. `planOverlay` never runs there, so without this
+        // a manifest carrying `"overlay": {"deb": []}` packs an unlicensed .deb at
+        // exit 0 — the shape `readStageManifest` accepts as structurally valid.
+        await it('refuses an empty overlay and points the fix at the assembling host', async () => {
+            expect(() => assertOverlayIsLicensed('deb', 'hello', [])).toThrow(/assembling host/);
+        });
+
+        await it('passes an overlay that carries a licence', async () => {
+            const overlay = planOverlay(settings(), FORMATS.deb, inputs({ licenseText: 'MIT\n' }));
+            assertOverlayIsLicensed('deb', 'hello', overlay);
         });
     });
 

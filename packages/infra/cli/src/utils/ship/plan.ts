@@ -6,7 +6,7 @@
 import { renderMimePackage } from './mime.js';
 import { basename, extname, posix } from 'node:path';
 
-import type { FormatDescriptor, ShipSettings, StagedFile } from './types.js';
+import type { FormatDescriptor, FormatId, ShipSettings, StagedFile } from './types.js';
 
 /** Everything the planner needs that it cannot derive from the settings alone. */
 export interface StageInputs {
@@ -123,14 +123,60 @@ export function planStage(settings: ShipSettings, inputs: StageInputs): StagedFi
  * The per-format additions. Only the licence differs today, and it differs in
  * BOTH place and shape: Debian policy wants a machine-readable `copyright` in
  * `share/doc/<pkg>/`, RPM wants the licence text under `share/licenses/<pkg>/`.
+ *
+ * A project with no licence file is REFUSED here rather than packaged without
+ * one. Debian Policy § 12.5 makes the copyright file mandatory and lintian
+ * raises `no-copyright-file` as an error, but nothing between this function and
+ * the installed package says so: an empty overlay produced a `.deb` whose
+ * control file `dpkg-deb --info` prints cleanly, that `dpkg -i` installs, and
+ * that is simply unlicensed. That is what gjsify's own package was, every
+ * release of it, until the first CI leg that read one with a real `dpkg` said
+ * so on its eighth assertion.
+ *
+ * It throws on the host that can act on it. This runs during `--stage` as well
+ * as during a one-shot `ship`, so the refusal lands where the project — and the
+ * missing `LICENSE` — actually is; {@link assertOverlayIsLicensed} repeats it at
+ * pack time for a stage that arrived from somewhere else.
  */
 export function planOverlay(settings: ShipSettings, format: FormatDescriptor, inputs: StageInputs): StagedFile[] {
-    if (inputs.licenseText === undefined) return [];
+    if (inputs.licenseText === undefined) {
+        throw new Error(
+            `gjsify ship: no licence file found, so the ${format.id} package would ship no ` +
+                `${format.licenseDest(settings.binaryName)}. Debian Policy § 12.5 requires it and lintian ` +
+                'errors without it, and neither dpkg nor rpm will tell you it is missing. Add a LICENSE file ' +
+                `to ${settings.projectDir} or to the root of its repository, or point ` +
+                '`gjsify.ship.licenseFile` at the one this package ships under.',
+        );
+    }
     const text =
         format.licenseKind === 'debian-copyright'
             ? renderDebianCopyright(settings, inputs.licenseText)
             : inputs.licenseText;
     return [{ path: format.licenseDest(settings.binaryName), mode: 0o644, source: { kind: 'text', text } }];
+}
+
+/**
+ * The same refusal, at pack time.
+ *
+ * `planOverlay` cannot cover `--from-stage`: that path never plans anything, it
+ * rehydrates the closure the assembling host wrote. A manifest whose
+ * `overlay.deb` is `[]` passes every structural check in `readStageManifest`
+ * — the key is present, the value is an array of the right shape — and the
+ * silent unlicensed package comes back. The stage manifest's own header lists
+ * "no `overlay`" among the omissions that fail at exit 0 with an artifact that
+ * installs; this is where that stops being a comment.
+ *
+ * Cheap enough to run on both paths, so it does, and a stage written by this
+ * version can no longer reach it.
+ */
+export function assertOverlayIsLicensed(formatId: FormatId, binaryName: string, overlay: readonly StagedFile[]): void {
+    if (overlay.length > 0) return;
+    throw new Error(
+        `gjsify ship: this stage carries no ${formatId} licence overlay, so the package would ship no ` +
+            `licence file for ${binaryName} — Debian Policy § 12.5 requires one and lintian errors without ` +
+            'it. The fix is on the assembling host, not this one: give that project a LICENSE (or set ' +
+            '`gjsify.ship.licenseFile`) and re-run the `--stage` phase.',
+    );
 }
 
 /**

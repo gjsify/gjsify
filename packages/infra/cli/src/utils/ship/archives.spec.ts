@@ -14,8 +14,8 @@ import { createArArchive } from './ar.js';
 import { createCpioArchive, S_IFREG } from './cpio.js';
 import { ancestorDirectories } from './deb.js';
 import { buildRpmHeader, buildRpmLead, padToEight, RpmType, RPM_TAG_HEADERIMMUTABLE } from './rpm-header.js';
+import { readPayloadFacts } from './payload.js';
 import { cacheRefreshCommands, renderDebScripts, renderRpmScriptlets } from './scripts.js';
-import type { ShipSettings } from './types.js';
 
 const decoder = new TextDecoder();
 
@@ -23,36 +23,15 @@ function view(bytes: Uint8Array): DataView {
     return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 }
 
-function settings(overrides: Partial<ShipSettings> = {}): ShipSettings {
-    return {
-        projectDir: '/p',
-        appId: 'org.example.Hello',
-        name: 'Hello',
-        binaryName: 'hello',
-        version: '1.0.0',
-        release: '1',
-        maintainer: 'Dev <dev@example.org>',
-        summary: 'demo',
-        description: ['demo'],
-        license: 'MIT',
-        section: 'gnome',
-        group: 'Applications/System',
-        kind: 'app',
-        mimeTypes: [],
-        extraDepends: { deb: [], rpm: [] },
-        bundlePath: '/p/dist/gjs.js',
-        bundleDir: '/p/dist',
-        iconFiles: [],
-        schemaFiles: [],
-        typelibFiles: [],
-        localeFiles: [],
-        extraFiles: {},
-        execArgs: [],
-        outDir: 'ship',
-        arch: 'x64',
-        minGjsVersion: '1.86',
-        ...overrides,
-    };
+/**
+ * The maintainer scripts are keyed on what the PAYLOAD installs, so the fixture is a list of
+ * staged paths rather than a settings object — and running them through `readPayloadFacts` is
+ * deliberate: the mapping from "installs into share/icons/hicolor" to "runs gtk-update-icon-cache"
+ * is the part that was wrong before (it followed the project's file lists, which a `kind: 'cli'`
+ * project can have without staging a single icon).
+ */
+function facts(...paths: string[]) {
+    return readPayloadFacts(paths.map((path) => ({ path })));
 }
 
 export default async () => {
@@ -207,10 +186,10 @@ export default async () => {
 
     await describe('maintainer scripts', async () => {
         await it('emits nothing when the payload needs no cache refreshed', async () => {
-            const cli = settings({ kind: 'cli' });
-            expect(cacheRefreshCommands(cli, '/usr').length).toBe(0);
-            expect(Object.keys(renderDebScripts(cli, '/usr')).length).toBe(0);
-            expect(renderRpmScriptlets(cli, '/usr').post).toBe(undefined);
+            const bare = facts('bin/hello', 'lib/hello/gjs.js');
+            expect(cacheRefreshCommands(bare, '/usr').length).toBe(0);
+            expect(Object.keys(renderDebScripts(bare, '/usr')).length).toBe(0);
+            expect(renderRpmScriptlets(bare, '/usr').post).toBe(undefined);
         });
 
         await it('guards on the ACTION for dpkg and not at all for rpm', async () => {
@@ -219,15 +198,26 @@ export default async () => {
             // never true, so the package installs and the scriptlet does
             // nothing — found by reading `rpm -qp --scripts`, not by a test
             // that only checked the body.
-            const app = settings({ schemaFiles: ['/p/data/org.example.Hello.gschema.xml'] });
+            const app = facts('share/glib-2.0/schemas/org.example.Hello.gschema.xml');
             expect(renderDebScripts(app, '/usr').postinst).toContain('[ "$1" = "configure" ]');
             expect(renderRpmScriptlets(app, '/usr').post).not.toContain('configure');
             expect(renderRpmScriptlets(app, '/usr').post).toContain('glib-compile-schemas /usr/share/glib-2.0/schemas');
         });
 
+        await it('refreshes only the caches the payload actually wrote into', async () => {
+            // The defect this pins: the icon cache used to be refreshed whenever the PROJECT had
+            // icon files, which a `kind: 'cli'` project can have while `planStage` stages none.
+            const withIcons = cacheRefreshCommands(facts('share/icons/hicolor/scalable/apps/x.svg'), '/usr');
+            expect(withIcons.join('\n')).toContain('gtk-update-icon-cache');
+            expect(cacheRefreshCommands(facts('bin/hello'), '/usr').join('\n')).not.toContain('gtk-update-icon-cache');
+            // A desktop entry is what `update-desktop-database` reindexes, so it follows the file.
+            expect(
+                cacheRefreshCommands(facts('share/applications/org.example.Hello.desktop'), '/usr').join('\n'),
+            ).toContain('update-desktop-database');
+        });
+
         await it('never lets a missing helper fail a removal', async () => {
-            const app = settings({ iconFiles: ['/p/icon.svg'] });
-            for (const line of cacheRefreshCommands(app, '/usr')) {
+            for (const line of cacheRefreshCommands(facts('share/icons/hicolor/scalable/apps/x.svg'), '/usr')) {
                 expect(line).toContain('command -v');
                 expect(line).toContain('|| true');
             }

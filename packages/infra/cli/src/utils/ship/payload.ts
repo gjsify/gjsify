@@ -27,6 +27,12 @@ export interface PayloadEntry {
  * what `rpm -qi` then shows a user, and an artifact that looks broken is a
  * support question. The mtime keeps the property that matters (pack the same
  * build twice, get the same bytes) while saying something true.
+ *
+ * Only the ASSEMBLING host runs this. A stage records the answer it got
+ * (`.gjsify-ship-stage.json` → `mtime`) and the packing host reuses it: an
+ * artifact upload does not carry mtimes, so re-stat'ing the stage there would
+ * stamp every header with "whenever the download finished" and quietly destroy
+ * the reproducibility this function exists to protect.
  */
 export function buildTimestamp(bundlePath: string, env: Record<string, string | undefined> = process.env): number {
     const raw = env.SOURCE_DATE_EPOCH;
@@ -38,6 +44,108 @@ export function buildTimestamp(bundlePath: string, env: Record<string, string | 
         return parsed;
     }
     return Math.floor(statSync(bundlePath).mtimeMs / 1000);
+}
+
+/**
+ * What the payload itself says about what it installs.
+ *
+ * Every field here used to be answered from the SETTINGS — `settings.iconFiles.length > 0`,
+ * `settings.schemaFiles.length > 0`, `settings.typelibFiles` — i.e. from lists of absolute paths
+ * on the BUILD host. Two things were wrong with that, and the second is why this function exists
+ * at all:
+ *
+ *  1. It answered a different question than the one being asked. `cacheRefreshCommands` emits
+ *     `gtk-update-icon-cache <prefix>/share/icons/hicolor` — the honest precondition is "did this
+ *     package install anything into that directory", not "did the project have icon files lying
+ *     around". They come apart for a `kind: 'cli'` project with a `data/icons/` folder: the
+ *     planner stages no icon (icons are an `'app'` thing), the settings still listed them, and the
+ *     postinst refreshed a cache for files that were never installed.
+ *  2. An absolute build-host path cannot cross to the host that packs the artifact
+ *     (ADR 0024 § A2). Carrying `iconFiles: ["/home/…/icon.svg"]` in a stage manifest so that
+ *     `.length > 0` can be read on another machine is authoring a value that is measurable right
+ *     there in the tree.
+ *
+ * Path-only, on purpose — `isArchIndependent` is the sibling that reads BYTES, and the two answer
+ * different questions from the same payload. The same split as `plan.ts`'s `isExecutableAsset`
+ * (by name) versus this module's magic sniffing (by content).
+ */
+export interface PayloadFacts {
+    /** The payload installs a `share/applications/*.desktop`. */
+    hasDesktopEntry: boolean;
+    /** The payload installs into `share/icons/hicolor/`. */
+    hasIcons: boolean;
+    /** The payload installs a compiled-on-install `share/glib-2.0/schemas/*.gschema.xml`. */
+    hasSchemas: boolean;
+    /** The payload installs a `share/mime/packages/*.xml`, so the mime cache needs rebuilding. */
+    hasMimeTypes: boolean;
+    /** Prefix-relative paths of the typelibs the payload carries itself. */
+    bundledTypelibs: string[];
+}
+
+/**
+ * Read {@link PayloadFacts} off a payload or off a plan.
+ *
+ * Takes anything with a `path`, so the assembling phase can ask the same
+ * question of the PLAN (before the tree is read back) that the packing phase
+ * asks of the payload. One function, so the two phases cannot disagree about
+ * whether a package installs a schema.
+ */
+export function readPayloadFacts(entries: readonly { path: string }[]): PayloadFacts {
+    const paths = entries.map((entry) => entry.path);
+    return {
+        hasDesktopEntry: paths.some((path) => path.startsWith('share/applications/') && path.endsWith('.desktop')),
+        hasIcons: paths.some((path) => path.startsWith('share/icons/hicolor/')),
+        hasSchemas: paths.some((path) => path.startsWith('share/glib-2.0/schemas/') && path.endsWith('.gschema.xml')),
+        hasMimeTypes: paths.some((path) => path.startsWith('share/mime/packages/') && path.endsWith('.xml')),
+        // Anywhere in the payload, not only `lib/<name>/gi/`: `gjsify.ship.extraFiles` can place
+        // one elsewhere, and a typelib the package carries is a typelib the package must not also
+        // declare a distro dependency for, wherever it sits.
+        bundledTypelibs: paths.filter((path) => path.endsWith('.typelib')),
+    };
+}
+
+/**
+ * The interpreters the payload's own executables need, read off their shebangs.
+ *
+ * An interpreter is a dependency like any other, and rpm expects it declared:
+ * `rpmbuild`'s file-based generator emits one `Requires` per executable
+ * shebang, with the `RPMSENSE_FIND_REQUIRES` sense that says "derived, not
+ * declared". Measured on Fedora 44 against a package whose only file is a
+ * `#!/bin/sh` script: `rpm -qp --requires` → `/usr/bin/sh 16384`.
+ *
+ * The LITERAL path, not a resolved one. `rpmbuild` prints `/usr/bin/sh` there
+ * because it resolved `/bin` through the symlink of the usrmerged host it ran
+ * on; this writer has no target host to resolve against (ADR 0024 § A1 — the
+ * packers are pure JavaScript and run anywhere), and `/bin/sh` is satisfied on
+ * both layouts: measured on Fedora 44, `rpm -q --whatprovides /bin/sh` and
+ * `/usr/bin/sh` both answer `bash`. It is also the spelling the scriptlet
+ * requirements already use.
+ *
+ * EXECUTABLE files only, which is the same rule `rpmbuild` applies. A GJS
+ * bundle staged 0644 carries `#!/usr/bin/env -S gjs -m` for the days it is run
+ * directly, but nothing in the installed package executes it as a program — the
+ * launcher `exec`s `gjs` with it as an argument — so declaring `/usr/bin/env`
+ * for it would be a dependency on a path this package never uses.
+ */
+export function readShebangInterpreters(payload: readonly PayloadEntry[]): string[] {
+    const found = new Set<string>();
+    for (const entry of payload) {
+        if ((entry.mode & 0o111) === 0) continue;
+        const interpreter = readShebang(entry.data);
+        if (interpreter !== null) found.add(interpreter);
+    }
+    return [...found].sort();
+}
+
+/** The absolute interpreter path of a `#!` line, or `null` when there is none to read. */
+function readShebang(data: Uint8Array): string | null {
+    if (data[0] !== 0x23 || data[1] !== 0x21) return null; // `#!`
+    // A shebang is one LINE; reading further would let a long file's contents
+    // decide how much work this does. 256 bytes is above every real one and is
+    // what Linux itself truncates at (BINPRM_BUF_SIZE).
+    const line = new TextDecoder().decode(data.subarray(2, Math.min(data.byteLength, 256))).split('\n')[0] ?? '';
+    const interpreter = line.trim().split(/\s+/)[0] ?? '';
+    return interpreter.startsWith('/') ? interpreter : null;
 }
 
 /**
@@ -57,6 +165,23 @@ export function isArchIndependent(payload: readonly PayloadEntry[]): boolean {
 // values this repository can actually produce are listed; an unknown one reads
 // as "cannot tell" rather than as a mismatch, because refusing an artifact over
 // a machine constant nobody here emits would be a guess wearing a gate's clothes.
+// The machine values this project actually ships packages for — no more. A value
+// missing here makes `readBinaryArch` return null, and null is SILENT, so an
+// absent row costs nothing but a check that does not fire.
+//
+// `EM_MIPS` (0x08) is absent for that reason and no other. An earlier version of
+// this comment claimed it was absent because one value covers `mips` and
+// `mipsel` and the row would have to guess; that was wrong three times over, and
+// is corrected here rather than deleted because it is the kind of reasoning that
+// gets re-derived: (1) `mipsel` IS little-endian MIPS, so the discriminator is
+// `EI_DATA`, which `readBinaryArch` reads four lines below; (2) it could not
+// "refuse a correct pack" either way, because `formats.ts` has no `mips` row in
+// `DEBIAN_ARCH`/`RPM_ARCH`, so `archName` throws before any label is written;
+// and (3) the principle it invoked is already broken one row down — `0x16` maps
+// to `s390x`, but `EM_S390` is emitted by 31-bit `s390` too, and its
+// discriminator is `EI_CLASS` at offset 4, which this function does NOT read.
+// That row is the ambiguous one. Unreachable today (nothing here builds s390),
+// but it is the row to fix first if this table ever grows.
 const ELF_MACHINE_TO_ARCH: Record<number, string> = {
     0x03: 'ia32',
     0x15: 'ppc64',
@@ -136,7 +261,8 @@ export function assertPayloadMatchesArch(payload: readonly PayloadEntry[], arch:
                 'anything.\n' +
                 `    A package labelled ${arch} installs on ${arch} and then fails to load. Build the payload ` +
                 `for ${arch}\n` +
-                '    (its own prebuild), or drop `--arch` and label the payload you actually have.',
+                '    (its own prebuild), or assemble the stage without `--arch` and label the payload you ' +
+                'actually have.',
         );
     }
 }

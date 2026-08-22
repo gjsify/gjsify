@@ -39,6 +39,16 @@ import type { FormatId } from './types.js';
  */
 export const DEFAULT_GJS_FLOOR = '1.86';
 
+/**
+ * The package providing `glib-compile-schemas`, per format.
+ *
+ * A record, not `format === 'deb' ? … : …`. The ternary reads as a two-way
+ * choice and is really "deb, or ELSE rpm's package name" — measured on a third
+ * format, `dmg` got `glib2`, at exit 0, in the `Depends:` of a package that has
+ * no such thing. Adding a `FormatId` now fails to build here instead.
+ */
+const SCHEMA_COMPILER_PACKAGE: Record<FormatId, string> = { deb: 'libglib2.0-bin', rpm: 'glib2' };
+
 /** Debian's `gjs` versions per suite, as measured 2026-08-15 — see {@link warnAboutGjsFloor}. */
 const DEBIAN_GJS = 'trixie ships 1.82.3 and forky 1.88.1; 1.84 and 1.86 were skipped';
 
@@ -46,8 +56,20 @@ const DEBIAN_GJS = 'trixie ships 1.82.3 and forky 1.88.1; 1.84 and 1.86 were ski
  * Warn when the derived floor cannot be satisfied by a released Debian.
  * Returns the warning lines; empty when the floor is fine.
  */
+/**
+ * Which formats this Debian-suite warning is ABOUT.
+ *
+ * A `Record<FormatId, …>` and not `format !== 'deb'`: the negative form answers
+ * for every format that will ever exist, and answers "stay quiet" — so a third
+ * format would inherit silence about a floor nobody has checked for its distro,
+ * with no compile error. As a record, adding a `FormatId` fails to build until
+ * someone decides. `rpm` is false because Fedora ships a current GJS, which is a
+ * measured fact about Fedora, not a default.
+ */
+const GJS_FLOOR_IS_DEBIAN_NEWS: Record<FormatId, boolean> = { deb: true, rpm: false };
+
 export function warnAboutGjsFloor(format: FormatId, floor: string): string[] {
-    if (format !== 'deb') return [];
+    if (!GJS_FLOOR_IS_DEBIAN_NEWS[format]) return [];
     // Only a floor forky ACTUALLY satisfies is quiet. The first cut tested
     // `>= 1.88.1` and therefore went silent for 1.90 and 2.0 as well — the
     // floors no Debian will satisfy for years.
@@ -119,8 +141,15 @@ const TYPELIB_PACKAGES: Record<string, { deb: string; rpm: string }> = {
 export interface DependsInputs {
     /** GI namespaces the bundle imports, in `Ns-Version` spelling. */
     namespaces: readonly string[];
-    /** `'app'` installs a desktop entry and icons; `'cli'` does not. */
-    kind: 'app' | 'cli';
+    /**
+     * Whether the payload installs into `share/icons/hicolor/`.
+     *
+     * Was `kind: 'app' | 'cli'`, which is a proxy for the question and not the question:
+     * `hicolor-icon-theme` is depended on because it OWNS that directory, so an app that
+     * installs no icon used to declare a dependency it never touched. Derived from the payload
+     * (`readPayloadFacts`), which is also the only thing the packing host has (ADR 0024 § A2).
+     */
+    hasIcons: boolean;
     /** Whether the payload installs GSettings schemas. */
     hasSchemas: boolean;
     /** User-supplied additions for this format. */
@@ -200,7 +229,9 @@ export function deriveDepends(format: FormatId, inputs: DependsInputs): string[]
         );
     }
 
-    if (inputs.kind === 'app') out.push('hicolor-icon-theme');
+    // The package that owns `/usr/share/icons/hicolor` — so this follows the icons, not the
+    // app/cli distinction that used to stand in for them.
+    if (inputs.hasIcons) out.push('hicolor-icon-theme');
     // The package that ships `glib-compile-schemas`, NOT `gsettings-desktop-schemas`
     // (which ships GNOME's own `org.gnome.desktop.*` schemas and has nothing to
     // do with compiling ours). Measured: `rpm -qf /usr/bin/glib-compile-schemas`
@@ -209,7 +240,7 @@ export function deriveDepends(format: FormatId, inputs: DependsInputs): string[]
     // silently skips, the schema is never compiled, and the first
     // `Gio.Settings.new()` aborts the app — an install that succeeds and an app
     // that does not start.
-    if (inputs.hasSchemas) out.push(format === 'deb' ? 'libglib2.0-bin' : 'glib2');
+    if (inputs.hasSchemas) out.push(SCHEMA_COMPILER_PACKAGE[format]);
     out.push(...inputs.extra);
 
     // Set-dedupe keeps first-insertion order, so `gjs` stays first and the

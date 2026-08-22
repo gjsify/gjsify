@@ -24,26 +24,24 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { mkdtempSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 
-import { hasCommand } from '../helpers.mjs';
 import { runCliSync } from '../mock-registry.mjs';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const MONOREPO_ROOT = join(__dirname, '..', '..', '..');
-const CLI_ENTRY = join(MONOREPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js');
-
-const APP_ID = 'org.example.ShipDemo';
-const BUNDLE = [
-    `import Gtk from 'gi://Gtk?version=4.0';`,
-    `import Adw from 'gi://Adw?version=1';`,
-    `print(Gtk, Adw);`,
-    '',
-].join('\n');
+// The demo project, the tool probe and the manifest's name live in `fixture.mjs` because
+// `tests/e2e/ship-from-stage` builds the SAME project: a second scaffold would be a second
+// definition of what this suite is about, and the drifted copy is the one that keeps passing.
+import {
+    APP_ID,
+    CLI_ENTRY,
+    listFiles,
+    listPayload,
+    probe,
+    scaffold,
+    STAGE_MANIFEST_FILE,
+    STAGE_SCHEMA_VERSION,
+} from './fixture.mjs';
 
 describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
     let tmpDir;
@@ -63,7 +61,9 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
     // ── the staged payload ────────────────────────────────────────────────
 
     it('stages one prefix-relative payload', () => {
-        const staged = listFiles(join(projectDir, 'ship', 'stage'));
+        // `listPayload`, not `listFiles`: the stage root also carries its own manifest, which is
+        // the closure that makes the tree packable on another host and is never payload itself.
+        const staged = listPayload(join(projectDir, 'ship', 'stage'));
         assert.deepEqual(staged, [
             'bin/ship-demo',
             'lib/ship-demo/gjs.js',
@@ -89,6 +89,24 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
         runCliSync(CLI_ENTRY, ['ship', '--skip-build', '--stage'], { cwd: stageOnly });
         assert.ok(existsSync(join(stageOnly, 'ship', 'stage', 'bin', 'ship-demo')));
         assert.equal(existsSync(join(stageOnly, 'ship', 'out')), false);
+        assert.ok(existsSync(join(stageOnly, 'ship', 'stage', STAGE_MANIFEST_FILE)));
+    });
+
+    it('writes the stage manifest beside the payload, on every run', () => {
+        // Written whether or not this run packs: a `ship/stage/` that is sometimes packable
+        // elsewhere and sometimes not is a worse contract than one that always is (ADR 0024 § A2).
+        // That it is SUFFICIENT — that a stage plus this file needs no project — is proven in
+        // `tests/e2e/ship-from-stage`, which deletes the project between the phases.
+        const manifest = JSON.parse(readFileSync(join(projectDir, 'ship', 'stage', STAGE_MANIFEST_FILE), 'utf-8'));
+        assert.equal(manifest.schema, STAGE_SCHEMA_VERSION);
+        assert.deepEqual(manifest.formats, ['deb', 'rpm']);
+        assert.deepEqual(manifest.namespaces, ['Adw-1', 'Gtk-4.0']);
+        // The mode plan — the half a CI artifact upload cannot carry, and the half that decides
+        // whether the installed `bin/` entry can be executed at all.
+        assert.ok(manifest.staged.some((file) => file.path === 'bin/ship-demo' && file.mode === 0o755));
+        // Nothing in it may name the machine that assembled it — that path will not exist on the
+        // host that packs the stage, and seven `ShipSettings` fields are absolute paths.
+        assert.ok(!JSON.stringify(manifest).includes(projectDir), 'the manifest must not name the build tree');
     });
 
     // ── the .deb ──────────────────────────────────────────────────────────
@@ -218,6 +236,17 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.match(requires, /^gtk4$/m);
         assert.match(requires, /^libadwaita$/m);
         assert.match(requires, /^\/bin\/sh$/m);
+        // …and that line ALONE does not discriminate. This fixture is an app
+        // with a desktop entry, so it has scriptlets, and their `Requires(post)`
+        // sense produces `/bin/sh` on its own — which is why every scriptlet-free
+        // package this writer produced (gjsify's own CLI among them) declared no
+        // shell at all while this assertion stayed green. The sense is the
+        // discriminator: 16384 is RPMSENSE_FIND_REQUIRES, "derived from the
+        // payload", and only the launcher's `#!/bin/sh` can put it there.
+        const senses = execFileSync('rpm', ['-qp', '--qf', '[%{REQUIRENAME} %{REQUIREFLAGS}\n]', rpmPath()], {
+            encoding: 'utf-8',
+        });
+        assert.match(senses, /^\/bin\/sh 16384$/m);
         // Declaring these is what makes an older rpm refuse the package
         // cleanly instead of misreading its file list.
         assert.match(requires, /rpmlib\(CompressedFileNames\)/);
@@ -270,7 +299,7 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
         mkdirSync(unpacked, { recursive: true });
         execFileSync('tar', ['xzf', join(extractDeb(), 'data.tar.gz'), '-C', unpacked]);
 
-        const staged = listFiles(join(projectDir, 'ship', 'stage'));
+        const staged = listPayload(join(projectDir, 'ship', 'stage'));
         const overlay = listFiles(join(projectDir, 'ship', 'overlay', 'deb'));
         const expected = [...staged, ...overlay].sort();
         const actual = listFiles(join(unpacked, 'usr')).sort();
@@ -387,11 +416,63 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.match(result, /ADR 0024/);
     });
 
+    it('refuses a payload file that would shadow the stage manifest', () => {
+        // `extraFiles` can name any prefix-relative destination, and the stage root holds exactly
+        // one file that is not payload. A collision there would either pack the manifest or lose
+        // the closure that makes the tree packable on another host.
+        const dir = scaffold(join(tmpDir, 'shadow-manifest'), (pkg) => {
+            pkg.gjsify.ship.extraFiles = { [STAGE_MANIFEST_FILE]: 'LICENSE' };
+        });
+        const result = runCliExpectingFailure(dir);
+        assert.match(result, new RegExp(STAGE_MANIFEST_FILE.replace(/\./g, '\\.')));
+        assert.match(result, /extraFiles/);
+    });
+
     it('refuses a schema that would collide in the shared system directory', () => {
         const dir = scaffold(join(tmpDir, 'bad-schema'));
         rmSync(join(dir, 'data', `${APP_ID}.gschema.xml`));
         writeFileSync(join(dir, 'data', 'settings.gschema.xml'), '<schemalist/>\n');
         assert.match(runCliExpectingFailure(dir), /must be named/);
+    });
+
+    // ── the licence ───────────────────────────────────────────────────────
+    //
+    // `.deb: the Debian copyright overlay is where policy wants it` above has
+    // passed since the packer landed, and gjsify's own `.deb` shipped without
+    // that copyright the whole time. The assertion was right and the FIXTURE was
+    // not: every project scaffolded here is a single package carrying its own
+    // LICENSE, and gjsify is not that shape — `packages/infra/cli` has no
+    // LICENSE, the text is one file at the repository root, and discovery looked
+    // in the package directory only. A green assertion on an unrepresentative
+    // fixture is the version of green-CI-that-checked-nothing that survives
+    // review, because nothing about it looks weak.
+
+    it('takes the licence from the repository root when the package carries none', () => {
+        const root = join(tmpDir, 'mono');
+        const dir = scaffold(join(root, 'packages', 'app'));
+        rmSync(join(dir, 'LICENSE'));
+        // A FILE, not a directory: that is what `.git` is in a git worktree, and
+        // it marks the top of the climb in either spelling.
+        writeFileSync(join(root, '.git'), 'gitdir: elsewhere\n');
+        writeFileSync(join(root, 'LICENSE'), 'MIT License\n\nRoot terms.\n');
+        runCliSync(CLI_ENTRY, ['ship', '--skip-build', '--target', 'deb'], { cwd: dir });
+
+        // Read off the materialised overlay rather than out of the `.deb`: this
+        // needs no `ar` and no `tar`, so it cannot degrade into a silent skip on
+        // a runner that lacks them — and the same bytes go into the archive.
+        const copyright = join(dir, 'ship', 'overlay', 'deb', 'share', 'doc', 'ship-demo', 'copyright');
+        assert.ok(existsSync(copyright), 'no copyright overlay was rendered');
+        // The ROOT text specifically. A copyright rendered from some other file
+        // would satisfy an existence check and still be the wrong licence.
+        assert.match(readFileSync(copyright, 'utf-8'), /Root terms\./);
+    });
+
+    it('refuses a project with no licence anywhere, rather than packaging one without', () => {
+        const dir = scaffold(join(tmpDir, 'no-licence'));
+        rmSync(join(dir, 'LICENSE'));
+        // No `.git` and no workspace root above a tmpdir, so the climb has
+        // nowhere to go — which is the case that must fail, not fall back.
+        assert.match(runCliExpectingFailure(dir), /share\/doc\/ship-demo\/copyright/);
     });
 
     // ── helpers ───────────────────────────────────────────────────────────
@@ -438,103 +519,3 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
             });
     }
 });
-
-/**
- * True when the tool is available.
- *
- * On Linux — the only platform whose runners execute this suite — `rpm`, `ar`
- * and `tar` are REQUIRED, and a missing one fails rather than skips. That
- * distinction is the whole point: every artifact assertion here sits behind one
- * of them, so a silent skip would leave the suite green having read nothing,
- * which is exactly the class this suite's header says it exists to avoid.
- * `cpio`/`rpm2cpio` stay optional — they gate one extra cross-check.
- */
-const REQUIRED_ON_LINUX = new Set(['rpm', 'ar', 'tar']);
-
-function probe(cmd) {
-    if (hasCommand(cmd)) return true;
-    if (process.platform === 'linux' && REQUIRED_ON_LINUX.has(cmd)) {
-        throw new Error(
-            `${cmd} is not on PATH. It is how this suite reads the artifact back, so skipping it would ` +
-                'make every packing assertion vacuous.',
-        );
-    }
-    console.log(`  skipping: ${cmd} not on PATH`);
-    return false;
-}
-
-function listFiles(root) {
-    const out = [];
-    const walk = (dir) => {
-        for (const entry of readdirSync(dir, { withFileTypes: true })) {
-            const full = join(dir, entry.name);
-            if (entry.isDirectory()) walk(full);
-            else out.push(relative(root, full).split(sep).join('/'));
-        }
-    };
-    walk(root);
-    return out.sort();
-}
-
-/** A minimal but complete GJS project: a built bundle, an icon, a schema, a licence. */
-function scaffold(dir, mutate) {
-    mkdirSync(join(dir, 'dist'), { recursive: true });
-    mkdirSync(join(dir, 'data', 'icons', 'hicolor', 'scalable', 'apps'), { recursive: true });
-
-    const pkg = {
-        name: 'ship-demo',
-        version: '1.2.3',
-        license: 'MIT',
-        author: 'Example Dev <dev@example.org>',
-        homepage: 'https://example.org/ship-demo',
-        type: 'module',
-        main: 'dist/gjs.js',
-        private: true,
-        scripts: { build: 'node build.mjs' },
-        gjsify: {
-            main: 'dist/gjs.js',
-            ship: {
-                appId: APP_ID,
-                name: 'Ship Demo',
-                summary: 'Prove that gjsify ship works',
-                description: 'A tiny GTK4 application used by the e2e suite.\n\nIt exists to prove the packer.',
-                developer: { id: 'org.example', name: 'Example Dev', email: 'dev@example.org' },
-                license: { project: 'MIT' },
-                homepageUrl: 'https://example.org/ship-demo',
-                categories: ['Utility'],
-                // A type of the project's OWN, so the packer has to DEFINE it and not merely
-                // claim to handle it. Claiming an undefined type installs cleanly and never fires.
-                mimeTypes: [
-                    {
-                        type: 'application/x-ship-demo',
-                        comment: 'Ship Demo document',
-                        globs: ['*.shipdemo'],
-                        genericIcon: 'text-x-generic',
-                    },
-                ],
-            },
-        },
-    };
-    if (mutate) mutate(pkg);
-
-    writeFileSync(join(dir, 'package.json'), `${JSON.stringify(pkg, null, 2)}\n`);
-    writeFileSync(join(dir, 'dist', 'gjs.js'), BUNDLE);
-    // A real build script, so the default path exercises the real
-    // `gjsify ship` → `gjsify run build` → script chain rather than a stub.
-    writeFileSync(
-        join(dir, 'build.mjs'),
-        [
-            "import { mkdirSync, writeFileSync } from 'node:fs';",
-            "mkdirSync('dist', { recursive: true });",
-            `writeFileSync('dist/gjs.js', ${JSON.stringify(BUNDLE)});`,
-            '',
-        ].join('\n'),
-    );
-    writeFileSync(join(dir, 'data', `${APP_ID}.gschema.xml`), '<schemalist/>\n');
-    writeFileSync(
-        join(dir, 'data', 'icons', 'hicolor', 'scalable', 'apps', `${APP_ID}.svg`),
-        '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"/>\n',
-    );
-    writeFileSync(join(dir, 'LICENSE'), 'MIT License\n\nPermission is hereby granted, free of charge…\n');
-    return dir;
-}

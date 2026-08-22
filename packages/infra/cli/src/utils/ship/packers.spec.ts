@@ -15,7 +15,13 @@ import { describe, expect, it } from '@gjsify/unit';
 import { buildDeb } from './deb.js';
 import { FORMATS } from './formats.js';
 import { buildRpm } from './rpm.js';
-import { assertPayloadMatchesArch, isArchIndependent, readBinaryArch, type PayloadEntry } from './payload.js';
+import {
+    assertPayloadMatchesArch,
+    isArchIndependent,
+    readBinaryArch,
+    readShebangInterpreters,
+    type PayloadEntry,
+} from './payload.js';
 import type { ShipSettings } from './types.js';
 
 const encoder = new TextEncoder();
@@ -173,6 +179,48 @@ export default async () => {
             });
             // Lead magic — the one field rpm validates before anything else.
             expect(Array.from(built.subarray(0, 4))).toStrictEqual([0xed, 0xab, 0xee, 0xdb]);
+        });
+    });
+
+    await describe('readShebangInterpreters', async () => {
+        // The defect this reads for: every `.rpm` this writer produced installed a
+        // `#!/bin/sh` launcher and required no shell. `rpmbuild` emits one
+        // `Requires` per executable shebang; nothing here did until the first real
+        // `rpm -qp --requires` ran against the artifact.
+        await it('reads the interpreter an executable actually asks for', () => {
+            expect(readShebangInterpreters(payload([['bin/hello', 0o755, '#!/bin/sh\nexec gjs\n']]))).toStrictEqual([
+                '/bin/sh',
+            ]);
+        });
+
+        await it('takes the interpreter, not the arguments after it', () => {
+            expect(
+                readShebangInterpreters(payload([['bin/hello', 0o755, '#!/usr/bin/env -S gjs -m\n']])),
+            ).toStrictEqual(['/usr/bin/env']);
+        });
+
+        // The GJS bundle case, and the reason the mode is read at all: it carries a
+        // shebang for the days it is run directly, but the installed package never
+        // executes it as a program — the launcher passes it to `gjs` as an argument.
+        await it('says nothing about a shebang in a file the package cannot execute', () => {
+            expect(
+                readShebangInterpreters(payload([['lib/hello/cli.gjs.mjs', 0o644, '#!/usr/bin/env -S gjs -m\n']])),
+            ).toStrictEqual([]);
+        });
+
+        await it('ignores a file whose first line is not a shebang at all', () => {
+            expect(readShebangInterpreters(payload([['bin/hello', 0o755, 'MZ\u0000\u0000binary\n']]))).toStrictEqual(
+                [],
+            );
+        });
+
+        await it('reports each interpreter once, in a stable order', () => {
+            const entries = payload([
+                ['bin/b', 0o755, '#!/usr/bin/perl\n'],
+                ['bin/a', 0o755, '#!/bin/sh\n'],
+                ['bin/c', 0o755, '#!/bin/sh\n'],
+            ]);
+            expect(readShebangInterpreters(entries)).toStrictEqual(['/bin/sh', '/usr/bin/perl']);
         });
     });
 

@@ -171,9 +171,11 @@ ship/
 # silent case above: both pages were written, `git status` showed nothing, and a
 # commit would have carried none of it.
 !website/src/content/docs/ship/
-# …and the e2e SUITE for that command. `run.mjs` predates the pattern and stayed
-# tracked, so `git add` on it still works and the collision looked harmless — but
-# it is the silent case again for anything NEW added beside it, which is a test
-# helper that gets lost rather than reviewed. Third instance of the same match, so
-# it is listed here rather than discovered a fourth time.
+# …and the e2e SUITE for that command — the THIRD instance of the same match, so it
+# is listed here rather than discovered a fourth time, and the first one that could
+# have broken a green tree: `run.mjs` predates the pattern and stayed tracked, so
+# the suite kept working, while a NEW file beside it is silently unaddable. That is
+# not hypothetical here — `fixture.mjs` is exactly such a file and both ship suites
+# import it, so a `git add -A` would have landed two suites that die at
+# ERR_MODULE_NOT_FOUND while every local run stayed green.
 !tests/e2e/ship/
