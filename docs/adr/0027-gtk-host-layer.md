@@ -95,6 +95,35 @@ gjsify owns a framework-agnostic GTK4/Adwaita host as a Tier-3 package,
    a selector engine to reach `insert` and `setProp`. It remains available as a
    later sibling *over* this host, priced on its own.
 
+9. **One vocabulary across every surface is a GOAL, recorded here so it is worked
+   towards rather than rediscovered.** The same widget names should describe the same
+   UI in native GTK4 (`GtkBox`, `AdwActionRow`), in Blueprint and the GtkBuilder XML
+   it compiles to, in TSX/JSX intrinsic elements, in a Vue template, and in the
+   `adw-*` custom elements of `@gjsify/adwaita-web`. New markup in any of them stays
+   as close to the others as that surface allows, and a divergence is written down
+   rather than absorbed.
+
+   **What this is not yet: a promise that one component tree renders natively and in
+   a browser.** ADR 0007 bought portability at the CONTROLLER layer because that was
+   what the surfaces allowed at the time — before any framework renderer existed. The
+   measured obstacle at the markup layer is in the web pillar: 42 of 51
+   `adwaita-web` element files re-home `[slot=]` children exactly once, in
+   `connectedCallback`, so a child appended afterwards is never adopted. A renderer
+   mutates its tree after mount by definition, so that is an upstream fix, not a
+   renderer workaround.
+
+   The criterion that would turn this goal into a decision: **the same authored tree,
+   rendered through this host and through `adwaita-web`, satisfies the same
+   `@gjsify/adwaita-core/conformance` vectors** — the behaviour contract ADR 0004
+   already defines — with no per-surface markup branch. Until then the generated
+   table (ADR 0028) is the alignment mechanism rather than the proof: one source
+   emits the type surface for each dialect, so a name can only diverge deliberately.
+
+   The longer horizon this points at — generating NativeScript and browser builds
+   from one native-authored source, now that several template engines are in play —
+   is **not decided here**. It becomes reachable only if the criterion above is met,
+   and it would need its own ADR.
+
 ## Consequences
 
 - One table serves every adapter, and its correctness is machine-checked against

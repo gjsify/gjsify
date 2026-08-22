@@ -4,6 +4,34 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `adwaita-web` adopts `[slot=]` children once, which blocks the shared-vocabulary goal
+
+ADR 0027 § 9 makes one widget vocabulary across native GTK, Blueprint/XML, TSX/JSX,
+Vue templates and this pillar's `adw-*` elements an explicit goal, and names the
+obstacle that lives here: **42 of 51 element files under
+`packages/web/adwaita-web/src/elements/` re-home their `[slot=]` children exactly
+once, in `connectedCallback`.** Only two adopt children appended later. A renderer
+mutates its tree after mount by definition — that is what a renderer is — so the
+same authored markup cannot drive both surfaces while that holds.
+
+Two pieces of work, in order:
+
+- **The fix is upstream, in this pillar, not in a renderer.** Slot adoption has to be
+  live: observe childList (or re-home on each connected child), so a child appended
+  after mount lands in the same place it would have at parse time. That is also
+  simply correct for hand-written HTML that appends.
+- **Then the alignment mechanism**, which is cheap once the generator (ADR 0028 § 6)
+  exists: assert that the three emitted surfaces — `JSX.IntrinsicElements`, the Vue
+  `GlobalComponents` interface, and the Blueprint/XML tag validator — name the same
+  widgets, and that every `adw-*` custom element maps to exactly one of them or is
+  listed as deliberately web-only. A name may then only diverge on purpose.
+
+The criterion that closes this out is in ADR 0027 § 9: the same authored tree,
+rendered through the GTK host and through `adwaita-web`, satisfies the same
+`@gjsify/adwaita-core/conformance` vectors with no per-surface markup branch. Until
+then the goal is a direction, not a claim — and the longer horizon it points at
+(NativeScript and browser builds from one native-authored source) needs its own ADR.
+
 ### `@gjsify/gtk-host`'s widget table is curated, and nothing yet stops a second one
 
 ADR 0028 decides the table is GENERATED from the GIR at build time and that

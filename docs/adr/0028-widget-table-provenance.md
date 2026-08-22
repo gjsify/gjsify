@@ -51,6 +51,19 @@ coercer and the verifier.**
    policy's arity must match the method it names. Mere existence let four broken
    shapes pass.
 
+6. **The generated surfaces are a published artifact, not an internal file.** One
+   table emits `JSX.IntrinsicElements` for TSX/JSX authoring, a Vue
+   `GlobalComponents` interface (what `vue-tsc`/Volar reads to type-check a `.vue`
+   template), and a tag/property validator usable against Blueprint and its
+   GtkBuilder XML — so a widget name cannot mean different things in different
+   dialects. This is the alignment mechanism ADR 0027 § 9 names.
+
+   It is consumable from outside this repository **on purpose**. Peachy and gtkx
+   already author GTK UIs in TSX and generate their own types; one GIR-derived
+   surface is worth more to the ecosystem than three private copies, and it costs
+   nothing to share — the generator's input is the GIR and the installed typelib,
+   not anything gjsify-specific.
+
 ## Consequences
 
 - The normal disagreement between table and runtime is **version skew** — a user's
