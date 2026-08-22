@@ -94,7 +94,37 @@ Page.adw-window {
     background-color: #ffffff;
     color: rgba(0, 0, 6, 0.8);
     border-radius: 12;
+}
+
+/* The padding is the ELEMENT's, not the class's, and both other renderers split them
+ * exactly here: libadwaita's `%card` recipe is background / foreground / radius / shadow
+ * and no padding (_misc.scss:197-236), and `@gjsify/adwaita-web` puts
+ * `padding: var(--spacing-l)` on `adw-card, .adw-card` alone (scss/_card.scss:16-23,
+ * `--spacing-l: 18px`). A bare `.card` is a surface you fill yourself. */
+.adw-card {
     padding: 18;
+}
+
+/* ===== Label utility classes ===== */
+
+/* `.dimmed` is the whole of libadwaita's `dim_label`: an opacity, applied wherever the
+ * class lands. This theme only had it as `.adw-shortcut-label .dimmed` below — a
+ * SCOPED rule for the separator inside a shortcut label — so a Label carrying `dimmed`
+ * anywhere else rendered at full strength. The storybook's shortcut-label story does
+ * exactly that (`shortcut-label.ns.ts:70`, a Label added to the GridLayout as a SIBLING
+ * of the AdwShortcutLabel), while its browser twin sets the same class and hits
+ * `@gjsify/adwaita-web`'s unscoped rule (scss/_labels.scss:48) — one renderer dimmed
+ * that column, the other did not.
+ *
+ * Opacity only, so there is no dark-scheme twin: `--dim-opacity: 55%`
+ * (_colors.scss:319) is the same number in both. The scoped rule below still adds the
+ * separator's size, colour and padding on top of it, at higher specificity.
+ *
+ * It is also the first of `_labels.scss`'s utility set to land here; the rest
+ * (`.title-1`…`.title-4`, `.accent`/`.success`/`.warning`, `.heading`, `.numeric`, …)
+ * is an open entry in status/open-todos.md. */
+.dimmed {
+    opacity: 0.55;
 }
 
 /* ===== Rows ===== */
