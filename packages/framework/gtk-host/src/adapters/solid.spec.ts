@@ -7,12 +7,13 @@
 // it. Only an update after the first render can tell the two apart, so every case
 // here renders, mutates, and asserts again.
 
-import { describe, expect, it, on } from '@gjsify/unit';
+import { expect, it, on } from '@gjsify/unit';
 
 import Gtk from 'gi://Gtk?version=4.0';
 import { createSignal } from 'solid-js';
 
 import { installDiagnosticsGate, gtkChildren, gtkChildTypes } from '../conformance/index.js';
+import { gated } from '../testing/gate.mjs';
 import { registerBuiltinWidgets } from '../descriptors/index.js';
 import { For, createComponent, createElement, effect, insert, insertNode, mount, setSolidProp } from './solid.js';
 
@@ -24,7 +25,7 @@ export default async () => {
         registerBuiltinWidgets();
         const diagnostics = installDiagnosticsGate();
 
-        await describe('solid-js/universal over the GTK host', async () => {
+        await gated(diagnostics, 'solid-js/universal over the GTK host', async () => {
             await it('renders a tree into a widget the application owns', async () => {
                 const container = new Gtk.Box();
                 const dispose = mount(() => {
@@ -38,7 +39,6 @@ export default async () => {
                 expect(gtkChildTypes(container)).toStrictEqual(['GtkBox']);
                 expect(labelsOf(gtkChildren(container)[0])).toStrictEqual(['hello']);
                 dispose();
-                diagnostics.assertQuiet();
             });
 
             await it('updates a property after the first render — the reactivity discriminator', async () => {
@@ -57,7 +57,6 @@ export default async () => {
                 // thing that can tell the two builds apart.
                 expect(labelsOf(container)).toStrictEqual(['second']);
                 dispose();
-                diagnostics.assertQuiet();
             });
 
             await it('reconciles a list, and a reorder reaches GTK', async () => {
@@ -82,7 +81,6 @@ export default async () => {
                 setItems(['b']);
                 expect(labelsOf(box)).toStrictEqual(['b']);
                 dispose();
-                diagnostics.assertQuiet();
             });
 
             await it('<For> keeps widget identity across a reorder', async () => {
@@ -186,7 +184,6 @@ export default async () => {
                     // Same widget objects: a keyed reorder that recreates widgets
                     // throws away focus, scroll position and every widget state.
                     expect(after.filter((w) => before.includes(w)).length).toBe(before.length);
-                    diagnostics.assertQuiet();
                 });
             }
 
@@ -221,7 +218,6 @@ export default async () => {
                 setRows(['R1', 'R0']);
                 expect(titles()).toStrictEqual(['R1', 'R0']);
                 dispose();
-                diagnostics.assertQuiet();
             });
 
             await it('mounts AFTER what the application already put in the container', async () => {
@@ -240,7 +236,6 @@ export default async () => {
                 }, container);
                 expect(labelsOf(container)).toStrictEqual(['app-owned', 'rendered']);
                 dispose();
-                diagnostics.assertQuiet();
             });
 
             await it('a dynamic list keeps its place among static siblings', async () => {
@@ -328,7 +323,6 @@ export default async () => {
                 expect(labelsOf(box)).toStrictEqual(['b']);
                 buttons[0].emit('clicked');
                 expect(fired).toBe(1); // its handler died with it
-                diagnostics.assertQuiet();
             });
 
             await it('a signal bound through the adapter fires, and unmount stops it', async () => {
@@ -352,7 +346,6 @@ export default async () => {
                 dispose();
                 button.emit('clicked');
                 expect(clicks).toBe(1);
-                diagnostics.assertQuiet();
             });
         });
     });

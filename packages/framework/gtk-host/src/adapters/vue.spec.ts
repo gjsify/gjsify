@@ -5,12 +5,13 @@
 // `RendererOptions` and Solid's universal renderer, the host is framework-agnostic
 // in fact and not just in the ADR.
 
-import { describe, expect, it, on } from '@gjsify/unit';
+import { expect, it, on } from '@gjsify/unit';
 
 import Gtk from 'gi://Gtk?version=4.0';
 import { defineComponent, h, ref, nextTick } from '@vue/runtime-core';
 
 import { gtkChildTypes, gtkChildren, installDiagnosticsGate } from '../conformance/index.js';
+import { gated } from '../testing/gate.mjs';
 import { registerBuiltinWidgets } from '../descriptors/index.js';
 import { mount } from './vue.js';
 
@@ -22,7 +23,7 @@ export default async () => {
         registerBuiltinWidgets();
         const diagnostics = installDiagnosticsGate();
 
-        await describe('@vue/runtime-core over the GTK host', async () => {
+        await gated(diagnostics, '@vue/runtime-core over the GTK host', async () => {
             await it('runs without a DOM at all', async () => {
                 // `@vue/runtime-core` is DOM-free in FACT: every `document`,
                 // `navigator`, `location` and `HTMLElement` reference in it sits in
@@ -50,7 +51,6 @@ export default async () => {
                 expect(gtkChildTypes(container)).toStrictEqual(['GtkBox']);
                 expect(labelsOf(gtkChildren(container)[0])).toStrictEqual(['hello']);
                 app.unmount();
-                diagnostics.assertQuiet();
             });
 
             await it('a reactive property reaches GTK after the first render', async () => {
@@ -62,7 +62,6 @@ export default async () => {
                 await nextTick();
                 expect(labelsOf(container)).toStrictEqual(['second']);
                 app.unmount();
-                diagnostics.assertQuiet();
             });
 
             await it('a v-if branch does not shift its siblings — anchors stay out of GTK', async () => {
@@ -90,7 +89,6 @@ export default async () => {
                 await nextTick();
                 expect(labelsOf(box)).toStrictEqual(['before', 'after']);
                 app.unmount();
-                diagnostics.assertQuiet();
             });
 
             await it('a keyed reorder moves the same widgets', async () => {
@@ -121,7 +119,6 @@ export default async () => {
                 const reused = after.filter((w) => before.includes(w)).length;
                 expect(reused).toBe(before.length);
                 app.unmount();
-                diagnostics.assertQuiet();
             });
 
             await it('reconciles into a container that can only append', async () => {
@@ -153,7 +150,6 @@ export default async () => {
                 await nextTick();
                 expect(titles()).toStrictEqual(['R1', 'R0']);
                 app.unmount();
-                diagnostics.assertQuiet();
             });
 
             await it('a prop that disappears is reset, not set to null', async () => {
@@ -174,7 +170,6 @@ export default async () => {
                 await nextTick();
                 expect(label.widthRequest).toBe(-1); // the ParamSpec default
                 app.unmount();
-                diagnostics.assertQuiet();
             });
 
             await it('unmount disconnects the handlers', async () => {
@@ -200,7 +195,6 @@ export default async () => {
                 // GJS blocks JS callbacks during GC, so a handler nobody
                 // disconnects fires for the life of the process.
                 expect(clicks).toBe(1);
-                diagnostics.assertQuiet();
             });
         });
     });
