@@ -74,6 +74,29 @@ Page.adw-window {
     margin: 0;
 }
 
+/* ===== Card (the documented `.card` style class) ===== */
+
+/* One surface, two spellings — the pattern `.boxed-list` above already uses.
+ * Upstream `.card` and the boxed list ARE the same recipe
+ * (stylesheet/widgets/_misc.scss:197-236); `@gjsify/adwaita-web` factors both out
+ * of a single `%card` placeholder, so this repeats the colours above rather than
+ * inventing a second card. `.adw-card` is the spelling a view copied from the
+ * browser twin carries, and it was styled by NOTHING here: a NativeScript view
+ * setting `className = 'adw-card'` rendered a transparent box with square corners.
+ *
+ * No box-shadow, no border: the NS CSS subset has neither, which is why
+ * `.boxed-list` has neither. The padding is the one thing the ELEMENT adds over
+ * the bare class in the browser port (`--spacing-l`, 18) — a bare `.card` in
+ * libadwaita deliberately has none, but every NS view reaching for this name is
+ * the element's analogue. */
+.card,
+.adw-card {
+    background-color: #ffffff;
+    color: rgba(0, 0, 6, 0.8);
+    border-radius: 12;
+    padding: 18;
+}
+
 /* ===== Rows ===== */
 
 .adw-row {
@@ -1528,6 +1551,12 @@ Page.ns-dark.adw-window {
  * (see the light `.adw-row` note) so the card's rounded corners show. */
 .ns-dark .boxed-list,
 .ns-dark .adw-preferences-group-listbox {
+    background-color: #34343a;
+    color: #ffffff;
+}
+
+.ns-dark .card,
+.ns-dark .adw-card {
     background-color: #34343a;
     color: #ffffff;
 }

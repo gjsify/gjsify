@@ -30,11 +30,31 @@
 // escape hatch, since a name is added to a list far more easily than a sentence
 // is written about it, and "unreviewed" is the state this file exists to end.
 //
+// THE SECOND INCIDENT, and why the showcase is in scope. The reader saw only the
+// PACKAGE's widget sources, so a class an APP sets went unchecked — and the
+// storybook showcase is an app. `carousel.ns.ts` builds every carousel page with
+// `className = 'adw-card …'` and nothing anywhere styled `.adw-card`, so three
+// pages that the browser twin draws as rounded white cards rendered as
+// transparent square boxes; `widgets.ns.ts` names `adw-action-buttons` on a
+// horizontal StackLayout whose browser twin carries `gap: 12px; margin: 6px 0`,
+// so its two buttons sat flush. Both were invisible here for the same reason the
+// keycap rename was invisible to the suite: nothing compared the two halves.
+//
+// SCOPES ARE PAIRED WITH WHAT LOADS THEM, because "styled" is not one question.
+// A consumer installs `@gjsify/adwaita-nativescript` and gets `theme/adwaita.css`
+// and nothing else, so a BRIDGE class satisfied by a showcase's own stylesheet
+// would be a rule that ships to nobody. A SHOWCASE class may be satisfied by any
+// of the three files its `app.css` imports. Hence {@link SCOPES}: same reader,
+// same ledger, different stylesheet set per source tree.
+//
 // SCOPE, AND WHY IT IS NARROW. Only the `adw-` namespace plus the handful of
 // unprefixed libadwaita names this port uses ({@link UNPREFIXED}). A bare-word
 // heuristic would sweep up every lowercase string in the tree; naming them is
 // reviewable, and a missing one shows up as a class nothing gates rather than as
-// a false failure.
+// a false failure. It is also why the unprefixed style classes the showcase's
+// carousel reaches for — `.title-1`, `.success`, `.warning` — are NOT held here
+// even though nothing styles them either; that gap is in `status/open-todos.md`
+// with its measurement.
 //
 // TEMPLATE LITERALS ARE READ TOO, interpolations blanked out first. `` `${b.className}
 // adw-entry-apply` `` is how a widget ADDS a class to an inherited list, the dominant
@@ -60,7 +80,31 @@ const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..
 
 const SRC = join(ROOT, 'packages/nativescript-bridge/adwaita/src');
 const THEME = join(SRC, 'theme/adwaita.css');
+const SHOWCASE = join(ROOT, 'showcases/dom/adwaita-storybook-nativescript');
 const LEDGER = join(ROOT, 'status/nativescript-theme-classes.json');
+
+/**
+ * Source tree → the stylesheets a view built from it can actually be styled by,
+ * and the file a missing rule belongs in.
+ *
+ * The showcase's three are exactly what its `app/app.css` imports: the bridge
+ * theme and the storybook chrome (both copied in by its `sync:theme` script,
+ * which is why they are read from the PACKAGES rather than from the gitignored
+ * copies) plus `app.css` itself.
+ */
+const SCOPES = [
+    { label: 'bridge widget', sources: SRC, stylesheets: [THEME], home: THEME },
+    {
+        label: 'showcase view',
+        sources: join(SHOWCASE, 'src'),
+        stylesheets: [
+            THEME,
+            join(ROOT, 'packages/nativescript-bridge/storybook/src/theme/storybook.css'),
+            join(SHOWCASE, 'app/app.css'),
+        ],
+        home: join(SHOWCASE, 'app/app.css'),
+    },
+];
 
 /** libadwaita's own unprefixed class names, which this port keeps verbatim. */
 const UNPREFIXED = new Set(['keycap', 'dimmed']);
@@ -70,7 +114,7 @@ const MIN_REASON = 40;
 
 const isTracked = (name) => name.startsWith('adw-') || UNPREFIXED.has(name);
 
-function widgetSources() {
+function widgetSources(root) {
     const found = [];
     const walk = (dir) => {
         for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -82,8 +126,17 @@ function widgetSources() {
             }
         }
     };
-    walk(SRC);
+    walk(root);
     return found;
+}
+
+/** Every `.name` a stylesheet selects on, across the set one scope may draw from. */
+function styledClasses(stylesheets) {
+    const styled = new Set();
+    for (const sheet of stylesheets) {
+        for (const match of readFileSync(sheet, 'utf8').matchAll(/\.([a-z][a-z0-9-]*)/g)) styled.add(match[1]);
+    }
+    return styled;
 }
 
 /** A literal holding one class, or several separated by spaces as NS holds them. */
@@ -124,11 +177,23 @@ function emittedClasses(files) {
     return emitted;
 }
 
-const theme = readFileSync(THEME, 'utf8');
-const styled = new Set([...theme.matchAll(/\.([a-z][a-z0-9-]*)/g)].map((match) => match[1]));
+/** Per scope: what it emits, and which of those names it can be styled by. */
+const scanned = SCOPES.map((scope) => {
+    const emitted = emittedClasses(widgetSources(scope.sources));
+    const styled = styledClasses(scope.stylesheets);
+    return { scope, emitted, unstyled: [...emitted.keys()].filter((name) => !styled.has(name)).sort() };
+});
 
-const emitted = emittedClasses(widgetSources());
-const unstyled = [...emitted.keys()].filter((name) => !styled.has(name)).sort();
+/** Union across scopes — the ratchet asks "does ANYTHING still emit this?". */
+const emitted = new Map();
+for (const { emitted: found } of scanned) {
+    for (const [name, files] of found) {
+        if (!emitted.has(name)) emitted.set(name, new Set());
+        for (const file of files) emitted.get(name).add(file);
+    }
+}
+/** Unstyled in ANY scope that emits it: one satisfied scope does not cover another. */
+const unstyled = [...new Set(scanned.flatMap((entry) => entry.unstyled))].sort();
 
 const ledger = JSON.parse(readFileSync(LEDGER, 'utf8'));
 const reviewed = ledger.reviewed ?? {};
@@ -136,9 +201,14 @@ const listed = new Set(Object.keys(reviewed));
 
 const failures = [];
 
-for (const name of unstyled) {
-    if (listed.has(name)) continue;
-    failures.push(`${name} — emitted by ${[...emitted.get(name)].join(', ')} and the theme has no \`.${name}\` rule.`);
+for (const { scope, emitted: found, unstyled: missing } of scanned) {
+    for (const name of missing) {
+        if (listed.has(name)) continue;
+        failures.push(
+            `${name} — emitted by ${scope.label} ${[...found.get(name)].join(', ')}, and none of ` +
+                `${scope.stylesheets.map((sheet) => relative(ROOT, sheet)).join(', ')} has a \`.${name}\` rule.`,
+        );
+    }
 }
 
 // The ratchet: a listed class that is now styled, or that nothing emits, has to
@@ -147,7 +217,7 @@ for (const name of unstyled) {
 for (const name of listed) {
     if (!emitted.has(name)) {
         failures.push(`${name} is listed, but no widget emits it any more — remove the entry.`);
-    } else if (styled.has(name)) {
+    } else if (!unstyled.includes(name)) {
         failures.push(`${name} is listed as unstyled, but the theme now styles it — remove the entry.`);
     } else if (typeof reviewed[name] !== 'string' || reviewed[name].trim().length < MIN_REASON) {
         // A placeholder entry is the unreviewed list again, one key at a time.
@@ -157,7 +227,8 @@ for (const name of listed) {
 }
 
 process.stdout.write(
-    `check-nativescript-theme-classes: ${emitted.size} classes emitted, ` +
+    `check-nativescript-theme-classes: ${emitted.size} classes emitted across ${SCOPES.length} scope(s) ` +
+        `(${scanned.map((entry) => `${entry.scope.label}: ${entry.emitted.size}`).join(', ')}), ` +
         `${emitted.size - unstyled.length} styled, ${Object.keys(reviewed).length} reviewed exemption(s).\n`,
 );
 
@@ -169,8 +240,8 @@ if (failures.length > 0) {
             `compares them — a rename leaves the suite green and the widget unstyled.\n` +
             `  If the class is a styling HOOK with no look of its own (the widget sets the property\n` +
             `  imperatively, or a parent selector carries the rule), add it to "reviewed" in\n` +
-            `  ${relative(ROOT, LEDGER)} with the reason. Otherwise give it a rule in\n` +
-            `  ${relative(ROOT, THEME)}.\n`,
+            `  ${relative(ROOT, LEDGER)} with the reason. Otherwise give it a rule in the\n` +
+            `  stylesheet its scope names above — ${SCOPES.map((scope) => relative(ROOT, scope.home)).join(' or ')}.\n`,
     );
     process.exit(1);
 }
