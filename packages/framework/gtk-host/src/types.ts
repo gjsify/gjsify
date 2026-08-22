@@ -77,6 +77,8 @@ export interface HostElement extends HostNodeBase {
      * criticals per replay, at exit 0.
      */
     attached: boolean;
+    /** True once `destroy` has torn this element down. It never comes back. */
+    destroyed: boolean;
     /**
      * Children this element already had before the host adopted it.
      *

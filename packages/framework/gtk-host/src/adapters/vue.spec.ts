@@ -156,6 +156,27 @@ export default async () => {
                 diagnostics.assertQuiet();
             });
 
+            await it('a prop that disappears is reset, not set to null', async () => {
+                // Vue signals removal with `null`, not `undefined`. That reached
+                // `set_property` verbatim — a throw for an int property — and
+                // `el.props` had already recorded it for the next rebuild.
+                const container = new Gtk.Box();
+                const wide = ref(true);
+                const app = mount(
+                    defineComponent({
+                        render: () => h('GtkLabel', wide.value ? { label: 'x', widthRequest: 120 } : { label: 'x' }),
+                    }),
+                    container,
+                );
+                const label = gtkChildren(container)[0] as Gtk.Label;
+                expect(label.widthRequest).toBe(120);
+                wide.value = false;
+                await nextTick();
+                expect(label.widthRequest).toBe(-1); // the ParamSpec default
+                app.unmount();
+                diagnostics.assertQuiet();
+            });
+
             await it('unmount disconnects the handlers', async () => {
                 const container = new Gtk.Box();
                 let clicks = 0;

@@ -7,6 +7,7 @@ export {
     createText,
     clearContainer,
     destroy,
+    disconnectHandlers,
     firstChild,
     insert,
     isText,

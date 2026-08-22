@@ -39,6 +39,7 @@ export function createElement(tag: string, props?: Record<string, unknown>): Hos
         layout: null,
         textFromChildren: false,
         attached: false,
+        destroyed: false,
         foreign: [],
     };
     if (props) {
@@ -466,7 +467,15 @@ function attach(parent: HostElement, child: HostElement): void {
     // Index arithmetic rather than `.at(-1)`: this package targets es2020 and
     // `Array.prototype.at` is es2022. `gjsify tsc --noEmit` let it through on a
     // stale tsbuildinfo; the full build did not.
-    const priorChildren = parent.foreign;
+    // Filter the snapshot to what is STILL a child. `foreign` is taken once in
+    // `adopt`, and an application may add or remove its own widgets afterwards —
+    // `insert_child_after` then asserts on a sibling that has left the container
+    // (a critical at exit 0) while the shadow tree records the insertion as
+    // attached, i.e. claims GTK took a widget it refused.
+    const priorChildren =
+        parent.foreign.length > 0
+            ? parent.foreign.filter((w) => (w as unknown as { get_parent(): unknown }).get_parent() === parent.widget)
+            : parent.foreign;
     let prevWidget: Gtk.Widget | null = priorChildren.length > 0 ? priorChildren[priorChildren.length - 1] : null;
     let index = priorChildren.length;
     for (let n = parent.first; n && n !== child; n = n.next) {
@@ -551,6 +560,24 @@ export function clearContainer(parent: HostElement): void {
 }
 
 /**
+ * Disconnect a node's handlers WITHOUT touching the tree.
+ *
+ * The narrow half of `destroy`, and it exists because a framework can tell us "this
+ * node is gone" while still holding its sibling links: Solid disposes a per-node
+ * scope BEFORE its reconciler runs, and `reconcileArrays` opens with
+ * `getNextSibling(last)`. Unlinking there made every trailing insertion append at
+ * the end of the parent instead of before the marker.
+ *
+ * The leak this closes is about handlers, not links — GJS blocks JS callbacks
+ * during GC, so an undisconnected handler outlives its widget. The framework's own
+ * `removeNode` still does the unlinking, in its own order.
+ */
+export function disconnectHandlers(el: HostElement): void {
+    clearHandlers(el);
+    el.listeners.clear();
+}
+
+/**
  * Tear a subtree down: disconnect every handler, unparent, drop the reference.
  *
  * It is eager and it is the only place a handler dies. GJS blocks JS callbacks
@@ -585,6 +612,7 @@ export function destroy(node: HostNode): void {
         node.props = {};
         node.layout = null;
         node.textFromChildren = false;
+        node.destroyed = true;
     }
 }
 
@@ -633,6 +661,7 @@ export function adopt(container: Gtk.Widget): HostElement {
         layout: null,
         textFromChildren: false,
         attached: true,
+        destroyed: false,
         // The children the application put there. Placement offsets past them.
         foreign: directChildren(container),
     };

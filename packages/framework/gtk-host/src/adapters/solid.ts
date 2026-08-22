@@ -20,6 +20,7 @@ import {
     createElement as hostCreateElement,
     createText,
     destroy,
+    disconnectHandlers,
     firstChild,
     insert as hostInsert,
     isText,
@@ -35,16 +36,21 @@ import type { HostElement, HostNode, HostText } from '../types.js';
 const renderer = createRenderer<HostNode>({
     createElement: (tag: string) => {
         const el = hostCreateElement(tag);
-        // THE unmount signal. `removeNode` cannot be it — Solid uses one op for a
-        // move and for an unmount, and `<For>` moves the same nodes (measured).
-        // Solid's per-node reactive scope makes exactly that distinction: it
-        // SURVIVES a reorder and disposes when the node is genuinely gone.
+        // THE unmount signal for HANDLERS, and nothing more. `removeNode` cannot be
+        // it — Solid uses one op for a move and for an unmount, and `<For>` moves
+        // the same nodes (measured). Solid's per-node scope makes that distinction:
+        // it survives a reorder and disposes when the node is genuinely gone, so a
+        // node dropped by reconciliation — unreachable from the root afterwards —
+        // still gets its handlers disconnected. GJS blocks JS callbacks during GC,
+        // so nothing else would.
         //
-        // Without this, a node dropped by reconciliation is unreachable from the
-        // root, so no later teardown can find it — and GJS blocks JS callbacks
-        // during GC, so its handlers stay connected for the life of the process. A
-        // churning list accumulated live widgets and live closures.
-        onCleanup(() => destroy(el));
+        // It must NOT unlink. Solid disposes these scopes BEFORE `insertExpression`
+        // runs, and `reconcileArrays` opens with `getNextSibling(a[aEnd - 1])` — on
+        // an already-unlinked node that reads null, and every trailing insertion
+        // then appends at the end of the parent instead of before the marker. Found
+        // by review with the real reconciler: `['a','b'] -> ['c']` in a box with a
+        // trailing sibling rendered `head | foot | c`.
+        onCleanup(() => disconnectHandlers(el));
         return el;
     },
 
@@ -191,10 +197,10 @@ export const Show = SolidShow as unknown as {
 export function widgetOf(node: HostNode): Gtk.Widget {
     if (node.kind !== 'element') throw new Error('only an element node has a widget');
     // `materialize` would happily build a fresh, propertyless, unparented widget
-    // for a node that was destroyed — which is the "destroyed element looks
-    // re-materialisable" trap the host's own `destroy` warns about.
-    if (node.widget === null && !node.attached && Object.keys(node.props).length === 0) {
-        throw new Error('this node was destroyed; its widget is gone');
-    }
+    // for a node that was destroyed — the "destroyed element looks
+    // re-materialisable" trap the host's own `destroy` warns about. The flag is
+    // exact; the obvious heuristic (no widget, not attached, no props) also
+    // describes a brand-new element and misdiagnosed it.
+    if (node.destroyed) throw new Error('this node was destroyed; its widget is gone');
     return materialize(node) as unknown as Gtk.Widget;
 }

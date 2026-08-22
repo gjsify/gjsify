@@ -87,7 +87,13 @@ const renderer = createRenderer<HostNode, HostElement>({
 
     patchProp: (el, key, prevValue, nextValue) => {
         if (RESERVED.has(key)) return;
-        setProp(el, key, nextValue, prevValue);
+        // Vue signals "this prop is gone" with `null`, not `undefined`: `patchProps`
+        // calls `hostPatchProp(el, key, oldProps[key], null)` for every key that
+        // disappeared. The host's contract is `undefined` → the ParamSpec default,
+        // and `null` reached `set_property` verbatim — which for a `gint` property
+        // throws, after `el.props` had already recorded the null for the next
+        // rebuild to replay.
+        setProp(el, key, nextValue === null ? undefined : nextValue, prevValue);
     },
 
     insert: (el, parent, anchor) => hostInsert(el, parent, anchor ?? null),
@@ -109,13 +115,22 @@ const renderer = createRenderer<HostNode, HostElement>({
 
     // --- optional, and honest about it ---------------------------------------
 
-    // `<Teleport to="#id">` with a STRING target. Declared and deliberately
-    // answering null: GTK could in principle be searched by `Gtk.Widget:name`, but
-    // that needs a registry of mounted roots and no consumer needs it yet. Null is
-    // the honest answer — Vue warns and renders in place. Omitting the option
-    // entirely would make Vue throw instead, which is worse for a feature nobody
-    // is using.
-    querySelector: () => null,
+    // `<Teleport to="#id">` with a STRING target. Returning null here does NOT
+    // produce a warning a user would see: `TeleportImpl.process` mounts nothing
+    // when the target is falsy, and the warn is `__DEV__`-only — which the build
+    // recipe this adapter mandates (`NODE_ENV="production"`) strips. So a string
+    // target would render NOTHING, silently, in exactly the configuration the
+    // README prescribes. Same rule as `cloneNode` two lines down: throw rather
+    // than lie. Resolving a name would need a registry of mounted roots; when a
+    // consumer needs it, that is the work.
+    querySelector: (selector) => {
+        throw new Error(
+            `@gjsify/gtk-host/vue: <Teleport to="${selector}"> needs a string target resolved against a ` +
+                `widget tree, which this adapter does not implement yet. Pass the target widget itself ` +
+                `(<Teleport :to="el">), or the teleport would render nothing at all under the production ` +
+                `defines this adapter requires.`,
+        );
+    },
 
     // `<style scoped>` compiles to an attribute selector, which GTK4 CSS does not
     // have. The scope id becomes a style class instead; the SFC pipeline has to

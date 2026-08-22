@@ -166,11 +166,15 @@ Three things the adapter has to know that the contract does not say:
   reconciliation move and for an unmount, and `<For>` moves the same nodes across a
   reorder (measured: 3 of 3 widget objects reused). Destroying there would recreate
   every row on every reorder.
-- **The unmount signal is Solid's per-node scope, not `removeNode`.** A node
-  dropped by reconciliation is unreachable from the root, so no later teardown can
-  find it — and GJS blocks JS callbacks during GC, so its handlers would stay
-  connected for the life of the process. `onCleanup` in `createElement` fires
-  exactly when a node is gone for good, and survives a reorder.
+- **The unmount signal is Solid's per-node scope, not `removeNode`** — but it may
+  only disconnect HANDLERS, never unlink. A node dropped by reconciliation is
+  unreachable from the root, so no later teardown can find its handlers, and GJS
+  blocks JS callbacks during GC. `onCleanup` fires exactly when a node is gone for
+  good and survives a reorder. Unlinking there breaks ordering, though: Solid
+  disposes these scopes BEFORE `insertExpression` runs, and `reconcileArrays` opens
+  with `getNextSibling(last)` — on an unlinked node that reads null, and every
+  trailing insertion appends at the end of the parent instead of before the marker.
+  A dynamic list with a static sibling after it rendered `head | foot | c`.
 - **`solid-js/universal`'s `render` returns the disposer and nothing else** — the
   DOM renderer additionally clears its container, the universal one has no
   equivalent, so disposing tears down the reactive scopes and leaves the widgets
@@ -208,6 +212,15 @@ Where Vue differs from Solid, and it is all in what Vue asks for:
   and the second one takes an HTML *string*. Compile with `hoistStatic: false` and
   `transformHoist: null`; if that is ever lost, these throw at the first static
   subtree instead of rendering something wrong.
+- **`<Teleport to="#id">` with a string target throws.** Answering null looks
+  gentler and is worse: `TeleportImpl` mounts nothing for a falsy target and the
+  warning is `__DEV__`-only, which the production defines below strip — so it would
+  render nothing, silently, in exactly the configuration this adapter prescribes.
+  Pass the target widget instead (`:to="el"`).
+- **A prop that disappears is reset, not nulled.** Vue signals removal with `null`;
+  the host's contract is `undefined` → the ParamSpec default. Forwarding the `null`
+  reached `set_property` verbatim, which throws for an int property — and
+  `el.props` had already recorded it for the next rebuild to replay.
 
 **Build recipe.** `@vue/runtime-core` is DOM-free in fact — every `document`,
 `navigator`, `location` and `HTMLElement` reference sits in a dev/HMR/devtools

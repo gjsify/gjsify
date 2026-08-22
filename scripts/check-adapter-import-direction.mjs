@@ -37,7 +37,12 @@ const PLACEMENT = new RegExp(
 );
 
 /** The table and the placement engine are the host's internals. */
-const FORBIDDEN_IMPORT = /from\s+'\.\.\/(descriptors|policies|registry)(\/index)?\.js'/;
+// All quote forms AND all import spellings. The widget-name pattern above was
+// widened for exactly this reason and this line was left behind — a
+// double-quoted `from "../descriptors/index.js"`, a side-effect `import
+// '../registry.js'` and an `await import(...)` all passed. Found by review.
+const FORBIDDEN_IMPORT =
+    /(?:from\s*|import\s*\(?\s*)['"`]\.\.\/(?:descriptors|policies|registry)(?:\/index)?\.js['"`]/;
 
 if (!existsSync(DIR)) {
     console.error(`check-adapter-import-direction: ${DIR} does not exist.`);
@@ -62,7 +67,14 @@ for (const file of files) {
     const lines = readFileSync(path, 'utf8').split('\n');
     lines.forEach((line, i) => {
         // Prose may name a widget or a method; code may not.
-        const code = line.replace(/\/\/.*$/, '').replace(/^\s*\*.*$/, '');
+        // Prose may name a widget or a method; code may not. Strip `//`, a JSDoc
+        // continuation line, AND a single-line `/** … */` — widening the widget
+        // pattern to backticks and double quotes made a one-line doc comment
+        // mentioning `GtkLabel` fail the check.
+        const code = line
+            .replace(/\/\*\*?.*?\*\//g, '')
+            .replace(/\/\/.*$/, '')
+            .replace(/^\s*\*.*$/, '');
         const at = `${path}:${i + 1}`;
         if (WIDGET_NAME.test(code)) {
             problems.push(`${at}  names a widget type: ${code.trim()}`);

@@ -177,6 +177,51 @@ export default async () => {
                 diagnostics.assertQuiet();
             });
 
+            await it('a dynamic list keeps its place among static siblings', async () => {
+                // The shape every other vector here avoided: the dynamic expression
+                // is NOT the only child, so Solid inserts before a marker and
+                // `reconcileArrays` reads `getNextSibling` off the last old node.
+                // A cleanup that unlinked made every trailing insertion append at
+                // the end instead — `head | foot | c` rather than `head | c | foot`.
+                const container = new Gtk.Box();
+                const [items, setItems] = createSignal(['a', 'b']);
+                mount(() => {
+                    const box = createElement('GtkBox');
+                    const head = createElement('GtkLabel');
+                    setSolidProp(head, 'label', 'head');
+                    const foot = createElement('GtkLabel');
+                    setSolidProp(foot, 'label', 'foot');
+                    insertNode(box, head);
+                    insertNode(box, foot);
+                    insert(
+                        box,
+                        createComponent(For, {
+                            get each() {
+                                return items();
+                            },
+                            children: (t: string) => {
+                                const label = createElement('GtkLabel');
+                                setSolidProp(label, 'label', t);
+                                return label;
+                            },
+                        }),
+                        foot,
+                    );
+                    return box;
+                }, container);
+
+                const box = gtkChildren(container)[0];
+                expect(labelsOf(box)).toStrictEqual(['head', 'a', 'b', 'foot']);
+
+                // replacing EVERY item is the case with no survivors, which is where
+                // the sibling read happens
+                setItems(['c']);
+                expect(labelsOf(box)).toStrictEqual(['head', 'c', 'foot']);
+
+                setItems(['x', 'y']);
+                expect(labelsOf(box)).toStrictEqual(['head', 'x', 'y', 'foot']);
+            });
+
             await it('a row dropped by reconciliation is torn down, not just detached', async () => {
                 // `mount`'s teardown can only reach what is still attached, so a node
                 // removed by an earlier reconciliation would keep its handlers for
