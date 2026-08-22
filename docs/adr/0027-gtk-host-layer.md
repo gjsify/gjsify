@@ -55,20 +55,30 @@ gjsify owns a framework-agnostic GTK4/Adwaita host as a Tier-3 package,
 
 1. **A shadow node tree.** `parent`/`first`/`next` are the host's own links, never
    `Gtk.Widget.get_parent()`/`get_first_child()`. Text nodes and anchors own no
-   widget, so the GTK tree cannot answer navigation questions about them.
+   widget, so the GTK tree cannot answer navigation questions about them. A node
+   also carries `attached`, the separate fact of whether GTK has taken it — every
+   framework materialises bottom-up, so owning a widget and being in the tree are
+   different questions, and conflating them made the replay touch non-children.
 2. **Anchors never enter the GTK tree.** Vue's `createComment` and every
    `v-if`/`<Show>` boundary become anchor nodes; insertion resolves forward past
    them to the next node that owns a widget. An empty branch therefore cannot
    shift a sibling's index — the structural bug that stalled `gnome-vue`.
-3. **Child placement is data, dispatched by `GObject.type_is_a`.** Seven policy
+3. **Child placement is data, dispatched on the policy's own `kind`.** Seven policy
    kinds — `none`, `single`, `ordered`, `indexed`, `slotted`, `keyed`, `coords` —
-   each naming the methods it calls. A container that cannot reorder in place
-   declares `reorder: 'remove-all'` and pays a tail re-append; the degradation is
-   declared, never discovered in an app. (`Adw.PreferencesGroup` has `add`/`remove`
-   and no `insert` — measured.)
-4. **Values are coerced against the installed GTK's `GParamSpec`,** and the three
-   silent failures are refused loudly: unknown property, read-only property, and a
-   string nick for an enum.
+   each naming the methods it calls. (Descriptor lookup is by exact GType name;
+   only `mountRoot` walks the hierarchy, through `nearestRegistered`.) A container
+   that can only append pays a tail rotation, and `reorderMode()` says so rather
+   than claiming a cheap move exists: measured, `Adw.PreferencesGroup.insert`,
+   `Gtk.Stack.reorder_child_after` and `Adw.HeaderBar.reorder_child_after` are all
+   `undefined`, while the near-identical `Adw.PreferencesPage.insert` is not. The
+   rotation appends the new child FIRST — detaching the tail before an append that
+   can throw destroyed already-rendered siblings.
+4. **Values are coerced against the installed GTK's `GParamSpec`,** and every
+   silent failure is refused by name — thirteen codes today. A string enum nick
+   that resolves is APPLIED; one that does not is `bad-enum`. `bad-boolean` and
+   `bad-flags` refuse the two other types GObject mis-stores silently
+   (`Boolean('false')` is TRUE). A signal name is checked against the CLASS, so a
+   typo does not wait for a widget to exist.
 5. **Construct-only changes rebuild.** The widget is replaced, its position,
    properties and listeners preserved — the move react-three-fiber makes for `args`.
    A construct-only property cannot be patched, and pretending otherwise is a
@@ -98,7 +108,8 @@ gjsify owns a framework-agnostic GTK4/Adwaita host as a Tier-3 package,
 - ADR 0009 § 2 ("never a wrapper that conceals the toolkit") is deliberately
   inverted here and bounded by escape hatches that stay testable: raw GType tags,
   `on:<raw-signal-name>`, direct widget access, and `mountRoot` into an
-  application-owned shell.
+  application-owned shell — which appends AFTER what the application already put
+  there, rather than at position 0.
 - Adapters share one package version. A framework contract break can force a
   version that other adapters' consumers take along; the alternative — one npm
   name per adapter — costs a manual `gjsify onboard` bootstrap each, whose
@@ -107,6 +118,9 @@ gjsify owns a framework-agnostic GTK4/Adwaita host as a Tier-3 package,
 ## Implementation
 
 `packages/framework/gtk-host/`, with `./conformance` exporting the table check and
-the GTK-tree readers so every adapter runs the same vectors. Follow-up work
-(generated table, per-framework adapters, DOM facade) is tracked in
-`status/open-todos.md`.
+the GTK-tree readers so every adapter runs the same vectors — and
+`installDiagnosticsGate()`, because GTK's failure mode is exit 0 and a suite that
+never looks at stderr cannot see a mis-parented tree at all. Follow-up work on the
+table — the generator, and the import-direction check that lands with the first
+adapter — is tracked in `status/open-todos.md`. The per-framework adapters and the
+DOM facade are decided here and not yet scheduled.

@@ -8,11 +8,14 @@
 // Solid's universal renderer have everything they need — they add reconciliation,
 // not GTK knowledge.
 //
-// SELF-VERIFYING: with `GJSIFY_HOST_PROBE=1` the app builds the same tree, asserts
-// it against the REAL widget tree (`get_first_child`/`get_next_sibling`, never the
-// host's own bookkeeping), prints `PROBE: PASS <json>` and exits 0 — or `PROBE: FAIL`
-// and exits 1. That is the machine-checkable proof for this milestone; the
-// interactive window is the human one.
+// SELF-VERIFYING, in BOTH modes. With `GJSIFY_HOST_PROBE=1` the app builds the tree
+// headlessly, asserts it against the REAL widget tree (`get_first_child`/
+// `get_next_sibling`, never the host's own bookkeeping), prints `PROBE: PASS <json>`
+// and exits 0 — or `PROBE: FAIL` and exits 1. The SAME assertions run on `activate`
+// before the window is shown, so `showcase-smoke` (which only launches and waits)
+// carries them; without that the CI leg would prove nothing beyond "it started".
+// Both modes count every GLib warning-or-worse, because a mis-parented GTK tree
+// still exits 0.
 
 import Adw from 'gi://Adw?version=1';
 import GLib from 'gi://GLib?version=2.0';

@@ -15,7 +15,7 @@ second truth that drifts. **Read this file, then the one for what you are touchi
 | `packages/node/*` — Node API pillar, CJS-ESM interop | [packages/node](packages/node/AGENTS.md) |
 | `packages/web/*` — Web API pillar | [packages/web](packages/web/AGENTS.md) |
 | `packages/dom/*` — DOM pillar | [packages/dom](packages/dom/AGENTS.md) |
-| `packages/framework/*` — storybook, devtools, bridges, ADR 0012 registration | [packages/framework](packages/framework/AGENTS.md) |
+| `packages/framework/*` — GTK host, storybook, devtools, bridges, ADR 0012 registration | [packages/framework](packages/framework/AGENTS.md) |
 | the CLI + the GJS bootstrap bundles | [packages/infra/cli](packages/infra/cli/AGENTS.md) |
 | the build (`--app <target>`, platform plugins) | [packages/infra/rolldown-plugin-gjsify](packages/infra/rolldown-plugin-gjsify/AGENTS.md) |
 | slot routing (`@gjsify/<X>` → platform entry) | [packages/infra/resolve-npm](packages/infra/resolve-npm/AGENTS.md) |

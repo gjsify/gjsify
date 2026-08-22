@@ -44,8 +44,12 @@ coercer and the verifier.**
    question it answers, and it is why a string enum nick can be rejected by name
    instead of silently dropped.
 5. The table is checked against the installed typelib on demand
-   (`descriptorProblems()`): every method and text sink a descriptor names must
-   exist on that GType.
+   (`descriptorProblems()`), and it checks the CLAIMS, not only the names: a text
+   sink must be writable and a string (a non-string one accepts the write and
+   drops it, at exit 0), a `single` policy's derived getter must exist,
+   `reorder: 'native'` must have an `after` method to back it, and a `keyed`
+   policy's arity must match the method it names. Mere existence let four broken
+   shapes pass.
 
 ## Consequences
 
@@ -55,9 +59,11 @@ coercer and the verifier.**
   node-gi.
 - ADR 0019 (`ts-for-gir` as a library) is **not** on the critical path: the
   subprocess form is enough, and six precedents for it exist in the repo.
-- A consumer's own `GObject.registerClass` subclass is not in the table. It
-  resolves through `nearestRegistered()`, which walks the real type hierarchy, so
-  it inherits its ancestor's placement rules rather than failing.
+- A consumer's own `GObject.registerClass` subclass is not in the table. As a
+  MOUNT CONTAINER it resolves through `nearestRegistered()`, which walks the real
+  type hierarchy, so it inherits its ancestor's placement rules rather than
+  failing. As a TAG it does not: `createElement` looks the GType name up exactly
+  and raises `unknown-tag` until the subclass is registered with `registerWidget()`.
 - Hand-maintaining the table is ruled out explicitly. It is what stalled
   `react-gtk`, `react-native-gtk4` and `svelte-gjs`; the curated surface is kept
   deliberately small so it cannot grow back into one.
