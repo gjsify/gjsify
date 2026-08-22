@@ -589,28 +589,7 @@ export function destroy(node: HostNode): void {
  */
 export function mountRoot(el: HostElement, container: Gtk.Widget): void {
     materialize(el);
-    const gtype = (container as unknown as { constructor: { $gtype: GObject.GType } }).constructor.$gtype;
-    const descriptor = nearestRegistered(gtype);
-    if (!descriptor) throw err.unknownTag(gtypeNameOf(container));
-
-    const parent: HostElement = {
-        kind: 'element',
-        descriptor,
-        widget: container as unknown as GObject.Object,
-        wrapper: null,
-        slot: null,
-        parent: null,
-        prev: null,
-        next: null,
-        first: null,
-        last: null,
-        handlers: new Map(),
-        listeners: new Map(),
-        props: {},
-        layout: null,
-        textFromChildren: false,
-        attached: true,
-    };
+    const parent = adopt(container);
     // The container may already hold children the application put there. The
     // synthetic parent's shadow tree is empty, so ordinary placement computes
     // "first" and `insert_child_after(w, null)` puts the host tree BEFORE them.
@@ -631,6 +610,38 @@ export function mountRoot(el: HostElement, container: Gtk.Widget): void {
         unlink(el);
         throw e;
     }
+}
+
+/**
+ * Wrap a widget the application owns as a host element.
+ *
+ * The seam every framework adapter needs: a renderer mounts into a container it
+ * did not create. The descriptor comes from the SAME table as every other parent,
+ * through `nearestRegistered`, so an application's own `GObject.registerClass`
+ * subclass inherits its ancestor's placement rules instead of failing.
+ */
+export function adopt(container: Gtk.Widget): HostElement {
+    const gtype = (container as unknown as { constructor: { $gtype: GObject.GType } }).constructor.$gtype;
+    const descriptor = nearestRegistered(gtype);
+    if (!descriptor) throw err.unknownTag(gtypeNameOf(container));
+    return {
+        kind: 'element',
+        descriptor,
+        widget: container as unknown as GObject.Object,
+        wrapper: null,
+        slot: null,
+        parent: null,
+        prev: null,
+        next: null,
+        first: null,
+        last: null,
+        handlers: new Map(),
+        listeners: new Map(),
+        props: {},
+        layout: null,
+        textFromChildren: false,
+        attached: true,
+    };
 }
 
 /** Direct GTK children of a widget — what the container already holds. */

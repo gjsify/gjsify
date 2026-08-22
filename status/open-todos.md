@@ -41,21 +41,21 @@ is the curated half: 26 descriptors for GTK4 + libadwaita under
 `descriptorProblems()` — every method and text sink a descriptor names must exist
 on that GType.
 
-Two mechanisms named in ADR 0027/0028 do NOT exist yet, and both are deliberately
-absent rather than stubbed:
+One mechanism named in ADR 0028 does NOT exist yet, and it is deliberately absent
+rather than stubbed:
 
 - **The generator** (`gen-descriptors.mjs`) and its four gates: every `gtype`
   present in the GIR; curated may ADD to a descriptor, never contradict it; every
   method a policy names exists on that GType; no vacuous descriptor. Until it
   lands, a widget missing from the table is a `GtkHostError: unknown-tag` at
   render time rather than a build error.
-- **The import-direction check** that makes "no adapter carries a widget name
-  literal or an insertion rule" mechanical. It lands with the FIRST adapter: a
-  scan with nothing to scan reports green while proving nothing, which is the
-  failure class this repo pays most for. Until then the rule is held by review.
 
-Neither blocks the host itself — the placement vectors assert against the real
-GTK tree today — but both block calling the table trustworthy at scale.
+It does not block the host itself — the placement vectors assert against the real
+GTK tree today — but it blocks calling the table trustworthy at scale.
+
+(The import-direction check that ADR 0027 § 7 needs is no longer pending: it
+landed with the Solid adapter as `scripts/check-adapter-import-direction.mjs`,
+runs in the audit job, and refuses to run on an empty adapter set.)
 ### Nothing runs `build:infra` on a cold tree with no `node`
 
 The bootstrap ADR 0002 documents — `gjs -m install.mjs` → `gjsify install

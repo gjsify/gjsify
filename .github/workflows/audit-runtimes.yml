@@ -288,6 +288,15 @@ jobs:
       - name: Check the ADR index lists every ADR
         run: node scripts/check-adr-index.mjs
 
+      # ADR 0027 § 7 decides a framework adapter is a mapping and nothing else —
+      # the widget vocabulary and every insertion rule live in ONE descriptor
+      # table, because hand-maintained per-framework tables are what stalled
+      # react-gtk, react-native-gtk4 and svelte-gjs. The check deliberately did
+      # not ship with the host: with no adapter to scan it would have reported
+      # green and verified nothing, so it refuses to run on an empty set.
+      - name: Check the framework adapters carry no widget knowledge
+        run: node scripts/check-adapter-import-direction.mjs
+
       # `$adw-components` in adwaita-web's `_reset.scss` is a hand-written copy of every
       # `customElements.define('adw-…')` call, and it is what applies the ADR 0010
       # style-isolation floor. A tag missing from it renders in the host page's font and

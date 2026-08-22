@@ -136,5 +136,36 @@ the readers every vector asserts through:
   tree. A renderer that asserts against its own bookkeeping agrees with itself
   while the window is wrong.
 
-Adapters will run the same vectors, so "it works in Vue" and "it works in Solid"
-will mean the same thing. None is written yet — see `status/open-todos.md`.
+## Adapters
+
+`@gjsify/gtk-host/solid` is the first, and it is the thesis made checkable: Solid
+publishes a ten-method renderer contract, every one of them is a host op, and the
+adapter is the mapping — no widget name, no insertion rule, no GTK knowledge.
+`scripts/check-adapter-import-direction.mjs` holds it to that mechanically.
+
+```ts
+import { For, createElement, insert, mount, setSolidProp } from '@gjsify/gtk-host/solid';
+
+const dispose = mount(() => {
+    const box = createElement('GtkBox');
+    insert(box, createComponent(For, { get each() { return items(); }, children: renderRow }));
+    return box;
+}, myWindow);
+```
+
+Two things the adapter has to know that the contract does not say:
+
+- **`removeNode` is a detach, never a teardown.** Solid uses one op for a
+  reconciliation move and for an unmount, and `<For>` moves the same nodes across a
+  reorder (measured: 3 of 3 widget objects reused). Destroying there would recreate
+  every row on every reorder.
+- **`solid-js/universal`'s `render` returns the disposer and nothing else** — the
+  DOM renderer additionally clears its container, the universal one has no
+  equivalent, so disposing tears down the reactive scopes and leaves the widgets
+  mounted (measured: a button kept firing). Tearing the subtree down is `mount`'s job.
+
+Solid's control-flow components (`For`, `Index`, `Show`) are re-exported re-typed:
+their runtime is renderer-agnostic, their types are pinned to the DOM's `Element`.
+
+Vue and React adapters will run the same vectors, so "it works in Vue" and "it
+works in Solid" will mean the same thing.

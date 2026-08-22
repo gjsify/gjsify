@@ -10,6 +10,10 @@
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
         },
+        "./solid": {
+            "types": "./lib/types/adapters/solid.d.ts",
+            "default": "./lib/esm/adapters/solid.js"
+        },
         "./conformance": {
             "types": "./lib/types/conformance/index.d.ts",
             "default": "./lib/esm/conformance/index.js"
@@ -44,8 +48,17 @@
         "@girs/gtk-4.0": "^4.1.0",
         "@girs/pango-1.0": "^4.1.0"
     },
+    "peerDependencies": {
+        "solid-js": "^1.9.0"
+    },
+    "peerDependenciesMeta": {
+        "solid-js": {
+            "optional": true
+        }
+    },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
+        "solid-js": "^1.9.0",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",
         "typescript": "^6.0.3"
