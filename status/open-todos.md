@@ -4,6 +4,58 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `adwaita-web` adopts `[slot=]` children once, which blocks the shared-vocabulary goal
+
+ADR 0027 § 9 makes one widget vocabulary across native GTK, Blueprint/XML, TSX/JSX,
+Vue templates and this pillar's `adw-*` elements an explicit goal, and names the
+obstacle that lives here: **42 of 51 element files under
+`packages/web/adwaita-web/src/elements/` re-home their `[slot=]` children exactly
+once, in `connectedCallback`.** Only two adopt children appended later. A renderer
+mutates its tree after mount by definition — that is what a renderer is — so the
+same authored markup cannot drive both surfaces while that holds.
+
+Two pieces of work, in order:
+
+- **The fix is upstream, in this pillar, not in a renderer.** Slot adoption has to be
+  live: observe childList (or re-home on each connected child), so a child appended
+  after mount lands in the same place it would have at parse time. That is also
+  simply correct for hand-written HTML that appends.
+- **Then the alignment mechanism**, which is cheap once the generator (ADR 0028 § 6)
+  exists: assert that the three emitted surfaces — `JSX.IntrinsicElements`, the Vue
+  `GlobalComponents` interface, and the Blueprint/XML tag validator — name the same
+  widgets, and that every `adw-*` custom element maps to exactly one of them or is
+  listed as deliberately web-only. A name may then only diverge on purpose.
+
+The criterion that closes this out is in ADR 0027 § 9: the same authored tree,
+rendered through the GTK host and through `adwaita-web`, satisfies the same
+`@gjsify/adwaita-core/conformance` vectors with no per-surface markup branch. Until
+then the goal is a direction, not a claim — and the longer horizon it points at
+(NativeScript and browser builds from one native-authored source) needs its own ADR.
+
+### `@gjsify/gtk-host`'s widget table is curated, and nothing yet stops a second one
+
+ADR 0028 decides the table is GENERATED from the GIR at build time and that
+runtime introspection is the value coercer, not a second source. What ships today
+is the curated half: 26 descriptors for GTK4 + libadwaita under
+`packages/framework/gtk-host/src/descriptors/`, held to the installed typelib by
+`descriptorProblems()` — every method and text sink a descriptor names must exist
+on that GType.
+
+Two mechanisms named in ADR 0027/0028 do NOT exist yet, and both are deliberately
+absent rather than stubbed:
+
+- **The generator** (`gen-descriptors.mjs`) and its four gates: every `gtype`
+  present in the GIR; curated may ADD to a descriptor, never contradict it; every
+  method a policy names exists on that GType; no vacuous descriptor. Until it
+  lands, a widget missing from the table is a `GtkHostError: unknown-tag` at
+  render time rather than a build error.
+- **The import-direction check** that makes "no adapter carries a widget name
+  literal or an insertion rule" mechanical. It lands with the FIRST adapter: a
+  scan with nothing to scan reports green while proving nothing, which is the
+  failure class this repo pays most for. Until then the rule is held by review.
+
+Neither blocks the host itself — the placement vectors assert against the real
+GTK tree today — but both block calling the table trustworthy at scale.
 ### Nothing runs `build:infra` on a cold tree with no `node`
 
 The bootstrap ADR 0002 documents — `gjs -m install.mjs` → `gjsify install
