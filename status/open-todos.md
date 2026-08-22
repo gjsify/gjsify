@@ -4,6 +4,51 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### Nothing runs `build:infra` on a cold tree with no `node`
+
+The bootstrap ADR 0002 documents — `gjs -m install.mjs` → `gjsify install
+--immutable` → `gjsify run build:infra` — used to die at its THIRD step on a host
+with no `node`, from a fresh clone. Measured 2026-08-19 on postmarketOS v26.06 /
+aarch64 (OnePlus 6T, gjs 1.88.1, musl, no node) against `3ad411530`, in a
+`git worktree` with no `lib/esm` anywhere:
+
+    gjsify run --node-script: failed to bundle …/create-gjsify/scripts/process-template.mjs
+    [@gjsify/create-app] gjsify run build exited with code 1
+
+**Mechanism, and why the defect is closed.** `@gjsify/create-app`'s `build` runs
+`node scripts/process-template.mjs`. With no `node`, `ensureGjsifyShimOnPath()`
+re-enters the CLI as `gjsify run --node-script`, which bundles the script
+`--app gjs` under `--globals auto` — and auto-globals RESOLVES a
+`@gjsify/<pkg>/register[/…]` subpath per injected global (`--verbose` prints
+`closure map expanded 1 → 21 global(s)` for a one-line `export {}` entry, spanning
+`web-globals`, `abort-controller`, `buffer`, `web-streams`, `dom-exception`,
+`formdata`, `perf_hooks`, `webcrypto`). In a cold clone the workspace copies have
+no `lib/esm`, so every injection was unresolvable and `unresolved-workspace-import`
+(correctly) failed the build. #1232 closed that: a TOOLCHAIN bundle now falls back
+to the CLI's OWN directory once workspace resolution returns null. All 23 register
+packages sit in `@gjsify/cli`'s transitive dependency closure, so a self-contained
+install can answer — checked against `~/.local/share/gjsify/global`, where all 23
+are present and built.
+
+**What is still open is the MEASUREMENT.** No suite executes that third step.
+`bootstrap-cold-tree` asserts the `--print-plan` BRANCH and exits without
+spawning; `node-free-bootstrap` covers the install and a manifest invariant;
+`node-script-cold-workspace` (#1232) drives the real `--node-script` path against
+ONE planted unresolvable package rather than a whole cold tree. Every CI host has
+`node`, so these scripts run natively and are never bundled at all. Until a leg
+really runs `build:infra` on a tree with no `lib/esm` and `node` off PATH, the fix
+is argued rather than observed — and the failure returns unseen.
+
+It is worth recording what this is NOT, because both wrong turns were taken once.
+It is not a `build:infra` ORDERING bug: `create-app` is merely the first
+`node scripts/*.mjs` the chain reaches, and the same failure hit
+`check-refs-pin.mjs`, so `build:prebuilds` could not start either. And it is not
+fixable by dropping the EXPANDED half of the closure set — `auto-globals.spec.ts`
+("closure-map expansion vs generator bypass") pins that the expansion is a seed the
+pure iterative loop reaches anyway, so an expanded global is one the injected
+register genuinely references. Dropping it trades a build error for a runtime
+`ReferenceError`.
+
 ### No CI leg ever LAUNCHES a template on node, bun or deno
 
 `gjsify.example.runtimes` on the seven templates declares four runtimes, and
@@ -350,13 +395,18 @@ affects a caller that hands `pathToFileURL` a relative path ON win32. `node:url`
 
 ### sass under GJS: the SCRIPT path is closed, the BUNDLER path is not (#1053)
 
-The bootstrap chain itself is closed: `gjsify run --node-script <file>` bundles an
-unbundled `.mjs` that imports `node:*` and runs it, `ensureGjsifyShimOnPath()`
-puts a `node` on a package script's PATH that re-enters it when the host has none, and `build:infra`
-now goes end to end with no `node` at all — measured by putting `node`/`npm`/`npx`
-on PATH that exit 127 and announce themselves, then running the whole chain under
-`gjs -m …/cli.gjs.mjs`: exit 0 warm, and exit 0 COLD with both native facades
-deleted, which rebuilt them through the global CLI's own engine.
+The bootstrap chain itself is closed FOR A TREE THAT IS ALREADY BUILT:
+`gjsify run --node-script <file>` bundles an unbundled `.mjs` that imports `node:*`
+and runs it, `ensureGjsifyShimOnPath()` puts a `node` on a package script's PATH
+that re-enters it when the host has none, and `build:infra` goes end to end with no
+`node` at all — measured by putting `node`/`npm`/`npx` on PATH that exit 127 and
+announce themselves, then running the whole chain under `gjs -m …/cli.gjs.mjs`:
+exit 0 warm, and exit 0 with both native facades deleted, which rebuilt them
+through the global CLI's own engine. **That last measurement is NOT the cold case
+it reads as** — deleting the facades leaves every workspace `lib/esm` in place. On
+a tree that has none the same chain used to fail at its first `node scripts/*.mjs`;
+#1232 closed that, and what is left is that nothing measures it — see
+"Nothing runs `build:infra` on a cold tree with no `node`" above.
 `process-template.mjs`, `set-bin-mode.mjs`, `build-assets.mjs` and
 `bootstrap-native-facades.mjs` all run there now. The manifests still spell
 `node scripts/x.mjs` deliberately — `writeNodeShim` records why a NEW flag in a
