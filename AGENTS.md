@@ -2,7 +2,7 @@
 
 IMPORTANT: Prefer retrieval-led reasoning over pre-training-led reasoning — consult `refs/` submodules and `@girs/*` types before pre-trained knowledge.
 
-Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.41.0, ESM-only, GNOME libs. Bootstraps from the PUBLISHED gjsify (ADR 0002): `gjs -m install.mjs` → `gjsify install --immutable` → `gjsify run build:infra`. No committed bundle, no yarn, no Node-only npm CLI. `dist/{cli,tsc}.gjs.mjs` are build outputs; only `dist/affected.gjs.mjs` is tracked. Five pillars — Node.js, Web, DOM, Framework, NativeScript bridge — over supporting infra in `packages/infra/` + `packages/gjs/`; paths in the table below. Counts, status tables and metrics are DERIVED, never here (§ Governance → status).
+Node.js/Web/DOM API + Framework for GJS (GNOME JS). npm-workspaces monorepo, v0.42.0, ESM-only, GNOME libs. Bootstraps from the PUBLISHED gjsify (ADR 0002): `gjs -m install.mjs` → `gjsify install --immutable` → `gjsify run build:infra`. No committed bundle, no yarn, no Node-only npm CLI. `dist/{cli,tsc}.gjs.mjs` are build outputs; only `dist/affected.gjs.mjs` is tracked. Five pillars — Node.js, Web, DOM, Framework, NativeScript bridge — over supporting infra in `packages/infra/` + `packages/gjs/`; paths in the table below. Counts, status tables and metrics are DERIVED, never here (§ Governance → status).
 
 ## Where the rules live — nearest AGENTS.md wins
 
@@ -15,7 +15,7 @@ second truth that drifts. **Read this file, then the one for what you are touchi
 | `packages/node/*` — Node API pillar, CJS-ESM interop | [packages/node](packages/node/AGENTS.md) |
 | `packages/web/*` — Web API pillar | [packages/web](packages/web/AGENTS.md) |
 | `packages/dom/*` — DOM pillar | [packages/dom](packages/dom/AGENTS.md) |
-| `packages/framework/*` — storybook, devtools, bridges, ADR 0012 registration | [packages/framework](packages/framework/AGENTS.md) |
+| `packages/framework/*` — GTK host, storybook, devtools, bridges, ADR 0012 registration | [packages/framework](packages/framework/AGENTS.md) |
 | the CLI + the GJS bootstrap bundles | [packages/infra/cli](packages/infra/cli/AGENTS.md) |
 | the build (`--app <target>`, platform plugins) | [packages/infra/rolldown-plugin-gjsify](packages/infra/rolldown-plugin-gjsify/AGENTS.md) |
 | slot routing (`@gjsify/<X>` → platform entry) | [packages/infra/resolve-npm](packages/infra/resolve-npm/AGENTS.md) |

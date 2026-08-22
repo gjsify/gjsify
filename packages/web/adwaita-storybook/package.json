@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/adwaita-storybook",
-    "version": "0.41.0",
+    "version": "0.42.0",
     "description": "Browser renderer for the @gjsify/stories contract — the web counterpart of @gjsify/storybook, built on @gjsify/adwaita-web",
     "type": "module",
     "main": "./src/index.ts",

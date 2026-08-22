@@ -4,6 +4,58 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `adwaita-web` adopts `[slot=]` children once, which blocks the shared-vocabulary goal
+
+ADR 0027 § 9 makes one widget vocabulary across native GTK, Blueprint/XML, TSX/JSX,
+Vue templates and this pillar's `adw-*` elements an explicit goal, and names the
+obstacle that lives here: **42 of 51 element files under
+`packages/web/adwaita-web/src/elements/` re-home their `[slot=]` children exactly
+once, in `connectedCallback`.** Only two adopt children appended later. A renderer
+mutates its tree after mount by definition — that is what a renderer is — so the
+same authored markup cannot drive both surfaces while that holds.
+
+Two pieces of work, in order:
+
+- **The fix is upstream, in this pillar, not in a renderer.** Slot adoption has to be
+  live: observe childList (or re-home on each connected child), so a child appended
+  after mount lands in the same place it would have at parse time. That is also
+  simply correct for hand-written HTML that appends.
+- **Then the alignment mechanism**, which is cheap once the generator (ADR 0028 § 6)
+  exists: assert that the three emitted surfaces — `JSX.IntrinsicElements`, the Vue
+  `GlobalComponents` interface, and the Blueprint/XML tag validator — name the same
+  widgets, and that every `adw-*` custom element maps to exactly one of them or is
+  listed as deliberately web-only. A name may then only diverge on purpose.
+
+The criterion that closes this out is in ADR 0027 § 9: the same authored tree,
+rendered through the GTK host and through `adwaita-web`, satisfies the same
+`@gjsify/adwaita-core/conformance` vectors with no per-surface markup branch. Until
+then the goal is a direction, not a claim — and the longer horizon it points at
+(NativeScript and browser builds from one native-authored source) needs its own ADR.
+
+### `@gjsify/gtk-host`'s widget table is curated, and nothing yet stops a second one
+
+ADR 0028 decides the table is GENERATED from the GIR at build time and that
+runtime introspection is the value coercer, not a second source. What ships today
+is the curated half: 26 descriptors for GTK4 + libadwaita under
+`packages/framework/gtk-host/src/descriptors/`, held to the installed typelib by
+`descriptorProblems()` — every method and text sink a descriptor names must exist
+on that GType.
+
+Two mechanisms named in ADR 0027/0028 do NOT exist yet, and both are deliberately
+absent rather than stubbed:
+
+- **The generator** (`gen-descriptors.mjs`) and its four gates: every `gtype`
+  present in the GIR; curated may ADD to a descriptor, never contradict it; every
+  method a policy names exists on that GType; no vacuous descriptor. Until it
+  lands, a widget missing from the table is a `GtkHostError: unknown-tag` at
+  render time rather than a build error.
+- **The import-direction check** that makes "no adapter carries a widget name
+  literal or an insertion rule" mechanical. It lands with the FIRST adapter: a
+  scan with nothing to scan reports green while proving nothing, which is the
+  failure class this repo pays most for. Until then the rule is held by review.
+
+Neither blocks the host itself — the placement vectors assert against the real
+GTK tree today — but both block calling the table trustworthy at scale.
 ### Nothing runs `build:infra` on a cold tree with no `node`
 
 The bootstrap ADR 0002 documents — `gjs -m install.mjs` → `gjsify install
@@ -1346,6 +1398,46 @@ Phase 0 (full `js_native_api.h` + module loader; better-sqlite3 byte-identical t
 - **node-gyp golden drift watch** — the node-gyp goldens were generated on Node 24 but CI runs Node 22; watch the first CI run for golden drift.
 - **cross-platform prebuilds** — macOS darwin-arm64 SHIPPED incl. the tsfn gate (conformance/consumer/valgrind widening deferred; no maintained arm64-macOS valgrind). **Windows (win32-x64): ATTEMPTED, blocked at gjs-on-Windows** — shim-side portability is done and Linux-verified (`.def` exports, `LoadLibraryEx` loader, manual-dispatch `windows` job); a prebuilt MSVC mozjs-140 now exists (servo/mozjs `mozjs-sys-v140.13.0-0`), but no prebuilt libgjs exists for Windows and servo's patched static-lib layout is not the pkg-config `mozjs-140` gjs's meson consumes, so gjs must still be source-built (clang-cl) — and behind that waits the delay-load host-binding wall (no POSIX global symbol namespace; an unmodified node-gyp `.node` binds `napi_*` against the host `.exe`, which `gjs.exe` does not export). Unblocks when a prebuilt libgjs-win32 appears OR gjs builds against the servo mozjs AND the delay-load host-binding is solved.
 
+### Can `@gjsify/napi` retire the hand-written `-native` bridges?
+
+Asked because every `@gjsify/*-native` bridge (`rolldown-native`, `oxfmt-native`,
+`lightningcss-native`, …) reimplements a Rust tool that already ships an npm napi
+build. Recorded now because the reason this tree gave for "no" is **wrong**, and the
+wrong reason makes the question look closed.
+
+**Measured (2026-08-22, static, re-runnable):** npm `rolldown` does not fail under GJS
+because of the N-API ABI. It fails one layer higher, in JavaScript.
+`rolldown/dist/shared/binding-BmkJW3Wy.mjs:24` evaluates
+`createRequire(import.meta.url)` at module scope, and the platform-detection preamble
+then calls `__require("node:fs")` / `__require("node:child_process")` (lines 28, 29,
+51, 86) to sniff musl vs glibc before choosing a binding. GJS refuses a synchronous
+require of a builtin — that is the `createRequire: Cannot require builtin module "fs"
+synchronously in GJS` seen when the oxc parser was linked in. **No `.node` is ever
+opened.** The same generated-loader shape is in `oxlint/dist/bindings.js`
+(`require("fs")` → `/usr/bin/ldd`), so this is napi-rs's loader, not a rolldown quirk.
+
+**So the blocker is a module-loading strategy, not an ABI** — and this tree already
+owns the bypass: `napiNodeAddonPlugin` + `detectNapiRsEntry`
+(`packages/infra/rolldown-plugin-gjsify/src/plugins/napi-node-addon.ts`) intercept a
+napi-rs package at bundle time and route its `.node` straight to `@gjsify/napi`'s
+`loadAddon`, wrapper never evaluated.
+
+**The open question is therefore NOT "can we?" but "why did it not fire here?"** — and
+that must be measured, not reasoned about. Two candidates, both cheap to discriminate:
+`rolldown`'s own `package.json` carries `@rolldown/binding-*` in `optionalDependencies`,
+so `isNapiRsPackageJson` should already be true for it; but the import that broke was
+the `rolldown/parseAst` SUBPATH, and the file that actually loads the binding is a
+content-hashed internal chunk (`dist/shared/binding-*.mjs`) which is not one of the
+package's declared `nativeEntrySpecs`. Discriminator: bundle a one-line
+`import { parseAst } from 'rolldown/parseAst'` under `--app gjs` and log whether
+`detectNapiRsEntry` returns non-null for the resolved file.
+
+**Verdict: demotion, not deletion.** The bridges stay — `@gjsify/napi` is Tier 3, and a
+default bundler engine cannot sit on an experimental host. But the entry above may be
+recording a wall that is a detour, and the cost of the bridges is paid every release.
+Graduation gates for reopening this: the Tier 2 items in the section above, plus
+linux-arm64 / darwin-x64 napi prebuilds and a reproducible toolchain story.
+
 ### GI/GObject runtime for Node (Axis 5) — deferred limitations
 
 `@gjsify/node-gi` graduated Tier 3→2 per ADR 0005 (2026-07-14) — the four gate items landed (teardown crash, vfunc OUT/INOUT, GTK/Cairo layer, second real consumer), the GIMarshallingTests oracle sits at 370 pass / 0 fail, the Excalibur-WebGL and Adwaita-window/storybook GTK capstones render byte-identically to `gjs -m`, and the cross-runtime legs (Bun full core parity, Deno conformance subset) ship from one N-API binary. The step-by-step roadmap provenance lives in git/CHANGELOG. Known gaps left for follow-up PRs (each surfaces a clear error or is benign; none is silently wrong):
@@ -1476,13 +1568,13 @@ Stages 2 and 3 have landed: one staged payload, `.deb` and `.rpm` packed by hand
 Open, in order — each independently mergeable, each with its proof:
 
 1. ~~**`fail_on_unmatched_files` on the release upload.**~~ **DONE (#1252).** `release-cut.yml` globbed the `.deb`/`.rpm` onto the release with the flag absent, so a glob matching nothing uploaded nothing and left the cut green — while the gate that follows checked only `install.mjs` and `cli.gjs.mjs`, and `gjsify self-update` sends system-prefix installs to exactly those assets. Landed: the flag, an install-URL gate that COUNTS what `ship` wrote (the names carry the version and the arch label, so they are read off disk), and `scripts/check-workflow-release-globs.mjs`, wired into both `audit-runtimes` jobs because `release-cut.yml` never runs on a pull request. Correcting a number this list carried: `if-no-files-found: error` appears **33** times, not 37 — the 37 was inherited from a draft and never remeasured.
-2. **`kind: 'app'` was dead under the shipped GJS bin, and the cause was TWO gates deep.** Being fixed in #1257; one of its six sites was already fixed at the call site by #1251, which moved that template into source. What the first reading of this entry got right: `rewrite-node-modules-paths.ts`'s `shouldRewrite()` returns false unless the path contains `node_modules`, and it guards the only production call site of `inlineStaticReads`, so the CLI never offered its own reads to the inliner. What it MISSED, and what makes opening that gate insufficient on its own: the inliner parsed with acorn, **which cannot read TypeScript**, and its `catch` returns `inlined: 0` — a value indistinguishable from "this file has no static reads". An installed package ships JS, so the scope kept the parser limitation invisible; measured, the same expression returned 1 as `.js` and 0 as `.ts`. Also worth keeping: the obvious repair is a trap. Rolldown's own oxc parser links npm `rolldown` — a Rust napi crate that cannot run under GJS — into a module that must load under GJS, and the CLI bundle then died at startup with `createRequire: Cannot require builtin module "fs" synchronously in GJS`. The published 0.41.0 still ENOENTs on `generate-installer`, `flatpak scaffold` and the two oxc config templates until #1257 lands.
-3. **Pack from a stage alone** (`--from-stage` + `.gjsify-ship-stage.json`). The sidecar is a closure — `{settings (arch resolved at stage time), staged, overlay, namespaces, mtime}` — not a settings dump: measured, dropping `staged` packs the launcher 0644, dropping the overlay omits the Debian-Policy copyright file, dropping `namespaces` loses `gir1.2-gtk-4.0` and `gir1.2-adw-1` from `Depends`, all silently at exit 0. `readStage` must fail on a staged path the plan does not name AND on a planned path the stage lacks (its `?? 0o644` fallback inherits the open `download-artifact` MERGE hazard). Never `writeStage` onto an arriving stage — it opens with `rmSync(root, {recursive: true})`. *Proof, and the deletion IS the discriminator:* stage into a tmpdir, **delete the project tree**, pack from the stage, assert byte-equality with the single-host artifact.
-4. **`ship-pack-linux` on a bare `ubuntu-latest`** (no container), downloading a stage and packing deb+rpm. First real `dpkg -i --dry-run` this project has ever run, plus `rpm` via `docker run --rm fedora:44`, on a free runner — it closes the `dpkg` gap below and exercises the whole cross-host handoff with formats that already exist, before any darwin runner is involved. Fold in binding `FORMAT_IDS` to `manifest-conformance/lib/rules/ship.mjs`'s `TARGETS = new Set(['deb','rpm'])`, a second source of truth that will reject the first legitimate new declaration.
+2. ~~**`kind: 'app'` was dead under the shipped GJS bin, and the cause was TWO gates deep.**~~ **DONE (#1257).** one of its six sites was already fixed at the call site by #1251, which moved that template into source. What the first reading of this entry got right: `rewrite-node-modules-paths.ts`'s `shouldRewrite()` returns false unless the path contains `node_modules`, and it guards the only production call site of `inlineStaticReads`, so the CLI never offered its own reads to the inliner. What it MISSED, and what makes opening that gate insufficient on its own: the inliner parsed with acorn, **which cannot read TypeScript**, and its `catch` returns `inlined: 0` — a value indistinguishable from "this file has no static reads". An installed package ships JS, so the scope kept the parser limitation invisible; measured, the same expression returned 1 as `.js` and 0 as `.ts`. Also worth keeping: the obvious repair is a trap. Rolldown's own oxc parser links npm `rolldown` into a module that must load under GJS, and the CLI bundle then died at startup with `createRequire: Cannot require builtin module "fs" synchronously in GJS`. Fixed with `acorn-typescript`, which is pure JS. **Correcting the reason this list gave for that trap, because the wrong reason makes it look unfixable:** npm `rolldown` does not fail under GJS because it is "a napi crate that cannot run under GJS". It fails one layer higher, in JS: `rolldown/dist/shared/binding-*.mjs` evaluates `createRequire(import.meta.url)` at module scope and its platform-detection preamble calls `__require('node:fs')` / `__require('node:child_process')` — the error quoted above is that require, and no `.node` is ever opened. So the blocker is a module-loading strategy, not an ABI. The published 0.41.0 still ENOENTs on `generate-installer`, `flatpak scaffold` and the two oxc config templates until 0.42.0 ships.
+3. **Pack from a stage alone** (`--from-stage` + `.gjsify-ship-stage.json`). **In flight: #1268.** The sidecar is a closure — `{settings (arch resolved at stage time), staged, overlay, namespaces, mtime}` — not a settings dump: measured, dropping `staged` packs the launcher 0644, dropping the overlay omits the Debian-Policy copyright file, dropping `namespaces` loses `gir1.2-gtk-4.0` and `gir1.2-adw-1` from `Depends`, all silently at exit 0. `readStage` must fail on a staged path the plan does not name AND on a planned path the stage lacks (its `?? 0o644` fallback inherits the open `download-artifact` MERGE hazard). Never `writeStage` onto an arriving stage — it opens with `rmSync(root, {recursive: true})`. *Proof, and the deletion IS the discriminator:* stage into a tmpdir, **delete the project tree**, pack from the stage, assert byte-equality with the single-host artifact.
+4. **`ship-pack-linux` on a bare `ubuntu-latest`** (no container), downloading a stage and packing deb+rpm. **In flight: #1268** — except the `FORMAT_IDS` binding, deliberately held back because it edits the same `formats.ts` / `settings.ts` that PR changes. First real `dpkg -i --dry-run` this project has ever run, plus `rpm` via `docker run --rm fedora:44`, on a free runner — it closes the `dpkg` gap below and exercises the whole cross-host handoff with formats that already exist, before any darwin runner is involved. Fold in binding `FORMAT_IDS` to `manifest-conformance/lib/rules/ship.mjs`'s `TARGETS = new Set(['deb','rpm'])`, a second source of truth that will reject the first legitimate new declaration.
 5. **Stages 4/5 proper** — macOS `.app` + zip and the Windows program directory + zip (`finishOn: 'any'`), then `.dmg` on `macos-latest`/`macos-15-intel` and `.msi`. Blocked on 2 and 3. Windows launcher is unresolved and is a VM measurement, not a design argument: `node.exe` is a CONSOLE-subsystem image (Subsystem=3 at offset 0xd4, v24.19.0), `nodew.exe` does not exist, and every Windows CI leg starts the app from a shell and therefore inherits a console — so no CI leg can observe the defect. Instrument is `win11-gjsify`.
 6. **Stage 6 — Flatpak as a target under `ship`.** The metadata half already moved (`utils/app-metadata.ts`); what is left is the staging path (`buildsystem: simple` + `cp -a stage/.`, which is what removes meson from inside the sandbox) and the deprecation window for the `gjsify.flatpak` config keys. Sequenced AFTER the descriptor refactor: Flatpak's whole content is one prefix-layout row, and writing it first means writing it twice.
 7. **Bundled Node for `--app node`** — still undecided between a ship-time fetch and a platform package (ADR 0017's shape). Stages 4/5 need it: an unsigned artifact is a legitimate output, an artifact with no interpreter is not.
-8. **`dpkg` is on no CI runner this project uses**, so the `.deb` is never verified by a real `dpkg -i`. What IS verified: GNU `ar` and GNU `tar` (independent readers of the container and of both inner tars), every `md5sums` digest recomputed, and the data member unpacked and compared byte-for-byte against the staged tree. The `.rpm` half has no such gap — `rpm` is on every Fedora image and `rpm -i --test` runs there. Item 4 closes this for free. Also undeclared while it stands: `tests/e2e/ship` makes `ar` required on Linux, but `binutils` appears nowhere in `.docker/ci-fedora.Dockerfile` — it is present only transitively via `gcc`.
+8. **`dpkg` is on no CI runner this project uses**, so the `.deb` is never verified by a real `dpkg -i`. What IS verified: GNU `ar` and GNU `tar` (independent readers of the container and of both inner tars), every `md5sums` digest recomputed, and the data member unpacked and compared byte-for-byte against the staged tree. The `.rpm` half has no such gap — `rpm` is on every Fedora image and `rpm -i --test` runs there. Item 4 closes this for free (#1268 carries it). Also undeclared while it stands: `tests/e2e/ship` makes `ar` required on Linux, but `binutils` appears nowhere in `.docker/ci-fedora.Dockerfile` — it is present only transitively via `gcc`.
 9. **Two docs sentences become false** with host-bound formats: `website/src/content/docs/ship/index.mdx` promises the packers "run anywhere" and that there is "no packaging file to keep in your repo". Both need replacing when `--format dmg` and `gjsify ship ci` land.
 10. **A scaffolded workflow is verified by nothing.** The only scaffolder in the tree (`flatpak ci`) is asserted by four `assert.match` regexes on raw text — never parsed as YAML, never actionlint'd (which discovers only this repo's `.github/workflows/**`), never run. ADR 0024 names this exact class for `ship`; it already exists one command over. Minimum bar for `ship ci`: emit into gjsify's own workflows directory too, and `bash -n` every extracted `run:` block.
 

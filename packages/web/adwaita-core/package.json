@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/adwaita-core",
-    "version": "0.41.0",
+    "version": "0.42.0",
     "description": "Headless Adwaita widget behavior (breakpoint condition grammar + apply/unapply state machine, color-scheme observable, avatar derivation) shared by the web and NativeScript Adwaita renderers — pure TS, no platform imports",
     "type": "module",
     "module": "lib/esm/index.js",

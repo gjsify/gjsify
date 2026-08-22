@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/oxfmt-native",
-    "version": "0.41.0",
+    "version": "0.42.0",
     "description": "Vala/GObject + Rust cdylib bridge to oxc's formatter (oxfmt) for GJS. Formats JavaScript/TypeScript/JSX under GJS without a Node runtime — the Node-free counterpart to the npm `oxfmt` native napi binary, backing `gjsify format` under GJS. Wraps oxc_formatter (Prettier-compatible) via a single-shot FFI; the embedded CSS/HTML/Markdown ExternalFormatter (Prettier-NAPI) is out of scope.",
     "type": "module",
     "main": "lib/esm/index.js",
