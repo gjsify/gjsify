@@ -4,6 +4,31 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `@gjsify/gtk-host`'s widget table is curated, and nothing yet stops a second one
+
+ADR 0028 decides the table is GENERATED from the GIR at build time and that
+runtime introspection is the value coercer, not a second source. What ships today
+is the curated half: 26 descriptors for GTK4 + libadwaita under
+`packages/framework/gtk-host/src/descriptors/`, held to the installed typelib by
+`descriptorProblems()` — every method and text sink a descriptor names must exist
+on that GType.
+
+Two mechanisms named in ADR 0027/0028 do NOT exist yet, and both are deliberately
+absent rather than stubbed:
+
+- **The generator** (`gen-descriptors.mjs`) and its four gates: every `gtype`
+  present in the GIR; curated may ADD to a descriptor, never contradict it; every
+  method a policy names exists on that GType; no vacuous descriptor. Until it
+  lands, a widget missing from the table is a `GtkHostError: unknown-tag` at
+  render time rather than a build error.
+- **The import-direction check** that makes "no adapter carries a widget name
+  literal or an insertion rule" mechanical. It lands with the FIRST adapter: a
+  scan with nothing to scan reports green while proving nothing, which is the
+  failure class this repo pays most for. Until then the rule is held by review.
+
+Neither blocks the host itself — the placement vectors assert against the real
+GTK tree today — but both block calling the table trustworthy at scale.
+
 ### No CI leg ever LAUNCHES a template on node, bun or deno
 
 `gjsify.example.runtimes` on the seven templates declares four runtimes, and

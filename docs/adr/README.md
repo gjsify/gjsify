@@ -47,6 +47,8 @@ the TODO records the *what's left*.
 | [0024](0024-ship-installable-artifacts.md) | `gjsify ship` — one payload, a runtime policy derived per OS, several install formats; `gjsify flatpak` migrates under it | Accepted |
 | [0025](0025-prune-the-install-prefix.md) | Prune the install prefix — remove what this host cannot use, decided by a pure manifest read; an install never prunes against a typed target | Accepted |
 | [0026](0026-html-parsing-and-selector-engine.md) | HTML parsing stays in `@gjsify/domparser` behind leaf subpaths; one adapter-based selector engine serves both DOM models; verification is differential against parse5 | Accepted |
+| [0027](0027-gtk-host-layer.md) | One GTK host layer, framework adapters on top | Accepted |
+| [0028](0028-widget-table-provenance.md) | GIR-generated widget table, runtime ParamSpec for values | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
