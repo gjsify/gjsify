@@ -15,7 +15,7 @@ import { describe, expect, it } from '@gjsify/unit';
 import { buildDeb } from './deb.js';
 import { FORMATS } from './formats.js';
 import { buildRpm } from './rpm.js';
-import { isArchIndependent, type PayloadEntry } from './payload.js';
+import { assertPayloadMatchesArch, isArchIndependent, readBinaryArch, type PayloadEntry } from './payload.js';
 import type { ShipSettings } from './types.js';
 
 const encoder = new TextEncoder();
@@ -194,6 +194,68 @@ export default async () => {
                 expect(nativeName).toContain(format.id === 'deb' ? 'amd64' : 'x86_64');
                 expect(pureName).toContain(format.id === 'deb' ? 'all' : 'noarch');
             }
+        });
+    });
+
+    // `--arch` LABELS the payload and cross-compiles nothing, and until this
+    // guard the two were never compared. Reproduced on 0.41.0: a payload with one
+    // x86-64 `.so`, packed `--arch arm64` on an x86-64 host, produced
+    // `…_arm64.deb` and `….aarch64.rpm`; `rpm -qp --qf '%{ARCH}'` answered
+    // `aarch64` while the `.so` inside it was ELF `e_machine` 0x3e. The
+    // independent oracle confirms the lie, because the header it reads was
+    // written from the caller's claim.
+    await describe('the payload must match the label it is given', async () => {
+        /** A minimal ELF header — 20 bytes is all `readBinaryArch` needs. */
+        const elfFor = (machine: number): Uint8Array => {
+            const data = new Uint8Array(20);
+            data.set([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0], 0); // \x7fELF, 64-bit, little-endian
+            data[18] = machine & 0xff;
+            data[19] = machine >>> 8;
+            return data;
+        };
+
+        await it('reads the architecture an ELF records about itself', () => {
+            expect(readBinaryArch(elfFor(0x3e))).toBe('x64');
+            expect(readBinaryArch(elfFor(0xb7))).toBe('arm64');
+            expect(readBinaryArch(elfFor(0xf3))).toBe('riscv64');
+        });
+
+        await it('says nothing about a file whose architecture it cannot read', () => {
+            // Three reasons, all of which must stay silent rather than become a
+            // mismatch: not a binary at all, a machine constant nothing here
+            // emits, and a PE — whose COFF field this tree has never parsed.
+            expect(readBinaryArch(new TextEncoder().encode('#!/bin/sh\nexec gjs -m x\n'))).toBe(null);
+            expect(readBinaryArch(elfFor(0x9999))).toBe(null);
+            expect(readBinaryArch(Uint8Array.from([0x4d, 0x5a, ...Array.from({ length: 18 }, () => 0)]))).toBe(null);
+        });
+
+        await it('REFUSES an x86-64 payload labelled arm64 — the reproduced defect', () => {
+            const mixed = payload([
+                ['bin/demo', 0o755, '#!/bin/sh\n'],
+                ['lib/demo/libdemo.so', 0o755, elfFor(0x3e)],
+            ]);
+            let message = '';
+            try {
+                assertPayloadMatchesArch(mixed, 'arm64');
+            } catch (error) {
+                message = (error as Error).message;
+            }
+            expect(message).toContain('lib/demo/libdemo.so');
+            expect(message).toContain('does not cross-compile');
+        });
+
+        await it('accepts the cross-host case the two-phase split exists to allow', () => {
+            // An arm64 payload assembled on an x64 machine is legitimate: the
+            // packers are pure JavaScript (ADR 0024 § A1). A host comparison
+            // would refuse exactly this, which is why the check is
+            // payload-against-LABEL and never payload-against-host.
+            const arm = payload([['lib/demo/libdemo.so', 0o755, elfFor(0xb7)]]);
+            expect(() => assertPayloadMatchesArch(arm, 'arm64')).not.toThrow();
+        });
+
+        await it('accepts a payload with nothing architecture-specific in it', () => {
+            const pure = payload([['lib/demo/main.js', 0o644, 'print(1)']]);
+            expect(() => assertPayloadMatchesArch(pure, 'arm64')).not.toThrow();
         });
     });
 };
