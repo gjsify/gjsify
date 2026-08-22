@@ -10,14 +10,120 @@ const _isGJS = typeof print === 'function' && typeof printerr === 'function';
 declare function print(...args: unknown[]): void;
 declare function printerr(...args: unknown[]): void;
 
+// Value rendering. `JSON.stringify` is this module's vocabulary for every value
+// EXCEPT an Error, which it destroys: `message` and `stack` are own but
+// NON-ENUMERABLE, so `JSON.stringify(new Error('boom'))` is `{}`, and an Error
+// subclass assigning `this.name`/`this.code` degrades to
+// `{"name":"GtkHostError","code":"unknown-tag"}` — the code and nothing else.
+// Every `--app gjs` bundle routes `console.error` through here (the rolldown
+// console shim), which is how a swallowed `<KeepAlive>` failure in a GTK app
+// printed one line naming neither the feature nor the cause.
+
+// `cause`/`errors` are rendered explicitly below, `name`/`message`/`stack` are in
+// the header — so none of them belongs in the appended own-property object.
+const _ERROR_KEYS_RENDERED_ELSEWHERE = ['name', 'message', 'stack', 'cause', 'errors'];
+
+// `Error.isError` is the [[ErrorData]] brand check and survives realm boundaries;
+// measured present on gjs 1.88.1, node 24 and the firefox140 build target. The
+// `instanceof` arm serves the nativescript slot, whose JSC version is not pinned
+// by this repo.
+function _isError(value: unknown): value is Error {
+    return typeof Error.isError === 'function' ? Error.isError(value) : value instanceof Error;
+}
+
+/** `Name: message` — or whichever half is non-empty. */
+function _errorHeader(err: Error): string {
+    const name = typeof err.name === 'string' && err.name.length > 0 ? err.name : 'Error';
+    const message = typeof err.message === 'string' ? err.message : '';
+    return message.length > 0 ? `${name}: ${message}` : name;
+}
+
+function _indentContinuation(text: string, pad: string): string {
+    return text.split('\n').join('\n' + pad);
+}
+
+/**
+ * An Error rendered the way a developer needs it: name, message, stack, and
+ * everything else it carries.
+ *
+ * The stack is appended to a header built here rather than used alone, because
+ * the two engines disagree about what `err.stack` holds: V8 prefixes it with
+ * `Name: message`, SpiderMonkey does NOT — measured on gjs 1.88.1 it is frames
+ * only (`GtkHostError@file:///…`) and `stack` is not even an own property there.
+ * `err.stack` alone would therefore drop the message on the one runtime this
+ * package exists for.
+ */
+function _formatError(err: Error, seen: Set<unknown>): string {
+    const header = _errorHeader(err);
+    // A cause chain may be cyclic; without this the formatter would hang the
+    // process while formatting the error that was meant to explain a failure.
+    if (seen.has(err)) return `[Circular ${header}]`;
+    seen.add(err);
+
+    const stack = typeof err.stack === 'string' ? err.stack.replace(/\n+$/, '') : '';
+    let out = stack.length === 0 ? header : stack.startsWith(header) ? stack : `${header}\n${stack}`;
+
+    const extras: Record<string, unknown> = {};
+    let hasExtras = false;
+    for (const key of Object.keys(err)) {
+        if (_ERROR_KEYS_RENDERED_ELSEWHERE.includes(key)) continue;
+        extras[key] = (err as unknown as Record<string, unknown>)[key];
+        hasExtras = true;
+    }
+    if (hasExtras) out += ' ' + _stringify(extras, seen);
+
+    // `cause` and `errors` are own but NON-ENUMERABLE when they come from
+    // `new Error(msg, { cause })` / `new AggregateError(list, msg)` — measured on
+    // node 24 and gjs 1.88.1 — so `Object.keys` above cannot see them, and
+    // dropping them reproduces this very bug one level down the chain.
+    const cause = (err as { cause?: unknown }).cause;
+    if (cause !== undefined) {
+        out += '\n  [cause]: ' + _indentContinuation(_formatValue(cause, seen), '  ');
+    }
+    const errors = (err as { errors?: unknown }).errors;
+    if (Array.isArray(errors)) {
+        for (let i = 0; i < errors.length; i++) {
+            out += `\n  [errors][${i}]: ` + _indentContinuation(_formatValue(errors[i], seen), '  ');
+        }
+    }
+
+    seen.delete(err);
+    return out;
+}
+
+/**
+ * `JSON.stringify` with Errors mapped to their rendered form, so an Error nested
+ * in an array or object is not silently emptied either. For a graph containing no
+ * Error the replacer is the identity and the output is byte-identical to a plain
+ * `JSON.stringify` — including `undefined` for `undefined`/symbols/functions.
+ */
+function _stringify(value: unknown, seen: Set<unknown>): string {
+    try {
+        return JSON.stringify(value, (_key, nested) => (_isError(nested) ? _formatError(nested, seen) : nested));
+    } catch (thrown) {
+        // A real throw path, not a defensive catch: `JSON.stringify` throws
+        // TypeError on a circular structure and on a BigInt anywhere in the graph.
+        // Losing the whole line is the failure this module is being fixed for, so
+        // the unrenderable value degrades to a marker and the line survives.
+        return `[unserializable: ${_isError(thrown) ? thrown.message : String(thrown)}]`;
+    }
+}
+
+function _formatValue(value: unknown, seen: Set<unknown>): string {
+    return _isError(value) ? _formatError(value, seen) : _stringify(value, seen);
+}
+
 // Basic printf-style format specifier handling to match Node.js util.format behavior.
 // Handles %s, %d, %i, %f, %o, %O — joins remaining args with spaces.
 function _formatArgs(...args: unknown[]): string {
+    // One set for the whole call: `_formatError` removes what it adds, so it is
+    // empty again between arguments and a repeated Error still renders in full.
+    const seen = new Set<unknown>();
     const fmt = args[0];
     const rest = args.slice(1);
     if (typeof fmt !== 'string' || !/%(s|d|i|f|o|O|c)/.test(fmt)) {
         // No format specifiers — join all args with spaces
-        return args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
+        return args.map((a) => (typeof a === 'string' ? a : _formatValue(a, seen))).join(' ');
     }
     let i = 0;
     const result = fmt.replace(/%([sdifOoc])/g, (_match, spec) => {
@@ -25,7 +131,8 @@ function _formatArgs(...args: unknown[]): string {
         const val = rest[i++];
         switch (spec) {
             case 's':
-                return String(val);
+                // Node prints the STACK for `%s` of an Error, not `String(err)`.
+                return _isError(val) ? _formatError(val, seen) : String(val);
             case 'd':
             case 'i':
                 return String(parseInt(String(val), 10));
@@ -33,7 +140,7 @@ function _formatArgs(...args: unknown[]): string {
                 return String(parseFloat(String(val)));
             case 'o':
             case 'O':
-                return JSON.stringify(val);
+                return _formatValue(val, seen);
             case 'c':
                 return ''; // CSS styles — ignore
             default:
@@ -43,7 +150,7 @@ function _formatArgs(...args: unknown[]): string {
     // Append remaining args
     const remaining = rest.slice(i);
     if (remaining.length === 0) return result;
-    return result + ' ' + remaining.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
+    return result + ' ' + remaining.map((a) => (typeof a === 'string' ? a : _formatValue(a, seen))).join(' ');
 }
 
 /**
