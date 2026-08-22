@@ -75,7 +75,13 @@ function depthOf(gtype: GObject.GType): number {
     return depth;
 }
 
-/** Test seam: the conformance suite installs a fresh table per run. */
+/**
+ * Drop every registration.
+ *
+ * A seam for a consumer that wants a table of its own — nothing in this package
+ * calls it, and the specs deliberately share the module-global table because
+ * that is what an application sees.
+ */
 export function clearRegistry(): void {
     registry.clear();
 }

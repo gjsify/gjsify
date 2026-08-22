@@ -857,6 +857,74 @@ export default async () => {
             }
         });
 
+        await describe('regressions from the fourth review', async () => {
+            await it('an insert-before into a setter-backed slot keeps the new child', async () => {
+                // The tail rotation is an APPEND loop, and appending to a
+                // `set_content` slot is an assignment — so rotating overwrote the
+                // child that had just been placed. `single` gets this right only
+                // because it has no rotation.
+                const view = createElement('AdwToolbarView');
+                const widget = materialize(view) as unknown as Adw.ToolbarView;
+                const a = createElement('GtkLabel', { label: 'A', slot: 'content' });
+                const b = createElement('GtkLabel', { label: 'B', slot: 'content' });
+                insert(a, view);
+                insert(b, view, a);
+                expect((widget.get_content() as Gtk.Label).label).toBe('B');
+                remove(a);
+                expect((widget.get_content() as Gtk.Label)?.label).toBe('B');
+            });
+
+            await it('a failed materialize disconnects what its replay connected', async () => {
+                // Handler ids are per-instance. Leaving them kept the callbacks on
+                // an orphan for the life of the process, and made the documented
+                // retry disconnect an id the new widget never issued.
+                const page = createElement('AdwPreferencesPage');
+                const bad = createElement('GtkButton', { label: 'oops' });
+                materialize(bad);
+                insert(bad, page);
+                setEventHandler(page, 'onNotifyTitle', () => {});
+                expect(() => materialize(page)).toThrow('refused');
+                expect(page.handlers.size).toBe(0);
+                expect(page.listeners.size).toBe(1); // the intent survives, the binding does not
+
+                remove(bad);
+                const widget = materialize(page) as unknown as Gtk.Widget;
+                expect(widget !== null).toBe(true);
+                expect(page.handlers.size).toBe(1);
+            });
+
+            await it('setElementText survives a later rebuild', async () => {
+                // Arming `textFromChildren` with no text children left the next
+                // rebuild computing an empty concatenation, skipping its own guard
+                // and wiping the text.
+                const btn = createElement('GtkButton');
+                const widget = materialize(btn) as unknown as Gtk.Button;
+                setElementText(btn, 'Go');
+                expect(widget.label).toBe('Go');
+                setProp(btn, 'cssName', 'x');
+                expect((btn.widget as unknown as Gtk.Button).label).toBe('Go');
+            });
+
+            await it('a rebuild that cannot build puts the element back', async () => {
+                const box = createElement('GtkBox');
+                const parent = materialize(box) as unknown as Gtk.Widget;
+                const label = createElement('GtkLabel', { label: 'keep', cssName: 'before' });
+                insert(label, box);
+                // an object has no unambiguous string spelling
+                expect(() => setProp(label, 'cssName', { nope: true })).toThrow('string property');
+                expect(gtkChildTypes(parent)).toStrictEqual(['GtkLabel']);
+                expect(label.attached).toBe(true);
+                // …and the corrective write still works
+                setProp(label, 'cssName', 'after');
+                expect(gtkChildTypes(parent)).toStrictEqual(['GtkLabel']);
+            });
+
+            await it('a number bound to a string property is stringified', async () => {
+                const label = createElement('GtkLabel', { label: 42 });
+                expect((materialize(label) as unknown as Gtk.Label).label).toBe('42');
+            });
+        });
+
         await describe('mountRoot resolves the container through the table', async () => {
             await it('mounts into an application-owned widget', async () => {
                 const container = new Gtk.Box();

@@ -57,6 +57,12 @@ export const err = {
                 `GObject has one handler per connect, and this host keeps one per signal name. ` +
                 `Use one spelling, or combine the two callbacks yourself.`,
         ),
+    badString: (tag: string, prop: string, got: string) =>
+        new GtkHostError(
+            'bad-string',
+            `<${tag}>.${prop} is a string property and got a ${got}. Numbers and booleans are stringified; ` +
+                `anything else has no unambiguous spelling, and GObject would have thrown from inside the next rebuild.`,
+        ),
     badBoolean: (tag: string, prop: string, value: string) =>
         new GtkHostError(
             'bad-boolean',

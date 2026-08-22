@@ -46,12 +46,15 @@ GLib.log_set_writer_func((level, fields) => {
         let message = '';
         const raw = (fields as unknown as { MESSAGE?: unknown } | null)?.MESSAGE;
         message = raw instanceof Uint8Array ? decoder.decode(raw) : String(raw ?? '');
-        if (level <= GLib.LogLevelFlags.LEVEL_WARNING) diagnostics.push(message);
+        // MASK the level: `g_logv` ORs in `G_LOG_FLAG_FATAL`, so `WARNING|FATAL`
+        // is 18 and an unmasked `<= 16` misses it under `--g-fatal-warnings`.
+        const severity = level & GLib.LogLevelFlags.LEVEL_MASK;
+        if (severity <= GLib.LogLevelFlags.LEVEL_WARNING) diagnostics.push(message);
         // Same threshold GLib's own writer applies when G_MESSAGES_DEBUG is
         // unset: message-and-above is printed, info/debug is not. Printing
         // everything published a hundred portal-setting lines before the first
         // assertion, which is its own kind of unreadable.
-        if (verboseLogging || level <= GLib.LogLevelFlags.LEVEL_MESSAGE) printerr(message);
+        if (verboseLogging || severity <= GLib.LogLevelFlags.LEVEL_MESSAGE) printerr(message);
     } catch {
         printerr('<gtk-host probe: a log message could not be decoded>');
     }
@@ -179,6 +182,11 @@ function rowTitles(group: HostElement): string[] {
 }
 
 function runProbe(): number {
+    // Start from zero. `diagnostics` lives for the process, and in the GUI path
+    // this runs from `activate` — AFTER Adw startup, where a session-bus, portal,
+    // theme or a11y warning is routine in a container. Counting those would exit
+    // the showcase with the host's name on a failure it did not cause.
+    diagnostics.length = 0;
     const ui = buildUi(null);
     const failures: string[] = [];
     const check = (what: string, ok: boolean) => {

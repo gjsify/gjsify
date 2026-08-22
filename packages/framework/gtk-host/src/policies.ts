@@ -121,7 +121,7 @@ function placeChild(place: Placement): void {
             // keyed reversal was a complete no-op in GTK while the host's own
             // navigators reported the new order.
             appendChild(parent, child, host);
-            rotateTail(parent, place.following, host);
+            rotateTail(parent, child, place.following, host);
             return;
     }
 }
@@ -167,10 +167,26 @@ function appendChild(parent: HostElement, child: HostElement, host: AnyWidget): 
     }
 }
 
-/** Detach the siblings after us and append them again, so document order wins. */
-function rotateTail(parent: HostElement, following: readonly HostElement[], host: AnyWidget): void {
-    for (const el of following) detachChild(parent, el, host);
-    for (const el of following) appendChild(parent, el, host);
+/**
+ * Detach the siblings after us and append them again, so document order wins.
+ *
+ * Only the siblings whose placement is actually ORDERED. A setter-backed slot
+ * (`set_content`, `set_title_widget`) holds one child, so "appending" it is an
+ * assignment — rotating such a sibling overwrites the child that was just placed
+ * and loses it. Different slots are independent of each other too, so a rotation
+ * only ever concerns the one it is in.
+ */
+function rotateTail(parent: HostElement, child: HostElement, following: readonly HostElement[], host: AnyWidget): void {
+    const policy = parent.descriptor.children;
+    let tail = following;
+    if (policy.kind === 'slotted') {
+        const slotOf = (el: HostElement) => el.slot ?? policy.defaultSlot;
+        const mine = slotOf(child);
+        if (policy.slots[mine]?.startsWith('set_')) return; // one child, no order
+        tail = following.filter((el) => slotOf(el) === mine);
+    }
+    for (const el of tail) detachChild(parent, el, host);
+    for (const el of tail) appendChild(parent, el, host);
 }
 
 /** The container's remove operation, guarded where the slot holds only one child. */

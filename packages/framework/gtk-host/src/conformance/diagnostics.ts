@@ -51,8 +51,13 @@ export function installDiagnosticsGate(): DiagnosticsGate {
         try {
             const raw = (fields as unknown as { MESSAGE?: unknown } | null)?.MESSAGE;
             const message = raw instanceof Uint8Array ? decoder.decode(raw) : String(raw ?? '');
-            if (level <= GLib.LogLevelFlags.LEVEL_WARNING) seen.push(message);
-            if (verbose || level <= GLib.LogLevelFlags.LEVEL_MESSAGE) printerr(message);
+            // MASK the level: `g_logv` ORs in `G_LOG_FLAG_FATAL` when the level is
+            // in the fatal mask, so `WARNING|FATAL` is 18 and an unmasked `<= 16`
+            // stops recording exactly the messages this exists to catch — under
+            // `--g-fatal-warnings`, i.e. the strictest run there is.
+            const severity = level & GLib.LogLevelFlags.LEVEL_MASK;
+            if (severity <= GLib.LogLevelFlags.LEVEL_WARNING) seen.push(message);
+            if (verbose || severity <= GLib.LogLevelFlags.LEVEL_MESSAGE) printerr(message);
         } catch {
             printerr('<gtk-host: a log message could not be decoded>');
         }

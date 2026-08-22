@@ -101,6 +101,12 @@ export function materialize(el: HostElement): GObject.Object {
     try {
         replayInto(el);
     } catch (e) {
+        // `replayInto` binds the listeners BEFORE placing children, so by now the
+        // ledger holds ids on the widget we are about to discard. Handler ids are
+        // per-instance: leaving them would keep the callbacks alive on an orphan
+        // for the life of the process AND make the documented retry disconnect an
+        // id the new instance never issued.
+        clearHandlers(el);
         for (const child of childSnapshot(el)) {
             if (child.kind === 'element' && child.attached) {
                 removeChild(el, child);
@@ -180,11 +186,12 @@ export function setProp(el: HostElement, key: string, next: unknown, _prev?: unk
     // type" (measured). The ParamSpec's own default is what "removed" means.
     const value = next === undefined ? defaultValue(spec) : coerce(spec, next, el.descriptor.gtype);
 
+    const previouslyRecorded = name in el.props ? el.props[name] : undefined;
     if (next === undefined) delete el.props[name];
     else el.props[name] = next;
 
     if (!el.widget) return; // buffered until materialisation
-    if ((spec.flags & GObject.ParamFlags.CONSTRUCT_ONLY) !== 0) return rebuild(el);
+    if ((spec.flags & GObject.ParamFlags.CONSTRUCT_ONLY) !== 0) return rebuild(el, name, previouslyRecorded);
 
     beginHostWrite();
     try {
@@ -277,7 +284,7 @@ function replaceAt(el: HostElement, parent: HostElement, commit: () => void, rol
  * keeps the old value. Rebuilding is the only honest answer, and it is the same
  * move react-three-fiber makes for its `args` prop.
  */
-function rebuild(el: HostElement): void {
+function rebuild(el: HostElement, key?: string, previous?: unknown): void {
     const parent = el.parent;
     if (el.widget) {
         clearHandlers(el);
@@ -299,7 +306,27 @@ function rebuild(el: HostElement): void {
     // `materialize` replays the whole child list itself; a second pass here
     // attached everything twice and made the remove-all policy re-append a tail
     // that was already in place.
-    materialize(el);
+    //
+    // If it throws, the element is already out of its parent and has no widget —
+    // and a corrective `setProp` would then hit the `!el.widget` buffer path and
+    // never come back. Put the old value back and re-place it, so the failure
+    // costs the caller an exception and nothing else.
+    try {
+        materialize(el);
+    } catch (e) {
+        if (key !== undefined) {
+            if (previous === undefined) delete el.props[key];
+            else el.props[key] = previous;
+        }
+        try {
+            materialize(el);
+            if (parent) attach(parent, el);
+        } catch {
+            // The old value built a widget a moment ago; if it no longer does, the
+            // ORIGINAL rejection is what the caller needs to see.
+        }
+        throw e;
+    }
     if (parent) attach(parent, el);
 }
 
@@ -322,7 +349,10 @@ export function setElementText(el: HostElement, text: string): void {
     // and clear the text we just wrote.
     el.textFromChildren = false;
     for (const child of childSnapshot(el)) destroy(child);
-    el.textFromChildren = true;
+    // Deliberately NOT re-armed: the flag means "text children own the sink", and
+    // there are none left. Arming it made the next rebuild's `flushText` compute
+    // an empty concatenation, skip its own guard and wipe the text — silently.
+    // `writeTextSink` recorded the value in `el.props`, which a rebuild replays.
 }
 
 function flushText(el: HostElement): void {

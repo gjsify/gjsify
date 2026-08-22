@@ -114,6 +114,15 @@ export function coerce(spec: GObject.ParamSpec, value: unknown, tag: string): un
         return Boolean(value);
     }
 
+    if (GObject.type_is_a(valueType, GObject.TYPE_STRING)) {
+        // `label={count}` is the ordinary JSX/template spelling and unambiguous.
+        // An object is not: passing it through reached `g_object_new`, which threw
+        // from inside a rebuild rather than at the call that authored it.
+        if (typeof value === 'string') return value;
+        if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+        throw err.badString(tag, spec.get_name(), typeof value);
+    }
+
     if (
         GObject.type_is_a(valueType, GObject.TYPE_INT) ||
         GObject.type_is_a(valueType, GObject.TYPE_UINT) ||
