@@ -25,7 +25,7 @@ import { describe, expect, it } from '@gjsify/unit';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { inlineStaticReads, isAbsoluteFsPath } from '@gjsify/rolldown-plugin-gjsify';
+import { inlineStaticReads, isAbsoluteFsPath, shouldInline, shouldRewrite } from '@gjsify/rolldown-plugin-gjsify';
 
 export default async () => {
     await describe('inline-static-reads', async () => {
@@ -131,6 +131,81 @@ export default async () => {
             // On POSIX `C:\…` is a single relative filename, not a path — the
             // old `startsWith('/')` said so and that must not change.
             expect(isAbsoluteFsPath('C:\\ws\\x.json', 'linux')).toBe(false);
+        });
+    });
+
+    // The inliner was scoped to `node_modules` and parsed with plain acorn. Both
+    // halves hid the same thing, and only together: an installed package ships
+    // JS, so acorn could always parse what the scope let through, and no test
+    // ever handed it a `.ts`. The result was that every first-party static read
+    // in this repository stayed live in the GJS bundle — including six template
+    // loaders in @gjsify/cli itself, two of which carry a comment claiming the
+    // inliner handles them. `gjs -m dist/cli.gjs.mjs ship --stage` died with
+    // ENOENT on `templates/app/desktop.tmpl` while `node lib/index.js ship
+    // --stage` staged it fine.
+    //
+    // The discriminator is the pair below: the SAME expression, once as .js and
+    // once as .ts. Before the fix the first returned 1 and the second 0, and a 0
+    // is indistinguishable from "this file has no static reads" — which is why
+    // nothing noticed for as long as it did.
+    await describe('inline-static-reads — TypeScript sources', async () => {
+        await it('inlines the same expression from .ts as from .js', () => {
+            const dir = mkdtempSync(join(tmpdir(), 'gjsify-inline-ts-'));
+            try {
+                writeFileSync(join(dir, 'greeting.txt'), 'from-a-typescript-source');
+                const read = `readFileSync(new URL('./greeting.txt', import.meta.url), 'utf-8')`;
+                const js = `import { readFileSync } from 'node:fs';\nexport const greeting = ${read};\n`;
+                // A type annotation and an interface: the syntax acorn rejects,
+                // and the reason the whole file was skipped rather than partly read.
+                const ts =
+                    `import { readFileSync } from 'node:fs';\n` +
+                    `interface Unused { readonly a: string }\n` +
+                    `export const greeting: string = ${read};\n`;
+
+                const asJs = inlineStaticReads(js, join(dir, 'probe.js'));
+                const asTs = inlineStaticReads(ts, join(dir, 'probe.ts'));
+
+                expect(asJs.inlined).toBe(1);
+                expect(asTs.inlined).toBe(1);
+                expect(asTs.contents).toContain('from-a-typescript-source');
+                // The call itself is gone, not merely repointed.
+                expect(asTs.contents.includes('readFileSync(new URL(')).toBe(false);
+            } finally {
+                rmSync(dir, { recursive: true, force: true });
+            }
+        });
+
+        await it('leaves a genuinely unparseable source alone instead of throwing', () => {
+            const out = inlineStaticReads('const a = <<< readFileSync', '/tmp/broken.ts');
+            expect(out.inlined).toBe(0);
+        });
+    });
+
+    // Two questions, two predicates. Collapsing them is what trapped the inliner
+    // inside the rewriter's scope; keeping them apart is what the plugin's
+    // `shouldInline` doc block argues for at length.
+    await describe('shouldInline is wider than shouldRewrite, deliberately', async () => {
+        await it('accepts a first-party source the rewriter skips', () => {
+            const firstParty = '/project/src/utils/app-metadata.ts';
+            expect(shouldInline(firstParty)).toBe(true);
+            expect(shouldRewrite(firstParty)).toBe(false);
+        });
+
+        await it('accepts an installed package too — the rewriter is not narrowed', () => {
+            const installed = '/project/node_modules/typedoc/dist/lib/app.js';
+            expect(shouldInline(installed)).toBe(true);
+            expect(shouldRewrite(installed)).toBe(true);
+        });
+
+        await it('still refuses our own shims, which must never be touched', () => {
+            const shim = '/p/node_modules/@gjsify/rolldown-plugin-gjsify/lib/shims/module-resolve.js';
+            expect(shouldInline(shim)).toBe(false);
+            expect(shouldRewrite(shim)).toBe(false);
+        });
+
+        await it('refuses a path that is not a source at all', () => {
+            expect(shouldInline('/project/src/data.json')).toBe(false);
+            expect(shouldInline('/project/src/templates/app/desktop.tmpl')).toBe(false);
         });
     });
 };

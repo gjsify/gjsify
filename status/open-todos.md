@@ -4,6 +4,51 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### Nothing runs `build:infra` on a cold tree with no `node`
+
+The bootstrap ADR 0002 documents — `gjs -m install.mjs` → `gjsify install
+--immutable` → `gjsify run build:infra` — used to die at its THIRD step on a host
+with no `node`, from a fresh clone. Measured 2026-08-19 on postmarketOS v26.06 /
+aarch64 (OnePlus 6T, gjs 1.88.1, musl, no node) against `3ad411530`, in a
+`git worktree` with no `lib/esm` anywhere:
+
+    gjsify run --node-script: failed to bundle …/create-gjsify/scripts/process-template.mjs
+    [@gjsify/create-app] gjsify run build exited with code 1
+
+**Mechanism, and why the defect is closed.** `@gjsify/create-app`'s `build` runs
+`node scripts/process-template.mjs`. With no `node`, `ensureGjsifyShimOnPath()`
+re-enters the CLI as `gjsify run --node-script`, which bundles the script
+`--app gjs` under `--globals auto` — and auto-globals RESOLVES a
+`@gjsify/<pkg>/register[/…]` subpath per injected global (`--verbose` prints
+`closure map expanded 1 → 21 global(s)` for a one-line `export {}` entry, spanning
+`web-globals`, `abort-controller`, `buffer`, `web-streams`, `dom-exception`,
+`formdata`, `perf_hooks`, `webcrypto`). In a cold clone the workspace copies have
+no `lib/esm`, so every injection was unresolvable and `unresolved-workspace-import`
+(correctly) failed the build. #1232 closed that: a TOOLCHAIN bundle now falls back
+to the CLI's OWN directory once workspace resolution returns null. All 23 register
+packages sit in `@gjsify/cli`'s transitive dependency closure, so a self-contained
+install can answer — checked against `~/.local/share/gjsify/global`, where all 23
+are present and built.
+
+**What is still open is the MEASUREMENT.** No suite executes that third step.
+`bootstrap-cold-tree` asserts the `--print-plan` BRANCH and exits without
+spawning; `node-free-bootstrap` covers the install and a manifest invariant;
+`node-script-cold-workspace` (#1232) drives the real `--node-script` path against
+ONE planted unresolvable package rather than a whole cold tree. Every CI host has
+`node`, so these scripts run natively and are never bundled at all. Until a leg
+really runs `build:infra` on a tree with no `lib/esm` and `node` off PATH, the fix
+is argued rather than observed — and the failure returns unseen.
+
+It is worth recording what this is NOT, because both wrong turns were taken once.
+It is not a `build:infra` ORDERING bug: `create-app` is merely the first
+`node scripts/*.mjs` the chain reaches, and the same failure hit
+`check-refs-pin.mjs`, so `build:prebuilds` could not start either. And it is not
+fixable by dropping the EXPANDED half of the closure set — `auto-globals.spec.ts`
+("closure-map expansion vs generator bypass") pins that the expansion is a seed the
+pure iterative loop reaches anyway, so an expanded global is one the injected
+register genuinely references. Dropping it trades a build error for a runtime
+`ReferenceError`.
+
 ### No CI leg ever LAUNCHES a template on node, bun or deno
 
 `gjsify.example.runtimes` on the seven templates declares four runtimes, and
@@ -350,13 +395,18 @@ affects a caller that hands `pathToFileURL` a relative path ON win32. `node:url`
 
 ### sass under GJS: the SCRIPT path is closed, the BUNDLER path is not (#1053)
 
-The bootstrap chain itself is closed: `gjsify run --node-script <file>` bundles an
-unbundled `.mjs` that imports `node:*` and runs it, `ensureGjsifyShimOnPath()`
-puts a `node` on a package script's PATH that re-enters it when the host has none, and `build:infra`
-now goes end to end with no `node` at all — measured by putting `node`/`npm`/`npx`
-on PATH that exit 127 and announce themselves, then running the whole chain under
-`gjs -m …/cli.gjs.mjs`: exit 0 warm, and exit 0 COLD with both native facades
-deleted, which rebuilt them through the global CLI's own engine.
+The bootstrap chain itself is closed FOR A TREE THAT IS ALREADY BUILT:
+`gjsify run --node-script <file>` bundles an unbundled `.mjs` that imports `node:*`
+and runs it, `ensureGjsifyShimOnPath()` puts a `node` on a package script's PATH
+that re-enters it when the host has none, and `build:infra` goes end to end with no
+`node` at all — measured by putting `node`/`npm`/`npx` on PATH that exit 127 and
+announce themselves, then running the whole chain under `gjs -m …/cli.gjs.mjs`:
+exit 0 warm, and exit 0 with both native facades deleted, which rebuilt them
+through the global CLI's own engine. **That last measurement is NOT the cold case
+it reads as** — deleting the facades leaves every workspace `lib/esm` in place. On
+a tree that has none the same chain used to fail at its first `node scripts/*.mjs`;
+#1232 closed that, and what is left is that nothing measures it — see
+"Nothing runs `build:infra` on a cold tree with no `node`" above.
 `process-template.mjs`, `set-bin-mode.mjs`, `build-assets.mjs` and
 `bootstrap-native-facades.mjs` all run there now. The manifests still spell
 `node scripts/x.mjs` deliberately — `writeNodeShim` records why a NEW flag in a
@@ -1425,8 +1475,8 @@ Stages 2 and 3 have landed: one staged payload, `.deb` and `.rpm` packed by hand
 
 Open, in order — each independently mergeable, each with its proof:
 
-1. **`fail_on_unmatched_files` on the release upload.** `release-cut.yml:377-378` hardcodes `packages/infra/cli/ship/out/*.deb` / `*.rpm` into `softprops/action-gh-release` with no such flag, so a glob that stops matching uploads nothing and exits 0 — while `if-no-files-found: error` appears 37 times elsewhere and `fail_on_unmatched_files` **0 times in the repo**. The gate that follows (`:388`) checks only `install.mjs` and `cli.gjs.mjs`. Add the flag plus a lexical check beside `check-workflow-inline-scripts.mjs`, and extend `:388` with the package asset names. No ship-code change; protects the path that ships today.
-2. **`kind: 'app'` is dead under the shipped GJS bin, and the cause is in the BUNDLER.** `rewrite-node-modules-paths.ts`'s `shouldRewrite()` returns false unless the path contains `node_modules`, and it guards the only production call site of `inlineStaticReads` — so `dist/cli.gjs.mjs` carries **6 live `readFileSync(new URL(…))` and 0 inlined templates**, resolving to a package-root `templates/` that `files` does not publish. Breaks `ship` with `kind: 'app'` (the default), `flatpak scaffold`, `generate-installer` and the oxlint/oxfmt templates — under exactly the bundle `release-cut.yml` packs into the `.deb`. Fix at the core per AGENTS.md; gate with `grep -c 'readFileSync(new URL' dist/cli.gjs.mjs == 0`. **This blocks stages 4/5**, whose `Info.plist`/`.wxs`/entitlements would be five more of the same defect.
+1. ~~**`fail_on_unmatched_files` on the release upload.**~~ **DONE (#1252).** `release-cut.yml` globbed the `.deb`/`.rpm` onto the release with the flag absent, so a glob matching nothing uploaded nothing and left the cut green — while the gate that follows checked only `install.mjs` and `cli.gjs.mjs`, and `gjsify self-update` sends system-prefix installs to exactly those assets. Landed: the flag, an install-URL gate that COUNTS what `ship` wrote (the names carry the version and the arch label, so they are read off disk), and `scripts/check-workflow-release-globs.mjs`, wired into both `audit-runtimes` jobs because `release-cut.yml` never runs on a pull request. Correcting a number this list carried: `if-no-files-found: error` appears **33** times, not 37 — the 37 was inherited from a draft and never remeasured.
+2. **`kind: 'app'` was dead under the shipped GJS bin, and the cause was TWO gates deep.** Being fixed in #1257; one of its six sites was already fixed at the call site by #1251, which moved that template into source. What the first reading of this entry got right: `rewrite-node-modules-paths.ts`'s `shouldRewrite()` returns false unless the path contains `node_modules`, and it guards the only production call site of `inlineStaticReads`, so the CLI never offered its own reads to the inliner. What it MISSED, and what makes opening that gate insufficient on its own: the inliner parsed with acorn, **which cannot read TypeScript**, and its `catch` returns `inlined: 0` — a value indistinguishable from "this file has no static reads". An installed package ships JS, so the scope kept the parser limitation invisible; measured, the same expression returned 1 as `.js` and 0 as `.ts`. Also worth keeping: the obvious repair is a trap. Rolldown's own oxc parser links npm `rolldown` — a Rust napi crate that cannot run under GJS — into a module that must load under GJS, and the CLI bundle then died at startup with `createRequire: Cannot require builtin module "fs" synchronously in GJS`. The published 0.41.0 still ENOENTs on `generate-installer`, `flatpak scaffold` and the two oxc config templates until #1257 lands.
 3. **Pack from a stage alone** (`--from-stage` + `.gjsify-ship-stage.json`). The sidecar is a closure — `{settings (arch resolved at stage time), staged, overlay, namespaces, mtime}` — not a settings dump: measured, dropping `staged` packs the launcher 0644, dropping the overlay omits the Debian-Policy copyright file, dropping `namespaces` loses `gir1.2-gtk-4.0` and `gir1.2-adw-1` from `Depends`, all silently at exit 0. `readStage` must fail on a staged path the plan does not name AND on a planned path the stage lacks (its `?? 0o644` fallback inherits the open `download-artifact` MERGE hazard). Never `writeStage` onto an arriving stage — it opens with `rmSync(root, {recursive: true})`. *Proof, and the deletion IS the discriminator:* stage into a tmpdir, **delete the project tree**, pack from the stage, assert byte-equality with the single-host artifact.
 4. **`ship-pack-linux` on a bare `ubuntu-latest`** (no container), downloading a stage and packing deb+rpm. First real `dpkg -i --dry-run` this project has ever run, plus `rpm` via `docker run --rm fedora:44`, on a free runner — it closes the `dpkg` gap below and exercises the whole cross-host handoff with formats that already exist, before any darwin runner is involved. Fold in binding `FORMAT_IDS` to `manifest-conformance/lib/rules/ship.mjs`'s `TARGETS = new Set(['deb','rpm'])`, a second source of truth that will reject the first legitimate new declaration.
 5. **Stages 4/5 proper** — macOS `.app` + zip and the Windows program directory + zip (`finishOn: 'any'`), then `.dmg` on `macos-latest`/`macos-15-intel` and `.msi`. Blocked on 2 and 3. Windows launcher is unresolved and is a VM measurement, not a design argument: `node.exe` is a CONSOLE-subsystem image (Subsystem=3 at offset 0xd4, v24.19.0), `nodew.exe` does not exist, and every Windows CI leg starts the app from a shell and therefore inherits a console — so no CI leg can observe the defect. Instrument is `win11-gjsify`.

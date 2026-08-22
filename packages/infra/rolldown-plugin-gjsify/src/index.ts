@@ -11,6 +11,7 @@ export {
     getBundleDirFromOutput,
     rewriteContents,
     shouldRewrite,
+    shouldInline,
     nodeModulesPathRewritePlugin,
 } from './plugins/rewrite-node-modules-paths.js';
 export type { NodeModulesPathRewriteOptions, RewriteResult } from './plugins/rewrite-node-modules-paths.js';
