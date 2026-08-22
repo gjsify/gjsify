@@ -158,6 +158,13 @@ class TreeBuilder implements TreeSink {
     private bodyElement: DOMElement | null = null;
     private skipLineFeed = false;
     /**
+     * The spec's "form element pointer". Its only job here is the rule that a
+     * SECOND `<form>` start tag is ignored while one is open — `<form><form>` is
+     * one form in every browser, and a fuzz run against parse5 found this as the
+     * last residual divergence once the declared-out algorithms were excluded.
+     */
+    private formElement: DOMElement | null = null;
+    /**
      * The spec's "text" insertion mode. A raw-text or RCDATA element takes the
      * character tokens that follow it WHATEVER mode we were in — without this,
      * `<style>` inserted in the head has its own body pushed into `<body>`,
@@ -524,6 +531,8 @@ class TreeBuilder implements TreeSink {
             return;
         }
 
+        if (tag === 'form' && this.formElement !== null && !this.inTemplate) return;
+
         if (CLOSES_PARAGRAPH.has(tag) && (tag !== 'table' || !this.quirks)) this.closeParagraph();
 
         if (HEADINGS.has(tag)) {
@@ -548,6 +557,9 @@ class TreeBuilder implements TreeSink {
         }
 
         this.insertGeneric(tag, attrs);
+        // A form inside a template does not own the pointer: the template's
+        // content is a separate tree, and a form outside it must stay reachable.
+        if (tag === 'form' && !this.inTemplate) this.formElement = this.open[this.open.length - 1] ?? null;
     }
 
     /** The `li`/`dd`/`dt` walk: find a sibling item, but give up at the first
@@ -678,6 +690,26 @@ class TreeBuilder implements TreeSink {
                 this.mode = MODE_AFTER_BODY;
                 if (name === 'html') this.onCloseTag('html');
             }
+            return;
+        }
+
+        if (name === 'br') {
+            // The spec's one end-tag-to-start-tag rewrite: `</br>` is a parse
+            // error that acts as `<br>` with no attributes. Dropping it instead
+            // loses a line break every `<br></br>` in the wild produces.
+            this.inBodyStartTag('br', []);
+            return;
+        }
+
+        if (name === 'form' && !this.inTemplate) {
+            const form = this.formElement;
+            this.formElement = null;
+            if (form === null || !this.hasInScope('form', DEFAULT_SCOPE)) return;
+            this.generateImpliedEndTags();
+            // Removed from wherever it sits, not popped down to: the spec takes
+            // the form out of the stack without closing what is open above it.
+            const index = this.open.indexOf(form);
+            if (index !== -1) this.open.splice(index, 1);
             return;
         }
 

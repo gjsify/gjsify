@@ -86,6 +86,28 @@ export default async () => {
             expect(cells[0].parentElement!.parentElement!.localName).toBe('tbody');
         });
 
+        await it('reopens a br for a stray end tag', async () => {
+            // `</br>` is the spec's one end-tag-to-start-tag rewrite. Dropping it
+            // loses a line break on every `<br></br>` in the wild — found by a
+            // seeded fuzz run against parse5, not by reading the spec.
+            const doc = parse('<div>x<br></br>y</div>');
+            const breaks = doc.querySelectorAll('br');
+            expect(breaks.length).toBe(2);
+            expect(doc.querySelector('div')!.childNodes.length).toBe(4);
+            expect(doc.querySelector('div')!.textContent).toBe('xy');
+        });
+
+        await it('ignores a form nested inside a form', async () => {
+            // The form element pointer: `<form><form>` is ONE form everywhere.
+            // The paragraphs are the discriminator — a parser that dropped the
+            // whole token rather than only the element would lose them too.
+            const doc = parse('<form><p>a</p><form><p>b</p></form></form>');
+            expect(doc.querySelectorAll('form').length).toBe(1);
+            const paragraphs = doc.querySelectorAll('p');
+            expect(paragraphs.length).toBe(2);
+            expect(paragraphs[1].parentElement!.localName).toBe('form');
+        });
+
         await it('closes definition terms against one another', async () => {
             const doc = parse('<dl><dt>t1<dd>d1<dt>t2<dd>d2</dl>');
             expect(doc.querySelectorAll('dt').length).toBe(2);

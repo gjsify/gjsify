@@ -282,6 +282,16 @@ export const FIXTURES: Fixture[] = [
         minElements: 25,
         mustContain: ['data-adid="13"', 'data-adid="31"', '10 €', 'lang="de-AT"', 'type="TEXT"'],
     },
+    {
+        // `<br></br>` is two line breaks, and a nested `<form>` is one form.
+        // Both were found by the seeded fuzz in `fuzz.spec.ts`, which is why
+        // they are here rather than only in the package's own spec.
+        name: 'stray-br-and-nested-form',
+        html: '<div>x<br></br>y</div><form><p>a</p><form><p>b</p></form></form>',
+        expect: 'identical',
+        minElements: 6,
+        mustContain: ['#text "x"', '#text "y"', '#text "b"'],
+    },
     // --- declared divergent, ADR 0026 § 6 --------------------------------
     {
         name: 'misnested-formatting',
