@@ -91,8 +91,24 @@ fi
 
 # dpkg applies uid/gid verbatim, so a build-user id here installs files owned by
 # that id on the user's machine and the install still succeeds.
-if printf '%s\n' "$CONTENTS" | awk '$2 != "root/root" { print; bad = 1 } END { exit bad ? 0 : 1 }'; then
-    fail "the data member carries entries not owned by root/root"
+#
+# TWO SPELLINGS, ONE CLAIM. `dpkg-deb --contents` renders the tar header's
+# uname/gname when they are set and the numeric uid/gid when they are not, so
+# `root/root` and `0/0` are the same package. `dpkg-deb --build` writes the
+# names; `@gjsify/tar`'s `buildHeader()` writes ids 0 and leaves the name fields
+# empty, which is the `tar --numeric-owner` convention the reproducible-builds
+# recipes use and what `gjsify pack`'s npm tarballs — the same writer — look
+# like. Demanding only the first spelling reds on a package that is correct,
+# and a check that reds for cosmetics is one that gets `|| true`-ed (§ 4 says
+# the same about lintian's exit code).
+#
+# What it still rejects is a THIRD spelling. `1000/1000` is a leaked id —
+# lintian's `wrong-file-owner-uid-or-gid`, gated in § 4, reads that half too.
+# `pascal/pascal` is a leaked NAME with the ids still 0, which nothing else here
+# reads: GNU tar unpacking as root prefers the name over the id, so those bytes
+# install as root under dpkg and as someone else under `tar -x`.
+if printf '%s\n' "$CONTENTS" | awk '$2 != "root/root" && $2 != "0/0" { print; bad = 1 } END { exit bad ? 0 : 1 }'; then
+    fail "the data member carries entries owned by neither root/root nor 0/0 — see the uid/gid and uname/gname fields in @gjsify/tar's buildHeader()"
 fi
 
 # The count is DERIVED from the stage job's own output — no file count is
@@ -137,30 +153,56 @@ done < <(printf '%s\n' "$DEPENDS" | tr ',|' '\n\n' | sed 's/(.*//' | tr -d ' \t'
 # is validated against lintian's own tag list first. A renamed tag then reds
 # with "lintian no longer knows this" instead of passing vacuously — that
 # indirection is the whole point.
+#
+# `--fail-on none` IS PART OF THAT DESIGN, not a way to quiet the tool.
+# lintian's exit code is not a tag count; it is a CONDITION the caller picks
+# (`--fail-on error,warning,info,pedantic,experimental,override` — "define
+# condition for exit status 2", default `error`). Measured on lintian 2.117:
+#
+#   --fail-on none, this package   0
+#   --fail-on none, missing file   2   ("… is not a readable file")
+#   --fail-on none, not an archive 1   ("Skipping …")
+#   an unknown condition           255
+#   default condition, E: tag      2
+#
+# The last two lines are the problem: under the DEFAULT condition "your package
+# has an error tag" and "lintian never read your package" are the same code 2,
+# and this gate's whole job is to tell those apart. Moving the tag verdict out
+# of the exit code makes 0 reachable only by a completed analysis — so the named
+# gate below runs on output that was really produced, and the tags decide
+# nothing here but their own gate.
 echo "== lintian"
 set +e
-LINTIAN_OUT=$(lintian --no-cfg --display-info --display-experimental "$DEB" 2>&1)
+LINTIAN_OUT=$(lintian --no-cfg --fail-on none --display-info --display-experimental "$DEB" 2>&1)
 LINTIAN_RC=$?
 set -e
 printf '%s\n' "$LINTIAN_OUT"
-case "$LINTIAN_RC" in
-0 | 1) : ;;
-*) fail "lintian exited $LINTIAN_RC — it did not analyse the package (0 = clean, 1 = tags found; anything else is a usage or runtime failure). Treating that as 'no tags' is how this gate would pass having read nothing." ;;
-esac
+[ "$LINTIAN_RC" -eq 0 ] ||
+    fail "lintian exited $LINTIAN_RC under \`--fail-on none\`, a code it can only reach by NOT completing the analysis (2 = the file was unreadable, 1 = it was skipped as a non-archive, 255 = this lintian rejects the condition). Treating that as 'no tags' is how this gate would pass having read nothing."
 
 TAG_LIST=$(lintian-explain-tags --list-tags 2>/dev/null || lintian --list-tags 2>/dev/null || true)
 [ -n "$TAG_LIST" ] ||
     fail "cannot enumerate lintian's tag list (tried \`lintian-explain-tags --list-tags\` and \`lintian --list-tags\`). Without it the tag gate below cannot tell an absent defect from a renamed tag."
 
-# Each entry is a defect THIS writer can produce, not a wishlist.
+# Each entry is a defect THIS writer can produce, not a wishlist. `deb.ts`
+# generates the whole md5sums member by hand — the file list and every digest —
+# so the four tags that read it back are all reachable from one loop there.
 #   no-copyright-file                Policy § 12.5 — the overlay
 #   no-md5sums-control-file          the control member's md5sums
-#   md5sums-mismatch                 the digests in it
+#   md5sum-mismatch                  a digest in it (NOT `md5sums-mismatch`:
+#                                    that name is in no lintian this ran on, and
+#                                    the validation below is what said so)
+#   file-missing-in-md5sums          a payload path the member omits
+#   md5sums-lists-nonexistent-file   a member path the payload omits
+#   malformed-md5sums-control-file   its line format
 #   wrong-file-owner-uid-or-gid      data.tar owner ids
+#   control-file-has-bad-owner       control.tar owner ids
 #   malformed-deb-archive            the ar container and its member order
 #   control-file-has-bad-permissions the control member's modes
-for tag in no-copyright-file no-md5sums-control-file md5sums-mismatch \
-    wrong-file-owner-uid-or-gid malformed-deb-archive control-file-has-bad-permissions; do
+for tag in no-copyright-file no-md5sums-control-file md5sum-mismatch \
+    file-missing-in-md5sums md5sums-lists-nonexistent-file malformed-md5sums-control-file \
+    wrong-file-owner-uid-or-gid control-file-has-bad-owner malformed-deb-archive \
+    control-file-has-bad-permissions; do
     printf '%s\n' "$TAG_LIST" | grep -qFx "$tag" ||
         fail "this lintian does not know the tag \`$tag\`. It was renamed or removed — find its current name and update this list; do not delete the check."
     # `$` and not `( |$)` was the first spelling, and it silently under-matched:
