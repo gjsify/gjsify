@@ -1286,10 +1286,18 @@ jobs:
   # the seconds a local copy costs. The clone lives under `RUNNER_TEMP` for the
   # same filesystem reason, so nothing here depends on `/tmp`'s mount.
   #
-  # WHY A FAKE `node` RATHER THAN A PATH EDIT: a stripped PATH silently changes
-  # what else resolves, while a `node` that exits 127 and announces itself turns
-  # any fallback into a loud failure instead of a test that passed while proving
-  # nothing.
+  # WHY `node` IS MOVED ASIDE RATHER THAN FAKED. The first version put a `node`
+  # on PATH that exits 127 and announces itself — the technique
+  # `workspace-node-free-gjs` uses — and it DEFEATED the mechanism under test.
+  # `writeNodeShim` installs the `node` that re-enters `gjsify run --node-script`
+  # only when `resolveBinOnPath('node')` finds nothing ("a real Node is present —
+  # leave it alone"), so a fake is indistinguishable from the real thing: gjsify
+  # declined to install its shim, the package script called the fake, and the run
+  # died with `FAKE node CALLED` — measured. A Node-less host is one where `node`
+  # resolves NOWHERE, so this makes that literally true for the duration of the
+  # step and restores it in a trap. The precondition is asserted before the build
+  # runs, because a `node` that survived would silently turn this job back into a
+  # duplicate of the `build` job's own cold-tree step.
   cold-bootstrap:
     needs: [changes, setup, build]
     if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' }}
@@ -1341,20 +1349,27 @@ jobs:
           fi
           test -e "$COLD/node_modules/@gjsify/cli" || { echo "::error::node_modules did not come across"; exit 1; }
 
-          FAKEBIN=/tmp/fakebin
-          mkdir -p "$FAKEBIN"
-          for n in node npm npx; do
-            printf '#!/bin/sh\necho "FAKE %s CALLED" >&2\nexit 127\n' "$n" > "$FAKEBIN/$n"
-            chmod +x "$FAKEBIN/$n"
+          # Make this a Node-less host for real. Restored in a trap, so a failure
+          # inside the build cannot leave the container without an interpreter
+          # the post-job steps might want.
+          HIDDEN=""
+          for p in $(type -aP node npm npx 2>/dev/null || true); do
+            if mv "$p" "$p.gjsify-hidden" 2>/dev/null; then HIDDEN="$HIDDEN $p"; fi
           done
+          restore_node() {
+            for p in $HIDDEN; do
+              [ -e "$p.gjsify-hidden" ] && mv "$p.gjsify-hidden" "$p" || true
+            done
+          }
+          trap restore_node EXIT
 
-          chown -R testuser:testuser "$COLD" "$FAKEBIN"
-          su testuser -c "cd '$COLD' && PATH='$FAKEBIN':\"\$PATH\" XDG_CACHE_HOME='$COLD/.gjsify-cache' gjs -m '$CLI' run build:infra" 2>&1 | tee /tmp/cold-build.log
-
-          if grep -q 'FAKE node CALLED' /tmp/cold-build.log; then
-            echo "::error::build:infra shelled out to node — the Node-free path is not what ran"
+          if su testuser -c 'command -v node' >/dev/null 2>&1; then
+            echo "::error::node is still reachable — writeNodeShim would decline and this job would test nothing"
             exit 1
           fi
+
+          chown -R testuser:testuser "$COLD"
+          su testuser -c "cd '$COLD' && XDG_CACHE_HOME='$COLD/.gjsify-cache' gjs -m '$CLI' run build:infra"
 
   # ── Integration suites (curated upstream tests) ─────────────────────
   # The suites under `tests/integration/` run real upstream test bodies against
