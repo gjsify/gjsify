@@ -207,6 +207,13 @@ async function driveDrags(page: Page, bundleUrl: string) {
     // Clamped to the ADJACENT page while the drag itself went past it — `get_bounds`
     // measured from where the gesture began (adw-swipe-tracker.c:250-269), which is the
     // whole meaning of the default.
+    //
+    // This is also the one assertion in the file that CSS re-snap cannot produce in the
+    // same direction: released at 1.6 pages the browser's own snap goes FORWARD to page 2,
+    // and the tracker's bound holds it at 1. Most of the assertions here would survive a
+    // stubbed `onEnd`, because `release()` re-enables snapping before the settle and the
+    // browser lands on the same page anyway — this line and the flick above are the two
+    // that break when the tracker's decision stops being applied.
     expect(await state(page)).toMatchObject({ position: 1, scrollLeft: narrow, snap: 'x mandatory' });
 
     box = await mount(page, { 'allow-long-swipes': '' }, narrow);
