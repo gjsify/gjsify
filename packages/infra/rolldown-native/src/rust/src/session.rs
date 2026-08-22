@@ -651,11 +651,28 @@ pub extern "C" fn gjsify_rolldown_session_context_resolve(
                 external: None,
                 error: Some(format!("{resolve_err:?}")),
             },
+            // `{e:#}`, NOT `{e}`. This arm carries an `anyhow::Error`, whose
+            // OUTERMOST message is never the interesting part — the cause chain
+            // underneath is, and that is where a user plugin's own error text
+            // lives. `{e}` printed the outer line alone, so a plugin that threw
+            // during a NESTED `this.resolve()` reached JS as a bare
+            // "plugin `gjsify-alias` threw an error" with the diagnostic that
+            // names the specifier, the substitution target and the importer
+            // discarded. The `Ok(Err(resolve_err))` arm above has always printed
+            // its full form; the two simply disagreed, and this is the arm a
+            // plugin failure takes.
+            //
+            // The alternate form reaches `isResolveMiss` in `../../ts/plugins.ts`,
+            // which folds a `context_resolve` error into "nothing there" only when
+            // it starts with `NotFound(`. A chain from THIS arm opens with the
+            // outer bundler/plugin message, never that — pinned by
+            // `@gjsify/cli`'s `bundler-pick.spec.ts`, so the two cannot drift into
+            // reporting a real plugin failure as the user's missing dependency.
             Err(e) => ContextResolveResponse {
                 child_id,
                 id: None,
                 external: None,
-                error: Some(format!("{e}")),
+                error: Some(format!("{e:#}")),
             },
         };
         let _ = shared.context_response_tx.send(resp);
