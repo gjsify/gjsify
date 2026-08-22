@@ -193,7 +193,10 @@ attribute rule is a live scraping trap: without it `href="?a=1&copy=2"` decodes 
 RAWTEXT for `script`/`style`, RCDATA for `textarea`/`title`, comments incl. the bogus
 forms, doctype); the void-element set; the implied-end-tag table; implicit
 `html`/`head`/`body`; `<template>` content as a fragment; EOF auto-close; entity decoding;
-a serializer that emits valid HTML (today `outerHTML` writes `<div/>` for an empty div);
+a serializer that emits valid HTML (before it, `outerHTML` wrote `<div/>` for an empty div,
+and once decoding landed its text no longer re-escaped — `innerHTML` produced markup that
+reparses into a DIFFERENT tree); the two small tree-construction rules a fuzz run against
+parse5 turned up, `</br>` acting as `<br>` and the form element pointer;
 and a selector engine covering type/`*`/`.class`/`#id`, all eight attribute operators with
 the `i`/`s` flags, the four combinators, selector lists, and `:not() :is() :where() :has()
 :nth-child(an+b [of S]) :nth-of-type() :first-child :last-child :only-child :first-of-type
@@ -208,7 +211,15 @@ the `i`/`s` flags, the four combinators, selector lists, and `:not() :is() :wher
   Constructs that need it (`<b><i></b></i>`, stray table content) are declared divergent
   in the differential suite rather than left undiscovered;
 - **SVG/MathML foreign content** and its tag-name adjustments — only needed to select
-  *into* SVG;
+  *into* SVG. Measured after the fact against 47 real pages, that boundary is exactly where
+  this sentence puts it (every divergence from parse5 is inside an `<svg>`/`<math>` subtree,
+  none outside one) and WIDER in effect than it sounds, because inline SVG icons are on most
+  pages: `viewBox`/`clipPath`/`xlink:href` lose their casing, and a self-closing `<path/>`
+  nests where a browser makes it a sibling. `status/open-todos.md` carries the numbers;
+- **the "in select" insertion mode** — a browser DROPS markup a `<select>` may not contain
+  and keeps only its text. This was NOT on the list until a seeded fuzz put it there: with
+  the three algorithms above excluded from the generator, `<select>` was the last construct
+  still diverging (451 of 4000 cases). Pinned as the `select-with-foreign-markup` fixture;
 - **encoding sniffing and `<meta charset>` reparse** — `parseFromString` receives a JS
   string;
 - **quirks mode** — its only observable here is selector case-sensitivity, which the
@@ -268,6 +279,14 @@ fail `field-coverage` until a conformance rule claimed it — a real cost for a 
 The real 329 KB page stays a local measurement and is never committed (third-party
 listings, personal data).
 
+A THIRD oracle rides the same corpus: `fuzz.spec.ts` generates hostile markup out of the
+constructs § 6 claims as in scope — five fixed seeds, 600 cases each — and asserts that not
+one diverges from parse5. Its exclusions are what make it a measurement: the generator omits
+the formatting, table and `select` families, so a divergence is attributable rather than
+expected, and ABLATING one exclusion at a time is how the § 6 list above was corrected. It
+found three rules that list did not name; two are implemented and the third is the `select`
+entry.
+
 Beneath the oracle, the per-package specs keep proving behaviour we own, because the
 affected-classifier runs `<workspace>/src/**/*.spec.ts` on every PR while integration
 suites are opt-in: tokenizer token streams, the entity contexts, the selector grammar
@@ -278,11 +297,18 @@ round-trip, and the XML golden.
 
 - **Bundles that reference `DOMParser` get materially larger — measured, not estimated.**
   The same probe (`parseFromString(…, 'application/xml')`, bundled `--app node`, minified)
-  is **4,215 bytes before this ADR and 61,291 bytes after**: ×14.5. The named entity table
-  is **36,279 of those bytes — 59 % of the whole parser**, more than the tokenizer, the
-  tree builder and the node classes together. For comparison, the npm stack this replaces
-  (`htmlparser2 + css-select + domutils + entities`) is 107,071 bytes. Only bundles that
-  actually name the global pay it (`--globals auto` injects on a detected identifier).
+  is **4,233 bytes before this ADR and 75,397 bytes after**: ×17.8. Two pieces dominate:
+  the named entity table at **36,286 bytes — 48 %**, more than the tokenizer, the tree
+  builder and the node classes together, and the selector engine at **12,091 — 16 %**.
+  For comparison, the npm stack this replaces (`htmlparser2 + css-select + domutils +
+  entities`) is 107,071 bytes. Only bundles that actually name the global pay it
+  (`--globals auto` injects on a detected identifier).
+
+  Re-measured after the fact, and the correction is the point: this bullet first read
+  61,291 / ×14.5, taken before the selector engine landed and left standing while the
+  package grew by 14 KB. A size written down once is a claim with a date on it — the probe
+  is `parseFromString` imported from `src/index.ts`, built with `gjsify build --app node`,
+  and takes under a minute to re-run.
 - **The named table is a PARAMETER of the matcher, not a branch inside it**, and that is
   what makes the `entities` subpath the leaf its header claims. While the matcher chose the
   table itself, every entry point reached `NAMED_REFERENCES`: importing `decodeXml` alone —
@@ -328,8 +354,13 @@ outside the repo; the sequence is:
 10. `tests/integration/domparser/` — the differential suite
 11. CI: the suite into `main.yml`'s `integration` allowlist + its `status/integration-coverage.md` section
 12. docs + status data + `status/open-todos.md` sections + the agent-context ledger
-13. `dom-elements`: the adapter, the four stubs replaced
-14. `register.gjs.spec.ts` and the `test.browser.mts` surface mismatch
+13. `dom-elements`: the adapter, the four stubs replaced — NOT DONE, and moved to
+    `status/open-todos.md`: it changes a second package's declarations and `dom-elements`
+    has no `test:node`, so the differential run that verifies the engine cannot verify the
+    adoption
+14. `register.gjs.spec.ts` and the `test.browser.mts` surface mismatch — the spec landed;
+    the browser assertion resolved itself, because `DOMElement` now has the `className` it
+    was reaching for
 15. measure the showcase bundle delta; run `scripts/showcase-smoke.mjs`
 16. full gate: `gjsify install --immutable && gjsify run clear && gjsify run build && gjsify run check && gjsify run test`, plus `audit-runtimes --check --strict` and both output verifiers
 

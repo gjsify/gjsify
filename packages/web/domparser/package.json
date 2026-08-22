@@ -1,7 +1,7 @@
 {
     "name": "@gjsify/domparser",
     "version": "0.41.0",
-    "description": "DOMParser for GJS \u2014 self-contained XML parser with minimal DOM (querySelector, getAttribute, children)",
+    "description": "DOMParser for GJS \u2014 HTML5 parser, XML scanner, CSS Selectors 4 engine and the full entity table, dependency-free",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
     "files": [
@@ -56,6 +56,9 @@
     "keywords": [
         "gjs",
         "domparser",
+        "html",
+        "html5-parser",
+        "css-selectors",
         "xml",
         "dom",
         "web-api"

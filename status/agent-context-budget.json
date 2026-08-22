@@ -1,7 +1,7 @@
 {
-    "AGENTS.md": 21186,
+    "AGENTS.md": 21570,
     "packages/dom/AGENTS.md": 2081,
-    "packages/framework/AGENTS.md": 21913,
+    "packages/framework/AGENTS.md": 22863,
     "packages/infra/AGENTS.md": 1131,
     "packages/infra/cli/AGENTS.md": 14539,
     "packages/infra/resolve-npm/AGENTS.md": 6734,
@@ -10,6 +10,6 @@
     "packages/nativescript-bridge/AGENTS.md": 12060,
     "packages/node-gi/AGENTS.md": 12113,
     "packages/node/AGENTS.md": 17721,
-    "packages/web/AGENTS.md": 7565,
-    "tests/AGENTS.md": 8911
+    "packages/web/AGENTS.md": 9477,
+    "tests/AGENTS.md": 9638
 }
