@@ -1049,6 +1049,75 @@ export default async () => {
                 expect(gtkChildren(parent).map((w) => (w as Gtk.Label).label)).toStrictEqual(['L0', 'B', 'L1']);
             });
         });
+
+        await gated(diagnostics, 'the text sink and the one-child slot are the SAME GTK slot', async () => {
+            // Measured on gtk 4.22, raw GTK, both directions:
+            //   set_child(custom)          -> custom.get_parent() === GtkButton
+            //   set_property('label','')   -> custom.get_parent() === null
+            //   set_property('label','x')  -> custom.get_parent() === null
+            //   new Button({label:'Go'}); set_child(c) -> button.label === null
+            // `GtkButton` is `single` AND declares a text sink, so a renderer that
+            // swaps text for an element hits it every time.
+
+            await it('a removed text child does not clear the element that replaced it', async () => {
+                // Solid and React reconcile INSERT-then-REMOVE
+                // (`solid-js/universal` universal.js `replaceNode`). The removal's
+                // flushText wrote `label = ''`, which REPLACED the widget just
+                // placed: a blank button, exit 0, zero diagnostics, and the shadow
+                // tree still reporting `attached === true`.
+                const button = createElement('GtkButton');
+                const widget = materialize(button) as unknown as Gtk.Button;
+                const text = createText('Go');
+                insert(text, button);
+                expect(widget.label).toBe('Go');
+
+                const icon = createElement('GtkImage');
+                insert(icon, button); // the replacement lands first …
+                remove(text); // … and only then the old text goes
+
+                const placed = icon.widget as unknown as Gtk.Widget;
+                expect(widget.get_child() === placed).toBe(true);
+                expect(placed.get_parent() === (widget as unknown as Gtk.Widget)).toBe(true);
+                expect(icon.attached).toBe(true);
+            });
+
+            await it('the deleted text does not come back on the next rebuild', async () => {
+                // `materialize` replays `props` verbatim, so the sink value the
+                // text children wrote has to go with them. Keeping it made an
+                // unrelated construct-only write restate text the renderer had
+                // deleted two operations earlier.
+                const button = createElement('GtkButton');
+                const text = createText('Go');
+                insert(text, button);
+                const icon = createElement('GtkImage');
+                insert(icon, button);
+                remove(text);
+                remove(icon);
+
+                setProp(button, 'cssName', 'rebuilt');
+                expect((button.widget as unknown as Gtk.Button).label).toBe(null);
+            });
+
+            await it('a text write that takes the slot records the child as gone', async () => {
+                // The same collision the other way round. GTK unparents the child,
+                // so `attached` — "GTK has taken this node" — must stop claiming
+                // otherwise: `remove` would then ask GTK to unparent a non-child,
+                // which is a critical at exit 0.
+                const button = createElement('GtkButton');
+                const widget = materialize(button) as unknown as Gtk.Button;
+                const icon = createElement('GtkImage');
+                insert(icon, button);
+                expect(icon.attached).toBe(true);
+
+                insert(createText('Go'), button);
+                expect(widget.label).toBe('Go');
+                expect((icon.widget as unknown as Gtk.Widget).get_parent()).toBe(null);
+                expect(icon.attached).toBe(false);
+
+                remove(icon); // asks GTK for nothing, so the label survives
+                expect(widget.label).toBe('Go');
+            });
+        });
     });
 };
 

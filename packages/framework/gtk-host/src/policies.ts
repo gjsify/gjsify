@@ -44,6 +44,26 @@ export function makeWrapper(policy: ChildPolicy, child: Gtk.Widget): Gtk.Widget 
     return flowChild;
 }
 
+/**
+ * The ONE-CHILD setter this child's placement goes through, or null.
+ *
+ * `single` always is one (`set_child`, `set_content`); a `slotted` slot is one
+ * when its method is a setter (`set_content`, `set_title_widget`) rather than an
+ * adder. Such a slot REPLACES — and it does so silently, which is why four call
+ * sites need the same question answered. Two of them are about an ELEMENT
+ * arriving; the other two are about TEXT, because GTK's text sink is the SAME
+ * slot: measured on gtk 4.22, `button.set_child(w)` followed by
+ * `set_property('label', …)` leaves `w.get_parent() === null`, and `set_child`
+ * after a `label` write leaves `label === null`. One widget, one slot, two APIs.
+ */
+export function setterSlotOf(parent: HostElement, child: HostElement): string | null {
+    const policy = parent.descriptor.children;
+    if (policy.kind === 'single') return policy.set;
+    if (policy.kind !== 'slotted') return null;
+    const method = policy.slots[child.slot ?? policy.defaultSlot];
+    return method?.startsWith('set_') === true ? method : null;
+}
+
 export interface Placement {
     parent: HostElement;
     child: HostElement;
@@ -180,9 +200,9 @@ function rotateTail(parent: HostElement, child: HostElement, following: readonly
     const policy = parent.descriptor.children;
     let tail = following;
     if (policy.kind === 'slotted') {
+        if (setterSlotOf(parent, child)) return; // one child, no order
         const slotOf = (el: HostElement) => el.slot ?? policy.defaultSlot;
         const mine = slotOf(child);
-        if (policy.slots[mine]?.startsWith('set_')) return; // one child, no order
         tail = following.filter((el) => slotOf(el) === mine);
     }
     for (const el of tail) detachChild(parent, el, host);
@@ -206,9 +226,9 @@ function detachChild(parent: HostElement, child: HostElement, host: AnyWidget): 
             // child and has the same hazard as `single`: the insert-then-unmount
             // order Solid and React use would clear a slot that already holds the
             // replacement.
-            const method = policy.slots[child.slot ?? policy.defaultSlot];
-            if (method?.startsWith('set_')) {
-                clearIfCurrent(host, method, address);
+            const setter = setterSlotOf(parent, child);
+            if (setter) {
+                clearIfCurrent(host, setter, address);
                 return;
             }
             host[policy.remove](address);

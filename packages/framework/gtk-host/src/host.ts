@@ -10,7 +10,7 @@ import GObject from 'gi://GObject';
 import type Gtk from '@girs/gtk-4.0';
 
 import { err } from './errors.js';
-import { addressOf, insertChild, makeWrapper, removeChild, type Placement } from './policies.js';
+import { addressOf, insertChild, makeWrapper, removeChild, setterSlotOf, type Placement } from './policies.js';
 import { beginHostWrite, clearHandlers, endHostWrite, isEventProp, setHandler, toSignalName } from './signals.js';
 import { coerce, defaultValue, paramSpecs, requireSpec, toPropertyName } from './props.js';
 import { lookupWidget, nearestRegistered } from './registry.js';
@@ -375,12 +375,46 @@ function flushText(el: HostElement): void {
     // `cleanChildren` does `createTextNode("")`. Rejecting those made a `v-for`
     // impossible to mount into ANY sink-less container. Real text still throws.
     if (text === '' && !el.textFromChildren) return;
+    // Clearing the sink must not take an element child with it. GTK's text sink
+    // IS the one-child slot: measured on gtk 4.22, `set_child(custom)` gives
+    // `custom.parent === GtkButton` and the very next `set_property('label','')`
+    // gives `custom.parent === NULL`. Solid and React reconcile
+    // INSERT-then-REMOVE (`solid-js/universal`'s `replaceNode`), so swapping a
+    // text child for an element child on a `GtkButton` — `single` AND a text
+    // sink, both — placed the element and then cleared it away: a blank button
+    // at exit 0, zero diagnostics, and `attached === true` for a widget GTK had
+    // unparented. `clearIfCurrent` is this guard's element-side twin; only the
+    // text side was missing.
+    const sink = el.descriptor.textSink;
+    if (text === '' && sink && holdsElementInSetterSlot(el)) {
+        el.textFromChildren = false;
+        // The recorded value came from text children that are gone, and
+        // `materialize` replays `props` verbatim — keeping it would restate the
+        // deleted text into the slot the element child now owns.
+        delete el.props[sink];
+        return;
+    }
     // Set AFTER the write: `writeTextSink` throws for a sink-less widget, and a
     // flag set before it survives the failed insert — a later rebuild would then
     // flush text into a widget that never accepted any.
     writeTextSink(el, text);
     el.textFromChildren = sawText;
 }
+
+/**
+ * Our element children whose placement goes through the parent's ONE-CHILD slot.
+ *
+ * The text sink writes that same slot, so both text paths need this walk: one to
+ * refuse a clear that would evict such a child, one to record that a write just
+ * did.
+ */
+function* setterSlotChildren(el: HostElement): Generator<HostElement> {
+    for (const child of siblingsFrom(el.first, el)) {
+        if (child.kind === 'element' && child.attached && setterSlotOf(el, child)) yield child;
+    }
+}
+
+const holdsElementInSetterSlot = (el: HostElement): boolean => !setterSlotChildren(el).next().done;
 
 function writeTextSink(el: HostElement, text: string): void {
     const sink = el.descriptor.textSink;
@@ -400,6 +434,14 @@ function writeTextSink(el: HostElement, text: string): void {
     // Recorded only once GTK has taken it — `el.props` is replayed verbatim by
     // `materialize`, so a rejected value kept here re-throws from a later rebuild.
     el.props[sink] = text;
+
+    // A non-empty write into a one-child slot is the SAME collision the other
+    // way round: measured, `set_child(custom)` then `set_property('label','text')`
+    // also leaves `custom.parent === NULL`. GTK has just unparented that child,
+    // so the shadow tree stops claiming otherwise — `attached` means "GTK has
+    // taken this node", and a later `remove` would ask GTK to unparent a
+    // non-child (a critical, at exit 0).
+    for (const child of setterSlotChildren(el)) child.attached = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -504,6 +546,7 @@ function attach(parent: HostElement, child: HostElement): void {
         parent.foreign.length > 0
             ? parent.foreign.filter((w) => (w as unknown as { get_parent(): unknown }).get_parent() === parent.widget)
             : parent.foreign;
+
     let prevWidget: Gtk.Widget | null = priorChildren.length > 0 ? priorChildren[priorChildren.length - 1] : null;
     let index = priorChildren.length;
     for (const n of siblingsFrom(parent.first, parent)) {
