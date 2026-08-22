@@ -158,6 +158,68 @@ export default async () => {
                 diagnostics.assertQuiet();
             });
 
+            await it('mounts AFTER what the application already put in the container', async () => {
+                // Every other vector here uses a fresh empty Box, which is exactly
+                // why this was invisible: an adopted root has an empty shadow tree,
+                // so the first insertion resolved to `insert_child_after(w, null)` —
+                // GTK's "make first" — and the rendered tree landed above the app's
+                // own chrome.
+                const container = new Gtk.Box();
+                const chrome = new Gtk.Label({ label: 'app-owned' });
+                container.append(chrome);
+                const dispose = mount(() => {
+                    const label = createElement('GtkLabel');
+                    setSolidProp(label, 'label', 'rendered');
+                    return label;
+                }, container);
+                expect(labelsOf(container)).toStrictEqual(['app-owned', 'rendered']);
+                dispose();
+                diagnostics.assertQuiet();
+            });
+
+            await it('a row dropped by reconciliation is torn down, not just detached', async () => {
+                // `mount`'s teardown can only reach what is still attached, so a node
+                // removed by an earlier reconciliation would keep its handlers for
+                // the life of the process — GJS blocks JS callbacks during GC. The
+                // per-node reactive scope is the only signal that says "gone".
+                const container = new Gtk.Box();
+                const [items, setItems] = createSignal(['a', 'b']);
+                let fired = 0;
+                const buttons: Gtk.Button[] = [];
+                mount(() => {
+                    const box = createElement('GtkBox');
+                    insert(
+                        box,
+                        createComponent(For, {
+                            get each() {
+                                return items();
+                            },
+                            children: (t: string) => {
+                                const btn = createElement('GtkButton');
+                                setSolidProp(btn, 'label', t);
+                                setSolidProp(btn, 'onClicked', () => {
+                                    fired += 1;
+                                });
+                                return btn;
+                            },
+                        }),
+                    );
+                    return box;
+                }, container);
+
+                const box = gtkChildren(container)[0];
+                for (const w of gtkChildren(box)) buttons.push(w as Gtk.Button);
+                expect(buttons.length).toBe(2);
+                buttons[0].emit('clicked');
+                expect(fired).toBe(1);
+
+                setItems(['b']); // 'a' is gone for good
+                expect(labelsOf(box)).toStrictEqual(['b']);
+                buttons[0].emit('clicked');
+                expect(fired).toBe(1); // its handler died with it
+                diagnostics.assertQuiet();
+            });
+
             await it('a signal bound through the adapter fires, and unmount stops it', async () => {
                 const container = new Gtk.Box();
                 let clicks = 0;

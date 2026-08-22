@@ -20,7 +20,10 @@ import { join } from 'node:path';
 const DIR = 'packages/framework/gtk-host/src/adapters';
 
 /** A widget name literal — the table's job, not an adapter's. */
-const WIDGET_NAME = /'(?:Gtk|Adw|Gdk|Pango)[A-Z][A-Za-z]+'/;
+// Every string form, not just single quotes: a double-quoted or template-literal
+// widget table is the exact violation this ratchet exists for, and matching one
+// quote style made it pass. Found by review, A/B-verified.
+const WIDGET_NAME = /['"`](?:Gtk|Adw|Gdk|Pango)[A-Z][A-Za-z]+['"`]/;
 
 /** Placement methods. Naming one here means an insertion rule leaked out of the table. */
 const PLACEMENT = new RegExp(

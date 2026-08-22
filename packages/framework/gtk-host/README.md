@@ -144,7 +144,7 @@ adapter is the mapping — no widget name, no insertion rule, no GTK knowledge.
 `scripts/check-adapter-import-direction.mjs` holds it to that mechanically.
 
 ```ts
-import { For, createElement, insert, mount, setSolidProp } from '@gjsify/gtk-host/solid';
+import { For, createComponent, createElement, insert, mount, setSolidProp } from '@gjsify/gtk-host/solid';
 
 const dispose = mount(() => {
     const box = createElement('GtkBox');
@@ -153,12 +153,24 @@ const dispose = mount(() => {
 }, myWindow);
 ```
 
-Two things the adapter has to know that the contract does not say:
+`adopt(container)` is the mount seam every adapter needs: it wraps a widget the
+application owns as a host element, resolving its descriptor through the same
+table as every other parent, and **records the children the container already
+had** so placement offsets past them. Without that record the first insertion
+resolves to GTK's "make first" and the rendered tree lands above the app's own
+chrome.
+
+Three things the adapter has to know that the contract does not say:
 
 - **`removeNode` is a detach, never a teardown.** Solid uses one op for a
   reconciliation move and for an unmount, and `<For>` moves the same nodes across a
   reorder (measured: 3 of 3 widget objects reused). Destroying there would recreate
   every row on every reorder.
+- **The unmount signal is Solid's per-node scope, not `removeNode`.** A node
+  dropped by reconciliation is unreachable from the root, so no later teardown can
+  find it — and GJS blocks JS callbacks during GC, so its handlers would stay
+  connected for the life of the process. `onCleanup` in `createElement` fires
+  exactly when a node is gone for good, and survives a reorder.
 - **`solid-js/universal`'s `render` returns the disposer and nothing else** — the
   DOM renderer additionally clears its container, the universal one has no
   equivalent, so disposing tears down the reactive scopes and leaves the widgets
