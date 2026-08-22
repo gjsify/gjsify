@@ -8,7 +8,17 @@
 import { expect, it, on } from '@gjsify/unit';
 
 import Gtk from 'gi://Gtk?version=4.0';
-import { defineComponent, h, ref, nextTick, KeepAlive, Teleport } from '@vue/runtime-core';
+import {
+    createStaticVNode,
+    defineComponent,
+    h,
+    nextTick,
+    popScopeId,
+    pushScopeId,
+    ref,
+    KeepAlive,
+    Teleport,
+} from '@vue/runtime-core';
 
 import { gtkChildTypes, gtkChildren, installDiagnosticsGate } from '../conformance/index.js';
 import { gated } from '../testing/gate.mjs';
@@ -258,6 +268,53 @@ export default async () => {
                     expect(gtkChildTypes(container)).toStrictEqual([]);
                 });
             }
+
+            // --- Vue's four OPTIONAL host ops ---------------------------------
+            //
+            // Measured before these vectors existed: a `printerr` marker in
+            // `setScopeId`, `cloneNode` and `insertStaticContent` was hit ZERO
+            // times across the whole suite, and `querySelector` only once (by the
+            // teleport vector above). An earlier fix to any of them could be
+            // reverted with nothing noticing — making `querySelector` answer
+            // falsy instead of throwing left the suite fully green.
+
+            await it('setScopeId turns a scope id into a style class', async () => {
+                // `<style scoped>` compiles to an attribute selector, which GTK4
+                // CSS does not have, so the scope id becomes a style class. Vue
+                // reaches this op through `vnode.scopeId`, which `createBaseVNode`
+                // captures from `pushScopeId`.
+                const container = new Gtk.Box();
+                const app = mount(
+                    defineComponent({
+                        render: () => {
+                            pushScopeId('data-v-abc123');
+                            const vnode = h('GtkLabel', { label: 'scoped' });
+                            popScopeId();
+                            return vnode;
+                        },
+                    }),
+                    container,
+                );
+                const label = gtkChildren(container)[0];
+                expect(label.has_css_class('data-v-abc123')).toBe(true);
+                app.unmount();
+            });
+
+            await it('insertStaticContent throws — GTK parses no HTML', async () => {
+                // Vue's `stringifyStatic` transform. `createStaticVNode` is the
+                // shortest path to `mountStaticNode`, which is the only caller.
+                const container = new Gtk.Box();
+                let error: Error | undefined;
+                try {
+                    mount(defineComponent({ render: () => createStaticVNode('<b>hoisted</b>', 1) }), container);
+                } catch (e) {
+                    error = e as Error;
+                }
+                expect(error === undefined).toBe(false);
+                expect(String(error?.message)).toContain('insertStaticContent');
+                expect(String(error?.message)).toContain('hoistStatic: false');
+                expect(gtkChildTypes(container)).toStrictEqual([]);
+            });
 
             // --- <KeepAlive> --------------------------------------------------
             //

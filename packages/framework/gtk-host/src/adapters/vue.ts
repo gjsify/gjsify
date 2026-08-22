@@ -238,8 +238,19 @@ const renderer = createRenderer<HostNode, HostElement>({
     // NOT implemented, deliberately. `cloneNode` backs Vue's static hoisting and
     // `insertStaticContent` takes an HTML STRING — GObjects do not clone and GTK
     // parses no HTML. The SFC/JSX pipeline must disable static hoisting
-    // (`hoistStatic: false`, `transformHoist: null`); if it ever does not, these
-    // throw at the first static subtree instead of rendering something wrong.
+    // (`hoistStatic: false`, `transformHoist: null`); if it ever does not,
+    // `insertStaticContent` throws at the first stringified static subtree
+    // instead of rendering something wrong (`createStaticVNode` reaches it, and
+    // a vector holds the message).
+    //
+    // `cloneNode` is UNREACHABLE in the installed @vue/runtime-core 3.5.41 and
+    // therefore has no vector: `grep -in clonenode` over
+    // `dist/runtime-core.esm-bundler.js` finds nothing at all — the renderer
+    // destructures ten required ops plus `setScopeId` and `insertStaticContent`
+    // from `options` and never touches `cloneNode`, even though
+    // `RendererOptions` still declares it. It is kept as the guard for a version
+    // that does call it; do not "simplify" it into a silent return, which is
+    // exactly what no test could catch here.
     cloneNode: (node) => {
         throw new Error(
             `@gjsify/gtk-host/vue: cloneNode is not available on GTK — a GObject does not clone. ` +
