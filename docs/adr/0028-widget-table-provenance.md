@@ -58,11 +58,20 @@ coercer and the verifier.**
    GtkBuilder XML — so a widget name cannot mean different things in different
    dialects. This is the alignment mechanism ADR 0027 § 9 names.
 
-   It is consumable from outside this repository **on purpose**. Peachy and gtkx
-   already author GTK UIs in TSX and generate their own types; one GIR-derived
-   surface is worth more to the ecosystem than three private copies, and it costs
-   nothing to share — the generator's input is the GIR and the installed typelib,
-   not anything gjsify-specific.
+   It is consumable from outside this repository **on purpose**, and the target is
+   a GJS-convention consumer. Peachy authors GTK UIs in TSX on GJS and generates
+   its own types; one GIR-derived surface is worth more to the ecosystem than two
+   private copies, and it costs nothing to share — the generator's input is the
+   GIR and the installed typelib, not anything gjsify-specific.
+
+   **gtkx is explicitly not a design constraint.** It binds GObject through napi
+   rather than GJS (`docs/references.md` records it that way), so the property and
+   signal spellings, the class-registration story and above all the TYPE layer are
+   its own — and this surface is shaped by `@girs/*`, which is the GJS type layer.
+   Serving gtkx would mean parameterising the emitted type imports for a consumer
+   whose conventions we do not control. If that ever falls out for free, take it;
+   it does not get a line of machinery of its own. gtkx stays what
+   `docs/references.md` already calls it: reference-only, worth reading.
 
 ## Consequences
 
