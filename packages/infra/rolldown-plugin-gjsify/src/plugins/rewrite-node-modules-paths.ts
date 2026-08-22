@@ -18,6 +18,12 @@
 //
 // Hosted as a `transform(code, id)` hook with `order: 'post'`: after the
 // deepkit/blueprint/css pre-transforms, still during module loading, before chunking.
+//
+// TWO SCOPES, one transform. The four cases above are node_modules-only, because
+// they are about a file whose recorded location stopped being true. The static-read
+// INLINER that runs alongside them is not: it folds build-time-resolvable reads in
+// ANY source, first-party included, and it was trapped inside the node_modules gate
+// until 2026-08-22 — see `shouldInline` for the incident that measured the cost.
 
 import { createRequire } from 'node:module';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -43,6 +49,40 @@ export function shouldRewrite(path: string): boolean {
     if (!path.includes('node_modules') || !REWRITE_FILTER.test(path)) return false;
     if (GJSIFY_SHIM_RE.test(path)) return false;
     return true;
+}
+
+/**
+ * True when the static-read INLINER wants to look at this path — any supported
+ * source, first-party included.
+ *
+ * Deliberately wider than {@link shouldRewrite}, because the two answer different
+ * questions. The inliner asks *is this read resolvable at build time*, which is a
+ * property of the expression and can be true in any file. The rewriter asks *does
+ * this file's `import.meta.url` still mean anything once bundled*, which is only
+ * worth asking of a file whose original location was `node_modules` — the whole
+ * subject of this plugin.
+ *
+ * They were ONE gate until 2026-08-22, and the cost was silent. Each of
+ * `@gjsify/cli`'s own six `readFileSync(new URL(<literal>, import.meta.url))`
+ * template loaders shipped into `dist/cli.gjs.mjs` as a LIVE read pointing at a
+ * `templates/` directory that exists neither in the repo (the sources are in
+ * `src/templates/`; the build copies them to `lib/templates/`) nor in the
+ * published tarball (`files` ships `lib`, not a root `templates`). Measured on a
+ * fresh build: `gjs -m dist/cli.gjs.mjs ship --stage` died with
+ * `ENOENT … packages/infra/cli/templates/app/desktop.tmpl` while the identical
+ * command through `lib/index.js` staged the desktop entry. Two of those six files
+ * carry a comment asserting the inliner handles them, so reading the code
+ * confirmed the belief rather than the behaviour.
+ *
+ * Consequence for a CONSUMER's build, stated because it is a behaviour change: a
+ * statically resolvable read in their own source is baked into their bundle too.
+ * That is the promise the inliner exists to make — a bundle that survives leaving
+ * its build site — and a read meant to stay dynamic keeps working by not being
+ * statically resolvable, since anything the evaluator cannot fold is left alone.
+ */
+export function shouldInline(path: string): boolean {
+    if (!REWRITE_FILTER.test(path)) return false;
+    return !GJSIFY_SHIM_RE.test(path);
 }
 
 /** The directory the bundle's outfile lives in, from `output.file` or `output.dir`. */
@@ -317,6 +357,11 @@ export interface NodeModulesPathRewriteOptions {
 /**
  * Build a Rolldown plugin that runs the path rewriter as a `transform(code, id)`
  * hook with `order: 'post'`.
+ *
+ * Two scopes in one transform, not two plugins: a second transform would parse
+ * every module a second time, and the inliner's own fast path (skip unless the
+ * source mentions `readFileSync`/`readdirSync`/`existsSync`) already makes the
+ * wider scope nearly free. See {@link shouldInline} for why the scopes differ.
  */
 export function nodeModulesPathRewritePlugin(options: NodeModulesPathRewriteOptions): Plugin {
     const runtimeResolve = options.runtimeResolve ?? false;
@@ -326,10 +371,17 @@ export function nodeModulesPathRewritePlugin(options: NodeModulesPathRewriteOpti
             order: 'post' as const,
             filter: { id: REWRITE_FILTER },
             handler(code: string, id: string) {
-                if (!id.includes('node_modules')) return null;
-                const result = rewriteContents({ path: id }, code, options.bundleDir, runtimeResolve);
-                if (!result) return null;
-                return { code: result.code, map: null };
+                if (id.includes('node_modules')) {
+                    const result = rewriteContents({ path: id }, code, options.bundleDir, runtimeResolve);
+                    if (!result) return null;
+                    return { code: result.code, map: null };
+                }
+                // First-party source: inline statically resolvable reads, and
+                // nothing else. `import.meta.url` here is not rewritten — that
+                // is the node_modules question this plugin was written for.
+                if (!shouldInline(id)) return null;
+                const inlined = inlineStaticReads(code, id);
+                return inlined.inlined > 0 ? { code: inlined.contents, map: null } : null;
             },
         },
     };
