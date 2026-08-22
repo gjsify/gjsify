@@ -17,11 +17,9 @@
 // CONSUMER's node_modules by the generated entry, so it stays out of the CLI's
 // own dependencies.
 
-import type { ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import type { Command } from '../types/index.js';
-import { spawnToCompletion } from '../utils/spawn.js';
 import { hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
 
 /**
@@ -236,97 +234,21 @@ export const storybookCommand: Command<unknown, StorybookCliOptions> = {
             return;
         }
 
-        // Watch mode: rebuild + relaunch on any change under the stories dir.
-        // The storybook bundle only needs system Gtk/Adw typelibs at runtime
-        // (no @gjsify native bridges), so a plain `gjs -m` / `node` child is
-        // enough and stays killable for relaunch.
-        const { watch } = await import('node:fs');
-
-        /**
-         * Start a child this command SUPERVISES rather than waits for.
-         *
-         * `completion: 'daemon'` is the third row of the teardown table: the watcher
-         * neither exits nor unwinds, so the armed GJS main loop is not a leak here —
-         * it is what keeps the session alive. The handle arrives synchronously through
-         * `onSpawn`; the completion promise is deliberately never awaited (it settles
-         * when the child is killed for the next rebuild), only its REJECTION is routed
-         * out, so a missing interpreter still surfaces as a rebuild failure.
-         */
-        const spawnSupervised = (cmd: string, cmdArgs: string[], env?: NodeJS.ProcessEnv): Promise<ChildProcess> =>
-            new Promise<ChildProcess>((resolveChild, reject) => {
-                void spawnToCompletion(cmd, cmdArgs, { completion: 'daemon', env, onSpawn: resolveChild }).catch(
-                    reject,
-                );
-            });
-
-        const spawnChild = async (): Promise<ChildProcess> => {
-            if (runtime === 'gjs') {
-                return spawnSupervised('gjs', ['-m', outPath]);
-            }
-            // node / bun / deno — run the `--app node` bundle with the native
-            // typelib env wired like `gjsify run`. All three need @gjsify/node-gi
-            // (the storybook uses gi://), kept external by the bundler.
-            const { computeNativeEnvForBundle } = await import('../utils/run-gjs.js');
-            const { resolveNodeGiForBundle, nodeBinary } = await import('../utils/run-node.js');
-            const { RUNTIMES } = await import('../utils/runtimes.js');
-            // Same resolution base as `runRuntimeBundle`: the bundle's own dir
-            // first (that is where the runtime resolves the external specifier
-            // from), cwd as the fallback.
-            if (!resolveNodeGiForBundle(outPath, cwd)) {
-                throw new Error(
-                    `Cannot run the storybook on ${runtime}: \`@gjsify/node-gi\` is not installed. ` +
-                        `Add @gjsify/node-gi as a dependency to run the storybook on ${runtime}.`,
-                );
-            }
-            const { env: nativeEnv } = computeNativeEnvForBundle(outPath, cwd);
-            const env = { ...process.env, ...nativeEnv };
-            // `node` uses the resolved node binary (under a GJS-hosted CLI
-            // `process.execPath` is gjs); bun/deno launch via the shared spec
-            // (deno's `--node-modules-dir=manual`, etc.).
-            if (runtime === 'node') {
-                return spawnSupervised(nodeBinary(), [outPath], env);
-            }
-            const [cmd, launchArgs] = RUNTIMES[runtime].launch(outPath);
-            return spawnSupervised(cmd, launchArgs, env);
-        };
-        let child: ChildProcess | null = null;
-        let rebuilding = false;
-        let pending = false;
-
-        const rebuild = async (): Promise<void> => {
-            if (rebuilding) {
-                pending = true;
-                return;
-            }
-            rebuilding = true;
-            try {
+        // Watch mode: rebuild + relaunch on any change under the stories dir,
+        // through the loop shared with `gjsify dev` (`utils/watch-loop.ts`).
+        const { runWatchLoop, spawnBundleSupervised } = await import('../utils/watch-loop.js');
+        await runWatchLoop({
+            dir: storiesDir,
+            dirLabel: relative(cwd, storiesDir) || '.',
+            label: 'storybook',
+            // Stories are DISCOVERED, so the generated entry is re-derived on
+            // every pass — a new `*.story.ts` must show up without a restart.
+            prepare: () => {
                 writeEntry();
-                if (child) {
-                    child.kill();
-                    child = null;
-                }
-                await buildBundle();
-                if (!args.buildOnly) {
-                    child = await spawnChild();
-                }
-            } catch (err) {
-                console.error(`[storybook] rebuild failed: ${(err as Error).message}`);
-            } finally {
-                rebuilding = false;
-                if (pending) {
-                    pending = false;
-                    void rebuild();
-                }
-            }
-        };
-
-        await rebuild();
-
-        let debounce: ReturnType<typeof setTimeout> | null = null;
-        watch(storiesDir, { recursive: true }, () => {
-            if (debounce) clearTimeout(debounce);
-            debounce = setTimeout(() => void rebuild(), 200);
+            },
+            build: buildBundle,
+            spawnChild: args.buildOnly ? null : () => spawnBundleSupervised(runtime, outPath, cwd, 'the storybook'),
+            output: outPath,
         });
-        console.log(`[storybook] watching ${relative(cwd, storiesDir) || '.'} — press Ctrl+C to stop`);
     },
 };

@@ -9,6 +9,7 @@ import { chdir, getArgv, getCwd, getEnvProxy, getExecPath } from './internal/env
 import { exitProcess } from './internal/exit.js';
 import { hrtime as hrtimeImpl, hrtimeBigint } from './internal/hrtime.js';
 import { cpuUsage, killPid, memoryUsage, readUmask, type CpuUsage, type MemoryUsage } from './internal/system.js';
+import { armSignal, disarmSignal, isDeliverableSignal } from './internal/signals.js';
 import { ProcessReadStream, ProcessWriteStream } from './streams.js';
 
 type ProcessPlatform = NodeJS.Platform;
@@ -78,6 +79,18 @@ export class Process extends EventEmitter {
         this.version = versionInfo.version;
         this.versions = versionInfo.versions;
         this.title = versionInfo.title;
+
+        // Signals are armed on DEMAND, through the emitter's own meta-events, so
+        // a process that never asks for one keeps the default disposition and
+        // costs no GLib source. `newListener` fires BEFORE the listener is
+        // added, `removeListener` after removal — which is what makes
+        // "the last one just went" answerable.
+        this.on('newListener', (type: string | symbol) => {
+            if (isDeliverableSignal(type)) armSignal(type, (signal) => this.emit(signal, signal));
+        });
+        this.on('removeListener', (type: string | symbol) => {
+            if (isDeliverableSignal(type) && this.listenerCount(type) === 0) disarmSignal(type);
+        });
     }
 
     cwd(): string {

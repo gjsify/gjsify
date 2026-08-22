@@ -59,6 +59,7 @@ import {
     tscCommand as tsc,
     affectedCommand as affected,
     storybookCommand as storybook,
+    devCommand as dev,
     debugCommand as debug,
     browseCommand as browse,
 } from './commands/index.js';
@@ -179,6 +180,7 @@ export async function runCli(argv: readonly string[]): Promise<void> {
         .command(tsc.command, tsc.description, tsc.builder, tsc.handler)
         .command(affected.command, affected.description, affected.builder, affected.handler)
         .command(storybook.command, storybook.description, storybook.builder, storybook.handler)
+        .command(dev.command, dev.description, dev.builder, dev.handler)
         .command(debug.command, debug.description, debug.builder, debug.handler)
         .command(browse.command, browse.description, browse.builder, browse.handler)
         .demandCommand(1)

@@ -24,6 +24,22 @@ console.log(process.env.HOME);
 console.log(process.platform);
 ```
 
+## Signals
+
+`process.on('SIGINT' | 'SIGTERM' | 'SIGHUP', …)` is delivered under GJS through
+`GLibUnix.signal_add()`, so the handler runs on the JS thread and — as in Node —
+registering one replaces the kernel's default disposition. The source is armed on the
+first listener and removed with the last, so a process that never asks keeps the
+default behaviour.
+
+Delivery needs something driving the default main context, which is the same condition
+every other async source in a GJS process lives under: a program that must react while
+otherwise idle holds a loop (`holdMainLoop()` from `@gjsify/utils/main-loop`).
+
+The other signals are deliberately absent. `g_unix_signal_add()` also accepts
+`SIGUSR1`/`SIGUSR2`/`SIGWINCH`, but those are renumbered on some architectures, and a
+hardcoded table would arm the WRONG signal there rather than fail.
+
 ## Inspirations and credits
 
 - https://github.com/cgjs/cgjs/tree/master/packages/process

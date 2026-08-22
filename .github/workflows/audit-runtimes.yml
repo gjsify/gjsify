@@ -103,7 +103,7 @@ jobs:
       # a warm cache skips `build:infra` entirely, so only a COLD GJS tree can see
       # it. v0.31.0's `publish-napi` is such a tree — it failed there, and
       # `@gjsify/napi` did not publish. Incident + rule in the script header.
-      - name: Check build:infra is bundler-free before the bundler
+      - name: Check build:infra order (bundler-free prefix, type deps)
         run: node scripts/check-build-infra-order.mjs
 
       # A spec that writes `const O_CREAT = 64` or `expect(err.errno).toBe(-17)`
@@ -667,7 +667,7 @@ jobs:
       # a warm cache skips `build:infra` entirely, so only a COLD GJS tree can see
       # it. v0.31.0's `publish-napi` is such a tree — it failed there, and
       # `@gjsify/napi` did not publish. Incident + rule in the script header.
-      - name: Check build:infra is bundler-free before the bundler
+      - name: Check build:infra order (bundler-free prefix, type deps)
         run: node scripts/check-build-infra-order.mjs
 
       # A spec that writes `const O_CREAT = 64` or `expect(err.errno).toBe(-17)`

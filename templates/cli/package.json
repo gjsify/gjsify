@@ -14,7 +14,7 @@
         "start:node": "gjsify run dist/index.node.mjs --runtime node",
         "start:bun": "gjsify run dist/index.node.mjs --runtime bun",
         "start:deno": "gjsify run dist/index.node.mjs --runtime deno",
-        "dev": "gjsify run build:gjs && gjsify run start"
+        "dev": "gjsify dev --runtime gjs"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
