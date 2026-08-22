@@ -119,6 +119,12 @@ export interface ShipMimeType {
  *    to ask what the PAYLOAD contains, which the payload answers itself; see
  *    `readPayloadFacts`.
  *  - `licenseFile`, `extraFiles` — phase 1 reads their bytes into the plan.
+ *  - `localeFiles` — same, and the reason is worth stating because the field
+ *    arrived (#1263) AFTER this split was written and carries a build-host
+ *    `abs` path: `planStage` reads each catalogue into the staged tree at
+ *    `share/locale/<rel>`, and no packer reads the field. So translations
+ *    cross in the payload, where they belong, and the `abs` path does not
+ *    cross at all. This list being explicit is what caught that.
  *  - `appId`, `name`, `kind`, `execArgs` — read by the planner and the metadata
  *    renderers, all of which have run by the time a stage exists.
  *  - `arch` — carried by the manifest's `target`, which is also the value a

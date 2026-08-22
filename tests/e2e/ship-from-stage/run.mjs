@@ -111,6 +111,50 @@ describe('CLI ship --from-stage E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.ok(existsSync(rpmPath(outRoot)));
     });
 
+    // #1263 taught `planStage` to stage compiled gettext catalogues AFTER this split
+    // was written, and `ShipSettings.localeFiles` carries a build-host ABSOLUTE path
+    // (`{ rel, abs }`). That is exactly the shape of the five inputs the sidecar
+    // exists to stop losing — and nothing tested the two features together, because
+    // neither fixture had a catalogue.
+    //
+    // It survives for the right reason: the manifest carries the PLAN, `planStage`
+    // has already read the bytes into the staged tree, and no packer reads
+    // `localeFiles` — so the `abs` path never has to cross. But "survives by
+    // construction" is a claim about code that changed under it, and this is the
+    // measurement. Its discriminator is the deletion: the catalogue's only other
+    // home is the project tree, which is gone before anything packs.
+    it('carries translations across the host boundary', () => {
+        const project = scaffold(join(tmpDir, 'locale-project'), (pkg) => {
+            pkg.gjsify.ship.localeDir = 'dist/locale';
+        });
+        const catalogue = join(project, 'dist', 'locale', 'de', 'LC_MESSAGES', 'ship-demo.mo');
+        mkdirSync(dirname(catalogue), { recursive: true });
+        // A real `.mo` magic number, so nothing downstream can dismiss it as a stray file.
+        writeFileSync(catalogue, Buffer.from([0xde, 0x12, 0x04, 0x95, 0x00, 0x00, 0x00, 0x00]));
+
+        runCliSync(CLI_ENTRY, ['ship', '--skip-build', '--stage'], { cwd: project, env: stamped() });
+        const staged = join(project, 'ship', 'stage');
+        assert.ok(
+            listPayload(staged).includes('share/locale/de/LC_MESSAGES/ship-demo.mo'),
+            `the stage must hold the catalogue; it holds ${listPayload(staged).join(', ')}`,
+        );
+
+        const detached = join(tmpDir, 'locale-detached', 'stage');
+        mkdirSync(dirname(detached), { recursive: true });
+        renameSync(staged, detached);
+        rmSync(project, { recursive: true, force: true });
+
+        runFinish(detached);
+        const outRoot = dirname(detached);
+        assert.ok(existsSync(debPath(outRoot)), `expected ${debPath(outRoot)}`);
+        if (!probe('ar') || !probe('tar')) return;
+        const names = readDataListing(outRoot).map((entry) => entry.name);
+        assert.ok(
+            names.some((name) => name.endsWith('share/locale/de/LC_MESSAGES/ship-demo.mo')),
+            `the .deb must install the catalogue; it installs ${names.join(', ')}`,
+        );
+    });
+
     it('produces the same bytes as the single-process run', () => {
         // Each thing the stage could have failed to carry lands here as a diff, and lands
         // NOWHERE else: a stage without the mode plan packs the launcher 0644, one without the
