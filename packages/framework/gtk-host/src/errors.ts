@@ -103,6 +103,13 @@ export const err = {
             `<${parentTag}> refused <${childTag}>: ${reason}. The container accepts only certain child types ` +
                 `(e.g. AdwPreferencesPage takes AdwPreferencesGroup); the descriptor cannot know that, GTK does.`,
         ),
+    siblingCycle: (parentTag: string) =>
+        new GtkHostError(
+            'sibling-cycle',
+            `The child list of <${parentTag}> does not terminate. A renderer linked a node to itself ` +
+                `or into a loop; the host refuses to walk it rather than spin. This is a host or adapter ` +
+                `bug, not an application one — please report it with the reordering that produced it.`,
+        ),
     notAWidget: (tag: string) =>
         new GtkHostError(
             'not-a-widget',

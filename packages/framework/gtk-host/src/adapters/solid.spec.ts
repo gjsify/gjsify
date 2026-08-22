@@ -124,6 +124,72 @@ export default async () => {
                 expect(reused).toBe(before.length);
             });
 
+            // Every width, because the defect only lived at SOME of them.
+            //
+            // `reconcileArrays`' swap fast path emits `insertNode(parent, b, b)`
+            // — a node anchored on ITSELF, which the DOM defines as a no-op — and
+            // it fires only when the two swapped rows are ADJACENT. At width 3 a
+            // full reversal moves non-adjacent rows and takes a different branch,
+            // so the one reorder vector this suite had was the one width that
+            // could not see it. Reversing two items HUNG the process.
+            for (const [from, to] of [
+                [
+                    ['a', 'b'],
+                    ['b', 'a'],
+                ],
+                [
+                    ['a', 'b', 'c'],
+                    ['b', 'a', 'c'],
+                ],
+                [
+                    ['a', 'b', 'c'],
+                    ['c', 'b', 'a'],
+                ],
+                [
+                    ['a', 'b', 'c', 'd'],
+                    ['a', 'c', 'b', 'd'],
+                ],
+                [
+                    ['a', 'b', 'c', 'd'],
+                    ['d', 'c', 'b', 'a'],
+                ],
+                [
+                    ['h', 'a', 'b', 't'],
+                    ['h', 'b', 'a', 't'],
+                ],
+            ] as const) {
+                await it(`<For> reorders ${from.join('')} to ${to.join('')} without self-anchoring`, async () => {
+                    const container = new Gtk.Box();
+                    const [items, setItems] = createSignal<readonly string[]>(from);
+                    mount(() => {
+                        const box = createElement('GtkBox');
+                        insert(
+                            box,
+                            createComponent(For, {
+                                get each() {
+                                    return items();
+                                },
+                                children: (t: string) => {
+                                    const label = createElement('GtkLabel');
+                                    setSolidProp(label, 'label', t);
+                                    return label;
+                                },
+                            }),
+                        );
+                        return box;
+                    }, container);
+                    const box = gtkChildren(container)[0];
+                    const before = gtkChildren(box);
+                    setItems(to);
+                    const after = gtkChildren(box);
+                    expect(labelsOf(box)).toStrictEqual([...to]);
+                    // Same widget objects: a keyed reorder that recreates widgets
+                    // throws away focus, scroll position and every widget state.
+                    expect(after.filter((w) => before.includes(w)).length).toBe(before.length);
+                    diagnostics.assertQuiet();
+                });
+            }
+
             await it('reconciles into a container that can only append', async () => {
                 // `Adw.PreferencesGroup` has no `insert()`, so the host rotates its
                 // tail. A renderer must not have to know that.

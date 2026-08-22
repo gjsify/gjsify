@@ -419,8 +419,36 @@ function* childNodes(el: HostElement): Generator<HostNode> {
  */
 function childSnapshot(el: HostElement): HostNode[] {
     const out: HostNode[] = [];
-    for (let n = el.first; n; n = n.next) out.push(n);
+    for (const n of siblingsFrom(el.first, el)) out.push(n);
     return out;
+}
+
+/**
+ * A child list longer than this is a cycle, not a user interface.
+ *
+ * The number is deliberately absurd: it must never be reached by a real tree,
+ * and it must be reached QUICKLY by a malformed one.
+ */
+const CHAIN_LIMIT = 100_000;
+
+/**
+ * Walk a sibling chain, bounded.
+ *
+ * A malformed link is not a theoretical worry. `insert(node, parent, node)` is a
+ * defined NO-OP in the DOM — "if referenceChild is node, then set referenceChild
+ * to node's next sibling" — so Solid's adjacent-swap fast path emits exactly
+ * that shape, unguarded. This host used to write `node.next = node` for it, and
+ * the walks below then grew an unbounded array until the process was killed:
+ * reversing a TWO-item list hung the app. A hang is the one failure mode worse
+ * than GTK's silent exit 0, because it takes the CI job with it. Every walk over
+ * `next` goes through here so the bound cannot be forgotten at a new call site.
+ */
+function* siblingsFrom(start: HostNode | null, parent: HostElement): Generator<HostNode> {
+    let steps = 0;
+    for (let n = start; n; n = n.next) {
+        if (++steps > CHAIN_LIMIT) throw err.siblingCycle(parent.descriptor.gtype);
+        yield n;
+    }
 }
 
 function link(parent: HostElement, node: HostNode, anchor: HostNode | null): void {
@@ -478,13 +506,14 @@ function attach(parent: HostElement, child: HostElement): void {
             : parent.foreign;
     let prevWidget: Gtk.Widget | null = priorChildren.length > 0 ? priorChildren[priorChildren.length - 1] : null;
     let index = priorChildren.length;
-    for (let n = parent.first; n && n !== child; n = n.next) {
+    for (const n of siblingsFrom(parent.first, parent)) {
+        if (n === child) break;
         if (n.kind !== 'element' || !n.attached) continue;
         prevWidget = addressOf(n);
         index += 1;
     }
     const following: HostElement[] = [];
-    for (let n = child.next; n; n = n.next) {
+    for (const n of siblingsFrom(child.next, parent)) {
         if (n.kind === 'element' && n.attached) following.push(n);
     }
     const placement: Placement = { parent, child, prevWidget, index, following };
@@ -506,8 +535,16 @@ export function insert(node: HostNode, parent: HostElement, anchor: HostNode | n
     const wasIn = node.parent;
     const wasBefore = node.next;
 
+    // DOM parity, and not a nicety. `insertBefore(n, n)` is DEFINED as a no-op
+    // ("if referenceChild is node, then set referenceChild to node's next
+    // sibling"), which is why Solid's adjacent-swap fast path emits
+    // `insertNode(parent, b, b)` without a guard. Taken literally it made `link`
+    // write `node.next = node`; reversing a two-item list then hung the process.
+    // Three items take a different branch, which is why the suite was green.
+    const before = anchor === node ? wasBefore : anchor;
+
     if (node.parent) remove(node);
-    link(parent, node, anchor);
+    link(parent, node, before);
     try {
         if (node.kind === 'element') attach(parent, node);
         else if (node.kind === 'text') flushText(parent);

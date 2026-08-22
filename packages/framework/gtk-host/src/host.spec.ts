@@ -959,6 +959,63 @@ export default async () => {
             });
         });
 
+        await describe('a self-anchored insert, and a chain that does not terminate', async () => {
+            beforeEach(() => diagnostics.reset());
+            afterEach(() => diagnostics.assertQuiet());
+
+            await it('anchoring a node on itself is a no-op, as in the DOM', async () => {
+                const box = createElement('GtkBox');
+                materialize(box);
+                const a = createElement('GtkLabel');
+                const b = createElement('GtkLabel');
+                setProp(a, 'label', 'a');
+                setProp(b, 'label', 'b');
+                insert(a, box);
+                insert(b, box);
+
+                // What `reconcileArrays` emits for an adjacent swap. The DOM
+                // defines it as a no-op; taken literally it wrote `b.next = b`
+                // and the next placement walk never terminated.
+                insert(b, box, b);
+
+                expect(b.next).toBe(null);
+                expect(b.prev).toBe(a);
+                expect(box.last).toBe(b);
+                expect(gtkChildren(box.widget as Gtk.Widget).map((w) => (w as Gtk.Label).label)).toStrictEqual([
+                    'a',
+                    'b',
+                ]);
+            });
+
+            await it('a hand-made cycle is refused by name instead of hanging', async () => {
+                const box = createElement('GtkBox');
+                materialize(box);
+                const a = createElement('GtkLabel');
+                const b = createElement('GtkLabel');
+                const c = createElement('GtkLabel');
+                insert(a, box);
+                insert(b, box);
+                insert(c, box);
+
+                // No renderer can reach this today — that is the point. The bound
+                // exists so the NEXT link bug is a named error instead of a killed
+                // CI job, and only a hand-made cycle can prove the bound is there.
+                // The loop is kept away from `box.last`, because appending repairs
+                // whatever `last.next` held and would quietly undo the setup.
+                b.next = a;
+                const d = createElement('GtkLabel');
+                let code = 'none';
+                try {
+                    insert(d, box);
+                } catch (e) {
+                    code = (e as { code?: string }).code ?? 'no-code';
+                }
+                expect(code).toBe('sibling-cycle');
+                // Repair the chain so the gate's own teardown can walk it.
+                b.next = c;
+            });
+        });
+
         await describe('mountRoot resolves the container through the table', async () => {
             await it('mounts into an application-owned widget', async () => {
                 const container = new Gtk.Box();
