@@ -416,6 +416,15 @@ jobs:
       - name: Check every browser-only spec is registered in its bundle
         run: node scripts/check-browser-test-registration.mjs
 
+      # The same rule for every OTHER entry, and the reason it is separate is scope: the
+      # check above is "every spec, in browser-only packages", this one is "every spec,
+      # in every package, through any entry it has". Written after a seven-case spec file
+      # was added to `@gjsify/cli`, run, and reported green while `src/test.mts` did not
+      # import it. Nothing says so — the file stays on disk and stays type-checked — and
+      # it was caught only by knowing which total to expect.
+      - name: Check every spec reaches a test entry
+        run: node scripts/check-node-test-registration.mjs
+
       # A keyboard affordance adwaita-web DECLARES has an implementation behind it:
       # `aria-modal` is set in exactly one module, which is also the Tab trap, and a
       # negative tabindex on a repeated child has a keydown listener behind it. Whether
@@ -884,6 +893,15 @@ jobs:
       # bundle was staged for main.yml's `browser` job.
       - name: Check every browser-only spec is registered in its bundle
         run: node scripts/check-browser-test-registration.mjs
+
+      # The same rule for every OTHER entry, and the reason it is separate is scope: the
+      # check above is "every spec, in browser-only packages", this one is "every spec,
+      # in every package, through any entry it has". Written after a seven-case spec file
+      # was added to `@gjsify/cli`, run, and reported green while `src/test.mts` did not
+      # import it. Nothing says so — the file stays on disk and stays type-checked — and
+      # it was caught only by knowing which total to expect.
+      - name: Check every spec reaches a test entry
+        run: node scripts/check-node-test-registration.mjs
 
       # A keyboard affordance adwaita-web DECLARES has an implementation behind it:
       # `aria-modal` is set in exactly one module, which is also the Tab trap, and a
