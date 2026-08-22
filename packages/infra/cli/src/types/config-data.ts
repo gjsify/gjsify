@@ -325,6 +325,38 @@ export interface AppMetadata {
      */
     kudos?: string[];
     /**
+     * File types this package DEFINES for the whole system — a shared-mime-info
+     * document staged into `share/mime/packages/`.
+     *
+     * Distinct from `provides.mimetypes`, which only says the app HANDLES a type.
+     * For a standard type (`text/plain`, `application/pdf`) handling is all you
+     * need: the distribution already defines it. For a type of your own
+     * (`application/x-bauplan`) handling it is not enough and the failure is
+     * silent — nothing on the system knows the type exists, so a `.bauplan` file
+     * is never recognised as one, `MimeType=` in the desktop entry matches
+     * nothing, and double-clicking the file does nothing at all. No error, no
+     * log line: the association simply never fires.
+     *
+     * Every type declared here is added to the handled set automatically, because
+     * defining a file type in your own package and then not opening it is not a
+     * thing anyone means to do.
+     */
+    mimeTypes?: Array<{
+        /** `<media>/<subtype>`, e.g. `application/x-bauplan`. */
+        type: string;
+        /**
+         * What a file manager shows instead of the raw type string. Required:
+         * a type with no comment is listed to the user as `application/x-bauplan`.
+         */
+        comment: string;
+        /** Filename patterns, e.g. `["*.bauplan"]`. */
+        globs?: string[];
+        /** A registered type to inherit from, e.g. `application/zip` for a zip container. */
+        subClassOf?: string;
+        /** Fallback icon name when no type-specific icon is installed. */
+        genericIcon?: string;
+    }>;
+    /**
      * What this app provides to the system. `<binary>` is auto-included with the
      * value of `command` when omitted — AppStream needs it to register the binary
      * for both apps and CLIs.

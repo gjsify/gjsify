@@ -36,6 +36,14 @@ export function cacheRefreshCommands(settings: ShipSettings, prefix: string): st
             run: `gtk-update-icon-cache -q -t -f ${prefix}/share/icons/hicolor`,
         });
     }
+    if (settings.mimeTypes.length > 0) {
+        // Without this the document is installed and the type still does not exist: detection runs
+        // off the compiled cache in `share/mime/`, not off the packages directory.
+        refreshes.push({
+            probe: 'update-mime-database',
+            run: `update-mime-database ${prefix}/share/mime`,
+        });
+    }
     if (settings.schemaFiles.length > 0) {
         refreshes.push({
             probe: 'glib-compile-schemas',

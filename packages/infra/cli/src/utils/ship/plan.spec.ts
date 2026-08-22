@@ -31,6 +31,7 @@ function settings(overrides: Partial<ShipSettings> = {}): ShipSettings {
         section: 'gnome',
         group: 'Applications/System',
         kind: 'app',
+        mimeTypes: [],
         extraDepends: { deb: [], rpm: [] },
         bundlePath: '/project/dist/gjs.js',
         bundleDir: '/project/dist',

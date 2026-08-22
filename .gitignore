@@ -171,3 +171,9 @@ ship/
 # silent case above: both pages were written, `git status` showed nothing, and a
 # commit would have carried none of it.
 !website/src/content/docs/ship/
+# …and the e2e SUITE for that command. `run.mjs` predates the pattern and stayed
+# tracked, so `git add` on it still works and the collision looked harmless — but
+# it is the silent case again for anything NEW added beside it, which is a test
+# helper that gets lost rather than reviewed. Third instance of the same match, so
+# it is listed here rather than discovered a fourth time.
+!tests/e2e/ship/

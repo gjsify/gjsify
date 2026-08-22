@@ -10,6 +10,7 @@
 // only) > derived from package.json. Never a yargs `default:`, which is
 // indistinguishable from a value the user typed and would clobber the config.
 
+import { validateMimeTypes } from './mime.js';
 import { basename } from 'node:path';
 
 import type { AppMetadata, ConfigDataFlatpak, ConfigDataShip, DescriptionBlock } from '../../types/config-data.js';
@@ -86,6 +87,18 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
     // for. The non-metadata keys each block carries ride along unread.
     const metadata: AppMetadata = { ...flatpak, ...definedOnly(ship) };
 
+    // A type this package DEFINES is also a type it handles. Folding it into `provides.mimetypes`
+    // here means the desktop entry and the metainfo need no knowledge of `mimeTypes` at all: they
+    // already render `MimeType=` (with the `%f` field code) and `<mediatype>` from that one field.
+    // Doing it the other way — leaving the two lists independent — makes "defined but not handled"
+    // a state you can reach by omission, and that state installs cleanly and does nothing.
+    const mimeTypes = ship.mimeTypes ?? [];
+    if (mimeTypes.length > 0) {
+        validateMimeTypes(mimeTypes);
+        const handled = new Set([...(metadata.provides?.mimetypes ?? []), ...mimeTypes.map((m) => m.type)]);
+        metadata.provides = { ...metadata.provides, mimetypes: [...handled] };
+    }
+
     const binaryName = ship.binaryName ?? deriveBinaryName(pkg.name);
     const appId = ship.appId ?? flatpak.appId ?? reverseDnsOrThrow(pkg.name, binaryName);
     const name = metadata.name ?? titleCase(binaryName);
@@ -141,6 +154,7 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
         section: ship.section ?? sections.section,
         group: ship.group ?? sections.group,
         kind,
+        mimeTypes,
         extraDepends: { deb: ship.depends?.deb ?? [], rpm: ship.depends?.rpm ?? [] },
         typelibPackages: ship.typelibPackages ?? {},
         bundlePath: discovered.bundlePath,
