@@ -5,8 +5,8 @@
 // override; the probes exist so a project that follows the GNOME convention
 // (`data/icons/hicolor/…`, `data/*.gschema.xml`) needs no configuration at all.
 
-import { existsSync, readdirSync, statSync } from 'node:fs';
-import { isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 
 import type { ConfigDataShip } from '../../types/config-data.js';
 import { LICENSE_FILE_NAMES, type DiscoveredPayload, type ShipPackageManifest } from './settings.js';
@@ -223,6 +223,34 @@ function discoverSchemas(projectDir: string, configured: string | undefined): st
     return [];
 }
 
+/**
+ * The licence text this package ships — searched UP the tree, not just beside
+ * `package.json`.
+ *
+ * A monorepo package does not carry its own copy. `packages/infra/cli`
+ * declares `"license": "MIT"` and the text lives one `LICENSE` up at the
+ * repository root, shared by sixty-odd packages; searching `projectDir` alone
+ * found nothing, `planOverlay` turned "nothing" into an empty overlay, and the
+ * `.deb` shipped without the `/usr/share/doc/<pkg>/copyright` that Debian
+ * Policy § 12.5 requires. Nothing downstream noticed: `dpkg-deb --info` prints
+ * a clean control file and `dpkg -i` installs it. It took the first leg that
+ * ran a real `lintian` to say so.
+ *
+ * WHERE THE SEARCH STOPS is the whole design. It climbs to the first ancestor
+ * that is a project root — one holding `.git`, or a `package.json` declaring
+ * `workspaces` — and searches that directory too, then stops. Above that line
+ * a `LICENSE` belongs to some unrelated tree that happens to be a parent
+ * directory (`~/Projekte/LICENSE` is not yours), and packaging its text would
+ * make a specific false legal claim. When NO marker is found the search is the
+ * project directory alone: without a marker there is no way to tell where the
+ * project ends, and guessing wrong is the same false claim.
+ *
+ * What this cannot check is whether the inherited text is the RIGHT licence
+ * for this package — an Apache-2.0 package inside an MIT monorepo would
+ * inherit the wrong one. Reading an SPDX identifier out of licence prose is
+ * not something to guess at, so the caller PRINTS the inherited path instead
+ * (see `commands/ship.ts`), and `gjsify.ship.licenseFile` overrides it.
+ */
 function discoverLicense(projectDir: string, configured: string | undefined): string | undefined {
     if (configured !== undefined) {
         const target = resolve(projectDir, configured);
@@ -231,11 +259,46 @@ function discoverLicense(projectDir: string, configured: string | undefined): st
         }
         return target;
     }
-    for (const name of LICENSE_FILE_NAMES) {
-        const target = join(projectDir, name);
-        if (existsSync(target)) return target;
+    for (const dir of licenseSearchDirs(projectDir)) {
+        for (const name of LICENSE_FILE_NAMES) {
+            const target = join(dir, name);
+            if (existsSync(target)) return target;
+        }
     }
     return undefined;
+}
+
+/** `projectDir` first, then each ancestor up to and including the project root. */
+function licenseSearchDirs(projectDir: string): string[] {
+    const dirs: string[] = [];
+    for (let current = projectDir; ;) {
+        dirs.push(current);
+        if (isProjectRoot(current)) return dirs;
+        const parent = dirname(current);
+        if (parent === current) return [projectDir];
+        current = parent;
+    }
+}
+
+/**
+ * Is this the top of the tree the project belongs to?
+ *
+ * `.git` is tested with `existsSync` rather than `statSync().isDirectory()`
+ * because in a git WORKTREE it is a file, and this repository is developed in
+ * worktrees.
+ */
+function isProjectRoot(dir: string): boolean {
+    if (existsSync(join(dir, '.git'))) return true;
+    const manifest = join(dir, 'package.json');
+    if (!existsSync(manifest)) return false;
+    try {
+        return (JSON.parse(readFileSync(manifest, 'utf-8')) as { workspaces?: unknown }).workspaces !== undefined;
+    } catch {
+        // A malformed `package.json` in some ancestor is not this command's
+        // business, and it must not turn a licence search into a ship failure.
+        // Not a root, then: the climb continues and `.git` still stops it.
+        return false;
+    }
 }
 
 /**

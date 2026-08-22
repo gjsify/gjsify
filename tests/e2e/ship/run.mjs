@@ -424,6 +424,46 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.match(runCliExpectingFailure(dir), /must be named/);
     });
 
+    // ── the licence ───────────────────────────────────────────────────────
+    //
+    // `.deb: the Debian copyright overlay is where policy wants it` above has
+    // passed since the packer landed, and gjsify's own `.deb` shipped without
+    // that copyright the whole time. The assertion was right and the FIXTURE was
+    // not: every project scaffolded here is a single package carrying its own
+    // LICENSE, and gjsify is not that shape — `packages/infra/cli` has no
+    // LICENSE, the text is one file at the repository root, and discovery looked
+    // in the package directory only. A green assertion on an unrepresentative
+    // fixture is the version of green-CI-that-checked-nothing that survives
+    // review, because nothing about it looks weak.
+
+    it('takes the licence from the repository root when the package carries none', () => {
+        const root = join(tmpDir, 'mono');
+        const dir = scaffold(join(root, 'packages', 'app'));
+        rmSync(join(dir, 'LICENSE'));
+        // A FILE, not a directory: that is what `.git` is in a git worktree, and
+        // it marks the top of the climb in either spelling.
+        writeFileSync(join(root, '.git'), 'gitdir: elsewhere\n');
+        writeFileSync(join(root, 'LICENSE'), 'MIT License\n\nRoot terms.\n');
+        runCliSync(CLI_ENTRY, ['ship', '--skip-build', '--target', 'deb'], { cwd: dir });
+
+        // Read off the materialised overlay rather than out of the `.deb`: this
+        // needs no `ar` and no `tar`, so it cannot degrade into a silent skip on
+        // a runner that lacks them — and the same bytes go into the archive.
+        const copyright = join(dir, 'ship', 'overlay', 'deb', 'share', 'doc', 'ship-demo', 'copyright');
+        assert.ok(existsSync(copyright), 'no copyright overlay was rendered');
+        // The ROOT text specifically. A copyright rendered from some other file
+        // would satisfy an existence check and still be the wrong licence.
+        assert.match(readFileSync(copyright, 'utf-8'), /Root terms\./);
+    });
+
+    it('refuses a project with no licence anywhere, rather than packaging one without', () => {
+        const dir = scaffold(join(tmpDir, 'no-licence'));
+        rmSync(join(dir, 'LICENSE'));
+        // No `.git` and no workspace root above a tmpdir, so the climb has
+        // nowhere to go — which is the case that must fail, not fall back.
+        assert.match(runCliExpectingFailure(dir), /share\/doc\/ship-demo\/copyright/);
+    });
+
     // ── helpers ───────────────────────────────────────────────────────────
 
     function debPath(dir = projectDir) {

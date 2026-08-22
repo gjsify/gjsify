@@ -46,7 +46,7 @@ import {
     isArchIndependent,
     readPayloadFacts,
 } from '../utils/ship/payload.js';
-import { planOverlay, planStage, type StageInputs } from '../utils/ship/plan.js';
+import { assertOverlayIsLicensed, planOverlay, planStage, type StageInputs } from '../utils/ship/plan.js';
 import { renderLauncher } from '../utils/ship/launcher.js';
 import { buildRpm } from '../utils/ship/rpm.js';
 import { declaredBundlePath, resolveShipSettings, type ShipPackageManifest } from '../utils/ship/settings.js';
@@ -196,6 +196,17 @@ async function assemble(args: ShipOptions): Promise<void> {
     // that is a different day's problem than getting the package built.
     for (const missing of validateAppMetadata(metadataInputs)) {
         console.warn(`${LOG} ${missing.field} is not set — ${missing.hint}`);
+    }
+
+    // Printed, not assumed. The text may come from an ancestor — one `LICENSE`
+    // at a monorepo root covers every package under it (see `discoverLicense`)
+    // — and which file was baked into the copyright is not recoverable from the
+    // artifact afterwards without unpacking it.
+    if (settings.licenseFile !== undefined && dirname(settings.licenseFile) !== projectDir) {
+        console.log(
+            `${LOG} licence text from ${relative(projectDir, settings.licenseFile)} ` +
+                '(this package carries none of its own)',
+        );
     }
 
     const stageInputs: StageInputs = {
@@ -373,6 +384,8 @@ interface PackInput {
 
 async function packOne(input: PackInput): Promise<ShipArtifact> {
     const { format, settings, stageDir, outRoot, mtime } = input;
+
+    assertOverlayIsLicensed(format.id, settings.binaryName, input.overlay);
 
     const overlayDir = join(outRoot, 'overlay', format.id);
     writeStage(overlayDir, input.overlay);
