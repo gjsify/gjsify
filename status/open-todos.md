@@ -2232,31 +2232,82 @@ rather than adding a second one here.
 `packages/web/adwaita-web/src/keyboard-operable.spec.ts` awaits that microtask
 and says why.
 
-### `<adw-toggle-group>` is upstream's fifth roving widget and has none of it
+### `<adw-toggle>` has no `enabled`, so a toggle group cannot disable one segment
 
-The row-family half of this entry is CLOSED: `<adw-action-row>` (while `activatable`),
-`<adw-button-row>`, `<adw-expander-row>`'s header and `<adw-switch-row>` are tab stops that
-activate on Enter and Space, `<adw-preferences-group>` declares
-`GTK_ACCESSIBLE_ROLE_GROUP`, and `<adw-switch-row>`'s slider stopped being a focus target
-the way `adw_switch_row_init` does it. `<adw-combo-row>` was measured NOT to need it — its
-native `<select>` is already the combobox, already arrow-navigable, and already `disabled`
-at one option or fewer, which is `adw-combo-row.c:194` without a line of our own.
+Upstream's `AdwToggle` carries `enabled`, and `add_toggle` spends it immediately:
+`gtk_widget_set_sensitive (toggle->button, toggle->enabled)`
+(`adw-toggle-group.c:871`). The web `<adw-toggle>` observes `label` and `icon-name`
+and nothing else, so every rendered button is sensitive and there is no way to
+express "this view mode is unavailable right now" short of removing the toggle.
 
-What remains is the same blind spot from the other side. Upstream `<adw-toggle-group>` is
-the fifth member of the roving family: `AdwInlineViewSwitcher` builds exactly this widget
-with `GTK_ACCESSIBLE_ROLE_TAB_LIST` (`adw-inline-view-switcher.c:702`), and
-`adw_toggle_group_focus` (`adw-toggle-group.c:1045`) is the citation
-`elements/roving-focus.ts` is built on. The web element has none of it — no role, no roving
-tabindex, no arrow keys. Measured in Firefox: three toggles report `tabIndex` `[0, 0, 0]`,
-the host has no `role`, and ArrowRight/ArrowLeft/Home/End all leave `document.activeElement`
-exactly where it was.
+This surfaced while making the group keyboard-navigable. `elements/roving-focus.ts`
+documents that its caller must filter `hidden`/`disabled` items — leaving one in
+strands the user on a `focus()` the browser refuses, which is why
+`<adw-sidebar>` filters and has a spec for it. `<adw-toggle-group>` passes its
+buttons through UNFILTERED, deliberately: no `<adw-toggle>` attribute can produce
+a disabled or hidden button, so a filter would be a branch no test could reach.
+Adding `enabled` therefore means adding the filter and its spec in the same
+change, or the first disabled toggle is a focus trap — and that obligation is not
+left to this paragraph. `keyboard-operable.spec.ts` pins
+`AdwToggle.observedAttributes` to exactly `['label', 'icon-name']`, so the commit
+that adds `enabled` fails until someone reads this entry.
 
-It stays OPERABLE, every toggle being its own tab stop, so it is not the defect class
-`scripts/check-adwaita-keyboard-contract.mjs` was written against — and that gate
-structurally cannot see it either, since there is no negative tabindex to trigger on. Its
-zero finding there is a scope limit, not a clean bill. Closing it means giving the group the
-tab-list role and one roving tabindex, which turns three tab stops into one: a visible
-change to anything that tabs through a toggle group today.
+`orientation` is the second thing missing, and it is not cosmetic. `AdwToggleGroup`
+implements `GtkOrientable` (`adw-toggle-group.c:187`), installs `PROP_ORIENTATION`
+(`:202`), reorients its layout manager (`:929`) and every separator (`:873`,
+`:935`), and `AdwInlineViewSwitcher` forwards the property (`:107`). Neither web
+element has it, so both are hardcoded horizontal — `attachRovingFocus(…,
+orientation: 'horizontal')` in each — and the keyboard follows the layout
+GEOMETRICALLY upstream (`focus_sort_up_down`, `adw-widget-utils.c:339-342`), not
+from a property. A vertical group therefore needs Up/Down to move inside and
+Left/Right to propagate: the exact opposite of what both elements do today. The day
+`orientation` lands, the axis and the `inert` spec row move with it, and
+`keyboard-operable.spec.ts` pins `AdwToggleGroup.observedAttributes` so that commit
+cannot land quietly. `<adw-inline-view-switcher>` has no such pin yet.
+
+The same commit closed the roving half of this widget, and the entry it replaces
+got the ROLE wrong in a way worth keeping: it recommended "giving the group the
+tab-list role", generalised from `AdwInlineViewSwitcher` building this widget with
+`GTK_ACCESSIBLE_ROLE_TAB_LIST` (`adw-inline-view-switcher.c:702`). That is the one
+place upstream OVERRIDES the default — the C marks it `/* Special case for
+AdwInlineViewSwitcher */` (`adw-toggle-group.c:856`) — and `AdwToggleGroup` itself
+declares `GTK_ACCESSIBLE_ROLE_RADIO_GROUP` (`:1191`). Reading the widget that
+consumes a class instead of the class itself is how a ledger entry ends up
+prescribing the exception as the rule.
+
+### Nothing checks a `file.c:NNN` citation, and nothing checks the `refs/` pointer
+
+Three rounds of review on one PR produced FOUR wrong line numbers, each in a comment
+whose whole job was to ground a decision in the C: `adw-toggle-group.c:1058` for a
+filter that is at `:1059`, `:872` for a call at `:871`, `:1065` for a function whose
+name is at `:1066` (corrected in one file and left standing in another in the same
+PR), and `adw-widget-utils.c:399` for `focus_sort`, which is at `:388` — that last one
+inside the single paragraph carrying the argument that the previous draft had the axis
+backwards. A fifth claim named `adw-inline-view-switcher.c:294` as an inner layout
+container; the line resolves, and it is a `GtkImage`.
+
+`scripts/check-refs-citations.mjs` checks that a cited FILE exists. It cannot check a
+line, which is why every one of these passed. The shape that would catch them is
+narrow and mechanical: for each `<file>.c:NNN` in a comment that also names a
+backticked C symbol, assert the symbol occurs within a small window of that line. The
+window is the whole design question — a function is cited by its `static` line as
+often as by its name line, and this repo does both deliberately (`:428` and `:298` in
+one sentence) — so the reader has to accept a range rather than a point, and say which
+it accepted when it fails.
+
+The second half is smaller and equally invisible: the worktree's `refs/libadwaita`
+sat FIVE commits ahead of the pointer recorded in `HEAD` during that review. Citations
+are only meaningful against the pin, and checking it took a hand-run `md5sum` over
+three files to establish that the drift happened to be harmless. `check-refs-pin.mjs`
+does NOT cover it, checked: it dispatches to the `refs-pin` rule, which reads
+`gjsify.refsLockstep` — declared by exactly two packages, `rolldown-native` and
+`oxfmt-native`, both pinning Rust sources they compile. No package declares a
+lockstep for `refs/libadwaita`, so the tree every Adwaita citation is measured
+against is the one thing about them nothing holds.
+
+Both halves are worth one script, because the cost is already paid: four of these
+survived adversarial review by finding them one at a time, and the one that mattered
+most was the last one found.
 
 ### The NativeScript theme ships none of libadwaita's label utility classes
 
