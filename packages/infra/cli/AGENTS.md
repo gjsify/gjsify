@@ -19,7 +19,8 @@ gjsify tsc …                              # Node-free tsc via the @gjsify/tsc 
 gjsify publish|whoami|login|logout        # Node-free npm publish/auth (npm-otp header, no web-OAuth)
 gjsify trust [pkg] | gjsify onboard       # Trusted-Publisher config / full first-publish+trust sweep (one shared OTP)
 gjsify upgrade [--latest|--minor|--patch|--align|--check] [-p glob]   # workspace-wide dep upgrades; --check = CI drift gate
-gjsify ship [--target deb,rpm] [--stage]   # installable artifacts from ONE staged payload (ADR 0024)
+gjsify ship [--target deb,rpm] [--stage]   # phase 1: assemble ONE staged payload (ADR 0024)
+gjsify ship --from-stage <dir> [--expect-target <os>-<arch>]   # phase 2: pack a stage, no project needed
 gjsify install [--immutable|--refresh-lockfile] | gjsify dlx <pkg> | gjsify showcase <name> | gjsify storybook | gjsify debug
 gjsify dev [entry] [--runtime <r>] [--script <s>]   # watch → rebuild → relaunch; the templates' `dev` script
 gjsify prune [-g] [--dry-run]              # drop installed packages this host cannot use (ADR 0025)
@@ -47,6 +48,13 @@ packer, because the packer has to run under GJS, offline, and on a Fedora CI ima
 `dpkg-deb` does not exist. What that bought, and the defect `rpm`-as-an-independent-oracle caught
 on the first artifact: [ADR 0024](../../../docs/adr/0024-ship-installable-artifacts.md) §
 Implementation status.
+
+**`gjsify ship` is TWO PHASES, and the boundary is a TYPE** (ADR 0024 § A2): `--stage` assembles and
+writes `.gjsify-ship-stage.json`, a CLOSURE rather than a settings dump; `--from-stage <dir>` packs it
+where no project exists. The packers take `PackSettings` — the half that crosses — so a
+`settings.bundlePath` read added to `deb.ts` is a COMPILE error, not a manifest field nobody noticed.
+Every omission from that closure fails silently at exit 0, which is why `tests/e2e/ship-from-stage`
+DELETES the project between the phases; without the deletion a reach-back succeeds and proves nothing.
 
 **`gjsify foreach -p` builds the CLI's OWN runtime closure serially first** — every child BOOTS the CLI, so a parallel sweep otherwise reads the `lib/` trees its siblings write (macOS run 31130155911). The set is DERIVED, and the two cheaper derivations were measured wrong: `utils/cli-runtime-closure.ts` carries both numbers.
 

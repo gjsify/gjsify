@@ -27,6 +27,12 @@ export interface PayloadEntry {
  * what `rpm -qi` then shows a user, and an artifact that looks broken is a
  * support question. The mtime keeps the property that matters (pack the same
  * build twice, get the same bytes) while saying something true.
+ *
+ * Only the ASSEMBLING host runs this. A stage records the answer it got
+ * (`.gjsify-ship-stage.json` → `mtime`) and the packing host reuses it: an
+ * artifact upload does not carry mtimes, so re-stat'ing the stage there would
+ * stamp every header with "whenever the download finished" and quietly destroy
+ * the reproducibility this function exists to protect.
  */
 export function buildTimestamp(bundlePath: string, env: Record<string, string | undefined> = process.env): number {
     const raw = env.SOURCE_DATE_EPOCH;
@@ -38,6 +44,64 @@ export function buildTimestamp(bundlePath: string, env: Record<string, string | 
         return parsed;
     }
     return Math.floor(statSync(bundlePath).mtimeMs / 1000);
+}
+
+/**
+ * What the payload itself says about what it installs.
+ *
+ * Every field here used to be answered from the SETTINGS — `settings.iconFiles.length > 0`,
+ * `settings.schemaFiles.length > 0`, `settings.typelibFiles` — i.e. from lists of absolute paths
+ * on the BUILD host. Two things were wrong with that, and the second is why this function exists
+ * at all:
+ *
+ *  1. It answered a different question than the one being asked. `cacheRefreshCommands` emits
+ *     `gtk-update-icon-cache <prefix>/share/icons/hicolor` — the honest precondition is "did this
+ *     package install anything into that directory", not "did the project have icon files lying
+ *     around". They come apart for a `kind: 'cli'` project with a `data/icons/` folder: the
+ *     planner stages no icon (icons are an `'app'` thing), the settings still listed them, and the
+ *     postinst refreshed a cache for files that were never installed.
+ *  2. An absolute build-host path cannot cross to the host that packs the artifact
+ *     (ADR 0024 § A2). Carrying `iconFiles: ["/home/…/icon.svg"]` in a stage manifest so that
+ *     `.length > 0` can be read on another machine is authoring a value that is measurable right
+ *     there in the tree.
+ *
+ * Path-only, on purpose — `isArchIndependent` is the sibling that reads BYTES, and the two answer
+ * different questions from the same payload. The same split as `plan.ts`'s `isExecutableAsset`
+ * (by name) versus this module's magic sniffing (by content).
+ */
+export interface PayloadFacts {
+    /** The payload installs a `share/applications/*.desktop`. */
+    hasDesktopEntry: boolean;
+    /** The payload installs into `share/icons/hicolor/`. */
+    hasIcons: boolean;
+    /** The payload installs a compiled-on-install `share/glib-2.0/schemas/*.gschema.xml`. */
+    hasSchemas: boolean;
+    /** The payload installs a `share/mime/packages/*.xml`, so the mime cache needs rebuilding. */
+    hasMimeTypes: boolean;
+    /** Prefix-relative paths of the typelibs the payload carries itself. */
+    bundledTypelibs: string[];
+}
+
+/**
+ * Read {@link PayloadFacts} off a payload or off a plan.
+ *
+ * Takes anything with a `path`, so the assembling phase can ask the same
+ * question of the PLAN (before the tree is read back) that the packing phase
+ * asks of the payload. One function, so the two phases cannot disagree about
+ * whether a package installs a schema.
+ */
+export function readPayloadFacts(entries: readonly { path: string }[]): PayloadFacts {
+    const paths = entries.map((entry) => entry.path);
+    return {
+        hasDesktopEntry: paths.some((path) => path.startsWith('share/applications/') && path.endsWith('.desktop')),
+        hasIcons: paths.some((path) => path.startsWith('share/icons/hicolor/')),
+        hasSchemas: paths.some((path) => path.startsWith('share/glib-2.0/schemas/') && path.endsWith('.gschema.xml')),
+        hasMimeTypes: paths.some((path) => path.startsWith('share/mime/packages/') && path.endsWith('.xml')),
+        // Anywhere in the payload, not only `lib/<name>/gi/`: `gjsify.ship.extraFiles` can place
+        // one elsewhere, and a typelib the package carries is a typelib the package must not also
+        // declare a distro dependency for, wherever it sits.
+        bundledTypelibs: paths.filter((path) => path.endsWith('.typelib')),
+    };
 }
 
 /**
@@ -57,6 +121,11 @@ export function isArchIndependent(payload: readonly PayloadEntry[]): boolean {
 // values this repository can actually produce are listed; an unknown one reads
 // as "cannot tell" rather than as a mismatch, because refusing an artifact over
 // a machine constant nobody here emits would be a guess wearing a gate's clothes.
+// `EM_MIPS` (0x08) is deliberately ABSENT, and adding it would be a regression:
+// one machine value covers both `mips` and `mipsel`, which `process.arch` spells
+// apart, so the row would have to guess and would refuse a CORRECT pack half the
+// time. A value this table cannot decode unambiguously belongs out of it — the
+// check stays silent instead of being wrong.
 const ELF_MACHINE_TO_ARCH: Record<number, string> = {
     0x03: 'ia32',
     0x15: 'ppc64',
@@ -136,7 +205,8 @@ export function assertPayloadMatchesArch(payload: readonly PayloadEntry[], arch:
                 'anything.\n' +
                 `    A package labelled ${arch} installs on ${arch} and then fails to load. Build the payload ` +
                 `for ${arch}\n` +
-                '    (its own prebuild), or drop `--arch` and label the payload you actually have.',
+                '    (its own prebuild), or assemble the stage without `--arch` and label the payload you ' +
+                'actually have.',
         );
     }
 }

@@ -1669,6 +1669,493 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  # ── Ship: assemble here, pack there (ADR 0024 § A1–A2) ──────────────
+  #
+  # Two jobs because the design is two phases. `--stage` assembles a payload on
+  # a host that has the toolchain; the finish phase packs it on the host that
+  # owns the FORMAT. Splitting them in CI is the only way to find out whether
+  # the handoff actually carries everything — a single-process `gjsify ship`
+  # cannot tell a value it computed from a value it received.
+  #
+  # WHY A BARE `ubuntu-latest` FOR THE PACK HALF, with no `container:`.
+  # `status/open-todos.md` § `gjsify ship` item 8: **`dpkg` is on no CI runner
+  # this project uses**, so the `.deb` this repo writes by hand has never been
+  # read by a real `dpkg`. The Fedora image every other job runs in cannot fix
+  # that — `dpkg-deb` does not exist there, which is the reason the packers are
+  # hand-written in the first place (`packages/infra/cli/AGENTS.md`). An Ubuntu
+  # runner ships `dpkg`/`dpkg-deb` natively AND can `docker run --rm fedora:44`
+  # for `rpm`, so ONE free runner closes both halves. The `docker run`
+  # precedent, incl. the pull-retry, is `prebuilds.yml`'s emulated-build leg.
+  #
+  # WHAT THIS LEG DOES NOT CHECK — read it before treating green as coverage.
+  # The subject is `packages/infra/cli`, the only in-tree package that declares
+  # `gjsify.ship` and the one `release-cut.yml` ships on every cut. It resolves
+  # to `kind: 'cli'`, so `cacheRefreshCommands()` returns nothing and the `.deb`
+  # carries NO `postinst`/`postrm` at all: maintainer scripts, the desktop
+  # entry, the icon cache and `glib-compile-schemas` are all unexercised here.
+  # Closing that needs a `kind: 'app'` subject — `tests/e2e/ship/run.mjs`'s
+  # `scaffold()` is one, once it is lifted into a `fixture.mjs` both callers can
+  # import (a second copy of it here would be the exact duplication AGENTS.md
+  # names). Tracked in `status/open-todos.md`.
+  ship-stage:
+    needs: [changes, setup, build]
+    # The same gate `e2e` carries, and it is safe for this leg specifically:
+    # every path that can change ship behaviour is a GLOBAL trigger in
+    # `affected-classify.ts` — `^packages/infra/cli/` (all of `utils/ship/**`),
+    # `^\.github/workflows/main\.yml$` (this file), and an unmatched path such
+    # as `.github/ship-oracle/**` falls through to the full-run bail-out. So the
+    # leg cannot skip on the PR that changes it, which is the #1183 class this
+    # workflow already paid for once (`tree-checks`' header).
+    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' && (needs.changes.outputs.run-e2e == 'true' || needs.changes.outputs.global == 'true' || needs.changes.outputs.global == '') }}
+    name: Ship stage (assemble)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 30
+    container:
+      # One Fedora leg, not the matrix: the stage is platform-neutral JS plus a
+      # `/bin/sh` launcher, identical on every leg. Same reduction `tree-checks`
+      # makes, for the same reason.
+      image: ghcr.io/gjsify/ci-fedora:${{ fromJSON(needs.setup.outputs.fedora-matrix)[0].v }}
+      options: --ulimit nofile=1048576:1048576
+    outputs:
+      # The floor the pack job checks its artifacts against. DERIVED from the
+      # tree this job just wrote — there is no file count written down anywhere,
+      # because a written-down count is a second copy that drifts and then lies.
+      staged-count: ${{ steps.handover.outputs.staged-count }}
+    env:
+      # ONE definition, read by the run blocks AND by the upload's `path:`
+      # (`env` is available in `steps[*].with`). A second literal would be the
+      # copy that drifts, and the one it drifts from is the upload.
+      SHIP_STAGE: packages/infra/cli/ship/stage
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/gjsify-setup
+        with:
+          fedora-version: ${{ fromJSON(needs.setup.outputs.fedora-matrix)[0].v }}
+          # BOTH the tool and the payload. `gjsify.ship.bundle` for this package
+          # is `dist/cli.gjs.mjs`, which ADR 0002 untracked — so the artifact
+          # the `build` job publishes is the only copy this checkout can have,
+          # and it is THIS commit's bundle rather than the published bootstrap.
+          bootstrap-bundles: 'true'
+
+      # `gjs -m dist/cli.gjs.mjs`, not `node_modules/.bin/gjsify`: the shim
+      # prefers an on-disk `dist/cli.gjs.mjs` anyway (packages/infra/cli/AGENTS.md),
+      # and naming the file makes it unambiguous WHICH bundle staged the payload.
+      # `--skip-build` because `build` already produced it; rebuilding here would
+      # stage a bundle nothing else in this run has seen.
+      - name: Stage the payload, pack nothing
+        run: su testuser -c "cd packages/infra/cli && gjs -m dist/cli.gjs.mjs ship --stage --skip-build --verbose"
+
+      # HAZARD 2, asserted on the PRODUCING side because that is the only side
+      # where the truth still exists. `actions/upload-artifact` FOLLOWS symlinks
+      # rather than preserving them — measured in `docs/node-gi-platform-notes.md`,
+      # where 859 links under `share/icons/Adwaita` were copied as links, the
+      # artifact "looked complete" because the store dereferenced them, and
+      # `npm pack` (which does not) shipped 0.2 MiB where 22 MB was intended.
+      # `writeStage()` only ever calls `writeFileSync`, so a link in the stage is
+      # already a bug; this makes it a LOUD bug here instead of a silent
+      # difference between the two hosts.
+      # NOTE ON WHAT THIS CAN AND CANNOT CATCH: today it cannot go red.
+      # `writeStage()` materialises every file with `writeFileSync`, and the
+      # discovery feeding it already throws on a symlink (`discover.ts`), so a
+      # link in the stage is unreachable without rewriting the stager to
+      # `cpSync`. It is kept as a forward guard for exactly that change — not as
+      # evidence that the current stager is link-free, which is proven upstream.
+      - name: The stage is regular files only
+        run: |
+          set -euo pipefail
+          links=$(find "$SHIP_STAGE" -type l -print)
+          if [ -n "$links" ]; then
+            echo "::error title=Ship stage::the staged tree contains symlinks. actions/upload-artifact FOLLOWS them, so the pack host would receive dereferenced copies and the artifact would differ from what was staged, with nothing to notice."
+            echo "$links"
+            exit 1
+          fi
+          echo "no symlinks in the stage"
+
+      # The handover measurement, printed rather than assumed. The mode column
+      # is the interesting one: it is 0755 HERE and will not be 0755 on the pack
+      # host (HAZARD 1), which is exactly why `readStage()` takes modes from the
+      # PLAN and the plan travels inside `.gjsify-ship-stage.json`.
+      - name: Record what is being handed over
+        id: handover
+        run: |
+          set -euo pipefail
+          if [ ! -f "$SHIP_STAGE/.gjsify-ship-stage.json" ]; then
+            echo "::error title=Ship stage::\`--stage\` wrote no .gjsify-ship-stage.json at the stage root. Phase 2 has no closure to pack from (ADR 0024 § A2) and MUST refuse rather than re-derive."
+            exit 1
+          fi
+          count=$(find "$SHIP_STAGE" -type f ! -name .gjsify-ship-stage.json | wc -l | tr -d '[:space:]')
+          if [ "$count" -eq 0 ]; then
+            echo "::error title=Ship stage::the stage holds only the sidecar. A payload-free stage packs into a valid, empty .deb that every structural reader accepts."
+            exit 1
+          fi
+          echo "staged-count=$count" >> "$GITHUB_OUTPUT"
+          echo "staged payload: $count file(s)"
+          find "$SHIP_STAGE" -type f -printf '  %m %10s %P\n' | sort
+
+      # HAZARD 3 and the LCA rule, both settled by the shape of this ONE upload.
+      #
+      #   * `upload-artifact` with a DIRECTORY `path:` uploads the directory's
+      #     CONTENTS. Measured on the v0.26.1 publish (`release.yml`'s node-gi
+      #     staging comment): four legs went green, four artifacts downloaded,
+      #     and the staging assertion then found not one file where it looked.
+      #     Harmless here because the download below names an explicit
+      #     destination directory, so "contents" land back under a name we chose.
+      #   * The archive is rooted at the LEAST COMMON ANCESTOR of the paths given
+      #     (`.github/actions/gjsify-setup/action.yml` states it). ONE path
+      #     entry, so the LCA is that directory and cannot move under us.
+      #   * ONE artifact, never `pattern:` + `merge-multiple:`. That combination
+      #     IS the v0.26.1 incident.
+      #
+      # `include-hidden-files: true` is load-bearing and appears nowhere else in
+      # this repo: `upload-artifact` has EXCLUDED dotfiles by default since v4,
+      # and the sidecar is `.gjsify-ship-stage.json`. Without it the upload
+      # succeeds, `if-no-files-found: error` stays quiet, and the closure the
+      # whole design rests on simply is not in the archive. The pack job asserts
+      # its arrival anyway — the flag is the fix, the assertion is the check.
+      #
+      # `retention-days: 1`: this is an intra-run transport, and a ship stage is
+      # re-derivable from the tag it was cut at. Same value the other three
+      # intra-run transports in this file carry.
+      - name: Upload the stage
+        uses: actions/upload-artifact@v7
+        with:
+          name: ship-stage-linux-x64
+          path: ${{ env.SHIP_STAGE }}
+          include-hidden-files: true
+          retention-days: 1
+          if-no-files-found: error
+
+      # The readers travel as an artifact so the pack job needs NO CHECKOUT —
+      # see its header for why that is the point and not an optimisation.
+      - name: Upload the artifact readers
+        uses: actions/upload-artifact@v7
+        with:
+          name: ship-oracle
+          path: .github/ship-oracle
+          retention-days: 1
+          if-no-files-found: error
+
+  ship-pack-linux:
+    # `setup` for the Fedora version in the bundle artifact's name; `ship-stage`
+    # for the stage itself. `build` and `changes` are reached through ship-stage,
+    # and listing them again would only make this job wait on them twice.
+    needs: [setup, ship-stage]
+    if: ${{ always() && needs.ship-stage.result == 'success' }}
+    name: Ship pack + install (bare ubuntu, real dpkg)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 30
+    env:
+      STAGE_DIR: incoming/stage
+      ARTIFACTS: artifacts
+      STAGED_COUNT: ${{ needs.ship-stage.outputs.staged-count }}
+    steps:
+      # THERE IS DELIBERATELY NO `actions/checkout` IN THIS JOB.
+      #
+      # The failure this leg exists to catch is a pack phase that quietly
+      # re-derives what it was supposed to receive: `commands/ship.ts` computes
+      # the mode plan, the licence overlay, the GI namespaces, the mtime and the
+      # arch OUTSIDE the stage, and each omission fails at exit 0. A pack job
+      # standing in a checkout can re-discover a project and stage it again, and
+      # every artifact assertion below would still pass — green, and it never
+      # exercised the handoff.
+      #
+      # `status/open-todos.md` item 3 names the proof: "stage into a tmpdir,
+      # DELETE THE PROJECT TREE, pack from the stage". No checkout is that
+      # deletion, expressed as job shape. The job's three inputs — the tool, the
+      # payload, the readers — each arrive as their own artifact into their own
+      # explicit destination, which is the download shape `release.yml`'s
+      # v0.26.1 incident settled.
+
+      # The claim "ubuntu-latest ships dpkg and lintian" is MEASURED here on
+      # every run rather than asserted in a comment. The install step below then
+      # makes the answer irrelevant for the tools we need: absence becomes a
+      # download, never a skipped check.
+      - name: Measure this runner's Debian tooling
+        run: |
+          set -euo pipefail
+          if [ -f /imagegeneration/imagedata.json ]; then
+            echo "runner image:"
+            cat /imagegeneration/imagedata.json
+          else
+            echo "runner image: no /imagegeneration/imagedata.json on this runner"
+          fi
+          . /etc/os-release
+          echo "os: ${PRETTY_NAME:-unknown}"
+          for tool in dpkg dpkg-deb apt-cache apt-get lintian lintian-explain-tags docker gjs; do
+            if command -v "$tool" >/dev/null 2>&1; then
+              printf '  %-22s %s\n' "$tool" "$(command -v "$tool")"
+            else
+              printf '  %-22s ABSENT\n' "$tool"
+            fi
+          done
+          dpkg-query -W -f='  ${Package} ${Version}\n' dpkg lintian 2>&1 || true
+
+      # `gjs` runs the CLI bundle; `lintian` is the third reader. Both are
+      # INSTALLED rather than probed, because `tests/e2e/ship`'s `probe()` rule
+      # applies here too: a silently skipped reader leaves every assertion
+      # behind it vacuous, and this job's whole value is its readers.
+      - name: Install the readers this runner does not ship
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gjs
+          # NOT --no-install-recommends for lintian: several of its check modules
+          # are pulled in as Recommends, and a lintian missing them still exits 0
+          # having run fewer checks — a reader that quietly reads less.
+          sudo apt-get install -y lintian
+          gjs --version
+          lintian --version
+
+      # Three downloads, three explicit destinations. The bundle artifact is
+      # rooted at `packages/infra` (the LCA of the two paths its producer
+      # uploads), so it lands as `tool/cli/dist/cli.gjs.mjs`.
+      - name: Download the CLI bundle (the tool)
+        uses: actions/download-artifact@v8
+        with:
+          name: bootstrap-bundles-fedora${{ fromJSON(needs.setup.outputs.fedora-matrix)[0].v }}
+          path: tool
+      - name: Download the stage (the payload)
+        uses: actions/download-artifact@v8
+        with:
+          name: ship-stage-linux-x64
+          path: incoming/stage
+      - name: Download the artifact readers
+        uses: actions/download-artifact@v8
+        with:
+          name: ship-oracle
+          path: oracle
+
+      # HAZARD 1 and HAZARD 3, both observed on arrival before anything runs.
+      #
+      # HAZARD 1 — the GitHub artifact round-trip does not preserve the
+      # executable bit. Demonstrated as a closed loop inside this repo: the
+      # producer builds `dist/cli.gjs.mjs` with `--shebang`, which ends in
+      # `await chmod(outfile, 0o755)` (`packages/infra/cli/src/actions/build.ts`),
+      # and the consumer has to chmod 0755 again after every download
+      # (`.github/actions/gjsify-setup/action.yml`, whose comment states the
+      # rule: "the artifact round-trip does not preserve the mode"). 0755 in,
+      # chmod needed out.
+      #
+      # NOT evidence for this, and deliberately not cited: what the gjsify STORE
+      # does to prebuild modes. That is a different transport with the opposite
+      # behaviour — `packages/infra/tar/src/extract.ts` reproduces the
+      # publisher's tar mode verbatim (`packages/infra/tar/src/index.spec.ts`
+      # pins 0755), so a prebuild statistic says nothing about this hazard.
+      #
+      # The consequence for this leg: the bundle has to be chmodded before `gjs`
+      # can be pointed at it, and the STAGE's `bin/<name>` WILL be 0644 here.
+      # That is harmless only because the mode travels as DATA in the sidecar's
+      # `staged[]` and `readStage()` reads the plan rather than `stat()` — which
+      # is what the mode-fidelity step below verifies for every path, not just
+      # for the launcher.
+      #
+      # HAZARD 3 — a directory upload arrives as its CONTENTS. If the sidecar is
+      # not here, the archive was rooted somewhere else or the dotfile was
+      # filtered out; either way phase 2 has no closure, and the error says so
+      # in the same words `gjsify-setup` uses for the same class.
+      - name: Inspect what actually arrived
+        run: |
+          set -euo pipefail
+          chmod 0755 tool/cli/dist/cli.gjs.mjs
+          echo "arriving stage:"
+          find "$STAGE_DIR" -type f -printf '  %m %10s %P\n' | sort
+          if [ ! -f "$STAGE_DIR/.gjsify-ship-stage.json" ]; then
+            echo "::error title=Ship handoff::$STAGE_DIR/.gjsify-ship-stage.json did not arrive. actions/upload-artifact roots the archive at the least common ancestor of the producer's paths AND excludes hidden files unless include-hidden-files is set; if either moved, this download's path: has to move with it (.github/workflows/main.yml)."
+            find incoming -maxdepth 3 | head -50
+            exit 1
+          fi
+          arrived=$(find "$STAGE_DIR" -type f ! -name .gjsify-ship-stage.json | wc -l | tr -d '[:space:]')
+          if [ "$arrived" != "$STAGED_COUNT" ]; then
+            echo "::error title=Ship handoff::the stage job staged $STAGED_COUNT payload file(s); $arrived arrived. The artifact store lost or added files."
+            exit 1
+          fi
+          echo "$arrived payload file(s) arrived intact"
+
+      # The finish phase. No project on this machine, so everything it packs has
+      # to have come out of the stage.
+      - name: Pack from the stage alone
+        run: |
+          set -euo pipefail
+          gjs -m tool/cli/dist/cli.gjs.mjs ship --from-stage "$STAGE_DIR" --target deb,rpm --out "$ARTIFACTS"
+          find "$ARTIFACTS" -type f | sort
+
+      # MODE FIDELITY, EVERY PATH — the check the launcher assertion is not.
+      #
+      # HAZARD 1 above says every staged file arrives here 0644, so the
+      # sidecar's `staged[]` is the ONLY surviving record of what each mode
+      # should be. Reading 0755 off `bin/<name>` and stopping covers one path
+      # out of the payload and cannot see the failure that matters: a plan entry
+      # and a tree entry whose paths are spelled differently. The CLI used to
+      # resolve that to `?? 0o644` — a package that installs and cannot start,
+      # at exit 0, with every structural reader happy. `readStage()` now refuses
+      # it outright; this step is what still catches it if that refusal is ever
+      # softened back to a default, because it compares the ARTIFACT to the
+      # PLAN rather than to itself.
+      #
+      # Discriminator: flip the launcher's x bits in contents.txt and this exits
+      # 1 naming `bin/<name>: planned 0755, packed 0644`. Both branches were run
+      # against dpkg-deb-shaped fixtures before the oracle shipped.
+      - name: The .deb reproduces every mode the sidecar planned
+        run: |
+          set -euo pipefail
+          deb=$(find "$ARTIFACTS" -name '*.deb' | sort | sed -n '1p')
+          if [ -z "$deb" ]; then
+            echo "::error title=Ship handoff::no .deb to check the mode plan against"
+            exit 1
+          fi
+          dpkg-deb --contents "$deb" > contents.txt
+          python3 oracle/verify-modes.py "$STAGE_DIR/.gjsify-ship-stage.json" contents.txt
+
+      # `find` + a count, not a hardcoded filename: the name carries the version
+      # and the arch label, and "packed nothing" must not be indistinguishable
+      # from "packed everything" — the same reasoning `release-cut.yml`'s asset
+      # gate spells out for its release globs.
+      - name: Locate exactly one artifact per format
+        id: art
+        run: |
+          set -euo pipefail
+          for fmt in deb rpm; do
+            mapfile -t hits < <(find "$ARTIFACTS" -type f -name "*.$fmt" | sort)
+            if [ "${#hits[@]}" -ne 1 ]; then
+              echo "::error title=Ship pack::expected exactly one .$fmt under $ARTIFACTS, found ${#hits[@]}."
+              exit 1
+            fi
+            echo "$fmt=${hits[0]}" >> "$GITHUB_OUTPUT"
+            echo "$fmt: ${hits[0]}"
+          done
+
+      - name: Read the .deb with dpkg, install it, run it, purge it
+        env:
+          DEB: ${{ steps.art.outputs.deb }}
+        run: bash oracle/verify-deb.sh "$DEB" "$STAGE_DIR" "$STAGED_COUNT"
+
+      # `rpm` on a host that is not ours, in the image ADR 0024 § A3 names as
+      # the independent oracle. PLAIN `fedora:44`, deliberately NOT
+      # `ghcr.io/gjsify/ci-fedora:44`: the claim under test is "a stranger can
+      # install this", and our own image has the toolchain baked in, which is
+      # exactly what would mask a missing runtime dependency.
+      #
+      # PULL FIRST, AND RETRY IT — `prebuilds.yml` pays for this comment: an
+      # implicit pull conflates a registry blip with a broken build, and Docker
+      # Hub answered `502 Bad Gateway` with exit 125 on 2026-08-02 and took a
+      # green run down with it.
+      - name: Read the .rpm with rpm, install it, run it, erase it
+        env:
+          RPM: ${{ steps.art.outputs.rpm }}
+          IMAGE: fedora:44
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            if docker pull "$IMAGE"; then break; fi
+            if [ "$attempt" = 5 ]; then
+              echo "::error::could not pull $IMAGE after 5 attempts"
+              exit 1
+            fi
+            echo "pull failed (attempt $attempt/5) — retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
+          docker run --rm -v "$PWD:/w" -w /w "$IMAGE" \
+            bash oracle/verify-rpm.sh "$RPM" "$STAGE_DIR"
+
+      # THE ANTI-RE-STAGE DISCRIMINATOR, as a positive test rather than as a
+      # property of the job shape. No checkout makes re-staging impossible HERE;
+      # this proves the COMMAND refuses it anywhere. `--from-stage` is handed a
+      # working directory that is a perfectly good, completely different
+      # project — if it ever falls back to project discovery, the artifact is
+      # named after the decoy and this reds.
+      - name: --from-stage packs the stage, never a project it stands in
+        env:
+          DEB: ${{ steps.art.outputs.deb }}
+        run: |
+          set -euo pipefail
+          mkdir -p decoy/dist
+          cat > decoy/package.json <<'JSON'
+          {
+            "name": "decoy",
+            "version": "9.9.9",
+            "license": "MIT",
+            "author": "Decoy <decoy@example.org>",
+            "main": "dist/gjs.js",
+            "gjsify": { "ship": { "binaryName": "decoy", "bundle": "dist/gjs.js" } }
+          }
+          JSON
+          printf 'print(1);\n' > decoy/dist/gjs.js
+          ( cd decoy && gjs -m "$GITHUB_WORKSPACE/tool/cli/dist/cli.gjs.mjs" \
+              ship --from-stage "$GITHUB_WORKSPACE/$STAGE_DIR" --target deb --out out )
+          find decoy/out -type f -name '*.deb' | sort
+          if find decoy/out -type f -name 'decoy_*.deb' | grep -q .; then
+            echo "::error title=Ship handoff::--from-stage packed the DECOY project instead of the stage it was given. The finish phase must take its whole closure from .gjsify-ship-stage.json."
+            exit 1
+          fi
+          if ! cmp -s "$DEB" "$(find decoy/out -type f -name '*.deb' | sed -n '1p')"; then
+            echo "::error title=Ship handoff::the same stage packed to different bytes from a different working directory. Something outside the stage is still reaching the packer."
+            exit 1
+          fi
+          echo "byte-identical to the artifact packed from an empty directory"
+
+      # A stage the plan does not describe must be REFUSED, not packed. Both
+      # directions, because `readStage()`'s `?? 0o644` fallback silently accepts
+      # the first and `listFilesRecursive` silently drops the second.
+      - name: A mutilated stage is refused, not packed
+        run: |
+          set -euo pipefail
+          rm -rf mutant && cp -a "$STAGE_DIR" mutant
+
+          # (a) a path the plan does not name — the shape a followed symlink or
+          #     a merged second artifact would produce.
+          printf 'stowaway\n' > mutant/stowaway.txt
+          if gjs -m tool/cli/dist/cli.gjs.mjs ship --from-stage mutant --target deb --out mutant-out; then
+            echo "::error title=Ship handoff::packed a stage carrying a file the plan does not name."
+            exit 1
+          fi
+          rm -f mutant/stowaway.txt
+
+          # (b) a planned path the stage lacks.
+          # `sed -n 1p`, not `head -1`: `head` closes the pipe early, and under
+          # `set -o pipefail` the SIGPIPE'd `sort` fails the whole assignment.
+          victim=$(find mutant -type f ! -name .gjsify-ship-stage.json | sort | sed -n '1p')
+          rm -f "$victim"
+          if gjs -m tool/cli/dist/cli.gjs.mjs ship --from-stage mutant --target deb --out mutant-out; then
+            echo "::error title=Ship handoff::packed a stage missing $victim, which its own plan names."
+            exit 1
+          fi
+
+          # (c) a stage cut for another matrix leg.
+          #
+          # NO LITERAL `linux-x64` EXISTS IN THE SIDECAR. The manifest carries
+          # `target: {os, arch}` as two separate JSON fields, and
+          # `--expect-target` joins them at comparison time. An earlier draft of
+          # this probe grepped for the joined string and would have failed on
+          # its own guard on the first run — the schema is the authority, not
+          # the flag's spelling.
+          #
+          # And the flag is what does the refusing: `assertExpectedTarget()`
+          # returns immediately when `--expect-target` is absent, so mutating
+          # the sidecar without passing it packs happily at exit 0. Both halves
+          # are asserted here, positive control first so a gate that refused
+          # everything could not pass as a gate that refuses the right thing.
+          rm -rf mutant && cp -a "$STAGE_DIR" mutant
+          # Spelled FROM the sidecar, not hardcoded: the schema owns the two
+          # fields and this probe must not carry a third copy of how they join.
+          own=$(python3 -c "import json;t=json.load(open('mutant/.gjsify-ship-stage.json'))['target'];print(t['os']+'-'+t['arch'])")
+          echo "sidecar target: $own"
+          # An `[ … ] && x=y` here would exit the step under `set -e` whenever
+          # the test is FALSE, which is the normal case. `if` is not style.
+          if [ "$own" = "linux-arm64" ]; then other=linux-x64; else other=linux-arm64; fi
+          gjs -m tool/cli/dist/cli.gjs.mjs ship --from-stage mutant --target deb \
+            --expect-target "$own" --out mutant-out
+          if gjs -m tool/cli/dist/cli.gjs.mjs ship --from-stage mutant --target deb \
+            --expect-target "$other" --out mutant-out; then
+            echo "::error title=Ship handoff::packed a stage belonging to a different matrix leg. --expect-target named $other and the sidecar records $own."
+            exit 1
+          fi
+          echo "all three refusals fired"
+
   # ── Coverage summary ────────────────────────────────────────────────
   # Answers the question a green PR does NOT answer on its own: what did this
   # run actually check, and what did it deliberately NOT check?
@@ -1693,7 +2180,7 @@ jobs:
   # Never gates. Its output is the step summary, not its exit code.
   ci-summary:
     name: CI coverage summary
-    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser]
+    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser, ship-stage, ship-pack-linux]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
@@ -1720,6 +2207,8 @@ jobs:
           R_E2E: ${{ needs.e2e.result }}
           R_EXAMPLES: ${{ needs.examples.result }}
           R_BROWSER: ${{ needs.browser.result }}
+          R_SHIP_STAGE: ${{ needs.ship-stage.result }}
+          R_SHIP_PACK: ${{ needs.ship-pack-linux.result }}
           C_SKIP_ALL: ${{ needs.changes.outputs.skip-all }}
           C_GLOBAL: ${{ needs.changes.outputs.global }}
           C_INCLUDE: ${{ needs.changes.outputs.include-args }}
@@ -1749,6 +2238,8 @@ jobs:
             printf '| E2E (4 shards) | `%s` |\n'                "$R_E2E"
             printf '| Examples | `%s` |\n'                      "$R_EXAMPLES"
             printf '| Browser (Playwright/Firefox) | `%s` |\n'  "$R_BROWSER"
+            printf '| Ship: stage (assemble) | `%s` |\n'        "$R_SHIP_STAGE"
+            printf '| Ship: pack + install (dpkg/rpm) | `%s` |\n' "$R_SHIP_PACK"
             echo
             echo "### Why"
             echo
@@ -1875,7 +2366,7 @@ jobs:
   # produces a fresh verdict anyway.
   gate:
     name: CI gate (GJS)
-    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser]
+    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser, ship-stage, ship-pack-linux]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
@@ -1970,6 +2461,8 @@ jobs:
             integration=${{ needs.integration.result }}
             examples=${{ needs.examples.result }}
             browser=${{ needs.browser.result }}
+            ship-stage=${{ needs.ship-stage.result }}
+            ship-pack-linux=${{ needs.ship-pack-linux.result }}
         run: |
           set -euo pipefail
           bad=0

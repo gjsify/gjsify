@@ -17,7 +17,7 @@ import { createHash } from 'node:crypto';
 import { concatBytes } from './bytes.js';
 import { createCpioArchive, S_IFDIR, S_IFREG, type CpioEntry } from './cpio.js';
 import { parseDepend } from './depends.js';
-import type { PayloadEntry } from './payload.js';
+import { readPayloadFacts, type PayloadEntry } from './payload.js';
 import {
     buildRpmHeader,
     buildRpmLead,
@@ -29,10 +29,10 @@ import {
 } from './rpm-header.js';
 import { gzipDeterministic } from './gzip.js';
 import { renderRpmScriptlets } from './scripts.js';
-import type { ShipSettings } from './types.js';
+import type { PackSettings } from './types.js';
 
 export interface RpmInputs {
-    settings: ShipSettings;
+    settings: PackSettings;
     payload: readonly PayloadEntry[];
     prefix: string;
     depends: readonly string[];
@@ -266,7 +266,8 @@ function mainHeaderEntries(
         baseNames.push(file.path.slice(slash + 1));
     }
 
-    const scripts = renderRpmScriptlets(settings, inputs.prefix);
+    // From the PAYLOAD, not the settings — see the same call in `deb.ts`.
+    const scripts = renderRpmScriptlets(readPayloadFacts(inputs.payload), inputs.prefix);
     const requires = buildRequires(inputs.depends, scripts);
 
     const entries: RpmEntry[] = [

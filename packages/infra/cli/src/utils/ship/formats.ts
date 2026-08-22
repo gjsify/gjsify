@@ -3,7 +3,7 @@
 // a row rather than an edit across the stager, the overlay builder and the
 // artifact namer.
 
-import type { FormatDescriptor, FormatId, ShipSettings } from './types.js';
+import type { FormatDescriptor, FormatId, PackSettings } from './types.js';
 
 // `process.arch` → the format's architecture name. Taken from dpkg's own
 // `data/cputable` and rpm's arch table. `arm` cannot be told apart from
@@ -57,7 +57,7 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         licenseDest: (binaryName) => `share/doc/${binaryName}/copyright`,
         licenseKind: 'debian-copyright',
         archName: debArch,
-        fileName: (s: ShipSettings, archLabel: string) => `${s.binaryName}_${s.version}-${s.release}_${archLabel}.deb`,
+        fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}_${s.version}-${s.release}_${archLabel}.deb`,
     },
     rpm: {
         id: 'rpm',
@@ -65,7 +65,7 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
         licenseKind: 'plain',
         archName: rpmArch,
-        fileName: (s: ShipSettings, archLabel: string) => `${s.binaryName}-${s.version}-${s.release}.${archLabel}.rpm`,
+        fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}-${s.version}-${s.release}.${archLabel}.rpm`,
     },
 };
 

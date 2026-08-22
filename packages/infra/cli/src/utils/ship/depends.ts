@@ -119,8 +119,15 @@ const TYPELIB_PACKAGES: Record<string, { deb: string; rpm: string }> = {
 export interface DependsInputs {
     /** GI namespaces the bundle imports, in `Ns-Version` spelling. */
     namespaces: readonly string[];
-    /** `'app'` installs a desktop entry and icons; `'cli'` does not. */
-    kind: 'app' | 'cli';
+    /**
+     * Whether the payload installs into `share/icons/hicolor/`.
+     *
+     * Was `kind: 'app' | 'cli'`, which is a proxy for the question and not the question:
+     * `hicolor-icon-theme` is depended on because it OWNS that directory, so an app that
+     * installs no icon used to declare a dependency it never touched. Derived from the payload
+     * (`readPayloadFacts`), which is also the only thing the packing host has (ADR 0024 § A2).
+     */
+    hasIcons: boolean;
     /** Whether the payload installs GSettings schemas. */
     hasSchemas: boolean;
     /** User-supplied additions for this format. */
@@ -200,7 +207,9 @@ export function deriveDepends(format: FormatId, inputs: DependsInputs): string[]
         );
     }
 
-    if (inputs.kind === 'app') out.push('hicolor-icon-theme');
+    // The package that owns `/usr/share/icons/hicolor` — so this follows the icons, not the
+    // app/cli distinction that used to stand in for them.
+    if (inputs.hasIcons) out.push('hicolor-icon-theme');
     // The package that ships `glib-compile-schemas`, NOT `gsettings-desktop-schemas`
     // (which ships GNOME's own `org.gnome.desktop.*` schemas and has nothing to
     // do with compiling ours). Measured: `rpm -qf /usr/bin/glib-compile-schemas`
