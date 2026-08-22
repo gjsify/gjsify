@@ -399,6 +399,12 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
     // it before the label reaches a header. Payload-versus-LABEL, never
     // payload-versus-HOST — a host check would refuse the cross-host pack this
     // whole split exists for.
+    //
+    // And BEFORE the label is chosen, not after — this ordering is load-bearing:
+    // `archName` collapses an arch-independent payload to `all`/`noarch`, so
+    // asserting afterwards would compare against a label that no longer names an
+    // architecture, and the mismatch that matters is exactly the one on a payload
+    // that IS architecture-specific.
     assertPayloadMatchesArch(payload, input.arch);
 
     const archLabel = format.archName(input.arch, isArchIndependent(payload));

@@ -543,6 +543,71 @@ describe('check-ci-image-packages: the node-availability guard', () => {
         assert.equal(ok.status, 0, ok.output);
     });
 
+    // Both halves of this were untested, and BOTH broke while the suite stayed
+    // green at 38/38 — the regression that added the cases below. A predicate
+    // anchored to a command position (line start, or after `| & ; (`) stopped
+    // seeing `RUN dnf install -y` in the Dockerfile, so `dockerfileUnguarded`
+    // silently went from four lines to zero and the report read as compliant;
+    // blanket quote-stripping, added at the same time to kill an `echo`, also
+    // deleted a real `bash -c "dnf install …"`. Nothing here noticed either,
+    // because nothing asserted on the recognition itself.
+    it('recognises a dnf install by its COMMAND, in every shape that is one', () => {
+        // The Dockerfile is scanned by a different code path and reported rather
+        // than failed ("adding the flag rebuilds the base image"), so it needs its
+        // own assertion — an unreported Dockerfile is indistinguishable from a
+        // clean one on stderr alone.
+        const unguarded = ['FROM fedora:44', 'RUN dnf install -y \\', '    gtk4-devel \\', '    && dnf clean all', ''];
+        const reported = runImageGuard({}, unguarded.join('\n'));
+        assert.match(reported.output, /ci-fedora\.Dockerfile has 1 `dnf install` line\(s\) \(2\)/);
+
+        // Shapes that ARE commands. Each is a real form used in this tree or by
+        // Fedora, and each was invisible to the anchored predicate.
+        for (const [label, line] of [
+            ['a bare RUN', 'RUN dnf install -y gtk4-devel'],
+            ['a single-line YAML run:', '      - run: dnf install -y gtk4-devel'],
+            ['a conditional', 'if [ -n "$X" ]; then dnf install -y gtk4-devel; fi'],
+            ['a command prefix', 'time dnf install -y gtk4-devel'],
+            ['an env assignment', 'DNFOPT=1 dnf install -y gtk4-devel'],
+            ['a nested shell', 'bash -c "dnf install -y gtk4-devel"'],
+            ['dnf5, the Fedora 41+ binary', 'dnf5 -y install gtk4-devel'],
+            ['flags before the subcommand', 'sudo dnf -y install gtk4-devel'],
+            ['a second command after &&', 'echo starting && dnf install -y gtk4-devel'],
+        ]) {
+            const result = runImageGuard({}, undefined, {
+                'prebuild-toolchain/emulated-build.sh': `#!/bin/sh\n${line}\n`,
+            });
+            assert.equal(result.status, 1, `${label} was not recognised as a command: ${line}`);
+            assert.match(result.stderr, /emulated-build\.sh:2 runs `dnf install` without/);
+        }
+
+        // Shapes that MENTION one. A guard that flags prose gets switched off, so
+        // these must stay silent even though the words are all present.
+        for (const [label, line] of [
+            ['an echo', 'echo "== dnf install"'],
+            ['a printf', "printf '%s\\n' 'dnf install -y foo'"],
+            ['a backticked mention', 'x=1   # see `dnf install -y foo`'],
+            ['a different subcommand', 'dnf -y remove gtk4-devel'],
+            ['a bare clean', 'dnf clean all'],
+        ]) {
+            const result = runImageGuard({}, undefined, {
+                'prebuild-toolchain/emulated-build.sh': `#!/bin/sh\n${line}\n`,
+            });
+            assert.equal(result.status, 0, `${label} was wrongly flagged: ${line}\n${result.output}`);
+        }
+
+        // A YAML `name:` names a step; it never runs one.
+        const named = runImageGuard({
+            'main.yml': [
+                'jobs:',
+                '  build:',
+                '    steps:',
+                '      - name: Install deps (dnf install gtk4-devel)',
+                '',
+            ].join('\n'),
+        });
+        assert.doesNotMatch(named.stderr, /main\.yml:4 runs `dnf install`/);
+    });
+
     it('does not mistake node-shaped words for an invocation', () => {
         const result = runImageGuard({
             'main.yml': [

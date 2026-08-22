@@ -121,11 +121,23 @@ export function isArchIndependent(payload: readonly PayloadEntry[]): boolean {
 // values this repository can actually produce are listed; an unknown one reads
 // as "cannot tell" rather than as a mismatch, because refusing an artifact over
 // a machine constant nobody here emits would be a guess wearing a gate's clothes.
-// `EM_MIPS` (0x08) is deliberately ABSENT, and adding it would be a regression:
-// one machine value covers both `mips` and `mipsel`, which `process.arch` spells
-// apart, so the row would have to guess and would refuse a CORRECT pack half the
-// time. A value this table cannot decode unambiguously belongs out of it — the
-// check stays silent instead of being wrong.
+// The machine values this project actually ships packages for — no more. A value
+// missing here makes `readBinaryArch` return null, and null is SILENT, so an
+// absent row costs nothing but a check that does not fire.
+//
+// `EM_MIPS` (0x08) is absent for that reason and no other. An earlier version of
+// this comment claimed it was absent because one value covers `mips` and
+// `mipsel` and the row would have to guess; that was wrong three times over, and
+// is corrected here rather than deleted because it is the kind of reasoning that
+// gets re-derived: (1) `mipsel` IS little-endian MIPS, so the discriminator is
+// `EI_DATA`, which `readBinaryArch` reads four lines below; (2) it could not
+// "refuse a correct pack" either way, because `formats.ts` has no `mips` row in
+// `DEBIAN_ARCH`/`RPM_ARCH`, so `archName` throws before any label is written;
+// and (3) the principle it invoked is already broken one row down — `0x16` maps
+// to `s390x`, but `EM_S390` is emitted by 31-bit `s390` too, and its
+// discriminator is `EI_CLASS` at offset 4, which this function does NOT read.
+// That row is the ambiguous one. Unreachable today (nothing here builds s390),
+// but it is the row to fix first if this table ever grows.
 const ELF_MACHINE_TO_ARCH: Record<number, string> = {
     0x03: 'ia32',
     0x15: 'ppc64',

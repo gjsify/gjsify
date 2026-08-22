@@ -74,7 +74,13 @@ const BARE_IMAGE_LEDGER = {};
 function packagesIn(run) {
     const joined = run.replace(/\\\n\s*/g, ' ');
     const found = new Set();
-    for (const m of joined.matchAll(/dnf install ([^\n]*)/g)) {
+    // Same predicate as `dnfCommands`, not a second literal: this used to read
+    // `/dnf install (…)/` and was therefore blind to `dnf -y install nodejs`,
+    // which would have made a baked-package drift and a "its own nodejs install"
+    // provision both invisible. Latent rather than live — every site under
+    // `.github/` happens to be spelled `dnf install -y` — but it is the same bug
+    // one function above the one that was fixed.
+    for (const m of joined.matchAll(DNF_INSTALL_ARGS)) {
         for (const tok of m[1].split(/\s+/)) {
             if (!tok || tok.startsWith('-') || tok === '&&' || tok === 'dnf' || tok === 'install') continue;
             // `... && dnf clean all` and friends end the package list.
@@ -175,34 +181,55 @@ function ciFiles(dir) {
  * continuations — YAML joins those lines itself — which is why the flag has to sit on
  * the `dnf install -y` line there.
  */
-// `dnf` and `install` with any number of FLAGS between them, which is the
-// shape almost every real call uses (`dnf -y install …`). Matching the literal
-// substring `dnf install` — what this did until 2026-08-22 — was wrong in both
-// directions at once, and both were live in this tree:
+// A `dnf` / `dnf5` invocation, with any number of FLAGS between the command and
+// its `install` subcommand. Recognising the COMMAND is the whole job here, and
+// three shortcuts have now been tried against this tree; all three were wrong,
+// and each was wrong SILENTLY:
 //
-//   MISSED  `.github/ship-oracle/verify-rpm.sh:34`
-//           `dnf -y install --setopt=… findutils diffutils`
-//           A real, unguarded install the rule could not see, because the `-y`
-//           sits between the two words.
-//   FLAGGED `.github/ship-oracle/verify-rpm.sh:115`
-//           `echo "== dnf install"`
-//           A progress message. Not a command at all — the substring was inside
-//           a string literal.
+//   1. Literal substring `dnf install` (until 2026-08-22). Wrong in BOTH
+//      directions at once, both live in one file: it flagged
+//      `verify-rpm.sh:115` `echo "== dnf install"` (a progress message, not a
+//      command) and missed `verify-rpm.sh:34` `dnf -y install …` (real and
+//      unguarded), because `-y` sits between the two words.
+//   2. Anchoring to a command position (`^`, or after `| & ; (`) plus blanket
+//      quote-stripping. Fixed those two and broke a third: `RUN dnf install -y`
+//      in `.docker/ci-fedora.Dockerfile` stopped matching (`RUN ` is not an
+//      anchor), so `dockerfileUnguarded` went from `[52, 84, 111, 140]` to `[]`
+//      and the "deliberately outside the rule" report below silently reported
+//      nothing. Quote-stripping also deletes a real `bash -c "dnf install …"`.
+//   3. Nothing at all — prose re-enters wherever it is not a `#` comment.
 //
-// So the one problem the rule reported was an echo, and the one real defect it
-// stayed silent on was two lines up in the same file. Quoted strings are removed
-// before matching (that kills the echo class), and the search is anchored to a
-// command position — line start, or after `|`, `&&`, `;`, `(` — so prose like
-// "no per-job dnf install" in an unindented line cannot re-enter through the
-// comment gap.
-const DNF_INSTALL = /(?:^|[|&;(])\s*(?:sudo\s+)?dnf\s+(?:-{1,2}[^\s]+\s+)*install(?:\s|$)/;
-const QUOTED = /'[^']*'|"[^"]*"/g;
+// So: no anchor (it cannot see `RUN dnf install`, `run: dnf install`,
+// `then dnf install`, `time dnf install`, `VAR=x dnf install`), and no blanket
+// quote-stripping. The two non-command shapes are excluded by what they ARE
+// rather than by where they sit — an `echo`/`printf`, checked PER SEGMENT so
+// `echo hi && dnf install foo` still counts, and a backticked span or a YAML
+// `name:`, which are this tree's two ways of writing a command in running text.
+const DNF_INSTALL = /\bdnf5?\s+(?:-{1,2}[^\s]+\s+)*install\b/;
+/** The same, with the package list captured. Keep in lockstep with DNF_INSTALL. */
+const DNF_INSTALL_ARGS = /\bdnf5?\s+(?:-{1,2}[^\s]+\s+)*install\s+([^\n]*)/g;
+/** A segment whose command is `echo`/`printf` prints its argument, it does not run it. */
+const ECHO_CMD = /^\s*(?:sudo\s+)?(?:echo|printf)\s/;
+/** Prose conventions: a backticked span, and a YAML `name:` value. */
+const BACKTICKED = /`[^`]*`/g;
+const YAML_NAME = /^\s*-?\s*name:\s/;
+
+/** Does this ONE line actually invoke `dnf … install`, as opposed to mentioning it? */
+function invokesDnfInstall(line) {
+    if (YAML_NAME.test(line)) return false;
+    // `||`/`&&` before the single-char class, so their halves are not split twice.
+    for (const segment of line.replace(BACKTICKED, '').split(/\|\||&&|[|&;]/)) {
+        if (ECHO_CMD.test(segment)) continue;
+        if (DNF_INSTALL.test(segment)) return true;
+    }
+    return false;
+}
 
 function dnfCommands(body) {
     const lines = body.split('\n');
     const found = [];
     for (let i = 0; i < lines.length; i++) {
-        if (COMMENT.test(lines[i]) || !DNF_INSTALL.test(lines[i].replace(QUOTED, ''))) continue;
+        if (COMMENT.test(lines[i]) || !invokesDnfInstall(lines[i])) continue;
         let text = lines[i];
         for (let j = i; /\\\s*$/.test(lines[j]) && j + 1 < lines.length; j++) text += ` ${lines[j + 1]}`;
         found.push({ line: i + 1, text });
