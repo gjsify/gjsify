@@ -38,10 +38,11 @@
     ],
     "dependencies": {
         "@girs/adw-1": "^4.1.0",
+        "@girs/gdk-4.0": "^4.1.0",
         "@girs/gjs": "^4.1.0",
-        "@girs/glib-2.0": "^4.1.0",
         "@girs/gobject-2.0": "^4.1.0",
-        "@girs/gtk-4.0": "^4.1.0"
+        "@girs/gtk-4.0": "^4.1.0",
+        "@girs/pango-1.0": "^4.1.0"
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",

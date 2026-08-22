@@ -1,3 +1,4 @@
+export { installDiagnosticsGate, type DiagnosticsGate } from './diagnostics.js';
 // Conformance surface: the checks that keep the widget table honest, and the
 // GTK-side readers every vector asserts against.
 //
@@ -71,15 +72,85 @@ export function descriptorProblems(
         }
         if (d.textSink) {
             const specs = (Klass as unknown as { list_properties(): GObject.ParamSpec[] }).list_properties();
-            if (!specs.some((s) => s.get_name() === d.textSink)) {
+            const spec = specs.find((x) => x.get_name() === d.textSink);
+            if (!spec) {
                 problems.push({
                     gtype: d.gtype,
                     problem: `declares textSink "${d.textSink}", which ${actual} does not have`,
                 });
+            } else if ((spec.flags & GObject.ParamFlags.WRITABLE) === 0) {
+                problems.push({ gtype: d.gtype, problem: `declares a READ-ONLY textSink "${d.textSink}"` });
+            } else if (!GObject.type_is_a(spec.value_type, GObject.TYPE_STRING)) {
+                // A non-string sink accepts the write and drops it: measured, an
+                // int sink logs `unable to set property … from value of type
+                // 'gchararray'` and leaves the value unchanged, at exit 0. Mere
+                // existence was never enough of a check.
+                problems.push({
+                    gtype: d.gtype,
+                    problem: `declares textSink "${d.textSink}", which is ${GObject.type_name(spec.value_type)}, not a string`,
+                });
             }
         }
+
+        problems.push(...policyProblems(d, Klass as unknown as { prototype: object }, actual));
     }
     return problems;
+}
+
+/**
+ * The claims a policy makes BEYOND "this method exists".
+ *
+ * Each of these was a real defect first: a `single` policy whose derived getter is
+ * absent degrades the "is this still the child in place?" guard to an
+ * unconditional clear; `ordered` claiming `reorder: 'native'` without an `after`
+ * method makes `reorderMode()` lie to an adapter; and a `keyed` arity mismatch
+ * throws GJS's "At least 3 arguments required", which the host then reports as a
+ * rejected child TYPE — a message that names the wrong cause.
+ */
+function policyProblems(d: WidgetDescriptor, Klass: { prototype: object }, actual: string): DescriptorProblem[] {
+    const out: DescriptorProblem[] = [];
+    const proto = Klass.prototype as Record<string, unknown>;
+    const policy = d.children;
+
+    const requireGetter = (setter: string, what: string) => {
+        const getter = setter.replace(/^set_/, 'get_');
+        if (typeof proto[getter] !== 'function') {
+            out.push({
+                gtype: d.gtype,
+                problem: `${what} uses ${setter}() but ${actual} has no ${getter}(), so removal cannot check whether this child is still the one in place`,
+            });
+        }
+    };
+
+    if (policy.kind === 'single') requireGetter(policy.set, 'children.set');
+    if (policy.kind === 'slotted') {
+        for (const [slot, method] of Object.entries(policy.slots)) {
+            if (method.startsWith('set_')) requireGetter(method, `slot "${slot}"`);
+        }
+        if (!(policy.defaultSlot in policy.slots)) {
+            out.push({
+                gtype: d.gtype,
+                problem: `defaultSlot "${policy.defaultSlot}" is not one of ${Object.keys(policy.slots).join(', ')}`,
+            });
+        }
+    }
+    if (policy.kind === 'ordered' && policy.reorder === 'native' && !policy.after) {
+        out.push({
+            gtype: d.gtype,
+            problem: `claims reorder: 'native' with no "after" method — reorderMode() would tell an adapter the wrong thing`,
+        });
+    }
+    if (policy.kind === 'keyed') {
+        const add = proto[policy.add];
+        const wanted = policy.titled ? 3 : 1;
+        if (typeof add === 'function' && add.length !== wanted) {
+            out.push({
+                gtype: d.gtype,
+                problem: `titled: ${policy.titled} implies ${policy.add}() takes ${wanted} argument(s), but ${actual}'s takes ${add.length}`,
+            });
+        }
+    }
+    return out;
 }
 
 // --- readers over the REAL GTK tree -----------------------------------------

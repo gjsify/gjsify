@@ -8,6 +8,7 @@ an object model that can create a widget, set a property, adopt a child, and
 navigate the result. That is this package.
 
 ```ts
+import type Adw from '@girs/adw-1';
 import { createElement, insert, materialize, registerBuiltinWidgets } from '@gjsify/gtk-host';
 
 registerBuiltinWidgets();
@@ -48,6 +49,8 @@ gjs 1.88.1:
 | a misspelled property | nothing | throws, naming the widget |
 | text inside `<GtkImage>` | nothing | throws, naming the tag and the fix |
 | a child under a childless widget | `Gtk-WARNING` at exit 0 | throws, naming the three fixes |
+| `selectable: 'false'` (a string) | JS truthiness makes it TRUE | honours `'true'`/`'false'`, throws on any other string |
+| a string for a flags property | dropped silently | throws, naming the flags GType and asking for the numeric value |
 
 ## The node tree
 
@@ -60,13 +63,21 @@ no widget, so GTK cannot answer navigation questions about them.
 the next node that owns a widget. An empty branch therefore cannot shift a
 sibling's index.
 
+**An element is `attached` only once GTK has taken it.** Owning a widget is not
+the same fact: every framework materialises a subtree bottom-up, long before
+inserting it. Placement reads `attached`, never `widget !== null` — deriving it
+from the widget made the `remove-all` policy detach non-children and re-add
+already-parented ones, at exit 0.
+
 **Text has no node in GTK.** It goes to the owning widget's declared `textSink`
 (`Gtk.Label:label`, `Gtk.Entry:text`, …). A widget without one rejects text by name.
 
 ## Child placement
 
-Seven policy kinds, declared per widget as data and dispatched by
-`GObject.type_is_a`:
+Seven policy kinds, declared per widget as data and dispatched on the policy's
+own `kind`. Descriptor lookup is by exact GType name; `mountRoot` is the one path
+that walks the type hierarchy (`GObject.type_is_a`, via `nearestRegistered`), so
+an application's own subclass resolves to its ancestor's rules:
 
 | kind | example | how a child lands |
 |---|---|---|
@@ -81,16 +92,33 @@ Seven policy kinds, declared per widget as data and dispatched by
 A container that cannot reorder in place declares it. `Adw.PreferencesGroup` has
 `add` and `remove` and no `insert` — measured — so it declares
 `reorder: 'remove-all'` and pays a tail re-append. The degradation is in the
-table, not a surprise in an app.
+table, not a surprise in an app. The re-append is ordered so a refusal costs
+nothing: the new child is appended FIRST, then the tail is rotated — detaching the
+tail first and failing on the append took already-rendered siblings with it.
+
+Its sibling `Adw.PreferencesPage` looks identical and is not: `insert(group, i)`
+exists there, so it uses `indexed` and reorders natively. Near-identical APIs with
+opposite capabilities are exactly why the table is measured per widget rather than
+inherited.
+
+`slot` and `layout` are props the CHILD declares: `slot="end"` picks a `slotted`
+attachment point, `layout={{ column, row, columnSpan, rowSpan }}` a `coords` cell,
+`layout={{ name, title }}` a `keyed` page. Both are read at placement time, so
+changing either RE-PLACES the child rather than doing nothing.
 
 ## Lifetime
 
-`remove` detaches and is reversible, because frameworks move nodes. `destroy`
+`remove` detaches and is reversible, because frameworks move nodes. The wrapper
+row an `indexed` parent demanded is handed back at the same time — it belongs to
+that parent, and dragging a `GtkListBoxRow` into the next one would carry the
+still-parented widget with it — so a re-insert gets a fresh row. Author your own
+`<GtkListBoxRow>` when the row itself holds state. `destroy`
 tears a subtree down: it disconnects every handler, unparents, drops the
 reference, and closes a toplevel window (the one node unparenting cannot reach —
 it has no parent and its `GtkApplication` still holds it). It is recursive, it is
-eager, and it is the only place a handler dies: GJS blocks JS callbacks during
-GC, so **whatever is not disconnected here stays connected for the life of the
+eager, and it is the only place a handler is disconnected for good — a rebuild
+disconnects and re-binds, a re-render replaces. GJS blocks JS callbacks during GC,
+so **whatever is not disconnected here stays connected for the life of the
 process**.
 
 Construct-only properties cannot be patched; GObject accepts the write and keeps
@@ -108,5 +136,5 @@ the readers every vector asserts through:
   tree. A renderer that asserts against its own bookkeeping agrees with itself
   while the window is wrong.
 
-Adapters run the same vectors, so "it works in Vue" and "it works in Solid" mean
-the same thing.
+Adapters will run the same vectors, so "it works in Vue" and "it works in Solid"
+will mean the same thing. None is written yet — see `status/open-todos.md`.

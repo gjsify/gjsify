@@ -5,13 +5,13 @@
 // asserts against its own bookkeeping agrees with itself while the window is
 // wrong, which is the failure this package exists to make impossible.
 
-import { describe, expect, it, on } from '@gjsify/unit';
+import { afterEach, beforeEach, describe, expect, it, on } from '@gjsify/unit';
 
 import Adw from 'gi://Adw?version=1';
 import GObject from 'gi://GObject';
 import Gtk from 'gi://Gtk?version=4.0';
 
-import { gtkChildTypes, gtkChildren } from './conformance/index.js';
+import { gtkChildTypes, gtkChildren, installDiagnosticsGate } from './conformance/index.js';
 import { registerBuiltinWidgets } from './descriptors/index.js';
 import {
     createAnchor,
@@ -26,6 +26,8 @@ import {
     setEventHandler,
     setProp,
 } from './host.js';
+import { reorderMode } from './policies.js';
+import { lookupWidget } from './registry.js';
 import type { HostElement } from './types.js';
 
 const widgetOf = (el: HostElement) => materialize(el) as unknown as Gtk.Widget;
@@ -43,6 +45,12 @@ export default async () => {
     await on('Gjs', async () => {
         Gtk.init();
         registerBuiltinWidgets();
+
+        // Every vector below also asserts that GTK reported nothing. Without this
+        // the whole mis-parenting class is invisible: it emits criticals and exits 0.
+        const diagnostics = installDiagnosticsGate();
+        beforeEach(() => diagnostics.reset());
+        afterEach(() => diagnostics.assertQuiet());
 
         await describe('ordered — Gtk.Box (native reorder)', async () => {
             await it('appends in document order', async () => {
@@ -189,7 +197,8 @@ export default async () => {
                 // Packed children are NOT direct children: Adw.HeaderBar nests them
                 // in its own centering box, so a direct-child assertion here would
                 // fail for the right reason and teach the wrong lesson.
-                expect(descendantLabels(widget as unknown as Gtk.Widget).sort()).toStrictEqual(['back', 'menu']);
+                // NOT sorted: start/end packing order is the only thing this assertion is for.
+                expect(descendantLabels(widget as unknown as Gtk.Widget)).toStrictEqual(['back', 'menu']);
             });
 
             await it('slotted: an unknown slot names the known ones', async () => {
@@ -371,6 +380,10 @@ export default async () => {
                 });
                 setProp(label, 'label', 'written by the host');
                 expect(notified).toBe(0);
+                // The positive control. Without it, a `writeDepth` left unbalanced
+                // anywhere in the process would silence every notify::, greenly.
+                (label.widget as unknown as Gtk.Label).set_property('label', 'written by someone else');
+                expect(notified).toBe(1);
             });
 
             await it('destroy disconnects every handler', async () => {
@@ -497,16 +510,43 @@ export default async () => {
             });
 
             await it('destroy closes a toplevel, which unparenting cannot reach', async () => {
+                // Both of the obvious assertions are vacuous, measured: a
+                // GtkWindow's parent is null BEFORE the destroy too, and
+                // `win.widget = null` is set unconditionally outside the guard.
+                // The toplevel registry is the reader that can tell.
+                const before = Gtk.Window.get_toplevels().get_n_items();
                 const win = createElement('GtkWindow');
-                const widget = materialize(win) as unknown as Gtk.Window;
+                materialize(win);
+                expect(Gtk.Window.get_toplevels().get_n_items()).toBe(before + 1);
                 destroy(win);
-                // A destroyed GtkWindow reports no display connection any more.
-                expect(widget.get_parent()).toBe(null);
+                expect(Gtk.Window.get_toplevels().get_n_items()).toBe(before);
                 expect(win.widget).toBe(null);
             });
         });
 
         await describe('regressions from the second review', async () => {
+            await it('AdwPreferencesPage inserts natively — it is not the group', async () => {
+                // The two have near-identical APIs and opposite capabilities:
+                // measured, `Adw.PreferencesPage.insert(group, i)` exists and
+                // `Adw.PreferencesGroup.insert` is undefined. Copying the group's
+                // declared degradation across cost a tail re-append for nothing,
+                // and `descriptorProblems()` cannot see it — it asserts only the
+                // methods a policy NAMES, never a cheaper one it missed.
+                const page = createElement('AdwPreferencesPage');
+                const widget = materialize(page) as unknown as Gtk.Widget;
+                const groups = [0, 1, 2].map((i) => createElement('AdwPreferencesGroup', { title: `G${i}` }));
+                insert(groups[0], page);
+                insert(groups[2], page);
+                insert(groups[1], page, groups[2]);
+                const titles: string[] = [];
+                const walk = (w: Gtk.Widget) => {
+                    if (w instanceof Adw.PreferencesGroup) titles.push((w as Adw.PreferencesGroup).title);
+                    for (const c of gtkChildren(w)) walk(c);
+                };
+                walk(widget);
+                expect(titles).toStrictEqual(['G0', 'G1', 'G2']);
+            });
+
             await it('a refused insert does not destroy the siblings already rendered', async () => {
                 // The remove-all path detached the whole tail BEFORE the append
                 // that can throw, and `insert`'s catch can only repair the shadow
@@ -638,6 +678,132 @@ export default async () => {
             });
         });
 
+        await describe('what a real renderer does — reproduced from review', async () => {
+            await it('a keyed reversal actually reorders the stack', async () => {
+                // Measured: `Gtk.Stack.reorder_child_after` is `undefined`, so a
+                // keyed container can only append. Before the tail rotation a full
+                // Vue reversal was a complete no-op in GTK while the host's own
+                // navigators reported the new order — zero diagnostics, exit 0.
+                const stack = createElement('GtkStack');
+                const widget = materialize(stack) as unknown as Gtk.Stack;
+                const pages = ['a', 'b', 'c'].map((n) =>
+                    createElement('GtkLabel', { label: n, layout: { name: n, title: n } }),
+                );
+                for (const p of pages) insert(p, stack);
+                expect(stackOrder(widget)).toStrictEqual(['a', 'b', 'c']);
+
+                // the move sequence Vue's patchKeyedChildren performs for a reversal
+                insert(pages[2], stack, pages[0]);
+                insert(pages[1], stack, pages[0]);
+                expect(stackOrder(widget)).toStrictEqual(['c', 'b', 'a']);
+            });
+
+            await it('a slotted insert-before lands in document order', async () => {
+                const bar = createElement('AdwHeaderBar');
+                const widget = materialize(bar) as unknown as Adw.HeaderBar;
+                const [x, y, z] = ['x', 'y', 'z'].map((l) => createElement('GtkButton', { label: l, slot: 'start' }));
+                insert(x, bar);
+                insert(z, bar);
+                insert(y, bar, z);
+                expect(descendantLabels(widget as unknown as Gtk.Widget)).toStrictEqual(['x', 'y', 'z']);
+            });
+
+            await it('reorderMode tells the truth about what GTK can do', async () => {
+                // An adapter asks this to decide whether a move is cheap. Claiming
+                // `native` for a container with no reorder API is a wrong answer to
+                // a question that has a right one.
+                expect(reorderMode(lookupWidget('GtkStack').children)).toBe('remove-all');
+                expect(reorderMode(lookupWidget('AdwHeaderBar').children)).toBe('remove-all');
+                expect(reorderMode(lookupWidget('GtkBox').children)).toBe('native');
+                expect(reorderMode(lookupWidget('GtkListBox').children)).toBe('native');
+                expect(reorderMode(lookupWidget('AdwPreferencesGroup').children)).toBe('remove-all');
+            });
+
+            await it('an empty text placeholder mounts into a sink-less container', async () => {
+                // Vue's processFragment marks every v-for with `hostCreateText('')`
+                // — not a comment, so an adapter has no hook to route it — and
+                // dom-expressions' cleanChildren does `createTextNode("")`. This
+                // used to throw, which made a v-for impossible to mount at all.
+                for (const tag of ['GtkBox', 'GtkListBox', 'AdwPreferencesGroup', 'GtkStack']) {
+                    const parent = createElement(tag);
+                    materialize(parent);
+                    insert(createText(''), parent);
+                }
+                // real text must still be refused
+                const box = createElement('GtkBox');
+                materialize(box);
+                expect(() => insert(createText('hello'), box)).toThrow('has no text sink');
+            });
+
+            await it('a refused layout write does not disable the write that fixes it', async () => {
+                const stack = createElement('GtkStack');
+                const widget = materialize(stack) as unknown as Gtk.Stack;
+                const page = createElement('GtkLabel', { label: 'p', layout: { name: 'one', title: 'One' } });
+                insert(page, stack);
+
+                // a reactive binding transiently produces a non-string name
+                expect(() => setProp(page, 'layout', { name: 5, title: 'One' })).toThrow('refused');
+                expect(page.attached).toBe(true);
+                expect(page.layout).toStrictEqual({ name: 'one', title: 'One' });
+
+                setProp(page, 'layout', { name: 'two', title: 'Two' });
+                expect(widget.get_child_by_name('two') !== null).toBe(true);
+            });
+
+            await it('a failed materialize leaves the element retryable', async () => {
+                // Bottom-up build with one child the container refuses — how every
+                // framework builds. Publishing the widget before the replay froze a
+                // half-built element for the life of the process.
+                const page = createElement('AdwPreferencesPage');
+                const good = createElement('AdwPreferencesGroup', { title: 'First' });
+                const bad = createElement('GtkButton', { label: 'oops' });
+                for (const el of [good, bad]) materialize(el);
+                insert(good, page);
+                insert(bad, page);
+
+                expect(() => materialize(page)).toThrow('refused');
+                expect(page.widget).toBe(null);
+                expect(good.attached).toBe(false);
+
+                remove(bad);
+                const widget = materialize(page) as unknown as Gtk.Widget;
+                expect(countDescendants(widget, Adw.PreferencesGroup)).toBe(1);
+            });
+
+            await it('a bad signal name is caught at the call site, not at insert', async () => {
+                const btn = createElement('GtkButton');
+                expect(() => setEventHandler(btn, 'onFrobnicate', () => {})).toThrow('emits no signal');
+                expect(btn.listeners.size).toBe(0);
+                // …and the element still works
+                materialize(btn);
+                setProp(btn, 'cssName', 'fine');
+                expect(btn.widget !== null).toBe(true);
+            });
+
+            await it('a refused slot write rolls the slot back and stays attached', async () => {
+                const bar = createElement('AdwHeaderBar');
+                materialize(bar);
+                const btn = createElement('GtkButton', { label: 'b' });
+                insert(btn, bar);
+                expect(() => setProp(btn, 'slot', 'centre')).toThrow('has no slot "centre"');
+                expect(btn.slot).toBe(null);
+                expect(btn.attached).toBe(true);
+                setProp(btn, 'slot', 'end');
+                expect(btn.slot).toBe('end');
+            });
+
+            await it('a refused setElementText keeps the children', async () => {
+                const box = createElement('GtkBox');
+                const widget = materialize(box) as unknown as Gtk.Widget;
+                const [a, b] = labels(2);
+                insert(a, box);
+                insert(b, box);
+                expect(() => setElementText(box, 'x')).toThrow('has no text sink');
+                expect(gtkChildTypes(widget)).toStrictEqual(['GtkLabel', 'GtkLabel']);
+                expect(a.widget !== null).toBe(true);
+            });
+        });
+
         await describe('mountRoot resolves the container through the table', async () => {
             await it('mounts into an application-owned widget', async () => {
                 const container = new Gtk.Box();
@@ -687,6 +853,16 @@ function countDescendants(root: Gtk.Widget, klass: unknown): number {
     };
     walk(root);
     return n;
+}
+
+/** Page names of a Gtk.Stack, in GTK's own order. */
+function stackOrder(stack: Gtk.Stack): string[] {
+    const out: string[] = [];
+    const pages = stack.get_pages();
+    for (let i = 0; i < pages.get_n_items(); i += 1) {
+        out.push((pages.get_item(i) as unknown as Gtk.StackPage).get_name() ?? '');
+    }
+    return out;
 }
 
 /** Labels of every GtkButton anywhere under a widget — packed children sit deeper. */

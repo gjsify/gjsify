@@ -52,7 +52,13 @@ export const ADW_DESCRIPTORS: readonly WidgetDescriptor[] = [
     {
         gtype: 'AdwPreferencesPage',
         ctor: () => Adw.PreferencesPage,
-        children: { kind: 'ordered', append: 'add', remove: 'remove', reorder: 'remove-all' },
+        // NOT the group's degradation, despite the near-identical API: measured on
+        // libadwaita 1.x, `Adw.PreferencesPage.insert(group, index)` exists and
+        // places correctly, while `Adw.PreferencesGroup.insert` is `undefined`.
+        // Copying the parent's policy across would have paid a full tail
+        // re-append on every reorder for nothing — and `descriptorProblems()`
+        // cannot catch that, because it only asserts the methods a policy NAMES.
+        children: { kind: 'indexed', insert: 'insert', remove: 'remove', wrap: null },
     },
     {
         gtype: 'AdwActionRow',

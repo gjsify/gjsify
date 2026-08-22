@@ -1,9 +1,10 @@
 // Property coercion — the layer that turns GObject's silent failures into loud ones.
 
-import { describe, expect, it, on } from '@gjsify/unit';
+import { afterEach, beforeEach, describe, expect, it, on } from '@gjsify/unit';
 
 import Gtk from 'gi://Gtk?version=4.0';
 
+import { installDiagnosticsGate } from './conformance/index.js';
 import { GtkHostError } from './errors.js';
 import { createElement, materialize, setProp } from './host.js';
 import { constructOnlyNames, paramSpecs, toPropertyName } from './props.js';
@@ -13,6 +14,12 @@ export default async () => {
     await on('Gjs', async () => {
         Gtk.init();
         registerBuiltinWidgets();
+
+        // Every vector below also asserts that GTK reported nothing. Without this
+        // the whole mis-parenting class is invisible: it emits criticals and exits 0.
+        const diagnostics = installDiagnosticsGate();
+        beforeEach(() => diagnostics.reset());
+        afterEach(() => diagnostics.assertQuiet());
 
         await describe('toPropertyName', async () => {
             await it('maps camelCase to the GObject kebab name', async () => {

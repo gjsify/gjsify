@@ -44,6 +44,12 @@ export const err = {
             `<${tag}>.${prop} expects ${gtypeName}, and "${nick}" is not one of its values. ` +
                 `Note that GObject accepts the wrong string SILENTLY — the property would have kept its old value.`,
         ),
+    unknownSignal: (tag: string, prop: string, signal: string) =>
+        new GtkHostError(
+            'unknown-signal',
+            `<${tag}> emits no signal "${signal}" (bound as ${prop}). Check the spelling against the installed GTK, ` +
+                `or use the escape hatch on:<raw-signal-name> if the name is irregular.`,
+        ),
     badBoolean: (tag: string, prop: string, value: string) =>
         new GtkHostError(
             'bad-boolean',

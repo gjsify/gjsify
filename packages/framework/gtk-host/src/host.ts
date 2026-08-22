@@ -11,7 +11,7 @@ import type Gtk from '@girs/gtk-4.0';
 
 import { err } from './errors.js';
 import { addressOf, insertChild, makeWrapper, removeChild, type Placement } from './policies.js';
-import { beginHostWrite, clearHandlers, endHostWrite, isEventProp, setHandler } from './signals.js';
+import { beginHostWrite, clearHandlers, endHostWrite, isEventProp, setHandler, toSignalName } from './signals.js';
 import { coerce, defaultValue, paramSpecs, requireSpec, toPropertyName } from './props.js';
 import { lookupWidget, nearestRegistered } from './registry.js';
 import type { HostAnchor, HostElement, HostNode, HostText, WidgetDescriptor } from './types.js';
@@ -92,6 +92,30 @@ export function materialize(el: HostElement): GObject.Object {
     } finally {
         endHostWrite();
     }
+
+    // The replay below can be rejected — a bad signal name, a child this container
+    // refuses. `el.widget` is already published because `attach` needs it, so a
+    // throw has to UNDO the publication: line one of this function returns early
+    // on a set widget, which would otherwise freeze a half-built element for the
+    // life of the process and make every later repair a silent no-op.
+    try {
+        replayInto(el);
+    } catch (e) {
+        for (const child of childSnapshot(el)) {
+            if (child.kind === 'element' && child.attached) {
+                removeChild(el, child);
+                child.attached = false;
+            }
+        }
+        el.widget = null;
+        el.wrapper = null;
+        throw e;
+    }
+    return el.widget;
+}
+
+/** Bind the listeners and place the children a bottom-up build already queued. */
+function replayInto(el: HostElement): void {
     for (const [prop, callback] of el.listeners) setHandler(el, prop, callback);
 
     // Children inserted BEFORE this element had a widget are still only in the
@@ -103,7 +127,6 @@ export function materialize(el: HostElement): GObject.Object {
         if (child.kind === 'element') attach(el, child);
     }
     if (el.textFromChildren) flushText(el);
-    return el.widget;
 }
 
 // ---------------------------------------------------------------------------
@@ -114,17 +137,31 @@ export function setProp(el: HostElement, key: string, next: unknown, _prev?: unk
     if (isEventProp(key)) return setEventHandler(el, key, next as never);
     if (key === 'slot') return setSlot(el, next as string | null);
     if (key === 'layout') {
-        el.layout = next as Record<string, unknown> | null;
-        // Position data is read at PLACEMENT time only, so a reactive binding
-        // that moves a grid cell or renames a stack page did nothing at all —
-        // silently, which is the one thing this host refuses to do. Re-place it,
-        // exactly as a slot change does.
-        if (el.attached && el.parent) {
-            const parent = el.parent;
-            removeChild(parent, el);
-            el.attached = false;
-            attach(parent, el);
+        // Position data is read at PLACEMENT time only, so a reactive binding that
+        // moves a grid cell or renames a stack page did nothing at all — silently,
+        // which is the one thing this host refuses to do. Re-place it, exactly as
+        // a slot change does.
+        //
+        // The guard is `parent && widget`, NOT `attached`: guarding on `attached`
+        // made a refused layout write disable its own recovery, so the write that
+        // FIXED the value returned normally and changed nothing, for ever.
+        const layout = next as Record<string, unknown> | null;
+        const parent = el.parent;
+        if (!parent || !el.widget) {
+            el.layout = layout;
+            return;
         }
+        const previous = el.layout;
+        replaceAt(
+            el,
+            parent,
+            () => {
+                el.layout = layout;
+            },
+            () => {
+                el.layout = previous;
+            },
+        );
         return;
     }
 
@@ -161,9 +198,29 @@ export function setProp(el: HostElement, key: string, next: unknown, _prev?: unk
 }
 
 export function setEventHandler(el: HostElement, prop: string, next: ((...args: unknown[]) => unknown) | null): void {
+    // Connect first, record second — `el.listeners` is replayed verbatim by
+    // `materialize`, so a rejected signal name kept here re-threw from inside the
+    // next rebuild and left the element detached with `widget === null`.
+    //
+    // The unmaterialised case is validated too: `GObject.signal_lookup` answers
+    // from the CLASS, so a typo does not have to wait for a widget to exist.
+    if (el.widget) {
+        setHandler(el, prop, next);
+    } else if (next) {
+        assertSignalExists(el, prop);
+    }
     if (next) el.listeners.set(prop, next);
     else el.listeners.delete(prop);
-    if (el.widget) setHandler(el, prop, next);
+}
+
+/** Does the class emit this signal at all? Answered without an instance. */
+function assertSignalExists(el: HostElement, prop: string): void {
+    const signal = toSignalName(prop, el.descriptor.eventAliases);
+    const base = signal.split('::')[0];
+    const gtype = (el.descriptor.ctor() as unknown as { $gtype: GObject.GType }).$gtype;
+    if (GObject.signal_lookup(base, gtype) === 0) {
+        throw err.unknownSignal(el.descriptor.gtype, prop, base);
+    }
 }
 
 export function setSlot(el: HostElement, slot: string | null): void {
@@ -174,9 +231,43 @@ export function setSlot(el: HostElement, slot: string | null): void {
         return;
     }
     // A slot change is a move: detach from the old attachment point, re-attach.
+    const previous = el.slot;
+    replaceAt(
+        el,
+        parent,
+        () => {
+            el.slot = slot;
+        },
+        () => {
+            el.slot = previous;
+        },
+    );
+}
+
+/**
+ * Re-place a child after changing what decides its position.
+ *
+ * `commit` applies the change, `rollback` undoes it. Two things a naive version
+ * gets wrong, both measured: a refused re-place must not keep the rejected value,
+ * and it must not leave the node detached in a way that makes the NEXT write —
+ * the one that fixes the value — skip itself for ever.
+ */
+function replaceAt(el: HostElement, parent: HostElement, commit: () => void, rollback: () => void): void {
     removeChild(parent, el);
-    el.slot = slot;
-    attach(parent, el);
+    el.attached = false;
+    commit();
+    try {
+        attach(parent, el);
+    } catch (e) {
+        rollback();
+        try {
+            attach(parent, el);
+        } catch {
+            // The old placement worked a moment ago; if it no longer does, the
+            // ORIGINAL rejection is what the caller needs to see.
+        }
+        throw e;
+    }
 }
 
 /**
@@ -223,9 +314,15 @@ export function setText(node: HostText | HostAnchor, data: string): void {
 
 /** Vue's bulk path and React's `shouldSetTextContent`: drop children, set the sink. */
 export function setElementText(el: HostElement, text: string): void {
-    for (const child of childSnapshot(el)) destroy(child);
+    // The sink check FIRST: `destroy` is eager and irreversible, so a widget with
+    // no text sink used to lose its whole subtree on the way to being told no.
     writeTextSink(el, text);
-    el.textFromChildren = true; // after the write — see flushText
+    // Disarm before the removals: destroying the old text children triggers
+    // `flushText`, which would see an empty concatenation with the flag still set
+    // and clear the text we just wrote.
+    el.textFromChildren = false;
+    for (const child of childSnapshot(el)) destroy(child);
+    el.textFromChildren = true;
 }
 
 function flushText(el: HostElement): void {
@@ -240,7 +337,12 @@ function flushText(el: HostElement): void {
     // Removing the LAST text child has to clear the sink. Without the flag, a
     // widget whose text was deleted keeps rendering the old string — and only
     // text children may clear it, never an authored `label` prop.
-    if (!sawText && !el.textFromChildren) return;
+    // Emptiness, not text-ness, is the discriminator. Vue's `processFragment`
+    // marks every `v-for` and multi-root template with `hostCreateText('')` — not
+    // a comment, so an adapter has no hook to route it — and dom-expressions'
+    // `cleanChildren` does `createTextNode("")`. Rejecting those made a `v-for`
+    // impossible to mount into ANY sink-less container. Real text still throws.
+    if (text === '' && !el.textFromChildren) return;
     // Set AFTER the write: `writeTextSink` throws for a sink-less widget, and a
     // flag set before it survives the failed insert — a later rebuild would then
     // flush text into a widget that never accepted any.
@@ -254,7 +356,6 @@ function writeTextSink(el: HostElement, text: string): void {
     materialize(el);
     const specs = paramSpecs(el.descriptor.ctor(), el.descriptor.gtype);
     const spec = requireSpec(specs, el.descriptor.gtype, sink);
-    el.props[sink] = text;
     beginHostWrite();
     try {
         (el.widget as unknown as { set_property(n: string, v: unknown): void }).set_property(
@@ -264,6 +365,9 @@ function writeTextSink(el: HostElement, text: string): void {
     } finally {
         endHostWrite();
     }
+    // Recorded only once GTK has taken it — `el.props` is replayed verbatim by
+    // `materialize`, so a rejected value kept here re-throws from a later rebuild.
+    el.props[sink] = text;
 }
 
 // ---------------------------------------------------------------------------
@@ -331,9 +435,9 @@ function attach(parent: HostElement, child: HostElement): void {
         prevWidget = addressOf(n);
         index += 1;
     }
-    const following: Gtk.Widget[] = [];
+    const following: HostElement[] = [];
     for (let n = child.next; n; n = n.next) {
-        if (n.kind === 'element' && n.attached) following.push(addressOf(n));
+        if (n.kind === 'element' && n.attached) following.push(n);
     }
     const placement: Placement = { parent, child, prevWidget, index, following };
     insertChild(placement);
