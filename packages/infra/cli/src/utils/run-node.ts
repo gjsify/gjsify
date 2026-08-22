@@ -113,8 +113,10 @@ export async function runNodeBundle(
 /**
  * Whether a `--app node` bundle actually consumes `@gjsify/node-gi` — kept EXTERNAL, so a bundle
  * using gi:// imports the shim by name. A plain Node app does NOT, and must run on node/bun/deno
- * WITHOUT node-gi installed, which is why the check is conditional here and not unconditional
- * like the storybook path.
+ * WITHOUT node-gi installed, which is why the check is conditional rather than a flat "this is a
+ * node bundle, demand node-gi". The supervised launcher (`utils/watch-loop.ts`) asks the same
+ * question for the same reason: `gjsify dev` on a web-server template builds a node bundle that
+ * never reaches a typelib.
  */
 export function bundleRequiresNodeGi(bundlePath: string): boolean {
     try {

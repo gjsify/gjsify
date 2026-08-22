@@ -110,30 +110,38 @@ have it installed, and everything reading that token — `.monospace` labels, th
 data-grid mono cell, `<adw-source-view>` — falls through to `ui-monospace`
 everywhere else.
 
-### Nothing in this repo calls `applyAdwaitaFonts()`
+### `@gjsify/adwaita-storybook` still ships no typeface
 
-The opt-in works and is tested, but the count of in-repo CALL SITES is zero:
-`@gjsify/adwaita-web/fonts` is imported by `adw-fonts.spec.ts` and nothing else,
-and that suite removes the faces again when it finishes. Verified on real
-artifacts: a `--app browser` probe whose only statement is
-`import '@gjsify/adwaita-web';` has an EMPTY `document.fonts` (0 faces, 0
-`CSSFontFaceRule`) while `document.fonts.check("16px 'Adwaita Sans'")` still
-answers true from fontconfig; a freshly rebuilt
-`showcases/dom/three-loader-ldraw/dist/browser.js` (17.4 MB) carries 47 Adwaita
-stylesheet markers and ZERO `@font-face` — so dropping its dead `style.css`
-import regressed nothing, and it ships no typeface either.
+The seven DOM showcases now call `applyAdwaitaFonts()`. That was this entry's own
+recommendation — they are browser artifacts served to whatever opens them, so they
+are exactly the place the size decision belongs, and an app may make it where a
+library barrel may not.
 
-The one path that DOES ship the faces is the website, through
-`astro.config.mjs`'s Starlight `customCss` — a real CSS pipeline, so the `url()`
-form is enough there.
+Measured on `showcases/dom/canvas2d-fireworks/dist/browser.js`, rebuilt either way:
 
-This is a decision, not an accident, and it stays that way while the faces are
-unsubsetted desktop TTFs (the entry above). Two candidates when that changes:
-`@gjsify/adwaita-storybook`, whose whole purpose is to look like Adwaita, and the
-DOM showcases the website embeds as standalone pages. Neither gets it today,
-because at 1.18 MB gzip it is a size decision, and a library barrel is the wrong
-place to make one on a consumer's behalf. Whoever ships a browser artifact that
-must look like Adwaita off a GNOME host owns the call.
+    before   18 033 980 B   0 @font-face   names "Adwaita Sans" twice
+    after    20 421 448 B   2 @font-face   2 data: URIs      (+2 387 468 B, +13.2%)
+
+and in real Firefox against the served artifact, `document.fonts` holds two faces
+(`weight: 100 900`, normal + italic) with the normal one `status: "loaded"`. That
+reading is host-independent by construction: a system-installed family never
+appears in `document.fonts`, which is why the assertion is made there and not
+against a computed font — on this Fedora box every one of these pages looked
+correct before the change and will look identical after it. The difference is on
+macOS, on Windows, and on any Linux that is not GNOME.
+
+What still does not opt in is `@gjsify/adwaita-storybook`, whose whole purpose is
+to look like Adwaita. Its entry is a barrel, and 1.18 MB gzip inside a library is
+the size decision a consumer should be making, so it wants either a host that
+calls the opt-in or a subsetted woff2 (the entry above) before it changes.
+
+NO GATE holds "a showcase that renders Adwaita chrome must call the opt-in", and
+that is deliberate: `applyAdwaitaFonts` is a VALUE export precisely so the silent
+form cannot be written — an import that is never called does not compile away into
+a green build, it simply is not an opt-in. What remains is an omission, which is
+the ordinary shape of a missing feature rather than a check that passed while
+nothing was verified. A gate for it would cost an incident header in a `scripts`
+tree with ten lines of budget left, to catch someone not adding something.
 
 ### `<adw-source-view>` has no browser suite
 
@@ -471,64 +479,6 @@ that bundles each declared register on its own and compares the `gi://` imports 
 actually emits against what the table claims, so the answer is checked rather than
 asserted. Longest-prefix matching (a specific subpath overriding its package) is the
 mechanical part; deciding it per subpath needs that measurement first.
-
-### `build:infra`'s order is hand-maintained, and only a cold OS leg checks it
-
-`build:infra` names 21 workspace builds in a fixed order, and each one compiles
-against whatever the ones BEFORE it produced — nothing else has run yet. #1133 gave
-`@gjsify/unit` a dependency on `@gjsify/runtime`, which `build:infra` does not build
-(`foreach build` does, afterwards), and `gjsify workspace @gjsify/unit build` then
-died with `TS2307: Cannot find module '@gjsify/runtime'`. Fixed by building it one
-step earlier — the interesting part is who noticed.
-
-**Linux was green and the defect is host-independent.** Reproduced locally by moving
-`packages/gjs/runtime/lib` aside: `@gjsify/unit build` fails on any host. What made
-the Linux leg pass is that it runs `build:infra` only on a cold tree ("Bootstrap the
-build toolchain (cold trees only)"), so a warm cache walks straight past the step
-that breaks. The macOS and Windows suites bootstrap from a published CLI every time,
-so they are the only legs that exercise it — and they do not run on pull requests.
-Same shape as ADR 0018 § 5, one layer lower: not "Linux cannot see this OS's bug"
-but "the warm leg cannot see the cold path".
-
-**Why no gate ships with the fix, measured rather than assumed.** Two candidate
-rules were run against today's tree:
-
-- manifest-level — "every `workspace:` dependency of a package `build:infra` builds
-  must be built earlier" — reports 4 packages, `@gjsify/unit` alone missing 8, all
-  of which build fine today: a dependency only has to EXIST if something in the
-  compiled sources imports it;
-- import-level — the same rule scanning `src/**` minus spec files — still reports 6,
-  including `@gjsify/utils -> @gjsify/unit`, because each package's build has its own
-  include/exclude globs that neither rule knows.
-
-A gate that cries wolf six times teaches people to silence it.
-
-**Deriving the tail was tried and does not work — the trade is not a cost, it is a
-failure.** The tail (utils, events, terminal-native, process, assert, runtime, unit)
-carries no CLI cycle and looks derivable, so `gjsify foreach build -t -d` over those
-seven seeds was run on a cold tree at `b4536bc9`, from the same state as the authored
-tail (`build:infra` clauses 1–16, 62 s):
-
-- authored tail: **45 s**, exit 0;
-- derived tail: **exit 1 after 8 s** — `@gjsify/canvas2d-core` sorts at index 1 of 43
-  while `@gjsify/unit` sorts at 42, and canvas2d-core's `build:types` compiles nine
-  `*.spec.ts` files that `import … from '@gjsify/unit'`. Nine × `TS2307: Cannot find
-  module '@gjsify/unit'`, `build:types` exit 2. The edge is a devDependency, and
-  `-d`/`-t` walk production deps only, so no ordering over that graph can place unit
-  first.
-- `--topological-dev` is not the answer either: it widens the same closure from 43 to
-  **115** packages and its sort throws — the devDependency graph is cyclic, which is
-  what the flag's own help text warns about.
-
-Note the earlier estimate of **29** selected packages does not reproduce: the same
-selection (`--include` the seven, `-d` production closure, packages declaring a
-`build` script) is **43** at this commit.
-
-So the order stays authored. What is still missing is a gate. The honest remaining
-option is a rule that reads each package's ACTUAL build inputs — the tsconfig
-include/exclude globs its `build:types` compiles, not its manifest — because that is
-the only thing that would have predicted the canvas2d-core failure above, and it is
-the same information the two rejected rules were missing.
 
 ### Which `node scripts/*.mjs` calls are UNMEASURED on a Node-less host
 
@@ -1483,15 +1433,33 @@ The `org.freedesktop.Sdk.Extension.gjsify` SDK extension (toolchain under `/usr/
 - **Remaining Node touchpoints for a FULLY Node-free self-build** — oxc lint (oxlint's JS-plugin host needs Node — see the oxlint entry above) + switching the build-orchestrator entry from the Node CLI to `gjs -m cli.gjs.mjs`.
 - **`gjsify install --offline`** — a fail-fast-on-cache-miss flag so a no-network sandbox install errors clearly instead of attempting (and slowly failing) a network fetch. Complements `gjsify flatpak sources`.
 
-### `gjsify ship` — remaining roadmap (ADR 0024)
+### `gjsify ship` — remaining roadmap (ADR 0024, amended 2026-08-21)
 
-Stages 2 and 3 have landed: one staged payload, `.deb` and `.rpm` packed by hand-written writers (no `dpkg-deb`, no `rpmbuild`, no vendored `nfpm`), proven end to end by `tests/e2e/ship` against `rpm`, GNU `ar` and GNU `tar`. Open, in the ADR's own order:
+Stages 2 and 3 have landed: one staged payload, `.deb` and `.rpm` packed by hand-written writers (no `dpkg-deb`, no `rpmbuild`, no vendored `nfpm`), proven end to end by `tests/e2e/ship` against `rpm`, GNU `ar` and GNU `tar`.
 
-- **Stages 4/5 — macOS `.app`/`.dmg` and the Windows program directory.** Assembly is cross-platform (the runtime closures are relocated and ad-hoc signed at BUNDLE build time and ship as npm packages), so a Linux host can build both; SIGNING is not, and `ship` must fail with that sentence rather than emit an unsigned artifact Gatekeeper or SmartScreen will refuse.
-- **Stage 6 — Flatpak as a target under `ship`.** The metadata half already moved (`utils/app-metadata.ts`); what is left is the staging path (`buildsystem: simple` + `cp -a stage/.`, which is what removes meson from inside the sandbox) and the deprecation window for the `gjsify.flatpak` config keys.
-- **Bundled Node for `--app node`** — still undecided between a ship-time fetch and a platform package (ADR 0017's shape). `gjsify ship` targets `--app gjs` today and says so.
-- **No in-tree app declares `gjsify.ship` yet**, so the `ship` conformance rule is vacuous in this repo and the feature's first real subjects are downstream (buchhaltung, bauplaner). The showcases are the natural first one — ADR 0024 counts them as the thirteen apps that ship no desktop entry, no metainfo, no icon and no schema — but giving one a `gjsify.ship` block means adding real icon and AppStream assets, which is a content change rather than a packaging one.
-- **`dpkg` is on no CI runner this project uses**, so the `.deb` is never verified by a real `dpkg -i`. What IS verified: GNU `ar` and GNU `tar` (independent readers of the container and of both inner tars), every `md5sums` digest recomputed, and the data member unpacked and compared byte-for-byte against the staged tree. The `.rpm` half has no such gap — `rpm` is on every Fedora image and `rpm -i --test` runs there. Closing it needs a Debian container leg or `dpkg` in the image, and is worth doing before anyone publishes a `.deb`; it is also the one check that would have caught the `glib-compile-schemas` dependency naming the wrong package on its own.
+**The framing changed.** A format this Linux workstation cannot produce is not a format to defer — it is produced on the host that owns it, in CI, the way this repo already builds per-platform prebuilds (ADR 0024 § A1-A7). Host-boundness becomes a declared `HostRequirement` on the format descriptor, with the independent oracle as a REQUIRED field: `selfReading: true` is legal to declare and illegal to release.
+
+**Four claims this section carried that are measured FALSE** — corrected here rather than deleted, because three separate design passes reasoned from them:
+
+- ~~"Assembly is cross-platform … so a Linux host can build both."~~ True of the `.app` tree, false of the `.dmg`: no HFS+/APFS writer exists anywhere in this tree and `hdiutil` is macOS-only. The line falls between assembly and CONTAINER.
+- ~~"No in-tree app declares `gjsify.ship` yet, so the rule is vacuous."~~ `packages/infra/cli/package.json` declares it (`{binaryName: "gjsify", bundle: "dist/cli.gjs.mjs", targets: ["deb","rpm"]}`) and `release-cut.yml:349` runs `ship --skip-build` against it on every cut. The same sentence is in `tests/e2e/ship-declaration/run.mjs`'s header and is wrong there too.
+- ~~"an unsigned file that Gatekeeper or SmartScreen will refuse."~~ Gatekeeper blocks; SmartScreen only WARNS until per-file-hash download reputation accrues, signed or not.
+- The two certificates are not one open question. **Apple is the binding constraint**: Developer ID has no OIDC route, so stage 4 introduces this repo's first long-lived signing secret. (And the "no long-lived credential today" baseline is itself false — `PREBUILDS_DEPLOY_KEY` is a repo-write SSH key on the ruleset bypass list.)
+
+**Measured, so nobody re-runs it** (2026-08-21, from Linux, `manifest-conformance/lib/binary.mjs`'s `readLibrary()` over the published `@gjsify/gtk-runtime-darwin-arm64@0.41.0` + `@gjsify/node-gi@0.41.0` tarballs): **106 of 106** Mach-O images already carry `LC_CODE_SIGNATURE`; **0** non-system dependencies unresolved inside the closure; **2** images carry an absolute rpath (`/opt/homebrew/lib`), which `checkPrebuildDir` already rules a working fallback. Consequence: a stage digest set cannot survive a Developer-ID re-sign, so arrival must be checked with a Mach-O-aware comparator (identical outside `LC_CODE_SIGNATURE`/`LC_UUID`), not with `sha256`.
+
+Open, in order — each independently mergeable, each with its proof:
+
+1. **`fail_on_unmatched_files` on the release upload.** `release-cut.yml:377-378` hardcodes `packages/infra/cli/ship/out/*.deb` / `*.rpm` into `softprops/action-gh-release` with no such flag, so a glob that stops matching uploads nothing and exits 0 — while `if-no-files-found: error` appears 37 times elsewhere and `fail_on_unmatched_files` **0 times in the repo**. The gate that follows (`:388`) checks only `install.mjs` and `cli.gjs.mjs`. Add the flag plus a lexical check beside `check-workflow-inline-scripts.mjs`, and extend `:388` with the package asset names. No ship-code change; protects the path that ships today.
+2. **`kind: 'app'` is dead under the shipped GJS bin, and the cause is in the BUNDLER.** `rewrite-node-modules-paths.ts`'s `shouldRewrite()` returns false unless the path contains `node_modules`, and it guards the only production call site of `inlineStaticReads` — so `dist/cli.gjs.mjs` carries **6 live `readFileSync(new URL(…))` and 0 inlined templates**, resolving to a package-root `templates/` that `files` does not publish. Breaks `ship` with `kind: 'app'` (the default), `flatpak scaffold`, `generate-installer` and the oxlint/oxfmt templates — under exactly the bundle `release-cut.yml` packs into the `.deb`. Fix at the core per AGENTS.md; gate with `grep -c 'readFileSync(new URL' dist/cli.gjs.mjs == 0`. **This blocks stages 4/5**, whose `Info.plist`/`.wxs`/entitlements would be five more of the same defect.
+3. **Pack from a stage alone** (`--from-stage` + `.gjsify-ship-stage.json`). The sidecar is a closure — `{settings (arch resolved at stage time), staged, overlay, namespaces, mtime}` — not a settings dump: measured, dropping `staged` packs the launcher 0644, dropping the overlay omits the Debian-Policy copyright file, dropping `namespaces` loses `gir1.2-gtk-4.0` and `gir1.2-adw-1` from `Depends`, all silently at exit 0. `readStage` must fail on a staged path the plan does not name AND on a planned path the stage lacks (its `?? 0o644` fallback inherits the open `download-artifact` MERGE hazard). Never `writeStage` onto an arriving stage — it opens with `rmSync(root, {recursive: true})`. *Proof, and the deletion IS the discriminator:* stage into a tmpdir, **delete the project tree**, pack from the stage, assert byte-equality with the single-host artifact.
+4. **`ship-pack-linux` on a bare `ubuntu-latest`** (no container), downloading a stage and packing deb+rpm. First real `dpkg -i --dry-run` this project has ever run, plus `rpm` via `docker run --rm fedora:44`, on a free runner — it closes the `dpkg` gap below and exercises the whole cross-host handoff with formats that already exist, before any darwin runner is involved. Fold in binding `FORMAT_IDS` to `manifest-conformance/lib/rules/ship.mjs`'s `TARGETS = new Set(['deb','rpm'])`, a second source of truth that will reject the first legitimate new declaration.
+5. **Stages 4/5 proper** — macOS `.app` + zip and the Windows program directory + zip (`finishOn: 'any'`), then `.dmg` on `macos-latest`/`macos-15-intel` and `.msi`. Blocked on 2 and 3. Windows launcher is unresolved and is a VM measurement, not a design argument: `node.exe` is a CONSOLE-subsystem image (Subsystem=3 at offset 0xd4, v24.19.0), `nodew.exe` does not exist, and every Windows CI leg starts the app from a shell and therefore inherits a console — so no CI leg can observe the defect. Instrument is `win11-gjsify`.
+6. **Stage 6 — Flatpak as a target under `ship`.** The metadata half already moved (`utils/app-metadata.ts`); what is left is the staging path (`buildsystem: simple` + `cp -a stage/.`, which is what removes meson from inside the sandbox) and the deprecation window for the `gjsify.flatpak` config keys. Sequenced AFTER the descriptor refactor: Flatpak's whole content is one prefix-layout row, and writing it first means writing it twice.
+7. **Bundled Node for `--app node`** — still undecided between a ship-time fetch and a platform package (ADR 0017's shape). Stages 4/5 need it: an unsigned artifact is a legitimate output, an artifact with no interpreter is not.
+8. **`dpkg` is on no CI runner this project uses**, so the `.deb` is never verified by a real `dpkg -i`. What IS verified: GNU `ar` and GNU `tar` (independent readers of the container and of both inner tars), every `md5sums` digest recomputed, and the data member unpacked and compared byte-for-byte against the staged tree. The `.rpm` half has no such gap — `rpm` is on every Fedora image and `rpm -i --test` runs there. Item 4 closes this for free. Also undeclared while it stands: `tests/e2e/ship` makes `ar` required on Linux, but `binutils` appears nowhere in `.docker/ci-fedora.Dockerfile` — it is present only transitively via `gcc`.
+9. **Two docs sentences become false** with host-bound formats: `website/src/content/docs/ship/index.mdx` promises the packers "run anywhere" and that there is "no packaging file to keep in your repo". Both need replacing when `--format dmg` and `gjsify ship ci` land.
+10. **A scaffolded workflow is verified by nothing.** The only scaffolder in the tree (`flatpak ci`) is asserted by four `assert.match` regexes on raw text — never parsed as YAML, never actionlint'd (which discovers only this repo's `.github/workflows/**`), never run. ADR 0024 names this exact class for `ship`; it already exists one command over. Minimum bar for `ship ci`: emit into gjsify's own workflows directory too, and `bash -n` every extracted `run:` block.
 
 ### Upstream PRs in flight (NativeScript) — track until merged
 
@@ -2239,71 +2207,31 @@ rather than adding a second one here.
 `packages/web/adwaita-web/src/keyboard-operable.spec.ts` awaits that microtask
 and says why.
 
-### The adwaita-web row family is not keyboard-reachable at all
+### `<adw-toggle-group>` is upstream's fifth roving widget and has none of it
 
-Measured in Firefox against a built `dist/test.browser.mjs`, on a
-`<adw-preferences-group>` holding an activatable `<adw-action-row>`, an
-`<adw-button-row>` and an `<adw-expander-row>`, with a `<button>` before and after
-it: Tab went straight from the button before the group to the button after it.
-All three rows report `tabIndex` `-1` and `role` `null`, and the expander
-publishes no `aria-expanded` — while all three activate on click. The whole group
-is invisible to a keyboard.
+The row-family half of this entry is CLOSED: `<adw-action-row>` (while `activatable`),
+`<adw-button-row>`, `<adw-expander-row>`'s header and `<adw-switch-row>` are tab stops that
+activate on Enter and Space, `<adw-preferences-group>` declares
+`GTK_ACCESSIBLE_ROLE_GROUP`, and `<adw-switch-row>`'s slider stopped being a focus target
+the way `adw_switch_row_init` does it. `<adw-combo-row>` was measured NOT to need it — its
+native `<select>` is already the combobox, already arrow-navigable, and already `disabled`
+at one option or fewer, which is `adw-combo-row.c:194` without a line of our own.
 
-GTK gives this free and adwaita-web does not inherit it: every one of these
-extends `GtkListBoxRow`, which is focusable by construction and activates on
-Enter/Space. The pieces the C declares that the web renderer does not are exact —
-`adw-expander-row.c:657` updates `GTK_ACCESSIBLE_STATE_EXPANDED` on the header
-row on every toggle (i.e. `aria-expanded`), `adw-switch-row.c:147` declares
-`GTK_ACCESSIBLE_ROLE_SWITCH`, `adw-combo-row.c:734` `GTK_ACCESSIBLE_ROLE_COMBO_BOX`,
-and `adw-preferences-group.c:319` `GTK_ACCESSIBLE_ROLE_GROUP`. Action, button and
-preferences rows declare no role of their own and inherit the list-item one.
-
-DELIBERATELY NOT FIXED beside the modal trap and the roving tabindex (which are
-invisible until pressed, and were): this one MOVES TAB ORDER on every page that
-uses a row, and every row instance under `website/` — where they are concentrated
-— either becomes a new tab stop or has to be argued out of becoming one. Rolling
-it in would have made the two fixes that change nothing visible indistinguishable
-from the one that changes every page. (An earlier draft of this entry justified
-the deferral with a count in the hundreds; it had been taken over `website/dist`
-and `website/.astro`, Astro build output, i.e. the same source pages many times
-over. Over tracked sources it is well under a hundred. The decision does not turn
-on the number — it turns on the change being visible on every page — which is why
-the number is not restated here.)
-
-What it costs, in the order the questions have to be answered:
-
-- WHICH rows become tab stops. `<adw-action-row>` only when `activatable`;
-  `<adw-button-row>` always (`BUTTON_ROW_ACTIVATABLE`, no opt-out upstream);
-  `<adw-expander-row>` always, since its header is the disclosure control. A
-  non-activatable action row must stay out, or every static label becomes a stop.
-- WHAT each declares. `aria-expanded` on the expander header, kept live;
-  `role="switch"` / `role="combobox"` on the two rows the C names; a list-item
-  role for the rest only if `<adw-preferences-group>` gains the matching container
-  role, since a list item outside a list is worse than none.
-- WHICH keys activate. Enter and Space, the way `GtkListBoxRow` does — and Space
-  must not also scroll the page.
-- The before/after this deserves: a tab-stop count per showcase page, measured,
-  not asserted. `tests/browser/specs/adwaita-keyboard.spec.ts` already pins the
-  CURRENT behaviour (Tab skips the group entirely), so the day it changes that
-  spec says so instead of nothing.
-
-`scripts/check-adwaita-keyboard-contract.mjs` does not see this class: the rows
-assign no negative tabIndex, they assign nothing at all, which is exactly why it
-went unnoticed. A gate for it wants the container question answered first.
-
-`<adw-toggle-group>` is the same blind spot from the other side, and belongs in
-this entry rather than a new one. Upstream it is the fifth member of the roving
-family: `AdwInlineViewSwitcher` builds exactly this widget with
-`GTK_ACCESSIBLE_ROLE_TAB_LIST` (`adw-inline-view-switcher.c:702`), and
+What remains is the same blind spot from the other side. Upstream `<adw-toggle-group>` is
+the fifth member of the roving family: `AdwInlineViewSwitcher` builds exactly this widget
+with `GTK_ACCESSIBLE_ROLE_TAB_LIST` (`adw-inline-view-switcher.c:702`), and
 `adw_toggle_group_focus` (`adw-toggle-group.c:1045`) is the citation
-`elements/roving-focus.ts` is built on. The web element has none of it — no role,
-no roving tabindex, no arrow keys. Measured in Firefox: three toggles report
-`tabIndex` `[0, 0, 0]`, the host has no `role`, and ArrowRight/ArrowLeft/Home/End
-all leave `document.activeElement` exactly where it was. It stays OPERABLE, every
-toggle being its own tab stop, so it is not the defect class the gate was written
-against — and the gate structurally cannot see it either, since there is no
-negative tabindex to trigger on. Its zero finding there is a scope limit, not a
-clean bill.
+`elements/roving-focus.ts` is built on. The web element has none of it — no role, no roving
+tabindex, no arrow keys. Measured in Firefox: three toggles report `tabIndex` `[0, 0, 0]`,
+the host has no `role`, and ArrowRight/ArrowLeft/Home/End all leave `document.activeElement`
+exactly where it was.
+
+It stays OPERABLE, every toggle being its own tab stop, so it is not the defect class
+`scripts/check-adwaita-keyboard-contract.mjs` was written against — and that gate
+structurally cannot see it either, since there is no negative tabindex to trigger on. Its
+zero finding there is a scope limit, not a clean bill. Closing it means giving the group the
+tab-list role and one roving tabindex, which turns three tab stops into one: a visible
+change to anything that tabs through a toggle group today.
 
 ### adwaita-core modules with no conformance vector table
 

@@ -25,6 +25,7 @@ function input(overrides: Partial<SettingsInput> = {}): SettingsInput {
             bundleFiles: ['gjs.js'],
             iconFiles: ['/project/data/icon.svg'],
             schemaFiles: [],
+            typelibFiles: [],
         },
         ...overrides,
     };
@@ -153,6 +154,19 @@ export default async () => {
                 '* first',
                 '* second',
             ]);
+        });
+
+        await it('takes a bare string in the array as one paragraph', async () => {
+            // What a person writes when they mean a paragraph. It used to reach `'p' in block` and
+            // throw a raw TypeError naming neither the field nor the fix — from a config file, so
+            // the message was the user's only clue.
+            expect(descriptionParagraphs(['One   paragraph.', { p: 'And a block.' }])).toStrictEqual([
+                'One paragraph.',
+                'And a block.',
+            ]);
+            // Empty strings contribute nothing rather than an empty paragraph, which deb renders
+            // as a stray ` .` line.
+            expect(descriptionParagraphs(['', '   ', 'Kept.'])).toStrictEqual(['Kept.']);
         });
     });
 };

@@ -84,6 +84,8 @@ import configSuite from './config.spec.js';
 import libraryOutputSuite from './utils/library-output.spec.js';
 import suggestSuite from './utils/suggest.spec.js';
 import runtimesSuite from './utils/runtimes.spec.js';
+import devPlanSuite from './utils/dev-plan.spec.js';
+import watchLoopSuite from './utils/watch-loop.spec.js';
 import spawnSuite from './utils/spawn.spec.js';
 import win32CommandSuite from './utils/win32-command.spec.js';
 import gjsBundleGuardSuite from './utils/gjs-bundle-guard.spec.js';
@@ -262,6 +264,8 @@ run(
         libraryOutputSuite,
         suggestSuite,
         runtimesSuite,
+        devPlanSuite,
+        watchLoopSuite,
         spawnSuite,
         win32CommandSuite,
         gjsBundleGuardSuite,

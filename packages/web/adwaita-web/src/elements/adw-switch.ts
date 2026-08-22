@@ -35,7 +35,23 @@ export class AdwSwitch extends HTMLElement {
     private _initialized = false;
 
     static get observedAttributes() {
-        return ['active', 'disabled'];
+        return ['active', 'disabled', 'unfocusable'];
+    }
+
+    /**
+     * `Gtk.Widget:can-focus` on the slider, inverted so the default stays "yes".
+     *
+     * `adw_switch_row_init` does `gtk_widget_set_can_focus (self->slider, FALSE)`
+     * (adw-switch-row.c:159) and makes the ROW activatable instead, so a switch row is ONE
+     * tab stop announced as its own title — not a bare checkbox followed by a label that
+     * cannot be reached. A standalone `<adw-switch>` keeps its checkbox focusable.
+     */
+    get unfocusable(): boolean {
+        return this.hasAttribute('unfocusable');
+    }
+
+    set unfocusable(value: boolean) {
+        this.toggleAttribute('unfocusable', !!value);
     }
 
     /** Whether the switch is on. */
@@ -103,6 +119,8 @@ export class AdwSwitch extends HTMLElement {
         const disabled = this.disabled;
         this._input.checked = this.active;
         this._input.disabled = disabled;
+        if (this.unfocusable) this._input.tabIndex = -1;
+        else this._input.removeAttribute('tabindex');
         this.classList.toggle('disabled', disabled);
     }
 }

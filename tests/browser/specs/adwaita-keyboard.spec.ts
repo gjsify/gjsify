@@ -154,9 +154,10 @@ async function driveKeys(page: Page, bundleUrl: string) {
     await page.keyboard.press('Home');
     expect(await rowState()).toEqual({ focus: 0, roving: [0, -1, -1] });
 
-    // ---- Shape 3: the rows are NOT reachable, and that is on the record -------------
-    // Ledgered in status/open-todos.md, not fixed here: making the row family focusable
-    // moves tab order on every consumer page. Asserted so the day it changes, this says so.
+    // ---- Shape 3: every activatable row is a tab stop, in order ---------------------
+    // This block used to assert the opposite — Tab from `#before` landed on `#after` and
+    // the whole group was invisible to a keyboard. The rows now carry the tab stop
+    // libadwaita gives them for free by extending GtkListBoxRow.
     await page.evaluate(() => {
         document.body.replaceChildren();
         const before = document.createElement('button');
@@ -166,8 +167,10 @@ async function driveKeys(page: Page, bundleUrl: string) {
         group.setAttribute('title', 'Group');
         group.innerHTML =
             '<adw-action-row title="Action" activatable></adw-action-row>' +
+            '<adw-action-row title="Label only"></adw-action-row>' +
             '<adw-button-row title="Button"></adw-button-row>' +
-            '<adw-expander-row title="Expander"></adw-expander-row>';
+            '<adw-expander-row title="Expander"></adw-expander-row>' +
+            '<adw-switch-row title="Switch"></adw-switch-row>';
         const after = document.createElement('button');
         after.id = 'after';
         after.textContent = 'After';
@@ -175,6 +178,48 @@ async function driveKeys(page: Page, bundleUrl: string) {
         before.focus();
     });
 
-    await page.keyboard.press('Tab');
-    expect(await page.evaluate(() => document.activeElement?.id)).toBe('after');
+    /** What has focus, named the way a reader can act on. */
+    const focused = () =>
+        page.evaluate(() => {
+            const el = document.activeElement as HTMLElement | null;
+            if (!el || el === document.body) return 'body';
+            if (el.id) return `#${el.id}`;
+            if (el.classList.contains('adw-expander-row-header')) return 'expander-header';
+            return el.localName;
+        });
+
+    const order: string[] = [];
+    for (let i = 0; i < 8; i++) {
+        await page.keyboard.press('Tab');
+        const where = await focused();
+        order.push(where);
+        if (where === '#after') break;
+    }
+    // The plain action row is absent ON PURPOSE — a label that takes Tab makes every
+    // static row in a group a stop. So is the group itself: it is a container.
+    expect(order).toEqual(['adw-action-row', 'adw-button-row', 'expander-header', 'adw-switch-row', '#after']);
+
+    // `<adw-preferences-group>` is a GROUP upstream (adw-preferences-group.c:319), which is
+    // why the rows inside carry no `listitem` role — outside a list that is worse than none.
+    expect(await page.evaluate(() => document.querySelector('adw-preferences-group')?.getAttribute('role'))).toBe(
+        'group',
+    );
+
+    // The keys GtkListBoxRow activates on, and the state the C keeps in step with them.
+    const effects = await page.evaluate(() => {
+        const row = document.querySelector('adw-action-row[activatable]') as HTMLElement;
+        let activated = 0;
+        row.addEventListener('activated', () => activated++);
+        row.focus();
+        for (const key of ['Enter', ' ']) {
+            row.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+        }
+        const header = document.querySelector('.adw-expander-row-header') as HTMLElement;
+        const expandedBefore = header.getAttribute('aria-expanded');
+        header.focus();
+        header.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+        return { activated, expandedBefore, expandedAfter: header.getAttribute('aria-expanded') };
+    });
+    // adw-expander-row.c:657 keeps GTK_ACCESSIBLE_STATE_EXPANDED on the header in step.
+    expect(effects).toEqual({ activated: 2, expandedBefore: 'false', expandedAfter: 'true' });
 }

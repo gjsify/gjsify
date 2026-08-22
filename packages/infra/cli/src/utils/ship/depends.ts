@@ -108,6 +108,12 @@ const TYPELIB_PACKAGES: Record<string, { deb: string; rpm: string }> = {
     'Notify-0.7': { deb: 'gir1.2-notify-0.7', rpm: 'libnotify' },
     'Vte-3.91': { deb: 'gir1.2-vte-3.91', rpm: 'vte291-gtk4' },
     'Manette-0.2': { deb: 'gir1.2-manette-0.2', rpm: 'libmanette' },
+    // libgda — what `@gjsify/sqlite` binds, so every project with a local database lands here.
+    // The rpm name is measured on this machine (`rpm -qf …/Gda-6.0.typelib` → libgda); the deb name
+    // follows the `gir1.2-<name>-<version>` convention every row above uses and is NOT verified
+    // against a Debian system. Said plainly because a wrong name fails at `apt install` with a
+    // clear error, while no row at all fails the BUILD of every such project.
+    'Gda-6.0': { deb: 'gir1.2-gda-6.0', rpm: 'libgda' },
 };
 
 export interface DependsInputs {
@@ -121,6 +127,11 @@ export interface DependsInputs {
     extra: readonly string[];
     /** Project-supplied table rows, filling gaps in {@link TYPELIB_PACKAGES}. */
     typelibPackages?: Record<string, { deb: string; rpm: string }>;
+    /**
+     * Paths of typelib files the payload carries itself. The namespaces they cover need no distro
+     * dependency — and are derived from these filenames, never declared separately.
+     */
+    bundledTypelibs?: readonly string[];
     /** Minimum GJS. Default {@link DEFAULT_GJS_FLOOR}. */
     minGjsVersion?: string;
 }
@@ -152,8 +163,21 @@ export function deriveDepends(format: FormatId, inputs: DependsInputs): string[]
     const out: string[] = [`gjs >= ${inputs.minGjsVersion ?? DEFAULT_GJS_FLOOR}`];
     const unmapped: string[] = [];
 
+    // Namespaces the package SHIPS ITSELF, read off the staged filenames rather than from a
+    // separate declaration: `Gwebgl-0.1.typelib` → `Gwebgl-0.1` and `Gwebgl`. Deriving it is the
+    // point — a project that declared a namespace bundled without the file being there would get
+    // a package that installs and dies at the first import, which is exactly what this check
+    // exists to prevent.
+    const shipped = new Set<string>();
+    for (const file of inputs.bundledTypelibs ?? []) {
+        const match = /([A-Za-z0-9]+)-([\d.]+)\.typelib$/.exec(file);
+        if (!match) continue;
+        shipped.add(`${match[1]}-${match[2]}`);
+        shipped.add(match[1]);
+    }
+
     for (const namespace of [...new Set(inputs.namespaces)].sort()) {
-        if (BUNDLED_TYPELIB.test(namespace)) continue;
+        if (BUNDLED_TYPELIB.test(namespace) || shipped.has(namespace)) continue;
         const entry = lookupTypelib(namespace, inputs.typelibPackages);
         if (entry === undefined) {
             unmapped.push(namespace);

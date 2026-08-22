@@ -39,6 +39,8 @@ export interface DiscoveredPayload {
     bundleFiles: string[];
     iconFiles: string[];
     schemaFiles: string[];
+    /** Absolute paths of the typelibs + shared libraries the project ships itself. */
+    typelibFiles: string[];
     licenseFile?: string;
 }
 
@@ -143,6 +145,7 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
         bundleDir: discovered.bundleDir,
         iconFiles: discovered.iconFiles,
         schemaFiles: discovered.schemaFiles,
+        typelibFiles: discovered.typelibFiles,
         extraFiles: ship.extraFiles ?? {},
         execArgs: ship.execArgs ?? [],
         outDir: input.cli.outDir ?? ship.outDir ?? 'ship',
@@ -224,7 +227,9 @@ function formatDeveloper(metadata: AppMetadata): string | undefined {
 }
 
 /** AppStream description (string or blocks) → plain paragraphs for deb/rpm. */
-export function descriptionParagraphs(description: string | DescriptionBlock[] | undefined): string[] | undefined {
+export function descriptionParagraphs(
+    description: string | Array<DescriptionBlock | string> | undefined,
+): string[] | undefined {
     if (description === undefined) return undefined;
     if (typeof description === 'string') {
         const paragraphs = description
@@ -236,7 +241,15 @@ export function descriptionParagraphs(description: string | DescriptionBlock[] |
     }
     const out: string[] = [];
     for (const block of description) {
-        if ('p' in block) {
+        // A plain string in the array is what a person writes when they mean one paragraph, and it
+        // used to reach `'p' in block` and throw a bare TypeError — "cannot use 'in' operator to
+        // search for \"p\" in \"Bauplaner rechnet…\"", which names neither the field nor the fix.
+        // Accepting it is unambiguous: the AppStream blocks are objects, so a string can only mean
+        // a paragraph.
+        if (typeof block === 'string') {
+            const text = block.trim().replace(/\s+/g, ' ');
+            if (text) out.push(text);
+        } else if ('p' in block) {
             out.push(block.p.trim().replace(/\s+/g, ' '));
         } else {
             for (const item of block.ul) {

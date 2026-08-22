@@ -195,6 +195,7 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
         hasSchemas: settings.schemaFiles.length > 0,
         extra: settings.extraDepends[format.id],
         typelibPackages: settings.typelibPackages,
+        bundledTypelibs: settings.typelibFiles,
         minGjsVersion: settings.minGjsVersion,
     });
     for (const warning of warnAboutGjsFloor(format.id, settings.minGjsVersion)) console.warn(`${LOG} ${warning}`);

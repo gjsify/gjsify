@@ -126,16 +126,17 @@ function readOffsetVarint(buf, off) {
 }
 
 /**
- * Every SUBMODULE the index stages, as `<repo-relative path>` → `<40-hex commit>`.
+ * Walk every entry the index stages, calling `visit(path, mode, sha)` for each.
  *
- * Only gitlinks are returned: they are all any caller here wants, and a map of ~5000
- * blob entries would be built and thrown away on every run. Paths are the index's own
- * spelling — always forward slashes, on every platform.
+ * The ONE parser this file promises to be. Callers pick what they keep — gitlinks
+ * alone, or every path — so that wanting a different subset never becomes a reason to
+ * write a second reader of the same format. Paths are the index's own spelling: always
+ * forward slashes, on every platform.
  *
  * @param {string} repoRoot
- * @returns {Map<string, string>}
+ * @param {(path: string, mode: number, sha: string) => void} visit
  */
-export function readIndexGitlinks(repoRoot) {
+function walkIndex(repoRoot, visit) {
     const gitDir = resolveGitDir(repoRoot);
     const indexFile = join(gitDir, 'index');
     if (!existsSync(indexFile)) {
@@ -156,8 +157,6 @@ export function readIndexGitlinks(repoRoot) {
     const count = buf.readUInt32BE(8);
     const hashLen = objectNameLength(gitDir);
 
-    /** @type {Map<string, string>} */
-    const gitlinks = new Map();
     let off = 12;
     // Version 4 stores each path as a delta against the one before it, so the full
     // previous path has to be carried even for entries the caller does not want.
@@ -189,11 +188,44 @@ export function readIndexGitlinks(repoRoot) {
             off = nul + 1;
         }
         previousPath = path;
-        if (mode === GITLINK_MODE) gitlinks.set(path, sha);
+        visit(path, mode, sha);
     }
 
     assertNotSplit(buf, off, hashLen, indexFile);
+}
+
+/**
+ * Every SUBMODULE the index stages, as `<repo-relative path>` → `<40-hex commit>`.
+ *
+ * @param {string} repoRoot
+ * @returns {Map<string, string>}
+ */
+export function readIndexGitlinks(repoRoot) {
+    /** @type {Map<string, string>} */
+    const gitlinks = new Map();
+    walkIndex(repoRoot, (path, mode, sha) => {
+        if (mode === GITLINK_MODE) gitlinks.set(path, sha);
+    });
     return gitlinks;
+}
+
+/**
+ * Every path the index stages — what a COLD checkout of this commit would contain.
+ *
+ * Unlike `readIndexGitlinks` this deliberately keeps all ~5000 entries, because the
+ * question it answers is a membership test over the whole tree: whether a given file
+ * is committed, and therefore present before anything is built.
+ *
+ * @param {string} repoRoot
+ * @returns {Set<string>}
+ */
+export function readIndexPaths(repoRoot) {
+    /** @type {Set<string>} */
+    const paths = new Set();
+    walkIndex(repoRoot, (path) => {
+        paths.add(path);
+    });
+    return paths;
 }
 
 /**

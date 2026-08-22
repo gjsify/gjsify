@@ -679,5 +679,90 @@ describe('check-build-infra-order: the bundler-free prefix', () => {
     it("holds for this repo's own build:infra", () => {
         const result = spawnSync(process.execPath, [ORDER_GUARD, '--root', MONOREPO_ROOT], { encoding: 'utf8' });
         assert.equal(result.status, 0, result.output);
+        // A rule that read no files would pass this the same way. The count is
+        // the only thing separating "checked and clean" from "checked nothing",
+        // and a broken include glob is exactly how the second one happens.
+        const read = /type-ordering rule read (\d+) compiled file\(s\)/.exec(result.stdout);
+        assert.ok(read, `no type-ordering count in output:\n${result.output}`);
+        assert.ok(Number(read[1]) > 0, `the type-ordering rule read 0 files:\n${result.output}`);
+    });
+});
+
+// The SECOND rule in the same script: a clause may not type-check against
+// declarations no earlier clause emitted. #1133 (`unit` importing `runtime`,
+// TS2307 on a cold tree) and #1237 (the CLI importing a new `utils` export,
+// TS2305 against a stale warm cache) are the same defect in two cache states.
+describe('check-build-infra-order: the type-dependency order', () => {
+    const FACADE = 'node scripts/bootstrap-native-facades.mjs';
+
+    /** A root whose packages carry a real tsconfig and real sources to compile. */
+    function runTypeGuard(buildInfra, packages) {
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-infra-types-'));
+        writeFileSync(join(root, 'package.json'), JSON.stringify({ scripts: { 'build:infra': buildInfra } }));
+        for (const [name, pkg] of Object.entries(packages)) {
+            const dir = join(root, 'packages', 'infra', name.replace('@gjsify/', ''));
+            mkdirSync(join(dir, 'src'), { recursive: true });
+            writeFileSync(
+                join(dir, 'package.json'),
+                JSON.stringify({
+                    name,
+                    scripts: { build: 'gjsify tsc', 'build:types': 'gjsify tsc' },
+                    exports: { '.': { types: './lib/types/index.d.ts', default: './lib/esm/index.js' } },
+                }),
+            );
+            writeFileSync(join(dir, 'tsconfig.json'), JSON.stringify({ include: ['src/**/*.ts'] }));
+            writeFileSync(join(dir, 'src', 'index.ts'), pkg.source);
+        }
+        const result = spawnSync(process.execPath, [ORDER_GUARD, '--root', root], { encoding: 'utf8' });
+        return { ...result, output: `${result.stdout}${result.stderr}` };
+    }
+
+    const IMPORTER = { source: "import { hold } from '@gjsify/utils';\nexport const x = hold;\n" };
+    const LIBRARY = { source: 'export const hold = 1;\n' };
+
+    it('rejects a clause compiling against a package built later', () => {
+        const result = runTypeGuard(
+            `gjsify workspace @gjsify/cli build && ${FACADE} && gjsify workspace @gjsify/utils build`,
+            { '@gjsify/cli': IMPORTER, '@gjsify/utils': LIBRARY },
+        );
+        assert.equal(result.status, 1, result.output);
+        assert.match(result.stderr, /it imports '@gjsify\/utils', but @gjsify\/utils is built at clause 3/);
+    });
+
+    it('accepts the same pair once a build:types clause runs first', () => {
+        const result = runTypeGuard(
+            `gjsify workspace @gjsify/utils build:types && gjsify workspace @gjsify/cli build && ${FACADE} && ` +
+                'gjsify workspace @gjsify/utils build',
+            { '@gjsify/cli': IMPORTER, '@gjsify/utils': LIBRARY },
+        );
+        assert.equal(result.status, 0, result.output);
+    });
+
+    // The two shapes that made the cheaper rules cry wolf, and the reason this
+    // one reads the compiled FILES rather than the manifest.
+    it('ignores a specifier that is only text', () => {
+        const result = runTypeGuard(`gjsify workspace @gjsify/cli build && ${FACADE}`, {
+            '@gjsify/cli': {
+                source: [
+                    '// see @gjsify/utils for the loop helper',
+                    'export const generated = `',
+                    "import { hold } from '@gjsify/utils';",
+                    '`;',
+                    'export const hint = "import \'@gjsify/utils\' to register it";',
+                ].join('\n'),
+            },
+            '@gjsify/utils': LIBRARY,
+        });
+        assert.equal(result.status, 0, result.output);
+    });
+
+    it('honours a @ts-ignore on the import', () => {
+        const result = runTypeGuard(`gjsify workspace @gjsify/cli build && ${FACADE}`, {
+            '@gjsify/cli': {
+                source: "// @ts-ignore — resolved by the bundler, not by tsc here.\nimport '@gjsify/utils';\n",
+            },
+            '@gjsify/utils': LIBRARY,
+        });
+        assert.equal(result.status, 0, result.output);
     });
 });

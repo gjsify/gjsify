@@ -19,7 +19,7 @@ from decides which one you get. Pick the narrowest one that covers your imports.
 |---|---|---|
 | `@gjsify/utils/core` | GJS · Node · browser · NativeScript | everything that is well-defined without GLib/Gio |
 | `@gjsify/utils` | **GJS only** | `…/core` plus the six modules that call into GLib/Gio |
-| `@gjsify/utils/main-loop` | GJS · Node · browser · NativeScript | just `ensureMainLoop` / `quitMainLoop` |
+| `@gjsify/utils/main-loop` | GJS · Node · browser · NativeScript | just `ensureMainLoop` / `holdMainLoop` / `quitMainLoop` |
 
 ```typescript
 // Cross-runtime — safe from a package whose browser / nativescript slot is
@@ -36,7 +36,15 @@ import { cli, existsSync, readBytesAsync } from '@gjsify/utils';
 `GLIB_FILE_ERROR_TO_NODE` tables — `registerGlobal`, `notImplemented`,
 `warnNotImplemented`, `queueMicrotask`, `structuredClone`) plus the two
 **GJS-guarded** modules that probe `globalThis.imports?.gi` and fall back to a
-portable path (`ensureMainLoop` / `quitMainLoop`, `nextTick`).
+portable path (`ensureMainLoop` / `holdMainLoop` / `quitMainLoop`, `nextTick`).
+
+`ensureMainLoop()` arms the GJS main-loop hook only at `GLib.main_depth() === 0`, so it
+never stacks a loop under a test runner's `mainloop.run()` or a
+`Gtk.Application.runAsync()`. A command that must OUTLIVE its entry module — a watch
+loop, a daemon — needs `holdMainLoop()` instead, which arms regardless of depth: GJS
+spins the default context itself while a module's top-level await is pending, so a
+continuation resumed from a timer or a Gio callback runs at depth 1, where
+`ensureMainLoop()` declines and the process exits as soon as the module settles.
 
 The root barrel adds `gbytesToUint8Array`, `cli`, `readJSON`, `existsFD`, `existsSync`,
 `gioAsync`, `readBytesAsync`, `inputStreamAsyncIterator`, `resolve`, `getProgramExe`,
