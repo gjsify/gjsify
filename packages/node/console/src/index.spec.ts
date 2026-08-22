@@ -15,6 +15,54 @@ class TaggedError extends Error {
     }
 }
 
+/**
+ * Replace one slot of `err` with a getter that throws.
+ *
+ * Non-enumerable by default, exactly like the real `name`/`message`/`stack`/`cause`
+ * slots — which is why the pre-fix formatter never saw this coming: `JSON.stringify`
+ * does not read a non-enumerable slot, so before Errors were rendered by hand the
+ * identical input printed `{}` and did NOT throw.
+ */
+function poison(err: Error, slot: string, enumerable = false): Error {
+    Object.defineProperty(err, slot, {
+        enumerable,
+        configurable: true,
+        get() {
+            throw new Error(`${slot} getter blew up`);
+        },
+    });
+    return err;
+}
+
+/**
+ * The slice of GLib/Gio the GError suite needs, typed by hand: this package's
+ * tsconfig deliberately keeps `@girs/*` out of scope so the Node bundle stays clean,
+ * so the modules are loaded at runtime and cast — the same shape `@gjsify/http2`'s
+ * GJS-only spec uses. `domain` and `code` are the two facts that identify a GError.
+ */
+type GError = Error & { domain: number; code: number };
+type GLibModule = { Error: new (domain: unknown, code: number, message: string) => GError };
+type GioModule = {
+    IOErrorEnum: { NOT_FOUND: number };
+    File: { new_for_path(path: string): { read(cancellable: null): unknown } };
+};
+
+/** An `AggregateError` whose `errors` array throws when its element is read. */
+function aggregateWithPoisonedElement(): AggregateError {
+    const errors: unknown[] = [];
+    Object.defineProperty(errors, 0, {
+        enumerable: true,
+        configurable: true,
+        get() {
+            throw new Error('element blew up');
+        },
+    });
+    errors.length = 1;
+    const agg = new AggregateError([], 'agg failed');
+    Object.defineProperty(agg, 'errors', { value: errors, configurable: true });
+    return agg;
+}
+
 export default async () => {
     await describe('console: default import', async () => {
         await it('should be an object', async () => {
@@ -777,6 +825,40 @@ export default async () => {
             const occurrences = c.lines[0].split('Error: twice').length - 1;
             expect(occurrences).toBe(2);
         });
+
+        // A formatter whose contract is never to throw while reporting must not throw
+        // on a poisoned slot either. Measured before the fix: `_formatValue` dispatches
+        // a top-level Error STRAIGHT to `_formatError`, which read `err.name` before any
+        // guard, while `_stringify`'s try/catch sits one level BELOW that path — so
+        // `console.log(err)` threw `name getter blew up` and the whole line was lost.
+        // Node's own console survives every vector below, so the Node leg proves these
+        // assertions describe real console behaviour rather than our idea of it.
+        const poisonedVectors: Array<[string, () => unknown]> = [
+            ['name', () => poison(new Error('boom'), 'name')],
+            ['message', () => poison(new Error('boom'), 'message')],
+            ['stack', () => poison(new Error('boom'), 'stack')],
+            ['cause', () => poison(new Error('boom'), 'cause')],
+            ['an own enumerable property', () => poison(new Error('boom'), 'detail', true)],
+            ['name, reached through the replacer', () => [poison(new Error('boom'), 'name')]],
+            ['an aggregated error element', () => aggregateWithPoisonedElement()],
+        ];
+        for (const [slot, make] of poisonedVectors) {
+            await it(`should survive a throwing getter on ${slot} instead of throwing`, async () => {
+                const c = capture();
+                expect(() => c.console.error(make())).not.toThrow();
+                expect(c.lines.length).toBe(1);
+            });
+        }
+
+        await it('should not append an empty object for an undefined own property', async () => {
+            const err = new Error('x') as Error & { detail?: unknown };
+            err.detail = undefined;
+            const c = capture();
+            c.console.error(err);
+            // ` {}` is the exact token the Error fix existed to remove; a flag counting
+            // KEYS put it back for any value `JSON.stringify` drops.
+            expect(c.lines[0]).not.toContain(' {}');
+        });
     });
 
     await on('Gjs', async () => {
@@ -849,6 +931,217 @@ export default async () => {
                 expect(render('%s', 42)).toBe('42');
                 expect(render('%o', { a: 1 })).toBe('{"a":1}');
                 expect(render('%c', 'color:red')).toBe('');
+            });
+
+            // The ratchet as a MECHANISM rather than a handful of literals: for any
+            // value carrying no Error the replacer is the identity, so the render must
+            // be what a bare `JSON.stringify` produces — including the shapes whose
+            // handling is easy to break by accident. `undefined` (also a symbol, also a
+            // function) has no JSON text at all; `Array.prototype.join` renders it as
+            // the empty string, and that is what this module has always printed.
+            await it('should stay byte-identical to JSON.stringify for every non-Error shape', async () => {
+                const nullPrototype = Object.create(null) as Record<string, unknown>;
+                nullPrototype.a = 1;
+                // Built rather than written as `[1, , 3]` so no lint directive is
+                // needed for a literal hole.
+                const sparse: unknown[] = [1];
+                sparse[2] = 3;
+                const shapes: unknown[] = [
+                    { a: 1, b: [1, 2] },
+                    { a: { b: { c: [1, { d: 2 }] } } },
+                    [1, 'two', null],
+                    42,
+                    -0,
+                    NaN,
+                    Infinity,
+                    null,
+                    true,
+                    new Date(0),
+                    new Map([['a', 1]]),
+                    new Set([1, 2]),
+                    sparse,
+                    { toJSON: () => ({ t: 1 }) },
+                    nullPrototype,
+                    Symbol('s'),
+                    () => 1,
+                    undefined,
+                    { s: Symbol('q'), f: () => 1, u: undefined, keep: 1 },
+                    /ab+c/g,
+                    {},
+                    [],
+                    { k: 'a"b\\c\nd\te' },
+                ];
+                for (const shape of shapes) {
+                    const json = JSON.stringify(shape);
+                    expect(render(shape)).toBe(json === undefined ? '' : json);
+                }
+            });
+
+            await it('should keep the message and stack when `name` throws', async () => {
+                // SpiderMonkey builds `err.stack` eagerly and independently of `name`,
+                // so unlike V8 the GJS leg keeps the frames here as well.
+                const rendered = render(poison(new Error('boom'), 'name'));
+                expect(rendered.split('\n')[0]).toBe('Error: boom');
+                expect(rendered.split('\n').length).toBeGreaterThan(1);
+            });
+
+            await it('should keep the outer error when a nested cause throws', async () => {
+                const rendered = render(new Error('outer', { cause: poison(new Error('inner'), 'name') }));
+                expect(rendered).toContain('Error: outer');
+                expect(rendered).toContain('[cause]: Error: inner');
+            });
+
+            await it('should render an Error reached through the replacer when its name throws', async () => {
+                // Before the fix this path lost the WHOLE line to
+                // `[unserializable: name getter blew up]` — `_stringify`'s catch is
+                // one level above the Error, not on it.
+                const rendered = render([poison(new Error('inner'), 'name')]);
+                expect(rendered).toContain('Error: inner');
+                expect(rendered).not.toContain('[unserializable');
+            });
+
+            await it('should keep the rest of an Error when one slot throws', async () => {
+                // Each of these slots is guarded WHERE IT IS READ, not only by the
+                // last-resort guard around the whole render: degrading a whole report
+                // to `[unformattable: …]` because one accessor misbehaved throws away
+                // the message and stack that were the point of printing it.
+                for (const slot of ['stack', 'cause']) {
+                    const rendered = render(poison(new Error('x'), slot));
+                    expect(rendered).toContain('Error: x');
+                    expect(rendered).not.toContain('[unformattable');
+                }
+                const withExtra = render(poison(new Error('x'), 'detail', true));
+                expect(withExtra).toContain('Error: x');
+                expect(withExtra).not.toContain('[unformattable');
+            });
+
+            await it('should degrade the render, not the process, when an element throws', async () => {
+                const rendered = render(aggregateWithPoisonedElement());
+                expect(rendered).toContain('AggregateError: agg failed');
+                expect(rendered).toContain('[unformattable: element blew up]');
+            });
+
+            await it('should drop an own property whose value JSON cannot represent', async () => {
+                const err = new Error('x') as Error & { detail?: unknown };
+                err.detail = undefined;
+                expect(render(err)).not.toContain('{}');
+                const withFunction = new Error('y') as Error & { fn?: unknown };
+                withFunction.fn = () => 1;
+                expect(render(withFunction)).not.toContain('{}');
+            });
+
+            await it('should not carry the SpiderMonkey position fields as extras', async () => {
+                // Suppressed for EVERY error, not only for a GError: the header already
+                // prints this file, line and column, exactly as it does for `stack`.
+                //
+                // `defineProperty`, not assignment: SpiderMonkey gives every Error own
+                // but NON-enumerable `fileName`/`lineNumber`/`columnNumber` (measured on
+                // gjs 1.88.1: writable, configurable, enumerable false), so `err.fileName
+                // = …` only rewrites the value and leaves the property invisible to
+                // `Object.keys` — a version of this test that assigned them passed with
+                // and without the fix.
+                const err = new Error('x') as Error & Record<string, unknown>;
+                for (const [key, value] of [
+                    ['fileName', 'f.js'],
+                    ['lineNumber', 3],
+                    ['columnNumber', 1],
+                ] as Array<[string, unknown]>) {
+                    Object.defineProperty(err, key, { value, enumerable: true, configurable: true, writable: true });
+                }
+                err.keep = 1;
+                // Discriminator: without this the suppression may be tested against an
+                // input that never carried the fields in the first place.
+                expect(Object.keys(err)).toContain('fileName');
+                const rendered = render(err);
+                expect(rendered).toContain('{"keep":1}');
+                expect(rendered).not.toContain('"fileName"');
+                expect(rendered).not.toContain('"lineNumber"');
+                expect(rendered).not.toContain('"columnNumber"');
+            });
+        });
+
+        // The commonest error in a GTK app, and the one the formatter served worst.
+        // GJS-only by construction: a GError needs GLib.
+        await describe('console: GError rendering', async () => {
+            const GLib = (await import('gi://GLib?version=2.0' as string)).default as GLibModule;
+            const Gio = (await import('gi://Gio?version=2.0' as string)).default as GioModule;
+
+            const render = (...args: unknown[]) => {
+                const lines: string[] = [];
+                const stream = new Writable({
+                    write(chunk, _enc, cb) {
+                        lines.push(chunk.toString());
+                        cb();
+                    },
+                });
+                new Console(stream, stream).error(...args);
+                return lines[0].replace(/\n$/, '');
+            };
+            const gerror = () => new GLib.Error(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND, 'no such file');
+
+            await it('should be an Error only by brand, not by instanceof', async () => {
+                // `Error.isError` is the ONLY reason a GError reaches the Error path at
+                // all — measured on gjs 1.88.1. A regression to `instanceof` would send
+                // every GError back through `JSON.stringify`.
+                const err = gerror();
+                expect(err instanceof Error).toBe(false);
+                expect(Error.isError(err)).toBe(true);
+            });
+
+            await it('should head a GError with its domain, not the literal `Error`', async () => {
+                // `err.name` is `undefined` on a GError — `Error.prototype` is not on
+                // its prototype chain — so the old `'Error'` fallback printed
+                // `Error: no such file` for what `String(err)` calls
+                // `Gio.IOErrorEnum: no such file`.
+                const err = gerror();
+                expect(err.name).toBe(undefined);
+                expect(render(err).split('\n')[0]).toBe(String(err));
+                expect(render(err).split('\n')[0]).toBe('Gio.IOErrorEnum: no such file');
+            });
+
+            await it('should carry the domain and code of a GError', async () => {
+                // Both are readable but NOT own properties, so `Object.keys` — the only
+                // source the extras had — reached neither.
+                const err = gerror();
+                expect(Object.prototype.hasOwnProperty.call(err, 'domain')).toBe(false);
+                expect(Object.prototype.hasOwnProperty.call(err, 'code')).toBe(false);
+                expect(err.code).toBe(Gio.IOErrorEnum.NOT_FOUND);
+                const rendered = render(err);
+                expect(rendered).toContain(`"domain":${err.domain}`);
+                expect(rendered).toContain(`"code":${err.code}`);
+            });
+
+            await it('should not carry the four position fields of a GError', async () => {
+                // `Object.keys(gerror)` is ["stack","fileName","lineNumber",
+                // "columnNumber"] — all four own-ENUMERABLE, unlike on a plain Error —
+                // so every GError render used to end in
+                // `{"fileName":"file:///…","lineNumber":9,"columnNumber":5}`.
+                const err = gerror();
+                expect(Object.keys(err)).toContain('fileName');
+                const rendered = render(err);
+                expect(rendered).not.toContain('"fileName"');
+                expect(rendered).not.toContain('"lineNumber"');
+                expect(rendered).not.toContain('"columnNumber"');
+                expect(rendered).not.toContain('"stack"');
+            });
+
+            await it('should keep a GError identifiable through cause and nesting', async () => {
+                const nested = render(new Error('outer', { cause: gerror() }));
+                expect(nested).toContain('[cause]: Gio.IOErrorEnum: no such file');
+                expect(render([gerror()])).toContain('Gio.IOErrorEnum: no such file');
+            });
+
+            await it('should name the domain of a GError raised by a real Gio call', async () => {
+                let caught: unknown;
+                try {
+                    Gio.File.new_for_path('/definitely/not/here').read(null);
+                } catch (thrown) {
+                    caught = thrown;
+                }
+                expect(Error.isError(caught)).toBe(true);
+                const rendered = render(caught);
+                expect(rendered.split('\n')[0].startsWith('Gio.IOErrorEnum: ')).toBe(true);
+                expect(rendered).toContain(`"code":${Gio.IOErrorEnum.NOT_FOUND}`);
             });
         });
     });

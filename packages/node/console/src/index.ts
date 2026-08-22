@@ -21,21 +21,105 @@ declare function printerr(...args: unknown[]): void;
 
 // `cause`/`errors` are rendered explicitly below, `name`/`message`/`stack` are in
 // the header — so none of them belongs in the appended own-property object.
-const _ERROR_KEYS_RENDERED_ELSEWHERE = ['name', 'message', 'stack', 'cause', 'errors'];
+// `fileName`/`lineNumber`/`columnNumber` join them: they are SpiderMonkey's position
+// fields, holding exactly the file, line and column the stack already prints. They
+// are non-enumerable on a plain `new Error()` but own-ENUMERABLE on a GError —
+// measured on gjs 1.88.1, `Object.keys(gerror)` is
+// `["stack","fileName","lineNumber","columnNumber"]` — so every GError render used to
+// carry `{"fileName":"file:///…","lineNumber":9,"columnNumber":5}` as noise. They are
+// suppressed for ALL errors rather than only where they are own-enumerable, for the
+// same reason `stack` already is: the header renders them, so a second copy is noise
+// no matter which engine put the property there.
+const _ERROR_KEYS_RENDERED_ELSEWHERE = [
+    'name',
+    'message',
+    'stack',
+    'cause',
+    'errors',
+    'fileName',
+    'lineNumber',
+    'columnNumber',
+];
 
 // `Error.isError` is the [[ErrorData]] brand check and survives realm boundaries;
 // measured present on gjs 1.88.1, node 24 and the firefox140 build target. The
 // `instanceof` arm serves the nativescript slot, whose JSC version is not pinned
-// by this repo.
+// by this repo. On GJS it is also the ONLY reason a GError is handled at all:
+// measured, `gerror instanceof Error` is false while `Error.isError(gerror)` is true.
 function _isError(value: unknown): value is Error {
     return typeof Error.isError === 'function' ? Error.isError(value) : value instanceof Error;
 }
 
-/** `Name: message` — or whichever half is non-empty. */
+// Every slot below is read through `_safeRead`/`_safeString`, because every one of
+// them can be an accessor: measured, an Error carrying a throwing getter on `name`,
+// `message`, `stack`, `cause` or an own enumerable property made `console.log(err)`
+// THROW `getter blew up` — the formatter replacing the failure it was reporting with
+// a new one. Reading defensively keeps the other slots, so a poisoned `name` still
+// prints the message and the stack.
+
+/** `value[key]`, or `undefined` if the read throws. */
+function _safeRead(value: unknown, key: string): unknown {
+    try {
+        return (value as Record<string, unknown>)[key];
+    } catch {
+        return undefined;
+    }
+}
+
+/** `String(value)`, or `undefined` if it throws or says nothing. */
+function _safeString(value: unknown): string | undefined {
+    try {
+        const text = String(value);
+        // `[object Error]` is what a prototype-stripped Error stringifies to: a brand,
+        // not an identity, and worse than the `Name: message` fallback.
+        return text.length > 0 && !text.startsWith('[object ') ? text : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/** What a caught value has to say for itself, without throwing a second time. */
+function _thrownText(thrown: unknown): string {
+    const message = _isError(thrown) ? _safeRead(thrown, 'message') : undefined;
+    if (typeof message === 'string') return message;
+    return _safeString(thrown) ?? 'unknown';
+}
+
+/**
+ * `domain` and `code` of a GJS GError.
+ *
+ * They are ACCESSORS ON THE PROTOTYPE — measured on gjs 1.88.1 for
+ * `new GLib.Error(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND, …)`: readable as 198/1,
+ * `hasOwnProperty` false for both — so `Object.keys` cannot see them and the
+ * commonest error in a GTK app rendered with no identity whatsoever. The own-property
+ * check keeps an ordinary Error that carries its own `domain`/`code` on the normal
+ * path, where its values (of any type) are rendered exactly once.
+ */
+function _gerrorIdentity(err: Error): Record<string, number> | undefined {
+    const isOwn = Object.prototype.hasOwnProperty;
+    if (isOwn.call(err, 'domain') || isOwn.call(err, 'code')) return undefined;
+    const domain = _safeRead(err, 'domain');
+    const code = _safeRead(err, 'code');
+    if (typeof domain !== 'number' || typeof code !== 'number') return undefined;
+    return { domain, code };
+}
+
+/** `Name: message` — or whichever half is non-empty. Never throws. */
 function _errorHeader(err: Error): string {
-    const name = typeof err.name === 'string' && err.name.length > 0 ? err.name : 'Error';
-    const message = typeof err.message === 'string' ? err.message : '';
-    return message.length > 0 ? `${name}: ${message}` : name;
+    const name = _safeRead(err, 'name');
+    const rawMessage = _safeRead(err, 'message');
+    const message = typeof rawMessage === 'string' ? rawMessage : '';
+    if (typeof name === 'string' && name.length > 0) {
+        return message.length > 0 ? `${name}: ${message}` : name;
+    }
+    // No usable `name`. A GJS GError has none AT ALL — `Error.prototype` is not on its
+    // prototype chain (measured: `Gio_IOErrorEnum -> GLib_Error -> Object`) — so the
+    // literal `'Error'` fallback printed `Error: no such file` for what the GError's
+    // own `toString` calls `Gio.IOErrorEnum: no such file`. The domain named there IS
+    // the identity of a GError, so ask the value before falling back.
+    const stringified = _safeString(err);
+    if (stringified !== undefined) return stringified;
+    return message.length > 0 ? `Error: ${message}` : 'Error';
 }
 
 function _indentContinuation(text: string, pad: string): string {
@@ -54,40 +138,60 @@ function _indentContinuation(text: string, pad: string): string {
  * package exists for.
  */
 function _formatError(err: Error, seen: Set<unknown>): string {
-    const header = _errorHeader(err);
     // A cause chain may be cyclic; without this the formatter would hang the
     // process while formatting the error that was meant to explain a failure.
-    if (seen.has(err)) return `[Circular ${header}]`;
+    if (seen.has(err)) return `[Circular ${_errorHeader(err)}]`;
     seen.add(err);
+    try {
+        return _renderError(err, seen);
+    } catch (thrown) {
+        // The contract of this module is that reporting a failure never becomes one,
+        // and `_stringify`'s catch sits one level BELOW the path a bare Error takes —
+        // `_formatValue` dispatches a top-level Error straight here. This guard is on
+        // EVERY Error path instead: top-level, `cause`, `AggregateError.errors`, and
+        // the replacer, all of which come through this function.
+        // Measured live throw path that reaches it: an `AggregateError` whose `errors`
+        // array has a throwing element getter — `Array.isArray` passes, the element
+        // read below throws, and there is no per-slot guard that could keep the rest.
+        return `${_errorHeader(err)} [unformattable: ${_thrownText(thrown)}]`;
+    } finally {
+        seen.delete(err);
+    }
+}
 
-    const stack = typeof err.stack === 'string' ? err.stack.replace(/\n+$/, '') : '';
+function _renderError(err: Error, seen: Set<unknown>): string {
+    const header = _errorHeader(err);
+    const rawStack = _safeRead(err, 'stack');
+    const stack = typeof rawStack === 'string' ? rawStack.replace(/\n+$/, '') : '';
     let out = stack.length === 0 ? header : stack.startsWith(header) ? stack : `${header}\n${stack}`;
 
-    const extras: Record<string, unknown> = {};
-    let hasExtras = false;
+    const extras: Record<string, unknown> = { ..._gerrorIdentity(err) };
     for (const key of Object.keys(err)) {
         if (_ERROR_KEYS_RENDERED_ELSEWHERE.includes(key)) continue;
-        extras[key] = (err as unknown as Record<string, unknown>)[key];
-        hasExtras = true;
+        extras[key] = _safeRead(err, key);
     }
-    if (hasExtras) out += ' ' + _stringify(extras, seen);
+    // Appended only when it says something. Counting KEYS instead appended a bare
+    // `{}` for an own enumerable property whose value `JSON.stringify` drops —
+    // measured, `err.detail = undefined` rendered `Error: x\n<stack> {}`, which is
+    // the exact token the Error fix exists to remove.
+    const rendered = _stringify(extras, seen);
+    if (rendered !== '{}') out += ' ' + rendered;
 
     // `cause` and `errors` are own but NON-ENUMERABLE when they come from
     // `new Error(msg, { cause })` / `new AggregateError(list, msg)` — measured on
     // node 24 and gjs 1.88.1 — so `Object.keys` above cannot see them, and
     // dropping them reproduces this very bug one level down the chain.
-    const cause = (err as { cause?: unknown }).cause;
+    const cause = _safeRead(err, 'cause');
     if (cause !== undefined) {
         out += '\n  [cause]: ' + _indentContinuation(_formatValue(cause, seen), '  ');
     }
-    const errors = (err as { errors?: unknown }).errors;
+    const errors = _safeRead(err, 'errors');
     if (Array.isArray(errors)) {
         for (let i = 0; i < errors.length; i++) {
             out += `\n  [errors][${i}]: ` + _indentContinuation(_formatValue(errors[i], seen), '  ');
         }
     }
 
-    seen.delete(err);
     return out;
 }
 
@@ -105,7 +209,7 @@ function _stringify(value: unknown, seen: Set<unknown>): string {
         // TypeError on a circular structure and on a BigInt anywhere in the graph.
         // Losing the whole line is the failure this module is being fixed for, so
         // the unrenderable value degrades to a marker and the line survives.
-        return `[unserializable: ${_isError(thrown) ? thrown.message : String(thrown)}]`;
+        return `[unserializable: ${_thrownText(thrown)}]`;
     }
 }
 
