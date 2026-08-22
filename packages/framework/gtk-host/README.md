@@ -136,5 +136,108 @@ the readers every vector asserts through:
   tree. A renderer that asserts against its own bookkeeping agrees with itself
   while the window is wrong.
 
-Adapters will run the same vectors, so "it works in Vue" and "it works in Solid"
-will mean the same thing. None is written yet — see `status/open-todos.md`.
+## Adapters
+
+`@gjsify/gtk-host/solid` is the first, and it is the thesis made checkable: Solid
+publishes a ten-method renderer contract, every one of them is a host op, and the
+adapter is the mapping — no widget name, no insertion rule, no GTK knowledge.
+`scripts/check-adapter-import-direction.mjs` holds it to that mechanically.
+
+```ts
+import { For, createComponent, createElement, insert, mount, setSolidProp } from '@gjsify/gtk-host/solid';
+
+const dispose = mount(() => {
+    const box = createElement('GtkBox');
+    insert(box, createComponent(For, { get each() { return items(); }, children: renderRow }));
+    return box;
+}, myWindow);
+```
+
+`adopt(container)` is the mount seam every adapter needs: it wraps a widget the
+application owns as a host element, resolving its descriptor through the same
+table as every other parent, and **records the children the container already
+had** so placement offsets past them. Without that record the first insertion
+resolves to GTK's "make first" and the rendered tree lands above the app's own
+chrome.
+
+Three things the adapter has to know that the contract does not say:
+
+- **`removeNode` is a detach, never a teardown.** Solid uses one op for a
+  reconciliation move and for an unmount, and `<For>` moves the same nodes across a
+  reorder (measured: 3 of 3 widget objects reused). Destroying there would recreate
+  every row on every reorder.
+- **The unmount signal is Solid's per-node scope, not `removeNode`** — but it may
+  only disconnect HANDLERS, never unlink. A node dropped by reconciliation is
+  unreachable from the root, so no later teardown can find its handlers, and GJS
+  blocks JS callbacks during GC. `onCleanup` fires exactly when a node is gone for
+  good and survives a reorder. Unlinking there breaks ordering, though: Solid
+  disposes these scopes BEFORE `insertExpression` runs, and `reconcileArrays` opens
+  with `getNextSibling(last)` — on an unlinked node that reads null, and every
+  trailing insertion appends at the end of the parent instead of before the marker.
+  A dynamic list with a static sibling after it rendered `head | foot | c`.
+- **`solid-js/universal`'s `render` returns the disposer and nothing else** — the
+  DOM renderer additionally clears its container, the universal one has no
+  equivalent, so disposing tears down the reactive scopes and leaves the widgets
+  mounted (measured: a button kept firing). Tearing the subtree down is `mount`'s job.
+
+Solid's control-flow components (`For`, `Index`, `Show`) are re-exported re-typed:
+their runtime is renderer-agnostic, their types are pinned to the DOM's `Element`.
+
+`@gjsify/gtk-host/vue` is the second, and it is what makes "framework-agnostic"
+a measured claim rather than an ADR sentence: the same descriptor table and the
+same placement engine satisfy Vue's `RendererOptions` (10 required + 4 optional)
+and Solid's universal renderer (10) without either knowing about the other.
+
+```ts
+import { mount } from '@gjsify/gtk-host/vue';
+mount(defineComponent({ render: () => h('GtkBox', null, [h('GtkLabel', { label: 'hi' })]) }), myWindow);
+```
+
+Where Vue differs from Solid, and it is all in what Vue asks for:
+
+- **`createComment`.** Vue marks every `v-if` branch and fragment boundary with
+  one. That is why the host has anchors: they never enter the GTK tree, so an
+  empty branch cannot shift a sibling's index.
+- **`createElement` receives the vnode props**, so construct-only values arrive at
+  construction instead of forcing a rebuild. Solid's `createElement(tag)` cannot.
+  The props are RAW though — `key`, `ref` and the `onVnode*` hooks are Vue's own
+  and are filtered out; passing them through produced
+  `<GtkLabel> has no property "key"` on the first keyed list.
+- **`remove` is a TEARDOWN here, not a detach** — the opposite of the Solid
+  adapter, and measured both ways. Vue moves a node with `insert` alone, so
+  `remove` is only ever a real unmount: with it mapped to `destroy`, a keyed
+  reorder still reuses 3 of 3 widget objects and the handlers are gone after
+  `app.unmount()`. Solid uses one op for both and must therefore detach.
+- **`cloneNode` and `insertStaticContent` throw.** They back Vue's static hoisting,
+  and the second one takes an HTML *string*. Compile with `hoistStatic: false` and
+  `transformHoist: null`; if that is ever lost, these throw at the first static
+  subtree instead of rendering something wrong.
+- **`<Teleport to="#id">` with a string target throws.** Answering null looks
+  gentler and is worse: `TeleportImpl` mounts nothing for a falsy target and the
+  warning is `__DEV__`-only, which the production defines below strip — so it would
+  render nothing, silently, in exactly the configuration this adapter prescribes.
+  Pass the target widget instead (`:to="el"`).
+- **A prop that disappears is reset, not nulled.** Vue signals removal with `null`;
+  the host's contract is `undefined` → the ParamSpec default. Forwarding the `null`
+  reached `set_property` verbatim, which throws for an int property — and
+  `el.props` had already recorded it for the next rebuild to replay.
+
+**Build recipe.** `@vue/runtime-core` is DOM-free in fact — every `document`,
+`navigator`, `location` and `HTMLElement` reference sits in a dev/HMR/devtools
+path behind `typeof window !== 'undefined'` or `__DEV__`. But `--globals auto` is a
+static analysis and injects a polyfill for each identifier it sees, which made the
+bundle require `gi://Gdk`, `GdkPixbuf`, `Pango` and `PangoCairo` at load. Define
+Vue's flags so dead-code elimination removes those branches:
+
+```
+--define '__VUE_OPTIONS_API__=false'
+--define '__VUE_PROD_DEVTOOLS__=false'
+--define '__VUE_PROD_HYDRATION_MISMATCH_DETAILS__=false'
+--define 'process.env.NODE_ENV="production"'
+```
+
+A vector asserts `globalThis.document` is `undefined`, so losing the recipe fails
+the suite rather than silently growing four typelib dependencies.
+
+A React adapter will run the same vectors, so "it works in Vue" and "it works in
+React" will mean the same thing.

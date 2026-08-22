@@ -39,6 +39,8 @@ export function createElement(tag: string, props?: Record<string, unknown>): Hos
         layout: null,
         textFromChildren: false,
         attached: false,
+        destroyed: false,
+        foreign: [],
     };
     if (props) {
         for (const [key, value] of Object.entries(props)) setProp(el, key, value);
@@ -458,8 +460,24 @@ function attach(parent: HostElement, child: HostElement): void {
     materialize(child);
     ensureWrapper(parent, child);
 
-    let prevWidget: Gtk.Widget | null = null;
-    let index = 0;
+    // Start AFTER what the application already put in the container. Without this
+    // the first insertion into an adopted root resolves to `insert_child_after(w,
+    // null)` — GTK's "make first" — and the rendered tree lands above the app's own
+    // chrome. `mountRoot` used to compensate for itself; every adapter needs it.
+    // Index arithmetic rather than `.at(-1)`: this package targets es2020 and
+    // `Array.prototype.at` is es2022. `gjsify tsc --noEmit` let it through on a
+    // stale tsbuildinfo; the full build did not.
+    // Filter the snapshot to what is STILL a child. `foreign` is taken once in
+    // `adopt`, and an application may add or remove its own widgets afterwards —
+    // `insert_child_after` then asserts on a sibling that has left the container
+    // (a critical at exit 0) while the shadow tree records the insertion as
+    // attached, i.e. claims GTK took a widget it refused.
+    const priorChildren =
+        parent.foreign.length > 0
+            ? parent.foreign.filter((w) => (w as unknown as { get_parent(): unknown }).get_parent() === parent.widget)
+            : parent.foreign;
+    let prevWidget: Gtk.Widget | null = priorChildren.length > 0 ? priorChildren[priorChildren.length - 1] : null;
+    let index = priorChildren.length;
     for (let n = parent.first; n && n !== child; n = n.next) {
         if (n.kind !== 'element' || !n.attached) continue;
         prevWidget = addressOf(n);
@@ -542,6 +560,24 @@ export function clearContainer(parent: HostElement): void {
 }
 
 /**
+ * Disconnect a node's handlers WITHOUT touching the tree.
+ *
+ * The narrow half of `destroy`, and it exists because a framework can tell us "this
+ * node is gone" while still holding its sibling links: Solid disposes a per-node
+ * scope BEFORE its reconciler runs, and `reconcileArrays` opens with
+ * `getNextSibling(last)`. Unlinking there made every trailing insertion append at
+ * the end of the parent instead of before the marker.
+ *
+ * The leak this closes is about handlers, not links — GJS blocks JS callbacks
+ * during GC, so an undisconnected handler outlives its widget. The framework's own
+ * `removeNode` still does the unlinking, in its own order.
+ */
+export function disconnectHandlers(el: HostElement): void {
+    clearHandlers(el);
+    el.listeners.clear();
+}
+
+/**
  * Tear a subtree down: disconnect every handler, unparent, drop the reference.
  *
  * It is eager and it is the only place a handler dies. GJS blocks JS callbacks
@@ -576,6 +612,7 @@ export function destroy(node: HostNode): void {
         node.props = {};
         node.layout = null;
         node.textFromChildren = false;
+        node.destroyed = true;
     }
 }
 
@@ -589,11 +626,25 @@ export function destroy(node: HostNode): void {
  */
 export function mountRoot(el: HostElement, container: Gtk.Widget): void {
     materialize(el);
+    const parent = adopt(container);
+    // `adopt` recorded what the container already held and `attach` offsets past
+    // it, so this is now the ordinary path.
+    insert(el, parent);
+}
+
+/**
+ * Wrap a widget the application owns as a host element.
+ *
+ * The seam every framework adapter needs: a renderer mounts into a container it
+ * did not create. The descriptor comes from the SAME table as every other parent,
+ * through `nearestRegistered`, so an application's own `GObject.registerClass`
+ * subclass inherits its ancestor's placement rules instead of failing.
+ */
+export function adopt(container: Gtk.Widget): HostElement {
     const gtype = (container as unknown as { constructor: { $gtype: GObject.GType } }).constructor.$gtype;
     const descriptor = nearestRegistered(gtype);
     if (!descriptor) throw err.unknownTag(gtypeNameOf(container));
-
-    const parent: HostElement = {
+    return {
         kind: 'element',
         descriptor,
         widget: container as unknown as GObject.Object,
@@ -610,27 +661,10 @@ export function mountRoot(el: HostElement, container: Gtk.Widget): void {
         layout: null,
         textFromChildren: false,
         attached: true,
+        destroyed: false,
+        // The children the application put there. Placement offsets past them.
+        foreign: directChildren(container),
     };
-    // The container may already hold children the application put there. The
-    // synthetic parent's shadow tree is empty, so ordinary placement computes
-    // "first" and `insert_child_after(w, null)` puts the host tree BEFORE them.
-    // Read the real children and append after the last one.
-    const existing = directChildren(container);
-    link(parent, el, null);
-    try {
-        ensureWrapper(parent, el);
-        insertChild({
-            parent,
-            child: el,
-            prevWidget: existing.length > 0 ? existing[existing.length - 1] : null,
-            index: existing.length,
-            following: [],
-        });
-        el.attached = true;
-    } catch (e) {
-        unlink(el);
-        throw e;
-    }
 }
 
 /** Direct GTK children of a widget — what the container already holds. */

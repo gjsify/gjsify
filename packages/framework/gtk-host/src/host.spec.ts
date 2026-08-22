@@ -14,6 +14,7 @@ import Gtk from 'gi://Gtk?version=4.0';
 import { gtkChildTypes, gtkChildren, installDiagnosticsGate } from './conformance/index.js';
 import { BUILTIN_DESCRIPTORS, registerBuiltinWidgets } from './descriptors/index.js';
 import {
+    adopt,
     createAnchor,
     createElement,
     createText,
@@ -922,6 +923,39 @@ export default async () => {
             await it('a number bound to a string property is stringified', async () => {
                 const label = createElement('GtkLabel', { label: 42 });
                 expect((materialize(label) as unknown as Gtk.Label).label).toBe('42');
+            });
+        });
+
+        await describe('an adopted container the application keeps mutating', async () => {
+            await it('placement ignores a prior child that has left the container', async () => {
+                // `adopt` snapshots the container's children once. An application
+                // may remove one afterwards, and `insert_child_after` then asserts
+                // on a sibling that is no longer a child — a critical at exit 0,
+                // while the shadow tree records the insertion as attached.
+                const container = new Gtk.Box();
+                const chrome = new Gtk.Label({ label: 'chrome' });
+                container.append(chrome);
+                const root = adopt(container);
+                container.remove(chrome); // the app changes its mind
+
+                const first = createElement('GtkLabel', { label: 'first' });
+                insert(first, root);
+                expect(gtkChildren(container).map((w) => (w as Gtk.Label).label)).toStrictEqual(['first']);
+                expect(first.attached).toBe(true);
+                // the diagnostics gate in afterEach is the other half of this
+            });
+
+            await it('a destroyed node says so exactly', async () => {
+                // The obvious heuristic — no widget, not attached, no props — also
+                // describes a brand-new element, and misdiagnosed it.
+                const fresh = createElement('GtkBox');
+                expect(fresh.destroyed).toBe(false);
+                const box = createElement('GtkBox');
+                materialize(box);
+                const label = createElement('GtkLabel', { label: 'x' });
+                insert(label, box);
+                destroy(label);
+                expect(label.destroyed).toBe(true);
             });
         });
 
