@@ -75,7 +75,7 @@ export function setterSlots(policy: ChildPolicy): string[] {
  * Who GTK says is in a one-child slot. `undefined` means there is no getter to ask.
  *
  * The slot's own getter is the ONLY honest reader of this, and a child-list walk
- * is not a substitute: measured on gtk 4.22 / libadwaita 1.8, a FRESH widget
+ * is not a substitute: measured on gtk 4.22.4 / libadwaita 1.9.3, a FRESH widget
  * already has direct children the application never put there —
  * `Gtk.ScrolledWindow` two `GtkScrollbar`s, `Adw.ToolbarView` two
  * `GtkRevealer`s, `Adw.Window` an `AdwDialogHost` + an `AdwGizmo`,

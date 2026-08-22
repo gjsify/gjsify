@@ -1120,6 +1120,65 @@ export default async () => {
         });
 
         await gated(diagnostics, 'a one-child container the application is already using', async () => {
+            await it("adopts a LABELLED button — that child is GTK's, not the app's", async () => {
+                // The refusal's own regression. GTK builds an internal GtkLabel
+                // for the `label` property, so `get_child()` on a fresh
+                // `Gtk.Button({ label: 'Save' })` is non-null — and reading it as
+                // application content made every labelled button unadoptable,
+                // while the error prescribed `set_child(null)`, which DELETES the
+                // label. Measured: GtkButton, GtkToggleButton and GtkCheckButton
+                // all refused; GtkWindow, AdwWindow and AdwBin all mounted.
+                const button = new Gtk.Button({ label: 'Save' });
+                expect(button.get_child()).not.toBe(null);
+                const ours = createElement('GtkLabel');
+                setProp(ours, 'label', 'mounted');
+                mountRoot(ours, button);
+                // GTK's own label gave way to ours, which is what the caller asked
+                // for. The defect was refusing the mount outright.
+                expect(gtkChildTypes(button)).toStrictEqual(['GtkLabel']);
+                expect((button.get_child() as Gtk.Label).label).toBe('mounted');
+            });
+
+            await it('refuses a TEXT child that would evict the app widget', async () => {
+                // The sink IS the slot, so the refusal cannot live in `attach`
+                // alone. Before this, the write went through: the app's widget
+                // came back unparented, the label read "mine", and neither a
+                // throw nor a GTK diagnostic said so.
+                const button = new Gtk.Button();
+                const chrome = new Gtk.Label({ label: 'APP' });
+                button.set_child(chrome);
+                const root = adopt(button);
+                let code = 'none';
+                try {
+                    insert(createText('mine'), root);
+                } catch (e) {
+                    code = (e as { code?: string }).code ?? 'no-code';
+                }
+                expect(code).toBe('occupied-slot');
+                expect(chrome.get_parent()).not.toBe(null);
+            });
+
+            await it('sees a child the app REPLACED after we adopted it', async () => {
+                // `foreign` is a snapshot taken in `adopt`; comparing the occupant
+                // against it let a later `set_child(B)` be evicted silently. What
+                // WE placed is knowable at any time, so that is what the guard
+                // asks instead.
+                const sw = new Gtk.ScrolledWindow();
+                const first = new Gtk.Label({ label: 'A' });
+                const replacement = new Gtk.Label({ label: 'B' });
+                sw.set_child(first);
+                const root = adopt(sw);
+                sw.set_child(replacement);
+                let code = 'none';
+                try {
+                    insert(createElement('GtkLabel'), root);
+                } catch (e) {
+                    code = (e as { code?: string }).code ?? 'no-code';
+                }
+                expect(code).toBe('occupied-slot');
+                expect(replacement.get_parent()).not.toBe(null);
+            });
+
             await it('refuses to overwrite the app widget, naming container and fix', async () => {
                 // Measured: `win.set_child(chrome); mount(() => label, win)` left
                 // `chrome.get_parent() === null` — no throw, no GTK warning, empty
@@ -1157,13 +1216,20 @@ export default async () => {
             });
 
             await it('an EMPTY composite still mounts — internal children are not the app', async () => {
-                // The discriminator. A child-list snapshot cannot answer this:
-                // measured on gtk 4.22 / libadwaita 1.8, a FRESH widget already has
-                // direct children nobody placed — Gtk.ScrolledWindow two
+                // Measured on gtk 4.22.4 / libadwaita 1.9.3: a FRESH widget already
+                // has direct children nobody placed — Gtk.ScrolledWindow two
                 // GtkScrollbars, Adw.ToolbarView two GtkRevealers, Adw.Window an
                 // AdwDialogHost + an AdwGizmo, Adw.StatusPage a GtkScrolledWindow —
-                // while every one of their slot getters answers null. Keying the
-                // refusal on the child list would have made all four unmountable.
+                // while every one of their slot getters answers null.
+                //
+                // An earlier version of this comment claimed a child-list snapshot
+                // "would have made all four unmountable". That is NOT what the A/B
+                // shows: swapping the getter back for a child-list walk leaves this
+                // case green, because the refusal short-circuits on a null occupant
+                // either way. The getter earns its place for ONE measured reason,
+                // and the next test is the one that proves it: AdwApplicationWindow
+                // keeps its content nested under an AdwDialogHost, so a child-list
+                // walk cannot see the application's widget at all.
                 const containers: Gtk.Widget[] = [
                     new Gtk.ScrolledWindow() as unknown as Gtk.Widget,
                     new Adw.Window() as unknown as Gtk.Widget,

@@ -140,7 +140,7 @@ function replayInto(el: HostElement): void {
     // exist yet. Placing them now is what makes bottom-up construction work, and
     // every framework builds bottom-up: Vue and React create and fill a subtree
     // before inserting it into its parent.
-    for (let child = el.first; child; child = child.next) {
+    for (const child of siblingsFrom(el.first, el)) {
         if (child.kind === 'element') attach(el, child);
     }
     if (el.textFromChildren) flushText(el);
@@ -429,6 +429,21 @@ function writeTextSink(el: HostElement, text: string): void {
     const sink = el.descriptor.textSink;
     if (!sink) throw err.textNotAccepted(el.descriptor.gtype, text);
     materialize(el);
+    // The sink IS the one-child slot, so a text write evicts whatever holds it —
+    // and the element-side refusal was only wired into `attach`. Measured:
+    // `btn.set_child(appChrome); insert(createText('mine'), adopt(btn))` left
+    // `appChrome.get_parent() === null`, `label === 'mine'`, no throw and no
+    // diagnostic. That is the very loss the refusal exists to prevent, arriving
+    // down the axis this guard's own comment describes.
+    const policy = el.descriptor.children;
+    const slotSetter = policy.kind === 'single' ? policy.set : null;
+    if (
+        slotSetter &&
+        !holdsOursInSlot(el, null) &&
+        appOccupant(el.widget as unknown as Gtk.Widget, el.descriptor, slotSetter)
+    ) {
+        throw err.occupiedSlot(el.descriptor.gtype, 'text', slotSetter);
+    }
     const specs = paramSpecs(el.descriptor.ctor(), el.descriptor.gtype);
     const spec = requireSpec(specs, el.descriptor.gtype, sink);
     beginHostWrite();
@@ -458,7 +473,7 @@ function writeTextSink(el: HostElement, text: string): void {
 // ---------------------------------------------------------------------------
 
 function* childNodes(el: HostElement): Generator<HostNode> {
-    for (let n = el.first; n; n = n.next) yield n;
+    yield* siblingsFrom(el.first, el);
 }
 
 /**
@@ -592,12 +607,31 @@ function attach(parent: HostElement, child: HostElement): void {
  * the application has since cleared itself is free again.
  */
 function refuseOccupiedSlot(parent: HostElement, child: HostElement): void {
-    if (parent.foreign.length === 0) return;
     const setter = setterSlotOf(parent, child);
     if (!setter) return;
-    const occupant = slotOccupant(parent.widget as unknown as Gtk.Widget, setter);
-    if (!occupant || !parent.foreign.includes(occupant)) return;
+    // Ours already holds it: the insert-then-unmount order Solid and React use,
+    // and it must stay allowed. Asked per SLOT, not per parent — a child in an
+    // `AdwHeaderBar`'s `start` says nothing about `end`.
+    if (holdsOursInSlot(parent, child.slot)) return;
+    if (!appOccupant(parent.widget as unknown as Gtk.Widget, parent.descriptor, setter)) return;
     throw err.occupiedSlot(parent.descriptor.gtype, child.descriptor.gtype, setter);
+}
+
+/**
+ * Does one of OUR OWN attached element children hold this slot?
+ *
+ * Derived from the shadow tree rather than remembered, and that is the point:
+ * `foreign` is a SNAPSHOT taken in `adopt`, so comparing the occupant against it
+ * missed an application that REPLACED its own child afterwards —
+ * `sw.set_child(A); adopt(sw); sw.set_child(B)` then evicted B silently, at
+ * exit 0. What we placed is knowable at any time; what the application did to
+ * its own slot since is not.
+ */
+function holdsOursInSlot(parent: HostElement, slot: string | null): boolean {
+    for (const n of siblingsFrom(parent.first, parent)) {
+        if (n.kind === 'element' && n.attached && n.slot === slot) return true;
+    }
+    return false;
 }
 
 /** `indexed` parents address a wrapper row; create it once, before first placement. */
@@ -832,10 +866,36 @@ function adoptedChildren(container: Gtk.Widget, descriptor: WidgetDescriptor): G
     if (slots.length === 0) return directChildren(container);
     const out: Gtk.Widget[] = [];
     for (const setter of slots) {
-        const occupant = slotOccupant(container, setter);
+        const occupant = appOccupant(container, descriptor, setter);
         if (occupant) out.push(occupant);
     }
     return out;
+}
+
+/**
+ * Who the APPLICATION has in a one-child slot. GTK's own child does not count.
+ *
+ * A widget with a text sink builds its own child FOR that sink: measured on gtk
+ * 4.22.4, `new Gtk.Button({ label: 'Save' })` answers `get_child()` with an
+ * internal `GtkLabel`, and `set_child(x)` sets `label` to null. Reading that
+ * label as application content made every labelled `GtkButton`,
+ * `GtkToggleButton` and `GtkCheckButton` impossible to adopt — and the refusal
+ * then prescribed `set_child(null)`, which DELETES the label. Both halves were
+ * regressions of the refusal itself.
+ *
+ * So the sink is the discriminator, the same fact the text-side guard already
+ * rests on: a non-empty sink means the occupant is GTK's, not the app's.
+ */
+function appOccupant(container: Gtk.Widget, descriptor: WidgetDescriptor, setter: string): Gtk.Widget | null {
+    const occupant = slotOccupant(container, setter);
+    if (!occupant) return null;
+    const sink = descriptor.textSink;
+    if (!sink) return occupant;
+    // The JS accessor, not `get_property`: gjs binds `GObject.Object.get_property`
+    // with its C arity (name AND an out GValue), so the one-argument form throws.
+    const key = sink.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+    const value = (container as unknown as Record<string, unknown>)[key];
+    return typeof value === 'string' && value !== '' ? null : occupant;
 }
 
 /** Direct GTK children of a widget — what the container already holds. */
