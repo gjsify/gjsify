@@ -82,12 +82,17 @@
   -webkit-mask-image: var(--icon-image-missing);
 }
 
-// …and NO name at all draws nothing, rather than the broken glyph. The element
-// adds no `adw-icon--*` class when `icon-name` is absent, empty, or not one CSS
-// token, and that is the state where the HOST decided against an icon — the tab
-// strip's indicator slot, the avatar's fallback while initials show. `Gtk.Image`
-// with a NULL icon-name draws nothing too; it is only a name that was GIVEN and
-// could not be resolved that earns the broken glyph.
+// …and NO name at all draws nothing, rather than the broken glyph. `<adw-icon>`
+// leaves the node classless only when `icon-name` is ABSENT or EMPTY, which is the
+// state where the HOST decided against an icon — the tab strip's indicator slot,
+// the avatar's fallback while initials show. `Gtk.Image` with a NULL icon-name
+// draws nothing too.
+//
+// A name that was GIVEN never reaches this rule, even an unusable one: the element
+// puts `adw-icon--image-missing` on it, because `gtk_icon_theme_lookup_icon` has no
+// "found nothing" answer either. Until it did, `<adw-button-row start-icon-name="a b">`
+// reserved a VISIBLE 16px slot and painted none of it — this rule turning the
+// pre-existing solid square into an invisible hole.
 .adw-icon:not([class*='adw-icon--']) {
   background-color: transparent;
 }

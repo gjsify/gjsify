@@ -26,6 +26,9 @@ import {
 
 import { normalizeIconName } from '@gjsify/adwaita-core';
 
+import { isIconAvailable } from './icon-registry.js';
+import { fallbackMask, maskOf } from './icon-registry.spec.js';
+
 import type { AdwActionRow } from './elements/adw-action-row.js';
 import type { AdwSwitchRow } from './elements/adw-switch-row.js';
 import type { AdwWindowTitle } from './elements/adw-window-title.js';
@@ -259,15 +262,24 @@ export const AdwActionRowsTest = async () => {
                 // The mask class is the NORMALIZED name — the generated classes never
                 // carry `-symbolic`, so interpolating the raw one asks for a class that has
                 // never existed and draws an empty box.
-                if (vector.startIconVisible) {
-                    expect(icons[0]!.classList.contains(`adw-icon--${normalizeIconName(vector.startIconName)}`)).toBe(
-                        true,
-                    );
-                }
-                if (vector.endIconVisible) {
-                    expect(icons[1]!.classList.contains(`adw-icon--${normalizeIconName(vector.endIconName)}`)).toBe(
-                        true,
-                    );
+                //
+                // And the class is only HALF the answer. `external-link-symbolic` in these
+                // vectors is well formed, normalizes cleanly and gets its class — while no
+                // mask class of that name exists (it is in neither the Adwaita icon theme
+                // nor `@gjsify/adwaita-icons`), so it paints the image-missing glyph. This
+                // suite was green on that: the class-string assertion the icon work exists
+                // to end. `isIconAvailable` reads the live cascade, so it decides which of
+                // the two answers is right for THIS name instead of the test guessing.
+                for (const [index, declared, visible] of [
+                    [0, vector.startIconName, vector.startIconVisible],
+                    [1, vector.endIconName, vector.endIconVisible],
+                ] as const) {
+                    if (!visible) continue;
+                    const icon = icons[index]!;
+                    const resolved = normalizeIconName(declared);
+                    expect(icon.classList.contains(`adw-icon--${resolved}`)).toBe(true);
+                    expect(maskOf(icon)).not.toBe('none');
+                    expect(maskOf(icon) === fallbackMask()).toBe(!isIconAvailable(resolved));
                 }
                 host.remove();
             });

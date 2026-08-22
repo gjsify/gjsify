@@ -37,9 +37,15 @@ export const AdwIconTest = async () => {
                 // The base class is unconditional: a nameless icon is still an icon box,
                 // which `<adw-status-page>` hides rather than omits.
                 expect(el.classList.contains('adw-icon')).toBe(true);
-                // …and NOTHING else is on the node — the assertion a hand-rolled copy
-                // cannot make, where `icon-name="a b"` leaves a stray `b`.
-                expect(extraClasses(el)).toStrictEqual(normalized === '' ? [] : [`adw-icon--${normalized}`]);
+                // …and EXACTLY ONE mask class is on it — the assertion a hand-rolled copy
+                // cannot make, where `icon-name="a b"` left a stray `b`. A name that was
+                // GIVEN but is unusable falls back to the glyph GTK falls back to, so only
+                // an absent or empty name leaves the node classless.
+                // Spelled out rather than reusing the impl's own predicate, so the
+                // expectation cannot agree with a wrong implementation.
+                let drawn = normalized;
+                if (drawn === '' && (icon ?? '') !== '') drawn = 'image-missing';
+                expect(extraClasses(el)).toStrictEqual(drawn === '' ? [] : [`adw-icon--${drawn}`]);
                 host.remove();
             });
         }
@@ -110,8 +116,9 @@ export const AdwIconTest = async () => {
             const { el, host } = mount<AdwMenuButton>('adw-menu-button');
             el.setAttribute('icon-name', 'a b');
             const icon = el.querySelector('.adw-icon') as HTMLElement;
-            // `adw-icon--a b` would have added a second, unrelated `b` class.
-            expect(extraClasses(icon)).toStrictEqual(['adw-menu-button-icon']);
+            // `adw-icon--a b` would have added a second, unrelated `b` class. What it gets
+            // instead is the ONE fallback class, not two tokens and not none.
+            expect(extraClasses(icon)).toStrictEqual(['adw-icon--image-missing', 'adw-menu-button-icon']);
             host.remove();
         });
 
@@ -124,9 +131,11 @@ export const AdwIconTest = async () => {
             ];
             const items = [...el.querySelectorAll('.adw-menu-button-item')];
             expect(items.length).toBe(3);
-            // An unusable name draws nothing rather than injecting markup, and
-            // an entry with no icon still gets no icon node at all.
-            expect(items[0].querySelector('.adw-icon')).toBe(null);
+            // An entry that ASKED for an icon keeps its slot even when the name is
+            // unusable — it shows the broken glyph, which is what tells the author the
+            // name is wrong. Only an entry with no `icon` key gets no node at all.
+            const bad = items[0].querySelector('.adw-icon') as HTMLElement;
+            expect(extraClasses(bad)).toStrictEqual(['adw-icon--image-missing', 'adw-menu-button-item-icon']);
             expect(items[2].querySelector('.adw-icon')).toBe(null);
             const good = items[1].querySelector('.adw-icon') as HTMLElement;
             expect(extraClasses(good)).toStrictEqual(['adw-icon--view-refresh', 'adw-menu-button-item-icon']);

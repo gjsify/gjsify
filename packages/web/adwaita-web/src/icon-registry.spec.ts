@@ -34,7 +34,13 @@ function mount(iconName: string | null): { el: AdwIcon; host: HTMLElement } {
     return { el, host };
 }
 
-const maskOf = (el: HTMLElement): string => getComputedStyle(el).maskImage;
+/**
+ * What an icon box actually draws. Exported because the vector-driven icon specs
+ * (`adw-action-rows`, `adw-button-content`, `split-button`) need the same discriminator:
+ * they used to read `classList` alone, which is green on a correctly-applied class over
+ * a glyph nobody has.
+ */
+export const maskOf = (el: HTMLElement): string => getComputedStyle(el).maskImage;
 
 /**
  * The `--icon-image-missing` the stylesheet compiles, as the cascade resolves it.
@@ -45,7 +51,7 @@ const maskOf = (el: HTMLElement): string => getComputedStyle(el).maskImage;
  * `url("data:image/svg+xml,%3Csvg%20height…` prefix, so a leading slice matches ALL of
  * them, and the first version of this file passed that way while asserting nothing.
  */
-function fallbackMask(): string {
+export function fallbackMask(): string {
     return getComputedStyle(document.documentElement).getPropertyValue('--icon-image-missing').trim();
 }
 
@@ -86,11 +92,20 @@ export const AdwIconRegistryTest = async () => {
             host.remove();
         });
 
-        await it('a name that is not one CSS token is the nameless case, not the unknown one', () => {
-            const { el, host } = mount('a b');
-            expect(el.resolvedIconName).toBe('');
-            expect(getComputedStyle(el).backgroundColor).toBe('rgba(0, 0, 0, 0)');
-            host.remove();
+        await it('a name that is not one CSS token draws image-missing, not nothing', () => {
+            // GTK has no third answer: `gtk_icon_theme_lookup_icon` never returns NULL, so
+            // `org.gnome.Builder` on a machine without Builder paints the broken glyph.
+            // The web used to paint an invisible hole instead — a VISIBLE 16px slot with
+            // nothing in it, since `resolvedIconName === ''` was read as "no icon asked
+            // for". Reachable through a first-class attribute: `application-icon` is the
+            // application ID by convention (adw-about-dialog.c:1215).
+            for (const unusable of ['a b', 'org.gnome.Builder']) {
+                const { el, host } = mount(unusable);
+                expect(el.resolvedIconName).toBe('');
+                expect(maskOf(el)).toBe(fallbackMask());
+                expect(getComputedStyle(el).backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+                host.remove();
+            }
         });
     });
 

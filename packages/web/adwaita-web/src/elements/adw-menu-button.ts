@@ -21,7 +21,12 @@
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
-import { isSplitButtonDirection, menuButtonPopupDirection, parseMenuEntries } from '@gjsify/adwaita-core';
+import {
+    isSplitButtonDirection,
+    menuButtonPopupDirection,
+    parseMenuEntries,
+    stringIsNotEmpty,
+} from '@gjsify/adwaita-core';
 import type { AdwMenuEntry, SplitButtonDirection } from '@gjsify/adwaita-core';
 
 // SIDE-EFFECT import, deliberately separate from the type import below: it guarantees
@@ -211,11 +216,12 @@ export class AdwMenuButton extends HTMLElement {
             item.setAttribute('role', 'menuitem');
             item.tabIndex = -1;
 
-            // An entry with no USABLE icon gets no icon node at all rather than an empty
-            // 16px box; `<adw-icon>` itself answers whether the name resolved, so the
-            // `-symbolic`-only and bad-token cases agree.
+            // An entry that asked for NO icon gets no icon node — the emptiness of the
+            // declared name, not whether it resolved. Testing `resolvedIconName` dropped
+            // the node for a name that was given and merely undrawable, which is the one
+            // case a reader needs to SEE; `<adw-icon>` draws `image-missing` there.
             const entryIcon = createAdwIcon(entry.icon ?? null, 'adw-menu-button-item-icon');
-            if (entryIcon.resolvedIconName !== '') item.appendChild(entryIcon);
+            if (stringIsNotEmpty(entry.icon)) item.appendChild(entryIcon);
             const labelEl = document.createElement('span');
             labelEl.className = 'adw-menu-button-item-label';
             labelEl.textContent = entry.label;

@@ -55,7 +55,13 @@ export class AdwStatusPage extends HTMLElement {
     private _render() {
         // The element swaps the mask class and keeps the size class.
         this._iconEl.iconName = this.getAttribute('icon');
-        this._iconEl.hidden = this._iconEl.resolvedIconName === '';
+        // `has_image`: `paintable || (icon_name && icon_name[0])` — a name that was GIVEN
+        // shows the image whether or not the theme can resolve it, and GTK draws
+        // `image-missing` in it. Reading `resolvedIconName` instead hid the slot for every
+        // name that is not one CSS token, a branch the C does not have.
+        // Reference: refs/libadwaita/src/adw-status-page.c:88 (has_image), bound from
+        //   `<binding name="visible">` in adw-status-page.ui:27-31.
+        this._iconEl.hidden = !stringIsNotEmpty(this.getAttribute('icon'));
 
         // `string_is_not_empty` from the core, not a local `.length === 0`: the same
         // closure the NativeScript port binds its labels to, and the reason a title of
