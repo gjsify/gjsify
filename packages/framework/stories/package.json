@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/stories",
-    "version": "0.41.0",
+    "version": "0.42.0",
     "description": "Runtime-agnostic story-authoring contract (controls, args, metadata) shared by every gjsify storybook renderer",
     "type": "module",
     "module": "lib/esm/index.js",

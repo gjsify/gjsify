@@ -1,5 +1,63 @@
 # Changelog
 
+## [0.42.0](https://github.com/gjsify/gjsify/compare/v0.41.0...v0.42.0) (2026-08-22)
+
+### Features
+
+* **adwaita-web:** make every activatable row a tab stop ([#1254](https://github.com/gjsify/gjsify/issues/1254)) ([a658bec](https://github.com/gjsify/gjsify/commit/a658bec3693e4fcd3acaf959dab8f5bdcabd1599))
+* **adwaita:** ledger every one-renderer widget ([#1243](https://github.com/gjsify/gjsify/issues/1243)) ([cc2b2c6](https://github.com/gjsify/gjsify/commit/cc2b2c615d683d8a1237a2b8aeb1bb3a093a427d))
+* **cli:** add gjsify dev, a watch-rebuild loop ([#1237](https://github.com/gjsify/gjsify/issues/1237)) ([34e8fbf](https://github.com/gjsify/gjsify/commit/34e8fbf3b834d23cbcf3ba1b515f384682a7c138)), closes [#1133](https://github.com/gjsify/gjsify/issues/1133)
+* **cli:** ship can package translations ([#1263](https://github.com/gjsify/gjsify/issues/1263)) ([b079fc8](https://github.com/gjsify/gjsify/commit/b079fc8c9ede397b4245c3b19072e77395c0796a))
+* **devtools:** find a widget, and send it a key ([#1246](https://github.com/gjsify/gjsify/issues/1246)) ([1d86068](https://github.com/gjsify/gjsify/commit/1d86068d54b489737418ebe6c989701e77a08d3a))
+* **domparser:** parse HTML and run real selectors ([#1250](https://github.com/gjsify/gjsify/issues/1250)) ([bed3e93](https://github.com/gjsify/gjsify/commit/bed3e93d1338e34b3315c3a3691a9da64f321559)), closes [#034](https://github.com/gjsify/gjsify/issues/034)
+* **showcases:** ship the typeface the chrome names ([#1255](https://github.com/gjsify/gjsify/issues/1255)) ([848b797](https://github.com/gjsify/gjsify/commit/848b797e047d653a581305ff4009f57bf241c9e0))
+
+### Bug Fixes
+
+* **adwaita-nativescript:** style what a showcase emits ([#1262](https://github.com/gjsify/gjsify/issues/1262)) ([c777035](https://github.com/gjsify/gjsify/commit/c7770354e1d2832a9850b1060a8e4a81364fbde2))
+* **adwaita-web:** draw a glyph, not a solid square ([#1249](https://github.com/gjsify/gjsify/issues/1249)) ([5464286](https://github.com/gjsify/gjsify/commit/54642867e51f435b1f1f845daf24c920bf5ca395))
+* **adwaita-web:** honour the keyboard it declares ([#1248](https://github.com/gjsify/gjsify/issues/1248)) ([e70093c](https://github.com/gjsify/gjsify/commit/e70093c0edb0862ddf9f29fbc9dee816cf8adeb6))
+* **adwaita-web:** make a toggle group one tab stop ([#1261](https://github.com/gjsify/gjsify/issues/1261)) ([64c4e5b](https://github.com/gjsify/gjsify/commit/64c4e5bd2d4cd5f57191f1e74e8daed8ad79d81f))
+* **adwaita-web:** stop evaluating once at connect ([#1242](https://github.com/gjsify/gjsify/issues/1242)) ([727cfc5](https://github.com/gjsify/gjsify/commit/727cfc580e9c02fb8304ab4c1d71259e0a7dc91f)), closes [#1240](https://github.com/gjsify/gjsify/issues/1240) [#1240](https://github.com/gjsify/gjsify/issues/1240)
+* **adwaita:** a rule's ancestor is part of the answer ([#1264](https://github.com/gjsify/gjsify/issues/1264)) ([8f48152](https://github.com/gjsify/gjsify/commit/8f48152c8d79dddefec5cee3432b937c173c8492)), closes [#1262](https://github.com/gjsify/gjsify/issues/1262) [#1123](https://github.com/gjsify/gjsify/issues/1123)
+* **adwaita:** check what a core-only exemption claims ([#1241](https://github.com/gjsify/gjsify/issues/1241)) ([8356624](https://github.com/gjsify/gjsify/commit/835662456125c8f3388c3d10b27155ebccdd5507))
+* **adwaita:** derive the web element set from what it registers ([#1238](https://github.com/gjsify/gjsify/issues/1238)) ([56300f7](https://github.com/gjsify/gjsify/commit/56300f7626435d231a4cbb41d0ba33dc81ca536c))
+* **adwaita:** stop the typeface evaporating in a build ([#1247](https://github.com/gjsify/gjsify/issues/1247)) ([ef925eb](https://github.com/gjsify/gjsify/commit/ef925eb2f3c2351396f7a1da6fca65f4fa5f93d6))
+* **bundler:** inline static reads in first-party sources ([#1257](https://github.com/gjsify/gjsify/issues/1257)) ([af88fec](https://github.com/gjsify/gjsify/commit/af88fec5801e15d2b55074a649d367008a265670)), closes [#1252](https://github.com/gjsify/gjsify/issues/1252)
+* **cli:** check GI libraries by typelib ([#1230](https://github.com/gjsify/gjsify/issues/1230)) ([95a10de](https://github.com/gjsify/gjsify/commit/95a10dee5a2311c1ad1ecd45009c05fdc227ef7d))
+* **cli:** emit the GI runtime-path prologue ([#1236](https://github.com/gjsify/gjsify/issues/1236)) ([dce8914](https://github.com/gjsify/gjsify/commit/dce8914e14719deac9ff8b6ee1cde4f01cbdb0c8)), closes [#1152](https://github.com/gjsify/gjsify/issues/1152) [#1160](https://github.com/gjsify/gjsify/issues/1160) [#1026](https://github.com/gjsify/gjsify/issues/1026) [#910](https://github.com/gjsify/gjsify/issues/910)
+* **cli:** gate the GJS spawn teardown contract ([#1225](https://github.com/gjsify/gjsify/issues/1225)) ([3ad4115](https://github.com/gjsify/gjsify/commit/3ad41153009b252339fae24a3dd96779cb3dad63))
+* **cli:** resolve node-script deps from the CLI ([#1232](https://github.com/gjsify/gjsify/issues/1232)) ([514928e](https://github.com/gjsify/gjsify/commit/514928e0149c7df1633e505452a48ffa9ff636f3)), closes [#1231](https://github.com/gjsify/gjsify/issues/1231)
+* **cli:** ship war auf echten Apps unbenutzbar ([#1251](https://github.com/gjsify/gjsify/issues/1251)) ([c3e8dce](https://github.com/gjsify/gjsify/commit/c3e8dce71e6ecfbf9a385bf657830d7a81a88d01))
+* **node-gi:** assert a decode, not a file count ([#1239](https://github.com/gjsify/gjsify/issues/1239)) ([0245982](https://github.com/gjsify/gjsify/commit/0245982bd77142a444af9db34517ef54a7c1e68e)), closes [#996](https://github.com/gjsify/gjsify/issues/996) [#996](https://github.com/gjsify/gjsify/issues/996) [#1063](https://github.com/gjsify/gjsify/issues/1063) [#774](https://github.com/gjsify/gjsify/issues/774) [#996](https://github.com/gjsify/gjsify/issues/996)
+* **rolldown-native:** keep resolve error cause chain ([#1231](https://github.com/gjsify/gjsify/issues/1231)) ([2cac057](https://github.com/gjsify/gjsify/commit/2cac05786d4fa20426d925e2f5fd838c7e5e6c2d)), closes [#1232](https://github.com/gjsify/gjsify/issues/1232)
+* **ship:** refuse a payload that is not its label ([#1265](https://github.com/gjsify/gjsify/issues/1265)) ([51f205a](https://github.com/gjsify/gjsify/commit/51f205a0805a7c81256e8c9c2c7c7a9379417ab2))
+* **url:** write searchParams back into href ([#1245](https://github.com/gjsify/gjsify/issues/1245)) ([ca681e1](https://github.com/gjsify/gjsify/commit/ca681e1bb90aef8da1a72d91f2f3830baa4db55a))
+
+### Documentation
+
+* **adr:** record host-bound ship formats ([4999aa4](https://github.com/gjsify/gjsify/commit/4999aa41d49efcdf5de6cb19637149a859a05cb7))
+* correct why npm rolldown does not run under GJS ([#1269](https://github.com/gjsify/gjsify/issues/1269)) ([f9fd6e2](https://github.com/gjsify/gjsify/commit/f9fd6e27c2508b4bbb9c0faa950b15da06fe084a)), closes [#1257](https://github.com/gjsify/gjsify/issues/1257) [#1268](https://github.com/gjsify/gjsify/issues/1268) [#1268](https://github.com/gjsify/gjsify/issues/1268)
+* describe the CLI the repo actually ships ([#1235](https://github.com/gjsify/gjsify/issues/1235)) ([c1576b6](https://github.com/gjsify/gjsify/commit/c1576b68a0332aeaf7c35a098d327593ef85677e))
+* **release:** what 0.42.0 is about ([#1258](https://github.com/gjsify/gjsify/issues/1258)) ([0c9d260](https://github.com/gjsify/gjsify/commit/0c9d2605dfa9bbce52205b778d3afbce863f82e2))
+* say what shipped, and what the probe measured ([#1260](https://github.com/gjsify/gjsify/issues/1260)) ([f1b5b65](https://github.com/gjsify/gjsify/commit/f1b5b65bbe6b7f213816fa4b7fad12c7f6195871)), closes [#1237](https://github.com/gjsify/gjsify/issues/1237) [#1237](https://github.com/gjsify/gjsify/issues/1237) [#509](https://github.com/gjsify/gjsify/issues/509) [#1239](https://github.com/gjsify/gjsify/issues/1239) [#774](https://github.com/gjsify/gjsify/issues/774)
+* **status:** correct what the status surface claims ([#1233](https://github.com/gjsify/gjsify/issues/1233)) ([0c7c84b](https://github.com/gjsify/gjsify/commit/0c7c84b292394e892c794140f964a1d0883b5226)), closes [#848](https://github.com/gjsify/gjsify/issues/848)
+
+### Continuous Integration
+
+* **adwaita:** hold three hand-kept claims to the tree ([#1244](https://github.com/gjsify/gjsify/issues/1244)) ([d2a3be6](https://github.com/gjsify/gjsify/commit/d2a3be65fc337f69fc70c7b16bdc26831c33ae42)), closes [#1228](https://github.com/gjsify/gjsify/issues/1228)
+* fail the cut on an empty ship glob ([7f15594](https://github.com/gjsify/gjsify/commit/7f15594f38ed50d885fd2b5f532e10457b377ab2))
+* gate what the workflows actually build ([#1234](https://github.com/gjsify/gjsify/issues/1234)) ([068cb08](https://github.com/gjsify/gjsify/commit/068cb0808369e9adcda8492ada4b2a31624872e7))
+* make two green gates able to go red ([#1240](https://github.com/gjsify/gjsify/issues/1240)) ([e0c41c2](https://github.com/gjsify/gjsify/commit/e0c41c21820297c1b075753327cfa2534656fb86))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([7423cc1](https://github.com/gjsify/gjsify/commit/7423cc1d99697cb4372dc815efc9515806c3629a))
+* update native prebuilds [skip ci] ([839c333](https://github.com/gjsify/gjsify/commit/839c333f6e900cfdbf5d7801281e98e20b6bf3e3))
+* update native prebuilds [skip ci] ([5d46a35](https://github.com/gjsify/gjsify/commit/5d46a35c01d7a9c20baa31aab5a6b6abbac1fd97))
+* update native prebuilds [skip ci] ([6517f92](https://github.com/gjsify/gjsify/commit/6517f92aafe0bc9a923f88e40bbf1d849f134524))
+* update native prebuilds [skip ci] ([24f9cef](https://github.com/gjsify/gjsify/commit/24f9cef5fb0c396144cb6159e2f61f836b7a6c8e))
+
 ## [0.41.0](https://github.com/gjsify/gjsify/compare/v0.40.0...v0.41.0) (2026-08-18)
 
 ### Features

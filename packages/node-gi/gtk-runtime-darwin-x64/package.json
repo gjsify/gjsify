@@ -1,6 +1,6 @@
 {
   "name": "@gjsify/gtk-runtime-darwin-x64",
-  "version": "0.41.0",
+  "version": "0.42.0",
   "description": "Batteries-included, relocated GTK/GObject-Introspection runtime bundle for macOS Intel (x64) — lets @gjsify/node-gi load gi:// namespaces (GLib/GObject/Gio/cairo/Pango/Graphene/Gdk) with NO Homebrew GTK. Platform-gated (darwin/x64 only).",
   "type": "module",
   "license": "SEE LICENSE IN gtk/THIRD-PARTY-NOTICES.md",

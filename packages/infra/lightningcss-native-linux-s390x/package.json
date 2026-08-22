@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/lightningcss-native-linux-s390x",
-    "version": "0.41.0",
+    "version": "0.42.0",
     "description": "linux-s390x prebuilt native library + GObject-Introspection typelib for @gjsify/lightningcss-native. Installed automatically on linux/s390x as an optionalDependency of that package (ADR 0017) and skipped everywhere else. Contains no JavaScript.",
     "license": "MIT",
     "os": [

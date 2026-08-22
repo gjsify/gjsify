@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/oxlint-plugin-gjsify",
-    "version": "0.41.0",
+    "version": "0.42.0",
     "description": "Internal oxlint JS plugin for gjsify — GObject.registerClass field-ordering + deferred-process-exit rules. NOT published to npm.",
     "private": true,
     "type": "module",
