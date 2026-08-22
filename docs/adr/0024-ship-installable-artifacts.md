@@ -492,3 +492,55 @@ runs anywhere"*, and that there is *"no packaging file to keep in your repo"*. B
 here: `--format dmg` refuses on Linux, and `gjsify ship ci` scaffolds a workflow into the
 consumer's repository. The honest replacement is A1's rule plus: *assemble anywhere, pack where the
 format's tool lives, and never claim a signature we could not make.*
+
+## Amendment, 2026-08-22 — translations are payload, and the prefix has to reach the app
+
+### A8. `localeDir`: compiled catalogues, staged in the only layout that is ever read
+
+§ 2 listed the payload as "the app bundle, its assets, its GSettings schemas, its icons and its
+metadata". Translations were not in it, and nothing else carried them: an app with a working
+gettext setup could be packaged and would show English on a German desktop, because the `.mo`
+files simply were not in the artifact.
+
+`gjsify.ship.localeDir` names a directory of COMPILED catalogues — `<lang>/LC_MESSAGES/<domain>.mo`,
+which is the default output of `@gjsify/vite-plugin-gettext`'s `gettextPlugin` — and they are
+staged into `share/locale/` with that structure preserved.
+
+The structure is not a stylistic choice: `bindtextdomain` looks in `<dir>/<lang>/LC_MESSAGES/` and
+nowhere else. So discovery REFUSES three shapes, all of them the same failure wearing different
+clothes — a package that installs its translations and shows none of them:
+
+| refused | why it would otherwise pass |
+|---|---|
+| a `.po` beside or instead of a `.mo` | `bindtextdomain` reads `.mo` only; a staged `.po` is a file nothing opens |
+| a `.mo` outside `<lang>/LC_MESSAGES/` | the commonest slip is `msgfmt` run without the `LC_MESSAGES` level |
+| a declared directory holding no `.mo` at all | a promise the package does not keep, and it packs green |
+
+That failure mode is why the refusals exist rather than warnings. An untranslated UI is
+indistinguishable from "this app has no German", so nobody reports it as a packaging bug — it is
+the quietest possible way for a release to be wrong.
+
+### A9. The launcher passes the locale directory, for the reason § 3 already gives
+
+§ 3 established that the launcher derives its prefix at runtime so ONE payload becomes `/usr` in a
+`.deb`, `/usr` in an `.rpm` and `/app` in a Flatpak. Catalogues inherit that problem exactly:
+`bindtextdomain` takes a directory, and there is no environment variable the *library* reads on its
+own (`TEXTDOMAINDIR` is honoured by the gettext command-line tools, not by glibc's
+`bindtextdomain`). A baked `/usr/share/locale` would be wrong in a Flatpak and in every
+`--prefix` tree.
+
+So the launcher exports `GJSIFY_LOCALE_DIR="$prefix"/share/locale` when — and only when — something
+was staged, and the app calls `bindtextdomain(domain, GLib.getenv('GJSIFY_LOCALE_DIR') ?? '/usr/share/locale')`.
+Same division of labour as `XDG_DATA_DIRS` for icons and schemas: the launcher knows the install
+layout, the app does not.
+
+### A10. The locale tree drops out of the wholesale bundle staging
+
+`discoverPayload` stages every file beside the bundle into `lib/<binary>/`, and `dist/locale/` sits
+beside `dist/app.gjs.mjs` in the layout above. Measured on a probe package: the same `.mo` came out
+at BOTH `share/locale/de/LC_MESSAGES/` and `lib/<binary>/locale/de/LC_MESSAGES/`. The second copy is
+dead weight — nothing looks there.
+
+This is the same class as `ship` once staging the test suite: whatever lies next to the bundle is
+carried, whether or not it belongs in a package. The subtraction is targeted at the DECLARED locale
+directory only, so a package that legitimately ships assets beside its bundle keeps them.

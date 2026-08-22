@@ -44,6 +44,7 @@ function settings(overrides: Partial<ShipSettings> = {}): ShipSettings {
         iconFiles: [],
         schemaFiles: [],
         typelibFiles: [],
+        localeFiles: [],
         extraFiles: {},
         execArgs: [],
         outDir: 'ship',

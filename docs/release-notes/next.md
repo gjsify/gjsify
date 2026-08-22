@@ -58,6 +58,26 @@ A GI library that arrives as a gjsify npm prebuild — `Gwebgl` is the one that 
 
 Both halves are staged from the same directory on purpose: a typelib without its shared library installs and then dies at the first import, which is the failure this feature exists to prevent.
 
+### `ship` can package translations
+
+`gjsify.ship.localeDir` names a directory of compiled catalogues and stages them into
+`share/locale/`, keeping the `<lang>/LC_MESSAGES/<domain>.mo` layout that `bindtextdomain` reads.
+The launcher then exports `GJSIFY_LOCALE_DIR`, so the app finds them without knowing which prefix
+it was installed under — the same division of labour § 3 of ADR 0024 already uses for icons and
+schemas.
+
+Translations were simply not part of the payload before: an app with a working gettext setup
+packaged fine and showed English on a German desktop.
+
+Discovery refuses a `.po` left in place of a `.mo`, a catalogue outside `<lang>/LC_MESSAGES/`, and
+a declared directory holding no catalogue at all. All three are the same failure — a package that
+installs its translations and shows none of them — and it is the quietest kind, because an
+untranslated UI is indistinguishable from "this app has no German".
+
+One thing found by reading the built `.rpm` rather than the config: `dist/locale/` sits beside the
+bundle, so the wholesale bundle staging shipped every catalogue a second time under
+`lib/<binary>/locale/`. The declared locale tree now drops out of that staging.
+
 ### Two smaller things `ship` got wrong
 
 - **`Gda-6.0` had no entry in the typelib table**, so any app touching libgda was refused with an accurate but unhelpful message. It maps to `gir1.2-gda-6.0` / `libgda` now.
