@@ -1,76 +1,67 @@
 #!/usr/bin/env node
 // Every icon name a web-facing Adwaita surface emits has a mask class, or a reason.
 //
-// THE INCIDENT
+// THE INCIDENT. A symbolic icon is a CSS mask, and a generated `.adw-icon--<name>` class
+// supplies the `mask-image`. Its input is a HAND-WRITTEN map in
+// `packages/web/adwaita-web/scripts/build-scss.mjs` — a SUBSET, because inlining all of
+// `@gjsify/adwaita-icons` costs a measured ~1.07 MB of data-URI, some five times the
+// stylesheet it would sit in. The run's own stdout line carries the counts.
 //
-// `@gjsify/adwaita-web` draws a symbolic icon as a CSS mask: `_icon.scss` gives
-// `.adw-icon` a box and `background-color: currentColor`, and a generated
-// `.adw-icon--<name>` class supplies the `mask-image`. The generator's input is a
-// HAND-WRITTEN map in `packages/web/adwaita-web/scripts/build-scss.mjs` holding 41
-// of the 644 icons `@gjsify/adwaita-icons` exports — it has to be a subset, because
-// inlining all of them costs a measured 1 095 098 bytes of data-URI against a
-// 190 KB stylesheet.
+// A name outside that map used to fail SILENTLY, painting a SOLID 16px square read as a
+// deliberate swatch — measured in `adwaita-web/scss/_icon.scss`, beside the rule that
+// ended it.
 //
-// A name outside that map used to fail SILENTLY, and in the worst possible shape:
-// with no `mask-image` the box kept `background-color: currentColor` and painted a
-// SOLID 16px square in the widget's text colour — read as a deliberate swatch, not
-// as a missing glyph. Measured in Firefox: `.adw-icon.adw-icon--dialog-error`
-// reported `mask-image: none`, `background-color: rgb(0, 128, 0)`, box 16x16, beside
-// a `go-next` control whose mask was an 825-character data URI.
+// No test could see it — `adw-icon.spec.ts` asserted the class STRING, which had always
+// been applied, correctly, to nothing. The silence bought four renderer-comparison
+// surfaces drawing a different glyph from the GTK pane they exist to be compared
+// against: the browser storybook substituted `view-grid` for `view-paged-symbolic` under
+// a comment blaming `@gjsify/adwaita-icons` for not having it (it exports
+// `viewPagedSymbolic`, actions.ts:981 — the missing half was the mask class), and the
+// toolbar-view story plus two website previews did the same for `folder-documents`.
 //
-// No test could see it. `adw-icon.spec.ts` asserted that the class STRING had been
-// applied — which it always had been, correctly, to nothing. What the silence bought
-// was four renderer-comparison surfaces drawing a different glyph from the GTK pane
-// they exist to be compared against: the browser storybook substituted `view-grid`
-// for `view-paged-symbolic` under a comment blaming `@gjsify/adwaita-icons` for not
-// having it (it exports `viewPagedSymbolic` at actions.ts:981 — the mask class was
-// what was missing), the browser toolbar-view story and two website previews did the
-// same for `folder-documents` with no note at all.
-//
-// WHAT IT CHECKS, IN BOTH DIRECTIONS
-//
-// - a name a web-facing source EMITS must be a key in the ICONS map, and
-// - a key in the ICONS map must be emitted by one of them.
-//
-// The second arm is what makes the 1 MB constraint enforceable. Each icon costs a
-// mean 1484 bytes of the shipped stylesheet, so a map that only ever grows is how
-// the subset stops being a subset; `edit-paste` was already in it with nothing in
-// the tree naming it. Either state can instead be listed in
-// `status/adwaita-web-icon-masks.json` with a REASON, and a listed name that has
-// since resolved — or that nothing emits any more — is a failure too: an exemption
-// may not outlive the situation it describes.
+// WHAT IT CHECKS, IN BOTH DIRECTIONS: a name a web-facing source EMITS must be a key in
+// the ICONS map, and a key in the map must be emitted by one of them. The second arm is
+// what makes the size constraint enforceable — an icon costs of the order of 1.5 KB of
+// shipped stylesheet, and `edit-paste` was already in the map with nothing naming it.
+// Either state can instead be listed in `status/adwaita-web-icon-masks.json` with a
+// REASON; a listed name that has since resolved, or that nothing emits any more, fails
+// too — an exemption may not outlive what it describes.
 //
 // THE MAP, NOT THE GENERATED PARTIAL. `scss/_icons.generated.scss` is gitignored and
 // this gate runs in `audit-runtimes.yml`, which neither installs nor builds — reading
 // the artifact would make the check pass by finding nothing.
 //
-// SCOPE, AND WHY IT IS NARROW. Only surfaces that render THROUGH this stylesheet: the
-// widgets and partials in `packages/web/adwaita-web`, the `@gjsify/adwaita-core`
-// substitutions the web renderer turns into classes, the browser storybook, the story
-// metas' icon control values (a control the browser story reads), and the website's
-// rendered web panes. Deliberately excluded, each because its icon contract is a
-// different one:
-//   • a GTK story or a doc's `gjs` pane — `Gtk.IconTheme` resolves the name against
-//     the SYSTEM theme, so `folder-documents-symbolic` there is correct and needs no
-//     class here. This is also why a website `.mdx` is read only for `=`-form HTML
-//     attributes: the same file carries GJS (`iconName: 'x-symbolic'`) and Blueprint
+// SCOPE: EVERY SHIPPING SURFACE THAT RENDERS THROUGH THIS STYLESHEET. `SOURCES` is that
+// list, each entry saying why it is on it; a surface missing from it is a hole, not a
+// decision. Deliberately out, each because its icon contract is a different one:
+//   • a GTK story or a doc's `gjs` pane — `Gtk.IconTheme` resolves the name against the
+//     SYSTEM theme, so `folder-documents-symbolic` there is correct and needs no class
+//     here. This is also why a website `.mdx` is read only for `=`-form HTML attributes:
+//     the same file carries GJS (`iconName: 'x-symbolic'`) and Blueprint
 //     (`icon-name: "x-symbolic";`) panes, both colon-form, both about other renderers.
-//   • the NativeScript port — its `AdwIcon` takes SVG SOURCE, not a name, so a
-//     missing icon there is a missing import the compiler already rejects.
-//   • `@gjsify/adwaita-core`'s `conformance/` tables and specs — those are
-//     `normalizeIconName` VECTORS, deliberately malformed (`go_next`, `GoNext2`,
-//     `go-symbolic-next`). Demanding a mask class for them would be demanding one for
-//     inputs whose whole point is that they resolve to no icon.
+//   • the NativeScript port — its `AdwIcon` takes SVG SOURCE, not a name, so a missing
+//     icon there is a missing import the compiler already rejects.
+//   • FIXTURES: `*.spec.ts` anywhere, and adwaita-core's `conformance/` vector tables.
+//     NOT because they are malformed — only `conformance/view-stack.ts` is; `action-row`
+//     names `external-link-symbolic` and `split-button` names `help-about-symbolic`,
+//     well formed and driving REAL widgets in the browser suite. They are out because a
+//     fixture must not buy a shipped byte (arm 2), and a name a fixture merely feeds
+//     through a widget is not a user-visible defect (arm 1). What one DRAWS is held at
+//     runtime instead: the vector loops in `adw-action-rows.spec.ts`,
+//     `adw-button-content.spec.ts` and `split-button.spec.ts` compare the computed
+//     `mask-image` with `--icon-image-missing`.
 //
 // COMMENTS ARE STRIPPED FIRST, and only whole-line `//` ones — a bare `//` mid-line is
 // a URL far more often than a comment. A name that appears only in prose is not
 // emitted; before the strip, `adw-icon.spec.ts`' own explanation of the bug (a comment
 // spelling `adw-icon--a b`) registered `a` as an emitted icon.
 //
-// STILL BLIND to a name assembled at runtime — `icon.iconName = someRecord.icon`, where
-// no literal in the tree is the name; the two in the ledger are of that shape. The
-// RUNTIME half covers it: `_icon.scss` falls back to the `image-missing` glyph, so an
-// unresolvable name is visible rather than a solid block.
+// STILL BLIND to a name assembled at runtime — `icon.iconName = someRecord.icon`, with
+// no literal in the tree; `_icon.scss` covers that by falling back to `image-missing`.
+// A name in a NAMED CONSTANT is NOT of that shape and IS read (`ICON_CONST`):
+// `view-reveal`/`view-conceal` sat in the ledger claiming blindness "by construction"
+// when the cause was a missing key shape — an exemption resting on a wrong cause is how
+// a whole class stays unscanned.
 //
 // Usage: node scripts/check-adwaita-icon-masks.mjs [--root <dir>]
 
@@ -111,6 +102,12 @@ const KEY_ALT = KEYS.join('|');
 
 /** `iconName: 'go-next'` / `el.iconName = 'go-next'` — the JS/TS forms. */
 const JS_ASSIGN = new RegExp(`(?:^|[^A-Za-z0-9_$-])(?:${KEY_ALT})\\s*[:=]\\s*(['"\`])([^'"\`]*)\\1`, 'g');
+/**
+ * `const PASSWORD_REVEAL_ICON_NAME = 'view-reveal-symbolic'` — a name held in a
+ * SCREAMING_SNAKE constant and reaching the element through a state property, so no
+ * {@link KEYS} spelling appears at the point of use. The declaration is where it reads.
+ */
+const ICON_CONST = /(?:^|[^A-Za-z0-9_$])[A-Z][A-Z0-9_]*ICON(?:_NAME)?\s*=\s*(['"`])([^'"`]*)\1/g;
 /** `icon="go-next"` — the markup form, and the ONLY one read in a `.mdx`/`.astro`. */
 const MARKUP_ATTR = new RegExp(`(?:^|[^A-Za-z0-9_$-])(?:${KEY_ALT})=(['"])([^'"]*)\\1`, 'g');
 /** `el.setAttribute('icon', 'go-next')`. */
@@ -129,6 +126,7 @@ const ICON_CONTROL = /name:\s*['"`][^'"`]*[Ii]con[^'"`]*['"`]/g;
 const SHAPES = {
     js: (code, add) => {
         for (const m of code.matchAll(JS_ASSIGN)) add(m[2]);
+        for (const m of code.matchAll(ICON_CONST)) add(m[2]);
     },
     markup: (code, add) => {
         for (const m of code.matchAll(MARKUP_ATTR)) add(m[2]);
@@ -150,19 +148,24 @@ const SHAPES = {
     },
 };
 
+/** Every shape a surface that hands `<adw-icon>` a NAME can spell one in. */
+const NAME_SHAPES = ['js', 'markup', 'setAttribute', 'createIcon', 'maskClass'];
+
 /**
  * Where each shape is read, and why that surface renders through this stylesheet.
- * `only`/`skipDir`/`skipFile` narrow a root; everything else under it is scanned.
+ * `only` (basename) / `onlyPath` (posix repo-relative path) / `skipDir` / `skipFile`
+ * narrow a root; everything else under it is scanned.
  */
 const SOURCES = [
     {
-        // The widgets themselves, their specs, and the partials that mask an icon
-        // without going through `<adw-icon>` at all (`_combo_row.scss`' arrow).
+        // The widgets themselves and the partials that mask an icon without going
+        // through `<adw-icon>` at all (`_combo_row.scss`' arrow).
         root: 'packages/web/adwaita-web/src',
-        shapes: ['js', 'markup', 'setAttribute', 'createIcon', 'maskClass'],
-        // The compiled stylesheet, inlined as a TS string — it contains every mask
-        // class by construction, so reading it would make the second arm vacuous.
-        skipFile: ['styles.generated.ts'],
+        shapes: NAME_SHAPES,
+        // The compiled stylesheet, inlined as a TS string, contains every mask class by
+        // construction — reading it would make the second arm vacuous. Specs are
+        // FIXTURES (header): they neither demand a class nor justify one.
+        skipFile: ['styles.generated.ts', /\.spec\.ts$/],
     },
     { root: 'packages/web/adwaita-web/scss', shapes: ['cssVar', 'maskClass'], skipFile: ['_icons.generated.scss'] },
     {
@@ -174,16 +177,34 @@ const SOURCES = [
         skipFile: [/\.spec\.ts$/],
     },
     {
+        // The storybook SHELL: a published package that depends on `@gjsify/adwaita-web`
+        // and hand-writes mask classes for its own controls — the counterpart of the
+        // browser stories below, not an exclusion.
+        root: 'packages/web/adwaita-storybook/src',
+        shapes: NAME_SHAPES,
+        skipFile: [/\.spec\.ts$/],
+    },
+    {
         root: 'showcases/gtk/adwaita-storybook/src/browser',
-        shapes: ['js', 'markup', 'setAttribute', 'createIcon', 'maskClass'],
+        shapes: NAME_SHAPES,
     },
     {
         // One meta drives all three renderings, so an icon control's option values are
-        // names the BROWSER story sets — `camera-photo`, `user-trash` and two more are
-        // in the map for no other reason.
+        // names the BROWSER story sets when a reader picks one. Five map entries
+        // (`camera-photo`, `contact-new`, `mail-reply-sender`, `user-trash`,
+        // `view-more`, ~5 KB) exist for no other reason — the price of a demo dropdown
+        // whose every option draws, and arm 2 keeps that set from growing unnoticed.
         root: 'showcases/gtk/adwaita-storybook/src',
         shapes: ['metaControl'],
         only: [/\.meta\.ts$/],
+    },
+    {
+        // Published DOM showcases render adwaita-web in a real browser. Only the
+        // `src/browser/` entry point — the sibling `src/gjs/` tree is another
+        // renderer's and answers to its own icon contract.
+        root: 'showcases/dom',
+        shapes: NAME_SHAPES,
+        onlyPath: [/\/src\/browser\//],
     },
     { root: 'website/src', shapes: ['markup', 'maskClass'] },
 ];
@@ -238,6 +259,9 @@ function filesUnder(source) {
             }
             if (!EXTENSIONS.some((ext) => entry.name.endsWith(ext))) continue;
             if (source.only && !source.only.some((re) => re.test(entry.name))) continue;
+            // POSIX-spelled, because a `\` in the path would make every `onlyPath` on a
+            // Windows runner match nothing and the root scan silently empty.
+            if (source.onlyPath && !source.onlyPath.some((re) => re.test(toPosixPath(relative(ROOT, path))))) continue;
             if (source.skipFile?.some((s) => (typeof s === 'string' ? entry.name === s : s.test(entry.name)))) continue;
             found.push(path);
         }
