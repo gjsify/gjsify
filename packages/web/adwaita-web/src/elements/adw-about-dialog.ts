@@ -435,9 +435,10 @@ export class AdwAboutDialog extends HTMLElement {
         // Only when one was given: GTK hides the image outright for an empty icon
         // name, and a generic glyph would show an icon for an application that asked
         // for none. A reverse-DNS application id (`org.gnome.Builder`) — what
-        // `adw_about_dialog_new_from_appdata` passes, refs/libadwaita/src/adw-about-dialog.c:1215
-        // — is not one CSS token, so it draws `image-missing` instead of three stray
-        // classes; that is also what GTK draws for it on a machine without the app.
+        // `adw_about_dialog_new_from_appdata` hands to `set_application_icon` in
+        // refs/libadwaita/src/adw-about-dialog.c — is not one CSS token, so it draws
+        // `image-missing` rather than three stray classes; that is also what GTK draws for
+        // it on a machine without the app installed.
         if (visibility.appIcon) {
             body.appendChild(createAdwIcon(this.applicationIcon, 'adw-about-dialog-icon'));
         }

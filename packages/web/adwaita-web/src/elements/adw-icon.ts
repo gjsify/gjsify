@@ -109,9 +109,9 @@ export class AdwIcon extends HTMLElement {
             // A name was GIVEN and cannot be one CSS token (a space, a quote, a reverse-DNS
             // application id). GTK has no such state: `gtk_icon_theme_lookup_icon` never
             // returns NULL, it returns the always-available `image-missing`
-            // (refs/gtk/gtk/gtkicontheme.c:2269 · gtk_icon_paintable_get_icon_name's docs).
-            // So the same glyph is drawn here rather than an invisible 16px hole — that hole
-            // is what `<adw-button-row start-icon-name="a b">` reserved and showed.
+            // (refs/gtk/gtk/gtkicontheme.c — `gtk_icon_paintable_get_icon_name`'s own docs
+            // say so). So the same glyph is drawn here rather than an invisible 16px hole,
+            // which is what `<adw-button-row start-icon-name="a b">` reserved and showed.
             this.classList.add(`${MASK_CLASS_PREFIX}${MISSING_ICON_NAME}`);
         }
 
