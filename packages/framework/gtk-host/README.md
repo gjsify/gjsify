@@ -183,6 +183,30 @@ Three things the adapter has to know that the contract does not say:
 Solid's control-flow components (`For`, `Index`, `Show`) are re-exported re-typed:
 their runtime is renderer-agnostic, their types are pinned to the DOM's `Element`.
 
+**`Dynamic` is the exception and is implemented here, not re-exported.** `For`,
+`Index` and `Show` live in `solid-js`; `Dynamic` lives in `solid-js/web`, and that
+package *is* the DOM renderer — its string branch is
+`document.createElement(component)` followed by the DOM's own `spread`, so under a
+universal renderer nothing arrives through the host ops at all. Measured with
+`<Dynamic component="GtkLabel">` imported from `solid-js/web` into a GJS bundle:
+container `["GtkBox"]`, the box's children just the static sibling, **no throw, no
+GTK diagnostic, exit 0**. (Importing it also makes `--globals auto` inject
+`document`, `HTMLCanvasElement` and `Path2D` and pull `gi://Gdk`, `GdkPixbuf`,
+`Pango` and `PangoCairo`.) Import `Dynamic` from `@gjsify/gtk-host/solid`; the
+adapter's version takes the same `component` — a registered tag name or a
+component function — and **refuses anything else by name**, where Solid's own
+`switch` falls through to `undefined`: `component={registry[key]}` with a key that
+missed is indistinguishable from an empty branch, and rendering nothing on purpose
+is `<Show>`'s job.
+
+That silence had a second, more general cause, now closed at the seam:
+`insertExpression`'s last branch is `insertNode(parent, value)` for **any**
+non-array object, and the host wrote its `parent`/`prev`/`next` links onto it and
+returned — the kind was neither `element` nor `text`, so nothing else happened. A
+phantom in the shadow tree that never reaches GTK. `insertNode` now refuses a
+value that is not one of the three node kinds, naming what it got and which
+`solid-js/web` exports (`Dynamic`, `Portal`, `template`) are DOM-bound.
+
 `@gjsify/gtk-host/vue` is the second, and it is what makes "framework-agnostic"
 a measured claim rather than an ADR sentence: the same descriptor table and the
 same placement engine satisfy Vue's `RendererOptions` (10 required + 4 optional)

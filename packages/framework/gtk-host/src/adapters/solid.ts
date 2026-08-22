@@ -11,7 +11,7 @@
 // exactly why the host defers materialisation until a widget is actually needed
 // (ADR 0027 § Decision 5). An adapter cannot paper that over; the host has to.
 
-import { For as SolidFor, Index as SolidIndex, Show as SolidShow, onCleanup } from 'solid-js';
+import { For as SolidFor, Index as SolidIndex, Show as SolidShow, onCleanup, splitProps, untrack } from 'solid-js';
 import { createRenderer } from 'solid-js/universal';
 import type Gtk from '@girs/gtk-4.0';
 
@@ -32,6 +32,48 @@ import {
     setText,
 } from '../host.js';
 import type { HostElement, HostNode, HostText } from '../types.js';
+
+const HOST_KINDS = new Set(['element', 'text', 'anchor']);
+
+/**
+ * Refuse a value that only LOOKS like a node.
+ *
+ * `insertExpression`'s last branch is `insertNode(parent, value)` for any object
+ * that is not an array — it has no idea what a node of this renderer is — and the
+ * host then wrote `parent`/`prev`/`next` onto it and returned without doing
+ * anything, because the kind was neither `element` nor `text`: a phantom in the
+ * shadow tree that never reaches GTK.
+ *
+ * Measured with `<Dynamic component="GtkLabel">` imported from `solid-js/web`:
+ * container `["GtkBox"]`, the box's children just the static sibling, no throw,
+ * no GTK diagnostic, exit 0. `solid-js/web` is the DOM renderer — its `Dynamic`
+ * builds the element with `document.createElement` and spreads onto it with the
+ * DOM's own `spread`, so none of it comes through this renderer's ops. That is
+ * why the refusal names the universal replacements rather than a spelling.
+ */
+function assertHostNode(node: HostNode): void {
+    const kind = (node as { kind?: unknown } | null)?.kind;
+    if (typeof kind === 'string' && HOST_KINDS.has(kind)) return;
+    throw new Error(
+        `@gjsify/gtk-host/solid: insertNode got ${describe(node)}, which is not a node of this renderer. ` +
+            `Almost always this is a component from solid-js/web — the DOM renderer — reaching a universal ` +
+            `one: its <Dynamic>, <Portal> and template() build DOM elements with document.createElement and ` +
+            `spread onto them with the DOM's own spread, so nothing arrives through these host ops and the ` +
+            `subtree renders NOTHING, silently. Import Dynamic, For, Index and Show from ` +
+            `@gjsify/gtk-host/solid instead; solid-js's own control flow (For/Index/Show) is ` +
+            `renderer-agnostic, everything under solid-js/web is not.`,
+    );
+}
+
+/** Name a foreign value the way its owner would recognise it. */
+function describe(value: unknown): string {
+    if (value === null || value === undefined) return String(value);
+    if (typeof value !== 'object') return `a ${typeof value}`;
+    const name = (value as { constructor?: { name?: string } }).constructor?.name;
+    const tag = (value as { tagName?: unknown }).tagName;
+    if (typeof tag === 'string') return `a DOM element <${tag.toLowerCase()}>`;
+    return name ? `a ${name}` : 'a plain object';
+}
 
 const renderer = createRenderer<HostNode>({
     createElement: (tag: string) => {
@@ -67,6 +109,7 @@ const renderer = createRenderer<HostNode>({
     },
 
     insertNode: (parent: HostNode, node: HostNode, anchor?: HostNode) => {
+        assertHostNode(node);
         hostInsert(node, parent as HostElement, anchor ?? null);
     },
 
@@ -192,6 +235,49 @@ export const Show = SolidShow as unknown as {
         children: HostNode | ((item: () => NonNullable<T>) => HostNode);
     }): HostNode;
 };
+
+/**
+ * `<Dynamic component={…}>` — the one control-flow component Solid does NOT ship
+ * renderer-agnostically.
+ *
+ * `For`, `Index` and `Show` live in `solid-js` and reconcile whatever their
+ * children return, so this adapter only re-types them. `Dynamic` lives in
+ * `solid-js/web`, and that package IS the DOM renderer: its string branch is
+ * `document.createElement(component)` followed by the DOM's `spread`. Under a
+ * universal renderer it therefore produces a DOM element nobody here can place —
+ * measured as `container: ["GtkBox"]`, box children `[]`, no throw, no
+ * diagnostic, exit 0. Re-implementing it over the host ops is four lines and it
+ * is the only honest alternative to that silence.
+ *
+ * A `component` that is neither a tag nor a function is REFUSED, where Solid's
+ * own `switch` falls through and returns undefined: `component={registry[key]}`
+ * with a key that missed is the single most common way to render nothing by
+ * accident, and rendering nothing on purpose is `<Show>`'s job.
+ */
+export function Dynamic<P extends Record<string, unknown>>(
+    props: P & { component: string | ((props: P) => HostNode) },
+): HostNode {
+    const [, rest] = splitProps(props, ['component']);
+    // `memo(fn, equal)`: the universal renderer's TYPES demand the second
+    // argument, its runtime is `fn => createMemo(() => fn())` and drops it.
+    return memo(() => {
+        const component = props.component;
+        if (typeof component === 'function') return untrack(() => component(rest as unknown as P));
+        if (typeof component === 'string') {
+            const el = createElement(component);
+            // `false`: the children ARE ours to place — `spread` routes them
+            // through `insert`, which is how a <Dynamic> with a subtree works.
+            spread(el, rest, false);
+            return el;
+        }
+        throw new Error(
+            `@gjsify/gtk-host/solid: <Dynamic component={…}> needs a registered tag name or a component ` +
+                `function, and got ${describe(component)}. Solid's own DOM version returns undefined here and ` +
+                `renders nothing at all — a lookup that missed is indistinguishable from an empty branch. ` +
+                `Use <Show when={…}> to render nothing on purpose.`,
+        );
+    }, false) as unknown as HostNode;
+}
 
 /** The materialised widget of a host node — for a test, or a `ref`. */
 export function widgetOf(node: HostNode): Gtk.Widget {
