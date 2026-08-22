@@ -11,6 +11,8 @@ import { Text } from './text.js';
 import { Comment } from './comment.js';
 import { DocumentFragment } from './document-fragment.js';
 import { Event } from '@gjsify/dom-events';
+import { NamespaceURI } from './namespace-uri.js';
+import * as PS from './property-symbol.js';
 
 type ElementFactory = () => HTMLElement;
 
@@ -45,21 +47,43 @@ export class Document extends Node {
         Document._elementFactories.set(tagName.toLowerCase(), factory);
     }
 
-    createElementNS(_namespace: string | null, tagName: string): HTMLElement {
+    /**
+     * Create an element — and NAME it.
+     *
+     * The naming is the part that was missing: every element this factory
+     * returned carried the class default `''` for `tagName`, `localName` and
+     * therefore `nodeName`. Nothing failed, because nothing asked — until
+     * something did: `getElementsByTagName('li')` compared `'' === 'LI'` and
+     * answered 0 for a tree full of `li`, and `querySelector('li')` inherited
+     * the same silence the moment the selector engine started reading real
+     * names (ADR 0026 § Decision 2). Both are the shape where a method answers
+     * confidently and wrongly rather than failing.
+     */
+    createElementNS(namespace: string | null, tagName: string): HTMLElement {
         const tag = tagName.toLowerCase();
-        switch (tag) {
-            case 'img':
-                return new HTMLImageElement();
-            case 'video':
-                return new HTMLVideoElement();
-            case 'canvas':
-                return new HTMLCanvasElement();
-            default: {
-                const factory = Document._elementFactories.get(tag);
-                if (factory) return factory();
-                return new HTMLElement();
+        const element = ((): HTMLElement => {
+            switch (tag) {
+                case 'img':
+                    return new HTMLImageElement();
+                case 'video':
+                    return new HTMLVideoElement();
+                case 'canvas':
+                    return new HTMLCanvasElement();
+                default: {
+                    const factory = Document._elementFactories.get(tag);
+                    if (factory) return factory();
+                    return new HTMLElement();
+                }
             }
-        }
+        })();
+
+        // `tagName` uppercase and `localName` lowercase is what the HTML DOM
+        // reports; the selector engine reads `localName`, so the two must not be
+        // collapsed into one field.
+        element[PS.localName] = tag;
+        element[PS.tagName] = tag.toUpperCase();
+        element[PS.namespaceURI] = namespace ?? NamespaceURI.html;
+        return element;
     }
 
     createElement(tagName: string): HTMLElement {

@@ -319,7 +319,10 @@ round-trip, and the XML golden.
   `decodeHtml(input, ctx)` still reaches both tables, because `ctx` is a value — which is
   precisely why the three context-specific functions exist beside it.
 - **`@gjsify/dom-elements` gains its first Web-pillar dependency that is pure TS**, and
-  loses four methods that answered without looking.
+  loses four methods that answered without looking. Adopting them surfaced a fifth of the
+  same kind: `createElement` produced nameless elements, so `getElementsByTagName` had
+  always answered 0. A stub that returns a plausible value is not a smaller problem than one
+  that throws — it is a larger one, because nothing goes looking for it.
 - **The status data becomes true.** `status/status.json` and
   `website/src/data/web-standards.ts` have described HTML support since before it existed;
   after this they describe what runs.
@@ -354,10 +357,13 @@ outside the repo; the sequence is:
 10. `tests/integration/domparser/` — the differential suite
 11. CI: the suite into `main.yml`'s `integration` allowlist + its `status/integration-coverage.md` section
 12. docs + status data + `status/open-todos.md` sections + the agent-context ledger
-13. `dom-elements`: the adapter, the four stubs replaced — NOT DONE, and moved to
-    `status/open-todos.md`: it changes a second package's declarations and `dom-elements`
-    has no `test:node`, so the differential run that verifies the engine cannot verify the
-    adoption
+13. `dom-elements`: the adapter and the four stubs replaced — DONE, in
+    `src/selector-adapter.ts` + `src/selectors.spec.ts`. `dom-elements` has no `test:node`,
+    so the DIFFERENTIAL run cannot reach the adoption; its `test:gjs` can, and that is the
+    right split — the engine is verified against `css-select`, the adapter against this
+    node model. The adoption immediately found a defect older than this ADR: `createElement`
+    never set `tagName`/`localName`, so every element it made was nameless and
+    `getElementsByTagName` had been answering 0 for matching trees. Fixed with it
 14. `register.gjs.spec.ts` and the `test.browser.mts` surface mismatch — the spec landed;
     the browser assertion resolved itself, because `DOMElement` now has the `className` it
     was reaching for

@@ -121,8 +121,8 @@ export const pillarCoverage: readonly PillarCoverage[] = [
     },
     {
         category: 'Integration test suites',
-        total: 35,
-        full: 35,
+        total: 36,
+        full: 36,
         partial: 0,
         stub: 0,
     },

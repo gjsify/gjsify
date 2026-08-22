@@ -5,5 +5,6 @@ import stubsSuite from './stubs.spec.js';
 import htmlImageElementSuite from './html-image-element.spec.js';
 import registerSuite from './register.spec.js';
 import resizeObserverSuite from './resize-observer.spec.js';
+import selectorsSuite from './selectors.spec.js';
 
-run({ testSuite, stubsSuite, htmlImageElementSuite, registerSuite, resizeObserverSuite });
+run({ testSuite, stubsSuite, htmlImageElementSuite, registerSuite, resizeObserverSuite, selectorsSuite });

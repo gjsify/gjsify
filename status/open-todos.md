@@ -2480,25 +2480,6 @@ exactly why they must not be written as decisions.
 
 When an issue is opened for one of these, its ledger entry points at `#<number>`
 instead and the bullet is deleted from here.
-### `@gjsify/dom-elements` still answers selectors without looking at its tree
-
-ADR 0026 § Decision 2 puts one selector engine behind an `Adapter<TNode>` so that
-`dom-elements` can consume `@gjsify/domparser/selectors` over its own `Element`
-instead of growing a second engine. The engine and the seam landed; the adoption
-did not. `packages/dom/dom-elements/src/element.ts` still returns `null` from
-`querySelector`, `[]` from `querySelectorAll`, `false` from `matches` and `null`
-from `closest` — four methods that answer, always wrongly, and never fail.
-
-What is left is the adapter (about twenty lines over `PS.childNodesList` /
-`PS.tagName` / the attribute map), the four method bodies, and a spec. What makes
-it a separate change rather than an oversight of the parser PR: it adds a
-workspace dependency to a `node: "none"` package, so it moves the runtime-drift,
-tier and headless declarations of a SECOND package, and `dom-elements` has no
-`test:node` — the differential run that verifies the engine cannot verify the
-adoption. The engine itself is covered on both runtimes in
-`packages/web/domparser/src/selectors.spec.ts`, which drives it over a hand-built
-tree through a test `Adapter`, so the seam is proven; only this consumer is not.
-
 ### `@gjsify/domparser` has no "in select" insertion mode
 
 A `<select>` may contain only `option`, `optgroup`, `hr`, `script` and `template`;
