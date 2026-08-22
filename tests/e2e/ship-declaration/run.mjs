@@ -220,8 +220,50 @@ describe('ship declaration invariant', { timeout: 5 * 60 * 1000 }, () => {
             writeFileSync(join(rules, 'ship.mjs'), 'const TARGETS = KNOWN_TARGETS;\n');
             const result = runCheck(root);
             assert.equal(result.status, 1);
-            assert.match(result.stderr, /could not read the `FormatId` union/);
-            assert.match(result.stderr, /could not read `const TARGETS/);
+            assert.match(result.stderr, /could not read the `FormatId` union — .*names nothing/);
+            assert.match(result.stderr, /could not read the target set — no `const TARGETS/);
+        });
+
+        // A COMMENT quoting the declaration used to win over the declaration: a
+        // non-global `.exec()` returns the earliest match, and this tree quotes code
+        // in comments constantly. Measured before the fix — rule a whole format
+        // behind, check said "agree", exit 0. Two matches must fail.
+        it('FAILS when a comment quotes the declaration, rather than reading the comment', () => {
+            const root = makeRoot('vocab-quoted');
+            const types = join(root, 'packages', 'infra', 'cli', 'src', 'utils', 'ship');
+            const rules = join(root, 'packages', 'infra', 'manifest-conformance', 'lib', 'rules');
+            mkdirSync(types, { recursive: true });
+            mkdirSync(rules, { recursive: true });
+            writeFileSync(
+                join(types, 'types.ts'),
+                "// Before dmg this was: export type FormatId = 'deb' | 'rpm';\n" +
+                    "export type FormatId = 'deb' | 'rpm' | 'dmg';\n",
+            );
+            writeFileSync(join(rules, 'ship.mjs'), "const TARGETS = new Set(['deb', 'rpm']);\n");
+            const result = runCheck(root);
+            assert.equal(result.status, 1, 'a stale rule behind a quoting comment must not read as agreement');
+            assert.match(result.stderr, /matches 2 times/);
+        });
+
+        // The `read()` failure branch — the one thing `--root` was added for and, until
+        // this case, never aimed at. A missing file must name itself, not fall through
+        // to a parse message that sounds like a formatting problem.
+        it('names the file it could not read', () => {
+            const root = makeRoot('vocab-missing');
+            const types = join(root, 'packages', 'infra', 'cli', 'src', 'utils', 'ship');
+            mkdirSync(types, { recursive: true });
+            writeFileSync(join(types, 'types.ts'), "export type FormatId = 'deb' | 'rpm';\n");
+            const result = runCheck(root);
+            assert.equal(result.status, 1);
+            assert.match(result.stderr, /manifest-conformance\/lib\/rules\/ship\.mjs could not be read \(ENOENT\)/);
+        });
+
+        // `--root` with nothing after it silently answered about the REAL repository —
+        // green, for a tree the caller never asked about.
+        it('refuses --root with no directory after it', () => {
+            const result = spawnSync(process.execPath, [CHECK, '--root'], { encoding: 'utf8' });
+            assert.equal(result.status, 2);
+            assert.match(result.stderr, /--root was given with no directory/);
         });
 
         // The real tree, so the two lists are actually compared on every run and not

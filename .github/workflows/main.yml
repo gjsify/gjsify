@@ -1981,7 +1981,13 @@ jobs:
       - name: Pack from the stage alone
         run: |
           set -euo pipefail
-          gjs -m tool/cli/dist/cli.gjs.mjs ship --from-stage "$STAGE_DIR" --target deb,rpm --out "$ARTIFACTS"
+          # No `--target`: on the from-stage path an omitted target means the
+          # stage's OWN `formats`, so this packs exactly what was assembled and
+          # proves that list round-trips through the sidecar. Spelled `deb,rpm`
+          # it was a sixth hand-maintained copy of the format vocabulary — the
+          # one nothing binds, where a newly supported format would simply never
+          # be built here and no check would say so.
+          gjs -m tool/cli/dist/cli.gjs.mjs ship --from-stage "$STAGE_DIR" --out "$ARTIFACTS"
           find "$ARTIFACTS" -type f | sort
 
       # MODE FIDELITY, EVERY PATH — the check the launcher assertion is not.

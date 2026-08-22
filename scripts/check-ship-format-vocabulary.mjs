@@ -38,27 +38,53 @@ import { fileURLToPath } from 'node:url';
 // somewhere else is a checker with no test, which is how the last one in this
 // family drifted for four commits without anyone noticing.
 const rootFlag = process.argv.indexOf('--root');
-const ROOT =
-    rootFlag !== -1 && process.argv[rootFlag + 1] !== undefined
-        ? process.argv[rootFlag + 1]
-        : join(dirname(fileURLToPath(import.meta.url)), '..');
+if (rootFlag !== -1 && process.argv[rootFlag + 1] === undefined) {
+    // Falling back to the real repo root here would answer a question about
+    // ANOTHER tree, in green. A caller who typed `--root` wants a specific tree.
+    console.error('  ✗ --root was given with no directory after it.');
+    process.exit(2);
+}
+const ROOT = rootFlag !== -1 ? process.argv[rootFlag + 1] : join(dirname(fileURLToPath(import.meta.url)), '..');
 const TYPES = 'packages/infra/cli/src/utils/ship/types.ts';
 const RULE = 'packages/infra/manifest-conformance/lib/rules/ship.mjs';
 
+// EXACTLY ONE match, never the first of several. A non-global `.exec()` returns
+// the earliest match in the file, so a COMMENT quoting the declaration wins over
+// the declaration — and this tree quotes code in comments constantly, including
+// in the header above. Measured before this was tightened:
+//
+//     // Before dmg this was: export type FormatId = 'deb' | 'rpm';
+//     export type FormatId = 'deb' | 'rpm' | 'dmg';
+//
+// with `TARGETS = new Set(['deb', 'rpm'])` reported "agree on deb, rpm", exit 0,
+// while the rule was a whole format behind. That is the exact failure this
+// script's header promises to prevent, produced by the script itself. Two
+// matches now FAIL, because the checker cannot know which one is the live
+// declaration and guessing is how it lies.
+function soleMatch(text, pattern, what) {
+    const all = [...text.matchAll(pattern)];
+    if (all.length === 0) return { members: null, reason: `no \`${what}\` found` };
+    if (all.length > 1) {
+        return {
+            members: null,
+            reason:
+                `\`${what}\` matches ${all.length} times, so this check cannot tell which is the live ` +
+                `declaration — most likely a comment quotes it. Make the quoted copy unquotable ` +
+                `(drop the \`=\`, or reword it) so exactly one match remains`,
+        };
+    }
+    const members = [...all[0][1].matchAll(/'([^']+)'/g)].map((q) => q[1]);
+    return members.length > 0 ? { members, reason: null } : { members: null, reason: `\`${what}\` names nothing` };
+}
+
 /** The members of `export type FormatId = 'a' | 'b';`. */
 function formatIdUnion(text) {
-    const m = /export type FormatId\s*=\s*([^;]+);/.exec(text);
-    if (m === null) return null;
-    const members = [...m[1].matchAll(/'([^']+)'/g)].map((q) => q[1]);
-    return members.length > 0 ? members : null;
+    return soleMatch(text, /export type FormatId\s*=\s*([^;]+);/g, 'export type FormatId = …;');
 }
 
 /** The members of `const TARGETS = new Set([...]);`. */
 function conformanceTargets(text) {
-    const m = /const TARGETS\s*=\s*new Set\(\[([^\]]*)\]\)/.exec(text);
-    if (m === null) return null;
-    const members = [...m[1].matchAll(/'([^']+)'/g)].map((q) => q[1]);
-    return members.length > 0 ? members : null;
+    return soleMatch(text, /const TARGETS\s*=\s*new Set\(\[([^\]]*)\]\)/g, 'const TARGETS = new Set([…])');
 }
 
 const problems = [];
@@ -74,16 +100,18 @@ const read = (rel) => {
 const typesText = read(TYPES);
 const ruleText = read(RULE);
 
-const declared = typesText === null ? null : formatIdUnion(typesText);
-const known = ruleText === null ? null : conformanceTargets(ruleText);
+const typesParse = typesText === null ? null : formatIdUnion(typesText);
+const ruleParse = ruleText === null ? null : conformanceTargets(ruleText);
+const declared = typesParse?.members ?? null;
+const known = ruleParse?.members ?? null;
 
 // A parse that stops matching must FAIL. Silently comparing two nulls would report
 // agreement forever after an unrelated refactor moved either literal.
-if (typesText !== null && declared === null) {
-    problems.push(`${TYPES}: could not read the \`FormatId\` union. Update this script alongside it.`);
+if (typesParse !== null && declared === null) {
+    problems.push(`${TYPES}: could not read the \`FormatId\` union — ${typesParse.reason}.`);
 }
-if (ruleText !== null && known === null) {
-    problems.push(`${RULE}: could not read \`const TARGETS = new Set([…])\`. Update this script alongside it.`);
+if (ruleParse !== null && known === null) {
+    problems.push(`${RULE}: could not read the target set — ${ruleParse.reason}.`);
 }
 
 if (declared !== null && known !== null) {
