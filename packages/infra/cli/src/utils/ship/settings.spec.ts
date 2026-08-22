@@ -25,6 +25,7 @@ function input(overrides: Partial<SettingsInput> = {}): SettingsInput {
             bundleFiles: ['gjs.js'],
             iconFiles: ['/project/data/icon.svg'],
             schemaFiles: [],
+            typelibFiles: [],
         },
         ...overrides,
     };

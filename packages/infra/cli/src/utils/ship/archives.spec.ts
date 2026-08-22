@@ -43,6 +43,7 @@ function settings(overrides: Partial<ShipSettings> = {}): ShipSettings {
         bundleDir: '/p/dist',
         iconFiles: [],
         schemaFiles: [],
+        typelibFiles: [],
         extraFiles: {},
         execArgs: [],
         outDir: 'ship',

@@ -121,6 +121,11 @@ export interface DependsInputs {
     extra: readonly string[];
     /** Project-supplied table rows, filling gaps in {@link TYPELIB_PACKAGES}. */
     typelibPackages?: Record<string, { deb: string; rpm: string }>;
+    /**
+     * Paths of typelib files the payload carries itself. The namespaces they cover need no distro
+     * dependency — and are derived from these filenames, never declared separately.
+     */
+    bundledTypelibs?: readonly string[];
     /** Minimum GJS. Default {@link DEFAULT_GJS_FLOOR}. */
     minGjsVersion?: string;
 }
@@ -152,8 +157,21 @@ export function deriveDepends(format: FormatId, inputs: DependsInputs): string[]
     const out: string[] = [`gjs >= ${inputs.minGjsVersion ?? DEFAULT_GJS_FLOOR}`];
     const unmapped: string[] = [];
 
+    // Namespaces the package SHIPS ITSELF, read off the staged filenames rather than from a
+    // separate declaration: `Gwebgl-0.1.typelib` → `Gwebgl-0.1` and `Gwebgl`. Deriving it is the
+    // point — a project that declared a namespace bundled without the file being there would get
+    // a package that installs and dies at the first import, which is exactly what this check
+    // exists to prevent.
+    const shipped = new Set<string>();
+    for (const file of inputs.bundledTypelibs ?? []) {
+        const match = /([A-Za-z0-9]+)-([\d.]+)\.typelib$/.exec(file);
+        if (!match) continue;
+        shipped.add(`${match[1]}-${match[2]}`);
+        shipped.add(match[1]);
+    }
+
     for (const namespace of [...new Set(inputs.namespaces)].sort()) {
-        if (BUNDLED_TYPELIB.test(namespace)) continue;
+        if (BUNDLED_TYPELIB.test(namespace) || shipped.has(namespace)) continue;
         const entry = lookupTypelib(namespace, inputs.typelibPackages);
         if (entry === undefined) {
             unmapped.push(namespace);

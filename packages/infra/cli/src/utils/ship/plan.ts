@@ -79,6 +79,18 @@ export function planStage(settings: ShipSettings, inputs: StageInputs): StagedFi
         });
     }
 
+    // The typelibs the package carries itself, beside the bundle in `gi/`. The launcher points
+    // GI_TYPELIB_PATH and LD_LIBRARY_PATH here — see renderLauncher.
+    for (const file of settings.typelibFiles) {
+        files.push({
+            path: posix.join(libDir, 'gi', basename(file)),
+            // A shared library must be executable; a typelib need not be, but one mode for both
+            // keeps the staged tree free of a distinction nothing downstream reads.
+            mode: 0o755,
+            source: { kind: 'file', path: file },
+        });
+    }
+
     for (const [dest, source] of Object.entries(settings.extraFiles)) {
         files.push({ path: assertInsidePrefix(dest), mode: 0o644, source: { kind: 'file', path: source } });
     }

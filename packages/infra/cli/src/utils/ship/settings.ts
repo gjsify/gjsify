@@ -39,6 +39,8 @@ export interface DiscoveredPayload {
     bundleFiles: string[];
     iconFiles: string[];
     schemaFiles: string[];
+    /** Absolute paths of the typelibs + shared libraries the project ships itself. */
+    typelibFiles: string[];
     licenseFile?: string;
 }
 
@@ -143,6 +145,7 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
         bundleDir: discovered.bundleDir,
         iconFiles: discovered.iconFiles,
         schemaFiles: discovered.schemaFiles,
+        typelibFiles: discovered.typelibFiles,
         extraFiles: ship.extraFiles ?? {},
         execArgs: ship.execArgs ?? [],
         outDir: input.cli.outDir ?? ship.outDir ?? 'ship',

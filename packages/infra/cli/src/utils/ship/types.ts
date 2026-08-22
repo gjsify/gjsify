@@ -103,6 +103,13 @@ export interface ShipSettings {
     iconFiles: string[];
     /** Absolute paths of `*.gschema.xml` files to install. */
     schemaFiles: string[];
+    /**
+     * Typelibs + shared libraries the package carries itself (`gjsify.ship.bundledTypelibs`).
+     *
+     * gjsify's own GI libraries arrive as npm prebuilds, not distro packages, so an app using one
+     * has nothing to depend on and must ship the files — with the launcher pointing GI at them.
+     */
+    typelibFiles: string[];
     /** `<dest relative to prefix>` → absolute source path. */
     extraFiles: Record<string, string>;
     /** Arguments appended to the launcher's `exec` line. */

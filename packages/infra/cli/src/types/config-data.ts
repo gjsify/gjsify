@@ -421,6 +421,20 @@ export interface ConfigDataShip extends AppMetadata {
      * not silence the unmapped-namespace failure.
      */
     typelibPackages?: Record<string, { deb: string; rpm: string }>;
+    /**
+     * Directories whose `*.typelib` and `lib*.so*` the package CARRIES ITSELF, e.g.
+     * `["../node_modules/@gjsify/webgl-linux-x64/prebuilds/linux-x64"]`.
+     *
+     * gjsify's own GI libraries — `Gwebgl`, the GTK runtime bundles, the napi host — arrive as npm
+     * prebuilds, not as distro packages, so an app that imports one has no `gir1.2-…` to depend on.
+     * Staging them here puts them in `lib/<binary>/gi/` and makes the launcher point
+     * `GI_TYPELIB_PATH` and `LD_LIBRARY_PATH` at that directory.
+     *
+     * The namespaces this covers are read back off the STAGED FILES, not from a separate list:
+     * a declaration that a namespace is bundled, without the file being there, is exactly the lie
+     * the dependency check exists to prevent.
+     */
+    bundledTypelibs?: string[];
     /** Extra payload entries: prefix-relative destination → project-relative source. */
     extraFiles?: Record<string, string>;
     /** Arguments the launcher appends before the user's own. */
