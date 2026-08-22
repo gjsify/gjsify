@@ -14,17 +14,39 @@
 // template+placeholder approach to stay legible. The `.desktop` entry stays
 // template-based — it is flat `key=value`.
 
-import { readFileSync } from 'node:fs';
 import type { AppMetadata, DescriptionBlock } from '../types/config-data.js';
 
 /**
- * Lazy template loader. `static-read-inliner` matches this exact shape
- * (`readFileSync(new URL(<literal>, import.meta.url), 'utf-8')`) and inlines
- * the template into the GJS bundle at build time — a `join(__dirname, …)`
- * spelling silently loses that and ENOENTs under GJS.
+ * The `.desktop` skeleton, as source rather than as a file to find at runtime.
+ *
+ * It used to live in `src/templates/app/desktop.tmpl` and be read through
+ * `readFileSync(new URL(…, import.meta.url))`, with a comment stating that
+ * `static-read-inliner` inlines it into the GJS bundle. It does not: the
+ * inliner's `shouldRewrite` requires the file to sit under `node_modules`, and
+ * the CLI bundles its OWN source. So the read survived into
+ * `dist/cli.gjs.mjs`, resolved `../templates/…` against `dist/`, and
+ * `gjsify ship` died with ENOENT on every project — while the Node `lib/`
+ * entry, where the relative path happens to be right, worked. A comment
+ * asserting the opposite is why it went unnoticed.
+ *
+ * A ten-line skeleton is not worth a file the bundle has to locate. As a
+ * template literal there is nothing to resolve, nothing to package, and the
+ * two entry points cannot disagree.
  */
+const DESKTOP_TEMPLATE = `[Desktop Entry]
+Name={{NAME}}
+Comment={{SUMMARY}}
+Exec={{COMMAND}}
+Icon={{APP_ID}}
+Terminal=false
+Type=Application
+Categories={{CATEGORIES_LINE}}
+{{KEYWORDS_LINE}}{{MIMETYPES_LINE}}StartupNotify=true
+StartupWMClass={{APP_ID}}
+`;
+
 function loadDesktopTemplate(): string {
-    return readFileSync(new URL('../templates/app/desktop.tmpl', import.meta.url), 'utf-8');
+    return DESKTOP_TEMPLATE;
 }
 
 /** Everything a renderer needs that is not part of {@link AppMetadata} itself. */

@@ -36,6 +36,7 @@ function settings(overrides: Partial<ShipSettings> = {}): ShipSettings {
         bundleDir: '/project/dist',
         iconFiles: [],
         schemaFiles: [],
+        typelibFiles: [],
         extraFiles: {},
         execArgs: [],
         outDir: 'ship',
@@ -111,6 +112,19 @@ export default async () => {
             expect(() =>
                 planStage(settings({ schemaFiles: ['/project/data/settings.gschema.xml'] }), inputs()),
             ).toThrow('must be named');
+        });
+
+        await it('stages bundled typelibs beside the bundle, in gi/', async () => {
+            // gjsify's own GI libraries arrive as npm prebuilds, so an app using one must CARRY it:
+            // there is no `gir1.2-…` to depend on. A typelib without its shared library installs
+            // and then dies at the first import, so both are staged from the same directory.
+            const files = planStage(
+                { ...settings(), typelibFiles: ['/p/Gwebgl-0.1.typelib', '/p/libgwebgl.so'] },
+                inputs(),
+            );
+            const staged = files.map((file) => file.path);
+            expect(staged.includes('lib/hello/gi/Gwebgl-0.1.typelib')).toBe(true);
+            expect(staged.includes('lib/hello/gi/libgwebgl.so')).toBe(true);
         });
 
         await it('refuses an extra file that escapes the prefix', async () => {

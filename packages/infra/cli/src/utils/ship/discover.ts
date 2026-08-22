@@ -34,8 +34,37 @@ export function discoverPayload(input: DiscoverInput): DiscoveredPayload {
         bundleFiles: listFilesRecursive(bundleDir),
         iconFiles: discoverIcons(projectDir, ship.icon ?? input.flatpakIcon),
         schemaFiles: discoverSchemas(projectDir, ship.schemas),
+        typelibFiles: discoverTypelibs(projectDir, ship.bundledTypelibs),
         licenseFile: discoverLicense(projectDir, ship.licenseFile),
     };
+}
+
+/**
+ * Typelibs (and their shared libraries) the PROJECT ships itself.
+ *
+ * Necessary because gjsify's own GI libraries — `Gwebgl` for the WebGL bridge, the GTK runtime
+ * bundles, the napi host — arrive as npm prebuilds, not as distro packages. An app using one has
+ * no `gir1.2-…` to depend on: it must carry the files, and something must point GI at them.
+ *
+ * A directory rather than a list of files, because a typelib is never alone: `Gwebgl-0.1.typelib`
+ * is useless without `libgwebgl.so`, and staging one without the other produces a package that
+ * installs and then fails at the first import.
+ */
+function discoverTypelibs(projectDir: string, dirs: string[] | undefined): string[] {
+    const out: string[] = [];
+    for (const dir of dirs ?? []) {
+        const root = resolve(projectDir, dir);
+        if (!existsSync(root)) {
+            throw new Error(
+                `gjsify ship: \`gjsify.ship.bundledTypelibs\` names ${dir}, which does not exist. ` +
+                    'A missing directory here means the package would install without the typelib it promises.',
+            );
+        }
+        for (const file of listFilesRecursive(root)) {
+            if (/\.typelib$|\.so(\.\d+)*$/.test(file)) out.push(join(root, file));
+        }
+    }
+    return out;
 }
 
 function resolveBundle(input: DiscoverInput): string {
