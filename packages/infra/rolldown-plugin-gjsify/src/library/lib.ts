@@ -10,6 +10,8 @@
 // build --app gjs|node|browser`) re-bundle and apply their own target
 // lowering. Library output stays maximally portable.
 
+import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
+
 import { aliasPlugin } from '../plugins/alias.js';
 import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 import { externalsPlugin } from '../plugins/externals.js';
@@ -113,6 +115,15 @@ export const setupLib = async (input: LibFactoryInput): Promise<LibBuildConfig> 
         // tiny JS module re-exporting the CSS source, which preserveModules
         // emits 1:1.
         cssAsStringPlugin(),
+        // Same shape as the CSS hook above, and needed for the same reason: without it a `.blp`
+        // import reaches rolldown's JS parser, and a Blueprint file's first line — `using Gtk 4.0;`
+        // — is VALID JavaScript (a `using` resource declaration missing its initializer), so the
+        // build dies on "Using declarations must have an initializer" and nothing points at
+        // Blueprint. Only the app factories installed it, which quietly made Blueprint an
+        // application-only feature: a shared widget in a library package could not have a
+        // template, so its captions had to be assigned from TypeScript, where they carry no
+        // `translatable` attribute and no catalogue can ever reach them.
+        blueprintPlugin(),
     ];
 
     return { options, plugins };
