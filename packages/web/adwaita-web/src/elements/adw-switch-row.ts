@@ -25,6 +25,7 @@ import { SwitchRowState, deriveRowLabels } from '@gjsify/adwaita-core';
 // without `verbatimModuleSyntax`, so TypeScript would elide the statement and take the
 // registration with it.
 import './adw-switch.js';
+import { attachRowActivation } from './row-activation.js';
 import type { AdwSwitch } from './adw-switch.js';
 
 export class AdwSwitchRow extends HTMLElement {
@@ -62,6 +63,8 @@ export class AdwSwitchRow extends HTMLElement {
         text.append(this._titleEl, this._subtitleEl);
 
         this._switchEl = document.createElement('adw-switch') as AdwSwitch;
+        // adw-switch-row.c:159 — the slider is not a focus target; the ROW is.
+        this._switchEl.unfocusable = true;
 
         this.replaceChildren(text, this._switchEl);
 
@@ -85,6 +88,10 @@ export class AdwSwitchRow extends HTMLElement {
             if (event.target instanceof Node && this._switchEl.contains(event.target)) return;
             this._apply(this._state.activate());
         });
+
+        // adw-switch-row.c:160 makes the row itself activatable. Enter and Space run the
+        // same transition a click does, through the row's own click handler.
+        attachRowActivation({ row: this, activatable: () => true });
 
         this._renderText();
     }

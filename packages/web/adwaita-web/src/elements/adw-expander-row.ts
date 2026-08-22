@@ -32,6 +32,7 @@ import { bindEmptySections } from '../empty-sections.js';
 import './adw-switch.js';
 import type { AdwSwitch } from './adw-switch.js';
 import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+import { attachRowActivation } from './row-activation.js';
 
 export class AdwExpanderRow extends HTMLElement {
     private _headerEl!: HTMLDivElement;
@@ -162,6 +163,11 @@ export class AdwExpanderRow extends HTMLElement {
             }
         });
 
+        // adw-expander-row.c:123 — `grab_focus` forwards to the header row, so the header
+        // is both the focus target and the disclosure control. Enter and Space go through
+        // its click handler, which is what a pointer already uses.
+        attachRowActivation({ row: this._headerEl, activatable: () => true });
+
         this._enableSwitch.addEventListener('notify::active', (event) => {
             // The switch's own notify stops at the row: the row publishes
             // `notify::enable-expansion`, and letting `notify::active` past would give
@@ -210,6 +216,9 @@ export class AdwExpanderRow extends HTMLElement {
         this._reflectingEnable = false;
 
         this.classList.toggle('expanded', this.expanded);
+        // adw-expander-row.c:657 keeps GTK_ACCESSIBLE_STATE_EXPANDED on the header row in
+        // step with the flag; `aria-expanded` is the same statement to the same reader.
+        this._headerEl.setAttribute('aria-expanded', String(this.expanded));
         this._contentEl.classList.toggle('expanded', this.expanded);
     }
 }
