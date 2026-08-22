@@ -62,6 +62,10 @@ const GOLDEN = [
     '      object height="16" id="1" name="spawn" width="16" x="32" y="48"',
     '        properties',
     '          property name="note" value="start > here"',
+    // A comment is a NODE now, not a skipped range (ADR 0026 § Decision 4). It is
+    // the only line that moved when that landed, and it moves `children` and
+    // `textContent` not at all — which is the whole reason the addition is safe.
+    '    #comment " authored by hand "',
 ].join('\n');
 
 export default async () => {
@@ -111,11 +115,30 @@ export default async () => {
             expect(layer.querySelector('data')!.textContent).toBe('1,2,3,4,5,6,7,8');
             expect(layer.innerHTML).toContain('<data encoding="csv">1,2,3,4,5,6,7,8</data>');
 
-            // Strict decoding is wired into the XML path too, and it is the only
-            // thing that moved in this tree: the golden above changed here and
-            // nowhere else.
+            // Strict decoding is wired into the XML path too.
             const credits = doc.querySelectorAll('property')[1];
             expect(credits.getAttribute('value')).toBe('a & b');
+        });
+
+        await it('keeps comments and the doctype as nodes, and nothing else moves', async () => {
+            const doc = new DOMParser().parseFromString(
+                '<!DOCTYPE map SYSTEM "map.dtd"><map><!-- c --><layer/></map>',
+                'application/xml',
+            );
+            expect(doc.doctype).not.toBeNull();
+            expect(doc.doctype!.name).toBe('map');
+
+            const map = doc.documentElement!;
+            expect(map.childNodes.length).toBe(2);
+            expect(map.childNodes[0].nodeType).toBe(8);
+            expect(map.childNodes[0].nodeValue).toBe(' c ');
+
+            // The two members the measured consumer reads are unchanged by it:
+            // `children` is element-only and `textContent` excludes comments.
+            expect(map.children.map((c) => c.tagName).join(',')).toBe('layer');
+            expect(map.textContent).toBe('');
+            // `innerHTML` is the one that moves, and it moves toward a real DOM.
+            expect(map.innerHTML).toBe('<!-- c --><layer/>');
         });
     });
 };

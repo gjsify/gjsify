@@ -4,12 +4,20 @@
 // freeze is held by the golden in `src/xml-shape.spec.ts`, not by this comment.
 // ADR 0026 § Decision 4.
 
+import { DOMComment } from '../dom/comment.js';
+import { DOMDocumentType } from '../dom/doctype.js';
 import { DOMDocument } from '../dom/document.js';
 import { DOMElement } from '../dom/element.js';
 import { CDATA_SECTION_NODE, DOMNode, TEXT_NODE } from '../dom/node.js';
 import { decodeXml } from '../entities/decode.js';
 
 const ATTR_PATTERN = /\s+([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|(\S+))/g;
+
+/** Not `toLowerCase()`: XML names are case-sensitive, and only the ASCII keyword
+ *  spelling of `<!DOCTYPE` is being recognised here. */
+function asciiLower(value: string): string {
+    return value.replace(/[A-Z]+/g, (run) => run.toLowerCase());
+}
 
 function parseAttributes(attrsStr: string, el: DOMElement): void {
     let m: RegExpExecArray | null;
@@ -60,14 +68,33 @@ export function parseXml(xml: string): DOMDocument {
             continue;
         }
 
-        // Comment
+        // Comment. Kept as a node rather than skipped (ADR 0026 § Decision 4): a
+        // strict addition, because `children` is element-only and `textContent`
+        // excludes comments by spec, so both stay exactly as they were.
         if (xml.startsWith('<!--', ltIdx)) {
             const end = xml.indexOf('-->', ltIdx);
+            const cn = new DOMComment(xml.slice(ltIdx + 4, end === -1 ? len : end));
+            const top = stack[stack.length - 1];
+            cn.parentNode = top;
+            top.childNodes.push(cn);
             i = end === -1 ? len : end + 3;
             continue;
         }
 
-        // Processing instruction or DOCTYPE
+        // `<!DOCTYPE name …>`. Only the name is read: an XML doctype's internal
+        // subset is a grammar this scanner does not have, and no consumer asks.
+        if (asciiLower(xml.slice(ltIdx, ltIdx + 9)) === '<!doctype') {
+            const end = findTagEnd(xml, ltIdx + 9);
+            const declared = xml.slice(ltIdx + 9, end === -1 ? len : end).trim();
+            const name = declared.split(/[\s[]/)[0] ?? '';
+            const dt = new DOMDocumentType(name, '', '');
+            dt.parentNode = doc;
+            doc.childNodes.push(dt);
+            i = end === -1 ? len : end + 1;
+            continue;
+        }
+
+        // Processing instruction, or any other `<!…` declaration.
         if (xml.startsWith('<?', ltIdx) || xml.startsWith('<!', ltIdx)) {
             const end = xml.indexOf('>', ltIdx);
             i = end === -1 ? len : end + 1;
