@@ -13,6 +13,7 @@ import { defineComponent, h, ref, nextTick } from '@vue/runtime-core';
 import { gtkChildTypes, gtkChildren, installDiagnosticsGate } from '../conformance/index.js';
 import { gated } from '../testing/gate.mjs';
 import { registerBuiltinWidgets } from '../descriptors/index.js';
+import type { GtkHostError } from '../index.js';
 import { mount } from './vue.js';
 
 const labelsOf = (w: Gtk.Widget) => gtkChildren(w).map((c) => (c as Gtk.Label).label);
@@ -171,6 +172,92 @@ export default async () => {
                 expect(label.widthRequest).toBe(-1); // the ParamSpec default
                 app.unmount();
             });
+
+            // --- listener modifiers -------------------------------------------
+            //
+            // HONEST CAVEAT: `@vue/compiler-dom` is installed nowhere in this
+            // monorepo, so the KEY SHAPE below (`onClickedOnce` for
+            // `@clicked.once`) comes from upstream compiler behaviour and cannot
+            // be measured here. What IS measured is the consequence GIVEN that
+            // key — which is the half that was broken: the whole suffix was
+            // kebabed, so `.once` asked GTK for a signal called "clicked-once".
+
+            await it('.once binds the signal and disconnects after one emission', async () => {
+                const container = new Gtk.Box();
+                let fired = 0;
+                const app = mount(
+                    defineComponent({
+                        render: () =>
+                            h('GtkButton', {
+                                label: 'go',
+                                onClickedOnce: () => {
+                                    fired += 1;
+                                },
+                            }),
+                    }),
+                    container,
+                );
+                const button = gtkChildren(container)[0] as Gtk.Button;
+                button.emit('clicked');
+                button.emit('clicked');
+                button.emit('clicked');
+                expect(fired).toBe(1);
+                app.unmount();
+            });
+
+            await it(".once is not spent by the host's own property write", async () => {
+                // `notify::` fires for OUR patches too, and the host suppresses
+                // those. A `.once` consumed by that suppressed emission would
+                // leave the user's single callback already spent before the user
+                // ever changed anything.
+                const container = new Gtk.Box();
+                const text = ref('first');
+                let fired = 0;
+                const app = mount(
+                    defineComponent({
+                        render: () =>
+                            h('GtkLabel', {
+                                label: text.value,
+                                onNotifyLabelOnce: () => {
+                                    fired += 1;
+                                },
+                            }),
+                    }),
+                    container,
+                );
+                const label = gtkChildren(container)[0] as Gtk.Label;
+                text.value = 'second';
+                await nextTick();
+                expect(labelsOf(container)).toStrictEqual(['second']);
+                expect(fired).toBe(0); // suppressed, and NOT spent
+                label.notify('label');
+                label.notify('label');
+                expect(fired).toBe(1);
+                app.unmount();
+            });
+
+            for (const [prop, modifier] of [
+                ['onClickedCapture', 'capture'],
+                ['onClickedPassive', 'passive'],
+            ] as const) {
+                await it(`.${modifier} is refused by name, not as a misspelling`, async () => {
+                    const container = new Gtk.Box();
+                    let error: unknown;
+                    try {
+                        mount(
+                            defineComponent({ render: () => h('GtkButton', { label: 'go', [prop]: () => {} }) }),
+                            container,
+                        );
+                    } catch (e) {
+                        error = e;
+                    }
+                    // The old behaviour was `emits no signal "clicked-capture"` —
+                    // a spelling complaint about a name the user spelled right.
+                    expect((error as GtkHostError | undefined)?.code).toBe('event-modifier');
+                    expect(String((error as Error | undefined)?.message)).toContain(`".${modifier}"`);
+                    expect(gtkChildTypes(container)).toStrictEqual([]);
+                });
+            }
 
             await it('unmount disconnects the handlers', async () => {
                 const container = new Gtk.Box();
