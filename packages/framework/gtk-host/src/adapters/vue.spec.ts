@@ -8,7 +8,7 @@
 import { expect, it, on } from '@gjsify/unit';
 
 import Gtk from 'gi://Gtk?version=4.0';
-import { defineComponent, h, ref, nextTick } from '@vue/runtime-core';
+import { defineComponent, h, ref, nextTick, Teleport } from '@vue/runtime-core';
 
 import { gtkChildTypes, gtkChildren, installDiagnosticsGate } from '../conformance/index.js';
 import { gated } from '../testing/gate.mjs';
@@ -258,6 +258,86 @@ export default async () => {
                     expect(gtkChildTypes(container)).toStrictEqual([]);
                 });
             }
+
+            // --- <Teleport> ---------------------------------------------------
+
+            await it('<Teleport :to="widget"> renders into the widget', async () => {
+                // The form this adapter's own error message and README prescribe.
+                // Before the coercion, doing literally that rendered nothing and
+                // said nothing: Vue returns a non-string target verbatim, so the
+                // host was handed a raw `Gtk.Box` as a parent.
+                const container = new Gtk.Box();
+                const target = new Gtk.Box();
+                const app = mount(
+                    defineComponent({
+                        render: () =>
+                            h('GtkBox', null, [
+                                h('GtkLabel', { label: 'MARK' }),
+                                h(Teleport, { to: target }, [h('GtkLabel', { label: 'PORTED' })]),
+                            ]),
+                    }),
+                    container,
+                );
+                expect(labelsOf(gtkChildren(container)[0])).toStrictEqual(['MARK']);
+                expect(labelsOf(target)).toStrictEqual(['PORTED']);
+                app.unmount();
+            });
+
+            await it('a teleport target is adopted ONCE, so order survives', async () => {
+                // Every teleported child and both of `TeleportImpl`'s text anchors
+                // reach `insert` with the same raw widget. Adopting per call would
+                // re-snapshot `foreign` each time, and the second child would be
+                // placed against a container that already claims to have held it.
+                const container = new Gtk.Box();
+                const target = new Gtk.Box();
+                const extra = ref(false);
+                const app = mount(
+                    defineComponent({
+                        render: () =>
+                            h(Teleport, { to: target }, [
+                                h('GtkLabel', { label: 'one' }),
+                                extra.value ? h('GtkLabel', { label: 'two' }) : null,
+                                h('GtkLabel', { label: 'three' }),
+                            ]),
+                    }),
+                    container,
+                );
+                expect(labelsOf(target)).toStrictEqual(['one', 'three']);
+                extra.value = true;
+                await nextTick();
+                expect(labelsOf(target)).toStrictEqual(['one', 'two', 'three']);
+                extra.value = false;
+                await nextTick();
+                expect(labelsOf(target)).toStrictEqual(['one', 'three']);
+                app.unmount();
+            });
+
+            await it('a STRING teleport target throws, naming the form that works', async () => {
+                // `querySelector` is one of Vue's four optional host ops and the
+                // only one this adapter reaches at all. Answering falsy instead
+                // would mount nothing and warn only under `__DEV__`, which the
+                // production defines strip — and the whole suite stayed green
+                // when it was made to answer falsy, which is why this vector
+                // exists.
+                const container = new Gtk.Box();
+                let error: Error | undefined;
+                try {
+                    mount(
+                        defineComponent({
+                            render: () => h(Teleport, { to: '#somewhere' }, [h('GtkLabel', { label: 'x' })]),
+                        }),
+                        container,
+                    );
+                } catch (e) {
+                    error = e as Error;
+                }
+                expect(error === undefined).toBe(false);
+                expect(String(error?.message)).toContain('<Teleport to="#somewhere">');
+                // The advice must be a form that WORKS — it used to prescribe
+                // exactly what rendered nothing.
+                expect(String(error?.message)).toContain('this adapter adopts it');
+                expect(String(error?.message)).toContain('adopt(el)');
+            });
 
             await it('unmount disconnects the handlers', async () => {
                 const container = new Gtk.Box();

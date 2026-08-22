@@ -64,6 +64,45 @@ function withoutReservedProps(props: Record<string, unknown> | null | undefined)
     return filtered;
 }
 
+/**
+ * Adopted teleport targets, one host element per widget.
+ *
+ * `insert` is called repeatedly for the same target — once per teleported child,
+ * plus the two text anchors `TeleportImpl` places around them — and each call
+ * must see the SAME shadow tree, or every insertion computes its position
+ * against a freshly snapshotted `foreign` list. Weak, because the map must not
+ * be what keeps an application's widget alive.
+ */
+const adoptedParents = new WeakMap<object, HostElement>();
+
+/**
+ * A host element for whatever Vue calls a parent.
+ *
+ * `<Teleport :to="el">` with a non-string target is handed through VERBATIM —
+ * `resolveTarget`'s non-string branch is `return targetSelector` — so the parent
+ * arriving here is the application's raw widget, not a host node. That is also
+ * the form this adapter's own error message and README prescribe, so coercing it
+ * is what makes the prescription true; re-documenting it only moves the trap.
+ * The host refuses a raw widget by name (`not-a-host-parent`), which stays the
+ * backstop for every OTHER way one could arrive.
+ *
+ * The two facts are the same two the host checks: `kind` alone is a plain string
+ * a GObject wrapper could carry, and the descriptor is what every op dereferences.
+ */
+function asHostParent(parent: HostElement): HostElement {
+    const candidate = parent as unknown as { kind?: unknown; descriptor?: unknown } | null;
+    if (candidate && candidate.kind === 'element' && typeof candidate.descriptor === 'object') return parent;
+    // Not an object at all: no widget to adopt, and the host's refusal already
+    // names what it got. Guessing here would replace a good diagnostic with a
+    // TypeError from inside `adopt`.
+    if (candidate === null || typeof candidate !== 'object') return parent;
+    const cached = adoptedParents.get(candidate);
+    if (cached) return cached;
+    const adopted = adopt(parent as unknown as Gtk.Widget);
+    adoptedParents.set(candidate, adopted);
+    return adopted;
+}
+
 const renderer = createRenderer<HostNode, HostElement>({
     createElement: (type, _namespace, _isCustomizedBuiltIn, vnodeProps) =>
         // Vue hands the props over, so construct-only values arrive in time and the
@@ -96,7 +135,7 @@ const renderer = createRenderer<HostNode, HostElement>({
         setProp(el, key, nextValue === null ? undefined : nextValue, prevValue);
     },
 
-    insert: (el, parent, anchor) => hostInsert(el, parent, anchor ?? null),
+    insert: (el, parent, anchor) => hostInsert(el, asHostParent(parent), anchor ?? null),
 
     // A TEARDOWN here, unlike the Solid adapter — and the difference is measured,
     // not assumed. Vue moves a node by calling `insert` alone (DOM `insertBefore`
@@ -123,12 +162,19 @@ const renderer = createRenderer<HostNode, HostElement>({
     // README prescribes. Same rule as `cloneNode` two lines down: throw rather
     // than lie. Resolving a name would need a registry of mounted roots; when a
     // consumer needs it, that is the work.
+    //
+    // The advice has to be a form that WORKS. It used to say "pass the target
+    // widget itself", and doing literally that rendered nothing, threw nothing
+    // and emitted no diagnostic, because Vue hands a non-string target through
+    // verbatim and the host was then asked to treat a raw widget as a parent.
+    // `insert` adopts it now, so the sentence below is measured, not aspirational.
     querySelector: (selector) => {
         throw new Error(
             `@gjsify/gtk-host/vue: <Teleport to="${selector}"> needs a string target resolved against a ` +
-                `widget tree, which this adapter does not implement yet. Pass the target widget itself ` +
-                `(<Teleport :to="el">), or the teleport would render nothing at all under the production ` +
-                `defines this adapter requires.`,
+                `widget tree, which this adapter does not implement yet. Pass the target WIDGET instead ` +
+                `(<Teleport :to="el">, el being a Gtk.Widget the application owns — this adapter adopts it ` +
+                `for you), or pass adopt(el) if you want the host element yourself. A string target would ` +
+                `render nothing at all under the production defines this adapter requires.`,
         );
     },
 
@@ -165,6 +211,14 @@ const renderer = createRenderer<HostNode, HostElement>({
 // No `hydrate`: that belongs to `createHydrationRenderer` and hydration means
 // taking over server-rendered markup, which does not exist here.
 export const { render, createApp } = renderer;
+
+/**
+ * Re-exported because a Vue app needs it and importing the host separately is a
+ * second module for one function: `<Teleport :to="adopt(el)">` is the explicit
+ * spelling of what `insert` now does implicitly, and it is the one to reach for
+ * when the same target is also addressed by hand.
+ */
+export { adopt };
 
 /**
  * Mount a Vue app into a widget the application owns.

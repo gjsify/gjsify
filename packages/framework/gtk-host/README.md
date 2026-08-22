@@ -212,11 +212,24 @@ Where Vue differs from Solid, and it is all in what Vue asks for:
   and the second one takes an HTML *string*. Compile with `hoistStatic: false` and
   `transformHoist: null`; if that is ever lost, these throw at the first static
   subtree instead of rendering something wrong.
-- **`<Teleport to="#id">` with a string target throws.** Answering null looks
-  gentler and is worse: `TeleportImpl` mounts nothing for a falsy target and the
-  warning is `__DEV__`-only, which the production defines below strip — so it would
-  render nothing, silently, in exactly the configuration this adapter prescribes.
-  Pass the target widget instead (`:to="el"`).
+- **`<Teleport :to="el">` takes a widget the application owns**, and the adapter
+  adopts it — once per widget, so every teleported child and both of Vue's own text
+  anchors see the same shadow tree. Adopting per `insert` call re-snapshots the
+  container's existing children each time and reorders the teleport: measured,
+  `['one','two','three']` landed as `['one','three','two']`. `adopt` is re-exported
+  from `@gjsify/gtk-host/vue` for the explicit spelling, `:to="adopt(el)"`.
+
+  The coercion is what makes that sentence TRUE. Vue returns a non-string target
+  verbatim (`resolveTarget`'s non-string branch is `return targetSelector`), so
+  "pass the target widget instead" — which this adapter's own error message and
+  this README used to say — handed the host a raw `Gtk.Box` as a parent: nothing
+  rendered, nothing threw, no diagnostic. The host now refuses a raw widget by
+  name (`not-a-host-parent`) as the backstop for every other route in.
+- **A *string* teleport target throws.** Answering null looks gentler and is worse:
+  `TeleportImpl` mounts nothing for a falsy target and the warning is `__DEV__`-only,
+  which the production defines below strip — so it would render nothing, silently,
+  in exactly the configuration this adapter prescribes. Resolving a name would need
+  a registry of mounted roots; when a consumer needs it, that is the work.
 - **A prop that disappears is reset, not nulled.** Vue signals removal with `null`;
   the host's contract is `undefined` → the ParamSpec default. Forwarding the `null`
   reached `set_property` verbatim, which throws for an int property — and
