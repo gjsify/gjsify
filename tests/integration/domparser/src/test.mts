@@ -9,8 +9,9 @@
 import { run } from '@gjsify/unit';
 
 import entitiesSuite from './entities.spec.js';
+import fuzzSuite from './fuzz.spec.js';
 import selectorSuite from './selectors.spec.js';
 import serializeSuite from './serialize.spec.js';
 import treeSuite from './tree.spec.js';
 
-run({ entitiesSuite, treeSuite, selectorSuite, serializeSuite });
+run({ entitiesSuite, treeSuite, selectorSuite, serializeSuite, fuzzSuite });

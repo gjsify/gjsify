@@ -308,6 +308,18 @@ export const FIXTURES: Fixture[] = [
         mustContain: ['#text "text"', '#text "1"'],
     },
     {
+        // The "in select" insertion mode: a browser DROPS markup a `<select>`
+        // may not contain and keeps its text. Not implemented here, so the
+        // elements survive — measured as the last undeclared divergence class in
+        // a seeded fuzz against parse5 (451 of 4000 cases once the three
+        // algorithms above were excluded from the generator).
+        name: 'select-with-foreign-markup',
+        html: '<select><option>a</option><div class="x">d</div><span>s</span><option>b</option></select><p>after</p>',
+        expect: 'divergent',
+        minElements: 6,
+        mustContain: ['#text "a"', '#text "after"'],
+    },
+    {
         name: 'svg-foreign-content',
         html: '<div><svg viewBox="0 0 1 1"><circle cx="1"/><rect x="2"/></svg></div>',
         expect: 'divergent',
