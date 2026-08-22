@@ -28,9 +28,23 @@ const WIDGET_NAME = /['"`](?:Gtk|Adw|Gdk|Pango)[A-Z][A-Za-z]+['"`]/;
 /** Placement methods. Naming one here means an insertion rule leaked out of the table. */
 const PLACEMENT = new RegExp(
     [
-        'append', 'prepend', 'insert_child_after', 'set_child', 'set_content', 'set_titlebar',
-        'pack_start', 'pack_end', 'set_title_widget', 'add_top_bar', 'add_bottom_bar',
-        'add_prefix', 'add_suffix', 'add_titled', 'add_named', 'attach', 'reorder_child_after',
+        'append',
+        'prepend',
+        'insert_child_after',
+        'set_child',
+        'set_content',
+        'set_titlebar',
+        'pack_start',
+        'pack_end',
+        'set_title_widget',
+        'add_top_bar',
+        'add_bottom_bar',
+        'add_prefix',
+        'add_suffix',
+        'add_titled',
+        'add_named',
+        'attach',
+        'reorder_child_after',
     ]
         .map((m) => `\\b${m}\\b`)
         .join('|'),
@@ -41,8 +55,7 @@ const PLACEMENT = new RegExp(
 // widened for exactly this reason and this line was left behind — a
 // double-quoted `from "../descriptors/index.js"`, a side-effect `import
 // '../registry.js'` and an `await import(...)` all passed. Found by review.
-const FORBIDDEN_IMPORT =
-    /(?:from\s*|import\s*\(?\s*)['"`]\.\.\/(?:descriptors|policies|registry)(?:\/index)?\.js['"`]/;
+const FORBIDDEN_IMPORT = /(?:from\s*|import\s*\(?\s*)['"`]\.\.\/(?:descriptors|policies|registry)(?:\/index)?\.js['"`]/;
 
 if (!existsSync(DIR)) {
     console.error(`check-adapter-import-direction: ${DIR} does not exist.`);
