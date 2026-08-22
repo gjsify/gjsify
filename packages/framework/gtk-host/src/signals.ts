@@ -8,6 +8,7 @@
 
 import type GObject from '@girs/gobject-2.0';
 
+import { err } from './errors.js';
 import type { HostElement } from './types.js';
 
 /** `onRowActivated` -> `row-activated`; `onNotifyVisible` -> `notify::visible`. */
@@ -62,8 +63,15 @@ export function setHandler(el: HostElement, prop: string, next: ((...args: unkno
         disconnect(id: number): void;
     };
 
-    if (existing !== undefined) {
-        target.disconnect(existing);
+    // Two props can resolve to one signal. Replacing the other's handler here
+    // would be exactly the silent drop this host exists to refuse: the first
+    // callback stops firing and nothing says so.
+    if (existing && existing.prop !== prop && next) {
+        throw err.signalTaken(el.descriptor.gtype, prop, existing.prop, signal);
+    }
+
+    if (existing) {
+        target.disconnect(existing.id);
         el.handlers.delete(signal);
     }
     if (!next) return;
@@ -74,7 +82,7 @@ export function setHandler(el: HostElement, prop: string, next: ((...args: unkno
         if (isNotify && inHostWrite()) return undefined;
         return next(...args.slice(1));
     });
-    el.handlers.set(signal, id);
+    el.handlers.set(signal, { id, prop });
 }
 
 /** Disconnect every handler on a node. The only place a handler dies. */
@@ -84,6 +92,6 @@ export function clearHandlers(el: HostElement): void {
         return;
     }
     const target = el.widget as unknown as { disconnect(id: number): void };
-    for (const id of el.handlers.values()) target.disconnect(id);
+    for (const { id } of el.handlers.values()) target.disconnect(id);
     el.handlers.clear();
 }

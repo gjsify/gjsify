@@ -540,6 +540,12 @@ export function destroy(node: HostNode): void {
         }
         node.widget = null;
         node.wrapper = null;
+        // A destroyed node keeps no authored state: `props` and `layout` exist so
+        // a REBUILD can restate the same intent, and there is nothing left to
+        // rebuild. Leaving them made a destroyed element look re-materialisable.
+        node.props = {};
+        node.layout = null;
+        node.textFromChildren = false;
     }
 }
 

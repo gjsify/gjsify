@@ -12,7 +12,7 @@ import GObject from 'gi://GObject';
 import Gtk from 'gi://Gtk?version=4.0';
 
 import { gtkChildTypes, gtkChildren, installDiagnosticsGate } from './conformance/index.js';
-import { registerBuiltinWidgets } from './descriptors/index.js';
+import { BUILTIN_DESCRIPTORS, registerBuiltinWidgets } from './descriptors/index.js';
 import {
     createAnchor,
     createElement,
@@ -384,6 +384,36 @@ export default async () => {
                 // anywhere in the process would silence every notify::, greenly.
                 (label.widget as unknown as Gtk.Label).set_property('label', 'written by someone else');
                 expect(notified).toBe(1);
+            });
+
+            await it('refuses two props that resolve to one signal', async () => {
+                // `onClicked` and `on:clicked` are the same GObject signal. The
+                // second used to disconnect the first without a word, so the
+                // first callback simply stopped firing.
+                const btn = createElement('GtkButton');
+                materialize(btn);
+                setEventHandler(btn, 'onClicked', () => {});
+                expect(() => setEventHandler(btn, 'on:clicked', () => {})).toThrow('already binds');
+                expect(btn.handlers.size).toBe(1);
+                // replacing the SAME prop is still fine
+                setEventHandler(btn, 'onClicked', () => {});
+                expect(btn.handlers.size).toBe(1);
+                // …and clearing it frees the signal for the other spelling
+                setEventHandler(btn, 'onClicked', null);
+                setEventHandler(btn, 'on:clicked', () => {});
+                expect(btn.handlers.size).toBe(1);
+            });
+
+            await it('destroy leaves no authored state behind', async () => {
+                const box = createElement('GtkBox');
+                materialize(box);
+                const label = createElement('GtkLabel', { label: 'x', layout: { name: 'n' } });
+                insert(label, box);
+                destroy(label);
+                expect(label.props).toStrictEqual({});
+                expect(label.layout).toBe(null);
+                expect(label.listeners.size).toBe(0);
+                expect(label.widget).toBe(null);
             });
 
             await it('destroy disconnects every handler', async () => {
@@ -802,6 +832,29 @@ export default async () => {
                 expect(gtkChildTypes(widget)).toStrictEqual(['GtkLabel', 'GtkLabel']);
                 expect(a.widget !== null).toBe(true);
             });
+        });
+
+        await describe('every slotted descriptor survives a round trip through every slot', async () => {
+            // A mechanism, not a vector: `descriptorProblems()` can tell that a
+            // slot method EXISTS, never that removal through that slot works. The
+            // asymmetric cases are the ones that bite — `AdwToolbarView.content`
+            // is a setter, its `top` is an adder, and one `remove` serves both.
+            for (const d of BUILTIN_DESCRIPTORS) {
+                if (d.children.kind !== 'slotted') continue;
+                for (const slot of Object.keys(d.children.slots)) {
+                    await it(`${d.gtype} slot "${slot}"`, async () => {
+                        const parent = createElement(d.gtype);
+                        materialize(parent);
+                        const child = createElement('GtkButton', { label: slot, slot });
+                        insert(child, parent);
+                        expect(child.attached).toBe(true);
+                        remove(child);
+                        expect(child.attached).toBe(false);
+                        // the diagnostics gate in afterEach is the real assertion:
+                        // a removal through the wrong API is a critical at exit 0
+                    });
+                }
+            }
         });
 
         await describe('mountRoot resolves the container through the table', async () => {

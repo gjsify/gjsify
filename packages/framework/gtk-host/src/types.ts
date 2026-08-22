@@ -49,8 +49,14 @@ export interface HostElement extends HostNodeBase {
     slot: string | null;
     first: HostNode | null;
     last: HostNode | null;
-    /** signal name -> handler id. One native handler per signal name, ever. */
-    handlers: Map<string, number>;
+    /**
+     * signal name -> the one native handler, and the prop that owns it.
+     *
+     * One handler per signal name, ever. The owner is recorded because two props
+     * can resolve to the same signal (`onClicked` and `on:clicked`), and the
+     * second used to disconnect the first without saying so.
+     */
+    handlers: Map<string, { id: number; prop: string }>;
     /** Authored property values, kebab-normalised. Kept after materialisation so a
      *  construct-only change can rebuild the widget from the same intent. */
     props: Record<string, unknown>;

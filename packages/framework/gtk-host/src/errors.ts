@@ -50,6 +50,13 @@ export const err = {
             `<${tag}> emits no signal "${signal}" (bound as ${prop}). Check the spelling against the installed GTK, ` +
                 `or use the escape hatch on:<raw-signal-name> if the name is irregular.`,
         ),
+    signalTaken: (tag: string, prop: string, other: string, signal: string) =>
+        new GtkHostError(
+            'signal-taken',
+            `<${tag}> already binds "${signal}" through ${other}, so ${prop} would silently replace it — ` +
+                `GObject has one handler per connect, and this host keeps one per signal name. ` +
+                `Use one spelling, or combine the two callbacks yourself.`,
+        ),
     badBoolean: (tag: string, prop: string, value: string) =>
         new GtkHostError(
             'bad-boolean',
