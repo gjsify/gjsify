@@ -2214,71 +2214,31 @@ rather than adding a second one here.
 `packages/web/adwaita-web/src/keyboard-operable.spec.ts` awaits that microtask
 and says why.
 
-### The adwaita-web row family is not keyboard-reachable at all
+### `<adw-toggle-group>` is upstream's fifth roving widget and has none of it
 
-Measured in Firefox against a built `dist/test.browser.mjs`, on a
-`<adw-preferences-group>` holding an activatable `<adw-action-row>`, an
-`<adw-button-row>` and an `<adw-expander-row>`, with a `<button>` before and after
-it: Tab went straight from the button before the group to the button after it.
-All three rows report `tabIndex` `-1` and `role` `null`, and the expander
-publishes no `aria-expanded` — while all three activate on click. The whole group
-is invisible to a keyboard.
+The row-family half of this entry is CLOSED: `<adw-action-row>` (while `activatable`),
+`<adw-button-row>`, `<adw-expander-row>`'s header and `<adw-switch-row>` are tab stops that
+activate on Enter and Space, `<adw-preferences-group>` declares
+`GTK_ACCESSIBLE_ROLE_GROUP`, and `<adw-switch-row>`'s slider stopped being a focus target
+the way `adw_switch_row_init` does it. `<adw-combo-row>` was measured NOT to need it — its
+native `<select>` is already the combobox, already arrow-navigable, and already `disabled`
+at one option or fewer, which is `adw-combo-row.c:194` without a line of our own.
 
-GTK gives this free and adwaita-web does not inherit it: every one of these
-extends `GtkListBoxRow`, which is focusable by construction and activates on
-Enter/Space. The pieces the C declares that the web renderer does not are exact —
-`adw-expander-row.c:657` updates `GTK_ACCESSIBLE_STATE_EXPANDED` on the header
-row on every toggle (i.e. `aria-expanded`), `adw-switch-row.c:147` declares
-`GTK_ACCESSIBLE_ROLE_SWITCH`, `adw-combo-row.c:734` `GTK_ACCESSIBLE_ROLE_COMBO_BOX`,
-and `adw-preferences-group.c:319` `GTK_ACCESSIBLE_ROLE_GROUP`. Action, button and
-preferences rows declare no role of their own and inherit the list-item one.
-
-DELIBERATELY NOT FIXED beside the modal trap and the roving tabindex (which are
-invisible until pressed, and were): this one MOVES TAB ORDER on every page that
-uses a row, and every row instance under `website/` — where they are concentrated
-— either becomes a new tab stop or has to be argued out of becoming one. Rolling
-it in would have made the two fixes that change nothing visible indistinguishable
-from the one that changes every page. (An earlier draft of this entry justified
-the deferral with a count in the hundreds; it had been taken over `website/dist`
-and `website/.astro`, Astro build output, i.e. the same source pages many times
-over. Over tracked sources it is well under a hundred. The decision does not turn
-on the number — it turns on the change being visible on every page — which is why
-the number is not restated here.)
-
-What it costs, in the order the questions have to be answered:
-
-- WHICH rows become tab stops. `<adw-action-row>` only when `activatable`;
-  `<adw-button-row>` always (`BUTTON_ROW_ACTIVATABLE`, no opt-out upstream);
-  `<adw-expander-row>` always, since its header is the disclosure control. A
-  non-activatable action row must stay out, or every static label becomes a stop.
-- WHAT each declares. `aria-expanded` on the expander header, kept live;
-  `role="switch"` / `role="combobox"` on the two rows the C names; a list-item
-  role for the rest only if `<adw-preferences-group>` gains the matching container
-  role, since a list item outside a list is worse than none.
-- WHICH keys activate. Enter and Space, the way `GtkListBoxRow` does — and Space
-  must not also scroll the page.
-- The before/after this deserves: a tab-stop count per showcase page, measured,
-  not asserted. `tests/browser/specs/adwaita-keyboard.spec.ts` already pins the
-  CURRENT behaviour (Tab skips the group entirely), so the day it changes that
-  spec says so instead of nothing.
-
-`scripts/check-adwaita-keyboard-contract.mjs` does not see this class: the rows
-assign no negative tabIndex, they assign nothing at all, which is exactly why it
-went unnoticed. A gate for it wants the container question answered first.
-
-`<adw-toggle-group>` is the same blind spot from the other side, and belongs in
-this entry rather than a new one. Upstream it is the fifth member of the roving
-family: `AdwInlineViewSwitcher` builds exactly this widget with
-`GTK_ACCESSIBLE_ROLE_TAB_LIST` (`adw-inline-view-switcher.c:702`), and
+What remains is the same blind spot from the other side. Upstream `<adw-toggle-group>` is
+the fifth member of the roving family: `AdwInlineViewSwitcher` builds exactly this widget
+with `GTK_ACCESSIBLE_ROLE_TAB_LIST` (`adw-inline-view-switcher.c:702`), and
 `adw_toggle_group_focus` (`adw-toggle-group.c:1045`) is the citation
-`elements/roving-focus.ts` is built on. The web element has none of it — no role,
-no roving tabindex, no arrow keys. Measured in Firefox: three toggles report
-`tabIndex` `[0, 0, 0]`, the host has no `role`, and ArrowRight/ArrowLeft/Home/End
-all leave `document.activeElement` exactly where it was. It stays OPERABLE, every
-toggle being its own tab stop, so it is not the defect class the gate was written
-against — and the gate structurally cannot see it either, since there is no
-negative tabindex to trigger on. Its zero finding there is a scope limit, not a
-clean bill.
+`elements/roving-focus.ts` is built on. The web element has none of it — no role, no roving
+tabindex, no arrow keys. Measured in Firefox: three toggles report `tabIndex` `[0, 0, 0]`,
+the host has no `role`, and ArrowRight/ArrowLeft/Home/End all leave `document.activeElement`
+exactly where it was.
+
+It stays OPERABLE, every toggle being its own tab stop, so it is not the defect class
+`scripts/check-adwaita-keyboard-contract.mjs` was written against — and that gate
+structurally cannot see it either, since there is no negative tabindex to trigger on. Its
+zero finding there is a scope limit, not a clean bill. Closing it means giving the group the
+tab-list role and one roving tabindex, which turns three tab stops into one: a visible
+change to anything that tabs through a toggle group today.
 
 ### adwaita-core modules with no conformance vector table
 

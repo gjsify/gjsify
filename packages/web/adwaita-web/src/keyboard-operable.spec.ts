@@ -457,4 +457,72 @@ export const AdwKeyboardOperableTest = async () => {
             el.remove();
         });
     });
+
+    await describe('the row family is a tab stop where libadwaita makes one', async () => {
+        const mount = (markup: string) => {
+            const host = document.createElement('div');
+            host.innerHTML = markup;
+            document.body.append(host);
+            return host;
+        };
+
+        await it('takes a tab stop only where the row is activatable', () => {
+            const host = mount(
+                '<adw-preferences-group title="G">' +
+                    '<adw-action-row id="k-act" title="Act" activatable></adw-action-row>' +
+                    '<adw-action-row id="k-plain" title="Plain"></adw-action-row>' +
+                    '<adw-button-row id="k-btn" title="Btn"></adw-button-row>' +
+                    '<adw-switch-row id="k-sw" title="Sw"></adw-switch-row>' +
+                    '</adw-preferences-group>',
+            );
+            const at = (id: string) => document.getElementById(id) as HTMLElement;
+            // `tabIndex` alone cannot tell "not a stop" from "not set": a custom element
+            // reports -1 for both. The ATTRIBUTE is the thing the row wrote.
+            expect(at('k-act').getAttribute('tabindex')).toBe('0');
+            expect(at('k-plain').hasAttribute('tabindex')).toBe(false);
+            expect(at('k-btn').getAttribute('tabindex')).toBe('0');
+            expect(at('k-sw').getAttribute('tabindex')).toBe('0');
+            // adw-switch-row.c:159 — the slider is not a focus target; the row is.
+            expect(at('k-sw').querySelector('input')?.tabIndex).toBe(-1);
+            host.remove();
+        });
+
+        await it('follows `activatable` when it moves', () => {
+            const host = mount('<adw-action-row id="k-move" title="Move"></adw-action-row>');
+            const row = document.getElementById('k-move') as HTMLElement;
+            expect(row.hasAttribute('tabindex')).toBe(false);
+            row.toggleAttribute('activatable', true);
+            expect(row.getAttribute('tabindex')).toBe('0');
+            row.toggleAttribute('activatable', false);
+            expect(row.hasAttribute('tabindex')).toBe(false);
+            host.remove();
+        });
+
+        await it('activates on Enter and Space, and lets a child keep its own keys', () => {
+            const host = mount(
+                '<adw-action-row id="k-keys" title="Keys" activatable></adw-action-row>' +
+                    '<adw-combo-row id="k-combo" title="Combo" items=\'["a","b"]\'></adw-combo-row>',
+            );
+            const row = document.getElementById('k-keys') as HTMLElement;
+            let activated = 0;
+            row.addEventListener('activated', () => activated++);
+            const press = (el: HTMLElement, key: string) =>
+                el.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+            press(row, 'Enter');
+            press(row, ' ');
+            press(row, 'a');
+            expect(activated).toBe(2);
+
+            // A `<select>` uses Space itself; swallowing it to activate the row around it
+            // would break the control to reach the thing it sits in.
+            const select = document.getElementById('k-combo')?.querySelector('select') as HTMLElement;
+            let prevented: boolean | null = null;
+            select.addEventListener('keydown', (event) => {
+                prevented = event.defaultPrevented;
+            });
+            press(select, ' ');
+            expect(prevented).toBe(false);
+            host.remove();
+        });
+    });
 };

@@ -22,6 +22,7 @@
 import { BUTTON_ROW_ACTIVATABLE, ButtonRowState } from '@gjsify/adwaita-core';
 
 import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+import { attachRowActivation } from './row-activation.js';
 
 export class AdwButtonRow extends HTMLElement {
     private _contentsEl!: HTMLDivElement;
@@ -58,6 +59,8 @@ export class AdwButtonRow extends HTMLElement {
         this.addEventListener('click', () => {
             this.dispatchEvent(new CustomEvent('activated', { bubbles: true }));
         });
+        // `BUTTON_ROW_ACTIVATABLE`, not an attribute read: there is no opt-out to read.
+        attachRowActivation({ row: this, activatable: () => BUTTON_ROW_ACTIVATABLE });
     }
 
     attributeChangedCallback() {
