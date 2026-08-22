@@ -353,15 +353,14 @@ jobs:
         run: node scripts/check-adwaita-style-classes.mjs
 
       # An icon name and the mask class that draws it are two halves of one decision that
-      # nothing compared. `_icon.scss` gave `.adw-icon` a `currentColor` fill and no
-      # `mask-image`, so a name outside the generated set painted a SOLID 16px square in
-      # the widget's text colour — measured in Firefox, `mask-image: none` on a 16x16 box
-      # that reads as a deliberate swatch. `adw-icon.spec.ts` asserted the class STRING,
-      # which was always applied, correctly, to nothing. What the silence bought was four
+      # nothing compared: a name outside the generated set painted a SOLID 16px square in
+      # the widget's text colour, and `adw-icon.spec.ts` asserted the class STRING, which
+      # was always applied, correctly, to nothing. What the silence bought was four
       # renderer-comparison surfaces drawing a different glyph from the GTK pane they exist
       # to be compared against, one of them under a comment blaming the icons PACKAGE for a
-      # glyph it exports. The gate holds both directions, because each entry costs ~1.5 KB
-      # of a 190 KB stylesheet and all 644 icons would cost 1.07 MB.
+      # glyph it exports. The gate holds three directions — emitted needs a class, a class
+      # needs an emitter, and a compiled glyph needs to come from @gjsify/adwaita-icons —
+      # because inlining the whole icon set would cost some five times the stylesheet.
       - name: Check every emitted icon name has a mask class
         run: node scripts/check-adwaita-icon-masks.mjs
 
@@ -804,15 +803,14 @@ jobs:
         run: node scripts/check-adwaita-style-classes.mjs
 
       # An icon name and the mask class that draws it are two halves of one decision that
-      # nothing compared. `_icon.scss` gave `.adw-icon` a `currentColor` fill and no
-      # `mask-image`, so a name outside the generated set painted a SOLID 16px square in
-      # the widget's text colour — measured in Firefox, `mask-image: none` on a 16x16 box
-      # that reads as a deliberate swatch. `adw-icon.spec.ts` asserted the class STRING,
-      # which was always applied, correctly, to nothing. What the silence bought was four
+      # nothing compared: a name outside the generated set painted a SOLID 16px square in
+      # the widget's text colour, and `adw-icon.spec.ts` asserted the class STRING, which
+      # was always applied, correctly, to nothing. What the silence bought was four
       # renderer-comparison surfaces drawing a different glyph from the GTK pane they exist
       # to be compared against, one of them under a comment blaming the icons PACKAGE for a
-      # glyph it exports. The gate holds both directions, because each entry costs ~1.5 KB
-      # of a 190 KB stylesheet and all 644 icons would cost 1.07 MB.
+      # glyph it exports. The gate holds three directions — emitted needs a class, a class
+      # needs an emitter, and a compiled glyph needs to come from @gjsify/adwaita-icons —
+      # because inlining the whole icon set would cost some five times the stylesheet.
       - name: Check every emitted icon name has a mask class
         run: node scripts/check-adwaita-icon-masks.mjs
 
