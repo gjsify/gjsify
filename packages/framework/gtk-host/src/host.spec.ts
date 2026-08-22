@@ -585,6 +585,59 @@ export default async () => {
             });
         });
 
+        await describe('a rejected operation writes nothing down', async () => {
+            // One class, found three times by review: state committed BEFORE the
+            // operation that can reject it. Each of these fails without its fix
+            // on a LATER, valid call — which is what makes the class expensive.
+
+            await it('a rejected property does not poison the next rebuild', async () => {
+                const btn = createElement('GtkButton', { label: 'ok' });
+                materialize(btn);
+                expect(() => setProp(btn, 'labell', 'typo')).toThrow('has no property');
+                // The typo must not survive as authored intent: `materialize`
+                // replays `props` verbatim, so a valid construct-only write later
+                // would throw from inside the rebuild and leave the widget null.
+                setProp(btn, 'cssName', 'rebuilt');
+                expect(btn.widget !== null).toBe(true);
+                expect((btn.widget as unknown as Gtk.Button).label).toBe('ok');
+            });
+
+            await it('a failed setElementText does not arm the text flag', async () => {
+                const box = createElement('GtkBox');
+                materialize(box);
+                try {
+                    setElementText(box, 'x');
+                } catch {
+                    /* GtkBox has no text sink */
+                }
+                expect(box.textFromChildren).toBe(false);
+                setProp(box, 'cssName', 'rebuilt');
+                expect(box.widget !== null).toBe(true);
+            });
+
+            await it('a refused MOVE leaves the node where it was', async () => {
+                // Detaching first and failing second lost the node from a tree
+                // that was perfectly valid.
+                const box = createElement('GtkBox');
+                const boxWidget = materialize(box) as unknown as Gtk.Widget;
+                const page = createElement('AdwPreferencesPage');
+                materialize(page);
+                const [a] = labels(1);
+                insert(a, box);
+                expect(gtkChildTypes(boxWidget)).toStrictEqual(['GtkLabel']);
+
+                try {
+                    insert(a, page);
+                } catch {
+                    /* AdwPreferencesPage refuses a GtkLabel */
+                }
+
+                expect(gtkChildTypes(boxWidget)).toStrictEqual(['GtkLabel']);
+                expect(a.parent === box).toBe(true);
+                expect(a.attached).toBe(true);
+            });
+        });
+
         await describe('mountRoot resolves the container through the table', async () => {
             await it('mounts into an application-owned widget', async () => {
                 const container = new Gtk.Box();

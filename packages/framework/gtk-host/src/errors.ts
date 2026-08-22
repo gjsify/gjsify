@@ -90,10 +90,4 @@ export const err = {
             `<${tag}> is not a Gtk.Widget, so it cannot be placed as a child. ` +
                 `Non-widget GObjects (controllers, filters, models) attach to a property, not to a parent.`,
         ),
-    constructOnlyLate: (tag: string, prop: string) =>
-        new GtkHostError(
-            'construct-only-late',
-            `<${tag}>.${prop} is construct-only and the widget already exists. ` +
-                `The host rebuilds on construct-only changes; reaching this error means the rebuild path was bypassed.`,
-        ),
 };

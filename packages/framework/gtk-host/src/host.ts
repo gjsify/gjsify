@@ -129,20 +129,25 @@ export function setProp(el: HostElement, key: string, next: unknown, _prev?: unk
     }
 
     const name = toPropertyName(key);
-    if (next === undefined) delete el.props[name];
-    else el.props[name] = next;
 
-    if (!el.widget) return; // buffered until materialisation
-
-    const Klass = el.descriptor.ctor();
-    const specs = paramSpecs(Klass, el.descriptor.gtype);
+    // Validate BEFORE recording. `el.props` is authored intent and it is replayed
+    // verbatim by `materialize`, so a rejected value kept there poisons the next
+    // rebuild: a typo'd property threw once at the call site, then again from
+    // inside `materialize` — during a perfectly valid construct-only write, which
+    // left the widget detached and null. Nothing is written down until the
+    // installed GTK has agreed to it.
+    const specs = paramSpecs(el.descriptor.ctor(), el.descriptor.gtype);
     const spec = requireSpec(specs, el.descriptor.gtype, name);
-    if ((spec.flags & GObject.ParamFlags.CONSTRUCT_ONLY) !== 0) return rebuild(el);
-
     // A renderer removing a prop hands `undefined`, which GObject cannot store:
     // `set_property(name, undefined)` throws "Could not guess unspecified GValue
     // type" (measured). The ParamSpec's own default is what "removed" means.
     const value = next === undefined ? defaultValue(spec) : coerce(spec, next, el.descriptor.gtype);
+
+    if (next === undefined) delete el.props[name];
+    else el.props[name] = next;
+
+    if (!el.widget) return; // buffered until materialisation
+    if ((spec.flags & GObject.ParamFlags.CONSTRUCT_ONLY) !== 0) return rebuild(el);
 
     beginHostWrite();
     try {
@@ -219,8 +224,8 @@ export function setText(node: HostText | HostAnchor, data: string): void {
 /** Vue's bulk path and React's `shouldSetTextContent`: drop children, set the sink. */
 export function setElementText(el: HostElement, text: string): void {
     for (const child of childSnapshot(el)) destroy(child);
-    el.textFromChildren = true;
     writeTextSink(el, text);
+    el.textFromChildren = true; // after the write — see flushText
 }
 
 function flushText(el: HostElement): void {
@@ -343,20 +348,40 @@ function ensureWrapper(parent: HostElement, child: HostElement): void {
 }
 
 export function insert(node: HostNode, parent: HostElement, anchor: HostNode | null = null): void {
+    // Where it was, so a refused move can be undone. "Leave nothing behind" has
+    // to mean the OLD parent too: detaching first and failing second lost the
+    // node from a tree that was perfectly valid.
+    const wasIn = node.parent;
+    const wasBefore = node.next;
+
     if (node.parent) remove(node);
     link(parent, node, anchor);
     try {
         if (node.kind === 'element') attach(parent, node);
         else if (node.kind === 'text') flushText(parent);
     } catch (e) {
-        // A refused placement must leave NOTHING behind. Linking first and
-        // attaching second is the right order (the policy needs the sibling
-        // links to compute an anchor), but a throw in between would otherwise
-        // leave the node in the shadow tree and out of the GTK one — the two
-        // disagreeing is precisely the state every assertion here exists to
-        // prevent.
+        // Linking before attaching is the right order — the policy needs the
+        // sibling links to resolve an anchor — so the throw path undoes it.
         unlink(node);
+        if (wasIn) restore(node, wasIn, wasBefore);
         throw e;
+    }
+}
+
+/**
+ * Put a node back where a failed move took it from.
+ *
+ * Best effort by construction: the old placement worked a moment ago, so this
+ * normally succeeds. If it does not, the ORIGINAL rejection is what the caller
+ * needs to see — a restore failure reported instead would name the wrong cause.
+ */
+function restore(node: HostNode, parent: HostElement, before: HostNode | null): void {
+    try {
+        link(parent, node, before);
+        if (node.kind === 'element') attach(parent, node);
+        else if (node.kind === 'text') flushText(parent);
+    } catch {
+        unlink(node);
     }
 }
 
