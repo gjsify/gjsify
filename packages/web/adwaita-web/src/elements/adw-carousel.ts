@@ -232,6 +232,18 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
             points: () => this._state.snapPoints,
             progress: () => this._state.position,
             allowLongSwipes: () => this._state.allowLongSwipes,
+            // `adw_carousel_get_cancel_progress` is `get_closest_snap_point`
+            // (adw-carousel.c:1294-1299) — the page nearest where the gesture was
+            // interrupted, NOT the one it started from.
+            //
+            // The POINT, not the index `pageAt` returns. They coincide only while every
+            // page has size 1: a page mid-reveal has a fractional size, so
+            // `carouselSnapPoints` (cumulative size − 1) hands back non-integers and an
+            // index used as a progress would jump the strip somewhere else entirely.
+            cancelProgress: () => {
+                const points = this._state.snapPoints;
+                return points[this._state.pageAt(this._state.position)] ?? this._state.position;
+            },
             // The DRAG writes the offset directly and the existing scroll handler reads
             // the position back off it — the same path a touch scroll takes, so there is
             // no second route into `position` to drift from this one.

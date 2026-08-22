@@ -199,6 +199,11 @@ export const AdwCarouselNsTest = async () => {
                     orientation: state.orientation,
                     interactive: state.interactive,
                     allowScrollWheel: state.allowScrollWheel,
+                    // Read off the shared state, not off a NativeScript property: this
+                    // port exposes `interactive` and nothing else of the four, because a
+                    // phone has no scroll wheel and no mouse to drag with. What the
+                    // vector pins here is the DEFAULT both renderers inherit.
+                    allowMouseDrag: state.allowMouseDrag,
                     allowLongSwipes: state.allowLongSwipes,
                     spacing: state.spacing,
                     revealDuration: state.revealDuration,

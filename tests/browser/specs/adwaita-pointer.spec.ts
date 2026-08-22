@@ -191,6 +191,52 @@ async function driveDrags(page: Page, bundleUrl: string) {
     // `adw_carousel_set_interactive` is `adw_swipe_tracker_set_enabled` (:1705).
     expect(await state(page)).toMatchObject({ position: 0, scrollLeft: 0 });
 
+    // ---- A cancelled gesture ENDS, and the destination is not assertable here -------
+    box = await mount(page);
+    // `pointercancel` is what interrupts a gesture the browser decides is no longer one.
+    // What is asserted is that it ENDS it: snapping back on, nothing left tracking. That
+    // is the failure that actually happened during this work — a gesture whose end was
+    // never seen left the strip stopped mid-page with snapping off, permanently.
+    //
+    // The DESTINATION is deliberately NOT asserted, and the reason is worth keeping.
+    // `AdwCarousel` answers `get_cancel_progress` with `get_closest_snap_point`
+    // (adw-carousel.c:1294-1299), which is precisely what CSS scroll-snap does to a
+    // container the moment `scroll-snap-type` comes back on. The two agree by
+    // construction, so no assertion in this renderer can tell the wiring from its
+    // absence — measured: with `cancelProgress` mutated to a constant 0 the strip still
+    // landed on the same page, because the browser's own re-snap got there first. The
+    // wiring stays because it is the model upstream declares and the one a settle that
+    // stops going through CSS snap would need; what a test can hold is the ending.
+    await page.evaluate(() => {
+        const track = document.querySelector('.adw-carousel-track') as HTMLElement;
+        (window as unknown as { pointerId: number }).pointerId = 0;
+        track.addEventListener('pointerdown', (event) => {
+            (window as unknown as { pointerId: number }).pointerId = event.pointerId;
+        });
+    });
+    {
+        const y = box.y + box.height / 2;
+        const from = box.x + box.width - 8;
+        await page.mouse.move(from, y);
+        await page.mouse.down();
+        for (let i = 1; i <= 13; i++) await page.mouse.move(from - i * 20, y);
+        // Claimed, so snapping is off and the gesture owns the strip.
+        expect((await state(page)).snap).toBe('none');
+        await page.evaluate(() => {
+            const track = document.querySelector('.adw-carousel-track') as HTMLElement;
+            const pointerId = (window as unknown as { pointerId: number }).pointerId;
+            track.dispatchEvent(new PointerEvent('pointercancel', { pointerId, bubbles: true }));
+        });
+        // The cancel alone put the widget back in a usable state, before any `pointerup`.
+        expect((await state(page)).snap).toBe('x mandatory');
+        await page.mouse.up();
+        await page.waitForTimeout(700);
+    }
+    const cancelled = await state(page);
+    // Wherever it landed, it landed ON a page rather than between two.
+    expect(cancelled.scrollLeft % PAGE).toBe(0);
+    expect(cancelled.snap).toBe('x mandatory');
+
     // ---- A vertical drag belongs to the page ---------------------------------------
     box = await mount(page);
     const y = box.y + box.height / 2;

@@ -71,6 +71,16 @@ export interface AdwSwipeDragInit {
     progress: () => number;
     /** `AdwCarousel:allow-long-swipes`. */
     allowLongSwipes: () => boolean;
+    /**
+     * `adw_swipeable_get_cancel_progress` — where a CANCELLED gesture goes.
+     *
+     * Not optional by accident: the tracker's own fallback is where the gesture began,
+     * and `AdwCarousel`'s answer is `get_closest_snap_point` — the point nearest where
+     * the finger is NOW (adw-carousel.c:1294-1299). The two differ for exactly the
+     * gesture that matters, one cancelled past the halfway mark: upstream commits to the
+     * page under the cursor, the fallback yanks it back.
+     */
+    cancelProgress: () => number;
     /** Show this progress. Called on every move that the gesture owns. */
     onUpdate: (progress: number) => void;
     /** Settle on this progress. `velocity` is raw px/ms, for an animation duration. */
@@ -95,8 +105,7 @@ export function attachSwipeDrag(init: AdwSwipeDragInit): void {
     const tracker = new SwipeTracker({
         points: init.points,
         allowLongSwipes: init.allowLongSwipes,
-        // A cancelled drag goes back where it started, which is this tracker's own
-        // default — `AdwCarousel` has no `get_cancel_progress` of its own either.
+        cancelProgress: init.cancelProgress,
     });
 
     let pointerId: number | null = null;
@@ -114,7 +123,19 @@ export function attachSwipeDrag(init: AdwSwipeDragInit): void {
 
     const axisOffset = (dx: number, dy: number) => (init.orientation === 'vertical' ? dy : dx);
 
-    /** Dragging LEFT must advance, so the offset is negated — `drag_update_cb`'s `offset = -offset`. */
+    /**
+     * Dragging LEFT must advance, so the offset is negated — `drag_update_cb`'s
+     * `offset = -offset`.
+     *
+     * LTR ONLY, deliberately. Upstream flips this sign for RTL through
+     * `adw_swipe_tracker_set_reversed` (`adw-carousel.c:455-465`), and taking a `reversed`
+     * flag here would be an afternoon's work — but the web carousel does not work in RTL
+     * at ALL yet: its offset model is `scrollLeft = position * distance`, and an RTL
+     * scroll container counts `scrollLeft` DOWN from 0, so even `scrollToPage(1)` moves
+     * nothing (measured). A reversed branch would compute a correct progress and write it
+     * to a container that ignores it. `status/open-todos.md` carries the whole gap; the
+     * flag belongs in the change that can test it.
+     */
     const progressOffset = (dx: number, dy: number) => -axisOffset(dx, dy);
 
     const release = () => {

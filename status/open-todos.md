@@ -2257,6 +2257,64 @@ assignment from any other string. Closing the LOOK is separate again, and is a
 design port rather than a fix: NativeScript has no `rem`, no `text-transform` and
 no `color-mix`, so each of those classes needs its own literal.
 
+### The swipe settle drops its velocity, so a flick and a slow drag ease alike
+
+Upstream a released swipe does not scroll — it SPRINGS. `end_swipe_cb` calls
+`scroll_to (self, child, velocity)`, which sets the target on an
+`AdwSpringAnimation` and then
+`adw_spring_animation_set_initial_velocity (…, velocity)`
+(`adw-carousel.c:379-397`). So the finger's speed carries THROUGH the settle: a
+flick keeps its momentum into the next page, a slow drag eases in, and both use
+the same spring rather than the same duration.
+
+The web settle is `scrollTo({ behavior: 'smooth' })`, whose curve and duration are
+the user agent's and take no initial velocity. `elements/swipe-drag.ts` hands
+`onEnd` the velocity already and `<adw-carousel>`'s handler documents that it
+ignores it, so the seam is in place and the number is not lost — what is missing
+is something to spend it on.
+
+This is a consequence of a decision the core already records rather than a new
+gap: `CAROUSEL_SETTLE_EPSILON`'s comment says the renderers let the PLATFORM
+scroll (CSS scroll-snap, a NativeScript `ScrollView`) because C knows a scroll
+finished from its own spring and a platform scroller has only an offset. Closing
+it means porting `AdwSpringAnimation` — damping ratio, mass, stiffness, epsilon,
+and its `estimate_duration` — and driving `scrollLeft` from a rAF loop instead of
+handing the browser a target. That buys velocity continuity and costs the
+platform's own scroll animation, including whatever it does about reduced motion.
+Worth a measurement of the two side by side before it is worth the port.
+
+### `<adw-carousel>` does not work in RTL at all, and the reason is its offset model
+
+Measured in Firefox with `document.documentElement.dir = 'rtl'`, three 440 px pages:
+
+    initial              position 0   scrollLeft 0
+    scrollToPage(1)      position 0   scrollLeft 0     <- the PROGRAMMATIC path
+    drag right 300 px    position 0   scrollLeft 0
+    drag left 300 px     position 0   scrollLeft 0
+
+Nothing moves, including the API call, so this is not about gestures. The element's
+whole model is `scrollLeft = position * distance` — `_performScroll`,
+`_updatePositionFromScroll`, `_applyScrollFromModel` and `_restorePosition` all
+assume it, and the SCSS comment that centre-snapping "leaves `scrollLeft =
+position * distance` exactly true" is where the assumption is written down. In an
+RTL scroll container the origin is at the RIGHT edge and `scrollLeft` runs from 0
+DOWN to `-(scrollWidth - clientWidth)`, so `scrollTo({ left: 440 })` clamps to 0
+and `scrollLeft / distance` is 0 forever.
+
+Upstream handles it in one place: `update_orientation` computes
+`reversed = horizontal && direction == RTL` and hands it to
+`adw_swipe_tracker_set_reversed` (`adw-carousel.c:455-465`), which flips the sign
+of every delta the tracker sees. The tracker is only half of it here, though —
+`elements/swipe-drag.ts` could take a `reversed` flag in an afternoon, and it
+would then compute a correct progress and write it to a `scrollLeft` the container
+ignores. So the FIX is direction-awareness in the element's offset model first
+(one signed helper, four call sites, plus whatever the two indicators assume), and
+the gesture's `reversed` flag after it, in the same change that can test it.
+
+Until then the adapter's axis sign is LTR-only ON PURPOSE rather than by
+oversight, and its header says so: a `reversed` branch with no reachable
+behaviour behind it is the kind of dead arm this repository keeps deleting.
+
 ### `allow-long-swipes: false` does not bound a TOUCHPAD flick on the web
 
 `<adw-carousel>` is a real scroll container with `scroll-snap-type: x mandatory`,
