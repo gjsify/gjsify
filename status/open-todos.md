@@ -85,30 +85,38 @@ have it installed, and everything reading that token — `.monospace` labels, th
 data-grid mono cell, `<adw-source-view>` — falls through to `ui-monospace`
 everywhere else.
 
-### Nothing in this repo calls `applyAdwaitaFonts()`
+### `@gjsify/adwaita-storybook` still ships no typeface
 
-The opt-in works and is tested, but the count of in-repo CALL SITES is zero:
-`@gjsify/adwaita-web/fonts` is imported by `adw-fonts.spec.ts` and nothing else,
-and that suite removes the faces again when it finishes. Verified on real
-artifacts: a `--app browser` probe whose only statement is
-`import '@gjsify/adwaita-web';` has an EMPTY `document.fonts` (0 faces, 0
-`CSSFontFaceRule`) while `document.fonts.check("16px 'Adwaita Sans'")` still
-answers true from fontconfig; a freshly rebuilt
-`showcases/dom/three-loader-ldraw/dist/browser.js` (17.4 MB) carries 47 Adwaita
-stylesheet markers and ZERO `@font-face` — so dropping its dead `style.css`
-import regressed nothing, and it ships no typeface either.
+The seven DOM showcases now call `applyAdwaitaFonts()`. That was this entry's own
+recommendation — they are browser artifacts served to whatever opens them, so they
+are exactly the place the size decision belongs, and an app may make it where a
+library barrel may not.
 
-The one path that DOES ship the faces is the website, through
-`astro.config.mjs`'s Starlight `customCss` — a real CSS pipeline, so the `url()`
-form is enough there.
+Measured on `showcases/dom/canvas2d-fireworks/dist/browser.js`, rebuilt either way:
 
-This is a decision, not an accident, and it stays that way while the faces are
-unsubsetted desktop TTFs (the entry above). Two candidates when that changes:
-`@gjsify/adwaita-storybook`, whose whole purpose is to look like Adwaita, and the
-DOM showcases the website embeds as standalone pages. Neither gets it today,
-because at 1.18 MB gzip it is a size decision, and a library barrel is the wrong
-place to make one on a consumer's behalf. Whoever ships a browser artifact that
-must look like Adwaita off a GNOME host owns the call.
+    before   18 033 980 B   0 @font-face   names "Adwaita Sans" twice
+    after    20 421 448 B   2 @font-face   2 data: URIs      (+2 387 468 B, +13.2%)
+
+and in real Firefox against the served artifact, `document.fonts` holds two faces
+(`weight: 100 900`, normal + italic) with the normal one `status: "loaded"`. That
+reading is host-independent by construction: a system-installed family never
+appears in `document.fonts`, which is why the assertion is made there and not
+against a computed font — on this Fedora box every one of these pages looked
+correct before the change and will look identical after it. The difference is on
+macOS, on Windows, and on any Linux that is not GNOME.
+
+What still does not opt in is `@gjsify/adwaita-storybook`, whose whole purpose is
+to look like Adwaita. Its entry is a barrel, and 1.18 MB gzip inside a library is
+the size decision a consumer should be making, so it wants either a host that
+calls the opt-in or a subsetted woff2 (the entry above) before it changes.
+
+NO GATE holds "a showcase that renders Adwaita chrome must call the opt-in", and
+that is deliberate: `applyAdwaitaFonts` is a VALUE export precisely so the silent
+form cannot be written — an import that is never called does not compile away into
+a green build, it simply is not an opt-in. What remains is an omission, which is
+the ordinary shape of a missing feature rather than a check that passed while
+nothing was verified. A gate for it would cost an incident header in a `scripts`
+tree with ten lines of budget left, to catch someone not adding something.
 
 ### `<adw-source-view>` has no browser suite
 
