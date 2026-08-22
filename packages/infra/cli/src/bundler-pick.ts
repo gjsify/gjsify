@@ -2,8 +2,16 @@
 // npm `rolldown(opts).write(opts.output)`; GJS gets `@gjsify/rolldown-native` (the
 // Vala/Rust prebuild) via `bundleWithPlugins()`, with `runNativeBundle` replicating
 // npm rolldown's `.write()` including nested chunk/asset subdirectories. The native
-// engine is the GJS DEFAULT with no env var, because npm `rolldown` is a Rust N-API
-// addon that cannot load under GJS at all.
+// engine is the GJS DEFAULT with no env var, because npm `rolldown` does not run
+// under GJS. Where it fails matters: NOT in the N-API addon, but in the JS entry
+// above it. `rolldown/dist/shared/binding-*.mjs` evaluates
+// `createRequire(import.meta.url)` at module scope and its platform detection then
+// calls `__require('node:fs')` / `__require('node:child_process')`; GJS refuses a
+// synchronous require of a builtin, so the load dies before any `.node` is opened.
+// The distinction is not pedantry — it says an N-API host alone would not be
+// enough; the wrapper has to be bypassed too, which is exactly what
+// `napiNodeAddonPlugin` does for napi-rs packages. See `status/open-todos.md`
+// § "Can `@gjsify/napi` retire the hand-written `-native` bridges?".
 //
 // `GJSIFY_BUNDLER=native|npm` overrides that: `native` throws when the prebuild is
 // not loadable for the running architecture instead of silently switching engines;
