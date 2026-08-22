@@ -1277,6 +1277,15 @@ jobs:
   # the shape under test. `.cache` is dropped because it carries the build cache,
   # and restoring that would hand the clone the outputs it must not have.
   #
+  # A REAL COPY, not `cp -al`. Hardlinks were the first attempt and are wrong
+  # twice over: `/tmp` and the workspace are different filesystems in this
+  # container, so it fails outright with `Invalid cross-device link` (measured) —
+  # and even where it works, every file the build writes THROUGH a link would
+  # mutate the checkout's own `node_modules`, which the post-job `actions/cache`
+  # step then saves. A silent cache poisoned by a test tree is a worse bug than
+  # the seconds a local copy costs. The clone lives under `RUNNER_TEMP` for the
+  # same filesystem reason, so nothing here depends on `/tmp`'s mount.
+  #
   # WHY A FAKE `node` RATHER THAN A PATH EDIT: a stripped PATH silently changes
   # what else resolves, while a `node` that exits 127 and announces itself turns
   # any fallback into a loud failure instead of a test that passed while proving
@@ -1313,7 +1322,7 @@ jobs:
           CLI="$PWD/packages/infra/cli/dist/cli.gjs.mjs"
           test -f "$CLI" || { echo "::error::$CLI missing — the build job must publish it"; exit 1; }
 
-          COLD=/tmp/cold-tree
+          COLD="${RUNNER_TEMP:-/tmp}/cold-tree"
           rm -rf "$COLD"
           git config --global --add safe.directory '*'
           # Explicit SHA: `actions/checkout` leaves a DETACHED head, which a
@@ -1321,7 +1330,7 @@ jobs:
           SHA="$(git rev-parse HEAD)"
           git clone --no-checkout "$PWD" "$COLD"
           git -C "$COLD" checkout --detach "$SHA"
-          cp -al node_modules "$COLD/node_modules"
+          cp -a node_modules "$COLD/node_modules"
           rm -rf "$COLD/node_modules/.cache"
 
           # Assert the premise instead of assuming it. A warm clone would make
