@@ -409,7 +409,25 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
 
     const archLabel = format.archName(input.arch, isArchIndependent(payload));
     const common = { settings, payload, prefix: format.prefix, depends, archLabel, mtime };
-    const bytes = format.id === 'deb' ? await buildDeb(common) : await buildRpm(common);
+    // A SWITCH with a `never` guard, not a ternary. `format.id === 'deb' ? deb : rpm`
+    // read as a dispatch and behaved as one only while there were exactly two
+    // formats: a third would have taken the else-branch and written an RPM under a
+    // `.dmg` name, at exit 0. This is the same closed-vocabulary hazard the format
+    // list has, one level worse — a wrong ARTIFACT rather than a rejected
+    // declaration — so the compiler owns it now.
+    let bytes: Uint8Array;
+    switch (format.id) {
+        case 'deb':
+            bytes = await buildDeb(common);
+            break;
+        case 'rpm':
+            bytes = await buildRpm(common);
+            break;
+        default: {
+            const unhandled: never = format.id;
+            throw new Error(`gjsify ship: no packer is wired for format "${String(unhandled)}".`);
+        }
+    }
 
     const outDir = join(outRoot, 'out');
     mkdirSync(outDir, { recursive: true });

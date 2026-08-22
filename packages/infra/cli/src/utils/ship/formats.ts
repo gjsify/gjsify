@@ -69,7 +69,15 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
     },
 };
 
-export const FORMAT_IDS: FormatId[] = ['deb', 'rpm'];
+// DERIVED, never a second list. `FORMATS` is `Record<FormatId, …>`, so the
+// compiler already refuses a `FormatId` with no descriptor — reading the keys
+// back inherits that guarantee for free. Written out by hand this was the one
+// unbound copy of the vocabulary: adding a format to `FormatId` and `FORMATS`
+// compiled fine and left this list short, which would have made the new format
+// absent from the default targets (`ship.ts` uses it as the `??` fallback),
+// missing from `--help`, and REFUSED by `readStage` as an unknown id.
+// Insertion order is stable for string keys, and `resolveFormats` sorts anyway.
+export const FORMAT_IDS: FormatId[] = Object.keys(FORMATS) as FormatId[];
 
 /** Parse `--target deb,rpm` into a sorted, deduplicated descriptor list. */
 export function resolveFormats(raw: readonly string[]): FormatDescriptor[] {

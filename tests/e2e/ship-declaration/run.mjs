@@ -23,6 +23,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -155,5 +156,80 @@ describe('ship declaration invariant', { timeout: 5 * 60 * 1000 }, () => {
         const root = makeRoot('shape');
         addPackage(root, 'app', { name: '@fixture/app', gjsify: { ship: ['deb'] } });
         assert.match(run(root).failures.join('\n'), /must be an object/);
+    });
+
+    // `TARGETS` in the rule above is the ONE copy of the ship format vocabulary the
+    // compiler cannot bind: it lives in a package that must not import the CLI,
+    // because the rule is `scope: 'portable'` and runs where `@gjsify/cli` is not a
+    // dependency. `scripts/check-ship-format-vocabulary.mjs` is that binding, and the
+    // direction that matters is the counter-intuitive one — a stale `TARGETS` does
+    // not MISS a check, it REJECTS the first correct declaration of a newly
+    // supported format, in a downstream tree, saying the format cannot be built.
+    describe('the format vocabulary has one source of truth', () => {
+        const CHECK = join(MONOREPO_ROOT, 'scripts', 'check-ship-format-vocabulary.mjs');
+
+        /** A fixture tree holding just the two files the check compares. */
+        function vocabularyRoot(name, formatIds, targets) {
+            const root = makeRoot(`vocab-${name}`);
+            const types = join(root, 'packages', 'infra', 'cli', 'src', 'utils', 'ship');
+            const rules = join(root, 'packages', 'infra', 'manifest-conformance', 'lib', 'rules');
+            mkdirSync(types, { recursive: true });
+            mkdirSync(rules, { recursive: true });
+            writeFileSync(
+                join(types, 'types.ts'),
+                `export type FormatId = ${formatIds.map((id) => `'${id}'`).join(' | ')};\n`,
+            );
+            writeFileSync(
+                join(rules, 'ship.mjs'),
+                `const TARGETS = new Set([${targets.map((id) => `'${id}'`).join(', ')}]);\n`,
+            );
+            return root;
+        }
+
+        const runCheck = (root) => spawnSync(process.execPath, [CHECK, '--root', root], { encoding: 'utf8' });
+
+        it('passes when the two agree', () => {
+            const result = runCheck(vocabularyRoot('agree', ['deb', 'rpm'], ['deb', 'rpm']));
+            assert.equal(result.status, 0, result.stdout + result.stderr);
+        });
+
+        it('FAILS when the rule has not learned a format the CLI declares', () => {
+            const result = runCheck(vocabularyRoot('behind', ['deb', 'rpm', 'dmg'], ['deb', 'rpm']));
+            assert.equal(result.status, 1);
+            assert.match(result.stderr, /`TARGETS` is missing "dmg"/);
+            // The consequence, not just the drift — this is what makes it urgent.
+            assert.match(result.stderr, /would REJECT a package that legitimately declares/);
+        });
+
+        it('FAILS when the rule accepts a format the CLI cannot build', () => {
+            const result = runCheck(vocabularyRoot('ahead', ['deb', 'rpm'], ['deb', 'rpm', 'msi']));
+            assert.equal(result.status, 1);
+            assert.match(result.stderr, /`TARGETS` names "msi", which `FormatId` does not/);
+        });
+
+        // A textual comparison that stops matching must FAIL. Reporting agreement
+        // because it found nothing on both sides is the exact shape of a check that
+        // has quietly stopped checking.
+        it('FAILS rather than reporting agreement when it can no longer parse either side', () => {
+            const root = makeRoot('vocab-unparseable');
+            const types = join(root, 'packages', 'infra', 'cli', 'src', 'utils', 'ship');
+            const rules = join(root, 'packages', 'infra', 'manifest-conformance', 'lib', 'rules');
+            mkdirSync(types, { recursive: true });
+            mkdirSync(rules, { recursive: true });
+            writeFileSync(join(types, 'types.ts'), 'export type FormatId = (typeof FORMAT_IDS)[number];\n');
+            writeFileSync(join(rules, 'ship.mjs'), 'const TARGETS = KNOWN_TARGETS;\n');
+            const result = runCheck(root);
+            assert.equal(result.status, 1);
+            assert.match(result.stderr, /could not read the `FormatId` union/);
+            assert.match(result.stderr, /could not read `const TARGETS/);
+        });
+
+        // The real tree, so the two lists are actually compared on every run and not
+        // only against fixtures that agree by construction.
+        it('holds for this checkout', () => {
+            const result = spawnSync(process.execPath, [CHECK], { encoding: 'utf8' });
+            assert.equal(result.status, 0, result.stdout + result.stderr);
+            assert.match(result.stdout, /FormatId and conformance TARGETS agree on deb, rpm/);
+        });
     });
 });
