@@ -2,7 +2,8 @@ import { HTML_ADAPTER, XML_ADAPTER } from '../dom-adapter.js';
 import type { Adapter } from '../selectors/index.js';
 import { closestSelector, matchesSelector, quoteSelectorString, selectAll, selectOne } from '../selectors/index.js';
 import type { DOMDocumentFragment } from './fragment.js';
-import { CDATA_SECTION_NODE, DOMNode, ELEMENT_NODE, TEXT_NODE } from './node.js';
+import { DOMNode, ELEMENT_NODE } from './node.js';
+import { serializeInner, serializeOuter } from './serialize.js';
 
 export class DOMElement extends DOMNode {
     /**
@@ -92,22 +93,11 @@ export class DOMElement extends DOMNode {
     }
 
     get innerHTML(): string {
-        return this.childNodes
-            .map((n) => {
-                if (n.nodeType === ELEMENT_NODE) return (n as DOMElement).outerHTML;
-                if (n.nodeType === TEXT_NODE) return n.nodeValue ?? '';
-                if (n.nodeType === CDATA_SECTION_NODE) return '<![CDATA[' + (n.nodeValue ?? '') + ']]>';
-                return '';
-            })
-            .join('');
+        return serializeInner(this, this._html);
     }
 
     get outerHTML(): string {
-        const attrs = Array.from(this._attrs.entries())
-            .map(([k, v]) => ' ' + k + '="' + v.replace(/"/g, '&quot;') + '"')
-            .join('');
-        if (this.childNodes.length === 0) return '<' + this.localName + attrs + '/>';
-        return '<' + this.localName + attrs + '>' + this.innerHTML + '</' + this.localName + '>';
+        return serializeOuter(this, this._html);
     }
 
     protected _adapter(): Adapter<DOMNode> {

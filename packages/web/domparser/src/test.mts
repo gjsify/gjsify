@@ -6,6 +6,7 @@ import htmlTokenizerTestSuite from './html-tokenizer.spec.js';
 import domParserTestSuite from './index.spec.js';
 import selectorsTestSuite from './selectors.spec.js';
 import selectorsDomTestSuite from './selectors-dom.spec.js';
+import serializeTestSuite from './serialize.spec.js';
 import xmlShapeTestSuite from './xml-shape.spec.js';
 
 run({
@@ -16,4 +17,5 @@ run({
     htmlTestSuite,
     selectorsTestSuite,
     selectorsDomTestSuite,
+    serializeTestSuite,
 });

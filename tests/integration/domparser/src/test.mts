@@ -10,6 +10,7 @@ import { run } from '@gjsify/unit';
 
 import entitiesSuite from './entities.spec.js';
 import selectorSuite from './selectors.spec.js';
+import serializeSuite from './serialize.spec.js';
 import treeSuite from './tree.spec.js';
 
-run({ entitiesSuite, treeSuite, selectorSuite });
+run({ entitiesSuite, treeSuite, selectorSuite, serializeSuite });

@@ -12,30 +12,10 @@
 //     is text, `</SCRIPT >` closes it.
 
 import { decodeAttributeValue, decodeText } from '../entities/decode.js';
+import { RAWTEXT_ELEMENTS, RCDATA_ELEMENTS } from './text-elements.js';
 import type { TokenAttribute, TreeSink } from './tree-sink.js';
 
-/**
- * Elements whose content is raw text: markup inside them is text and character
- * references are NOT decoded, so `<style>a{b:'&amp;'}</style>` keeps `&amp;`.
- *
- * `noscript` is deliberately absent. It is raw text only when scripting is
- * enabled, and nothing here runs scripts — a scraper wants the markup inside it.
- */
-export const RAWTEXT_ELEMENTS: ReadonlySet<string> = new Set([
-    'iframe',
-    'noembed',
-    'noframes',
-    'script',
-    'style',
-    'xmp',
-]);
-
-/**
- * Elements whose content is text but WITH character references decoded — the same
- * shape as RAWTEXT and the opposite answer, which is why both are driven with the
- * same input in the spec file.
- */
-export const RCDATA_ELEMENTS: ReadonlySet<string> = new Set(['textarea', 'title']);
+export { RAWTEXT_ELEMENTS, RCDATA_ELEMENTS } from './text-elements.js';
 
 const REPLACEMENT = '\uFFFD';
 
