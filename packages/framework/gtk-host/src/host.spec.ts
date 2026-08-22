@@ -5,7 +5,7 @@
 // asserts against its own bookkeeping agrees with itself while the window is
 // wrong, which is the failure this package exists to make impossible.
 
-import { afterEach, beforeEach, describe, expect, it, on } from '@gjsify/unit';
+import { expect, it, on } from '@gjsify/unit';
 
 import Adw from 'gi://Adw?version=1';
 import GObject from 'gi://GObject';
@@ -51,10 +51,8 @@ export default async () => {
         // Every vector below also asserts that GTK reported nothing. Without this
         // the whole mis-parenting class is invisible: it emits criticals and exits 0.
         const diagnostics = installDiagnosticsGate();
-        beforeEach(() => diagnostics.reset());
-        afterEach(() => diagnostics.assertQuiet());
 
-        await describe('ordered — Gtk.Box (native reorder)', async () => {
+        await gated(diagnostics, 'ordered — Gtk.Box (native reorder)', async () => {
             await it('appends in document order', async () => {
                 const box = createElement('GtkBox');
                 const parent = widgetOf(box);
@@ -103,7 +101,7 @@ export default async () => {
             });
         });
 
-        await describe('ordered — Adw.PreferencesGroup (declared remove-all degradation)', async () => {
+        await gated(diagnostics, 'ordered — Adw.PreferencesGroup (declared remove-all degradation)', async () => {
             await it('still lands a middle insert in the right order', async () => {
                 // Measured: this container has add()/remove() and NO insert(), so the
                 // policy declares reorder: 'remove-all' and pays a tail re-append.
@@ -123,7 +121,7 @@ export default async () => {
             });
         });
 
-        await describe('indexed — Gtk.ListBox (the parent addresses a wrapper row)', async () => {
+        await gated(diagnostics, 'indexed — Gtk.ListBox (the parent addresses a wrapper row)', async () => {
             await it('wraps each child in a GtkListBoxRow', async () => {
                 const list = createElement('GtkListBox');
                 const widget = materialize(list) as unknown as Gtk.ListBox;
@@ -174,7 +172,7 @@ export default async () => {
             });
         });
 
-        await describe('single, slotted, keyed, coords', async () => {
+        await gated(diagnostics, 'single, slotted, keyed, coords', async () => {
             await it('single: set_child replaces, it does not append', async () => {
                 const bin = createElement('AdwBin');
                 const widget = materialize(bin) as unknown as Adw.Bin;
@@ -262,7 +260,7 @@ export default async () => {
             });
         });
 
-        await describe('anchors never enter the GTK tree', async () => {
+        await gated(diagnostics, 'anchors never enter the GTK tree', async () => {
             await it('an empty branch does not shift a sibling index', async () => {
                 // This is the structural bug that stalled gnome-vue: a comment
                 // anchor counted as a child, so every insertion after a `v-if`
@@ -291,7 +289,7 @@ export default async () => {
             });
         });
 
-        await describe('text', async () => {
+        await gated(diagnostics, 'text', async () => {
             await it('writes a text child into the declared sink', async () => {
                 const label = createElement('GtkLabel');
                 const widget = materialize(label) as unknown as Gtk.Label;
@@ -344,7 +342,7 @@ export default async () => {
             });
         });
 
-        await describe('signals', async () => {
+        await gated(diagnostics, 'signals', async () => {
             await it('keeps exactly one native handler per signal name', async () => {
                 const button = createElement('GtkButton');
                 const widget = materialize(button) as unknown as Gtk.Button;
@@ -434,7 +432,7 @@ export default async () => {
             });
         });
 
-        await describe('rebuild inside a wrapping parent', async () => {
+        await gated(diagnostics, 'rebuild inside a wrapping parent', async () => {
             await it('replaces the child AND its row, keeping the index', async () => {
                 // The wrapper is the parent's address for this child. A rebuild
                 // that swapped the widget but kept the old row would leave the
@@ -459,7 +457,7 @@ export default async () => {
             });
         });
 
-        await describe('regressions from review', async () => {
+        await gated(diagnostics, 'regressions from review', async () => {
             await it('rebuild keeps the children — it must not orphan or double-attach them', async () => {
                 // GTK refuses to reparent a widget that still has a parent, and it
                 // does so with a warning at exit 0. A rebuild that left the old
@@ -556,7 +554,7 @@ export default async () => {
             });
         });
 
-        await describe('regressions from the second review', async () => {
+        await gated(diagnostics, 'regressions from the second review', async () => {
             await it('AdwPreferencesPage inserts natively — it is not the group', async () => {
                 // The two have near-identical APIs and opposite capabilities:
                 // measured, `Adw.PreferencesPage.insert(group, i)` exists and
@@ -657,7 +655,7 @@ export default async () => {
             });
         });
 
-        await describe('a rejected operation writes nothing down', async () => {
+        await gated(diagnostics, 'a rejected operation writes nothing down', async () => {
             // One class, found three times by review: state committed BEFORE the
             // operation that can reject it. Each of these fails without its fix
             // on a LATER, valid call — which is what makes the class expensive.
@@ -710,7 +708,7 @@ export default async () => {
             });
         });
 
-        await describe('what a real renderer does — reproduced from review', async () => {
+        await gated(diagnostics, 'what a real renderer does — reproduced from review', async () => {
             await it('a keyed reversal actually reorders the stack', async () => {
                 // Measured: `Gtk.Stack.reorder_child_after` is `undefined`, so a
                 // keyed container can only append. Before the tail rotation a full
@@ -836,7 +834,7 @@ export default async () => {
             });
         });
 
-        await describe('every slotted descriptor survives a round trip through every slot', async () => {
+        await gated(diagnostics, 'every slotted descriptor survives a round trip through every slot', async () => {
             // A mechanism, not a vector: `descriptorProblems()` can tell that a
             // slot method EXISTS, never that removal through that slot works. The
             // asymmetric cases are the ones that bite — `AdwToolbarView.content`
@@ -859,7 +857,7 @@ export default async () => {
             }
         });
 
-        await describe('regressions from the fourth review', async () => {
+        await gated(diagnostics, 'regressions from the fourth review', async () => {
             await it('an insert-before into a setter-backed slot keeps the new child', async () => {
                 // The tail rotation is an APPEND loop, and appending to a
                 // `set_content` slot is an assignment — so rotating overwrote the
@@ -927,7 +925,7 @@ export default async () => {
             });
         });
 
-        await describe('an adopted container the application keeps mutating', async () => {
+        await gated(diagnostics, 'an adopted container the application keeps mutating', async () => {
             await it('placement ignores a prior child that has left the container', async () => {
                 // `adopt` snapshots the container's children once. An application
                 // may remove one afterwards, and `insert_child_after` then asserts
@@ -1014,7 +1012,7 @@ export default async () => {
             });
         });
 
-        await describe('mountRoot resolves the container through the table', async () => {
+        await gated(diagnostics, 'mountRoot resolves the container through the table', async () => {
             await it('mounts into an application-owned widget', async () => {
                 const container = new Gtk.Box();
                 const child = createElement('GtkLabel', { label: 'mounted' });
@@ -1036,7 +1034,7 @@ export default async () => {
             });
         });
 
-        await describe('construct-only properties rebuild instead of lying', async () => {
+        await gated(diagnostics, 'construct-only properties rebuild instead of lying', async () => {
             await it('replaces the widget and keeps its position', async () => {
                 const box = createElement('GtkBox');
                 const parent = widgetOf(box);
