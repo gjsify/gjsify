@@ -1214,6 +1214,35 @@ export default async () => {
                 expect(child.attached).toBe(true);
             });
         });
+
+        await gated(diagnostics, 'a parent that is not a host element', async () => {
+            await it('refuses a raw Gtk.Widget instead of scribbling on it', async () => {
+                // Vue's `<Teleport :to="someGtkWidget">` passes the widget through
+                // verbatim (@vue/runtime-core `resolveTarget`'s non-string branch is
+                // `return targetSelector`). `link` then wrote parent/prev/next/
+                // first/last as expandos onto the application's GObject wrapper and
+                // `attach` bailed at `if (!parent.widget) return`: nothing rendered,
+                // nothing threw, no diagnostic at all.
+                const raw = new Gtk.Box();
+                const node = createElement('GtkLabel', { label: 'teleported' });
+
+                expect(() => insert(node, raw as unknown as HostElement)).toThrow('needs a host element');
+                expect((raw as unknown as { first?: unknown }).first).toBe(undefined);
+                expect((raw as unknown as { last?: unknown }).last).toBe(undefined);
+                expect(node.parent).toBe(null);
+                expect(gtkChildren(raw as unknown as Gtk.Widget).length).toBe(0);
+            });
+
+            await it('names the GType it was handed, and adopt() is the way in', async () => {
+                const raw = new Gtk.Box();
+                const node = createElement('GtkLabel', { label: 'teleported' });
+                expect(() => insert(node, raw as unknown as HostElement)).toThrow('GtkBox');
+                expect(() => insert(node, raw as unknown as HostElement)).toThrow('adopt(widget)');
+                // …and the sanctioned spelling works
+                insert(node, adopt(raw as unknown as Gtk.Widget));
+                expect(gtkChildren(raw as unknown as Gtk.Widget).length).toBe(1);
+            });
+        });
     });
 };
 

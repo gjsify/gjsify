@@ -124,4 +124,12 @@ export const err = {
                 `and the application's own widget is simply gone. Mount into a container of your own inside ` +
                 `<${parentTag}>, or clear the existing child first (${setter}(null)) if replacing it is the intent.`,
         ),
+    notAHostParent: (got: string) =>
+        new GtkHostError(
+            'not-a-host-parent',
+            `insert() needs a host element as the parent and got ${got}. A raw widget cannot be one: the shadow ` +
+                `tree lives in the host's own fields, so writing them onto a GObject wrapper renders nothing and ` +
+                `reports nothing — Vue's <Teleport to="someWidget"> hands the widget through verbatim and landed ` +
+                `exactly here. Wrap it with adopt(widget) first, which is what mountRoot() does.`,
+        ),
 };

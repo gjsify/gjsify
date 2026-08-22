@@ -608,6 +608,14 @@ function ensureWrapper(parent: HostElement, child: HostElement): void {
 }
 
 export function insert(node: HostNode, parent: HostElement, anchor: HostNode | null = null): void {
+    // A raw widget is not a parent. Vue's `<Teleport :to="someGtkWidget">` passes
+    // the widget through VERBATIM (`resolveTarget`'s non-string branch is
+    // `return targetSelector`), and taken literally `link` then wrote
+    // `parent`/`prev`/`next`/`first`/`last` as expandos onto the application's
+    // GObject wrapper while `attach` bailed at `if (!parent.widget) return`:
+    // nothing rendered, nothing threw, no diagnostic. Refuse it by name — `adopt`
+    // is the one way a foreign widget becomes a parent.
+    assertHostParent(parent);
     // Where it was, so a refused move can be undone. "Leave nothing behind" has
     // to mean the OLD parent too: detaching first and failing second lost the
     // node from a tree that was perfectly valid.
@@ -634,6 +642,29 @@ export function insert(node: HostNode, parent: HostElement, anchor: HostNode | n
         if (wasIn) restore(node, wasIn, wasBefore);
         throw e;
     }
+}
+
+/**
+ * TWO facts, not one: the node says it is an element, and it carries a descriptor.
+ *
+ * `kind` alone is a plain string a GObject wrapper could carry; the descriptor is
+ * what every host op actually dereferences. Checking both keeps the refusal from
+ * being either paranoid or fooled.
+ */
+function assertHostParent(parent: HostElement): void {
+    const candidate = parent as unknown as { kind?: unknown; descriptor?: unknown } | null;
+    if (candidate && candidate.kind === 'element' && typeof candidate.descriptor === 'object') return;
+    throw err.notAHostParent(describeForeign(parent));
+}
+
+/** Name a non-host parent the way its owner would recognise it. */
+function describeForeign(value: unknown): string {
+    if (value === null || value === undefined) return String(value);
+    if (typeof value !== 'object') return typeof value;
+    const gtype = (value as { constructor?: { $gtype?: GObject.GType } }).constructor?.$gtype;
+    if (gtype) return GObject.type_name(gtype) ?? 'an unnamed GType';
+    // Not a GObject wrapper at all — an object literal, a DOM-ish stub, a Map.
+    return (value as { constructor?: { name?: string } }).constructor?.name ?? 'a plain object';
 }
 
 /**
