@@ -2208,6 +2208,55 @@ zero finding there is a scope limit, not a clean bill. Closing it means giving t
 tab-list role and one roving tabindex, which turns three tab stops into one: a visible
 change to anything that tabs through a toggle group today.
 
+### The NativeScript theme ships none of libadwaita's label utility classes
+
+`scripts/check-nativescript-theme-classes.mjs` now reads the storybook showcase's
+views as well as the bridge's widgets, and closed the two `adw-`-prefixed gaps it
+found (`.adw-card`, `.adw-action-buttons`). What it still cannot see is the
+UNPREFIXED half, and the same showcase is full of it: `carousel.ns.ts` builds each
+page with `className = 'adw-card accent|success|warning'` and labels it `title-1`,
+`bottom-sheet.ns.ts` uses `title-2` — and **not one of those four has a rule** in
+any of the three stylesheets `app.css` imports. The pages render at body size in
+the default colour where the browser twin sets `font-size:24pt;font-weight:800`
+and a 14% accent tint (`carousel.web.ts:12-14,36`), inline, because the web
+storybook does not use the classes either.
+
+`bottom-sheet.ns.ts:43` is the one to read first, because it says the quiet part:
+"Match the GTK `.title-2` typography (bold heading) — NS has no typography utility
+class, so a plain bold Label stands in." There is no stand-in. The next three
+lines set `text` and `className = 'title-2'` and nothing else, so the label is
+neither bold nor larger — a comment describing a fallback that was never written,
+which is the same shape as every other claim in this ledger that nothing checked.
+
+Setting the two properties on the Label is NOT the fix, and this is the trap
+worth writing down: NativeScript drops a CSS value for any property a widget set
+as a LOCAL one (`properties/index.js:585-598`, the reason
+`status/nativescript-theme-classes.json` exempts `adw-icon`), so a local
+`fontWeight` would permanently shadow the `.title-2` rule this entry is asking
+for. The theme rule has to come first.
+
+The theme carries `.dimmed` (scoped to `.adw-shortcut-label`) and nothing else
+from `_labels.scss`, whose utility set — `.title-1`…`.title-4`, `.heading`,
+`.body`, `.caption`, `.caption-heading`, `.document`, `.monospace`, `.numeric`,
+`.accent`/`.error`/`.warning`/`.success` — `packages/web/adwaita-web` ships in
+full and `status/sections/adwaita-web-roadmap.md` calls "the gap consumers
+actually hit".
+
+WHY THE GATE DOES NOT HOLD IT YET, measured rather than assumed. Its tracked set
+is `adw-*` plus two named unprefixed classes, deliberately: a bare-word heuristic
+would sweep up every lowercase string in the tree. The obvious principled widening
+— take the names from `refs/libadwaita/doc/style-classes.md`, which
+`check-adwaita-style-classes.mjs` already reads — was tried and measured: 52
+documented classes, 15 emitted by the bridge or the showcase, **8 with no rule**.
+Three of the eight (`.content`, `.inline`, `.sidebar`) are not class emissions at
+all — they are slot names and property values in `split-view-base.ts`,
+`view-switcher-model.ts` and `adw-sidebar.ts` that happen to match a documented
+class name. A gate that accuses in three cases out of eight is a gate that gets
+routed around, so the widening waits until the reader can tell a `className`
+assignment from any other string. Closing the LOOK is separate again, and is a
+design port rather than a fix: NativeScript has no `rem`, no `text-transform` and
+no `color-mix`, so each of those classes needs its own literal.
+
 ### adwaita-core modules with no conformance vector table
 
 `breakpoint.ts`, `color-scheme.ts`, `scrolling.ts` and `toast.ts` export shared
