@@ -17,7 +17,7 @@ import { createHash } from 'node:crypto';
 import { concatBytes } from './bytes.js';
 import { createCpioArchive, S_IFDIR, S_IFREG, type CpioEntry } from './cpio.js';
 import { parseDepend } from './depends.js';
-import { readPayloadFacts, type PayloadEntry } from './payload.js';
+import { readPayloadFacts, readShebangInterpreters, type PayloadEntry } from './payload.js';
 import {
     buildRpmHeader,
     buildRpmLead,
@@ -105,6 +105,9 @@ const SENSE = {
     INTERP: 1 << 8,
     SCRIPT_POST: 1 << 10,
     SCRIPT_POSTUN: 1 << 12,
+    // "This one was derived from the payload, not declared by the packager" —
+    // the sense `rpmbuild`'s own dependency generator uses (measured: 16384).
+    FIND_REQUIRES: 1 << 14,
     RPMLIB: 1 << 24,
 } as const;
 
@@ -268,7 +271,7 @@ function mainHeaderEntries(
 
     // From the PAYLOAD, not the settings — see the same call in `deb.ts`.
     const scripts = renderRpmScriptlets(readPayloadFacts(inputs.payload), inputs.prefix);
-    const requires = buildRequires(inputs.depends, scripts);
+    const requires = buildRequires(inputs.depends, scripts, readShebangInterpreters(inputs.payload));
 
     const entries: RpmEntry[] = [
         { tag: TAG.HEADERI18NTABLE, type: RpmType.STRING_ARRAY, value: ['C'] },
@@ -395,10 +398,18 @@ function assertParallelFileArrays(entries: readonly RpmEntry[], fileCount: numbe
  * A scriptlet's interpreter is a dependency like any other and rpm expects it
  * declared with the matching `SCRIPT_*` sense bit — without it, a system
  * without `/bin/sh` installs the package and then fails inside `%post`.
+ *
+ * The payload's own executables need the same treatment, and until the first
+ * real `rpm -qp --requires` ran against this writer nothing here said so: every
+ * `.rpm` it produced installed a `#!/bin/sh` launcher and declared no shell.
+ * The two senses are not redundant and rpm emits both — a package can need a
+ * shell to CONFIGURE (`Requires(post)`) and to RUN (a plain requirement), and
+ * dropping either is a different broken system.
  */
 function buildRequires(
     depends: readonly string[],
     scripts: { post?: string; postun?: string },
+    interpreters: readonly string[],
 ): { names: string[]; flags: number[]; versions: string[] } {
     const names: string[] = [];
     const flags: number[] = [];
@@ -418,6 +429,11 @@ function buildRequires(
     if (scripts.postun !== undefined) {
         names.push('/bin/sh');
         flags.push(SENSE.INTERP | SENSE.SCRIPT_POSTUN);
+        versions.push('');
+    }
+    for (const interpreter of interpreters) {
+        names.push(interpreter);
+        flags.push(SENSE.FIND_REQUIRES);
         versions.push('');
     }
     for (const [name, version] of RPMLIB_REQUIRES) {

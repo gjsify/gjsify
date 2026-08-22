@@ -105,6 +105,50 @@ export function readPayloadFacts(entries: readonly { path: string }[]): PayloadF
 }
 
 /**
+ * The interpreters the payload's own executables need, read off their shebangs.
+ *
+ * An interpreter is a dependency like any other, and rpm expects it declared:
+ * `rpmbuild`'s file-based generator emits one `Requires` per executable
+ * shebang, with the `RPMSENSE_FIND_REQUIRES` sense that says "derived, not
+ * declared". Measured on Fedora 44 against a package whose only file is a
+ * `#!/bin/sh` script: `rpm -qp --requires` → `/usr/bin/sh 16384`.
+ *
+ * The LITERAL path, not a resolved one. `rpmbuild` prints `/usr/bin/sh` there
+ * because it resolved `/bin` through the symlink of the usrmerged host it ran
+ * on; this writer has no target host to resolve against (ADR 0024 § A1 — the
+ * packers are pure JavaScript and run anywhere), and `/bin/sh` is satisfied on
+ * both layouts: measured on Fedora 44, `rpm -q --whatprovides /bin/sh` and
+ * `/usr/bin/sh` both answer `bash`. It is also the spelling the scriptlet
+ * requirements already use.
+ *
+ * EXECUTABLE files only, which is the same rule `rpmbuild` applies. A GJS
+ * bundle staged 0644 carries `#!/usr/bin/env -S gjs -m` for the days it is run
+ * directly, but nothing in the installed package executes it as a program — the
+ * launcher `exec`s `gjs` with it as an argument — so declaring `/usr/bin/env`
+ * for it would be a dependency on a path this package never uses.
+ */
+export function readShebangInterpreters(payload: readonly PayloadEntry[]): string[] {
+    const found = new Set<string>();
+    for (const entry of payload) {
+        if ((entry.mode & 0o111) === 0) continue;
+        const interpreter = readShebang(entry.data);
+        if (interpreter !== null) found.add(interpreter);
+    }
+    return [...found].sort();
+}
+
+/** The absolute interpreter path of a `#!` line, or `null` when there is none to read. */
+function readShebang(data: Uint8Array): string | null {
+    if (data[0] !== 0x23 || data[1] !== 0x21) return null; // `#!`
+    // A shebang is one LINE; reading further would let a long file's contents
+    // decide how much work this does. 256 bytes is above every real one and is
+    // what Linux itself truncates at (BINPRM_BUF_SIZE).
+    const line = new TextDecoder().decode(data.subarray(2, Math.min(data.byteLength, 256))).split('\n')[0] ?? '';
+    const interpreter = line.trim().split(/\s+/)[0] ?? '';
+    return interpreter.startsWith('/') ? interpreter : null;
+}
+
+/**
  * Does the payload contain anything architecture-specific?
  *
  * Decided from the file's MAGIC, not from its name. A bundled runtime is just

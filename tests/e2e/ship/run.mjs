@@ -236,6 +236,17 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
         assert.match(requires, /^gtk4$/m);
         assert.match(requires, /^libadwaita$/m);
         assert.match(requires, /^\/bin\/sh$/m);
+        // …and that line ALONE does not discriminate. This fixture is an app
+        // with a desktop entry, so it has scriptlets, and their `Requires(post)`
+        // sense produces `/bin/sh` on its own — which is why every scriptlet-free
+        // package this writer produced (gjsify's own CLI among them) declared no
+        // shell at all while this assertion stayed green. The sense is the
+        // discriminator: 16384 is RPMSENSE_FIND_REQUIRES, "derived from the
+        // payload", and only the launcher's `#!/bin/sh` can put it there.
+        const senses = execFileSync('rpm', ['-qp', '--qf', '[%{REQUIRENAME} %{REQUIREFLAGS}\n]', rpmPath()], {
+            encoding: 'utf-8',
+        });
+        assert.match(senses, /^\/bin\/sh 16384$/m);
         // Declaring these is what makes an older rpm refuse the package
         // cleanly instead of misreading its file list.
         assert.match(requires, /rpmlib\(CompressedFileNames\)/);
