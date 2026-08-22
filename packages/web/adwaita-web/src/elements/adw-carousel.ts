@@ -9,9 +9,14 @@
 // position compensation. This element is the DOM half only — scroll-snap strip,
 // offset↔position, DOM events.
 //
-// The three attribute defaults HTML cannot spell: `allow-scroll-wheel` and
-// `interactive` default TRUE, so `="false"` is the off switch; `allow-long-swipes`
-// is an ordinary presence attribute. `position` is the INITIAL page only —
+// The four attribute defaults HTML cannot spell: `allow-scroll-wheel`,
+// `allow-mouse-drag` and `interactive` default TRUE, so `="false"` is the off switch;
+// `allow-long-swipes` is an ordinary presence attribute.
+//
+// A MOUSE DRAG is `elements/swipe-drag.ts`, and it is the one gesture a browser gives
+// nothing for: touch and touchpad scroll this strip natively, a held mouse button does
+// not. Upstream turns it on in `init` (:1209) and exposes `allow-mouse-drag`, default
+// TRUE (:1091). Measured before: a 300 px drag moved `position` 0 → 0. `position` is the INITIAL page only —
 // write-only, with the live value on the `position` property and `notify::position`.
 //
 // `page-changed` (`detail = { index }`) fires on every settle, including back
@@ -29,6 +34,8 @@
 
 import { CarouselState, carouselPageAllocation } from '@gjsify/adwaita-core';
 import type { CarouselScrollRequest, CarouselScrollSource, CarouselStateChange } from '@gjsify/adwaita-core';
+
+import { attachSwipeDrag } from './swipe-drag.js';
 
 /** Common surface an indicator binds to. The concrete element is AdwCarousel. */
 interface CarouselHost extends HTMLElement {
@@ -96,7 +103,7 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
     private _scrollTargetId: string | null = null;
 
     static get observedAttributes() {
-        return ['allow-scroll-wheel', 'allow-long-swipes', 'interactive', 'spacing', 'position'];
+        return ['allow-scroll-wheel', 'allow-mouse-drag', 'allow-long-swipes', 'interactive', 'spacing', 'position'];
     }
 
     constructor() {
@@ -130,6 +137,18 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
 
     get currentPage(): number {
         return this._state.pageAt(this._state.position);
+    }
+
+    /**
+     * `AdwCarousel:allow-mouse-drag` — whether the strip can be dragged with the pointer.
+     * Defaults to TRUE, as in libadwaita, where FALSE leaves dragging to touch only.
+     */
+    get allowMouseDrag(): boolean {
+        return this._state.allowMouseDrag;
+    }
+
+    set allowMouseDrag(value: boolean) {
+        this.setAttribute('allow-mouse-drag', value ? 'true' : 'false');
     }
 
     /** Whether the scroll wheel navigates between pages. Defaults to TRUE, as in libadwaita. */
@@ -187,6 +206,7 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
         // Declared properties BEFORE children: `spacing` is part of the page pitch,
         // so a page added first would be measured against the wrong distance.
         this._applyAttribute('allow-scroll-wheel', this.getAttribute('allow-scroll-wheel'));
+        this._applyAttribute('allow-mouse-drag', this.getAttribute('allow-mouse-drag'));
         this._applyAttribute('allow-long-swipes', this.getAttribute('allow-long-swipes'));
         this._applyAttribute('interactive', this.getAttribute('interactive'));
         this._applyAttribute('spacing', this.getAttribute('spacing'));
@@ -199,6 +219,34 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
 
         this._trackEl.addEventListener('scroll', this._onScroll, { passive: true });
         this._trackEl.addEventListener('wheel', this._onWheel, { passive: false });
+
+        attachSwipeDrag({
+            // On the TRACK, not on the host: the track is the scroll container the drag
+            // writes `scrollLeft` on, and it is what the pages live in.
+            host: this._trackEl,
+            orientation: 'horizontal',
+            // `interactive` gates it because that is exactly what it does upstream —
+            // `adw_carousel_set_interactive` is `adw_swipe_tracker_set_enabled` (:1705).
+            enabled: () => this._state.interactive && this._state.allowMouseDrag,
+            pitch: () => this._distance(),
+            points: () => this._state.snapPoints,
+            progress: () => this._state.position,
+            allowLongSwipes: () => this._state.allowLongSwipes,
+            // The DRAG writes the offset directly and the existing scroll handler reads
+            // the position back off it — the same path a touch scroll takes, so there is
+            // no second route into `position` to drift from this one.
+            onUpdate: (progress) => {
+                const distance = this._distance();
+                if (distance > 0) this._trackEl.scrollLeft = progress * distance;
+            },
+            // `scroll_to` with the swipe's velocity is what `end_swipe_cb` does (:433).
+            // Here the settle is the browser's smooth scroll, so the velocity is unused
+            // — snap is already restored, and `to` is a snap point by construction.
+            onEnd: (progress) => {
+                const distance = this._distance();
+                if (distance > 0) this._trackEl.scrollTo({ left: progress * distance });
+            },
+        });
 
         // Applied last, once the pages it names exist. Custom-element upgrade
         // delivers attributes BEFORE `connectedCallback`, so reading it here is the
@@ -245,6 +293,10 @@ export class AdwCarousel extends HTMLElement implements CarouselHost {
                 // Absent means TRUE here: the property defaults TRUE in C, so the
                 // usual "presence = on" spelling would invert it.
                 this._state.setAllowScrollWheel(value !== 'false');
+                return;
+            case 'allow-mouse-drag':
+                // Absent means TRUE, like `allow-scroll-wheel` and for the same reason.
+                this._state.setAllowMouseDrag(value !== 'false');
                 return;
             case 'allow-long-swipes':
                 this._state.setAllowLongSwipes(value !== null && value !== 'false');

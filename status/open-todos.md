@@ -2257,14 +2257,51 @@ assignment from any other string. Closing the LOOK is separate again, and is a
 design port rather than a fix: NativeScript has no `rem`, no `text-transform` and
 no `color-mix`, so each of those classes needs its own literal.
 
+### `allow-long-swipes: false` does not bound a TOUCHPAD flick on the web
+
+`<adw-carousel>` is a real scroll container with `scroll-snap-type: x mandatory`,
+so touch and touchpad swiping are the BROWSER's gestures — momentum, rubber-band
+and snapping included — and that is the right answer for those two: GTK is
+likewise the platform there, and re-implementing them on top of native scrolling
+would replace a real gesture with an imitation. The mouse drag is different, has
+no native equivalent, and now runs through `AdwSwipeTracker`'s own decision
+(`elements/swipe-drag.ts`).
+
+What the split costs is measurable. `AdwCarousel:allow-long-swipes` defaults FALSE
+and means "one flick, one page": upstream enforces it by running the touchpad
+scroll through the SAME tracker (`handle_scroll_event`, adw-swipe-tracker.c), whose
+`get_bounds` limits the reach to one snap point either side of where the gesture
+began. The browser consults nothing of the sort. Measured in Firefox on a
+three-page carousel: twenty horizontal wheel notches took `position` from 0 to
+**2**, two pages, with the attribute at its default.
+
+Closing it means intercepting native scrolling — `preventDefault` on every wheel
+event that is not already handled, then driving `scrollLeft` from the tracker, i.e.
+owning the momentum the touchpad driver already provides. That trade needs a
+measurement of how the imitation FEELS against the native one before it is worth
+making, on a touchpad and on a touchscreen, which is why this is an entry rather
+than a fix. The mouse-drag path is the proof the arithmetic is right and shared;
+what is missing is a reason to take the platform's gesture away from it.
+
 ### adwaita-core modules with no conformance vector table
 
-`breakpoint.ts`, `color-scheme.ts`, `scrolling.ts` and `toast.ts` export shared
-behaviour and are covered by nothing in `@gjsify/adwaita-core/conformance` — no
-vector table names them, and no conformance file imports them. Three of the four
-are what `packages/web/AGENTS.md` advertises as the core's flagship shared
-behaviour ("Breakpoints (grammar/parser/evaluator + transition-only
-`AdwBreakpoint`), color-scheme observable, toast queue").
+`breakpoint.ts`, `color-scheme.ts`, `scrolling.ts`, `swipe.ts` and `toast.ts`
+export shared behaviour and are covered by nothing in
+`@gjsify/adwaita-core/conformance` — no vector table names them, and no
+conformance file imports them. Three of them are what `packages/web/AGENTS.md`
+advertises as the core's flagship shared behaviour ("Breakpoints
+(grammar/parser/evaluator + transition-only `AdwBreakpoint`), color-scheme
+observable, toast queue").
+
+`swipe.ts` is the newest and the one with the clearest trigger: it is
+`AdwSwipeTracker`'s velocity, projection and snap-point choice, and exactly ONE
+renderer drives it today (`adwaita-web`, through `elements/swipe-drag.ts`). A
+table now would be the derivation asserted against itself, which is the state
+this gate exists to stop counting as coverage. It earns one the moment a second
+renderer grows a swipe — and three widgets upstream already want the same
+tracker (`adw-bottom-sheet.c`, `adw-navigation-view.c`,
+`adw-overlay-split-view.c`), whose web ports currently take `to` as an INPUT
+(`resolveSwipeRelease` in `split-view.ts`) with nothing in the tree computing it.
 
 They were invisible rather than under-covered: `check-adwaita-conformance-drivers.mjs`
 is keyed by TABLE, so it reported "156 vector tables, every one driven or

@@ -330,6 +330,7 @@ export default async () => {
                     orientation: state.orientation,
                     interactive: state.interactive,
                     allowScrollWheel: state.allowScrollWheel,
+                    allowMouseDrag: state.allowMouseDrag,
                     allowLongSwipes: state.allowLongSwipes,
                     spacing: state.spacing,
                     revealDuration: state.revealDuration,

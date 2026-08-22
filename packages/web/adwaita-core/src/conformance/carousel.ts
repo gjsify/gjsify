@@ -909,15 +909,23 @@ export const CAROUSEL_REVEAL_VECTORS: ReadonlyArray<CarouselRevealVector> = [
 
 /** One property-default expectation. */
 export interface CarouselPropertyDefaultVector {
-    property: 'orientation' | 'interactive' | 'allowScrollWheel' | 'allowLongSwipes' | 'spacing' | 'revealDuration';
+    property:
+        | 'orientation'
+        | 'interactive'
+        | 'allowScrollWheel'
+        | 'allowMouseDrag'
+        | 'allowLongSwipes'
+        | 'spacing'
+        | 'revealDuration';
     value: string | number | boolean;
     rule: string;
 }
 
 /**
- * The `AdwCarousel` property defaults. Two are regression pins: `allow-scroll-wheel` is
+ * The `AdwCarousel` property defaults. Three are regression pins: `allow-scroll-wheel` is
  * TRUE, which a bare attribute-presence read inverts (a plain `<adw-carousel>` then ignores
- * the wheel entirely), and `allow-long-swipes` is FALSE.
+ * the wheel entirely); `allow-long-swipes` is FALSE; and `allow-mouse-drag` is TRUE, which
+ * neither port had at all — a `<adw-carousel>` could not be dragged with a mouse, measured.
  */
 export const CAROUSEL_PROPERTY_DEFAULT_VECTORS: ReadonlyArray<CarouselPropertyDefaultVector> = [
     { property: 'orientation', value: 'horizontal', rule: 'adw_carousel_init (:1205)' },
@@ -926,6 +934,13 @@ export const CAROUSEL_PROPERTY_DEFAULT_VECTORS: ReadonlyArray<CarouselPropertyDe
         property: 'allowScrollWheel',
         value: true,
         rule: 'AdwCarousel:allow-scroll-wheel defaults TRUE (:1103-1106, :1201) — the web port defaulted it FALSE',
+    },
+    {
+        property: 'allowMouseDrag',
+        value: true,
+        rule:
+            'AdwCarousel:allow-mouse-drag defaults TRUE (:1091-1094) — the property was ' +
+            'absent from both ports, and with it the whole mouse-drag gesture',
     },
     {
         property: 'allowLongSwipes',
