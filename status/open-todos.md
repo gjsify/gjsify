@@ -131,15 +131,20 @@ conformance rule reads `.css`/`.scss`, so a new literal would be invisible again
 Registering a source-view suite pulls CodeMirror into the browser test bundle,
 which is why it is a note rather than part of the fix.
 
-### `tests/browser/test-results/.last-run.json` is tracked and rewritten by every run
+### (closed) `tests/browser/test-results/.last-run.json` was tracked, and gitignored
 
-Every `npx playwright test` in `tests/browser` rewrites it, so verifying any
-browser-facing PR the way its description says it was verified dirties the tree,
-and a red run leaves a committed-looking failure record behind. Either gitignore
-`tests/browser/test-results/` and `git rm --cached` the file, or — if the
-last-run record is deliberately committed — say so where the browser-test
-workflow is described in `tests/AGENTS.md`. Pre-existing; noticed while running
-the Firefox suite for the fonts work.
+`git rm --cached`, nothing else: `.gitignore:158` has carried
+`/tests/browser/test-races/`'s sibling `/tests/browser/test-results/` all along, and
+gitignore does not apply to a file git is already tracking. So every `npx playwright
+test` in `tests/browser` rewrote a tracked file that everyone believed was ignored,
+and `git status` looked like a real edit.
+
+It reached the index once, in #292 — a PR about dropping `as any` casts — and stayed.
+This entry is closed by the incident that proves the cost: verifying this branch the
+way its own description says it was verified swept the file into a commit, and the
+record it swept in said `"status": "failed"` (from an A/B run), so a passing PR
+carried a committed-looking failure. That is the shape the entry predicted, one
+`git add -u` away.
 
 ### Two CI comments still say rolldown-native has no Apple target
 
