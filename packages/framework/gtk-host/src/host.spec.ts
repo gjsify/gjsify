@@ -7,7 +7,7 @@
 
 import { describe, expect, it, on } from '@gjsify/unit';
 
-import type Adw from '@girs/adw-1';
+import Adw from 'gi://Adw?version=1';
 import GObject from 'gi://GObject';
 import Gtk from 'gi://Gtk?version=4.0';
 
@@ -506,6 +506,85 @@ export default async () => {
             });
         });
 
+        await describe('regressions from the second review', async () => {
+            await it('a refused insert does not destroy the siblings already rendered', async () => {
+                // The remove-all path detached the whole tail BEFORE the append
+                // that can throw, and `insert`'s catch can only repair the shadow
+                // tree — so a rejected child took valid, rendered siblings with it.
+                const page = createElement('AdwPreferencesPage');
+                materialize(page);
+                const group = createElement('AdwPreferencesGroup', { title: 'keep me' });
+                insert(group, page);
+                const before = countDescendants(materialize(page) as unknown as Gtk.Widget, Adw.PreferencesGroup);
+
+                const box = createElement('GtkBox');
+                materialize(box);
+                try {
+                    insert(box, page, group);
+                } catch {
+                    /* Adw.PreferencesPage.add refuses it */
+                }
+
+                expect(countDescendants(materialize(page) as unknown as Gtk.Widget, Adw.PreferencesGroup)).toBe(before);
+            });
+
+            await it('bottom-up construction into a remove-all parent stays quiet', async () => {
+                // A sibling can own a widget and not be in the tree yet — every
+                // framework materialises a subtree before inserting it. Deriving
+                // "is in the tree" from `widget !== null` made the replay remove
+                // non-children and re-add parented ones.
+                const group = createElement('AdwPreferencesGroup');
+                const rows = [0, 1, 2].map((i) => {
+                    const row = createElement('AdwActionRow', { title: `R${i}` });
+                    materialize(row); // materialised BEFORE the parent exists
+                    return row;
+                });
+                for (const row of rows) insert(row, group);
+                materialize(group); // the parent appears last, and replays
+                expect(collectTitles([materialize(group) as unknown as Gtk.Widget])).toStrictEqual(['R0', 'R1', 'R2']);
+                // NOTE: order alone does NOT discriminate here — measured. Without
+                // the fix the final order still comes out right and this assertion
+                // stays green while GTK logs four criticals at exit 0. The check
+                // that fails is the diagnostics count in the showcase probe
+                // (`showcases/gtk/adw-host-counter`), which owns its own GLib
+                // writer func; this vector only pins the structural half.
+            });
+
+            await it('slotted: insert-then-unmount keeps the replacement', async () => {
+                // `set_content` holds ONE child, exactly like the `single` policy.
+                const view = createElement('AdwToolbarView');
+                const widget = materialize(view) as unknown as Adw.ToolbarView;
+                const a = createElement('GtkLabel', { label: 'A', slot: 'content' });
+                const b = createElement('GtkLabel', { label: 'B', slot: 'content' });
+                insert(a, view);
+                insert(b, view);
+                remove(a);
+                expect((widget.get_content() as Gtk.Label).label).toBe('B');
+            });
+
+            await it('changing layout moves the child instead of doing nothing', async () => {
+                const grid = createElement('GtkGrid');
+                const widget = materialize(grid) as unknown as Gtk.Grid;
+                const cell = createElement('GtkLabel', { label: 'cell', layout: { column: 0, row: 0 } });
+                insert(cell, grid);
+                setProp(cell, 'layout', { column: 2, row: 3 });
+                expect(widget.get_child_at(0, 0)).toBe(null);
+                expect((widget.get_child_at(2, 3) as Gtk.Label)?.label).toBe('cell');
+            });
+
+            await it('mountRoot appends after what the application already put there', async () => {
+                const container = new Gtk.Box();
+                const appOwned = new Gtk.Label({ label: 'app-owned' });
+                container.append(appOwned);
+                const root = createElement('GtkLabel', { label: 'host-root' });
+                mountRoot(root, container);
+                expect(gtkChildren(container).map((w) => (w as Gtk.Label).label)).toStrictEqual([
+                    'app-owned',
+                    'host-root',
+                ]);
+            });
+        });
+
         await describe('mountRoot resolves the container through the table', async () => {
             await it('mounts into an application-owned widget', async () => {
                 const container = new Gtk.Box();
@@ -545,6 +624,17 @@ export default async () => {
         });
     });
 };
+
+/** How many descendants of a given class a subtree holds. */
+function countDescendants(root: Gtk.Widget, klass: unknown): number {
+    let n = 0;
+    const walk = (w: Gtk.Widget) => {
+        if (w instanceof (klass as new () => object)) n += 1;
+        for (const child of gtkChildren(w)) walk(child);
+    };
+    walk(root);
+    return n;
+}
 
 /** Labels of every GtkButton anywhere under a widget — packed children sit deeper. */
 function descendantLabels(root: Gtk.Widget): string[] {

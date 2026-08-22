@@ -38,6 +38,7 @@ export function createElement(tag: string, props?: Record<string, unknown>): Hos
         props: {},
         layout: null,
         textFromChildren: false,
+        attached: false,
     };
     if (props) {
         for (const [key, value] of Object.entries(props)) setProp(el, key, value);
@@ -114,6 +115,16 @@ export function setProp(el: HostElement, key: string, next: unknown, _prev?: unk
     if (key === 'slot') return setSlot(el, next as string | null);
     if (key === 'layout') {
         el.layout = next as Record<string, unknown> | null;
+        // Position data is read at PLACEMENT time only, so a reactive binding
+        // that moves a grid cell or renames a stack page did nothing at all —
+        // silently, which is the one thing this host refuses to do. Re-place it,
+        // exactly as a slot change does.
+        if (el.attached && el.parent) {
+            const parent = el.parent;
+            removeChild(parent, el);
+            el.attached = false;
+            attach(parent, el);
+        }
         return;
     }
 
@@ -179,12 +190,16 @@ function rebuild(el: HostElement): void {
         // "Cannot set parent on widget …, which already has parent …" and
         // returns — so without this the subtree silently empties, at exit 0.
         for (const child of childSnapshot(el)) {
-            if (child.kind === 'element') removeChild(el, child);
+            if (child.kind === 'element') {
+                removeChild(el, child);
+                child.attached = false;
+            }
         }
         if (parent) removeChild(parent, el);
     }
     el.widget = null;
     el.wrapper = null;
+    el.attached = false;
     // `materialize` replays the whole child list itself; a second pass here
     // attached everything twice and made the remove-all policy re-append a tail
     // that was already in place.
@@ -307,16 +322,17 @@ function attach(parent: HostElement, child: HostElement): void {
     let prevWidget: Gtk.Widget | null = null;
     let index = 0;
     for (let n = parent.first; n && n !== child; n = n.next) {
-        if (n.kind !== 'element' || !n.widget) continue;
+        if (n.kind !== 'element' || !n.attached) continue;
         prevWidget = addressOf(n);
         index += 1;
     }
     const following: Gtk.Widget[] = [];
     for (let n = child.next; n; n = n.next) {
-        if (n.kind === 'element' && n.widget) following.push(addressOf(n));
+        if (n.kind === 'element' && n.attached) following.push(addressOf(n));
     }
     const placement: Placement = { parent, child, prevWidget, index, following };
     insertChild(placement);
+    child.attached = true;
 }
 
 /** `indexed` parents address a wrapper row; create it once, before first placement. */
@@ -349,6 +365,7 @@ export function remove(node: HostNode): void {
     const parent = node.parent;
     if (parent && node.kind === 'element') {
         removeChild(parent, node);
+        node.attached = false;
         // The wrapper row belongs to the parent that demanded it, not to the
         // child. Keeping it would drag a GtkListBoxRow into the next parent —
         // and the real widget would still be inside it, hence still parented.
@@ -427,8 +444,43 @@ export function mountRoot(el: HostElement, container: Gtk.Widget): void {
         props: {},
         layout: null,
         textFromChildren: false,
+        attached: true,
     };
-    insert(el, parent);
+    // The container may already hold children the application put there. The
+    // synthetic parent's shadow tree is empty, so ordinary placement computes
+    // "first" and `insert_child_after(w, null)` puts the host tree BEFORE them.
+    // Read the real children and append after the last one.
+    const existing = directChildren(container);
+    link(parent, el, null);
+    try {
+        ensureWrapper(parent, el);
+        insertChild({
+            parent,
+            child: el,
+            prevWidget: existing.length > 0 ? existing[existing.length - 1] : null,
+            index: existing.length,
+            following: [],
+        });
+        el.attached = true;
+    } catch (e) {
+        unlink(el);
+        throw e;
+    }
+}
+
+/** Direct GTK children of a widget — what the container already holds. */
+function directChildren(widget: Gtk.Widget): Gtk.Widget[] {
+    const out: Gtk.Widget[] = [];
+    const w = widget as unknown as { get_first_child?: () => Gtk.Widget | null };
+    if (typeof w.get_first_child !== 'function') return out;
+    for (
+        let c = w.get_first_child();
+        c;
+        c = (c as unknown as { get_next_sibling(): Gtk.Widget | null }).get_next_sibling()
+    ) {
+        out.push(c);
+    }
+    return out;
 }
 
 const gtypeNameOf = (obj: unknown): string =>

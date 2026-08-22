@@ -95,9 +95,14 @@ function placeChild(place: Placement): void {
             }
             // Declared degradation: no insert API on this container
             // (`Adw.PreferencesGroup` has add/remove and no insert, measured).
-            // Detach the tail, append ourselves, re-append the tail in order.
-            for (const w of place.following) host[policy.remove](w);
+            //
+            // Append FIRST, then rotate the tail. The obvious order — detach the
+            // tail, append self, re-append — destroys already-rendered siblings
+            // when the append throws, and `insert`'s catch can only repair the
+            // shadow tree. Appending first means a refused child leaves the
+            // container exactly as it was.
             host[policy.append](address);
+            for (const w of place.following) host[policy.remove](w);
             for (const w of place.following) host[policy.append](w);
             return;
         }
@@ -159,9 +164,23 @@ export function removeChild(parent: HostElement, child: HostElement): void {
             if (current === undefined || current === address) host[policy.set](null);
             return;
         }
+        case 'slotted': {
+            // A setter-backed slot (`set_content`, `set_title_widget`) holds ONE
+            // child and has the same hazard as the `single` policy: the
+            // insert-then-unmount order Solid and React use would clear a slot
+            // that already holds the replacement.
+            const method = policy.slots[child.slot ?? policy.defaultSlot];
+            if (method?.startsWith('set_')) {
+                const getter = method.replace(/^set_/, 'get_');
+                const current = typeof host[getter] === 'function' ? host[getter]() : undefined;
+                if (current === undefined || current === address) host[method](null);
+                return;
+            }
+            host[policy.remove](address);
+            return;
+        }
         case 'ordered':
         case 'indexed':
-        case 'slotted':
         case 'keyed':
         case 'coords':
             host[policy.remove](address);

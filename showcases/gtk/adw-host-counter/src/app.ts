@@ -18,6 +18,43 @@ import Adw from 'gi://Adw?version=1';
 import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
 
+/**
+ * Every GLib/GTK diagnostic this process emits, captured rather than merely
+ * printed.
+ *
+ * This is the mechanism behind the package's central claim. GTK's failure mode
+ * is exit 0: a mis-parented widget floods `Gtk-WARNING`/`Adwaita-CRITICAL` and
+ * the process still succeeds, so a test that asserts only on structure passes
+ * while the window is wrong. `showcase-smoke`'s FATAL_PATTERNS deliberately do
+ * not include GTK criticals (documented there as flaky by construction across
+ * unrelated showcases), so this process counts its own.
+ *
+ * The handler FORWARDS to stderr rather than swallowing — a writer that ate its
+ * input would hide the very messages it exists to detect, including its own.
+ */
+const diagnostics: string[] = [];
+const decoder = new TextDecoder();
+const verboseLogging = GLib.getenv('G_MESSAGES_DEBUG') !== null;
+
+GLib.log_set_writer_func((level, fields) => {
+    // A throw in here is logged, which re-enters this function. Everything is
+    // guarded and the return value is unconditional.
+    try {
+        let message = '';
+        const raw = (fields as unknown as { MESSAGE?: unknown } | null)?.MESSAGE;
+        message = raw instanceof Uint8Array ? decoder.decode(raw) : String(raw ?? '');
+        if (level <= GLib.LogLevelFlags.LEVEL_WARNING) diagnostics.push(message);
+        // Same threshold GLib's own writer applies when G_MESSAGES_DEBUG is
+        // unset: message-and-above is printed, info/debug is not. Printing
+        // everything published a hundred portal-setting lines before the first
+        // assertion, which is its own kind of unreadable.
+        if (verboseLogging || level <= GLib.LogLevelFlags.LEVEL_MESSAGE) printerr(message);
+    } catch {
+        printerr('<gtk-host probe: a log message could not be decoded>');
+    }
+    return GLib.LogWriterOutput.HANDLED;
+});
+
 import {
     createElement,
     insert,
@@ -186,9 +223,30 @@ function runProbe(): number {
     ui.increment();
     check('increment updated the subtitle', (materialize(ui.countRow) as unknown as Adw.ActionRow).subtitle === '1');
 
+    // 6. Bottom-up construction into a container that cannot insert.
+    //    Every framework materialises a subtree before inserting it, and the
+    //    `remove-all` policy has to replay it without touching non-children.
+    //    Reproduced by review: this emitted four Adwaita criticals at exit 0.
+    const lateGroup = createElement('AdwPreferencesGroup');
+    const lateRows = [0, 1, 2].map((i) => {
+        const row = createElement('AdwActionRow', { title: `Late ${i}` });
+        materialize(row);
+        return row;
+    });
+    for (const row of lateRows) insert(row, lateGroup);
+    materialize(lateGroup);
+    check(
+        'bottom-up rows keep their order',
+        JSON.stringify(rowTitles(lateGroup)) === JSON.stringify(['Late 0', 'Late 1', 'Late 2']),
+    );
+
+    // 7. …and none of it may have been reported to GLib.
+    check(`no GTK diagnostics (saw ${diagnostics.length})`, diagnostics.length === 0);
+
     const report = {
         rows: rowTitles(ui.group),
         count: ui.count(),
+        diagnostics: diagnostics.length,
         tree: dumpTree(box as unknown as Gtk.Widget).split('\n').length,
     };
     if (failures.length > 0) {

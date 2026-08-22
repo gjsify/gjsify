@@ -61,6 +61,16 @@ export interface HostElement extends HostNodeBase {
     /** True once text CHILDREN wrote the sink, so removing the last one clears it
      *  instead of leaving the stale string an authored prop never set. */
     textFromChildren: boolean;
+    /**
+     * True while this element is actually IN its parent's GTK tree.
+     *
+     * Owning a widget is not the same thing: every framework builds bottom-up,
+     * so a subtree is materialised long before it is inserted. Deriving "is my
+     * sibling in the tree" from `widget !== null` made the remove-all policy
+     * detach non-children and re-add already-parented ones — two Adwaita
+     * criticals per replay, at exit 0.
+     */
+    attached: boolean;
 }
 
 export type HostNode = HostElement | HostText | HostAnchor;
