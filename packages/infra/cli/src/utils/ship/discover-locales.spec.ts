@@ -141,7 +141,11 @@ export default async () => {
             });
             try {
                 const found = discover(root, { localeDir: 'dist/locale' });
-                expect(found.bundleFiles.sort()).toStrictEqual(['app.gjs.mjs', join('assets', 'logo.png')]);
+                // POSIX separator in the expectation, not `join`: `bundleFiles` is normalised to
+                // POSIX by `listFilesRecursive`, so a host-shaped expectation passes on Linux and
+                // fails on Windows with `assets\logo.png` — which is exactly how this test first
+                // went red in CI.
+                expect(found.bundleFiles.sort()).toStrictEqual(['app.gjs.mjs', 'assets/logo.png']);
             } finally {
                 rmSync(root, { recursive: true, force: true });
             }

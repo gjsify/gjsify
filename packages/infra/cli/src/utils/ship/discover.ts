@@ -95,8 +95,12 @@ function withoutLocaleTree(
     const rel = relative(bundleDir, localeRoot);
     // Outside the bundle dir: `relative` climbs out (`..`) or returns an absolute path.
     if (rel === '' || rel.startsWith('..') || isAbsolute(rel)) return bundleFiles;
-    const prefix = `${rel.split(/[\\/]/).join('/')}/`;
-    return bundleFiles.filter((file) => !`${file.split(/[\\/]/).join('/')}/`.startsWith(prefix));
+    // Only `rel` needs normalising: it comes from `relative`, so it is host-shaped, while
+    // `bundleFiles` is POSIX by `listFilesRecursive`'s contract. Comparing a host-shaped prefix
+    // against POSIX entries matches nothing on Windows — and matching nothing here means the
+    // catalogues quietly ship twice again, on that platform only.
+    const prefix = `${rel.split(sep).join(posix.sep)}${posix.sep}`;
+    return bundleFiles.filter((file) => !`${file}${posix.sep}`.startsWith(prefix));
 }
 
 /**
@@ -126,9 +130,8 @@ function discoverLocales(projectDir: string, dir: string | undefined): { rel: st
             continue;
         }
         if (!rel.endsWith('.mo')) continue;
-        // POSIX separators: `listFilesRecursive` yields host-shaped paths, and the check is about
-        // the gettext LAYOUT, which is the same on every host.
-        const parts = rel.split(/[\\/]/);
+        // `listFilesRecursive` normalises to POSIX, so one separator is all there is to split on.
+        const parts = rel.split(posix.sep);
         if (parts.length !== 3 || parts[1] !== 'LC_MESSAGES') {
             strays.push(`${rel} (expected <lang>/LC_MESSAGES/<domain>.mo)`);
             continue;
