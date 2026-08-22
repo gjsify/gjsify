@@ -108,6 +108,12 @@ const TYPELIB_PACKAGES: Record<string, { deb: string; rpm: string }> = {
     'Notify-0.7': { deb: 'gir1.2-notify-0.7', rpm: 'libnotify' },
     'Vte-3.91': { deb: 'gir1.2-vte-3.91', rpm: 'vte291-gtk4' },
     'Manette-0.2': { deb: 'gir1.2-manette-0.2', rpm: 'libmanette' },
+    // libgda — what `@gjsify/sqlite` binds, so every project with a local database lands here.
+    // The rpm name is measured on this machine (`rpm -qf …/Gda-6.0.typelib` → libgda); the deb name
+    // follows the `gir1.2-<name>-<version>` convention every row above uses and is NOT verified
+    // against a Debian system. Said plainly because a wrong name fails at `apt install` with a
+    // clear error, while no row at all fails the BUILD of every such project.
+    'Gda-6.0': { deb: 'gir1.2-gda-6.0', rpm: 'libgda' },
 };
 
 export interface DependsInputs {
