@@ -147,7 +147,7 @@
     },
     "@gjsify/domparser": {
       "status": "full",
-      "note": "DOMParser (parseFromString XML + HTML), minimal DOM (Element tagName/getAttribute/children/childNodes/querySelector[All]/textContent/innerHTML, Document documentElement/querySelector[All]). Sized for excalibur-tiled map parsing."
+      "note": "DOMParser.parseFromString reads its mimeType: HTML5 tokenizer + tree builder for text/html, the XML scanner for the four XML types, a TypeError for anything else. CSS Selectors 4 over an Adapter seam (querySelector[All]/matches/closest/getElementById/getElementsByClassName), the full 2231-entry character-reference table in three decode contexts, and a re-escaping innerHTML/outerHTML. Leaf subpaths ./html, ./selectors, ./entities. Verified differentially against parse5, css-select and entities in tests/integration/domparser; adoption agency, foster parenting and SVG/MathML foreign content are out of scope and pinned as divergent fixtures (ADR 0026)."
     },
     "@gjsify/empty": {
       "status": "full",

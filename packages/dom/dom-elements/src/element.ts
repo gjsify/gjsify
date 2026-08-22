@@ -1,12 +1,17 @@
 // Adapted from happy-dom (refs/happy-dom/packages/happy-dom/src/nodes/element/Element.ts)
 // Copyright (c) David Ortner (capricorn86). MIT license.
 // Modifications: Simplified for gjsify — no innerHTML/outerHTML, no querySelector/CSS selectors,
-//   no Shadow DOM, no classList/DOMTokenList, no computed styles
+//   no Shadow DOM, no classList/DOMTokenList, no computed styles.
+//   Selectors are NOT reimplemented here — they run the one engine in
+//   `@gjsify/domparser/selectors` through `selector-adapter.ts` (ADR 0026).
 
 import type { Event } from '@gjsify/dom-events';
 
+import { closestSelector, matchesSelector, selectAll, selectOne } from '@gjsify/domparser/selectors';
+
 import type { Attr } from './attr.js';
 import { Node } from './node.js';
+import { elementAdapter } from './selector-adapter.js';
 import { NodeType } from './node-type.js';
 import { NamedNodeMap } from './named-node-map.js';
 import { NamespaceURI } from './namespace-uri.js';
@@ -216,22 +221,28 @@ export class Element extends Node {
         return result;
     }
 
-    // -- Stubs for commonly expected methods --
+    // -- Selectors, over the shared engine (ADR 0026 § Decision 2) --
+    //
+    // These four used to return `null` / `[]` / `false` / `null` without looking
+    // at the tree: methods that answer, always wrongly, and never fail. A caller
+    // could not tell "no match" from "not implemented", which is the failure
+    // shape that costs the most to find. They now run the same engine the HTML
+    // parser does, through `elementAdapter`.
 
-    querySelector(_selectors: string): Element | null {
-        return null;
+    querySelector(selectors: string): Element | null {
+        return selectOne(selectors, this as Node, elementAdapter) as Element | null;
     }
 
-    querySelectorAll(_selectors: string): Element[] {
-        return [];
+    querySelectorAll(selectors: string): Element[] {
+        return selectAll(selectors, this as Node, elementAdapter) as Element[];
     }
 
-    matches(_selectors: string): boolean {
-        return false;
+    matches(selectors: string): boolean {
+        return matchesSelector(selectors, this as Node, elementAdapter);
     }
 
-    closest(_selectors: string): Element | null {
-        return null;
+    closest(selectors: string): Element | null {
+        return closestSelector(selectors, this as Node, elementAdapter) as Element | null;
     }
 
     getElementsByTagName(tagName: string): Element[] {

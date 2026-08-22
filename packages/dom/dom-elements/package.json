@@ -74,6 +74,7 @@
         "@gjsify/abort-controller": "workspace:^",
         "@gjsify/canvas2d-core": "workspace:^",
         "@gjsify/dom-events": "workspace:^",
+        "@gjsify/domparser": "workspace:^",
         "@gjsify/fetch": "workspace:^"
     },
     "devDependencies": {

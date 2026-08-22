@@ -79,6 +79,62 @@ Phase D-1 Workstream W — the Deepkit TypeScript type compiler consumed by `@gj
 
 DeltaChat / chatmail core (`@deltachat/jsonrpc-client` + `@deltachat/stdio-rpc-server`) on Node + GJS. **43/43 green on both.** Validates the pure-JS JSON-RPC client speaking to the Rust core process over stdio via `@gjsify/child_process` — the canonical real-world consumer for a future native Adwaita+GJS DeltaChat app.
 
+## domparser
+
+THREE differential oracles for `@gjsify/domparser` (ADR 0026), none a port of an upstream suite.
+**Node: 1526/1526 green. GJS: 1526/1526 green, 0 skips.**
+
+**Tree shape — parse5 is the REFERENCE.** Each fixture is parsed twice — by us and by parse5 with
+`scriptingEnabled: false` — then printed by the SAME `canonicalize()` through two `TreeReader`s and
+compared with `toBe`. Two canonicalizers would be two chances to agree on the same mistake.
+33 fixtures: 30 asserted IDENTICAL to parse5
+(implied `li`/`p`/`td`/`dt` end tags, void elements mid-tree, raw text vs RCDATA, the script escape
+levels, the full entity table, the attribute query-string rule, implicit `html`/`head`/`body`,
+in-head `noscript`, `<template>` content, EOF auto-close, whitespace placement, a data-state NUL,
+repeated root tags) and 3 asserted
+DIVERGENT against a committed golden — the adoption agency algorithm, foster parenting and SVG
+foreign content, each scoped out in ADR 0026 § 6. A divergent fixture also asserts
+`not.toBe(parse5)`, so the day one of those algorithms lands the test fails and forces this ledger
+to move; it retires itself the way `it.failing` does.
+
+Every fixture carries its discriminators — `minElements` (one below its real element count) and a
+`mustContain` list of DECODED content — asserted BEFORE the comparison, because two empty strings
+compare equal and `27 === 27` was green against the tree this parser replaces.
+
+**Selectors — `css-select` is the REFERENCE.** The same 41 selectors run through our engine and
+through css-select over the same markup, and the two answers are compared by the INDEX PATH of
+every match, never by how many there were: a count cannot tell two engines apart that found the
+same NUMBER of different elements, and `27 === 27` is exactly the comparison that was green against
+the tree this parser replaces. css-select reads a parse5 tree built with the htmlparser2 adapter,
+so it runs on its own default adapter — no code of this suite's sits between the oracle and its
+tree — and each fixture asserts the two trees are node-for-node comparable BEFORE a selector runs.
+The sweep asserts that every selector matched somewhere (a typo matches nothing everywhere, and
+two engines that both found nothing agree perfectly) and that the total number of compared matches
+exceeds a floor; 590 measured today.
+
+One fixture is outside the sweep and says so in a test rather than a skip: the htmlparser2 tree
+adapter hangs `<template>` content in `children`, so css-select walks into it, while the DOM — and
+this parser — keep it in a fragment `querySelectorAll` does not enter. `:scope`, `:enabled` and
+`:nth-child(an+b of S)` are likewise out, the first context-dependent and the other two answered by
+rules css-select invented for itself; the package's own spec covers all three.
+
+**Character references — `entities` is the REFERENCE**, the decoder parse5 itself uses, declared
+here as a devDependency rather than taken from the copy parse5 drags in: an oracle that arrives
+transitively stops arriving when that dependency changes, and nothing says so. All 2,231 named
+references are swept in text and attribute context, plus ~25,000 numeric forms and 20,000
+seeded-random ampersand runs; every sweep counts how many inputs it actually CHANGED, so two
+no-ops cannot agree their way to green. One divergence is deliberate and pinned as an exact
+26-element set: `entities` applies the Windows-1252 remap in XML mode and we do not — expat, a
+third implementation, agrees with us that `&#128;` is U+0080 in XML.
+
+Completeness is asserted separately from correctness, because a sweep over
+`Object.keys(NAMED_REFERENCES)` can only try names the table already has: deleting `hellip;`,
+`euro;` and `uuml;` left every sweep green. The suite therefore also names 36 references in its own
+source and pins the table size at exactly 2,231.
+
+That parse5, `css-select` and `entities` run unmodified under gjsify/GJS is what makes these
+oracles possible at all, and the GJS leg of this suite is the standing proof of it.
+
 ## devtools-cdp
 
 Validates `@gjsify/devtools-cdp`'s `InspectorProtocolClient` against a **live WebKit remote inspector** (CDP-shaped JSON-RPC over a per-target WebSocket), ported from `refs/webkit/LayoutTests/inspector/{runtime,dom}`. Opt-in + skip-if-unreachable: with `GJSIFY_CDP_INSPECTOR_PORT` unset it registers a single passing "skipped" test; pointed at a reachable inspector it asserts real `Runtime.evaluate` / `DOM.getDocument`/`querySelector`/`getOuterHTML`/`querySelectorAll` round-trips. Launch recipe: `gjsify browse <url> --inspector-port 9222`, then `GJSIFY_CDP_INSPECTOR_PORT=9222 gjsify workspace @gjsify/integration-devtools-cdp test`. **Not wired into CI** — needs a real WebKitGTK display.
