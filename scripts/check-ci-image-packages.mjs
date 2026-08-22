@@ -175,11 +175,34 @@ function ciFiles(dir) {
  * continuations — YAML joins those lines itself — which is why the flag has to sit on
  * the `dnf install -y` line there.
  */
+// `dnf` and `install` with any number of FLAGS between them, which is the
+// shape almost every real call uses (`dnf -y install …`). Matching the literal
+// substring `dnf install` — what this did until 2026-08-22 — was wrong in both
+// directions at once, and both were live in this tree:
+//
+//   MISSED  `.github/ship-oracle/verify-rpm.sh:34`
+//           `dnf -y install --setopt=… findutils diffutils`
+//           A real, unguarded install the rule could not see, because the `-y`
+//           sits between the two words.
+//   FLAGGED `.github/ship-oracle/verify-rpm.sh:115`
+//           `echo "== dnf install"`
+//           A progress message. Not a command at all — the substring was inside
+//           a string literal.
+//
+// So the one problem the rule reported was an echo, and the one real defect it
+// stayed silent on was two lines up in the same file. Quoted strings are removed
+// before matching (that kills the echo class), and the search is anchored to a
+// command position — line start, or after `|`, `&&`, `;`, `(` — so prose like
+// "no per-job dnf install" in an unindented line cannot re-enter through the
+// comment gap.
+const DNF_INSTALL = /(?:^|[|&;(])\s*(?:sudo\s+)?dnf\s+(?:-{1,2}[^\s]+\s+)*install(?:\s|$)/;
+const QUOTED = /'[^']*'|"[^"]*"/g;
+
 function dnfCommands(body) {
     const lines = body.split('\n');
     const found = [];
     for (let i = 0; i < lines.length; i++) {
-        if (COMMENT.test(lines[i]) || !lines[i].includes('dnf install')) continue;
+        if (COMMENT.test(lines[i]) || !DNF_INSTALL.test(lines[i].replace(QUOTED, ''))) continue;
         let text = lines[i];
         for (let j = i; /\\\s*$/.test(lines[j]) && j + 1 < lines.length; j++) text += ` ${lines[j + 1]}`;
         found.push({ line: i + 1, text });

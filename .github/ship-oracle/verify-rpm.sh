@@ -31,7 +31,7 @@ fail() {
 # `find` (findutils) and `cmp` (diffutils) are NOT in the base image. Installed
 # rather than probed, for `tests/e2e/ship`'s reason: a reader that can go
 # missing turns every assertion behind it into a no-op.
-dnf -y install --setopt=install_weak_deps=False findutils diffutils >/dev/null
+dnf -y --disablerepo=fedora-cisco-openh264 install --setopt=install_weak_deps=False findutils diffutils >/dev/null
 for tool in rpm dnf find cmp sort awk grep; do
     command -v "$tool" >/dev/null 2>&1 || fail "$tool is not on PATH inside the container"
 done
@@ -113,7 +113,12 @@ rpm -i --test --nodeps "$RPM"
 # reads the rpm column of `TYPELIB_PACKAGES` — every name in it is a claim about
 # a Fedora package that has never been checked against a Fedora repository.
 echo "== dnf install"
-dnf -y install "./$RPM"
+# --disablerepo=fedora-cisco-openh264 is REQUIRED, not tidiness (#1057): this
+# package's Requires reach gdk-pixbuf2, which pulls openh264 through a HARD
+# chain (libheif → libopenh264.so.8), so install_weak_deps=False does not drop
+# it — and that repo is separately hosted, so its outage fails the whole
+# transaction and reads here as "the .rpm is broken".
+dnf -y --disablerepo=fedora-cisco-openh264 install "./$RPM"
 rpm -q "$NAME"
 
 # rpm re-verifying its own digests, sizes and modes against what it unpacked.
