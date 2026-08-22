@@ -84,7 +84,15 @@ if (!existsSync(DOC)) {
  * is a stabler anchor than the section structure — sections are titled by topic
  * ("Boxed Lists & Cards"), not by class.
  */
-const documented = new Set([...readFileSync(DOC, 'utf8').matchAll(/`\.([a-z0-9-]+)`/g)].map((match) => match[1]));
+// BOTH SPELLINGS. The upstream doc writes most classes in backticks and a handful in
+// `<tt>` tags, and reading only the first missed exactly one: `.accent`
+// (style-classes.md:368, the colour-utility table), a documented class this gate has
+// therefore never held. It IS implemented (`scss/_labels.scss:53`), so nothing was
+// broken — but deleting that rule would have stayed green, which is the whole shape
+// this script exists against.
+const documented = new Set(
+    [...readFileSync(DOC, 'utf8').matchAll(/(?:`|<tt>)\.([a-z0-9-]+)(?:`|<\/tt>)/g)].map((match) => match[1]),
+);
 
 /** Every key of `DOCUMENTED_STYLE_CLASSES`, quoted or bare. */
 const ledgerSource = readFileSync(LEDGER, 'utf8');

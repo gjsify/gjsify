@@ -28,7 +28,7 @@ TextField {
    name this showcase invents — no libadwaita style class and no bridge widget
    emits it — so its rule belongs here and not in adwaita.css. It styled NOTHING
    until now, and the browser twin sets the same two properties inline
-   (`gap: 12px; margin: 6px 0`, widgets.web.ts:110-112), so the two rendered the
+   (`gap: 12px; margin: 6px 0`, widgets.web.ts:111-112), so the two rendered the
    row differently: buttons flush against each other on Android, spaced in the
    browser.
 

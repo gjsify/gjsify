@@ -40,6 +40,20 @@
 // so its two buttons sat flush. Both were invisible here for the same reason the
 // keycap rename was invisible to the suite: nothing compared the two halves.
 //
+// MARKUP COUNTS TOO. A NativeScript app declares part of its tree in XML, and
+// `app/storybook-page.xml` carries `class="adw-window"` — a class emission no reader
+// of `.ts` files can see. That one happens to be styled, so it is a blind spot rather
+// than a live defect, which is the only reason it is worth writing down: the next one
+// will not be. `.xml` templates are read for their `class` attributes, and the
+// showcase's `app/` directory is in scope alongside its `src/` because that is where
+// its templates and its entry point live.
+//
+// A SCOPE THAT EMITS NOTHING IS A FAILURE, not a pass. Every path here is a string in
+// this file; a renamed directory, a moved showcase or a reader that stopped matching
+// would otherwise print OK over a tree it never looked at. That is the same vacuity
+// `check-adwaita-keyboard-contract.mjs` fails on, and widening from one source tree to
+// two doubled the surface for it.
+//
 // SCOPES ARE PAIRED WITH WHAT LOADS THEM, because "styled" is not one question.
 // A consumer installs `@gjsify/adwaita-nativescript` and gets `theme/adwaita.css`
 // and nothing else, so a BRIDGE class satisfied by a showcase's own stylesheet
@@ -87,16 +101,22 @@ const LEDGER = join(ROOT, 'status/nativescript-theme-classes.json');
  * Source tree → the stylesheets a view built from it can actually be styled by,
  * and the file a missing rule belongs in.
  *
- * The showcase's three are exactly what its `app/app.css` imports: the bridge
- * theme and the storybook chrome (both copied in by its `sync:theme` script,
- * which is why they are read from the PACKAGES rather than from the gitignored
- * copies) plus `app.css` itself.
+ * The showcase's three are the ones this repository owns out of the FOUR that
+ * `app/app.css` imports: the bridge theme and the storybook chrome (both copied in by
+ * its `sync:theme` script, which is why they are read from the PACKAGES rather than
+ * from the gitignored copies) plus `app.css` itself. The fourth,
+ * `@nativescript/theme/css/core.css`, is deliberately out: it is a 971-selector utility
+ * sheet in `node_modules`, so reading it would make this gate depend on an install. The
+ * error direction is the safe one — a class satisfied only by the NS core theme is
+ * REPORTED rather than passed — and checked once by hand: none of
+ * `card / dimmed / success / warning / accent / title-1 / heading` has a rule there.
  */
 const SCOPES = [
-    { label: 'bridge widget', sources: SRC, stylesheets: [THEME], home: THEME },
+    { label: 'bridge widget', sources: [SRC], stylesheets: [THEME], home: THEME },
     {
         label: 'showcase view',
-        sources: join(SHOWCASE, 'src'),
+        // `app/` as well as `src/`: the XML templates and the entry point live there.
+        sources: [join(SHOWCASE, 'src'), join(SHOWCASE, 'app')],
         stylesheets: [
             THEME,
             join(ROOT, 'packages/nativescript-bridge/storybook/src/theme/storybook.css'),
@@ -114,7 +134,7 @@ const MIN_REASON = 40;
 
 const isTracked = (name) => name.startsWith('adw-') || UNPREFIXED.has(name);
 
-function widgetSources(root) {
+function widgetSources(roots) {
     const found = [];
     const walk = (dir) => {
         for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -123,18 +143,64 @@ function widgetSources(root) {
                 if (entry.name !== 'theme') walk(path);
             } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.d.ts') && !entry.name.includes('.spec.')) {
                 found.push(path);
+            } else if (entry.name.endsWith('.xml')) {
+                found.push(path);
             }
         }
     };
-    walk(root);
+    for (const root of roots) walk(root);
     return found;
 }
 
-/** Every `.name` a stylesheet selects on, across the set one scope may draw from. */
+/**
+ * The colour-scheme switch, which the app puts on the page (`page.className = 'ns-dark'`).
+ * An ancestor that is only this is not a PLACE requirement — it is the same node in the
+ * other scheme — so a rule under it still styles its subject unconditionally.
+ */
+const SCHEME_COMPOUND = /^[A-Za-z]*(?:\.ns-dark)+$/;
+
+/**
+ * Every class a stylesheet styles UNCONDITIONALLY: the classes of a selector's LAST
+ * compound, and only when every ancestor compound before it is the scheme switch.
+ *
+ * The first draft collected every `.name` occurrence in the file, which is two mistakes
+ * at once. It counted names that appear only in PROSE — 24 of them across these three
+ * sheets, `activatable`, `circular`, `numeric` and the rest — the exact
+ * name-in-a-comment misreading #1123 cost a PR. And it dropped the ancestor, which is
+ * how `.dimmed` passed: the theme's only rule for it was `.adw-shortcut-label .dimmed`,
+ * and the showcase sets `dimmed` on a Label that is a SIBLING of the shortcut label, not
+ * a descendant. Measured against the browser twin, which sets the same class and hits
+ * adwaita-web's UNSCOPED `.dimmed` (`scss/_labels.scss:48`): one renderer dimmed that
+ * column and the other did not.
+ *
+ * An ancestor-scoped rule is not a bug — `.adw-shortcut-label .keycap` is exactly right,
+ * because nothing sets `keycap` anywhere else — it is a DECISION, so it belongs in the
+ * ledger with its reason rather than passing as if unconditional. Three classes were in
+ * that position and all three now say which they are.
+ *
+ * The parser is brace-based and these stylesheets are flat, with `@import` the only
+ * at-rule. A nested rule or an `@media` block would need teaching it first.
+ */
 function styledClasses(stylesheets) {
     const styled = new Set();
     for (const sheet of stylesheets) {
-        for (const match of readFileSync(sheet, 'utf8').matchAll(/\.([a-z][a-z0-9-]*)/g)) styled.add(match[1]);
+        const css = readFileSync(sheet, 'utf8')
+            .replace(/\/\*[\s\S]*?\*\//g, '')
+            .replace(/^\s*@[^;{]*;\s*$/gm, '');
+        for (const block of css.split('}')) {
+            const brace = block.indexOf('{');
+            if (brace === -1) continue;
+            for (const selector of block.slice(0, brace).split(',')) {
+                const compounds = selector.trim().split(/\s+/).filter(Boolean);
+                const subject = compounds.pop();
+                if (subject === undefined) continue;
+                // A `>` or `+` ancestor is a place requirement like any other; these
+                // sheets have none, and treating one as unconditional would be the bug
+                // this function exists to remove.
+                if (!compounds.every((compound) => SCHEME_COMPOUND.test(compound))) continue;
+                for (const name of subject.matchAll(/\.([a-z][a-z0-9-]*)/g)) styled.add(name[1]);
+            }
+        }
     }
     return styled;
 }
@@ -147,6 +213,8 @@ const TEMPLATE = /`([^`]*)`/g;
 const INTERPOLATION = /\$\{[^{}]*\}/g;
 /** The same shape {@link LITERAL} accepts, anchored, for a template's remainder. */
 const CLASS_LIST = /^[a-z][a-z0-9-]*(?: [a-z][a-z0-9-]*)*$/;
+/** `class="a b"` in a NativeScript XML template. Single quotes are legal XML too. */
+const CLASS_ATTRIBUTE = /\bclass\s*=\s*["']([^"']*)["']/g;
 
 /** Class names in string literals, one entry per name with the files that emit it. */
 function emittedClasses(files) {
@@ -158,6 +226,16 @@ function emittedClasses(files) {
     };
 
     for (const file of files) {
+        if (file.endsWith('.xml')) {
+            // A template's `class="a b"`, comments stripped first for the same reason
+            // the TS reader strips them: a name in prose is not an emission.
+            const markup = readFileSync(file, 'utf8').replace(/<!--[\s\S]*?-->/g, '');
+            for (const match of markup.matchAll(CLASS_ATTRIBUTE)) {
+                for (const name of match[1].trim().split(/\s+/)) record(name, file);
+            }
+            continue;
+        }
+
         const code = readFileSync(file, 'utf8')
             .replace(/\/\*[\s\S]*?\*\//g, '')
             .replace(/^\s*\/\/.*$/gm, '');
@@ -179,12 +257,35 @@ function emittedClasses(files) {
 
 /** Per scope: what it emits, and which of those names it can be styled by. */
 const scanned = SCOPES.map((scope) => {
-    const emitted = emittedClasses(widgetSources(scope.sources));
+    const sources = widgetSources(scope.sources);
+    const emitted = emittedClasses(sources);
+    // A scope with nothing in it passes vacuously, and every path above is a string in
+    // this file — so an empty scan is a failure, not an OK.
+    if (emitted.size === 0) {
+        process.stderr.write(
+            `check-nativescript-theme-classes: the ${scope.label} scope emitted NO tracked class ` +
+                `from ${sources.length} file(s) under ${scope.sources.map((dir) => relative(ROOT, dir)).join(', ')}. ` +
+                'Either the tree moved or the reader stopped matching; a scan with nothing in scope ' +
+                'would otherwise pass without looking at anything.\n',
+        );
+        process.exit(1);
+    }
     const styled = styledClasses(scope.stylesheets);
     return { scope, emitted, unstyled: [...emitted.keys()].filter((name) => !styled.has(name)).sort() };
 });
 
-/** Union across scopes — the ratchet asks "does ANYTHING still emit this?". */
+/**
+ * Union across scopes — the ratchet asks "does ANYTHING still emit this?".
+ *
+ * This LOOSENS the staleness arm, and the loosening is the `LITERAL` heuristic's rather
+ * than this union's: any tracked string in any scanned file reads as an emission, so a
+ * bare `const LEGACY = 'adw-menu-button'` in a showcase file would keep a ledger entry
+ * alive after the widget stopped emitting it. Widening from one source tree to two
+ * tripled the string surface without changing the reader. The rename itself is still
+ * caught — the NEW name arrives unstyled — so what survives is a stale reason.
+ * Tightening it means telling a `className` assignment from any other string, the same
+ * parser the `style-classes.md` widening in `status/open-todos.md` is waiting on.
+ */
 const emitted = new Map();
 for (const { emitted: found } of scanned) {
     for (const [name, files] of found) {
@@ -218,7 +319,10 @@ for (const name of listed) {
     if (!emitted.has(name)) {
         failures.push(`${name} is listed, but no widget emits it any more — remove the entry.`);
     } else if (!unstyled.includes(name)) {
-        failures.push(`${name} is listed as unstyled, but the theme now styles it — remove the entry.`);
+        // "every scope that emits it", not "the theme": the rule may have landed in any
+        // of that scope's stylesheets, and naming the wrong file sends the next reader
+        // to the wrong place.
+        failures.push(`${name} is listed as unstyled, but every scope that emits it now styles it — remove the entry.`);
     } else if (typeof reviewed[name] !== 'string' || reviewed[name].trim().length < MIN_REASON) {
         // A placeholder entry is the unreviewed list again, one key at a time.
         // The floor is crude by design: it cannot judge a sentence, only refuse a blank.
