@@ -31,7 +31,7 @@ Keep the `@latest` tag. All three runners reuse a cached copy of an unpinned bin
 | Task | Commands |
 |---|---|
 | Start a project | [`create`](#gjsify-create) |
-| Build and run | [`build`](#gjsify-build) · [`run`](#gjsify-run) · [`test`](#gjsify-test) · [`clear`](#gjsify-clear) · [`copy`](#gjsify-copy) |
+| Build and run | [`build`](#gjsify-build) · [`dev`](#gjsify-dev) · [`run`](#gjsify-run) · [`test`](#gjsify-test) · [`clear`](#gjsify-clear) · [`copy`](#gjsify-copy) |
 | Dependencies | [`install`](#gjsify-install) · [`uninstall`](#gjsify-uninstall) · [`prune`](#gjsify-prune) · [`upgrade`](#gjsify-upgrade) · [`dlx`](#gjsify-dlx) · [`self-update`](#gjsify-self-update) · [`generate-installer`](#gjsify-generate-installer) |
 | Monorepos | [`foreach`](#gjsify-foreach) · [`workspace`](#gjsify-workspace) · [`affected`](#gjsify-affected) |
 | Code quality | [`check`](#gjsify-check) · [`tsc`](#gjsify-tsc) · [`format`](#gjsify-format) · [`lint`](#gjsify-lint) · [`fix`](#gjsify-fix) · [`barrels`](#gjsify-barrels) |
@@ -104,7 +104,7 @@ gjsify build src/index.ts --watch                               # rebuild on cha
 | `--globals` | string | `auto` | Which globals to inject. See [Globals](#globals). |
 | `--exclude-globals` | list | none | Identifiers to drop from the auto-detected set, for false positives out of dead compat code (`--exclude-globals fetch,XMLHttpRequest`). |
 | `--shebang` | bool | `false` | Prepend a target-appropriate shebang and `chmod 755` the output: `#!/usr/bin/env -S gjs -m` for `--app gjs`, `#!/usr/bin/env node` for `--app node`. Needs a single `--outfile`. |
-| `-w`, `--watch` | bool | `false` | Watch sources and rebuild on change, logging each rebuild with its duration. Ctrl-C stops it cleanly. Rejected with `--library`, and it needs the npm `rolldown` engine, so run it under Node. |
+| `-w`, `--watch` | bool | `false` | Watch sources and rebuild on change, logging each rebuild with its duration. Ctrl-C stops it cleanly. Rejected with `--library`, and it needs the npm `rolldown` engine, so run it under Node. On GJS use [`gjsify dev`](#gjsify-dev), which needs no watcher API and relaunches the app too. |
 | `--verbose` | bool | `false` | Print detected globals and build details. |
 
 <details>
@@ -289,6 +289,32 @@ The two GTK-backed groups are the ones an `--app node` build can also ask for. A
 ```bash
 gjsify build src/index.ts --app node --outfile dist/index.node.mjs --globals auto,dom
 ```
+
+### `gjsify dev`
+
+Watch the project, rebuild on change and relaunch the app. All seven templates wire their `dev` script to it.
+
+```bash
+gjsify dev                       # watch, rebuild and relaunch on the host runtime
+gjsify dev --runtime node        # build and launch the `--app node` bundle instead
+gjsify dev src/main.ts --watch-dir src
+gjsify dev --build-only          # rebuild on every change, never launch
+```
+
+| Argument / Option | Description |
+|---|---|
+| `[entry]` | Entry point to build. Default: the one the build script names, e.g. `src/index.ts` out of `build:gjs`. |
+| `--runtime <gjs\|node\|bun\|deno>` | Runtime to build for and launch on. Default: the host runtime. `node`, `bun` and `deno` all build the same `--app node` bundle. |
+| `--script <name>` | The `package.json` script the build flags are read from. Default: `build:gjs`, or `build:node` for `node`/`bun`/`deno`. |
+| `--globals <value>` | Override the build script's `--globals` value. |
+| `--outfile <path>` | Override the build script's `--outfile` path. |
+| `--watch-dir <dir>` | Directory watched recursively. Default: the directory of the entry point. |
+| `--debounce <ms>` | Quiet window after a change before the rebuild starts. Default: `200`. |
+| `--build-only` | Rebuild on every change but never launch the app. |
+
+**What gets built is not declared twice.** `gjsify dev` reads your own `build:gjs` / `build:node` script and layers its flags on top, so the dev loop and `gjsify run build` cannot drift into producing different bundles. Override one flag at a time with `--globals` or `--outfile`, pass a different entry as the positional argument, or point `--script` at another script to follow a different build entirely.
+
+**Why this is not `gjsify build --watch`.** That flag drives rolldown's watcher API, which only the npm engine exposes — on a Node-free GJS host it is not available at all. `gjsify dev` asks for no watcher API: it watches with `fs.watch` and rebuilds by re-entering the ordinary build command, so the same loop runs on gjs, node, bun and deno.
 
 ### `gjsify run`
 
