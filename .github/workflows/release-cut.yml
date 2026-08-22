@@ -370,6 +370,12 @@ jobs:
           # `body`): targeting an EXISTING release uploads the assets onto it and
           # leaves the release notes release-it computed alone.
           tag_name: ${{ steps.assets.outputs.tag }}
+          # The two `ship` entries are GLOBS, and this action's default for
+          # `fail_on_unmatched_files` is false — so without the flag, a renamed
+          # `outDir` or a format that stops being written uploads nothing and
+          # leaves this step green. `scripts/check-workflow-release-globs.mjs`
+          # keeps the shape from regrowing; the flag is what makes it fail here.
+          fail_on_unmatched_files: true
           files: |
             install.mjs
             packages/infra/cli/dist/cli.gjs.mjs
@@ -392,12 +398,33 @@ jobs:
           TAG: ${{ steps.assets.outputs.tag }}
         run: |
           set -euo pipefail
+          shopt -s nullglob
           base="https://github.com/$REPO/releases"
+
+          # The packages are globbed onto the release, so "ship built nothing" and
+          # "everything uploaded" are indistinguishable from here unless the set is
+          # COUNTED first — and the URL loop below cannot count it, because a name
+          # carries the version and the arch label (`gjsify_1.2.3-1_all.deb`), so it
+          # has to be read off disk rather than written down. `gjsify self-update`
+          # refuses for a system-prefix install and points at exactly these assets,
+          # which is the sentence an empty upload would make false.
+          debs=(packages/infra/cli/ship/out/*.deb)
+          rpms=(packages/infra/cli/ship/out/*.rpm)
+          if [ "${#debs[@]}" -eq 0 ] || [ "${#rpms[@]}" -eq 0 ]; then
+            echo "::error::gjsify ship wrote ${#debs[@]} .deb and ${#rpms[@]} .rpm into packages/infra/cli/ship/out — expected at least one of each."
+            exit 1
+          fi
+
+          urls=("$base/latest/download/install.mjs" \
+                "$base/latest/download/cli.gjs.mjs" \
+                "$base/download/$TAG/install.mjs" \
+                "$base/download/$TAG/cli.gjs.mjs")
+          for package in "${debs[@]}" "${rpms[@]}"; do
+            urls+=("$base/download/$TAG/$(basename "$package")")
+          done
+
           fail=0
-          for url in "$base/latest/download/install.mjs" \
-                     "$base/latest/download/cli.gjs.mjs" \
-                     "$base/download/$TAG/install.mjs" \
-                     "$base/download/$TAG/cli.gjs.mjs"; do
+          for url in "${urls[@]}"; do
             code=""
             for attempt in 1 2 3 4 5 6; do
               code="$(curl -sILo /dev/null -w '%{http_code}' "$url" || echo 000)"
