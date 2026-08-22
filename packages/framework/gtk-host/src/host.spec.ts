@@ -389,6 +389,31 @@ export default async () => {
             });
         });
 
+        await describe('rebuild inside a wrapping parent', async () => {
+            await it('replaces the child AND its row, keeping the index', async () => {
+                // The wrapper is the parent's address for this child. A rebuild
+                // that swapped the widget but kept the old row would leave the
+                // ListBox pointing at a row whose child is gone — the same class
+                // of mismatch as the generic-insert bug, one level down.
+                const list = createElement('GtkListBox');
+                const widget = materialize(list) as unknown as Gtk.ListBox;
+                const [first] = labels(1);
+                const target = createElement('GtkLabel', { label: 'T', cssName: 'before' });
+                insert(first, list);
+                insert(target, list);
+                const oldRow = widget.get_row_at_index(1);
+
+                setProp(target, 'cssName', 'after');
+
+                const newRow = widget.get_row_at_index(1);
+                expect(newRow !== null).toBe(true);
+                expect(newRow === oldRow).toBe(false);
+                expect((newRow!.get_child() as Gtk.Label).label).toBe('T');
+                expect(widget.get_row_at_index(2)).toBe(null);
+                expect((widget.get_row_at_index(0)!.get_child() as Gtk.Label).label).toBe('L0');
+            });
+        });
+
         await describe('mountRoot resolves the container through the table', async () => {
             await it('mounts into an application-owned widget', async () => {
                 const container = new Gtk.Box();
