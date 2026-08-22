@@ -304,7 +304,16 @@ jobs:
       # react-gtk, react-native-gtk4 and svelte-gjs. The check deliberately did
       # not ship with the host: with no adapter to scan it would have reported
       # green and verified nothing, so it refuses to run on an empty set.
-      - name: Check the framework adapters carry no widget knowledge
+      # The script SELF-TESTS before it scans, on every run, against one fixture per
+      # miss this ratchet shipped with: the shortest import that reaches the table
+      # (`'../descriptors/gtk.js'`), an extensionless `'../registry'`, an adapter spelled
+      # `.tsx`/`.mts`/`.jsx`/`.js` or `react/index.ts` (the walk was one non-recursive
+      # `readdirSync` filtering `.ts`), a `//` inside a string literal, and prose in a
+      # star-less `/* … */` block. Two rounds of review left those in, because no run of
+      # the real scan can show a pattern that cannot see a violation — it prints the same
+      # green as a clean tree. That is why the self-test is inside the invocation and not
+      # a step of its own: a checker nobody checks is what this step was.
+      - name: Check the framework adapters carry no widget knowledge (self-testing)
         run: node scripts/check-adapter-import-direction.mjs
 
       # `$adw-components` in adwaita-web's `_reset.scss` is a hand-written copy of every
