@@ -11,7 +11,7 @@
 // exactly why the host defers materialisation until a widget is actually needed
 // (ADR 0027 § Decision 5). An adapter cannot paper that over; the host has to.
 
-import { For as SolidFor, Index as SolidIndex, Show as SolidShow } from 'solid-js';
+import { For as SolidFor, Index as SolidIndex, Show as SolidShow, onCleanup } from 'solid-js';
 import { createRenderer } from 'solid-js/universal';
 import type Gtk from '@girs/gtk-4.0';
 
@@ -33,7 +33,20 @@ import {
 import type { HostElement, HostNode, HostText } from '../types.js';
 
 const renderer = createRenderer<HostNode>({
-    createElement: (tag: string) => hostCreateElement(tag),
+    createElement: (tag: string) => {
+        const el = hostCreateElement(tag);
+        // THE unmount signal. `removeNode` cannot be it — Solid uses one op for a
+        // move and for an unmount, and `<For>` moves the same nodes (measured).
+        // Solid's per-node reactive scope makes exactly that distinction: it
+        // SURVIVES a reorder and disposes when the node is genuinely gone.
+        //
+        // Without this, a node dropped by reconciliation is unreachable from the
+        // root, so no later teardown can find it — and GJS blocks JS callbacks
+        // during GC, so its handlers stay connected for the life of the process. A
+        // churning list accumulated live widgets and live closures.
+        onCleanup(() => destroy(el));
+        return el;
+    },
 
     createTextNode: (value: string) => createText(value),
 
@@ -151,15 +164,37 @@ export const Index = SolidIndex as unknown as <T>(props: {
     children: (item: () => T, index: number) => HostNode;
 }) => HostNode;
 
-/** `<Show when={cond}>` — a conditional branch. */
-export const Show = SolidShow as unknown as <T>(props: {
-    when: T | undefined | null | false;
-    fallback?: HostNode;
-    children: HostNode | ((item: T) => HostNode);
-}) => HostNode;
+/**
+ * `<Show when={cond}>` — a conditional branch.
+ *
+ * The child function receives an ACCESSOR, not the value: Solid's runtime passes
+ * `keyed ? c : () => …`, so without `keyed` a `(item) => item.name` reads `.name`
+ * off a function and renders the function's own name — no type error, no runtime
+ * error, wrong string on screen. `keyed: true` opts into the value.
+ */
+export const Show = SolidShow as unknown as {
+    <T>(props: {
+        when: T | undefined | null | false;
+        keyed: true;
+        fallback?: HostNode;
+        children: HostNode | ((item: NonNullable<T>) => HostNode);
+    }): HostNode;
+    <T>(props: {
+        when: T | undefined | null | false;
+        keyed?: false;
+        fallback?: HostNode;
+        children: HostNode | ((item: () => NonNullable<T>) => HostNode);
+    }): HostNode;
+};
 
 /** The materialised widget of a host node — for a test, or a `ref`. */
 export function widgetOf(node: HostNode): Gtk.Widget {
     if (node.kind !== 'element') throw new Error('only an element node has a widget');
+    // `materialize` would happily build a fresh, propertyless, unparented widget
+    // for a node that was destroyed — which is the "destroyed element looks
+    // re-materialisable" trap the host's own `destroy` warns about.
+    if (node.widget === null && !node.attached && Object.keys(node.props).length === 0) {
+        throw new Error('this node was destroyed; its widget is gone');
+    }
     return materialize(node) as unknown as Gtk.Widget;
 }

@@ -39,6 +39,7 @@ export function createElement(tag: string, props?: Record<string, unknown>): Hos
         layout: null,
         textFromChildren: false,
         attached: false,
+        foreign: [],
     };
     if (props) {
         for (const [key, value] of Object.entries(props)) setProp(el, key, value);
@@ -458,8 +459,16 @@ function attach(parent: HostElement, child: HostElement): void {
     materialize(child);
     ensureWrapper(parent, child);
 
-    let prevWidget: Gtk.Widget | null = null;
-    let index = 0;
+    // Start AFTER what the application already put in the container. Without this
+    // the first insertion into an adopted root resolves to `insert_child_after(w,
+    // null)` — GTK's "make first" — and the rendered tree lands above the app's own
+    // chrome. `mountRoot` used to compensate for itself; every adapter needs it.
+    // Index arithmetic rather than `.at(-1)`: this package targets es2020 and
+    // `Array.prototype.at` is es2022. `gjsify tsc --noEmit` let it through on a
+    // stale tsbuildinfo; the full build did not.
+    const priorChildren = parent.foreign;
+    let prevWidget: Gtk.Widget | null = priorChildren.length > 0 ? priorChildren[priorChildren.length - 1] : null;
+    let index = priorChildren.length;
     for (let n = parent.first; n && n !== child; n = n.next) {
         if (n.kind !== 'element' || !n.attached) continue;
         prevWidget = addressOf(n);
@@ -590,26 +599,9 @@ export function destroy(node: HostNode): void {
 export function mountRoot(el: HostElement, container: Gtk.Widget): void {
     materialize(el);
     const parent = adopt(container);
-    // The container may already hold children the application put there. The
-    // synthetic parent's shadow tree is empty, so ordinary placement computes
-    // "first" and `insert_child_after(w, null)` puts the host tree BEFORE them.
-    // Read the real children and append after the last one.
-    const existing = directChildren(container);
-    link(parent, el, null);
-    try {
-        ensureWrapper(parent, el);
-        insertChild({
-            parent,
-            child: el,
-            prevWidget: existing.length > 0 ? existing[existing.length - 1] : null,
-            index: existing.length,
-            following: [],
-        });
-        el.attached = true;
-    } catch (e) {
-        unlink(el);
-        throw e;
-    }
+    // `adopt` recorded what the container already held and `attach` offsets past
+    // it, so this is now the ordinary path.
+    insert(el, parent);
 }
 
 /**
@@ -641,6 +633,8 @@ export function adopt(container: Gtk.Widget): HostElement {
         layout: null,
         textFromChildren: false,
         attached: true,
+        // The children the application put there. Placement offsets past them.
+        foreign: directChildren(container),
     };
 }
 
