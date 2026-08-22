@@ -183,7 +183,7 @@ adw-tab-view {
     background-color: var(--accent-bg-color);
   }
 
-  // --- Close affordance (CSS-drawn "×", no symbolic icon ships) ---
+  // --- Close affordance (CSS-drawn "×"; `window-close` ships, see adw-tab-view.ts) ---
   // Presence is decided in JS by `tabCloseVisible` — `(hovering && fullyVisible)
   // || selected || dragging`, and never on a pinned tab (adw-tab.c:124, :645-650)
   // — which is why the `[hidden]` rule below is load-bearing rather than cosmetic.

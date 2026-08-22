@@ -33,7 +33,7 @@ export class ToolbarViewWebStory extends StoryElement {
 
         // Scrollable content — a status page sits between the toolbars.
         const content = document.createElement('adw-status-page');
-        content.setAttribute('icon', 'folder');
+        content.setAttribute('icon', 'folder-documents');
         content.setAttribute('title', 'Your library');
         content.setAttribute('description', 'Content sits between the toolbars and scrolls independently of them.');
         view.appendChild(content);

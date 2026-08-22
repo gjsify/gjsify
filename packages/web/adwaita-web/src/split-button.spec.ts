@@ -19,6 +19,7 @@ import {
 } from '@gjsify/adwaita-core/conformance';
 import type { SplitButtonProperty } from '@gjsify/adwaita-core';
 import type { AdwSplitButton } from './elements/adw-split-button.js';
+import { fallbackMask, maskOf } from './icon-registry.spec.js';
 
 /** The GObject properties the element re-emits as `notify::*` CustomEvents. */
 const NOTIFY_PROPERTIES: readonly SplitButtonProperty[] = [
@@ -160,12 +161,15 @@ export const AdwSplitButtonTest = async () => {
             host.remove();
         });
 
-        await it('keeps a stray icon name out of the class list', () => {
+        await it('turns a stray icon name into the broken glyph, not a stray class', () => {
             const { el, host } = mount({ 'icon-name': 'a b' });
             const icon = actionHalf(el).querySelector('.adw-icon') as HTMLElement;
             // `adw-icon--a b` would have added a second, unrelated `b` class.
             expect(icon.classList.contains('b')).toBe(false);
-            expect(icon.className).toBe('adw-icon');
+            expect(icon.className).toBe('adw-icon adw-icon--image-missing');
+            // The name was GIVEN, so the slot shows what GTK's failed lookup shows —
+            // dropping the class left a visible 16px hole instead.
+            expect(maskOf(icon)).toBe(fallbackMask());
             host.remove();
         });
 

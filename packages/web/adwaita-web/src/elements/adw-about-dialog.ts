@@ -385,10 +385,11 @@ export class AdwAboutDialog extends HTMLElement {
         header.setAttribute('title', headerTitle);
 
         if (showClose) {
-            // The close button — drawn with a CSS "×" glyph, the same approach as
-            // adw-tab-view's close affordance: `window-close` has no mask class,
-            // because it is not in the ICONS map in `scripts/build-scss.mjs` that
-            // generates them (`@gjsify/adwaita-icons` does export the SVG).
+            // The close button — drawn with a CSS "×" glyph, the same approach and the
+            // same reason as adw-tab-view's close affordance: `window-close` IS compiled
+            // and does have a mask class; what differs from upstream's
+            // `window-close-symbolic` (adw-sheet-controls.c:118) is the button size this
+            // header budgets for it.
             const close = document.createElement('button');
             close.type = 'button';
             close.className = 'adw-button flat circular adw-about-dialog-close';
@@ -433,9 +434,11 @@ export class AdwAboutDialog extends HTMLElement {
 
         // Only when one was given: GTK hides the image outright for an empty icon
         // name, and a generic glyph would show an icon for an application that asked
-        // for none. A reverse-DNS application id (`org.gnome.Builder`) is not one CSS
-        // token and resolves to no glyph rather than to three stray classes — see
-        // `normalizeIconName`.
+        // for none. A reverse-DNS application id (`org.gnome.Builder`) — what
+        // `adw_about_dialog_new_from_appdata` hands to `set_application_icon` in
+        // refs/libadwaita/src/adw-about-dialog.c — is not one CSS token, so it draws
+        // `image-missing` rather than three stray classes; that is also what GTK draws for
+        // it on a machine without the app installed.
         if (visibility.appIcon) {
             body.appendChild(createAdwIcon(this.applicationIcon, 'adw-about-dialog-icon'));
         }

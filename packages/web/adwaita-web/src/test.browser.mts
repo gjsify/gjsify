@@ -39,6 +39,7 @@ import { AdwButtonTest } from './adw-button.spec.js';
 import { AdwBannerTest } from './adw-banner.spec.js';
 import { AdwButtonContentTest } from './adw-button-content.spec.js';
 import { AdwIconTest } from './adw-icon.spec.js';
+import { AdwIconRegistryTest } from './icon-registry.spec.js';
 import { AdwSwitchTest } from './adw-switch.spec.js';
 import { AdwChecksTest } from './adw-checks.spec.js';
 import { AdwProgressBarTest } from './adw-progress-bar.spec.js';
@@ -62,6 +63,7 @@ run({
     AdwBannerTest,
     AdwButtonContentTest,
     AdwIconTest,
+    AdwIconRegistryTest,
     AdwSwitchTest,
     AdwChecksTest,
     AdwProgressBarTest,

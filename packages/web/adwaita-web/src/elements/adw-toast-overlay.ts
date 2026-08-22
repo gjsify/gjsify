@@ -18,6 +18,8 @@
 // queue/auto-dismiss state machine composed from @gjsify/adwaita-core.
 
 import { AdwToast, AdwToastQueue } from '@gjsify/adwaita-core';
+
+import { createAdwIcon } from './adw-icon.js';
 import type { ToastScheduler, ToastTimerHandle } from '@gjsify/adwaita-core';
 
 // The timing seam is re-exported so a consumer can type a custom scheduler for
@@ -183,11 +185,16 @@ export class AdwToastOverlay extends HTMLElement {
             el.appendChild(button);
         }
 
-        // Close affordance: a CSS-drawn "×", as in adw-tab-view's close button.
+        // Close affordance — the real `window-close` glyph, which is what upstream puts
+        // here (adw-toast-widget.ui:64) and what this port drew with two rotated CSS bars
+        // under a comment claiming no such icon shipped. It does, and the toast is the one
+        // close button in the package already sized the way upstream sizes it: a 16px
+        // symbolic in a 24px circle, so the swap is the name and nothing else.
         const close = document.createElement('button');
         close.type = 'button';
         close.className = 'adw-toast-close-button';
         close.setAttribute('aria-label', 'Close');
+        close.appendChild(createAdwIcon('window-close'));
         close.addEventListener('click', () => this._queue.dismiss());
         el.appendChild(close);
 

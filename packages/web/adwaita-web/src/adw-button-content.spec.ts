@@ -20,6 +20,7 @@ import {
     BUTTON_CONTENT_TEXT_VECTORS,
 } from '@gjsify/adwaita-core/conformance';
 import type { AdwButtonContent } from './elements/adw-button-content.js';
+import { fallbackMask, maskOf } from './icon-registry.spec.js';
 
 /** Mount a button content inside a plain Adwaita button, the way the stories do. */
 function mount(attributes: Record<string, string> = {}): {
@@ -123,13 +124,17 @@ export const AdwButtonContentTest = async () => {
                 // asked for `.adw-icon--folder-download-symbolic`, a class that has
                 // never existed, and drew an empty 16px box. `<adw-icon>` applies
                 // `normalizeIconName`, which also makes the `' '` row assertable
-                // instead of skipped: a space is not one CSS token, so it draws
-                // nothing rather than injecting a second class.
+                // instead of skipped: a space is not one CSS token, so it lands on
+                // `image-missing` — the missing icon that row's own rule records GTK
+                // drawing there, by lookup failure rather than by this branch.
                 const maskName = normalizeIconName(resolved);
-                expect(icon.classList.contains(`adw-icon--${maskName}`)).toBe(maskName !== '');
-                expect([...icon.classList].filter((c) => c.startsWith('adw-icon--')).length).toBe(
-                    maskName === '' ? 0 : 1,
-                );
+                const drawn = maskName === '' ? 'image-missing' : maskName;
+                expect(icon.classList.contains(`adw-icon--${drawn}`)).toBe(true);
+                expect([...icon.classList].filter((c) => c.startsWith('adw-icon--')).length).toBe(1);
+                // …and it DRAWS that. The class alone is what the original bug survived:
+                // applied correctly, to a name with no glyph behind it.
+                expect(maskOf(icon)).not.toBe('none');
+                expect(maskOf(icon) === fallbackMask()).toBe(drawn === 'image-missing');
                 // The image node is never hidden — `gtk_widget_set_visible` is
                 // called on the LABEL only.
                 expect(icon.hidden).toBe(false);

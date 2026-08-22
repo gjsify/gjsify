@@ -12,7 +12,6 @@ import {
     documentOpenSymbolic,
     documentSaveSymbolic,
     editCopySymbolic,
-    editPasteSymbolic,
     goDownSymbolic,
     goHomeSymbolic,
     goNextSymbolic,
@@ -28,11 +27,14 @@ import {
     viewConcealSymbolic,
     viewGridSymbolic,
     viewListSymbolic,
+    viewMoreSymbolic,
+    viewPagedSymbolic,
     viewRefreshSymbolic,
     viewRevealSymbolic,
 } from '@gjsify/adwaita-icons/actions';
 import { cameraPhotoSymbolic, networkWirelessSymbolic } from '@gjsify/adwaita-icons/devices';
 import {
+    folderDocumentsSymbolic,
     folderDownloadSymbolic,
     folderMusicSymbolic,
     folderSymbolic,
@@ -50,8 +52,13 @@ import { applicationXExecutableSymbolic } from '@gjsify/adwaita-icons/mimetypes'
 import { windowCloseSymbolic, windowMaximizeSymbolic, windowMinimizeSymbolic } from '@gjsify/adwaita-icons/ui';
 import { toDataUri } from '@gjsify/adwaita-icons/utils';
 
-// view-columns-symbolic is not in the vendored icon theme @gjsify/adwaita-icons is
-// generated from, so supply a matching 3-column glyph in the same symbolic style.
+// view-columns-symbolic is in NO icon theme — not the vendored one @gjsify/adwaita-icons
+// is generated from, and not the installed Adwaita either. So the GTK story and the
+// `.mdx` GJS/Blueprint panes naming it draw the broken-image paintable, and this
+// hand-drawn 3-column glyph makes the WEB pane the odd one out rather than the fixed
+// one. A glyph only this renderer has has to be argued in
+// status/adwaita-web-icon-masks.json: `check-adwaita-icon-masks.mjs` fails on any ICONS
+// value it cannot trace to an @gjsify/adwaita-icons import.
 const viewColumnsSymbolic = `<svg height="16px" viewBox="0 0 16 16" width="16px" xmlns="http://www.w3.org/2000/svg">
     <path d="m 2 1 c -0.554688 0 -1 0.445312 -1 1 v 12 c 0 0.554688 0.445312 1 1 1 h 2 c 0.554688 0 1 -0.445312 1 -1 v -12 c 0 -0.554688 -0.445312 -1 -1 -1 z m 5 0 c -0.554688 0 -1 0.445312 -1 1 v 12 c 0 0.554688 0.445312 1 1 1 h 2 c 0.554688 0 1 -0.445312 1 -1 v -12 c 0 -0.554688 -0.445312 -1 -1 -1 z m 5 0 c -0.554688 0 -1 0.445312 -1 1 v 12 c 0 0.554688 0.445312 1 1 1 h 2 c 0.554688 0 1 -0.445312 1 -1 v -12 c 0 -0.554688 -0.445312 -1 -1 -1 z m 0 0" fill="currentColor"/>
 </svg>`;
@@ -65,8 +72,27 @@ const distDir = resolve(pkgRoot, 'dist');
 // `.adw-icon--<name>` mask class are both generated from this map, so adding an icon used
 // by a component or story is one entry here. Names are the libadwaita symbolic names with
 // the `-symbolic` suffix dropped.
+//
+// THE MEMBERSHIP RULE, and the constraint behind it. Inlining everything
+// `@gjsify/adwaita-icons` exports costs a MEASURED ~1.07 MB of data-URI, roughly five
+// times the stylesheet it would sit in (the largest single glyph is 47 KB), so the
+// compiled set has to be a chosen subset. The rule is: every icon name a SHIPPING
+// web-facing surface in this repo emits, and nothing else. Deliberately NOT "every name
+// any renderer emits" — a GTK pane names icons the SYSTEM theme resolves — and
+// deliberately not what a FIXTURE names either: a spec or a conformance vector must not
+// buy a shipped byte.
+//
+// `scripts/check-adwaita-icon-masks.mjs` holds the rule in three directions — it reads
+// THIS map (the generated partial is gitignored, and the audit job neither installs nor
+// builds) and fails on an emitted name with no entry, on an entry nothing emits, and on
+// a glyph that came from somewhere other than @gjsify/adwaita-icons. Its header carries
+// the surface list and the incident. Before the gate existed, an unresolvable name was
+// not an error of any kind: the icon painted a solid 16px square in the widget's text
+// colour and `adw-icon.spec.ts` asserted only that the class STRING had been applied.
+// That is why the browser storybook drew `view-grid` where its GTK twin drew
+// `view-paged-symbolic` — the right name resolved to a square, so a different one was
+// substituted and the divergence recorded as prose.
 const ICONS = {
-    'edit-paste': editPasteSymbolic,
     'go-down': goDownSymbolic,
     'sidebar-show': sidebarShowSymbolic,
     'go-previous': goPreviousSymbolic,
@@ -91,9 +117,12 @@ const ICONS = {
     'document-save': documentSaveSymbolic,
     'mail-send': mailSendSymbolic,
     'mail-reply-sender': mailReplySenderSymbolic,
+    'folder-documents': folderDocumentsSymbolic,
     'folder-download': folderDownloadSymbolic,
     'view-grid': viewGridSymbolic,
     'view-list': viewListSymbolic,
+    'view-more': viewMoreSymbolic,
+    'view-paged': viewPagedSymbolic,
     'view-columns': viewColumnsSymbolic,
     'list-remove': listRemoveSymbolic,
     'send-to': sendToSymbolic,

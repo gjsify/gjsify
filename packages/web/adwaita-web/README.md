@@ -122,6 +122,89 @@ surface + light/dark `color-scheme` by adding the `adw-root` class to `<body>`
 `--window-fg-color` + `color-scheme: light dark` to the page and changes nothing
 about the individual components.
 
+## Icons, and the ones the stylesheet does not ship
+
+An `<adw-icon icon-name="go-next">` is a CSS mask: the box takes its colour from
+`currentColor` and a generated `.adw-icon--<name>` class supplies the `mask-image`, so the
+glyph re-themes with whatever contains it. The names that resolve are a **chosen subset** of
+[`@gjsify/adwaita-icons`](../adwaita-icons) — a few dozen of them, plus one glyph drawn
+locally — because inlining the whole set as data-URIs costs about 1.07 MB, roughly five
+times the stylesheet it would sit in.
+
+A name outside that subset draws **`image-missing`**, the broken-image glyph libadwaita
+itself substitutes when it has no icon to draw. So does a name that could never be a mask
+class at all — a space, a quote, a reverse-DNS application id — because
+`gtk_icon_theme_lookup_icon` has no "found nothing" answer either. It is deliberately
+visible: the icon has not silently disappeared, and nothing throws — an icon is decorative,
+and neither of the other two Adwaita renderers takes an application down over a glyph. Only
+an **absent or empty** name draws nothing, which is the host declining an icon.
+
+### Registering your own
+
+```typescript
+import { registerIcon, isIconAvailable } from '@gjsify/adwaita-web';
+import { dialogErrorSymbolic } from '@gjsify/adwaita-icons/status';
+
+if (!isIconAvailable('dialog-error')) {
+    registerIcon('dialog-error-symbolic', dialogErrorSymbolic);
+}
+```
+
+```html
+<adw-icon icon-name="dialog-error"></adw-icon>
+<!-- …or any widget attribute that takes an icon name -->
+<adw-status-page icon="dialog-error" title="Could not connect"></adw-status-page>
+```
+
+`registerIcon(name, svg)` takes the icon's **SVG source** — exactly what
+`@gjsify/adwaita-icons` exports, and equally any symbolic SVG of your own drawn on the 16px
+Adwaita grid with `fill="currentColor"`. It writes the same pair the build writes: a
+`--icon-<name>` custom property on the document element and a `.adw-icon--<name>` mask rule,
+so from then on the name is indistinguishable from a compiled one — in `<adw-icon>`, in a
+widget attribute, in a hand-written `class="adw-icon adw-icon--dialog-error"`, and in your
+own CSS as `var(--icon-dialog-error)`.
+
+Notes worth having:
+
+- **Register before you mount, where you can.** An icon already in the document shows the
+  fallback until the registration lands. The CSS is live, so it corrects itself on the next
+  style recalculation with no re-render — but there is a visible frame in between.
+- **`registerIcon` needs a live document.** It writes to `document.documentElement` and
+  `document.head`, so calling it at module top level in an SSR/SSG build (an Astro component
+  module, for instance) throws a `ReferenceError` before any page renders. Call it from
+  client-side code — an `onMount`, a `client:load` boundary, a `DOMContentLoaded` handler.
+- **The name is normalized the same way the attribute is**: one optional `-symbolic` suffix
+  comes off, and what is left has to be a single CSS token. `registerIcon` *throws* on a name
+  that is not (`org.gnome.Builder`, `a b`), because a call that silently registers nothing is
+  the failure this whole area exists to end — and because there is no mask class such a name
+  could be given. `<adw-icon>` stays lenient with the same input: the name came from markup,
+  so it draws `image-missing` rather than taking the page down.
+- **Re-registering replaces the glyph** rather than adding a second rule, so a runtime theme
+  switch can call it as often as it likes.
+- `isIconAvailable(name)` reads the live cascade, not a generated list, so it also answers
+  `true` for a glyph you supplied through your own stylesheet's `--icon-<name>`.
+
+### Why this is a web-only concern
+
+The three Adwaita renderers resolve an icon name three different ways, and it is worth
+knowing which one you are on:
+
+| Renderer | How a name resolves | An unknown name |
+| --- | --- | --- |
+| GTK (`@gjsify/adwaita-app`) | `GtkIconTheme` looks it up in the **system** icon theme at runtime | draws the theme's `image-missing` |
+| NativeScript (`@gjsify/adwaita-nativescript`) | `AdwIcon` is handed the **SVG source**, not a name | cannot happen — a missing icon is a missing import |
+| Web (this package) | a **compile-time** subset, plus `registerIcon` | draws `image-missing` |
+
+All three therefore end on ONE glyph for a name they cannot draw. The web reaches it by two
+routes — no mask class for a known-shaped name, or no usable class for a name like
+`org.gnome.Builder` — and a dotted name has no registration path, so that second route is
+where it stays.
+
+Only the web renderer has a set that can be missing something at runtime, which is why only
+it needs a registration path. `scripts/check-adwaita-icon-masks.mjs` holds the compiled
+subset against every name this repository's SHIPPING surfaces emit, in both directions, and
+fails on a compiled glyph that did not come from `@gjsify/adwaita-icons`.
+
 ## Source-code editor (`adw-source-view`)
 
 An Adwaita-styled source editor — the web twin of GtkSourceView — is available as
