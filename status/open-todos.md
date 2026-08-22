@@ -455,64 +455,6 @@ actually emits against what the table claims, so the answer is checked rather th
 asserted. Longest-prefix matching (a specific subpath overriding its package) is the
 mechanical part; deciding it per subpath needs that measurement first.
 
-### `build:infra`'s order is hand-maintained, and only a cold OS leg checks it
-
-`build:infra` names 21 workspace builds in a fixed order, and each one compiles
-against whatever the ones BEFORE it produced — nothing else has run yet. #1133 gave
-`@gjsify/unit` a dependency on `@gjsify/runtime`, which `build:infra` does not build
-(`foreach build` does, afterwards), and `gjsify workspace @gjsify/unit build` then
-died with `TS2307: Cannot find module '@gjsify/runtime'`. Fixed by building it one
-step earlier — the interesting part is who noticed.
-
-**Linux was green and the defect is host-independent.** Reproduced locally by moving
-`packages/gjs/runtime/lib` aside: `@gjsify/unit build` fails on any host. What made
-the Linux leg pass is that it runs `build:infra` only on a cold tree ("Bootstrap the
-build toolchain (cold trees only)"), so a warm cache walks straight past the step
-that breaks. The macOS and Windows suites bootstrap from a published CLI every time,
-so they are the only legs that exercise it — and they do not run on pull requests.
-Same shape as ADR 0018 § 5, one layer lower: not "Linux cannot see this OS's bug"
-but "the warm leg cannot see the cold path".
-
-**Why no gate ships with the fix, measured rather than assumed.** Two candidate
-rules were run against today's tree:
-
-- manifest-level — "every `workspace:` dependency of a package `build:infra` builds
-  must be built earlier" — reports 4 packages, `@gjsify/unit` alone missing 8, all
-  of which build fine today: a dependency only has to EXIST if something in the
-  compiled sources imports it;
-- import-level — the same rule scanning `src/**` minus spec files — still reports 6,
-  including `@gjsify/utils -> @gjsify/unit`, because each package's build has its own
-  include/exclude globs that neither rule knows.
-
-A gate that cries wolf six times teaches people to silence it.
-
-**Deriving the tail was tried and does not work — the trade is not a cost, it is a
-failure.** The tail (utils, events, terminal-native, process, assert, runtime, unit)
-carries no CLI cycle and looks derivable, so `gjsify foreach build -t -d` over those
-seven seeds was run on a cold tree at `b4536bc9`, from the same state as the authored
-tail (`build:infra` clauses 1–16, 62 s):
-
-- authored tail: **45 s**, exit 0;
-- derived tail: **exit 1 after 8 s** — `@gjsify/canvas2d-core` sorts at index 1 of 43
-  while `@gjsify/unit` sorts at 42, and canvas2d-core's `build:types` compiles nine
-  `*.spec.ts` files that `import … from '@gjsify/unit'`. Nine × `TS2307: Cannot find
-  module '@gjsify/unit'`, `build:types` exit 2. The edge is a devDependency, and
-  `-d`/`-t` walk production deps only, so no ordering over that graph can place unit
-  first.
-- `--topological-dev` is not the answer either: it widens the same closure from 43 to
-  **115** packages and its sort throws — the devDependency graph is cyclic, which is
-  what the flag's own help text warns about.
-
-Note the earlier estimate of **29** selected packages does not reproduce: the same
-selection (`--include` the seven, `-d` production closure, packages declaring a
-`build` script) is **43** at this commit.
-
-So the order stays authored. What is still missing is a gate. The honest remaining
-option is a rule that reads each package's ACTUAL build inputs — the tsconfig
-include/exclude globs its `build:types` compiles, not its manifest — because that is
-the only thing that would have predicted the canvas2d-core failure above, and it is
-the same information the two rejected rules were missing.
-
 ### Which `node scripts/*.mjs` calls are UNMEASURED on a Node-less host
 
 The shim is indiscriminate WITHIN its scope: on a host with no `node`, EVERY

@@ -21,8 +21,26 @@ gjsify trust [pkg] | gjsify onboard       # Trusted-Publisher config / full firs
 gjsify upgrade [--latest|--minor|--patch|--align|--check] [-p glob]   # workspace-wide dep upgrades; --check = CI drift gate
 gjsify ship [--target deb,rpm] [--stage]   # installable artifacts from ONE staged payload (ADR 0024)
 gjsify install [--immutable|--refresh-lockfile] | gjsify dlx <pkg> | gjsify showcase <name> | gjsify storybook | gjsify debug
+gjsify dev [entry] [--runtime <r>] [--script <s>]   # watch → rebuild → relaunch; the templates' `dev` script
 gjsify prune [-g] [--dry-run]              # drop installed packages this host cannot use (ADR 0025)
 ```
+
+**`gjsify dev` exists because `gjsify build --watch` cannot serve the host it is for**: that flag
+drives rolldown's watcher API, which only the npm engine exposes (`bundler-pick.ts` throws under
+`@gjsify/rolldown-native`), so the one suite proving watch works (`tests/e2e/build-watch`, driven
+under Node) proves it only where Node is available. `dev` asks for no watcher API — `fs.watch`
+plus an in-process `runCli(['build', …])` — and shares the loop with `gjsify storybook --watch`,
+where it was written first (`utils/watch-loop.ts`). WHAT to build is not re-declared:
+`utils/dev-plan.ts` reads the project's own `build:gjs`/`build:node` script and puts the CLI
+flags on top, so the dev loop and `gjsify run build` cannot drift into different bundles.
+
+**A command that SUPERVISES owes three things a one-shot command never does** — all three
+paid for on the GJS host, with every Node test green (`utils/watch-loop.ts` holds the
+measurements): `holdMainLoop()`, because nothing else keeps a GJS process alive once its entry
+module settles; `markDaemonCommand()`, because `gjsify run`'s in-process fast path otherwise
+exits on a resolution that is not completion; and an output filter, because the build's own
+write is a change under the watched dir. `tests/e2e/dev-command` drives BOTH hosts — a
+Node-only row cannot fail for any of it.
 
 **`gjsify ship` writes `.deb` and `.rpm` ITSELF** — no `dpkg-deb`, no `rpmbuild`, no vendored
 packer, because the packer has to run under GJS, offline, and on a Fedora CI image where

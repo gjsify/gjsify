@@ -27,9 +27,13 @@
 //   | GJS  | never — it supervises  | async `spawn` (streaming)           |
 //
 // The fourth row is `completion: 'daemon'`: a command like `gjsify storybook
-// --watch` neither exits nor unwinds, so the armed loop is not a leak but the thing
-// keeping it alive. It takes the handle through `onSpawn` and never awaits the
-// completion promise.
+// --watch` neither exits nor unwinds, so an armed loop is not a leak there but the
+// thing keeping it alive. It takes the handle through `onSpawn` and never awaits the
+// completion promise. What it must NOT do is expect this spawn to arm that loop —
+// `ensureMainLoop()` declines at `GLib.main_depth() !== 0`, and a supervisor reaches
+// its spawn from a continuation GJS resumed inside the main-context spin it runs
+// while the entry module's top-level await is pending, i.e. at depth 1. A daemon
+// holds the loop itself, through `holdMainLoop()` (`utils/watch-loop.ts` does).
 //
 // which is why `gjsify foreach`/`workspace`/`check` and `runGjsBundle` run hundreds
 // of async-spawned children under GJS without hanging: each ends its handler with
@@ -89,8 +93,9 @@ const DEFAULT_MAX_BUFFER = 64 * 1024 * 1024;
  *   main loop, so the streaming async `spawn` is safe on both hosts.
  * - `'return'` — the command returns and lets the CLI unwind. Under GJS that must
  *   not leave a main loop armed, so the child runs on the blocking `spawnSync` path.
- * - `'daemon'` — the command settles nothing: it stays alive supervising the child
- *   and the armed loop is what keeps it running. The caller takes the handle through
+ * - `'daemon'` — the command settles nothing: it stays alive supervising the child,
+ *   on a main loop it holds ITSELF under GJS (`holdMainLoop()`; see the module header
+ *   for why this spawn cannot arm one for it). The caller takes the handle through
  *   {@link SpawnToCompletionOptions.onSpawn} and does NOT await the returned promise,
  *   so "once this spawn settles" has no answer for it. Distinct from `'exit'` because
  *   a supervisor has no exit to be safe by; it routes to the same streaming path.

@@ -154,6 +154,7 @@
         "@gjsify/semver": "workspace:^",
         "@gjsify/tar": "workspace:^",
         "@gjsify/tsc": "workspace:^",
+        "@gjsify/utils": "workspace:^",
         "@gjsify/web-polyfills": "workspace:^",
         "@gjsify/workspace": "workspace:^",
         "acorn": "^8.17.0",
