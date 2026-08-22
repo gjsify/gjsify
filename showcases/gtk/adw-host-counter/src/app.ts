@@ -194,11 +194,20 @@ function runProbe(): number {
 }
 
 if (GLib.getenv('GJSIFY_HOST_PROBE') === '1') {
+    // Headless one-shot: assert and exit, no window, no main loop.
     Gtk.init();
     imports.system.exit(runProbe());
 } else {
     const app = new Adw.Application({ application_id: 'eu.jumplink.AdwHostCounter' });
     app.connect('activate', () => {
+        // The SAME assertions run before the window is shown, so the existing
+        // showcase-smoke leg (which only launches the app and waits) carries them
+        // too. Without this the probe would be a developer-only tool and the CI
+        // leg would prove nothing beyond "it started" — a green run that checked
+        // the interesting part not at all.
+        const failed = runProbe();
+        if (failed !== 0) imports.system.exit(failed);
+
         const ui = buildUi(app);
         (materialize(ui.window) as unknown as Adw.ApplicationWindow).present();
     });

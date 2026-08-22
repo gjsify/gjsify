@@ -16,6 +16,11 @@ gjsify run probe                               # the assertion
 tree (`get_first_child`/`get_next_sibling` — never the host's own bookkeeping),
 prints `PROBE: PASS <json>` and exits 0, or `PROBE: FAIL <json>` and exits 1.
 
+The same assertions also run on `activate`, before the window is shown, so the
+existing `showcase-smoke` CI leg — which launches the app and waits — carries
+them. Otherwise the probe would be a developer-only tool and the CI leg would
+prove nothing beyond "it started".
+
 It covers the five things that are easy to get silently wrong:
 
 1. a string enum nick (`orientation: 'vertical'`) reaches GTK — GObject drops it
