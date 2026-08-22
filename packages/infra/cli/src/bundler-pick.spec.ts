@@ -514,6 +514,12 @@ export default async () => {
                 'MatchedAliasNotFound { alias: "x" }',
                 "@gjsify/rolldown-native: ctx.resolve('x') failed — parent req_id 7 unknown",
                 'rolldown: malformed context_resolve args JSON: expected value',
+                // anyhow's alternate Display — what the `Err(e)` arm of
+                // `gjsify_rolldown_session_context_resolve` sends once it stopped
+                // truncating the cause chain. A plugin failure surfaced through
+                // THAT arm must stay a rejection: fold it into `null` and a broken
+                // plugin is reported as the user's missing dependency.
+                'plugin `gjsify-alias` threw an error: plugin `gjsify-unresolved-workspace-import` threw an error: NotFound("@gjsify/dom-exception/register")',
             ]) {
                 expect(isResolveMiss(e)).toBe(false);
             }

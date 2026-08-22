@@ -154,7 +154,7 @@ const ONE_RENDERER_ONLY = {
     card: {
         only: 'web',
         decision:
-            "`.card` is a libadwaita STYLE CLASS (stylesheet/widgets/_misc.scss:197) with no Adw type behind it. `<adw-card>` is a style class packaged as an element — its whole body is `classList.add('adw-card')` — and a NativeScript view sets `className` directly (showcases/dom/adwaita-storybook-nativescript/src/view-switching/carousel.ns.ts:28 already does), so a widget class there would carry no behaviour at all. The LOOK is a separate, open matter: no `.adw-card` rule exists in packages/nativescript-bridge/adwaita/src/theme/adwaita.css, so that className renders nothing today — a theme gap, not a widget one.",
+            "`.card` is a libadwaita STYLE CLASS (stylesheet/widgets/_misc.scss:197) with no Adw type behind it. `<adw-card>` is a style class packaged as an element — its whole body is `classList.add('adw-card')` — and a NativeScript view sets `className` directly (showcases/dom/adwaita-storybook-nativescript/src/view-switching/carousel.ns.ts:28 already does), so a widget class there would carry no behaviour at all. The LOOK was a separate gap and is closed: `.card, .adw-card` is now a rule in packages/nativescript-bridge/adwaita/src/theme/adwaita.css, both spellings on one selector the way `.boxed-list` already carries the same surface. It rendered NOTHING until then, and scripts/check-nativescript-theme-classes.mjs could not see it either — that reader saw only the package's own widget sources, never an app's.",
     },
     'carousel-indicator-dots': {
         only: 'web',

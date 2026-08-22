@@ -42,7 +42,7 @@
 // `import.meta.url` rewriter still applies as a fallback.
 
 import * as acorn from 'acorn';
-import * as walk from 'acorn-walk';
+import { tsPlugin } from 'acorn-typescript';
 import { dirname, join, resolve, basename, relative, extname, posix, win32 } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
@@ -70,6 +70,74 @@ interface InlineContext {
  * Safe to call on any JS source. Files that don't reference `readFileSync` /
  * `readdirSync` / `existsSync` skip the AST parse entirely (cheap fast path).
  */
+const TS_EXT_RE = /\.[cm]?tsx?$/i;
+
+/**
+ * The TypeScript-capable parser, built once.
+ *
+ * `acorn-typescript` and not the bundler's own parser, and the reason is the
+ * runtime rather than a preference: under GJS the engine is
+ * `@gjsify/rolldown-native`, and npm `rolldown` is "a Rust napi crate that cannot
+ * run under GJS" (`bundler-pick.ts`), loaded only behind a dynamic import on Node.
+ * A top-level `import { parseAst } from 'rolldown/parseAst'` therefore links a
+ * Node-only N-API package into a module that has to load under GJS — measured:
+ * the CLI's own bundle then died at startup with `createRequire: Cannot require
+ * builtin module "fs" synchronously in GJS`. `acorn-typescript` is pure JS, emits
+ * the same ESTree shapes the evaluator below already speaks, and needs
+ * `locations: true` (it refuses to parse without them).
+ */
+const TS_PARSER = acorn.Parser.extend(tsPlugin() as never);
+
+/**
+ * Parse a source with the parser its extension calls for.
+ *
+ * The TypeScript half is why first-party sources were invisible to this inliner
+ * for as long as it was scoped to `node_modules`: an installed package ships JS,
+ * so plain acorn could always parse it, and nothing ever asked what happens to a
+ * `.ts`. The answer was that `acorn.parse` threw and the `catch` returned
+ * "nothing to inline" — a result indistinguishable from a file that genuinely has
+ * no static reads. Measured on `packages/infra/cli/src/utils/app-metadata.ts`:
+ * `inlined: 0`, while the identical expression in a `.js` file returned
+ * `inlined: 1`.
+ */
+function parseSource(src: string, sourceFilePath: string): acorn.Program {
+    const shared = {
+        ecmaVersion: 'latest' as const,
+        sourceType: 'module' as const,
+        allowAwaitOutsideFunction: true,
+        allowReturnOutsideFunction: true,
+        allowImportExportEverywhere: true,
+    };
+    if (!TS_EXT_RE.test(sourceFilePath)) return acorn.parse(src, shared);
+    return TS_PARSER.parse(src, { ...shared, locations: true }) as acorn.Program;
+}
+
+/**
+ * Visit every `CallExpression` in the tree.
+ *
+ * A generic descent rather than `acorn-walk`, and that is not a preference:
+ * `walk.simple` looks its visitor up in a table keyed by node type and throws
+ * `No walker function defined for node type TSInterfaceDeclaration` on the first
+ * interface in a first-party source. A walker with no node table cannot fall
+ * behind the parser — which matters precisely because the parser is now allowed
+ * to emit node types this file has never heard of.
+ */
+function forEachCallExpression(root: unknown, visit: (node: acorn.CallExpression) => void): void {
+    const stack: unknown[] = [root];
+    while (stack.length > 0) {
+        const node = stack.pop();
+        if (node === null || typeof node !== 'object') continue;
+        if (Array.isArray(node)) {
+            for (const child of node) stack.push(child);
+            continue;
+        }
+        if ((node as { type?: unknown }).type === 'CallExpression') visit(node as acorn.CallExpression);
+        for (const value of Object.values(node)) {
+            if (value !== null && typeof value === 'object') stack.push(value);
+        }
+    }
+}
+
 export function inlineStaticReads(src: string, sourceFilePath: string): { contents: string; inlined: number } {
     if (!src.includes('readFileSync') && !src.includes('readdirSync') && !src.includes('existsSync')) {
         return { contents: src, inlined: 0 };
@@ -77,16 +145,12 @@ export function inlineStaticReads(src: string, sourceFilePath: string): { conten
 
     let ast: acorn.Program;
     try {
-        ast = acorn.parse(src, {
-            ecmaVersion: 'latest',
-            sourceType: 'module',
-            allowAwaitOutsideFunction: true,
-            allowReturnOutsideFunction: true,
-            allowImportExportEverywhere: true,
-        });
+        ast = parseSource(src, sourceFilePath);
     } catch {
-        // Source isn't valid JS (CJS source with shebangs, mixed module
-        // syntax, ...). Skip; the rest of the rewriter still runs.
+        // Not parseable as the language its extension claims (a CJS source with
+        // a shebang, mixed module syntax, ...). Skip; the rest of the rewriter
+        // still runs. This catch used to swallow every TypeScript file in the
+        // tree as well — see `parseSource`.
         return { contents: src, inlined: 0 };
     }
 
@@ -95,11 +159,9 @@ export function inlineStaticReads(src: string, sourceFilePath: string): { conten
     };
     const edits: Edit[] = [];
 
-    walk.simple(ast, {
-        CallExpression(node: acorn.CallExpression) {
-            const edit = tryInlineCall(node, ctx, src);
-            if (edit) edits.push(edit);
-        },
+    forEachCallExpression(ast, (node) => {
+        const edit = tryInlineCall(node, ctx, src);
+        if (edit) edits.push(edit);
     });
 
     if (edits.length === 0) return { contents: src, inlined: 0 };
