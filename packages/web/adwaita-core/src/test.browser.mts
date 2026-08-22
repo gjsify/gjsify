@@ -14,6 +14,7 @@ import splitButtonTestSuite from './split-button.spec.js';
 import viewSwitcherTestSuite from './view-switcher.spec.js';
 import tabViewTestSuite from './tab-view.spec.js';
 import carouselTestSuite from './carousel.spec.js';
+import swipeTestSuite from './swipe.spec.js';
 import preferencesTestSuite from './preferences.spec.js';
 import chromeTestSuite from './chrome.spec.js';
 import dataGridTestSuite from './data-grid.spec.js';
@@ -55,6 +56,7 @@ run({
     viewSwitcherTestSuite,
     tabViewTestSuite,
     carouselTestSuite,
+    swipeTestSuite,
     preferencesTestSuite,
     chromeTestSuite,
     dataGridTestSuite,

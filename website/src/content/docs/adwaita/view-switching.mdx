@@ -25,9 +25,9 @@ follow its naming, and where one of them differs, its tab says so.
 
 :::note
 The previews run the browser port, so gestures Libadwaita drives natively
-(swipe-to-page, drag-to-reorder tabs, the tab bar's auto-hide, cross-fade
-transitions) can be simplified here. Click a switcher button, a tab or a carousel
-dot to move between pages.
+(drag-to-reorder tabs, the tab bar's auto-hide, cross-fade transitions) can be
+simplified here. Click a switcher button, a tab or a carousel dot to move between
+pages. The carousel's own gestures are not simplified — see below.
 :::
 
 ## View Switcher
@@ -594,10 +594,21 @@ indicator widgets bind to a carousel, **dots** (shown here) and **lines**. Both
 track the fractional scroll position and grow the marker nearest the current
 page.
 
-Two knobs are worth knowing. The **scroll wheel** pages the carousel by default;
-set `allow-scroll-wheel="false"` to leave wheel events to the page instead.
-**Long swipes** are off by default; turn them on to let one flick skip several
-pages.
+A carousel answers to three gestures. **Touch** and a **touchpad** scroll it
+natively — the browser owns those, momentum and snapping included. A **mouse
+drag** is the one the browser has no gesture for, so it is implemented: press
+inside the carousel and pull, and the pages follow the cursor. Where it lands is
+`Adw.SwipeTracker`'s decision, not the browser's — the drag's velocity is
+projected and the nearest reachable page wins, so a short flick pages and a slow
+half-drag settles back.
+
+Three knobs are worth knowing. The **scroll wheel** pages the carousel by
+default; set `allow-scroll-wheel="false"` to leave wheel events to the page
+instead. **Mouse drag** is on by default; `allow-mouse-drag="false"` leaves
+dragging to touch, as it does upstream. **Long swipes** are off by default; turn
+them on to let one flick skip several pages — with the caveat that a *touchpad*
+flick can already cross more than one page here, because that gesture is the
+browser's and it does not consult the setting.
 
 <AdwWidget title="Adw.Carousel" padding="flush">
   <Fragment slot="preview">

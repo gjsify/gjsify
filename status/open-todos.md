@@ -228,15 +228,20 @@ conformance rule reads `.css`/`.scss`, so a new literal would be invisible again
 Registering a source-view suite pulls CodeMirror into the browser test bundle,
 which is why it is a note rather than part of the fix.
 
-### `tests/browser/test-results/.last-run.json` is tracked and rewritten by every run
+### (closed) `tests/browser/test-results/.last-run.json` was tracked, and gitignored
 
-Every `npx playwright test` in `tests/browser` rewrites it, so verifying any
-browser-facing PR the way its description says it was verified dirties the tree,
-and a red run leaves a committed-looking failure record behind. Either gitignore
-`tests/browser/test-results/` and `git rm --cached` the file, or — if the
-last-run record is deliberately committed — say so where the browser-test
-workflow is described in `tests/AGENTS.md`. Pre-existing; noticed while running
-the Firefox suite for the fonts work.
+`git rm --cached`, nothing else: `.gitignore:158` has carried
+`/tests/browser/test-races/`'s sibling `/tests/browser/test-results/` all along, and
+gitignore does not apply to a file git is already tracking. So every `npx playwright
+test` in `tests/browser` rewrote a tracked file that everyone believed was ignored,
+and `git status` looked like a real edit.
+
+It reached the index once, in #292 — a PR about dropping `as any` casts — and stayed.
+This entry is closed by the incident that proves the cost: verifying this branch the
+way its own description says it was verified swept the file into a commit, and the
+record it swept in said `"status": "failed"` (from an A/B run), so a passing PR
+carried a committed-looking failure. That is the shape the entry predicted, one
+`git add -u` away.
 
 ### Two CI comments still say rolldown-native has no Apple target
 
@@ -2452,14 +2457,109 @@ being. Both are fixed. The lesson is the shape: a reader keyed on ONE spelling o
 upstream document is a reader with a hole the size of whatever that document spells
 differently, and nothing points at the hole.
 
+### The swipe settle drops its velocity, so a flick and a slow drag ease alike
+
+Upstream a released swipe does not scroll — it SPRINGS. `end_swipe_cb` calls
+`scroll_to (self, child, velocity)`, which sets the target on an
+`AdwSpringAnimation` and then
+`adw_spring_animation_set_initial_velocity (…, velocity)`
+(`adw-carousel.c:379-397`). So the finger's speed carries THROUGH the settle: a
+flick keeps its momentum into the next page, a slow drag eases in, and both use
+the same spring rather than the same duration.
+
+The web settle is `scrollTo({ behavior: 'smooth' })`, whose curve and duration are
+the user agent's and take no initial velocity. `elements/swipe-drag.ts` hands
+`onEnd` the velocity already and `<adw-carousel>`'s handler documents that it
+ignores it, so the seam is in place and the number is not lost — what is missing
+is something to spend it on.
+
+This is a consequence of a decision the core already records rather than a new
+gap: `CAROUSEL_SETTLE_EPSILON`'s comment says the renderers let the PLATFORM
+scroll (CSS scroll-snap, a NativeScript `ScrollView`) because C knows a scroll
+finished from its own spring and a platform scroller has only an offset. Closing
+it means porting `AdwSpringAnimation` — damping ratio, mass, stiffness, epsilon,
+and its `estimate_duration` — and driving `scrollLeft` from a rAF loop instead of
+handing the browser a target. That buys velocity continuity and costs the
+platform's own scroll animation, including whatever it does about reduced motion.
+Worth a measurement of the two side by side before it is worth the port.
+
+### `<adw-carousel>` does not work in RTL at all, and the reason is its offset model
+
+Measured in Firefox with `document.documentElement.dir = 'rtl'`, three 440 px pages:
+
+    initial              position 0   scrollLeft 0
+    scrollToPage(1)      position 0   scrollLeft 0     <- the PROGRAMMATIC path
+    drag right 300 px    position 0   scrollLeft 0
+    drag left 300 px     position 0   scrollLeft 0
+
+Nothing moves, including the API call, so this is not about gestures. The element's
+whole model is `scrollLeft = position * distance` — `_performScroll`,
+`_updatePositionFromScroll`, `_applyScrollFromModel` and `_restorePosition` all
+assume it, and the SCSS comment that centre-snapping "leaves `scrollLeft =
+position * distance` exactly true" is where the assumption is written down. In an
+RTL scroll container the origin is at the RIGHT edge and `scrollLeft` runs from 0
+DOWN to `-(scrollWidth - clientWidth)`, so `scrollTo({ left: 440 })` clamps to 0
+and `scrollLeft / distance` is 0 forever.
+
+Upstream handles it in one place: `update_orientation` computes
+`reversed = horizontal && direction == RTL` and hands it to
+`adw_swipe_tracker_set_reversed` (`adw-carousel.c:455-465`), which flips the sign
+of every delta the tracker sees. The tracker is only half of it here, though —
+`elements/swipe-drag.ts` could take a `reversed` flag in an afternoon, and it
+would then compute a correct progress and write it to a `scrollLeft` the container
+ignores. So the FIX is direction-awareness in the element's offset model first
+(one signed helper, four call sites, plus whatever the two indicators assume), and
+the gesture's `reversed` flag after it, in the same change that can test it.
+
+Until then the adapter's axis sign is LTR-only ON PURPOSE rather than by
+oversight, and its header says so: a `reversed` branch with no reachable
+behaviour behind it is the kind of dead arm this repository keeps deleting.
+
+### `allow-long-swipes: false` does not bound a TOUCHPAD flick on the web
+
+`<adw-carousel>` is a real scroll container with `scroll-snap-type: x mandatory`,
+so touch and touchpad swiping are the BROWSER's gestures — momentum, rubber-band
+and snapping included — and that is the right answer for those two: GTK is
+likewise the platform there, and re-implementing them on top of native scrolling
+would replace a real gesture with an imitation. The mouse drag is different, has
+no native equivalent, and now runs through `AdwSwipeTracker`'s own decision
+(`elements/swipe-drag.ts`).
+
+What the split costs is measurable. `AdwCarousel:allow-long-swipes` defaults FALSE
+and means "one flick, one page": upstream enforces it by running the touchpad
+scroll through the SAME tracker (`handle_scroll_event`, adw-swipe-tracker.c), whose
+`get_bounds` limits the reach to one snap point either side of where the gesture
+began. The browser consults nothing of the sort. Measured in Firefox on a
+three-page carousel: twenty horizontal wheel notches took `position` from 0 to
+**2**, two pages, with the attribute at its default.
+
+Closing it means intercepting native scrolling — `preventDefault` on every wheel
+event that is not already handled, then driving `scrollLeft` from the tracker, i.e.
+owning the momentum the touchpad driver already provides. That trade needs a
+measurement of how the imitation FEELS against the native one before it is worth
+making, on a touchpad and on a touchscreen, which is why this is an entry rather
+than a fix. The mouse-drag path is the proof the arithmetic is right and shared;
+what is missing is a reason to take the platform's gesture away from it.
+
 ### adwaita-core modules with no conformance vector table
 
-`breakpoint.ts`, `color-scheme.ts`, `scrolling.ts` and `toast.ts` export shared
-behaviour and are covered by nothing in `@gjsify/adwaita-core/conformance` — no
-vector table names them, and no conformance file imports them. Three of the four
-are what `packages/web/AGENTS.md` advertises as the core's flagship shared
-behaviour ("Breakpoints (grammar/parser/evaluator + transition-only
-`AdwBreakpoint`), color-scheme observable, toast queue").
+`breakpoint.ts`, `color-scheme.ts`, `scrolling.ts`, `swipe.ts` and `toast.ts`
+export shared behaviour and are covered by nothing in
+`@gjsify/adwaita-core/conformance` — no vector table names them, and no
+conformance file imports them. Three of them are what `packages/web/AGENTS.md`
+advertises as the core's flagship shared behaviour ("Breakpoints
+(grammar/parser/evaluator + transition-only `AdwBreakpoint`), color-scheme
+observable, toast queue").
+
+`swipe.ts` is the newest and the one with the clearest trigger: it is
+`AdwSwipeTracker`'s velocity, projection and snap-point choice, and exactly ONE
+renderer drives it today (`adwaita-web`, through `elements/swipe-drag.ts`). A
+table now would be the derivation asserted against itself, which is the state
+this gate exists to stop counting as coverage. It earns one the moment a second
+renderer grows a swipe — and three widgets upstream already want the same
+tracker (`adw-bottom-sheet.c`, `adw-navigation-view.c`,
+`adw-overlay-split-view.c`), whose web ports currently take `to` as an INPUT
+(`resolveSwipeRelease` in `split-view.ts`) with nothing in the tree computing it.
 
 They were invisible rather than under-covered: `check-adwaita-conformance-drivers.mjs`
 is keyed by TABLE, so it reported "156 vector tables, every one driven or

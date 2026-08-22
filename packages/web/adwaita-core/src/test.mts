@@ -30,6 +30,7 @@ import wrapBoxTestSuite from './wrap-box.spec.js';
 import spinnerTestSuite from './spinner.spec.js';
 import shortcutLabelTestSuite from './shortcut-label.spec.js';
 import scrollingTestSuite from './scrolling.spec.js';
+import swipeTestSuite from './swipe.spec.js';
 
 run({
     aboutDialogTestSuite,
@@ -55,6 +56,7 @@ run({
     viewSwitcherTestSuite,
     tabViewTestSuite,
     carouselTestSuite,
+    swipeTestSuite,
     preferencesTestSuite,
     chromeTestSuite,
     dataGridTestSuite,

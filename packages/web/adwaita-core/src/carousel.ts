@@ -31,6 +31,8 @@
 // Reference: refs/libadwaita/src/adw-carousel.c (AdwCarousel)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
 
+import { swipeClosestPointIndex } from './swipe.js';
+
 import { glibClamp } from './glib.js';
 
 /** `SCROLL_TIMEOUT_DURATION` — the lockout after a wheel step. */
@@ -211,12 +213,14 @@ export function carouselClampPosition(position: number, snapPoints: readonly num
  * different adding/removing include combinations and each must get the same tie-break.
  */
 export function carouselClosestSnapPoint(position: number, snapPoints: readonly number[]): number {
+    // Delegated to `find_closest_point` in `./swipe.ts`, which is the identical scan with
+    // the identical tie-break. Two copies of it were here and there for as long as both
+    // modules existed, and the whole rule is one comparison operator: flipping `<` to
+    // `<=` in either would move every half-way position by a page in that renderer only.
+    // What stays here is the `-1` contract, which the tracker's callers do not need
+    // because they guard emptiness first.
     if (snapPoints.length === 0) return -1;
-    let closest = 0;
-    for (let i = 1; i < snapPoints.length; i++) {
-        if (Math.abs(snapPoints[closest]! - position) > Math.abs(snapPoints[i]! - position)) closest = i;
-    }
-    return closest;
+    return swipeClosestPointIndex(snapPoints, position);
 }
 
 /**
@@ -370,6 +374,8 @@ export interface CarouselStateOptions {
     interactive?: boolean;
     /** `AdwCarousel:allow-scroll-wheel`, default TRUE. */
     allowScrollWheel?: boolean;
+    /** `AdwCarousel:allow-mouse-drag`, default TRUE. */
+    allowMouseDrag?: boolean;
     /** `AdwCarousel:allow-long-swipes`, default FALSE. */
     allowLongSwipes?: boolean;
     /** `AdwCarousel:spacing` in px, default 0. Feeds `distance`. */
@@ -453,6 +459,7 @@ export class CarouselState {
     private _orientation: CarouselOrientation;
     private _interactive: boolean;
     private _allowScrollWheel: boolean;
+    private _allowMouseDrag: boolean;
     private _allowLongSwipes: boolean;
     private _spacing: number;
     private _revealDuration: number;
@@ -471,6 +478,7 @@ export class CarouselState {
         this._orientation = options.orientation ?? 'horizontal';
         this._interactive = options.interactive ?? true;
         this._allowScrollWheel = options.allowScrollWheel ?? true;
+        this._allowMouseDrag = options.allowMouseDrag ?? true;
         this._allowLongSwipes = options.allowLongSwipes ?? false;
         this._spacing = options.spacing ?? 0;
         this._revealDuration = options.revealDuration ?? 0;
@@ -972,6 +980,28 @@ export class CarouselState {
         const next = !!value;
         if (next === this._allowScrollWheel) return false;
         this._allowScrollWheel = next;
+        return true;
+    }
+
+    /**
+     * `AdwCarousel:allow-mouse-drag` — whether a POINTER may drag the strip, as opposed
+     * to touch, which always can. Defaults TRUE (:1091-1094), and the C documents the
+     * off switch as "dragging is only available on touch".
+     *
+     * Carried here and not in the renderer for the same reason `allow-long-swipes` is:
+     * it is a property of the widget, so both ports declare it and one vector table pins
+     * its default. The GESTURE is the renderer's — in a browser a mouse drag has to be
+     * implemented, because unlike touch there is no native one to inherit.
+     */
+    get allowMouseDrag(): boolean {
+        return this._allowMouseDrag;
+    }
+
+    /** Set `allow-mouse-drag`. Returns whether it changed. */
+    setAllowMouseDrag(value: boolean): boolean {
+        const next = !!value;
+        if (next === this._allowMouseDrag) return false;
+        this._allowMouseDrag = next;
         return true;
     }
 

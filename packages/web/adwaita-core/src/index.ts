@@ -506,6 +506,31 @@ export type {
     TabViewSelectionListener,
 } from './tab-view.js';
 
+// --- Swipe gestures (Adw.SwipeTracker) ---
+export {
+    ADW_SWIPE_DECELERATION_TOUCH,
+    ADW_SWIPE_DECELERATION_TOUCHPAD,
+    ADW_SWIPE_DRAG_THRESHOLD,
+    ADW_SWIPE_EPSILON,
+    ADW_SWIPE_HISTORY_THRESHOLD_MS,
+    ADW_SWIPE_PARABOLA_MULTIPLIER,
+    ADW_SWIPE_TOUCHPAD_BASE_DISTANCE_H,
+    ADW_SWIPE_TOUCHPAD_BASE_DISTANCE_V,
+    ADW_SWIPE_VELOCITY_CURVE_THRESHOLD,
+    ADW_SWIPE_VELOCITY_THRESHOLD_TOUCH,
+    ADW_SWIPE_VELOCITY_THRESHOLD_TOUCHPAD,
+    SwipeTracker,
+    swipeBounds,
+    swipeClosestPointIndex,
+    swipeEndProgress,
+    swipeNextPointIndex,
+    swipePreviousPointIndex,
+    swipeProjectedPointIndex,
+    swipeSlope,
+    swipeVelocityThreshold,
+} from './swipe.js';
+export type { AdwSwipeEnd, AdwSwipeEndInput, AdwSwipeRange, AdwSwipeSource } from './swipe.js';
+
 // --- Carousel position + paging (Adw.Carousel) ---
 export {
     CAROUSEL_SCROLL_TIMEOUT_MS,
