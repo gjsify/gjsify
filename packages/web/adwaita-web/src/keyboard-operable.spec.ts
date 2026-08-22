@@ -21,6 +21,7 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import type { AdwAlertDialog } from './elements/adw-alert-dialog.js';
+import { AdwToggle, AdwToggleGroup } from './elements/adw-toggle-group.js';
 
 /** Unique per element so a spec's `stack="…"` reference cannot pick up an earlier one. */
 let seq = 0;
@@ -115,7 +116,24 @@ interface RovingCase {
     items: (el: HTMLElement) => HTMLElement[];
     previous: string;
     next: string;
+    /**
+     * The arrow pair on the OTHER axis, which this widget must leave to the page.
+     *
+     * Asserted because the axis SEPARATION was held by nothing: `AXIS_KEYS` is one
+     * table, and widening a single row to both pairs kept every test green while
+     * every horizontal widget started swallowing the page scroll — `attachRovingFocus`
+     * calls `preventDefault()` before it checks whether anything moved.
+     */
+    inert: readonly [string, string];
 }
+
+/** By TAG, never by index: a case inserted mid-array repoints an index silently, and
+ *  the one test that would still PASS repointed is the one asserting the least. */
+const rovingCase = (tag: string): RovingCase => {
+    const found = ROVING_CASES.find((widget) => widget.tag === tag);
+    if (found === undefined) throw new Error(`no roving case for ${tag}`);
+    return found;
+};
 
 function makeStack(): HTMLElement {
     const stack = document.createElement('adw-view-stack');
@@ -145,6 +163,7 @@ const ROVING_CASES: RovingCase[] = [
         items: (el) => Array.from(el.querySelectorAll<HTMLElement>('[role="tab"]')),
         previous: 'ArrowLeft',
         next: 'ArrowRight',
+        inert: ['ArrowUp', 'ArrowDown'],
     },
     {
         tag: 'adw-view-switcher-bar',
@@ -161,6 +180,7 @@ const ROVING_CASES: RovingCase[] = [
         items: (el) => Array.from(el.querySelectorAll<HTMLElement>('[role="tab"]')),
         previous: 'ArrowLeft',
         next: 'ArrowRight',
+        inert: ['ArrowUp', 'ArrowDown'],
     },
     {
         tag: 'adw-inline-view-switcher',
@@ -177,6 +197,7 @@ const ROVING_CASES: RovingCase[] = [
         items: (el) => Array.from(el.querySelectorAll<HTMLElement>('[role="tab"]')),
         previous: 'ArrowLeft',
         next: 'ArrowRight',
+        inert: ['ArrowUp', 'ArrowDown'],
     },
     {
         tag: 'adw-sidebar',
@@ -193,6 +214,24 @@ const ROVING_CASES: RovingCase[] = [
         items: (el) => Array.from(el.querySelectorAll<HTMLElement>('[role="option"]')),
         previous: 'ArrowUp',
         next: 'ArrowDown',
+        inert: ['ArrowLeft', 'ArrowRight'],
+    },
+    {
+        // Upstream's fifth roving widget, and the one that had none of it: three plain
+        // tab stops, no role, and no arrow keys. `[role="radio"]` is the assertion —
+        // reading `.adw-toggle` would pass on buttons carrying no role at all.
+        tag: 'adw-toggle-group',
+        make: () => {
+            const el = document.createElement('adw-toggle-group');
+            el.innerHTML = ['One', 'Two', 'Three']
+                .map((label) => `<adw-toggle label="${label}"></adw-toggle>`)
+                .join('');
+            return el;
+        },
+        items: (el) => Array.from(el.querySelectorAll<HTMLElement>('[role="radio"]')),
+        previous: 'ArrowLeft',
+        next: 'ArrowRight',
+        inert: ['ArrowUp', 'ArrowDown'],
     },
 ];
 
@@ -380,11 +419,29 @@ export const AdwKeyboardOperableTest = async () => {
                     expect(document.activeElement).toBe(items[0]);
                 });
             });
+
+            await it(`${widget.tag} leaves the other axis to the page`, async () => {
+                withWidget(widget.make, (el) => {
+                    const items = widget.items(el);
+                    items[1].focus();
+
+                    for (const key of widget.inert) {
+                        const event = press(items[1], key);
+                        // Focus unmoved AND the key unclaimed: a widget that swallows an
+                        // off-axis arrow stops the page scrolling under a user who is
+                        // standing inside it, and `attachRovingFocus` calls
+                        // `preventDefault()` before it knows whether anything moved — so
+                        // asserting only the focus would miss half of it.
+                        expect(document.activeElement).toBe(items[1]);
+                        expect(event.defaultPrevented).toBe(false);
+                    }
+                });
+            });
         }
 
         await it('adw-sidebar arrow selects without activating', async () => {
-            withWidget(ROVING_CASES[3].make, (el) => {
-                const items = ROVING_CASES[3].items(el);
+            withWidget(rovingCase('adw-sidebar').make, (el) => {
+                const items = rovingCase('adw-sidebar').items(el);
                 const seen: string[] = [];
                 el.addEventListener('activated', () => seen.push('activated'));
                 el.addEventListener('notify::selected', (event) => {
@@ -455,6 +512,176 @@ export const AdwKeyboardOperableTest = async () => {
             expect(document.activeElement).toBe(rows[2]);
 
             el.remove();
+        });
+
+        await it('adw-toggle-group declares the radio group upstream defaults to', async () => {
+            withWidget(rovingCase('adw-toggle-group').make, (el) => {
+                // `GTK_ACCESSIBLE_ROLE_RADIO_GROUP` (adw-toggle-group.c:1191) and
+                // `GTK_ACCESSIBLE_ROLE_RADIO` per toggle (:860). The element declared
+                // neither, so nothing announced these three as one exclusive choice.
+                expect(el.getAttribute('role')).toBe('radiogroup');
+                const items = rovingCase('adw-toggle-group').items(el);
+                expect(items.length).toBe(3);
+                expect(items.map((item) => item.getAttribute('aria-checked'))).toStrictEqual([
+                    'true',
+                    'false',
+                    'false',
+                ]);
+                // `aria-pressed` belongs to the toolbar toggle-BUTTON pattern, where each
+                // button is independent. Announcing three separate on/off buttons is what
+                // the element did before, so its absence is the assertion.
+                expect(items.some((item) => item.hasAttribute('aria-pressed'))).toBe(false);
+                // The flex wrapper is web-only — upstream the toggles are the group's own
+                // children — so it declares itself out of the accessibility tree rather
+                // than sitting as a `generic` between a radio group and its radios.
+                expect(el.querySelector('.adw-toggle-group-inner')?.getAttribute('role')).toBe('none');
+
+                items[0].focus();
+                press(items[0], 'ArrowRight');
+                expect(document.activeElement).toBe(items[1]);
+                expect(items.map((item) => item.getAttribute('aria-checked'))).toStrictEqual([
+                    'false',
+                    'true',
+                    'false',
+                ]);
+                expect(el.getAttribute('active')).toBe('1');
+            });
+        });
+
+        await it('adw-toggle-group arrow moves focus even when the selection refuses', async () => {
+            withWidget(rovingCase('adw-toggle-group').make, (el) => {
+                const items = rovingCase('adw-toggle-group').items(el);
+                const seen: number[] = [];
+                el.addEventListener('notify::active', (event) => {
+                    seen.push((event as CustomEvent).detail.active as number);
+                });
+
+                items[0].focus();
+                // Focus and selection on DIFFERENT toggles, so the arrow targets the one
+                // that is ALREADY selected and `_selectIndex` genuinely refuses — the
+                // only shape that reaches the state machine's no-op guard through the
+                // keyboard. Without it the arrow tests only ever make real changes, and
+                // the guard could be deleted with the suite still green.
+                el.setAttribute('active', '1');
+                expect(items.map((item) => item.tabIndex)).toStrictEqual([-1, 0, -1]);
+                expect(document.activeElement).toBe(items[0]);
+
+                press(items[0], 'ArrowRight');
+                expect(document.activeElement).toBe(items[1]);
+                // No second notify for a selection that did not move.
+                expect(seen).toStrictEqual([]);
+            });
+        });
+
+        await it('adw-toggle-group keeps a role it did not choose', async () => {
+            withWidget(
+                () => {
+                    const el = document.createElement('adw-toggle-group');
+                    // Upstream writes no role at all: `gtk_widget_class_set_accessible_role`
+                    // (adw-toggle-group.c:1191) is a CLASS DEFAULT an instance overrides,
+                    // and `add_toggle` branches on `TAB_LIST` alone (:857) — so `GROUP`
+                    // stays `GROUP` and still gets radio children.
+                    el.setAttribute('role', 'group');
+                    el.innerHTML = '<adw-toggle label="One"></adw-toggle><adw-toggle label="Two"></adw-toggle>';
+                    return el;
+                },
+                (el) => {
+                    expect(el.getAttribute('role')).toBe('group');
+                    expect(el.querySelectorAll('[role="radio"]').length).toBe(2);
+                },
+            );
+        });
+
+        await it('adw-toggle-group treats an empty role as no role', async () => {
+            withWidget(
+                () => {
+                    const el = document.createElement('adw-toggle-group');
+                    // `role=""` is not a declared role. Reading it with `?? null` left the
+                    // group with NO role while its children were radios — a radio outside
+                    // any group.
+                    el.setAttribute('role', '   ');
+                    el.innerHTML = '<adw-toggle label="One"></adw-toggle><adw-toggle label="Two"></adw-toggle>';
+                    return el;
+                },
+                (el) => {
+                    expect(el.getAttribute('role')).toBe('radiogroup');
+                    expect(el.querySelectorAll('[role="radio"]').length).toBe(2);
+                },
+            );
+        });
+
+        await it('adw-toggle-group has no orientation yet, so one axis is the whole truth', async () => {
+            // The element is keyed to `'horizontal'`, and `inert` above pins ArrowUp/
+            // ArrowDown as the page's. Both become WRONG the day the group gains the
+            // `orientation` upstream already has — `AdwToggleGroup` implements
+            // `GtkOrientable` (adw-toggle-group.c:187), installs PROP_ORIENTATION (:202),
+            // reorients its layout (:929) and its separators (:873, :935), and
+            // `AdwInlineViewSwitcher` forwards it (:107). In a vertical group Up/Down moves
+            // inside and Left/Right propagates, so the axis has to follow the attribute.
+            //
+            // Prose cannot hold that: this line fails the commit that adds it.
+            // `<adw-inline-view-switcher>` has the same gap (status/open-todos.md).
+            expect([...AdwToggleGroup.observedAttributes]).toStrictEqual(['active', 'flat', 'round']);
+        });
+
+        await it('adw-toggle has no state a roving walk would have to skip', async () => {
+            // `<adw-toggle-group>` passes its buttons to `attachRovingFocus` UNFILTERED,
+            // which is only safe while no `<adw-toggle>` attribute can produce a disabled
+            // or hidden button. That is a decision recorded in two comments and a ledger
+            // entry, and this is the line that fails when it stops being true — the first
+            // disabled toggle is otherwise a `focus()` the browser refuses, with nothing
+            // in the walk to step over it. Grow this list and add the filter and its spec
+            // in the same change (status/open-todos.md, `<adw-toggle>` has no `enabled`).
+            expect([...AdwToggle.observedAttributes]).toStrictEqual(['label', 'icon-name']);
+        });
+
+        await it('adw-toggle-group notifies once per arrow, through the click path', async () => {
+            withWidget(rovingCase('adw-toggle-group').make, (el) => {
+                const seen: number[] = [];
+                el.addEventListener('notify::active', (event) => {
+                    seen.push((event as CustomEvent).detail.active as number);
+                });
+                const items = rovingCase('adw-toggle-group').items(el);
+
+                items[0].focus();
+                press(items[0], 'ArrowRight');
+                press(items[1], 'ArrowRight');
+                // One per real change, and none for the press at the end — which is the
+                // ROVING module's guard (`target === undefined`), not the state machine's:
+                // `_selectIndex` is never reached here. The no-op guard behind it is what
+                // the "selection refuses" case beside it presses on.
+                press(items[2], 'ArrowRight');
+
+                expect(seen).toStrictEqual([1, 2]);
+            });
+        });
+
+        await it('adw-toggle-group keeps a declared tab list a tab list', async () => {
+            withWidget(
+                () => {
+                    const el = document.createElement('adw-toggle-group');
+                    // The role upstream reads BEFORE it builds a toggle, under the comment
+                    // "Special case for AdwInlineViewSwitcher" (adw-toggle-group.c:856) —
+                    // that switcher builds exactly this widget with `TAB_LIST`
+                    // (adw-inline-view-switcher.c:702). Without the branch a consumer
+                    // following upstream gets radios inside a tab list.
+                    el.setAttribute('role', 'tablist');
+                    el.innerHTML = ['One', 'Two'].map((label) => `<adw-toggle label="${label}"></adw-toggle>`).join('');
+                    return el;
+                },
+                (el) => {
+                    expect(el.getAttribute('role')).toBe('tablist');
+                    const tabs = Array.from(el.querySelectorAll<HTMLElement>('[role="tab"]'));
+                    expect(tabs.length).toBe(2);
+                    expect(tabs.map((tab) => tab.getAttribute('aria-selected'))).toStrictEqual(['true', 'false']);
+                    expect(el.querySelectorAll('[role="radio"]').length).toBe(0);
+
+                    tabs[0].focus();
+                    press(tabs[0], 'ArrowRight');
+                    expect(document.activeElement).toBe(tabs[1]);
+                    expect(tabs.map((tab) => tab.getAttribute('aria-selected'))).toStrictEqual(['false', 'true']);
+                },
+            );
         });
     });
 
