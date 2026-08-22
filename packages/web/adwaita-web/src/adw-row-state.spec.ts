@@ -188,7 +188,12 @@ export const AdwRowStateTest = async () => {
             expect(buttons.length).toBe(3);
             expect(group.active).toBe(1);
             expect(buttons[1].classList.contains('active')).toBe(true);
-            expect(buttons[1].getAttribute('aria-pressed')).toBe('true');
+            // `aria-checked`, not `aria-pressed`: upstream declares the group a
+            // `RADIO_GROUP` and each toggle a `RADIO` (adw-toggle-group.c:1191, :860),
+            // and `aria-pressed` is the independent toolbar toggle-BUTTON pattern. This
+            // line pinned the wrong one until the roles landed.
+            expect(buttons[1].getAttribute('aria-checked')).toBe('true');
+            expect(buttons[1].getAttribute('role')).toBe('radio');
 
             buttons[2].click();
             expect(group.active).toBe(2);
@@ -205,6 +210,11 @@ export const AdwRowStateTest = async () => {
             group.active = 0;
             expect(group.active).toBe(0);
             expect(buttons[0].classList.contains('active')).toBe(true);
+            // The roving tabindex and the state attribute move with the pill. Reading
+            // only `classList` here would pass on a `_render` that repainted the group
+            // and left Tab entering on the toggle that is no longer active.
+            expect(buttons.map((btn) => btn.tabIndex)).toStrictEqual([0, -1, -1]);
+            expect(buttons.map((btn) => btn.getAttribute('aria-checked'))).toStrictEqual(['true', 'false', 'false']);
             expect(events.details.length).toBe(1);
 
             events.stop();

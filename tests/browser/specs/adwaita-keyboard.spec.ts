@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { discoverBundles } from '../scripts/discover-bundles.mjs';
 
-// REAL key presses against adwaita-web's keyboard contracts — four reproductions, one
+// REAL key presses against adwaita-web's keyboard contracts — five reproductions, one
 // per shape measured broken.
 //
 // It exists beside `packages/web/adwaita-web/src/keyboard-operable.spec.ts` (which holds
@@ -222,4 +222,91 @@ async function driveKeys(page: Page, bundleUrl: string) {
     });
     // adw-expander-row.c:657 keeps GTK_ACCESSIBLE_STATE_EXPANDED on the header in step.
     expect(effects).toEqual({ activated: 2, expandedBefore: 'false', expandedAfter: 'true' });
+
+    // ---- Shape 5: a toggle group is ONE tab stop, entered on the active toggle ------
+    // Measured before the roving tabindex, same page and same keys: the Tab order was
+    // `toggle[0] → toggle[1] → toggle[2] → #after` — three separate stops — with the
+    // group role `null`, every item role `null`, `tabIndex` `[0, 0, 0]`, the state spelled
+    // `aria-pressed` and `aria-checked` absent, and ArrowRight, ArrowDown, Home and End
+    // all leaving focus on `toggle[0]`.
+    await page.evaluate(() => {
+        document.body.replaceChildren();
+        const before = document.createElement('button');
+        before.id = 'before';
+        before.textContent = 'Before';
+        const group = document.createElement('adw-toggle-group');
+        group.id = 'toggles';
+        group.setAttribute('active', '1');
+        group.innerHTML = ['One', 'Two', 'Three'].map((label) => `<adw-toggle label="${label}"></adw-toggle>`).join('');
+        const after = document.createElement('button');
+        after.id = 'after';
+        after.textContent = 'After';
+        document.body.append(before, group, after);
+        before.focus();
+    });
+
+    /** Which toggle has focus, plus the tabindex row and the checked row beside it. */
+    const toggleState = () =>
+        page.evaluate(() => {
+            const items = Array.from(document.querySelectorAll<HTMLElement>('#toggles [role="radio"]'));
+            const active = document.activeElement as HTMLElement | null;
+            return {
+                focus: items.indexOf(active as HTMLElement),
+                // Named only once focus has LEFT the group, so "still inside" and "landed
+                // on an unnamed element" cannot read the same.
+                outside: active === null || active.closest('#toggles') !== null ? null : active.id,
+                roving: items.map((item) => item.tabIndex),
+                checked: items.map((item) => item.getAttribute('aria-checked')),
+            };
+        });
+
+    await page.keyboard.press('Tab');
+    // Tab enters on the ACTIVE toggle, never the first — `adw_toggle_group_grab_focus`
+    // (adw-toggle-group.c:1066) grabs the active toggle's button.
+    expect(await toggleState()).toEqual({
+        focus: 1,
+        outside: null,
+        roving: [-1, 0, -1],
+        checked: ['false', 'true', 'false'],
+    });
+
+    // Tab from the MIDDLE toggle, before any arrow key moves it: this is the press that
+    // separates one tab stop from three, because at the last toggle a group with three
+    // stops would leave too. `adw_toggle_group_focus` propagates TAB_FORWARD and
+    // TAB_BACKWARD (adw-toggle-group.c:1059-1060) instead of walking to the next toggle.
+    await page.keyboard.press('Tab');
+    expect((await toggleState()).outside).toBe('after');
+
+    // And back in. Shift+Tab is the other half of the same C branch, and it re-enters on
+    // the ACTIVE toggle rather than the last one — the roving tabindex is the only thing
+    // the browser can see.
+    await page.keyboard.press('Shift+Tab');
+    expect(await toggleState()).toEqual({
+        focus: 1,
+        outside: null,
+        roving: [-1, 0, -1],
+        checked: ['false', 'true', 'false'],
+    });
+
+    await page.keyboard.press('ArrowRight');
+    expect(await toggleState()).toEqual({
+        focus: 2,
+        outside: null,
+        roving: [-1, -1, 0],
+        checked: ['false', 'false', 'true'],
+    });
+
+    // The other axis stays the page's: upstream `focus_sort_up_down`
+    // (adw-widget-utils.c:339-342) drops every sibling with no horizontal overlap, which
+    // in a row of toggles is all of them, so ArrowDown propagates out of the group.
+    const downMoved = await page.evaluate(() => {
+        const items = Array.from(document.querySelectorAll<HTMLElement>('#toggles [role="radio"]'));
+        const before = document.activeElement;
+        const event = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+        (before as HTMLElement).dispatchEvent(event);
+        return { moved: document.activeElement !== before, prevented: event.defaultPrevented, count: items.length };
+    });
+    expect(downMoved).toEqual({ moved: false, prevented: false, count: 3 });
+
+    expect(await page.evaluate(() => document.getElementById('toggles')?.getAttribute('role'))).toBe('radiogroup');
 }
