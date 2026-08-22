@@ -61,6 +61,15 @@ export interface FormatDescriptor {
 }
 
 /** The resolved, fully defaulted configuration for one `gjsify ship` run. */
+/** One shared-mime-info type definition (`gjsify.ship.mimeTypes`). */
+export interface ShipMimeType {
+    type: string;
+    comment: string;
+    globs?: string[];
+    subClassOf?: string;
+    genericIcon?: string;
+}
+
 export interface ShipSettings {
     /** Absolute path to the project being shipped. */
     projectDir: string;
@@ -89,6 +98,11 @@ export interface ShipSettings {
     section: string;
     /** rpm `Group:`. */
     group: string;
+    /**
+     * File types this package defines system-wide (shared-mime-info). Empty for a package that only
+     * HANDLES existing types — that needs no document of its own.
+     */
+    mimeTypes: ShipMimeType[];
     /** `'app'` stages a desktop entry and an icon; `'cli'` stages neither. */
     kind: 'app' | 'cli';
     /** Extra runtime dependencies per format, appended to the derived set. */

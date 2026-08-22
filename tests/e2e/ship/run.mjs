@@ -71,6 +71,7 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
             `share/glib-2.0/schemas/${APP_ID}.gschema.xml`,
             `share/icons/hicolor/scalable/apps/${APP_ID}.svg`,
             `share/metainfo/${APP_ID}.metainfo.xml`,
+            `share/mime/packages/${APP_ID}.xml`,
         ]);
     });
 
@@ -123,7 +124,7 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
         if (!probe('ar') || !probe('tar')) return;
         const md5sums = readControlFile('md5sums');
         const lines = md5sums.trimEnd().split('\n');
-        assert.equal(lines.length, 7); // 6 staged + the copyright overlay
+        assert.equal(lines.length, 8); // 7 staged + the copyright overlay
         for (const line of lines) {
             // Exactly two spaces, and no leading `./` — unlike every other
             // path in the package.
@@ -196,6 +197,7 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
             `/usr/share/applications/${APP_ID}.desktop`,
             `/usr/share/glib-2.0/schemas/${APP_ID}.gschema.xml`,
             `/usr/share/metainfo/${APP_ID}.metainfo.xml`,
+            `/usr/share/mime/packages/${APP_ID}.xml`,
             '/usr/share/licenses/ship-demo/LICENSE',
         ]) {
             assert.ok(files.includes(expected), `missing ${expected}`);
@@ -227,6 +229,9 @@ describe('CLI ship E2E', { timeout: 10 * 60 * 1000 }, () => {
         if (!probe('rpm')) return;
         const scripts = execFileSync('rpm', ['-qp', '--scripts', rpmPath()], { encoding: 'utf-8' });
         assert.match(scripts, /glib-compile-schemas \/usr\/share\/glib-2\.0\/schemas/);
+        // Detection runs off the compiled cache in `share/mime`, not off `share/mime/packages`.
+        // Without this line the document is installed and the type still does not exist.
+        assert.match(scripts, /update-mime-database \/usr\/share\/mime/);
         // rpm's `$1` is a COUNT. A dpkg-shaped `[ "$1" = "configure" ]` here is
         // never true, so the scriptlet runs and does nothing — an artifact that
         // passes every structural check and still ships broken.
@@ -497,6 +502,16 @@ function scaffold(dir, mutate) {
                 license: { project: 'MIT' },
                 homepageUrl: 'https://example.org/ship-demo',
                 categories: ['Utility'],
+                // A type of the project's OWN, so the packer has to DEFINE it and not merely
+                // claim to handle it. Claiming an undefined type installs cleanly and never fires.
+                mimeTypes: [
+                    {
+                        type: 'application/x-ship-demo',
+                        comment: 'Ship Demo document',
+                        globs: ['*.shipdemo'],
+                        genericIcon: 'text-x-generic',
+                    },
+                ],
             },
         },
     };

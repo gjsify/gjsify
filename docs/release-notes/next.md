@@ -32,61 +32,75 @@ https://github.com/gjsify/gjsify/releases/tag/v0.28.0
 
 ## What this release is about
 
-**`gjsify ship` did not work on a real app.** It shipped in 0.39.0, it was exercised by the repo's own tests, and the first two projects that pointed it at their own `package.json` both hit a wall inside the first minute. This release is what those two walls turned out to be, plus the gap that made one of them unfixable from the consumer side.
-
-If you have tried `ship` and given up, try it again.
+**Two things an app could not do, both of which fail silently when you get them wrong.**
 
 ---
 
-### `ship` could not find its own desktop template
+### An app can find its own translations
 
-`gjsify ship` died with `ENOENT … templates/app/desktop.tmpl` on **every** project, when run through the GJS entry point.
+`gjsify ship` learned to package compiled catalogues in 0.42.0, and its launcher exports
+`GJSIFY_LOCALE_DIR` because only the launcher knows whether the payload became `/usr` in a `.deb`, a
+`--prefix` tree, or `/app` in a Flatpak. Nothing read that variable. Every app was expected to write
+the same four calls, and the two that tried had no translation at all.
 
-The template was read with `readFileSync(new URL('../templates/app/desktop.tmpl', import.meta.url))`, and a comment above it stated that the `static-read-inliner` folds it into the bundle. It does not: the inliner's `shouldRewrite` requires the file to sit under `node_modules`, and the CLI bundles its own source. So the read survived into `dist/cli.gjs.mjs`, resolved `../templates/…` against `dist/`, and found nothing — while the Node `lib/` entry, where the relative path happens to be correct, worked fine. That split is why it went unnoticed for three releases: CI and `npm install -g` both take the Node path.
+`initLocale(domain)` in `@gjsify/adwaita-app` is the reading half:
 
-A ten-line skeleton is not worth a file the bundle has to locate. It is a template literal now: nothing to resolve, nothing to package, and the two entry points cannot disagree.
+```ts
+import { initLocale } from '@gjsify/adwaita-app';
 
-### `ship` can carry typelibs no distribution ships
-
-A GI library that arrives as a gjsify npm prebuild — `Gwebgl` is the one that surfaced this — has no `gir1.2-…` package anywhere, so `deriveDepends` refused the build and there was no honest way past it. Naming a package that does not exist would turn a clear refusal into an install that succeeds and an app that dies at its first import.
-
-`gjsify.ship.bundledTypelibs` takes directories whose `*.typelib` and `*.so` are staged into `lib/<app>/gi/` and put on `GI_TYPELIB_PATH` / `LD_LIBRARY_PATH` by the launcher:
-
-```json
-"gjsify": { "ship": { "bundledTypelibs": ["../node_modules/@gjsify/webgl-linux-x64/prebuilds/linux-x64"] } }
+const _ = initLocale('bauplaner');
+label.set_label(_('Assembly'));
+status.set_label(_.plural('%d layer', '%d layers', n));
 ```
 
-Both halves are staged from the same directory on purpose: a typelib without its shared library installs and then dies at the first import, which is the failure this feature exists to prevent.
+Two details are the reason this is shared code and not a snippet:
 
-### `ship` can package translations
+- **`textdomain()` is set, not only `dgettext()` used.** GtkBuilder resolves every
+  `translatable="yes"` string — so everything from a `.blp` file — in the DEFAULT domain, inside GTK,
+  where the app never gets to pass one. Binding only through `dgettext` translates the TypeScript
+  strings and leaves the Blueprint ones in the source language, which reads as a half-finished
+  translation rather than as a missing call.
+- **An empty `GJSIFY_LOCALE_DIR` counts as unset.** The launcher exports it only when it staged
+  catalogues, but a wrapper that sets it unconditionally hands over `''` — and
+  `bindtextdomain(domain, '')` binds to the *current directory*, where the lookup finds nothing and
+  reports it exactly as "this app has no German".
 
-`gjsify.ship.localeDir` names a directory of compiled catalogues and stages them into
-`share/locale/`, keeping the `<lang>/LC_MESSAGES/<domain>.mo` layout that `bindtextdomain` reads.
-The launcher then exports `GJSIFY_LOCALE_DIR`, so the app finds them without knowing which prefix
-it was installed under — the same division of labour § 3 of ADR 0024 already uses for icons and
-schemas.
+Measured against a real compiled catalogue, because "the calls did not throw" is not evidence that a
+lookup resolves: `de_DE.utf8` returns the translation and picks the right plural form, `en_US.utf8`
+returns the msgids (English needs no catalogue of its own), and an unset variable falls back to
+`/usr/share/locale`.
 
-Translations were simply not part of the payload before: an app with a working gettext setup
-packaged fine and showed English on a German desktop.
+### A package can define a file type, not just claim to open one
 
-Discovery refuses a `.po` left in place of a `.mo`, a catalogue outside `<lang>/LC_MESSAGES/`, and
-a declared directory holding no catalogue at all. All three are the same failure — a package that
-installs its translations and shows none of them — and it is the quietest kind, because an
-untranslated UI is indistinguishable from "this app has no German".
+`MimeType=` in a desktop entry says "I open this type". It does not say the type EXISTS. For
+`text/plain` that never matters — the distribution defines it. For a type of your own it decides
+whether the feature works, and nothing tells you when it does not: no component knows what a
+`.bauplan` file is, so the file manager never assigns the type, `MimeType=` matches nothing, and a
+double-click does nothing at all. No error, no log line. It is indistinguishable from the app not
+being installed.
 
-One thing found by reading the built `.rpm` rather than the config: `dist/locale/` sits beside the
-bundle, so the wholesale bundle staging shipped every catalogue a second time under
-`lib/<binary>/locale/`. The declared locale tree now drops out of that staging.
+`gjsify.ship.mimeTypes` defines types as a shared-mime-info document staged into
+`share/mime/packages/<app-id>.xml`, and the package refreshes the MIME cache on install — detection
+reads the compiled cache under `share/mime`, not the packages directory, so without that refresh the
+document installs and the type still does not exist.
 
-### Two smaller things `ship` got wrong
+```json
+"gjsify": {
+  "ship": {
+    "mimeTypes": [
+      { "type": "application/x-bauplan", "comment": "Bauplaner project", "globs": ["*.bauplan"] }
+    ]
+  }
+}
+```
 
-- **`Gda-6.0` had no entry in the typelib table**, so any app touching libgda was refused with an accurate but unhelpful message. It maps to `gir1.2-gda-6.0` / `libgda` now.
-- **`ship.description` as a plain string threw.** The field was documented as accepting either a string or an array of paragraphs, and only the array worked.
+Declared types are folded into `provides.mimetypes` automatically, so the desktop entry and the
+metainfo need no knowledge of the new field — they already render `MimeType=` (with the `%f` field
+code) and `<mediatype>` from that one list. Keeping the two independent would make "defined but not
+handled" reachable by omission, and that state installs cleanly and does nothing.
 
-### New package: `@gjsify/gtk-host`
-
-A framework-agnostic GTK4/Adwaita **element model** — the layer a UI-framework renderer binds to instead of talking to GTK directly. Tier 3 (experimental), GJS-only, with a conformance suite a renderer can run against itself. See ADR 0027.
-
-### Elsewhere
-
-`@gjsify/devtools` grew `FindWidget` and `SendKey`, so a headless rig can locate a widget by type and CSS class and deliver a real key press to it — a screenshot proves a widget was drawn, never that pressing it does anything.
+Four declarations are refused outright, each of which would otherwise install and never resolve: a
+malformed type name (`update-mime-database` ignores it), a glob with no wildcard (`bauplan` matches
+only a file called exactly that), a type with neither a glob nor a parent type (nothing can ever
+match it), and a duplicate definition (which comment wins would depend on document order). See
+ADR 0024 § A11.

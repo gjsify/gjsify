@@ -3,6 +3,7 @@
 // as `utils/copy-targets.ts`, and for the same reason: a stager that discovers
 // its own inputs can only be tested by building a real project.
 
+import { renderMimePackage } from './mime.js';
 import { basename, extname, posix } from 'node:path';
 
 import type { FormatDescriptor, ShipSettings, StagedFile } from './types.js';
@@ -88,6 +89,16 @@ export function planStage(settings: ShipSettings, inputs: StageInputs): StagedFi
             // keeps the staged tree free of a distinction nothing downstream reads.
             mode: 0o755,
             source: { kind: 'file', path: file },
+        });
+    }
+    // A shared-mime-info document, when the project DEFINES a type rather than only handling one.
+    // `share/mime/packages/` is shared between packages, so the app id is the filename for the same
+    // reason it is for the GSettings schema: a generic name collides with another package's file.
+    if (settings.mimeTypes.length > 0) {
+        files.push({
+            path: `share/mime/packages/${settings.appId}.xml`,
+            mode: 0o644,
+            source: { kind: 'text', text: renderMimePackage(settings.mimeTypes) },
         });
     }
 

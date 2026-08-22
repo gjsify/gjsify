@@ -544,3 +544,36 @@ dead weight — nothing looks there.
 This is the same class as `ship` once staging the test suite: whatever lies next to the bundle is
 carried, whether or not it belongs in a package. The subtraction is targeted at the DECLARED locale
 directory only, so a package that legitimately ships assets beside its bundle keeps them.
+
+### A11. Handling a file type is not defining one
+
+`MimeType=` in a desktop entry says "I open this type". It does not say the type EXISTS.
+
+For a type the distribution already defines (`text/plain`, `application/pdf`) that distinction never
+comes up. For a type of the project's own it decides whether the feature works at all, and the
+failure mode is the quietest in this ADR:
+
+| what is declared | what happens |
+|---|---|
+| `provides.mimetypes` alone, for a custom type | nothing on the system knows the type exists, so the file manager never assigns it, `MimeType=` matches nothing, and a double-click does nothing — no error, no log line |
+| a shared-mime-info document with no cache refresh | detection reads the compiled cache under `share/mime`, not `share/mime/packages`, so the type stays unknown until something else happens to rebuild it |
+
+Both are indistinguishable from "the application is not installed".
+
+So `gjsify.ship.mimeTypes` DEFINES types — a shared-mime-info document staged as
+`share/mime/packages/<app-id>.xml`, named after the app id for the same reason the GSettings schema
+is (that directory is shared between packages, and a generic name is a collision) — and the package
+runs `update-mime-database` in its post-install, alongside the desktop, icon and schema refreshes
+§ A3 already established.
+
+Declared types are folded into `provides.mimetypes` during resolution rather than being a second
+list to keep in step. The desktop entry and the metainfo then need no knowledge of `mimeTypes` at
+all: they already render `MimeType=` (with the `%f` field code § 5 requires) and `<mediatype>` from
+that one field. Keeping the lists independent would make "defined but not handled" a state reachable
+by omission — and that state installs cleanly and does nothing.
+
+Discovery refuses four shapes, each of which would otherwise install and never resolve: a malformed
+type name (`update-mime-database` ignores it), a glob with no wildcard (`bauplan` matches only a file
+called exactly that), a type with neither a glob nor a parent (nothing can ever match it), and a
+duplicate definition (which comment wins would depend on document order). An empty `comment` is
+refused too, because a file manager then shows the user the raw type string.
