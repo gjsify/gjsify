@@ -18,6 +18,11 @@
 # Reproduce by hand:
 #   docker run --rm -v "$PWD:/w" -w /w fedora:44 \
 #     bash .github/ship-oracle/verify-rpm.sh ship/out/gjsify-0.41.0-1.noarch.rpm ship/stage
+# Assertions read from a here-string, never from `printf … | grep -q`: the
+# reader exits at the match, `printf` dies of SIGPIPE, and `pipefail` turns a
+# passing check into a failing one. Measured in verify-deb.sh, whose header
+# carries the incident; the inputs here are small enough that it never fired,
+# which is exactly the reasoning that let it fire there.
 set -euo pipefail
 
 RPM=${1:?usage: verify-rpm.sh <artifact.rpm> <stage-dir>}
@@ -40,11 +45,12 @@ done
 echo "== rpm -Kv"
 KOUT=$(rpm -Kv "$RPM")
 printf '%s\n' "$KOUT"
-printf '%s\n' "$KOUT" | grep -qi 'SHA256' || fail "rpm did not report a SHA256 digest — the header this writer produced carries none"
+grep -qi 'SHA256' <<<"$KOUT" || fail "rpm did not report a SHA256 digest — the header this writer produced carries none"
 # `if … then fail; fi`, never `grep … && fail`: under `set -e` an `A && B` whose
 # A fails makes the whole list return non-zero and ends the script — silently,
 # in the branch where nothing is wrong.
-if printf '%s\n' "$KOUT" | tr '[:lower:]' '[:upper:]' | grep -qE 'BAD|NOT OK'; then
+KOUT_UPPER=$(tr '[:lower:]' '[:upper:]' <<<"$KOUT")
+if grep -qE 'BAD|NOT OK' <<<"$KOUT_UPPER"; then
     fail "rpm reports a bad digest"
 fi
 
@@ -62,15 +68,15 @@ IFS='|' read -r NAME VERSION RELEASE ARCH OS LICENSE <<<"$FIELDS"
 echo "== rpm -qpl"
 FILES=$(rpm -qpl "$RPM")
 printf '%s\n' "$FILES"
-printf '%s\n' "$FILES" | grep -qx "/usr/bin/$NAME" || fail "/usr/bin/$NAME is not in the header's file list"
-printf '%s\n' "$FILES" | grep -qx "/usr/share/licenses/$NAME/LICENSE" || fail "no /usr/share/licenses/$NAME/LICENSE — the licence overlay did not travel"
-if printf '%s\n' "$FILES" | grep -q 'gjsify-ship-stage\.json'; then
+grep -qx "/usr/bin/$NAME" <<<"$FILES" || fail "/usr/bin/$NAME is not in the header's file list"
+grep -qx "/usr/share/licenses/$NAME/LICENSE" <<<"$FILES" || fail "no /usr/share/licenses/$NAME/LICENSE — the licence overlay did not travel"
+if grep -q 'gjsify-ship-stage\.json' <<<"$FILES"; then
     fail ".gjsify-ship-stage.json was packed into the payload. The sidecar describes the stage; it must never be part of it."
 fi
 # Owning a directory the base system owns makes the package fight `filesystem`
 # and `glib2` for it.
 for owned in /usr /usr/bin /usr/share /usr/lib; do
-    if printf '%s\n' "$FILES" | grep -qx "$owned"; then
+    if grep -qx "$owned" <<<"$FILES"; then
         fail "the package claims ownership of $owned"
     fi
 done
@@ -82,12 +88,13 @@ done
 # the same regression is what makes it unmissable.
 echo "== rpm -qp --dump"
 DUMP=$(rpm -qp --dump "$RPM")
-printf '%s\n' "$DUMP" | awk -v name="/usr/bin/$NAME" '$1 == name { print }' | grep -q ' 0100755 ' ||
+LAUNCHER_ROW=$(awk -v name="/usr/bin/$NAME" '$1 == name { print }' <<<"$DUMP")
+grep -q ' 0100755 ' <<<"$LAUNCHER_ROW" ||
     fail "/usr/bin/$NAME is not mode 0100755 in the header. The mode plan did not survive the handoff — see readStage() and the sidecar's staged[]."
 
 STAGED=$(cd "$STAGE" && find . -type f ! -name .gjsify-ship-stage.json -printf '%P\n' | sort)
-STAGED_COUNT=$(printf '%s\n' "$STAGED" | grep -c . || true)
-PACKED_COUNT=$(printf '%s\n' "$DUMP" | awk '$5 ~ /^0100/ { n++ } END { print n + 0 }')
+STAGED_COUNT=$(grep -c . <<<"$STAGED" || true)
+PACKED_COUNT=$(awk '$5 ~ /^0100/ { n++ } END { print n + 0 }' <<<"$DUMP")
 EXPECTED=$((STAGED_COUNT + 1))
 [ "$PACKED_COUNT" = "$EXPECTED" ] ||
     fail "the .rpm carries $PACKED_COUNT regular file(s); the stage held $STAGED_COUNT plus one licence overlay = $EXPECTED"
@@ -96,10 +103,10 @@ EXPECTED=$((STAGED_COUNT + 1))
 echo "== rpm -qp --requires"
 REQUIRES=$(rpm -qp --requires "$RPM")
 printf '%s\n' "$REQUIRES"
-printf '%s\n' "$REQUIRES" | grep -qE '^gjs( |$)' || fail "no gjs requirement — the launcher execs gjs"
-printf '%s\n' "$REQUIRES" | grep -qx '/bin/sh' || fail "no /bin/sh requirement — the launcher is a POSIX shell script"
+grep -qE '^gjs( |$)' <<<"$REQUIRES" || fail "no gjs requirement — the launcher execs gjs"
+grep -qx '/bin/sh' <<<"$REQUIRES" || fail "no /bin/sh requirement — the launcher is a POSIX shell script"
 for feature in CompressedFileNames FileDigests PayloadFilesHavePrefix; do
-    printf '%s\n' "$REQUIRES" | grep -q "rpmlib($feature)" ||
+    grep -q "rpmlib($feature)" <<<"$REQUIRES" ||
         fail "no rpmlib($feature) — declaring these is what makes an older rpm refuse the package cleanly instead of misreading its file list"
 done
 

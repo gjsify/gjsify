@@ -25,6 +25,18 @@
 # right-hand side of a pipeline runs in a SUBSHELL, so an `exit 1` inside one
 # ends the subshell and the script carries on green — the exact shape of
 # "green CI that checked nothing" this repo keeps paying for.
+#
+# AND NO ASSERTION READS FROM A PIPE EITHER: `grep -q … <<<"$VAR"`, never
+# `printf … | grep -q`. MEASURED on the first run that ever reached the tag gate
+# below — `grep -q` exits at the match, `printf` dies of SIGPIPE (141) on its
+# next write, and `set -o pipefail` promotes that to a failed pipeline, so a tag
+# that IS in lintian's list reds with "this lintian does not know the tag".
+# Worse than a flake that costs a run: it fabricates a specific, plausible, WRONG
+# diagnosis and sends the next reader renaming a healthy tag. It needs an input
+# bigger than one stdio flush — lintian's tag list is 49 KB — and it is a coin
+# toss, not a platform difference: the same loop in a container missed 3 times in
+# 300 iterations, on three different tags, having passed cleanly the run before.
+# A here-string is not a pipeline, so there is nothing for pipefail to promote.
 set -euo pipefail
 
 DEB=${1:?usage: verify-deb.sh <artifact.deb> <stage-dir> <expected-payload-file-count>}
@@ -74,18 +86,18 @@ printf '%s\n' "$CONTENTS"
 # packing host, and the 0755 here can only have come from the mode PLAN
 # travelling inside `.gjsify-ship-stage.json`. Make `readStage()` take modes
 # from `statSync`, or drop `staged` from the sidecar, and this line reds.
-printf '%s\n' "$CONTENTS" | grep -qE "^-rwxr-xr-x .* \./usr/bin/$PKG\$" ||
+grep -qE "^-rwxr-xr-x .* \./usr/bin/$PKG\$" <<<"$CONTENTS" ||
     fail "./usr/bin/$PKG is not 0755 in the data member. The mode plan did not survive the handoff — see readStage() and the sidecar's staged[]."
 
 # Debian Policy § 12.5. Drop the pre-rendered overlay from the sidecar and this
 # is the line that notices; nothing else in the pipeline does, and the package
 # still installs.
-printf '%s\n' "$CONTENTS" | grep -q "\./usr/share/doc/$PKG/copyright\$" ||
+grep -q "\./usr/share/doc/$PKG/copyright\$" <<<"$CONTENTS" ||
     fail "no /usr/share/doc/$PKG/copyright (Debian Policy § 12.5). The licence overlay did not travel."
 
 # The sidecar is METADATA about the payload, not payload. Inside the package it
 # would mean `readStage()` treated it as an ordinary staged file.
-if printf '%s\n' "$CONTENTS" | grep -q 'gjsify-ship-stage\.json'; then
+if grep -q 'gjsify-ship-stage\.json' <<<"$CONTENTS"; then
     fail ".gjsify-ship-stage.json was packed into the payload. The sidecar describes the stage; it must never be part of it."
 fi
 
@@ -107,14 +119,14 @@ fi
 # `pascal/pascal` is a leaked NAME with the ids still 0, which nothing else here
 # reads: GNU tar unpacking as root prefers the name over the id, so those bytes
 # install as root under dpkg and as someone else under `tar -x`.
-if printf '%s\n' "$CONTENTS" | awk '$2 != "root/root" && $2 != "0/0" { print; bad = 1 } END { exit bad ? 0 : 1 }'; then
+if awk '$2 != "root/root" && $2 != "0/0" { print; bad = 1 } END { exit bad ? 0 : 1 }' <<<"$CONTENTS"; then
     fail "the data member carries entries owned by neither root/root nor 0/0 — see the uid/gid and uname/gname fields in @gjsify/tar's buildHeader()"
 fi
 
 # The count is DERIVED from the stage job's own output — no file count is
 # written down anywhere in this pipeline. Expected = the staged payload plus
 # exactly one overlay file (the copyright).
-ACTUAL_FILES=$(printf '%s\n' "$CONTENTS" | awk '/^-/ { n++ } END { print n + 0 }')
+ACTUAL_FILES=$(awk '/^-/ { n++ } END { print n + 0 }' <<<"$CONTENTS")
 EXPECTED_FILES=$((EXPECT_FILES + 1))
 [ "$ACTUAL_FILES" = "$EXPECTED_FILES" ] ||
     fail "the .deb carries $ACTUAL_FILES regular file(s); the stage held $EXPECT_FILES plus one copyright overlay = $EXPECTED_FILES"
@@ -203,7 +215,7 @@ for tag in no-copyright-file no-md5sums-control-file md5sum-mismatch \
     file-missing-in-md5sums md5sums-lists-nonexistent-file malformed-md5sums-control-file \
     wrong-file-owner-uid-or-gid control-file-has-bad-owner malformed-deb-archive \
     control-file-has-bad-permissions; do
-    printf '%s\n' "$TAG_LIST" | grep -qFx "$tag" ||
+    grep -qFx "$tag" <<<"$TAG_LIST" ||
         fail "this lintian does not know the tag \`$tag\`. It was renamed or removed — find its current name and update this list; do not delete the check."
     # `$` and not `( |$)` was the first spelling, and it silently under-matched:
     # lintian appends a POINTER to every tag that has one
@@ -211,13 +223,13 @@ for tag in no-copyright-file no-md5sums-control-file md5sum-mismatch \
     # not the last token on the line and at least three of the six gated tags
     # could fire without matching. They would then surface only as the
     # non-gating warning below — a gate that reports instead of failing.
-    if printf '%s\n' "$LINTIAN_OUT" | grep -qE "[ :]$tag( |\$)"; then
+    if grep -qE "[ :]$tag( |\$)" <<<"$LINTIAN_OUT"; then
         fail "lintian reports \`$tag\`."
     fi
 done
 echo "  none of the gated tags fired"
 
-ERROR_TAGS=$(printf '%s\n' "$LINTIAN_OUT" | grep '^E:' || true)
+ERROR_TAGS=$(grep '^E:' <<<"$LINTIAN_OUT" || true)
 if [ -n "$ERROR_TAGS" ]; then
     echo "::warning title=Ship .deb::lintian reports error-severity tags this leg does not gate on yet. Each is a real Debian Policy gap in the hand-written writer — ledger it in status/open-todos.md or fix it; do not let the set grow silently."
     printf '%s\n' "$ERROR_TAGS"
@@ -268,7 +280,7 @@ echo "  every staged file matches byte for byte"
 # an installed `/usr/lib/<name>/` is in. A mismatch here means the artifact was
 # packed from a different bundle than the one whose version it advertises.
 GJS_HAVE=$(dpkg-query -W -f='${Version}' gjs 2>/dev/null || true)
-GJS_FLOOR=$(printf '%s\n' "$DEPENDS" | tr ',' '\n' | sed -n 's/.*gjs *(>= *\([^)]*\)).*/\1/p' | head -1)
+GJS_FLOOR=$(tr ',' '\n' <<<"$DEPENDS" | sed -n 's/.*gjs *(>= *\([^)]*\)).*/\1/p' | sed -n '1p')
 RUNNABLE=no
 if [ -n "$GJS_HAVE" ] && [ -n "$GJS_FLOOR" ] && dpkg --compare-versions "$GJS_HAVE" ge "$GJS_FLOOR"; then
     RUNNABLE=yes
@@ -276,7 +288,7 @@ fi
 echo "== host gjs=$GJS_HAVE floor=$GJS_FLOOR runnable=$RUNNABLE"
 if [ "$RUNNABLE" = yes ]; then
     REPORTED=$("/usr/bin/$PKG" --version)
-    REPORTED_DEB=$(printf '%s' "$REPORTED" | tr '-' '~')
+    REPORTED_DEB=$(tr '-' '~' <<<"$REPORTED")
     echo "  $PKG --version => $REPORTED"
     case "$VERSION" in
     "$REPORTED_DEB"-*) : ;;
