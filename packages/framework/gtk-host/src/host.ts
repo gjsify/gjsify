@@ -10,7 +10,16 @@ import GObject from 'gi://GObject';
 import type Gtk from '@girs/gtk-4.0';
 
 import { err } from './errors.js';
-import { addressOf, insertChild, makeWrapper, removeChild, setterSlotOf, type Placement } from './policies.js';
+import {
+    addressOf,
+    insertChild,
+    makeWrapper,
+    removeChild,
+    setterSlotOf,
+    setterSlots,
+    slotOccupant,
+    type Placement,
+} from './policies.js';
 import { beginHostWrite, clearHandlers, endHostWrite, isEventProp, setHandler, toSignalName } from './signals.js';
 import { coerce, defaultValue, paramSpecs, requireSpec, toPropertyName } from './props.js';
 import { lookupWidget, nearestRegistered } from './registry.js';
@@ -530,6 +539,8 @@ function attach(parent: HostElement, child: HostElement): void {
     materialize(child);
     ensureWrapper(parent, child);
 
+    refuseOccupiedSlot(parent, child);
+
     // Start AFTER what the application already put in the container. Without this
     // the first insertion into an adopted root resolves to `insert_child_after(w,
     // null)` — GTK's "make first" — and the rendered tree lands above the app's own
@@ -562,6 +573,31 @@ function attach(parent: HostElement, child: HostElement): void {
     const placement: Placement = { parent, child, prevWidget, index, following };
     insertChild(placement);
     child.attached = true;
+}
+
+/**
+ * Never place into a one-child slot the APPLICATION is using.
+ *
+ * Offsetting past what a container already held only works where placement
+ * appends. A one-child setter REPLACES, and GTK does it silently: measured,
+ * `win = new Gtk.ScrolledWindow(); win.set_child(chrome); mount(() => label,
+ * win)` left `chrome.get_parent() === null` with no throw, no GTK warning and an
+ * empty diagnostics gate — the application's widget simply gone. Refusing by
+ * name is the only answer that neither drops a widget nor guesses which of the
+ * two the application wanted.
+ *
+ * The occupant is compared against `foreign`, i.e. against what `adopt` saw. A
+ * slot holding one of OUR OWN element children is the ordinary
+ * insert-then-unmount order Solid and React use, and must stay allowed; a slot
+ * the application has since cleared itself is free again.
+ */
+function refuseOccupiedSlot(parent: HostElement, child: HostElement): void {
+    if (parent.foreign.length === 0) return;
+    const setter = setterSlotOf(parent, child);
+    if (!setter) return;
+    const occupant = slotOccupant(parent.widget as unknown as Gtk.Widget, setter);
+    if (!occupant || !parent.foreign.includes(occupant)) return;
+    throw err.occupiedSlot(parent.descriptor.gtype, child.descriptor.gtype, setter);
 }
 
 /** `indexed` parents address a wrapper row; create it once, before first placement. */
@@ -742,9 +778,33 @@ export function adopt(container: Gtk.Widget): HostElement {
         textFromChildren: false,
         attached: true,
         destroyed: false,
-        // The children the application put there. Placement offsets past them.
-        foreign: directChildren(container),
+        // What the application put there. Placement offsets past it, or — for a
+        // slot that replaces rather than appends — refuses to overwrite it.
+        foreign: adoptedChildren(container, descriptor),
     };
+}
+
+/**
+ * What the application already had in this container — asked the way the
+ * container answers honestly.
+ *
+ * A one-child slot has to be asked through its GETTER, never through the child
+ * list: measured on gtk 4.22 / libadwaita 1.8, a FRESH `Gtk.ScrolledWindow` has
+ * two `GtkScrollbar` direct children, `Adw.ToolbarView` two `GtkRevealer`s,
+ * `Adw.Window` an `AdwDialogHost` + an `AdwGizmo` and `Adw.StatusPage` a
+ * `GtkScrolledWindow`, while all four getters answer `null`. A child-list
+ * snapshot therefore reports application chrome that does not exist — and for a
+ * slot that REPLACES there is no offset to compute from it anyway.
+ */
+function adoptedChildren(container: Gtk.Widget, descriptor: WidgetDescriptor): Gtk.Widget[] {
+    const slots = setterSlots(descriptor.children);
+    if (slots.length === 0) return directChildren(container);
+    const out: Gtk.Widget[] = [];
+    for (const setter of slots) {
+        const occupant = slotOccupant(container, setter);
+        if (occupant) out.push(occupant);
+    }
+    return out;
 }
 
 /** Direct GTK children of a widget — what the container already holds. */

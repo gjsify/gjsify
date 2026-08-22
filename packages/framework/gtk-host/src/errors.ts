@@ -116,4 +116,12 @@ export const err = {
             `<${tag}> is not a Gtk.Widget, so it cannot be placed as a child. ` +
                 `Non-widget GObjects (controllers, filters, models) attach to a property, not to a parent.`,
         ),
+    occupiedSlot: (parentTag: string, childTag: string, setter: string) =>
+        new GtkHostError(
+            'occupied-slot',
+            `<${parentTag}> already holds a child the application put there, and ${setter}() takes only ONE — ` +
+                `placing <${childTag}> would unparent it. GTK does that silently: no throw, no warning, exit 0, ` +
+                `and the application's own widget is simply gone. Mount into a container of your own inside ` +
+                `<${parentTag}>, or clear the existing child first (${setter}(null)) if replacing it is the intent.`,
+        ),
 };

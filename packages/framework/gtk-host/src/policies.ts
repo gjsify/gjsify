@@ -64,6 +64,34 @@ export function setterSlotOf(parent: HostElement, child: HostElement): string | 
     return method?.startsWith('set_') === true ? method : null;
 }
 
+/** Every one-child slot this policy has, by setter name — `single` has exactly one. */
+export function setterSlots(policy: ChildPolicy): string[] {
+    if (policy.kind === 'single') return [policy.set];
+    if (policy.kind !== 'slotted') return [];
+    return Object.values(policy.slots).filter((method) => method.startsWith('set_'));
+}
+
+/**
+ * Who GTK says is in a one-child slot. `undefined` means there is no getter to ask.
+ *
+ * The slot's own getter is the ONLY honest reader of this, and a child-list walk
+ * is not a substitute: measured on gtk 4.22 / libadwaita 1.8, a FRESH widget
+ * already has direct children the application never put there —
+ * `Gtk.ScrolledWindow` two `GtkScrollbar`s, `Adw.ToolbarView` two
+ * `GtkRevealer`s, `Adw.Window` an `AdwDialogHost` + an `AdwGizmo`,
+ * `Adw.StatusPage` a `GtkScrolledWindow` — while every one of those widgets
+ * answers `null` from its getter. The getter also survives GTK wrapping the
+ * child: `Gtk.ScrolledWindow.set_child(label)` reports a `GtkViewport`, not the
+ * label, so callers may compare occupants for IDENTITY but never assume the
+ * occupant is the widget they handed over.
+ */
+export function slotOccupant(widget: Gtk.Widget, setter: string): Gtk.Widget | null | undefined {
+    const host = widget as unknown as AnyWidget;
+    const getter = setter.replace(/^set_/, 'get_');
+    if (typeof host[getter] !== 'function') return undefined;
+    return (host[getter]() as Gtk.Widget | null) ?? null;
+}
+
 export interface Placement {
     parent: HostElement;
     child: HostElement;
@@ -244,8 +272,7 @@ function detachChild(parent: HostElement, child: HostElement, host: AnyWidget): 
 }
 
 function clearIfCurrent(host: AnyWidget, setter: string, address: Gtk.Widget): void {
-    const getter = setter.replace(/^set_/, 'get_');
-    const current = typeof host[getter] === 'function' ? host[getter]() : undefined;
+    const current = slotOccupant(host as unknown as Gtk.Widget, setter);
     if (current === undefined || current === address) host[setter](null);
 }
 

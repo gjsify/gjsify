@@ -1118,6 +1118,102 @@ export default async () => {
                 expect(widget.label).toBe('Go');
             });
         });
+
+        await gated(diagnostics, 'a one-child container the application is already using', async () => {
+            await it('refuses to overwrite the app widget, naming container and fix', async () => {
+                // Measured: `win.set_child(chrome); mount(() => label, win)` left
+                // `chrome.get_parent() === null` — no throw, no GTK warning, empty
+                // diagnostics gate, the application's widget simply gone. Offsetting
+                // past prior children only works where placement APPENDS.
+                const win = new Gtk.ScrolledWindow();
+                const chrome = new Gtk.Label({ label: 'app chrome' });
+                win.set_child(chrome);
+                const root = createElement('GtkLabel', { label: 'host root' });
+
+                expect(() => mountRoot(root, win as unknown as Gtk.Widget)).toThrow('already holds a child');
+                expect(chrome.get_parent() !== null).toBe(true);
+                expect(root.attached).toBe(false);
+            });
+
+            await it('covers a setter-backed slot too, naming that setter', async () => {
+                const view = new Adw.ToolbarView();
+                const chrome = new Gtk.Label({ label: 'app content' });
+                view.set_content(chrome);
+                const root = createElement('GtkLabel', { label: 'host root', slot: 'content' });
+
+                expect(() => mountRoot(root, view as unknown as Gtk.Widget)).toThrow('set_content()');
+                expect(view.get_content() === (chrome as unknown as Gtk.Widget)).toBe(true);
+            });
+
+            await it('an ADDER slot still appends past what the app put there', async () => {
+                // The refusal is about slots that REPLACE. Where the container
+                // appends, the documented offset behaviour is the right answer and
+                // stays unchanged.
+                const view = new Adw.ToolbarView();
+                view.add_top_bar(new Gtk.Label({ label: 'app bar' }));
+                const root = createElement('GtkLabel', { label: 'host bar', slot: 'top' });
+                mountRoot(root, view as unknown as Gtk.Widget);
+                expect(root.attached).toBe(true);
+            });
+
+            await it('an EMPTY composite still mounts — internal children are not the app', async () => {
+                // The discriminator. A child-list snapshot cannot answer this:
+                // measured on gtk 4.22 / libadwaita 1.8, a FRESH widget already has
+                // direct children nobody placed — Gtk.ScrolledWindow two
+                // GtkScrollbars, Adw.ToolbarView two GtkRevealers, Adw.Window an
+                // AdwDialogHost + an AdwGizmo, Adw.StatusPage a GtkScrolledWindow —
+                // while every one of their slot getters answers null. Keying the
+                // refusal on the child list would have made all four unmountable.
+                const containers: Gtk.Widget[] = [
+                    new Gtk.ScrolledWindow() as unknown as Gtk.Widget,
+                    new Adw.Window() as unknown as Gtk.Widget,
+                    new Adw.StatusPage() as unknown as Gtk.Widget,
+                ];
+                for (const container of containers) {
+                    expect(gtkChildren(container).length > 0).toBe(true); // GTK's own structure
+                    const root = createElement('GtkLabel', { label: 'mounted' });
+                    mountRoot(root, container);
+                    expect(root.attached).toBe(true);
+                }
+                const view = new Adw.ToolbarView();
+                expect(gtkChildren(view as unknown as Gtk.Widget).length > 0).toBe(true);
+                const content = createElement('GtkLabel', { label: 'mounted', slot: 'content' });
+                mountRoot(content, view as unknown as Gtk.Widget);
+                expect(view.get_content() === (content.widget as unknown as Gtk.Widget)).toBe(true);
+            });
+
+            await it('sees a nested slot occupant that a child-list walk cannot', async () => {
+                // The container a real Adwaita app mounts into. Measured on
+                // libadwaita 1.8: `Adw.ApplicationWindow.set_content(chrome)` leaves
+                // chrome INSIDE the window's AdwDialogHost/AdwGizmo, so it is not a
+                // direct child at all — the direct children stay
+                // ["AdwDialogHost","AdwGizmo"] while `get_content()` returns chrome.
+                // Same shape for `Adw.Window` and `Adw.StatusPage`. A snapshot of the
+                // child list therefore cannot SEE the application's widget, and the
+                // replacement goes through unnoticed; only the slot getter answers.
+                const win = new Adw.ApplicationWindow();
+                const chrome = new Gtk.Label({ label: 'app chrome' });
+                win.set_content(chrome);
+                const direct = gtkChildren(win as unknown as Gtk.Widget);
+                expect(direct.some((w) => w === (chrome as unknown as Gtk.Widget))).toBe(false);
+
+                const root = createElement('GtkLabel', { label: 'host root' });
+                expect(() => mountRoot(root, win as unknown as Gtk.Widget)).toThrow('already holds a child');
+                expect(win.get_content() === (chrome as unknown as Gtk.Widget)).toBe(true);
+            });
+
+            await it('a slot the app clears itself is free again', async () => {
+                const win = new Gtk.ScrolledWindow();
+                const chrome = new Gtk.Label({ label: 'app chrome' });
+                win.set_child(chrome);
+                const root = adopt(win as unknown as Gtk.Widget);
+                win.set_child(null); // the app changes its mind
+
+                const child = createElement('GtkLabel', { label: 'host root' });
+                insert(child, root);
+                expect(child.attached).toBe(true);
+            });
+        });
     });
 };
 
