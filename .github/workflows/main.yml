@@ -1966,6 +1966,7 @@ jobs:
             cross-runtime=${{ needs.cross-runtime.result }}
             macos=${{ needs.macos.result }}
             e2e=${{ needs.e2e.result }}
+            cold-bootstrap=${{ needs.cold-bootstrap.result }}
             integration=${{ needs.integration.result }}
             examples=${{ needs.examples.result }}
             browser=${{ needs.browser.result }}
