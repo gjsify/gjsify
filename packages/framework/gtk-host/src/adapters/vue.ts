@@ -16,8 +16,8 @@
 // of them cannot be honoured on GTK. They throw rather than lie: a silently wrong
 // window is the failure this package exists to prevent.
 
-import { createRenderer } from '@vue/runtime-core';
-import type Gtk from '@girs/gtk-4.0';
+import { createRenderer, type RendererOptions } from '@vue/runtime-core';
+import Gtk from 'gi://Gtk?version=4.0';
 
 import {
     adopt,
@@ -103,15 +103,63 @@ function asHostParent(parent: HostElement): HostElement {
     return adopted;
 }
 
+/**
+ * `<KeepAlive>` and `<Suspense>` ask the host for an OFF-SCREEN container.
+ *
+ * `KeepAliveImpl.setup` opens with `const storageContainer = createElement("div")`
+ * and `SuspenseImpl` does the same for its `hiddenContainer`. Forwarded as a tag,
+ * "div" reached `lookupWidget` and threw `unknown-tag` — and KeepAlive's setup runs
+ * inside `callWithErrorHandling`, whose PRODUCTION arm is `console.error(err)` with
+ * no rethrow. Measured under exactly the defines this adapter's build recipe
+ * mandates: `mount()` returned normally, the container had ZERO children, GTK
+ * emitted no diagnostic, exit 0, and the only trace was one line of
+ * `{"code":"unknown-tag","name":"GtkHostError"}` — a message-less object.
+ *
+ * A detached box is the faithful analogue of the DOM's detached `<div>`: the
+ * deactivated subtree is really unparented from the visible tree and really held
+ * alive, so reactivating it moves the SAME widgets back.
+ */
+const scratchContainer = (): HostElement => adopt(new Gtk.Box());
+
+/**
+ * ARITY separates a user element from an internal scratch request — MEASURED, not
+ * assumed, and the obvious alternative does not work.
+ *
+ * `mountElement` calls `hostCreateElement(vnode.type, namespace, props && props.is,
+ * props)` — always four arguments. `KeepAlive`/`Suspense` call `createElement("div")`
+ * with one. Instrumenting this function printed `arity=4` for every user element
+ * (`["GtkBox",…]`, `["GtkLabel",…]`, `["AdwActionRow",…]`) and `arity=1` for
+ * `["div"]`, with nothing else at either arity.
+ *
+ * Testing the LATER PARAMETERS for undefined cannot do it: `namespace` is
+ * `ElementNamespace = 'svg' | 'mathml' | undefined`, so a plain GTK element gets
+ * `undefined` there too — the same value the missing argument produces. (A probe
+ * that printed the arguments through `JSON.stringify` showed `null` and looked
+ * like a discriminator; `JSON.stringify([undefined])` is `"[null]"`.) Arity is the
+ * only fact that differs, which is why a rest parameter is worth the cast.
+ *
+ * A user's `<div>` therefore still arrives with four arguments and is still
+ * refused by name — handing IT a scratch container would trade one silent
+ * acceptance for another.
+ */
+type VueCreateElement = RendererOptions<HostNode, HostElement>['createElement'];
+
+const createElementOp = ((...args: unknown[]) =>
+    args.length === 1
+        ? scratchContainer()
+        : // Vue hands the props over, so construct-only values arrive in time and the
+          // host does not have to rebuild on the first patch. They are the RAW vnode
+          // props though, reserved keys included — `key`, `ref` and the `onVnode*`
+          // lifecycle hooks are Vue's own and are not GObject properties. Passing
+          // them through produced `<GtkLabel> has no property "key"` on the first
+          // keyed list.
+          hostCreateElement(
+              args[0] as string,
+              withoutReservedProps(args[3] as Record<string, unknown> | null),
+          )) as unknown as VueCreateElement;
+
 const renderer = createRenderer<HostNode, HostElement>({
-    createElement: (type, _namespace, _isCustomizedBuiltIn, vnodeProps) =>
-        // Vue hands the props over, so construct-only values arrive in time and the
-        // host does not have to rebuild on the first patch. They are the RAW vnode
-        // props though, reserved keys included — `key`, `ref` and the `onVnode*`
-        // lifecycle hooks are Vue's own and are not GObject properties. Passing
-        // them through produced `<GtkLabel> has no property "key"` on the first
-        // keyed list.
-        hostCreateElement(type, withoutReservedProps(vnodeProps)),
+    createElement: createElementOp,
 
     createText: (text: string) => hostCreateText(text),
 

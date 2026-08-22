@@ -8,7 +8,7 @@
 import { expect, it, on } from '@gjsify/unit';
 
 import Gtk from 'gi://Gtk?version=4.0';
-import { defineComponent, h, ref, nextTick, Teleport } from '@vue/runtime-core';
+import { defineComponent, h, ref, nextTick, KeepAlive, Teleport } from '@vue/runtime-core';
 
 import { gtkChildTypes, gtkChildren, installDiagnosticsGate } from '../conformance/index.js';
 import { gated } from '../testing/gate.mjs';
@@ -258,6 +258,82 @@ export default async () => {
                     expect(gtkChildTypes(container)).toStrictEqual([]);
                 });
             }
+
+            // --- <KeepAlive> --------------------------------------------------
+            //
+            // `<Suspense>` shares the mechanism and is deliberately NOT imported
+            // here: `SuspenseImpl` carries `hydrate: hydrateSuspense`, which
+            // contains a literal `document.createElement("div")`, and importing it
+            // grows this bundle from 191 032 B to 274 177 B with
+            // HTMLCanvasElement/Path2D and gi://Gdk, GdkPixbuf, Pango and
+            // PangoCairo (measured; `--exclude-globals document` brings it back to
+            // 196 614 B). The README carries that measurement and the escape.
+
+            await it('<KeepAlive> round-trips a component through the scratch container', async () => {
+                const container = new Gtk.Box();
+                const current = ref('A');
+                let bump = () => {};
+                const A = defineComponent({
+                    name: 'A',
+                    setup() {
+                        const n = ref(0);
+                        bump = () => {
+                            n.value += 1;
+                        };
+                        return () => h('GtkLabel', { label: `A${n.value}` });
+                    },
+                });
+                const B = defineComponent({ name: 'B', setup: () => () => h('GtkLabel', { label: 'B' }) });
+                const app = mount(
+                    defineComponent({
+                        render: () => h(KeepAlive, null, { default: () => h(current.value === 'A' ? A : B) }),
+                    }),
+                    container,
+                );
+
+                // Before the scratch container this line read `[]`: KeepAlive's
+                // `createElement("div")` threw inside `setup`, Vue's production
+                // error handler printed the code-only object and swallowed it, and
+                // mount() returned normally with nothing rendered.
+                expect(labelsOf(container)).toStrictEqual(['A0']);
+                const widget = gtkChildren(container)[0];
+                bump();
+                await nextTick();
+                expect(labelsOf(container)).toStrictEqual(['A1']);
+
+                current.value = 'B';
+                await nextTick();
+                expect(labelsOf(container)).toStrictEqual(['B']);
+                // Deactivated, not destroyed: it left the visible tree for the
+                // detached box, so its widget still has a parent.
+                expect(widget.get_parent() === null).toBe(false);
+                expect(widget.get_parent() === container).toBe(false);
+
+                current.value = 'A';
+                await nextTick();
+                // The SAME widget object, and the component's own state with it —
+                // which is the only thing that distinguishes a working KeepAlive
+                // from a re-mount that merely looks right.
+                expect(gtkChildren(container)[0] === widget).toBe(true);
+                expect(labelsOf(container)).toStrictEqual(['A1']);
+                app.unmount();
+            });
+
+            await it('a user element is still refused by name — arity, not a guess', async () => {
+                // The scratch container must not become a silent yes for anything
+                // a user writes. Vue calls `createElement` with FOUR arguments for
+                // a user element and ONE for its own off-screen storage, so the
+                // same `<div>` that KeepAlive is granted is still refused here.
+                const container = new Gtk.Box();
+                let error: GtkHostError | undefined;
+                try {
+                    mount(defineComponent({ render: () => h('div', null, 'nope') }), container);
+                } catch (e) {
+                    error = e as GtkHostError;
+                }
+                expect(error?.code).toBe('unknown-tag');
+                expect(gtkChildTypes(container)).toStrictEqual([]);
+            });
 
             // --- <Teleport> ---------------------------------------------------
 

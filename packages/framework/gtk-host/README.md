@@ -208,6 +208,29 @@ Where Vue differs from Solid, and it is all in what Vue asks for:
   `remove` is only ever a real unmount: with it mapped to `destroy`, a keyed
   reorder still reuses 3 of 3 widget objects and the handlers are gone after
   `app.unmount()`. Solid uses one op for both and must therefore detach.
+- **`<KeepAlive>` and `<Suspense>` get a detached scratch container.**
+  `KeepAliveImpl.setup` opens with `createElement("div")` for its off-screen
+  storage and `SuspenseImpl` does the same for its `hiddenContainer`. Forwarded as
+  a tag, `"div"` threw `unknown-tag` *inside `setup`* — and Vue routes that through
+  `callWithErrorHandling`, whose production arm is `console.error(err)` with no
+  rethrow. Measured under the defines below: `mount()` returned normally, the
+  container had **zero** children, GTK emitted no diagnostic, exit 0, and the only
+  trace was one line of `{"code":"unknown-tag","name":"GtkHostError"}`.
+
+  The adapter hands those calls an unparented box through `adopt`, which is the
+  faithful analogue of the DOM's detached `<div>`: deactivating really unparents
+  the subtree and really keeps it alive, so reactivating moves the *same* widgets
+  back. Measured end to end — a `<KeepAlive>`d component's widget object and its
+  own `ref` state both survive a toggle away and back.
+
+  **The discriminator is ARITY, and it had to be measured.** `mountElement` calls
+  `hostCreateElement(vnode.type, namespace, props && props.is, props)` — four
+  arguments, always; the two built-ins call `createElement("div")` with one.
+  Testing the later parameters for `undefined` cannot separate them, because
+  `ElementNamespace` *is* `'svg' | 'mathml' | undefined` and a plain GTK element
+  gets `undefined` there too. So a user's own `<div>` still arrives with four
+  arguments and is still refused by name — the scratch container is never a
+  silent yes for something a user wrote.
 - **`cloneNode` and `insertStaticContent` throw.** They back Vue's static hoisting,
   and the second one takes an HTML *string*. Compile with `hoistStatic: false` and
   `transformHoist: null`; if that is ever lost, these throw at the first static
@@ -251,6 +274,27 @@ Vue's flags so dead-code elimination removes those branches:
 
 A vector asserts `globalThis.document` is `undefined`, so losing the recipe fails
 the suite rather than silently growing four typelib dependencies.
+
+**`Suspense` is the one import the recipe cannot save**, so measure the bundle if
+you use it. `SuspenseImpl` carries `hydrate: hydrateSuspense`, and that function
+contains a literal `document.createElement("div")` which no define eliminates —
+hydration is not dead code, it is simply never called here. Measured, same entry
+plus one named import, `--app gjs` with the four defines above:
+
+| import | bytes | typelibs | DOM |
+|---|---|---|---|
+| baseline (`createRenderer`) | 191 032 | `gi://GLib` | — |
+| `+ Teleport` | 194 907 | `gi://GLib` | — |
+| `+ KeepAlive` | 197 561 | `gi://GLib` | — |
+| `+ Suspense` | 274 177 | `+ Gdk, GdkPixbuf, Gio, Pango, PangoCairo` | `HTMLCanvasElement`, `Path2D` |
+| `+ Suspense`, `--exclude-globals document` | 196 614 | `gi://GLib` | — |
+
+`--exclude-globals document` is the escape: `--globals auto` is a static scan, so
+the identifier is what it reacts to, not whether the branch can run. Three more
+built-ins measured clean alongside `Teleport` and `KeepAlive` — `BaseTransition`
+(192–197 KB, `gi://GLib` only), `defineAsyncComponent` and `Fragment`. `Transition`
+is not in this table because `@vue/runtime-core` does not export it at all
+(`MISSING_EXPORT` from rolldown); it belongs to `runtime-dom`.
 
 A React adapter will run the same vectors, so "it works in Vue" and "it works in
 React" will mean the same thing.
