@@ -1246,6 +1246,131 @@ jobs:
       - name: E2E tests (shard ${{ matrix.shard }}/4)
         run: su testuser -c 'PATH="$PWD/node_modules/.bin:$PATH" node scripts/e2e-shard.mjs ${{ matrix.shard }} 4'
 
+  # ── build:infra on a cold tree with NO node ──────────────────────────
+  #
+  # WHAT IS ALREADY COVERED, so this job says only what that one cannot. The
+  # `build` job's "Bootstrap the build toolchain (cold trees only)" step does run
+  # `build:infra` under gjs on a cold build-output cache. It differs in exactly
+  # one dimension, and that dimension is the whole defect: `node` is on PATH
+  # there, so a package script's `node scripts/x.mjs` runs NATIVELY and is never
+  # bundled for GJS. The re-entry through `gjsify run --node-script` — where the
+  # `@gjsify/*` substitutions and every `--globals auto` register subpath have to
+  # RESOLVE against a tree that has not been built — was unreachable from CI.
+  #
+  # That is how it stayed broken: `build:infra` failed on a cold clone for a
+  # Node-less contributor, `open-todos.md` recorded the opposite as measured
+  # (the measurement deleted the two native facades, which leaves every
+  # workspace `lib/esm` in place — not the cold case it reads as), and the same
+  # failure blocked `check-refs-pin.mjs`, so `build:prebuilds` could not start
+  # either.
+  #
+  # WHY A CLONE AND NOT `git clean`. This checkout is warm by now: the setup
+  # composite restores `node_modules` AND the build-output cache. Cleaning it
+  # would destroy what the rest of the job graph depends on; a clone costs a
+  # hardlinked object store.
+  #
+  # WHY node_modules IS COPIED RATHER THAN INSTALLED. A cold clone is defined by
+  # having no `lib/esm`, NOT by having no dependencies — a real contributor runs
+  # `gjsify install` first, which is a ~2 GB extract this job has no reason to
+  # repeat. The workspace symlinks are RELATIVE (`../../packages/node/fs`), so a
+  # copy re-points them at the clone's own unbuilt packages, which is precisely
+  # the shape under test. `.cache` is dropped because it carries the build cache,
+  # and restoring that would hand the clone the outputs it must not have.
+  #
+  # A REAL COPY, not `cp -al`. Hardlinks were the first attempt and are wrong
+  # twice over: `/tmp` and the workspace are different filesystems in this
+  # container, so it fails outright with `Invalid cross-device link` (measured) —
+  # and even where it works, every file the build writes THROUGH a link would
+  # mutate the checkout's own `node_modules`, which the post-job `actions/cache`
+  # step then saves. A silent cache poisoned by a test tree is a worse bug than
+  # the seconds a local copy costs. The clone lives under `RUNNER_TEMP` for the
+  # same filesystem reason, so nothing here depends on `/tmp`'s mount.
+  #
+  # WHY `node` IS MOVED ASIDE RATHER THAN FAKED. The first version put a `node`
+  # on PATH that exits 127 and announces itself — the technique
+  # `workspace-node-free-gjs` uses — and it DEFEATED the mechanism under test.
+  # `writeNodeShim` installs the `node` that re-enters `gjsify run --node-script`
+  # only when `resolveBinOnPath('node')` finds nothing ("a real Node is present —
+  # leave it alone"), so a fake is indistinguishable from the real thing: gjsify
+  # declined to install its shim, the package script called the fake, and the run
+  # died with `FAKE node CALLED` — measured. A Node-less host is one where `node`
+  # resolves NOWHERE, so this makes that literally true for the duration of the
+  # step and restores it in a trap. The precondition is asserted before the build
+  # runs, because a `node` that survived would silently turn this job back into a
+  # duplicate of the `build` job's own cold-tree step.
+  cold-bootstrap:
+    needs: [changes, setup, build]
+    if: ${{ always() && needs.build.result == 'success' && needs.changes.outputs.skip-all != 'true' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        fedora: ${{ fromJSON(needs.setup.outputs.fedora-matrix) }}
+    name: Cold-tree build:infra, no node (Fedora ${{ matrix.fedora.v }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    timeout-minutes: 60
+    container:
+      image: ghcr.io/gjsify/ci-fedora:${{ matrix.fedora.v }}
+      options: --ulimit nofile=1048576:1048576
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/gjsify-setup
+        with:
+          fedora-version: ${{ matrix.fedora.v }}
+          # The CLI bundle THIS tree's build job produced. Deliberately not the
+          # published one `install.mjs` fetches: the question a PR must answer is
+          # whether its own source bootstraps a cold clone.
+          bootstrap-bundles: 'true'
+      - name: build:infra on a cold clone, with node absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          CLI="$PWD/packages/infra/cli/dist/cli.gjs.mjs"
+          test -f "$CLI" || { echo "::error::$CLI missing — the build job must publish it"; exit 1; }
+
+          COLD="${RUNNER_TEMP:-/tmp}/cold-tree"
+          rm -rf "$COLD"
+          git config --global --add safe.directory '*'
+          # Explicit SHA: `actions/checkout` leaves a DETACHED head, which a
+          # branch-following clone cannot reproduce.
+          SHA="$(git rev-parse HEAD)"
+          git clone --no-checkout "$PWD" "$COLD"
+          git -C "$COLD" checkout --detach "$SHA"
+          cp -a node_modules "$COLD/node_modules"
+          rm -rf "$COLD/node_modules/.cache"
+
+          # Assert the premise instead of assuming it. A warm clone would make
+          # this job green while testing nothing, which is the failure mode the
+          # job exists to remove.
+          if find "$COLD/packages" -maxdepth 4 -type d -path '*/lib/esm' | grep -q .; then
+            echo "::error::the clone is not cold — lib/esm present"; exit 1
+          fi
+          test -e "$COLD/node_modules/@gjsify/cli" || { echo "::error::node_modules did not come across"; exit 1; }
+
+          # Make this a Node-less host for real. Restored in a trap, so a failure
+          # inside the build cannot leave the container without an interpreter
+          # the post-job steps might want.
+          HIDDEN=""
+          for p in $(type -aP node npm npx 2>/dev/null || true); do
+            if mv "$p" "$p.gjsify-hidden" 2>/dev/null; then HIDDEN="$HIDDEN $p"; fi
+          done
+          restore_node() {
+            for p in $HIDDEN; do
+              [ -e "$p.gjsify-hidden" ] && mv "$p.gjsify-hidden" "$p" || true
+            done
+          }
+          trap restore_node EXIT
+
+          if su testuser -c 'command -v node' >/dev/null 2>&1; then
+            echo "::error::node is still reachable — writeNodeShim would decline and this job would test nothing"
+            exit 1
+          fi
+
+          chown -R testuser:testuser "$COLD"
+          su testuser -c "cd '$COLD' && XDG_CACHE_HOME='$COLD/.gjsify-cache' gjs -m '$CLI' run build:infra"
+
   # ── Integration suites (curated upstream tests) ─────────────────────
   # The suites under `tests/integration/` run real upstream test bodies against
   # `@gjsify/*`. They are the largest regression net this repo owns, and until
@@ -1568,7 +1693,7 @@ jobs:
   # Never gates. Its output is the step summary, not its exit code.
   ci-summary:
     name: CI coverage summary
-    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, integration, examples, browser]
+    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
@@ -1750,7 +1875,7 @@ jobs:
   # produces a fresh verdict anyway.
   gate:
     name: CI gate (GJS)
-    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, integration, examples, browser]
+    needs: [setup, changes, tree-checks, build, check, test, cross-runtime, macos, e2e, cold-bootstrap, integration, examples, browser]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     permissions:
@@ -1841,6 +1966,7 @@ jobs:
             cross-runtime=${{ needs.cross-runtime.result }}
             macos=${{ needs.macos.result }}
             e2e=${{ needs.e2e.result }}
+            cold-bootstrap=${{ needs.cold-bootstrap.result }}
             integration=${{ needs.integration.result }}
             examples=${{ needs.examples.result }}
             browser=${{ needs.browser.result }}
