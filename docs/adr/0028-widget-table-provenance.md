@@ -28,9 +28,25 @@ Choosing one and calling the other a fallback is the decision; leaving both as
 **The generated table is the shipped truth; runtime introspection is the value
 coercer and the verifier.**
 
-1. The widget table — tag, GType, property names, construct-only set, signals — is
-   generated at build time from the GIR, through `ts-for-gir` in the established
-   `build:gir-types` subprocess form. It travels with the package.
+1. The widget table is generated from the **GIR XML, read directly**, and it
+   travels with the package. What it SHIPS is the tag, the GType and the map
+   between them. Property names, the construct-only set and signal names are
+   consumed INSIDE the generator, to emit the type surfaces of § 6 — they are not
+   shipped as table data, because `props.ts` and `host.ts` already resolve every
+   property through `paramSpecs()` on the installed class, so a shipped copy would
+   have no consumer and would be exactly the second truth this ADR exists to
+   prevent.
+
+   Not `ts-for-gir` in the `build:gir-types` subprocess form, as an earlier draft
+   of this decision said: that form emits `.d.ts`, which answers a different
+   question. The input is a discoverable GIR directory. Measured on the
+   maintainer workstation, `/usr/share/gir-1.0` carries neither `Gtk-4.0.gir` nor
+   `Adw-1.gir` without `gtk4-devel`, and the `@girs/*` npm packages ship no `.gir`
+   at all — but `gjsify/ts-for-gir/girs/` in the surrounding workspace is
+   git-tracked and version-pinned, and the installed `org.gnome.Sdk` flatpak
+   runtimes carry one per SDK version. The generator therefore searches, names
+   what it found in the artifact's provenance line, and fails loudly rather than
+   guessing.
 2. What the GIR cannot express stays **curated**: which method adopts a child,
    whether the container reorders in place, where text goes, irregular event
    names. The generator may only ever ADD to a descriptor, never contradict a
@@ -43,6 +59,14 @@ coercer and the verifier.**
    must look like. This is not a second source — it is the only source for the
    question it answers, and it is why a string enum nick can be rejected by name
    instead of silently dropped.
+
+   What a ParamSpec CANNOT do is enumerate the legal nicks, and the type surfaces
+   need exactly that. Measured under gjs 1.88.1: `GEnumClass.values` is not
+   introspectable from GJS (`ec.values` is `undefined`) and
+   `GObject.enum_to_string` returns the C identifier, not the nick. The GIR — and
+   the typelib, via `ValueInfo.get_name()` — is the only source of the nick list.
+   That does not contradict this item, it delimits it: the ParamSpec validates a
+   value, the GIR enumerates the vocabulary.
 5. The table is checked against the installed typelib on demand
    (`descriptorProblems()`), and it checks the CLAIMS, not only the names: a text
    sink must be writable and a string (a non-string one accepts the write and
@@ -54,9 +78,29 @@ coercer and the verifier.**
 6. **The generated surfaces are a published artifact, not an internal file.** One
    table emits `JSX.IntrinsicElements` for TSX/JSX authoring, a Vue
    `GlobalComponents` interface (what `vue-tsc`/Volar reads to type-check a `.vue`
-   template), and a tag/property validator usable against Blueprint and its
-   GtkBuilder XML — so a widget name cannot mean different things in different
-   dialects. This is the alignment mechanism ADR 0027 § 9 names.
+   template), and a **data-only vocabulary export** that lets any dialect be
+   checked against the same names. This is the alignment mechanism ADR 0027 § 9
+   names.
+
+   The third surface was going to be "a tag/property validator usable against
+   Blueprint and its GtkBuilder XML". **Measurement struck it.**
+   `blueprint-compiler` 0.20.4 already validates against the installed typelib,
+   with did-you-mean suggestions, on exactly the three cases such a validator
+   would have caught — a misspelled property (`spacinng` → "Class Gtk.Box does not
+   have a property called spacinng. Did you mean `spacing`?"), an unknown widget
+   type (`Gtk.Labell` → "Did you mean `Label`?"), and an invalid enum member
+   (`orientation: sideways` → "sideways is not a member of Gtk.Orientation").
+   Building a second one would duplicate a better tool and give this repo a
+   validator with no measured value. What replaces it is the vocabulary export
+   plus a cross-dialect NAME-AGREEMENT check against `adwaita-web`'s custom
+   elements — an independent source, which is the part that can actually go red.
+
+   Two things the measurement did justify, neither of them a validator, both
+   tracked in `status/open-todos.md`: `blueprint-compiler lint` is advisory today
+   and `vite-plugin-blueprint` runs only `compile`, so making lint fatal is a
+   contained change with its own triage; and `AdwWindow` dispatches `<child>` on
+   the child's GType while ignoring `type=`, which no field in `ChildPolicy`
+   models, so any future placement validator needs a new curated field first.
 
    It is consumable from outside this repository **on purpose**, and the target is
    a GJS-convention consumer. Peachy authors GTK UIs in TSX on GJS and generates
@@ -72,6 +116,22 @@ coercer and the verifier.**
    whose conventions we do not control. If that ever falls out for free, take it;
    it does not get a line of machinery of its own. gtkx stays what
    `docs/references.md` already calls it: reference-only, worth reading.
+
+7. **The tag spellings are measured, not chosen.** JSX intrinsic elements are
+   kebab (`gtk-box`): a capitalized `JSX.IntrinsicElements` key is never
+   consulted, because `<GtkBox/>` is `TS2304: Cannot find name 'GtkBox'`. The Vue
+   `GlobalComponents` key is the **GType name** (`GtkBox`), because Volar resolves
+   a kebab tag to EITHER spelling but a Pascal tag only to a Pascal key — so one
+   key covers `<gtk-box>` and `<GtkBox>` with full prop and event checking, and
+   that one key is the GType, which is also the table key and the GtkBuilder XML
+   key. The registry accepts both spellings and the tag↔GType map is injective
+   over all 164 concrete widget classes.
+
+   The Vue surface is only worth shipping with its gate, and the gate has two
+   measured silent-green modes: without `vueCompilerOptions.strictTemplates: true`
+   an unknown tag and an unknown prop are both accepted, and with `vue` merely
+   absent `vue-tsc` exits 0 on a deliberately red fixture with no output at all.
+   Both need an explicit discriminator, or the gate is the checked-nothing class.
 
 ## Consequences
 
@@ -92,8 +152,20 @@ coercer and the verifier.**
 
 ## Implementation
 
-Until the generator lands, the table is curated in full under
-`packages/framework/gtk-host/src/descriptors/` and held to the same check. The
-generator and its four gates (every gtype present in the GIR; curated may add,
-never contradict; every named method exists on that GType; no vacuous descriptor)
-are tracked in `status/open-todos.md`.
+The curated table under `packages/framework/gtk-host/src/descriptors/` stays, and
+the generator may only ever ADD to it. Its four gates are: every curated gtype is
+present in the GIR; curated may add, never contradict; every method a policy names
+exists on that GType (with the ancestor walk — `set_child` is inherited, and an
+own-methods-only check reports two false failures); and no vacuous descriptor,
+with the emitted count floored so a parse that silently yields three entries
+fails.
+
+**The artifact is committed, and deliberately gets no regenerate-and-compare
+gate.** Committing is what makes `check`, `lint`, `format`, the build cache, the
+tarball and a fresh clone with no GIR all work unchanged, and it makes a widget
+table reviewable in a diff. A byte gate would instead fail for nothing the day a
+second CI leg runs a different GTK: four GTK versions sit on the maintainer
+workstation alone (4.16.13, 4.20.4, 4.22.4, 4.23.0) and the pinned `@girs` is a
+fifth answer. The machine-INDEPENDENT check is the runtime one that already
+exists — `descriptorProblems()` against the installed typelib, plus `tableSkew()`
+for classes the installed GTK does not have, which is version skew and not a bug.
