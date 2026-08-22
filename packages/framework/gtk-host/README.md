@@ -179,5 +179,52 @@ Three things the adapter has to know that the contract does not say:
 Solid's control-flow components (`For`, `Index`, `Show`) are re-exported re-typed:
 their runtime is renderer-agnostic, their types are pinned to the DOM's `Element`.
 
-Vue and React adapters will run the same vectors, so "it works in Vue" and "it
-works in Solid" will mean the same thing.
+`@gjsify/gtk-host/vue` is the second, and it is what makes "framework-agnostic"
+a measured claim rather than an ADR sentence: the same descriptor table and the
+same placement engine satisfy Vue's `RendererOptions` (10 required + 4 optional)
+and Solid's universal renderer (10) without either knowing about the other.
+
+```ts
+import { mount } from '@gjsify/gtk-host/vue';
+mount(defineComponent({ render: () => h('GtkBox', null, [h('GtkLabel', { label: 'hi' })]) }), myWindow);
+```
+
+Where Vue differs from Solid, and it is all in what Vue asks for:
+
+- **`createComment`.** Vue marks every `v-if` branch and fragment boundary with
+  one. That is why the host has anchors: they never enter the GTK tree, so an
+  empty branch cannot shift a sibling's index.
+- **`createElement` receives the vnode props**, so construct-only values arrive at
+  construction instead of forcing a rebuild. Solid's `createElement(tag)` cannot.
+  The props are RAW though — `key`, `ref` and the `onVnode*` hooks are Vue's own
+  and are filtered out; passing them through produced
+  `<GtkLabel> has no property "key"` on the first keyed list.
+- **`remove` is a TEARDOWN here, not a detach** — the opposite of the Solid
+  adapter, and measured both ways. Vue moves a node with `insert` alone, so
+  `remove` is only ever a real unmount: with it mapped to `destroy`, a keyed
+  reorder still reuses 3 of 3 widget objects and the handlers are gone after
+  `app.unmount()`. Solid uses one op for both and must therefore detach.
+- **`cloneNode` and `insertStaticContent` throw.** They back Vue's static hoisting,
+  and the second one takes an HTML *string*. Compile with `hoistStatic: false` and
+  `transformHoist: null`; if that is ever lost, these throw at the first static
+  subtree instead of rendering something wrong.
+
+**Build recipe.** `@vue/runtime-core` is DOM-free in fact — every `document`,
+`navigator`, `location` and `HTMLElement` reference sits in a dev/HMR/devtools
+path behind `typeof window !== 'undefined'` or `__DEV__`. But `--globals auto` is a
+static analysis and injects a polyfill for each identifier it sees, which made the
+bundle require `gi://Gdk`, `GdkPixbuf`, `Pango` and `PangoCairo` at load. Define
+Vue's flags so dead-code elimination removes those branches:
+
+```
+--define '__VUE_OPTIONS_API__=false'
+--define '__VUE_PROD_DEVTOOLS__=false'
+--define '__VUE_PROD_HYDRATION_MISMATCH_DETAILS__=false'
+--define 'process.env.NODE_ENV="production"'
+```
+
+A vector asserts `globalThis.document` is `undefined`, so losing the recipe fails
+the suite rather than silently growing four typelib dependencies.
+
+A React adapter will run the same vectors, so "it works in Vue" and "it works in
+React" will mean the same thing.
