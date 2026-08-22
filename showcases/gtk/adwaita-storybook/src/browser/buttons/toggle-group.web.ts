@@ -7,10 +7,14 @@ import { toggleGroupMeta } from '../../buttons/toggle-group.meta.js';
 
 const STYLE_CLASSES = ['flat', 'round'] as const;
 
-// The three toggles, mirroring the native demo. `view-columns` matches the
-// native `view-columns-symbolic`; @gjsify/adwaita-web supplies that glyph (it is
-// not in the vendored icon theme, so build-scss adds it). The previous
-// `view-dual` name had no `.adw-icon--*` rule and rendered blank.
+// The three toggles, mirroring the native demo. The previous `view-dual` name had no
+// `.adw-icon--*` rule and rendered blank.
+//
+// `view-columns` DIVERGES, and this pane is the better-off half: the name is in no icon
+// theme at all, so the GTK story beside it draws the broken-image paintable while
+// build-scss.mjs hand-draws a 3-column glyph for the web. Ledgered under that name in
+// status/adwaita-web-icon-masks.json, which the third arm of
+// scripts/check-adwaita-icon-masks.mjs holds.
 const TOGGLES: ReadonlyArray<{ label: string; icon: string }> = [
     { label: 'List', icon: 'view-list' },
     { label: 'Grid', icon: 'view-grid' },

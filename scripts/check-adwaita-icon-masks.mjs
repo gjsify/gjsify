@@ -308,14 +308,55 @@ function compiledNames() {
         else if (source[end] === '}' && --depth === 0) break;
     }
     const body = stripComments(source.slice(start, end));
-    return new Set([...body.matchAll(/^ {4}'?([a-z0-9-]+)'?:/gm)].map((match) => match[1]));
+    return new Map([...body.matchAll(/^ {4}'?([a-z0-9-]+)'?:\s*([A-Za-z_$][\w$]*)\s*,/gm)].map((m) => [m[1], m[2]]));
+}
+
+/** Every binding `build-scss.mjs` imports from `@gjsify/adwaita-icons`. */
+function vendoredGlyphs() {
+    const source = readFileSync(ICONS_MAP, 'utf8');
+    const names = new Set();
+    for (const block of source.matchAll(/import\s*\{([^}]*)\}\s*from\s*'@gjsify\/adwaita-icons[^']*'/g)) {
+        for (const spec of block[1].split(',')) {
+            const local = spec
+                .trim()
+                .split(/\s+as\s+/)
+                .pop()
+                ?.trim();
+            if (local) names.add(local);
+        }
+    }
+    return names;
 }
 
 const emitted = emittedNames();
 const compiled = compiledNames();
+const vendored = vendoredGlyphs();
 
-const unresolved = [...emitted.keys()].filter((name) => !compiled.has(name)).sort();
-const unused = [...compiled].filter((name) => !emitted.has(name)).sort();
+/** Every name in an unhappy state, mapped to what is unhappy about it. */
+const problems = new Map();
+const note = (name, message) => problems.set(name, [...(problems.get(name) ?? []), message]);
+
+for (const name of [...emitted.keys()].sort()) {
+    if (compiled.has(name)) continue;
+    note(
+        name,
+        `emitted by ${[...emitted.get(name)].sort().join(', ')} and the ICONS map has no entry, ` +
+            'so it draws the image-missing fallback',
+    );
+}
+
+for (const [name, glyph] of compiled) {
+    if (!emitted.has(name)) {
+        note(name, 'is in the ICONS map and nothing emits it — every entry costs ~1.5 KB of the stylesheet');
+    }
+    // ARM 3: a glyph the map does not take from `@gjsify/adwaita-icons` is one only the
+    // WEB has, so the GTK and Blueprint panes it is compared against draw the theme's
+    // broken image for the same name. Arms 1 and 2 are blind to it — both directions
+    // agree, and the divergence is in the VALUE.
+    if (!vendored.has(glyph)) {
+        note(name, `is drawn from a local \`${glyph}\`, not from @gjsify/adwaita-icons — no other renderer has it`);
+    }
+}
 
 const ledger = JSON.parse(readFileSync(LEDGER, 'utf8'));
 const reviewed = ledger.reviewed ?? {};
@@ -323,26 +364,16 @@ const listed = new Set(Object.keys(reviewed));
 
 const failures = [];
 
-for (const name of unresolved) {
+for (const [name, messages] of problems) {
     if (listed.has(name)) continue;
-    failures.push(
-        `${name} — emitted by ${[...emitted.get(name)].sort().join(', ')} and the ICONS map has no entry, ` +
-            'so it draws the image-missing fallback.',
-    );
-}
-
-for (const name of unused) {
-    if (listed.has(name)) continue;
-    failures.push(`${name} is in the ICONS map and nothing emits it — every entry costs ~1.5 KB of the stylesheet.`);
+    for (const message of messages) failures.push(`${name} ${message}.`);
 }
 
 // The ratchet: an entry whose situation has resolved has to leave the ledger, or it
 // keeps claiming an exemption for a state that no longer exists.
 for (const name of listed) {
-    if (emitted.has(name) && compiled.has(name)) {
-        failures.push(`${name} is listed, but it is now both emitted and compiled — remove the entry.`);
-    } else if (!emitted.has(name) && !compiled.has(name)) {
-        failures.push(`${name} is listed, but nothing emits it and nothing compiles it — remove the entry.`);
+    if (!problems.has(name)) {
+        failures.push(`${name} is listed, but nothing about it needs an exemption any more — remove the entry.`);
     } else if (typeof reviewed[name] !== 'string' || reviewed[name].trim().length < MIN_REASON) {
         // A placeholder entry is an unreviewed list again, one key at a time. The floor
         // is crude by design: it cannot judge a sentence, only refuse a blank.
