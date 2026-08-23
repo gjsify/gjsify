@@ -32,7 +32,7 @@ https://github.com/gjsify/gjsify/releases/tag/v0.28.0
 
 ## What this release is about
 
-**Two things an app could not do, both of which fail silently when you get them wrong.**
+**Three things an app could not do, every one of which fails silently when you get it wrong.**
 
 ---
 
@@ -104,3 +104,44 @@ malformed type name (`update-mime-database` ignores it), a glob with no wildcard
 only a file called exactly that), a type with neither a glob nor a parent type (nothing can ever
 match it), and a duplicate definition (which comment wins would depend on document order). See
 ADR 0024 § A11.
+
+### A shared widget can have a Blueprint template
+
+Blueprint was quietly an application-only feature. The `.blp` transform was installed by the
+`--app gjs|node|browser` build factories and by nothing else, so a `.blp` imported from a package
+built with `--library` reached rolldown's JavaScript parser — and a Blueprint file's first line,
+`using Gtk 4.0;`, is *valid JavaScript*: a `using` resource declaration with no initializer. The
+build died on `Using declarations must have an initializer.` with nothing anywhere naming Blueprint.
+
+The consequence was not the error message, which at least stops you. It was what the error pushed
+people to do instead: a widget shared between applications had to assemble itself in TypeScript, and
+a caption assigned from TypeScript carries no `translatable` attribute, so `xgettext` never sees it.
+`LoadingStack`'s error page says "Something went wrong" in every consumer, in English, permanently —
+and that is invisible, because an untranslatABLE string looks exactly like one nobody has translated
+yet.
+
+`--library` builds now run the same transform the app factories do.
+
+`LoadingStack` itself stays as it was, and the reason is worth writing down because it applies to
+every package in THIS repo. Converting it was tried and reverted: `blueprint-compiler` is not
+installed on the macOS or Windows runners, and this package builds on all three — so a `.blp` here
+makes the compiler a hard build requirement for every host rather than only for hosts that ship an
+app. Worse, the repo bootstraps from the PUBLISHED CLI (ADR 0002), which is the release BEFORE this
+one and therefore has no library-mode transform; during a cold bootstrap the `.blp` reaches the
+JavaScript parser and the consumer-gate jobs fail exactly there. A capability cannot be used by the
+tree that introduces it until it has shipped once. The first real consumers are applications, which
+build with their own installed CLI: an app's shared widgets can carry templates today.
+
+`tests/e2e/library-blueprint/` holds the capability instead. It builds a library fixture and asserts
+the emitted module carries the compiled Builder XML with `translatable="yes"` — and, as the
+discriminator, that a MALFORMED `.blp` fails through blueprint-compiler rather than through the
+JavaScript parser, since a JS-parser message would mean the transform never ran and the first
+assertion passed for some other reason.
+
+Two new lint rules keep the door shut, both measured against this workspace before being switched
+on. `gjsify/prefer-blueprint-template` reports a `Gtk`/`Adw` subclass that constructs widgets *and*
+parents them while declaring no `Template` — both signals are required, because constructing without
+parenting is a model and parenting without constructing is a reparent. `gjsify/no-literal-widget-label`
+reports a bare string literal in a prose property (`title`, `label`, `subtitle`, `tooltip-text`, …),
+which is the half that survives even after a class has a template. Learn6502, which carries a whole
+application in 24 Blueprint files, reports zero under both.

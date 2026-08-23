@@ -130,7 +130,35 @@ export type ChildPolicy =
      */
     | { kind: 'keyed'; add: string; remove: string; nameFrom: string; titled: boolean }
     /** `Gtk.Grid`: position is data on the child, so document order carries nothing. */
-    | { kind: 'coords'; attach: string; remove: string };
+    | { kind: 'coords'; attach: string; remove: string }
+    /**
+     * Generated, not curated: the tag exists, its placement rule does not.
+     *
+     * The generated table adds every concrete GtkWidget descendant the GIR
+     * describes — 164 of them — while the curated table measures placement for a
+     * fraction. Guessing an adder for the rest would be the worst of the three
+     * options: `add` and `append` and `set_child` all exist somewhere in GTK, and
+     * calling the wrong one is a warning at exit 0.
+     *
+     * So the honest state is spelled out. Such a widget can be CREATED and given
+     * properties and handlers; inserting a child raises a named error that says
+     * which tag needs a curated policy. A leaf widget — most of the 164 — needs
+     * nothing more.
+     */
+    | { kind: 'uncurated' };
+
+/**
+ * One row of the GENERATED table: a tag, its GType, and how to reach the class.
+ *
+ * Deliberately not a `WidgetDescriptor`: it carries no placement rule, so making
+ * it the same type would invite a `children` field to appear here and become a
+ * second source for what `descriptors/` owns.
+ */
+export interface GeneratedWidget {
+    readonly gtype: string;
+    readonly tag: string;
+    readonly ctor: () => GObject.ObjectClass & (new (props?: Record<string, unknown>) => GObject.Object);
+}
 
 export interface WidgetDescriptor {
     /** GType name — and the tag a renderer writes. `GtkButton`, `AdwActionRow`. */

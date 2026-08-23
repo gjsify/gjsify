@@ -56,6 +56,21 @@ export function makeWrapper(policy: ChildPolicy, child: Gtk.Widget): Gtk.Widget 
  * `set_property('label', …)` leaves `w.get_parent() === null`, and `set_child`
  * after a `label` write leaves `label === null`. One widget, one slot, two APIs.
  */
+/**
+ * Compile-time exhaustiveness, which this package does NOT get for free.
+ *
+ * `tsconfig.json` sets `strict: false`, so a switch that stops covering its union
+ * simply falls through and returns `undefined` — no error. Adding the `uncurated`
+ * policy kind passed `tsc` cleanly while five switches silently ignored it, which
+ * is exactly the class of green-and-wrong this package exists to prevent
+ * elsewhere. Assignability to `never` is not a strictness option, so a `default`
+ * arm calling this DOES fail the build (measured) and is the only mechanism that
+ * makes the next union member impossible to forget.
+ */
+export function unhandledPolicy(policy: never): never {
+    throw new Error(`unhandled child policy: ${JSON.stringify(policy)}`);
+}
+
 export function setterSlotOf(parent: HostElement, child: HostElement): string | null {
     const policy = parent.descriptor.children;
     if (policy.kind === 'single') return policy.set;
@@ -133,6 +148,9 @@ function placeChild(place: Placement): void {
         case 'none':
             throw err.unclaimedChild(parent.descriptor.gtype, child.descriptor.gtype);
 
+        case 'uncurated':
+            throw err.uncuratedPlacement(parent.descriptor.gtype, child.descriptor.gtype);
+
         case 'single':
             host[policy.set](address);
             return;
@@ -171,6 +189,8 @@ function placeChild(place: Placement): void {
             appendChild(parent, child, host);
             rotateTail(parent, child, place.following, host);
             return;
+        default:
+            return unhandledPolicy(policy);
     }
 }
 
@@ -179,6 +199,8 @@ function appendChild(parent: HostElement, child: HostElement, host: AnyWidget): 
     const policy = parent.descriptor.children;
     const address = addressOf(child);
     switch (policy.kind) {
+        case 'uncurated':
+            throw err.uncuratedPlacement(parent.descriptor.gtype, child.descriptor.gtype);
         case 'ordered':
             host[policy.append](address);
             return;
@@ -210,6 +232,10 @@ function appendChild(parent: HostElement, child: HostElement, host: AnyWidget): 
             );
             return;
         }
+        // Every remaining kind cannot append at all — `none` by declaration,
+        // `single` and `indexed` because they address a slot or an index rather
+        // than an end. `uncurated` is handled above, by name, so this arm never
+        // silently swallows it.
         default:
             throw err.unclaimedChild(parent.descriptor.gtype, child.descriptor.gtype);
     }
@@ -245,6 +271,10 @@ function detachChild(parent: HostElement, child: HostElement, host: AnyWidget): 
 
     switch (policy.kind) {
         case 'none':
+        // A child can never have been placed into either, so there is nothing to
+        // take out — and reaching here at all means an insert was refused, which
+        // already threw by name.
+        case 'uncurated':
             return;
         case 'single':
             clearIfCurrent(host, policy.set, address);
@@ -268,6 +298,8 @@ function detachChild(parent: HostElement, child: HostElement, host: AnyWidget): 
         case 'coords':
             host[policy.remove](address);
             return;
+        default:
+            return unhandledPolicy(policy);
     }
 }
 
@@ -291,6 +323,8 @@ export function removeChild(parent: HostElement, child: HostElement): void {
 /** Does this parent reorder in place, or does it pay a full re-append? Declared, not guessed. */
 export function reorderMode(policy: ChildPolicy): 'native' | 'remove-all' | 'n/a' {
     switch (policy.kind) {
+        case 'uncurated':
+            return 'n/a';
         case 'ordered':
             return policy.reorder;
         case 'indexed':
@@ -305,5 +339,7 @@ export function reorderMode(policy: ChildPolicy): 'native' | 'remove-all' | 'n/a
         case 'single':
         case 'none':
             return 'n/a';
+        default:
+            return unhandledPolicy(policy);
     }
 }
