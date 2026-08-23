@@ -21,7 +21,9 @@ import Gtk from 'gi://Gtk?version=4.0';
 import { installDiagnosticsGate } from './conformance/index.js';
 import { BUILTIN_DESCRIPTORS, CURATED_DESCRIPTORS, GENERATED_WIDGETS } from './descriptors/index.js';
 import { DECLS, ENUM_NICKS, OWN_PROPS, OWN_SIGNALS, SINCE, TAGS } from './generated/surface-data.mjs';
+import { camelOf, eventPropOf } from './generator/tsmap.mjs';
 import { isWritable, lookupEnumNick, paramSpecs } from './props.js';
+import { isEventProp, toSignalName } from './signals.js';
 import { hasWidget, lookupWidget } from './registry.js';
 import { assertInjective, tagOf } from './tags.js';
 import { gated } from './testing/gate.mjs';
@@ -199,6 +201,60 @@ export default async () => {
                 expect(problems).toStrictEqual([]);
             });
 
+            await it('names every event prop so the host resolves it back to the same signal', async () => {
+                // TWO INDEPENDENT IMPLEMENTATIONS, checked against each other: the
+                // generator derives `onRowActivated` from `row-activated`, and the
+                // host's `parseEventProp` derives a signal name back from the prop.
+                // Nothing made them agree, and the first run of this check found
+                // that they did not — GObject.Object's `notify` signal became
+                // `onNotify`, which the host read as `notify::` with an empty
+                // property name.
+                const problems: string[] = [];
+                for (const [declaration, signals] of Object.entries(OWN_SIGNALS)) {
+                    for (const signal of signals) {
+                        const prop = eventPropOf(signal);
+                        const back = toSignalName(prop);
+                        if (back !== signal) problems.push(`${declaration}::${signal} -> ${prop} -> ${back}`);
+                    }
+                }
+                for (const [declaration, names] of Object.entries(OWN_PROPS)) {
+                    for (const name of names) {
+                        const camel = camelOf(name);
+                        const prop = `onNotify${camel.charAt(0).toUpperCase()}${camel.slice(1)}`;
+                        const back = toSignalName(prop);
+                        if (back !== `notify::${name}`) problems.push(`${declaration}.${name} -> ${prop} -> ${back}`);
+                    }
+                }
+                expect(problems).toStrictEqual([]);
+            });
+
+            await it('offers no property a framework would swallow or mistake for a signal', async () => {
+                // Two whole classes of silent failure, both a GTK release away:
+                //
+                //  - a property named `on-something` generates `onSomething`, which
+                //    `isEventProp` reads as an event binding — the property would
+                //    never be written and no diagnostic would say so.
+                //  - a property named `key` or `ref` is in Vue's `isReservedProp`
+                //    set, which the Vue adapter strips before the props reach the
+                //    host, so it would silently never be applied.
+                //
+                // Measured clean today over all 561 distinct names, and that is
+                // exactly why it is asserted rather than noted.
+                const reserved = new Set(['key', 'ref', 'ref_for', 'ref_key', 'is', 'class', 'style']);
+                const problems: string[] = [];
+                for (const [declaration, names] of Object.entries(OWN_PROPS)) {
+                    for (const name of names) {
+                        const camel = camelOf(name);
+                        if (isEventProp(camel)) problems.push(`${declaration}.${name} reads as an event prop`);
+                        if (reserved.has(name)) problems.push(`${declaration}.${name} is a framework-reserved name`);
+                    }
+                }
+                expect(problems).toStrictEqual([]);
+                // Not vacuous: the two shapes it looks for.
+                expect(isEventProp(camelOf('on-something'))).toBe(true);
+                expect(isEventProp(camelOf('orientation'))).toBe(false);
+            });
+
             await it('reports a fabricated name — none of the above is vacuous', async () => {
                 // Each check above walks real data and would report `[]` just as
                 // happily over an empty table. These run the same lookups against
@@ -209,6 +265,8 @@ export default async () => {
                 expect(GObject.signal_lookup('no-such-signal', Gtk.Box.$gtype)).toBe(0);
                 expect(lookupEnumNick('GtkOrientation', 'vertical')).toBe(Gtk.Orientation.VERTICAL);
                 expect(lookupEnumNick('GtkOrientation', 'sideways')).toBe(undefined);
+                expect(toSignalName(eventPropOf('row-activated'))).toBe('row-activated');
+                expect(toSignalName('onNotifyNoSuchThing')).toBe('notify::no-such-thing');
             });
         });
     });

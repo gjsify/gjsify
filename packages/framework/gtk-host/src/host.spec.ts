@@ -343,6 +343,27 @@ export default async () => {
         });
 
         await gated(diagnostics, 'signals', async () => {
+            await it('binds onNotify to the plain notify signal, not to notify::', async () => {
+                // GObject.Object declares `notify`, so the generated surface offers
+                // `onNotify` on every widget — and the per-property branch turned it
+                // into `notify::` with an empty name, which GJS refuses outright.
+                // The prop the surface offers has to bind the signal it names.
+                const label = createElement('GtkLabel');
+                const widget = materialize(label) as unknown as Gtk.Label;
+                const seen: string[] = [];
+                setEventHandler(label, 'onNotify', (spec: unknown) => {
+                    seen.push((spec as GObject.ParamSpec).get_name());
+                });
+                setProp(label, 'label', 'hello');
+                setProp(label, 'xalign', 0.25);
+                expect(widget.label).toBe('hello');
+                // Every property write reaches it, which is what `notify` means —
+                // and a `notify::`-shaped prop still selects exactly one.
+                expect(seen.includes('label')).toBe(true);
+                expect(seen.includes('xalign')).toBe(true);
+                expect(label.handlers.has('notify')).toBe(true);
+            });
+
             await it('keeps exactly one native handler per signal name', async () => {
                 const button = createElement('GtkButton');
                 const widget = materialize(button) as unknown as Gtk.Button;
