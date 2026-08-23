@@ -205,7 +205,7 @@ const hasPreview = Astro.slots.has('preview');
 
     {
         attributes && attributes.length > 0 && (
-            <details class="adw-widget-attrs">
+            <details class="adw-widget-attrs not-content">
                 <summary>
                     <code>{`<${elementTag}>`}</code> takes {attributes.length}{' '}
                     {attributes.length === 1 ? 'attribute' : 'attributes'}
