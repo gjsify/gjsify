@@ -1,11 +1,13 @@
 export * from './types.js';
 export { GtkHostError } from './errors.js';
 export {
+    adopt,
     createAnchor,
     createElement,
     createText,
     clearContainer,
     destroy,
+    disconnectHandlers,
     firstChild,
     insert,
     isText,

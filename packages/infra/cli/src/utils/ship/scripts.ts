@@ -12,7 +12,7 @@
 // which is exactly the class of defect a rendered-output assertion would have
 // waved through.
 
-import type { ShipSettings } from './types.js';
+import type { PayloadFacts } from './payload.js';
 
 /**
  * The cache refreshes this payload makes necessary, each guarded by the tool's
@@ -21,22 +21,32 @@ import type { ShipSettings } from './types.js';
  * The caches belong to the distribution, not to us: on removal the helper may
  * already be gone, and a maintainer script that fails during a purge leaves a
  * package the user cannot uninstall.
+ *
+ * Keyed on the PAYLOAD, not on the settings. Each line refreshes exactly one
+ * directory, so the honest precondition is "did this package install anything
+ * into that directory" — which the payload answers and a project's file lists
+ * only approximate. They came apart in one measured case: a `kind: 'cli'`
+ * project with a `data/icons/` folder staged no icon at all (icons are an
+ * `'app'` thing in `planStage`) while `settings.iconFiles` was non-empty, so
+ * the postinst refreshed an icon cache for files that were never installed.
+ * The second reason is ADR 0024 § A2: those lists are absolute BUILD-host
+ * paths, and this code now also runs on a host that has only the staged tree.
  */
-export function cacheRefreshCommands(settings: ShipSettings, prefix: string): string[] {
+export function cacheRefreshCommands(facts: PayloadFacts, prefix: string): string[] {
     const refreshes: Array<{ probe: string; run: string }> = [];
-    if (settings.kind === 'app') {
+    if (facts.hasDesktopEntry) {
         refreshes.push({
             probe: 'update-desktop-database',
             run: `update-desktop-database -q ${prefix}/share/applications`,
         });
     }
-    if (settings.iconFiles.length > 0) {
+    if (facts.hasIcons) {
         refreshes.push({
             probe: 'gtk-update-icon-cache',
             run: `gtk-update-icon-cache -q -t -f ${prefix}/share/icons/hicolor`,
         });
     }
-    if (settings.mimeTypes.length > 0) {
+    if (facts.hasMimeTypes) {
         // Without this the document is installed and the type still does not exist: detection runs
         // off the compiled cache in `share/mime/`, not off the packages directory.
         refreshes.push({
@@ -44,7 +54,7 @@ export function cacheRefreshCommands(settings: ShipSettings, prefix: string): st
             run: `update-mime-database ${prefix}/share/mime`,
         });
     }
-    if (settings.schemaFiles.length > 0) {
+    if (facts.hasSchemas) {
         refreshes.push({
             probe: 'glib-compile-schemas',
             run: `glib-compile-schemas ${prefix}/share/glib-2.0/schemas`,
@@ -60,8 +70,8 @@ export function cacheRefreshCommands(settings: ShipSettings, prefix: string): st
  * and several abort paths, and on an upgrade the incoming package's `postinst`
  * refreshes the caches anyway.
  */
-export function renderDebScripts(settings: ShipSettings, prefix: string): Record<string, string> {
-    const commands = cacheRefreshCommands(settings, prefix);
+export function renderDebScripts(facts: PayloadFacts, prefix: string): Record<string, string> {
+    const commands = cacheRefreshCommands(facts, prefix);
     if (commands.length === 0) return {};
     const body = commands.map((line) => `    ${line}`).join('\n');
     return {
@@ -79,8 +89,8 @@ export function renderDebScripts(settings: ShipSettings, prefix: string): Record
  * work rather than a wrong result, where guarding on `[ $1 -eq 0 ]` would be
  * one more place to get the convention backwards.
  */
-export function renderRpmScriptlets(settings: ShipSettings, prefix: string): { post?: string; postun?: string } {
-    const commands = cacheRefreshCommands(settings, prefix);
+export function renderRpmScriptlets(facts: PayloadFacts, prefix: string): { post?: string; postun?: string } {
+    const commands = cacheRefreshCommands(facts, prefix);
     if (commands.length === 0) return {};
     const body = `${commands.join('\n')}\n`;
     return { post: body, postun: body };

@@ -103,10 +103,33 @@ export const err = {
             `<${parentTag}> refused <${childTag}>: ${reason}. The container accepts only certain child types ` +
                 `(e.g. AdwPreferencesPage takes AdwPreferencesGroup); the descriptor cannot know that, GTK does.`,
         ),
+    siblingCycle: (parentTag: string) =>
+        new GtkHostError(
+            'sibling-cycle',
+            `The child list of <${parentTag}> does not terminate. A renderer linked a node to itself ` +
+                `or into a loop; the host refuses to walk it rather than spin. This is a host or adapter ` +
+                `bug, not an application one — please report it with the reordering that produced it.`,
+        ),
     notAWidget: (tag: string) =>
         new GtkHostError(
             'not-a-widget',
             `<${tag}> is not a Gtk.Widget, so it cannot be placed as a child. ` +
                 `Non-widget GObjects (controllers, filters, models) attach to a property, not to a parent.`,
+        ),
+    occupiedSlot: (parentTag: string, childTag: string, setter: string) =>
+        new GtkHostError(
+            'occupied-slot',
+            `<${parentTag}> already holds a child the application put there, and ${setter}() takes only ONE — ` +
+                `placing <${childTag}> would unparent it. GTK does that silently: no throw, no warning, exit 0, ` +
+                `and the application's own widget is simply gone. Mount into a container of your own inside ` +
+                `<${parentTag}>, or clear the existing child first (${setter}(null)) if replacing it is the intent.`,
+        ),
+    notAHostParent: (got: string) =>
+        new GtkHostError(
+            'not-a-host-parent',
+            `insert() needs a host element as the parent and got ${got}. A raw widget cannot be one: the shadow ` +
+                `tree lives in the host's own fields, so writing them onto a GObject wrapper renders nothing and ` +
+                `reports nothing — Vue's <Teleport to="someWidget"> hands the widget through verbatim and landed ` +
+                `exactly here. Wrap it with adopt(widget) first, which is what mountRoot() does.`,
         ),
 };

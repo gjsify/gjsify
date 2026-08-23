@@ -34,6 +34,15 @@ export const POSIX_PATH_SLICE_EXCEPTIONS = {
     'packages/node/fs/src/browser/opfs.ts':
         'An OPFS virtual path. The Origin Private File System has no host separator to inherit ' +
         '— its directory delimiter is `/` by the File System Access spec.',
+    'packages/infra/cli/src/utils/ship/stage-manifest.ts':
+        'A PAYLOAD path out of `.gjsify-ship-stage.json` — the same `/`-separated archive ' +
+        'path that ends up inside the `.deb`/`.rpm`. `PayloadEntry.path` is POSIX-separated ' +
+        'by its own type contract and `planStage` builds every one with `posix.join`, ' +
+        'deliberately: the two-phase split exists so a stage assembled on one host is packed ' +
+        'on another, which a host-separated manifest could not survive. The `.join(sep)` here ' +
+        'is the one-way conversion FROM that portable identifier TO a host path, so the split ' +
+        'side must be `/` — using a both-separator helper would corrupt a legitimate Linux ' +
+        'filename containing a backslash.',
     'packages/infra/cli/src/utils/ship/rpm.ts':
         'An ARCHIVE path. RPM describes the TARGET filesystem, not the build host: `DIRNAMES` ' +
         'entries are `/`-terminated and `BASENAMES` carries the last component, both defined ' +

@@ -41,21 +41,49 @@ is the curated half: 26 descriptors for GTK4 + libadwaita under
 `descriptorProblems()` — every method and text sink a descriptor names must exist
 on that GType.
 
-Two mechanisms named in ADR 0027/0028 do NOT exist yet, and both are deliberately
-absent rather than stubbed:
+One mechanism named in ADR 0028 does NOT exist yet, and it is deliberately absent
+rather than stubbed:
 
 - **The generator** (`gen-descriptors.mjs`) and its four gates: every `gtype`
   present in the GIR; curated may ADD to a descriptor, never contradict it; every
   method a policy names exists on that GType; no vacuous descriptor. Until it
   lands, a widget missing from the table is a `GtkHostError: unknown-tag` at
   render time rather than a build error.
-- **The import-direction check** that makes "no adapter carries a widget name
-  literal or an insertion rule" mechanical. It lands with the FIRST adapter: a
-  scan with nothing to scan reports green while proving nothing, which is the
-  failure class this repo pays most for. Until then the rule is held by review.
 
-Neither blocks the host itself — the placement vectors assert against the real
-GTK tree today — but both block calling the table trustworthy at scale.
+It does not block the host itself — the placement vectors assert against the real
+GTK tree today — but it blocks calling the table trustworthy at scale.
+
+(The import-direction check that ADR 0027 § 7 needs is no longer pending: it
+landed with the Solid adapter as `scripts/check-adapter-import-direction.mjs`,
+runs in the audit job, and refuses to run on an empty adapter set.)
+
+### Two measured placement defects the adapters PR did NOT fix
+
+Both surfaced while reviewing the Solid/Vue adapters, both are pre-existing in
+the host rather than introduced by them, and both are recorded here with the
+measurement rather than shipped quietly.
+
+- **An adopted composite offsets by its own internals.** A fresh
+  `Adw.PreferencesPage` has one direct child — its internal `GtkScrolledWindow` —
+  so `adopt()` records `foreign.length === 1` and every subsequent `index` is off
+  by one. Measured on gtk 4.22.4 / libadwaita 1.9.3: `mountRoot` into an
+  `AdwPreferencesPage`, insert a group "one", then prepend "zero" before it, and
+  GTK renders **[one, zero]**; the identical tree in a NON-adopted page renders
+  **[zero, one]**. Exit 0, zero diagnostics. Reachable from any `<For>`/`v-for`
+  that prepends into the canonical Adwaita settings page.
+  The root cause is the same insight the occupied-slot refusal already acts on —
+  a composite's DIRECT children are not the list its `add()` addresses — but the
+  getter that fixes it for one-child slots has no counterpart for appending
+  policies, so it needs its own round. Adder slots that are NOT composites are
+  fine: an adopted `AdwToolbarView` still renders `[app bar, host bar]`.
+
+- **Removing an element child does not restate the text it displaced.** GTK's
+  `set_child(icon)` clears `label` to null, so `createElement('GtkButton', {label:
+  'Save'})` + insert an icon + remove it leaves a BLANK button, while the host
+  still holds `props.label === 'Save'`. That is
+  `<Button label="Save"><Show when={x}><Icon/></Show></Button>` toggling off, or
+  the `v-if` equivalent — reachable, not theoretical, and the mirror image of the
+  text-side guard that IS in place.
 ### Nothing runs `build:infra` on a cold tree with no `node`
 
 The bootstrap ADR 0002 documents — `gjs -m install.mjs` → `gjsify install
@@ -1575,13 +1603,15 @@ Open, in order — each independently mergeable, each with its proof:
 1. ~~**`fail_on_unmatched_files` on the release upload.**~~ **DONE (#1252).** `release-cut.yml` globbed the `.deb`/`.rpm` onto the release with the flag absent, so a glob matching nothing uploaded nothing and left the cut green — while the gate that follows checked only `install.mjs` and `cli.gjs.mjs`, and `gjsify self-update` sends system-prefix installs to exactly those assets. Landed: the flag, an install-URL gate that COUNTS what `ship` wrote (the names carry the version and the arch label, so they are read off disk), and `scripts/check-workflow-release-globs.mjs`, wired into both `audit-runtimes` jobs because `release-cut.yml` never runs on a pull request. Correcting a number this list carried: `if-no-files-found: error` appears **33** times, not 37 — the 37 was inherited from a draft and never remeasured.
 2. ~~**`kind: 'app'` was dead under the shipped GJS bin, and the cause was TWO gates deep.**~~ **DONE (#1257).** one of its six sites was already fixed at the call site by #1251, which moved that template into source. What the first reading of this entry got right: `rewrite-node-modules-paths.ts`'s `shouldRewrite()` returns false unless the path contains `node_modules`, and it guards the only production call site of `inlineStaticReads`, so the CLI never offered its own reads to the inliner. What it MISSED, and what makes opening that gate insufficient on its own: the inliner parsed with acorn, **which cannot read TypeScript**, and its `catch` returns `inlined: 0` — a value indistinguishable from "this file has no static reads". An installed package ships JS, so the scope kept the parser limitation invisible; measured, the same expression returned 1 as `.js` and 0 as `.ts`. Also worth keeping: the obvious repair is a trap. Rolldown's own oxc parser links npm `rolldown` into a module that must load under GJS, and the CLI bundle then died at startup with `createRequire: Cannot require builtin module "fs" synchronously in GJS`. Fixed with `acorn-typescript`, which is pure JS. **Correcting the reason this list gave for that trap, because the wrong reason makes it look unfixable:** npm `rolldown` does not fail under GJS because it is "a napi crate that cannot run under GJS". It fails one layer higher, in JS: `rolldown/dist/shared/binding-*.mjs` evaluates `createRequire(import.meta.url)` at module scope and its platform-detection preamble calls `__require('node:fs')` / `__require('node:child_process')` — the error quoted above is that require, and no `.node` is ever opened. So the blocker is a module-loading strategy, not an ABI. The published 0.41.0 still ENOENTs on `generate-installer`, `flatpak scaffold` and the two oxc config templates until 0.42.0 ships.
 3. **Pack from a stage alone** (`--from-stage` + `.gjsify-ship-stage.json`). **In flight: #1268.** The sidecar is a closure — `{settings (arch resolved at stage time), staged, overlay, namespaces, mtime}` — not a settings dump: measured, dropping `staged` packs the launcher 0644, dropping the overlay omits the Debian-Policy copyright file, dropping `namespaces` loses `gir1.2-gtk-4.0` and `gir1.2-adw-1` from `Depends`, all silently at exit 0. `readStage` must fail on a staged path the plan does not name AND on a planned path the stage lacks (its `?? 0o644` fallback inherits the open `download-artifact` MERGE hazard). Never `writeStage` onto an arriving stage — it opens with `rmSync(root, {recursive: true})`. *Proof, and the deletion IS the discriminator:* stage into a tmpdir, **delete the project tree**, pack from the stage, assert byte-equality with the single-host artifact.
-4. **`ship-pack-linux` on a bare `ubuntu-latest`** (no container), downloading a stage and packing deb+rpm. **In flight: #1268** — except the `FORMAT_IDS` binding, deliberately held back because it edits the same `formats.ts` / `settings.ts` that PR changes. First real `dpkg -i --dry-run` this project has ever run, plus `rpm` via `docker run --rm fedora:44`, on a free runner — it closes the `dpkg` gap below and exercises the whole cross-host handoff with formats that already exist, before any darwin runner is involved. Fold in binding `FORMAT_IDS` to `manifest-conformance/lib/rules/ship.mjs`'s `TARGETS = new Set(['deb','rpm'])`, a second source of truth that will reject the first legitimate new declaration.
+4. **`ship-pack-linux` on a bare `ubuntu-latest`** (no container), downloading a stage and packing deb+rpm. **In flight: #1268**, the `FORMAT_IDS` binding included — it was folded in rather than opened as a third PR once the CI queue, not review capacity, turned out to be the scarce resource. First real `dpkg -i --dry-run` this project has ever run, plus `rpm` via `docker run --rm fedora:44`, on a free runner — it closes the `dpkg` gap below and exercises the whole cross-host handoff with formats that already exist, before any darwin runner is involved. The vocabulary turned out to have SIX copies, not two: `FormatId`, `FORMATS`, `FORMAT_IDS`, two `extraDepends` reads, the packer dispatch, two ternaries in `depends.ts`, `manifest-conformance`'s `TARGETS`, and a `--target deb,rpm` in `main.yml`. Seven are now compiler-bound or derived, `TARGETS` is bound by `scripts/check-ship-format-vocabulary.mjs` (an import would break the rule's `portable` scope), and the workflow flag is gone. The two `depends.ts` ternaries were the ones that mattered: a third format silently took rpm's package name into a Debian `Depends:`, at exit 0.
 5. **Stages 4/5 proper** — macOS `.app` + zip and the Windows program directory + zip (`finishOn: 'any'`), then `.dmg` on `macos-latest`/`macos-15-intel` and `.msi`. Blocked on 2 and 3. Windows launcher is unresolved and is a VM measurement, not a design argument: `node.exe` is a CONSOLE-subsystem image (Subsystem=3 at offset 0xd4, v24.19.0), `nodew.exe` does not exist, and every Windows CI leg starts the app from a shell and therefore inherits a console — so no CI leg can observe the defect. Instrument is `win11-gjsify`.
 6. **Stage 6 — Flatpak as a target under `ship`.** The metadata half already moved (`utils/app-metadata.ts`); what is left is the staging path (`buildsystem: simple` + `cp -a stage/.`, which is what removes meson from inside the sandbox) and the deprecation window for the `gjsify.flatpak` config keys. Sequenced AFTER the descriptor refactor: Flatpak's whole content is one prefix-layout row, and writing it first means writing it twice.
 7. **Bundled Node for `--app node`** — still undecided between a ship-time fetch and a platform package (ADR 0017's shape). Stages 4/5 need it: an unsigned artifact is a legitimate output, an artifact with no interpreter is not.
 8. **`dpkg` is on no CI runner this project uses**, so the `.deb` is never verified by a real `dpkg -i`. What IS verified: GNU `ar` and GNU `tar` (independent readers of the container and of both inner tars), every `md5sums` digest recomputed, and the data member unpacked and compared byte-for-byte against the staged tree. The `.rpm` half has no such gap — `rpm` is on every Fedora image and `rpm -i --test` runs there. Item 4 closes this for free (#1268 carries it). Also undeclared while it stands: `tests/e2e/ship` makes `ar` required on Linux, but `binutils` appears nowhere in `.docker/ci-fedora.Dockerfile` — it is present only transitively via `gcc`.
 9. **Two docs sentences become false** with host-bound formats: `website/src/content/docs/ship/index.mdx` promises the packers "run anywhere" and that there is "no packaging file to keep in your repo". Both need replacing when `--format dmg` and `gjsify ship ci` land.
 10. **A scaffolded workflow is verified by nothing.** The only scaffolder in the tree (`flatpak ci`) is asserted by four `assert.match` regexes on raw text — never parsed as YAML, never actionlint'd (which discovers only this repo's `.github/workflows/**`), never run. ADR 0024 names this exact class for `ship`; it already exists one command over. Minimum bar for `ship ci`: emit into gjsify's own workflows directory too, and `bash -n` every extracted `run:` block.
+
+11. **Every `.deb` this writer produces ships no `changelog.Debian.gz`.** `E: gjsify: no-changelog usr/share/doc/gjsify/changelog.Debian.gz (non-native package)` — Debian Policy § 4.4, and the only error-severity tag left once the copyright landed. Ledgered rather than fixed in #1268 because it is a FEATURE, not a repair: a second overlay beside the copyright, assembled on the build host and carried in the sidecar the same way, whose open question is what the entry SAYS. A Debian changelog is a release history with a distribution and an urgency per entry, so the honest minimum needs a source for each version's prose (the GitHub release body? a `CHANGELOG.md`?) and an RFC822 date this writer does not produce anywhere yet. Measured by the first real lintian this project has ever run (2.117 on ubuntu-24.04); reproduce the whole leg locally with `podman run --rm -v <workdir>:/w:z -w /w ubuntu:24.04` plus `apt-get install -y sudo gjs lintian`, which is how this entry and #1268's two `verify-deb.sh` corrections were found without a CI round trip each.
 
 ### Upstream PRs in flight (NativeScript) — track until merged
 

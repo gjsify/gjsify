@@ -44,6 +44,54 @@ export function makeWrapper(policy: ChildPolicy, child: Gtk.Widget): Gtk.Widget 
     return flowChild;
 }
 
+/**
+ * The ONE-CHILD setter this child's placement goes through, or null.
+ *
+ * `single` always is one (`set_child`, `set_content`); a `slotted` slot is one
+ * when its method is a setter (`set_content`, `set_title_widget`) rather than an
+ * adder. Such a slot REPLACES — and it does so silently, which is why four call
+ * sites need the same question answered. Two of them are about an ELEMENT
+ * arriving; the other two are about TEXT, because GTK's text sink is the SAME
+ * slot: measured on gtk 4.22, `button.set_child(w)` followed by
+ * `set_property('label', …)` leaves `w.get_parent() === null`, and `set_child`
+ * after a `label` write leaves `label === null`. One widget, one slot, two APIs.
+ */
+export function setterSlotOf(parent: HostElement, child: HostElement): string | null {
+    const policy = parent.descriptor.children;
+    if (policy.kind === 'single') return policy.set;
+    if (policy.kind !== 'slotted') return null;
+    const method = policy.slots[child.slot ?? policy.defaultSlot];
+    return method?.startsWith('set_') === true ? method : null;
+}
+
+/** Every one-child slot this policy has, by setter name — `single` has exactly one. */
+export function setterSlots(policy: ChildPolicy): string[] {
+    if (policy.kind === 'single') return [policy.set];
+    if (policy.kind !== 'slotted') return [];
+    return Object.values(policy.slots).filter((method) => method.startsWith('set_'));
+}
+
+/**
+ * Who GTK says is in a one-child slot. `undefined` means there is no getter to ask.
+ *
+ * The slot's own getter is the ONLY honest reader of this, and a child-list walk
+ * is not a substitute: measured on gtk 4.22.4 / libadwaita 1.9.3, a FRESH widget
+ * already has direct children the application never put there —
+ * `Gtk.ScrolledWindow` two `GtkScrollbar`s, `Adw.ToolbarView` two
+ * `GtkRevealer`s, `Adw.Window` an `AdwDialogHost` + an `AdwGizmo`,
+ * `Adw.StatusPage` a `GtkScrolledWindow` — while every one of those widgets
+ * answers `null` from its getter. The getter also survives GTK wrapping the
+ * child: `Gtk.ScrolledWindow.set_child(label)` reports a `GtkViewport`, not the
+ * label, so callers may compare occupants for IDENTITY but never assume the
+ * occupant is the widget they handed over.
+ */
+export function slotOccupant(widget: Gtk.Widget, setter: string): Gtk.Widget | null | undefined {
+    const host = widget as unknown as AnyWidget;
+    const getter = setter.replace(/^set_/, 'get_');
+    if (typeof host[getter] !== 'function') return undefined;
+    return (host[getter]() as Gtk.Widget | null) ?? null;
+}
+
 export interface Placement {
     parent: HostElement;
     child: HostElement;
@@ -180,9 +228,9 @@ function rotateTail(parent: HostElement, child: HostElement, following: readonly
     const policy = parent.descriptor.children;
     let tail = following;
     if (policy.kind === 'slotted') {
+        if (setterSlotOf(parent, child)) return; // one child, no order
         const slotOf = (el: HostElement) => el.slot ?? policy.defaultSlot;
         const mine = slotOf(child);
-        if (policy.slots[mine]?.startsWith('set_')) return; // one child, no order
         tail = following.filter((el) => slotOf(el) === mine);
     }
     for (const el of tail) detachChild(parent, el, host);
@@ -206,9 +254,9 @@ function detachChild(parent: HostElement, child: HostElement, host: AnyWidget): 
             // child and has the same hazard as `single`: the insert-then-unmount
             // order Solid and React use would clear a slot that already holds the
             // replacement.
-            const method = policy.slots[child.slot ?? policy.defaultSlot];
-            if (method?.startsWith('set_')) {
-                clearIfCurrent(host, method, address);
+            const setter = setterSlotOf(parent, child);
+            if (setter) {
+                clearIfCurrent(host, setter, address);
                 return;
             }
             host[policy.remove](address);
@@ -224,8 +272,7 @@ function detachChild(parent: HostElement, child: HostElement, host: AnyWidget): 
 }
 
 function clearIfCurrent(host: AnyWidget, setter: string, address: Gtk.Widget): void {
-    const getter = setter.replace(/^set_/, 'get_');
-    const current = typeof host[getter] === 'function' ? host[getter]() : undefined;
+    const current = slotOccupant(host as unknown as Gtk.Widget, setter);
     if (current === undefined || current === address) host[setter](null);
 }
 

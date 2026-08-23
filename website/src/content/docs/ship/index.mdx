@@ -43,6 +43,7 @@ write, no meson, and no packaging file to keep in your repo.
 ```
 ship/
 ├── stage/              the payload: bin/, lib/<name>/, share/
+│   └── .gjsify-ship-stage.json   what a packing host needs, if it is not this one
 ├── overlay/<format>/   what one format wants elsewhere (today: the licence)
 └── out/
     ├── my-app_1.2.3-1_all.deb
@@ -52,6 +53,45 @@ ship/
 The payload in `ship/stage/` is built once, and both packers read it back off
 disk. Whatever you find in there is what a user gets, so it is worth a look
 before you publish anything.
+
+## Assemble here, pack there
+
+`gjsify ship --stage` stops after the payload and writes
+`ship/stage/.gjsify-ship-stage.json` beside it. That file is the closure the
+packing step needs — the file modes, the pre-rendered licence overlay, the GI
+namespaces read out of your bundle, and the build stamp — so the tree can be
+handed to another machine and packed there:
+
+```bash
+gjsify ship --stage                              # anywhere, under GJS, offline
+gjsify ship --from-stage ./stage                 # on the host the format needs
+```
+
+`--from-stage` needs no project: no `package.json`, no config, no built bundle.
+That is what lets one CI job assemble and another finish on the host a format
+belongs to. The modes come from the recorded plan, so a stage that travelled
+through an artifact upload — which stores no POSIX mode at all — still installs
+an executable `bin/` entry.
+
+`--expect-target <os>-<arch>` is available on the finish step and does exactly
+one job: it refuses a stage assembled for a different matrix leg, so a job that
+downloaded the wrong artifact stops instead of packing it.
+
+```bash
+gjsify ship --from-stage ./stage --expect-target linux-x64
+```
+
+It compares against the value the stage recorded, not against the machine you
+are packing on — packing an `arm64` stage on an `x64` runner is a supported
+path and a host check would refuse it. It is therefore **not** a check that the
+label matches the bytes. That one is unconditional and needs no flag: if the
+payload carries a native image whose ELF `e_machine` or Mach-O `cputype`
+contradicts the architecture the package is being labelled with, `gjsify ship`
+refuses and names the file and both architectures.
+
+Note that `--arch` only reaches the label when the payload contains a native
+image at all. A pure-JS payload is `Architecture: all` / `BuildArch: noarch`
+whatever you pass, because that is what it honestly is.
 
 ## Give it to someone
 
@@ -120,7 +160,10 @@ project declaring anything other than `gjsify.app: "gjs"` is refused with a
 message saying so, instead of producing a package that installs and then fails
 to start. The Linux half is not enforced, only true. Both packers are plain
 JavaScript with no `dpkg-deb` or `rpmbuild` behind them, so the command runs
-anywhere; what you get on a Mac is a Linux package built on a Mac.
+anywhere; what you get on a Mac is a Linux package built on a Mac. That is a
+property of these two formats, not of `ship`: a macOS `.dmg` is an image over a
+real HFS+/APFS volume and will have to be packed on macOS, which is why
+assembling and packing are separable at all.
 
 macOS bundles, Windows installers, and Flatpak as a target of this command are
 planned but not here yet. Use `gjsify flatpak` for Flatpak in the meantime, and

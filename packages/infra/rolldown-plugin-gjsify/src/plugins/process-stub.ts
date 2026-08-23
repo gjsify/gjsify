@@ -16,6 +16,7 @@
 import type { Plugin } from 'rolldown';
 
 import { BUNDLE_URL_BANNER } from './bundle-url-banner.js';
+import { GJS_INTL_SEGMENTER_STUB } from './intl-segmenter-banner.js';
 import { GJS_WELLKNOWN_SYMBOLS_STUB } from './wellknown-symbols-banner.js';
 import { giRuntimePathsStub, type GiSystemProbe } from './gi-runtime-paths.js';
 
@@ -129,6 +130,9 @@ export function processStubPlugin(options: ProcessStubPluginOptions = {}): Plugi
     const stub =
         (options.captureBundleUrl ? BUNDLE_URL_BANNER : '') +
         GJS_WELLKNOWN_SYMBOLS_STUB +
+        // Before the process stub and before module init: `get-east-asian-width`
+        // constructs a Segmenter at module scope, so a later injection is too late.
+        GJS_INTL_SEGMENTER_STUB +
         GJS_PROCESS_STUB +
         giRuntimePathsStub(options.giRuntimePaths ?? [], options.giSystemProbes ?? []);
     const banner = composeBanner(stub, options.userBanner ?? '');

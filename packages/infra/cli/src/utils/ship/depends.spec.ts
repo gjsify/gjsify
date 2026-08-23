@@ -13,7 +13,7 @@ import { deriveDepends, formatDebDepend, knownNamespaces, parseDepend, warnAbout
 import { resolveFormats } from './formats.js';
 import { parseGiSpecifier, scanGiNamespaces } from './gi-namespaces.js';
 
-const base = { kind: 'app' as const, hasSchemas: false, extra: [] };
+const base = { hasIcons: true, hasSchemas: false, extra: [] };
 
 export default async () => {
     await describe('deriveDepends', async () => {
@@ -22,7 +22,7 @@ export default async () => {
             // check fails every project that uses gjsify's WebGL bridge.
             const depends = deriveDepends('deb', {
                 namespaces: ['Gtk-4.0', 'Gwebgl-0.1'],
-                kind: 'app',
+                hasIcons: true,
                 hasSchemas: false,
                 extra: [],
                 bundledTypelibs: ['/p/gi/Gwebgl-0.1.typelib', '/p/gi/libgwebgl.so'],
@@ -37,7 +37,7 @@ export default async () => {
             expect(() =>
                 deriveDepends('deb', {
                     namespaces: ['Totally-1.0'],
-                    kind: 'app',
+                    hasIcons: true,
                     hasSchemas: false,
                     extra: [],
                     bundledTypelibs: ['/p/gi/Gwebgl-0.1.typelib'],

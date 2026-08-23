@@ -23,11 +23,11 @@ import { createArArchive } from './ar.js';
 import { formatDebDepend } from './depends.js';
 import { gzipDeterministic } from './gzip.js';
 import { renderDebScripts } from './scripts.js';
-import type { PayloadEntry } from './payload.js';
-import type { ShipSettings } from './types.js';
+import { readPayloadFacts, type PayloadEntry } from './payload.js';
+import type { PackSettings } from './types.js';
 
 export interface DebInputs {
-    settings: ShipSettings;
+    settings: PackSettings;
     /** The staged payload, prefix-relative. */
     payload: readonly PayloadEntry[];
     /** Install prefix, e.g. `/usr`. */
@@ -41,7 +41,7 @@ export interface DebInputs {
 }
 
 export async function buildDeb(inputs: DebInputs): Promise<Uint8Array> {
-    const { settings, payload, mtime } = inputs;
+    const { payload, mtime } = inputs;
     const prefix = inputs.prefix.replace(/^\/+/, '');
 
     const named = payload.map((entry) => ({ ...entry, tarPath: `./${posix.join(prefix, entry.path)}` }));
@@ -70,7 +70,10 @@ export async function buildDeb(inputs: DebInputs): Promise<Uint8Array> {
         { name: './control', body: control, mode: 0o644, mtime },
         { name: './md5sums', body: md5sums, mode: 0o644, mtime },
     ];
-    const maintainerScripts = renderDebScripts(settings, inputs.prefix);
+    // From the PAYLOAD, not the settings: the maintainer scripts refresh exactly the
+    // directories this package wrote into, and since ADR 0024 § A2 this packer also runs on a
+    // host that has the staged tree and no project to ask.
+    const maintainerScripts = renderDebScripts(readPayloadFacts(payload), inputs.prefix);
     for (const [name, body] of Object.entries(maintainerScripts)) {
         // dpkg refuses a maintainer script outside 0555–0775 with the mode in
         // the error, so this is 0755 rather than "whatever the source had".

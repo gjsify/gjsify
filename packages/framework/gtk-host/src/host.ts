@@ -10,7 +10,16 @@ import GObject from 'gi://GObject';
 import type Gtk from '@girs/gtk-4.0';
 
 import { err } from './errors.js';
-import { addressOf, insertChild, makeWrapper, removeChild, type Placement } from './policies.js';
+import {
+    addressOf,
+    insertChild,
+    makeWrapper,
+    removeChild,
+    setterSlotOf,
+    setterSlots,
+    slotOccupant,
+    type Placement,
+} from './policies.js';
 import { beginHostWrite, clearHandlers, endHostWrite, isEventProp, setHandler, toSignalName } from './signals.js';
 import { coerce, defaultValue, paramSpecs, requireSpec, toPropertyName } from './props.js';
 import { lookupWidget, nearestRegistered } from './registry.js';
@@ -39,6 +48,8 @@ export function createElement(tag: string, props?: Record<string, unknown>): Hos
         layout: null,
         textFromChildren: false,
         attached: false,
+        destroyed: false,
+        foreign: [],
     };
     if (props) {
         for (const [key, value] of Object.entries(props)) setProp(el, key, value);
@@ -129,7 +140,7 @@ function replayInto(el: HostElement): void {
     // exist yet. Placing them now is what makes bottom-up construction work, and
     // every framework builds bottom-up: Vue and React create and fill a subtree
     // before inserting it into its parent.
-    for (let child = el.first; child; child = child.next) {
+    for (const child of siblingsFrom(el.first, el)) {
         if (child.kind === 'element') attach(el, child);
     }
     if (el.textFromChildren) flushText(el);
@@ -373,6 +384,25 @@ function flushText(el: HostElement): void {
     // `cleanChildren` does `createTextNode("")`. Rejecting those made a `v-for`
     // impossible to mount into ANY sink-less container. Real text still throws.
     if (text === '' && !el.textFromChildren) return;
+    // Clearing the sink must not take an element child with it. GTK's text sink
+    // IS the one-child slot: measured on gtk 4.22, `set_child(custom)` gives
+    // `custom.parent === GtkButton` and the very next `set_property('label','')`
+    // gives `custom.parent === NULL`. Solid and React reconcile
+    // INSERT-then-REMOVE (`solid-js/universal`'s `replaceNode`), so swapping a
+    // text child for an element child on a `GtkButton` — `single` AND a text
+    // sink, both — placed the element and then cleared it away: a blank button
+    // at exit 0, zero diagnostics, and `attached === true` for a widget GTK had
+    // unparented. `clearIfCurrent` is this guard's element-side twin; only the
+    // text side was missing.
+    const sink = el.descriptor.textSink;
+    if (text === '' && sink && holdsElementInSetterSlot(el)) {
+        el.textFromChildren = false;
+        // The recorded value came from text children that are gone, and
+        // `materialize` replays `props` verbatim — keeping it would restate the
+        // deleted text into the slot the element child now owns.
+        delete el.props[sink];
+        return;
+    }
     // Set AFTER the write: `writeTextSink` throws for a sink-less widget, and a
     // flag set before it survives the failed insert — a later rebuild would then
     // flush text into a widget that never accepted any.
@@ -380,10 +410,40 @@ function flushText(el: HostElement): void {
     el.textFromChildren = sawText;
 }
 
+/**
+ * Our element children whose placement goes through the parent's ONE-CHILD slot.
+ *
+ * The text sink writes that same slot, so both text paths need this walk: one to
+ * refuse a clear that would evict such a child, one to record that a write just
+ * did.
+ */
+function* setterSlotChildren(el: HostElement): Generator<HostElement> {
+    for (const child of siblingsFrom(el.first, el)) {
+        if (child.kind === 'element' && child.attached && setterSlotOf(el, child)) yield child;
+    }
+}
+
+const holdsElementInSetterSlot = (el: HostElement): boolean => !setterSlotChildren(el).next().done;
+
 function writeTextSink(el: HostElement, text: string): void {
     const sink = el.descriptor.textSink;
     if (!sink) throw err.textNotAccepted(el.descriptor.gtype, text);
     materialize(el);
+    // The sink IS the one-child slot, so a text write evicts whatever holds it —
+    // and the element-side refusal was only wired into `attach`. Measured:
+    // `btn.set_child(appChrome); insert(createText('mine'), adopt(btn))` left
+    // `appChrome.get_parent() === null`, `label === 'mine'`, no throw and no
+    // diagnostic. That is the very loss the refusal exists to prevent, arriving
+    // down the axis this guard's own comment describes.
+    const policy = el.descriptor.children;
+    const slotSetter = policy.kind === 'single' ? policy.set : null;
+    if (
+        slotSetter &&
+        !holdsOursInSlot(el, null) &&
+        appOccupant(el.widget as unknown as Gtk.Widget, el.descriptor, slotSetter)
+    ) {
+        throw err.occupiedSlot(el.descriptor.gtype, 'text', slotSetter);
+    }
     const specs = paramSpecs(el.descriptor.ctor(), el.descriptor.gtype);
     const spec = requireSpec(specs, el.descriptor.gtype, sink);
     beginHostWrite();
@@ -398,6 +458,14 @@ function writeTextSink(el: HostElement, text: string): void {
     // Recorded only once GTK has taken it — `el.props` is replayed verbatim by
     // `materialize`, so a rejected value kept here re-throws from a later rebuild.
     el.props[sink] = text;
+
+    // A non-empty write into a one-child slot is the SAME collision the other
+    // way round: measured, `set_child(custom)` then `set_property('label','text')`
+    // also leaves `custom.parent === NULL`. GTK has just unparented that child,
+    // so the shadow tree stops claiming otherwise — `attached` means "GTK has
+    // taken this node", and a later `remove` would ask GTK to unparent a
+    // non-child (a critical, at exit 0).
+    for (const child of setterSlotChildren(el)) child.attached = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -405,7 +473,7 @@ function writeTextSink(el: HostElement, text: string): void {
 // ---------------------------------------------------------------------------
 
 function* childNodes(el: HostElement): Generator<HostNode> {
-    for (let n = el.first; n; n = n.next) yield n;
+    yield* siblingsFrom(el.first, el);
 }
 
 /**
@@ -417,8 +485,36 @@ function* childNodes(el: HostElement): Generator<HostNode> {
  */
 function childSnapshot(el: HostElement): HostNode[] {
     const out: HostNode[] = [];
-    for (let n = el.first; n; n = n.next) out.push(n);
+    for (const n of siblingsFrom(el.first, el)) out.push(n);
     return out;
+}
+
+/**
+ * A child list longer than this is a cycle, not a user interface.
+ *
+ * The number is deliberately absurd: it must never be reached by a real tree,
+ * and it must be reached QUICKLY by a malformed one.
+ */
+const CHAIN_LIMIT = 100_000;
+
+/**
+ * Walk a sibling chain, bounded.
+ *
+ * A malformed link is not a theoretical worry. `insert(node, parent, node)` is a
+ * defined NO-OP in the DOM — "if referenceChild is node, then set referenceChild
+ * to node's next sibling" — so Solid's adjacent-swap fast path emits exactly
+ * that shape, unguarded. This host used to write `node.next = node` for it, and
+ * the walks below then grew an unbounded array until the process was killed:
+ * reversing a TWO-item list hung the app. A hang is the one failure mode worse
+ * than GTK's silent exit 0, because it takes the CI job with it. Every walk over
+ * `next` goes through here so the bound cannot be forgotten at a new call site.
+ */
+function* siblingsFrom(start: HostNode | null, parent: HostElement): Generator<HostNode> {
+    let steps = 0;
+    for (let n = start; n; n = n.next) {
+        if (++steps > CHAIN_LIMIT) throw err.siblingCycle(parent.descriptor.gtype);
+        yield n;
+    }
 }
 
 function link(parent: HostElement, node: HostNode, anchor: HostNode | null): void {
@@ -458,20 +554,84 @@ function attach(parent: HostElement, child: HostElement): void {
     materialize(child);
     ensureWrapper(parent, child);
 
-    let prevWidget: Gtk.Widget | null = null;
-    let index = 0;
-    for (let n = parent.first; n && n !== child; n = n.next) {
+    refuseOccupiedSlot(parent, child);
+
+    // Start AFTER what the application already put in the container. Without this
+    // the first insertion into an adopted root resolves to `insert_child_after(w,
+    // null)` — GTK's "make first" — and the rendered tree lands above the app's own
+    // chrome. `mountRoot` used to compensate for itself; every adapter needs it.
+    // Index arithmetic rather than `.at(-1)`: this package targets es2020 and
+    // `Array.prototype.at` is es2022. `gjsify tsc --noEmit` let it through on a
+    // stale tsbuildinfo; the full build did not.
+    // Filter the snapshot to what is STILL a child. `foreign` is taken once in
+    // `adopt`, and an application may add or remove its own widgets afterwards —
+    // `insert_child_after` then asserts on a sibling that has left the container
+    // (a critical at exit 0) while the shadow tree records the insertion as
+    // attached, i.e. claims GTK took a widget it refused.
+    const priorChildren =
+        parent.foreign.length > 0
+            ? parent.foreign.filter((w) => (w as unknown as { get_parent(): unknown }).get_parent() === parent.widget)
+            : parent.foreign;
+
+    let prevWidget: Gtk.Widget | null = priorChildren.length > 0 ? priorChildren[priorChildren.length - 1] : null;
+    let index = priorChildren.length;
+    for (const n of siblingsFrom(parent.first, parent)) {
+        if (n === child) break;
         if (n.kind !== 'element' || !n.attached) continue;
         prevWidget = addressOf(n);
         index += 1;
     }
     const following: HostElement[] = [];
-    for (let n = child.next; n; n = n.next) {
+    for (const n of siblingsFrom(child.next, parent)) {
         if (n.kind === 'element' && n.attached) following.push(n);
     }
     const placement: Placement = { parent, child, prevWidget, index, following };
     insertChild(placement);
     child.attached = true;
+}
+
+/**
+ * Never place into a one-child slot the APPLICATION is using.
+ *
+ * Offsetting past what a container already held only works where placement
+ * appends. A one-child setter REPLACES, and GTK does it silently: measured,
+ * `win = new Gtk.ScrolledWindow(); win.set_child(chrome); mount(() => label,
+ * win)` left `chrome.get_parent() === null` with no throw, no GTK warning and an
+ * empty diagnostics gate — the application's widget simply gone. Refusing by
+ * name is the only answer that neither drops a widget nor guesses which of the
+ * two the application wanted.
+ *
+ * The occupant is compared against `foreign`, i.e. against what `adopt` saw. A
+ * slot holding one of OUR OWN element children is the ordinary
+ * insert-then-unmount order Solid and React use, and must stay allowed; a slot
+ * the application has since cleared itself is free again.
+ */
+function refuseOccupiedSlot(parent: HostElement, child: HostElement): void {
+    const setter = setterSlotOf(parent, child);
+    if (!setter) return;
+    // Ours already holds it: the insert-then-unmount order Solid and React use,
+    // and it must stay allowed. Asked per SLOT, not per parent — a child in an
+    // `AdwHeaderBar`'s `start` says nothing about `end`.
+    if (holdsOursInSlot(parent, child.slot)) return;
+    if (!appOccupant(parent.widget as unknown as Gtk.Widget, parent.descriptor, setter)) return;
+    throw err.occupiedSlot(parent.descriptor.gtype, child.descriptor.gtype, setter);
+}
+
+/**
+ * Does one of OUR OWN attached element children hold this slot?
+ *
+ * Derived from the shadow tree rather than remembered, and that is the point:
+ * `foreign` is a SNAPSHOT taken in `adopt`, so comparing the occupant against it
+ * missed an application that REPLACED its own child afterwards —
+ * `sw.set_child(A); adopt(sw); sw.set_child(B)` then evicted B silently, at
+ * exit 0. What we placed is knowable at any time; what the application did to
+ * its own slot since is not.
+ */
+function holdsOursInSlot(parent: HostElement, slot: string | null): boolean {
+    for (const n of siblingsFrom(parent.first, parent)) {
+        if (n.kind === 'element' && n.attached && n.slot === slot) return true;
+    }
+    return false;
 }
 
 /** `indexed` parents address a wrapper row; create it once, before first placement. */
@@ -482,14 +642,30 @@ function ensureWrapper(parent: HostElement, child: HostElement): void {
 }
 
 export function insert(node: HostNode, parent: HostElement, anchor: HostNode | null = null): void {
+    // A raw widget is not a parent. Vue's `<Teleport :to="someGtkWidget">` passes
+    // the widget through VERBATIM (`resolveTarget`'s non-string branch is
+    // `return targetSelector`), and taken literally `link` then wrote
+    // `parent`/`prev`/`next`/`first`/`last` as expandos onto the application's
+    // GObject wrapper while `attach` bailed at `if (!parent.widget) return`:
+    // nothing rendered, nothing threw, no diagnostic. Refuse it by name — `adopt`
+    // is the one way a foreign widget becomes a parent.
+    assertHostParent(parent);
     // Where it was, so a refused move can be undone. "Leave nothing behind" has
     // to mean the OLD parent too: detaching first and failing second lost the
     // node from a tree that was perfectly valid.
     const wasIn = node.parent;
     const wasBefore = node.next;
 
+    // DOM parity, and not a nicety. `insertBefore(n, n)` is DEFINED as a no-op
+    // ("if referenceChild is node, then set referenceChild to node's next
+    // sibling"), which is why Solid's adjacent-swap fast path emits
+    // `insertNode(parent, b, b)` without a guard. Taken literally it made `link`
+    // write `node.next = node`; reversing a two-item list then hung the process.
+    // Three items take a different branch, which is why the suite was green.
+    const before = anchor === node ? wasBefore : anchor;
+
     if (node.parent) remove(node);
-    link(parent, node, anchor);
+    link(parent, node, before);
     try {
         if (node.kind === 'element') attach(parent, node);
         else if (node.kind === 'text') flushText(parent);
@@ -500,6 +676,29 @@ export function insert(node: HostNode, parent: HostElement, anchor: HostNode | n
         if (wasIn) restore(node, wasIn, wasBefore);
         throw e;
     }
+}
+
+/**
+ * TWO facts, not one: the node says it is an element, and it carries a descriptor.
+ *
+ * `kind` alone is a plain string a GObject wrapper could carry; the descriptor is
+ * what every host op actually dereferences. Checking both keeps the refusal from
+ * being either paranoid or fooled.
+ */
+function assertHostParent(parent: HostElement): void {
+    const candidate = parent as unknown as { kind?: unknown; descriptor?: unknown } | null;
+    if (candidate && candidate.kind === 'element' && typeof candidate.descriptor === 'object') return;
+    throw err.notAHostParent(describeForeign(parent));
+}
+
+/** Name a non-host parent the way its owner would recognise it. */
+function describeForeign(value: unknown): string {
+    if (value === null || value === undefined) return String(value);
+    if (typeof value !== 'object') return typeof value;
+    const gtype = (value as { constructor?: { $gtype?: GObject.GType } }).constructor?.$gtype;
+    if (gtype) return GObject.type_name(gtype) ?? 'an unnamed GType';
+    // Not a GObject wrapper at all — an object literal, a DOM-ish stub, a Map.
+    return (value as { constructor?: { name?: string } }).constructor?.name ?? 'a plain object';
 }
 
 /**
@@ -542,6 +741,24 @@ export function clearContainer(parent: HostElement): void {
 }
 
 /**
+ * Disconnect a node's handlers WITHOUT touching the tree.
+ *
+ * The narrow half of `destroy`, and it exists because a framework can tell us "this
+ * node is gone" while still holding its sibling links: Solid disposes a per-node
+ * scope BEFORE its reconciler runs, and `reconcileArrays` opens with
+ * `getNextSibling(last)`. Unlinking there made every trailing insertion append at
+ * the end of the parent instead of before the marker.
+ *
+ * The leak this closes is about handlers, not links — GJS blocks JS callbacks
+ * during GC, so an undisconnected handler outlives its widget. The framework's own
+ * `removeNode` still does the unlinking, in its own order.
+ */
+export function disconnectHandlers(el: HostElement): void {
+    clearHandlers(el);
+    el.listeners.clear();
+}
+
+/**
  * Tear a subtree down: disconnect every handler, unparent, drop the reference.
  *
  * It is eager and it is the only place a handler dies. GJS blocks JS callbacks
@@ -576,6 +793,7 @@ export function destroy(node: HostNode): void {
         node.props = {};
         node.layout = null;
         node.textFromChildren = false;
+        node.destroyed = true;
     }
 }
 
@@ -589,11 +807,25 @@ export function destroy(node: HostNode): void {
  */
 export function mountRoot(el: HostElement, container: Gtk.Widget): void {
     materialize(el);
+    const parent = adopt(container);
+    // `adopt` recorded what the container already held and `attach` offsets past
+    // it, so this is now the ordinary path.
+    insert(el, parent);
+}
+
+/**
+ * Wrap a widget the application owns as a host element.
+ *
+ * The seam every framework adapter needs: a renderer mounts into a container it
+ * did not create. The descriptor comes from the SAME table as every other parent,
+ * through `nearestRegistered`, so an application's own `GObject.registerClass`
+ * subclass inherits its ancestor's placement rules instead of failing.
+ */
+export function adopt(container: Gtk.Widget): HostElement {
     const gtype = (container as unknown as { constructor: { $gtype: GObject.GType } }).constructor.$gtype;
     const descriptor = nearestRegistered(gtype);
     if (!descriptor) throw err.unknownTag(gtypeNameOf(container));
-
-    const parent: HostElement = {
+    return {
         kind: 'element',
         descriptor,
         widget: container as unknown as GObject.Object,
@@ -610,27 +842,60 @@ export function mountRoot(el: HostElement, container: Gtk.Widget): void {
         layout: null,
         textFromChildren: false,
         attached: true,
+        destroyed: false,
+        // What the application put there. Placement offsets past it, or — for a
+        // slot that replaces rather than appends — refuses to overwrite it.
+        foreign: adoptedChildren(container, descriptor),
     };
-    // The container may already hold children the application put there. The
-    // synthetic parent's shadow tree is empty, so ordinary placement computes
-    // "first" and `insert_child_after(w, null)` puts the host tree BEFORE them.
-    // Read the real children and append after the last one.
-    const existing = directChildren(container);
-    link(parent, el, null);
-    try {
-        ensureWrapper(parent, el);
-        insertChild({
-            parent,
-            child: el,
-            prevWidget: existing.length > 0 ? existing[existing.length - 1] : null,
-            index: existing.length,
-            following: [],
-        });
-        el.attached = true;
-    } catch (e) {
-        unlink(el);
-        throw e;
+}
+
+/**
+ * What the application already had in this container — asked the way the
+ * container answers honestly.
+ *
+ * A one-child slot has to be asked through its GETTER, never through the child
+ * list: measured on gtk 4.22 / libadwaita 1.8, a FRESH `Gtk.ScrolledWindow` has
+ * two `GtkScrollbar` direct children, `Adw.ToolbarView` two `GtkRevealer`s,
+ * `Adw.Window` an `AdwDialogHost` + an `AdwGizmo` and `Adw.StatusPage` a
+ * `GtkScrolledWindow`, while all four getters answer `null`. A child-list
+ * snapshot therefore reports application chrome that does not exist — and for a
+ * slot that REPLACES there is no offset to compute from it anyway.
+ */
+function adoptedChildren(container: Gtk.Widget, descriptor: WidgetDescriptor): Gtk.Widget[] {
+    const slots = setterSlots(descriptor.children);
+    if (slots.length === 0) return directChildren(container);
+    const out: Gtk.Widget[] = [];
+    for (const setter of slots) {
+        const occupant = appOccupant(container, descriptor, setter);
+        if (occupant) out.push(occupant);
     }
+    return out;
+}
+
+/**
+ * Who the APPLICATION has in a one-child slot. GTK's own child does not count.
+ *
+ * A widget with a text sink builds its own child FOR that sink: measured on gtk
+ * 4.22.4, `new Gtk.Button({ label: 'Save' })` answers `get_child()` with an
+ * internal `GtkLabel`, and `set_child(x)` sets `label` to null. Reading that
+ * label as application content made every labelled `GtkButton`,
+ * `GtkToggleButton` and `GtkCheckButton` impossible to adopt — and the refusal
+ * then prescribed `set_child(null)`, which DELETES the label. Both halves were
+ * regressions of the refusal itself.
+ *
+ * So the sink is the discriminator, the same fact the text-side guard already
+ * rests on: a non-empty sink means the occupant is GTK's, not the app's.
+ */
+function appOccupant(container: Gtk.Widget, descriptor: WidgetDescriptor, setter: string): Gtk.Widget | null {
+    const occupant = slotOccupant(container, setter);
+    if (!occupant) return null;
+    const sink = descriptor.textSink;
+    if (!sink) return occupant;
+    // The JS accessor, not `get_property`: gjs binds `GObject.Object.get_property`
+    // with its C arity (name AND an out GValue), so the one-argument form throws.
+    const key = sink.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+    const value = (container as unknown as Record<string, unknown>)[key];
+    return typeof value === 'string' && value !== '' ? null : occupant;
 }
 
 /** Direct GTK children of a widget — what the container already holds. */

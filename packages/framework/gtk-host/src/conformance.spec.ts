@@ -1,10 +1,11 @@
 // The check that keeps the widget table honest about the GTK that is installed.
 
-import { describe, expect, it, on } from '@gjsify/unit';
+import { expect, it, on } from '@gjsify/unit';
 
 import Gtk from 'gi://Gtk?version=4.0';
 
-import { descriptorProblems, methodsOf } from './conformance/index.js';
+import { descriptorProblems, installDiagnosticsGate, methodsOf } from './conformance/index.js';
+import { gated } from './testing/gate.mjs';
 import { lookupWidget, registeredTags } from './registry.js';
 import type { WidgetDescriptor } from './types.js';
 import { BUILTIN_DESCRIPTORS, registerBuiltinWidgets } from './descriptors/index.js';
@@ -14,7 +15,13 @@ export default async () => {
         Gtk.init();
         registerBuiltinWidgets();
 
-        await describe('descriptor table vs installed typelib', async () => {
+        // Same gate as every other spec in this package: a describe without one
+        // reports ✔ while GTK prints a critical, and the blame lands on a
+        // neighbour twelve tests later. `gated` registers the hooks INSIDE the
+        // describe, where @gjsify/unit actually keeps them.
+        const diagnostics = installDiagnosticsGate();
+
+        await gated(diagnostics, 'descriptor table vs installed typelib', async () => {
             await it('every declared method and text sink exists', async () => {
                 // A descriptor that names a method the installed GTK lacks fails
                 // deep inside a render with `host[policy.append] is not a function`.

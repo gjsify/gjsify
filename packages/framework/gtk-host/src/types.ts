@@ -77,6 +77,17 @@ export interface HostElement extends HostNodeBase {
      * criticals per replay, at exit 0.
      */
     attached: boolean;
+    /** True once `destroy` has torn this element down. It never comes back. */
+    destroyed: boolean;
+    /**
+     * Children this element already had before the host adopted it.
+     *
+     * Only an ADOPTED root has any: a renderer mounts into a container the
+     * application built, and those children are in the GTK tree while being absent
+     * from the shadow tree. Placement offsets past them, or the first insertion
+     * computes "first" and the whole rendered tree lands ABOVE the app's own chrome.
+     */
+    foreign: readonly Gtk.Widget[];
 }
 
 export type HostNode = HostElement | HostText | HostAnchor;

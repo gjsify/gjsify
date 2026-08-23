@@ -3,7 +3,7 @@
 // a row rather than an edit across the stager, the overlay builder and the
 // artifact namer.
 
-import type { FormatDescriptor, FormatId, ShipSettings } from './types.js';
+import type { FormatDescriptor, FormatId, PackSettings } from './types.js';
 
 // `process.arch` → the format's architecture name. Taken from dpkg's own
 // `data/cputable` and rpm's arch table. `arm` cannot be told apart from
@@ -57,7 +57,7 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         licenseDest: (binaryName) => `share/doc/${binaryName}/copyright`,
         licenseKind: 'debian-copyright',
         archName: debArch,
-        fileName: (s: ShipSettings, archLabel: string) => `${s.binaryName}_${s.version}-${s.release}_${archLabel}.deb`,
+        fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}_${s.version}-${s.release}_${archLabel}.deb`,
     },
     rpm: {
         id: 'rpm',
@@ -65,11 +65,19 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
         licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
         licenseKind: 'plain',
         archName: rpmArch,
-        fileName: (s: ShipSettings, archLabel: string) => `${s.binaryName}-${s.version}-${s.release}.${archLabel}.rpm`,
+        fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}-${s.version}-${s.release}.${archLabel}.rpm`,
     },
 };
 
-export const FORMAT_IDS: FormatId[] = ['deb', 'rpm'];
+// DERIVED, never a second list. `FORMATS` is `Record<FormatId, …>`, so the
+// compiler already refuses a `FormatId` with no descriptor — reading the keys
+// back inherits that guarantee for free. Written out by hand this was the one
+// unbound copy of the vocabulary: adding a format to `FormatId` and `FORMATS`
+// compiled fine and left this list short, which would have made the new format
+// absent from the default targets (`ship.ts` uses it as the `??` fallback),
+// missing from `--help`, and REFUSED by `readStage` as an unknown id.
+// Insertion order is stable for string keys, and `resolveFormats` sorts anyway.
+export const FORMAT_IDS: FormatId[] = Object.keys(FORMATS) as FormatId[];
 
 /** Parse `--target deb,rpm` into a sorted, deduplicated descriptor list. */
 export function resolveFormats(raw: readonly string[]): FormatDescriptor[] {

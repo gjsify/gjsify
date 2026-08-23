@@ -1,10 +1,11 @@
 // Property coercion — the layer that turns GObject's silent failures into loud ones.
 
-import { afterEach, beforeEach, describe, expect, it, on } from '@gjsify/unit';
+import { expect, it, on } from '@gjsify/unit';
 
 import Gtk from 'gi://Gtk?version=4.0';
 
 import { installDiagnosticsGate } from './conformance/index.js';
+import { gated } from './testing/gate.mjs';
 import { GtkHostError } from './errors.js';
 import { createElement, materialize, setProp } from './host.js';
 import { constructOnlyNames, paramSpecs, toPropertyName } from './props.js';
@@ -18,10 +19,8 @@ export default async () => {
         // Every vector below also asserts that GTK reported nothing. Without this
         // the whole mis-parenting class is invisible: it emits criticals and exits 0.
         const diagnostics = installDiagnosticsGate();
-        beforeEach(() => diagnostics.reset());
-        afterEach(() => diagnostics.assertQuiet());
 
-        await describe('toPropertyName', async () => {
+        await gated(diagnostics, 'toPropertyName', async () => {
             await it('maps camelCase to the GObject kebab name', async () => {
                 expect(toPropertyName('cssName')).toBe('css-name');
                 expect(toPropertyName('marginTop')).toBe('margin-top');
@@ -33,7 +32,7 @@ export default async () => {
             });
         });
 
-        await describe('ParamSpec facts of the installed GTK', async () => {
+        await gated(diagnostics, 'ParamSpec facts of the installed GTK', async () => {
             await it('reads every property of a class', async () => {
                 const specs = paramSpecs(Gtk.Button, 'GtkButton');
                 expect(specs.has('label')).toBe(true);
@@ -48,7 +47,7 @@ export default async () => {
             });
         });
 
-        await describe('enum coercion', async () => {
+        await gated(diagnostics, 'enum coercion', async () => {
             await it('resolves a string nick that GObject would have dropped', async () => {
                 // The bug this prevents: `set_property('orientation','vertical')`
                 // emits GLib-GObject-CRITICAL and leaves HORIZONTAL, and the JS
@@ -72,7 +71,7 @@ export default async () => {
             });
         });
 
-        await describe('coercion the review caught', async () => {
+        await gated(diagnostics, 'coercion the review caught', async () => {
             await it('reads the string "false" as FALSE, where JS truthiness says TRUE', async () => {
                 // `Boolean('false') === true`. A template or JSX attribute produces
                 // exactly this string, so the two exact spellings are honoured …
@@ -108,7 +107,7 @@ export default async () => {
             });
         });
 
-        await describe('refusals', async () => {
+        await gated(diagnostics, 'refusals', async () => {
             await it('refuses an unknown property instead of dropping it', async () => {
                 const btn = createElement('GtkButton');
                 materialize(btn);

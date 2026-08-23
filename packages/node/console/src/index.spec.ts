@@ -1,8 +1,54 @@
 // Ported from refs/node-test/ and refs/node/test/parallel/test-console-*.js
 // Original: MIT license, Node.js contributors
-import { describe, it, expect } from '@gjsify/unit';
+import { describe, it, expect, on } from '@gjsify/unit';
 import console, { Console, log, warn, error, info } from 'node:console';
 import { Writable } from 'node:stream';
+
+/** An Error subclass that assigns `name` and carries an extra own enumerable
+ * property — the shape whose message and stack `JSON.stringify` dropped. */
+class TaggedError extends Error {
+    code: string;
+    constructor(message: string, code: string) {
+        super(message);
+        this.name = 'GtkHostError';
+        this.code = code;
+    }
+}
+
+/**
+ * Replace one slot of `err` with a getter that throws.
+ *
+ * Non-enumerable by default, exactly like the real `name`/`message`/`stack`/`cause`
+ * slots — which is why the pre-fix formatter never saw this coming: `JSON.stringify`
+ * does not read a non-enumerable slot, so before Errors were rendered by hand the
+ * identical input printed `{}` and did NOT throw.
+ */
+function poison(err: Error, slot: string, enumerable = false): Error {
+    Object.defineProperty(err, slot, {
+        enumerable,
+        configurable: true,
+        get() {
+            throw new Error(`${slot} getter blew up`);
+        },
+    });
+    return err;
+}
+
+/** An `AggregateError` whose `errors` array throws when its element is read. */
+function aggregateWithPoisonedElement(): AggregateError {
+    const errors: unknown[] = [];
+    Object.defineProperty(errors, 0, {
+        enumerable: true,
+        configurable: true,
+        get() {
+            throw new Error('element blew up');
+        },
+    });
+    errors.length = 1;
+    const agg = new AggregateError([], 'agg failed');
+    Object.defineProperty(agg, 'errors', { value: errors, configurable: true });
+    return agg;
+}
 
 export default async () => {
     await describe('console: default import', async () => {
@@ -620,6 +666,385 @@ export default async () => {
             expect(output.length).toBe(2);
             expect(output[0]).toContain('perf:');
             expect(output[1]).toContain('perf:');
+        });
+    });
+
+    // Rendering an Error through this module used to go through `JSON.stringify`,
+    // which keeps only own ENUMERABLE properties — `message` and `stack` are
+    // neither — so `console.error(new Error('boom'))` printed `{}`, and a subclass
+    // carrying a code printed `{"name":"GtkHostError","code":"unknown-tag"}`: the
+    // code and nothing else. Everything here goes through the custom-stream path,
+    // the only one that reaches our formatter — with no stream the Node leg
+    // delegates straight to the host console.
+    //
+    // This describe holds what is true of NODE's console as well as ours, so the
+    // Node leg proves the assertions describe real console behaviour. Our own
+    // rendering VOCABULARY (JSON, not util.inspect) is pinned in the `on('Gjs')`
+    // block below.
+    await describe('console: Error formatting', async () => {
+        const capture = () => {
+            const lines: string[] = [];
+            const stream = new Writable({
+                write(chunk, _enc, cb) {
+                    lines.push(chunk.toString());
+                    cb();
+                },
+            });
+            return { lines, console: new Console(stream, stream) };
+        };
+        // Non-empty rendered lines, so the trailing newline never counts as one.
+        const renderedLines = (chunk: string) => chunk.split('\n').filter((l) => l.length > 0);
+
+        await it('should render name, message and stack of an Error', async () => {
+            const c = capture();
+            c.console.error(new Error('boom'));
+            expect(c.lines.length).toBe(1);
+            const lines = renderedLines(c.lines[0]);
+            expect(lines[0]).toBe('Error: boom');
+            // The stack follows. V8 prefixes `err.stack` with `Name: message`,
+            // SpiderMonkey does not — frames only, measured on gjs 1.88.1 — so a
+            // renderer that just prints `err.stack` drops the message there.
+            expect(lines.length).toBeGreaterThan(1);
+        });
+
+        await it('should render an Error whose stack is absent', async () => {
+            const err = new Error('stackless');
+            err.stack = undefined;
+            const c = capture();
+            c.console.error(err);
+            expect(c.lines[0]).toContain('Error');
+            expect(c.lines[0]).toContain('stackless');
+        });
+
+        await it('should keep extra own enumerable properties of an Error subclass', async () => {
+            const c = capture();
+            c.console.error(new TaggedError('No descriptor registered for <div>', 'unknown-tag'));
+            const rendered = c.lines[0];
+            expect(rendered).toContain('GtkHostError');
+            // The MESSAGE is what the old formatter dropped while keeping the code.
+            expect(rendered).toContain('No descriptor registered for <div>');
+            expect(rendered).toContain('code');
+            expect(rendered).toContain('unknown-tag');
+        });
+
+        await it('should render an Error passed after a message', async () => {
+            const c = capture();
+            c.console.error('context:', new Error('boom'));
+            expect(c.lines[0]).toContain('context: Error: boom');
+        });
+
+        await it('should render an Error nested in an array', async () => {
+            const c = capture();
+            c.console.log([new Error('inner')]);
+            expect(c.lines[0]).toContain('Error: inner');
+        });
+
+        await it('should render an Error nested in an object', async () => {
+            const c = capture();
+            c.console.log({ err: new Error('inner') });
+            expect(c.lines[0]).toContain('Error: inner');
+        });
+
+        await it('should render error.cause', async () => {
+            const c = capture();
+            c.console.error(new Error('outer', { cause: new Error('root cause') }));
+            const rendered = c.lines[0];
+            expect(rendered).toContain('Error: outer');
+            expect(rendered).toContain('[cause]');
+            expect(rendered).toContain('Error: root cause');
+        });
+
+        await it('should render the errors of an AggregateError', async () => {
+            const c = capture();
+            c.console.error(new AggregateError([new Error('first'), new Error('second')], 'all failed'));
+            const rendered = c.lines[0];
+            expect(rendered).toContain('AggregateError: all failed');
+            expect(rendered).toContain('[errors]');
+            expect(rendered).toContain('Error: first');
+            expect(rendered).toContain('Error: second');
+        });
+
+        await it('should not hang on a cyclic cause chain', async () => {
+            const a = new Error('A');
+            const b = new Error('B');
+            a.cause = b;
+            b.cause = a;
+            const c = capture();
+            c.console.error(a);
+            const rendered = c.lines[0];
+            expect(rendered).toContain('Error: A');
+            expect(rendered).toContain('Error: B');
+            expect(rendered).toContain('Circular');
+        });
+
+        await it('should survive a circular plain object instead of throwing', async () => {
+            const cyclic: Record<string, unknown> = {};
+            cyclic.self = cyclic;
+            const c = capture();
+            // A console that throws while reporting is worse than one that reports
+            // imprecisely; `JSON.stringify` throws TypeError on this input.
+            expect(() => c.console.log(cyclic)).not.toThrow();
+            expect(c.lines.length).toBe(1);
+        });
+
+        await it('should render an Error for the %s specifier', async () => {
+            const c = capture();
+            c.console.log('%s', new Error('spec-s'));
+            const lines = renderedLines(c.lines[0]);
+            expect(lines[0]).toBe('Error: spec-s');
+            // Node prints the STACK for `%s` of an Error, not `String(err)`.
+            expect(lines.length).toBeGreaterThan(1);
+        });
+
+        await it('should render an Error for the %o and %O specifiers', async () => {
+            const lower = capture();
+            lower.console.log('%o', new Error('spec-o'));
+            expect(lower.lines[0]).toContain('Error: spec-o');
+            const upper = capture();
+            upper.console.log('%O', new Error('spec-O'));
+            expect(upper.lines[0]).toContain('Error: spec-O');
+        });
+
+        await it('should render a repeated Error in full, not as circular', async () => {
+            const err = new Error('twice');
+            const c = capture();
+            c.console.log([err, err]);
+            const occurrences = c.lines[0].split('Error: twice').length - 1;
+            expect(occurrences).toBe(2);
+        });
+
+        // A formatter whose contract is never to throw while reporting must not throw
+        // on a poisoned slot either. Measured before the fix: `_formatValue` dispatches
+        // a top-level Error STRAIGHT to `_formatError`, which read `err.name` before any
+        // guard, while `_stringify`'s try/catch sits one level BELOW that path — so
+        // `console.log(err)` threw `name getter blew up` and the whole line was lost.
+        // Node's own console survives every vector below, so the Node leg proves these
+        // assertions describe real console behaviour rather than our idea of it.
+        const poisonedVectors: Array<[string, () => unknown]> = [
+            ['name', () => poison(new Error('boom'), 'name')],
+            ['message', () => poison(new Error('boom'), 'message')],
+            ['stack', () => poison(new Error('boom'), 'stack')],
+            ['cause', () => poison(new Error('boom'), 'cause')],
+            ['an own enumerable property', () => poison(new Error('boom'), 'detail', true)],
+            ['name, reached through the replacer', () => [poison(new Error('boom'), 'name')]],
+            ['an aggregated error element', () => aggregateWithPoisonedElement()],
+        ];
+        for (const [slot, make] of poisonedVectors) {
+            await it(`should survive a throwing getter on ${slot} instead of throwing`, async () => {
+                const c = capture();
+                expect(() => c.console.error(make())).not.toThrow();
+                expect(c.lines.length).toBe(1);
+            });
+        }
+
+        await it('should not append an empty object for an undefined own property', async () => {
+            const err = new Error('x') as Error & { detail?: unknown };
+            err.detail = undefined;
+            const c = capture();
+            c.console.error(err);
+            // ` {}` is the exact token the Error fix existed to remove; a flag counting
+            // KEYS put it back for any value `JSON.stringify` drops.
+            expect(c.lines[0]).not.toContain(' {}');
+        });
+    });
+
+    await on('Gjs', async () => {
+        // The exact rendering vocabulary of THIS implementation: JSON for values,
+        // `Name: message` + stack + own-property JSON for an Error. Node's console
+        // renders through `util.inspect` instead, so these shapes can only be
+        // pinned on the GJS leg — where `node:console` IS this package.
+        await describe('console: Error rendering shape', async () => {
+            const render = (...args: unknown[]) => {
+                const lines: string[] = [];
+                const stream = new Writable({
+                    write(chunk, _enc, cb) {
+                        lines.push(chunk.toString());
+                        cb();
+                    },
+                });
+                new Console(stream, stream).error(...args);
+                return lines[0].replace(/\n$/, '');
+            };
+
+            await it('should head the render with `Name: message`', async () => {
+                const rendered = render(new TaggedError('No descriptor registered for <div>', 'unknown-tag'));
+                expect(rendered.split('\n')[0]).toBe('GtkHostError: No descriptor registered for <div>');
+            });
+
+            await it('should append only the extra own properties as JSON', async () => {
+                const rendered = render(new TaggedError('No descriptor registered for <div>', 'unknown-tag'));
+                expect(rendered).toContain('{"code":"unknown-tag"}');
+                // `name` belongs to the header; repeating it in the property object
+                // is the shape the old formatter produced INSTEAD of the message.
+                expect(rendered).not.toContain('"name":"GtkHostError"');
+            });
+
+            await it('should mark each aggregated error with its index', async () => {
+                const rendered = render(new AggregateError([new Error('first'), new Error('second')], 'all failed'));
+                expect(rendered).toContain('[errors][0]:');
+                expect(rendered).toContain('[errors][1]:');
+            });
+
+            await it('should name the error a cyclic cause chain returns to', async () => {
+                const a = new Error('A');
+                const b = new Error('B');
+                a.cause = b;
+                b.cause = a;
+                expect(render(a)).toContain('[Circular Error: A]');
+            });
+
+            await it('should report an unserializable value as such', async () => {
+                const cyclic: Record<string, unknown> = {};
+                cyclic.self = cyclic;
+                expect(render(cyclic)).toContain('[unserializable');
+            });
+
+            // Compatibility ratchet: the Error fix must leave every other value
+            // type byte-identical. These are the shapes the module produced before.
+            await it('should JSON-render objects, arrays and primitives unchanged', async () => {
+                expect(render({ a: 1, b: [1, 2] })).toBe('{"a":1,"b":[1,2]}');
+                expect(render([1, 'two', null])).toBe('[1,"two",null]');
+                expect(render(42)).toBe('42');
+                expect(render(null)).toBe('null');
+                expect(render(true)).toBe('true');
+                expect(render('plain')).toBe('plain');
+                expect(render('a', { b: 2 }, 'c')).toBe('a {"b":2} c');
+            });
+
+            await it('should keep the numeric and object specifiers unchanged', async () => {
+                expect(render('%d', 3.7)).toBe('3');
+                expect(render('%i', 3.7)).toBe('3');
+                expect(render('%f', '2.5')).toBe('2.5');
+                expect(render('%s', 42)).toBe('42');
+                expect(render('%o', { a: 1 })).toBe('{"a":1}');
+                expect(render('%c', 'color:red')).toBe('');
+            });
+
+            // The ratchet as a MECHANISM rather than a handful of literals: for any
+            // value carrying no Error the replacer is the identity, so the render must
+            // be what a bare `JSON.stringify` produces — including the shapes whose
+            // handling is easy to break by accident. `undefined` (also a symbol, also a
+            // function) has no JSON text at all; `Array.prototype.join` renders it as
+            // the empty string, and that is what this module has always printed.
+            await it('should stay byte-identical to JSON.stringify for every non-Error shape', async () => {
+                const nullPrototype = Object.create(null) as Record<string, unknown>;
+                nullPrototype.a = 1;
+                // Built rather than written as `[1, , 3]` so no lint directive is
+                // needed for a literal hole.
+                const sparse: unknown[] = [1];
+                sparse[2] = 3;
+                const shapes: unknown[] = [
+                    { a: 1, b: [1, 2] },
+                    { a: { b: { c: [1, { d: 2 }] } } },
+                    [1, 'two', null],
+                    42,
+                    -0,
+                    NaN,
+                    Infinity,
+                    null,
+                    true,
+                    new Date(0),
+                    new Map([['a', 1]]),
+                    new Set([1, 2]),
+                    sparse,
+                    { toJSON: () => ({ t: 1 }) },
+                    nullPrototype,
+                    Symbol('s'),
+                    () => 1,
+                    undefined,
+                    { s: Symbol('q'), f: () => 1, u: undefined, keep: 1 },
+                    /ab+c/g,
+                    {},
+                    [],
+                    { k: 'a"b\\c\nd\te' },
+                ];
+                for (const shape of shapes) {
+                    const json = JSON.stringify(shape);
+                    expect(render(shape)).toBe(json === undefined ? '' : json);
+                }
+            });
+
+            await it('should keep the message and stack when `name` throws', async () => {
+                // SpiderMonkey builds `err.stack` eagerly and independently of `name`,
+                // so unlike V8 the GJS leg keeps the frames here as well.
+                const rendered = render(poison(new Error('boom'), 'name'));
+                expect(rendered.split('\n')[0]).toBe('Error: boom');
+                expect(rendered.split('\n').length).toBeGreaterThan(1);
+            });
+
+            await it('should keep the outer error when a nested cause throws', async () => {
+                const rendered = render(new Error('outer', { cause: poison(new Error('inner'), 'name') }));
+                expect(rendered).toContain('Error: outer');
+                expect(rendered).toContain('[cause]: Error: inner');
+            });
+
+            await it('should render an Error reached through the replacer when its name throws', async () => {
+                // Before the fix this path lost the WHOLE line to
+                // `[unserializable: name getter blew up]` — `_stringify`'s catch is
+                // one level above the Error, not on it.
+                const rendered = render([poison(new Error('inner'), 'name')]);
+                expect(rendered).toContain('Error: inner');
+                expect(rendered).not.toContain('[unserializable');
+            });
+
+            await it('should keep the rest of an Error when one slot throws', async () => {
+                // Each of these slots is guarded WHERE IT IS READ, not only by the
+                // last-resort guard around the whole render: degrading a whole report
+                // to `[unformattable: …]` because one accessor misbehaved throws away
+                // the message and stack that were the point of printing it.
+                for (const slot of ['stack', 'cause']) {
+                    const rendered = render(poison(new Error('x'), slot));
+                    expect(rendered).toContain('Error: x');
+                    expect(rendered).not.toContain('[unformattable');
+                }
+                const withExtra = render(poison(new Error('x'), 'detail', true));
+                expect(withExtra).toContain('Error: x');
+                expect(withExtra).not.toContain('[unformattable');
+            });
+
+            await it('should degrade the render, not the process, when an element throws', async () => {
+                const rendered = render(aggregateWithPoisonedElement());
+                expect(rendered).toContain('AggregateError: agg failed');
+                expect(rendered).toContain('[unformattable: element blew up]');
+            });
+
+            await it('should drop an own property whose value JSON cannot represent', async () => {
+                const err = new Error('x') as Error & { detail?: unknown };
+                err.detail = undefined;
+                expect(render(err)).not.toContain('{}');
+                const withFunction = new Error('y') as Error & { fn?: unknown };
+                withFunction.fn = () => 1;
+                expect(render(withFunction)).not.toContain('{}');
+            });
+
+            await it('should not carry the SpiderMonkey position fields as extras', async () => {
+                // Suppressed for EVERY error, not only for a GError: the header already
+                // prints this file, line and column, exactly as it does for `stack`.
+                //
+                // `defineProperty`, not assignment: SpiderMonkey gives every Error own
+                // but NON-enumerable `fileName`/`lineNumber`/`columnNumber` (measured on
+                // gjs 1.88.1: writable, configurable, enumerable false), so `err.fileName
+                // = …` only rewrites the value and leaves the property invisible to
+                // `Object.keys` — a version of this test that assigned them passed with
+                // and without the fix.
+                const err = new Error('x') as Error & Record<string, unknown>;
+                for (const [key, value] of [
+                    ['fileName', 'f.js'],
+                    ['lineNumber', 3],
+                    ['columnNumber', 1],
+                ] as Array<[string, unknown]>) {
+                    Object.defineProperty(err, key, { value, enumerable: true, configurable: true, writable: true });
+                }
+                err.keep = 1;
+                // Discriminator: without this the suppression may be tested against an
+                // input that never carried the fields in the first place.
+                expect(Object.keys(err)).toContain('fileName');
+                const rendered = render(err);
+                expect(rendered).toContain('{"keep":1}');
+                expect(rendered).not.toContain('"fileName"');
+                expect(rendered).not.toContain('"lineNumber"');
+                expect(rendered).not.toContain('"columnNumber"');
+            });
         });
     });
 };

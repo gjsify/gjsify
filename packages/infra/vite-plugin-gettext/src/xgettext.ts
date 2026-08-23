@@ -232,6 +232,11 @@ async function extractStrings(files: string[], options: XGettextPluginOptions, p
             // Add language-specific settings
             switch (group) {
                 case 'js':
+                // Blueprint deliberately shares the JavaScript lexer: xgettext has no Blueprint
+                // parser at all (0.26 rejects `--language=Blueprint` outright), and Blueprint's
+                // `_("…")` / `C_("ctx", "…")` are lexically calls, which is exactly what the
+                // JavaScript scanner looks for. Measured on a .blp: all marked strings come out,
+                // unmarked literals stay out.
                 case 'blp':
                     baseArgs.push('--language=JavaScript');
                     baseArgs.push(...keywords.map((k) => `--keyword=${k}`));

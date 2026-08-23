@@ -25,6 +25,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { MONOREPO_ROOT } from '../helpers.mjs';
 import { runCli } from '../mock-registry.mjs';
@@ -275,6 +276,58 @@ describe('the GI runtime-path prologue in a --app gjs bundle', { timeout: 5 * 60
             } finally {
                 rmSync(dir, { recursive: true, force: true });
             }
+        });
+    });
+
+    // ── the ICU gap the banner covers ─────────────────────────────────────
+    //
+    // `Intl.Segmenter` is missing from GJS builds whose ICU was trimmed. Not a
+    // version story: measured on `ubuntu-latest` with **gjs 1.88.1**, the SAME
+    // version as the Fedora container where it is present. A `.deb` declaring
+    // `Depends: gjs >= 1.82` therefore installs there and the program dies at
+    // startup — which is how this was found, by the first CI leg that handed a
+    // package to a real `dpkg`.
+    //
+    // Reached through the argument parser, so it is every command and no
+    // application code: `yargs@18` -> `string-width@7` -> `get-east-asian-width`
+    // constructs one AT MODULE SCOPE, before anything can intervene.
+    describe('on a GJS whose ICU carries no Intl.Segmenter', { skip: hasGjs() ? false : 'no gjs on PATH' }, () => {
+        let run;
+
+        before(() => {
+            // Deleting it in a wrapper is the only way to reach that host's
+            // condition from one that has it — and it is exactly what the failing
+            // runner presents to the bundle.
+            const wrapper = join(projectDir, 'no-segmenter.mjs');
+            const bundleUrl = pathToFileURL(join(projectDir, 'dist', 'app.js')).href;
+            writeFileSync(
+                wrapper,
+                [
+                    'delete Intl.Segmenter;',
+                    "if (typeof Intl.Segmenter === 'function') throw new Error('probe did not remove it');",
+                    `await import('${bundleUrl}');`,
+                    "print('SEGMENTER:' + typeof Intl.Segmenter);",
+                    "print('SEGMENTS:' + [...new Intl.Segmenter().segment('ab')].map((s) => s.segment).join(','));",
+                    '',
+                ].join('\n'),
+            );
+            run = spawnSync('gjs', ['-m', wrapper], {
+                cwd: projectDir,
+                encoding: 'utf-8',
+                timeout: 60 * 1000,
+            });
+        });
+
+        it('runs the bundle instead of throwing at byte 1', () => {
+            assert.equal(run.status, 0, `the bundle did not run:\n${run.stdout}\n${run.stderr}`);
+            assert.ok(run.stdout.includes(APP_MARKER), `no marker line in:\n${run.stdout}`);
+        });
+
+        it('leaves a working Intl.Segmenter behind', () => {
+            // Not just "defined": a stub that constructs and yields nothing would
+            // satisfy `typeof` and still break every width calculation.
+            assert.match(run.stdout, /SEGMENTER:function/);
+            assert.match(run.stdout, /SEGMENTS:a,b/);
         });
     });
 });
