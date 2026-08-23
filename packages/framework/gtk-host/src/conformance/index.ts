@@ -10,13 +10,16 @@ import GObject from 'gi://GObject';
 import type Gtk from '@girs/gtk-4.0';
 
 import { BUILTIN_DESCRIPTORS } from '../descriptors/index.js';
-import { addressOf } from '../policies.js';
+import { addressOf, unhandledPolicy } from '../policies.js';
 import type { ChildPolicy, HostElement, WidgetDescriptor } from '../types.js';
 
 /** Every method name a policy names, so the check does not have to know the shapes. */
 export function methodsOf(policy: ChildPolicy): string[] {
     switch (policy.kind) {
         case 'none':
+        // Names no method, so there is nothing for `descriptorProblems()` to
+        // check on the class — which is the whole content of "uncurated".
+        case 'uncurated':
             return [];
         case 'single':
             return [policy.set];
@@ -30,6 +33,8 @@ export function methodsOf(policy: ChildPolicy): string[] {
             return [policy.add, policy.remove];
         case 'coords':
             return [policy.attach, policy.remove];
+        default:
+            return unhandledPolicy(policy);
     }
 }
 

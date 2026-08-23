@@ -103,6 +103,15 @@ export const err = {
             `<${parentTag}> refused <${childTag}>: ${reason}. The container accepts only certain child types ` +
                 `(e.g. AdwPreferencesPage takes AdwPreferencesGroup); the descriptor cannot know that, GTK does.`,
         ),
+    uncuratedPlacement: (parentTag: string, childTag: string) =>
+        new GtkHostError(
+            'uncurated-placement',
+            `<${parentTag}> comes from the GENERATED table, which knows the tag but not how the widget ` +
+                `adopts a child, so it cannot take <${childTag}>. Guessing is the one thing that is not ` +
+                `available here: \`add\`, \`append\` and \`set_child\` all exist somewhere in GTK and calling ` +
+                `the wrong one is a warning at exit 0. Add a curated policy for ${parentTag} in ` +
+                `descriptors/, or mount into a container that has one.`,
+        ),
     siblingCycle: (parentTag: string) =>
         new GtkHostError(
             'sibling-cycle',

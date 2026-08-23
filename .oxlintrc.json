@@ -240,6 +240,7 @@
         "packages/infra/lightningcss-wasm/src/napi-wasm.mjs",
         "packages/**/conformance.*.js",
         "**/@types",
+        "**/src/generated",
         "**/templates",
         "**/prebuilds",
         "**/.yarn/cache",

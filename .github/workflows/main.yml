@@ -375,6 +375,21 @@ jobs:
           su testuser -c "gjs -m '$GJSIFY_BOOTSTRAP'
           upgrade --check --exclude-workspace '@gjsify/integration-*'"
 
+      # `@gjsify/gtk-host`'s type surface is GENERATED from the GTK/Adwaita GIR, and
+      # `gjsify tsc --noEmit` on the package cannot check it: a type surface type-checks
+      # against ITSELF whatever it claims about `<gtk-box>`. So the gate compiles fixtures
+      # that must FAIL — a `@ts-expect-error` per JSX negative (TypeScript reports an unused
+      # one, so the half reduces to exit 0) and a declared error code per Vue SFC — and it
+      # re-runs them with each load-bearing setting flipped, because a setting whose removal
+      # changes nothing is not load-bearing. The one it exists for: with `jsx: "preserve"`,
+      # no `jsxImportSource` and `noImplicitAny` off, every JSX element is implicitly `any`
+      # and `tsc` exits 0 having checked nothing — measured, 11 of 12 negatives go green.
+      # It rides HERE and not in `check`, because the fixtures resolve the package's own
+      # subpath to `src/` through a `paths` entry and need no build; this job has the
+      # workspace installed and carries no `paths:` filter.
+      - name: Check the generated type surfaces (JSX + Vue SFC)
+        run: su testuser -c 'node scripts/check-type-surfaces.mjs'
+
   # ── Build + type-check + examples ───────────────────────────────────
   # Compiles + type-checks the workspace packages and, when examples are in
   # scope, builds them too (build:examples MUST run right after a full build

@@ -12,12 +12,30 @@
 import GObject from 'gi://GObject';
 
 import { err } from './errors.js';
+import { tagOf } from './tags.js';
 import type { WidgetDescriptor } from './types.js';
 
 const registry = new Map<string, WidgetDescriptor>();
 
+/**
+ * The kebab spelling of each GType name, kept in a SECOND map.
+ *
+ * Two spellings exist because two dialects insist on different ones (ADR 0028 § 7)
+ * and both reach the host as a plain tag string: a Vue template resolves `<GtkBox>`
+ * to the GType name, a `.tsx` file can only write `<gtk-box>` because TypeScript
+ * reads a capitalised JSX name as a value reference. So both must look up.
+ *
+ * Separate rather than merged, because the GType-keyed map is what
+ * `nearestRegistered()` walks and what `registeredTags()` reports — folding
+ * aliases in would make the conformance suite check every widget twice and report
+ * 328 tags for 164 widgets.
+ */
+const aliases = new Map<string, WidgetDescriptor>();
+
 export function registerWidget(descriptor: WidgetDescriptor): void {
     registry.set(descriptor.gtype, descriptor);
+    const tag = tagOf(descriptor.gtype);
+    if (tag !== descriptor.gtype) aliases.set(tag, descriptor);
 }
 
 export function registerWidgets(descriptors: readonly WidgetDescriptor[]): void {
@@ -25,14 +43,14 @@ export function registerWidgets(descriptors: readonly WidgetDescriptor[]): void 
 }
 
 export function lookupWidget(tag: string): WidgetDescriptor {
-    const d = registry.get(tag);
+    const d = registry.get(tag) ?? aliases.get(tag);
     if (!d) throw err.unknownTag(tag);
     return d;
 }
 
-export const hasWidget = (tag: string): boolean => registry.has(tag);
+export const hasWidget = (tag: string): boolean => registry.has(tag) || aliases.has(tag);
 
-/** Every registered tag — the conformance suite walks this, so coverage is data. */
+/** Every registered GType name — the conformance suite walks this, so coverage is data. */
 export const registeredTags = (): string[] => [...registry.keys()].sort();
 
 /**
@@ -44,35 +62,25 @@ export const registeredTags = (): string[] => [...registry.keys()].sort();
  * `Adw.HeaderBar` can never be confused for one another.
  */
 export function nearestRegistered(gtype: GObject.GType): WidgetDescriptor | undefined {
-    let best: WidgetDescriptor | undefined;
-    let bestDepth = -1;
-    for (const descriptor of registry.values()) {
-        let candidate: GObject.GType;
-        try {
-            candidate = descriptor.ctor().$gtype;
-        } catch {
-            continue; // a descriptor for a type the installed GTK does not carry
-        }
-        if (!GObject.type_is_a(gtype, candidate)) continue;
-        const depth = depthOf(candidate);
-        if (depth > bestDepth) {
-            best = descriptor;
-            bestDepth = depth;
-        }
+    // A WALK UP THE TYPE CHAIN, not a scan of the table, and the table's size is
+    // what forced it: the previous scan called `descriptor.ctor()` on every entry to
+    // learn its GType, which with a generated table means resolving 164 GI classes
+    // on the first subclass ever mounted — the exact cost `ctor` is lazy to avoid.
+    // Walking `type_parent` and looking each name up is O(depth) with no class
+    // resolution at all, and it finds the same descriptor: the first hit going up IS
+    // the nearest registered ancestor.
+    //
+    // What it does not find, deliberately: a descriptor keyed on an INTERFACE.
+    // `type_parent` walks the class chain, and every descriptor in the table names a
+    // concrete class, so there is nothing to lose here — but a future interface
+    // descriptor would need `type_interfaces()` as well.
+    for (let current: GObject.GType | null = gtype; current; current = GObject.type_parent(current)) {
+        const name = GObject.type_name(current);
+        if (!name) break;
+        const descriptor = registry.get(name);
+        if (descriptor) return descriptor;
     }
-    return best;
-}
-
-function depthOf(gtype: GObject.GType): number {
-    let depth = 0;
-    let current: GObject.GType | null = gtype;
-    while (current) {
-        const parent = GObject.type_parent(current);
-        if (!parent) break;
-        depth += 1;
-        current = parent;
-    }
-    return depth;
+    return undefined;
 }
 
 /**
@@ -84,4 +92,5 @@ function depthOf(gtype: GObject.GType): number {
  */
 export function clearRegistry(): void {
     registry.clear();
+    aliases.clear();
 }
