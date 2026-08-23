@@ -52,6 +52,7 @@ const EXCLUDED = [
     /^packages\/infra\/tsc\/lib\//,
     /\/(lib|dist|node_modules)\//,
     /devtools-cdp\/src\/spec-data\.ts$/,
+    /gtk-host\/src\/generated\//,
     /adwaita-icons\/(actions|categories|devices|emotes|index|legacy|mimetypes|places|status|ui)\.ts$/,
 ];
 

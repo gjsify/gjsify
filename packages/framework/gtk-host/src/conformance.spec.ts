@@ -37,7 +37,12 @@ export default async () => {
                     // fixed-length array per kind, so a policy with every method
                     // `undefined` passed a length check while naming nothing.
                     expect(methods.every((m) => typeof m === 'string' && m.length > 0)).toBe(true);
-                    expect(d.children.kind === 'none' || methods.length > 0).toBe(true);
+                    // `none` and `uncurated` are the two kinds that legitimately
+                    // name no method: the first says the widget takes no child, the
+                    // second that the generator found the tag and no placement rule
+                    // was ever measured for it. Everything else must name one.
+                    const nameless = d.children.kind === 'none' || d.children.kind === 'uncurated';
+                    expect(nameless || methods.length > 0).toBe(true);
                 }
             });
 

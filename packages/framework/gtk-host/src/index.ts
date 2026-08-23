@@ -25,7 +25,24 @@ export {
 } from './host.js';
 export { addressOf, reorderMode } from './policies.js';
 export { toSignalName, isEventProp } from './signals.js';
-export { constructOnlyNames, isConstructOnly, isWritable, paramSpecs, toPropertyName } from './props.js';
+export {
+    constructOnlyNames,
+    isConstructOnly,
+    isWritable,
+    lookupEnumNick,
+    paramSpecs,
+    toPropertyName,
+} from './props.js';
+export { assertInjective, tagOf } from './tags.js';
+export type {
+    ElementChild,
+    ElementChildren,
+    JsxAttributes,
+    RawSignalAttributes,
+    SlotAttribute,
+    VueAttributes,
+    WithOnce,
+} from './attrs.js';
 export {
     clearRegistry,
     hasWidget,
@@ -35,4 +52,14 @@ export {
     registerWidgets,
     registeredTags,
 } from './registry.js';
-export { ADW_DESCRIPTORS, BUILTIN_DESCRIPTORS, GTK_DESCRIPTORS, registerBuiltinWidgets } from './descriptors/index.js';
+export {
+    ADW_DESCRIPTORS,
+    BUILTIN_DESCRIPTORS,
+    CURATED_DESCRIPTORS,
+    GENERATED_PROVENANCE,
+    GENERATED_WIDGETS,
+    GTK_DESCRIPTORS,
+    mergeGenerated,
+    registerBuiltinWidgets,
+    tableProvenance,
+} from './descriptors/index.js';
