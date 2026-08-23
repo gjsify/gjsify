@@ -322,3 +322,88 @@ is not in this table because `@vue/runtime-core` does not export it at all
 
 A React adapter will run the same vectors, so "it works in Vue" and "it works in
 React" will mean the same thing.
+
+## The widget table, and the type surfaces
+
+The table is **generated from the GIR** and committed. 164 concrete GtkWidget
+descendants (Gtk 102, Adw 62), each with its GType name, its kebab tag and a lazy
+`ctor`; 26 of them also carry a **curated** placement rule, and the generator may
+only ever ADD a tag, never contradict one. A tag with no curated rule gets
+`children: { kind: 'uncurated' }` — the widget can be created, given properties and
+given handlers, while inserting a child raises an error naming the tag that needs a
+policy. Guessing is not on offer: `add`, `append` and `set_child` all exist
+somewhere in GTK, and calling the wrong one is a warning at exit 0.
+
+Regenerating is a maintainer step, because the GIR files are not in this repo:
+
+```sh
+GJSIFY_GIR_DIR=/path/to/girs npm run generate   # then look at git diff
+```
+
+A fresh clone needs no GIR to build, check, pack or test. What travels instead is
+`generated.spec.ts`, which asks the *installed* GTK whether every generated name is
+real: every offered property present as a writable ParamSpec, every offered signal
+resolvable by `GObject.signal_lookup`, every enum nick resolvable through the
+host's own `coerce()` path. A member the installed library lacks is accepted only
+if the GIR says it arrived in a newer release — `GtkApplicationWindow::save-state`
+is GTK 4.24 and the check runs on 4.22.4.
+
+### Solid / JSX
+
+```jsonc
+{
+    "jsx": "preserve",                            // babel-preset-solid does the transform
+    "jsxImportSource": "@gjsify/gtk-host",         // TypeScript appends /jsx-runtime
+    "noImplicitAny": true                          // load-bearing, see below
+}
+```
+
+```tsx
+<gtk-box orientation="vertical" spacing={8}>
+    <gtk-label label="Hello" />
+    <gtk-button label="Go" onClicked={() => count(count() + 1)} />
+</gtk-box>
+```
+
+Tags are kebab because a capitalised `JSX.IntrinsicElements` key is never
+consulted — `<GtkBox/>` is `TS2304: Cannot find name 'GtkBox'`. This package ships
+its **own** jsx-runtime rather than augmenting `solid-js`, which would leave all
+208 tags Solid pre-declares (HTML, SVG, MathML) type-checking clean on a GTK
+renderer and rendering nothing.
+
+Two things worth knowing:
+
+- **`noImplicitAny: true` is not optional.** With `jsx: "preserve"`, no
+  `jsxImportSource` and `noImplicitAny` off, every JSX element is implicitly `any`
+  and `tsc` exits 0 having checked nothing.
+- **An unknown *hyphenated* prop cannot be refused.** TypeScript exempts every
+  hyphen-containing JSX attribute from excess-property checking, so
+  `<gtk-box no-such={1}/>` is accepted. Both spellings are generated, so a declared
+  `can-focus={'yes'}` still fails on its VALUE — but prefer `canFocus`, which is
+  checked both ways.
+
+### Vue
+
+```ts
+import '@gjsify/gtk-host/vue-components';
+```
+
+```jsonc
+{ "vueCompilerOptions": { "strictTemplates": true } }
+```
+
+```vue
+<GtkBox orientation="vertical" :spacing="8">
+    <GtkButton label="Go" @clicked="go" />
+</GtkBox>
+```
+
+Keys are GType names, because Volar camelizes and capitalises a template tag before
+looking it up — so one `GtkBox` key answers both `<GtkBox>` and `<gtk-box>`.
+`strictTemplates: true` is **required**: without it an unknown prop, an unknown
+event and an entirely unresolved tag are all silently accepted while wrong VALUE
+types still error, so the surface looks alive and checks the wrong half.
+
+That camelize has no acronym knowledge (`gtk-gl-area` → `GtkGlArea`), so widgets
+with two adjacent capitals get an extra kebab key. The generator finds them by
+rule; today there is exactly one, `GtkGLArea`.

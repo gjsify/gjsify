@@ -2887,3 +2887,47 @@ and explains that `DOMParser` was not usable for it. It is usable now — HTML m
 real selectors, entity decoding, all reachable from the same Node run that suite
 already has. Collecting it is a change against a different pillar, so it did not
 ride along with ADR 0026.
+
+### The dialect type surfaces sit outside the adapter import-direction check
+
+`scripts/check-adapter-import-direction.mjs` walks `src/adapters/` and holds every
+file there to ADR 0027 § 7: no widget-name literal, no placement method, the
+vocabulary comes from the table. `src/jsx-runtime.ts` and `src/vue-components.ts`
+are dialect surfaces of the same kind and are NOT in that tree, so the rule does
+not reach them.
+
+Today nothing is wrong: both files are mapped types over the generated interfaces
+and carry zero widget literals, and the generator is what makes a hand-maintained
+tag list unnecessary. The gap is the future one — a surface that starts listing
+tags by hand would pass every check in the repo. Extending the walk means teaching
+it a second root and adding `generated` to `HOST_INTERNALS`, which is more than a
+one-line change because that script cross-checks the published `./<framework>`
+subpaths against the adapters tree.
+
+### An unknown hyphenated JSX prop cannot be refused, and only a lint rule can
+
+Measured on TypeScript 5.9.3 and 7.0.2, on intrinsics and on components alike:
+every attribute whose name contains a hyphen is exempt from excess-property
+checking, so `<gtk-box no-such={1}/>` type-checks clean. Three index-signature
+shapes were tried and all three either changed nothing or collided with the
+declared kebab keys (TS2411).
+
+Both spellings are generated, so a DECLARED `can-focus={'yes'}` still fails on its
+value — the hole is only unknown hyphenated names. Closing it needs something
+outside the type system: an oxlint rule over `.tsx` attribute names checked against
+`WidgetPropsByTag`, or a dev-mode warning in `setProp` when a kebab name resolves
+to no ParamSpec. The second is cheaper and catches Vue templates too, which have
+the same hole with `strictTemplates` off.
+
+### 138 of 164 generated widgets have no measured placement rule
+
+The generated table names every concrete GtkWidget descendant; the curated table
+measures placement for 26. The rest are `children: { kind: 'uncurated' }` — they
+can be created, given properties and given handlers, and inserting a child raises
+an error naming the tag that needs a policy.
+
+This is the honest state rather than a defect: guessing an adder is what the
+`uncurated` kind exists to refuse, because `add`, `append` and `set_child` all
+exist somewhere in GTK and calling the wrong one is a warning at exit 0. Curating
+more should be driven by a real window that needs one, with its vector, not by
+walking the list alphabetically.

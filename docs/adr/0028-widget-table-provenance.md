@@ -133,6 +133,68 @@ coercer and the verifier.**
    absent `vue-tsc` exits 0 on a deliberately red fixture with no output at all.
    Both need an explicit discriminator, or the gate is the checked-nothing class.
 
+   Measured on `vue-tsc@3.3.11` + the repo's `typescript@6.0.3`, `strictTemplates`
+   buys **exactly the excess-property check**: with it, an unknown prop is TS2353,
+   an unknown event TS2353, an unresolved tag TS2339; without it those three are
+   silently green while a wrong VALUE type still errors as TS2322. So a project
+   missing the flag watches type errors appear, concludes the surface works, and
+   has no checking at all on the half that actually drifts. (`vue-tsc` does crash
+   on `typescript@7`, whose `exports` map has no `./lib/tsc` — with exit 1 rather
+   than the exit 2 of type errors, so a gate must test for exit **0**, never for
+   the absence of error lines. On 6.0.3, which ships no `exports` map at all, it
+   runs.)
+
+   **Volar's camelize has no acronym knowledge, and one widget pays for it.** A
+   template tag is `-x` → `X` camelized and capitalized before lookup, so
+   `gtk-gl-area` becomes `GtkGlArea` and misses `GtkGLArea` (TS2339). Of the 164
+   concrete widgets exactly one has two adjacent capitals, and the generator finds
+   that class BY RULE — any such GType also gets a kebab key, which a kebab tag
+   does resolve against — instead of leaving it to a bug report.
+
+8. **The JSX surface ships its OWN jsx-runtime; augmenting `solid-js` is refused.**
+   The one-line alternative is `declare module 'solid-js' { namespace JSX { … } }`,
+   and measured it leaves every tag Solid pre-declares valid on a GTK renderer:
+   113 HTML + 4 deprecated + 59 SVG + 32 MathML = 208 elements that type-check
+   clean and then render NOTHING. Closing them needs 208 `never` overrides and
+   still reports `Type '{}' is not assignable to type 'never'` rather than "no such
+   element". With our own runtime, `<div/>` is TS2339 and says so.
+
+   Three further shapes are forced rather than chosen, each measured:
+
+   - **Handler parameters carry the exact GIR signature.** `(...args: unknown[]) =>
+     void` fails both ways under `strictFunctionTypes`: an annotated
+     `(row: AdwActionRow) => void` will not assign to it (TS2322, contravariance),
+     and an inline arrow's parameter arrives as `unknown` so using it is TS2345.
+     `any[]` accepts everything and checks nothing. The parameters are also the
+     signal's own, WITHOUT the emitting object, because the host strips it
+     (`next(...args.slice(1))`).
+   - **`ref` and `children` must be real members of each element's props.**
+     TypeScript unions `JSX.IntrinsicAttributes` into the attributes of a COMPONENT
+     and not of an intrinsic element, so an undeclared `ref` is TS2322 and an
+     undeclared `children` makes every nested element TS2559; `children` must also
+     be optional, or a self-closing tag is TS2741. Carrying the widget's instance
+     type per tag makes `ref={(el) => …}` infer `el` as `Gtk.Box`.
+   - **`noImplicitAny` is load-bearing.** With `jsx: "preserve"`, no
+     `jsxImportSource` and `noImplicitAny` off, every JSX element is implicitly
+     `any` and `tsc` exits 0 having checked nothing — the one configuration in
+     which the whole surface evaporates in silence.
+
+   And one hole that stays open, documented rather than papered over: TypeScript
+   exempts every HYPHENATED JSX attribute from excess-property checking, so
+   `<gtk-box no-such={1}/>` is accepted — on intrinsics and on components alike.
+   Three index-signature shapes were tried; all three either changed nothing or
+   collided with the declared kebab keys (TS2411). Both spellings are therefore
+   generated (a declared `can-focus` at least gets its VALUE checked) and camelCase
+   is the spelling to prefer.
+
+9. **Interface properties are not optional, and GIR hides them.** `GtkBox` declares
+   four properties of its own and `orientation` is not among them: it lives on
+   `Gtk.Orientable`, an `<implements>` of GtkBox, because GObject installs interface
+   properties on the implementor at runtime while GIR keeps them once, on the
+   interface. A class-only reader therefore emits a surface in which
+   `<gtk-box orientation="vertical">` — the most-written GtkBox attribute there is —
+   is a type error. The reader walks parents AND interfaces.
+
 ## Consequences
 
 - The normal disagreement between table and runtime is **version skew** — a user's
@@ -166,6 +228,35 @@ tarball and a fresh clone with no GIR all work unchanged, and it makes a widget
 table reviewable in a diff. A byte gate would instead fail for nothing the day a
 second CI leg runs a different GTK: four GTK versions sit on the maintainer
 workstation alone (4.16.13, 4.20.4, 4.22.4, 4.23.0) and the pinned `@girs` is a
-fifth answer. The machine-INDEPENDENT check is the runtime one that already
-exists — `descriptorProblems()` against the installed typelib, plus `tableSkew()`
-for classes the installed GTK does not have, which is version skew and not a bug.
+fifth answer. A `--check` mode was written and then removed for a second reason:
+the `generate` script pipes the output through `gjsify format`, which reflows it
+(+4 KB on `props.ts`), so the comparison reports a difference on every run.
+`git diff` after a regeneration answers the same question with no machinery.
+
+The machine-INDEPENDENT check is the runtime one, and it is now a suite rather
+than a single function: `descriptorProblems()` for every method and text sink a
+policy names, and `generated.spec.ts` for the generated surface — every offered
+property present as a writable ParamSpec, every offered signal resolvable by
+`GObject.signal_lookup`, every emitted enum nick resolvable through the host's own
+`coerce()` path, and every tag's class carrying the GType the table claims. Over
+164 widgets against gtk 4.22.4 and libadwaita, the two property directions agree
+exactly.
+
+**Version skew is handled by a rule, not an allowlist.** The generator emits each
+member's GIR `version` attribute into the test data, and a member the installed
+library lacks is accepted only if that version is newer than the one running —
+anything else is a defect. That rule earned its place immediately:
+`GtkApplicationWindow::save-state` arrived in GTK 4.24 and the workstation runs
+4.22.4, which is one name, and the alternative was to stop checking signals or to
+hard-code an exception.
+
+**What is emitted.** `generated/widgets.ts` — the shipped runtime table (164 tags,
+GType and ctor, no placement rule). `generated/props.ts` — the type surface: one
+interface per GIR declaration, mirroring GIR's own inheritance, because the 164
+widgets have 6768 writable property slots between them and only 561 distinct
+property names. `generated/surface-data.mts` — test-only, a `.mts` file so it is
+outside the library build glob and never ships. A widget the curated table does not
+cover gets `children: { kind: 'uncurated' }`: it can be created, given properties
+and given handlers, while inserting a child raises an error naming the tag that
+needs a policy — because `add`, `append` and `set_child` all exist somewhere in
+GTK and calling the wrong one is a warning at exit 0.
