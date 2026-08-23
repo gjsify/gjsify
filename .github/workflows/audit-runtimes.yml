@@ -493,6 +493,24 @@ jobs:
       - name: Check the website gallery documents every storybook widget
         run: node scripts/check-website-adwaita-gallery.mjs
 
+      # And the same page's SAMPLES, which that gallery gate says nothing about — its
+      # own header: "it therefore says NOTHING about whether a page RENDERS". Nothing
+      # read a fence at all, and an audit found eight defects in that blind spot: three
+      # NativeScript tabs using a glyph they never import, one importing a class it
+      # never uses, `view-columns-symbolic` (in no icon theme) under prose promising an
+      # icon, a `class="adw-action-bar"` no stylesheet declares, and two blueprint
+      # blocks that do not compile — `menu-model: menu <id>;` is not the syntax, and
+      # `Gtk.ActionBar` has exactly one property in GTK 4, `revealed`, so a
+      # `center-widget:` line is refused. Every one of them is a sample a reader copies.
+      # blueprint-compiler is one apt package and it is what turns the fourth arm from
+      # a lint into a compile. Same shape as main.yml's `gjs` and `lintian` steps: a
+      # reader this bare runner does not ship, installed where it is used.
+      - name: Install blueprint-compiler (for the doc-fence compile arm)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends blueprint-compiler
+
+      - name: Check every Adwaita doc sample is one that runs
+        run: node scripts/check-doc-fences.mjs
+
       # One meta drives all three panels, so the three ALWAYS look identical — which
       # is exactly why a control wired on one target and not the others cannot be
       # seen. `entry-row`'s `showApplyButton` switch rendered on all three and was
@@ -970,6 +988,20 @@ jobs:
       # strict subset with nothing saying so. A hand is not a mechanism.
       - name: Check the website gallery documents every storybook widget
         run: node scripts/check-website-adwaita-gallery.mjs
+
+      # And the same page's SAMPLES, which that gallery gate says nothing about — its
+      # own header: "it therefore says NOTHING about whether a page RENDERS". Nothing
+      # read a fence at all, and an audit found eight defects in that blind spot: three
+      # NativeScript tabs using a glyph they never import, one importing a class it
+      # never uses, `view-columns-symbolic` (in no icon theme) under prose promising an
+      # icon, a `class="adw-action-bar"` no stylesheet declares, and two blueprint
+      # blocks that do not compile — `menu-model: menu <id>;` is not the syntax, and
+      # `Gtk.ActionBar` has exactly one property in GTK 4, `revealed`, so a
+      # `center-widget:` line is refused. Every one of them is a sample a reader copies.
+      # No blueprint-compiler on this runner, so the compile arm reports SKIPPED by name
+      # and the other three still run. The Linux leg above is where that arm is real.
+      - name: Check every Adwaita doc sample is one that runs
+        run: node scripts/check-doc-fences.mjs
 
       # One meta drives all three panels, so the three ALWAYS look identical — which
       # is exactly why a control wired on one target and not the others cannot be

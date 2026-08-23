@@ -1,0 +1,6 @@
+{
+    "//": "Deliberate divergences check-doc-fences.mjs must not fight. Key is '<source>:<token>'. Each value states WHY and, where an older ledger already argued it, points at that ledger — two records of one decision are one drift away from disagreeing.",
+    "exemptions": {
+        "website/src/content/docs/adwaita/buttons.mdx:view-columns": "The Toggle Group block's third toggle. `view-columns-symbolic` is in no icon theme, so the GJS and Blueprint panes really do draw GTK's broken-image paintable — and that is ARGUED, not overlooked: status/adwaita-web-icon-masks.json's `view-columns` entry keeps adwaita-web's hand-drawn glyph because dropping it would put the web pane on image-missing too, 'parity bought by making both panes worse'. Retire this exemption the day @gjsify/adwaita-icons exports the name, together with that one. What was missing and is now fixed is the DISCLOSURE: the page told a reader nothing, while promising two paragraphs earlier that where a renderer differs, its tab says so."
+    }
+}
