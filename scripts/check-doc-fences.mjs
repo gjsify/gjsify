@@ -254,8 +254,26 @@ function fences(text) {
 // oxlint-disable-next-line no-control-regex -- the escape sequence IS what this strips
 const ANSI_SGR = /\u001b\[[0-9;]*m/g;
 
-function blueprintAvailable() {
-    return spawnSync('blueprint-compiler', ['--version'], { stdio: 'ignore' }).status === 0;
+/**
+ * Can the compile arm actually run here?
+ *
+ * `--version` answers a DIFFERENT question. Measured on a bare `ubuntu-latest`
+ * with the package installed: every one of the 40 fences came back with
+ * `Could not find GTK 4 introspection files. Is gobject-introspection
+ * installed?` — 40 failures that say nothing about the samples. So the probe
+ * compiles the smallest document that needs a typelib, and a host without one
+ * gets a SKIPPED line naming the reason instead of a wall of false red.
+ */
+function blueprintAvailable(dir) {
+    if (spawnSync('blueprint-compiler', ['--version'], { stdio: 'ignore' }).status !== 0) {
+        return { ok: false, why: 'blueprint-compiler is not on PATH' };
+    }
+    const probe = join(dir, 'probe.blp');
+    writeFileSync(probe, 'using Gtk 4.0;\n\nGtk.Label {\n  label: "probe";\n}\n');
+    const proc = spawnSync('blueprint-compiler', ['compile', probe], { encoding: 'utf8' });
+    if (proc.status === 0) return { ok: true, why: null };
+    const first = (proc.stderr ?? '').replace(ANSI_SGR, '').trim().split('\n')[0];
+    return { ok: false, why: first || `blueprint-compiler exited ${proc.status} on a one-label document` };
 }
 
 /**
@@ -487,8 +505,8 @@ if (sources.length === 0) {
     process.exit(1);
 }
 
-const hasBlueprint = blueprintAvailable();
 const dir = mkdtempSync(join(tmpdir(), 'gjsify-doc-fences-'));
+const blueprint = blueprintAvailable(dir);
 let tsFences = 0;
 let blueprintFences = 0;
 
@@ -508,7 +526,7 @@ try {
         }
         checkIconStrings(text, rel, icons, webIcons, exempt);
         checkClasses(text, rel, styled, webIcons, exempt);
-        if (hasBlueprint) {
+        if (blueprint.ok) {
             blueprintFences += checkBlueprint(list, rel, dir);
         } else {
             blueprintFences += list.filter((f) => f.lang === 'blueprint').length;
@@ -523,12 +541,13 @@ try {
 if (tsFences === 0) fail('scan', 'no `ts` fence was found across every source — the extractor is broken');
 if (blueprintFences === 0) fail('scan', 'no `blueprint` fence was found — the extractor is broken');
 
-if (hasBlueprint) {
+if (blueprint.ok) {
     notes.push(`${blueprintFences} blueprint fence(s) compiled with blueprint-compiler`);
 } else {
     notes.push(
-        `SKIPPED: ${blueprintFences} blueprint fence(s) NOT compiled — blueprint-compiler is not on PATH. ` +
-            'The other three arms ran.',
+        `SKIPPED: ${blueprintFences} blueprint fence(s) NOT compiled — ${blueprint.why}. ` +
+            'The other three arms ran. main.yml\'s `tree-checks` job is where this arm is real: ' +
+            'the ci-fedora image bakes blueprint-compiler, gtk4-devel and gobject-introspection.',
     );
 }
 notes.push(
