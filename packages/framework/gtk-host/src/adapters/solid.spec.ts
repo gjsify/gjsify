@@ -7,14 +7,25 @@
 // it. Only an update after the first render can tell the two apart, so every case
 // here renders, mutates, and asserts again.
 
-import { describe, expect, it, on } from '@gjsify/unit';
+import { expect, it, on } from '@gjsify/unit';
 
 import Gtk from 'gi://Gtk?version=4.0';
 import { createSignal } from 'solid-js';
 
 import { installDiagnosticsGate, gtkChildren, gtkChildTypes } from '../conformance/index.js';
+import { gated } from '../testing/gate.mjs';
 import { registerBuiltinWidgets } from '../descriptors/index.js';
-import { For, createComponent, createElement, effect, insert, insertNode, mount, setSolidProp } from './solid.js';
+import {
+    Dynamic,
+    For,
+    createComponent,
+    createElement,
+    effect,
+    insert,
+    insertNode,
+    mount,
+    setSolidProp,
+} from './solid.js';
 
 const labelsOf = (w: Gtk.Widget) => gtkChildren(w).map((c) => (c as Gtk.Label).label);
 
@@ -24,7 +35,7 @@ export default async () => {
         registerBuiltinWidgets();
         const diagnostics = installDiagnosticsGate();
 
-        await describe('solid-js/universal over the GTK host', async () => {
+        await gated(diagnostics, 'solid-js/universal over the GTK host', async () => {
             await it('renders a tree into a widget the application owns', async () => {
                 const container = new Gtk.Box();
                 const dispose = mount(() => {
@@ -38,7 +49,6 @@ export default async () => {
                 expect(gtkChildTypes(container)).toStrictEqual(['GtkBox']);
                 expect(labelsOf(gtkChildren(container)[0])).toStrictEqual(['hello']);
                 dispose();
-                diagnostics.assertQuiet();
             });
 
             await it('updates a property after the first render — the reactivity discriminator', async () => {
@@ -57,7 +67,6 @@ export default async () => {
                 // thing that can tell the two builds apart.
                 expect(labelsOf(container)).toStrictEqual(['second']);
                 dispose();
-                diagnostics.assertQuiet();
             });
 
             await it('reconciles a list, and a reorder reaches GTK', async () => {
@@ -82,7 +91,6 @@ export default async () => {
                 setItems(['b']);
                 expect(labelsOf(box)).toStrictEqual(['b']);
                 dispose();
-                diagnostics.assertQuiet();
             });
 
             await it('<For> keeps widget identity across a reorder', async () => {
@@ -124,6 +132,71 @@ export default async () => {
                 expect(reused).toBe(before.length);
             });
 
+            // Every width, because the defect only lived at SOME of them.
+            //
+            // `reconcileArrays`' swap fast path emits `insertNode(parent, b, b)`
+            // — a node anchored on ITSELF, which the DOM defines as a no-op — and
+            // it fires only when the two swapped rows are ADJACENT. At width 3 a
+            // full reversal moves non-adjacent rows and takes a different branch,
+            // so the one reorder vector this suite had was the one width that
+            // could not see it. Reversing two items HUNG the process.
+            for (const [from, to] of [
+                [
+                    ['a', 'b'],
+                    ['b', 'a'],
+                ],
+                [
+                    ['a', 'b', 'c'],
+                    ['b', 'a', 'c'],
+                ],
+                [
+                    ['a', 'b', 'c'],
+                    ['c', 'b', 'a'],
+                ],
+                [
+                    ['a', 'b', 'c', 'd'],
+                    ['a', 'c', 'b', 'd'],
+                ],
+                [
+                    ['a', 'b', 'c', 'd'],
+                    ['d', 'c', 'b', 'a'],
+                ],
+                [
+                    ['h', 'a', 'b', 't'],
+                    ['h', 'b', 'a', 't'],
+                ],
+            ] as const) {
+                await it(`<For> reorders ${from.join('')} to ${to.join('')} without self-anchoring`, async () => {
+                    const container = new Gtk.Box();
+                    const [items, setItems] = createSignal<readonly string[]>(from);
+                    mount(() => {
+                        const box = createElement('GtkBox');
+                        insert(
+                            box,
+                            createComponent(For, {
+                                get each() {
+                                    return items();
+                                },
+                                children: (t: string) => {
+                                    const label = createElement('GtkLabel');
+                                    setSolidProp(label, 'label', t);
+                                    return label;
+                                },
+                            }),
+                        );
+                        return box;
+                    }, container);
+                    const box = gtkChildren(container)[0];
+                    const before = gtkChildren(box);
+                    setItems(to);
+                    const after = gtkChildren(box);
+                    expect(labelsOf(box)).toStrictEqual([...to]);
+                    // Same widget objects: a keyed reorder that recreates widgets
+                    // throws away focus, scroll position and every widget state.
+                    expect(after.filter((w) => before.includes(w)).length).toBe(before.length);
+                });
+            }
+
             await it('reconciles into a container that can only append', async () => {
                 // `Adw.PreferencesGroup` has no `insert()`, so the host rotates its
                 // tail. A renderer must not have to know that.
@@ -155,7 +228,6 @@ export default async () => {
                 setRows(['R1', 'R0']);
                 expect(titles()).toStrictEqual(['R1', 'R0']);
                 dispose();
-                diagnostics.assertQuiet();
             });
 
             await it('mounts AFTER what the application already put in the container', async () => {
@@ -174,7 +246,6 @@ export default async () => {
                 }, container);
                 expect(labelsOf(container)).toStrictEqual(['app-owned', 'rendered']);
                 dispose();
-                diagnostics.assertQuiet();
             });
 
             await it('a dynamic list keeps its place among static siblings', async () => {
@@ -262,7 +333,104 @@ export default async () => {
                 expect(labelsOf(box)).toStrictEqual(['b']);
                 buttons[0].emit('clicked');
                 expect(fired).toBe(1); // its handler died with it
-                diagnostics.assertQuiet();
+            });
+
+            // --- <Dynamic> ----------------------------------------------------
+            //
+            // `solid-js/web`'s own `Dynamic` is the DOM renderer's and cannot be
+            // used here: its string branch is `document.createElement(tag)` plus
+            // the DOM's `spread`, so nothing arrives through these host ops.
+            // Measured in an isolated bundle: container `["GtkBox"]`, the box's
+            // children just the static sibling, no throw, no GTK diagnostic,
+            // exit 0. Importing it into THIS bundle is not an option either — it
+            // makes `--globals auto` inject `document`, `HTMLCanvasElement` and
+            // `Path2D` and pull gi://Gdk, GdkPixbuf, Pango and PangoCairo.
+
+            await it('<Dynamic component="tag"> renders, and a new tag replaces it', async () => {
+                const container = new Gtk.Box();
+                const [tag, setTag] = createSignal('GtkLabel');
+                mount(() => {
+                    const box = createElement('GtkBox');
+                    insert(
+                        box,
+                        createComponent(Dynamic, {
+                            get component() {
+                                return tag();
+                            },
+                            label: 'dyn',
+                        }),
+                    );
+                    return box;
+                }, container);
+                const box = gtkChildren(container)[0];
+                expect(gtkChildTypes(box)).toStrictEqual(['GtkLabel']);
+                expect(labelsOf(box)).toStrictEqual(['dyn']);
+                setTag('GtkButton');
+                expect(gtkChildTypes(box)).toStrictEqual(['GtkButton']);
+            });
+
+            await it('<Dynamic component={fn}> calls the component', async () => {
+                const container = new Gtk.Box();
+                mount(() => {
+                    const box = createElement('GtkBox');
+                    insert(
+                        box,
+                        createComponent(Dynamic, {
+                            component: (p: { label?: string }) => {
+                                const label = createElement('GtkLabel');
+                                setSolidProp(label, 'label', p.label ?? '');
+                                return label;
+                            },
+                            label: 'from-fn',
+                        }),
+                    );
+                    return box;
+                }, container);
+                const box = gtkChildren(container)[0];
+                expect(labelsOf(box)).toStrictEqual(['from-fn']);
+            });
+
+            await it('<Dynamic> refuses a component that is neither tag nor function', async () => {
+                // Solid's own version falls through its switch and returns
+                // undefined, so `component={registry[key]}` with a key that missed
+                // renders nothing and says nothing.
+                const container = new Gtk.Box();
+                let error: Error | undefined;
+                try {
+                    mount(() => {
+                        const box = createElement('GtkBox');
+                        insert(box, createComponent(Dynamic, { component: undefined as never }));
+                        return box;
+                    }, container);
+                } catch (e) {
+                    error = e as Error;
+                }
+                expect(error === undefined).toBe(false);
+                expect(String(error?.message)).toContain('<Dynamic component={…}>');
+                expect(String(error?.message)).toContain('<Show when={…}>');
+            });
+
+            await it('insertNode refuses a value that is not a node of this renderer', async () => {
+                // The seam the DOM `Dynamic` fell through. `insertExpression`'s
+                // last branch hands any non-array object to `insertNode`, and the
+                // host then wrote its links onto it and did nothing else — a
+                // phantom in the shadow tree that never reaches GTK.
+                const container = new Gtk.Box();
+                let error: Error | undefined;
+                try {
+                    mount(() => {
+                        const box = createElement('GtkBox');
+                        // What solid-js/web's Dynamic produces: an object with a
+                        // tagName and no `kind`.
+                        insert(box, { tagName: 'DIV' } as never);
+                        return box;
+                    }, container);
+                } catch (e) {
+                    error = e as Error;
+                }
+                expect(error === undefined).toBe(false);
+                expect(String(error?.message)).toContain('a DOM element <div>');
+                expect(String(error?.message)).toContain('solid-js/web');
             });
 
             await it('a signal bound through the adapter fires, and unmount stops it', async () => {
@@ -286,7 +454,6 @@ export default async () => {
                 dispose();
                 button.emit('clicked');
                 expect(clicks).toBe(1);
-                diagnostics.assertQuiet();
             });
         });
     });

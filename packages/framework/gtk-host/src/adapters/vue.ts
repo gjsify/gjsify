@@ -16,8 +16,8 @@
 // of them cannot be honoured on GTK. They throw rather than lie: a silently wrong
 // window is the failure this package exists to prevent.
 
-import { createRenderer } from '@vue/runtime-core';
-import type Gtk from '@girs/gtk-4.0';
+import { createRenderer, type RendererOptions } from '@vue/runtime-core';
+import Gtk from 'gi://Gtk?version=4.0';
 
 import {
     adopt,
@@ -64,15 +64,102 @@ function withoutReservedProps(props: Record<string, unknown> | null | undefined)
     return filtered;
 }
 
+/**
+ * Adopted teleport targets, one host element per widget.
+ *
+ * `insert` is called repeatedly for the same target — once per teleported child,
+ * plus the two text anchors `TeleportImpl` places around them — and each call
+ * must see the SAME shadow tree, or every insertion computes its position
+ * against a freshly snapshotted `foreign` list. Weak, because the map must not
+ * be what keeps an application's widget alive.
+ */
+const adoptedParents = new WeakMap<object, HostElement>();
+
+/**
+ * A host element for whatever Vue calls a parent.
+ *
+ * `<Teleport :to="el">` with a non-string target is handed through VERBATIM —
+ * `resolveTarget`'s non-string branch is `return targetSelector` — so the parent
+ * arriving here is the application's raw widget, not a host node. That is also
+ * the form this adapter's own error message and README prescribe, so coercing it
+ * is what makes the prescription true; re-documenting it only moves the trap.
+ * The host refuses a raw widget by name (`not-a-host-parent`), which stays the
+ * backstop for every OTHER way one could arrive.
+ *
+ * The two facts are the same two the host checks: `kind` alone is a plain string
+ * a GObject wrapper could carry, and the descriptor is what every op dereferences.
+ */
+function asHostParent(parent: HostElement): HostElement {
+    const candidate = parent as unknown as { kind?: unknown; descriptor?: unknown } | null;
+    if (candidate && candidate.kind === 'element' && typeof candidate.descriptor === 'object') return parent;
+    // Not an object at all: no widget to adopt, and the host's refusal already
+    // names what it got. Guessing here would replace a good diagnostic with a
+    // TypeError from inside `adopt`.
+    if (candidate === null || typeof candidate !== 'object') return parent;
+    const cached = adoptedParents.get(candidate);
+    if (cached) return cached;
+    const adopted = adopt(parent as unknown as Gtk.Widget);
+    adoptedParents.set(candidate, adopted);
+    return adopted;
+}
+
+/**
+ * `<KeepAlive>` and `<Suspense>` ask the host for an OFF-SCREEN container.
+ *
+ * `KeepAliveImpl.setup` opens with `const storageContainer = createElement("div")`
+ * and `SuspenseImpl` does the same for its `hiddenContainer`. Forwarded as a tag,
+ * "div" reached `lookupWidget` and threw `unknown-tag` — and KeepAlive's setup runs
+ * inside `callWithErrorHandling`, whose PRODUCTION arm is `console.error(err)` with
+ * no rethrow. Measured under exactly the defines this adapter's build recipe
+ * mandates: `mount()` returned normally, the container had ZERO children, GTK
+ * emitted no diagnostic, exit 0, and the only trace was one line of
+ * `{"code":"unknown-tag","name":"GtkHostError"}` — a message-less object.
+ *
+ * A detached box is the faithful analogue of the DOM's detached `<div>`: the
+ * deactivated subtree is really unparented from the visible tree and really held
+ * alive, so reactivating it moves the SAME widgets back.
+ */
+const scratchContainer = (): HostElement => adopt(new Gtk.Box());
+
+/**
+ * ARITY separates a user element from an internal scratch request — MEASURED, not
+ * assumed, and the obvious alternative does not work.
+ *
+ * `mountElement` calls `hostCreateElement(vnode.type, namespace, props && props.is,
+ * props)` — always four arguments. `KeepAlive`/`Suspense` call `createElement("div")`
+ * with one. Instrumenting this function printed `arity=4` for every user element
+ * (`["GtkBox",…]`, `["GtkLabel",…]`, `["AdwActionRow",…]`) and `arity=1` for
+ * `["div"]`, with nothing else at either arity.
+ *
+ * Testing the LATER PARAMETERS for undefined cannot do it: `namespace` is
+ * `ElementNamespace = 'svg' | 'mathml' | undefined`, so a plain GTK element gets
+ * `undefined` there too — the same value the missing argument produces. (A probe
+ * that printed the arguments through `JSON.stringify` showed `null` and looked
+ * like a discriminator; `JSON.stringify([undefined])` is `"[null]"`.) Arity is the
+ * only fact that differs, which is why a rest parameter is worth the cast.
+ *
+ * A user's `<div>` therefore still arrives with four arguments and is still
+ * refused by name — handing IT a scratch container would trade one silent
+ * acceptance for another.
+ */
+type VueCreateElement = RendererOptions<HostNode, HostElement>['createElement'];
+
+const createElementOp = ((...args: unknown[]) =>
+    args.length === 1
+        ? scratchContainer()
+        : // Vue hands the props over, so construct-only values arrive in time and the
+          // host does not have to rebuild on the first patch. They are the RAW vnode
+          // props though, reserved keys included — `key`, `ref` and the `onVnode*`
+          // lifecycle hooks are Vue's own and are not GObject properties. Passing
+          // them through produced `<GtkLabel> has no property "key"` on the first
+          // keyed list.
+          hostCreateElement(
+              args[0] as string,
+              withoutReservedProps(args[3] as Record<string, unknown> | null),
+          )) as unknown as VueCreateElement;
+
 const renderer = createRenderer<HostNode, HostElement>({
-    createElement: (type, _namespace, _isCustomizedBuiltIn, vnodeProps) =>
-        // Vue hands the props over, so construct-only values arrive in time and the
-        // host does not have to rebuild on the first patch. They are the RAW vnode
-        // props though, reserved keys included — `key`, `ref` and the `onVnode*`
-        // lifecycle hooks are Vue's own and are not GObject properties. Passing
-        // them through produced `<GtkLabel> has no property "key"` on the first
-        // keyed list.
-        hostCreateElement(type, withoutReservedProps(vnodeProps)),
+    createElement: createElementOp,
 
     createText: (text: string) => hostCreateText(text),
 
@@ -96,7 +183,7 @@ const renderer = createRenderer<HostNode, HostElement>({
         setProp(el, key, nextValue === null ? undefined : nextValue, prevValue);
     },
 
-    insert: (el, parent, anchor) => hostInsert(el, parent, anchor ?? null),
+    insert: (el, parent, anchor) => hostInsert(el, asHostParent(parent), anchor ?? null),
 
     // A TEARDOWN here, unlike the Solid adapter — and the difference is measured,
     // not assumed. Vue moves a node by calling `insert` alone (DOM `insertBefore`
@@ -123,12 +210,19 @@ const renderer = createRenderer<HostNode, HostElement>({
     // README prescribes. Same rule as `cloneNode` two lines down: throw rather
     // than lie. Resolving a name would need a registry of mounted roots; when a
     // consumer needs it, that is the work.
+    //
+    // The advice has to be a form that WORKS. It used to say "pass the target
+    // widget itself", and doing literally that rendered nothing, threw nothing
+    // and emitted no diagnostic, because Vue hands a non-string target through
+    // verbatim and the host was then asked to treat a raw widget as a parent.
+    // `insert` adopts it now, so the sentence below is measured, not aspirational.
     querySelector: (selector) => {
         throw new Error(
             `@gjsify/gtk-host/vue: <Teleport to="${selector}"> needs a string target resolved against a ` +
-                `widget tree, which this adapter does not implement yet. Pass the target widget itself ` +
-                `(<Teleport :to="el">), or the teleport would render nothing at all under the production ` +
-                `defines this adapter requires.`,
+                `widget tree, which this adapter does not implement yet. Pass the target WIDGET instead ` +
+                `(<Teleport :to="el">, el being a Gtk.Widget the application owns — this adapter adopts it ` +
+                `for you), or pass adopt(el) if you want the host element yourself. A string target would ` +
+                `render nothing at all under the production defines this adapter requires.`,
         );
     },
 
@@ -144,8 +238,19 @@ const renderer = createRenderer<HostNode, HostElement>({
     // NOT implemented, deliberately. `cloneNode` backs Vue's static hoisting and
     // `insertStaticContent` takes an HTML STRING — GObjects do not clone and GTK
     // parses no HTML. The SFC/JSX pipeline must disable static hoisting
-    // (`hoistStatic: false`, `transformHoist: null`); if it ever does not, these
-    // throw at the first static subtree instead of rendering something wrong.
+    // (`hoistStatic: false`, `transformHoist: null`); if it ever does not,
+    // `insertStaticContent` throws at the first stringified static subtree
+    // instead of rendering something wrong (`createStaticVNode` reaches it, and
+    // a vector holds the message).
+    //
+    // `cloneNode` is UNREACHABLE in the installed @vue/runtime-core 3.5.41 and
+    // therefore has no vector: `grep -in clonenode` over
+    // `dist/runtime-core.esm-bundler.js` finds nothing at all — the renderer
+    // destructures ten required ops plus `setScopeId` and `insertStaticContent`
+    // from `options` and never touches `cloneNode`, even though
+    // `RendererOptions` still declares it. It is kept as the guard for a version
+    // that does call it; do not "simplify" it into a silent return, which is
+    // exactly what no test could catch here.
     cloneNode: (node) => {
         throw new Error(
             `@gjsify/gtk-host/vue: cloneNode is not available on GTK — a GObject does not clone. ` +
@@ -165,6 +270,14 @@ const renderer = createRenderer<HostNode, HostElement>({
 // No `hydrate`: that belongs to `createHydrationRenderer` and hydration means
 // taking over server-rendered markup, which does not exist here.
 export const { render, createApp } = renderer;
+
+/**
+ * Re-exported because a Vue app needs it and importing the host separately is a
+ * second module for one function: `<Teleport :to="adopt(el)">` is the explicit
+ * spelling of what `insert` now does implicitly, and it is the one to reach for
+ * when the same target is also addressed by hand.
+ */
+export { adopt };
 
 /**
  * Mount a Vue app into a widget the application owns.

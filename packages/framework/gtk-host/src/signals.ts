@@ -8,19 +8,79 @@
 
 import type GObject from '@girs/gobject-2.0';
 
-import { err } from './errors.js';
+import { err, GtkHostError } from './errors.js';
 import type { HostElement } from './types.js';
 
-/** `onRowActivated` -> `row-activated`; `onNotifyVisible` -> `notify::visible`. */
-export function toSignalName(prop: string, aliases?: Readonly<Record<string, string>>): string {
-    if (aliases?.[prop]) return aliases[prop];
-    if (prop.startsWith('on:')) return prop.slice(3); // escape hatch: raw signal name, verbatim
-    const rest = prop.slice(2);
-    if (rest.startsWith('Notify')) {
-        return `notify::${kebab(rest.slice(6))}`;
-    }
-    return kebab(rest);
+/**
+ * The DOM listener modifiers a framework encodes in the PROP NAME.
+ *
+ * Vue's own `runtime-dom` strips exactly this set in `parseName`
+ * (`/(?:Once|Passive|Capture)$/`) before it reaches `addEventListener`, because
+ * they are `addEventListener` options and not part of the event name. A host
+ * that does not strip them binds a signal that does not exist: `onClickedOnce`
+ * kebabed whole to `"clicked-once"` and `<GtkButton> emits no signal
+ * "clicked-once"` — a spelling complaint about something the user spelled right.
+ *
+ * `once` has a GObject meaning and is implemented (a self-disconnecting handler).
+ * `capture` and `passive` do NOT, and are refused BY NAME rather than mistranslated.
+ */
+const MODIFIER_RE = /(?:Once|Passive|Capture)$/;
+
+export interface EventBinding {
+    /** The GObject signal name, modifiers removed. */
+    signal: string;
+    /** `.once`: disconnect after the first emission that actually reaches the callback. */
+    once: boolean;
 }
+
+/**
+ * Split an event prop into the signal GObject knows and the options it does not.
+ *
+ * Both escape hatches come FIRST and are verbatim: an `eventAliases` entry and
+ * the `on:<raw-signal-name>` spelling are the way to bind a signal that really
+ * does end in `-once` or `-capture`, exactly as they are the way to bind any
+ * other irregular name.
+ */
+export function parseEventProp(prop: string, aliases?: Readonly<Record<string, string>>): EventBinding {
+    if (aliases?.[prop]) return { signal: aliases[prop], once: false };
+    if (prop.startsWith('on:')) return { signal: prop.slice(3), once: false }; // raw signal name, verbatim
+
+    let rest = prop.slice(2);
+    let once = false;
+    // A LOOP, like Vue's own `parseName`: `@click.once.capture` compiles to
+    // `onClickOnceCapture`, so one strip would leave `Once` on the signal name.
+    for (let m = MODIFIER_RE.exec(rest); m; m = MODIFIER_RE.exec(rest)) {
+        const modifier = m[0];
+        if (modifier !== 'Once') throw modifierRefused(prop, modifier.toLowerCase());
+        once = true;
+        rest = rest.slice(0, rest.length - modifier.length);
+    }
+
+    if (rest.startsWith('Notify')) return { signal: `notify::${kebab(rest.slice(6))}`, once };
+    return { signal: kebab(rest), once };
+}
+
+/** `onRowActivated` -> `row-activated`; `onNotifyVisible` -> `notify::visible`. */
+export const toSignalName = (prop: string, aliases?: Readonly<Record<string, string>>): string =>
+    parseEventProp(prop, aliases).signal;
+
+/**
+ * A DOM event-phase modifier has no GObject translation, so it is named, not guessed.
+ *
+ * `capture` selects a phase of DOM tree propagation and a GObject signal does not
+ * propagate through a tree at all — it is emitted on ONE object. `passive` is a
+ * promise not to call `preventDefault`, which no GObject signal has. Kebabing
+ * either into the signal name produced `emits no signal "clicked-capture"`, i.e.
+ * this host blaming the user's spelling for a concept it simply does not carry.
+ */
+const modifierRefused = (prop: string, modifier: string) =>
+    new GtkHostError(
+        'event-modifier',
+        `${prop} carries the DOM listener modifier ".${modifier}", which has no GObject meaning: a signal is ` +
+            `emitted on one object and does not propagate through a tree, so there is no capture phase and ` +
+            `nothing to be passive about. Drop the modifier (${prop.slice(0, prop.length - modifier.length)}); ` +
+            `for GTK4's own propagation phases set "propagation-phase" on a Gtk.EventController instead.`,
+    );
 
 const kebab = (s: string) =>
     s
@@ -56,7 +116,7 @@ export const endHostWrite = () => {
 export const inHostWrite = () => writeDepth > 0;
 
 export function setHandler(el: HostElement, prop: string, next: ((...args: unknown[]) => unknown) | null): void {
-    const signal = toSignalName(prop, el.descriptor.eventAliases);
+    const { signal, once } = parseEventProp(prop, el.descriptor.eventAliases);
     const existing = el.handlers.get(signal);
     const target = el.widget as unknown as GObject.Object & {
         connect(s: string, cb: (...a: unknown[]) => unknown): number;
@@ -78,8 +138,21 @@ export function setHandler(el: HostElement, prop: string, next: ((...args: unkno
 
     const isNotify = signal.startsWith('notify::');
     const id = target.connect(signal, (...args: unknown[]) => {
-        // A `notify::` raised by our own patch is not a user event.
+        // A `notify::` raised by our own patch is not a user event — and it must
+        // not spend a `.once` either, or the one emission the user asked for is
+        // consumed by our own property write.
         if (isNotify && inHostWrite()) return undefined;
+        if (once) {
+            // Disconnect BEFORE calling: a callback that re-enters its own widget
+            // would otherwise fire a second time, which is the whole point of
+            // `.once`. Guarded on the id we own, because a callback that rebinds
+            // the same prop has already replaced this entry.
+            const entry = el.handlers.get(signal);
+            if (entry?.id === id) {
+                target.disconnect(id);
+                el.handlers.delete(signal);
+            }
+        }
         return next(...args.slice(1));
     });
     el.handlers.set(signal, { id, prop });

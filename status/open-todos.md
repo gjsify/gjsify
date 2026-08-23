@@ -56,6 +56,34 @@ GTK tree today — but it blocks calling the table trustworthy at scale.
 (The import-direction check that ADR 0027 § 7 needs is no longer pending: it
 landed with the Solid adapter as `scripts/check-adapter-import-direction.mjs`,
 runs in the audit job, and refuses to run on an empty adapter set.)
+
+### Two measured placement defects the adapters PR did NOT fix
+
+Both surfaced while reviewing the Solid/Vue adapters, both are pre-existing in
+the host rather than introduced by them, and both are recorded here with the
+measurement rather than shipped quietly.
+
+- **An adopted composite offsets by its own internals.** A fresh
+  `Adw.PreferencesPage` has one direct child — its internal `GtkScrolledWindow` —
+  so `adopt()` records `foreign.length === 1` and every subsequent `index` is off
+  by one. Measured on gtk 4.22.4 / libadwaita 1.9.3: `mountRoot` into an
+  `AdwPreferencesPage`, insert a group "one", then prepend "zero" before it, and
+  GTK renders **[one, zero]**; the identical tree in a NON-adopted page renders
+  **[zero, one]**. Exit 0, zero diagnostics. Reachable from any `<For>`/`v-for`
+  that prepends into the canonical Adwaita settings page.
+  The root cause is the same insight the occupied-slot refusal already acts on —
+  a composite's DIRECT children are not the list its `add()` addresses — but the
+  getter that fixes it for one-child slots has no counterpart for appending
+  policies, so it needs its own round. Adder slots that are NOT composites are
+  fine: an adopted `AdwToolbarView` still renders `[app bar, host bar]`.
+
+- **Removing an element child does not restate the text it displaced.** GTK's
+  `set_child(icon)` clears `label` to null, so `createElement('GtkButton', {label:
+  'Save'})` + insert an icon + remove it leaves a BLANK button, while the host
+  still holds `props.label === 'Save'`. That is
+  `<Button label="Save"><Show when={x}><Icon/></Show></Button>` toggling off, or
+  the `v-if` equivalent — reachable, not theoretical, and the mirror image of the
+  text-side guard that IS in place.
 ### Nothing runs `build:infra` on a cold tree with no `node`
 
 The bootstrap ADR 0002 documents — `gjs -m install.mjs` → `gjsify install

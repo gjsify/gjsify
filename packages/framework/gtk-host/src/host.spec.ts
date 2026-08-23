@@ -5,7 +5,7 @@
 // asserts against its own bookkeeping agrees with itself while the window is
 // wrong, which is the failure this package exists to make impossible.
 
-import { afterEach, beforeEach, describe, expect, it, on } from '@gjsify/unit';
+import { expect, it, on } from '@gjsify/unit';
 
 import Adw from 'gi://Adw?version=1';
 import GObject from 'gi://GObject';
@@ -28,6 +28,7 @@ import {
     setProp,
 } from './host.js';
 import { reorderMode } from './policies.js';
+import { gated } from './testing/gate.mjs';
 import { lookupWidget } from './registry.js';
 import type { HostElement } from './types.js';
 
@@ -50,10 +51,8 @@ export default async () => {
         // Every vector below also asserts that GTK reported nothing. Without this
         // the whole mis-parenting class is invisible: it emits criticals and exits 0.
         const diagnostics = installDiagnosticsGate();
-        beforeEach(() => diagnostics.reset());
-        afterEach(() => diagnostics.assertQuiet());
 
-        await describe('ordered — Gtk.Box (native reorder)', async () => {
+        await gated(diagnostics, 'ordered — Gtk.Box (native reorder)', async () => {
             await it('appends in document order', async () => {
                 const box = createElement('GtkBox');
                 const parent = widgetOf(box);
@@ -102,7 +101,7 @@ export default async () => {
             });
         });
 
-        await describe('ordered — Adw.PreferencesGroup (declared remove-all degradation)', async () => {
+        await gated(diagnostics, 'ordered — Adw.PreferencesGroup (declared remove-all degradation)', async () => {
             await it('still lands a middle insert in the right order', async () => {
                 // Measured: this container has add()/remove() and NO insert(), so the
                 // policy declares reorder: 'remove-all' and pays a tail re-append.
@@ -122,7 +121,7 @@ export default async () => {
             });
         });
 
-        await describe('indexed — Gtk.ListBox (the parent addresses a wrapper row)', async () => {
+        await gated(diagnostics, 'indexed — Gtk.ListBox (the parent addresses a wrapper row)', async () => {
             await it('wraps each child in a GtkListBoxRow', async () => {
                 const list = createElement('GtkListBox');
                 const widget = materialize(list) as unknown as Gtk.ListBox;
@@ -173,7 +172,7 @@ export default async () => {
             });
         });
 
-        await describe('single, slotted, keyed, coords', async () => {
+        await gated(diagnostics, 'single, slotted, keyed, coords', async () => {
             await it('single: set_child replaces, it does not append', async () => {
                 const bin = createElement('AdwBin');
                 const widget = materialize(bin) as unknown as Adw.Bin;
@@ -261,7 +260,7 @@ export default async () => {
             });
         });
 
-        await describe('anchors never enter the GTK tree', async () => {
+        await gated(diagnostics, 'anchors never enter the GTK tree', async () => {
             await it('an empty branch does not shift a sibling index', async () => {
                 // This is the structural bug that stalled gnome-vue: a comment
                 // anchor counted as a child, so every insertion after a `v-if`
@@ -290,7 +289,7 @@ export default async () => {
             });
         });
 
-        await describe('text', async () => {
+        await gated(diagnostics, 'text', async () => {
             await it('writes a text child into the declared sink', async () => {
                 const label = createElement('GtkLabel');
                 const widget = materialize(label) as unknown as Gtk.Label;
@@ -343,7 +342,7 @@ export default async () => {
             });
         });
 
-        await describe('signals', async () => {
+        await gated(diagnostics, 'signals', async () => {
             await it('keeps exactly one native handler per signal name', async () => {
                 const button = createElement('GtkButton');
                 const widget = materialize(button) as unknown as Gtk.Button;
@@ -433,7 +432,7 @@ export default async () => {
             });
         });
 
-        await describe('rebuild inside a wrapping parent', async () => {
+        await gated(diagnostics, 'rebuild inside a wrapping parent', async () => {
             await it('replaces the child AND its row, keeping the index', async () => {
                 // The wrapper is the parent's address for this child. A rebuild
                 // that swapped the widget but kept the old row would leave the
@@ -458,7 +457,7 @@ export default async () => {
             });
         });
 
-        await describe('regressions from review', async () => {
+        await gated(diagnostics, 'regressions from review', async () => {
             await it('rebuild keeps the children — it must not orphan or double-attach them', async () => {
                 // GTK refuses to reparent a widget that still has a parent, and it
                 // does so with a warning at exit 0. A rebuild that left the old
@@ -555,7 +554,7 @@ export default async () => {
             });
         });
 
-        await describe('regressions from the second review', async () => {
+        await gated(diagnostics, 'regressions from the second review', async () => {
             await it('AdwPreferencesPage inserts natively — it is not the group', async () => {
                 // The two have near-identical APIs and opposite capabilities:
                 // measured, `Adw.PreferencesPage.insert(group, i)` exists and
@@ -656,7 +655,7 @@ export default async () => {
             });
         });
 
-        await describe('a rejected operation writes nothing down', async () => {
+        await gated(diagnostics, 'a rejected operation writes nothing down', async () => {
             // One class, found three times by review: state committed BEFORE the
             // operation that can reject it. Each of these fails without its fix
             // on a LATER, valid call — which is what makes the class expensive.
@@ -709,7 +708,7 @@ export default async () => {
             });
         });
 
-        await describe('what a real renderer does — reproduced from review', async () => {
+        await gated(diagnostics, 'what a real renderer does — reproduced from review', async () => {
             await it('a keyed reversal actually reorders the stack', async () => {
                 // Measured: `Gtk.Stack.reorder_child_after` is `undefined`, so a
                 // keyed container can only append. Before the tail rotation a full
@@ -835,7 +834,7 @@ export default async () => {
             });
         });
 
-        await describe('every slotted descriptor survives a round trip through every slot', async () => {
+        await gated(diagnostics, 'every slotted descriptor survives a round trip through every slot', async () => {
             // A mechanism, not a vector: `descriptorProblems()` can tell that a
             // slot method EXISTS, never that removal through that slot works. The
             // asymmetric cases are the ones that bite — `AdwToolbarView.content`
@@ -858,7 +857,7 @@ export default async () => {
             }
         });
 
-        await describe('regressions from the fourth review', async () => {
+        await gated(diagnostics, 'regressions from the fourth review', async () => {
             await it('an insert-before into a setter-backed slot keeps the new child', async () => {
                 // The tail rotation is an APPEND loop, and appending to a
                 // `set_content` slot is an assignment — so rotating overwrote the
@@ -926,7 +925,7 @@ export default async () => {
             });
         });
 
-        await describe('an adopted container the application keeps mutating', async () => {
+        await gated(diagnostics, 'an adopted container the application keeps mutating', async () => {
             await it('placement ignores a prior child that has left the container', async () => {
                 // `adopt` snapshots the container's children once. An application
                 // may remove one afterwards, and `insert_child_after` then asserts
@@ -959,7 +958,61 @@ export default async () => {
             });
         });
 
-        await describe('mountRoot resolves the container through the table', async () => {
+        await gated(diagnostics, 'a self-anchored insert, and a chain that does not terminate', async () => {
+            await it('anchoring a node on itself is a no-op, as in the DOM', async () => {
+                const box = createElement('GtkBox');
+                materialize(box);
+                const a = createElement('GtkLabel');
+                const b = createElement('GtkLabel');
+                setProp(a, 'label', 'a');
+                setProp(b, 'label', 'b');
+                insert(a, box);
+                insert(b, box);
+
+                // What `reconcileArrays` emits for an adjacent swap. The DOM
+                // defines it as a no-op; taken literally it wrote `b.next = b`
+                // and the next placement walk never terminated.
+                insert(b, box, b);
+
+                expect(b.next).toBe(null);
+                expect(b.prev).toBe(a);
+                expect(box.last).toBe(b);
+                expect(gtkChildren(box.widget as Gtk.Widget).map((w) => (w as Gtk.Label).label)).toStrictEqual([
+                    'a',
+                    'b',
+                ]);
+            });
+
+            await it('a hand-made cycle is refused by name instead of hanging', async () => {
+                const box = createElement('GtkBox');
+                materialize(box);
+                const a = createElement('GtkLabel');
+                const b = createElement('GtkLabel');
+                const c = createElement('GtkLabel');
+                insert(a, box);
+                insert(b, box);
+                insert(c, box);
+
+                // No renderer can reach this today — that is the point. The bound
+                // exists so the NEXT link bug is a named error instead of a killed
+                // CI job, and only a hand-made cycle can prove the bound is there.
+                // The loop is kept away from `box.last`, because appending repairs
+                // whatever `last.next` held and would quietly undo the setup.
+                b.next = a;
+                const d = createElement('GtkLabel');
+                let code = 'none';
+                try {
+                    insert(d, box);
+                } catch (e) {
+                    code = (e as { code?: string }).code ?? 'no-code';
+                }
+                expect(code).toBe('sibling-cycle');
+                // Repair the chain so the gate's own teardown can walk it.
+                b.next = c;
+            });
+        });
+
+        await gated(diagnostics, 'mountRoot resolves the container through the table', async () => {
             await it('mounts into an application-owned widget', async () => {
                 const container = new Gtk.Box();
                 const child = createElement('GtkLabel', { label: 'mounted' });
@@ -981,7 +1034,7 @@ export default async () => {
             });
         });
 
-        await describe('construct-only properties rebuild instead of lying', async () => {
+        await gated(diagnostics, 'construct-only properties rebuild instead of lying', async () => {
             await it('replaces the widget and keeps its position', async () => {
                 const box = createElement('GtkBox');
                 const parent = widgetOf(box);
@@ -994,6 +1047,266 @@ export default async () => {
                 setProp(b, 'cssName', 'second');
                 expect(b.widget === before).toBe(false);
                 expect(gtkChildren(parent).map((w) => (w as Gtk.Label).label)).toStrictEqual(['L0', 'B', 'L1']);
+            });
+        });
+
+        await gated(diagnostics, 'the text sink and the one-child slot are the SAME GTK slot', async () => {
+            // Measured on gtk 4.22, raw GTK, both directions:
+            //   set_child(custom)          -> custom.get_parent() === GtkButton
+            //   set_property('label','')   -> custom.get_parent() === null
+            //   set_property('label','x')  -> custom.get_parent() === null
+            //   new Button({label:'Go'}); set_child(c) -> button.label === null
+            // `GtkButton` is `single` AND declares a text sink, so a renderer that
+            // swaps text for an element hits it every time.
+
+            await it('a removed text child does not clear the element that replaced it', async () => {
+                // Solid and React reconcile INSERT-then-REMOVE
+                // (`solid-js/universal` universal.js `replaceNode`). The removal's
+                // flushText wrote `label = ''`, which REPLACED the widget just
+                // placed: a blank button, exit 0, zero diagnostics, and the shadow
+                // tree still reporting `attached === true`.
+                const button = createElement('GtkButton');
+                const widget = materialize(button) as unknown as Gtk.Button;
+                const text = createText('Go');
+                insert(text, button);
+                expect(widget.label).toBe('Go');
+
+                const icon = createElement('GtkImage');
+                insert(icon, button); // the replacement lands first …
+                remove(text); // … and only then the old text goes
+
+                const placed = icon.widget as unknown as Gtk.Widget;
+                expect(widget.get_child() === placed).toBe(true);
+                expect(placed.get_parent() === (widget as unknown as Gtk.Widget)).toBe(true);
+                expect(icon.attached).toBe(true);
+            });
+
+            await it('the deleted text does not come back on the next rebuild', async () => {
+                // `materialize` replays `props` verbatim, so the sink value the
+                // text children wrote has to go with them. Keeping it made an
+                // unrelated construct-only write restate text the renderer had
+                // deleted two operations earlier.
+                const button = createElement('GtkButton');
+                const text = createText('Go');
+                insert(text, button);
+                const icon = createElement('GtkImage');
+                insert(icon, button);
+                remove(text);
+                remove(icon);
+
+                setProp(button, 'cssName', 'rebuilt');
+                expect((button.widget as unknown as Gtk.Button).label).toBe(null);
+            });
+
+            await it('a text write that takes the slot records the child as gone', async () => {
+                // The same collision the other way round. GTK unparents the child,
+                // so `attached` — "GTK has taken this node" — must stop claiming
+                // otherwise: `remove` would then ask GTK to unparent a non-child,
+                // which is a critical at exit 0.
+                const button = createElement('GtkButton');
+                const widget = materialize(button) as unknown as Gtk.Button;
+                const icon = createElement('GtkImage');
+                insert(icon, button);
+                expect(icon.attached).toBe(true);
+
+                insert(createText('Go'), button);
+                expect(widget.label).toBe('Go');
+                expect((icon.widget as unknown as Gtk.Widget).get_parent()).toBe(null);
+                expect(icon.attached).toBe(false);
+
+                remove(icon); // asks GTK for nothing, so the label survives
+                expect(widget.label).toBe('Go');
+            });
+        });
+
+        await gated(diagnostics, 'a one-child container the application is already using', async () => {
+            await it("adopts a LABELLED button — that child is GTK's, not the app's", async () => {
+                // The refusal's own regression. GTK builds an internal GtkLabel
+                // for the `label` property, so `get_child()` on a fresh
+                // `Gtk.Button({ label: 'Save' })` is non-null — and reading it as
+                // application content made every labelled button unadoptable,
+                // while the error prescribed `set_child(null)`, which DELETES the
+                // label. Measured: GtkButton, GtkToggleButton and GtkCheckButton
+                // all refused; GtkWindow, AdwWindow and AdwBin all mounted.
+                const button = new Gtk.Button({ label: 'Save' });
+                expect(button.get_child()).not.toBe(null);
+                const ours = createElement('GtkLabel');
+                setProp(ours, 'label', 'mounted');
+                mountRoot(ours, button);
+                // GTK's own label gave way to ours, which is what the caller asked
+                // for. The defect was refusing the mount outright.
+                expect(gtkChildTypes(button)).toStrictEqual(['GtkLabel']);
+                expect((button.get_child() as Gtk.Label).label).toBe('mounted');
+            });
+
+            await it('refuses a TEXT child that would evict the app widget', async () => {
+                // The sink IS the slot, so the refusal cannot live in `attach`
+                // alone. Before this, the write went through: the app's widget
+                // came back unparented, the label read "mine", and neither a
+                // throw nor a GTK diagnostic said so.
+                const button = new Gtk.Button();
+                const chrome = new Gtk.Label({ label: 'APP' });
+                button.set_child(chrome);
+                const root = adopt(button);
+                let code = 'none';
+                try {
+                    insert(createText('mine'), root);
+                } catch (e) {
+                    code = (e as { code?: string }).code ?? 'no-code';
+                }
+                expect(code).toBe('occupied-slot');
+                expect(chrome.get_parent()).not.toBe(null);
+            });
+
+            await it('sees a child the app REPLACED after we adopted it', async () => {
+                // `foreign` is a snapshot taken in `adopt`; comparing the occupant
+                // against it let a later `set_child(B)` be evicted silently. What
+                // WE placed is knowable at any time, so that is what the guard
+                // asks instead.
+                const sw = new Gtk.ScrolledWindow();
+                const first = new Gtk.Label({ label: 'A' });
+                const replacement = new Gtk.Label({ label: 'B' });
+                sw.set_child(first);
+                const root = adopt(sw);
+                sw.set_child(replacement);
+                let code = 'none';
+                try {
+                    insert(createElement('GtkLabel'), root);
+                } catch (e) {
+                    code = (e as { code?: string }).code ?? 'no-code';
+                }
+                expect(code).toBe('occupied-slot');
+                expect(replacement.get_parent()).not.toBe(null);
+            });
+
+            await it('refuses to overwrite the app widget, naming container and fix', async () => {
+                // Measured: `win.set_child(chrome); mount(() => label, win)` left
+                // `chrome.get_parent() === null` — no throw, no GTK warning, empty
+                // diagnostics gate, the application's widget simply gone. Offsetting
+                // past prior children only works where placement APPENDS.
+                const win = new Gtk.ScrolledWindow();
+                const chrome = new Gtk.Label({ label: 'app chrome' });
+                win.set_child(chrome);
+                const root = createElement('GtkLabel', { label: 'host root' });
+
+                expect(() => mountRoot(root, win as unknown as Gtk.Widget)).toThrow('already holds a child');
+                expect(chrome.get_parent() !== null).toBe(true);
+                expect(root.attached).toBe(false);
+            });
+
+            await it('covers a setter-backed slot too, naming that setter', async () => {
+                const view = new Adw.ToolbarView();
+                const chrome = new Gtk.Label({ label: 'app content' });
+                view.set_content(chrome);
+                const root = createElement('GtkLabel', { label: 'host root', slot: 'content' });
+
+                expect(() => mountRoot(root, view as unknown as Gtk.Widget)).toThrow('set_content()');
+                expect(view.get_content() === (chrome as unknown as Gtk.Widget)).toBe(true);
+            });
+
+            await it('an ADDER slot still appends past what the app put there', async () => {
+                // The refusal is about slots that REPLACE. Where the container
+                // appends, the documented offset behaviour is the right answer and
+                // stays unchanged.
+                const view = new Adw.ToolbarView();
+                view.add_top_bar(new Gtk.Label({ label: 'app bar' }));
+                const root = createElement('GtkLabel', { label: 'host bar', slot: 'top' });
+                mountRoot(root, view as unknown as Gtk.Widget);
+                expect(root.attached).toBe(true);
+            });
+
+            await it('an EMPTY composite still mounts — internal children are not the app', async () => {
+                // Measured on gtk 4.22.4 / libadwaita 1.9.3: a FRESH widget already
+                // has direct children nobody placed — Gtk.ScrolledWindow two
+                // GtkScrollbars, Adw.ToolbarView two GtkRevealers, Adw.Window an
+                // AdwDialogHost + an AdwGizmo, Adw.StatusPage a GtkScrolledWindow —
+                // while every one of their slot getters answers null.
+                //
+                // An earlier version of this comment claimed a child-list snapshot
+                // "would have made all four unmountable". That is NOT what the A/B
+                // shows: swapping the getter back for a child-list walk leaves this
+                // case green, because the refusal short-circuits on a null occupant
+                // either way. The getter earns its place for ONE measured reason,
+                // and the next test is the one that proves it: AdwApplicationWindow
+                // keeps its content nested under an AdwDialogHost, so a child-list
+                // walk cannot see the application's widget at all.
+                const containers: Gtk.Widget[] = [
+                    new Gtk.ScrolledWindow() as unknown as Gtk.Widget,
+                    new Adw.Window() as unknown as Gtk.Widget,
+                    new Adw.StatusPage() as unknown as Gtk.Widget,
+                ];
+                for (const container of containers) {
+                    expect(gtkChildren(container).length > 0).toBe(true); // GTK's own structure
+                    const root = createElement('GtkLabel', { label: 'mounted' });
+                    mountRoot(root, container);
+                    expect(root.attached).toBe(true);
+                }
+                const view = new Adw.ToolbarView();
+                expect(gtkChildren(view as unknown as Gtk.Widget).length > 0).toBe(true);
+                const content = createElement('GtkLabel', { label: 'mounted', slot: 'content' });
+                mountRoot(content, view as unknown as Gtk.Widget);
+                expect(view.get_content() === (content.widget as unknown as Gtk.Widget)).toBe(true);
+            });
+
+            await it('sees a nested slot occupant that a child-list walk cannot', async () => {
+                // The container a real Adwaita app mounts into. Measured on
+                // libadwaita 1.8: `Adw.ApplicationWindow.set_content(chrome)` leaves
+                // chrome INSIDE the window's AdwDialogHost/AdwGizmo, so it is not a
+                // direct child at all — the direct children stay
+                // ["AdwDialogHost","AdwGizmo"] while `get_content()` returns chrome.
+                // Same shape for `Adw.Window` and `Adw.StatusPage`. A snapshot of the
+                // child list therefore cannot SEE the application's widget, and the
+                // replacement goes through unnoticed; only the slot getter answers.
+                const win = new Adw.ApplicationWindow();
+                const chrome = new Gtk.Label({ label: 'app chrome' });
+                win.set_content(chrome);
+                const direct = gtkChildren(win as unknown as Gtk.Widget);
+                expect(direct.some((w) => w === (chrome as unknown as Gtk.Widget))).toBe(false);
+
+                const root = createElement('GtkLabel', { label: 'host root' });
+                expect(() => mountRoot(root, win as unknown as Gtk.Widget)).toThrow('already holds a child');
+                expect(win.get_content() === (chrome as unknown as Gtk.Widget)).toBe(true);
+            });
+
+            await it('a slot the app clears itself is free again', async () => {
+                const win = new Gtk.ScrolledWindow();
+                const chrome = new Gtk.Label({ label: 'app chrome' });
+                win.set_child(chrome);
+                const root = adopt(win as unknown as Gtk.Widget);
+                win.set_child(null); // the app changes its mind
+
+                const child = createElement('GtkLabel', { label: 'host root' });
+                insert(child, root);
+                expect(child.attached).toBe(true);
+            });
+        });
+
+        await gated(diagnostics, 'a parent that is not a host element', async () => {
+            await it('refuses a raw Gtk.Widget instead of scribbling on it', async () => {
+                // Vue's `<Teleport :to="someGtkWidget">` passes the widget through
+                // verbatim (@vue/runtime-core `resolveTarget`'s non-string branch is
+                // `return targetSelector`). `link` then wrote parent/prev/next/
+                // first/last as expandos onto the application's GObject wrapper and
+                // `attach` bailed at `if (!parent.widget) return`: nothing rendered,
+                // nothing threw, no diagnostic at all.
+                const raw = new Gtk.Box();
+                const node = createElement('GtkLabel', { label: 'teleported' });
+
+                expect(() => insert(node, raw as unknown as HostElement)).toThrow('needs a host element');
+                expect((raw as unknown as { first?: unknown }).first).toBe(undefined);
+                expect((raw as unknown as { last?: unknown }).last).toBe(undefined);
+                expect(node.parent).toBe(null);
+                expect(gtkChildren(raw as unknown as Gtk.Widget).length).toBe(0);
+            });
+
+            await it('names the GType it was handed, and adopt() is the way in', async () => {
+                const raw = new Gtk.Box();
+                const node = createElement('GtkLabel', { label: 'teleported' });
+                expect(() => insert(node, raw as unknown as HostElement)).toThrow('GtkBox');
+                expect(() => insert(node, raw as unknown as HostElement)).toThrow('adopt(widget)');
+                // …and the sanctioned spelling works
+                insert(node, adopt(raw as unknown as Gtk.Widget));
+                expect(gtkChildren(raw as unknown as Gtk.Widget).length).toBe(1);
             });
         });
     });
