@@ -12,6 +12,8 @@
 
 import { deferredProcessExitRule } from './deferred-process-exit.ts';
 import { noCssSideEffectImportRule } from './no-css-side-effect-import.ts';
+import { noLiteralWidgetLabelRule } from './no-literal-widget-label.ts';
+import { preferBlueprintTemplateRule } from './prefer-blueprint-template.ts';
 import { registerClassOrderRule } from './register-class-order.ts';
 import { spawnNodeBinaryRule } from './spawn-node-binary.ts';
 import { todoNeedsAnchorRule } from './todo-needs-anchor.ts';
@@ -24,6 +26,8 @@ const plugin: Plugin = {
     rules: {
         'deferred-process-exit': deferredProcessExitRule,
         'no-css-side-effect-import': noCssSideEffectImportRule,
+        'no-literal-widget-label': noLiteralWidgetLabelRule,
+        'prefer-blueprint-template': preferBlueprintTemplateRule,
         'register-class-order': registerClassOrderRule,
         'spawn-node-binary': spawnNodeBinaryRule,
         'todo-needs-anchor': todoNeedsAnchorRule,

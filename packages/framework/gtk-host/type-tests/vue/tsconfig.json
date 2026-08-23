@@ -1,0 +1,33 @@
+{
+    // The Vue-SFC half of the type-surface gate.
+    //
+    // `strictTemplates: true` is THE load-bearing setting, and the script proves
+    // it on every run by re-running the negatives with it off: measured, an
+    // unknown prop, an unknown event and an entirely UNRESOLVED tag are all
+    // silently accepted without it, while wrong VALUE types still error — so a
+    // project without it sees type errors appear, concludes the surface works,
+    // and has in fact stopped checking every misspelled property and every widget
+    // whose GlobalComponents key does not resolve.
+    "compilerOptions": {
+        "noEmit": true,
+        "target": "es2020",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "strict": true,
+        "lib": ["es2015", "es2016", "es2017", "DOM"],
+        "types": []
+    },
+    "vueCompilerOptions": {
+        "strictTemplates": true
+    },
+    // `src/vue-components.ts` is here because the `GlobalComponents` augmentation
+    // only applies to a program that LOADS it — the same `import
+    // '@gjsify/gtk-host/vue-components'` a consumer writes once, spelled as an
+    // include so no shim file is needed.
+    //
+    // The `*.vue` glob is load-bearing in its own right: an `include` listing
+    // only `.ts` globs makes `vue-tsc` check ZERO SFCs and exit 0 (probe
+    // `ts-only-include`), which is this half's vacuous-green shape.
+    "include": ["*.vue", "../../src/vue-components.ts"]
+}

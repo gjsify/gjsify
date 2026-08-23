@@ -56,6 +56,12 @@ export function parseEventProp(prop: string, aliases?: Readonly<Record<string, s
         rest = rest.slice(0, rest.length - modifier.length);
     }
 
+    // `onNotify` ALONE is the plain `notify` signal, and it took the generated
+    // surface to surface that: GObject.Object declares `notify`, so the generator
+    // emits `onNotify` for every widget, and the prefix branch turned it into
+    // `notify::` with an empty property name — a prop the surface offers and GJS
+    // then refuses with "emits no signal notify::".
+    if (rest === 'Notify') return { signal: 'notify', once };
     if (rest.startsWith('Notify')) return { signal: `notify::${kebab(rest.slice(6))}`, once };
     return { signal: kebab(rest), once };
 }
