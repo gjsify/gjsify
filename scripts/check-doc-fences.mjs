@@ -546,7 +546,7 @@ if (blueprint.ok) {
 } else {
     notes.push(
         `SKIPPED: ${blueprintFences} blueprint fence(s) NOT compiled — ${blueprint.why}. ` +
-            'The other three arms ran. main.yml\'s `tree-checks` job is where this arm is real: ' +
+            "The other three arms ran. main.yml's `tree-checks` job is where this arm is real: " +
             'the ci-fedora image bakes blueprint-compiler, gtk4-devel and gobject-introspection.',
     );
 }
