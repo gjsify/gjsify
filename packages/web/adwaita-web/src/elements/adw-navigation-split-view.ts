@@ -36,6 +36,7 @@ import {
 } from '@gjsify/adwaita-core';
 
 import { bindBreakpointSetter } from '../breakpoints.js';
+import { bindSlotAdoption } from '../slot-adoption.js';
 
 /** Detail of the `navigation-push` / `navigation-pop` delegation event. */
 export interface NavigationDelegateDetail {
@@ -154,6 +155,7 @@ export class AdwNavigationSplitView extends HTMLElement {
         for (const child of contentChildren) this._contentEl.appendChild(child);
 
         this.replaceChildren(this._sidebarEl, this._contentEl);
+        bindSlotAdoption(this, { sidebar: this._sidebarEl, content: this._contentEl });
 
         // Parse-time attributes are the CONSTRUCTION properties, as in the overlay view:
         // applying them as sequential setters emits a transition for a state the markup

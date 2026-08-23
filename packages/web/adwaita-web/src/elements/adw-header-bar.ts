@@ -19,6 +19,7 @@
 // Registers <adw-window-title>: the derived centre is one, so importing the bar
 // alone must still define it.
 import './adw-window-title.js';
+import { bindSlotAdoption } from '../slot-adoption.js';
 
 export class AdwHeaderBar extends HTMLElement {
     private _initialized = false;
@@ -86,6 +87,12 @@ export class AdwHeaderBar extends HTMLElement {
         // Replace all children atomically
         this.replaceChildren(this._startEl, this._centerEl, this._endEl);
         this._renderTitle();
+        // A child appended after this point is routed the same way, or it sits in the
+        // light DOM looking placed. `_renderTitle` re-runs so a late `slot="center"`
+        // widget displaces the automatic title, as the declared form already does.
+        bindSlotAdoption(this, { start: this._startEl, center: this._centerEl, end: this._endEl }, () =>
+            this._renderTitle(),
+        );
     }
 
     /**

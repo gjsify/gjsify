@@ -61,11 +61,11 @@
 //
 // Usage: node scripts/check-adwaita-connect-rebind.mjs [--root <dir>]
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { adwaitaWebElements } from './adwaita-elements.mjs';
+import { adwaitaWebElements, stripComments } from './adwaita-elements.mjs';
 
 const args = process.argv.slice(2);
 const rootIndex = args.indexOf('--root');
@@ -413,6 +413,101 @@ for (const file of files) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Second arm: the spec's SLOT_ROUTES table describes the tree it drives.
+// ---------------------------------------------------------------------------
+//
+// `connect-lifecycle.spec.ts` now appends a `[slot=]` child to the HOST after connect
+// — the property ADR 0027 § 9 names as the obstacle to one authored tree driving both
+// this pillar and the GTK host, and the one thing its 70 sibling greens never touched
+// (they append into containers the element BUILT). A browser spec cannot read a `.ts`
+// file, so which slots each element routes has to be written down there. Written down
+// and unheld, it is the drift this repo keeps paying for: a renamed slot leaves the
+// table naming one nothing routes, the test passes because the light-DOM placement
+// matches on both sides, and the coverage is gone with nothing saying so.
+//
+// So the table is read back out of the spec and compared against the sources, BOTH
+// WAYS. Same shape as `check-adwaita-keyboard-contract.mjs`'s ROVING_LEDGER.
+
+const SPEC = 'packages/web/adwaita-web/src/connect-lifecycle.spec.ts';
+const specPath = join(ROOT, SPEC);
+const slotProblems = [];
+
+if (!existsSync(specPath)) {
+    slotProblems.push(`${SPEC} is gone. The slot-adoption driver went with it.`);
+} else {
+    const specSource = readFileSync(specPath, 'utf8');
+    const table = /const SLOT_ROUTES[^=]*=\s*\[([\s\S]*?)\n {4}\];/.exec(specSource);
+    if (!table) {
+        slotProblems.push(
+            `${SPEC}: no SLOT_ROUTES table this reader can parse. A table it cannot read is a ` +
+                'table it cannot hold, and the driver would keep reporting green.',
+        );
+    } else {
+        /** tag -> declared slot names, as the spec has them. */
+        const declared = new Map();
+        for (const [, tag, list] of table[1].matchAll(/\['(adw-[a-z-]+)',\s*\[([^\]]*)\]\]/g)) {
+            declared.set(tag, new Set([...list.matchAll(/'([a-z-]+)'/g)].map(([, name]) => name)));
+        }
+
+        /** tag -> slot names its own source routes, from the two spellings in the tree. */
+        const actual = new Map();
+        for (const file of files) {
+            // COMMENTS only, not `maskNonCode`: that one blanks string CONTENTS too, and
+            // `querySelectorAll(':scope > [slot="start"]')` is a string. Read through it
+            // and every one of the eight elements reported routing no slot at all — a
+            // reader that finds nothing, reporting the tree as empty.
+            const code = stripComments(readFileSync(join(ROOT, file), 'utf8'));
+            const names = new Set();
+            for (const [, name] of code.matchAll(/\[slot="([a-z-]+)"\]/g)) names.add(name);
+            for (const [, name] of code.matchAll(/getAttribute\('slot'\)\s*===\s*'([a-z-]+)'/g)) names.add(name);
+            if (names.size === 0) continue;
+            for (const [, tag] of code.matchAll(/customElements\.define\('(adw-[a-z-]+)'/g)) {
+                actual.set(tag, new Set([...(actual.get(tag) ?? []), ...names]));
+            }
+        }
+
+        if (actual.size === 0) {
+            slotProblems.push(
+                'no element source routes a named slot, which cannot be true while the pillar ships ' +
+                    '<adw-header-bar>. The slot reader stopped matching, and an empty comparison ' +
+                    'passes against anything.',
+            );
+        }
+
+        for (const [tag, names] of actual) {
+            const inSpec = declared.get(tag);
+            if (!inSpec) {
+                slotProblems.push(
+                    `<${tag}> routes [${[...names].sort().join(', ')}] and SLOT_ROUTES does not list it, ` +
+                        'so no test appends a slotted child to it after connect.',
+                );
+                continue;
+            }
+            for (const name of names) {
+                if (!inSpec.has(name)) {
+                    slotProblems.push(`<${tag}> routes a "${name}" slot that SLOT_ROUTES does not drive.`);
+                }
+            }
+            for (const name of inSpec) {
+                if (!names.has(name)) {
+                    slotProblems.push(
+                        `SLOT_ROUTES drives <${tag}> [slot="${name}"] and no source routes that name — ` +
+                            'a renamed slot leaves the test comparing two light-DOM children, which match.',
+                    );
+                }
+            }
+        }
+        for (const tag of declared.keys()) {
+            if (!actual.has(tag)) {
+                slotProblems.push(`SLOT_ROUTES lists <${tag}>, whose source routes no named slot at all.`);
+            }
+        }
+    }
+}
+
+if (slotProblems.length > 0) fail(slotProblems);
+
 if (problems.length > 0) fail(problems);
 
 // A floor, not a count: the point is that it grows without this file being edited. Zero
@@ -430,3 +525,4 @@ if (inScope === 0) {
 console.log(
     `check-adwaita-connect-rebind: OK — ${inScope} element class(es) with a teardown, across ${files.length} files, re-establish everything it releases.`,
 );
+console.log(`check-adwaita-connect-rebind: OK — SLOT_ROUTES in ${SPEC} matches the tree, both ways.`);

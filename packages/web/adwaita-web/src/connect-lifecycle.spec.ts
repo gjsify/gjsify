@@ -230,8 +230,19 @@ export const AdwConnectLifecycleTest = async () => {
                 });
                 await settle();
 
-                const report = probes.map(([name, child]) => `${name}: ${verdict(child)}`).join(' | ');
-                const wanted = probes.map(([name]) => `${name}: laid out`).join(' | ');
+                // An element with NO container getter made both strings empty, so the
+                // assertion below reduced to `expect('<tag> ').toBe('<tag> ')` — 40-odd
+                // of the 70 greens here were that. The aggregate floor above says SOME
+                // containers exist; it cannot say which tag contributed one. Naming the
+                // absence turns each of those into a statement.
+                const report =
+                    probes.length === 0
+                        ? 'no container getter'
+                        : probes.map(([name, child]) => `${name}: ${verdict(child)}`).join(' | ');
+                const wanted =
+                    probes.length === 0
+                        ? 'no container getter'
+                        : probes.map(([name]) => `${name}: laid out`).join(' | ');
                 // Measure, THEN tear down, THEN assert: a failing expectation throws, and
                 // a host left on the page pushes every later one down until the next
                 // widget is measured off-screen. That cascade turned one real failure
@@ -239,6 +250,100 @@ export const AdwConnectLifecycleTest = async () => {
                 host.remove();
                 expect(`<${tag}> ${report}`).toBe(`<${tag}> ${wanted}`);
             });
+        }
+    });
+
+    /**
+     * Which named slots each element ROUTES a child into.
+     *
+     * The one hand-written list in this file, and it is held rather than trusted:
+     * `scripts/check-adwaita-connect-rebind.mjs` reads the sources for `[slot="…"]`
+     * selectors and `getAttribute('slot')` comparisons and fails when this table and
+     * the tree disagree. A browser spec cannot read a `.ts` file, so the choice is a
+     * held table or no coverage at all.
+     *
+     * WHY IT IS WORTH THE TABLE. ADR 0027 § 9 names late slot adoption as the measured
+     * obstacle to one authored tree driving both this pillar and the GTK host — and
+     * the 70 greens above, each titled "lays out a child appended after connect",
+     * append only into containers the element BUILT. Not one of them appends a
+     * `[slot=]` child to the HOST after connect, which is the property the ADR is
+     * about. `adw-header-bar.spec.ts:71` even documents the workaround ("the slotted
+     * children have to be in place before the bar enters the document") without
+     * anything failing.
+     */
+    const SLOT_ROUTES: ReadonlyArray<readonly [string, readonly string[]]> = [
+        ['adw-action-row', ['prefix', 'suffix']],
+        ['adw-entry-row', ['prefix']],
+        ['adw-expander-row', ['prefix', 'suffix']],
+        ['adw-header-bar', ['start', 'center', 'end']],
+        ['adw-navigation-split-view', ['sidebar', 'content']],
+        ['adw-overlay-split-view', ['sidebar', 'content']],
+        ['adw-preferences-group', ['header-suffix']],
+        ['adw-toolbar-view', ['top', 'bottom']],
+    ];
+
+    /** A slotted probe: same shape both sides, so only WHEN it arrives differs. */
+    function slotted(slot: string): HTMLElement {
+        const child = probe();
+        child.setAttribute('slot', slot);
+        return child;
+    }
+
+    /**
+     * Where a child ended up, as a path of tags from the host down.
+     *
+     * The parent is the assertion, not the box: a child left in the light DOM is often
+     * still VISIBLE — it just sits in the wrong place, unstyled and unordered. So the
+     * reference is an identically-slotted child that was there at parse time, and the
+     * question is whether the two share a parent.
+     */
+    function placement(host: HTMLElement, child: HTMLElement): string {
+        const path: string[] = [];
+        for (let node = child.parentElement; node !== null && node !== host; node = node.parentElement) {
+            path.unshift(node.localName + (node.className === '' ? '' : `.${node.className.split(/\s+/)[0]}`));
+        }
+        return path.length === 0 ? '(light DOM)' : path.join(' > ');
+    }
+
+    await describe('slotted append after connect', async () => {
+        await it('drives every element that routes a named slot', async () => {
+            // The table has to describe elements that EXIST, or a rename empties this
+            // whole describe and every test in it reports a green it never earned.
+            const missing = SLOT_ROUTES.filter(([tag]) => !tags.includes(tag)).map(([tag]) => tag);
+            expect(`missing: ${missing.join(', ')}`).toBe('missing: ');
+            expect(SLOT_ROUTES.length > 5).toBe(true);
+        });
+
+        for (const [tag, slots] of SLOT_ROUTES) {
+            for (const slot of slots) {
+                await it(`<${tag}> adopts a [slot="${slot}"] child appended after connect`, async () => {
+                    // Reference: the same child, in place before the element connects.
+                    const control = visibleHost();
+                    const declared = document.createElement(tag);
+                    const early = slotted(slot);
+                    declared.appendChild(early);
+                    control.appendChild(declared);
+                    reveal(declared);
+
+                    // Subject: connected first, child appended afterwards — what a
+                    // renderer does by definition.
+                    const host = visibleHost();
+                    const el = document.createElement(tag);
+                    host.appendChild(el);
+                    reveal(el);
+                    const late = slotted(slot);
+                    el.appendChild(late);
+                    await settle();
+
+                    const wanted = placement(declared, early);
+                    const got = placement(el, late);
+                    const size = boxDelta(late, early);
+                    control.remove();
+                    host.remove();
+                    expect(`<${tag}> [slot=${slot}] -> ${got}`).toBe(`<${tag}> [slot=${slot}] -> ${wanted}`);
+                    expect(`<${tag}> [slot=${slot}] ${size}`).toBe(`<${tag}> [slot=${slot}] same box`);
+                });
+            }
         }
     });
 

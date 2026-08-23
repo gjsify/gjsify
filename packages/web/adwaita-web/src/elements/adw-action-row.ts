@@ -18,6 +18,7 @@ import { ActionRowState } from '@gjsify/adwaita-core';
 
 import { bindEmptySections } from '../empty-sections.js';
 import { type AdwRowActivation, attachRowActivation } from './row-activation.js';
+import { bindSlotAdoption } from '../slot-adoption.js';
 
 /**
  * Attributes whose change means the activatable widget's sensitivity may have
@@ -110,6 +111,7 @@ export class AdwActionRow extends HTMLElement {
         for (const child of suffixChildren) this._suffixEl.appendChild(child);
 
         this.replaceChildren(this._prefixEl, textEl, this._suffixEl);
+        bindSlotAdoption(this, { prefix: this._prefixEl, suffix: this._suffixEl });
         // `_render` runs from `attributeChangedCallback`, which a control appended into
         // `suffixSection` never triggers — the section stayed `hidden` and the control
         // measured 0x0. The observer is what keeps the two sections in step with what

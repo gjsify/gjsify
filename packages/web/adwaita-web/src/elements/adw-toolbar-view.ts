@@ -32,6 +32,7 @@ import {
 } from '@gjsify/adwaita-core';
 import { bindEmptySections } from '../empty-sections.js';
 import { AdwScrollShading } from '../scroll-shading.js';
+import { bindSlotAdoption } from '../slot-adoption.js';
 
 export class AdwToolbarView extends HTMLElement {
     private _topEl!: HTMLDivElement;
@@ -96,6 +97,10 @@ export class AdwToolbarView extends HTMLElement {
             bindEmptySections(this._topEl, this._bottomEl);
 
             this.replaceChildren(this._topEl, this._contentEl, this._bottomEl);
+            // Its sibling: `bindEmptySections` keeps the bar's `hidden` flag honest once
+            // a child is IN it, and this puts the child there. A late `slot="top"` bar
+            // had both problems and only one of them was fixed.
+            bindSlotAdoption(this, { top: this._topEl, bottom: this._bottomEl });
         }
 
         // `update_undershoots` runs from size_allocate, so the classes have to

@@ -33,6 +33,7 @@ import './adw-switch.js';
 import type { AdwSwitch } from './adw-switch.js';
 import { type AdwIcon, createAdwIcon } from './adw-icon.js';
 import { attachRowActivation } from './row-activation.js';
+import { bindSlotAdoption } from '../slot-adoption.js';
 
 export class AdwExpanderRow extends HTMLElement {
     private _headerEl!: HTMLDivElement;
@@ -149,6 +150,7 @@ export class AdwExpanderRow extends HTMLElement {
         for (const row of rows) this._contentEl.appendChild(row);
 
         this.replaceChildren(this._headerEl, this._contentEl);
+        bindSlotAdoption(this, { prefix: this._prefixEl, suffix: this._suffixEl });
 
         this._headerEl.addEventListener('click', (event) => {
             // Clicks on the enable switch toggle expansion-enable, not disclosure.

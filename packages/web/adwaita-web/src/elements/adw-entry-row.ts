@@ -38,6 +38,7 @@ import {
 } from '@gjsify/adwaita-core';
 
 import { type AdwIcon, createAdwIcon } from './adw-icon.js';
+import { bindSlotAdoption } from '../slot-adoption.js';
 
 /**
  * Show/hide a rendered part. `hidden` carries the semantics and is what the conformance
@@ -164,6 +165,13 @@ export class AdwEntryRow extends HTMLElement {
         // suffix lands after it and both remain.
         this._onConnected();
         this._adoptAuthored();
+        // …and every later one. `addPrefix` PREPENDS (`gtk_box_prepend`), so the section
+        // cannot be handed over as a plain append target without reversing the order a
+        // declared prefix gets — the routes take the method instead.
+        bindSlotAdoption(this, {
+            prefix: (node) => this.addPrefix(node),
+            suffix: (node) => this.addSuffix(node),
+        });
 
         this._lastText = this._state.text;
         this._lastLength = this._state.textLength;

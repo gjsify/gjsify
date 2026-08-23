@@ -26,6 +26,7 @@ import {
 } from '@gjsify/adwaita-core';
 
 import { bindBreakpointSetter } from '../breakpoints.js';
+import { bindSlotAdoption } from '../slot-adoption.js';
 
 /**
  * The reveal spring, as a CSS-timed animator: libadwaita animates with a spring
@@ -188,6 +189,7 @@ export class AdwOverlaySplitView extends HTMLElement {
         this._contentEl = document.createElement('div');
         this._contentEl.className = 'adw-osv-content';
         contentChildren.forEach((c) => this._contentEl.appendChild(c));
+        bindSlotAdoption(this, { sidebar: this._sidebarEl, content: this._contentEl });
         unslotted.forEach((c) => this._contentEl.appendChild(c));
 
         this._backdropEl = document.createElement('div');
