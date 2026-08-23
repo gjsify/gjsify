@@ -404,6 +404,13 @@ looking it up — so one `GtkBox` key answers both `<GtkBox>` and `<gtk-box>`.
 event and an entirely unresolved tag are all silently accepted while wrong VALUE
 types still error, so the surface looks alive and checks the wrong half.
 
+**Set it in the BASE of your `extends` chain.** Measured on `vue-tsc@3.3.11`, all
+four cells: the base tsconfig's value wins and the child's is ignored outright — a
+strict base stays strict under a child that sets `false`, and a lax base stays lax
+under a child that sets `true`. In a monorepo the shared base config therefore
+decides this for every package and a per-package override does nothing. Confirm
+with `vue-tsc --showConfig` rather than by reading the nearest tsconfig.
+
 That camelize has no acronym knowledge (`gtk-gl-area` → `GtkGlArea`), so widgets
 with two adjacent capitals get an extra kebab key. The generator finds them by
 rule; today there is exactly one, `GtkGLArea`.
