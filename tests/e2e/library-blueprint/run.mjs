@@ -33,18 +33,19 @@ import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// The zero-dependency subpath, and the resolver rather than a PATH probe: on win32 MSYS2 does not
+// put its bin dirs on PATH, so `blueprint-compiler --version` answers "missing" on a host where
+// every build works. The resolver is what the plugin actually spawns, so it is the only answer
+// that predicts the build — the same reasoning `tests/e2e/create-app` records.
+import { resolveBlueprintCompiler } from '@gjsify/vite-plugin-blueprint/resolve';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = resolve(__dirname, '..', '..', '..');
 const CLI = join(REPO_ROOT, 'packages', 'infra', 'cli', 'lib', 'index.js');
 
-function hasBlueprintCompiler() {
-    const r = spawnSync('blueprint-compiler', ['--version'], { stdio: 'ignore' });
-    return r.status === 0 && r.error === undefined;
-}
-
 const SKIP =
     (!existsSync(CLI) && 'no built CLI at packages/infra/cli/lib/index.js') ||
-    (!hasBlueprintCompiler() && 'blueprint-compiler not on PATH');
+    (!resolveBlueprintCompiler() && 'no blueprint-compiler the build could find');
 
 const GOOD_BLP = `using Gtk 4.0;
 
