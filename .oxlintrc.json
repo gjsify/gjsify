@@ -123,9 +123,44 @@
         // there were exactly two, and the convention was already written down in
         // both files that got it right — one file did not, which is the
         // measurement that turns a comment into a check.
-        "gjsify/no-css-side-effect-import": "error"
+        "gjsify/no-css-side-effect-import": "error",
+        // Blueprint over hand-assembly, and no user-visible text that extraction cannot see.
+        // MEASURED across this workspace 2026-08: Learn6502 carries a whole application in 24
+        // .blp files with 8 programmatic constructions and reports ZERO under both rules, while
+        // two apps that grew the other way report 31 template-free widget classes and 673
+        // unreachable captions between them. The caption count is the expensive one — a string
+        // set from TypeScript is invisible to xgettext, so such an interface is untranslatABLE
+        // while merely looking untranslated, and nobody files that as a bug.
+        "gjsify/prefer-blueprint-template": "error",
+        "gjsify/no-literal-widget-label": "error"
     },
     "overrides": [
+        {
+            // A widget written FOR someone else to place, and a fixture or demo that exists to
+            // BE looked at, are both outside these two rules: the first has no application
+            // interface to declare, and the second's captions are the test data. Application
+            // interface gets no exemption here — that is the whole point of the rules.
+            "files": [
+                "**/*.story.ts",
+                "**/stories/**",
+                "**/test/**",
+                "**/*.test.*",
+                "**/*.spec.ts",
+                "**/scripts/**",
+                "tests/**",
+                "examples/**",
+                "showcases/**",
+                "packages/node-gi/**",
+                "packages/napi/**",
+                "packages/framework/storybook/**",
+                "packages/framework/devtools-browser/**",
+                "packages/framework/video/**"
+            ],
+            "rules": {
+                "gjsify/prefer-blueprint-template": "off",
+                "gjsify/no-literal-widget-label": "off"
+            }
+        },
         {
             // A `.cjs` file IS CommonJS — `require` is its only module syntax,
             // not a mistake. These are the `cjs-compat.cjs` publishing shims
@@ -205,6 +240,7 @@
         "packages/infra/lightningcss-wasm/src/napi-wasm.mjs",
         "packages/**/conformance.*.js",
         "**/@types",
+        "**/src/generated",
         "**/templates",
         "**/prebuilds",
         "**/.yarn/cache",

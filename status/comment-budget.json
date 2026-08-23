@@ -6,7 +6,7 @@
     "packages/node": 0.186,
     "packages/web": 0.292,
     "packages/dom": 0.214,
-    "packages/framework": 0.214,
+    "packages/framework": 0.244,
     "packages/nativescript-bridge": 0.495,
     "packages/gjs": 0.399,
     "tests": 0.239,

@@ -1,0 +1,48 @@
+{
+    // The JSX/Solid half of the type-surface gate. Read
+    // `scripts/check-type-surfaces.mjs` for what the halves prove; this file only
+    // pins the four settings the half REQUIRES, and each one is proved
+    // load-bearing by a `tsconfig.probe-*.json` beside it.
+    //
+    //  - `jsx: "preserve"` — what `babel-preset-solid` needs. `"react"` is refused
+    //    outright with `jsxImportSource` (TS5089, probe `jsx-react`).
+    //  - `jsxImportSource: "@gjsify/gtk-host"` — the spelling a consumer writes;
+    //    TypeScript appends `/jsx-runtime`. The `paths` entry below is what makes
+    //    that resolve to `src/` instead of to a BUILD output, so this gate needs
+    //    no `gjsify run build` in front of it.
+    //  - `noImplicitAny: true` — with `jsx: "preserve"` and no `jsxImportSource`,
+    //    every JSX element is implicitly `any` and `tsc` exits 0 having checked
+    //    nothing (probe `evaporate`).
+    //  - `strictFunctionTypes: true` — without it a handler parameter is
+    //    bivariant, so the generated GIR signatures stop being checkable
+    //    (probe `bivariant`).
+    "compilerOptions": {
+        "noEmit": true,
+        "target": "es2020",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "noImplicitAny": true,
+        "strictFunctionTypes": true,
+        "jsx": "preserve",
+        "jsxImportSource": "@gjsify/gtk-host",
+        // Resolves the package's own subpath to SOURCE. Without it TypeScript
+        // follows the `exports` map into `lib/`, which is a build output — and a
+        // STALE `lib/types` (measured: `lib/esm/jsx-runtime.js` present,
+        // `lib/types/jsx-runtime.d.ts` absent) makes the whole surface an
+        // implicit `any` for a reason that has nothing to do with the surface.
+        // What this deliberately does NOT prove: that `package.json#exports`
+        // carries a `./jsx-runtime` entry at all. That is `verify-package-outputs`.
+        "paths": {
+            "@gjsify/gtk-host/jsx-runtime": ["../../src/jsx-runtime.ts"]
+        },
+        "lib": ["es2015", "es2016", "es2017", "DOM"],
+        "types": []
+    },
+    // Every `.tsx` beside this file EXCEPT the sentinel, which is a deliberate
+    // error and has its own tsconfig. A file list that misses a fixture is the
+    // vacuous-green shape this whole directory exists to refuse, so the glob is
+    // wide and the exclusion is explicit.
+    "include": ["*.tsx"],
+    "exclude": ["sentinel.tsx"]
+}

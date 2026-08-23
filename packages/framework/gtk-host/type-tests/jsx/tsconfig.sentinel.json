@@ -1,0 +1,8 @@
+{
+    // The sentinel program: same settings as the real one, one file, and the
+    // expectation is INVERTED — `check-type-surfaces.mjs` requires a non-zero exit
+    // carrying the sentinel's own error code.
+    "extends": "./tsconfig.json",
+    "include": ["sentinel.tsx"],
+    "exclude": []
+}

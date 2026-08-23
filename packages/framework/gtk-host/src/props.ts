@@ -77,6 +77,18 @@ function resolveEnumValue(gtypeName: string, nick: string): EnumLookup {
 }
 
 /**
+ * The value a nick names on an enum GType, or undefined if it names none.
+ *
+ * Exported for the generated surface's own check: the type surface offers a union
+ * of nicks per enum, and a nick this host cannot resolve would type-check and then
+ * be refused at runtime. `generated.spec.ts` resolves every emitted nick through
+ * this function, so the GIR-member-to-nick spelling is measured rather than
+ * assumed. Also the primitive a renderer needs for a "did you mean" diagnostic.
+ */
+export const lookupEnumNick = (gtypeName: string, nick: string): number | undefined =>
+    resolveEnumValue(gtypeName, nick).value;
+
+/**
  * Turn an authored value into one GObject will actually store.
  *
  * The enum branch is the whole reason this function exists: GObject accepts a
