@@ -514,10 +514,13 @@ export default async () => {
                 expect((widget.get_child() as Gtk.Label).label).toBe('L1');
             });
 
-            await it('removing a prop resets it to the ParamSpec default', async () => {
+            await it('removing a prop resets it to what construction leaves behind', async () => {
                 // React hands `undefined` for a prop that disappeared, and
                 // set_property(name, undefined) throws "Could not guess
-                // unspecified GValue type".
+                // unspecified GValue type". `GtkLabel:label` is one of the
+                // properties where the ParamSpec and construction AGREE (both
+                // `''`), so this vector cannot tell the two sources apart — the
+                // ones that can are in props.spec.ts under `removedValue`.
                 const label = createElement('GtkLabel', { label: 'set' });
                 const widget = materialize(label) as unknown as Gtk.Label;
                 expect(widget.label).toBe('set');

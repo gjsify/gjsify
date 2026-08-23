@@ -21,7 +21,7 @@ import {
     type Placement,
 } from './policies.js';
 import { beginHostWrite, clearHandlers, endHostWrite, isEventProp, setHandler, toSignalName } from './signals.js';
-import { coerce, defaultValue, paramSpecs, requireSpec, toPropertyName } from './props.js';
+import { coerce, paramSpecs, removedValue, requireSpec, toPropertyName } from './props.js';
 import { lookupWidget, nearestRegistered } from './registry.js';
 import type { HostAnchor, HostElement, HostNode, HostText, WidgetDescriptor } from './types.js';
 
@@ -194,8 +194,9 @@ export function setProp(el: HostElement, key: string, next: unknown, _prev?: unk
     const spec = requireSpec(specs, el.descriptor.gtype, name);
     // A renderer removing a prop hands `undefined`, which GObject cannot store:
     // `set_property(name, undefined)` throws "Could not guess unspecified GValue
-    // type" (measured). The ParamSpec's own default is what "removed" means.
-    const value = next === undefined ? defaultValue(spec) : coerce(spec, next, el.descriptor.gtype);
+    // type" (measured). What "removed" means is what CONSTRUCTION leaves behind
+    // — see `removedValue`, and the 104 places the ParamSpec disagrees with it.
+    const value = next === undefined ? removedValue(el.descriptor, spec) : coerce(spec, next, el.descriptor.gtype);
 
     const previouslyRecorded = name in el.props ? el.props[name] : undefined;
     if (next === undefined) delete el.props[name];

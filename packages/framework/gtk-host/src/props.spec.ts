@@ -3,12 +3,14 @@
 import { expect, it, on } from '@gjsify/unit';
 
 import Gtk from 'gi://Gtk?version=4.0';
+// Type position only — the descriptors pull Adw in for value use themselves.
+import type Adw from 'gi://Adw?version=1';
 
 import { installDiagnosticsGate } from './conformance/index.js';
 import { gated } from './testing/gate.mjs';
 import { GtkHostError } from './errors.js';
 import { createElement, materialize, setProp } from './host.js';
-import { constructOnlyNames, paramSpecs, toPropertyName } from './props.js';
+import { constructOnlyNames, paramSpecs, removedValue, toPropertyName } from './props.js';
 import { registerBuiltinWidgets } from './descriptors/index.js';
 
 export default async () => {
@@ -129,6 +131,21 @@ export default async () => {
                 expect(() => setProp(entry, 'input-hints', 'spellcheck')).toThrow('flags type');
             });
 
+            await it('refuses a real installed GType that carries no descriptor', async () => {
+                // `AdwClamp` is in the typelib and has no descriptor. It stays an
+                // `unknown-tag` — ADR 0028's decision — which is why the error text
+                // no longer offers "use a raw GType tag" as a way out.
+                expect(() => createElement('AdwClamp')).toThrow('registerWidget');
+                let caught: unknown;
+                try {
+                    createElement('AdwClamp');
+                } catch (e) {
+                    caught = e;
+                }
+                expect((caught as GtkHostError).code).toBe('unknown-tag');
+                expect((caught as GtkHostError).message.includes('raw GType tag')).toBe(false);
+            });
+
             await it('reports refusals as GtkHostError with a code', async () => {
                 const btn = createElement('GtkButton');
                 materialize(btn);
@@ -140,6 +157,69 @@ export default async () => {
                 }
                 expect(caught instanceof GtkHostError).toBe(true);
                 expect((caught as GtkHostError).code).toBe('unknown-prop');
+            });
+        });
+
+        await gated(diagnostics, 'removedValue', async () => {
+            // A descriptor is what `removedValue` keys on, so the vectors below go
+            // through the registry rather than hand-building one.
+            const descriptorFor = (gtype: string) => {
+                const el = createElement(gtype);
+                materialize(el);
+                return el.descriptor;
+            };
+
+            await it('answers with the CONSTRUCTED value where the ParamSpec disagrees', async () => {
+                // The four behavioural disagreements, named so a future GTK that
+                // changes one of them fails by name instead of drifting quietly.
+                // Measured on gjs 1.88.1 / GTK 4.22.4 / Adw 1.10.
+                const vectors: ReadonlyArray<readonly [string, string, unknown, unknown]> = [
+                    // gtype, property, ParamSpec says, construction says
+                    ['AdwActionRow', 'activatable', true, false],
+                    ['GtkWindow', 'visible', true, false],
+                    ['GtkToggleButton', 'receives-default', false, true],
+                    ['GtkListBox', 'focusable', false, true],
+                ];
+                for (const [gtype, prop, fromSpec, fromConstruction] of vectors) {
+                    const descriptor = descriptorFor(gtype);
+                    const spec = paramSpecs(descriptor.ctor(), descriptor.gtype).get(prop);
+                    expect(spec === undefined).toBe(false);
+                    // The premise: these two really do disagree on this GTK. Without
+                    // it the assertion below is satisfied by either implementation.
+                    expect((spec as unknown as { get_default_value(): unknown }).get_default_value()).toBe(fromSpec);
+                    expect(removedValue(descriptor, spec as never)).toBe(fromConstruction);
+                }
+            });
+
+            await it('falls back to the ParamSpec for a value construction cannot report', async () => {
+                // `child` is object-valued, so no probe reads it and the ParamSpec
+                // is the only answer. This is the arm that keeps a removal working
+                // rather than throwing when the probe has nothing to say.
+                const descriptor = descriptorFor('GtkFrame');
+                const spec = paramSpecs(descriptor.ctor(), descriptor.gtype).get('child');
+                expect(spec === undefined).toBe(false);
+                expect(removedValue(descriptor, spec as never)).toBe(null);
+            });
+
+            await it('removing `activatable` leaves the row NOT activatable', async () => {
+                // The end-to-end shape of the defect: with the ParamSpec as the
+                // source, `activatable={cond}` going undefined turned a row that had
+                // never been activatable INTO one, at exit 0.
+                const row = createElement('AdwActionRow', { activatable: true });
+                const widget = materialize(row) as unknown as Adw.ActionRow;
+                expect(widget.activatable).toBe(true);
+                setProp(row, 'activatable', undefined);
+                expect(widget.activatable).toBe(false);
+            });
+
+            await it('removing `receives-default` leaves a toggle button receiving it', async () => {
+                // The opposite polarity, so a fix that merely inverted the boolean
+                // cannot satisfy both vectors.
+                const btn = createElement('GtkToggleButton', { 'receives-default': false });
+                const widget = materialize(btn) as unknown as Gtk.ToggleButton;
+                expect(widget.receivesDefault).toBe(false);
+                setProp(btn, 'receives-default', undefined);
+                expect(widget.receivesDefault).toBe(true);
             });
         });
     });
