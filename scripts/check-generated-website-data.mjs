@@ -53,7 +53,21 @@ const DOCS_DIR = join(ROOT, 'website/src/content/docs/adwaita');
  * `generate-theming-tokens.mjs` had no such mode; it grew one with this check,
  * because a generator nothing verifies is a generator nothing runs.
  */
-const GENERATORS = ['website/scripts/generate-adwaita-attributes.mjs', 'website/scripts/generate-theming-tokens.mjs'];
+/**
+ * The generators whose output is committed. Each has a `--check` that compares
+ * instead of writing; none of them had one before this file existed, and none of
+ * them ran in any workflow — a generator nothing verifies is a generator nothing
+ * runs.
+ *
+ * `generate-coverage.mjs` is here because building the site FOUND it: `run build`
+ * left that tracked file dirty, and the committed numbers said 16 where the tree
+ * held 17. The website was publishing coverage the repo no longer had.
+ */
+const GENERATORS = [
+    'website/scripts/generate-adwaita-attributes.mjs',
+    'website/scripts/generate-theming-tokens.mjs',
+    'website/scripts/generate-coverage.mjs',
+];
 
 /**
  * Gallery titles whose widget is not a custom element, with the reason.
