@@ -196,11 +196,30 @@ export type WidgetGType = keyof WidgetPropsByGType;
     return { path: 'props.ts', text };
 }
 
+/**
+ * Distinct (widget, property) PAIRS — not declaration sites.
+ *
+ * The two differ, and the header said so with the wrong one: three properties are
+ * declared on both a class and one of its own interfaces, so a naive sum reports
+ * 6771 where a reader counting what they can write reports 6768. `orientation`
+ * twice, `name` once. Harmless for the emitted TYPES — all three carry identical
+ * text, which is why no `Omit` was needed — but the number is quoted in the ADR
+ * and the README, where a silent three-slot disagreement reads as a bug in one of
+ * the three.
+ */
 const countSlots = (model: SurfaceModel): number => {
-    const own = new Map<string, number>();
-    for (const d of model.declarations.values()) own.set(d.gtype, d.props.length);
+    const own = new Map<string, readonly string[]>();
+    for (const d of model.declarations.values())
+        own.set(
+            d.gtype,
+            d.props.map((p) => p.camel),
+        );
     let n = 0;
-    for (const [, chain] of model.closure) for (const gtype of chain) n += own.get(gtype) ?? 0;
+    for (const [, chain] of model.closure) {
+        const seen = new Set<string>();
+        for (const gtype of chain) for (const name of own.get(gtype) ?? []) seen.add(name);
+        n += seen.size;
+    }
     return n;
 };
 

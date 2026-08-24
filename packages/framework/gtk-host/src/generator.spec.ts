@@ -88,7 +88,13 @@ export default async () => {
 
         await it('spells a two-word enum member as the nick GObject registered', async () => {
             expect(nickOf('baseline_fill')).toBe('baseline-fill');
-            expect(props.includes("export type MiniAlignNick = 'fill' | 'baseline-fill';")).toBe(true);
+            // `two_words` carries `glib:nick="renamed"`. The derivation would answer
+            // `two-words`, so this member is the whole difference between reading the
+            // nick and guessing it — and a guessed nick is a type that accepts a value
+            // GObject then drops SILENTLY.
+            expect(nickOf('two_words')).toBe('two-words');
+            expect(props.includes("export type MiniAlignNick = 'fill' | 'baseline-fill' | 'renamed';")).toBe(true);
+            expect(props.includes('two-words')).toBe(false);
         });
 
         await it('answers an array property with an array type', async () => {
@@ -172,7 +178,7 @@ export default async () => {
             expect(data.includes("'MiniBox::row-activated': '1.2',")).toBe(true);
             expect(data.includes("MiniBox: ['spacing', 'label', 'old-thing'],")).toBe(true);
             expect(data.includes("MiniBox: ['MiniBox', 'MiniWidget', 'MiniOrientable'],")).toBe(true);
-            expect(data.includes("MiniAlign: ['fill', 'baseline-fill'],")).toBe(true);
+            expect(data.includes("MiniAlign: ['fill', 'baseline-fill', 'renamed'],")).toBe(true);
         });
 
         await it('refuses a type whose namespace it cannot import', async () => {

@@ -101,17 +101,9 @@ export function buildUniverse(
     return { enums, classes, others, packages };
 }
 
-/**
- * The GObject nick of a GIR enum member.
- *
- * GIR writes `baseline_fill`; the nick GObject registered is `baseline-fill`, and
- * the nick is what `g_enum_get_value_by_nick` and this host's `coerce()` accept.
- * The transform is one substitution, and it is not taken on trust: the generator
- * emits every nick into test data and a spec resolves each one through the host's
- * own enum lookup, so a nick this function spells wrong fails a test rather than
- * shipping as a type that accepts a value GTK refuses.
- */
-export const nickOf = (member: string): string => member.replace(/_/g, '-');
+// Re-exported: the reader owns the nick now, because GIR CARRIES it and this
+// module only ever guessed at it. `nickUnion` below takes `e.members` verbatim.
+export { nickOf } from './gir.mjs';
 
 export interface TsType {
     readonly text: string;
@@ -127,7 +119,7 @@ const scalarOf = (name: string): string | undefined => SCALARS[name];
 
 /** A nick union, or `never` for an enum GIR declares with no members. */
 export const nickUnion = (e: GirEnum): string =>
-    e.members.length === 0 ? 'never' : e.members.map((m) => `'${nickOf(m)}'`).join(' | ');
+    e.members.length === 0 ? 'never' : e.members.map((m) => `'${m}'`).join(' | ');
 
 /** The alias name a nick union is emitted under — the GType name, so it is unique. */
 export const nickAliasOf = (e: GirEnum): string => `${e.gtype}Nick`;
