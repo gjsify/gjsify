@@ -18,7 +18,7 @@
     "scripts": {
         "clear": "gjsify clear lib test.node.mjs test.gjs.mjs tsconfig.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
-        "build": "gjsify tsc",
+        "build": "gjsify tsc -p tsconfig.build.json",
         "build:test": "gjsify run build:test:node && gjsify run build:test:gjs",
         "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
         "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
