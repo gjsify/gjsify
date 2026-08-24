@@ -7,13 +7,35 @@
 // ('change', 'sub/deep/a.txt'): the eventType, and a path relative to the WATCHED
 // directory rather than a basename.
 //
-// The non-recursive test at the end is what keeps the rest from passing
-// vacuously: an implementation that watched everything unconditionally would
-// satisfy every positive assertion above it.
+// The control at the end is what keeps the rest from passing vacuously: an
+// implementation that watched everything unconditionally would satisfy every
+// positive assertion above it. It asserts exactly one thing, that a non-recursive
+// watch names nothing INSIDE the nested directory, and that precision was paid for.
+//
+// The first spelling asserted that no reported filename STARTS WITH `sub`, which
+// also matches the directory `sub` itself. The darwin and win32 Node legs went red
+// on it while Linux stayed green (PR #1300), and it reads like a platform difference
+// in what `recursive` controls. It is not one: libuv drops nested paths on both.
+//
+//   darwin — the FSEvents stream is created with kFSEventStreamCreateFlagFileEvents
+//     so paths arrive file-granular, and `uv__fsevents_event_cb` then skips any path
+//     carrying a further '/' after the watched-dir prefix unless
+//     UV_FS_EVENT_RECURSIVE is set (libuv 1.52.1, src/unix/fsevents.c:295-300).
+//   win32 — `ReadDirectoryChangesW` is called with bWatchSubtree = FALSE without
+//     that flag, so the subtree is never reported at all (src/win/fs-event.c:46).
+//
+// What DOES differ between the backends is the containing DIRECTORY. Writing
+// `sub/a.txt` updates `sub`'s own mtime, and FSEvents and ReadDirectoryChangesW
+// (which libuv arms with FILE_NOTIFY_CHANGE_LAST_WRITE) both surface that as a
+// change to the direct child `sub`, where inotify does not: IN_MODIFY on
+// `sub/a.txt` reaches a watch on `sub` and never one on its parent. That is a
+// property of the notification backend, the same question on either side of the
+// runtime split rather than Node against us, and nothing here asserts it in either
+// direction.
 
 import { describe, it, expect } from '@gjsify/unit';
 import { promises, watch, writeFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 
 /** See the note in `watch.spec.ts`: `.native` is what makes this safe on Windows and macOS. */
@@ -53,6 +75,19 @@ const named =
     (filename: string) =>
     ([, name]: Seen): boolean =>
         name === filename;
+
+/**
+ * Did this event name something INSIDE `sub`, under either spelling a leak takes?
+ *
+ * `sub/a.txt` is the relative path a recursive watch reports. A bare `a.txt` is the
+ * same leak arriving under a filename contract that has regressed to a basename, and
+ * no file of that name exists at the top level, so it cannot turn up legitimately.
+ * The directory entry `sub` is deliberately NOT matched: see the header.
+ */
+function namesSomethingInsideSub([, name]: Seen): boolean {
+    if (name === null) return false;
+    return name === 'a.txt' || name.startsWith(`sub${sep}`);
+}
 
 export default async () => {
     await describe('fs.watch — recursive', async () => {
@@ -215,7 +250,13 @@ export default async () => {
                 // nested" is also what a watcher that never armed at all would report.
                 expect(await sawEvent(events, named('top.txt'))).toBe(true);
                 await sleep(500);
-                expect(events.some(([, name]) => name !== null && name.startsWith('sub'))).toBe(false);
+                // Compared as a STRING so a failure NAMES what leaked. The first
+                // spelling was `events.some(...)` against a boolean, and when it went
+                // red on darwin and win32 all it could say was `Expected: false,
+                // Actual: true` — which is how a mis-scoped predicate got read as a
+                // platform difference for a whole CI round.
+                const leaked = events.filter(namesSomethingInsideSub).map(([type, name]) => `${type} ${name}`);
+                expect(leaked.join(', ')).toBe('');
             } finally {
                 watcher.close();
                 rmSync(tmp, { recursive: true, force: true });
