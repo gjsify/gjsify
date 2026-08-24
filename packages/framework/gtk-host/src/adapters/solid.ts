@@ -28,7 +28,7 @@ import {
     nextSibling,
     parentNode,
     remove,
-    setProp,
+    setProp as setHostProp,
     setText,
 } from '../host.js';
 import type { HostElement, HostNode, HostText } from '../types.js';
@@ -105,7 +105,7 @@ const renderer = createRenderer<HostNode>({
     isTextNode: (node: HostNode) => isText(node),
 
     setProperty: (node: HostNode, name: string, value: unknown, prev?: unknown) => {
-        setProp(node as HostElement, name, value, prev);
+        setHostProp(node as HostElement, name, value, prev);
     },
 
     insertNode: (parent: HostNode, node: HostNode, anchor?: HostNode) => {
@@ -143,7 +143,13 @@ export const {
     insertNode,
     insert,
     spread,
-    setProp: setSolidProp,
+    // NOT renamed, and the compiler is why: `babel-plugin-jsx-dom-expressions` in
+    // `generate: "universal"` mode emits `import { setProp } from "<moduleName>"`
+    // literally. Every other member of `Renderer<NodeType>` was already exported
+    // under its contract name; this one was `setSolidProp`, so a real Solid `.tsx`
+    // build against this module failed with MISSING_EXPORT on that single name.
+    // The HOST's `setProp` is the one that carries a local alias now.
+    setProp,
     mergeProps,
     use,
 } = renderer;
