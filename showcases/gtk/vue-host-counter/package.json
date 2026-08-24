@@ -11,7 +11,7 @@
     ],
     "scripts": {
         "clear": "gjsify clear dist tsconfig.tsbuildinfo",
-        "check": "vue-tsc --noEmit",
+        "check": "node ../../../scripts/check-vue-program.mjs .",
         "build": "gjsify run build:gjs",
         "build:gjs": "gjsify build src/app.ts --app gjs --outfile dist/app.gjs.mjs --define '__VUE_OPTIONS_API__=false' --define '__VUE_PROD_DEVTOOLS__=false' --define '__VUE_PROD_HYDRATION_MISMATCH_DETAILS__=false' --define 'process.env.NODE_ENV=\"production\"'",
         "start:gjs": "gjs -m dist/app.gjs.mjs",

@@ -10,7 +10,7 @@ over one host is what makes "framework-agnostic" a measurement instead of a deci
 ```bash
 gjsify run build:gjs && gjsify run start:gjs   # the window
 gjsify run probe                               # the assertions, headless
-gjsify run check                               # vue-tsc over the SFC
+gjsify run check                               # vue-tsc over the SFC, held non-vacuous
 ```
 
 ## What only this showcase proves
@@ -87,6 +87,15 @@ Measured on this showcase, with `strictTemplates: true`: an unknown prop (TS2353
 (TS2339), an unknown event (TS2561, with a "Did you mean `onClicked`?"), a wrong value type (TS2322)
 and a bad enum nick (TS2322 naming `GtkOrientationNick`) all fail. With it set to `false`, the
 unknown prop and the unknown **tag** are both silently accepted.
+
+Which is why `check` goes through **`scripts/check-vue-program.mjs`** rather than calling `vue-tsc`
+directly: a bare `vue-tsc --noEmit` is an exit code and nothing else, so dropping `strictTemplates`
+or putting an `extends` above it leaves the check green and no longer holding the surface — both
+measured, both now red. The script also runs `--listFiles` and requires every `.vue` on disk to be
+in the program. Note what that assertion does *not* catch, also measured: `App.vue` reaches the
+program through `app.ts`'s import and is fully type-checked with or without `src/**/*.vue` in
+`include`, so the glob is what covers a component that is not wired up yet — an unimported
+`Unwired.vue` with the glob dropped is the case that turns it red.
 
 ## License
 

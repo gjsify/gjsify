@@ -26,8 +26,12 @@
     "vueCompilerOptions": {
         "strictTemplates": true
     },
-    // `src/**/*.vue` is listed EXPLICITLY. A tsconfig whose include lists only `.ts`
-    // globs makes vue-tsc check ZERO SFCs and exit 0 — the vacuous-green shape
-    // `scripts/check-type-surfaces.mjs` keeps as its own probe.
+    // `src/**/*.vue` is listed EXPLICITLY, and the reason is narrower than it looks.
+    // MEASURED: `App.vue` reaches the program through `app.ts`'s import and is fully
+    // type-checked with or WITHOUT this glob, so the glob is what covers an SFC nothing
+    // imports yet. `scripts/check-type-surfaces.mjs` keeps the ZERO-SFCs-at-exit-0 shape
+    // executable for gtk-host's standalone fixtures, where nothing imports them; here
+    // `scripts/check-vue-program.mjs` (this package's `check`) is what holds it, together
+    // with `strictTemplates` above and the absence of an `extends`.
     "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.vue"]
 }
