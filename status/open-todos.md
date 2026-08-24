@@ -4,6 +4,32 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### The Vue plugin's virtual suffix is coupled to deepkit's filter, and nothing checks it
+
+`@gjsify/rolldown-plugin-vue` mints module ids ending in `VIRTUAL_SUFFIX =
+'.gjsify-vue.ts'` so rolldown's extension-based parser selection reaches TypeScript.
+That tail also decides something nobody wrote down until now:
+`@gjsify/rolldown-plugin-deepkit` filters on `/\.(m|c)?tsx?$/`, so the id lands
+inside it and an SFC's `<script setup>` gets reflected — measured, an SFC carrying
+`typeOf<Reflected>()` emits its `__ΩReflected` table. Rename the tail to `.js` and
+reflection switches off for **every** `.vue` file in the project, with no diagnostic:
+`typeOf()` with no argument throws `No type given` at runtime, from a build that
+exited 0.
+
+The coupling is now stated at the constant, which is enforcement by review. The
+mechanism it deserves is small but not free, which is why it is here rather than done:
+
+- export a predicate from the deepkit plugin (`reflectsModuleId(id)`, wrapping the
+  `FILTER` that is private today), and
+- assert `reflectsModuleId('/a/App.vue' + VIRTUAL_SUFFIX)` from the vue plugin's own
+  suite.
+
+That costs a new public export, a `workspace:^` devDependency edge and a lockfile
+change — all defensible, none of them something to slip into a docs-correction PR.
+Whoever picks it up: the A/B is renaming the suffix to `.gjsify-vue.js` and watching
+the new case go red. Related: the same `order: 'pre'` collision in the SOLID plugin
+was a real defect, fixed in #1296 by splitting `GjsifyConfig.prePlugins`.
+
 ### `adwaita-web` adopts `[slot=]` children once, which blocks the shared-vocabulary goal
 
 ADR 0027 § 9 makes one widget vocabulary across native GTK, Blueprint/XML, TSX/JSX,

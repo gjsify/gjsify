@@ -45,6 +45,18 @@ const RENDER_BINDING = '__sfc_render__';
  * Named rather than a bare `.ts` so no real file can collide with it: a project
  * that genuinely has an `App.vue.ts` on disk would otherwise see this plugin claim
  * its `load` and compile `App.vue` in its place.
+ *
+ * THE `.ts` TAIL IS LOAD-BEARING FOR A SECOND REASON, and it is not rolldown's.
+ * `@gjsify/rolldown-plugin-deepkit` filters on `/\.(m|c)?tsx?$/`, so this id lands
+ * inside it and Deepkit reflects an SFC's `<script setup>` — measured: an SFC
+ * carrying `typeOf<Reflected>()` emits its `__ΩReflected` table. Rename the tail to
+ * `.js` or `.mjs` and that filter stops matching, and reflection switches off for
+ * every `.vue` file in the project with no diagnostic anywhere — `typeOf()` with no
+ * argument throws `No type given` at runtime, from a build that exited 0.
+ *
+ * Written down because the coupling is invisible at both ends: nothing in the
+ * deepkit plugin knows this suffix exists, and a rename here looks like a cosmetic
+ * choice about a name only this file uses.
  */
 const VIRTUAL_SUFFIX = '.gjsify-vue.ts';
 
