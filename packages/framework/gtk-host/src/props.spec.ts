@@ -2,6 +2,7 @@
 
 import { expect, it, on } from '@gjsify/unit';
 
+import GObject from 'gi://GObject';
 import Gtk from 'gi://Gtk?version=4.0';
 // Type position only — the descriptors pull Adw in for value use themselves.
 import type Adw from 'gi://Adw?version=1';
@@ -12,6 +13,7 @@ import { GtkHostError } from './errors.js';
 import { createElement, materialize, setProp } from './host.js';
 import { constructOnlyNames, paramSpecs, removedValue, toPropertyName } from './props.js';
 import { registerBuiltinWidgets } from './descriptors/index.js';
+import { hasWidget } from './registry.js';
 
 export default async () => {
     await on('Gjs', async () => {
@@ -132,13 +134,19 @@ export default async () => {
             });
 
             await it('refuses a real installed GType that carries no descriptor', async () => {
-                // `AdwClamp` is in the typelib and has no descriptor. It stays an
-                // `unknown-tag` — ADR 0028's decision — which is why the error text
-                // no longer offers "use a raw GType tag" as a way out.
-                expect(() => createElement('AdwClamp')).toThrow('registerWidget');
+                // NOT `AdwClamp` — it is a concrete GtkWidget descendant, so the
+                // generated table has carried it since #1281 and pinning it here
+                // would assert the opposite of what it says. `GtkAdjustment` is
+                // real, installed, and not a widget, which is the durable version
+                // of the same claim: being in the typelib is not enough, and the
+                // error text no longer offers "use a raw GType tag" as a way out
+                // (ADR 0028 — `createElement` looks the GType up exactly).
+                expect(hasWidget('AdwClamp')).toBe(true);
+                expect(GObject.type_name(Gtk.Adjustment.$gtype)).toBe('GtkAdjustment');
+                expect(() => createElement('GtkAdjustment')).toThrow('registerWidget');
                 let caught: unknown;
                 try {
-                    createElement('AdwClamp');
+                    createElement('GtkAdjustment');
                 } catch (e) {
                     caught = e;
                 }
@@ -189,6 +197,23 @@ export default async () => {
                     expect((spec as unknown as { get_default_value(): unknown }).get_default_value()).toBe(fromSpec);
                     expect(removedValue(descriptor, spec as never)).toBe(fromConstruction);
                 }
+            });
+
+            await it('probes a fatal GType with the id it demands, not bare', async () => {
+                // The interaction the probe was one line away from: `AdwLayoutSlot`
+                // is legal to AUTHOR (`<adw-layout-slot id="…">`) and fatal to
+                // construct bare — `g_error()`, SIGABRT, exit 134, uncatchable, so
+                // the `try` around the probe is not a guard for it. Removing ANY
+                // prop on a slot the consumer built correctly would have ended the
+                // process, and no assertion in this file would have run to say so.
+                const el = createElement('AdwLayoutSlot', { id: 'probe', 'css-classes': ['x'] });
+                materialize(el);
+                const spec = paramSpecs(el.descriptor.ctor(), el.descriptor.gtype).get('css-classes');
+                expect(spec === undefined).toBe(false);
+                // Reaching this line at all IS the assertion — the probe ran.
+                expect(removedValue(el.descriptor, spec as never) !== undefined).toBe(true);
+                // And the premise: this GType really does declare a requirement.
+                expect(el.descriptor.requiresProps).toStrictEqual(['id']);
             });
 
             await it('falls back to the ParamSpec for a value construction cannot report', async () => {

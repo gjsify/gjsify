@@ -195,14 +195,23 @@ function constructedDefaults(descriptor: WidgetDescriptor): Map<string, unknown>
     const klass = descriptor.ctor();
     let probe: GObject.Object;
     try {
-        probe = new (klass as unknown as new () => GObject.Object)();
+        // Seeded with the construct-only properties this GType ABORTS without.
+        // A bare `new Adw.LayoutSlot()` does not throw — it reaches `g_error()`
+        // and takes the process with it, so the `catch` below would never run and
+        // a removal on an otherwise legal `<adw-layout-slot id="…">` would be
+        // fatal. The values are placeholders: the probe is read for what every
+        // OTHER property settled to, then dropped.
+        const seed: Record<string, unknown> = {};
+        for (const name of descriptor.requiresProps ?? []) seed[name] = '';
+        probe = new (klass as unknown as new (props?: Record<string, unknown>) => GObject.Object)(seed);
     } catch {
         // A consumer subclass registered through `registerWidget()` can have an
         // `_init` that refuses a bare construction. Falling back to the
         // ParamSpec is exactly the behaviour this function replaces, so the
         // fallback is signalled by an EMPTY map — never by a guessed value —
         // and a removal keeps working instead of throwing out of `setProp`.
-        // All 26 shipped descriptors construct; this path is for the registry.
+        // All 164 table rows construct (measured, one process per row); this path
+        // is for the registry.
         return values;
     }
 
