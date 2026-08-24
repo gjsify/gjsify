@@ -90,6 +90,11 @@ export const isText = (node: HostNode): node is HostText => node.kind === 'text'
  */
 export function materialize(el: HostElement): GObject.Object {
     if (el.widget) return el.widget;
+    // Before `new Klass`, because for these GTypes there IS no after: a missing
+    // construct-only property reaches `g_error()` and takes the process with it.
+    for (const name of el.descriptor.requiresProps ?? []) {
+        if (!(name in el.props)) throw err.missingConstructProp(el.descriptor.gtype, name);
+    }
     const Klass = el.descriptor.ctor();
     const specs = paramSpecs(Klass, el.descriptor.gtype);
     const initial: Record<string, unknown> = {};

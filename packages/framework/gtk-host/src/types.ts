@@ -173,4 +173,11 @@ export interface WidgetDescriptor {
     readonly textSink?: string;
     /** `onActivate` -> `activate` is derived; irregular pairs live here, in the TABLE. */
     readonly eventAliases?: Readonly<Record<string, string>>;
+    /**
+     * Construct-only properties whose ABSENCE aborts the process rather than
+     * raising — see `REQUIRED_CONSTRUCT_PROPS` in `descriptors/` for the measurement.
+     * Checked in `materialize`, because after `g_object_new` there is nothing left
+     * to check with.
+     */
+    readonly requiresProps?: readonly string[];
 }

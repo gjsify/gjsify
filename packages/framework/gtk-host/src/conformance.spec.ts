@@ -4,7 +4,7 @@ import { expect, it, on } from '@gjsify/unit';
 
 import Gtk from 'gi://Gtk?version=4.0';
 
-import { descriptorProblems, installDiagnosticsGate, methodsOf } from './conformance/index.js';
+import { descriptorProblems, describeLogRecord, installDiagnosticsGate, methodsOf } from './conformance/index.js';
 import { gated } from './testing/gate.mjs';
 import { lookupWidget, registeredTags } from './registry.js';
 import type { WidgetDescriptor } from './types.js';
@@ -20,6 +20,38 @@ export default async () => {
         // neighbour twelve tests later. `gated` registers the hooks INSIDE the
         // describe, where @gjsify/unit actually keeps them.
         const diagnostics = installDiagnosticsGate();
+
+        await it('describes every record it counts, MESSAGE field or not', async () => {
+            // `MESSAGE` is a structured field like any other and a record may arrive
+            // without one. The first version answered `String(raw ?? '')`, so such a
+            // record was COUNTED and then described as nothing: a CI run failed with
+            // "GTK reported 1 diagnostic(s) that would have passed at exit 0:" and a
+            // blank list, right after a test that had constructed 164 widgets. A
+            // count without a name sends the reader back to guessing, which is the
+            // state this module exists to end.
+            //
+            // Tested on the renderer directly rather than by emitting a real record:
+            // `GLib.log_structured_array` wants `GLib.LogField` structs GJS cannot
+            // build from object literals ("not a subclass of GObject_Struct").
+            const encode = (text: string) => new TextEncoder().encode(text);
+            expect(describeLogRecord({ MESSAGE: encode('a plain warning') })).toBe('a plain warning');
+            expect(describeLogRecord({ MESSAGE: 'already a string' })).toBe('already a string');
+            // The three shapes that used to render as the empty string.
+            const empties = [
+                { GLIB_DOMAIN: encode('gtk-host-probe') },
+                { MESSAGE: null, GLIB_DOMAIN: 'x' },
+                { MESSAGE: '' },
+            ];
+            for (const record of empties) {
+                const answer = describeLogRecord(record);
+                expect(answer.includes('no MESSAGE')).toBe(true);
+                expect(answer.trim().length > 0).toBe(true);
+            }
+            expect(describeLogRecord({ GLIB_DOMAIN: encode('gtk-host-probe') }).includes('gtk-host-probe')).toBe(true);
+            // A record with nothing at all still says so, rather than ''.
+            expect(describeLogRecord(null).length > 0).toBe(true);
+            expect(describeLogRecord({}).length > 0).toBe(true);
+        });
 
         await gated(diagnostics, 'descriptor table vs installed typelib', async () => {
             await it('every declared method and text sink exists', async () => {
