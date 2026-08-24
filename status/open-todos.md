@@ -32,31 +32,6 @@ rendered through the GTK host and through `adwaita-web`, satisfies the same
 then the goal is a direction, not a claim — and the longer horizon it points at
 (NativeScript and browser builds from one native-authored source) needs its own ADR.
 
-### `@gjsify/gtk-host`'s widget table is curated, and nothing yet stops a second one
-
-ADR 0028 decides the table is GENERATED from the GIR at build time and that
-runtime introspection is the value coercer, not a second source. What ships today
-is the curated half: 26 descriptors for GTK4 + libadwaita under
-`packages/framework/gtk-host/src/descriptors/`, held to the installed typelib by
-`descriptorProblems()` — every method and text sink a descriptor names must exist
-on that GType.
-
-One mechanism named in ADR 0028 does NOT exist yet, and it is deliberately absent
-rather than stubbed:
-
-- **The generator** (`gen-descriptors.mjs`) and its four gates: every `gtype`
-  present in the GIR; curated may ADD to a descriptor, never contradict it; every
-  method a policy names exists on that GType; no vacuous descriptor. Until it
-  lands, a widget missing from the table is a `GtkHostError: unknown-tag` at
-  render time rather than a build error.
-
-It does not block the host itself — the placement vectors assert against the real
-GTK tree today — but it blocks calling the table trustworthy at scale.
-
-(The import-direction check that ADR 0027 § 7 needs is no longer pending: it
-landed with the Solid adapter as `scripts/check-adapter-import-direction.mjs`,
-runs in the audit job, and refuses to run on an empty adapter set.)
-
 ### Two measured placement defects the adapters PR did NOT fix
 
 Both surfaced while reviewing the Solid/Vue adapters, both are pre-existing in
