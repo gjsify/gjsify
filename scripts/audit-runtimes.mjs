@@ -1536,6 +1536,13 @@ async function main() {
             // only does its job if somebody reads it. Same contract as
             // `gjsify.platformsUncommitted`.
             for (const note of osAxis.notes ?? []) console.log(`  · ${note}`);
+            // The bundler-plugin notes are the rule's ONLY honesty mechanism: the
+            // export half needs the plugin built, and this job builds nothing, so in
+            // CI every plugin produces a "not checked" note. Printing the summary
+            // without them turns "declared, export unverified" into a clean green
+            // line — a missing signal reading as a pass, inside the guard written to
+            // remove that class.
+            for (const note of bundlerPlugins.notes ?? []) console.log(`  · ${note}`);
             for (const note of coverage.notes ?? []) console.log(`  · ${note}`);
             renderReachabilityNotes(reach);
             process.exit(0);
@@ -1870,6 +1877,7 @@ async function main() {
             );
             console.error('');
         }
+        for (const note of bundlerPlugins.notes ?? []) console.error(`  · ${note}`);
         for (const note of coverage.notes ?? []) console.error(`  · ${note}`);
         renderReachabilityNotes(reach);
 

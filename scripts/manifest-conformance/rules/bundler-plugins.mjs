@@ -54,9 +54,30 @@ import { defineRule } from '../../../packages/infra/manifest-conformance/lib/ind
 /** The three dependency kinds a plugin may legitimately be declared under. */
 const DEPENDENCY_KINDS = ['dependencies', 'devDependencies', 'optionalDependencies'];
 
-/** `true` for a `{ name }` entry rather than an inline plugin object. */
+/**
+ * `true` for a `{ name }` entry.
+ *
+ * DELIBERATELY NOT the CLI's `isPluginByName` (packages/infra/cli/src/utils/
+ * resolve-plugin-by-name.ts), which additionally refuses anything carrying `apply`,
+ * `resolveId`, `load`, `transform`, `renderChunk` or `generateBundle` — it has to tell a
+ * by-name entry from an INLINE Rolldown plugin object, because it reads a JS-form config
+ * where both are possible. This rule reads package.json, where an inline plugin is not
+ * expressible at all: every hook is a function and JSON has none. So the two answer
+ * different questions, and importing the CLI's here would refuse a manifest entry for
+ * carrying a key that could only ever be inert data.
+ */
 function isPluginByName(entry) {
     return typeof entry === 'object' && entry !== null && typeof entry.name === 'string';
+}
+
+/** How an unusable entry reads back in a diagnostic, without dumping the whole object. */
+function describeEntry(entry) {
+    if (typeof entry === 'string') return `the bare string "${entry}"`;
+    if (entry === null) return 'null';
+    if (Array.isArray(entry)) return 'an array';
+    if (typeof entry !== 'object') return `a ${typeof entry}`;
+    const keys = Object.keys(entry);
+    return `an object with no string \`name\` (keys: ${keys.length > 0 ? keys.join(', ') : 'none'})`;
 }
 
 /**
@@ -87,11 +108,42 @@ export async function auditBundlerPlugins(ctx) {
 
     for (const pkg of ctx.packages) {
         const plugins = pkg.gjsify?.bundler?.plugins;
-        if (!Array.isArray(plugins) || plugins.length === 0) continue;
+        if (plugins === undefined) continue;
+        // Counted here, before the shape is judged: `declaring` answers "did anyone
+        // configure a plugin chain", which the floor below reads. A malformed
+        // declaration is still a declaration, and letting it fall through to the floor
+        // would report one mistake twice.
         declaring += 1;
+        // A non-array is not "nothing declared" — it is a declaration the CLI reads as
+        // `plugins?.length === undefined` and skips WHOLE, so the build runs with no
+        // plugin chain and says nothing. Skipping it here reproduces that silence
+        // inside the guard written to end it.
+        if (!Array.isArray(plugins)) {
+            failures.push(
+                `${pkg.name} declares gjsify.bundler.plugins as ${describeEntry(plugins)}, not an array. The CLI ` +
+                    `reads the list by length, so a non-array configures NO plugins and the build exits 0 with the ` +
+                    `chain it was told to use missing.`,
+            );
+            continue;
+        }
+        if (plugins.length === 0) continue;
 
         for (const entry of plugins) {
-            if (!isPluginByName(entry)) continue;
+            // Not `continue`. In a package.json every entry MUST be `{ name }` or a
+            // relative path, because the inline-plugin alternative needs functions and
+            // JSON has none. So an entry this rule cannot classify is not a shape it
+            // declines to judge — it is one `resolveUserPlugins` will hand to Rolldown
+            // as data, which drops it and compiles nothing. Measured shapes that used
+            // to pass here: a bare `"@gjsify/rolldown-plugin-solid"` string (the
+            // natural first guess) and `{ "module": … }` (a typo of `name`).
+            if (!isPluginByName(entry)) {
+                failures.push(
+                    `${pkg.name} declares a gjsify.bundler.plugins entry as ${describeEntry(entry)}. Write ` +
+                        `{ "name": "<package>" } (optionally with "export" and "options"), or a relative path to a ` +
+                        `file in this package.`,
+                );
+                continue;
+            }
             checked += 1;
             const { name } = entry;
             const exportName = entry.export ?? 'default';
@@ -178,6 +230,18 @@ export const bundlerPluginsRule = defineRule({
     description: 'every plugin named in `gjsify.bundler.plugins` is declared as a dependency and exists',
     async run(ctx) {
         const { failures, notes, stats } = await auditBundlerPlugins(ctx);
+        // A FLOOR, because every other assertion here is "no finding". With no
+        // declaring package the loop never runs, `failures` is empty, and the summary
+        // still reads like a measurement — the shape `verify-published-closure` and
+        // `check-adapter-import-direction` already refuse. Renaming the key, or losing
+        // the last consumer, must be an edit somebody makes on purpose.
+        if (stats.declaring === 0) {
+            failures.push(
+                'no package declares `gjsify.bundler.plugins`, so this rule verified nothing while reporting a ' +
+                    'count. Either the feature lost its last consumer or the key was renamed; whichever it is, it ' +
+                    'is not something a green run should hide.',
+            );
+        }
         return {
             failures,
             notes,
