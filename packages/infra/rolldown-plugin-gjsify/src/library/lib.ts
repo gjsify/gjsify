@@ -21,6 +21,8 @@ import type { PluginOptions } from '../types/plugin-options.js';
 import { globToEntryPoints } from '../utils/entry-points.js';
 
 export interface LibBuildConfig {
+    /** Transforms that must see the ORIGINAL source; composed before the caller's plugins. */
+    prePlugins: RolldownPluginOption[];
     options: RolldownOptions;
     plugins: RolldownPluginOption[];
 }
@@ -126,7 +128,8 @@ export const setupLib = async (input: LibFactoryInput): Promise<LibBuildConfig> 
         blueprintPlugin(),
     ];
 
-    return { options, plugins };
+    // Library mode wires no reflection at all; the empty slot says so out loud.
+    return { options, prePlugins: [], plugins };
 };
 
 /**

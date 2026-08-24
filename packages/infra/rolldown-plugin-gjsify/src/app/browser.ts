@@ -27,6 +27,8 @@ import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
 
 export interface BrowserBuildConfig {
+    /** Transforms that must see the ORIGINAL source; composed before the caller's plugins. */
+    prePlugins: RolldownPluginOption[];
     options: RolldownOptions;
     plugins: RolldownPluginOption[];
 }
@@ -112,11 +114,14 @@ export const setupForBrowser = async (input: BrowserFactoryInput): Promise<Brows
     // promise the alias layer made.
     const aliasEntries = flattenAliases(aliasMap);
 
+    // Reflection reads the ORIGINAL TypeScript, so it runs before any user
+    // transform can strip the annotations out from under it (see `GjsifyConfig`).
+    const prePlugins: RolldownPluginOption[] = [deepkitPlugin({ reflection: input.pluginOptions.reflection })];
+
     const plugins: RolldownPluginOption[] = [
         gjsImportsEmptyPlugin(),
         aliasPlugin({ entries: aliasEntries }),
         blueprintPlugin() as RolldownPluginOption,
-        deepkitPlugin({ reflection: input.pluginOptions.reflection }),
         cssAsStringPlugin(),
         // `order: 'post'` — see app/gjs.ts. The browser target's whole job is to
         // replace Node builtins with their `@gjsify/*` browser entries; when one
@@ -130,7 +135,7 @@ export const setupForBrowser = async (input: BrowserFactoryInput): Promise<Brows
         }),
     ];
 
-    return { options, plugins };
+    return { options, prePlugins, plugins };
 };
 
 function flattenAliases(map: Record<string, string>): Record<string, string> {

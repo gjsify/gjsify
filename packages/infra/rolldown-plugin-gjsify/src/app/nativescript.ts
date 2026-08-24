@@ -50,6 +50,8 @@ import {
 import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
 
 export interface NativescriptBuildConfig {
+    /** Transforms that must see the ORIGINAL source; composed before the caller's plugins. */
+    prePlugins: RolldownPluginOption[];
     options: RolldownOptions;
     plugins: RolldownPluginOption[];
 }
@@ -157,6 +159,10 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
     // promise the alias layer made.
     const aliasEntries = flattenAliases(aliasMap);
 
+    // Reflection reads the ORIGINAL TypeScript, so it runs before any user
+    // transform can strip the annotations out from under it (see `GjsifyConfig`).
+    const prePlugins: RolldownPluginOption[] = [deepkitPlugin({ reflection: input.pluginOptions.reflection })];
+
     const plugins: RolldownPluginOption[] = [
         gjsImportsEmptyPlugin(),
         // Platform-specific source variants (`*.android` / `*.ios` /
@@ -168,7 +174,6 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
         // NO cssAsStringPlugin — NS ships its own CSS pipeline via
         // @nativescript/core; .css imports are handled by the consuming
         // @nativescript/webpack or @nativescript/vite build
-        deepkitPlugin({ reflection: input.pluginOptions.reflection }),
         // `order: 'post'` — see app/gjs.ts. Native-bridge identifiers
         // (`java.*`, `NS*`, …) are ambient GLOBALS on this target, never
         // imports, so they never reach this hook; only a `@gjsify/*` edge does,
@@ -181,7 +186,7 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
         }),
     ];
 
-    return { options, plugins };
+    return { options, prePlugins, plugins };
 };
 
 function flattenAliases(map: Record<string, string>): Record<string, string> {
