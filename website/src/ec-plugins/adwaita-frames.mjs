@@ -137,6 +137,7 @@ const DEFAULT_FRAME_TITLES = {
     cjs: 'JavaScript',
     json: 'JSON',
     jsonc: 'JSON',
+    vue: 'Vue',
     yaml: 'YAML',
     yml: 'YAML',
     css: 'CSS',

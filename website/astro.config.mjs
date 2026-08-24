@@ -119,6 +119,9 @@ export default defineConfig({
                     label: 'Guides',
                     items: [
                         { slug: 'guides/native-adwaita-app' },
+                        { slug: 'guides/ui-frameworks' },
+                        { slug: 'guides/solid-jsx' },
+                        { slug: 'guides/vue-sfc' },
                         { slug: 'patterns/gobject-classes' },
                         { slug: 'patterns/bridges', label: 'Bridge Widgets' },
                         { slug: 'guides/storybook' },
