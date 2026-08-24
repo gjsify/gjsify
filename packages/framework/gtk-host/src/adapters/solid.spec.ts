@@ -54,7 +54,10 @@ function buildVector(at: () => VectorElement): HostNode {
         return el;
     }
     children.forEach((_, index) => {
-        insertNode(el, buildVector(() => (at().children as VectorNode[])[index] as VectorElement));
+        insertNode(
+            el,
+            buildVector(() => (at().children as VectorNode[])[index] as VectorElement),
+        );
     });
     return el;
 }

@@ -51,11 +51,11 @@ export interface VectorElement {
 export type VectorNode = string | VectorElement;
 
 /** `h('GtkBox', { spacing: 6 }, h('GtkLabel', null, 'hi'))`. */
-export const h = (
-    tag: string,
-    props?: Record<string, unknown> | null,
-    ...children: VectorNode[]
-): VectorElement => ({ tag, props: props ?? undefined, children });
+export const h = (tag: string, props?: Record<string, unknown> | null, ...children: VectorNode[]): VectorElement => ({
+    tag,
+    props: props ?? undefined,
+    children,
+});
 
 export interface VectorMount {
     /**
@@ -242,9 +242,7 @@ export async function runAdapterVectors(harness: VectorHarness, gate: Diagnostic
             // guess (`add`, `append`, `set_child`) exists somewhere in GTK, where
             // calling the wrong one is a warning at exit 0.
             const container = new Gtk.Box();
-            const said = await refusalOf(() =>
-                mount(container, h('GtkExpander', null, h('GtkLabel', { label: 'x' }))),
-            );
+            const said = await refusalOf(() => mount(container, h('GtkExpander', null, h('GtkLabel', { label: 'x' }))));
             expect(said).toContain('GENERATED table');
             expect(said).toContain('GtkExpander');
             // Not vacuous: the CURATED twin of the same shape takes the same child.

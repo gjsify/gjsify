@@ -107,10 +107,9 @@ const WIDGET_NAME = new RegExp(`['"\`]${NAMESPACES}[A-Z][A-Za-z]+['"\`]`);
  * spellings TypeScript will not let you write against an `import type`.
  */
 const WIDGET_VALUE = new RegExp(
-    [
-        `\\b(?:new|instanceof)\\s+${NAMESPACES}\\.[A-Z]\\w*`,
-        `\\b${NAMESPACES}\\.[A-Z]\\w*\\s*(?:\\.\\$gtype|\\()`,
-    ].join('|'),
+    [`\\b(?:new|instanceof)\\s+${NAMESPACES}\\.[A-Z]\\w*`, `\\b${NAMESPACES}\\.[A-Z]\\w*\\s*(?:\\.\\$gtype|\\()`].join(
+        '|',
+    ),
 );
 
 /** Placement methods. Naming one here means an insertion rule leaked out of the table. */

@@ -54,10 +54,7 @@ const vueVectors: VectorHarness = {
         // `shallowRef`, not `ref`: a deep ref hands the host a reactive PROXY of
         // every `layout` object, and the host stores what it is given.
         const current = shallowRef<VectorElement>(tree);
-        const app = mount(
-            defineComponent({ render: () => toVueTree(current.value) }),
-            container,
-        );
+        const app = mount(defineComponent({ render: () => toVueTree(current.value) }), container);
         return {
             patch: async (next) => {
                 current.value = next;

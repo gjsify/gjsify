@@ -145,7 +145,10 @@ function assertUi(ui: Ui, check: ProbeCheck): Record<string, unknown> {
     //    so read the property back rather than assert that materialisation
     //    returned something, which it always does or throws.
     const root = widgetOf(ui.window);
-    check("orientation: 'vertical' reached GTK", (widgetOf(ui.buttons) as Gtk.Box).orientation === Gtk.Orientation.VERTICAL);
+    check(
+        "orientation: 'vertical' reached GTK",
+        (widgetOf(ui.buttons) as Gtk.Box).orientation === Gtk.Orientation.VERTICAL,
+    );
 
     // 2. Slotted PLACEMENT, not presence. Searched over descendants rather than
     //    direct children, because Adw.ApplicationWindow and Adw.HeaderBar both nest
@@ -196,7 +199,10 @@ function assertUi(ui: Ui, check: ProbeCheck): Record<string, unknown> {
     //    three `setEventHandler` calls still printed PROBE: PASS with byte-identical
     //    output, while this file's README claimed a bound signal was proven.
     (widgetOf(ui.incrementButton) as Gtk.Button).emit('clicked');
-    check('clicking updated the subtitle through the signal', (widgetOf(ui.countRow) as Adw.ActionRow).subtitle === '1');
+    check(
+        'clicking updated the subtitle through the signal',
+        (widgetOf(ui.countRow) as Adw.ActionRow).subtitle === '1',
+    );
     check('the signal ran exactly once', ui.count() === 1);
 
     // 6. Bottom-up construction into a container that cannot insert.
