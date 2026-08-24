@@ -84,6 +84,7 @@ import './manifest-conformance/rules/node-script-globals.mjs';
 import './manifest-conformance/rules/pr-trigger-parity.mjs';
 import './manifest-conformance/rules/workflow-rev-pin.mjs';
 import './manifest-conformance/rules/stylesheet-font-families.mjs';
+import './manifest-conformance/rules/bundler-plugins.mjs';
 
 // Re-exported for `tests/e2e/prebuild-declaration-invariant`, which drives the prebuild
 // invariant against SYNTHETIC packages: proving that a MISSING prebuild directory fails
@@ -1387,6 +1388,10 @@ const CHECK_RULES = [
     // resolves 'Adwaita Sans'/'Adwaita Mono' from fontconfig, so a screenshot looks right
     // over a tree that ships neither.
     'stylesheet-font-families',
+    // Reads only `gjsify.bundler.plugins` + the three dependency maps out of each
+    // manifest, then resolves each name from the DECLARING package. No build, no install
+    // beyond the one this job already has.
+    'bundler-plugins',
     'field-coverage',
     'status-data',
 ];
@@ -1500,6 +1505,9 @@ async function main() {
         // drift. Being caught by the safety net is not the same as being reported.
         const bundledLicense = byId.get('bundled-license');
         const stylesheetFontFamilies = byId.get('stylesheet-font-families');
+        // Fetched AND printed in both branches in the same edit — the two comments above
+        // are what the other order cost twice.
+        const bundlerPlugins = byId.get('bundler-plugins');
         const reach = reachability.reach;
 
         if (run.ok) {
@@ -1517,6 +1525,7 @@ async function main() {
             console.log(releaseTrain.summary);
             console.log(bundledLicense.summary);
             console.log(stylesheetFontFamilies.summary);
+            console.log(bundlerPlugins.summary);
             console.log(prTriggerParity.summary);
             console.log(workflowRevPin.summary);
             console.log(coverage.summary);
@@ -1816,6 +1825,20 @@ async function main() {
             );
             console.error('');
         }
+        if ((bundlerPlugins.failures ?? []).length > 0) {
+            console.error(`BUNDLER-PLUGIN FAILURES on ${bundlerPlugins.failures.length} finding(s):`);
+            for (const line of bundlerPlugins.failures) {
+                console.error(`  - ${line}`);
+            }
+            console.error('');
+            console.error(
+                'A package names a build plugin it does not depend on, or names an export the plugin does not have. ' +
+                    'The first resolves here only because the workspace hoists it and fails for every consumer that ' +
+                    'installs from npm; the second fails on the first build. Declare the plugin in the package that ' +
+                    'configures it.',
+            );
+            console.error('');
+        }
         if ((prTriggerParity.failures ?? []).length > 0) {
             console.error(`PR-TRIGGER-PARITY FAILURES on ${prTriggerParity.failures.length} finding(s):`);
             for (const line of prTriggerParity.failures) {
@@ -1892,6 +1915,7 @@ async function main() {
             'pr-trigger-parity',
             'workflow-rev-pin',
             'stylesheet-font-families',
+            'bundler-plugins',
         ]);
         const unreported = run.results.filter(
             ({ rule, result }) => (result.failures ?? []).length > 0 && !REPORTED_RULE_IDS.has(rule.id),
