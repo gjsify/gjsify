@@ -237,7 +237,13 @@ export async function compileSfc(
     // BUNDLER's `process.env.NODE_ENV`, which no build here sets. Measured, the same
     // SFC emitted 4 `createCommentVNode` calls with NODE_ENV unset and 0 with
     // NODE_ENV=production — a different bundle for an environment variable nothing
-    // declares.
+    // declares. It has to be set in `compilerOptions` AS WELL, and pinning it here
+    // alone made the plugin non-deterministic WITHIN one process: `parse()` LRU-caches
+    // the descriptor, `compileTemplate` marks the ast `transformed`, and the next
+    // compile of the same file therefore takes `resolveTemplateAST`, which re-parses
+    // `inAST.source` using `compilerOptions` as the PARSE options. Measured on one
+    // fixture in one process: pass 1 emitted 0 `createCommentVNode` calls, pass 2
+    // emitted 1, and the two modules differed.
     const { descriptor, errors } = parse(source, {
         filename,
         templateParseOptions: { isCustomElement, comments: false },
@@ -273,6 +279,7 @@ export async function compileSfc(
         // does not clone.
         hoistStatic: false,
         transformHoist: null,
+        comments: false,
     };
 
     const id = scopeId(filename, source);

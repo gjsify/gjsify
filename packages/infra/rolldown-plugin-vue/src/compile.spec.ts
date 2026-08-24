@@ -259,6 +259,34 @@ export default async () => {
         });
     });
 
+    await describe('compileSfc: determinism within one process', async () => {
+        await it('compiles the SAME fixture to the same bytes twice', async () => {
+            // The measurement that made `comments: false` a TWO-place setting.
+            // `parse()` LRU-caches the descriptor and `compileTemplate` marks the ast
+            // `transformed`, so the second compile of one file takes
+            // `resolveTemplateAST`, which RE-PARSES `inAST.source` with
+            // `compilerOptions` as the parse options. With `comments` pinned only in
+            // `templateParseOptions`, pass 1 emitted 0 `createCommentVNode` calls and
+            // pass 2 emitted 1 — the same input, two different modules, decided by
+            // whether anything had compiled before.
+            const source = `<template><gtk-box><!-- a note --><gtk-label label="x" /></gtk-box></template>`;
+            const first = await compile(source);
+            const second = await compile(source);
+            expect(second).toBe(first);
+            expect(count(first, '_createCommentVNode(')).toBe(0);
+            expect(count(second, '_createCommentVNode(')).toBe(0);
+        });
+
+        await it('holds for an SFC with both halves', async () => {
+            // A second fixture, because the caching is keyed per file and the script
+            // half goes through `compileScript`, which caches nothing.
+            const source =
+                `<script setup lang="ts">const n: number = 1;</script>\n` +
+                `<template><gtk-box :spacing="n"><!-- keep --><gtk-label label="x" /></gtk-box></template>`;
+            expect(await compile(source, 'Both.vue')).toBe(await compile(source, 'Both.vue'));
+        });
+    });
+
     await describe('compileSfc: the source map', async () => {
         const SOURCE =
             `<script setup lang="ts">\nconst spacing: number = 12;\n</script>\n\n` +
