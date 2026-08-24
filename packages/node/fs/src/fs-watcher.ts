@@ -2,9 +2,9 @@
 // Reimplemented for GJS using Gio.FileMonitor
 
 import GLib from '@girs/glib-2.0';
-import Gio from '@girs/gio-2.0';
 import { EventEmitter } from 'node:events';
 import { normalizePath } from './utils.js';
+import { WatchTree, type WatchEventType } from './watch-tree.js';
 const privates = new WeakMap();
 
 import type { FSWatcher as IFSWatcher, PathLike, WatchOptions } from 'node:fs';
@@ -15,11 +15,18 @@ export class FSWatcher extends EventEmitter implements IFSWatcher {
         if (!options || typeof options !== 'object') options = { persistent: true };
 
         const persistent = options.persistent !== false;
-        const cancellable = Gio.Cancellable.new();
-        const pathStr = normalizePath(filename);
-        const file = Gio.File.new_for_path(pathStr);
-        const watcher = file.monitor(Gio.FileMonitorFlags.NONE, cancellable);
-        watcher.connect('changed', changed.bind(this));
+        // The monitors, the walk that creates them and the disposal that ends them all
+        // live in WatchTree — this class owns the event-loop hold and the emitter.
+        const tree = new WatchTree(
+            normalizePath(filename),
+            options.recursive === true,
+            (eventType: WatchEventType, name: string) => {
+                this.emit('change', eventType, name);
+            },
+            (err: unknown) => {
+                this.emit('error', err);
+            },
+        );
 
         // When persistent is true, acquire a reference on the default GLib main context
         // so the main loop stays alive while this watcher is active.
@@ -35,24 +42,24 @@ export class FSWatcher extends EventEmitter implements IFSWatcher {
 
         privates.set(this, {
             persistent,
-            cancellable,
+            closed: false,
             sourceId,
-            // even if never used later on, the monitor needs to be
+            // even if never used later on, the tree needs to be
             // attached to this instance or GJS reference counter
-            // will ignore it and no watch will ever happen
-            watcher,
+            // will ignore its monitors and no watch will ever happen
+            tree,
         });
         if (listener) this.on('change', listener);
     }
 
     close() {
         const priv = privates.get(this);
-        if (!priv.cancellable.is_cancelled()) {
-            priv.cancellable.cancel();
-            if (priv.sourceId !== null) {
-                GLib.source_remove(priv.sourceId);
-                priv.sourceId = null;
-            }
+        if (priv.closed) return;
+        priv.closed = true;
+        priv.tree.close();
+        if (priv.sourceId !== null) {
+            GLib.source_remove(priv.sourceId);
+            priv.sourceId = null;
         }
     }
 
@@ -62,7 +69,7 @@ export class FSWatcher extends EventEmitter implements IFSWatcher {
      */
     ref(): this {
         const priv = privates.get(this);
-        if (!priv.persistent && !priv.cancellable.is_cancelled()) {
+        if (!priv.persistent && !priv.closed) {
             priv.persistent = true;
             priv.sourceId = (
                 GLib.timeout_add as unknown as (priority: number, interval: number, fn: () => boolean) => number
@@ -88,47 +95,9 @@ export class FSWatcher extends EventEmitter implements IFSWatcher {
     }
 }
 
-function changed(watcher, file, otherFile, eventType) {
-    // Node's fs.watch emits a single 'change' event whose listener signature is
-    // (eventType: 'rename'|'change', filename: string). The string discriminant
-    // tells the consumer whether a directory entry appeared/disappeared/was
-    // renamed ('rename') or an existing file's contents changed ('change').
-    // Previously we emitted on the event NAMES 'change' and 'rename' — which
-    // works for our own internal 'change'-listener registration but silently
-    // drops every rename/create/delete for any consumer (chokidar, vite, tsc)
-    // that registers only `watcher.on('change', listener)` per Node's contract.
-    switch (eventType) {
-        case Gio.FileMonitorEvent.CHANGES_DONE_HINT:
-            this.emit('change', 'change', file.get_basename());
-            break;
-        case Gio.FileMonitorEvent.DELETED:
-        case Gio.FileMonitorEvent.CREATED:
-        case Gio.FileMonitorEvent.RENAMED:
-        case Gio.FileMonitorEvent.MOVED_IN:
-        case Gio.FileMonitorEvent.MOVED_OUT:
-            this.emit('change', 'rename', file.get_basename());
-            break;
-    }
-}
-
 export default FSWatcher;
 
 type WatchEvent = { eventType: string; filename: string | null };
-
-function gioEventToNodeType(eventType: Gio.FileMonitorEvent): string | null {
-    switch (eventType) {
-        case Gio.FileMonitorEvent.CHANGES_DONE_HINT:
-            return 'change';
-        case Gio.FileMonitorEvent.DELETED:
-        case Gio.FileMonitorEvent.CREATED:
-        case Gio.FileMonitorEvent.RENAMED:
-        case Gio.FileMonitorEvent.MOVED_IN:
-        case Gio.FileMonitorEvent.MOVED_OUT:
-            return 'rename';
-        default:
-            return null;
-    }
-}
 
 export async function* watchAsync(
     filename: PathLike,
@@ -139,19 +108,11 @@ export async function* watchAsync(
     if (signal?.aborted) return;
 
     const pathStr = normalizePath(filename);
-    const file = Gio.File.new_for_path(pathStr);
-    const cancellable = Gio.Cancellable.new();
-
-    let watcher: Gio.FileMonitor;
-    try {
-        watcher = file.monitor(Gio.FileMonitorFlags.NONE, cancellable);
-    } catch {
-        return;
-    }
 
     const eventQueue: WatchEvent[] = [];
     const waiterQueue: Array<{ resolve: (r: IteratorResult<WatchEvent>) => void }> = [];
     let finished = false;
+    let failure: unknown = null;
 
     function enqueue(event: WatchEvent): void {
         if (finished) return;
@@ -165,7 +126,6 @@ export async function* watchAsync(
     function terminate(): void {
         if (finished) return;
         finished = true;
-        if (!cancellable.is_cancelled()) cancellable.cancel();
         while (waiterQueue.length > 0) {
             // `done: true` iterator returns conventionally carry `value: undefined`;
             // the default `TReturn` of `IteratorResult` allows that without a cast.
@@ -173,19 +133,27 @@ export async function* watchAsync(
         }
     }
 
-    const signalId = watcher.connect(
-        'changed',
-        (
-            _mon: Gio.FileMonitor,
-            changedFile: Gio.File,
-            _otherFile: Gio.File | null,
-            eventType: Gio.FileMonitorEvent,
-        ) => {
-            const type = gioEventToNodeType(eventType);
-            if (type === null) return;
-            enqueue({ eventType: type, filename: changedFile?.get_basename() ?? null });
-        },
-    );
+    let tree: WatchTree;
+    try {
+        tree = new WatchTree(
+            pathStr,
+            options?.recursive === true,
+            (eventType, name) => {
+                enqueue({ eventType, filename: name });
+            },
+            (err) => {
+                // A failure deeper in the tree ends the iteration by throwing out of it,
+                // which is how `events.on()` surfaces an 'error' to the consumer of
+                // Node's own `fs.promises.watch`.
+                failure = err;
+                terminate();
+            },
+        );
+    } catch {
+        // `g_file_monitor()` is `throws="1"`: an unwatchable path yields an iterator
+        // that is simply already done, rather than a rejection nobody is waiting on yet.
+        return;
+    }
 
     const abortHandler = () => terminate();
     signal?.addEventListener('abort', abortHandler);
@@ -202,11 +170,9 @@ export async function* watchAsync(
             if (result.done) break;
             yield result.value;
         }
+        if (failure !== null) throw failure;
     } finally {
         signal?.removeEventListener('abort', abortHandler);
-        // GObject signal disconnect has no throw path (an invalid id only logs
-        // a GLib warning), and `watcher` is kept alive by this closure.
-        watcher.disconnect(signalId);
-        if (!cancellable.is_cancelled()) cancellable.cancel();
+        tree.close();
     }
 }

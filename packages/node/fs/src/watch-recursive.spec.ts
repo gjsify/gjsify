@@ -1,0 +1,262 @@
+// `fs.watch(dir, { recursive: true })` and the filename shape that comes with it.
+//
+// The contract asserted here was measured against node v24.19.0 on Linux, where
+// `recursive` is served by `lib/internal/fs/recursive_watch.js` because inotify
+// has no recursive mode — the same position GIO leaves us in. What Node emits for
+// a change to `sub/deep/a.txt` under a watch on `sub`'s parent is
+// ('change', 'sub/deep/a.txt'): the eventType, and a path relative to the WATCHED
+// directory rather than a basename.
+//
+// The non-recursive test at the end is what keeps the rest from passing
+// vacuously: an implementation that watched everything unconditionally would
+// satisfy every positive assertion above it.
+
+import { describe, it, expect } from '@gjsify/unit';
+import { promises, watch, writeFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
+
+/** See the note in `watch.spec.ts`: `.native` is what makes this safe on Windows and macOS. */
+function makeTmp(): string {
+    return realpathSync.native(mkdtempSync(join(tmpdir(), 'gjsify-rwatch-')));
+}
+
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Long enough for the monitors to be live before the test writes anything. */
+const ARM_MS = 60;
+
+/** A filesystem event as the `fs.watch` listener receives it. */
+type Seen = [eventType: string, filename: string | null];
+
+/**
+ * Poll until some recorded event satisfies `match`, or the window closes.
+ *
+ * Returns a boolean rather than throwing so the negative cases can use the same
+ * helper: "did this arrive" and "did this stay away" are the same question.
+ *
+ * The window has to stay well inside `@gjsify/unit`'s 5 s per-test timeout, fixed
+ * sleeps included: a wait that outlasts it turns a precise "expected true, got
+ * false" into a bare Timeout that names nothing. Measured, a nested event lands in
+ * ~100 ms on both runtimes.
+ */
+async function sawEvent(events: Seen[], match: (event: Seen) => boolean, timeoutMs = 2500): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+        if (events.some(match)) return true;
+        if (Date.now() > deadline) return false;
+        await sleep(25);
+    }
+}
+
+const named =
+    (filename: string) =>
+    ([, name]: Seen): boolean =>
+        name === filename;
+
+export default async () => {
+    await describe('fs.watch — recursive', async () => {
+        await it('reports a change to a file in a nested directory', async () => {
+            const tmp = makeTmp();
+            const nested = join(tmp, 'sub', 'deep');
+            mkdirSync(nested, { recursive: true });
+            const target = join(nested, 'a.txt');
+            writeFileSync(target, 'one');
+
+            const events: Seen[] = [];
+            const watcher = watch(tmp, { recursive: true }, (eventType, filename) => {
+                events.push([eventType, filename]);
+            });
+            try {
+                await sleep(ARM_MS);
+                writeFileSync(target, 'two');
+                expect(await sawEvent(events, named(join('sub', 'deep', 'a.txt')))).toBe(true);
+            } finally {
+                watcher.close();
+                rmSync(tmp, { recursive: true, force: true });
+            }
+        });
+
+        await it('watches a directory that is created after the watch started', async () => {
+            const tmp = makeTmp();
+            const events: Seen[] = [];
+            const watcher = watch(tmp, { recursive: true }, (eventType, filename) => {
+                events.push([eventType, filename]);
+            });
+            try {
+                await sleep(ARM_MS);
+                mkdirSync(join(tmp, 'late'));
+                // The new directory being REPORTED is not the point and would be true of
+                // a flat monitor too; waiting for it here only establishes that the
+                // watcher has had its chance to start monitoring it.
+                expect(await sawEvent(events, named('late'))).toBe(true);
+                events.length = 0;
+
+                writeFileSync(join(tmp, 'late', 'b.txt'), 'hello');
+                expect(await sawEvent(events, named(join('late', 'b.txt')))).toBe(true);
+            } finally {
+                watcher.close();
+                rmSync(tmp, { recursive: true, force: true });
+            }
+        });
+
+        await it('names the file relative to the watched directory, not by its basename', async () => {
+            const tmp = makeTmp();
+            mkdirSync(join(tmp, 'x'), { recursive: true });
+            mkdirSync(join(tmp, 'y'), { recursive: true });
+            writeFileSync(join(tmp, 'x', 'dup.txt'), 'one');
+            writeFileSync(join(tmp, 'y', 'dup.txt'), 'one');
+
+            const events: Seen[] = [];
+            const watcher = watch(tmp, { recursive: true }, (eventType, filename) => {
+                events.push([eventType, filename]);
+            });
+            try {
+                await sleep(ARM_MS);
+                writeFileSync(join(tmp, 'x', 'dup.txt'), 'two');
+                expect(await sawEvent(events, named(join('x', 'dup.txt')))).toBe(true);
+                // The two files are the same string once reduced to a basename, so a
+                // consumer resolving the reported name against the watched directory —
+                // `isSelfWrite()` in the CLI's watch loop does exactly that — would act on
+                // the wrong file.
+                expect(events.some(named('dup.txt'))).toBe(false);
+
+                events.length = 0;
+                writeFileSync(join(tmp, 'y', 'dup.txt'), 'two');
+                expect(await sawEvent(events, named(join('y', 'dup.txt')))).toBe(true);
+            } finally {
+                watcher.close();
+                rmSync(tmp, { recursive: true, force: true });
+            }
+        });
+
+        await it('re-watches a nested directory that was deleted and created again', async () => {
+            const tmp = makeTmp();
+            const nested = join(tmp, 'sub');
+            mkdirSync(nested, { recursive: true });
+            writeFileSync(join(nested, 'a.txt'), 'one');
+
+            const events: Seen[] = [];
+            const watcher = watch(tmp, { recursive: true }, (eventType, filename) => {
+                events.push([eventType, filename]);
+            });
+            try {
+                await sleep(ARM_MS);
+                rmSync(nested, { recursive: true, force: true });
+                expect(await sawEvent(events, named('sub'))).toBe(true);
+                events.length = 0;
+
+                mkdirSync(nested);
+                expect(await sawEvent(events, named('sub'))).toBe(true);
+                events.length = 0;
+
+                writeFileSync(join(nested, 'c.txt'), 'x');
+                // This is what makes "dispose the monitors of a deleted directory" an
+                // observable requirement rather than a resource-hygiene footnote: a
+                // monitor left behind still occupies this path, so the directory that
+                // now exists under it never gets one, and the write below reaches
+                // nothing at all.
+                expect(await sawEvent(events, named(join('sub', 'c.txt')))).toBe(true);
+            } finally {
+                watcher.close();
+                rmSync(tmp, { recursive: true, force: true });
+            }
+        });
+
+        await it('close() stops the nested monitors, not only the root one', async () => {
+            const tmp = makeTmp();
+            const nested = join(tmp, 'sub');
+            mkdirSync(nested, { recursive: true });
+            const target = join(nested, 'a.txt');
+            writeFileSync(target, 'one');
+
+            const events: Seen[] = [];
+            const watcher = watch(tmp, { recursive: true }, (eventType, filename) => {
+                events.push([eventType, filename]);
+            });
+            try {
+                await sleep(ARM_MS);
+                writeFileSync(target, 'two');
+                expect(await sawEvent(events, named(join('sub', 'a.txt')))).toBe(true);
+            } finally {
+                watcher.close();
+            }
+
+            // Whatever was already in flight lands inside this window; anything after it
+            // is a monitor that outlived close().
+            await sleep(250);
+            events.length = 0;
+            writeFileSync(target, 'three');
+            writeFileSync(join(tmp, 'top.txt'), 'x');
+            await sleep(600);
+            expect(events).toStrictEqual([]);
+            rmSync(tmp, { recursive: true, force: true });
+        });
+
+        await it('does not see nested changes without recursive', async () => {
+            const tmp = makeTmp();
+            const nested = join(tmp, 'sub');
+            mkdirSync(nested, { recursive: true });
+            writeFileSync(join(nested, 'a.txt'), 'one');
+            const top = join(tmp, 'top.txt');
+            writeFileSync(top, 'one');
+
+            const events: Seen[] = [];
+            // Two arguments, the way Node documents the default: no options object at
+            // all, so `recursive` is absent rather than false.
+            const watcher = watch(tmp, (eventType, filename) => {
+                events.push([eventType, filename]);
+            });
+            try {
+                await sleep(ARM_MS);
+                writeFileSync(join(nested, 'a.txt'), 'two');
+                writeFileSync(top, 'two');
+                // The top-level write is the positive control: without it, "saw nothing
+                // nested" is also what a watcher that never armed at all would report.
+                expect(await sawEvent(events, named('top.txt'))).toBe(true);
+                await sleep(500);
+                expect(events.some(([, name]) => name !== null && name.startsWith('sub'))).toBe(false);
+            } finally {
+                watcher.close();
+                rmSync(tmp, { recursive: true, force: true });
+            }
+        });
+    });
+
+    await describe('fs.promises.watch — recursive', async () => {
+        await it('yields an event for a nested file, named relative to the watched directory', async () => {
+            const tmp = makeTmp();
+            const nested = join(tmp, 'sub');
+            mkdirSync(nested, { recursive: true });
+            const target = join(nested, 'a.txt');
+            writeFileSync(target, 'one');
+
+            const ac = new AbortController();
+            // The iterator blocks forever on an implementation that never yields the
+            // nested event, and a hung suite reports nothing at all.
+            const bail = setTimeout(() => ac.abort(), 2500);
+            let seen = false;
+            const write = sleep(ARM_MS * 2).then(() => {
+                writeFileSync(target, 'two');
+            });
+
+            try {
+                for await (const event of promises.watch(tmp, { recursive: true, signal: ac.signal })) {
+                    if (event.filename === join('sub', 'a.txt')) {
+                        seen = true;
+                        ac.abort();
+                    }
+                }
+            } catch (err: unknown) {
+                const e = err as { name?: string; code?: string };
+                if (e?.name !== 'AbortError' && e?.code !== 'ABORT_ERR') throw err;
+            } finally {
+                clearTimeout(bail);
+                await write;
+            }
+
+            expect(seen).toBe(true);
+            rmSync(tmp, { recursive: true, force: true });
+        });
+    });
+};

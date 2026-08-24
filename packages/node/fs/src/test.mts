@@ -25,6 +25,7 @@ import testSuiteCp from './cp.spec.js';
 import testSuiteDir from './dir.spec.js';
 import testSuiteGlob from './glob.spec.js';
 import testSuiteWatch from './watch.spec.js';
+import testSuiteWatchRecursive from './watch-recursive.spec.js';
 import testSuiteWatchFile from './watchfile.spec.js';
 import testSuiteStatFs from './statfs.spec.js';
 import testSuiteUtimes from './utimes.spec.js';
@@ -47,6 +48,7 @@ run({
     testSuiteDir,
     testSuiteGlob,
     testSuiteWatch,
+    testSuiteWatchRecursive,
     testSuiteWatchFile,
     testSuiteStatFs,
     testSuiteUtimes,
