@@ -1,0 +1,63 @@
+{
+    "name": "@gjsify/rolldown-plugin-solid",
+    "version": "0.42.0",
+    "description": "SolidJS JSX compiler plugin for Rolldown / Rollup / Vite — universal generate, targeting a gjsify renderer",
+    "type": "module",
+    "main": "lib/index.js",
+    "module": "lib/index.js",
+    "types": "lib/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/index.d.ts",
+            "default": "./lib/index.js"
+        }
+    },
+    "files": [
+        "lib"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib tsconfig.tsbuildinfo",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify tsc"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/rolldown-plugin-solid#readme",
+    "keywords": [
+        "rolldown",
+        "rollup",
+        "vite",
+        "solid",
+        "solid-js",
+        "jsx",
+        "gtk",
+        "gjs"
+    ],
+    "license": "MIT",
+    "dependencies": {
+        "@babel/core": "^7.28.4",
+        "@babel/preset-typescript": "^7.27.1",
+        "babel-preset-solid": "^1.9.9"
+    },
+    "peerDependencies": {
+        "rolldown": "^1.1.4"
+    },
+    "peerDependenciesMeta": {
+        "rolldown": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@types/babel__core": "^7.20.5",
+        "@types/node": "^25.9.2",
+        "rolldown": "^1.1.4"
+    },
+    "gjsify": {
+        "tier": 1
+    }
+}
