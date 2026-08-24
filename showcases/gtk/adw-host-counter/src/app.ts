@@ -8,58 +8,17 @@
 // Solid's universal renderer have everything they need — they add reconciliation,
 // not GTK knowledge.
 //
-// SELF-VERIFYING, in BOTH modes. With `GJSIFY_HOST_PROBE=1` the app builds the tree
-// headlessly, asserts it against the REAL widget tree (`get_first_child`/
-// `get_next_sibling`, never the host's own bookkeeping), prints `PROBE: PASS <json>`
-// and exits 0 — or `PROBE: FAIL` and exits 1. The SAME assertions run on `activate`
-// before the window is shown, so `showcase-smoke` (which only launches and waits)
-// carries them; without that the CI leg would prove nothing beyond "it started".
-// Both modes count every GLib warning-or-worse, because a mis-parented GTK tree
-// still exits 0.
+// SELF-VERIFYING, in BOTH modes, and this file no longer carries the machinery for
+// it. `runHostProbeApp` owns the `GJSIFY_HOST_PROBE=1`-vs-`activate` split, the
+// diagnostics gate, the `check()` recorder and the `PROBE: PASS|FAIL <json>` line;
+// what is left here is the tree and the assertions about it. Seventy of this
+// file's lines were that harness, 58 of them byte-identical to the Solid
+// showcase's copy — and both copies re-implemented the GLib writer func that
+// `@gjsify/gtk-host/conformance` already exports, complete with the missing-MESSAGE
+// bug it exists to end.
 
 import Adw from 'gi://Adw?version=1';
-import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
-
-/**
- * Every GLib/GTK diagnostic this process emits, captured rather than merely
- * printed.
- *
- * This is the mechanism behind the package's central claim. GTK's failure mode
- * is exit 0: a mis-parented widget floods `Gtk-WARNING`/`Adwaita-CRITICAL` and
- * the process still succeeds, so a test that asserts only on structure passes
- * while the window is wrong. `showcase-smoke`'s FATAL_PATTERNS deliberately do
- * not include GTK criticals (documented there as flaky by construction across
- * unrelated showcases), so this process counts its own.
- *
- * The handler FORWARDS to stderr rather than swallowing — a writer that ate its
- * input would hide the very messages it exists to detect, including its own.
- */
-const diagnostics: string[] = [];
-const decoder = new TextDecoder();
-const verboseLogging = GLib.getenv('G_MESSAGES_DEBUG') !== null;
-
-GLib.log_set_writer_func((level, fields) => {
-    // A throw in here is logged, which re-enters this function. Everything is
-    // guarded and the return value is unconditional.
-    try {
-        let message = '';
-        const raw = (fields as unknown as { MESSAGE?: unknown } | null)?.MESSAGE;
-        message = raw instanceof Uint8Array ? decoder.decode(raw) : String(raw ?? '');
-        // MASK the level: `g_logv` ORs in `G_LOG_FLAG_FATAL`, so `WARNING|FATAL`
-        // is 18 and an unmasked `<= 16` misses it under `--g-fatal-warnings`.
-        const severity = level & GLib.LogLevelFlags.LEVEL_MASK;
-        if (severity <= GLib.LogLevelFlags.LEVEL_WARNING) diagnostics.push(message);
-        // Same threshold GLib's own writer applies when G_MESSAGES_DEBUG is
-        // unset: message-and-above is printed, info/debug is not. Printing
-        // everything published a hundred portal-setting lines before the first
-        // assertion, which is its own kind of unreadable.
-        if (verboseLogging || severity <= GLib.LogLevelFlags.LEVEL_MESSAGE) printerr(message);
-    } catch {
-        printerr('<gtk-host probe: a log message could not be decoded>');
-    }
-    return GLib.LogWriterOutput.HANDLED;
-});
 
 import {
     createElement,
@@ -67,11 +26,14 @@ import {
     materialize,
     registerBuiltinWidgets,
     remove,
+    runHostProbeApp,
     setEventHandler,
     setProp,
+    widgetOf,
     type HostElement,
+    type ProbeCheck,
 } from '@gjsify/gtk-host';
-import { dumpTree, gtkChildren } from '@gjsify/gtk-host/conformance';
+import { descendants, dumpTree, findDescendant } from '@gjsify/gtk-host/conformance';
 
 registerBuiltinWidgets();
 
@@ -171,49 +133,19 @@ function buildUi(app: Adw.Application | null): Ui {
     };
 }
 
-/** First descendant matching `pred`, breadth-first over the REAL widget tree. */
-function findDescendant(root: Gtk.Widget, pred: (w: Gtk.Widget) => boolean): Gtk.Widget | null {
-    const queue: Gtk.Widget[] = [root];
-    while (queue.length > 0) {
-        const w = queue.shift()!;
-        if (w !== root && pred(w)) return w;
-        queue.push(...gtkChildren(w));
-    }
-    return null;
-}
-
 /** Titles of the Adw.ActionRows GTK actually holds, in GTK's own order. */
-function rowTitles(group: HostElement): string[] {
-    const found: string[] = [];
-    const walk = (w: Gtk.Widget) => {
-        const row = w as unknown as { title?: string };
-        if (w instanceof Adw.ActionRow && typeof row.title === 'string') found.push(row.title);
-        for (const child of gtkChildren(w)) walk(child);
-    };
-    walk(materialize(group) as unknown as Gtk.Widget);
-    return found;
-}
+const rowTitles = (group: HostElement): string[] =>
+    descendants(widgetOf(group))
+        .filter((w): w is Adw.ActionRow => w instanceof Adw.ActionRow)
+        .map((row) => row.title);
 
-function runProbe(): number {
-    // Start from zero. `diagnostics` lives for the process, and in the GUI path
-    // this runs from `activate` — AFTER Adw startup, where a session-bus, portal,
-    // theme or a11y warning is routine in a container. Counting those would exit
-    // the showcase with the host's name on a failure it did not cause.
-    diagnostics.length = 0;
-    const ui = buildUi(null);
-    const failures: string[] = [];
-    const check = (what: string, ok: boolean) => {
-        if (!ok) failures.push(what);
-    };
-
+/** Everything this showcase claims, read back off the REAL widget tree. */
+function assertUi(ui: Ui, check: ProbeCheck): Record<string, unknown> {
     // 1. The string enum nick reached GTK. GObject would have kept HORIZONTAL —
     //    so read the property back rather than assert that materialisation
     //    returned something, which it always does or throws.
-    const box = materialize(ui.window) as unknown as Adw.ApplicationWindow;
-    check(
-        "orientation: 'vertical' reached GTK",
-        (materialize(ui.buttons) as unknown as Gtk.Box).orientation === Gtk.Orientation.VERTICAL,
-    );
+    const root = widgetOf(ui.window);
+    check("orientation: 'vertical' reached GTK", (widgetOf(ui.buttons) as Gtk.Box).orientation === Gtk.Orientation.VERTICAL);
 
     // 2. Slotted PLACEMENT, not presence. Searched over descendants rather than
     //    direct children, because Adw.ApplicationWindow and Adw.HeaderBar both nest
@@ -221,7 +153,6 @@ function runProbe(): number {
     //    checks here used to assert, and MEASURED that passed with the header bar
     //    moved to `slot: 'bottom'`, i.e. rendered at the foot of the window, output
     //    byte-identical. A slot nothing reads back is a slot nothing proves.
-    const root = box as unknown as Gtk.Widget;
     const toolbarView = findDescendant(root, (w) => w instanceof Adw.ToolbarView) as Adw.ToolbarView | null;
     check('AdwToolbarView is in the window', toolbarView !== null);
     check('the page is the toolbar view CONTENT', toolbarView?.get_content() instanceof Adw.PreferencesPage);
@@ -237,6 +168,12 @@ function runProbe(): number {
         if (w.get_css_classes().includes('top-bar')) inTopBar = true;
     }
     check('the header bar is in the TOP bar', inTopBar);
+    //    `slot: 'title'` has an exact getter, unlike the two bar slots.
+    const titleWidget = headerBar?.get_title_widget();
+    check(
+        "slot: 'title' placed the header label",
+        titleWidget instanceof Gtk.Label && titleWidget.label === 'Built by @gjsify/gtk-host',
+    );
 
     // 3. Ordered insert with the declared remove-all degradation lands in order.
     ui.addRow();
@@ -258,12 +195,8 @@ function runProbe(): number {
     //    proves the closure exists. MEASURED: with the closure call, deleting all
     //    three `setEventHandler` calls still printed PROBE: PASS with byte-identical
     //    output, while this file's README claimed a bound signal was proven.
-    const incrementWidget = materialize(ui.incrementButton) as unknown as Gtk.Button;
-    incrementWidget.emit('clicked');
-    check(
-        'clicking updated the subtitle through the signal',
-        (materialize(ui.countRow) as unknown as Adw.ActionRow).subtitle === '1',
-    );
+    (widgetOf(ui.incrementButton) as Gtk.Button).emit('clicked');
+    check('clicking updated the subtitle through the signal', (widgetOf(ui.countRow) as Adw.ActionRow).subtitle === '1');
     check('the signal ran exactly once', ui.count() === 1);
 
     // 6. Bottom-up construction into a container that cannot insert.
@@ -283,40 +216,12 @@ function runProbe(): number {
         JSON.stringify(rowTitles(lateGroup)) === JSON.stringify(['Late 0', 'Late 1', 'Late 2']),
     );
 
-    // 7. …and none of it may have been reported to GLib.
-    check(`no GTK diagnostics (saw ${diagnostics.length})`, diagnostics.length === 0);
-
-    const report = {
-        rows: rowTitles(ui.group),
-        count: ui.count(),
-        diagnostics: diagnostics.length,
-        tree: dumpTree(box as unknown as Gtk.Widget).split('\n').length,
-    };
-    if (failures.length > 0) {
-        print(`PROBE: FAIL ${JSON.stringify({ failures, ...report })}`);
-        return 1;
-    }
-    print(`PROBE: PASS ${JSON.stringify(report)}`);
-    return 0;
+    return { rows: rowTitles(ui.group), count: ui.count(), tree: dumpTree(root).split('\n').length };
 }
 
-if (GLib.getenv('GJSIFY_HOST_PROBE') === '1') {
-    // Headless one-shot: assert and exit, no window, no main loop.
-    Gtk.init();
-    imports.system.exit(runProbe());
-} else {
-    const app = new Adw.Application({ application_id: 'eu.jumplink.AdwHostCounter' });
-    app.connect('activate', () => {
-        // The SAME assertions run before the window is shown, so the existing
-        // showcase-smoke leg (which only launches the app and waits) carries them
-        // too. Without this the probe would be a developer-only tool and the CI
-        // leg would prove nothing beyond "it started" — a green run that checked
-        // the interesting part not at all.
-        const failed = runProbe();
-        if (failed !== 0) imports.system.exit(failed);
-
-        const ui = buildUi(app);
-        (materialize(ui.window) as unknown as Adw.ApplicationWindow).present();
-    });
-    await app.runAsync([]);
-}
+await runHostProbeApp<Ui>({
+    applicationId: 'eu.jumplink.AdwHostCounter',
+    build: buildUi,
+    assert: assertUi,
+    present: (ui) => (widgetOf(ui.window) as Adw.ApplicationWindow).present(),
+});

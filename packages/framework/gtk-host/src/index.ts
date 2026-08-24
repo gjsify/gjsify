@@ -37,6 +37,14 @@ export {
     toPropertyName,
 } from './props.js';
 export { assertInjective, tagOf } from './tags.js';
+export {
+    probeEnabled,
+    runHostProbe,
+    runHostProbeApp,
+    type HostProbe,
+    type HostProbeApp,
+    type ProbeCheck,
+} from './probe.js';
 export type {
     ElementChild,
     ElementChildren,

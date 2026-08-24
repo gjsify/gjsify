@@ -44,11 +44,18 @@ Three facts follow, and each is an assertion in the probe:
 
 ## The probe
 
+`runHostProbeApp` from `@gjsify/gtk-host` owns the harness — the env gate, the diagnostics
+collector, the `check()` recorder, the `PROBE: PASS|FAIL <json>` protocol and the rule that the
+GUI path runs the same assertions before presenting. This file used to carry 68 lines of that,
+58 of them byte-identical to `adw-host-counter`'s copy.
+
 `GJSIFY_HOST_PROBE=1` builds the tree headlessly, asserts it against the **real** widget tree,
 prints `PROBE: PASS <json>` — including the GLib diagnostic count — and exits 0, or
 `PROBE: FAIL <json>` and exits 1. The same assertions run on `activate` before the window is
 shown, so the existing `showcase-smoke` CI leg carries them; a throw inside a GLib callback prints
-`JS ERROR` and lets the process exit 0, and that marker is what the smoke gate greps for.
+`JS ERROR` and lets the process exit 0, and that marker is what the smoke gate greps for — and a
+throw out of the showcase's own assertions is now a recorded FAILURE rather than an escape into
+that handler.
 
 `<For>` is imported from the **adapter**, never from `solid-js/web`: that package is the DOM
 renderer, and its components build DOM elements nothing here can place — measured as a subtree
