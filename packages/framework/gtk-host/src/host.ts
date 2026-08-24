@@ -365,7 +365,7 @@ export function setElementText(el: HostElement, text: string): void {
     // `flushText`, which would see an empty concatenation with the flag still set
     // and clear the text we just wrote.
     el.textFromChildren = false;
-    for (const child of childSnapshot(el)) destroy(child);
+    destroyChildren(el);
     // Deliberately NOT re-armed: the flag means "text children own the sink", and
     // there are none left. Arming it made the next rebuild's `flushText` compute
     // an empty concatenation, skip its own guard and wipe the text — silently.
@@ -742,8 +742,22 @@ export function remove(node: HostNode): void {
     if (parent && node.kind === 'text') flushText(parent);
 }
 
-export function clearContainer(parent: HostElement): void {
-    while (parent.first) remove(parent.first);
+/**
+ * Destroy every child of `parent`, bounded.
+ *
+ * Exported because both adapters wrote their OWN `childSnapshot` to do exactly this
+ * — byte-identical to each other, and both walking `next` raw. That is the one walk
+ * the bound above exists to make unforgettable, and it is the walk where the
+ * malformed link actually appears: `insert(node, parent, node)` is a defined DOM
+ * no-op, so Solid's adjacent-swap fast path emits it against a CONTAINER's child
+ * list. Unbounded, that is a hang rather than GTK's usual exit 0.
+ *
+ * This replaces a `clearContainer` that had no callers anywhere and DETACHED rather
+ * than destroyed — the wrong half for every caller that wanted it, and a name React's
+ * own HostConfig already uses for the destroying kind.
+ */
+export function destroyChildren(parent: HostElement): void {
+    for (const child of childSnapshot(parent)) destroy(child);
 }
 
 /**
@@ -776,7 +790,7 @@ export function disconnectHandlers(el: HostElement): void {
  */
 export function destroy(node: HostNode): void {
     if (node.kind === 'element') {
-        for (const child of childSnapshot(node)) destroy(child);
+        destroyChildren(node);
         clearHandlers(node);
         node.listeners.clear();
     }

@@ -55,10 +55,9 @@ import {
     createElement as hostCreateElement,
     createText,
     destroy,
-    firstChild,
+    destroyChildren,
     insert as hostInsert,
     materialize,
-    nextSibling,
     setElementText,
     setProp,
     setText,
@@ -111,13 +110,6 @@ function diffProps(oldProps: ReactProps, newProps: ReactProps): PropChange[] | n
         if (RESERVED.has(key) || key in newProps) continue;
         (out ??= []).push([key, undefined, oldProps[key]]);
     }
-    return out;
-}
-
-/** The children of a node, snapshotted — `destroy` unlinks as it goes. */
-function childSnapshot(el: HostElement): HostNode[] {
-    const out: HostNode[] = [];
-    for (let n = firstChild(el); n; n = nextSibling(n)) out.push(n);
     return out;
 }
 
@@ -283,7 +275,7 @@ export const gtkHostConfig = {
      * for the life of the process.
      */
     clearContainer: (container: HostElement): void => {
-        for (const node of childSnapshot(container)) destroy(node);
+        destroyChildren(container);
     },
 
     prepareUpdate: (
