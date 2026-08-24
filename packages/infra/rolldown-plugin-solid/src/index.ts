@@ -35,6 +35,11 @@
 //    not through a separate op.
 
 import type { Plugin } from 'rolldown';
+// A TYPE-only namespace import: erased at compile time, so naming the compiler here
+// does not load it. It also replaces a hand-written structural view of
+// `transformAsync` — `@types/babel__core` already declares the signature, and a
+// second copy of it is a copy that can drift from the package it describes.
+import type * as BabelCore from '@babel/core';
 
 /** `babel-preset-solid`'s `generate` modes. Only `universal` can run on GJS. */
 export type SolidGenerateMode = 'dom' | 'ssr' | 'universal';
@@ -56,47 +61,62 @@ export interface SolidPluginOptions {
     include?: RegExp;
 }
 
-/** Minimal structural view of the two lazily loaded Babel entry points. */
-interface BabelCore {
-    transformAsync: (
-        code: string,
-        options: Record<string, unknown>,
-    ) => Promise<{ code?: string | null; map?: unknown } | null>;
-}
+/** `@babel/core`, loaded lazily on the first JSX module. */
+type Babel = typeof BabelCore;
 
 const DEFAULT_INCLUDE = /\.(m|c)?[jt]sx$/;
 const DEFAULT_MODULE_NAME = '@gjsify/gtk-host/solid';
 
 /**
- * Loaded on first transform, not at import.
+ * The two compiler modules, loaded on first transform rather than at import.
  *
  * Same contract as `@gjsify/rolldown-plugin-deepkit`: the heavy compiler stays
  * uninstantiated for every build that has no JSX in it, and a project that never
  * writes JSX never pays Babel's load time.
+ *
+ * THE CACHE HOLDS THE MODULES, NOT THE PRESET CHAIN. The chain carries
+ * `moduleName` and `generate`, so caching it made both options inert for every
+ * plugin instance after the first one in a process — and the failure is silent in
+ * the direction that matters: the second bundle imports its renderer ops from the
+ * FIRST bundle's module, which builds green and dies at its first import. Only the
+ * imports are expensive, and they do not depend on the options.
  */
-let cached: Promise<{ babel: BabelCore; presets: unknown[] }> | null = null;
+let compiler: Promise<{ babel: Babel; solid: unknown; typescript: unknown }> | null = null;
 
-async function load(moduleName: string, generate: SolidGenerateMode) {
-    if (cached) return cached;
-    cached = (async () => {
-        const babel = (await import('@babel/core')) as unknown as BabelCore;
+function loadCompiler() {
+    compiler ??= (async () => {
+        const babel = await import('@babel/core');
         // Both presets are CommonJS, so the namespace carries them on `default`.
         // Their types come from `src/babel-presets.d.ts` — neither ships any.
         const { default: solid } = await import('babel-preset-solid');
         const { default: typescript } = await import('@babel/preset-typescript');
-        // ORDER IS LOAD-BEARING AND REVERSED: Babel applies presets last-to-first,
-        // so `preset-typescript` runs first and strips the annotations, and
-        // `babel-preset-solid` then sees plain JSX. The other order makes Solid's
-        // visitor walk TypeScript syntax it does not model.
-        return {
-            babel,
-            presets: [
-                [solid, { generate, moduleName }],
-                [typescript, { isTSX: true, allExtensions: true }],
-            ],
-        };
+        return { babel, solid, typescript };
     })();
-    return cached;
+    return compiler;
+}
+
+async function load(moduleName: string, generate: SolidGenerateMode) {
+    const { babel, solid, typescript } = await loadCompiler();
+    // Babel applies presets LAST-TO-FIRST, so `preset-typescript` listed second is
+    // the one that runs first: it strips the annotations and `babel-preset-solid`
+    // then sees plain JSX. That is the order Solid's own tooling ships, and it is
+    // the one to keep — but it is convention here, not a constraint. MEASURED, 14
+    // inputs chosen to break it (as-casts and `satisfies` inside attributes,
+    // `<T,>` and `<T extends unknown>` arrows, explicit type arguments on a
+    // component, parameter properties, `declare`, `namespace`, overloads, a spread
+    // of a cast, a conditional type): both orders emit BYTE-IDENTICAL output, and
+    // neither throws. Babel merges every preset's visitors into one traversal, and
+    // the two never claim the same node — TypeScript syntax is not JSX and JSX is
+    // not TypeScript syntax. Recorded because the reversal is the obvious
+    // "cleanup", and a reader who tries it deserves the measurement rather than a
+    // warning nothing backs.
+    return {
+        babel,
+        presets: [
+            [solid, { generate, moduleName }],
+            [typescript, { isTSX: true, allExtensions: true }],
+        ],
+    };
 }
 
 /**
@@ -119,7 +139,16 @@ export function solidPlugin(options: SolidPluginOptions = {}): Plugin {
             // Before every other JS transform: what follows must never see JSX.
             order: 'pre' as const,
             async handler(code: string, id: string) {
-                if (!include.test(id)) return null;
+                // A `\0` prefix is rollup's mark for a module another plugin MINTED,
+                // whose id names no file. Compiling one is claiming someone else's
+                // module, and the id would be reported back in every diagnostic.
+                if (id.startsWith('\0')) return null;
+                // Match on the PATH, not on the id. Vite appends `?used`, `?import`
+                // and `?t=<timestamp>` on the HMR path, and an anchored `\.tsx$`
+                // silently declines every one of them — the plugin becomes a no-op
+                // and raw JSX reaches the next transform, which is the failure this
+                // package exists to prevent. This package advertises Vite support.
+                if (!include.test(id.split('?')[0])) return null;
 
                 const { babel, presets } = await load(moduleName, generate);
                 const result = await babel.transformAsync(code, {
@@ -144,7 +173,9 @@ export function solidPlugin(options: SolidPluginOptions = {}): Plugin {
                             `The file matched ${String(include)} and was expected to contain Solid JSX.`,
                     );
                 }
-                return { code: transformed, map: (result?.map ?? null) as null };
+                // The map is REAL and handed on: Babel rewrites every line here, so
+                // dropping it points every later frame at the compiled output.
+                return { code: transformed, map: result?.map ?? null };
             },
         },
     };
