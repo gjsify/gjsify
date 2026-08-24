@@ -20,19 +20,6 @@ export { GENERATED_PROVENANCE, GENERATED_WIDGETS } from '../generated/widgets.js
 export const CURATED_DESCRIPTORS: readonly WidgetDescriptor[] = [...GTK_DESCRIPTORS, ...ADW_DESCRIPTORS];
 
 /**
- * Curated placement rules, plus a tag for every other widget in the GIR.
- *
- * The direction is one-way and enforced by shape rather than by review: a
- * `GeneratedWidget` carries no `children`, no `textSink` and no `eventAliases`, so
- * the generator CANNOT contradict a curated descriptor — it can only add a gtype
- * that was not there. A generated-only row gets `children: { kind: 'uncurated' }`,
- * which means the widget can be created, given properties and given handlers,
- * while inserting a child into it raises an error naming the tag that needs a
- * curated policy. Guessing an adder is the one thing not on offer: `add`, `append`
- * and `set_child` all exist somewhere in GTK, and calling the wrong one is a
- * warning at exit 0.
- */
-/**
  * Construct-only properties a GType ABORTS the process without.
  *
  * Not an exception: `adw_layout_slot_constructed` calls `g_error()`, which is
@@ -72,6 +59,19 @@ export function mergeGenerated(
     return out;
 }
 
+/**
+ * Curated placement rules, plus a tag for every other widget in the GIR.
+ *
+ * The direction is one-way and enforced by shape rather than by review: a
+ * `GeneratedWidget` carries no `children`, no `textSink` and no `eventAliases`, so
+ * the generator CANNOT contradict a curated descriptor — it can only add a gtype
+ * that was not there. A generated-only row gets `children: { kind: 'uncurated' }`,
+ * which means the widget can be created, given properties and given handlers,
+ * while inserting a child into it raises an error naming the tag that needs a
+ * curated policy. Guessing an adder is the one thing not on offer: `add`, `append`
+ * and `set_child` all exist somewhere in GTK, and calling the wrong one is a
+ * warning at exit 0.
+ */
 export const BUILTIN_DESCRIPTORS: readonly WidgetDescriptor[] = mergeGenerated(CURATED_DESCRIPTORS, GENERATED_WIDGETS);
 
 /** Install the built-in table. Idempotent — registration is keyed on the GType name. */

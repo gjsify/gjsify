@@ -55,7 +55,7 @@ export namespace JSX {
      * control-flow surface was untypeable. Found by the first real JSX app
      * (`showcases/gtk/solid-host-counter`); the fixtures in `type-tests/jsx/` had
      * never used a control-flow component, which is why they went green over it.
-     * `positive-control-flow.tsx` is that gap closed.
+     * `type-tests/jsx/positive-element-is-a-node.tsx` is that gap closed.
      *
      * Children stay wide: they are typed by `JsxAttributes.children`, not by this.
      */
