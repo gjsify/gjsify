@@ -140,12 +140,20 @@ export default async () => {
                 // line names the tag instead of a core dump nobody attributes.
                 const required = new Map(Object.entries(REQUIRED_CONSTRUCT_PROPS));
                 const failed: string[] = [];
+                // Diagnostics are drained PER ROW, not left to the gate at the end
+                // of the test. Same assertion, with the one thing the gate cannot
+                // give: a name. Measured — a first CI run failed here with
+                // "GTK reported 1 diagnostic(s)" over 164 constructions and no way
+                // to tell which, while the same sweep is silent on a workstation
+                // both with and without a session bus.
+                const noisy: string[] = [];
                 for (const w of GENERATED_WIDGETS) {
                     // Through the HOST, not through `new w.ctor()`: `materialize` is
                     // where the refusal lives, so constructing around it would leave
                     // the guard itself unchecked.
                     const props: Record<string, unknown> = {};
                     for (const name of required.get(w.gtype) ?? []) props[name] = 'probe';
+                    diagnostics.reset();
                     try {
                         // Left alive on purpose — NOT destroyed, NOT `run_dispose()`d.
                         //
@@ -168,8 +176,11 @@ export default async () => {
                     } catch (error) {
                         failed.push(`${w.gtype}: ${(error as Error).message}`);
                     }
+                    if (diagnostics.seen.length > 0) noisy.push(`${w.gtype}: ${diagnostics.seen.join(' | ')}`);
+                    diagnostics.reset();
                 }
                 expect(failed).toStrictEqual([]);
+                expect(noisy).toStrictEqual([]);
                 expect(required.size).toBe(1);
             });
 
