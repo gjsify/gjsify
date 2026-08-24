@@ -1,0 +1,12 @@
+{
+    "extends": "./tsconfig.json",
+    "comment": [
+        "`*.spec.*` and not the two-entry `[.spec.ts, .spec.mts]` list every other package",
+        "with this file carries: that list is what drifted here. Measured — with only",
+        "`src/**/*.spec.ts` excluded, an added `src/probe.spec.mts` emitted",
+        "`lib/probe.spec.mjs` + `lib/probe.spec.d.mts`, and `files: [lib]` publishes them.",
+        "`verify-package-outputs.mjs` cannot catch it: it asserts that DECLARED outputs",
+        "exist, never that extras are absent."
+    ],
+    "exclude": ["src/test.mts", "src/**/*.spec.*"]
+}

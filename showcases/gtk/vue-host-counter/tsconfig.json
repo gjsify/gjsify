@@ -1,0 +1,37 @@
+{
+    // BOTH HALVES OF THE CONTRACT, and the second one only works here.
+    //
+    // `vueCompilerOptions.strictTemplates` is what makes the `GlobalComponents`
+    // surface mean anything: measured on vue-tsc 3.3.11, without it an unknown
+    // prop, an unknown event and an entirely UNRESOLVED tag are all silently
+    // accepted while wrong VALUE types still error — so a project without it sees
+    // type errors appear and concludes the surface is working.
+    //
+    // AND IT MUST BE SET IN THE BASE OF THE `extends` CHAIN. Measured, four cells,
+    // all four: the base tsconfig's value wins and the child's is ignored outright,
+    // in BOTH directions. This file extends nothing, so it IS the base — which is
+    // the only reason the setting below takes effect. Check it with
+    // `vue-tsc --showConfig`, never by reading the nearest tsconfig.
+    "compilerOptions": {
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "target": "ESNext",
+        "outDir": "dist",
+        "rootDir": "src",
+        "strict": true,
+        "skipLibCheck": true,
+        "types": [],
+        "lib": ["ESNext", "DOM", "DOM.Iterable"]
+    },
+    "vueCompilerOptions": {
+        "strictTemplates": true
+    },
+    // `src/**/*.vue` is listed EXPLICITLY, and the reason is narrower than it looks.
+    // MEASURED: `App.vue` reaches the program through `app.ts`'s import and is fully
+    // type-checked with or WITHOUT this glob, so the glob is what covers an SFC nothing
+    // imports yet. `scripts/check-type-surfaces.mjs` keeps the ZERO-SFCs-at-exit-0 shape
+    // executable for gtk-host's standalone fixtures, where nothing imports them; here
+    // `scripts/check-vue-program.mjs` (this package's `check`) is what holds it, together
+    // with `strictTemplates` above and the absence of an `extends`.
+    "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.vue"]
+}

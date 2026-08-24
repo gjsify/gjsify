@@ -156,6 +156,50 @@ and probably alongside extending the bridge so `generateBundle` carries its
 bundle. Until then the class is held by the lint rule, and this note is the record
 that the consumer-facing half is missing rather than solved.
 
+### A plugin hook's `moduleType` is js/json/text only on the native bundler bridge
+
+`@gjsify/rolldown-native`'s `plugin_proxy.rs::parse_module_type` maps `js`/`ecmascript`,
+`json` and `text`, and answers `Err("rolldown: unsupported moduleType '<x>'")` for
+everything else. Rolldown's own `ModuleType` also has `ts`, `tsx`, `jsx`, `base64`,
+`dataurl`, `binary`, `empty`, `css`, `asset` and `copy`.
+
+The consequence is a **runtime-parity defect, and it points the wrong way**: a plugin
+that compiles a foreign extension into TypeScript builds fine under Node and fails
+under GJS, which is the primary target. Measured on one fixture (a `.vue` importer,
+a plugin whose `transform` returns `const x: number = 41` with `moduleType: 'ts'`):
+
+| engine | result |
+|---|---|
+| `node packages/infra/cli/lib/index.js build … --app gjs` | exit 0 |
+| `gjsify build … --app gjs` (CLI under GJS) | exit 1, `plugin \`probe-moduletype\` threw … unsupported moduleType 'ts'` |
+
+`@gjsify/rolldown-plugin-vue` was written around it — it renames the module id to
+`<path>.gjsify-vue.ts` in `resolveId` and compiles in `load`, so rolldown's
+extension-based parser selection does the job and no `moduleType` is claimed. That
+works on both engines and the plugin does not depend on this being fixed. But the
+next plugin will hit the same wall, and `moduleType` is the *designed* mechanism —
+rolldown 1.1.4 ships it in `SourceDescription`, so the field is documented API, not a
+guess.
+
+Why it is not fixed here: the change itself is a few lines of Rust, but the artifact
+is a committed prebuild for four platforms (`linux-x64`, `linux-arm64`,
+`darwin-arm64`, `darwin-x64`). Building it needs `valac` plus a `refs/rolldown`
+checkout at the pinned commit, and shipping one platform's `.so` while three go stale
+is the "declared target with no loadable artifact" shape this repo refuses. So it
+belongs in a change that goes through `prebuilds.yml`.
+
+Closing it means extending `parse_module_type` to the full `rolldown_common::ModuleType`
+set (both `into_load_return` and the transform path share it), and adding an e2e case
+next to `tests/e2e/plugins-by-name-gjs` that returns a `moduleType` from a plugin and
+asserts the bundle on BOTH engines — the asymmetry above is exactly what a
+single-engine test cannot see.
+
+A second, smaller gap sits beside it: rolldown's `moduleTypes` INPUT option works
+(measured, `{'.vue': 'ts'}`, exit 0 under Node), but the CLI has no passthrough for
+it. `gjsify.loaders` is a text/dataurl plugin, not a module-type map. Worth adding
+only once the hook half above is honest, since a config key whose value the GJS engine
+cannot honour would be the same defect one level up.
+
 ### `@gjsify/adwaita-fonts` ships desktop TTFs, which is why the web font is opt-in
 
 The package vendors `adwaita-sans-400.ttf` (880 KB) and its italic (910 KB) — the
@@ -2949,3 +2993,36 @@ This is the honest state rather than a defect: guessing an adder is what the
 exist somewhere in GTK and calling the wrong one is a warning at exit 0. Curating
 more should be driven by a real window that needs one, with its vector, not by
 walking the list alphabetically.
+
+### Nothing checks that a published `lib/` holds no test output
+
+`verify-package-outputs.mjs` asserts that every DECLARED output EXISTS, and
+`verify-tarball-outputs.mjs` asserts that every declared output is in the TARBALL.
+Neither asks the opposite question — whether the tarball also carries files nothing
+declared — so a build tsconfig whose `exclude` misses a spec extension ships the
+specs and every check stays green.
+
+`@gjsify/rolldown-plugin-vue` had exactly that: `exclude: ["src/test.mts",
+"src/**/*.spec.ts"]`, where the other six packages with a `tsconfig.build.json`
+also list `src/**/*.spec.mts`. Measured — with only the `.spec.ts` entry, an added
+`src/probe.spec.mts` emitted `lib/probe.spec.mjs` + `lib/probe.spec.d.mts`, and
+`files: ["lib"]` publishes them. It is now excluded as `src/**/*.spec.*`, one
+pattern that cannot miss an extension, which removes the drift for that package
+rather than watching for it.
+
+The repo-wide state was measured before reaching for a gate, and it is why there is
+no gate: over the non-private workspaces, **84 packages already pack test-shaped
+files** — mostly `lib/types/*.spec.d.ts`, and 8 pack executable spec code
+(`@gjsify/webgl`'s `lib/esm/conformance/*.spec.js`, `@gjsify/fetch`'s
+`lib/*.spec.js`, `@gjsify/adwaita-web`'s `src/*.spec.ts`, `@gjsify/tsc`'s
+`src/index.gjs.spec.ts` + `src/test.mts`). Some of those are deliberate — webgl's
+conformance suite is something a consumer runs — so the check would need a curated
+allowlist on day one, which is the shape this repo keeps deleting. The cheap version
+of the mechanism (assert every `src/**/*.spec.*` is excluded from the build
+tsconfig) only reaches the 7 packages that HAVE a build tsconfig, i.e. it would
+guard the one case already fixed and none of the 84.
+
+So the decision to make first is a policy one: do published packages ship their
+specs at all? Once that has an answer, the check belongs in
+`verify-tarball-outputs.mjs`, which already computes the packed set per package
+from `gjsify pack`'s own oracle and needs no new CI step.

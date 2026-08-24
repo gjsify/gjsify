@@ -1,0 +1,67 @@
+{
+    "name": "@gjsify/rolldown-plugin-vue",
+    "version": "0.42.0",
+    "description": "Vue 3 single-file-component compiler plugin for Rolldown / Rollup / Vite — targeting a gjsify custom renderer",
+    "type": "module",
+    "main": "lib/index.js",
+    "module": "lib/index.js",
+    "types": "lib/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/index.d.ts",
+            "default": "./lib/index.js"
+        }
+    },
+    "files": [
+        "lib"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib test.node.mjs test.gjs.mjs *.tsbuildinfo",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify tsc -p tsconfig.build.json",
+        "build:test": "gjsify run build:test:node && gjsify run build:test:gjs",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile test.node.mjs",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs",
+        "test": "gjsify run build:test && gjsify run test:node && gjsify run test:gjs",
+        "test:node": "node test.node.mjs",
+        "test:gjs": "gjsify run test.gjs.mjs"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/infra/rolldown-plugin-vue#readme",
+    "keywords": [
+        "rolldown",
+        "rollup",
+        "vite",
+        "vue",
+        "sfc",
+        "gtk",
+        "gjs"
+    ],
+    "license": "MIT",
+    "dependencies": {
+        "@vue/compiler-sfc": "^3.5.41"
+    },
+    "peerDependencies": {
+        "rolldown": "^1.1.4"
+    },
+    "peerDependenciesMeta": {
+        "rolldown": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@types/node": "^25.9.2",
+        "rolldown": "^1.1.4"
+    },
+    "gjsify": {
+        "tier": 1
+    }
+}
