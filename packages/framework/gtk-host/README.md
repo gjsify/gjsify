@@ -144,7 +144,7 @@ adapter is the mapping — no widget name, no insertion rule, no GTK knowledge.
 `scripts/check-adapter-import-direction.mjs` holds it to that mechanically.
 
 ```ts
-import { For, createComponent, createElement, insert, mount, setSolidProp } from '@gjsify/gtk-host/solid';
+import { For, createComponent, createElement, insert, mount, setProp } from '@gjsify/gtk-host/solid';
 
 const dispose = mount(() => {
     const box = createElement('GtkBox');

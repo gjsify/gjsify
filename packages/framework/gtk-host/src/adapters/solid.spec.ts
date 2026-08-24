@@ -11,21 +11,13 @@ import { expect, it, on } from '@gjsify/unit';
 
 import Gtk from 'gi://Gtk?version=4.0';
 import { createSignal } from 'solid-js';
+import { createRenderer } from 'solid-js/universal';
 
 import { installDiagnosticsGate, gtkChildren, gtkChildTypes } from '../conformance/index.js';
 import { gated } from '../testing/gate.mjs';
 import { registerBuiltinWidgets } from '../descriptors/index.js';
-import {
-    Dynamic,
-    For,
-    createComponent,
-    createElement,
-    effect,
-    insert,
-    insertNode,
-    mount,
-    setSolidProp,
-} from './solid.js';
+import * as adapter from './solid.js';
+import { Dynamic, For, createComponent, createElement, effect, insert, insertNode, mount, setProp } from './solid.js';
 
 const labelsOf = (w: Gtk.Widget) => gtkChildren(w).map((c) => (c as Gtk.Label).label);
 
@@ -36,12 +28,33 @@ export default async () => {
         const diagnostics = installDiagnosticsGate();
 
         await gated(diagnostics, 'solid-js/universal over the GTK host', async () => {
+            await it('re-exports the renderer under the names the JSX compiler imports', async () => {
+                // `babel-plugin-jsx-dom-expressions` in `generate: "universal"` mode
+                // emits `import { setProp } from "<moduleName>"` — the member name
+                // LITERALLY, from its own template. A renamed re-export is therefore a
+                // MISSING_EXPORT at bundle time, and nothing before that says a word:
+                // this module exported `setSolidProp` for exactly one of the twelve, so
+                // every hand-written call worked and every compiled `.tsx` did not.
+                //
+                // The list is not hand-kept. It is `Renderer<NodeType>` as
+                // `createRenderer` actually builds it, so a member solid ADDS in a later
+                // release fails here instead of at a consumer's first JSX build.
+                const contract = Object.keys(createRenderer({} as never)).sort();
+                // Pinned, so an empty object cannot make the filter below trivially
+                // pass. Twelve on solid-js 1.9 (measured).
+                expect(contract.length).toBe(12);
+                const missing = contract.filter((name) => !(name in adapter));
+                expect(missing).toStrictEqual([]);
+                // Not vacuous: the same lookup over a name solid does not build.
+                expect('setSolidProp' in adapter).toBe(false);
+            });
+
             await it('renders a tree into a widget the application owns', async () => {
                 const container = new Gtk.Box();
                 const dispose = mount(() => {
                     const box = createElement('GtkBox');
                     const label = createElement('GtkLabel');
-                    setSolidProp(label, 'label', 'hello');
+                    setProp(label, 'label', 'hello');
                     insertNode(box, label);
                     return box;
                 }, container);
@@ -57,7 +70,7 @@ export default async () => {
                 const dispose = mount(() => {
                     const label = createElement('GtkLabel');
                     // what compiled JSX emits for a dynamic prop
-                    effect(() => setSolidProp(label, 'label', text()));
+                    effect(() => setProp(label, 'label', text()));
                     return label;
                 }, container);
 
@@ -77,7 +90,7 @@ export default async () => {
                     insert(box, () =>
                         items().map((t) => {
                             const label = createElement('GtkLabel');
-                            setSolidProp(label, 'label', t);
+                            setProp(label, 'label', t);
                             return label;
                         }),
                     );
@@ -114,7 +127,7 @@ export default async () => {
                             },
                             children: (t: string) => {
                                 const label = createElement('GtkLabel');
-                                setSolidProp(label, 'label', t);
+                                setProp(label, 'label', t);
                                 return label;
                             },
                         }),
@@ -179,7 +192,7 @@ export default async () => {
                                 },
                                 children: (t: string) => {
                                     const label = createElement('GtkLabel');
-                                    setSolidProp(label, 'label', t);
+                                    setProp(label, 'label', t);
                                     return label;
                                 },
                             }),
@@ -207,7 +220,7 @@ export default async () => {
                     insert(group, () =>
                         rows().map((t) => {
                             const row = createElement('AdwActionRow');
-                            setSolidProp(row, 'title', t);
+                            setProp(row, 'title', t);
                             return row;
                         }),
                     );
@@ -241,7 +254,7 @@ export default async () => {
                 container.append(chrome);
                 const dispose = mount(() => {
                     const label = createElement('GtkLabel');
-                    setSolidProp(label, 'label', 'rendered');
+                    setProp(label, 'label', 'rendered');
                     return label;
                 }, container);
                 expect(labelsOf(container)).toStrictEqual(['app-owned', 'rendered']);
@@ -259,9 +272,9 @@ export default async () => {
                 mount(() => {
                     const box = createElement('GtkBox');
                     const head = createElement('GtkLabel');
-                    setSolidProp(head, 'label', 'head');
+                    setProp(head, 'label', 'head');
                     const foot = createElement('GtkLabel');
-                    setSolidProp(foot, 'label', 'foot');
+                    setProp(foot, 'label', 'foot');
                     insertNode(box, head);
                     insertNode(box, foot);
                     insert(
@@ -272,7 +285,7 @@ export default async () => {
                             },
                             children: (t: string) => {
                                 const label = createElement('GtkLabel');
-                                setSolidProp(label, 'label', t);
+                                setProp(label, 'label', t);
                                 return label;
                             },
                         }),
@@ -312,8 +325,8 @@ export default async () => {
                             },
                             children: (t: string) => {
                                 const btn = createElement('GtkButton');
-                                setSolidProp(btn, 'label', t);
-                                setSolidProp(btn, 'onClicked', () => {
+                                setProp(btn, 'label', t);
+                                setProp(btn, 'onClicked', () => {
                                     fired += 1;
                                 });
                                 return btn;
@@ -378,7 +391,7 @@ export default async () => {
                         createComponent(Dynamic, {
                             component: (p: { label?: string }) => {
                                 const label = createElement('GtkLabel');
-                                setSolidProp(label, 'label', p.label ?? '');
+                                setProp(label, 'label', p.label ?? '');
                                 return label;
                             },
                             label: 'from-fn',
@@ -439,8 +452,8 @@ export default async () => {
                 let button: Gtk.Button | null = null;
                 const dispose = mount(() => {
                     const btn = createElement('GtkButton');
-                    setSolidProp(btn, 'label', 'go');
-                    setSolidProp(btn, 'onClicked', () => {
+                    setProp(btn, 'label', 'go');
+                    setProp(btn, 'onClicked', () => {
                         clicks += 1;
                     });
                     button = (btn as { widget: unknown }).widget as Gtk.Button;
