@@ -2,7 +2,14 @@ import type { ConfigData, BundlerOptions } from '../types/index.js';
 import type { App, PluginOptions } from '@gjsify/rolldown-plugin-gjsify';
 import type { RolldownOutput, RolldownPluginOption } from 'rolldown';
 import { runBundle, runWatch, bundleToChunks } from '../bundler-pick.js';
-import { gjsifyPlugin, textLoaderPlugin, resolveShebangLine, NODE_SHEBANG } from '@gjsify/rolldown-plugin-gjsify';
+import {
+    gjsifyPlugin,
+    textLoaderPlugin,
+    resolveShebangLine,
+    NODE_SHEBANG,
+    createGjsExternalsPredicate,
+    globToEntryPoints,
+} from '@gjsify/rolldown-plugin-gjsify';
 import { isGjs } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { resolveUserPlugins } from '../utils/resolve-plugin-by-name.js';
 import {
@@ -18,7 +25,8 @@ import { chmod, mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promis
 import { normalizeBundlerOptions, mergeBundlerOptions } from '../utils/normalize-bundler-options.js';
 import { inputSourceDirs, isOutdirInsideSource, libraryOutputLeakError } from '../utils/library-output.js';
 import { detectHtmlEntry, parseHtmlEntry, emitBrowserHtml, htmlOutPathFor } from '../utils/html-entry.js';
-import { assertGjsBundleLoadable } from '../utils/gjs-bundle-guard.js';
+import { assertGjsBundleLoadable, assertGjsBundleParses } from '../utils/gjs-bundle-guard.js';
+import { collectEntryPaths, describeJsxConfig, findJsxEntryPoint, jsxConfigMissingError } from '../utils/jsx-config.js';
 import { giSystemProbes } from '../utils/gi-runtime-paths.js';
 import { escapeRawNulForGjs } from '../utils/gjs-source-escape.js';
 import { assertNodeBundleGlobalsShimmed } from '../utils/node-bundle-guard.js';
@@ -429,10 +437,27 @@ export class BuildAction {
      * natively, `@gjsify/rolldown-native` via `synthRolldownOutput`), and it
      * cannot be fooled by a `node:` specifier quoted inside a string, which a
      * text scan cannot tell from a statement.
+     *
+     * The same list also answers the GENERAL form of the question — any bare
+     * specifier GJS cannot resolve, `node:` or not — which is why the target's
+     * externals predicate and the emitted fileNames are handed over: they are
+     * what separates a declared external and a sibling chunk from a dependency
+     * that simply is not there.
      */
-    private assertGjsOutputLoadable(result: RolldownOutput, outfile: string | undefined, outdir: string | undefined) {
+    private assertGjsOutputLoadable(
+        result: RolldownOutput,
+        outfile: string | undefined,
+        outdir: string | undefined,
+        userExternal: string[] | undefined,
+    ) {
         const chunks = (result.output ?? []).filter((item) => item.type === 'chunk');
-        assertGjsBundleLoadable(chunks, outfile ?? outdir ?? 'the GJS bundle');
+        assertGjsBundleLoadable(chunks, outfile ?? outdir ?? 'the GJS bundle', {
+            // The target's OWN predicate, not a second list: `externalsPlugin` enforces
+            // this exact one, so a specifier the build let through as external cannot be
+            // reported as unresolvable here.
+            isExternal: createGjsExternalsPredicate(userExternal ?? []),
+            emitted: (result.output ?? []).map((item) => item.fileName),
+        });
     }
 
     /**
@@ -674,6 +699,21 @@ export class BuildAction {
         const { verbose, typescript, exclude, library: pkg, aliases, excludeGlobals } = this.configData;
 
         const userBundler = normalizeBundlerOptions(this.configData);
+
+        // Refuse a JSX entry with no JSX policy BEFORE bundling anything — see
+        // `utils/jsx-config.ts` for what the unset default emits and why it can never be
+        // right for this target. The glob expansion is paid only on the failing branch:
+        // when JSX is configured there is nothing to name.
+        const jsxPolicy = describeJsxConfig({
+            transformJsx: (userBundler.transform as { jsx?: unknown } | undefined)?.jsx,
+            tsconfigJsx: typescript?.compilerOptions?.jsx,
+            tsconfigJsxImportSource: typescript?.compilerOptions?.jsxImportSource,
+        });
+        if (app === 'gjs' && !jsxPolicy.configured) {
+            const entries = collectEntryPaths(await globToEntryPoints(userBundler.input, exclude));
+            const jsxEntry = findJsxEntryPoint(entries);
+            if (jsxEntry !== undefined) throw jsxConfigMissingError(jsxEntry);
+        }
 
         // --- `--app browser` HTML entry (Vite-style) ---
         // When the entry is an `index.html`, bundle the module its
@@ -945,9 +985,15 @@ export class BuildAction {
             await this.applyShebang(app, outfile, verbose);
         }
 
-        // Refuse to hand back a `--app gjs` bundle stock GJS cannot even load.
+        // Refuse to hand back a `--app gjs` bundle stock GJS cannot even load: one that
+        // imports what the runtime cannot resolve, or — when the transform was told to
+        // keep JSX — one that is not parseable JavaScript at all.
         if (app === 'gjs') {
-            this.assertGjsOutputLoadable(writeResult, outfile, outdir);
+            this.assertGjsOutputLoadable(writeResult, outfile, outdir, userExternal);
+            if (jsxPolicy.preserves) {
+                const chunks = (writeResult.output ?? []).filter((item) => item.type === 'chunk');
+                assertGjsBundleParses(chunks, outfile ?? outdir ?? 'the GJS bundle');
+            }
         }
 
         // Refuse to hand back a `--app node` bundle that reaches for GJS ambient
