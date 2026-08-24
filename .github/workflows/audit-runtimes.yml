@@ -493,6 +493,17 @@ jobs:
       - name: Check the website gallery documents every storybook widget
         run: node scripts/check-website-adwaita-gallery.mjs
 
+      # …and that the DATA those pages render is still the data its source says. Two
+      # generators emit committed files (`adwaita-tokens.ts`, `adwaita-attributes.ts`)
+      # and until now nothing re-ran either: `generate-theming-tokens.mjs` is a
+      # `website` npm script, in no workflow at all, so the documented theming
+      # contract could disagree with the stylesheet indefinitely. It also holds the
+      # join the attribute tables ride on — a `<AdwWidget title>` that resolves to no
+      # element renders no table and looks documented anyway, which is the same thing
+      # as "this widget has no attributes" from the page's side.
+      - name: Check the website's generated data is current
+        run: node scripts/check-generated-website-data.mjs
+
       # One meta drives all three panels, so the three ALWAYS look identical — which
       # is exactly why a control wired on one target and not the others cannot be
       # seen. `entry-row`'s `showApplyButton` switch rendered on all three and was
@@ -970,6 +981,17 @@ jobs:
       # strict subset with nothing saying so. A hand is not a mechanism.
       - name: Check the website gallery documents every storybook widget
         run: node scripts/check-website-adwaita-gallery.mjs
+
+      # …and that the DATA those pages render is still the data its source says. Two
+      # generators emit committed files (`adwaita-tokens.ts`, `adwaita-attributes.ts`)
+      # and until now nothing re-ran either: `generate-theming-tokens.mjs` is a
+      # `website` npm script, in no workflow at all, so the documented theming
+      # contract could disagree with the stylesheet indefinitely. It also holds the
+      # join the attribute tables ride on — a `<AdwWidget title>` that resolves to no
+      # element renders no table and looks documented anyway, which is the same thing
+      # as "this widget has no attributes" from the page's side.
+      - name: Check the website's generated data is current
+        run: node scripts/check-generated-website-data.mjs
 
       # One meta drives all three panels, so the three ALWAYS look identical — which
       # is exactly why a control wired on one target and not the others cannot be

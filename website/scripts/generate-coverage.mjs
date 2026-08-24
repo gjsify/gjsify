@@ -8,7 +8,7 @@
 // `statusSummary()` throws rather than emit numbers `audit-runtimes --check`
 // would reject.
 
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -82,6 +82,47 @@ function formatGenerated(path) {
     if (result.error || result.status !== 0) {
         console.warn(`  note: could not run \`gjsify format ${path}\` — the file is written but unformatted.`);
     }
+}
+
+// `--check` compares instead of writing, for the reason the sibling generators
+// carry: a generator nothing verifies is a generator nothing runs, and this one's
+// output ships as the website's coverage numbers. Measured on 2026-08-23, the
+// committed file said 16 where the tree held 17 and 13 where it held 14 — simply
+// building the site made it dirty, which is how it stayed wrong.
+//
+// THE DATA, not the bytes: the committed file has been through `gjsify format`, and
+// a byte comparison would make this check depend on finding that binary. The numbers
+// are what the website publishes, so the numbers are what is compared.
+if (process.argv.includes('--check')) {
+    // The KEY may be quoted or not, and that is the whole trap: this generator emits
+    // `JSON.stringify` output (`"total": 41`) while the committed file is oxfmt's
+    // (`total: 41`), so a pattern anchored on `total\s*:` matches the committed side
+    // and NOTHING on the generated one — which reported three zeros out of 48 real
+    // counts and called a freshly regenerated file stale. `stub` is in the list
+    // because it is one of the four the interface declares; leaving it out would let
+    // a stub-only change pass.
+    const numbers = (text) =>
+        [...text.matchAll(/["']?\b(total|full|partial|stub)["']?\s*:\s*(\d+)/g)]
+            .map(([, k, v]) => `${k}=${v}`)
+            .join('\n');
+    const committed = numbers(readFileSync(outPath, 'utf8'));
+    if (committed.length === 0) {
+        console.error(
+            'generate-coverage --check: read NO counts out of the committed file. That is the reader\n' +
+                '  broken, not the data stale — an empty comparison would pass against anything.',
+        );
+        process.exit(1);
+    }
+    if (committed === numbers(out)) {
+        console.log(`generate-coverage --check: OK (${pillars.length} pillars)`);
+        process.exit(0);
+    }
+    console.error(
+        'generate-coverage --check: src/data/coverage.ts is STALE.\n' +
+            '  Regenerate it: node website/scripts/generate-coverage.mjs\n' +
+            '  The website would otherwise publish coverage numbers the tree no longer has.',
+    );
+    process.exit(1);
 }
 
 writeFileSync(outPath, out, 'utf8');

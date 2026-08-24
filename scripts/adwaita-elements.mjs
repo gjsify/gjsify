@@ -151,7 +151,7 @@ function sourceFiles(dir) {
 export const elementName = (tag) => tag.slice('adw-'.length);
 
 /** `preferences-page` → `AdwPreferencesPage`: the class both renderers name it after. */
-const widgetClass = (name) =>
+export const widgetClass = (name) =>
     `Adw${name
         .split('-')
         .map((part) => part[0].toUpperCase() + part.slice(1))
@@ -212,15 +212,155 @@ export function stripComments(text) {
 }
 
 /**
- * Every property a widget class lets a caller SET — `set <name>(`.
+ * `observedAttributes` per CLASS, from the returned array literal.
  *
- * The question is "can this target honour that control at all", and a settable
- * property of the control's own name is the answer a story cannot argue with.
- * Accessors only: a `setFoo(value)` method is the widget's internal wiring, and
- * a control is bound to a property.
+ * PER CLASS and not per file, because a file is not an element: `adw-checks.ts`
+ * defines `<adw-checkbox>` and `<adw-radio>`, and `adw-preferences-dialog.ts`
+ * also defines `<adw-preferences-page>`. Reading a file's first literal and
+ * attributing it to every tag the file registers is the same mistake as reading
+ * a FILENAME for the element set, which is the incident at the top of this file.
+ *
+ * The scan is deliberately literal-only. A class whose list is computed —
+ * spread from a base, concatenated — is reported as UNREADABLE by
+ * {@link observedAttributes} rather than as empty: an element with no attributes
+ * and an element this cannot read are different facts, and only one of them is a
+ * reason to document nothing.
  */
-export const settableProperties = (text) =>
-    new Set([...stripComments(text).matchAll(/\bset\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g)].map(([, name]) => name));
+export function observedAttributesByClass(text) {
+    const code = stripComments(text);
+    /** @type {Map<string, string[]>} */
+    const byClass = new Map();
+    /** @type {Map<string, string>} */
+    const extendsBase = new Map();
+    /** @type {Map<string, string>} */
+    const pending = new Map();
+    const unreadable = [];
+
+    // A module-level `const NAME = ['a', 'b']` a getter can return by name.
+    /** @type {Map<string, string[]>} */
+    const constants = new Map();
+    for (const [, name, body] of code.matchAll(/\bconst\s+([A-Z][A-Z0-9_]*)\s*(?::[^=]*)?=\s*\[([^\]]*)\]/g)) {
+        constants.set(
+            name,
+            [...body.matchAll(/'([^']+)'/g)].map(([, attr]) => attr),
+        );
+    }
+
+    const classes = [...code.matchAll(/\bclass\s+(Adw[A-Za-z0-9]*)(?:\s+extends\s+([A-Za-z0-9_.]+))?/g)];
+    for (let i = 0; i < classes.length; i++) {
+        const name = classes[i][1];
+        if (classes[i][2]) extendsBase.set(name, classes[i][2]);
+        const from = classes[i].index;
+        const to = i + 1 < classes.length ? classes[i + 1].index : code.length;
+        const body = code.slice(from, to);
+        // The return-type annotation is optional and present on some: `(): string[]`.
+        const getter = /static get observedAttributes\(\)\s*(?::[^{]*)?\{\s*return\s+([^;]+);/.exec(body);
+        if (!getter) {
+            if (/static get observedAttributes\(\)/.test(body)) unreadable.push(name);
+            else byClass.set(name, []);
+            continue;
+        }
+        const expression = getter[1].trim();
+        const literal = /^\[([\s\S]*)\]$/.exec(expression);
+        if (!literal) {
+            // `return PAGE_ATTRIBUTES;` — a named list declared in this module.
+            const named = constants.get(expression);
+            if (named) byClass.set(name, named);
+            else unreadable.push(name);
+            continue;
+        }
+        const inner = literal[1];
+        const own = [...inner.matchAll(/'([^']+)'/g)].map(([, attr]) => attr);
+        // `[...AdwEntryRow.observedAttributes, 'revealed']` — resolved after the
+        // whole pillar is read, because the base can live in another file.
+        const spread = /\.\.\.\s*([A-Za-z0-9_]+)\.observedAttributes/.exec(inner);
+        if (spread) pending.set(name, spread[1]);
+        byClass.set(name, own);
+    }
+
+    return { byClass, unreadable, pending, extendsBase };
+}
+
+/**
+ * Registered tag → the attributes that tag observes, for the whole web pillar.
+ *
+ * Joined through {@link widgetClass}, the same rule `adwaitaWebElements` already
+ * THROWS on when a tag and its class disagree — so the join cannot silently miss.
+ */
+export function observedAttributes(root) {
+    const tags = adwaitaWebElements(root);
+    /** @type {Map<string, string[]>} */
+    const byTag = new Map();
+    const unreadable = [];
+
+    // Read every source once, then resolve. A `[...Base.observedAttributes, 'x']`
+    // spread is the reason for two passes: `AdwPasswordEntryRow` extends
+    // `AdwEntryRow` from ANOTHER file, so its own list is not complete until that
+    // one has been read.
+    const sources = new Map();
+    /** @type {Map<string, string[]>} */
+    const perClass = new Map();
+    /** @type {Map<string, string>} */
+    const spreads = new Map();
+    const badClasses = new Set();
+    for (const file of new Set(tags.values())) {
+        const read = observedAttributesByClass(readFileSync(join(root, file), 'utf8'));
+        sources.set(file, read);
+        for (const [klass, attrs] of read.byClass) perClass.set(klass, attrs);
+        for (const [klass, base] of read.pending) spreads.set(klass, base);
+        for (const klass of read.unreadable) badClasses.add(klass);
+    }
+    for (const [klass, base] of spreads) {
+        const inherited = perClass.get(base);
+        if (inherited === undefined) {
+            badClasses.add(klass);
+            continue;
+        }
+        // Base first, so the order matches what the class itself returns.
+        perClass.set(klass, [...inherited, ...(perClass.get(klass) ?? [])]);
+    }
+
+    for (const [tag, file] of tags) {
+        const klass = widgetClass(elementName(tag));
+        if (badClasses.has(klass)) {
+            unreadable.push(`${tag} (${klass} in ${file})`);
+            continue;
+        }
+        const attrs = perClass.get(klass);
+        if (attrs === undefined) {
+            unreadable.push(`${tag} (no class ${klass} in ${file})`);
+            continue;
+        }
+        byTag.set(tag, attrs);
+    }
+    return { byTag, unreadable };
+}
+
+/**
+ * Every property a widget class lets a caller SET — `set <name>(`, PLUS the
+ * attributes it observes.
+ *
+ * The question is "can this target honour that control at all". A settable
+ * property of the control's own name is one answer a story cannot argue with;
+ * an OBSERVED ATTRIBUTE of that name is the other, and leaving it out made 11
+ * of the web pillar's elements invisible here — the attribute-only ones, which
+ * carry no `set` accessor at all. Accessors alone: a `setFoo(value)` method is
+ * the widget's internal wiring, and a control is bound to a property.
+ */
+export const settableProperties = (text) => {
+    const setters = new Set(
+        [...stripComments(text).matchAll(/\bset\s+([A-Za-z_$][A-Za-z0-9_$]*)\s*\(/g)].map(([, name]) => name),
+    );
+    // `show-apply-button` is the attribute; `showApplyButton` is the control name
+    // a meta declares. Both spellings go in, so the caller can ask either way.
+    for (const attrs of observedAttributesByClass(text).byClass.values()) {
+        for (const attr of attrs) {
+            setters.add(attr);
+            setters.add(attr.replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase()));
+        }
+    }
+    return setters;
+};
 
 /**
  * What a module imports or re-exports AS VALUES — comments out, and BOTH `type`

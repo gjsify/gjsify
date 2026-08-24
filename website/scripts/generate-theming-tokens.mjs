@@ -102,6 +102,52 @@ function formatGenerated(path) {
     }
 }
 
+// `--check` compares instead of writing, which is what makes the generation HELD
+// rather than merely available: this script is a `website` npm script and ran in no
+// workflow at all, so the committed data could disagree with the stylesheet
+// indefinitely while `theming.mdx` quoted a count derived from it.
+//
+// THE DATA, not the text. A byte comparison would need this process to run the
+// formatter, and measured, with the workspace `node_modules/.bin` off PATH a GLOBAL
+// `gjsify` gets picked up instead and dies on a missing biome — reporting a
+// perfectly current file as STALE. Normalising whitespace is not enough either, and
+// the comment above says why: this generator emits `JSON.stringify` output while the
+// committed file is oxfmt's, so they differ in QUOTE STYLE (measured: 319 single
+// quotes committed against the generator's double) and in 107 trailing commas.
+//
+// So the check extracts the `--token: value` pairs from both sides, accepting either
+// quote style, and compares those. That is also the question worth asking: the
+// contract is the token names and what they mean, and reformatting is not a change
+// to it. `gjsify format --check` holds the style, tree-wide, on its own.
+if (process.argv.includes('--check')) {
+    // `{ name: '--window-bg-color', value: '#fafafb' }` — an object per token, not a
+    // `'--x': 'v'` map. Either quote style, so the same reader works on both sides.
+    const pairs = (text) =>
+        [...text.matchAll(/["']?name["']?\s*:\s*['"](--[a-z0-9-]+)['"]\s*,\s*["']?value["']?\s*:\s*['"]([^'"]*)['"]/g)]
+            .map(([, name, value]) => `${name}=${value}`)
+            .sort()
+            .join('\n');
+    const committed = pairs(readFileSync(outPath, 'utf8'));
+    const generated = pairs(out);
+    if (committed === generated && committed.length > 0) {
+        console.log(`generate-theming-tokens --check: OK (${total} tokens in ${groups.length} groups)`);
+        process.exit(0);
+    }
+    if (committed.length === 0) {
+        console.error(
+            'generate-theming-tokens --check: read NO tokens out of the committed file. That is the\n' +
+                '  reader broken, not the data stale — an empty comparison would pass against anything.',
+        );
+        process.exit(1);
+    }
+    console.error(
+        'generate-theming-tokens --check: src/data/adwaita-tokens.ts is STALE.\n' +
+            '  Regenerate it: node website/scripts/generate-theming-tokens.mjs\n' +
+            '  The documented theming contract would otherwise disagree with the shipped stylesheet.',
+    );
+    process.exit(1);
+}
+
 writeFileSync(outPath, out, 'utf8');
 formatGenerated(outPath);
 console.log(`generate-theming-tokens: wrote ${outPath} (${total} tokens in ${groups.length} groups)`);

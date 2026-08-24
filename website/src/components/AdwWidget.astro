@@ -52,6 +52,8 @@ interface Props {
     docHref?: string | false;
 }
 
+import { ADWAITA_ATTRIBUTES } from '../data/adwaita-attributes';
+
 const { title = 'Code', padding = 'comfortable', scroll = false, docHref } = Astro.props;
 
 // Derive the upstream class-reference URL from a `Namespace.ClassName` title, so
@@ -65,6 +67,26 @@ const deriveRef = (t: string): string | null => {
     return m ? `${REF_BASES[m[1]]}${m[2]}.html` : null;
 };
 const refHref = docHref === false ? null : (docHref ?? deriveRef(title));
+
+// The web pillar's markup surface for this widget, GENERATED from the elements'
+// own `observedAttributes` (website/scripts/generate-adwaita-attributes.mjs).
+//
+// It is rendered here rather than written per page because it was written per page
+// and did not survive: measured across the 37 blocks that join to an element, 110
+// attributes were named on their page and 54 were not — all four of
+// `<adw-toolbar-view>`'s, and eight of `<adw-overlay-split-view>`'s including the
+// `breakpoint` its own section is about. One component, every block, no hand.
+//
+// A `Gtk.*` title resolves too: libadwaita ships no menu button, and the pillar
+// still spells that element `<adw-menu-button>`, so the namespace is dropped and
+// `adw-` prefixed. A title with no element (`Adw.Toast` is a plain class, not a
+// custom element) renders nothing at all — an EMPTY table would say "this widget
+// takes no attributes", which is the one answer that is never true.
+const elementTag = `adw-${title
+    .replace(/^(?:Adw|Gtk)\./, '')
+    .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+    .toLowerCase()}`;
+const attributes = ADWAITA_ATTRIBUTES[elementTag] ?? null;
 
 // GJS is the primary implementation and always present; Web + NativeScript are
 // additional. Render only the slots that were actually provided.
@@ -180,6 +202,24 @@ const hasPreview = Astro.slots.has('preview');
             {present.map((r) => <adw-tab-page title={r.label} set:html={r.html} />)}
         </adw-tab-view>
     </div>
+
+    {
+        attributes && attributes.length > 0 && (
+            <details class="adw-widget-attrs not-content">
+                <summary>
+                    <code>{`<${elementTag}>`}</code> takes {attributes.length}{' '}
+                    {attributes.length === 1 ? 'attribute' : 'attributes'}
+                </summary>
+                <ul>
+                    {attributes.map((attr) => (
+                        <li>
+                            <code>{attr}</code>
+                        </li>
+                    ))}
+                </ul>
+            </details>
+        )
+    }
 </div>
 
 <script>
@@ -403,5 +443,33 @@ const hasPreview = Astro.slots.has('preview');
         background-color: currentColor;
         -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='16'%20height='16'%20viewBox='0%200%2016%2016'%20fill='none'%20stroke='%23000'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M6.5%203.5H3.2A1.2%201.2%200%200%200%202%204.7v8.1A1.2%201.2%200%200%200%203.2%2014h8.1a1.2%201.2%200%200%200%201.2-1.2V9.5'/%3E%3Cpath%20d='M9.5%202H14v4.5'/%3E%3Cpath%20d='M7%209%2014%202'/%3E%3C/svg%3E") no-repeat center / contain;
         mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='16'%20height='16'%20viewBox='0%200%2016%2016'%20fill='none'%20stroke='%23000'%20stroke-width='1.4'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M6.5%203.5H3.2A1.2%201.2%200%200%200%202%204.7v8.1A1.2%201.2%200%200%200%203.2%2014h8.1a1.2%201.2%200%200%200%201.2-1.2V9.5'/%3E%3Cpath%20d='M9.5%202H14v4.5'/%3E%3Cpath%20d='M7%209%2014%202'/%3E%3C/svg%3E") no-repeat center / contain;
+    }
+
+    /* The generated attribute list. Collapsed by default: it is a reference a
+       reader opens on purpose, not something to scroll past on every widget. */
+    .adw-widget-attrs {
+        margin-top: 0.5rem;
+        border: 1px solid var(--adw-border-color, rgba(0, 0, 0, 0.12));
+        border-radius: 8px;
+        padding: 0.4rem 0.75rem;
+        font-size: 0.9em;
+    }
+
+    .adw-widget-attrs > summary {
+        cursor: pointer;
+        padding: 0.25rem 0;
+    }
+
+    .adw-widget-attrs > ul {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem 0.5rem;
+        list-style: none;
+        margin: 0.5rem 0 0.25rem;
+        padding: 0;
+    }
+
+    .adw-widget-attrs > ul > li {
+        margin: 0;
     }
 </style>
