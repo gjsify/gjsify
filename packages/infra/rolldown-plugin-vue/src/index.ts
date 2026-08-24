@@ -163,6 +163,46 @@ function refuseStyleBlocks(styles: readonly { scoped?: boolean }[], id: string):
 }
 
 /**
+ * Refuse a `<template src>` / `<script src>` by name rather than compiling half a
+ * component.
+ *
+ * Measured: `<template src="./tpl.html"/>` beside a `<script setup>` compiles to
+ * `function __sfc_render__() { return null }`, and `<script src="./s.js">` beside a
+ * template compiles to `const __sfc__ = {}` with the external module never imported.
+ * Either way the app builds, runs, and renders a blank or logic-less component with
+ * nothing anywhere to read about it. `<script setup src>` never reaches here —
+ * `parse()` itself rejects it ("cannot use the src attribute because its syntax will be
+ * ambiguous outside of the component"), which `compileSfc` reports as an invalid SFC.
+ */
+function refuseExternalBlocks(blocks: readonly (readonly [string, { src?: string } | null])[], filename: string): void {
+    for (const [kind, block] of blocks) {
+        if (block?.src === undefined) continue;
+        throw new Error(
+            `@gjsify/rolldown-plugin-vue: ${filename} has <${kind} src="${block.src}">, which this plugin does ` +
+                `not compile: it resolves no external block, so the ${kind} would be silently EMPTY — a component ` +
+                `that renders blank or carries none of its logic, at exit 0. Inline the ${kind} into the SFC.`,
+        );
+    }
+}
+
+/**
+ * Refuse a `<template lang>` this plugin does not run through a preprocessor.
+ *
+ * Nothing validated it before, and the failure is silent in the worst way: measured,
+ * `<template lang="pug">` compiles to a render function that RETURNS THE PUG SOURCE AS A
+ * TEXT NODE. The app builds and shows its own template markup.
+ */
+function assertSupportedTemplateLang(lang: string | undefined, filename: string): void {
+    if (lang === undefined || lang === 'html') return;
+    throw new Error(
+        `@gjsify/rolldown-plugin-vue: ${filename} declares <template lang="${lang}">, which this plugin does not ` +
+            `compile — it runs no template preprocessor, and the block would be compiled as if it were HTML: ` +
+            `measured, a pug template became a render function returning the pug source as a text node. ` +
+            `Write the template as HTML.`,
+    );
+}
+
+/**
  * `NodeTypes.ELEMENT` / `NodeTypes.ATTRIBUTE` / `NodeTypes.DIRECTIVE` and
  * `ElementTypes.ELEMENT`, from `@vue/compiler-core`'s enums.
  *
@@ -435,6 +475,14 @@ export async function compileSfc(
     }
 
     refuseStyleBlocks(descriptor.styles, filename);
+    refuseExternalBlocks(
+        [
+            ['template', descriptor.template],
+            ['script', descriptor.script],
+        ],
+        filename,
+    );
+    assertSupportedTemplateLang(descriptor.template?.lang ?? undefined, filename);
     for (const block of descriptor.customBlocks) {
         options.onWarn?.(
             `@gjsify/rolldown-plugin-vue: ${filename} carries a <${block.type}> block, which this plugin does ` +

@@ -381,6 +381,53 @@ export default async () => {
         });
     });
 
+    await describe('compileSfc: the split-SFC shapes it refuses', async () => {
+        await it('refuses <template src> by name', async () => {
+            // Measured: it compiled to `function __sfc_render__() { return null }` — a
+            // component that renders nothing, at exit 0.
+            const message = await refusal(() =>
+                compile(`<template src="./tpl.html" />\n<script setup>const a = 1;</script>`, 'Split.vue'),
+            );
+            expect(message).toContain('Split.vue');
+            expect(message).toContain('<template src="./tpl.html">');
+            expect(message).toContain('silently EMPTY');
+        });
+
+        await it('refuses <script src> by name', async () => {
+            // Measured: `const __sfc__ = {}` and the external module never imported.
+            const message = await refusal(() =>
+                compile(`<script src="./s.js"></script>\n<template><gtk-box /></template>`, 'Split2.vue'),
+            );
+            expect(message).toContain('<script src="./s.js">');
+        });
+
+        await it('reports <script setup src>, which @vue/compiler-sfc itself rejects', async () => {
+            // Not refused by this plugin, and pinned so it stays that way: `parse()`
+            // reports it as an SFC error, so a second guard here could never fire. The
+            // day upstream starts accepting it, this goes red and the guard gets added.
+            const message = await refusal(() =>
+                compile(`<script setup src="./s.js"></script>\n<template><gtk-box /></template>`, 'Split3.vue'),
+            );
+            expect(message).toContain('is not a valid SFC');
+            expect(message).toContain('src');
+        });
+
+        await it('refuses a <template lang> it runs no preprocessor for', async () => {
+            // Measured: `lang="pug"` compiled to a render function returning the PUG
+            // SOURCE as a text node — an app showing its own template markup.
+            const message = await refusal(() => compile(`<template lang="pug">gtk-box</template>`, 'Pug.vue'));
+            expect(message).toContain('Pug.vue');
+            expect(message).toContain('<template lang="pug">');
+            expect(message).toContain('text node');
+        });
+
+        await it('accepts no template lang and lang="html"', async () => {
+            for (const lang of ['', ' lang="html"']) {
+                expect(await compile(`<template${lang}><gtk-box /></template>`)).toContain('"gtk-box"');
+            }
+        });
+    });
+
     await describe('compileSfc: the source map', async () => {
         const SOURCE =
             `<script setup lang="ts">\nconst spacing: number = 12;\n</script>\n\n` +
