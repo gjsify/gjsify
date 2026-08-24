@@ -1,0 +1,183 @@
+---
+title: Vue SFCs
+description: Compile Vue 3 single-file components for a GTK 4 build with @gjsify/rolldown-plugin-vue. The tag predicate, the build defines that keep the DOM out, and the vue-tsc trap that fakes a green check.
+---
+
+[`@gjsify/rolldown-plugin-vue`](https://www.npmjs.com/package/@gjsify/rolldown-plugin-vue)
+compiles Vue 3 single-file components during a gjsify build, for the `@vue/runtime-core`
+custom renderer in [`@gjsify/gtk-host/vue`](/gjsify/guides/ui-frameworks/). Write your window
+as `.vue`, build it for `--app gjs`, and the template's tags become real GTK widgets.
+
+It is an ordinary Rolldown plugin, so it also loads under Rollup and Vite.
+
+## Install
+
+```bash
+gjsify install @gjsify/rolldown-plugin-vue @gjsify/gtk-host @vue/runtime-core
+```
+
+`vue` and `vue-tsc` are devDependencies for the type check; only `@vue/runtime-core` ends up
+in the bundle.
+
+## Wire it up
+
+Name the plugin in `package.json#gjsify`. There is no JS-form config file to add:
+
+```jsonc
+{
+    "gjsify": {
+        "bundler": {
+            "plugins": [{ "name": "@gjsify/rolldown-plugin-vue" }]
+        }
+    }
+}
+```
+
+Then build the `.ts` entry that imports the SFC:
+
+```bash
+gjsify build src/app.ts --app gjs --outfile dist/app.gjs.mjs \
+  --define '__VUE_OPTIONS_API__=false' \
+  --define '__VUE_PROD_DEVTOOLS__=false' \
+  --define '__VUE_PROD_HYDRATION_MISMATCH_DETAILS__=false' \
+  --define 'process.env.NODE_ENV="production"'
+```
+
+Those four defines are not optional; the section below says why.
+
+Or drop the plugin into a Rolldown / Vite config directly:
+
+```ts
+// rolldown.config.ts
+import { vuePlugin } from '@gjsify/rolldown-plugin-vue';
+
+export default {
+    plugins: [vuePlugin()],
+};
+```
+
+### Options
+
+| Option | Default | What it does |
+|---|---|---|
+| `isCustomElement` | `isGtkHostTag` | Which tags compile to an element vnode instead of a component lookup. |
+| `include` | `/\.vue$/` | Which modules to compile. |
+| `runtimeModuleName` | `@vue/runtime-core` | Module the generated code imports Vue's runtime from. `vue` — the compiler's own default — drags `@vue/runtime-dom` and the DOM renderer into a bundle with no DOM. |
+
+## The tag predicate, and why it is only a prefix rule
+
+`isGtkHostTag` accepts `gtk-`/`adw-` kebab **and** `Gtk`/`Adw` followed by a capital. Both
+spellings are required: `isCustomElement` is consulted for PascalCase tags too, and one
+`GlobalComponents` key answers both spellings — so a kebab-only rule leaves `<GtkBox>`
+type-checking and then resolving as a missing component.
+
+It decides "element vnode or component lookup", never whether the widget exists. An unknown
+tag is refused by name twice, and neither place is the plugin: the host's registry throws
+`unknown-tag` at render time, and `GlobalComponents` plus `strictTemplates` refuses it at
+type-check. Encoding the widget list here would be a third copy of a generated table and the
+first one to drift.
+
+Without the predicate the failure is silent in the direction that matters. Measured on one
+template: **7 of 7 tags compiled to `_resolveComponent(…)` and zero element vnodes were
+emitted.** Vue's resolver misses, warns once per tag — and that warning is `__DEV__`-only,
+which the production defines above strip. With the predicate: 0 `resolveComponent`, 6
+`createElementVNode` plus the root `createElementBlock`.
+
+## The build recipe
+
+`@vue/runtime-core` is DOM-free in fact — every `document`, `navigator` and `HTMLElement`
+reference sits in a dev, HMR or devtools branch behind `__DEV__` or a `typeof window` guard.
+But `--globals auto` is a static scan: it injects a polyfill for each identifier it *sees*,
+which made the bundle require `gi://Gdk`, `GdkPixbuf`, `Pango` and `PangoCairo` at load. The
+four defines let dead-code elimination remove those branches first.
+
+One import the recipe cannot save is `Suspense`. `SuspenseImpl` carries `hydrate:
+hydrateSuspense`, which contains a literal `document.createElement("div")` that no define
+eliminates — hydration is never called here, but the identifier is still there. Measured, same
+entry plus one named import, `--app gjs`:
+
+| Import | Bytes | Typelibs |
+|---|---|---|
+| baseline (`createRenderer`) | 191 032 | `gi://GLib` |
+| `+ Teleport` | 194 907 | `gi://GLib` |
+| `+ KeepAlive` | 197 561 | `gi://GLib` |
+| `+ Suspense` | 274 177 | `+ Gdk, GdkPixbuf, Gio, Pango, PangoCairo` |
+| `+ Suspense`, `--exclude-globals document` | 196 614 | `gi://GLib` |
+
+So `--exclude-globals document` is the escape if you need `Suspense`. `Transition` is not in
+the table because `@vue/runtime-core` does not export it at all — it belongs to
+`runtime-dom`.
+
+## The type check, and the trap that fakes a green one
+
+```jsonc
+{
+    "compilerOptions": { "strict": true, "module": "NodeNext", "moduleResolution": "NodeNext" },
+    "vueCompilerOptions": { "strictTemplates": true },
+    "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.vue"]
+}
+```
+
+```bash
+vue-tsc --noEmit
+```
+
+Three things on that config are load-bearing, and each has a measured silent-green mode
+behind it:
+
+- **`strictTemplates: true`.** Measured on `vue-tsc@3.3.11`: with it, an unknown prop, an
+  unknown tag, an unknown event, a wrong value type and a bad enum nick all fail. Without it,
+  the unknown prop, the unknown event and the unknown *tag* are silently accepted while wrong
+  value types still error — so a project without it sees type errors appear and concludes the
+  surface works.
+- **Set it in the base of your `extends` chain.** Measured, four cells, all four: the base
+  tsconfig's value wins and the child's is ignored outright, in *both* directions. In a
+  monorepo the shared base config therefore decides this for every package and a per-package
+  override does nothing. Confirm with `vue-tsc --showConfig`, never by reading the nearest
+  tsconfig.
+- **`src/**/*.vue` must be in `include` explicitly.** A tsconfig whose `include` lists only
+  `.ts` globs makes `vue-tsc` check **zero** SFCs and exit 0. An SFC reached through an
+  `import` is checked either way; the glob is what covers one nothing imports yet.
+
+The `GlobalComponents` augmentation applies only to a program that loads it, so the project
+needs the import somewhere. A `.d.ts` is the right home, because the module carries no runtime
+value:
+
+```ts
+// src/vue-components.d.ts
+import '@gjsify/gtk-host/vue-components';
+```
+
+## What it refuses, and what it ignores
+
+**`<style>` is refused with a named error.** GTK styling is a `Gtk.CssProvider` concern —
+there is no element a CSS rule could attach to, and `<style scoped>` compiles to an attribute
+selector GTK 4 CSS does not have. Load the CSS yourself with
+`Gtk.CssProvider.load_from_string()` plus `Gtk.StyleContext.add_provider_for_display()`, and
+put the selector on the widget with `cssClasses`.
+
+**`<script lang="jsx">` and `lang="tsx"` are refused too.** Rolldown picks a parser from the
+module id's extension, and that choice happens before anything has read the file, so it cannot
+depend on the block's `lang`. Write JSX in a `.tsx` file and compile it with
+[`@gjsify/rolldown-plugin-solid`](/gjsify/guides/solid-jsx/) instead. A `<script>` with no
+`lang` is parsed as TypeScript.
+
+**A split SFC is refused as well** — `<template src>` and `<script src>`, and a
+`<template lang>` other than `html`. Measured, each compiled to something that looked like a
+component and was not: an external template became `return null`, an external script became an
+empty object with the module never imported, and `lang="pug"` compiled to a render function
+returning the pug source as a text node. All three render blank or logic-less at exit 0.
+
+Out of scope and not attempted: HMR, asset-URL rewriting, custom blocks, SSR, `?query`
+suffixes on a `.vue` import, and watch-mode dependency registration. A custom block is the one
+thing neither compiled nor refused — the plugin reports it as a build warning naming the block
+and otherwise ignores it.
+
+## Related
+
+- [UI Frameworks](/gjsify/guides/ui-frameworks/) for the host, the widget table and the
+  placement rules
+- [Solid JSX](/gjsify/guides/solid-jsx/) for the same pipeline on `babel-preset-solid`
+- [`vue-host-counter`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/vue-host-counter),
+  a complete window that asserts its own widget tree on every launch
+- [`@gjsify/rolldown-plugin-vue` on npm](https://www.npmjs.com/package/@gjsify/rolldown-plugin-vue)
