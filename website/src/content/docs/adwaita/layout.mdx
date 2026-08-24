@@ -229,7 +229,7 @@ the view moves.
           <adw-window-title data-adw-slot="center" title="Documents" subtitle="12 items"></adw-window-title>
         </adw-header-bar>
         <adw-status-page icon="folder-documents" title="Your library" description="Content sits between the toolbars and scrolls independently of them."></adw-status-page>
-        <div data-adw-slot="bottom" class="adw-action-bar" style="display: flex; align-items: center; gap: 6px; padding: 6px; border-top: 1px solid var(--separator-color, rgba(0, 0, 0, 0.15));">
+        <div data-adw-slot="bottom" class="toolbar" style="border-top: 1px solid var(--separator-color, rgba(0, 0, 0, 0.15));">
           <adw-button icon="list-add" flat tooltip="Add"></adw-button>
           <adw-button icon="list-remove" flat tooltip="Remove"></adw-button>
           <span style="flex: 1 1 auto; text-align: center;">Selection: none</span>
@@ -314,9 +314,10 @@ the view moves.
           styles ["flat"]
         }
 
-        center-widget: Gtk.Label {
+        [center]
+        Gtk.Label {
           label: _("Selection: none");
-        };
+        }
 
         [end]
         Gtk.Button {
@@ -340,7 +341,7 @@ the view moves.
             title="Your library"
             description="Content sits between the toolbars and scrolls independently of them."
         ></adw-status-page>
-        <div slot="bottom" class="adw-action-bar" style="display: flex; align-items: center; gap: 6px; padding: 6px;">
+        <div slot="bottom" class="toolbar" style="border-top: 1px solid var(--separator-color, rgba(0, 0, 0, 0.15));">
             <adw-button icon="list-add" flat tooltip="Add"></adw-button>
             <adw-button icon="list-remove" flat tooltip="Remove"></adw-button>
             <span style="flex: 1 1 auto; text-align: center;">Selection: none</span>

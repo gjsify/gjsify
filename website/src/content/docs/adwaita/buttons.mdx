@@ -84,6 +84,7 @@ short.
   <Fragment slot="nativescript">
     ```ts
     import { AdwButtonContent } from '@gjsify/adwaita-nativescript';
+    import { folderDownloadSymbolic } from '@gjsify/adwaita-icons/places';
     import { StackLayout } from '@nativescript/core';
 
     const content = new AdwButtonContent();
@@ -268,12 +269,11 @@ shape.
   <Fragment slot="blueprint">
     ```blueprint
     using Gtk 4.0;
-    using Adw 1;
 
     Gtk.MenuButton {
       icon-name: "open-menu-symbolic";
       primary: true;
-      menu-model: menu primary-menu;
+      menu-model: primary-menu;
 
       styles ["flat"]
     }
@@ -310,6 +310,7 @@ shape.
   <Fragment slot="nativescript">
     ```ts
     import { AdwMenuButton } from '@gjsify/adwaita-nativescript';
+    import { openMenuSymbolic } from '@gjsify/adwaita-icons/actions';
 
     const button = new AdwMenuButton();
     button.icon = openMenuSymbolic; // an Adwaita symbolic icon (SVG string)
@@ -359,7 +360,7 @@ header bar or toolbar, where a raised button looks too heavy.
       label: _("Save");
       icon-name: "document-save-symbolic";
 
-      menu-model: menu save-menu;
+      menu-model: save-menu;
     }
 
     menu save-menu {
@@ -394,6 +395,7 @@ header bar or toolbar, where a raised button looks too heavy.
   <Fragment slot="nativescript">
     ```ts
     import { AdwSplitButton } from '@gjsify/adwaita-nativescript';
+    import { documentSaveSymbolic } from '@gjsify/adwaita-icons/actions';
 
     const button = new AdwSplitButton();
     button.menu = ['Save as…', 'Export', 'Print'];
@@ -410,6 +412,13 @@ For a small set of mutually exclusive options, such as a view mode, use a
 **toggle group**: a linked row where exactly one toggle is active at a time. Each
 toggle takes an icon, a label, or both. The style classes `.flat` and `.round`
 adapt the group for a toolbar or give it a pill shape.
+
+One divergence in the block below, and it runs the unusual way round: the third
+toggle's `view-columns-symbolic` is in no icon theme, so only the **web** pane
+draws it — from a glyph `@gjsify/adwaita-web` hand-draws itself. The GJS and
+Blueprint panes name the same icon and get GTK's broken-image paintable. It stays
+that way on purpose: dropping the hand-drawn glyph would put the web pane on
+`image-missing` as well, which is parity bought by making both panes worse.
 
 A toggle group is a **single tab stop**, the way `Adw.ToggleGroup` routes focus:
 Tab enters on the active toggle and the next Tab leaves the group, while Left and
@@ -479,6 +488,7 @@ once set", and the only setter is class-level.
   <Fragment slot="nativescript">
     ```ts
     import { AdwToggleGroup } from '@gjsify/adwaita-nativescript';
+    import { viewGridSymbolic, viewListSymbolic, viewPagedSymbolic } from '@gjsify/adwaita-icons/actions';
 
     const group = new AdwToggleGroup();
     group.setToggles([

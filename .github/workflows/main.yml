@@ -370,6 +370,24 @@ jobs:
       # intentional. It moved here from `build` with the other two: `website` is
       # a root workspace member AND a classifier-IGNORE path, so a website-only
       # dependency bump skipped this check the same way.
+      # The Adwaita doc pages' SAMPLES. `check-website-adwaita-gallery.mjs` holds that
+      # every storybook widget has a gallery block, and says so in its own header: "it
+      # therefore says NOTHING about whether a page RENDERS". Nothing read a fence at
+      # all, and an audit found eight defects in that blind spot — three tabs using a
+      # glyph they never import, an icon in no theme under prose promising one, a class
+      # no stylesheet declares, and two blueprint blocks that do not compile.
+      #
+      # It lives HERE and not in `audit-runtimes.yml` with the other repo-scoped Adwaita
+      # gates, because this is the only job where all four of its arms are real: the
+      # compile arm needs GTK's typelibs, not just the binary. On a bare `ubuntu-latest`
+      # with `blueprint-compiler` apt-installed, all 40 fences came back "Could not find
+      # GTK 4 introspection files" — 40 failures that say nothing about the samples. The
+      # ci-fedora image bakes blueprint-compiler, gtk4-devel and gobject-introspection
+      # (`.docker/ci-fedora.Dockerfile`), and this job carries no classifier gate, so a
+      # docs-only PR runs it too.
+      - name: Check every Adwaita doc sample is one that runs
+        run: node scripts/check-doc-fences.mjs
+
       - name: Check dependency consistency
         run: >
           su testuser -c "gjs -m '$GJSIFY_BOOTSTRAP'

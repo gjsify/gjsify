@@ -243,6 +243,36 @@ the ordinary shape of a missing feature rather than a check that passed while
 nothing was verified. A gate for it would cost an incident header in a `scripts`
 tree with ten lines of budget left, to catch someone not adding something.
 
+### What `check-doc-fences.mjs` cannot see on an Adwaita doc page
+
+The fence gate now compiles every `blueprint` block, resolves every glyph identifier
+and icon name, and refuses an `adw-` class no stylesheet declares — four arms, all
+A/B-proven, and the slot rule proven in BOTH directions (a web-only glyph fails in a
+`gjs` slot and passes in a `web` one). Three classes from the same audit sit outside
+it, and the honest answer for each is different:
+
+- **Whether a preview is INTERACTIVE.** `navigation.mdx` says "click **Open contact**
+  to push the detail page" and "the button underneath to bring it back"; the first
+  button carries no handler and `<adw-button>` has no action attribute, and the second
+  reads `data-adw-toggle-open`, which NOTHING in the repository reads — one grep hit,
+  the doc itself. Both need a browser to see, so no cheap static gate exists. The
+  storybook wires the first in JS (`navigation-view.web.ts:63-65`) and that line was
+  dropped when the sample was written.
+- **Whether four tabs build the SAME widget set.** A per-`<AdwWidget>` reader could
+  compare the tag/class set each of the four fences constructs and demand a ledger
+  line for a difference — that catches the counts (the Preferences Group block builds
+  three rows in two tabs and two in three) but not semantics: nothing static sees that
+  `Adw.Clamp { maximumSize: 400 }` under a child with `widthRequest: 520` cannot
+  demonstrate clamping, because the child's own minimum raises all three thresholds
+  to 520.
+- **Prose that inverts a shipped behaviour.** `layout.mdx` had the clamp's tightening
+  region backwards; upstream tightens ABOVE the threshold. There is no gate for a
+  sentence. What IS reachable is the subset the ELEMENTS already mark themselves:
+  `MODIFICATION:`, `DEVIATION:` and `DELIBERATE DEPARTURE` appear in the sources, and
+  requiring each to be named on the page documenting that widget would hold five or
+  six of them — the same decision/gap ledger `check-storybook-widget-coverage.mjs`
+  already runs, one level down from widget presence to widget behaviour.
+
 ### `<adw-source-view>` has no browser suite
 
 It is an opt-in subpath, so `test.browser.mts` never imports it and nothing in
@@ -255,21 +285,6 @@ verified by hand in Firefox, but nothing HOLDS it: the `stylesheet-font-families
 conformance rule reads `.css`/`.scss`, so a new literal would be invisible again.
 Registering a source-view suite pulls CodeMirror into the browser test bundle,
 which is why it is a note rather than part of the fix.
-
-### (closed) `tests/browser/test-results/.last-run.json` was tracked, and gitignored
-
-`git rm --cached`, nothing else: `.gitignore:158` has carried
-`/tests/browser/test-races/`'s sibling `/tests/browser/test-results/` all along, and
-gitignore does not apply to a file git is already tracking. So every `npx playwright
-test` in `tests/browser` rewrote a tracked file that everyone believed was ignored,
-and `git status` looked like a real edit.
-
-It reached the index once, in #292 — a PR about dropping `as any` casts — and stayed.
-This entry is closed by the incident that proves the cost: verifying this branch the
-way its own description says it was verified swept the file into a commit, and the
-record it swept in said `"status": "failed"` (from an A/B run), so a passing PR
-carried a committed-looking failure. That is the shape the entry predicted, one
-`git add -u` away.
 
 ### Two CI comments still say rolldown-native has no Apple target
 

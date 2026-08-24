@@ -203,6 +203,8 @@ row responds to a click, which is how you open a detail page.
   <Fragment slot="nativescript">
     ```ts
     import { AdwActionRow, AdwIcon } from '@gjsify/adwaita-nativescript';
+    import { goNextSymbolic } from '@gjsify/adwaita-icons/actions';
+    import { networkWirelessSymbolic } from '@gjsify/adwaita-icons/devices';
 
     const row = new AdwActionRow();
     row.title = 'Wi-Fi';
@@ -584,6 +586,10 @@ whole section.
     host.title = 'Host';
     host.text = 'proxy.example.com';
     row.addRow(host);
+
+    const auth = new AdwSwitchRow();
+    auth.title = 'Use authentication';
+    row.addRow(auth);
     ```
   </Fragment>
 </AdwWidget>
@@ -638,6 +644,7 @@ Adwaita style classes (`.suggested-action`, `.destructive-action`).
   <Fragment slot="nativescript">
     ```ts
     import { AdwButtonRow } from '@gjsify/adwaita-nativescript';
+    import { listAddSymbolic } from '@gjsify/adwaita-icons/actions';
 
     const row = new AdwButtonRow();
     row.title = 'Add account';
