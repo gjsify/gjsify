@@ -1,4 +1,4 @@
-export { installDiagnosticsGate, type DiagnosticsGate } from './diagnostics.js';
+export { describeLogRecord, installDiagnosticsGate, type DiagnosticsGate } from './diagnostics.js';
 // Conformance surface: the checks that keep the widget table honest, and the
 // GTK-side readers every vector asserts against.
 //

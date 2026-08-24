@@ -39,6 +39,37 @@ let installed: DiagnosticsGate | null = null;
  * what GLib's default writer does with `G_MESSAGES_DEBUG` unset: message-and-above
  * is printed, info/debug is not.
  */
+/**
+ * What a log record SAYS — and never the empty string.
+ *
+ * `MESSAGE` is a structured field like any other, and a record is allowed to
+ * arrive without one. The first version answered `String(raw ?? '')`, so such a
+ * record was counted and then described as nothing: a CI run failed with
+ * `GTK reported 1 diagnostic(s) that would have passed at exit 0:` followed by a
+ * BLANK LIST, over a test that had just constructed 164 widgets. A gate that can
+ * count a failure but not name it sends the reader back to guessing, which is the
+ * state this whole module exists to end.
+ *
+ * So a record with no `MESSAGE` is rendered from the fields it does carry.
+ */
+export function describeLogRecord(fields: unknown, decoder: TextDecoder = new TextDecoder()): string {
+    const text = (value: unknown): string => (value instanceof Uint8Array ? decoder.decode(value) : String(value));
+    const record = fields as Record<string, unknown> | null;
+    const raw = record?.MESSAGE;
+    if (raw !== undefined && raw !== null) {
+        const message = text(raw);
+        if (message !== '') return message;
+    }
+    const rest = record
+        ? Object.keys(record)
+              .filter((key) => key !== 'MESSAGE' && record[key] !== undefined && record[key] !== null)
+              .map((key) => `${key}=${text(record[key])}`)
+        : [];
+    return rest.length > 0
+        ? `<no MESSAGE field> ${rest.join(' ')}`
+        : '<a log record with no MESSAGE and no other field>';
+}
+
 export function installDiagnosticsGate(): DiagnosticsGate {
     if (installed) return installed;
 
@@ -49,8 +80,7 @@ export function installDiagnosticsGate(): DiagnosticsGate {
     GLib.log_set_writer_func((level, fields) => {
         // A throw in here is logged, which re-enters this function.
         try {
-            const raw = (fields as unknown as { MESSAGE?: unknown } | null)?.MESSAGE;
-            const message = raw instanceof Uint8Array ? decoder.decode(raw) : String(raw ?? '');
+            const message = describeLogRecord(fields, decoder);
             // MASK the level: `g_logv` ORs in `G_LOG_FLAG_FATAL` when the level is
             // in the fatal mask, so `WARNING|FATAL` is 18 and an unmasked `<= 16`
             // stops recording exactly the messages this exists to catch — under
