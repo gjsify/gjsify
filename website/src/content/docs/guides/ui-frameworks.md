@@ -1,0 +1,317 @@
+---
+title: UI Frameworks
+description: Describe your GTK 4 window instead of assembling it. One host layer under Solid, Vue and React, with the widget table, the placement rules and the type surfaces generated from the GIR.
+---
+
+A GTK app is usually written imperatively: `new Gtk.Box()`, `append()`, `connect()`, and you
+keep the tree in your head. Every modern UI framework offers the opposite deal — describe the
+tree, let a renderer reconcile it. Solid, Vue and React each publish a contract for rendering
+into something that is not the DOM. What none of them ships is the *something*.
+
+[`@gjsify/gtk-host`](https://www.npmjs.com/package/@gjsify/gtk-host) is that something: an
+element model over GTK 4 and libadwaita that can create a widget, set a property, adopt a
+child and navigate the result. The three adapters sit on top of it and hold no widget
+knowledge at all.
+
+Nothing here hides `Gtk` or `Adw`. Every tag names a real GTK class, `on:<raw-signal-name>`
+reaches a signal whose spelling is irregular, and you mount into a window your application
+already built.
+
+## Install
+
+```bash
+gjsify install @gjsify/gtk-host
+```
+
+Your framework is a peer dependency and stays yours: `solid-js`, `@vue/runtime-core`, or
+`react` + `react-reconciler`. Install only the one you use.
+
+## One host, three adapters
+
+| Adapter | Import | Framework contract | Compile step |
+|---|---|---|---|
+| Solid | `@gjsify/gtk-host/solid` | `solid-js/universal`, 10 methods | [`@gjsify/rolldown-plugin-solid`](/gjsify/guides/solid-jsx/) |
+| Vue | `@gjsify/gtk-host/vue` | `@vue/runtime-core`, 10 required + 4 optional | [`@gjsify/rolldown-plugin-vue`](/gjsify/guides/vue-sfc/) |
+| React | `@gjsify/gtk-host/react` | `react-reconciler` HostConfig | none — TypeScript's own automatic runtime |
+
+Three different renderer contracts satisfied by one descriptor table and one placement engine
+is what makes "framework-agnostic" a measurement rather than an intention. A check
+(`scripts/check-adapter-import-direction.mjs`) fails the build if an adapter reaches past the
+table for widget knowledge, so the split cannot erode.
+
+## Solid JSX
+
+`registerBuiltinWidgets()` loads the generated table; after that the tags are available.
+Build with [`@gjsify/rolldown-plugin-solid`](/gjsify/guides/solid-jsx/), which is what turns
+the JSX into calls against the host.
+
+```tsx
+import Adw from 'gi://Adw?version=1';
+import { createRoot, createSignal } from 'solid-js';
+
+import { registerBuiltinWidgets, type HostNode } from '@gjsify/gtk-host';
+import { For, widgetOf } from '@gjsify/gtk-host/solid';
+
+registerBuiltinWidgets();
+
+function Counter(app: Adw.Application) {
+    const [count, setCount] = createSignal(0);
+    const [rows, setRows] = createSignal<readonly string[]>([]);
+
+    return (
+        <adw-application-window title="Counter" defaultWidth={480} application={app}>
+            <adw-toolbar-view>
+                <adw-header-bar slot="top" />
+                <adw-preferences-page slot="content">
+                    <adw-preferences-group title="Rows">
+                        <For each={rows()}>{(row) => <adw-action-row title={row} />}</For>
+                        <adw-action-row title="Clicks" subtitle={String(count())} />
+                    </adw-preferences-group>
+                    <adw-preferences-group title="Actions">
+                        <gtk-box orientation="vertical" spacing={12}>
+                            <gtk-button label="Increment" onClicked={() => setCount((n) => n + 1)} />
+                            <gtk-button
+                                label="Add row"
+                                onClicked={() => setRows((r) => [...r, `Row ${r.length + 1}`])}
+                            />
+                        </gtk-box>
+                    </adw-preferences-group>
+                </adw-preferences-page>
+            </adw-toolbar-view>
+        </adw-application-window>
+    ) as HostNode;
+}
+
+const app = new Adw.Application({ application_id: 'org.example.Counter' });
+app.connect('activate', () => {
+    const node = createRoot(() => Counter(app));
+    (widgetOf(node) as Adw.ApplicationWindow).present();
+});
+await app.runAsync([]);
+```
+
+`createRoot` rather than bare JSX: every `{count()}` compiles to a computation, and a
+computation created without an owner is never disposed. Solid says so on stderr.
+
+`widgetOf(node)` hands you the real widget behind a host node. It is exported from
+`@gjsify/gtk-host/solid` and `@gjsify/gtk-host/react` — the two adapters whose root *is* a
+node you hold. Vue's is not; see below.
+
+Import `For`, `Index`, `Show` and `Dynamic` from the **adapter**, never from `solid-js/web`.
+That package is Solid's DOM renderer; its components build DOM elements nothing here can
+place, and the measured result is a subtree that renders nothing, silently, at exit 0.
+
+## Vue single-file components
+
+Vue mounts *into* a container, and a toplevel window is not a child of anything. So the
+application owns the window and Vue owns everything inside it, which is the shape
+`mount(rootComponent, container)` documents.
+
+```vue
+<!-- src/App.vue -->
+<script setup lang="ts">
+import { ref } from '@vue/runtime-core';
+
+const count = ref(0);
+const rows = ref<readonly string[]>([]);
+
+const increment = () => { count.value += 1; };
+const addRow = () => { rows.value = [...rows.value, `Row ${rows.value.length + 1}`]; };
+</script>
+
+<template>
+    <adw-toolbar-view>
+        <adw-header-bar slot="top">
+            <GtkLabel label="Counter" slot="title" />
+        </adw-header-bar>
+        <adw-preferences-page slot="content">
+            <adw-preferences-group title="Rows">
+                <adw-action-row v-for="row in rows" :key="row" :title="row" />
+                <adw-action-row title="Clicks" :subtitle="String(count)" />
+            </adw-preferences-group>
+            <adw-preferences-group title="Actions">
+                <gtk-box orientation="vertical" :spacing="12">
+                    <gtk-button label="Increment" @clicked="increment" />
+                    <gtk-label v-if="count > 0" :label="`clicked ${count}x`" />
+                    <gtk-button label="Add row" @clicked="addRow" />
+                </gtk-box>
+            </adw-preferences-group>
+        </adw-preferences-page>
+    </adw-toolbar-view>
+</template>
+```
+
+```ts
+// src/app.ts
+import Adw from 'gi://Adw?version=1';
+
+import { registerBuiltinWidgets } from '@gjsify/gtk-host';
+import { mount } from '@gjsify/gtk-host/vue';
+
+import App from './App.vue';
+
+registerBuiltinWidgets();
+
+const app = new Adw.Application({ application_id: 'org.example.Counter' });
+app.connect('activate', () => {
+    const window = new Adw.ApplicationWindow({ application: app, title: 'Counter', default_width: 480 });
+    mount(App, window);
+    window.present();
+});
+await app.runAsync([]);
+```
+
+The Vue adapter exports `render`, `createApp`, `mount` and `adopt` — and deliberately no
+`widgetOf`. You already hold the window you mounted into, and everything below it belongs to
+Vue's own reconciler rather than to a node you can name. Reach for a widget inside the tree
+with a `ref` on the element, as you would in any Vue app.
+
+Both tag spellings work in a template. `<GtkLabel>` and `<gtk-label>` resolve to the same
+widget and to the same type-check key, so pick one and stay with it. The build needs
+[`@gjsify/rolldown-plugin-vue`](/gjsify/guides/vue-sfc/) and four `--define` flags; that page
+has the recipe and the reason.
+
+## React
+
+React needs no compile plugin — its JSX is a runtime, and the adapter ships the automatic
+runtime TypeScript expects. Point `jsxImportSource` at the subpath, not at `react`:
+
+```jsonc
+{
+    "jsx": "react-jsx",
+    "jsxImportSource": "@gjsify/gtk-host/react",
+    "noImplicitAny": true
+}
+```
+
+```tsx
+import { createRoot } from '@gjsify/gtk-host/react';
+
+const root = createRoot(myWindow);
+root.render(
+    <gtk-box orientation="vertical">
+        <gtk-label label="hi" />
+    </gtk-box>,
+);
+```
+
+`root.render()` is synchronous on purpose. A concurrent root hands its updates to the
+scheduler, which under GJS is a GLib timer source — with no main loop running yet, an
+unflushed first render leaves the container empty and says nothing. A `setState` from a GTK
+signal handler *is* concurrent and lands on the next main-loop iteration; `flushSync` is the
+escape hatch.
+
+Build it with `--define 'process.env.NODE_ENV="production"' --exclude-globals navigator`.
+The development `react-reconciler` bundle reaches for `document`, `HTMLCanvasElement` and
+`Path2D`, and `--globals auto` is a static scan: it answers those identifiers by pulling
+`gi://Gdk`, `GdkPixbuf`, `Pango` and `PangoCairo` into a bundle that needs none of them.
+
+## What the host refuses to do quietly
+
+GTK's failure mode is exit 0. A renderer that forwards authored values verbatim produces a
+wrong window and a green test run, so the host is loud instead. Measured on gjs 1.88.1:
+
+| What you write | What GObject does | What the host does |
+|---|---|---|
+| `orientation="vertical"` | keeps `HORIZONTAL`; the JS setter says nothing at all | resolves the nick against the enum's GType |
+| `orientation="sideways"` | the same silence | throws, naming `GtkOrientation` |
+| a read-only property | accepts the write, stores nothing | throws, naming the property |
+| a misspelled property | nothing | throws, naming the widget |
+| text inside `<gtk-image>` | nothing | throws, naming the tag and where the text could go |
+| a child under a childless widget | `Gtk-WARNING` at exit 0 | throws, naming the three fixes |
+| `selectable="false"` as a string | JS truthiness makes it `true` | honours `'true'`/`'false'`, throws on anything else |
+
+Values are coerced against the `GParamSpec` read from the **installed** GTK, so the table
+says a property exists and the ParamSpec says what a value may look like.
+
+## Where a child goes
+
+GTK 4 deleted `GtkContainer`, so there is no generic `add`. Each container's adoption rule is
+data, declared once and shared by all three adapters:
+
+| Kind | Example | How a child lands |
+|---|---|---|
+| `single` | `AdwBin`, `GtkWindow` | `set_child` / `set_content` |
+| `ordered` | `GtkBox` | `append` + `insert_child_after` |
+| `indexed` | `GtkListBox` | `insert(row, i)`, addressing a wrapper row |
+| `slotted` | `AdwHeaderBar` | `pack_start` / `pack_end` / `set_title_widget`, chosen by `slot` |
+| `keyed` | `GtkStack` | `add_titled(child, name, title)` |
+| `coords` | `GtkGrid` | `attach(child, column, row, …)` |
+| `none` | `GtkLabel` | rejected, with the three fixes named |
+
+`slot` and `layout` are props the **child** declares: `slot="end"` picks a slotted attachment
+point, `layout={{ column, row }}` a grid cell, `layout={{ name, title }}` a stack page.
+Changing either re-places the child rather than doing nothing.
+
+A container that cannot reorder in place says so instead of pretending. `Adw.PreferencesGroup`
+has `add` and `remove` and no `insert`, so it is `ordered` with `reorder: 'remove-all'` and
+pays a tail re-append. Its near-identical sibling `Adw.PreferencesPage` does have
+`insert(group, i)`, so it is `indexed` and places at the index directly. That is why the table
+is measured per widget rather than inherited.
+
+## Mount into a window you already own
+
+`adopt(container)` wraps a widget your application built as a host element and **records the
+children it already had**, so the rendered tree lands after your own chrome rather than above
+it. `mount()` in the Solid and Vue adapters and `createRoot()` in the React one all go through
+it; call it yourself when you need the explicit spelling, such as a Vue `<Teleport>` target:
+
+```ts
+import { adopt, mount } from '@gjsify/gtk-host/vue';
+
+mount(App, myWindow);           // adopts for you
+const target = adopt(mySidebar); // then `:to="target"`
+```
+
+A `<Teleport>` target must be a widget, never a string. Resolving a name would need a registry
+of mounted roots; until something needs one, a string throws rather than rendering nothing.
+
+## The widget table and the type surfaces
+
+164 concrete `GtkWidget` descendants (102 from Gtk, 62 from Adw) are generated from the GIR
+and committed with the package. 26 of them also carry a hand-written placement rule, and the
+generator may only ever add a tag, never contradict a curated one. A tag with no rule can be
+created, given properties and given handlers; inserting a child into it raises an error naming
+the tag that needs a policy. Guessing is not on offer — `add`, `append` and `set_child` all
+exist somewhere in GTK, and calling the wrong one is a warning at exit 0.
+
+The same generator emits the type surfaces, so a tag cannot mean one thing to the renderer and
+another to the type checker:
+
+| Dialect | tsconfig | Tag spelling |
+|---|---|---|
+| Solid / JSX | `"jsx": "preserve"`, `"jsxImportSource": "@gjsify/gtk-host"` | kebab (`gtk-box`) |
+| React / JSX | `"jsx": "react-jsx"`, `"jsxImportSource": "@gjsify/gtk-host/react"` | kebab (`gtk-box`) |
+| Vue | `import '@gjsify/gtk-host/vue-components'` + `"strictTemplates": true` | either (`GtkBox`, `gtk-box`) |
+
+The spellings are measured, not chosen. A capitalised `JSX.IntrinsicElements` key is never
+consulted, because `<GtkBox/>` is `TS2304: Cannot find name 'GtkBox'`. Volar resolves a kebab
+template tag to either key spelling but a Pascal tag only to a Pascal key, so one GType key
+covers both — and that key is also the table key and the GtkBuilder XML key.
+
+`noImplicitAny: true` and `strictTemplates: true` are load-bearing in the same way: without
+them the checker accepts everything and you conclude the surface works. See the two pipeline
+pages for the exact traps.
+
+## Read the source
+
+Three showcases build the same window three ways, and each asserts the resulting tree against
+the **real** widget tree on every launch:
+
+- [`adw-host-counter`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/adw-host-counter)
+  — imperative, straight through the host ops
+- [`solid-host-counter`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/solid-host-counter)
+  — the same window as Solid JSX
+- [`vue-host-counter`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/vue-host-counter)
+  — the same window as a `.vue` single-file component
+
+## See also
+
+- [Solid JSX](/gjsify/guides/solid-jsx/) for the compile step a `.tsx` entry needs
+- [Vue SFCs](/gjsify/guides/vue-sfc/) for the compile step a `.vue` entry needs
+- [Native Adwaita Apps](/gjsify/guides/native-adwaita-app/) for the application shell you
+  mount into
+- [GObject Classes](/gjsify/patterns/gobject-classes/) for the `registerClass` rules your own
+  widget subclasses follow — the host resolves a subclass through its nearest registered
+  ancestor
+- [Adwaita gallery](/gjsify/adwaita/) for the widgets themselves
