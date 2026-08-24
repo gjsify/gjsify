@@ -82,9 +82,12 @@ export function findJsxEntryPoint(entryPoints: readonly string[]): string | unde
 }
 
 /**
- * The refusal. Names the file, what the default would do to it, and each of the three
- * settings that answer the question — the two automatic-runtime spellings and the
- * preserve-plus-compiler route.
+ * The refusal. Names the file, what the default would do to it, and the routes that answer
+ * the question — PRESERVE-plus-compiler first, because that is the one a GTK host wants:
+ * `@gjsify/gtk-host/jsx-runtime` is a TYPE surface whose `jsx()`/`jsxs()` THROW on purpose
+ * ("a TYPE surface, not an automatic JSX runtime"), so naming it as an `importSource`
+ * trades a build that fails for a build that dies at the first element. An error message
+ * that recommends the wrong fix is worse than one that recommends none.
  *
  * Scoped to `--app gjs` by its caller: on `--app node`/`--app browser` the react default
  * is a legitimate answer for a project that has react installed, and refusing there would
@@ -101,12 +104,16 @@ export function jsxConfigMissingError(entry: string): Error {
             'found: react/jsx-runtime" — and where react IS installed it would render React elements, which a ' +
             'GTK host does nothing with.\n\n' +
             'Configure one of:\n' +
-            '  - the automatic runtime, in package.json#gjsify:\n' +
-            '      "bundler": { "transform": { "jsx": { "importSource": "@gjsify/gtk-host" } } }\n' +
-            '  - the same thing in tsconfig.json, which the bundler also reads:\n' +
-            '      "compilerOptions": { "jsx": "react-jsx", "jsxImportSource": "@gjsify/gtk-host" }\n' +
-            '  - preserved JSX plus the framework compiler that consumes it — `"jsx": "preserve"` (either\n' +
-            '    place) and the plugin under `gjsify.bundler.plugins` (`babel-preset-solid` for Solid, the\n' +
-            '    Vue SFC compiler for Vue).',
+            '  - PRESERVED JSX plus the framework compiler that consumes it — the route a GTK host wants.\n' +
+            '    Set `"jsx": "preserve"` (in `gjsify.bundler.transform.jsx` or tsconfig\n' +
+            '    `compilerOptions.jsx`) and register the compiler under `gjsify.bundler.plugins`:\n' +
+            '    `babel-preset-solid` for Solid, the Vue SFC compiler for Vue. Pair it with tsconfig\n' +
+            '    `"jsxImportSource": "@gjsify/gtk-host"` for the TYPES.\n' +
+            '  - an automatic JSX runtime this project actually has:\n' +
+            '      "bundler": { "transform": { "jsx": { "importSource": "<pkg exporting ./jsx-runtime>" } } }\n' +
+            '    or the same in tsconfig: `"jsx": "react-jsx"` + `"jsxImportSource": "<pkg>"`. NOT\n' +
+            '    `@gjsify/gtk-host` — its `/jsx-runtime` is a TYPE surface and throws when called.\n' +
+            '  - `"jsx": false`, if this entry should contain no JSX at all: the transformer then\n' +
+            '    reports the JSX itself instead of compiling it for a runtime that is not there.',
     );
 }

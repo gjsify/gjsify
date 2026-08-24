@@ -106,8 +106,9 @@ export function formatSurvivingJsx(found: SurvivingJsx, label: string): string {
             'afterwards. Either:',
         '  - register the framework compiler that consumes preserved JSX (`babel-preset-solid` for Solid, the ' +
             'Vue SFC compiler) under `gjsify.bundler.plugins`, or',
-        '  - drop `preserve` and give the automatic runtime an import source: ' +
-            '`bundler.transform.jsx: { "importSource": "@gjsify/gtk-host" }`, or tsconfig ' +
-            '`"jsx": "react-jsx"` + `"jsxImportSource"`.',
+        '  - drop `preserve` and give the automatic runtime an import source that resolves AND runs: ' +
+            '`bundler.transform.jsx: { "importSource": "<pkg exporting ./jsx-runtime>" }`, or tsconfig ' +
+            '`"jsx": "react-jsx"` + `"jsxImportSource"`. Not `@gjsify/gtk-host` — its `/jsx-runtime` is a ' +
+            'TYPE surface and throws when called.',
     ].join('\n');
 }

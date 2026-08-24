@@ -196,9 +196,9 @@ export function assertGjsBundleLoadable(
             'which is why the build reached this point at all. Likely causes:\n' +
             '  - the package is not installed — add it as a dependency and `gjsify install`.\n' +
             '  - a JSX entry with no JSX configuration: oxc then defaults to the automatic runtime with ' +
-            '`importSource: "react"`, so the bundle imports `react/jsx-runtime`. Set ' +
-            '`gjsify.bundler.transform.jsx.importSource` (e.g. `@gjsify/gtk-host`), or tsconfig ' +
-            '`"jsx": "react-jsx"` + `"jsxImportSource"`.\n' +
+            '`importSource: "react"`, so the bundle imports `react/jsx-runtime`. Point ' +
+            '`gjsify.bundler.transform.jsx.importSource` (or tsconfig `"jsxImportSource"`) at a runtime ' +
+            'this project HAS, or use `"jsx": "preserve"` plus the framework compiler that consumes it.\n' +
             '  - the specifier is meant to be provided by the host at runtime — then say so, with ' +
             '`gjsify.bundler.external`.',
     );
