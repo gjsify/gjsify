@@ -10,6 +10,7 @@
 import * as acorn from 'acorn';
 import * as walk from 'acorn-walk';
 import { GJS_GLOBALS_MAP } from '@gjsify/resolve-npm/globals-map';
+import { classifyJsxParseFailure, formatSurvivingJsx } from './jsx-survival.js';
 
 const KNOWN_GLOBALS = new Set(Object.keys(GJS_GLOBALS_MAP as Record<string, string>));
 
@@ -121,6 +122,32 @@ interface ScanOptions {
 }
 
 /**
+ * Parse one analysis chunk, and say what a JSX failure IS.
+ *
+ * This parse is the first thing a `--globals auto` build does with bundled output, so a
+ * `jsx: "preserve"` project with no framework compiler dies HERE — and acorn's own
+ * message is `Unexpected token (3:11)`, which names neither JSX, nor the file, nor a
+ * setting. Every other parse failure is re-thrown untouched: acorn trailing
+ * SpiderMonkey on new syntax is acorn's problem, not the project's, and claiming JSX
+ * for it would be a lie with a fix attached.
+ */
+function parseAnalysisChunk(code: string): acorn.Program {
+    try {
+        return acorn.parse(code, {
+            ecmaVersion: 'latest',
+            sourceType: 'module',
+            // Acorn rejects shebangs by default, and any project bundling its own CLI gets
+            // one hoisted to byte 0.
+            allowHashBang: true,
+        });
+    } catch (err) {
+        const jsx = classifyJsxParseFailure(code, err);
+        if (jsx === null) throw err;
+        throw new Error(formatSurvivingJsx(jsx, 'the analysis bundle'), { cause: err });
+    }
+}
+
+/**
  * Core scanner behind `detectFreeGlobals` (web/Node globals map) and
  * `detectGjsAmbientGlobals` (the `--app node` GJS-ambient set), parametrised so the node
  * path can use a different known-globals set and the stricter host-member handling.
@@ -140,13 +167,7 @@ function scanFreeGlobals(code: string, opts: ScanOptions): Set<string> {
     const knownGlobals = opts.knownGlobals;
     const methodMarkers = opts.methodMarkers ?? {};
     const wasmMarkers = opts.wasmMarkers ?? {};
-    const ast = acorn.parse(code, {
-        ecmaVersion: 'latest',
-        sourceType: 'module',
-        // Acorn rejects shebangs by default, and any project bundling its own CLI gets
-        // one hoisted to byte 0.
-        allowHashBang: true,
-    });
+    const ast = parseAnalysisChunk(code);
 
     // Pass 1: every declared name in the module.
     const declaredNames = new Set<string>();
