@@ -40,14 +40,6 @@ export const err = {
                 `catch and no diagnostic, so the host refuses here while a refusal is still reportable. ` +
                 `Author ${prop} on the element.`,
         ),
-    missingConstructProp: (tag: string, prop: string) =>
-        new GtkHostError(
-            'missing-construct-prop',
-            `<${tag}> cannot be constructed without ${prop}. In the installed library this is not an ` +
-                `exception but a g_error(): the process ABORTS (SIGABRT, exit 134, core dump) with no ` +
-                `catch and no diagnostic, so the host refuses here while a refusal is still reportable. ` +
-                `Author ${prop} on the element.`,
-        ),
     unknownProp: (tag: string, prop: string) =>
         new GtkHostError(
             'unknown-prop',
