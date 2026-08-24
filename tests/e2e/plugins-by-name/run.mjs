@@ -5,7 +5,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
+import { writeFileSync, mkdirSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { createTestEnvironment, cleanupTestEnvironment, setupProject } from '../helpers.mjs';
@@ -80,14 +80,41 @@ console.log(__INJECTED__);
         cleanupTestEnvironment(tmpDir);
     });
 
-    it('resolves a relative-path plugin and applies its transform', () => {
-        execFileSync('npx', ['gjsify', 'build', 'src/app.ts'], {
+    // Both cases write the SAME path — `bundler.output.file` decides it in either
+    // mode, `--outdir` does not override it (measured) — so each clears it first
+    // and neither can pass on the other's artefact.
+    const buildFresh = (args) => {
+        rmSync(join(projectDir, 'dist'), { recursive: true, force: true });
+        execFileSync('npx', ['gjsify', 'build', ...args], {
             cwd: projectDir,
             stdio: 'pipe',
             timeout: 60 * 1000,
         });
-        assert.ok(existsSync(join(projectDir, 'dist', 'app.js')), 'dist/app.js missing');
-        const out = readFileSync(join(projectDir, 'dist', 'app.js'), 'utf-8');
+        const built = join(projectDir, 'dist', 'app.js');
+        assert.ok(existsSync(built), 'dist/app.js missing');
+        return readFileSync(built, 'utf-8');
+    };
+
+    it('applies the same plugin in LIBRARY mode', () => {
+        // `--library` took a different code path: it never called
+        // `resolveUserPlugins`, never built the user text loader, and dropped
+        // `merged.plugins` when it assembled the chain. A configured plugin was
+        // therefore ignored SILENTLY — exit 0, a real bundle on disk, the default
+        // transform, no diagnostic anywhere. Nothing caught it because every
+        // plugin test in the repo built an APP.
+        const out = buildFresh(['--library', 'src/app.ts']);
+        assert.match(
+            out,
+            /"hello-from-by-name"/,
+            'library build ignored bundler.plugins — the marker is missing or fell back',
+        );
+        // The premise: a plugin that stopped running for some OTHER reason cannot
+        // pass this by leaving the source untouched.
+        assert.ok(!out.includes('__INJECTED__'), 'the substitution did not run at all');
+    });
+
+    it('resolves a relative-path plugin and applies its transform', () => {
+        const out = buildFresh(['src/app.ts']);
         assert.match(
             out,
             /"hello-from-by-name"/,

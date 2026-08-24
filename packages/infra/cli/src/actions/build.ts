@@ -164,6 +164,26 @@ export class BuildAction {
         const pnp = await buildPnpPlugin();
         const pnpPlugins: RolldownPluginOption[] = pnp ? [pnp] : [];
 
+        // The same chain `buildApp` assembles, and it was missing here entirely:
+        // a library build resolved NO user plugin and NO user text loader, then
+        // emitted the default transform at exit 0. Configuring
+        // `gjsify.bundler.plugins` and watching it do nothing is the repo's most
+        // expensive failure shape, and `@gjsify/gtk-host` itself builds with
+        // `--library` — which is where it was found.
+        const userTextLoader = textLoaderPlugin({ loaders: this.configData.loaders });
+        const userPlugins: RolldownPluginOption[] = userTextLoader ? [userTextLoader] : [];
+        if (userBundler.plugins?.length) {
+            // Under GJS a plugin module cannot always be imported directly — the
+            // native ESM loader does not follow `package.json#exports` — so the
+            // same bundle-then-import escape the app path uses is passed in here.
+            const resolved = await resolveUserPlugins(
+                userBundler.plugins,
+                process.cwd(),
+                isGjs() ? { loadModule: (pth, name) => this.loadPluginViaGjsBundle(pth, name, verbose) } : {},
+            );
+            userPlugins.push(...resolved);
+        }
+
         const results: RolldownOutput[] = [];
 
         if (multipleBuilds) {
@@ -186,6 +206,7 @@ export class BuildAction {
                     output: { dir: moduleOutdir },
                     userAliases: aliases,
                     pnpPlugins,
+                    userPlugins,
                 }),
             );
 
@@ -203,6 +224,7 @@ export class BuildAction {
                     output: { dir: mainOutdir },
                     userAliases: aliases,
                     pnpPlugins,
+                    userPlugins,
                 }),
             );
         } else {
@@ -229,6 +251,7 @@ export class BuildAction {
                     output: { dir: outdir },
                     userAliases: aliases,
                     pnpPlugins,
+                    userPlugins,
                 }),
             );
         }
@@ -1052,6 +1075,7 @@ interface OneLibraryBuildArgs {
     output: { file?: string; dir?: string };
     userAliases?: Record<string, string>;
     pnpPlugins: RolldownPluginOption[];
+    userPlugins: RolldownPluginOption[];
 }
 
 async function runOneLibraryBuild(args: OneLibraryBuildArgs): Promise<RolldownOutput> {
@@ -1067,7 +1091,11 @@ async function runOneLibraryBuild(args: OneLibraryBuildArgs): Promise<RolldownOu
     const merged = mergeBundlerOptions(cfg.options as BundlerOptions, args.userBundler);
     const finalOpts: BundlerOptions = {
         ...merged,
-        plugins: [...args.pnpPlugins, ...cfg.plugins],
+        // Same order as the app path: PnP resolves, then the user transforms,
+        // then gjsify's own chain. `merged.plugins` is deliberately NOT spread —
+        // the user's entries arrive RESOLVED, in `userPlugins`, exactly as
+        // `buildApp` passes them.
+        plugins: [...args.pnpPlugins, ...args.userPlugins, ...cfg.plugins],
     };
 
     return await runBundle(finalOpts);
