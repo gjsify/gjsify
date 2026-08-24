@@ -18,6 +18,18 @@
             "types": "./lib/types/adapters/solid.d.ts",
             "default": "./lib/esm/adapters/solid.js"
         },
+        "./react": {
+            "types": "./lib/types/adapters/react.d.ts",
+            "default": "./lib/esm/adapters/react.js"
+        },
+        "./react/jsx-runtime": {
+            "types": "./lib/types/react-jsx-runtime.d.ts",
+            "default": "./lib/esm/react-jsx-runtime.js"
+        },
+        "./react/jsx-dev-runtime": {
+            "types": "./lib/types/react-jsx-runtime.d.ts",
+            "default": "./lib/esm/react-jsx-runtime.js"
+        },
         "./conformance": {
             "types": "./lib/types/conformance/index.d.ts",
             "default": "./lib/esm/conformance/index.js"
@@ -49,7 +61,7 @@
         "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
         "build:types": "gjsify tsc",
         "build:test": "gjsify run build:test:gjs",
-        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs --define '__VUE_OPTIONS_API__=false' --define '__VUE_PROD_DEVTOOLS__=false' --define '__VUE_PROD_HYDRATION_MISMATCH_DETAILS__=false' --define 'process.env.NODE_ENV=\"production\"'",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs --define '__VUE_OPTIONS_API__=false' --define '__VUE_PROD_DEVTOOLS__=false' --define '__VUE_PROD_HYDRATION_MISMATCH_DETAILS__=false' --define 'process.env.NODE_ENV=\"production\"' --exclude-globals navigator",
         "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs",
         "test:gjs": "gjsify run test.gjs.mjs",
         "generate": "gjsify build src/generator/main.mts --app gjs --outfile tmp/generate.gjs.mjs && gjsify run tmp/generate.gjs.mjs -- --out src/generated && gjsify format src/generated"
@@ -73,13 +85,21 @@
     },
     "peerDependencies": {
         "@vue/runtime-core": "^3.5.0",
-        "solid-js": "^1.9.0"
+        "solid-js": "^1.9.0",
+        "react": "^18.3.1",
+        "react-reconciler": "^0.29.2"
     },
     "peerDependenciesMeta": {
         "@vue/runtime-core": {
             "optional": true
         },
         "solid-js": {
+            "optional": true
+        },
+        "react": {
+            "optional": true
+        },
+        "react-reconciler": {
             "optional": true
         }
     },
@@ -92,7 +112,11 @@
         "typescript": "^6.0.3",
         "@gjsify/domparser": "workspace:^",
         "vue": "^3.5.41",
-        "vue-tsc": "^3.3.11"
+        "vue-tsc": "^3.3.11",
+        "react": "^18.3.1",
+        "react-reconciler": "^0.29.2",
+        "@types/react": "^18.3.12",
+        "@types/react-reconciler": "^0.28.9"
     },
     "gjsify": {
         "runtimes": {
