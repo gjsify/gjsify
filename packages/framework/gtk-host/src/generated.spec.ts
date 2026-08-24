@@ -147,6 +147,25 @@ export default async () => {
                 // to tell which, while the same sweep is silent on a workstation
                 // both with and without a session bus.
                 const noisy: string[] = [];
+                // The ONE exemption, and it is about the machine rather than the
+                // widget. `GtkColorChooserDialog`'s eyedropper asks the Screenshot
+                // portal for its version; a CI container has a D-Bus session and no
+                // `xdg-desktop-portal` behind it, so GTK warns:
+                //
+                //   Cannot get portal org.freedesktop.portal.Screenshot version:
+                //   GDBus.Error:org.freedesktop.DBus.Error.InvalidArgs: No such
+                //   interface “org.freedesktop.portal.Screenshot”
+                //
+                // Measured, and the third state is why it took a CI run to see: with
+                // a portal it is silent, with NO session bus at all it is silent
+                // (GTK never asks), and only with a bus that answers without the
+                // interface does it warn. Stripping DBUS_SESSION_BUS_ADDRESS on a
+                // workstation reproduces the second state, not the container's.
+                //
+                // Scoped to the MESSAGE, not to the widget: any widget reaching a
+                // portal produces this, and `GtkColorChooserDialog` stays under test
+                // for everything else it might say.
+                const missingPortal = /^Cannot get portal org\.freedesktop\.portal\./;
                 for (const w of GENERATED_WIDGETS) {
                     // Through the HOST, not through `new w.ctor()`: `materialize` is
                     // where the refusal lives, so constructing around it would leave
@@ -176,12 +195,18 @@ export default async () => {
                     } catch (error) {
                         failed.push(`${w.gtype}: ${(error as Error).message}`);
                     }
-                    if (diagnostics.seen.length > 0) noisy.push(`${w.gtype}: ${diagnostics.seen.join(' | ')}`);
+                    const said = diagnostics.seen.filter((message) => !missingPortal.test(message));
+                    if (said.length > 0) noisy.push(`${w.gtype}: ${said.join(' | ')}`);
                     diagnostics.reset();
                 }
                 expect(failed).toStrictEqual([]);
                 expect(noisy).toStrictEqual([]);
                 expect(required.size).toBe(1);
+                // The exemption is NARROW — it must not swallow an ordinary GTK
+                // warning, which is the whole reason the sweep exists.
+                expect(missingPortal.test('Cannot get portal org.freedesktop.portal.Screenshot version: x')).toBe(true);
+                expect(missingPortal.test('Trying to snapshot GtkButton without a current allocation')).toBe(false);
+                expect(missingPortal.test('gtk_box_append: assertion failed')).toBe(false);
             });
 
             await it('refuses a fatal construction by name instead of aborting', async () => {
