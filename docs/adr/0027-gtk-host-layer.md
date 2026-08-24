@@ -74,7 +74,9 @@ gjsify owns a framework-agnostic GTK4/Adwaita host as a Tier-3 package,
    rotation appends the new child FIRST — detaching the tail before an append that
    can throw destroyed already-rendered siblings.
 4. **Values are coerced against the installed GTK's `GParamSpec`,** and every
-   silent failure is refused by name — thirteen codes today. A string enum nick
+   silent failure is refused by name, one code each — `src/errors.ts` IS the list,
+   and carries no count, because a hand-kept one drifts (it said thirteen while the
+   file held eighteen). A string enum nick
    that resolves is APPLIED; one that does not is `bad-enum`. `bad-boolean` and
    `bad-flags` refuse the two other types GObject mis-stores silently
    (`Boolean('false')` is TRUE). A signal name is checked against the CLASS, so a

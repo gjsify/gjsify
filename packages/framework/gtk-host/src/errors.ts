@@ -23,8 +23,22 @@ export const err = {
     unknownTag: (tag: string) =>
         new GtkHostError(
             'unknown-tag',
-            `No descriptor registered for <${tag}>. Register one with registerWidget({ gtype: '${tag}', … }) ` +
-                `or use a raw GType tag that is present in the installed typelib.`,
+            `No descriptor registered for <${tag}>. Register one with registerWidget({ gtype: '${tag}', … }). ` +
+                // NOT "or use a raw GType tag": `lookupWidget` is a Map.get and nothing
+                // else — there is no `GObject.type_from_name` anywhere in this package —
+                // so a real, installed GType name lands right back here. That is ADR
+                // 0028's decision, not an omission ("As a TAG it does not: createElement
+                // looks the GType name up exactly"), and the hierarchy walk that DOES
+                // exist, `nearestRegistered`, only ever answers for a mount container.
+                `Being a real GType in the installed typelib is not enough on its own.`,
+        ),
+    missingConstructProp: (tag: string, prop: string) =>
+        new GtkHostError(
+            'missing-construct-prop',
+            `<${tag}> cannot be constructed without ${prop}. In the installed library this is not an ` +
+                `exception but a g_error(): the process ABORTS (SIGABRT, exit 134, core dump) with no ` +
+                `catch and no diagnostic, so the host refuses here while a refusal is still reportable. ` +
+                `Author ${prop} on the element.`,
         ),
     missingConstructProp: (tag: string, prop: string) =>
         new GtkHostError(
