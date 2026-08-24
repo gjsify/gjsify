@@ -29,7 +29,8 @@
  * both spellings are generated and camelCase is the one to prefer.
  */
 
-import type { ElementChild, JsxAttributes, WithOnce } from './attrs.js';
+import type { JsxAttributes, WithOnce } from './attrs.js';
+import type { HostNode } from './types.js';
 import type { WidgetClassByTag, WidgetPropsByTag } from './generated/props.js';
 
 /** Every GTK/Adwaita tag, with its properties, its handlers and its `ref`. */
@@ -38,7 +39,27 @@ export type GtkIntrinsicElements = {
 };
 
 export namespace JSX {
-    export type Element = ElementChild;
+    /**
+     * The type of a JSX EXPRESSION — a host node, not `ElementChild`.
+     *
+     * It was `ElementChild` (`HostNode | ElementChildren | string | number |
+     * boolean | null | undefined`), which reads like the right answer because that
+     * is what may be PASSED as a child. It is not what a JSX element evaluates
+     * TO: the compiler's `createElement` returns a node, always.
+     *
+     * The imprecision was not cosmetic. `<For>`, `<Index>` and `<Show>` are typed
+     * in `adapters/solid.ts` against `HostNode` — deliberately, because Solid's own
+     * signatures pin `JSX.Element` to the DOM's `Element` — so with `Element` this
+     * wide the FIRST `<For>` in any application failed with
+     * `Type 'ElementChild' is not assignable to type 'HostNode'`, and the whole
+     * control-flow surface was untypeable. Found by the first real JSX app
+     * (`showcases/gtk/solid-host-counter`); the fixtures in `type-tests/jsx/` had
+     * never used a control-flow component, which is why they went green over it.
+     * `positive-control-flow.tsx` is that gap closed.
+     *
+     * Children stay wide: they are typed by `JsxAttributes.children`, not by this.
+     */
+    export type Element = HostNode;
     /** Names the prop children arrive on — without it, nesting is an error. */
     export interface ElementChildrenAttribute {
         children: Record<never, never>;
