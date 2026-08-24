@@ -566,3 +566,20 @@ export {
 };
 
 export default assert;
+
+// CJS-interop for bundled `require('assert')`. The Rolldown/esbuild `__toCommonJS`
+// helper special-cases a `"module.exports"` own-property on the module namespace and
+// returns it verbatim instead of building the namespace object, so exposing the
+// callable default under that string-export name makes a bundled CJS
+// `require('assert')` yield the FUNCTION (matching Node's `module.exports = assert`).
+// The `require`-condition `cjs-compat.cjs` shim cannot be selected here: `--app gjs`'s
+// esm `conditionNames` omit `require`. Same fix, same reason, as `@gjsify/stream` and
+// `@gjsify/events` — and the same failure without it, one layer deeper.
+//
+// MEASURED CONSUMER: `@babel/helper-module-imports` does `const assert =
+// require("assert")` and then `assert(typeof importName === "string")`. Bundled for
+// `--app gjs` that threw `_assert is not a function` inside `ImportInjector.addNamed`,
+// which is on the path of EVERY `babel-preset-solid` compile — so Solid JSX could not
+// be compiled by a GJS-hosted bundler at all. Normal ESM named/default imports were
+// unaffected, which is why nothing else noticed.
+export { assert as 'module.exports' };
