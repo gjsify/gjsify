@@ -16,7 +16,7 @@
         "lib"
     ],
     "scripts": {
-        "clear": "gjsify clear lib test.node.mjs test.gjs.mjs tsconfig.tsbuildinfo",
+        "clear": "gjsify clear lib test.node.mjs test.gjs.mjs *.tsbuildinfo",
         "check": "gjsify tsc --noEmit",
         "build": "gjsify tsc -p tsconfig.build.json",
         "build:test": "gjsify run build:test:node && gjsify run build:test:gjs",
