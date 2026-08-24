@@ -251,12 +251,17 @@ export async function compileSfc(
     const compilerOptions = {
         isCustomElement,
         runtimeModuleName,
-        // The adapter's contract, and its error messages depend on it: `cloneNode`
-        // and `insertStaticContent` THROW there rather than lie, because a GObject
-        // does not clone and GTK parses no HTML. Measured, `stringifyStatic` never
-        // fires for a `gtk-*`/`Gtk*` tag anyway (it only stringifies tags the DOM
-        // compiler knows), so this is the adapter's prescription made true rather
-        // than a fix for a failure seen here.
+        // The adapter's contract, and it prevents a real throw rather than merely
+        // honouring a prescription. `hoistStatic` (on by default) enables
+        // compiler-dom's `stringifyStatic`, which turns a large enough static
+        // subtree into `createStaticVNode("<html…>")` — and the adapter's
+        // `insertStaticContent` THROWS, because GTK parses no HTML. It reaches GTK
+        // tags too: MEASURED, 22 `<gtk-label title="t">x</gtk-label>` children
+        // stringified exactly like 22 `<div>`s. (A first measurement with 22
+        // self-closing, text-free labels did NOT stringify, and reading that as
+        // "custom elements are exempt" is the kind of near-miss this comment exists
+        // to stop.) `cloneNode` is the same class one step further out: a GObject
+        // does not clone.
         hoistStatic: false,
         transformHoist: null,
     };

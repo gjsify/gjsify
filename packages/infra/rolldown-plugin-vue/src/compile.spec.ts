@@ -193,14 +193,28 @@ export default async () => {
 
         await it('emits no cached static subtree, which is what the adapter prescribes', async () => {
             // `hoistStatic` defaults to on and turns a static run into
-            // `_cache[0] || (_cache[0] = [...])` with patchFlag -1. The adapter's
-            // `cloneNode`/`insertStaticContent` THROW rather than lie, so the
-            // pipeline it documents is the one that never reaches them.
+            // `_cache[0] || (_cache[0] = [...])` with patchFlag -1.
             const code = await compile(
                 `<template><gtk-box><gtk-label label="a" /><gtk-label label="b" /></gtk-box></template>`,
             );
             expect(count(code, '_cache[')).toBe(0);
+        });
+
+        await it('emits no STRINGIFIED static subtree, which the adapter cannot mount', async () => {
+            // A SEPARATE fixture, because the small one above cannot show this: with
+            // `hoistStatic` on, compiler-dom's `stringifyStatic` turns a big enough
+            // static run into `createStaticVNode("<html…>")`, and the adapter's
+            // `insertStaticContent` THROWS — GTK parses no HTML. It applies to GTK
+            // tags too: measured, 22 `<gtk-label title="t">x</gtk-label>` children
+            // stringify exactly like 22 `<div>`s, while 22 self-closing text-free
+            // labels do not reach the threshold at all. Asserting the small fixture
+            // would have "held" this while measuring nothing.
+            const children = Array.from({ length: 22 }, (_, i) => `<gtk-label title="t${i}">x${i}</gtk-label>`).join(
+                '',
+            );
+            const code = await compile(`<template><gtk-box>${children}</gtk-box></template>`);
             expect(count(code, '_createStaticVNode(')).toBe(0);
+            expect(count(code, '_createElementVNode("gtk-label"')).toBe(22);
         });
     });
 
