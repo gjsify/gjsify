@@ -41,7 +41,7 @@ function resolveIdOf(plugin: ReturnType<typeof vuePlugin>) {
 }
 
 function loadOf(plugin: ReturnType<typeof vuePlugin>) {
-    return plugin.load as unknown as (this: unknown, id: string) => Promise<{ code: string; map: null } | null>;
+    return plugin.load as unknown as (this: unknown, id: string) => Promise<{ code: string; map: unknown } | null>;
 }
 
 const SFC = `<script setup lang="ts">const n: number = 6;</script>
@@ -116,6 +116,18 @@ export default async () => {
             await load.call(ctx, `${extra}${SUFFIX}`);
             expect(warnings.length).toBe(1);
             expect(warnings[0]).toContain('<docs> block');
+        });
+
+        await it('hands rolldown a map that resolves into the .vue file', async () => {
+            // `map: null` was what this returned, so every stack frame and every build
+            // diagnostic pointed at a generated line.
+            const { ctx } = context(file);
+            const result = await load.call(ctx, `${file}${SUFFIX}`);
+            const map = result?.map as { sources?: string[]; sourcesContent?: string[]; mappings?: string } | null;
+            expect(map === null || map === undefined).toBe(false);
+            expect(map?.sources).toStrictEqual([file]);
+            expect(map?.sourcesContent?.[0]).toBe(SFC);
+            expect((map?.mappings ?? '').length > 0).toBe(true);
         });
 
         await it('honours a caller-supplied include filter in BOTH hooks', async () => {

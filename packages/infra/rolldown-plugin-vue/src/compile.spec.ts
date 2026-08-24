@@ -21,12 +21,17 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import { compileSfc, isGtkHostTag } from './index.js';
+import { originalPositionFor } from './source-map.js';
 
 const OPTIONS = { isCustomElement: isGtkHostTag, runtimeModuleName: '@vue/runtime-core' };
 
 /** Compile with the defaults this plugin ships. */
-const compile = (source: string, filename = 'App.vue', over: Partial<typeof OPTIONS> = {}) =>
+const compileFull = (source: string, filename = 'App.vue', over: Partial<typeof OPTIONS> = {}) =>
     compileSfc(source, filename, { ...OPTIONS, ...over });
+
+/** …and the emitted code alone, which is what most of these assert. */
+const compile = async (source: string, filename = 'App.vue', over: Partial<typeof OPTIONS> = {}) =>
+    (await compileFull(source, filename, over)).code;
 
 /**
  * The message of the error `fn` must reject with.
@@ -254,10 +259,65 @@ export default async () => {
         });
     });
 
+    await describe('compileSfc: the source map', async () => {
+        const SOURCE =
+            `<script setup lang="ts">\nconst spacing: number = 12;\n</script>\n\n` +
+            `<template>\n  <gtk-box :spacing="spacing" />\n</template>\n`;
+
+        await it('maps a line of the emitted module back to the .vue file', async () => {
+            const { code, map } = await compileFull(SOURCE, '/abs/Counter.vue');
+            expect(map === null).toBe(false);
+            const line = code.split('\n').findIndex((text) => text.includes('const spacing: number = 12;')) + 1;
+            const at = originalPositionFor(map as NonNullable<typeof map>, line, 1);
+            expect(at?.source).toBe('/abs/Counter.vue');
+            // Line 2 of the SFC, i.e. the script block's own line — not the generated one.
+            expect(at?.line).toBe(2);
+        });
+
+        await it('maps the TEMPLATE half too, which is the half a concat would break', async () => {
+            // The reason the two maps are decoded rather than concatenated: a raw splice
+            // reads the template map's first segment relative to the script map's last,
+            // which lands every template mapping on the wrong source line.
+            const { code, map } = await compileFull(SOURCE, '/abs/Counter.vue');
+            const lines = code.split('\n');
+            const line = lines.findIndex((text) => text.includes('_createElementBlock("gtk-box"'));
+            const column = (lines[line] as string).indexOf('_createElementBlock') + 1;
+            const at = originalPositionFor(map as NonNullable<typeof map>, line + 1, column);
+            expect(at?.source).toBe('/abs/Counter.vue');
+            // `<gtk-box>` sits at line 6, column 3 of the fixture above — and the COLUMN
+            // is asserted too, because a merge that dropped every source column to 0
+            // would still satisfy a line-only assertion.
+            expect(at?.line).toBe(6);
+            expect(at?.column).toBe(3);
+        });
+
+        await it('carries the SFC source, so a consumer needs no second read', async () => {
+            const { map } = await compileFull(SOURCE, '/abs/Counter.vue');
+            expect(map?.sourcesContent[0]).toBe(SOURCE);
+            expect(map?.version).toBe(3);
+        });
+
+        await it('is there for every SFC shape, because each has a mapped half', async () => {
+            // `combineSourceMaps` answers `null` for a module built only from generated
+            // parts, and no SFC reaches that: measured, an SFC with neither a template
+            // nor a script — `<docs>read me</docs>` alone — is refused by `parse()` as
+            // invalid, so one of the two halves always carries a map.
+            for (const fixture of [
+                `<template><gtk-box /></template>`,
+                `<script>export default { name: 'X' }</script>`,
+                `<script setup>const a = 1;</script>\n<template><gtk-box /></template>`,
+            ]) {
+                const { map } = await compileFull(fixture, 'Shape.vue');
+                expect(map === null).toBe(false);
+            }
+            expect(await refusal(() => compile(`<docs>read me</docs>`, 'Doc.vue'))).toContain('is not a valid SFC');
+        });
+    });
+
     await describe('compileSfc: what it says out loud', async () => {
         await it('names a custom block instead of dropping it in silence', async () => {
             const warnings: string[] = [];
-            const code = await compileSfc(`<template><gtk-box /></template>\n<docs>read me</docs>`, 'Doc.vue', {
+            const { code } = await compileSfc(`<template><gtk-box /></template>\n<docs>read me</docs>`, 'Doc.vue', {
                 ...OPTIONS,
                 onWarn: (message) => warnings.push(message),
             });

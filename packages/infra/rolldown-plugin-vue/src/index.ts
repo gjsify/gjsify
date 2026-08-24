@@ -29,6 +29,8 @@ import type { Plugin } from 'rolldown';
 // `consistent-type-imports`.
 import type * as VueCompilerSfc from '@vue/compiler-sfc';
 
+import { type CombinedSourceMap, type SourceMapChunkMap, combineSourceMaps } from './source-map.js';
+
 /** `@vue/compiler-sfc`, loaded lazily on the first `.vue` module. */
 type CompilerSfc = typeof VueCompilerSfc;
 
@@ -186,6 +188,13 @@ function messagesOf(errors: readonly unknown[]): string {
     return errors.map((error) => String((error as { message?: unknown }).message ?? error)).join('\n  ');
 }
 
+/** The emitted module and one map for it, over the whole `.vue` file. */
+export interface CompiledSfc {
+    code: string;
+    /** `null` only when neither half produced a map — never a stand-in for "unmapped". */
+    map: CombinedSourceMap | null;
+}
+
 /**
  * Compile one SFC's source to a component module.
  *
@@ -207,7 +216,7 @@ export async function compileSfc(
          */
         onWarn?: (message: string) => void;
     },
-): Promise<string> {
+): Promise<CompiledSfc> {
     const { parse, compileScript, compileTemplate } = await load();
     const { isCustomElement, runtimeModuleName } = options;
 
@@ -284,7 +293,13 @@ export async function compileSfc(
           })
         : null;
 
-    const parts: string[] = [script?.content ?? `const ${SFC_BINDING} = {};`];
+    // Each piece with the map that explains it, so the module can carry ONE map over
+    // the whole `.vue` file instead of pointing every stack frame at a generated line.
+    const parts: { code: string; map: SourceMapChunkMap | null }[] = [
+        script === null
+            ? { code: `const ${SFC_BINDING} = {};`, map: null }
+            : { code: script.content, map: script.map ?? null },
+    ];
 
     if (descriptor.template !== null) {
         const template = compileTemplate({
@@ -301,11 +316,20 @@ export async function compileSfc(
                     messagesOf(template.errors),
             );
         }
-        parts.push(renameRenderExport(template.code, filename), `${SFC_BINDING}.render = ${RENDER_BINDING};`);
+        // The rename is a same-line replacement, so it moves no mapping to another
+        // line — and the `export function render(` line the compiler emits carries no
+        // mapping of its own.
+        parts.push({ code: renameRenderExport(template.code, filename), map: template.map ?? null });
+        parts.push({ code: `${SFC_BINDING}.render = ${RENDER_BINDING};`, map: null });
     }
 
-    parts.push(`${SFC_BINDING}.__file = ${JSON.stringify(filename)};`, `export default ${SFC_BINDING};`);
-    return parts.join('\n');
+    parts.push({ code: `${SFC_BINDING}.__file = ${JSON.stringify(filename)};`, map: null });
+    parts.push({ code: `export default ${SFC_BINDING};`, map: null });
+
+    return {
+        code: parts.map((part) => part.code).join('\n'),
+        map: combineSourceMaps(parts.map((part) => ({ lineCount: part.code.split('\n').length, map: part.map }))),
+    };
 }
 
 /**
@@ -350,12 +374,11 @@ export function vuePlugin(options: VuePluginOptions = {}): Plugin {
             // reaches rolldown's file loader and fails on a path that does not exist.
             if (!include.test(filename)) return null;
             const source = await readFile(filename, 'utf8');
-            const code = await compileSfc(source, filename, {
+            return compileSfc(source, filename, {
                 isCustomElement,
                 runtimeModuleName,
                 onWarn: (message) => this.warn(message),
             });
-            return { code, map: null };
         },
     };
 }
