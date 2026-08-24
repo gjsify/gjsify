@@ -5,7 +5,7 @@
 // The type surface: one interface per GIR declaration, mirroring GIR's own
 // inheritance, plus the two tag maps the dialect adapters build on.
 //
-// 190 interfaces for 164 widgets — the widgets have 6771 writable
+// 190 interfaces for 164 widgets — the widgets have 6768 writable
 // property slots between them and 561 distinct property names, which is the whole
 // reason this is a hierarchy and not one flat interface per tag.
 

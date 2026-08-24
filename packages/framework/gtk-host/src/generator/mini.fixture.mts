@@ -33,6 +33,9 @@ export const MINI_GIR = `<?xml version="1.0"?>
     <enumeration name="Align" glib:type-name="MiniAlign">
       <member name="fill" value="0"/>
       <member name="baseline_fill" value="1"/>
+      <!-- A nick GIR CARRIES and the substitution would get wrong. 97 members
+           across this workspace's GIRs are shaped like this. -->
+      <member name="two_words" value="2" glib:nick="renamed"/>
     </enumeration>
     <bitfield name="StateFlags" glib:type-name="MiniStateFlags">
       <member name="active" value="1"/>

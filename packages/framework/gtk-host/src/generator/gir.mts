@@ -55,6 +55,17 @@ export interface GirProperty {
     readonly doc?: string;
 }
 
+/**
+ * The GObject nick a GIR enum member would get if GIR did not say.
+ *
+ * GIR writes `baseline_fill`; the nick GObject registered is `baseline-fill`. This
+ * is the FALLBACK for a `<member>` with no `glib:nick` — the attribute itself is
+ * the answer wherever it exists, because the substitution is right for Gtk and Adw
+ * by luck and not by construction: across every GIR in this workspace 40,940
+ * members carry the attribute and 97 disagree with it.
+ */
+export const nickOf = (member: string): string => member.replace(/_/g, '-');
+
 export interface GirParam {
     readonly name: string;
     readonly type: GirType;
@@ -275,7 +286,16 @@ export function readNamespace(xml: string): GirNamespace {
                 gtype,
                 qualified: `${name}.${local}`,
                 flags: tag === 'bitfield',
-                members: ownChildren(el, 'member').map((m) => m.getAttribute('name') ?? ''),
+                // `glib:nick` is the nick GObject actually registered. The old
+                // reader derived it from `name` with one underscore substitution,
+                // which is right for Gtk and Adw — measured, all 919 agree — and is
+                // right by LUCK: across every GIR in this workspace 40,940 members
+                // carry the attribute and 97 of them disagree with the derivation.
+                // A surface built on the guess would type a nick GTK refuses, and
+                // GObject drops a wrong nick silently.
+                members: ownChildren(el, 'member').map(
+                    (m) => m.getAttribute('glib:nick') ?? nickOf(m.getAttribute('name') ?? ''),
+                ),
             });
         }
     }
