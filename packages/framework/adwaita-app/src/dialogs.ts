@@ -54,11 +54,18 @@ export function confirmDialog(parent: Gtk.Widget, options: ConfirmOptions): Prom
     });
 }
 
-/** Present a single-button error `Adw.AlertDialog`; resolves when dismissed. */
-export function errorDialog(parent: Gtk.Widget, heading: string, body?: string): Promise<void> {
+/**
+ * Present a single-button error `Adw.AlertDialog`; resolves when dismissed.
+ *
+ * `okLabel` exists for the same reason {@link ConfirmOptions} carries `cancelLabel` and
+ * `confirmLabel`: this is library code with no text domain of its own, so a caption it hardcodes is
+ * one no application can translate. The English default stays as the fallback — an app that passes
+ * nothing gets "OK", which is at least honest about being untranslated rather than untranslatable.
+ */
+export function errorDialog(parent: Gtk.Widget, heading: string, body?: string, okLabel?: string): Promise<void> {
     return new Promise((resolve) => {
         const dialog = new Adw.AlertDialog({ heading, body: body ?? '' });
-        dialog.add_response('ok', 'OK');
+        dialog.add_response('ok', okLabel ?? 'OK');
         dialog.set_default_response('ok');
         dialog.set_close_response('ok');
         dialog.connect('response', () => resolve());

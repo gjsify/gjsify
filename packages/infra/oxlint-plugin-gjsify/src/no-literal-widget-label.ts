@@ -15,6 +15,11 @@
 // Only PROSE positions are checked. `icon-name`, `css-classes`, `action-name`, a stack page's
 // `name` and an `Adw.EntryRow`'s `text` (which carries user data, not a caption) are deliberately
 // absent: a false finding on those would teach people to disable the rule.
+//
+// The setter half matches on METHOD NAME alone — the rule cannot see whether the receiver is a
+// widget — so a non-GTK object with a `set_title` method is reported too. That is the deliberate
+// trade: the alternative is missing every setter call on a variable whose type the linter has no
+// access to, and `_()` around a genuinely non-UI string costs a catalogue entry and nothing else.
 
 import type { Context, Node, Rule } from './types.ts';
 import { walk } from './walk.ts';
@@ -35,16 +40,35 @@ const PROSE_PROPERTIES = new Set<string>([
     'secondary_text',
 ]);
 
-/** Setters that write the same prose positions. */
-const PROSE_SETTERS = new Set<string>([
-    'set_label',
-    'set_title',
-    'set_subtitle',
-    'set_description',
-    'set_heading',
-    'set_body',
-    'set_tooltip_text',
-    'set_placeholder_text',
+/**
+ * Setters that write the same prose positions, mapped to the PROPERTY they set — so the repair the
+ * message suggests is one Blueprint can actually express. `set_title: _("…")` is not a Blueprint
+ * property; `title` is.
+ */
+const PROSE_SETTERS = new Map<string, string>([
+    ['set_label', 'label'],
+    ['set_title', 'title'],
+    ['set_subtitle', 'subtitle'],
+    ['set_description', 'description'],
+    ['set_heading', 'heading'],
+    ['set_body', 'body'],
+    ['set_tooltip_text', 'tooltip-text'],
+    ['set_placeholder_text', 'placeholder-text'],
+]);
+
+/**
+ * Prose that arrives as a LATER argument, with the index it sits at.
+ *
+ * `Adw.AlertDialog` gets its button captions only through these, and nothing else covered them: a
+ * dialog whose `heading` this rule reports would still ship English-only buttons, in the very same
+ * function. Measured across the two consumer apps: 24 live `add_response(` call sites.
+ *
+ * The surface is small and closed — `Adw.AlertDialog` and `Adw.MessageDialog` are the only classes
+ * in `@girs/adw-1` that declare `set_response_label`.
+ */
+const PROSE_ARGUMENTS = new Map<string, number>([
+    ['add_response', 1],
+    ['set_response_label', 1],
 ]);
 
 /**
@@ -86,6 +110,19 @@ function isGtkAdwNew(node: Node): boolean {
 
 export const noLiteralWidgetLabelRule: Rule = {
     create(context: Context) {
+        /** For a caption with no declarative form: the only repair is `_()` at the call site. */
+        const reportInPlace = (node: Node, method: string, text: string): void => {
+            const shown = text.length > 40 ? `${text.slice(0, 40)}…` : text;
+            context.report({
+                message:
+                    `\`${method}\` is given the literal "${shown}". Extraction sees neither a Blueprint ` +
+                    `\`translatable\` attribute nor a \`_()\` call here, so this text can never reach a ` +
+                    `catalogue. There is no Blueprint property for it — the caption is added by a call — ` +
+                    `so wrap it: \`${method}(…, _("…"))\`.`,
+                node,
+            });
+        };
+
         const report = (node: Node, key: string, text: string): void => {
             const shown = text.length > 40 ? `${text.slice(0, 40)}…` : text;
             context.report({
@@ -100,7 +137,10 @@ export const noLiteralWidgetLabelRule: Rule = {
 
         return {
             Program(program: Node) {
-                walk(program, (node) => {
+                // The statements, NOT the Program node: oxlint hangs `tokens` and `comments` off
+                // Program, and `walk`'s node test is structural, so handing it Program walked the
+                // whole token stream — the large majority of this rule's cost, for nothing.
+                const visit = (node: Node) => {
                     // new Gtk.X({ title: "…" })
                     if (isGtkAdwNew(node)) {
                         for (const arg of (node.arguments as Node[] | undefined) ?? []) {
@@ -117,19 +157,32 @@ export const noLiteralWidgetLabelRule: Rule = {
                         }
                         return;
                     }
-                    // widget.set_title("…")
+                    // widget.set_title("…") / dialog.add_response("cancel", "…")
                     if (node.type === 'CallExpression') {
                         const callee = node.callee as Node | undefined;
                         if (!callee || callee.type !== 'MemberExpression' || callee.computed === true) return;
                         const property = callee.property as Node | undefined;
                         if (property?.type !== 'Identifier') return;
                         const name = property.name as string;
-                        if (!PROSE_SETTERS.has(name)) return;
                         const args = (node.arguments as Node[] | undefined) ?? [];
-                        const text = literalString(args[0]);
-                        if (text !== null) report(node, name, text);
+
+                        const setterProperty = PROSE_SETTERS.get(name);
+                        if (setterProperty !== undefined) {
+                            const text = literalString(args[0]);
+                            if (text !== null) report(node, setterProperty, text);
+                            return;
+                        }
+
+                        const index = PROSE_ARGUMENTS.get(name);
+                        if (index !== undefined) {
+                            const text = literalString(args[index]);
+                            // No Blueprint property to name here — a response label is ADDED by a
+                            // call, not declared — so the message says to wrap it in place.
+                            if (text !== null) reportInPlace(node, name, text);
+                        }
                     }
-                });
+                };
+                for (const statement of (program.body as Node[] | undefined) ?? []) walk(statement, visit);
             },
         };
     },
