@@ -128,6 +128,29 @@ For `--app gjs` the JS target is `firefox140` (SpiderMonkey 140), and `gi://*`, 
 
 </details>
 
+#### Compile JSX and Vue templates
+
+JSX and `.vue` are compiler input, not runtime syntax, so the build needs a plugin that knows which framework you meant. Name one under `gjsify.bundler.plugins` ([below](#name-a-bundler-plugin-instead-of-writing-a-config-file)) and build the entry normally:
+
+```bash
+gjsify build src/app.tsx --app gjs --outfile dist/app.gjs.mjs
+```
+
+- [`@gjsify/rolldown-plugin-solid`](/gjsify/guides/solid-jsx/) for SolidJS JSX
+- [`@gjsify/rolldown-plugin-vue`](/gjsify/guides/vue-sfc/) for Vue single-file components
+
+**`--app gjs` refuses a JSX entry that configures no transform**, and that refusal is the point. Left unset, the transformer applies its own default — the automatic React runtime — so the bundle imports `react/jsx-runtime`. GJS resolves no bare specifier, so the build would report the miss as a *warning*, exit 0, and the artifact would abort at load with `ImportError: Module not found: react/jsx-runtime`. On a project that does have React installed it is worse: the bundle builds React elements, which a GTK host does nothing with.
+
+Answer the question one of three ways, and the error message lists all three:
+
+| Answer | How |
+|---|---|
+| Preserve the JSX for a framework compiler | `"jsx": "preserve"` in tsconfig or `gjsify.bundler.transform.jsx`, plus the plugin above. Pair with tsconfig `"jsxImportSource": "@gjsify/gtk-host"` for the types. |
+| Use an automatic runtime you actually have | `"jsx": "react-jsx"` + `"jsxImportSource": "<pkg exporting ./jsx-runtime>"`. **Not** `@gjsify/gtk-host` — its `/jsx-runtime` is a type surface and throws when called. |
+| Say the entry holds no JSX | `"jsx": false`, and the transformer reports the JSX itself. |
+
+`--app node` and `--app browser` are unaffected: the React default is a legitimate answer there, and refusing would break builds for a mistake they did not make.
+
 #### Bundle a third-party CLI that reads its own `package.json`
 
 Tools like `typedoc` and `prettier` read their own `package.json` during top-level evaluation, via something like `Path.join(fileURLToPath(import.meta.url), '../../../package.json')`. Once bundled, `import.meta.url` points at your bundle, the lookup escapes the package, and the tool crashes on startup.
@@ -460,7 +483,7 @@ Anything you would pass repeatedly on the command line can live in the `gjsify` 
 | Key | What it sets |
 |---|---|
 | `app` | Default `--app` target for this project. |
-| `bundler` | Rolldown options passed through. Most projects only set `output.file` or `output.dir`. |
+| `bundler` | Rolldown options passed through. Most projects only set `output.file`, `output.dir` or [`plugins`](#name-a-bundler-plugin-instead-of-writing-a-config-file). |
 | `globals` | Default `--globals` value. |
 | `excludeGlobals` | Identifiers to drop from the auto-detected set. |
 | `exclude` | Glob patterns to exclude from entry points and aliases. |
@@ -505,6 +528,37 @@ To pull a constant out of `package.json` or the environment instead, use the ded
 ```
 
 An unset variable with no `default` becomes the literal `undefined`, so you can guard with `typeof __PREFIX__ === 'undefined'`.
+
+### Name a bundler plugin instead of writing a config file
+
+`bundler.plugins` takes a list of plugin *entries*, so a project that needs one extra transform keeps its whole build in `package.json`:
+
+```jsonc
+{
+  "gjsify": {
+    "bundler": {
+      "plugins": [
+        { "name": "@gjsify/rolldown-plugin-solid" },
+        { "name": "./build/my-plugin.mjs", "export": "myPlugin", "options": { "verbose": true } }
+      ]
+    }
+  }
+}
+```
+
+| Field | Default | What it does |
+|---|---|---|
+| `name` | required | A package name, or a path relative to the project. Resolution is anchored at the project root, so the project's own `node_modules` wins over the CLI's. |
+| `export` | `default` | Which export to call. It has to be a function returning a Rolldown plugin. |
+| `options` | `{}` | Passed to that function. |
+
+`plugins` is an array, and every entry is an object with those fields — a bare `"@gjsify/rolldown-plugin-solid"` string is not the same thing and is not accepted.
+
+A named plugin must be a real dependency of the package that configures it — `dependencies`, `devDependencies` or `optionalDependencies`, any of the three. In a monorepo an undeclared one resolves anyway through the hoisted root `node_modules` and then stops resolving the moment the package is installed from npm, which is a declaration that is true in the tree and false everywhere else. `gjsify` conformance fails on it rather than letting it ship.
+
+Plugins run in the order listed.
+
+Under `--app gjs` the CLI bundles the plugin to one self-contained ESM file before importing it, because GJS's own ESM loader does not follow `package.json#exports` subpath maps. So the plugin's whole dependency tree has to load under GJS, not only its entry.
 
 ### Loading unusual file types
 
