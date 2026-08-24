@@ -163,6 +163,188 @@ function refuseStyleBlocks(styles: readonly { scoped?: boolean }[], id: string):
 }
 
 /**
+ * `NodeTypes.ELEMENT` / `NodeTypes.ATTRIBUTE` / `NodeTypes.DIRECTIVE` and
+ * `ElementTypes.ELEMENT`, from `@vue/compiler-core`'s enums.
+ *
+ * Spelled as literals because `@vue/compiler-sfc` re-exports neither enum, and taking
+ * `@vue/compiler-core` as a second direct dependency for four integers would also put it
+ * in the tree this plugin loads lazily. Each one is load-bearing for a refusal below, so
+ * a renumbering upstream turns those specs RED rather than turning the refusals off.
+ */
+const NODE_ELEMENT = 1;
+const PROP_ATTRIBUTE = 6;
+const PROP_DIRECTIVE = 7;
+const TAG_PLAIN_ELEMENT = 0;
+
+/** The slice of the template AST the refusal below reads. */
+interface TemplateNode {
+    type: number;
+    tag?: string;
+    tagType?: number;
+    props?: readonly TemplateProp[];
+}
+
+interface TemplateProp {
+    type: number;
+    /** An attribute's own name, or a directive's name with the `v-` already stripped. */
+    name: string;
+    arg?: { content?: unknown; isStatic?: boolean };
+    modifiers?: readonly { content?: unknown }[];
+}
+
+/** How the `@vue/runtime-dom` half of a feature would have failed on GTK. */
+const MISSING_EXPORT =
+    'is a @vue/runtime-dom export, which @vue/runtime-core does not have: rolldown reports the missing import ' +
+    'as a WARNING at exit 0 and the app then calls `undefined` inside a GLib callback';
+const UNKNOWN_PROP =
+    'compiles to a DOM prop no GTK widget has, which @gjsify/gtk-host refuses as `unknown-prop` at RENDER time ' +
+    '— inside a GLib callback, where GJS prints `JS ERROR` and the process still exits 0';
+
+/**
+ * `v-<name>` → why it cannot compile here, and what to write instead.
+ *
+ * `plainElementsOnly` spares the legitimate use: measured, `v-model` on a COMPONENT
+ * compiles to `modelValue` + `onUpdate:modelValue` props and imports nothing DOM-shaped,
+ * while `v-model` on an element reaches for `vModelText`/`vModelCheckbox`/`vModelDynamic`.
+ */
+const DOM_ONLY_DIRECTIVES: readonly { name: string; plainElementsOnly: boolean; why: string }[] = [
+    {
+        name: 'show',
+        plainElementsOnly: false,
+        why:
+            `\`vShow\` ${MISSING_EXPORT}. It toggles \`style.display\`, which GTK has no equivalent for: use ` +
+            `\`v-if\`, or bind the widget's own \`visible\` property.`,
+    },
+    {
+        name: 'model',
+        plainElementsOnly: true,
+        why:
+            `\`vModelText\`/\`vModelCheckbox\`/\`vModelDynamic\` ${MISSING_EXPORT}. Bind the widget property and ` +
+            `write it back from the widget's own signal: \`<gtk-entry :text="name" @changed="…" />\`.`,
+    },
+    {
+        name: 'html',
+        plainElementsOnly: false,
+        why:
+            `\`v-html\` ${UNKNOWN_PROP} (\`innerHTML\`). GTK parses no HTML — put the text in the widget's own ` +
+            `\`label\` property, or use Pango markup with \`useMarkup\`.`,
+    },
+    {
+        name: 'text',
+        plainElementsOnly: false,
+        why:
+            `\`v-text\` ${UNKNOWN_PROP} (\`textContent\`). Write the text as a child — ` +
+            `\`<gtk-label>{{ text }}</gtk-label>\` — or bind the widget's \`label\` property.`,
+    },
+];
+
+/**
+ * DOM props whose NAME survives compilation but which no GTK widget has.
+ *
+ * `style` reaches this list as a `v-bind`, not as an attribute: compiler-dom's
+ * `transformStyle` rewrites `style="color: red"` into a bound style OBJECT before any
+ * directive transform runs, so the static and bound spellings are indistinguishable here
+ * — and both are refused. `class` stays a plain attribute.
+ */
+const DOM_ONLY_PROPS = new Map([
+    [
+        'class',
+        `\`class\` ${UNKNOWN_PROP}. The GTK property is \`cssClasses\`, a string ARRAY: ` +
+            `\`<gtk-box :css-classes="['card']" />\`.`,
+    ],
+    [
+        'style',
+        `\`style\` ${UNKNOWN_PROP}. GTK styling is a \`Gtk.CssProvider\` concern: load the CSS with ` +
+            `\`Gtk.CssProvider.load_from_string()\` plus \`Gtk.StyleContext.add_provider_for_display()\` and put ` +
+            `the selector on the widget with \`cssClasses\`.`,
+    ],
+]);
+
+/**
+ * `<Transition>`/`<TransitionGroup>` in both spellings compiler-dom recognises.
+ *
+ * Measured: each emits `import { Transition } from "@vue/runtime-core"`, and both names
+ * are ABSENT there — they live in `@vue/runtime-dom`, driven by CSS transition classes.
+ * `@gjsify/gtk-host`'s README records the same fact from the runtime side.
+ */
+const DOM_ONLY_TAGS = new Map([
+    ['Transition', 'Transition'],
+    ['transition', 'Transition'],
+    ['TransitionGroup', 'TransitionGroup'],
+    ['transition-group', 'TransitionGroup'],
+]);
+
+/**
+ * Refuse the template features that only mean something against a DOM, BY NAME.
+ *
+ * `compileTemplate` runs on `@vue/compiler-dom` — `@vue/compiler-sfc` ships no other
+ * template compiler — so `DOMDirectiveTransforms` and `DOMNodeTransforms` are installed
+ * and every feature below COMPILES. Each then fails in one of two ways, and neither stops
+ * the app: an import `@vue/runtime-core` does not export, or a DOM prop no GTK widget
+ * has. Both are spelled out in the messages above, because the point of refusing is that
+ * someone reads why.
+ *
+ * A `nodeTransform` and not four `directiveTransforms`: two of these are not directives
+ * at all (`transformStyle` keys off an attribute, `transformTransition` off the tag), and
+ * an event MODIFIER is a property of a `v-on` this plugin must otherwise keep working.
+ * One hook sees all of them on ENTRY, before `buildProps` runs on exit.
+ */
+function refuseDomOnlyTemplateFeatures(node: unknown, filename: string): void {
+    // The compiler hands its own AST to a `nodeTransform` and `@vue/compiler-sfc` exports
+    // no types for it, so the shape is asserted here rather than imported.
+    const element = node as TemplateNode;
+    if (element.type !== NODE_ELEMENT) return;
+    const tag = element.tag ?? '<unknown>';
+
+    const builtIn = DOM_ONLY_TAGS.get(tag);
+    if (builtIn !== undefined) {
+        refuse(
+            filename,
+            `<${tag}>`,
+            `\`${builtIn}\` ${MISSING_EXPORT}. It animates CSS transition classes; a GTK animation is ` +
+                `\`Adw.TimedAnimation\` or a widget's own transition property (\`Gtk.Stack.transitionType\`).`,
+        );
+    }
+
+    for (const prop of element.props ?? []) {
+        if (prop.type === PROP_ATTRIBUTE) {
+            const why = DOM_ONLY_PROPS.get(prop.name);
+            if (why !== undefined) refuse(filename, `\`${prop.name}\` on <${tag}>`, why);
+            continue;
+        }
+        if (prop.type !== PROP_DIRECTIVE) continue;
+
+        const directive = DOM_ONLY_DIRECTIVES.find((candidate) => candidate.name === prop.name);
+        if (directive !== undefined && (!directive.plainElementsOnly || element.tagType === TAG_PLAIN_ELEMENT)) {
+            refuse(filename, `\`v-${prop.name}\` on <${tag}>`, directive.why);
+        }
+
+        if (prop.name === 'bind' && prop.arg?.isStatic === true) {
+            const why = DOM_ONLY_PROPS.get(String(prop.arg.content));
+            if (why !== undefined) refuse(filename, `\`:${String(prop.arg.content)}\` on <${tag}>`, why);
+        }
+
+        const modifiers = prop.name === 'on' ? (prop.modifiers ?? []) : [];
+        if (modifiers.length > 0) {
+            const spelling = modifiers.map((modifier) => `.${String(modifier.content)}`).join('');
+            refuse(
+                filename,
+                `\`@${String(prop.arg?.content ?? '')}${spelling}\` on <${tag}>`,
+                `an event modifier compiles to \`withModifiers\`/\`withKeys\`, and both ${MISSING_EXPORT}. ` +
+                    `They are DOM event plumbing (\`stopPropagation\`, \`event.key\`) — a GTK signal has neither. ` +
+                    `Drop the modifier and do the check inside the handler.`,
+            );
+        }
+    }
+}
+
+function refuse(filename: string, what: string, why: string): never {
+    throw new Error(
+        `@gjsify/rolldown-plugin-vue: ${filename} uses ${what}, which this plugin does not compile. ${why}`,
+    );
+}
+
+/**
  * `export function render` becomes `function __sfc_render__`, so the emitted module
  * can hold a user's own `render` binding beside it.
  *
@@ -284,6 +466,10 @@ export async function compileSfc(
         // `undefined` emitted the same 1 `createStaticVNode(` and byte-identical output;
         // `hoistStatic: false` is what actually suppresses it.
         comments: false,
+        // The refusals this plugin owns, reached the only way a caller can reach them:
+        // compiler-dom appends `options.nodeTransforms` after its own, so this runs on
+        // entry to every element, before `buildProps` runs on exit.
+        nodeTransforms: [(node: unknown) => refuseDomOnlyTemplateFeatures(node, filename)],
     };
 
     const id = scopeId(filename, source);

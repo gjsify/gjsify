@@ -287,6 +287,100 @@ export default async () => {
         });
     });
 
+    await describe('compileSfc: the DOM-only template features it refuses', async () => {
+        // Every one of these COMPILES on `@vue/compiler-dom`, which is the only template
+        // compiler `@vue/compiler-sfc` ships, and then fails in a way that leaves the app
+        // running: an import `@vue/runtime-core` does not export (measured ABSENT: vShow,
+        // vModelText, vModelDynamic, vModelCheckbox, withModifiers, withKeys, Transition,
+        // TransitionGroup), which rolldown reports as a WARNING at exit 0; or a DOM prop
+        // no GTK widget has, which the host refuses at RENDER time inside a GLib
+        // callback, where the process still exits 0.
+        await it('refuses v-show by name', async () => {
+            const message = await refusal(() => compile(`<template><gtk-box v-show="ok" /></template>`, 'Show.vue'));
+            expect(message).toContain('Show.vue');
+            expect(message).toContain('`v-show` on <gtk-box>');
+            expect(message).toContain('vShow');
+            expect(message).toContain('v-if');
+        });
+
+        await it('refuses v-model on an ELEMENT by name', async () => {
+            const message = await refusal(() =>
+                compile(`<template><gtk-entry v-model="text" /></template>`, 'Model.vue'),
+            );
+            expect(message).toContain('`v-model` on <gtk-entry>');
+            expect(message).toContain('vModelText');
+        });
+
+        await it('leaves v-model on a COMPONENT alone', async () => {
+            // The refusal is element-only for a measured reason: on a component
+            // `v-model` compiles to `modelValue` + `onUpdate:modelValue` and imports
+            // nothing DOM-shaped. Refusing it would break legitimate Vue.
+            const code = await compile(`<template><MyThing v-model="x" /></template>`);
+            expect(code).toContain('_resolveComponent("MyThing")');
+            expect(count(code, 'vModel')).toBe(0);
+        });
+
+        await it('refuses v-html and v-text by name', async () => {
+            const html = await refusal(() => compile(`<template><gtk-label v-html="raw" /></template>`, 'Html.vue'));
+            expect(html).toContain('`v-html` on <gtk-label>');
+            expect(html).toContain('innerHTML');
+            const text = await refusal(() => compile(`<template><gtk-label v-text="raw" /></template>`, 'Text.vue'));
+            expect(text).toContain('`v-text` on <gtk-label>');
+            expect(text).toContain('textContent');
+        });
+
+        await it('refuses an event MODIFIER while keeping the event', async () => {
+            const stop = await refusal(() =>
+                compile(`<template><gtk-button @clicked.stop="go" /></template>`, 'Stop.vue'),
+            );
+            expect(stop).toContain('`@clicked.stop` on <gtk-button>');
+            expect(stop).toContain('withModifiers');
+            const key = await refusal(() => compile(`<template><gtk-entry @keyup.enter="go" /></template>`, 'Key.vue'));
+            expect(key).toContain('`@keyup.enter` on <gtk-entry>');
+            expect(key).toContain('withKeys');
+            // …and the plain signal binding the showcase depends on still compiles.
+            expect(await compile(`<template><gtk-button @clicked="go" /></template>`)).toContain('onClicked:');
+        });
+
+        await it('refuses class and style in BOTH spellings', async () => {
+            // `style` arrives as a `v-bind`, not as an attribute: compiler-dom's
+            // `transformStyle` rewrites `style="color: red"` into a bound object before
+            // any directive transform runs. `class` stays a plain attribute. Both
+            // spellings of both, or the pair that is checked is an accident of shape.
+            for (const [markup, what] of [
+                ['class="a b"', '`class` on <gtk-box>'],
+                [':class="c"', '`:class` on <gtk-box>'],
+                ['style="color: red"', '`:style` on <gtk-box>'],
+                [':style="s"', '`:style` on <gtk-box>'],
+            ] as const) {
+                const message = await refusal(() => compile(`<template><gtk-box ${markup} /></template>`, 'Css.vue'));
+                expect(message).toContain(what);
+                expect(message).toContain('cssClasses');
+            }
+        });
+
+        await it('refuses <Transition> in both spellings', async () => {
+            for (const tag of ['Transition', 'transition', 'TransitionGroup', 'transition-group']) {
+                const message = await refusal(() =>
+                    compile(`<template><${tag}><gtk-box /></${tag}></template>`, 'Anim.vue'),
+                );
+                expect(message).toContain(`<${tag}>`);
+                expect(message).toContain('Adw.TimedAnimation');
+            }
+        });
+
+        await it('leaves the directives the adapter DOES support alone', async () => {
+            // The other half of a refusal: a list that also caught `v-if`/`v-for`/`v-slot`
+            // would refuse the showcase's own template.
+            const code = await compile(
+                `<template><gtk-box><gtk-label v-for="a in b" :key="a" :label="a" />` +
+                    `<gtk-label v-if="b.length" label="x" /><gtk-label v-else label="y" /></gtk-box></template>`,
+            );
+            expect(code).toContain('_renderList(');
+            expect(code).toContain('_createElementBlock("gtk-label"');
+        });
+    });
+
     await describe('compileSfc: the source map', async () => {
         const SOURCE =
             `<script setup lang="ts">\nconst spacing: number = 12;\n</script>\n\n` +
