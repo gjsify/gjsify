@@ -295,8 +295,36 @@ export function auditStylesheetFontFamilies(ctx) {
     const inspected = new Map();
     let sheetCount = 0;
 
+    /**
+     * Packages this run could not answer for, because their shipped tree is BUILD
+     * OUTPUT that is not on disk.
+     *
+     * The rule's subject is the tarball: `shipsPath` declines any stylesheet outside
+     * `package.json#files`. For a package whose `files` names `dist`, that means the
+     * only copy the rule may look at appears after a build, and `audit-runtimes.yml`
+     * never builds the showcases. So in CI the rule silently answers for fewer
+     * packages than it appears to, and the summary reads like a full pass either way.
+     * Measured on `@gjsify/example-node-express-webserver`: with `dist/` present the
+     * rule reports a finding, with `dist/` absent it reports nothing and the count of
+     * inspected packages just drops.
+     *
+     * That is a coverage gap, not a violation, so it is a NOTE with a number rather
+     * than a failure. Failing would red every clean checkout; staying silent is what
+     * let the gap sit. The source copy is deliberately NOT scanned instead: it is not
+     * shipped, so a claim there is outside what this rule means.
+     */
+    const unbuilt = [];
+
     for (const pkg of ctx.packages) {
         if (pkg.private) continue;
+        const declared = Array.isArray(pkg.manifest?.files) ? pkg.manifest.files : [];
+        const absentRoots = declared.filter((entry) => {
+            // Only plain directory/file entries answer this question. A glob may
+            // legitimately match nothing in a correct tree.
+            if (/[*?[\]{}!]/.test(entry)) return false;
+            return !existsSync(join(pkg.dir, entry.replace(/^\.\//, '')));
+        });
+        if (absentRoots.length > 0) unbuilt.push(`${pkg.manifest.name} (${absentRoots.join(', ')})`);
         const sheets = [];
         for (const absolute of findStylesheets(pkg.dir)) {
             const rel = toPosixPath(absolute.slice(pkg.dir.length + 1));
@@ -390,7 +418,20 @@ export function auditStylesheetFontFamilies(ctx) {
         );
     }
 
-    return { failures, stats: { packages: inspected.size, stylesheets: sheetCount, families: claimCount } };
+    const notes = [];
+    if (unbuilt.length > 0) {
+        notes.push(
+            `${unbuilt.length} package(s) declare shipped paths that are not on disk, so no stylesheet of theirs ` +
+                `was inspected: ${unbuilt.join(', ')}. Build them and re-run to answer for those, or read this ` +
+                `rule's green line as covering the rest only.`,
+        );
+    }
+
+    return {
+        failures,
+        notes,
+        stats: { packages: inspected.size, stylesheets: sheetCount, families: claimCount, unbuilt: unbuilt.length },
+    };
 }
 
 export const stylesheetFontFamiliesRule = defineRule({
@@ -401,13 +442,15 @@ export const stylesheetFontFamiliesRule = defineRule({
     fields: [],
     description: 'a shipped stylesheet only heads a font stack with a family it carries, or a listed reason',
     run(ctx) {
-        const { failures, stats } = auditStylesheetFontFamilies(ctx);
+        const { failures, notes, stats } = auditStylesheetFontFamilies(ctx);
         return {
             failures,
+            notes,
             stats,
             summary:
                 `stylesheet-font-families: ${stats.stylesheets} shipped stylesheet(s) in ${stats.packages} ` +
-                `package(s), ${stats.families} first-named family claim(s) checked`,
+                `package(s), ${stats.families} first-named family claim(s) checked` +
+                (stats.unbuilt > 0 ? `, ${stats.unbuilt} package(s) unbuilt and therefore unanswered` : ''),
         };
     },
 });

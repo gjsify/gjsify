@@ -1531,19 +1531,31 @@ async function main() {
             console.log(coverage.summary);
             console.log(statusData.summary);
             console.log(platformPackages.summary);
-            // Printed on a PASSING run, not just a failing one: a claim below
-            // `supported` is a standing limitation, and the mandatory reason
-            // only does its job if somebody reads it. Same contract as
-            // `gjsify.platformsUncommitted`.
-            for (const note of osAxis.notes ?? []) console.log(`  · ${note}`);
-            // The bundler-plugin notes are the rule's ONLY honesty mechanism: the
-            // export half needs the plugin built, and this job builds nothing, so in
-            // CI every plugin produces a "not checked" note. Printing the summary
-            // without them turns "declared, export unverified" into a clean green
-            // line — a missing signal reading as a pass, inside the guard written to
-            // remove that class.
-            for (const note of bundlerPlugins.notes ?? []) console.log(`  · ${note}`);
-            for (const note of coverage.notes ?? []) console.log(`  · ${note}`);
+            // EVERY rule's notes, derived from the run rather than listed here.
+            //
+            // Printed on a PASSING run and not only a failing one: a note is what a
+            // rule says when it could not answer, and that has to reach a reader or
+            // the green line above overstates the coverage. Two rules paid for this
+            // already. `os-axis` records a claim below `supported`, whose mandatory
+            // reason only does its job if somebody reads it. `bundler-plugins` needs
+            // the plugin built and this job builds nothing, so in CI every plugin
+            // produces a "not checked" note, and dropping it turned "declared, export
+            // unverified" into a clean green line, a missing signal reading as a pass
+            // inside the guard written to remove that class.
+            //
+            // Both were fixed by adding a hand-written loop per rule, which is why
+            // the third rule to grow notes (`stylesheet-font-families`, whose subject
+            // only exists on a machine that has built) would have been silent again.
+            // Derived beats curated here: a rule that starts emitting notes cannot be
+            // forgotten.
+            //
+            // `prebuild-artifacts` and `prebuild-libc` are excluded because their own
+            // renderers already lay their notes out above.
+            const NOTES_RENDERED_ELSEWHERE = new Set(['prebuild-artifacts', 'prebuild-libc']);
+            for (const { rule, result } of run.results) {
+                if (NOTES_RENDERED_ELSEWHERE.has(rule.id)) continue;
+                for (const note of result.notes ?? []) console.log(`  · [${rule.id}] ${note}`);
+            }
             renderReachabilityNotes(reach);
             process.exit(0);
         }
