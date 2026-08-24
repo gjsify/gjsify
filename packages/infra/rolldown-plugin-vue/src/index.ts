@@ -278,7 +278,11 @@ export async function compileSfc(
         // to stop.) `cloneNode` is the same class one step further out: a GObject
         // does not clone.
         hoistStatic: false,
-        transformHoist: null,
+        // Not `transformHoist: null` beside it: compiler-dom's `compile()` spreads its
+        // own `transformHoist: stringifyStatic` AFTER the caller's options, so the null
+        // never reached `baseCompile`. Measured with `hoistStatic: true`, `null` and
+        // `undefined` emitted the same 1 `createStaticVNode(` and byte-identical output;
+        // `hoistStatic: false` is what actually suppresses it.
         comments: false,
     };
 
