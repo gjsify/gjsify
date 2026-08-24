@@ -254,8 +254,13 @@ export default async () => {
         });
 
         await it('reports a template that does not compile', async () => {
+            // Asserting only `Bad.vue` would have passed for EVERY throw in this plugin
+            // — a style refusal, a lang refusal, a missing render export — so the
+            // compiler's own diagnostic is what this pins.
             const message = await refusal(() => compile(`<template><gtk-box v-for="x" /></template>`, 'Bad.vue'));
             expect(message).toContain('Bad.vue');
+            expect(message).toContain('has a template that does not compile');
+            expect(message).toContain('v-for');
         });
     });
 
