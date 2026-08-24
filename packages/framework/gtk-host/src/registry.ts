@@ -4,10 +4,10 @@
 // or an insertion rule. Hand-maintaining a per-framework table is what stalled
 // react-gtk, react-native-gtk4 and svelte-gjs, so there is exactly one here.
 //
-// The import-direction check that MAKES that mechanical lands with the first
-// adapter (`status/open-todos.md`) — a scan with nothing to scan would report
-// green while proving nothing, which is the failure class this repo pays most
-// for. Until then the rule is enforced by review.
+// The check that MAKES that mechanical is `scripts/check-adapter-import-direction.mjs`,
+// wired as a required check. It landed with the first adapter and not before: a scan
+// with nothing to scan would have reported green while proving nothing, which is the
+// failure class this repo pays most for.
 
 import GObject from 'gi://GObject';
 

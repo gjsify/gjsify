@@ -8,6 +8,7 @@ import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import bundlerPickSuite from './bundler-pick.spec.js';
+import reflectionTransformOrderSuite from './reflection-transform-order.spec.js';
 import cliFailSuite from './cli-fail.spec.js';
 import shipPlanSuite from './utils/ship/plan.spec.js';
 import shipSettingsSuite from './utils/ship/settings.spec.js';
@@ -197,6 +198,7 @@ if (process.platform === 'win32') {
 run(
     {
         bundlerPickSuite,
+        reflectionTransformOrderSuite,
         cliFailSuite,
         shipPlanSuite,
         shipSettingsSuite,

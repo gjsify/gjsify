@@ -19,6 +19,21 @@ import type { GiSystemProbe } from './plugins/gi-runtime-paths.js';
 
 export interface GjsifyConfig {
     options: RolldownOptions;
+    /**
+     * Transforms that must see the ORIGINAL module source — composed BEFORE the
+     * caller's own plugins, while `plugins` stays after them.
+     *
+     * The split exists because the two positions answer different questions. User
+     * plugins go first so their `resolveId`/`load` wins over gjsify's alias and
+     * externals chain. But a user `transform: { order: 'pre' }` that REWRITES the
+     * source then also beats gjsify's own pre-transforms, and Deepkit's type
+     * compiler is one of them: `@gjsify/rolldown-plugin-solid` runs
+     * `@babel/preset-typescript` over every `.tsx`, so Deepkit was handed a file
+     * with no type annotations left. MEASURED on one `.tsx` carrying both a
+     * `typeOf<T>()` and a JSX tag: `const reflected = typeOf()` in the artifact,
+     * exit 0, not one diagnostic, and `Error: No type given` thrown at runtime.
+     */
+    prePlugins: RolldownPluginOption[];
     plugins: RolldownPluginOption[];
 }
 

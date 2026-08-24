@@ -964,7 +964,7 @@ export class BuildAction {
             // and appended into `userPlugins` above. Re-emitting the raw
             // entries (which may include `BundlerPluginByName` shapes
             // Rolldown doesn't understand) would crash the build.
-            plugins: [...pnpPlugins, ...userPlugins, ...cfg.plugins],
+            plugins: [...pnpPlugins, ...cfg.prePlugins, ...userPlugins, ...cfg.plugins],
         };
 
         if (opts.watch) {
@@ -1141,7 +1141,7 @@ async function runOneLibraryBuild(args: OneLibraryBuildArgs): Promise<RolldownOu
         // then gjsify's own chain. `merged.plugins` is deliberately NOT spread —
         // the user's entries arrive RESOLVED, in `userPlugins`, exactly as
         // `buildApp` passes them.
-        plugins: [...args.pnpPlugins, ...args.userPlugins, ...cfg.plugins],
+        plugins: [...args.pnpPlugins, ...cfg.prePlugins, ...args.userPlugins, ...cfg.plugins],
     };
 
     return await runBundle(finalOpts);

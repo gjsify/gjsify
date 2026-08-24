@@ -186,15 +186,58 @@ function runProbe(): number {
     const ui = createRoot(() => buildUi(null));
     const window = widgetOf(ui.node);
 
+    // The button is found FIRST because two later checks reach the tree through it
+    // rather than through a type search. See check 1.
+    const incrementButton = findDescendant(
+        window,
+        (w) => w instanceof Gtk.Button && w.label === 'Increment',
+    ) as Gtk.Button | null;
+    check('the increment button was built', incrementButton !== null);
+
     // 1. The string enum nick reached GTK. GObject would have kept HORIZONTAL, so
     //    read the property back — materialisation always returns something.
-    const box = findDescendant(window, (w) => w instanceof Gtk.Box) as Gtk.Box | null;
-    check('a GtkBox was built from JSX', box !== null);
+    //
+    //    Reached through the BUTTON, not as "the first Gtk.Box in the window":
+    //    Adwaita builds internal boxes, and this window's first one by breadth is
+    //    inside the header bar. MEASURED: with the search-by-type version, authoring
+    //    `orientation="horizontal"` here still printed PROBE: PASS with byte-identical
+    //    output, because the box it read was never the one this file declares.
+    const box = incrementButton?.get_parent() as Gtk.Box | null;
+    check('the JSX box is the button parent', box instanceof Gtk.Box);
     check("orientation='vertical' reached GTK", box?.orientation === Gtk.Orientation.VERTICAL);
 
-    // 2. Slotted placement authored as a JSX attribute.
-    check('AdwToolbarView is in the window', findDescendant(window, (w) => w instanceof Adw.ToolbarView) !== null);
-    check('AdwHeaderBar is in the window', findDescendant(window, (w) => w instanceof Adw.HeaderBar) !== null);
+    // 2. Slotted placement authored as a JSX attribute — asserted as PLACEMENT, not
+    //    as presence. MEASURED: the presence version passed with `slot="bottom"` on
+    //    the header bar, i.e. with the header genuinely rendered at the foot of the
+    //    window, output byte-identical. A slot that is never read is the whole point
+    //    of the attribute, so "it is somewhere in the subtree" asserts nothing.
+    const toolbarView = findDescendant(window, (w) => w instanceof Adw.ToolbarView) as Adw.ToolbarView | null;
+    check('AdwToolbarView is in the window', toolbarView !== null);
+    //    `slot="content"` is exact: AdwToolbarView has a real getter for it.
+    check('slot="content" placed the page', toolbarView?.get_content() instanceof Adw.PreferencesPage);
+
+    const headerBar = findDescendant(window, (w) => w instanceof Adw.HeaderBar) as Adw.HeaderBar | null;
+    check('AdwHeaderBar is in the window', headerBar !== null);
+    //    `slot="top"` has no getter — `add_top_bar` is write-only and the height
+    //    getters read 0 until the window is allocated, which a headless probe never
+    //    does. What IS readable is the style class Adwaita puts on the revealer it
+    //    wraps each bar in: `top-bar` or `bottom-bar` (measured, gjs 1.88.1). Walking
+    //    up to the toolbar view and looking for it separates the two slots, which no
+    //    subtree search can.
+    const topBarClassAbove = (widget: Gtk.Widget | null): boolean => {
+        for (let w = widget; w !== null && w !== toolbarView; w = w.get_parent()) {
+            if (w.get_css_classes().includes('top-bar')) return true;
+        }
+        return false;
+    };
+    check('slot="top" put the header in the TOP bar', topBarClassAbove(headerBar));
+    //    `slot="title"` was authored and never asserted: deleting the label left the
+    //    probe green. AdwHeaderBar has an exact getter for this one.
+    const titleWidget = headerBar?.get_title_widget();
+    check(
+        'slot="title" placed the header label',
+        titleWidget instanceof Gtk.Label && titleWidget.label === 'Built by SolidJS JSX',
+    );
 
     // 3. A CONSTRUCT-ONLY property authored in JSX survived, although the
     //    compiler sets every property after `createElement`.
@@ -208,11 +251,6 @@ function runProbe(): number {
     // 4. A signal bound by the COMPILER (`setProp(el, "onClicked", fn)`) is
     //    connected to the real widget. Emitted on GTK's side, not by calling the
     //    handler — calling it would prove only that the closure exists.
-    const incrementButton = findDescendant(
-        window,
-        (w) => w instanceof Gtk.Button && w.label === 'Increment',
-    ) as Gtk.Button | null;
-    check('the increment button was built', incrementButton !== null);
     incrementButton?.emit('clicked');
     check('clicking updated the subtitle through the signal', clicks?.subtitle === '1');
     check('the signal ran exactly once', ui.count() === 1);

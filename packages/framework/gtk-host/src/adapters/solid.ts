@@ -19,7 +19,7 @@ import {
     adopt,
     createElement as hostCreateElement,
     createText,
-    destroy,
+    destroyChildren,
     disconnectHandlers,
     firstChild,
     insert as hostInsert,
@@ -184,15 +184,8 @@ export function mount(code: () => HostNode, container: Gtk.Widget): () => void {
         // adapter's job, and it must be `destroy` rather than `remove` because GJS
         // blocks JS callbacks during GC — an undisconnected handler outlives the
         // tree it belonged to.
-        for (const node of childSnapshot(root)) destroy(node);
+        destroyChildren(root);
     };
-}
-
-/** The children of a node, snapshotted — `destroy` unlinks as it goes. */
-function childSnapshot(el: HostElement): HostNode[] {
-    const out: HostNode[] = [];
-    for (let n = firstChild(el); n; n = nextSibling(n)) out.push(n);
-    return out;
 }
 
 // --- control flow, re-typed for host nodes ------------------------------------

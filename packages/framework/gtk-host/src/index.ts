@@ -5,7 +5,7 @@ export {
     createAnchor,
     createElement,
     createText,
-    clearContainer,
+    destroyChildren,
     destroy,
     disconnectHandlers,
     firstChild,
