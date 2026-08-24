@@ -137,6 +137,19 @@ export function buildSurface(
         for (const s of cls.signals) {
             const rendered: string[] = [];
             for (const [i, param] of s.params.entries()) {
+                // A non-`in` slot the CALLEE allocates carries nothing on the way in.
+                // Measured on gjs 1.88.1 / GTK 4.22.4: `Gtk.SpinButton::input` hands its
+                // `new_value` as 6.95e-310 — uninitialised memory, arriving as a
+                // perfectly ordinary `number`. Typing it `number` is an invitation to
+                // read it, and the reader gets no warning of any kind.
+                //
+                // `caller-allocates="1"` is the opposite case and is NOT rewritten:
+                // `Gtk.Overlay::get-child-position` hands a real `Gdk.Rectangle` for the
+                // handler to FILL, and the whole point of the signal is writing to it.
+                if (param.direction !== 'in' && !param.callerAllocates) {
+                    rendered.push(`${safeParamName(param.name, i)}: OutParam`);
+                    continue;
+                }
                 let mapped: ReturnType<typeof tsTypeOf>;
                 try {
                     mapped = tsTypeOf(param.type, universe, 'param');

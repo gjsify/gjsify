@@ -19,6 +19,28 @@ import type { HostNode } from './types.js';
  */
 export type NotifyHandler = (pspec: GObject.ParamSpec) => void;
 
+declare const outParam: unique symbol;
+
+/**
+ * A signal parameter GIR declares `out`/`inout` with `caller-allocates="0"`.
+ *
+ * GJS still passes an argument in that position, and what it holds is whatever
+ * was in the memory the marshaller allocated: measured on gjs 1.88.1 / GTK
+ * 4.22.4, a handler on `Gtk.SpinButton::input` receives `new_value` as
+ * `6.9526682391035e-310`, and one on `Gtk.Editable::insert-text` receives
+ * `position` as `1711500784`. Both arrive as ordinary numbers. Nothing warns.
+ *
+ * So the slot is DECLARED — dropping it would silently shift every parameter
+ * after it — and given a type nothing can be read out of, and nothing but
+ * itself assigns to. Annotating the parameter `number` is then a compile error
+ * naming the position, which is the only place a reader would have looked.
+ *
+ * `caller-allocates="1"` is a different thing and keeps its real type: there the
+ * callee is handed a live object to FILL, as `Gtk.Overlay::get-child-position`
+ * is handed a `Gdk.Rectangle`.
+ */
+export type OutParam = { readonly [outParam]: never };
+
 /**
  * What may appear as a child, mirroring Solid's own `JSX.Element`.
  *

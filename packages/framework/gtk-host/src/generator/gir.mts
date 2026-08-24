@@ -58,6 +58,13 @@ export interface GirProperty {
 export interface GirParam {
     readonly name: string;
     readonly type: GirType;
+    /** GIR's `direction`, which defaults to `in` when the attribute is absent. */
+    readonly direction: 'in' | 'out' | 'inout';
+    /**
+     * GIR's `caller-allocates`. It decides whether a non-`in` slot holds anything
+     * at all — see `renderParam` in `surface.mts`, which is the only reader.
+     */
+    readonly callerAllocates: boolean;
 }
 
 export interface GirSignal {
@@ -185,6 +192,11 @@ function readProperty(namespace: string, el: El): GirProperty {
     };
 }
 
+function readDirection(el: El): 'in' | 'out' | 'inout' {
+    const raw = el.getAttribute('direction');
+    return raw === 'out' || raw === 'inout' ? raw : 'in';
+}
+
 function readSignal(namespace: string, el: El): GirSignal {
     const params = firstChildEl(el, 'parameters');
     return {
@@ -193,6 +205,8 @@ function readSignal(namespace: string, el: El): GirSignal {
             ? ownChildren(params, 'parameter').map((p) => ({
                   name: p.getAttribute('name') ?? '',
                   type: readType(namespace, p),
+                  direction: readDirection(p),
+                  callerAllocates: p.getAttribute('caller-allocates') === '1',
               }))
             : [],
         deprecated: el.getAttribute('deprecated') === '1',

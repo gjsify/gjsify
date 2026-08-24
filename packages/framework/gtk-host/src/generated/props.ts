@@ -17,7 +17,7 @@ import type Gio from '@girs/gio-2.0';
 import type Gtk from '@girs/gtk-4.0';
 import type Pango from '@girs/pango-1.0';
 
-import type { NotifyHandler } from '../attrs.js';
+import type { NotifyHandler, OutParam } from '../attrs.js';
 
 // Enum nicks. A property takes the nick OR the enum constant; a signal parameter
 // takes the constant only, because GJS hands the marshalled number and a nick
@@ -1665,7 +1665,7 @@ export interface AdwSpinRowProps
     /** Whether the spin row should wrap upon reaching its limits. */
     wrap?: boolean;
     /** Emitted to convert the user's input into a double value. */
-    onInput?: (new_value: number) => void;
+    onInput?: (new_value: OutParam) => void;
     /** Emitted to tweak the formatting of the value for display. */
     onOutput?: () => void;
     /** Emitted right after the spinbutton wraps. */
@@ -3004,7 +3004,7 @@ export interface GtkEditableProps extends GtkWidgetProps {
     /** Emitted when text is deleted from the widget by the user. */
     onDeleteText?: (start_pos: number, end_pos: number) => void;
     /** Emitted when text is inserted into the widget by the user. */
-    onInsertText?: (text: string, length: number, position: number) => void;
+    onInsertText?: (text: string, length: number, position: OutParam) => void;
     onNotifyEditable?: NotifyHandler;
     onNotifyEnableUndo?: NotifyHandler;
     onNotifyMaxWidthChars?: NotifyHandler;
@@ -5082,7 +5082,7 @@ export interface GtkSpinButtonProps
     /** Emitted when the user initiates a value change. */
     onChangeValue?: (scroll: Gtk.ScrollType) => void;
     /** Emitted to convert the users input into a double value. */
-    onInput?: (new_value: number) => void;
+    onInput?: (new_value: OutParam) => void;
     /** Emitted to tweak the formatting of the value for display. */
     onOutput?: () => void;
     /** Emitted when the value is changed. */
