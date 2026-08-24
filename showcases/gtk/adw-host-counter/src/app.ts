@@ -81,6 +81,8 @@ interface Ui {
     rows: HostElement[];
     group: HostElement;
     countRow: HostElement;
+    /** Exposed so the probe can fire the real `clicked` signal instead of the closure. */
+    incrementButton: HostElement;
     addRow: () => void;
     removeFirstRow: () => void;
     increment: () => void;
@@ -155,7 +157,18 @@ function buildUi(app: Adw.Application | null): Ui {
     setEventHandler(addButton, 'onClicked', addRow);
     setEventHandler(removeButton, 'onClicked', removeFirstRow);
 
-    return { window, buttons, rows, group, countRow, addRow, removeFirstRow, increment, count: () => count };
+    return {
+        window,
+        buttons,
+        rows,
+        group,
+        countRow,
+        incrementButton,
+        addRow,
+        removeFirstRow,
+        increment,
+        count: () => count,
+    };
 }
 
 /** First descendant matching `pred`, breadth-first over the REAL widget tree. */
@@ -202,18 +215,28 @@ function runProbe(): number {
         (materialize(ui.buttons) as unknown as Gtk.Box).orientation === Gtk.Orientation.VERTICAL,
     );
 
-    // 2. Slotted placement: the header is a top bar, the page is the content.
-    //    Searched over DESCENDANTS, not direct children — Adw.ApplicationWindow
-    //    and Adw.HeaderBar both nest content behind internal widgets, so a
-    //    direct-child assertion would fail for a reason that says nothing.
-    check(
-        'AdwToolbarView is in the window',
-        findDescendant(box as unknown as Gtk.Widget, (w) => w instanceof Adw.ToolbarView) !== null,
-    );
-    check(
-        'AdwHeaderBar is in the window',
-        findDescendant(box as unknown as Gtk.Widget, (w) => w instanceof Adw.HeaderBar) !== null,
-    );
+    // 2. Slotted PLACEMENT, not presence. Searched over descendants rather than
+    //    direct children, because Adw.ApplicationWindow and Adw.HeaderBar both nest
+    //    behind internal widgets — but "somewhere in the subtree" is what the two
+    //    checks here used to assert, and MEASURED that passed with the header bar
+    //    moved to `slot: 'bottom'`, i.e. rendered at the foot of the window, output
+    //    byte-identical. A slot nothing reads back is a slot nothing proves.
+    const root = box as unknown as Gtk.Widget;
+    const toolbarView = findDescendant(root, (w) => w instanceof Adw.ToolbarView) as Adw.ToolbarView | null;
+    check('AdwToolbarView is in the window', toolbarView !== null);
+    check('the page is the toolbar view CONTENT', toolbarView?.get_content() instanceof Adw.PreferencesPage);
+
+    const headerBar = findDescendant(root, (w) => w instanceof Adw.HeaderBar) as Adw.HeaderBar | null;
+    check('AdwHeaderBar is in the window', headerBar !== null);
+    //    `add_top_bar` is write-only and the height getters read 0 until the window
+    //    is allocated, which a headless probe never does. Adwaita's own style class
+    //    on the revealer it wraps each bar in (`top-bar` / `bottom-bar`) is readable
+    //    without allocation and separates the two slots.
+    let inTopBar = false;
+    for (let w: Gtk.Widget | null = headerBar; w !== null && w !== toolbarView; w = w.get_parent()) {
+        if (w.get_css_classes().includes('top-bar')) inTopBar = true;
+    }
+    check('the header bar is in the TOP bar', inTopBar);
 
     // 3. Ordered insert with the declared remove-all degradation lands in order.
     ui.addRow();
@@ -230,9 +253,18 @@ function runProbe(): number {
         JSON.stringify(rowTitles(ui.group)) === JSON.stringify(['Row 2', 'Clicks']),
     );
 
-    // 5. A signal bound through the host actually fires, and the property write lands.
-    ui.increment();
-    check('increment updated the subtitle', (materialize(ui.countRow) as unknown as Adw.ActionRow).subtitle === '1');
+    // 5. A signal bound through the host actually fires, and the property write
+    //    lands. Emitted on GTK's side, NOT by calling `ui.increment()` — that only
+    //    proves the closure exists. MEASURED: with the closure call, deleting all
+    //    three `setEventHandler` calls still printed PROBE: PASS with byte-identical
+    //    output, while this file's README claimed a bound signal was proven.
+    const incrementWidget = materialize(ui.incrementButton) as unknown as Gtk.Button;
+    incrementWidget.emit('clicked');
+    check(
+        'clicking updated the subtitle through the signal',
+        (materialize(ui.countRow) as unknown as Adw.ActionRow).subtitle === '1',
+    );
+    check('the signal ran exactly once', ui.count() === 1);
 
     // 6. Bottom-up construction into a container that cannot insert.
     //    Every framework materialises a subtree before inserting it, and the

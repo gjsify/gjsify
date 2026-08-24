@@ -30,7 +30,9 @@ It covers the seven things that are easy to get silently wrong:
 3. an insert into `Adw.PreferencesGroup` lands in document order even though that
    container has no `insert()` and can only append;
 4. removing a row takes out the right one and leaves the others in order;
-5. a signal bound through the host fires and its property write lands;
+5. a signal bound through the host fires and its property write lands — emitted on GTK's
+   side (`button.emit('clicked')`), because the earlier version called the closure and so
+   passed with every `setEventHandler` call deleted;
 6. a subtree materialised BEFORE it is inserted — what every framework does —
    replays into an append-only parent without detaching non-children or re-adding
    already-parented ones. Reproduced by review: this emitted four Adwaita
