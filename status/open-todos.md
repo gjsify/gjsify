@@ -2993,3 +2993,36 @@ This is the honest state rather than a defect: guessing an adder is what the
 exist somewhere in GTK and calling the wrong one is a warning at exit 0. Curating
 more should be driven by a real window that needs one, with its vector, not by
 walking the list alphabetically.
+
+### Nothing checks that a published `lib/` holds no test output
+
+`verify-package-outputs.mjs` asserts that every DECLARED output EXISTS, and
+`verify-tarball-outputs.mjs` asserts that every declared output is in the TARBALL.
+Neither asks the opposite question — whether the tarball also carries files nothing
+declared — so a build tsconfig whose `exclude` misses a spec extension ships the
+specs and every check stays green.
+
+`@gjsify/rolldown-plugin-vue` had exactly that: `exclude: ["src/test.mts",
+"src/**/*.spec.ts"]`, where the other six packages with a `tsconfig.build.json`
+also list `src/**/*.spec.mts`. Measured — with only the `.spec.ts` entry, an added
+`src/probe.spec.mts` emitted `lib/probe.spec.mjs` + `lib/probe.spec.d.mts`, and
+`files: ["lib"]` publishes them. It is now excluded as `src/**/*.spec.*`, one
+pattern that cannot miss an extension, which removes the drift for that package
+rather than watching for it.
+
+The repo-wide state was measured before reaching for a gate, and it is why there is
+no gate: over the non-private workspaces, **84 packages already pack test-shaped
+files** — mostly `lib/types/*.spec.d.ts`, and 8 pack executable spec code
+(`@gjsify/webgl`'s `lib/esm/conformance/*.spec.js`, `@gjsify/fetch`'s
+`lib/*.spec.js`, `@gjsify/adwaita-web`'s `src/*.spec.ts`, `@gjsify/tsc`'s
+`src/index.gjs.spec.ts` + `src/test.mts`). Some of those are deliberate — webgl's
+conformance suite is something a consumer runs — so the check would need a curated
+allowlist on day one, which is the shape this repo keeps deleting. The cheap version
+of the mechanism (assert every `src/**/*.spec.*` is excluded from the build
+tsconfig) only reaches the 7 packages that HAVE a build tsconfig, i.e. it would
+guard the one case already fixed and none of the 84.
+
+So the decision to make first is a policy one: do published packages ship their
+specs at all? Once that has an answer, the check belongs in
+`verify-tarball-outputs.mjs`, which already computes the packed set per package
+from `gjsify pack`'s own oracle and needs no new CI step.
