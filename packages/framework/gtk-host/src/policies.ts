@@ -45,6 +45,23 @@ export function makeWrapper(policy: ChildPolicy, child: Gtk.Widget): Gtk.Widget 
 }
 
 /**
+ * A container the host owns that no window shows — the DOM's detached `<div>`.
+ *
+ * `<KeepAlive>` and `<Suspense>` ask a renderer for off-screen storage:
+ * `KeepAliveImpl.setup` opens with `createElement("div")` and `SuspenseImpl` does
+ * the same for its `hiddenContainer`. The Vue adapter answered that with its own
+ * `gi://Gtk` import and a literal `new Gtk.Box()` — the ONE runtime toolkit import
+ * and the ONE concrete widget class in any adapter, i.e. exactly the widget
+ * knowledge ADR 0027 § 7 forbids one. It lives here because this is already the
+ * file that builds widgets the author did not write (see `makeWrapper`), and it is
+ * the only one with a runtime `gi://Gtk` import.
+ *
+ * A `Gtk.Box` and not an `Adw.Bin`: the deactivated subtree may hold SEVERAL
+ * children, and a one-child container would silently keep the last.
+ */
+export const makeDetachedContainer = (): Gtk.Widget => new Gtk.Box();
+
+/**
  * The ONE-CHILD setter this child's placement goes through, or null.
  *
  * `single` always is one (`set_child`, `set_content`); a `slotted` slot is one

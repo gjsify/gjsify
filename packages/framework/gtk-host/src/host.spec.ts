@@ -549,6 +549,39 @@ export default async () => {
                 expect(widget.label).toBe('');
             });
 
+            await it('null means removed too — one rule instead of three translations', async () => {
+                // The contract used to be `undefined` ALONE, and every adapter that
+                // speaks DOM had to translate: Vue's `patchProps` hands `null` for
+                // each key that disappeared, React translated only a key that
+                // VANISHED (not an authored `label={null}`), and Solid translated
+                // nothing at all — so `null` reached `set_property` verbatim, which
+                // for a `gint` throws AFTER `el.props` recorded the null for the next
+                // rebuild to replay. Every OTHER op here already read `null` as
+                // removed (`setSlot`, `layout`, `setEventHandler`), so this was the
+                // one exception, in the one place three adapters had to know about it.
+                const label = createElement('GtkLabel', { label: 'set' });
+                const widget = materialize(label) as unknown as Gtk.Label;
+                setProp(label, 'label', null);
+                expect(widget.label).toBe('');
+                // And it is REMOVED, not stored: `el.props` is replayed verbatim by a
+                // rebuild, so a recorded null would come back as a value.
+                expect('label' in label.props).toBe(false);
+
+                // A numeric property is where the old contract actually broke: GObject
+                // cannot store JS null in a gint at all.
+                const box = createElement('GtkBox', { spacing: 12 });
+                const boxWidget = materialize(box) as unknown as Gtk.Box;
+                setProp(box, 'spacing', null);
+                expect(boxWidget.spacing).toBe(0);
+
+                // Construct-only goes through the REBUILD path, where a null recorded
+                // in `props` would re-throw from inside `materialize`.
+                const rebuilt = createElement('GtkLabel', { label: 'x', cssName: 'custom' });
+                materialize(rebuilt);
+                setProp(rebuilt, 'cssName', null);
+                expect((materialize(rebuilt) as unknown as Gtk.Label).cssName).toBe('label');
+            });
+
             await it('a failed text insert does not arm the text flag', async () => {
                 const box = createElement('GtkBox');
                 materialize(box);

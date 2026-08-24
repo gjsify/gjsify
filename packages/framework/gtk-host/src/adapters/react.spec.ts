@@ -650,7 +650,7 @@ export default async () => {
                 } catch (e) {
                     textError = e as Error;
                 }
-                expect(String(textError?.message)).toContain('only an element node has a widget');
+                expect(String(textError?.message)).toContain('Only an element node owns a widget');
 
                 root.unmount();
                 let deadError: Error | undefined;

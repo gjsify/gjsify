@@ -61,7 +61,9 @@ import {
     setElementText,
     setProp,
     setText,
+    widgetOf,
 } from '../host.js';
+import { withoutKeys } from '../props.js';
 import type { HostElement, HostNode, HostText } from '../types.js';
 
 /** What React hands `createInstance`: the vnode props, `children` included. */
@@ -80,24 +82,18 @@ const RESERVED = new Set(['children']);
 /** One authored property that changed: name, next value, previous value. */
 type PropChange = readonly [key: string, next: unknown, prev: unknown];
 
-function ownProps(props: ReactProps | null | undefined): ReactProps | undefined {
-    if (!props) return undefined;
-    let out: ReactProps | undefined;
-    for (const key of Object.keys(props)) {
-        if (RESERVED.has(key)) continue;
-        (out ??= {})[key] = props[key];
-    }
-    return out;
-}
+/** The SET above is React's; the loop is `withoutKeys`, shared with the Vue adapter. */
+const ownProps = (props: ReactProps | null | undefined): ReactProps | undefined => withoutKeys(props, RESERVED);
 
 /**
  * The render-phase diff, in the phase React asks for it.
  *
  * `null` means "no update", and React then never schedules a commit for this
  * fiber — which is the only reason to diff here rather than in `commitUpdate`.
- * A key that DISAPPEARED becomes `undefined`, which is the host's spelling for
- * "back to what construction leaves behind"; `null` is not, and reached
- * `set_property` verbatim.
+ * A key that DISAPPEARED becomes `undefined`, the host's spelling for "back to
+ * what construction leaves behind". An AUTHORED `label={null}` is not translated
+ * here and never was: the host reads `null` as removed too, which is what makes
+ * that the same fact rather than a per-adapter courtesy.
  */
 function diffProps(oldProps: ReactProps, newProps: ReactProps): PropChange[] | null {
     let out: PropChange[] | null = null;
@@ -438,15 +434,11 @@ export function mount(element: ReactNode, container: Gtk.Widget, options: ReactR
     return root;
 }
 
-/** The materialised widget of a host node — for a test, or a hand-held `ref`. */
-export function widgetOf(node: HostNode): Gtk.Widget {
-    if (node.kind !== 'element') throw new Error('only an element node has a widget');
-    // `materialize` would happily build a fresh, propertyless, unparented widget
-    // for a node that was destroyed. The flag is exact; the obvious heuristic
-    // (no widget, not attached, no props) also describes a brand-new element.
-    if (node.destroyed) throw new Error('this node was destroyed; its widget is gone');
-    return materialize(node) as unknown as Gtk.Widget;
-}
+/**
+ * Re-exported, not re-implemented: the Solid adapter carried the SAME function and
+ * Vue carried none. It is a host op now, with coded errors instead of bare ones.
+ */
+export { widgetOf };
 
 /**
  * Re-exported because a React app mounting into a second, hand-held container

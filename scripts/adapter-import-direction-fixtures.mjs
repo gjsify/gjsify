@@ -87,6 +87,41 @@ export function mount(tag, parent) {
 }
 `;
 
+/** A widget CONSTRUCTED, with the runtime import spelled through `@girs/*` rather than `gi://`. */
+const CONSTRUCTS_A_WIDGET = `import Gtk from '@girs/gtk-4.0';
+import { adopt } from '../host.js';
+
+export const scratch = () => adopt(new Gtk.Box());
+`;
+
+/** The same class reached the other three ways a runtime import makes possible. */
+const USES_A_WIDGET_AS_A_VALUE = `import Adw from '@girs/adw-1';
+
+export const isRow = (w) => w instanceof Adw.ActionRow;
+export const gtype = Adw.ActionRow.$gtype;
+export const make = () => Adw.ActionRow();
+`;
+
+/** A typelib imported at RUNTIME, used for nothing but a type — still a toolkit dependency. */
+const RUNTIME_GI_IMPORT = `import Gtk from 'gi://Gtk?version=4.0';
+import { insert } from '../host.js';
+
+export function mount(node, parent) {
+    /** @type {Gtk.Widget} */
+    const w = parent;
+    insert(node, w);
+}
+`;
+
+/** What every adapter legitimately writes: the class as a TYPE, erased at compile time. */
+const TYPE_ONLY_WIDGET_REFERENCE = `import type Gtk from '@girs/gtk-4.0';
+import { adopt, insert } from '../host.js';
+
+export function mount(node: unknown, container: Gtk.Widget): void {
+    insert(node, adopt(container as unknown as Gtk.Widget));
+}
+`;
+
 /**
  * Every fixture: a miniature `@gjsify/gtk-host` whose `src/adapters/` tree the checker walks.
  *
@@ -313,6 +348,45 @@ export const ADAPTER_IMPORT_DIRECTION_FIXTURES = [
         files: { 'src/adapters/toy.ts': CLEAN_ADAPTER },
         exports: ['./toy'],
         expect: { files: 1, problems: [], blockers: [] },
+    },
+    {
+        // Vector 9: `adopt(new Gtk.Box())` — the Vue adapter's real shape, and the one
+        // concrete widget class the whole adapter set ever held. The QUOTED widget-name
+        // pattern cannot see it: there is no string. Its runtime import is spelled
+        // `@girs/gtk-4.0` here rather than `gi://`, so the gi check cannot see it either,
+        // which is why these are two patterns and not one.
+        name: 'adapter-constructs-a-widget',
+        files: { 'src/adapters/toy.ts': CLEAN_ADAPTER, 'src/adapters/scratch.ts': CONSTRUCTS_A_WIDGET },
+        expect: { files: 2, problems: ['widget-value@4'], blockers: [] },
+    },
+    {
+        // The other three value spellings a runtime import makes possible. One per line,
+        // so a pattern that only knows `new` reports one problem instead of three.
+        name: 'adapter-uses-a-widget-as-a-value',
+        files: { 'src/adapters/toy.ts': CLEAN_ADAPTER, 'src/adapters/value.ts': USES_A_WIDGET_AS_A_VALUE },
+        expect: { files: 2, problems: ['widget-value@3', 'widget-value@4', 'widget-value@5'], blockers: [] },
+    },
+    {
+        // Vector 10: the ARRIVAL. `gi://Gtk` is a runtime typelib import, and having one is
+        // what made the line above possible at all — here it backs nothing but a JSDoc type,
+        // and it is still a violation: an adapter that declares a toolkit dependency has
+        // stopped being a mapping. The message must PRESCRIBE the two ways out.
+        name: 'adapter-imports-a-typelib-at-runtime',
+        files: { 'src/adapters/toy.ts': CLEAN_ADAPTER, 'src/adapters/gi.ts': RUNTIME_GI_IMPORT },
+        expect: {
+            files: 2,
+            problems: ['runtime-gi-import@1'],
+            blockers: [],
+            mentions: ['import type', '@girs/', 'createDetachedContainer'],
+        },
+    },
+    {
+        // The false-positive control, and it is the load-bearing half of the two patterns
+        // above: EVERY adapter annotates with `Gtk.Widget`, so a pattern that flagged a type
+        // reference would flag all three at once and be switched off the same day.
+        name: 'type-only-widget-reference-is-clean',
+        files: { 'src/adapters/toy.ts': CLEAN_ADAPTER, 'src/adapters/typed.ts': TYPE_ONLY_WIDGET_REFERENCE },
+        expect: { files: 2, problems: [], blockers: [] },
     },
     {
         name: 'no-adapter-at-all',

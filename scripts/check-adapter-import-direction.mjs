@@ -35,6 +35,15 @@
 // version this one replaced had failed. `/'/` was the loud twin: it left string state open,
 // after which `//` stopped being a comment and PROSE was reported as a placement method.
 //
+// The two UNQUOTED patterns landed later, and each was a live violation at the time. `new
+// Gtk.Box()` in the Vue adapter was the one concrete widget class in the whole adapter set and
+// the quoted `WIDGET_NAME` could not see it; the `gi://Gtk` import that made it possible was
+// not looked at either. They are separate checks on purpose — a value import of
+// `@girs/gtk-4.0` is a runtime import with no `gi://`, and a `gi://` import used only for a
+// type is still a toolkit dependency. What `WIDGET_VALUE` deliberately does NOT match is a TYPE
+// annotation: every adapter writes `container: Gtk.Widget`, so a bare `Gtk.[A-Z]` would flag all
+// three at once and be switched off within a day.
+//
 // The import matcher takes any RELATIVE specifier whose path segments include `descriptors`,
 // `policies` or `registry`, extension or not, at any depth. It used to demand
 // `../descriptors(/index)?.js` — which admitted neither `'../descriptors/gtk.js'` (the table is
@@ -75,11 +84,34 @@ const NON_CODE_EXT = new Set(['.md', '.json']);
 /** A spec asserts ON widget names and placements; it is not an adapter and is not scanned. */
 const SPEC = /\.spec\.[cm]?[jt]sx?$/;
 
+/** The GI namespaces a widget name can come from. One list, three patterns below. */
+const NAMESPACES = '(?:Gtk|Adw|Gdk|Pango)';
+
 /** A widget name literal — the table's job, not an adapter's. */
 // Every string form, not just single quotes: a double-quoted or template-literal
 // widget table is the exact violation this ratchet exists for, and matching one
 // quote style made it pass. Found by review, A/B-verified.
-const WIDGET_NAME = /['"`](?:Gtk|Adw|Gdk|Pango)[A-Z][A-Za-z]+['"`]/;
+const WIDGET_NAME = new RegExp(`['"\`]${NAMESPACES}[A-Z][A-Za-z]+['"\`]`);
+
+/**
+ * An UNQUOTED widget class, used as a VALUE.
+ *
+ * The quoted pattern above sees a table; it does not see `adopt(new Gtk.Box())`,
+ * which is how the Vue adapter carried the one concrete widget class in the whole
+ * adapter set for its whole life — ADR 0027 § 7 forbidden, and green.
+ *
+ * VALUE use only, and that is the whole difficulty: `Gtk.Widget` appears in every
+ * adapter as a TYPE (`container: Gtk.Widget`, `as unknown as Gtk.Widget`) and is
+ * erased at compile time, so a bare `Gtk\.[A-Z]` would flag all three adapters at
+ * once and be turned off. `new`, `instanceof`, a call and `$gtype` are the
+ * spellings TypeScript will not let you write against an `import type`.
+ */
+const WIDGET_VALUE = new RegExp(
+    [
+        `\\b(?:new|instanceof)\\s+${NAMESPACES}\\.[A-Z]\\w*`,
+        `\\b${NAMESPACES}\\.[A-Z]\\w*\\s*(?:\\.\\$gtype|\\()`,
+    ].join('|'),
+);
 
 /** Placement methods. Naming one here means an insertion rule leaked out of the table. */
 const PLACEMENT = new RegExp(
@@ -108,6 +140,19 @@ const PLACEMENT = new RegExp(
 
 /** The table, the policies and the placement engine are the host's internals. */
 const HOST_INTERNALS = new Set(['descriptors', 'policies', 'registry']);
+
+/**
+ * A `gi://` specifier is a RUNTIME typelib import, and no adapter may hold one.
+ *
+ * The type layer is `@girs/*` (ADR 0028 § 3), which an adapter imports with
+ * `import type` and which therefore cannot produce a value. `gi://Gtk` can, and
+ * having it is how the Vue adapter reached `new Gtk.Box()` at all. This catches
+ * the ARRIVAL where `WIDGET_VALUE` catches the use, and neither subsumes the
+ * other: a value import of `@girs/gtk-4.0` (no `type`) is a runtime import with no
+ * `gi://` in it, and a `gi://` import that is only ever used for a type is a
+ * toolkit dependency an adapter still must not declare.
+ */
+const RUNTIME_GI = /^gi:\/\//;
 
 /**
  * A module specifier in every spelling that binds one: `from '…'`, a side-effect
@@ -313,8 +358,8 @@ function stripComments(source) {
     return lines;
 }
 
-/** Relative specifiers reaching the host's internals, with the offset each was found at. */
-function hostInternalImports(code) {
+/** Specifiers an adapter may not bind, with the offset each was found at. */
+function importProblems(code) {
     const found = [];
     const pattern = new RegExp(SPECIFIER_SOURCE, 'g');
     let match = pattern.exec(code);
@@ -322,12 +367,24 @@ function hostInternalImports(code) {
         const specifier = match[2];
         const segments = specifier.split('/').map((segment) => segment.replace(/\.[cm]?[jt]sx?$/, ''));
         if (specifier.startsWith('.') && segments.some((segment) => HOST_INTERNALS.has(segment))) {
-            found.push({ specifier, index: match.index });
+            found.push({ kind: 'host-internal-import', specifier, index: match.index });
+        } else if (RUNTIME_GI.test(specifier)) {
+            found.push({ kind: 'runtime-gi-import', specifier, index: match.index });
         }
         match = pattern.exec(code);
     }
     return found;
 }
+
+/** What each import kind tells the reader to do instead. */
+const IMPORT_ADVICE = {
+    'host-internal-import': (specifier) => `imports the host's internals: ${specifier}`,
+    'runtime-gi-import': (specifier) =>
+        `imports a typelib at RUNTIME: ${specifier}. An adapter maps a framework contract onto the ` +
+        `host ops and never touches GTK itself — take the type from @girs/* with "import type", and ` +
+        `if a widget really has to be BUILT, that is a host op (see createDetachedContainer), not an ` +
+        `adapter's business.`,
+};
 
 /** Every file under `dir`, recursively, sorted — symlinks resolved so a linked adapter counts. */
 function walk(dir) {
@@ -390,6 +447,16 @@ function scanFile(path) {
         if (WIDGET_NAME.test(line)) {
             found.push({ kind: 'widget-name', line: index + 1, path, message: `names a widget type: ${line.trim()}` });
         }
+        if (WIDGET_VALUE.test(line)) {
+            found.push({
+                kind: 'widget-value',
+                line: index + 1,
+                path,
+                message:
+                    `uses a widget class as a VALUE: ${line.trim()}. A type annotation is fine — this is a ` +
+                    `construction, an instanceof, a call or a $gtype read, which only a runtime import can back.`,
+            });
+        }
         if (PLACEMENT.test(line)) {
             found.push({
                 kind: 'placement-method',
@@ -400,12 +467,12 @@ function scanFile(path) {
         }
     });
     const code = lines.join('\n');
-    for (const hit of hostInternalImports(code)) {
+    for (const hit of importProblems(code)) {
         found.push({
-            kind: 'host-internal-import',
+            kind: hit.kind,
             line: code.slice(0, hit.index).split('\n').length,
             path,
-            message: `imports the host's internals: ${hit.specifier}`,
+            message: IMPORT_ADVICE[hit.kind](hit.specifier),
         });
     }
     return found.sort((a, b) => a.line - b.line);

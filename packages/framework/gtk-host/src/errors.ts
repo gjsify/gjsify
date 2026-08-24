@@ -71,6 +71,27 @@ export const err = {
                 `GObject has one handler per connect, and this host keeps one per signal name. ` +
                 `Use one spelling, or combine the two callbacks yourself.`,
         ),
+    /**
+     * A DOM event-phase modifier has no GObject translation, so it is named, not guessed.
+     *
+     * `capture` selects a phase of DOM tree propagation and a GObject signal does not
+     * propagate through a tree at all — it is emitted on ONE object. `passive` is a
+     * promise not to call `preventDefault`, which no GObject signal has. Kebabing
+     * either into the signal name produced `emits no signal "clicked-capture"`, i.e.
+     * this host blaming the user's spelling for a concept it simply does not carry.
+     *
+     * It lived in `signals.ts` as a bare `new GtkHostError` for its whole life, which
+     * made this file's claim to BE the list false: the code existed, and the only
+     * place that enumerates the codes did not know it.
+     */
+    eventModifier: (prop: string, modifier: string) =>
+        new GtkHostError(
+            'event-modifier',
+            `${prop} carries the DOM listener modifier ".${modifier}", which has no GObject meaning: a signal is ` +
+                `emitted on one object and does not propagate through a tree, so there is no capture phase and ` +
+                `nothing to be passive about. Drop the modifier (${prop.slice(0, prop.length - modifier.length)}); ` +
+                `for GTK4's own propagation phases set "propagation-phase" on a Gtk.EventController instead.`,
+        ),
     badString: (tag: string, prop: string, got: string) =>
         new GtkHostError(
             'bad-string',
@@ -146,6 +167,20 @@ export const err = {
                 `placing <${childTag}> would unparent it. GTK does that silently: no throw, no warning, exit 0, ` +
                 `and the application's own widget is simply gone. Mount into a container of your own inside ` +
                 `<${parentTag}>, or clear the existing child first (${setter}(null)) if replacing it is the intent.`,
+        ),
+    notAnElement: (kind: string) =>
+        new GtkHostError(
+            'not-an-element',
+            `Only an element node owns a widget, and this node is a ${kind}. A text node's content lives in its ` +
+                `PARENT's text sink and an anchor owns nothing at all — neither has a widget to hand back. ` +
+                `Ask the parent element instead.`,
+        ),
+    destroyedNode: (tag: string) =>
+        new GtkHostError(
+            'destroyed-node',
+            `<${tag}> was destroyed, so its widget is gone. Asking again would MATERIALISE a fresh, propertyless, ` +
+                `unparented widget — \`destroy\` clears props and layout precisely so a destroyed element cannot ` +
+                `look re-materialisable — and a caller holding that widget would be looking at nothing on screen.`,
         ),
     notAHostParent: (got: string) =>
         new GtkHostError(

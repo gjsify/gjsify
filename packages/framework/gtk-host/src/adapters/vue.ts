@@ -17,22 +17,29 @@
 // window is the failure this package exists to prevent.
 
 import { createRenderer, type RendererOptions } from '@vue/runtime-core';
-import Gtk from 'gi://Gtk?version=4.0';
+// TYPE-only, like the Solid and React adapters. This file used to carry the ONE
+// runtime `gi://` import in any adapter, for the ONE concrete widget class in any
+// adapter — see `createDetachedContainer`.
+import type Gtk from '@girs/gtk-4.0';
 
 import {
     adopt,
     createAnchor,
+    createDetachedContainer,
     createElement as hostCreateElement,
     createText as hostCreateText,
     destroy as hostDestroy,
     insert as hostInsert,
+    isHostElement,
     materialize,
     nextSibling as hostNextSibling,
     parentNode as hostParentNode,
     setElementText as hostSetElementText,
     setProp,
     setText as hostSetText,
+    widgetOf,
 } from '../host.js';
+import { withoutKeys } from '../props.js';
 import type { HostElement, HostNode, HostText } from '../types.js';
 
 /**
@@ -54,15 +61,8 @@ const RESERVED = new Set([
     'onVnodeUnmounted',
 ]);
 
-function withoutReservedProps(props: Record<string, unknown> | null | undefined) {
-    if (!props) return undefined;
-    let filtered: Record<string, unknown> | undefined;
-    for (const key of Object.keys(props)) {
-        if (RESERVED.has(key)) continue;
-        (filtered ??= {})[key] = props[key];
-    }
-    return filtered;
-}
+/** The SET above is Vue's; the loop is `withoutKeys`, shared with the React adapter. */
+const withoutReservedProps = (props: Record<string, unknown> | null | undefined) => withoutKeys(props, RESERVED);
 
 /**
  * Adopted teleport targets, one host element per widget.
@@ -86,15 +86,16 @@ const adoptedParents = new WeakMap<object, HostElement>();
  * The host refuses a raw widget by name (`not-a-host-parent`), which stays the
  * backstop for every OTHER way one could arrive.
  *
- * The two facts are the same two the host checks: `kind` alone is a plain string
- * a GObject wrapper could carry, and the descriptor is what every op dereferences.
+ * The predicate is the HOST's (`isHostElement`), not a copy of it. These same two
+ * lines stood here verbatim, with a comment admitting as much — and two statements
+ * of what a node IS can disagree, which is the one thing neither side could detect.
  */
 function asHostParent(parent: HostElement): HostElement {
-    const candidate = parent as unknown as { kind?: unknown; descriptor?: unknown } | null;
-    if (candidate && candidate.kind === 'element' && typeof candidate.descriptor === 'object') return parent;
+    if (isHostElement(parent)) return parent;
     // Not an object at all: no widget to adopt, and the host's refusal already
     // names what it got. Guessing here would replace a good diagnostic with a
     // TypeError from inside `adopt`.
+    const candidate = parent as unknown as object | null;
     if (candidate === null || typeof candidate !== 'object') return parent;
     const cached = adoptedParents.get(candidate);
     if (cached) return cached;
@@ -102,24 +103,6 @@ function asHostParent(parent: HostElement): HostElement {
     adoptedParents.set(candidate, adopted);
     return adopted;
 }
-
-/**
- * `<KeepAlive>` and `<Suspense>` ask the host for an OFF-SCREEN container.
- *
- * `KeepAliveImpl.setup` opens with `const storageContainer = createElement("div")`
- * and `SuspenseImpl` does the same for its `hiddenContainer`. Forwarded as a tag,
- * "div" reached `lookupWidget` and threw `unknown-tag` — and KeepAlive's setup runs
- * inside `callWithErrorHandling`, whose PRODUCTION arm is `console.error(err)` with
- * no rethrow. Measured under exactly the defines this adapter's build recipe
- * mandates: `mount()` returned normally, the container had ZERO children, GTK
- * emitted no diagnostic, exit 0, and the only trace was one line of
- * `{"code":"unknown-tag","name":"GtkHostError"}` — a message-less object.
- *
- * A detached box is the faithful analogue of the DOM's detached `<div>`: the
- * deactivated subtree is really unparented from the visible tree and really held
- * alive, so reactivating it moves the SAME widgets back.
- */
-const scratchContainer = (): HostElement => adopt(new Gtk.Box());
 
 /**
  * ARITY separates a user element from an internal scratch request — MEASURED, not
@@ -146,7 +129,9 @@ type VueCreateElement = RendererOptions<HostNode, HostElement>['createElement'];
 
 const createElementOp = ((...args: unknown[]) =>
     args.length === 1
-        ? scratchContainer()
+        ? // `<KeepAlive>`/`<Suspense>`'s off-screen storage. WHICH widget backs it is
+          // the table's business, not this file's — see `createDetachedContainer`.
+          createDetachedContainer()
         : // Vue hands the props over, so construct-only values arrive in time and the
           // host does not have to rebuild on the first patch. They are the RAW vnode
           // props though, reserved keys included — `key`, `ref` and the `onVnode*`
@@ -174,13 +159,13 @@ const renderer = createRenderer<HostNode, HostElement>({
 
     patchProp: (el, key, prevValue, nextValue) => {
         if (RESERVED.has(key)) return;
-        // Vue signals "this prop is gone" with `null`, not `undefined`: `patchProps`
-        // calls `hostPatchProp(el, key, oldProps[key], null)` for every key that
-        // disappeared. The host's contract is `undefined` → the ParamSpec default,
-        // and `null` reached `set_property` verbatim — which for a `gint` property
-        // throws, after `el.props` had already recorded the null for the next
-        // rebuild to replay.
-        setProp(el, key, nextValue === null ? undefined : nextValue, prevValue);
+        // No `null` → `undefined` translation any more: Vue signals "this prop is
+        // gone" with `null` (`patchProps` calls `hostPatchProp(el, key,
+        // oldProps[key], null)` for every key that disappeared) and the HOST reads
+        // `null` as removed, exactly as it already did for `slot`, `layout` and an
+        // event handler. Three adapters were each translating it, and only this one
+        // did it right — which is why the rule moved to the side that has one copy.
+        setProp(el, key, nextValue, prevValue);
     },
 
     insert: (el, parent, anchor) => hostInsert(el, asHostParent(parent), anchor ?? null),
@@ -276,8 +261,13 @@ export const { render, createApp } = renderer;
  * second module for one function: `<Teleport :to="adopt(el)">` is the explicit
  * spelling of what `insert` now does implicitly, and it is the one to reach for
  * when the same target is also addressed by hand.
+ *
+ * `widgetOf` for the same reason — and it is NEW here, not moved: Solid and React
+ * each carried their own copy and this adapter carried none, so a Vue app's only
+ * route to a widget was `materialize()`, the very call `widgetOf`'s destroyed-node
+ * refusal exists to intercept.
  */
-export { adopt };
+export { adopt, widgetOf };
 
 /**
  * Mount a Vue app into a widget the application owns.

@@ -8,7 +8,7 @@
 
 import type GObject from '@girs/gobject-2.0';
 
-import { err, GtkHostError } from './errors.js';
+import { err } from './errors.js';
 import type { HostElement } from './types.js';
 
 /**
@@ -51,7 +51,7 @@ export function parseEventProp(prop: string, aliases?: Readonly<Record<string, s
     // `onClickOnceCapture`, so one strip would leave `Once` on the signal name.
     for (let m = MODIFIER_RE.exec(rest); m; m = MODIFIER_RE.exec(rest)) {
         const modifier = m[0];
-        if (modifier !== 'Once') throw modifierRefused(prop, modifier.toLowerCase());
+        if (modifier !== 'Once') throw err.eventModifier(prop, modifier.toLowerCase());
         once = true;
         rest = rest.slice(0, rest.length - modifier.length);
     }
@@ -69,24 +69,6 @@ export function parseEventProp(prop: string, aliases?: Readonly<Record<string, s
 /** `onRowActivated` -> `row-activated`; `onNotifyVisible` -> `notify::visible`. */
 export const toSignalName = (prop: string, aliases?: Readonly<Record<string, string>>): string =>
     parseEventProp(prop, aliases).signal;
-
-/**
- * A DOM event-phase modifier has no GObject translation, so it is named, not guessed.
- *
- * `capture` selects a phase of DOM tree propagation and a GObject signal does not
- * propagate through a tree at all — it is emitted on ONE object. `passive` is a
- * promise not to call `preventDefault`, which no GObject signal has. Kebabing
- * either into the signal name produced `emits no signal "clicked-capture"`, i.e.
- * this host blaming the user's spelling for a concept it simply does not carry.
- */
-const modifierRefused = (prop: string, modifier: string) =>
-    new GtkHostError(
-        'event-modifier',
-        `${prop} carries the DOM listener modifier ".${modifier}", which has no GObject meaning: a signal is ` +
-            `emitted on one object and does not propagate through a tree, so there is no capture phase and ` +
-            `nothing to be passive about. Drop the modifier (${prop.slice(0, prop.length - modifier.length)}); ` +
-            `for GTK4's own propagation phases set "propagation-phase" on a Gtk.EventController instead.`,
-    );
 
 const kebab = (s: string) =>
     s

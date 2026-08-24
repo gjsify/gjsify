@@ -13,6 +13,7 @@ import { err } from './errors.js';
 import {
     addressOf,
     insertChild,
+    makeDetachedContainer,
     makeWrapper,
     removeChild,
     setterSlotOf,
@@ -197,14 +198,31 @@ export function setProp(el: HostElement, key: string, next: unknown, _prev?: unk
     // installed GTK has agreed to it.
     const specs = paramSpecs(el.descriptor.ctor(), el.descriptor.gtype);
     const spec = requireSpec(specs, el.descriptor.gtype, name);
-    // A renderer removing a prop hands `undefined`, which GObject cannot store:
-    // `set_property(name, undefined)` throws "Could not guess unspecified GValue
-    // type" (measured). What "removed" means is what CONSTRUCTION leaves behind
-    // — see `removedValue`, and the 104 places the ParamSpec disagrees with it.
-    const value = next === undefined ? removedValue(el.descriptor, spec) : coerce(spec, next, el.descriptor.gtype);
+    // A renderer removing a prop hands `undefined` OR `null`, and neither is
+    // storable: `set_property(name, undefined)` throws "Could not guess unspecified
+    // GValue type" (measured). What "removed" means is what CONSTRUCTION leaves
+    // behind — see `removedValue`, and the 104 places the ParamSpec disagrees with it.
+    //
+    // `null` counts, and that is the host's contract rather than a convenience for
+    // one framework. Every OTHER op here already read it that way: `setSlot(el,
+    // null)` is no slot, `layout: null` is no position, and `setEventHandler(el, p,
+    // null)` unbinds. The property path was the single exception, so each adapter
+    // that speaks DOM had to translate — Vue did (`patchProps` passes `null` for
+    // every key that disappeared), React translated only a key that VANISHED and
+    // not an authored `label={null}`, and Solid did not translate at all, which
+    // made `null` reach `set_property` verbatim: a throw for a `gint`, and a null
+    // recorded in `el.props` for the next rebuild to replay. Three adapters, one
+    // rule, two of them wrong.
+    //
+    // Nothing is lost by folding them together: for every property whose GObject
+    // type CAN hold NULL (string, object, boxed) the construction default IS null,
+    // so `removedValue` answers null anyway; for the numeric, enum, flags and
+    // boolean types it cannot, and there `null` had no meaning to preserve.
+    const removed = next === undefined || next === null;
+    const value = removed ? removedValue(el.descriptor, spec) : coerce(spec, next, el.descriptor.gtype);
 
     const previouslyRecorded = name in el.props ? el.props[name] : undefined;
-    if (next === undefined) delete el.props[name];
+    if (removed) delete el.props[name];
     else el.props[name] = next;
 
     if (!el.widget) return; // buffered until materialisation
@@ -684,27 +702,56 @@ export function insert(node: HostNode, parent: HostElement, anchor: HostNode | n
     }
 }
 
+function assertHostParent(parent: HostElement): void {
+    if (isHostElement(parent)) return;
+    throw err.notAHostParent(describeValue(parent));
+}
+
 /**
- * TWO facts, not one: the node says it is an element, and it carries a descriptor.
+ * TWO facts, not one: it says it is an element, and it carries a descriptor.
  *
  * `kind` alone is a plain string a GObject wrapper could carry; the descriptor is
  * what every host op actually dereferences. Checking both keeps the refusal from
  * being either paranoid or fooled.
+ *
+ * Exported because the Vue adapter had these same two lines VERBATIM, and its own
+ * comment said so — it needs the question before `adopt`, to tell a host parent
+ * from the raw widget `<Teleport :to="el">` hands through. A predicate stated in
+ * two places is a predicate that can disagree with itself about what a node is.
  */
-function assertHostParent(parent: HostElement): void {
-    const candidate = parent as unknown as { kind?: unknown; descriptor?: unknown } | null;
-    if (candidate && candidate.kind === 'element' && typeof candidate.descriptor === 'object') return;
-    throw err.notAHostParent(describeForeign(parent));
+export function isHostElement(value: unknown): value is HostElement {
+    const candidate = value as { kind?: unknown; descriptor?: unknown } | null;
+    return !!candidate && candidate.kind === 'element' && typeof candidate.descriptor === 'object';
 }
 
-/** Name a non-host parent the way its owner would recognise it. */
-function describeForeign(value: unknown): string {
+/**
+ * Name a foreign value the way its owner would recognise it.
+ *
+ * ONE function, because there were two and each was wrong for the other's input.
+ * The host's read `constructor.$gtype`, so it could not name a DOM element — the
+ * single most likely thing to arrive from a Solid app that imported `<Dynamic>`
+ * from `solid-js/web`. The Solid adapter's read `tagName`, so it answered
+ * `a Object` for the GObject wrapper `<Teleport :to="el">` hands over. Both are
+ * asking "what did I get instead of a node", so both answers belong to one place.
+ *
+ * ORDER IS LOAD-BEARING, and it is measured rather than reasoned: under gjs
+ * 1.88.1 `({}).constructor.$gtype` EXISTS and `GObject.type_name` calls it
+ * `JSObject`. So a `$gtype`-first version names every object literal — and every
+ * DOM-ish stub, which is an object literal — `JSObject`, and the host's own
+ * documented `a plain object` fallback was unreachable for exactly the shape it
+ * names. `tagName` first, and `JSObject` treated as the absence of a GType.
+ */
+export function describeValue(value: unknown): string {
     if (value === null || value === undefined) return String(value);
-    if (typeof value !== 'object') return typeof value;
+    if (typeof value !== 'object') return `a ${typeof value}`;
+    const tag = (value as { tagName?: unknown }).tagName;
+    if (typeof tag === 'string') return `a DOM element <${tag.toLowerCase()}>`;
     const gtype = (value as { constructor?: { $gtype?: GObject.GType } }).constructor?.$gtype;
-    if (gtype) return GObject.type_name(gtype) ?? 'an unnamed GType';
-    // Not a GObject wrapper at all — an object literal, a DOM-ish stub, a Map.
-    return (value as { constructor?: { name?: string } }).constructor?.name ?? 'a plain object';
+    const gtypeName = gtype ? (GObject.type_name(gtype) ?? 'an unnamed GType') : null;
+    if (gtypeName !== null && gtypeName !== 'JSObject') return gtypeName;
+    // Neither a GObject wrapper nor a DOM element — an object literal, a stub, a Map.
+    const name = (value as { constructor?: { name?: string } }).constructor?.name;
+    return name && name !== 'Object' ? `a ${name}` : 'a plain object';
 }
 
 /**
@@ -832,6 +879,45 @@ export function mountRoot(el: HostElement, container: Gtk.Widget): void {
     // it, so this is now the ordinary path.
     insert(el, parent);
 }
+
+/**
+ * The materialised widget of a host node — for a `ref`, or for a test.
+ *
+ * ONE implementation. The Solid and React adapters each carried this function,
+ * identical apart from two comment lines, and Vue carried none — so a Vue app had
+ * no supported way to reach a widget at all and its only route was
+ * `materialize()`, which is exactly the call the `destroyed` guard below exists to
+ * intercept.
+ *
+ * The flag is exact and the obvious heuristic is not: `materialize` would happily
+ * build a fresh, propertyless, unparented widget for a destroyed node — `destroy`
+ * clears `props` and `layout` precisely so one cannot look re-materialisable — and
+ * "no widget, not attached, no props" also describes a brand-new element.
+ */
+export function widgetOf(node: HostNode): Gtk.Widget {
+    if (node.kind !== 'element') throw err.notAnElement(node.kind);
+    if (node.destroyed) throw err.destroyedNode(node.descriptor.gtype);
+    return materialize(node) as unknown as Gtk.Widget;
+}
+
+/**
+ * An off-screen container the host owns — the analogue of the DOM's detached `<div>`.
+ *
+ * `<KeepAlive>` and `<Suspense>` ask a renderer for one: `KeepAliveImpl.setup`
+ * opens with `createElement("div")` and `SuspenseImpl` does the same for its
+ * `hiddenContainer`. Forwarded as a TAG, "div" reached `lookupWidget` and threw
+ * `unknown-tag` inside `callWithErrorHandling`, whose production arm is
+ * `console.error` with no rethrow: `mount()` returned normally, the container held
+ * zero children, GTK said nothing, exit 0.
+ *
+ * The Vue adapter answered that with `adopt(new Gtk.Box())` — the one runtime
+ * `gi://` import and the one concrete widget class in any adapter, i.e. the widget
+ * knowledge ADR 0027 § 7 forbids. Which widget backs it is the table's business
+ * (`makeDetachedContainer`), and this op is what leaves the adapter with nothing to
+ * know: the deactivated subtree is really unparented from the visible tree and
+ * really held alive, so reactivating it moves the SAME widgets back.
+ */
+export const createDetachedContainer = (): HostElement => adopt(makeDetachedContainer());
 
 /**
  * Wrap a widget the application owns as a host element.
