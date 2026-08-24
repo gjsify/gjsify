@@ -100,9 +100,9 @@ export const pillarCoverage: readonly PillarCoverage[] = [
     },
     {
         category: 'Build/Infra tools',
-        total: 20,
+        total: 21,
         full: 17,
-        partial: 3,
+        partial: 4,
         stub: 0,
     },
     {
@@ -114,8 +114,8 @@ export const pillarCoverage: readonly PillarCoverage[] = [
     },
     {
         category: 'Showcases',
-        total: 14,
-        full: 14,
+        total: 15,
+        full: 15,
         partial: 0,
         stub: 0,
     },
