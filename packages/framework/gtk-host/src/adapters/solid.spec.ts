@@ -14,12 +14,65 @@ import { createSignal } from 'solid-js';
 import { createRenderer } from 'solid-js/universal';
 
 import { installDiagnosticsGate, gtkChildren, gtkChildTypes } from '../conformance/index.js';
+import { runAdapterVectors, type VectorElement, type VectorHarness, type VectorNode } from '../conformance/vectors.mjs';
 import { gated } from '../testing/gate.mjs';
 import { registerBuiltinWidgets } from '../descriptors/index.js';
 import * as adapter from './solid.js';
 import { Dynamic, For, createComponent, createElement, effect, insert, insertNode, mount, setProp } from './solid.js';
+import type { HostNode } from '../types.js';
 
 const labelsOf = (w: Gtk.Widget) => gtkChildren(w).map((c) => (c as Gtk.Label).label);
+
+/**
+ * The shared vector table, built the way COMPILED JSX builds a tree.
+ *
+ * `at` is an accessor rather than a value, so a `patch` re-runs the property
+ * effects and the text insertion on the SAME nodes — which is the only way a Solid
+ * update is distinguishable from a re-mount, and the reason every case in this file
+ * asserts twice.
+ *
+ * A text child goes through `insert(el, accessor)` and NOT through `insertNode`,
+ * because that is what `babel-plugin-jsx-dom-expressions` emits for
+ * `<gtk-label>{count()}</gtk-label>`: the first run reaches `createTextNode`, every
+ * later one reaches `replaceText`. Neither op had a single caller in this suite.
+ */
+function buildVector(at: () => VectorElement): HostNode {
+    const el = createElement(at().tag);
+    effect(() => {
+        const props = at().props ?? {};
+        for (const key of Object.keys(props)) setProp(el, key, props[key]);
+    });
+    const children = at().children ?? [];
+    if (children.length > 0 && children.every((child) => typeof child === 'string')) {
+        insert(el, () => {
+            const strings = (at().children ?? []) as string[];
+            // ONE string is the dynamic-text path (`replaceText` on update); an ARRAY
+            // is the multi-child path, where each string becomes its own text node and
+            // the host concatenates them into the sink.
+            return strings.length === 1 ? strings[0] : strings;
+        });
+        return el;
+    }
+    children.forEach((_, index) => {
+        insertNode(el, buildVector(() => (at().children as VectorNode[])[index] as VectorElement));
+    });
+    return el;
+}
+
+const solidVectors: VectorHarness = {
+    framework: 'solid-js/universal',
+    async mount(container, tree) {
+        const [current, setCurrent] = createSignal<VectorElement>(tree);
+        const dispose = mount(() => buildVector(current), container);
+        return {
+            // Solid's effects are synchronous, so the write IS the flush.
+            patch: async (next) => {
+                setCurrent(next);
+            },
+            unmount: dispose,
+        };
+    },
+};
 
 export default async () => {
     await on('Gjs', async () => {
@@ -469,5 +522,7 @@ export default async () => {
                 expect(clicks).toBe(1);
             });
         });
+
+        await runAdapterVectors(solidVectors, diagnostics);
     });
 };

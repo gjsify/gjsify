@@ -16,17 +16,57 @@ import {
     popScopeId,
     pushScopeId,
     ref,
+    shallowRef,
     KeepAlive,
     Teleport,
+    type VNodeArrayChildren,
+    type VNodeChild,
 } from '@vue/runtime-core';
 
 import { gtkChildTypes, gtkChildren, installDiagnosticsGate } from '../conformance/index.js';
+import { runAdapterVectors, type VectorElement, type VectorHarness, type VectorNode } from '../conformance/vectors.mjs';
 import { gated } from '../testing/gate.mjs';
 import { registerBuiltinWidgets } from '../descriptors/index.js';
 import type { GtkHostError } from '../index.js';
 import { mount } from './vue.js';
 
 const labelsOf = (w: Gtk.Widget) => gtkChildren(w).map((c) => (c as Gtk.Label).label);
+
+/**
+ * The shared vector table as Vue vnodes.
+ *
+ * Children are handed over as an ARRAY even when there is one string in it, and
+ * that is the whole point of the text half: `h(tag, props, 'text')` sets
+ * `TEXT_CHILDREN` and reaches `setElementText`, while `h(tag, props, ['text'])`
+ * normalises the string into a Text vnode and reaches `createText`/`insert` —
+ * which is what the SFC compiler emits for `<gtk-label>{{ count }}</gtk-label>`
+ * and what nothing in this suite had ever exercised.
+ */
+const toVueTree = (node: VectorNode): VNodeChild => {
+    if (typeof node === 'string') return node;
+    const children = (node.children ?? []).map(toVueTree);
+    return h(node.tag, node.props ?? null, children.length > 0 ? (children as VNodeArrayChildren) : undefined);
+};
+
+const vueVectors: VectorHarness = {
+    framework: '@vue/runtime-core',
+    async mount(container, tree) {
+        // `shallowRef`, not `ref`: a deep ref hands the host a reactive PROXY of
+        // every `layout` object, and the host stores what it is given.
+        const current = shallowRef<VectorElement>(tree);
+        const app = mount(
+            defineComponent({ render: () => toVueTree(current.value) }),
+            container,
+        );
+        return {
+            patch: async (next) => {
+                current.value = next;
+                await nextTick();
+            },
+            unmount: () => app.unmount(),
+        };
+    },
+};
 
 export default async () => {
     await on('Gjs', async () => {
@@ -497,5 +537,7 @@ export default async () => {
                 expect(clicks).toBe(1);
             });
         });
+
+        await runAdapterVectors(vueVectors, diagnostics);
     });
 };
