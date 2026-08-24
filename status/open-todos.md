@@ -156,6 +156,50 @@ and probably alongside extending the bridge so `generateBundle` carries its
 bundle. Until then the class is held by the lint rule, and this note is the record
 that the consumer-facing half is missing rather than solved.
 
+### A plugin hook's `moduleType` is js/json/text only on the native bundler bridge
+
+`@gjsify/rolldown-native`'s `plugin_proxy.rs::parse_module_type` maps `js`/`ecmascript`,
+`json` and `text`, and answers `Err("rolldown: unsupported moduleType '<x>'")` for
+everything else. Rolldown's own `ModuleType` also has `ts`, `tsx`, `jsx`, `base64`,
+`dataurl`, `binary`, `empty`, `css`, `asset` and `copy`.
+
+The consequence is a **runtime-parity defect, and it points the wrong way**: a plugin
+that compiles a foreign extension into TypeScript builds fine under Node and fails
+under GJS, which is the primary target. Measured on one fixture (a `.vue` importer,
+a plugin whose `transform` returns `const x: number = 41` with `moduleType: 'ts'`):
+
+| engine | result |
+|---|---|
+| `node packages/infra/cli/lib/index.js build … --app gjs` | exit 0 |
+| `gjsify build … --app gjs` (CLI under GJS) | exit 1, `plugin \`probe-moduletype\` threw … unsupported moduleType 'ts'` |
+
+`@gjsify/rolldown-plugin-vue` was written around it — it renames the module id to
+`<path>.gjsify-vue.ts` in `resolveId` and compiles in `load`, so rolldown's
+extension-based parser selection does the job and no `moduleType` is claimed. That
+works on both engines and the plugin does not depend on this being fixed. But the
+next plugin will hit the same wall, and `moduleType` is the *designed* mechanism —
+rolldown 1.1.4 ships it in `SourceDescription`, so the field is documented API, not a
+guess.
+
+Why it is not fixed here: the change itself is a few lines of Rust, but the artifact
+is a committed prebuild for four platforms (`linux-x64`, `linux-arm64`,
+`darwin-arm64`, `darwin-x64`). Building it needs `valac` plus a `refs/rolldown`
+checkout at the pinned commit, and shipping one platform's `.so` while three go stale
+is the "declared target with no loadable artifact" shape this repo refuses. So it
+belongs in a change that goes through `prebuilds.yml`.
+
+Closing it means extending `parse_module_type` to the full `rolldown_common::ModuleType`
+set (both `into_load_return` and the transform path share it), and adding an e2e case
+next to `tests/e2e/plugins-by-name-gjs` that returns a `moduleType` from a plugin and
+asserts the bundle on BOTH engines — the asymmetry above is exactly what a
+single-engine test cannot see.
+
+A second, smaller gap sits beside it: rolldown's `moduleTypes` INPUT option works
+(measured, `{'.vue': 'ts'}`, exit 0 under Node), but the CLI has no passthrough for
+it. `gjsify.loaders` is a text/dataurl plugin, not a module-type map. Worth adding
+only once the hook half above is honest, since a config key whose value the GJS engine
+cannot honour would be the same defect one level up.
+
 ### `@gjsify/adwaita-fonts` ships desktop TTFs, which is why the web font is opt-in
 
 The package vendors `adwaita-sans-400.ttf` (880 KB) and its italic (910 KB) — the
