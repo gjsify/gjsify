@@ -2907,11 +2907,11 @@ ride along with ADR 0026.
 
 `scripts/check-adapter-import-direction.mjs` walks `src/adapters/` and holds every
 file there to ADR 0027 § 7: no widget-name literal, no placement method, the
-vocabulary comes from the table. `src/jsx-runtime.ts` and `src/vue-components.ts`
-are dialect surfaces of the same kind and are NOT in that tree, so the rule does
-not reach them.
+vocabulary comes from the table. `src/jsx-runtime.ts`, `src/vue-components.ts` and
+`src/react-jsx-runtime.ts` are dialect surfaces of the same kind and are NOT in
+that tree, so the rule does not reach them.
 
-Today nothing is wrong: both files are mapped types over the generated interfaces
+Today nothing is wrong: all three files are mapped types over the generated interfaces
 and carry zero widget literals, and the generator is what makes a hand-maintained
 tag list unnecessary. The gap is the future one — a surface that starts listing
 tags by hand would pass every check in the repo. Extending the walk means teaching
@@ -2933,6 +2933,34 @@ outside the type system: an oxlint rule over `.tsx` attribute names checked agai
 `WidgetPropsByTag`, or a dev-mode warning in `setProp` when a kebab name resolves
 to no ParamSpec. The second is cheaper and catches Vue templates too, which have
 the same hole with `strictTemplates` off.
+
+### The React JSX surface has no half in the negative-first type gate
+
+`scripts/check-type-surfaces.mjs` holds the generated type surface with two named
+halves — `jsx` (Solid, `jsx: "preserve"`) and `vue` (SFC templates through
+`vue-tsc`) — each with its own fixtures, its own annotation grammar and its own
+load-bearing-setting probes. `src/react-jsx-runtime.ts` (`jsx: "react-jsx"`,
+`jsxImportSource: "@gjsify/gtk-host/react"`) is a third dialect and has no half.
+
+What IS covered: the element list itself. `GtkReactIntrinsicElements` is a mapped
+type over the same `WidgetPropsByTag`/`WidgetClassByTag` the `jsx` half already
+checks negative-first, so the tags, the properties, the handler signatures and the
+enum nicks are the same members under the same gate. What is NOT covered is the
+React-specific plumbing: `JSX.Element`, `JSX.ElementType`,
+`JSX.IntrinsicAttributes`, and React's `Ref<T>`/`ReactNode` spellings of `ref` and
+`children`. Those are the ones the ADR-0028 § 8 measurements were taken on for
+Solid, and they were re-derived by reading rather than re-measured here.
+
+The RUNTIME half is covered: `src/adapters/react.spec.ts` renders a tree built by
+this runtime's `jsx()` through the adapter, and asserts that `./jsx-runtime`'s
+deliberate refusal still throws.
+
+Adding the half is not a one-liner: `checkJsxHalf()` hardcodes `JSX_DIR`,
+`JSX_CONFIG`, `JSX_PROBES` and the sentinel config, and a React half needs its own
+probes — at minimum "drop `jsxImportSource` and every negative evaporates" and
+"point it at `react` and the 208 HTML/SVG/MathML tags come back". A half without
+its probes is the checked-nothing shape that whole script exists to refuse, which
+is why it is tracked here instead of half-added.
 
 ### 138 of 164 generated widgets have no measured placement rule
 

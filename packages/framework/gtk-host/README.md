@@ -138,10 +138,13 @@ the readers every vector asserts through:
 
 ## Adapters
 
+Three of them today — `/solid`, `/vue`, `/react` — over one table.
+`scripts/check-adapter-import-direction.mjs` holds all three to that mechanically:
+an adapter that reaches for `descriptors`, `policies` or `registry` fails the check.
+
 `@gjsify/gtk-host/solid` is the first, and it is the thesis made checkable: Solid
 publishes a ten-method renderer contract, every one of them is a host op, and the
 adapter is the mapping — no widget name, no insertion rule, no GTK knowledge.
-`scripts/check-adapter-import-direction.mjs` holds it to that mechanically.
 
 ```ts
 import { For, createComponent, createElement, insert, mount, setProp } from '@gjsify/gtk-host/solid';
@@ -320,8 +323,78 @@ built-ins measured clean alongside `Teleport` and `KeepAlive` — `BaseTransitio
 is not in this table because `@vue/runtime-core` does not export it at all
 (`MISSING_EXPORT` from rolldown); it belongs to `runtime-dom`.
 
-A React adapter will run the same vectors, so "it works in Vue" and "it works in
-React" will mean the same thing.
+`@gjsify/gtk-host/react` is the third, and it is the one whose contract can be
+READ instead of restated. `react-reconciler` is `module.exports = function
+$$$reconciler($$$hostConfig) { … }` and its body opens by destructuring the whole
+config, so a recording `Proxy` over the config reports exactly which members the
+installed version asks for. Measured on **0.29.2**, production bundle: **76**
+members read, **37** answered here, **39** switched off by three flags the config
+does declare (`supportsPersistence: false`, `supportsHydration: false`,
+`supportsTestSelectors` absent) plus `supportsMicrotasks`, and 4 more declared for
+the development bundle, which reads 94. `react.spec.ts` asserts all three
+directions, so a version bump that starts asking for something new fails a test
+instead of reading `undefined` inside a commit.
+
+```ts
+import { createRoot, flushSync } from '@gjsify/gtk-host/react';
+
+const root = createRoot(myWindow);
+root.render(createElement('GtkBox', null, createElement('GtkLabel', { label: 'hi' })));
+```
+
+- **`render()` is synchronous, and that is a choice with a reason.** A
+  `ConcurrentRoot`'s updates are DEFAULT-lane, so they are handed to `scheduler`,
+  which under GJS is a GLib timer source — with no main loop running yet, an
+  unflushed first render leaves the container empty and says nothing. `render()`
+  therefore wraps `updateContainer` in `flushSync`, which sets the current update
+  priority to `DiscreteEventPriority` and makes everything scheduled inside it a
+  sync lane the same call then flushes.
+- **A `setState` from a GTK signal handler is concurrent** and lands on the next
+  main-loop iteration, because `getCurrentEventPriority` returns the default lane
+  (there is no ambient DOM event to derive a priority from). `flushSync` is the
+  escape hatch. A vector pumps `GLib.MainContext.default()` and proves the
+  scheduled path works at all under GJS — it does, on gjs 1.88.1, with no
+  polyfill: `scheduler` feature-detects `performance`, `setImmediate`,
+  `MessageChannel` and `navigator` and falls back to `setTimeout`, which the GJS
+  prologue already provides.
+- **React CLEARS the container before its first commit.** `updateHostRoot` sets
+  the `Snapshot` flag whenever the previous render produced no child — in the DOM
+  to discard leftover markup. Here the container is a widget the application built
+  and filled, so `clearContainer` destroys only the SHADOW children and never
+  `el.foreign`. A vector records the call, because surviving chrome alone would
+  also be explained by React never making it.
+- **`removeChild` is a TEARDOWN, like Vue's `remove` and unlike Solid's
+  `removeNode`.** React moves a node with `insertBefore`/`appendChild` alone, so
+  `removeChild` is only ever a real unmount. The reorder vector holds both halves:
+  the same widget objects survive, and `removeChild` was never reached.
+- **`getPublicInstance` IS `ref`,** and it returns the author's widget — never the
+  `GtkListBoxRow` the host wrapped it in.
+- **`shouldSetTextContent` answers `false`, always.** `true` would leave the string
+  in `props.children` for the adapter to write, which is a widget-knowledge test in
+  an adapter; the host already routes a text node to the descriptor's `textSink` and
+  refuses text by tag name where there is none.
+- **`<Suspense>`'s `hideTextInstance` empties the run's contribution** to its
+  parent's sink — a text run owns no widget — and nothing has to be remembered,
+  because `unhideTextInstance` is handed the text back.
+
+**Build recipe**, and it is not optional:
+
+```
+--define 'process.env.NODE_ENV="production"'
+--exclude-globals navigator
+```
+
+`react-reconciler/index.js` picks its bundle from `process.env.NODE_ENV`, and the
+development one reaches for `document`, `HTMLCanvasElement` and `Path2D`, which
+makes `--globals auto` inject the GTK-backed DOM registers and pull `gi://Gdk`,
+`GdkPixbuf`, `Pango` and `PangoCairo` into a bundle that needs none of them. Even
+the production `scheduler` carries `typeof navigator !== 'undefined' &&
+navigator.scheduling`, dead code under GJS but still a free identifier the
+detector answers with the same register. With both flags the bundle loads with no
+`document` and no `navigator`, and a vector asserts exactly that.
+
+`react` and `react-reconciler` are OPTIONAL peer dependencies, like `solid-js` and
+`@vue/runtime-core`.
 
 ## The widget table, and the type surfaces
 
@@ -414,3 +487,41 @@ with `vue-tsc --showConfig` rather than by reading the nearest tsconfig.
 That camelize has no acronym knowledge (`gtk-gl-area` → `GtkGlArea`), so widgets
 with two adjacent capitals get an extra kebab key. The generator finds them by
 rule; today there is exactly one, `GtkGLArea`.
+
+### React / JSX
+
+```jsonc
+{
+    "jsx": "react-jsx",
+    "jsxImportSource": "@gjsify/gtk-host/react",   // TypeScript appends /jsx-runtime
+    "noImplicitAny": true
+}
+```
+
+A **separate subpath**, and the split is structural rather than stylistic.
+`@gjsify/gtk-host/jsx-runtime` deliberately throws from `jsx()`/`jsxs()`, which is
+right for the dialects it serves: Solid's reactivity lives in what
+`babel-preset-solid` emits and Vue's in its SFC compiler, so an automatic runtime
+reaching those functions means the pipeline was misconfigured and nothing would
+render. React is the opposite case — its `jsx()` builds a plain, renderer-agnostic
+element record and the host mapping happens later, in `react-reconciler` — so
+`@gjsify/gtk-host/react/jsx-runtime` re-exports React's OWN factories and declares
+its own `JSX` namespace over the same generated tag list. One module cannot both
+refuse the automatic runtime and provide it; `jsxImportSource` picks.
+
+Pointing `jsxImportSource` at `"react"` instead is the 208-tag trap: the element
+list then comes from `@types/react`, and every HTML, SVG and MathML tag
+type-checks clean on a GTK renderer and renders nothing.
+
+Tags are kebab here too, for the same measured reason as the Solid surface. `ref`
+takes React's `Ref<T>` (a callback *or* a `useRef` object), which is why it is not
+the Solid surface's `ref` type.
+
+**The export names are the framework's contract, not a style choice** — the same
+lesson the Solid adapter paid for when its `setProp` was exported as
+`setSolidProp` and `babel-plugin-jsx-dom-expressions` emitted
+`import { setProp }` literally. TypeScript's automatic runtime emits `jsx`, `jsxs`
+and `Fragment` from `<jsxImportSource>/jsx-runtime`, and `jsxDEV` from
+`<jsxImportSource>/jsx-dev-runtime`; those four are exactly what this module
+exports, so a rename here is a `MISSING_EXPORT` in a consumer's build rather than
+a matter of taste.
