@@ -120,6 +120,10 @@ export function emitProps(model: SurfaceModel, provenance: string): EmittedFile 
         });
 
     const decls = [...model.declarations.values()].sort((a, b) => (a.iface < b.iface ? -1 : 1));
+    // `noUnusedLocals` refuses an import nothing reads, and a GIR whose signals are
+    // all `in` produces exactly that file — the mini fixture is one.
+    const usesOutParam = decls.some((d) => d.signals.some((s) => s.ts.includes(': OutParam')));
+    const hostTypes = usesOutParam ? 'NotifyHandler, OutParam' : 'NotifyHandler';
     const byTag: string[] = [];
     const byGType: string[] = [];
     const classByTag: string[] = [];
@@ -145,7 +149,7 @@ export function emitProps(model: SurfaceModel, provenance: string): EmittedFile 
 
 ${imports.join('\n')}
 
-import type { NotifyHandler } from '../attrs.js';
+import type { ${hostTypes} } from '../attrs.js';
 
 // Enum nicks. A property takes the nick OR the enum constant; a signal parameter
 // takes the constant only, because GJS hands the marshalled number and a nick

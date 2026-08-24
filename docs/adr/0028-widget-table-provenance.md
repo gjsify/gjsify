@@ -195,6 +195,29 @@ coercer and the verifier.**
    `<gtk-box orientation="vertical">` — the most-written GtkBox attribute there is —
    is a type error. The reader walks parents AND interfaces.
 
+10. **A table row is a claim that the widget can be BUILT, and one row was not.**
+    `AdwLayoutSlot` requires a construct-only `id`; without one, `constructed`
+    reaches `g_error()`, which is fatal by contract — SIGABRT, exit 134, a core
+    dump, and nothing to catch. GIR cannot tell that apart from any other
+    construct-only nullable property, and `descriptorProblems()` reads policy
+    without ever instantiating, so the row was green in a 1746-test suite that
+    constructed **none** of the 164. Bare-constructing all of them measures 163
+    clean and no throws at all, so the requirement is CURATED as one entry
+    (`REQUIRED_CONSTRUCT_PROPS`), refused in `materialize` by name, and the
+    construct-every-row test is what keeps the entry count honest.
+
+11. **A signal parameter has a DIRECTION, and three of them carry nothing.**
+    GIR marks `Gtk.SpinButton::input`, `Adw.SpinRow::input` and
+    `Gtk.Editable::insert-text` with a non-`in` parameter at
+    `caller-allocates="0"`. GJS still passes an argument there and it holds
+    uninitialised memory — measured, `new_value` arrives as `6.95e-310` and
+    `position` as `1711500784`, both perfectly ordinary numbers. Typing them from
+    the GIR type invites a reading that is garbage, and nothing warns. They are
+    emitted as `OutParam` instead: declared, so the following parameters do not
+    shift, and unreadable, so annotating `number` is an error at that position.
+    `caller-allocates="1"` is the opposite case and keeps its type —
+    `Gtk.Overlay::get-child-position` is handed a live `Gdk.Rectangle` to FILL.
+
 ## Consequences
 
 - The normal disagreement between table and runtime is **version skew** — a user's

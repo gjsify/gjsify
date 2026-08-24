@@ -19,7 +19,13 @@ import GObject from 'gi://GObject';
 import Gtk from 'gi://Gtk?version=4.0';
 
 import { installDiagnosticsGate } from './conformance/index.js';
-import { BUILTIN_DESCRIPTORS, CURATED_DESCRIPTORS, GENERATED_WIDGETS } from './descriptors/index.js';
+import {
+    BUILTIN_DESCRIPTORS,
+    CURATED_DESCRIPTORS,
+    GENERATED_WIDGETS,
+    REQUIRED_CONSTRUCT_PROPS,
+} from './descriptors/index.js';
+import { createElement, materialize } from './host.js';
 import { DECLS, ENUM_NICKS, OWN_PROPS, OWN_SIGNALS, SINCE, TAGS } from './generated/surface-data.mjs';
 import { camelOf, eventPropOf } from './generator/tsmap.mjs';
 import { isWritable, lookupEnumNick, paramSpecs } from './props.js';
@@ -119,6 +125,61 @@ export default async () => {
                     expect(hasWidget(w.tag)).toBe(true);
                     expect(lookupWidget(w.tag) === lookupWidget(w.gtype)).toBe(true);
                 }
+            });
+
+            await it('constructs every row it offers', async () => {
+                // The check the table did not have, and the reason it shipped a row
+                // that KILLS THE PROCESS. `descriptorProblems()` reads policy and
+                // never instantiates, so `AdwLayoutSlot` — whose `constructed` calls
+                // `g_error("AdwLayoutSlot %p created without an ID")`, fatal by
+                // contract, SIGABRT and a core dump — was green in a 1746-test suite.
+                //
+                // Measured bare over all 164 rows on gjs 1.88.1 / GTK 4.22.4 / Adw
+                // 1.10: 163 construct and not one throws. So a REGRESSION here is a
+                // new abort, and this test is what turns it into a failure whose last
+                // line names the tag instead of a core dump nobody attributes.
+                const required = new Map(Object.entries(REQUIRED_CONSTRUCT_PROPS));
+                const failed: string[] = [];
+                for (const w of GENERATED_WIDGETS) {
+                    // Through the HOST, not through `new w.ctor()`: `materialize` is
+                    // where the refusal lives, so constructing around it would leave
+                    // the guard itself unchecked.
+                    const props: Record<string, unknown> = {};
+                    for (const name of required.get(w.gtype) ?? []) props[name] = 'probe';
+                    try {
+                        // Left alive on purpose — NOT destroyed, NOT `run_dispose()`d.
+                        //
+                        // `installDiagnosticsGate` sets a process-global JS log writer
+                        // and never takes it back, so any widget GJS finalises during
+                        // SHUTDOWN prints `Gjs-CRITICAL: Attempting to run a JS callback
+                        // during shutdown` on stderr, after the summary. Severing a
+                        // widget's internals is what schedules that: measured one row
+                        // per process over all 164, disposing makes EIGHT of them do it
+                        // (AdwComboRow, GtkColumnView, GtkEditableLabel, GtkEmojiChooser,
+                        // GtkScrollbar, GtkColorChooserDialog, GtkColorChooserWidget,
+                        // GtkFileChooserWidget) and leaving them alone makes TWO
+                        // (GtkColorChooserWidget, GtkEmojiChooser).
+                        //
+                        // Two leaked-by-design lines beat eight, in a process that exits
+                        // seconds later; neither is the host's doing, and skipping the
+                        // two rows would trade the noise for the blindness this test
+                        // exists to remove.
+                        materialize(createElement(w.tag, props));
+                    } catch (error) {
+                        failed.push(`${w.gtype}: ${(error as Error).message}`);
+                    }
+                }
+                expect(failed).toStrictEqual([]);
+                expect(required.size).toBe(1);
+            });
+
+            await it('refuses a fatal construction by name instead of aborting', async () => {
+                // A/B for the guard above: without `requiresProps` this call does not
+                // throw — it ends the process. The assertion is that it is an ERROR.
+                expect(() => materialize(createElement('adw-layout-slot'))).toThrow(/cannot be constructed without id/);
+                // And the requirement is a REQUIREMENT, not a ban: with the id, it builds.
+                const slot = materialize(createElement('adw-layout-slot', { id: 'probe' }));
+                expect(slot instanceof Adw.LayoutSlot).toBe(true);
             });
 
             await it('names a real class for every tag', async () => {

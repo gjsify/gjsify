@@ -32,6 +32,27 @@ export const CURATED_DESCRIPTORS: readonly WidgetDescriptor[] = [...GTK_DESCRIPT
  * and `set_child` all exist somewhere in GTK, and calling the wrong one is a
  * warning at exit 0.
  */
+/**
+ * Construct-only properties a GType ABORTS the process without.
+ *
+ * Not an exception: `adw_layout_slot_constructed` calls `g_error()`, which is
+ * fatal by contract — no catch, no diagnostic, SIGABRT and a core dump. A table
+ * that merely LISTS such a tag hands a renderer a way to kill the process, and
+ * `descriptorProblems()` cannot see it because it never instantiates anything.
+ *
+ * MEASURED bare-constructing all 164 generated rows on gjs 1.88.1 / GTK 4.22.4 /
+ * Adw 1.10, resuming past each abort: **163 construct, one does not**, and not a
+ * single row throws. So this map is one entry rather than a policy — and
+ * `constructsEveryDescriptor` in `generated.spec.ts` is what keeps it one entry.
+ *
+ * CURATED, like every other placement fact: the GIR says `id` is construct-only
+ * and nullable, which is exactly what it says about properties that construct
+ * fine. Only running it tells them apart (ADR 0028 § 1).
+ */
+export const REQUIRED_CONSTRUCT_PROPS: Readonly<Record<string, readonly string[]>> = {
+    AdwLayoutSlot: ['id'],
+};
+
 export function mergeGenerated(
     curated: readonly WidgetDescriptor[],
     generated: readonly GeneratedWidget[],
@@ -40,7 +61,13 @@ export function mergeGenerated(
     const known = new Set(curated.map((d) => d.gtype));
     for (const w of generated) {
         if (known.has(w.gtype)) continue;
-        out.push({ gtype: w.gtype, ctor: w.ctor, children: { kind: 'uncurated' } });
+        const requiresProps = REQUIRED_CONSTRUCT_PROPS[w.gtype];
+        out.push({
+            gtype: w.gtype,
+            ctor: w.ctor,
+            children: { kind: 'uncurated' },
+            ...(requiresProps ? { requiresProps } : {}),
+        });
     }
     return out;
 }
