@@ -1,0 +1,33 @@
+{
+    // BOTH HALVES OF THE CONTRACT, and the second one only works here.
+    //
+    // `vueCompilerOptions.strictTemplates` is what makes the `GlobalComponents`
+    // surface mean anything: measured on vue-tsc 3.3.11, without it an unknown
+    // prop, an unknown event and an entirely UNRESOLVED tag are all silently
+    // accepted while wrong VALUE types still error — so a project without it sees
+    // type errors appear and concludes the surface is working.
+    //
+    // AND IT MUST BE SET IN THE BASE OF THE `extends` CHAIN. Measured, four cells,
+    // all four: the base tsconfig's value wins and the child's is ignored outright,
+    // in BOTH directions. This file extends nothing, so it IS the base — which is
+    // the only reason the setting below takes effect. Check it with
+    // `vue-tsc --showConfig`, never by reading the nearest tsconfig.
+    "compilerOptions": {
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "target": "ESNext",
+        "outDir": "dist",
+        "rootDir": "src",
+        "strict": true,
+        "skipLibCheck": true,
+        "types": [],
+        "lib": ["ESNext", "DOM", "DOM.Iterable"]
+    },
+    "vueCompilerOptions": {
+        "strictTemplates": true
+    },
+    // `src/**/*.vue` is listed EXPLICITLY. A tsconfig whose include lists only `.ts`
+    // globs makes vue-tsc check ZERO SFCs and exit 0 — the vacuous-green shape
+    // `scripts/check-type-surfaces.mjs` keeps as its own probe.
+    "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.vue"]
+}

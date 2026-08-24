@@ -90,6 +90,7 @@
     "@babel/preset-typescript@^7.27.1",
     "babel-preset-solid@^1.9.9",
     "@types/babel__core@^7.20.5",
+    "@vue/compiler-sfc@^3.5.41",
     "execa@^9.6.1",
     "minify-xml@^4.5.2",
     "gettext-parser@^9.0.2",

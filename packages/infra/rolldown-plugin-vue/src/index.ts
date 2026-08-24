@@ -1,0 +1,358 @@
+// Vue single-file components for Rolldown — the compile step a GTK/GJS Vue app
+// needs, and the half that did not exist while the adapter did.
+//
+// `@gjsify/gtk-host/vue` is a `@vue/runtime-core` custom renderer, and it was
+// exercised through the renderer calls an SFC template compiles TO, never through
+// `@vue/compiler-sfc`. Nothing in the repository compiled a `.vue` file.
+//
+// ONE DECISION SHAPES THE WHOLE FILE, and it is not the obvious one. Rolldown picks
+// a parser from the id's EXTENSION, and `.vue` is not one it knows: hand it
+// TypeScript on a `.vue` id and the build dies with `[PARSE_ERROR] Missing
+// initializer in const declaration` pointing INTO the `.vue` file. The designed fix
+// is `moduleType` on a transform result — real, documented API in rolldown 1.1.4's
+// `SourceDescription` — and it is unusable here: `@gjsify/rolldown-native`'s
+// `plugin_proxy.rs::parse_module_type` accepts js/ecmascript/json/text and rejects
+// the rest, so `moduleType: 'ts'` builds under Node and fails under GJS, the primary
+// target. So this plugin renames the module id in `resolveId` and compiles in
+// `load`, which is the only one of the three candidates measured working on BOTH
+// engines. The table of what each did is in the README; the core gap is recorded in
+// `status/open-todos.md`.
+//
+// Everything else worth knowing is at its call site, because each one is a way this
+// compiles green and renders wrong.
+
+import { readFile } from 'node:fs/promises';
+
+import type { Plugin } from 'rolldown';
+// A TYPE-only namespace import: erased at compile time, so naming the compiler here
+// does not load it. `typeof import(…)` would say the same thing and is refused by
+// `consistent-type-imports`.
+import type * as VueCompilerSfc from '@vue/compiler-sfc';
+
+/** `@vue/compiler-sfc`, loaded lazily on the first `.vue` module. */
+type CompilerSfc = typeof VueCompilerSfc;
+
+/** The component object every emitted module builds and exports. */
+const SFC_BINDING = '__sfc__';
+/** The render function, renamed out of the way of a user's own `render`. */
+const RENDER_BINDING = '__sfc_render__';
+/**
+ * Appended to the resolved `.vue` path so rolldown's extension-based parser
+ * selection reaches TypeScript. Fact 5 above.
+ *
+ * Named rather than a bare `.ts` so no real file can collide with it: a project
+ * that genuinely has an `App.vue.ts` on disk would otherwise see this plugin claim
+ * its `load` and compile `App.vue` in its place.
+ */
+const VIRTUAL_SUFFIX = '.gjsify-vue.ts';
+
+const DEFAULT_INCLUDE = /\.vue$/;
+const DEFAULT_RUNTIME_MODULE_NAME = '@vue/runtime-core';
+
+export interface VuePluginOptions {
+    /**
+     * Which tags compile to an ELEMENT vnode instead of a component lookup.
+     *
+     * Defaults to {@link isGtkHostTag}. Widen it for a project that registers
+     * widgets under another prefix; narrow it and a GTK tag silently becomes a
+     * component lookup that resolves to nothing.
+     */
+    isCustomElement?: (tag: string) => boolean;
+    /** Which modules to compile. Defaults to `.vue`. */
+    include?: RegExp;
+    /**
+     * Module the generated code imports Vue's runtime from.
+     *
+     * Defaults to `@vue/runtime-core`, which is what the gjsify adapter builds on.
+     * `vue` — the compiler's own default — pulls `@vue/runtime-dom` and the DOM
+     * renderer into a bundle that has no DOM.
+     */
+    runtimeModuleName?: string;
+}
+
+/**
+ * The default tag rule: `gtk-`/`adw-` kebab, or `Gtk`/`Adw` + a capital.
+ *
+ * A PREFIX RULE, deliberately, and its authority lies elsewhere — this predicate
+ * only decides "element vnode or component lookup", never whether the widget
+ * exists. An unknown tag is refused BY NAME twice: `@gjsify/gtk-host`'s registry
+ * throws `unknown-tag` at render time, and `GlobalComponents` + `strictTemplates`
+ * refuses it at type-check. Encoding the widget list here would be a third copy of
+ * a generated table, and the first one to drift.
+ *
+ * It covers that table exactly: all 164 GType keys in
+ * `gtk-host/src/generated/props.ts` match `^(Gtk|Adw)[A-Z]`, so every kebab tag
+ * derived from them matches `^(gtk|adw)-`.
+ */
+export const isGtkHostTag = (tag: string): boolean => /^(gtk|adw)-/.test(tag) || /^(Gtk|Adw)[A-Z]/.test(tag);
+
+/**
+ * Loaded on first compile, not at import.
+ *
+ * Same contract as `@gjsify/rolldown-plugin-solid` and
+ * `@gjsify/rolldown-plugin-deepkit`: a build with no `.vue` in it never pays for
+ * `@vue/compiler-sfc` (which pulls in `@babel/parser`, `postcss` and
+ * `magic-string`), and under `--app gjs` the CLI bundles this plugin for GJS before
+ * importing it, so that whole tree has to load under GJS as well.
+ */
+let cached: Promise<CompilerSfc> | null = null;
+
+function load(): Promise<CompilerSfc> {
+    cached ??= import('@vue/compiler-sfc');
+    return cached;
+}
+
+/**
+ * FNV-1a over filename + source, hex.
+ *
+ * The SFC "id" is Vue's scope id: it keys `<style scoped>` attribute selectors and
+ * `v-bind()` CSS variables. Both are out of scope here, so all this value needs is
+ * to be stable and collision-free per module — and to be computed WITHOUT
+ * `node:crypto`, because this plugin runs inside a CLI that runs on GJS.
+ */
+function scopeId(filename: string, source: string): string {
+    let hash = 0x811c9dc5;
+    const input = `${filename} ${source}`;
+    for (let i = 0; i < input.length; i++) {
+        hash ^= input.charCodeAt(i);
+        // The 32-bit FNV prime, multiplied through Math.imul so it stays an int32.
+        hash = Math.imul(hash, 0x01000193);
+    }
+    return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+/**
+ * Refuse a `<script lang>` this plugin cannot place behind a `.ts` id.
+ *
+ * The suffix is chosen in `resolveId`, before anything has read the file, so it
+ * cannot depend on the block's `lang` — and a JSX dialect needs a `.tsx`/`.jsx` id
+ * to parse at all. Refusing by name beats emitting code rolldown will then fail to
+ * parse with a message about the generated line rather than about the `lang`.
+ */
+function assertSupportedLang(lang: string | undefined, filename: string): void {
+    if (lang === undefined || lang === 'js' || lang === 'ts') return;
+    throw new Error(
+        `@gjsify/rolldown-plugin-vue: ${filename} declares <script lang="${lang}">, which this plugin does not ` +
+            `compile. Supported: no lang, "js", "ts". A JSX dialect inside an SFC script would need the module id ` +
+            `to end in .jsx/.tsx, which is decided before the file is read; write JSX in a .tsx file and compile it ` +
+            `with @gjsify/rolldown-plugin-solid instead.`,
+    );
+}
+
+/**
+ * Refuse a `<style>` block by name rather than dropping it.
+ *
+ * GTK styling is a `Gtk.CssProvider` concern: there is no element a CSS rule could
+ * attach to here, and `<style scoped>` compiles to an attribute selector GTK4 CSS
+ * does not even have. Compiling the rest and saying nothing is the exact failure
+ * shape this repository keeps eliminating — the app builds, runs, looks wrong, and
+ * nothing anywhere mentions the stylesheet.
+ */
+function refuseStyleBlocks(styles: readonly { scoped?: boolean }[], id: string): void {
+    if (styles.length === 0) return;
+    const scoped = styles.filter((style) => style.scoped === true).length;
+    throw new Error(
+        `@gjsify/rolldown-plugin-vue: ${id} has ${styles.length} <style> block(s)` +
+            `${scoped > 0 ? ` (${scoped} scoped)` : ''}, which this plugin does not compile. GTK styling goes ` +
+            `through a Gtk.CssProvider: load the CSS yourself with Gtk.CssProvider.load_from_string() plus ` +
+            `Gtk.StyleContext.add_provider_for_display(), and put the selector on the widget with cssClasses. ` +
+            `Dropping the block silently would build an app that renders unstyled with nothing to read about it.`,
+    );
+}
+
+/**
+ * `export function render` becomes `function __sfc_render__`, so the emitted module
+ * can hold a user's own `render` binding beside it.
+ *
+ * A string rewrite, like `@vitejs/plugin-vue`'s, because `compileTemplate` has no
+ * rename option — but ASSERTED, because a silent no-op here would leave a second
+ * `render` in the module (a redeclaration at best, a shadowed user binding at worst)
+ * and the failure would surface in the app rather than in the build.
+ */
+function renameRenderExport(code: string, id: string): string {
+    const renamed = code.replace(/\nexport function render\(/, `\nfunction ${RENDER_BINDING}(`);
+    if (renamed === code) {
+        throw new Error(
+            `@gjsify/rolldown-plugin-vue: could not find the generated \`export function render(\` in the ` +
+                `template output for ${id}. @vue/compiler-sfc changed its codegen shape; this plugin renames ` +
+                `that export so it cannot collide with a user's own \`render\`.`,
+        );
+    }
+    return renamed;
+}
+
+/** Every message an SFC/template compile can report, flattened for one throw. */
+function messagesOf(errors: readonly unknown[]): string {
+    return errors.map((error) => String((error as { message?: unknown }).message ?? error)).join('\n  ');
+}
+
+/**
+ * Compile one SFC's source to a component module.
+ *
+ * Split out of the hooks so the whole compile is reachable without a bundler —
+ * which is what makes it testable at all.
+ */
+export async function compileSfc(
+    source: string,
+    filename: string,
+    options: {
+        isCustomElement: (tag: string) => boolean;
+        runtimeModuleName: string;
+        /**
+         * Where a NAMED-but-not-fatal finding goes — a custom block, today.
+         *
+         * A custom block carries no runtime semantics of its own, so refusing one
+         * would break a `<docs>` block that harms nothing; dropping it in silence is
+         * the other half of the same mistake. It gets said out loud instead.
+         */
+        onWarn?: (message: string) => void;
+    },
+): Promise<string> {
+    const { parse, compileScript, compileTemplate } = await load();
+    const { isCustomElement, runtimeModuleName } = options;
+
+    // BOTH options LOOK like codegen options and are really PARSER options, and
+    // setting them where they look like they belong is a silent no-op — a tag's kind
+    // (element vs component) and whether a comment survives are decided at parse
+    // time. `@vitejs/plugin-vue` hands `compileTemplate` the `ast` from a plain
+    // `parse()` and relies on Vite to have configured the parser; doing that here
+    // measured 2 of 2 tags back to `_resolveComponent` while
+    // `compilerOptions.isCustomElement` sat there set and ignored.
+    //
+    // That no-op also FAKED ITS OWN A/B: `compileTemplate` re-parses an ast that has
+    // already been transformed, so a loop compiling the SAME descriptor three times
+    // showed `comments: false` "working" on the second pass. Every measurement in
+    // this package is from a fresh process.
+    //
+    // `comments` is here for a second reason: it defaults to `__DEV__`, i.e. to the
+    // BUNDLER's `process.env.NODE_ENV`, which no build here sets. Measured, the same
+    // SFC emitted 4 `createCommentVNode` calls with NODE_ENV unset and 0 with
+    // NODE_ENV=production — a different bundle for an environment variable nothing
+    // declares.
+    const { descriptor, errors } = parse(source, {
+        filename,
+        templateParseOptions: { isCustomElement, comments: false },
+    });
+    if (errors.length > 0) {
+        throw new Error(`@gjsify/rolldown-plugin-vue: ${filename} is not a valid SFC:\n  ${messagesOf(errors)}`);
+    }
+
+    refuseStyleBlocks(descriptor.styles, filename);
+    for (const block of descriptor.customBlocks) {
+        options.onWarn?.(
+            `@gjsify/rolldown-plugin-vue: ${filename} carries a <${block.type}> block, which this plugin does ` +
+                `not compile. Nothing in the bundle will read it.`,
+        );
+    }
+
+    const hasScript = descriptor.script !== null || descriptor.scriptSetup !== null;
+    assertSupportedLang(descriptor.scriptSetup?.lang ?? descriptor.script?.lang ?? undefined, filename);
+
+    const compilerOptions = {
+        isCustomElement,
+        runtimeModuleName,
+        // The adapter's contract, and its error messages depend on it: `cloneNode`
+        // and `insertStaticContent` THROW there rather than lie, because a GObject
+        // does not clone and GTK parses no HTML. Measured, `stringifyStatic` never
+        // fires for a `gtk-*`/`Gtk*` tag anyway (it only stringifies tags the DOM
+        // compiler knows), so this is the adapter's prescription made true rather
+        // than a fix for a failure seen here.
+        hoistStatic: false,
+        transformHoist: null,
+    };
+
+    const id = scopeId(filename, source);
+    // `genDefaultAs` turns `export default {…}` into a binding this module can then
+    // attach `render` to, and gives a script with no default export an empty
+    // component instead of a syntax error.
+    const script = hasScript
+        ? compileScript(descriptor, {
+              id,
+              genDefaultAs: SFC_BINDING,
+              // `templateOptions` IS how `runtimeModuleName` reaches this call, and
+              // there is no other way in: `compileScript` reads it from
+              // `options.templateOptions.compilerOptions.runtimeModuleName` and
+              // otherwise emits `import { defineComponent } from 'vue'` — the full
+              // Vue package, which re-exports `@vue/runtime-dom` and its DOM
+              // renderer into a bundle that has no DOM.
+              templateOptions: { compilerOptions },
+          })
+        : null;
+
+    const parts: string[] = [script?.content ?? `const ${SFC_BINDING} = {};`];
+
+    if (descriptor.template !== null) {
+        const template = compileTemplate({
+            id,
+            filename,
+            source: descriptor.template.content,
+            // Safe to reuse ONLY because `parse` above got the parser options.
+            ast: descriptor.template.ast,
+            compilerOptions: { ...compilerOptions, bindingMetadata: script?.bindings },
+        });
+        if (template.errors.length > 0) {
+            throw new Error(
+                `@gjsify/rolldown-plugin-vue: ${filename} has a template that does not compile:\n  ` +
+                    messagesOf(template.errors),
+            );
+        }
+        parts.push(renameRenderExport(template.code, filename), `${SFC_BINDING}.render = ${RENDER_BINDING};`);
+    }
+
+    parts.push(`${SFC_BINDING}.__file = ${JSON.stringify(filename)};`, `export default ${SFC_BINDING};`);
+    return parts.join('\n');
+}
+
+/**
+ * Compile Vue SFCs to a component module for a gjsify custom renderer.
+ *
+ * Wire it through `package.json#gjsify` so no JS-form config file is needed:
+ *
+ * ```json
+ * "gjsify": { "bundler": { "plugins": [{ "name": "@gjsify/rolldown-plugin-vue" }] } }
+ * ```
+ */
+export function vuePlugin(options: VuePluginOptions = {}): Plugin {
+    const isCustomElement = options.isCustomElement ?? isGtkHostTag;
+    const include = options.include ?? DEFAULT_INCLUDE;
+    const runtimeModuleName = options.runtimeModuleName ?? DEFAULT_RUNTIME_MODULE_NAME;
+
+    return {
+        name: 'gjsify-vue',
+
+        resolveId: {
+            // Before anything else can claim the specifier — what follows must see
+            // the renamed id, not the `.vue` one.
+            order: 'pre' as const,
+            async handler(source: string, importer: string | undefined) {
+                if (!include.test(source)) return null;
+                // `skipSelf` so the real resolution runs without re-entering here.
+                // The result carries the absolute path; the suffix is appended to
+                // THAT, so a diagnostic still names the file with the real path as
+                // its prefix.
+                const resolved = await this.resolve(source, importer, { skipSelf: true });
+                if (!resolved || !include.test(resolved.id)) return null;
+                return `${resolved.id}${VIRTUAL_SUFFIX}`;
+            },
+        },
+
+        async load(id: string) {
+            if (!id.endsWith(VIRTUAL_SUFFIX)) return null;
+            const filename = id.slice(0, -VIRTUAL_SUFFIX.length);
+            // Re-checked against `include` rather than against a literal `.vue`, so a
+            // caller-narrowed filter stays consistent across the two hooks: the pair
+            // that mints an id and the pair that reads it must agree, or the id
+            // reaches rolldown's file loader and fails on a path that does not exist.
+            if (!include.test(filename)) return null;
+            const source = await readFile(filename, 'utf8');
+            const code = await compileSfc(source, filename, {
+                isCustomElement,
+                runtimeModuleName,
+                onWarn: (message) => this.warn(message),
+            });
+            return { code, map: null };
+        },
+    };
+}
+
+export default vuePlugin;
