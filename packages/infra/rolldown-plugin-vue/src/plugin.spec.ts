@@ -166,6 +166,22 @@ export default async () => {
             expect((map?.mappings ?? '').length > 0).toBe(true);
         });
 
+        await it('answers the same for a /g include as for a plain one', async () => {
+            // `RegExp.test` advances `lastIndex` on a global regex, and this plugin tests
+            // three times per module. Measured before the flag was stripped:
+            // `resolveId` returned null for EVERY .vue import (the specifier matched and
+            // moved lastIndex, so the resolved id then did not) and `load` alternated
+            // between compiling and declining. Six rounds, because the bug has period 2.
+            const global = vuePlugin({ include: /\.vue$/g });
+            const resolveGlobal = resolveIdOf(global);
+            const loadGlobal = loadOf(global);
+            for (let round = 0; round < 6; round++) {
+                const { ctx } = context(file);
+                expect(idOf(await resolveGlobal.call(ctx, './App.vue', join(dir, 'main.ts')))).toBe(`${file}${SUFFIX}`);
+                expect((await loadGlobal.call(ctx, `${file}${SUFFIX}`))?.code).toContain('const n: number = 6;');
+            }
+        });
+
         await it('honours a caller-supplied include filter in BOTH hooks', async () => {
             // Both, because the pair that mints an id and the pair that reads it have
             // to agree: a `load` that matched a literal `.vue` would hijack an id its

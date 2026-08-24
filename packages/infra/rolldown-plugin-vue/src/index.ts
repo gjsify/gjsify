@@ -51,6 +51,21 @@ const VIRTUAL_SUFFIX = '.gjsify-vue.ts';
 const DEFAULT_INCLUDE = /\.vue$/;
 const DEFAULT_RUNTIME_MODULE_NAME = '@vue/runtime-core';
 
+/**
+ * The caller's `include` without the two flags that make `RegExp.test` STATEFUL.
+ *
+ * `g` and `y` both maintain `lastIndex` across calls, and this plugin tests three times
+ * per module — the specifier, the resolved id, and the filename in `load`. Measured with
+ * `vuePlugin({ include: /\.vue$/g })`: `resolveId` returned `null` for EVERY `.vue`
+ * import (the specifier matched and advanced `lastIndex`, so the resolved id then did
+ * not), and `load` alternated between compiling and declining. Stripped rather than
+ * refused: neither flag can mean anything to a `test`, so there is no intent to honour.
+ */
+function stateless(include: RegExp): RegExp {
+    const flags = include.flags.replace(/[gy]/g, '');
+    return flags === include.flags ? include : new RegExp(include.source, flags);
+}
+
 export interface VuePluginOptions {
     /**
      * Which tags compile to an ELEMENT vnode instead of a component lookup.
@@ -588,7 +603,7 @@ export async function compileSfc(
  */
 export function vuePlugin(options: VuePluginOptions = {}): Plugin {
     const isCustomElement = options.isCustomElement ?? isGtkHostTag;
-    const include = options.include ?? DEFAULT_INCLUDE;
+    const include = stateless(options.include ?? DEFAULT_INCLUDE);
     const runtimeModuleName = options.runtimeModuleName ?? DEFAULT_RUNTIME_MODULE_NAME;
 
     return {
