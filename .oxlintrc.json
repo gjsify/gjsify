@@ -146,6 +146,11 @@
                 "**/test/**",
                 "**/*.test.*",
                 "**/*.spec.ts",
+                // A type-test fixture is COMPILE-ONLY: it is never constructed, never
+                // rendered, and its captions exist to be a type. `@ts-expect-error` makes
+                // the assertion, and a caption that had to route through `_()` would be
+                // asserting about gettext instead of about the type.
+                "**/type-tests/**",
                 "**/scripts/**",
                 "tests/**",
                 "examples/**",
