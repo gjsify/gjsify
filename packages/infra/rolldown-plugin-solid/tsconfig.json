@@ -11,5 +11,12 @@
         "skipLibCheck": true,
         "types": ["node"]
     },
-    "include": ["src/**/*"]
+    "include": ["src/**/*"],
+    "comment": [
+        "Specs stay INCLUDED here on purpose, so `check` type-checks them; only",
+        "`tsconfig.build.json` drops them, because `files` publishes `lib/` and an",
+        "emitted spec would ship. The test ENTRY is excluded from both: it is compiled",
+        "by the test task, which resolves `@gjsify/unit` for it."
+    ],
+    "exclude": ["src/test.mts"]
 }
