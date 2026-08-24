@@ -20,11 +20,17 @@ import { vuePlugin } from './index.js';
 /** What `resolveId` appends; kept in one place so a rename shows up here. */
 const SUFFIX = '.gjsify-vue.ts';
 
-/** A minimal plugin context: the two members these hooks use. */
-function context(resolved: string | null) {
+/**
+ * A minimal plugin context: the two members these hooks use.
+ *
+ * `extra` is what a REAL `this.resolve` also answers with — `external`,
+ * `moduleSideEffects`, `meta` — and dropping it is a defect of its own, so the fixture
+ * has to be able to carry it.
+ */
+function context(resolved: string | null, extra: Record<string, unknown> = {}) {
     const warnings: string[] = [];
     const ctx = {
-        resolve: async () => (resolved === null ? null : { id: resolved }),
+        resolve: async () => (resolved === null ? null : { id: resolved, ...extra }),
         warn: (message: string) => warnings.push(message),
     };
     return { ctx, warnings };
@@ -32,12 +38,20 @@ function context(resolved: string | null) {
 
 type ObjectHook<T> = { handler: T };
 
+/** What `resolveId` may answer with: a bare id, a partial resolution, or nothing. */
+type ResolveIdResult = string | { id: string; external?: unknown; moduleSideEffects?: unknown } | null;
+
 /** `resolveId`'s handler, which the plugin declares in `{ order, handler }` form. */
 function resolveIdOf(plugin: ReturnType<typeof vuePlugin>) {
     const hook = plugin.resolveId as unknown as ObjectHook<
-        (this: unknown, source: string, importer: string | undefined) => Promise<string | null>
+        (this: unknown, source: string, importer: string | undefined) => Promise<ResolveIdResult>
     >;
     return hook.handler;
+}
+
+/** The id `resolveId` minted, whichever shape it answered in. */
+function idOf(result: ResolveIdResult): string | null {
+    return result === null ? null : typeof result === 'string' ? result : result.id;
 }
 
 function loadOf(plugin: ReturnType<typeof vuePlugin>) {
@@ -63,7 +77,29 @@ export default async () => {
 
         await it('renames a .vue specifier to the resolved path plus the virtual suffix', async () => {
             const { ctx } = context(file);
-            expect(await resolveId.call(ctx, './App.vue', join(dir, 'main.ts'))).toBe(`${file}${SUFFIX}`);
+            expect(idOf(await resolveId.call(ctx, './App.vue', join(dir, 'main.ts')))).toBe(`${file}${SUFFIX}`);
+        });
+
+        await it('hands an EXTERNAL .vue back unchanged', async () => {
+            // Renaming it would mint a virtual id whose `load` then `readFile`s a path
+            // that is not there — ENOENT for a module the build was told to leave alone.
+            const { ctx } = context(file, { external: true, moduleSideEffects: null });
+            const result = await resolveId.call(ctx, './App.vue', join(dir, 'main.ts'));
+            expect(idOf(result)).toBe(file);
+            expect((result as { external?: unknown }).external).toBe(true);
+        });
+
+        await it('forwards what the real resolution decided', async () => {
+            // `resolveId` answering with a bare string throws away everything but the
+            // id: a `sideEffects: false` from package.json and every other plugin's
+            // `meta` along with it.
+            const { ctx } = context(file, { moduleSideEffects: false, meta: { probe: { seen: true } } });
+            const result = (await resolveId.call(ctx, './App.vue', join(dir, 'main.ts'))) as {
+                moduleSideEffects?: unknown;
+                meta?: unknown;
+            };
+            expect(result.moduleSideEffects).toBe(false);
+            expect(JSON.stringify(result.meta)).toBe('{"probe":{"seen":true}}');
         });
 
         await it('leaves every other specifier alone', async () => {
@@ -137,7 +173,7 @@ export default async () => {
             // a file the caller excluded.
             const narrowed = vuePlugin({ include: /\.sfc$/ });
             const { ctx } = context(file);
-            expect(await resolveIdOf(narrowed).call(ctx, './App.vue', join(dir, 'main.ts'))).toBe(null);
+            expect(idOf(await resolveIdOf(narrowed).call(ctx, './App.vue', join(dir, 'main.ts')))).toBe(null);
             expect(await loadOf(narrowed).call(ctx, `${file}${SUFFIX}`)).toBe(null);
         });
 

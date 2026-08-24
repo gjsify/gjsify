@@ -606,7 +606,19 @@ export function vuePlugin(options: VuePluginOptions = {}): Plugin {
                 // its prefix.
                 const resolved = await this.resolve(source, importer, { skipSelf: true });
                 if (!resolved || !include.test(resolved.id)) return null;
-                return `${resolved.id}${VIRTUAL_SUFFIX}`;
+                // An EXTERNAL `.vue` is not this plugin's to compile: renaming it would
+                // mint a virtual id whose `load` then `readFile`s a path that is not
+                // there (ENOENT), for a module the build was told to leave alone. Handed
+                // back verbatim instead.
+                if (resolved.external) return resolved;
+                // `moduleSideEffects` and `meta` are the rest of what the real
+                // resolution DECIDED — a plugin that answers with a bare string throws
+                // away a `sideEffects: false` and every other plugin's `meta` with it.
+                return {
+                    id: `${resolved.id}${VIRTUAL_SUFFIX}`,
+                    moduleSideEffects: resolved.moduleSideEffects,
+                    meta: resolved.meta,
+                };
             },
         },
 
