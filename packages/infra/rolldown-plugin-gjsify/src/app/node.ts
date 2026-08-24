@@ -115,6 +115,8 @@ export function isGjsSourceBuild(options: {
 }
 
 export interface NodeBuildConfig {
+    /** Transforms that must see the ORIGINAL source; composed before the caller's plugins. */
+    prePlugins: RolldownPluginOption[];
     options: RolldownOptions;
     plugins: RolldownPluginOption[];
 }
@@ -236,6 +238,10 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         treeshake: true,
     };
 
+    // Reflection reads the ORIGINAL TypeScript, so it runs before any user
+    // transform can strip the annotations out from under it (see `GjsifyConfig`).
+    const prePlugins: RolldownPluginOption[] = [deepkitPlugin({ reflection: input.pluginOptions.reflection })];
+
     const plugins: RolldownPluginOption[] = [
         // Virtual-entry plugin runs FIRST so its resolveId/load match the synthetic
         // `\0gjsify-entry:` ids `wrapInputWithSideEffects` produces (no-op when
@@ -268,7 +274,6 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         // so a GJS app entry with composite-template windows must build for
         // `--app node` too. Claims only `.blp` — inert for plain-Node bundles.
         blueprintPlugin() as RolldownPluginOption,
-        deepkitPlugin({ reflection: input.pluginOptions.reflection }),
         // On a node-gi build (REAL GTK on Node) lower the CSS to GTK 4's subset just
         // as `--app gjs` does, so nesting/`&` is FLATTENED before it reaches
         // `Gtk.CssProvider.load_from_string` — GTK 4's parser otherwise rejects
@@ -285,7 +290,7 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         unresolvedWorkspaceImportPlugin({ target: 'node', aliases: aliasEntries, isExternal: external }),
     ];
 
-    return { options, plugins };
+    return { options, prePlugins, plugins };
 };
 
 function flattenAliases(map: Record<string, string>): Record<string, string> {

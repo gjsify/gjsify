@@ -57,6 +57,8 @@ function resolveShim(shimName: string): string {
 
 /** Resolved Rolldown configuration template + plugins for `--app gjs`. */
 export interface GjsBuildConfig {
+    /** Transforms that must see the ORIGINAL source; composed before the caller's plugins. */
+    prePlugins: RolldownPluginOption[];
     options: RolldownOptions;
     plugins: RolldownPluginOption[];
 }
@@ -212,6 +214,10 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         ...flattenAliases(aliasMap),
     };
 
+    // Reflection reads the ORIGINAL TypeScript, so it runs before any user
+    // transform can strip the annotations out from under it (see `GjsifyConfig`).
+    const prePlugins: RolldownPluginOption[] = [deepkitPlugin({ reflection: input.pluginOptions.reflection })];
+
     const plugins: RolldownPluginOption[] = [
         // Virtual-entry plugin runs FIRST so its resolveId/load match the
         // synthetic input ids that `wrapInputWithSideEffects` produces.
@@ -238,7 +244,6 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         // first.
         externalsPlugin(external, { name: 'gjsify-gjs-externalize' }),
         blueprintPlugin() as RolldownPluginOption,
-        deepkitPlugin({ reflection: input.pluginOptions.reflection }),
         // GTK4's CSS engine is much older than browser engines — its
         // parser predates nesting + many modern selectors. Targeting
         // `firefox: 60 << 16` makes lightningcss flatten the source
@@ -273,7 +278,7 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         }),
     ];
 
-    return { options, plugins };
+    return { options, prePlugins, plugins };
 };
 
 /** Copy the alias map, dropping entries with an empty target. */
