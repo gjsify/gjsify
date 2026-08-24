@@ -16,13 +16,19 @@ function isNode(value: unknown): value is Node {
 /**
  * Depth-first walk over every node in `root`'s subtree, `root` included.
  *
- * `parent` is skipped deliberately: where the host does populate it, following it would walk back
- * out of the subtree and loop forever.
+ * THREE keys are skipped, for two different reasons. `parent`, because where the host populates it,
+ * following it walks back out of the subtree and loops forever. `tokens` and `comments`, because
+ * oxlint hangs both off the Program node and `isNode` is a STRUCTURAL sniff — a token object has a
+ * `type` string, so it looks exactly like a node. Measured: walking them accounted for the large
+ * majority of these rules' wall-clock and visited nothing either rule can act on.
+ *
+ * That structural sniff is the general hazard: anything with a string `type` is followed. Hand this
+ * function the smallest root that contains what you need, not the Program node.
  */
 export function walk(root: Node, visit: (node: Node) => void): void {
     visit(root);
     for (const key of Object.keys(root)) {
-        if (key === 'parent') continue;
+        if (key === 'parent' || key === 'tokens' || key === 'comments') continue;
         const value = root[key];
         if (Array.isArray(value)) {
             for (const item of value) if (isNode(item)) walk(item, visit);
