@@ -23,6 +23,9 @@ import {
 } from 'node:assert';
 import assert from 'node:assert';
 
+// Bundled CJS fixture — importing it IS the regression guard, see the file header.
+import cjsInterop from './cjs-interop.fixture.cjs';
+
 export default async () => {
     await describe('AssertionError', async () => {
         await it('should be an instance of Error', async () => {
@@ -490,6 +493,34 @@ export default async () => {
         await it('should work as a function (like ok)', async () => {
             expect(() => assert(true)).not.toThrow();
             expect(() => assert(false)).toThrow();
+        });
+    });
+
+    // CJS `require('assert')` interop — the bundler `__toCommonJS` +
+    // `"module.exports"` string-export path (regression guard).
+    //
+    // The A/B that produced it: with the string-export removed, this whole bundle
+    // aborts at LOAD with `_assert is not a function`, so the assertions below never
+    // run and the suite reports zero tests rather than one failure. That is the point
+    // — the defect is a load-time one, and a guard that could only report it as a
+    // failed assertion would be describing a milder bug than the real one.
+    await describe('CJS require() interop', async () => {
+        await it('require("assert") yields the callable function', async () => {
+            expect(typeof cjsInterop.assert).toBe('function');
+            expect(() => cjsInterop.assert(true)).not.toThrow();
+            expect(() => cjsInterop.assert(false)).toThrow();
+        });
+
+        await it('the callable still carries its named members', async () => {
+            expect(typeof cjsInterop.assert.strictEqual).toBe('function');
+            expect(typeof cjsInterop.assert.deepStrictEqual).toBe('function');
+        });
+
+        await it('require("assert/strict") yields the strict callable', async () => {
+            expect(typeof cjsInterop.strict).toBe('function');
+            expect(() => cjsInterop.strict(true)).not.toThrow();
+            // `equal` is `strictEqual` on the strict binding: 1 == '1' is not 1 === '1'.
+            expect(() => cjsInterop.strict.equal(1, '1')).toThrow();
         });
     });
 };
