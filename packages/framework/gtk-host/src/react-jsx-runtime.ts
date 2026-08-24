@@ -95,6 +95,22 @@ export type GtkReactIntrinsicElements = {
 };
 
 export namespace JSX {
+    /**
+     * DELIBERATELY NOT `HostNode`, and not to be made "consistent" with the Solid
+     * surface next door.
+     *
+     * `jsx-runtime.ts` declares `Element = HostNode`, because Solid's control-flow
+     * components (`<For>`, `<Index>`, `<Show>`) are typed against host nodes and the
+     * first `<For>` in an application was otherwise a type error. React's is
+     * `ReactElement` because that is what a React JSX expression evaluates to: `jsx()`
+     * builds a renderer-agnostic element record and the host mapping happens later, in
+     * the reconciler. React's control flow is plain JavaScript, not typed components,
+     * so nothing here needs a host node in that position.
+     *
+     * The two files therefore answer two different questions and will keep disagreeing
+     * on this line. That is the design, which is why it is written down at the line
+     * rather than left to be rediscovered by whoever reaches for the one-line fix.
+     */
     export type Element = ReactElement;
     export type ElementType = GtkElementType;
     /** Names the prop children arrive on — without it, nesting is an error. */
