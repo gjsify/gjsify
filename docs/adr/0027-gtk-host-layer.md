@@ -3,7 +3,7 @@
 - Status: **Accepted**
 - Date: 2026-08-22
 - Deciders: Pascal Garber
-- Related: [ADR 0004 (headless Adwaita core)](0004-headless-adwaita-core.md), [ADR 0009 (native Adwaita app shell)](0009-native-adwaita-app-shell.md), [ADR 0003 (package tiering)](0003-package-tiering.md), [ADR 0028 (widget table provenance)](0028-widget-table-provenance.md)
+- Related: [ADR 0004 (headless Adwaita core)](0004-headless-adwaita-core.md), [ADR 0009 (native Adwaita app shell)](0009-native-adwaita-app-shell.md), [ADR 0003 (package tiering)](0003-package-tiering.md), [ADR 0028 (widget table provenance)](0028-widget-table-provenance.md), [ADR 0030 (one corpus, GJS as oracle)](0030-one-corpus-gjs-as-oracle.md)
 
 ## Context
 
@@ -63,7 +63,33 @@ Two further GTK facts shaped the contract, both measured on gjs 1.88.1:
 ## Decision
 
 gjsify owns a framework-agnostic GTK4/Adwaita host as a Tier-3 package,
-`@gjsify/gtk-host` (`{gjs: polyfill, node: none, browser: none, nativescript: none}`).
+`@gjsify/gtk-host` (`{gjs: polyfill, node: polyfill, browser: none, nativescript: none}`).
+
+**`node` was `none` in the first revision of this ADR, and that is amended rather
+than quietly corrected.** The host's own source reaches nothing but `gi://`, which
+the `--app node` target routes to `@gjsify/node-gi` — measured, a host showcase
+builds for that target with no warnings and the bundle carries
+`import "@gjsify/node-gi/globals"` and `@gjsify/node-gi/system`, so even the three
+GJS-only spellings left in the probe layer (`system`, `print`, `printerr`) are
+seeded rather than missing. What pinned the host to GJS was this declaration and a
+`test:gjs`-only script, not its code.
+
+`browser` and `nativescript` stay `none`, and that is not the same kind of claim:
+on those two targets `gi://` is substituted with `{}`, so a wrong declaration
+there fails SILENTLY — which is why the reachability check treats them as fatal
+and `node` only as a warning.
+
+The reason this matters most is not portability for its own sake. **There is no
+GJS host on Windows**, so `test:gjs` cannot run there at all; node-gi is the only
+way this host runs on win32. The enabling defect was in node-gi rather than here —
+a class-struct static (`Klass.list_properties()`) was unreachable, and
+`paramSpecs()` needs it on every element-creation path — and it is fixed at the
+core. Which suite a claim about that belongs in is settled by
+[ADR 0030](0030-one-corpus-gjs-as-oracle.md).
+
+This is a DECISION and not yet a description of the manifest: the slot flips in the
+same change that gives it a test leg, because a declared runtime with no suite
+behind it is exactly the defect ADR 0030 § Decision 6 names.
 
 1. **A shadow node tree.** `parent`/`first`/`next` are the host's own links, never
    `Gtk.Widget.get_parent()`/`get_first_child()`. Text nodes and anchors own no
