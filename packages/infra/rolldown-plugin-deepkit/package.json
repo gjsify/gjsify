@@ -22,7 +22,8 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/gjsify/gjsify.git"
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/infra/rolldown-plugin-deepkit"
     },
     "bugs": {
         "url": "https://github.com/gjsify/gjsify/issues"

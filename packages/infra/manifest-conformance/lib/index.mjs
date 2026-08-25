@@ -86,3 +86,4 @@ export {
     collectPlatformVariants,
 } from './rules/nativescript-platforms.mjs';
 export { fieldCoverageRule, declaredGjsifyFields } from './rules/field-coverage.mjs';
+export { repositoryDirectoryRule, expectedDirectory, auditRepositoryDirectory } from './rules/repository-directory.mjs';

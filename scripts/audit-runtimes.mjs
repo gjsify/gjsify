@@ -1392,6 +1392,12 @@ const CHECK_RULES = [
     // manifest, then resolves each name from the DECLARING package. No build, no install
     // beyond the one this job already has.
     'bundler-plugins',
+    // Reads only `repository` out of each manifest, so no install and no build. It
+    // belongs on every PR: npm renders the "Repository" link (and `npm repo <pkg>`) from
+    // `repository.url` + `repository.directory`, every package here shares one `url`, and
+    // a missing or wrong `directory` still resolves — to the tree root or to a sibling
+    // package — which is a defect nobody reports because the link looks fine.
+    'repository-directory',
     'field-coverage',
     'status-data',
 ];
@@ -1508,6 +1514,7 @@ async function main() {
         // Fetched AND printed in both branches in the same edit — the two comments above
         // are what the other order cost twice.
         const bundlerPlugins = byId.get('bundler-plugins');
+        const repositoryDirectory = byId.get('repository-directory');
         const reach = reachability.reach;
 
         if (run.ok) {
@@ -1526,6 +1533,7 @@ async function main() {
             console.log(bundledLicense.summary);
             console.log(stylesheetFontFamilies.summary);
             console.log(bundlerPlugins.summary);
+            console.log(repositoryDirectory.summary);
             console.log(prTriggerParity.summary);
             console.log(workflowRevPin.summary);
             console.log(coverage.summary);
@@ -1889,6 +1897,21 @@ async function main() {
             );
             console.error('');
         }
+        if ((repositoryDirectory.failures ?? []).length > 0) {
+            console.error(`REPOSITORY-DIRECTORY FAILURES on ${repositoryDirectory.failures.length} finding(s):`);
+            for (const line of repositoryDirectory.failures) {
+                console.error(`  - ${line}`);
+            }
+            console.error('');
+            console.error(
+                "Every non-private package shares this monorepo's `repository.url`, so `directory` is the only " +
+                    'part of the field that says WHICH package a reader ends up on. Absent, npm\'s "Repository" link ' +
+                    'and `npm repo <pkg>` land on the tree root; present but wrong, they land on a different ' +
+                    "package — both look like working links. Set `repository.directory` to the package's own " +
+                    'repo-relative path.',
+            );
+            console.error('');
+        }
         for (const note of bundlerPlugins.notes ?? []) console.error(`  · ${note}`);
         for (const note of coverage.notes ?? []) console.error(`  · ${note}`);
         renderReachabilityNotes(reach);
@@ -1936,6 +1959,7 @@ async function main() {
             'workflow-rev-pin',
             'stylesheet-font-families',
             'bundler-plugins',
+            'repository-directory',
         ]);
         const unreported = run.results.filter(
             ({ rule, result }) => (result.failures ?? []).length > 0 && !REPORTED_RULE_IDS.has(rule.id),

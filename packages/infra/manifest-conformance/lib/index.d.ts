@@ -163,6 +163,7 @@ export declare const prebuildLibcRule: Rule;
 export declare const headlessRule: Rule;
 export declare const portableScriptsRule: Rule;
 export declare const fieldCoverageRule: Rule;
+export declare const repositoryDirectoryRule: Rule;
 
 /** POSIX-only utilities a script invokes in command position. Empty when portable. */
 export declare function unportableCommands(script: string): string[];
