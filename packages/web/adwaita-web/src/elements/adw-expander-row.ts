@@ -22,6 +22,7 @@
 import { ExpanderState, deriveRowLabels } from '@gjsify/adwaita-core';
 
 import { bindEmptySections } from '../empty-sections.js';
+import { bindSlottedChildren } from '../slotted-children.js';
 
 // SIDE-EFFECT import, deliberately separate from the type import below: it guarantees
 // `adw-switch` is defined before this module's `customElements.define` can upgrade a
@@ -105,11 +106,6 @@ export class AdwExpanderRow extends HTMLElement {
         if (this._initialized) return;
         this._initialized = true;
 
-        const prefixChildren = Array.from(this.querySelectorAll(':scope > [slot="prefix"]'));
-        const suffixChildren = Array.from(this.querySelectorAll(':scope > [slot="suffix"]'));
-        const claimed = new Set<Node>([...prefixChildren, ...suffixChildren]);
-        const rows = Array.from(this.childNodes).filter((node) => !claimed.has(node));
-
         this._headerEl = document.createElement('div');
         this._headerEl.className = 'adw-expander-row-header';
 
@@ -130,25 +126,33 @@ export class AdwExpanderRow extends HTMLElement {
 
         this._prefixEl = document.createElement('div');
         this._prefixEl.className = 'adw-expander-row-prefix';
-        for (const child of prefixChildren) this._prefixEl.appendChild(child);
 
         this._suffixEl = document.createElement('div');
         this._suffixEl.className = 'adw-expander-row-suffix';
-        for (const child of suffixChildren) this._suffixEl.appendChild(child);
-
-        // Same reason as the action row's: `_render` is attribute-driven, and a widget
-        // appended into `prefixSection` after connect is a childList change nothing else
-        // hears. `contentSection` is NOT in here — an empty disclosure is still the
-        // disclosure, and `.expanded` alone decides whether it shows.
-        bindEmptySections(this._prefixEl, this._suffixEl);
 
         this._headerEl.append(this._prefixEl, textEl, this._suffixEl, this._enableSwitch, this._chevronEl);
 
         this._contentEl = document.createElement('div');
         this._contentEl.className = 'adw-expander-row-content';
-        for (const row of rows) this._contentEl.appendChild(row);
 
-        this.replaceChildren(this._headerEl, this._contentEl);
+        // Three LIVE slots: the two header sections by name, and the disclosure rows as the
+        // unnamed default — `adw_expander_row_add_row` works at any point in the widget's
+        // life, so a row appended after connect must reach the content box rather than sit
+        // beside it. `src/slotted-children.ts` has the incident.
+        bindSlottedChildren(this, [
+            { name: 'prefix', into: this._prefixEl },
+            { name: 'suffix', into: this._suffixEl },
+            { into: this._contentEl },
+        ]).install(this._headerEl, this._contentEl);
+
+        // Same reason as the action row's: `_render` is attribute-driven, and a widget
+        // appended into `prefixSection` after connect is a childList change nothing else
+        // hears. `contentSection` is NOT in here — an empty disclosure is still the
+        // disclosure, and `.expanded` alone decides whether it shows.
+        //
+        // AFTER the routing: this derives once synchronously, so on a box the routing has
+        // not filled yet it hides a section that a declared child had already earned.
+        bindEmptySections(this._prefixEl, this._suffixEl);
 
         this._headerEl.addEventListener('click', (event) => {
             // Clicks on the enable switch toggle expansion-enable, not disclosure.

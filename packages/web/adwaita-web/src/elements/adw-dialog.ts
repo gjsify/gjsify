@@ -24,6 +24,7 @@
 // Copyright (c) 2023-2024 GNOME Foundation Inc. (libadwaita). LGPLv2.1+.
 // Modifications: Implemented as a Web Component for @gjsify/adwaita-web.
 
+import { bindSlottedChildren } from '../slotted-children.js';
 import { AdwModalSurface } from './modal-surface.js';
 
 /** Adaptive presentation of the dialog — mirrors Adw.DialogPresentationMode. */
@@ -141,10 +142,6 @@ export class AdwDialog extends HTMLElement {
 
         this.classList.add('adw-dialog');
 
-        // Snapshot before the subtree is replaced: everything the author placed inside
-        // becomes the dialog content.
-        const contentChildren = Array.from(this.childNodes);
-
         this._scrimEl = document.createElement('div');
         this._scrimEl.className = 'adw-dialog-scrim';
         this._scrimEl.addEventListener('click', () => this._attemptClose());
@@ -187,11 +184,13 @@ export class AdwDialog extends HTMLElement {
 
         this._contentEl = document.createElement('div');
         this._contentEl.className = 'adw-dialog-content';
-        for (const child of contentChildren) this._contentEl.appendChild(child);
 
         this._boxEl.append(this._headerEl, this._contentEl);
         this._scrimEl.appendChild(this._boxEl);
-        this.replaceChildren(this._scrimEl);
+        // Everything the author places inside is the dialog content — LIVE, because
+        // `Adw.Dialog:child` is a property and a dialog whose body is filled in after it
+        // was created is the ordinary case. `src/slotted-children.ts` has the incident.
+        bindSlottedChildren(this, [{ into: this._contentEl }]).install(this._scrimEl);
 
         this._render();
     }

@@ -16,6 +16,8 @@
 // Copyright (c) 2025 csm. MIT License.
 // Modifications: Reimplemented as Web Component for @gjsify/adwaita-web.
 
+import { bindSlottedChildren } from '../slotted-children.js';
+
 // Registers <adw-window-title>: the derived centre is one, so importing the bar
 // alone must still define it.
 import './adw-window-title.js';
@@ -56,35 +58,41 @@ export class AdwHeaderBar extends HTMLElement {
         if (this._initialized) return;
         this._initialized = true;
 
-        // Capture any pre-existing slotted children before clearing
-        const startChildren = Array.from(this.querySelectorAll(':scope > [slot="start"]'));
-        const centerChildren = Array.from(this.querySelectorAll(':scope > [slot="center"]'));
-        const endChildren = Array.from(this.querySelectorAll(':scope > [slot="end"]'));
-
-        // Start section
         this._startEl = document.createElement('div');
         this._startEl.className = 'adw-header-bar-start';
-        for (const child of startChildren) this._startEl.appendChild(child);
 
-        // Center section — a `slot="center"` widget (title-widget) wins over the
-        // plain `title` text.
         this._centerEl = document.createElement('div');
         this._centerEl.className = 'adw-header-bar-center';
-        if (centerChildren.length > 0) {
-            for (const child of centerChildren) this._centerEl.appendChild(child);
-        } else {
+
+        this._endEl = document.createElement('div');
+        this._endEl.className = 'adw-header-bar-end';
+
+        // All three slots stay LIVE: a button appended with `slot="end"` after connect used
+        // to sit outside the end section, and `adw-header-bar.spec.ts` carried the
+        // workaround ("appended LAST") as a house rule. `src/slotted-children.ts` has the
+        // incident. The `onAdopt` hook keeps the title-widget either/or true afterwards —
+        // a centre widget that arrives late replaces the derived title, as setting
+        // `Adw.HeaderBar:title-widget` at any point does.
+        bindSlottedChildren(
+            this,
+            [
+                { name: 'start', into: this._startEl },
+                { name: 'center', into: this._centerEl },
+                { name: 'end', into: this._endEl },
+            ],
+            (_node, slot) => {
+                if (slot.name === 'center') this._dropDerivedTitle();
+            },
+        ).install(this._startEl, this._centerEl, this._endEl);
+
+        // Derived only when the centre is still free — the same either/or as
+        // `Adw.HeaderBar`, which builds an `AdwWindowTitle` exactly while no title-widget
+        // was given.
+        if (this._centerEl.childElementCount === 0) {
             this._titleEl = document.createElement('adw-window-title');
             this._titleEl.className = 'adw-header-bar-title';
             this._centerEl.appendChild(this._titleEl);
         }
-
-        // End section
-        this._endEl = document.createElement('div');
-        this._endEl.className = 'adw-header-bar-end';
-        for (const child of endChildren) this._endEl.appendChild(child);
-
-        // Replace all children atomically
-        this.replaceChildren(this._startEl, this._centerEl, this._endEl);
         this._renderTitle();
     }
 
@@ -96,6 +104,17 @@ export class AdwHeaderBar extends HTMLElement {
      */
     attributeChangedCallback() {
         if (this._initialized) this._renderTitle();
+    }
+
+    /**
+     * Give the centre up to a title-widget. `adw_header_bar_set_title_widget` destroys the
+     * derived `AdwWindowTitle` rather than stacking the two, so the late case has to remove
+     * it too — a bar showing both would be a shape neither GTK nor the declared markup can
+     * produce.
+     */
+    private _dropDerivedTitle() {
+        this._titleEl?.remove();
+        this._titleEl = null;
     }
 
     private _renderTitle() {

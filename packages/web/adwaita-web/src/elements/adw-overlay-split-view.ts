@@ -26,6 +26,7 @@ import {
 } from '@gjsify/adwaita-core';
 
 import { bindBreakpointSetter } from '../breakpoints.js';
+import { bindSlottedChildren } from '../slotted-children.js';
 
 /**
  * The reveal spring, as a CSS-timed animator: libadwaita animates with a spring
@@ -173,28 +174,26 @@ export class AdwOverlaySplitView extends HTMLElement {
         if (this._initialized) return;
         this._initialized = true;
 
-        const sidebarChildren = Array.from(this.querySelectorAll('[slot="sidebar"]'));
-        const contentChildren = Array.from(this.querySelectorAll('[slot="content"]'));
-        const unslotted = Array.from(this.childNodes).filter(
-            (n) => !sidebarChildren.includes(n as Element) && !contentChildren.includes(n as Element),
-        );
-
-        this.replaceChildren();
-
         this._sidebarEl = document.createElement('div');
         this._sidebarEl.className = 'adw-osv-sidebar';
-        sidebarChildren.forEach((c) => this._sidebarEl.appendChild(c));
 
         this._contentEl = document.createElement('div');
         this._contentEl.className = 'adw-osv-content';
-        contentChildren.forEach((c) => this._contentEl.appendChild(c));
-        unslotted.forEach((c) => this._contentEl.appendChild(c));
 
         this._backdropEl = document.createElement('div');
         this._backdropEl.className = 'adw-osv-backdrop';
         this._backdropEl.addEventListener('click', () => this.hideSidebar());
 
-        this.append(this._sidebarEl, this._contentEl, this._backdropEl);
+        // Both panes stay LIVE, and the unnamed slot is the content — the
+        // Adw.OverlaySplitView buildable default. `src/slotted-children.ts` has the
+        // incident. The routing also stops at the DIRECT children, which the two
+        // selectors here did not: `[slot="sidebar"]` matched at any depth, so a nested
+        // split view's sidebar was stolen into the outer one's pane.
+        bindSlottedChildren(this, [
+            { name: 'sidebar', into: this._sidebarEl },
+            { name: 'content', into: this._contentEl },
+            { into: this._contentEl },
+        ]).install(this._sidebarEl, this._contentEl, this._backdropEl);
 
         // The attributes present at parse time ARE the construction options —
         // `Adw.OverlaySplitView` is built with its properties, not built and then

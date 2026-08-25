@@ -17,6 +17,7 @@
 import { ActionRowState } from '@gjsify/adwaita-core';
 
 import { bindEmptySections } from '../empty-sections.js';
+import { bindSlottedChildren } from '../slotted-children.js';
 import { type AdwRowActivation, attachRowActivation } from './row-activation.js';
 
 /**
@@ -90,12 +91,8 @@ export class AdwActionRow extends HTMLElement {
         }
         this._initialized = true;
 
-        const prefixChildren = Array.from(this.querySelectorAll(':scope > [slot="prefix"]'));
-        const suffixChildren = Array.from(this.querySelectorAll(':scope > [slot="suffix"]'));
-
         this._prefixEl = document.createElement('div');
         this._prefixEl.className = 'adw-action-row-prefix';
-        for (const child of prefixChildren) this._prefixEl.appendChild(child);
 
         const textEl = document.createElement('div');
         textEl.className = 'adw-action-row-text';
@@ -107,9 +104,14 @@ export class AdwActionRow extends HTMLElement {
 
         this._suffixEl = document.createElement('div');
         this._suffixEl.className = 'adw-action-row-suffix';
-        for (const child of suffixChildren) this._suffixEl.appendChild(child);
 
-        this.replaceChildren(this._prefixEl, textEl, this._suffixEl);
+        // The two slots stay LIVE — a control appended with `slot="suffix"` after connect
+        // has to land in the same section the declared one does, which a snapshot taken
+        // here cannot do. `src/slotted-children.ts` carries the incident.
+        bindSlottedChildren(this, [
+            { name: 'prefix', into: this._prefixEl },
+            { name: 'suffix', into: this._suffixEl },
+        ]).install(this._prefixEl, textEl, this._suffixEl);
         // `_render` runs from `attributeChangedCallback`, which a control appended into
         // `suffixSection` never triggers — the section stayed `hidden` and the control
         // measured 0x0. The observer is what keeps the two sections in step with what

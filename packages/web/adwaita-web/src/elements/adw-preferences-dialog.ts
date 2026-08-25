@@ -50,6 +50,7 @@
 
 import type { PreferencesSearchResult, SearchPreferencesOptions } from '@gjsify/adwaita-core';
 import { searchPreferencesDom } from '../preferences-search.js';
+import { bindSlottedChildren } from '../slotted-children.js';
 import { AdwModalSurface } from './modal-surface.js';
 
 const DEFAULT_CONTENT_WIDTH = 640;
@@ -207,12 +208,6 @@ export class AdwPreferencesDialog extends HTMLElement {
         if (this._initialized) return;
         this._initialized = true;
 
-        // The page ELEMENTS move into the body intact — their title / name / icon-name
-        // are what a search result subtitle and a view switcher read — and any unwrapped
-        // children follow them (Adw.PreferencesDialog's buildable default adds a child
-        // as a page).
-        const declared = Array.from(this.childNodes);
-
         // Clicking the scrim dismisses the dialog, or raises close-attempt when locked.
         this._scrimEl = document.createElement('div');
         this._scrimEl.className = 'adw-preferences-dialog-scrim';
@@ -253,12 +248,16 @@ export class AdwPreferencesDialog extends HTMLElement {
 
         this._pagesEl = document.createElement('div');
         this._pagesEl.className = 'adw-preferences-dialog-pages';
-        for (const child of declared) this._pagesEl.appendChild(child);
         this._bodyEl.appendChild(this._pagesEl);
 
         this._dialogEl.append(header, this._bodyEl);
 
-        this.replaceChildren(this._scrimEl, this._dialogEl);
+        // The page ELEMENTS move into the body intact — their title / name / icon-name are
+        // what a search result subtitle and a view switcher read — and any unwrapped child
+        // follows them (the Adw.PreferencesDialog buildable default adds a child as a
+        // page). LIVE, because `adw_preferences_dialog_add` works at any point in the
+        // dialog's life. `src/slotted-children.ts` has the incident.
+        bindSlottedChildren(this, [{ into: this._pagesEl }]).install(this._scrimEl, this._dialogEl);
 
         // The role, `aria-modal`, Escape (Adw.Dialog's shortcut → `maybe_close_cb`), the
         // Tab trap and the return-focus.

@@ -24,6 +24,8 @@
 
 import { derivePreferencesGroupHeader } from '@gjsify/adwaita-core';
 
+import { bindSlottedChildren } from '../slotted-children.js';
+
 /** A child that asked to sit in the header rather than in the boxed list. */
 function isHeaderSuffix(node: Node): boolean {
     return node instanceof Element && node.getAttribute('slot') === 'header-suffix';
@@ -36,6 +38,12 @@ export class AdwPreferencesGroup extends HTMLElement {
     private _suffixEl!: HTMLDivElement;
     private _listboxEl!: HTMLDivElement;
     private _initialized = false;
+    /**
+     * Watches the two BOXES, not the host: the routing of a host child is
+     * `src/slotted-children.ts`'s job now, and what is left here is the header derivation,
+     * whose inputs are the row count and whether a suffix exists. A removal straight out of
+     * the listbox changes both and reaches no other callback.
+     */
     private _observer: MutationObserver | null = null;
 
     static get observedAttributes() {
@@ -55,10 +63,11 @@ export class AdwPreferencesGroup extends HTMLElement {
      * `adw_preferences_group_add`: a row goes into the boxed list, a `header-suffix`
      * child into the header.
      *
-     * Exposed as a method AND wired to a `MutationObserver` on the host, because both
-     * spellings occur — `group.addRow(row)` in code, `group.append(row)` from a
-     * framework's rendering — and a bare child of the host would sit outside the card,
-     * invisible to the row count that decides whether the card is painted at all.
+     * Kept as a method as well as a slot, because both spellings occur —
+     * `group.addRow(row)` in code, `group.append(row)` from a framework's rendering — and a
+     * bare child of the host would sit outside the card, invisible to the row count that
+     * decides whether the card is painted at all. The `append` spelling is routed by
+     * `src/slotted-children.ts`, which every other slotted element now shares.
      */
     addRow(child: Node): void {
         if (isHeaderSuffix(child)) this._suffixEl.appendChild(child);
@@ -81,14 +90,10 @@ export class AdwPreferencesGroup extends HTMLElement {
 
     connectedCallback() {
         if (this._initialized) {
-            this._observeHost();
+            this._observeBoxes();
             return;
         }
         this._initialized = true;
-
-        const children = Array.from(this.childNodes);
-        const suffixChildren = children.filter(isHeaderSuffix);
-        const rowChildren = children.filter((child) => !suffixChildren.includes(child));
 
         this._headerEl = document.createElement('div');
         this._headerEl.className = 'adw-preferences-group-header';
@@ -106,26 +111,31 @@ export class AdwPreferencesGroup extends HTMLElement {
 
         this._suffixEl = document.createElement('div');
         this._suffixEl.className = 'adw-preferences-group-suffix';
-        for (const child of suffixChildren) this._suffixEl.appendChild(child);
 
         this._headerEl.append(labels, this._suffixEl);
 
         this._listboxEl = document.createElement('div');
         this._listboxEl.className = 'adw-preferences-group-listbox';
-        for (const child of rowChildren) this._listboxEl.appendChild(child);
 
-        this.replaceChildren(this._headerEl, this._listboxEl);
+        bindSlottedChildren(
+            this,
+            [{ name: 'header-suffix', into: this._suffixEl }, { into: this._listboxEl }],
+            // Redundant while this group is connected — the listbox record covers it — and
+            // the only thing that covers it while it is DETACHED, where `_observeBoxes` is
+            // deliberately off. A row appended to a parked group must be right when it
+            // comes back, not one derivation behind.
+            () => this._renderHeader(),
+        ).install(this._headerEl, this._listboxEl);
         // adw-preferences-group.c:319 — GTK_ACCESSIBLE_ROLE_GROUP. A GROUP, not a list:
         // that is why the rows inside carry no `listitem` role, which outside a list
         // would be worse than none.
         this.setAttribute('role', 'group');
 
-        this._renderHeader();
-        this._observeHost();
+        this._observeBoxes();
     }
 
     disconnectedCallback() {
-        // The observer holds this element alive through the host node; drop it
+        // The observer holds this element alive through the boxes it watches; drop it
         // with the connection that created it, not at some later "cleanup".
         this._observer?.disconnect();
         this._observer = null;
@@ -136,35 +146,26 @@ export class AdwPreferencesGroup extends HTMLElement {
     }
 
     /**
-     * Adopt children appended to the HOST after the subtree was built, so
-     * `group.append(row)` behaves like `adw_preferences_group_add`.
+     * Re-derive the header whenever the two boxes change, in EITHER direction.
      *
      * C gets this for free: `gtk_widget_observe_children` on the listbox drives
-     * `update_listbox_visibility` through `items-changed`. A DOM element needs the
-     * observer for the same rule to hold over time rather than only at connect.
+     * `update_listbox_visibility` through `items-changed`. A DOM element needs the observer
+     * for the same rule to hold over time rather than only at connect. Adoption is not what
+     * this watches — a row appended to the host reaches the listbox through the shared slot
+     * routing, and lands here as the listbox record it causes. A row REMOVED straight out
+     * of the listbox reaches no other callback at all, and it still changes the row count.
      */
-    private _observeHost(): void {
+    private _observeBoxes(): void {
         if (this._observer) return;
-        this._observer = new MutationObserver((records) => {
-            for (const record of records) {
-                // Only the HOST's own children need re-homing. Records from the listbox are
-                // the CONSEQUENCE of that move; re-adopting them would append each row a
-                // second time and reorder the list.
-                if (record.target !== this) continue;
-                for (const node of record.addedNodes) {
-                    if (!(node instanceof Element)) continue;
-                    if (node === this._headerEl || node === this._listboxEl) continue;
-                    this.addRow(node);
-                }
-            }
-            // A removal straight out of the listbox still changes the row count.
-            this._renderHeader();
-        });
-        this._observer.observe(this, { childList: true });
+        this._observer = new MutationObserver(() => this._renderHeader());
         this._observer.observe(this._listboxEl, { childList: true });
         // The suffix too: `hasHeaderSuffix` is an INPUT to the header derivation, so a
         // suffix appended after connect left the header hidden on a group with no title.
         this._observer.observe(this._suffixEl, { childList: true });
+        // Arming and deriving are ONE act, as in `src/empty-sections.ts`: a group that was
+        // parked, filled and re-attached would otherwise come back showing the header state
+        // it had when it left.
+        this._renderHeader();
     }
 
     private _renderHeader() {

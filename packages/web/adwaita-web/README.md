@@ -53,6 +53,33 @@ Vite preset (or any Vite/bundler setup). Type declarations are shipped
 pre-built at `lib/types/index.d.ts`, so `gjsify tsc` consumers resolve the
 package's types without compiling its source.
 
+## Slots are live
+
+These are light-DOM custom elements, so `slot="…"` is emulated rather than native
+(see [ADR 0010](../../../docs/adr/0010-adwaita-web-style-isolation.md) for why the
+package stays out of the shadow DOM). The emulation is **live**: a child appended
+after the element is in the document lands in the same internal box as the
+identical child written in the markup.
+
+```typescript
+const row = document.querySelector('adw-action-row')!;
+const toggle = document.createElement('adw-switch');
+toggle.setAttribute('slot', 'suffix');
+row.append(toggle); // lands in the suffix section, exactly as a declared one does
+```
+
+Two limits are worth knowing:
+
+- **Append, not reorder.** A late child goes to the end of its slot's box. Once a
+  child has been adopted it is no longer a child of the host, so
+  `host.insertBefore(next, adopted)` throws in the DOM before this package sees
+  it — reorder inside the box you were handed (`row.prefixSection`,
+  `view.topBar`, …). Native `<slot>` is what would lift this, and it is part of
+  the shadow-DOM path ADR 0010 defers.
+- **An unknown slot name is assigned nowhere**, as in the native algorithm: a
+  `slot="sufix"` typo stays where you put it instead of quietly becoming default
+  content in the wrong box.
+
 ## Shared behaviour (`@gjsify/adwaita-core`)
 
 The widget *behaviour* — as opposed to the DOM rendering — comes from

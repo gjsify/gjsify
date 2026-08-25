@@ -32,6 +32,7 @@ import {
 } from '@gjsify/adwaita-core';
 import { bindEmptySections } from '../empty-sections.js';
 import { AdwScrollShading } from '../scroll-shading.js';
+import { bindSlottedChildren } from '../slotted-children.js';
 
 export class AdwToolbarView extends HTMLElement {
     private _topEl!: HTMLDivElement;
@@ -71,31 +72,35 @@ export class AdwToolbarView extends HTMLElement {
         if (!this._initialized) {
             this._initialized = true;
 
-            const topChildren = Array.from(this.querySelectorAll(':scope > [slot="top"]'));
-            const bottomChildren = Array.from(this.querySelectorAll(':scope > [slot="bottom"]'));
-            const contentChildren = Array.from(this.childNodes).filter(
-                (n) => !topChildren.includes(n as Element) && !bottomChildren.includes(n as Element),
-            );
-
             this._topEl = document.createElement('div');
             this._topEl.className = 'adw-toolbar-view-top';
-            for (const child of topChildren) this._topEl.appendChild(child);
 
             this._contentEl = document.createElement('div');
             this._contentEl.className = 'adw-toolbar-view-content';
-            for (const child of contentChildren) this._contentEl.appendChild(child);
 
             this._bottomEl = document.createElement('div');
             this._bottomEl.className = 'adw-toolbar-view-bottom';
-            for (const child of bottomChildren) this._bottomEl.appendChild(child);
+
+            // `topBar` invites an imperative append, and a DECLARED `slot="top"` bar has to
+            // reach the same box whenever it is written — including after connect, which a
+            // snapshot here cannot see. The unnamed slot is the content, the
+            // Adw.ToolbarView buildable default. `src/slotted-children.ts` has the incident.
+            bindSlottedChildren(this, [
+                { name: 'top', into: this._topEl },
+                { name: 'bottom', into: this._bottomEl },
+                { into: this._contentEl },
+            ]).install(this._topEl, this._contentEl, this._bottomEl);
 
             // A bar appended imperatively — which `topBar` invites — is a childList
             // change, not an attribute one, so the empty/non-empty decision cannot be a
             // one-shot read here. The ResizeObserver below then sees the bar go 0 → 48
             // and the undershoot classes follow on their own.
+            //
+            // AFTER the slot routing, and that order is load-bearing: this derives once
+            // SYNCHRONOUSLY, so on empty boxes it hides both and only un-hides them a
+            // microtask later — long after `_syncClasses` has measured a declared bar at
+            // `offsetHeight` 0 and dropped the undershoot classes for good.
             bindEmptySections(this._topEl, this._bottomEl);
-
-            this.replaceChildren(this._topEl, this._contentEl, this._bottomEl);
         }
 
         // `update_undershoots` runs from size_allocate, so the classes have to

@@ -68,8 +68,10 @@ function mountSizedHeaderBar(width: number): HTMLElement {
             bar.appendChild(button);
         }
     }
-    // Appended LAST: the sections are built in `connectedCallback`, so the slotted
-    // children have to be in place before the bar enters the document.
+    // The bar enters the document last, so this geometry is measured on the PARSE-TIME
+    // path. It used to be the only path that worked — the sections were built in
+    // `connectedCallback` from a one-shot snapshot — and that is no longer a constraint:
+    // `slotted-children.spec.ts` requires the appended path to place a child identically.
     host.appendChild(bar);
     return bar;
 }

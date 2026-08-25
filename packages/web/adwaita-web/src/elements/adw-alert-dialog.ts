@@ -45,6 +45,7 @@ import { AdwAlertResponses } from '@gjsify/adwaita-core';
 import type { AdwResponseAppearance } from '@gjsify/adwaita-core';
 
 import { bindEmptySections } from '../empty-sections.js';
+import { bindSlottedChildren } from '../slotted-children.js';
 import { AdwModalSurface } from './modal-surface.js';
 
 /** Response button appearance — mirrors Adw.ResponseAppearance. */
@@ -141,12 +142,6 @@ export class AdwAlertDialog extends HTMLElement {
         if (this._initialized) return;
         this._initialized = true;
 
-        // Declared <adw-alert-response> children are snapshotted before the element takes
-        // over the subtree; everything else becomes the extra child.
-        const declared = Array.from(this.querySelectorAll(':scope > adw-alert-response')) as AdwAlertResponse[];
-        const declaredSet = new Set<Node>(declared);
-        const extraChildren = Array.from(this.childNodes).filter((n) => !declaredSet.has(n));
-
         this._scrimEl = document.createElement('div');
         this._scrimEl.className = 'adw-alert-dialog-scrim';
         this._scrimEl.addEventListener('click', () => this._dismiss());
@@ -176,27 +171,34 @@ export class AdwAlertDialog extends HTMLElement {
 
         this._childEl = document.createElement('div');
         this._childEl.className = 'adw-alert-dialog-child';
-        for (const child of extraChildren) this._childEl.appendChild(child);
 
         messageArea.append(this._headingEl, this._bodyEl, this._childEl);
-        // `_render` runs from `attributeChangedCallback` and from the response API, and
-        // an extra child appended after connect triggers neither.
-        bindEmptySections(this._childEl);
 
         this._responseAreaEl = document.createElement('div');
         this._responseAreaEl.className = 'adw-alert-dialog-responses';
 
         this._dialogEl.append(messageArea, this._responseAreaEl);
-        this.replaceChildren(this._scrimEl, this._dialogEl);
 
-        for (const el of declared) {
-            const id = el.getAttribute('id');
-            if (!id) continue;
-            const appearance = (el.getAttribute('appearance') ?? 'default') as AdwResponseAppearance;
-            this.addResponse(id, (el.textContent ?? '').trim());
-            if (appearance !== 'default') this.setResponseAppearance(id, appearance);
-            if (el.getAttribute('enabled') === 'false') this.setResponseEnabled(id, false);
-        }
+        // Two slots, both LIVE. An `<adw-alert-response>` is DATA — read for its id, label
+        // and appearance and then gone, as GtkBuilder leaves nothing of a `<responses>`
+        // entry in the widget tree — so it is consumed rather than re-homed, and
+        // `adw_alert_dialog_add_response` is callable at any point in the dialog's life.
+        // Everything else is the extra child. `src/slotted-children.ts` has the incident.
+        // Installed AFTER the response area exists, because consuming a response fills it.
+        bindSlottedChildren(this, [
+            {
+                claims: (node) => node instanceof Element && node.localName === 'adw-alert-response',
+                consume: (node) => this._adoptResponse(node as AdwAlertResponse),
+            },
+            { into: this._childEl },
+        ]).install(this._scrimEl, this._dialogEl);
+
+        // `_render` runs from `attributeChangedCallback` and from the response API, and an
+        // extra child appended after connect triggers neither. AFTER the routing: this
+        // derives once synchronously, and a `hidden` child area is not focusable, so
+        // deriving it on the not-yet-filled box sent the initial focus to the default
+        // response instead of into the content.
+        bindEmptySections(this._childEl);
 
         // Seed the headless model's text from the parsed markup; the attributes stay the
         // source of truth for what is rendered.
@@ -204,6 +206,20 @@ export class AdwAlertDialog extends HTMLElement {
         this._model.body = this.body;
 
         this._render();
+    }
+
+    /**
+     * Take one declared `<adw-alert-response>` as a response. An entry with no `id` is
+     * skipped rather than given a generated one: the id is what `response` events carry, so
+     * inventing one would hand the consumer a name it never wrote.
+     */
+    private _adoptResponse(el: AdwAlertResponse): void {
+        const id = el.getAttribute('id');
+        if (!id) return;
+        const appearance = (el.getAttribute('appearance') ?? 'default') as AdwResponseAppearance;
+        this.addResponse(id, (el.textContent ?? '').trim());
+        if (appearance !== 'default') this.setResponseAppearance(id, appearance);
+        if (el.getAttribute('enabled') === 'false') this.setResponseEnabled(id, false);
     }
 
     attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null) {

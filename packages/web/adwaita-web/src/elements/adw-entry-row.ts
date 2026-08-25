@@ -37,6 +37,7 @@ import {
     type EntryRowRenderState,
 } from '@gjsify/adwaita-core';
 
+import { bindSlottedChildren, type AdwSlottedChildren } from '../slotted-children.js';
 import { type AdwIcon, createAdwIcon } from './adw-icon.js';
 
 /**
@@ -71,8 +72,11 @@ export class AdwEntryRow extends HTMLElement {
     protected _prefixes!: HTMLDivElement;
     protected _suffixes!: HTMLDivElement;
     protected _initialized = false;
-    /** Light-DOM children captured at build time, adopted after `_onConnected`. */
-    private _authored: Element[] = [];
+    /**
+     * The two slots, installed after `_onConnected` rather than inside `_build`: the order
+     * IS the contract — see the `install` call in `connectedCallback`.
+     */
+    private _slots!: AdwSlottedChildren;
     private _lastText = '';
     private _lastLength = 0;
 
@@ -159,11 +163,20 @@ export class AdwEntryRow extends HTMLElement {
         if (this.hasAttribute('text')) this._state.setText(this.getAttribute('text') ?? '');
         this._renderTitle();
 
-        // Subclass parts first, THEN the author's children: `AdwPasswordEntryRow`
-        // installs its peek toggle from its own `init`, so a consumer
-        // suffix lands after it and both remain.
+        // Subclass parts first, THEN the author's children: `AdwPasswordEntryRow` installs
+        // its peek toggle from its own `init`, so a consumer suffix lands after it and both
+        // remain. That ordering is why the structure is installed HERE and not at the end of
+        // `_build` — `install` routes the author's children on its way, and doing it a phase
+        // earlier would put every declared suffix in front of the password row's toggle.
         this._onConnected();
-        this._adoptAuthored();
+        this._slots.install(
+            this._prefixes,
+            this._area,
+            this._indicator,
+            this._applyButton,
+            this._editIcon,
+            this._suffixes,
+        );
 
         this._lastText = this._state.text;
         this._lastLength = this._state.textLength;
@@ -254,12 +267,6 @@ export class AdwEntryRow extends HTMLElement {
     private _build(): void {
         const prefix = this._classPrefix;
 
-        // Author-supplied light-DOM children are KEPT: `replaceChildren` used to
-        // discard them silently, so `<adw-entry-row><adw-button>Go</adw-button>`
-        // rendered without its button. Elements only — GtkBuildable also only
-        // ever adopts widgets, and keeping stray whitespace would make an empty
-        // affordance box measure as non-empty.
-        this._authored = [...this.children];
         this._prefixes = document.createElement('div');
         this._prefixes.className = `${prefix}-prefixes`;
         this._suffixes = document.createElement('div');
@@ -322,32 +329,24 @@ export class AdwEntryRow extends HTMLElement {
         this._editIcon = createAdwIcon('document-edit', 'adw-row-edit', `${prefix}-edit`);
         this._editIcon.dataset.iconName = ENTRY_ROW_EDIT_ICON_NAME;
 
-        // Snapshot order: indicator → apply → edit icon inside the editable area, with
-        // the prefixes/suffixes boxes outside it.
-        this.replaceChildren(
-            this._prefixes,
-            this._area,
-            this._indicator,
-            this._applyButton,
-            this._editIcon,
-            this._suffixes,
-        );
+        // Author-supplied light-DOM children are KEPT and stay LIVE: `replaceChildren` used
+        // to discard them silently, so `<adw-entry-row><adw-button>Go</adw-button>` rendered
+        // without its button, and the snapshot that fixed that was still a one-shot read — a
+        // suffix appended after connect sat outside the affordance box. ELEMENTS only, on
+        // both paths: GtkBuildable also only ever adopts widgets, and keeping stray
+        // whitespace would make an empty affordance box measure as non-empty. Consumed
+        // through the two `add*` methods, because their insertion rules differ —
+        // `addPrefix` PREPENDS, mirroring `gtk_box_prepend`. Structure order:
+        // indicator → apply → edit icon inside the editable area, prefixes/suffixes outside.
+        // `src/slotted-children.ts` has the incident.
+        this._slots = bindSlottedChildren(this, [
+            { name: 'prefix', consume: (node) => this.addPrefix(node) },
+            { name: 'suffix', claims: (node) => node instanceof Element, consume: (node) => this.addSuffix(node) },
+        ]);
         setPartVisible(this._prefixes, false);
         setPartVisible(this._suffixes, false);
 
         this.addEventListener('click', (event) => this._maybeFocus(event));
-    }
-
-    /**
-     * Re-home the children the author wrote. libadwaita's buildable maps an untyped
-     * `<child>` to a suffix; `slot="prefix"` is the web spelling of `type="prefix"`.
-     */
-    private _adoptAuthored(): void {
-        for (const node of this._authored) {
-            if (node.getAttribute('slot') === 'prefix') this.addPrefix(node);
-            else this.addSuffix(node);
-        }
-        this._authored = [];
     }
 
     /**
