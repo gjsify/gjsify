@@ -44,9 +44,11 @@
 //      rewritten in place produces no event whatsoever. Node has no such split
 //      because libuv uses FSEvents there, which is file-granular and recursive
 //      in one stream.
-//   2. It costs a kernel file descriptor per watched file, where Node's FSEvents
-//      stream costs one for the whole tree — which is what MONITOR_BUDGET below
-//      is about.
+//   2. It costs one monitor per watched file, where Node's FSEvents stream costs
+//      one subscription for the whole tree. What that monitor costs the KERNEL is
+//      not established — the descriptor probe measured a delta of zero — which is
+//      why DARWIN_MONITOR_BUDGET below bounds the growth without claiming to
+//      ration a descriptor table.
 
 import Gio from '@girs/gio-2.0';
 import { isDarwin } from '@gjsify/utils/core';
@@ -60,41 +62,42 @@ export type WatchEventType = 'rename' | 'change';
 const WALK_ATTRS = 'standard::name,standard::type';
 
 /**
- * How many `Gio.FileMonitor`s ONE `fs.watch()` may hold on a host where each one
- * costs a kernel file descriptor.
+ * How many `Gio.FileMonitor`s ONE `fs.watch()` may hold on a host that fans out.
  *
  * WHY A BOUND EXISTS AT ALL — it is attributability, not timidity.
  *
- * An unbounded fan-out does not announce itself when it exhausts the process
- * descriptor table. It announces itself somewhere else entirely: the next
- * `open()` ANYWHERE in the process fails, and the error surfaces on whatever
- * code happened to need a descriptor next — a config read, a log write, a socket
- * accept — so the stack trace does not contain the word `watch`. A bound that
+ * The fan-out changes the unit of growth from one monitor per DIRECTORY to one
+ * per FILE, and unbounded growth of a shared process resource does not announce
+ * itself where it happens. It announces itself somewhere else entirely — the next
+ * allocation ANYWHERE in the process fails, on whatever code happened to need one
+ * next, and the stack trace does not contain the word `watch`. A bound that
  * raises an `error` event naming the limit and the path it could not attach to
  * puts the failure on the component that caused it instead. The same geometry
  * applies to teardown, which is why `close()` releasing the fan-out is asserted
- * against a DESCRIPTOR COUNT in `watch-cost.gjs.spec.ts` and not only against an
- * event that stops arriving: a leak would also fail later, in someone else's
- * `open()`, on the platform with the lowest ceiling.
+ * against a monitor count AND a descriptor count in `watch-fanout.gjs.spec.ts`
+ * rather than only against an event that stops arriving.
  *
- * WHY THE DEFAULT IS PER-HOST, AND WHY IT IS NOT A NUMBER IN THIS COMMENT.
+ * WHAT IS MEASURED, AND WHAT IS NOT. The premise this budget was first sized
+ * against — one kernel descriptor per watched file, against the low soft
+ * `RLIMIT_NOFILE` macOS ships — is NOT what the hosts reported. Measured on the
+ * macOS CI legs: a soft `RLIMIT_NOFILE` of 1048575, and a descriptor delta of
+ * ZERO across 27 monitors. So the per-monitor kernel cost on darwin is not
+ * established, only bounded from above by a measurement that could not see it,
+ * and the number below is NOT a share of a descriptor table. It is a ceiling on
+ * how far one `fs.watch()` may grow: an order of magnitude above the largest
+ * project tree the suite prices (263 monitors for `packages/infra/cli/src`) and
+ * far below a `node_modules`-scale walk. Both figures are printed on every GJS
+ * run, so this stays checkable against a machine rather than against a comment.
  *
- * Where a directory monitor reports child writes there is no fan-out, and the
- * per-directory cost was measured at one inotify watch descriptor per directory
- * against a `max_user_watches` of 131041 — a real project spends 0.03% of it, so
- * a bound would only ever be a new way to fail. `g_file_monitor()` raising
- * ENOSPC there already reaches the caller as an `error` event, which is the same
- * shape this budget takes. Hence `Number.POSITIVE_INFINITY`: an honest "this
- * host has no bound of ours", rather than a large number that reads as one.
- *
- * On a fan-out host the ceiling is `RLIMIT_NOFILE`, which is a property of the
- * PROCESS, not of this file — macOS ships a low soft limit and a caller may have
- * raised it. `watch-cost.gjs.spec.ts` measures the running host's limit and the
- * descriptors one watch actually spends, and prints both on every GJS run, so
- * the number below is checkable against the machine instead of against a comment
- * that has drifted.
+ * WHERE THERE IS NO FAN-OUT THERE IS NO BOUND. The per-directory cost was
+ * measured at one inotify watch descriptor per directory against a
+ * `max_user_watches` of 131041 — a real project spends 0.03% of it, so a bound
+ * would only ever be a new way to fail, and `g_file_monitor()` raising ENOSPC
+ * already reaches the caller as an `error` event in the same shape this budget
+ * takes. Hence `Number.POSITIVE_INFINITY` there: an honest "this host has no
+ * bound of ours", rather than a large number that reads as one.
  */
-const DARWIN_MONITOR_BUDGET = 96;
+const DARWIN_MONITOR_BUDGET = 4096;
 
 /**
  * Node's `fs.watch` emits a single 'change' event whose listener signature is
@@ -272,11 +275,16 @@ export class WatchTree {
      *
      * It reports ONLY modifications, because a create and a delete are the half a
      * directory monitor does deliver on every backend measured here — mapping them
-     * a second time would emit each of them twice. The case that is neither, and
-     * is an open question rather than a measurement, is an editor's atomic
-     * same-name replace: `watch-backend.gjs.spec.ts` records what each monitor
-     * shape sees of one, and if darwin turns out to report it through neither,
-     * this monitor has to re-arm itself on DELETED.
+     * a second time would emit each of them twice.
+     *
+     * An editor's atomic same-name replace was the case that looked like it might
+     * need more: the path keeps its name and gains a new inode, so a directory
+     * monitor has no name change to report and a monitor bound to the old inode
+     * would go DELETED and stop. Measured on both hosts rather than reasoned about
+     * (`watch-backend.gjs.spec.ts`): BOTH shapes report it, and the file monitor
+     * follows the PATH rather than the inode — DELETED, CREATED and
+     * CHANGES_DONE_HINT all arrive on it, and it keeps working afterwards. So the
+     * last of those maps to 'change' here and no re-arm is needed.
      */
     private _watchFile(path: string): void {
         if (this._closed || this._fileMonitors.has(path)) return;
@@ -317,10 +325,10 @@ export class WatchTree {
         const err: Error & { code?: string; path?: string } = new Error(
             `fs.watch: this watch holds its whole budget of ${this._budget} monitors and stopped at ${path}. ` +
                 `Anything under ${this._root} that is not already attached is NOT being watched, and no further ` +
-                `event will arrive for it. The budget is finite because a monitor costs a kernel file descriptor ` +
-                `on the hosts that need one per file, and spending the process's descriptor table surfaces as an ` +
-                `unrelated open() failing elsewhere, in a trace that never mentions fs.watch. Watch a narrower ` +
-                `directory, or raise the process RLIMIT_NOFILE and the budget with it.`,
+                `event will arrive for it. The budget is finite because this host needs a monitor per FILE rather ` +
+                `than per directory, and unbounded growth of a shared process resource surfaces as an unrelated ` +
+                `allocation failing elsewhere, in a trace that never mentions fs.watch. Watch a narrower ` +
+                `directory.`,
         );
         err.code = 'ERR_FS_WATCH_MONITOR_BUDGET';
         err.path = path;

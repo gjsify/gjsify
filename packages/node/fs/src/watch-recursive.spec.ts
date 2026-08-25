@@ -134,6 +134,67 @@ export default async () => {
             }
         });
 
+        await it('says nothing about a tree that already existed when it started', async () => {
+            // The recursion has to walk the tree to attach to it, and that walk must not
+            // be mistaken for news.
+            //
+            // THE ITERATOR FORM, and that is load-bearing rather than a preference. A
+            // startup announcement is emitted from inside the WatchTree constructor,
+            // which `new FSWatcher()` runs BEFORE it attaches the listener — so the
+            // callback form cannot observe one at all, and a version of this row written
+            // against `watch(dir, cb)` stayed green with the bug deliberately restored.
+            // `fs.promises.watch` QUEUES its events, so the queue is exactly where a
+            // startup announcement shows up, and it is where a consumer would have met
+            // one: an iteration over a source tree opened with a 'rename' per nested
+            // file, none of which had happened.
+            //
+            // Measured: announcing was threaded only through the ROOT's own children, so
+            // every level below them announced itself — and the spec that names a nested
+            // write was satisfied by that announcement rather than by the event it is
+            // about, which is a test passing for the wrong reason on every platform at
+            // once. Node is silent here by accident (its emits land before `fs.watch`
+            // returns), so this row is a contract test rather than a note about ours.
+            const tmp = makeTmp();
+            const nested = join(tmp, 'sub', 'deep');
+            mkdirSync(nested, { recursive: true });
+            writeFileSync(join(tmp, 'top.txt'), 'one');
+            writeFileSync(join(tmp, 'sub', 'a.txt'), 'one');
+            const target = join(nested, 'b.txt');
+            writeFileSync(target, 'one');
+
+            const ac = new AbortController();
+            const yielded: Seen[] = [];
+            const iteration = (async () => {
+                try {
+                    for await (const event of promises.watch(tmp, { recursive: true, signal: ac.signal })) {
+                        yielded.push([event.eventType, event.filename]);
+                    }
+                } catch (err: unknown) {
+                    const e = err as { name?: string; code?: string };
+                    if (e?.name !== 'AbortError' && e?.code !== 'ABORT_ERR') throw err;
+                }
+            })();
+
+            try {
+                // Well past the ~100 ms a real nested event takes to land, so this is a
+                // silence that was waited for rather than one that was raced.
+                await sleep(600);
+                const beforeAnythingHappened = describeEvents(yielded);
+
+                // The positive control: without it, "the queue was empty" is also what a
+                // watch that never armed would report.
+                writeFileSync(target, 'two');
+                const arrived = await eventNamed(yielded, join('sub', 'deep', 'b.txt'));
+
+                expect(beforeAnythingHappened).toBe('(no events at all)');
+                expect(arrived).toBe('');
+            } finally {
+                ac.abort();
+                await iteration;
+                rmSync(tmp, { recursive: true, force: true });
+            }
+        });
+
         await it('watches a directory that is created after the watch started', async () => {
             const tmp = makeTmp();
             const events: Seen[] = [];

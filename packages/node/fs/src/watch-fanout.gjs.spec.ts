@@ -13,11 +13,15 @@
 // The cost is the other half. The per-directory recursion was priced once — one
 // inotify watch descriptor per directory, 3 / 9 / 33 / 45 on real project trees,
 // against a `max_user_watches` of 131041. Per FILE is a different order of
-// magnitude and, on the host that needs it, each monitor costs a kernel file
-// descriptor out of a per-PROCESS `RLIMIT_NOFILE` that macOS ships low. So the
-// numbers below are not decoration: they are what the budget in `watch-tree.ts`
-// is set against, printed on every run so the constant can be checked against a
-// machine rather than against a comment.
+// magnitude, and the budget in `watch-tree.ts` is set against what these rows
+// print rather than against a comment: the monitors one watch holds, the
+// descriptors it spends, and the host's own soft `RLIMIT_NOFILE`.
+//
+// The premise the budget was FIRST sized against — a kernel descriptor per file
+// against the low soft limit macOS ships — is not what the hosts reported: the
+// macOS legs answered 1048575, and the descriptor delta measured zero. Which is
+// the other reason these rows print rather than assert a number: the assumption
+// they were written to confirm is the one they falsified.
 //
 // Neither an exhausted budget nor a leaked monitor fails where it happens. Both
 // fail later, in some unrelated `open()` — a config read, a log write, a socket
@@ -30,12 +34,12 @@
 import { describe, expect, it, on, print } from '@gjsify/unit';
 import Gio from '@girs/gio-2.0';
 import {
+    lstatSync,
     mkdirSync,
     mkdtempSync,
     readdirSync,
     realpathSync,
     rmSync,
-    statSync,
     symlinkSync,
     unlinkSync,
     writeFileSync,
@@ -82,21 +86,36 @@ function descriptorCeiling(): string | null {
     }
 }
 
-/** A tree of known shape: `dirs` levels, each holding `perDir` regular files. */
+/**
+ * A tree of known shape: `dirs` SIBLING directories under one root, each holding
+ * `perDir` regular files.
+ *
+ * Sibling, not nested, and the budget rows are why. A refusal ends the walk of
+ * the subtree it happened in, so a CHAIN of directories produces exactly one
+ * refusal however low the budget is — and a test asserting "one error" then holds
+ * whether or not the announce-once latch exists. Measured: with a nested tree the
+ * latch could be deleted outright and nothing went red. Siblings keep the walk
+ * going past the first refusal, which is the shape that has something to latch.
+ */
 function makeTree(dirs: number, perDir: number): { root: string; dirs: number; files: number } {
     const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'gjsify-wfan-')));
-    let dir = root;
-    for (let level = 0; level < dirs; level++) {
-        if (level > 0) {
-            dir = join(dir, `level${level}`);
-            mkdirSync(dir);
-        }
+    for (let index = 0; index < dirs; index++) {
+        const dir = index === 0 ? root : join(root, `sib${index}`);
+        if (index > 0) mkdirSync(dir);
         for (let file = 0; file < perDir; file++) writeFileSync(join(dir, `f${file}.txt`), 'x');
     }
     return { root, dirs, files: dirs * perDir };
 }
 
-/** Directories and regular files under `dir`, counted without watching anything. */
+/**
+ * Directories and regular files under `dir`, counted without watching anything.
+ *
+ * `lstat`, and both halves of the test are its NOFOLLOW rule: `watch-tree.ts`
+ * enumerates with NOFOLLOW_SYMLINKS, so a symlinked directory is never descended
+ * and a symlinked file never gets a monitor of its own. A projection that
+ * followed links would count a `node_modules` link's whole target and price a
+ * watch nobody would ever open.
+ */
 function countTree(dir: string): { dirs: number; files: number } | null {
     let entries: string[];
     try {
@@ -107,8 +126,8 @@ function countTree(dir: string): { dirs: number; files: number } | null {
     let dirs = 1;
     let files = 0;
     for (const entry of entries) {
-        const stats = statSync(join(dir, entry), { throwIfNoEntry: false });
-        if (stats === undefined) continue;
+        const stats = lstatSync(join(dir, entry), { throwIfNoEntry: false });
+        if (stats === undefined || stats.isSymbolicLink()) continue;
         if (stats.isDirectory()) {
             const below = countTree(join(dir, entry));
             if (below === null) continue;
@@ -199,7 +218,7 @@ export default async () => {
                 );
                 const initial = watch.monitorCount;
                 try {
-                    const late = join(tree.root, 'level1', 'late.txt');
+                    const late = join(tree.root, 'sib1', 'late.txt');
                     writeFileSync(late, 'x');
                     await sleep(SETTLE_MS);
                     expect(watch.monitorCount).toBe(initial + 1);
@@ -220,11 +239,17 @@ export default async () => {
                 warmUpBackend();
                 const tree = makeTree(3, 8);
                 const baseline = openDescriptors();
+                // FORCED on, and that is the whole point of the row. Measured: with the
+                // host default, deleting the `_fileMonitors` half of close() outright
+                // left this suite green on Linux, because there was no fan-out there to
+                // leak — the exact geometry the row exists to catch, checked only on the
+                // one host that would already be suffering from it.
                 const watch = new WatchTree(
                     tree.root,
                     true,
                     () => {},
                     () => {},
+                    { fanOut: true },
                 );
                 const held = watch.monitorCount;
                 const whileOpen = openDescriptors();
@@ -232,14 +257,22 @@ export default async () => {
                 const afterClose = openDescriptors();
                 rmSync(tree.root, { recursive: true, force: true });
 
-                // The host's OWN default, not a forced fan-out: this row is the price
-                // of a watch as a consumer will actually pay it.
+                // What a fan-out costs, priced where a consumer pays it. On a host whose
+                // directory monitors report child writes this is what the fan-out WOULD
+                // cost and not what a watch there spends, so the descriptor figure is a
+                // ceiling for that host rather than its bill.
+                // `unmeasured`, never a number, when the counter could not answer.
+                // Both reads fail the same way on a host with no /dev/fd, and
+                // `-1 - -1` is 0 — a measurement that failed, printed as a measured
+                // zero. That is what the first darwin figure was, and it read as
+                // proof the fan-out costs no descriptors.
+                const spent = baseline < 0 || whileOpen < 0 ? 'unmeasured' : String(whileOpen - baseline);
                 print(
-                    `    ↳ cost: ${tree.dirs} dirs + ${tree.files} files → ${held} monitors, ` +
-                        `${whileOpen - baseline} descriptors (soft RLIMIT_NOFILE ${descriptorCeiling() ?? 'unmeasured'})`,
+                    `    ↳ fan-out cost: ${tree.dirs} dirs + ${tree.files} files → ${held} monitors, ` +
+                        `${spent} descriptors (soft RLIMIT_NOFILE ${descriptorCeiling() ?? 'unmeasured'})`,
                 );
 
-                expect(held >= tree.dirs ? '' : `held ${held} monitors for ${tree.dirs} directories`).toBe('');
+                expect(held).toBe(tree.dirs + tree.files);
                 expect(watch.monitorCount).toBe(0);
                 // The half a stopped event stream cannot prove. A fan-out that leaks
                 // does not fail here; it fails in somebody else's open().
@@ -252,10 +285,11 @@ export default async () => {
             });
 
             await it('refuses to attach past its budget, and says so', async () => {
-                const tree = makeTree(3, 4);
+                const tree = makeTree(4, 4);
                 const errors: Array<Error & { code?: string; path?: string }> = [];
-                // Two: the tree has three directories, so the refusal happens on a host
-                // that fans out and on one that does not.
+                // Two, against four sibling directories: the refusal happens on a host
+                // that fans out and on one that does not, and it happens more than once,
+                // which is what makes the announce-once latch observable.
                 const budget = 2;
                 const watch = new WatchTree(
                     tree.root,
@@ -290,7 +324,7 @@ export default async () => {
             await it('says nothing when the budget is not reached', async () => {
                 // The other half of the row above: an implementation that raised the
                 // error unconditionally would pass that one.
-                const tree = makeTree(3, 4);
+                const tree = makeTree(4, 4);
                 const errors: unknown[] = [];
                 const watch = new WatchTree(
                     tree.root,
