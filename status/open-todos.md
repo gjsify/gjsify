@@ -75,7 +75,26 @@ measurement rather than shipped quietly.
   The root cause is the same insight the occupied-slot refusal already acts on —
   a composite's DIRECT children are not the list its `add()` addresses — but the
   getter that fixes it for one-child slots has no counterpart for appending
-  policies, so it needs its own round. Adder slots that are NOT composites are
+  policies, so it needs its own round.
+
+  **Located.** `adoptedChildren()` (`src/host.ts`) branches on
+  `setterSlots(descriptor.children)`: with setter slots it asks each slot's GETTER,
+  which is why the one-child case is right, and with none it falls through to
+  `directChildren(container)` — a raw child-list snapshot. `AdwPreferencesPage` has
+  no setter slot, so its internal `GtkScrolledWindow` is counted as application
+  content. The second half of the bug is what the index MEANS: `Adw.PreferencesPage`
+  is one of the few Adwaita containers that really has `insert`, and its `position`
+  addresses the page's GROUPS, not its direct children — so a `foreign` of length 1
+  offsets every position by one.
+
+  The shape of the fix follows from that, and it is a CURATED discriminator rather
+  than a derived one: for a container whose adder re-parents into an internal, the
+  direct children are never adder-addressed content, and nothing introspectable says
+  which containers those are (the internal child comes from a `.ui` template). So it
+  is a new field on the descriptor in the ADR 0028 § 2 sense — what the GIR cannot
+  express stays curated — plus the measurement of which of the 26 curated containers
+  need it. Deriving it by adding a probe child and reading `get_parent()` back would
+  mutate the very container being adopted, which is the application's. Adder slots that are NOT composites are
   fine: an adopted `AdwToolbarView` still renders `[app bar, host bar]`.
 
 - **Removing an element child does not restate the text it displaced.** GTK's
