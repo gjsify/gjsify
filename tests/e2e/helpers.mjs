@@ -125,6 +125,88 @@ function isTransientInstallError(err) {
 }
 
 /**
+ * Block until the registry can resolve every `[name, range]` pair, or fail naming
+ * what never arrived.
+ *
+ * WHY THIS EXISTS, measured on v0.43.0. A release cut pushes `chore: release
+ * vX.Y.Z` to `main`, which starts `main.yml`, while the tag's `release: published`
+ * event starts `release.yml` — CONCURRENTLY. The bumper has already written the new
+ * version into every manifest, and `process-template.mjs` turns a template's
+ * `file:` edge on a non-workspace package into `^<that version>`. So this suite
+ * scaffolds a project asking the public registry for a version that `release.yml`
+ * has not published yet, and `npm install` dies with
+ * `ETARGET No matching version found for @gjsify/node-gi@^0.43.0`.
+ *
+ * The outcome was a coin toss rather than a bug: v0.43.0 red, v0.42.0 cancelled,
+ * v0.41.0 cancelled then green, v0.40.0 green. That is the worst shape a gate can
+ * have — a red that means nothing teaches everyone to ignore red on release
+ * commits.
+ *
+ * Waiting is the fix rather than pointing the dependency at a local tarball,
+ * because installing from the registry is exactly what this suite exists to prove:
+ * a user runs `npm create @gjsify/app` against npm, and making the install
+ * hermetic would delete the only coverage of the path that actually broke. The
+ * wait also turns the race into real coverage of the release — if the publish never
+ * lands, the deadline says so by name.
+ *
+ * On an ordinary commit every range resolves on the first probe, because the
+ * checkout's version is the last released one.
+ */
+export function awaitRegistryResolvable(
+    pending,
+    { label = 'e2e', deadlineMs = 30 * 60 * 1000, intervalMs = 20 * 1000 } = {},
+) {
+    const outstanding = pending.filter(([name, range]) => !registryResolves(name, range));
+    if (outstanding.length === 0) return;
+
+    const deadline = Date.now() + deadlineMs;
+    const budget =
+        deadlineMs >= 60_000 ? `${Math.round(deadlineMs / 60_000)} min` : `${Math.round(deadlineMs / 1000)} s`;
+    console.log(
+        `  [${label}] waiting for the registry to carry ${outstanding
+            .map(([n, r]) => `${n}@${r}`)
+            .join(', ')} (up to ${budget})…`,
+    );
+    for (let left = outstanding; left.length > 0;) {
+        if (Date.now() >= deadline) {
+            throw new Error(
+                `awaitRegistryResolvable: the registry still cannot resolve ` +
+                    `${left.map(([n, r]) => `${n}@${r}`).join(', ')} after ` +
+                    `${budget}. On a release commit that means the publish ` +
+                    `did not land; otherwise the range is wrong.`,
+            );
+        }
+        sleepSync(intervalMs);
+        left = left.filter(([name, range]) => !registryResolves(name, range));
+        if (left.length > 0)
+            console.log(`  [${label}] still waiting for ${left.map(([n, r]) => `${n}@${r}`).join(', ')}…`);
+    }
+    console.log(`  [${label}] the registry carries every range now.`);
+}
+
+/**
+ * Ask NPM ITSELF whether a range resolves — never a hand-rolled semver compare.
+ * `npm install` is the consumer, so `npm view` is the one resolver whose answer
+ * cannot disagree with it.
+ */
+function registryResolves(name, range) {
+    try {
+        const out = execFileSync('npm', ['view', `${name}@${range}`, 'version', '--json'], {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            encoding: 'utf8',
+            timeout: 60 * 1000,
+        });
+        const text = out.trim();
+        return text.length > 0 && text !== '[]';
+    } catch {
+        // `npm view` exits non-zero for "no matching version" (E404/ETARGET) and for a
+        // network hiccup alike, and here both mean the same thing: not resolvable yet,
+        // ask again. A permanent failure is what the deadline above is for.
+        return false;
+    }
+}
+
+/**
  * Run `npm install` in `projectDir`, retrying on transient failures. E2E templates pull
  * heavy `@girs/*` tarballs from the public registry in parallel and the registry
  * intermittently 404s a tarball that genuinely exists (observed: Fedora 43 passes while

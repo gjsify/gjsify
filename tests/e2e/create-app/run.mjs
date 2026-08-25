@@ -24,6 +24,7 @@ import {
     npmInstallWithRetry,
     spawnUntilReady,
     hasCommand,
+    awaitRegistryResolvable,
 } from '../helpers.mjs';
 // Imported, not re-spelled: a second copy of the globals vocabulary is the one that drifts.
 import { GJS_GLOBALS_GROUPS, GJS_GLOBALS_MAP } from '../../../packages/infra/resolve-npm/lib/globals-map.mjs';
@@ -41,6 +42,8 @@ const TEMPLATES = [
 ];
 
 const TEMPLATES_DIR = join(MONOREPO_ROOT, 'templates');
+/** What the scaffolder actually copies — `file:` edges already resolved to ranges. */
+const DIST_TEMPLATES_DIR = join(MONOREPO_ROOT, 'packages', 'infra', 'create-gjsify', 'dist-templates');
 
 /**
  * The registers an EXPLICIT `--globals` list injects, mirroring `resolveGlobalsList`. `auto`
@@ -267,6 +270,45 @@ function declaredArtifacts(projectDir) {
 }
 
 /**
+ * Every `@gjsify/*` range a scaffolded project will really ask the REGISTRY for.
+ *
+ * Two subtleties, and getting either wrong makes this wait for the wrong thing.
+ *
+ * The manifests are read off `dist-templates/` and not `templates/`, because that
+ * is the artifact the scaffolder copies: in `templates/` the same edge is still a
+ * checkout-relative `file:`/`workspace:` specifier that `process-template.mjs` has
+ * not yet resolved into a range.
+ *
+ * And a range there does NOT mean a registry install. `patchPackageJson` remaps
+ * every WORKSPACE member to a locally packed tarball, so `toFileRef` is the
+ * discriminator — the same call that does the remapping, asked here rather than a
+ * second hand-kept list of which packages are workspace members. MEASURED: reading
+ * `dist-templates` alone reports ELEVEN ranges, ten of which are answered by a
+ * tarball and would have made this wait on publishes the suite never touches.
+ * What is left is the deliberate exception — `@gjsify/node-gi` is not a workspace
+ * member (own CI, native addon) and four templates declare it.
+ */
+function registryGjsifyRanges(tarballsDir, tarballMap) {
+    const seen = new Map();
+    for (const template of TEMPLATES) {
+        const manifest = join(DIST_TEMPLATES_DIR, template, 'package.json');
+        if (!existsSync(manifest)) continue;
+        const pkg = JSON.parse(readFileSync(manifest, 'utf8'));
+        for (const field of ['dependencies', 'devDependencies']) {
+            for (const [name, spec] of Object.entries(pkg[field] ?? {})) {
+                if (!name.startsWith('@gjsify/') || typeof spec !== 'string') continue;
+                // A path, link, tarball or git edge needs no registry at all…
+                if (/^(?:file:|link:|https?:|git|portal:|\.|\/)/.test(spec)) continue;
+                // …and neither does one this suite is about to replace with a tarball.
+                if (toFileRef(name, tarballsDir, tarballMap)) continue;
+                seen.set(`${name}@${spec}`, [name, spec]);
+            }
+        }
+    }
+    return [...seen.values()];
+}
+
+/**
  * Patch the scaffolded package.json:
  * - Drop @girs/* (types-only; gi:// imports are externalized by esbuild).
  * - Remap @gjsify/* deps/devDeps to local tarballs.
@@ -460,6 +502,12 @@ describe('create-app E2E', { timeout: 60 * 60 * 1000 }, () => {
         tmpDir = env.tmpDir;
         tarballsDir = env.tarballsDir;
         tarballMap = env.tarballMap;
+
+        // AFTER the environment, because the tarball map is what decides which ranges
+        // are really registry-bound — and in the OUTER hook, because each template
+        // describe has its own 15-minute budget that a wait inside one would eat,
+        // while this describe has an hour. One wait covers every template.
+        awaitRegistryResolvable(registryGjsifyRanges(tarballsDir, tarballMap), { label: 'create-app' });
     });
 
     after(() => {
