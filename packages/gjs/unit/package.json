@@ -32,7 +32,8 @@
     },
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/gjsify/unit.git"
+        "url": "git+https://github.com/gjsify/unit.git",
+        "directory": "packages/gjs/unit"
     },
     "keywords": [
         "gjs",

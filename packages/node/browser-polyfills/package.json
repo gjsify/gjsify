@@ -55,5 +55,10 @@
     },
     "files": [
         "globals.mjs"
-    ]
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/node/browser-polyfills"
+    }
 }
