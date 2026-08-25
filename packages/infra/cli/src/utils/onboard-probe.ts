@@ -41,9 +41,49 @@ export interface ProbeOptions {
     retryDelayMs?: number;
     /** Injected delay (tests pass a no-op). Default: real `setTimeout`. */
     sleep?: (ms: number) => Promise<void>;
+    /**
+     * Does this name exist on the registry? The PACKUMENT oracle — see
+     * {@link packumentExists}. Tests inject it; production uses the real fetch.
+     */
+    exists?: (registry: string, name: string) => Promise<boolean | null>;
 }
 
 export const PROBE_RETRY_DELAY_MS = 400;
+
+/**
+ * Does the registry serve a packument for this name?
+ *
+ * THE ORACLE, and the reason it exists: npm's trust endpoint answers `2xx` with an
+ * EMPTY LIST for a name that was never published. `classifyTrustList` reads that as
+ * `untrusted`, so `gjsify onboard` planned "already on npm, just needs trust" for a
+ * package that did not exist — it trusted the name, reported `0 to publish+trust`
+ * and published NOTHING. A bootstrap command reporting its own gap as closed, and
+ * it is why the v0.36.0 repair failed twice before anyone looked at the registry.
+ *
+ * `GET <registry>/<name>` is unauthenticated and needs no OTP, so it answers in the
+ * one situation that matters: a `--dry-run` before the maintainer has an OTP to
+ * hand, where every trust read is `401` and the plan is otherwise empty.
+ *
+ * `null` means UNDECIDED (network or an unexpected status) — never "absent". A
+ * bootstrap that publishes on a failed probe is worse than one that reports blocked.
+ */
+export async function packumentExists(registry: string, name: string): Promise<boolean | null> {
+    const base = registry.endsWith('/') ? registry.slice(0, -1) : registry;
+    try {
+        // `Accept` narrows the response to the abbreviated packument: the full one
+        // for a package like `@gjsify/cli` is megabytes, and existence is all we ask.
+        const res = await fetch(`${base}/${name.replace('/', '%2f')}`, {
+            method: 'GET',
+            headers: { accept: 'application/vnd.npm.install-v1+json' },
+        });
+        if (res.status === 404) return false;
+        if (res.ok) return true;
+        return null;
+    } catch {
+        // A DNS or TLS failure is not evidence of absence.
+        return null;
+    }
+}
 
 /** Default probe concurrency — kept SMALL so a single token never bursts npm. */
 export const DEFAULT_PROBE_CONCURRENCY = 4;
@@ -91,6 +131,34 @@ export async function probeTrustState(
         await sleep(opts.retryDelayMs ?? PROBE_RETRY_DELAY_MS);
         res = await request('GET', url);
         state = classifyTrustList(res.status, res.json, classifyOpts);
+    }
+
+    // `untrusted` is the ONE ambiguous answer: the trust endpoint returns `2xx` with
+    // an empty list both for "published, nobody trusted it" and for "no such name".
+    // Only that case pays for the extra read — `trusted` cannot be a missing package
+    // and `unpublished` already has its answer.
+    // Two questions, two endpoints. The trust list answers "who may publish this",
+    // and onboard also needs "does this name exist at all" — which it can only
+    // INFER from the trust list, and infers wrongly in both ambiguous states:
+    //
+    //   untrusted      npm serves 2xx and an EMPTY list for a name that was never
+    //                  published — byte-identical to a real package that simply has
+    //                  no trusted publisher configured.
+    //   auth-required  a 401 says nothing whatsoever about existence. It is also
+    //                  where EVERY package lands in a `--dry-run` run before the
+    //                  maintainer has an OTP to hand, which is exactly the moment
+    //                  the plan is being read to decide whether to proceed.
+    //
+    // The packument answers the question directly and unauthenticated, and a 404
+    // there is proof no OTP could change. Only these two states pay for the extra
+    // read: `trusted` cannot be a missing package, and `unpublished` already has
+    // its answer from the endpoint it just asked.
+    if (state === 'untrusted' || state === 'auth-required') {
+        const exists = await (opts.exists ?? packumentExists)(registry, ws.name);
+        // ONLY a definitive 404 reclassifies. `null` — network failure, unexpected
+        // status — leaves the state exactly as it was: a bootstrap that publishes
+        // on a failed read is worse than one that reports itself blocked.
+        if (exists === false) state = 'unpublished';
     }
 
     return { ws, registry, url, state, httpStatus: res.status, action: actionForState(state) };

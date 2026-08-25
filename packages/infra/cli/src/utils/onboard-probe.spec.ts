@@ -36,6 +36,55 @@ function trustedBody(): unknown {
 const noSleep = async (): Promise<void> => {};
 
 export default async () => {
+    await describe('probeTrustState — the packument decides existence', async () => {
+        // npm's trust endpoint answers 2xx with an EMPTY LIST for a name that was
+        // never published, which reads as `untrusted`. That is how `gjsify onboard`
+        // came to trust a package that did not exist, report `0 to publish+trust`
+        // and publish nothing — its own gap, reported as closed.
+        const emptyTrustList: TrustRequester = async () => ({ status: 200, json: [], text: '' });
+
+        await it('calls it UNPUBLISHED when the registry serves no packument', async () => {
+            const plan = await probeTrustState(emptyTrustList, ws('@gjsify/never-published'), ctx(), {
+                exists: async () => false,
+            });
+            expect(plan.state).toBe('unpublished');
+            expect(plan.action).toBe('publish-and-trust');
+        });
+
+        await it('leaves a real package untrusted, so the sweep only trusts it', async () => {
+            const plan = await probeTrustState(emptyTrustList, ws('@gjsify/real'), ctx(), {
+                exists: async () => true,
+            });
+            expect(plan.state).toBe('untrusted');
+            expect(plan.action).toBe('trust');
+        });
+
+        await it('does not publish on an UNDECIDED probe', async () => {
+            // Network failure is not evidence of absence, and a bootstrap that
+            // publishes on a failed read is worse than one that reports blocked.
+            const plan = await probeTrustState(emptyTrustList, ws('@gjsify/unknown'), ctx(), {
+                exists: async () => null,
+            });
+            expect(plan.state).toBe('untrusted');
+            expect(plan.action).toBe('trust');
+        });
+
+        await it('does not pay for the extra read when the name is already trusted', async () => {
+            // `trusted` cannot be a missing package, and `unpublished` already has
+            // its answer — so only the ambiguous case costs a second request.
+            let asked = 0;
+            const request: TrustRequester = async () => ({ status: 200, json: trustedBody(), text: '' });
+            const plan = await probeTrustState(request, ws('@gjsify/foo'), ctx(), {
+                exists: async () => {
+                    asked++;
+                    return true;
+                },
+            });
+            expect(plan.state).toBe('trusted');
+            expect(asked).toBe(0);
+        });
+    });
+
     await describe('probeTrustState — retry-on-401', async () => {
         await it('retries ONCE on a transient 401 and then classifies the 200', async () => {
             const calls: Array<{ method: string; url: string }> = [];
@@ -62,6 +111,10 @@ export default async () => {
             const plan = await probeTrustState(request, ws('@gjsify/foo'), ctx(), {
                 retryOn401: false,
                 sleep: noSleep,
+                // Same reason as the sibling above: a 401 now consults the
+                // packument, so what this case measures — that the RETRY is
+                // suppressed — needs existence pinned or it decides the outcome.
+                exists: async () => true,
             });
             expect(n).toBe(1);
             expect(plan.state).toBe('auth-required');
@@ -74,8 +127,53 @@ export default async () => {
                 n++;
                 return { status: 401, json: undefined, text: '' };
             };
-            const plan = await probeTrustState(request, ws('@gjsify/foo'), ctx(), { sleep: noSleep });
+            // `exists: true` is now load-bearing, and stating it is the point: a
+            // persistent 401 on a package that DOES exist is genuinely undecidable,
+            // so it stays blocked. Without the injection this reads the live
+            // registry — and `@gjsify/foo` is a name nobody published, so the test
+            // would flip to `publish-and-trust` for a reason that has nothing to do
+            // with what it is measuring.
+            const plan = await probeTrustState(request, ws('@gjsify/foo'), ctx(), {
+                sleep: noSleep,
+                exists: async () => true,
+            });
             expect(n).toBe(2); // initial + one retry, then give up
+            expect(plan.action).toBe('blocked');
+        });
+    });
+
+    await describe('probeTrustState — a 401 does not hide a missing package', async () => {
+        // The state a no-OTP `--dry-run` produces for the whole tree. Before this,
+        // 202 packages reported `unreadable` and the plan was empty — including for
+        // the two names that had never been published, which is the ONE thing the
+        // dry run was being consulted about.
+        await it('calls it UNPUBLISHED when the trust read 401s and no packument exists', async () => {
+            const request: TrustRequester = async (): Promise<TrustRequestResult> => ({
+                status: 401,
+                json: undefined,
+                text: '',
+            });
+            const plan = await probeTrustState(request, ws('@gjsify/never-published'), ctx(), {
+                sleep: noSleep,
+                exists: async () => false,
+            });
+            expect(plan.state).toBe('unpublished');
+            expect(plan.action).toBe('publish-and-trust');
+        });
+
+        await it('stays blocked when the packument read is itself undecided', async () => {
+            // Registry unreachable. Two failed reads are not evidence of absence,
+            // and publishing on them would create the package this command exists
+            // to notice was missing.
+            const request: TrustRequester = async (): Promise<TrustRequestResult> => ({
+                status: 401,
+                json: undefined,
+                text: '',
+            });
+            const plan = await probeTrustState(request, ws('@gjsify/unknown'), ctx(), {
+                sleep: noSleep,
+                exists: async () => null,
+            });
             expect(plan.action).toBe('blocked');
         });
     });

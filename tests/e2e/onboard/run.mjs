@@ -59,6 +59,7 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
     // Mutable, reset per test.
     let pkgState; // name -> { published, trusted }
     let publishPuts; // [{ name, otp }]
+    let packumentGets; // names whose EXISTENCE was read from the packument
     let trustPosts; // [{ name, otp }]
     let loginHits; // count of PUT /-/user/...
 
@@ -105,7 +106,17 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
                 const name = decodeName(trustMatch[1]);
                 if (method === 'GET') {
                     const st = pkgState[name];
+                    // `emptyWhenAbsent` is what REAL npm does for a name nobody
+                    // published: `200` with an empty trust list, indistinguishable
+                    // from a published package that has no trusted publisher. The
+                    // plain `404` below is the easy shape this suite used to model
+                    // exclusively — and under it `onboard` never had a decision to
+                    // get wrong, so the defect could not appear here.
                     if (!st || !st.published) {
+                        if (st?.emptyWhenAbsent) {
+                            sendJson(200, []);
+                            return;
+                        }
                         sendJson(404, { error: 'package not found' });
                         return;
                     }
@@ -124,6 +135,24 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
                     });
                     return;
                 }
+            }
+            // PACKUMENT — the endpoint `onboard` reads to decide whether a name
+            // EXISTS. The trust endpoint cannot answer that: real npm serves
+            // `200 []` both for a published package with no trusted publisher and
+            // for a name nobody ever published. Modelled here because a stub that
+            // omits an endpoint the tool calls does not report "unimplemented" —
+            // it reports `404`, which reads as "this package does not exist", for
+            // every package at once.
+            if (method === 'GET' && !url.startsWith('/-/')) {
+                const name = decodeName(url.slice(1));
+                const st = pkgState[name];
+                if (!st || !st.published) {
+                    sendJson(404, { error: 'Not found' });
+                    return;
+                }
+                packumentGets.push(name);
+                sendJson(200, { name, 'dist-tags': { latest: '1.0.0' }, versions: { '1.0.0': { name } } });
+                return;
             }
             // publish PUT (any /<escaped-name> that is not an /-/ route).
             if (method === 'PUT' && !url.startsWith('/-/')) {
@@ -152,6 +181,7 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
 
     beforeEach(() => {
         publishPuts = [];
+        packumentGets = [];
         trustPosts = [];
         loginHits = 0;
     });
@@ -184,6 +214,7 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
         pkg('@onb/published-untrusted');
         pkg('@onb/unpublished-a');
         pkg('@onb/unpublished-b');
+        pkg('@onb/never-published-2xx');
         // A private package that must be EXCLUDED from the sweep.
         const privDir = join(root, 'packages', 'private-one');
         mkdirSync(privDir, { recursive: true });
@@ -204,6 +235,9 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
             '@onb/published-untrusted': { published: true, trusted: false },
             '@onb/unpublished-a': { published: false, trusted: false },
             '@onb/unpublished-b': { published: false, trusted: false },
+            // The shape real npm produces and this suite never had: absent,
+            // but the trust read answers `200 []` instead of `404`.
+            '@onb/never-published-2xx': { published: false, trusted: false, emptyWhenAbsent: true },
         };
     }
 
@@ -274,7 +308,11 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
 
             // Only the two unpublished packages were published.
             const publishedNames = publishPuts.map((p) => p.name).sort();
-            assert.deepEqual(publishedNames, ['@onb/unpublished-a', '@onb/unpublished-b']);
+            // `never-published-2xx` is the regression gate. Its trust read is
+            // `200 []` — the answer a published-but-untrusted package gives —
+            // so deriving existence from that endpoint alone lands it in
+            // `trust`, and onboard reports success having published nothing.
+            assert.deepEqual(publishedNames, ['@onb/never-published-2xx', '@onb/unpublished-a', '@onb/unpublished-b']);
             // Every publish carried the shared OTP.
             assert.ok(
                 publishPuts.every((p) => p.otp === OTP_CODE),
@@ -283,7 +321,19 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
 
             // Trust was configured for the two new ones + the untrusted one, NOT the done one.
             const trustedNames = trustPosts.map((p) => p.name).sort();
-            assert.deepEqual(trustedNames, ['@onb/published-untrusted', '@onb/unpublished-a', '@onb/unpublished-b']);
+            assert.deepEqual(trustedNames, [
+                '@onb/never-published-2xx',
+                '@onb/published-untrusted',
+                '@onb/unpublished-a',
+                '@onb/unpublished-b',
+            ]);
+            // And the CONTROL in the row: `published-untrusted` has the SAME
+            // trust answer and must NOT be published. Without it this test
+            // would pass just as well if onboard published everything.
+            assert.ok(
+                !publishPuts.some((p) => p.name === '@onb/published-untrusted'),
+                'a published package must be trusted, never re-published',
+            );
             assert.ok(
                 !trustPosts.some((p) => p.name === '@onb/published-trusted'),
                 'the already-published+trusted package must be skipped',
@@ -304,6 +354,7 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
             assert.equal(first.code, 0);
             // Everything is now published + trusted; reset counters and re-run.
             publishPuts = [];
+            packumentGets = [];
             trustPosts = [];
             const second = await runOnboard(root, npmrcPath);
             assert.equal(second.code, 0, `re-run should exit 0; stdout:\n${second.stdout}`);
@@ -336,6 +387,7 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
             '@onb/published-untrusted': { published: true, trusted: true },
             '@onb/unpublished-a': { published: true, trusted: true },
             '@onb/unpublished-b': { published: true, trusted: true },
+            '@onb/never-published-2xx': { published: true, trusted: true },
         };
         const { root, npmrcPath } = scaffoldMonorepo(LIVE_TOKEN);
         try {
@@ -353,6 +405,7 @@ describe('gjsify onboard E2E — mock npm registry', { timeout: 3 * 60 * 1000 },
             '@onb/published-untrusted': { published: true, trusted: true },
             '@onb/unpublished-a': { published: true, trusted: true },
             '@onb/unpublished-b': { published: true, trusted: true },
+            '@onb/never-published-2xx': { published: true, trusted: true },
         };
         const { root, npmrcPath } = scaffoldMonorepo(DEAD_TOKEN);
         try {
