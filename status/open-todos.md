@@ -4,6 +4,40 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### `na_test_instance_data` fails non-deterministically, and cannot say where
+
+Measured twice in one session, both times on a PR that could not affect it — a
+`repository.directory` correction and a README split — and green on a rerun both
+times. It has no record anywhere: not here, not in `packages/napi/napi/AGENTS.md`,
+not in `packages/napi/napi/conformance/ledger.json`. A red that is always cleared
+by a rerun and never written down is how a real defect eventually hides behind a
+habit.
+
+**A ledger entry is the wrong home for it.** That ledger is for a documented,
+UNDERSTOOD exclusion, and it fails on a STALE entry by design — so ledgering a
+case that passes on rerun makes the next green run red. Non-determinism is not an
+exclusion.
+
+**The program cannot locate its own failure, and that is the part to fix first.**
+`conformance/programs/na_test_instance_data.mjs` awaits three things — instance
+data reached from an async_work completion callback, from a
+`napi_create_external_buffer` finalizer driven by an explicit `h.gc()`, and from a
+threadsafe-function callback — and then emits exactly ONE marker, `ok`. So a hang
+in any of the three produces byte-identical evidence, and the observed diff is
+exactly that: `got ""`, `want "ok"`.
+
+The cheap change is a marker per stage, so the next occurrence names the stage
+rather than the program: `got "async-work"` points at the await that did not
+return. It costs one golden regeneration on the reference leg.
+
+The suspicion the shape invites, stated as a suspicion because nothing here
+measures it: the finalizer stage is the one with a real timing dependency, since it
+needs a forced GC to actually collect the external buffer in that pass. The sibling
+`test_instance_data` program passes and does assert `finalizer-callback-ran`, so
+finalizers work as such — this is the node-api variant over
+`napi_create_external_buffer`. Which stage it really is remains unmeasured, which
+is the whole reason the marker change comes first.
+
 ### The Vue plugin's virtual suffix is coupled to deepkit's filter, and nothing checks it
 
 `@gjsify/rolldown-plugin-vue` mints module ids ending in `VIRTUAL_SUFFIX =
