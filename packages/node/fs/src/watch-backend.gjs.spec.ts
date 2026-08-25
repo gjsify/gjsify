@@ -136,6 +136,45 @@ export default async () => {
                     rmSync(tmp, { recursive: true, force: true });
                 }
             });
+
+            await it('reports a MODIFY when the monitor is on the FILE itself', async () => {
+                // THE ROW THAT DECIDES THE FIX, which is why it is separated from the two
+                // above rather than folded into them.
+                //
+                // Those two monitor a DIRECTORY and ask whether a write to a child is
+                // reported. This one monitors the file. `g_file_monitor()` picks a file or
+                // a directory monitor from what the path IS, so these are two different
+                // backend paths, and on darwin they may not agree: kqueue raises
+                // `NOTE_WRITE` on a directory vnode when an entry is added or removed, not
+                // when a write lands inside an existing child — while a watch on the child
+                // itself has that child's own vnode to raise on.
+                //
+                // What the answer buys, in the two directions:
+                //  - DELIVERS  → recursive watching on darwin is a per-FILE monitor
+                //    fan-out. Bounded, priceable (one monitor per file rather than per
+                //    directory), and a real implementation rather than a workaround.
+                //  - SILENT    → GIO on this host cannot report a modification through any
+                //    monitor shape, and no amount of fan-out fixes that. Then the honest
+                //    ending is a declared `gjsify.os.darwin: "partial"` with a printed
+                //    reason, not a quieter test.
+                const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'gjsify-gio-mon-')));
+                const child = join(tmp, 'watched-directly.txt');
+                writeFileSync(child, 'one');
+                try {
+                    const seen = await record(child, () => {
+                        writeFileSync(child, 'two');
+                    });
+                    const changes = seen.filter(isChange);
+                    expect(
+                        changes.length > 0
+                            ? ''
+                            : `a monitor ON THE FILE raised no ${CHANGE_EVENTS.join('/')} for a write to it; ` +
+                              `raw: ${dump(seen)}`,
+                    ).toBe('');
+                } finally {
+                    rmSync(tmp, { recursive: true, force: true });
+                }
+            });
         });
     });
 };
