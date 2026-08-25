@@ -32,9 +32,62 @@ https://github.com/gjsify/gjsify/releases/tag/v0.28.0
 
 ## What this release is about
 
-**Three things an app could not do, every one of which fails silently when you get it wrong.**
+**Four things an app could not do, every one of which fails silently when you get it wrong.**
 
 ---
+
+### A UI framework can drive GTK
+
+GTK could already describe a window instead of assembling it — that is what Blueprint is for, and it
+does property bindings too. What a template cannot do is change its own shape. A `.blp` is
+instantiated once; a list that grows, a page that swaps, a widget that appears when a checkbox is
+ticked all fall back to imperative code holding a reference to every widget it might later mutate.
+That is the code a UI framework exists to delete, and no UI framework could reach GTK from GJS.
+
+`@gjsify/gtk-host` is the layer that lets one: fourteen operations over GTK4/Adwaita widgets —
+create, insert, remove, set a property, read a parent — with no framework in them at all. Three
+adapters sit on top and share it, so a fix to how a child is parented reaches all three at once
+rather than being fixed once per renderer:
+
+```tsx
+import { render } from '@gjsify/gtk-host/solid';
+
+render(() => (
+    <gtk-box orientation="vertical">
+        <gtk-button label={label()} onClicked={() => setCount(count() + 1)} />
+    </gtk-box>
+), window);
+```
+
+Solid (`/solid`), Vue (`/vue`) and React (`/react`) are all real entry points, and two new packages
+compile what they are written in — `@gjsify/rolldown-plugin-solid` for Solid's JSX and
+`@gjsify/rolldown-plugin-vue` for single-file components.
+
+**Why the compile step is a package and not four lines of config.** Point rolldown's own transformer
+at a `.tsx` with no JSX configuration and it emits `import { jsx } from "react/jsx-runtime"`, reports
+the unresolved import as a WARNING, and exits 0. The build succeeds. The artifact throws at import,
+in a bundle nobody has reason to suspect, and the message names React — a dependency the project does
+not have and never asked for.
+
+The plugins are gated on their EMITTED CODE for the same reason, and one of those gates already
+caught something a running showcase could not. The Solid plugin cached its assembled Babel preset
+chain rather than the compiler modules, which made every option inert after the first plugin
+instance. A single build with a single instance never sees it; a process that builds two packages
+emits the first one's renderer imports into the second one's bundle, and that artifact fails at
+import with a module that is not there. A showcase asserts the real widget tree and is blind to it,
+because a showcase is one build.
+
+Two properties of the host are load-bearing enough to be pinned rather than described. The compiler
+emits `insertNode` BEFORE `setProp`, which is why the host defers materialising a widget — a
+construct-only property has to survive as a JSX attribute, and it can only do that if nothing has
+been constructed yet (ADR 0027 § Decision 5). And the renderer must never emit DOM: Solid's `dom`
+output cannot run under GJS at all, and it fails on an unresolved `document` at runtime, wherever the
+first render happens to be.
+
+The widget vocabulary is not hand-written. It is generated from the GIR, so a property that GTK has
+is a property the types have (ADR 0028) — and ADR 0029, landed in this release, proposes moving that
+vocabulary to `@girs/*`, where every GJS UI framework can share it instead of each generating its
+own.
 
 ### An app can find its own translations
 
