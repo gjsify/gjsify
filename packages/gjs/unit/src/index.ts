@@ -72,6 +72,15 @@ const mainloop: GLib.MainLoop | undefined =
 let countTestsOverall = 0;
 let countTestsFailed = 0;
 let countTestsIgnored = 0;
+/**
+ * Did a throw escape a suite BODY (rather than an `it()`)?
+ *
+ * Deliberately not part of `countTestsFailed`: the tally counts tests that RAN, and
+ * a suite body that threw says nothing about the suites that never started. But the
+ * process must still fail, and the summary must not read green — see the `.catch` in
+ * `run` for the incident.
+ */
+let suiteBodyThrew = false;
 /** Tests marked `it.failing` that failed as expected (see `it.failing`). */
 let countTestsXfail = 0;
 
@@ -1471,6 +1480,16 @@ const failUnexercisedAxes = async (declared: readonly Runtime[]): Promise<void> 
     }
 };
 
+/**
+ * The process exit code, as a pure function of the two things that decide it.
+ *
+ * Extracted for the same reason `formatFailureRecap` is: the two exit sites read
+ * module state and call `process.exit`, neither of which a spec can reach — and this
+ * rule is exactly where the regression lived. `bodyThrew` with a zero tally used to
+ * answer 0, so a run that dropped eight of nine suites reported success.
+ */
+export const exitCodeFor = (failed: number, bodyThrew: boolean): number => (failed > 0 || bodyThrew ? 1 : 0);
+
 const printResult = () => {
     const totalMs = runStartTime > 0 ? now() - runStartTime : 0;
     const durationStr = totalMs > 0 ? `  ${GRAY}(${formatDuration(totalMs)})` : '';
@@ -1529,6 +1548,15 @@ const printResult = () => {
     if (countTestsFailed) {
         printFailureRecap(rtTag);
         print(`\n${RED}❌ ${rtTag}${countTestsFailed} of ${countTestsOverall} tests failed${durationStr}${RESET}`);
+    } else if (suiteBodyThrew) {
+        // Every test that ran passed, and the run is still not a pass: a suite body
+        // threw, so later suites never started. Printing the green line here — with
+        // the process about to exit 1 — is the mixed signal a reader resolves in
+        // favour of the colour.
+        print(
+            `\n${RED}❌ ${rtTag}${countTestsOverall} test${countTestsOverall === 1 ? '' : 's'} passed, ` +
+                `then a suite body threw — the run is INCOMPLETE${durationStr}${RESET}`,
+        );
     } else {
         print(`\n${GREEN}✔ ${rtTag}${countTestsOverall} completed${durationStr}${RESET}`);
     }
@@ -1681,6 +1709,7 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
     axisLedger.clear();
     cwdReadable = probeCwd();
 
+    suiteBodyThrew = false;
     let requireAxes: readonly Runtime[] = [];
     if (options) {
         if (typeof options === 'number') {
@@ -1712,6 +1741,45 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
             }
         })
         .then(() => failUnexercisedAxes(requireAxes))
+        .catch((error: unknown) => {
+            // A throw that ESCAPED a suite body rather than an `it()` — an `expect()`
+            // called directly in a `describe` callback, a failing top-level import, a
+            // gate that threw. `describe` rethrows anything that is not a
+            // `TimeoutError`, deliberately, and until this `catch` existed that
+            // rejection simply broke the chain: the `.then` below was skipped, so
+            // `printResult()` never printed AND `process.exit(exitCode)` never ran —
+            // and Node, with nothing left pending, exited **0** with the log cut off
+            // mid-suite. Every remaining suite was silently dropped and CI read the
+            // run as a pass.
+            //
+            // MEASURED, and it is why this was found at all: gtk-host's
+            // `buildable.spec.ts` asserts directly in a `describe` body, that
+            // assertion holds on GJS and fails under node-gi (`vfunc_add_child` is
+            // `undefined` there), and the node leg reported SUCCESS having run one
+            // suite out of nine. Reproduced with no GTK involved: a two-describe
+            // fixture whose first body throws prints the first `it`, drops the second
+            // describe entirely, and exits 0.
+            //
+            // This branch deliberately touches NEITHER `countTestsFailed` NOR
+            // `testErrors`, and that is the second thing measured. An escaped
+            // ASSERTION is already owned by the assertion ledger, which drains it as
+            // a stray failure — counting it again here reported "2 of 2 tests failed"
+            // for one `expect()`. And the brand on a matcher error cannot be used to
+            // tell the two apart: it means "produced by our matchers", explicitly not
+            // "already counted". Pushing an entry without raising the tally is no
+            // better, because the recap's own consistency check reads that as a
+            // failure path hiding itself.
+            //
+            // So the ledger keeps the tally and this branch owns exactly one thing:
+            // the run must not be able to end at 0. The printed line sits directly
+            // above the recap, which is where a CI reader is already looking.
+            suiteBodyThrew = true;
+            const message = error instanceof Error ? (error.stack ?? error.message) : String(error);
+            print(
+                `\n${RED}❌ a suite body threw, so the run is INCOMPLETE and every later suite was skipped` +
+                    `${currentSuite ? ` (in "${currentSuite}")` : ''} — ${message}${RESET}`,
+            );
+        })
         .then(async () => {
             printResult();
             browserSignalDone();
@@ -1723,7 +1791,7 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
             // Node.js exits here: without a mainloop, the code after `mainloop?.run()`
             // below would already have run before any test did.
             if (!mainloop) {
-                const exitCode = countTestsFailed > 0 ? 1 : 0;
+                const exitCode = exitCodeFor(countTestsFailed, suiteBodyThrew);
                 try {
                     const process = globalThis.process || (await import('node:process'));
                     process.exit(exitCode);
@@ -1739,7 +1807,7 @@ export const run = async (namespaces: Namespaces, options?: RunOptions | number)
     // GJS exits only after the mainloop returns — `system.exit()` from inside a
     // mainloop callback does not terminate immediately.
     if (mainloop) {
-        const exitCode = countTestsFailed > 0 ? 1 : 0;
+        const exitCode = exitCodeFor(countTestsFailed, suiteBodyThrew);
         // Real-GJS-only path (see the `mainloop` gate above), where `imports.system`
         // is a native builtin that always resolves and `exit()` never throws.
         runtimeGlobals().imports?.system?.exit(exitCode);

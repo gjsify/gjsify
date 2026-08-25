@@ -7,6 +7,7 @@ import callbackAssertionSuite from './callback-assertion.spec.js';
 import capabilitiesSuite from './capabilities.spec.js';
 import axisLedgerSuite from './axis-ledger.spec.js';
 import failureRecapSuite from './failure-recap.spec.js';
+import exitCodeSuite from './exit-code.spec.js';
 
 run(
     {
@@ -18,6 +19,7 @@ run(
         capabilitiesSuite,
         axisLedgerSuite,
         failureRecapSuite,
+        exitCodeSuite,
     },
     {
         // The runner's own legs are the one place this must hold end-to-end: every
