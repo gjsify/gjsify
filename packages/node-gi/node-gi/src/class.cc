@@ -645,63 +645,18 @@ static void NodeGiClassInit(gpointer g_class, gpointer class_data) {
   }
 }
 
-// callParentVfunc(handle, vfuncName, args?) -> unknown
+// ---- the shared vfunc CALL-OUT: marshal, ffi_call, assemble the GJS return ----
 //
-// Chain up to the parent implementation of an overridden vfunc — the engine half
-// of `super.vfunc_<name>(...)`. Resolves the NodeGiVFunc record for `vfuncName`
-// nearest the instance's type (the record whose trampoline currently owns the
-// vtable slot) and ffi_call's its captured parentPtr — the function that was in
-// the slot BEFORE the override was installed (the C default, or a JS override
-// further up the chain). The same `cif` the override's closure was built from
-// describes the call signature (instance + declared args → return), so it is
-// reused to call out. `this` (args[0]) goes back in as the instance, keeping the
-// canonical toggle-ref wrapper identity. Marshals IN args (JsToGIArgument) +
-// the return (gi_type_info_extract_ffi_return_value → GIArgumentToJs); throws a
-// GLib.Error for a can-throw vfunc whose parent set the GError.
-//
-// OUT / INOUT args: routed through per-arg storage slots exactly like the
-// function-invoke path (calls.cc InvokeFunctionInfo). The parent's ffi signature
-// takes a POINTER for each OUT/INOUT param, so giArgs[1+i] carries &slots[i] (the
-// stable storage the C parent writes THROUGH) — INOUT slots are pre-marshalled from
-// the JS input, OUT slots start zeroed; a caller-allocates OUT (fixed C array /
-// boxed struct) gets a g_malloc0 blob instead. The JS caller passes only IN + INOUT
-// args positionally (OUT params are engine-managed), and the result follows the GJS
-// return-tuple convention `[returnValue?, ...outArgs]` — one value bare, several as
-// an Array, matching exactly what a JS override of that vfunc receives as its call
-// args. Read-back reuses ReadOutOrReturn (array-length slots, containers, boxed).
-//
-// MULTI-LEVEL chain-up (registered chains, G2): chains to the DEEPEST registered
-// override's captured parent (the C-side default below the whole registered chain),
-// NOT the nearest. On a multi-level chain the level-to-level `super.vfunc_<name>()`
-// hops are resolved by the JS PROTOTYPE chain (each registered ancestor's
-// `vfunc_<name>` is a real JS method, invoked directly), so every level's JS impl
-// has already run by the time the chain bottoms out at the introspected base's
-// prototype and reaches this thunk — at which point the only thing left to call is
-// the C default. Using the nearest record would re-enter an intermediate level's
-// trampoline (a double-run / infinite loop). See FindDeepestVFuncRecord.
-Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
-  Napi::Env env = info.Env();
-  if (info.Length() < 2 || !info[1].IsString()) {
-    Napi::TypeError::New(env, "callParentVfunc(handle, vfuncName: string, args?: unknown[])")
-        .ThrowAsJavaScriptException();
-    return env.Null();
-  }
-  GObject* obj = UnwrapGObject(env, info[0]);
-  if (obj == nullptr) return env.Null();  // UnwrapGObject threw or it was null
-  std::string vname = info[1].As<Napi::String>().Utf8Value();
-  Napi::Array args = (info.Length() >= 3 && info[2].IsArray()) ? info[2].As<Napi::Array>()
-                                                              : Napi::Array::New(env, 0);
-
-  NodeGiVFunc* vf = FindDeepestVFuncRecord(G_OBJECT_TYPE(obj), vname);
-  if (vf == nullptr || vf->parentPtr == nullptr || vf->info == nullptr) {
-    Napi::Error::New(env, "no parent vfunc '" + vname + "' to chain up to on " +
-                              g_type_name(G_OBJECT_TYPE(obj)) +
-                              " (is it overridden by a registerClass subclass?)")
-        .ThrowAsJavaScriptException();
-    return env.Null();
-  }
-
-  GICallableInfo* ci = reinterpret_cast<GICallableInfo*>(vf->info);
+// One body, two callers: `super.vfunc_x(...)` chaining to a captured parent slot
+// (CallParentVfunc) and a plain introspected `inst.vfunc_x(...)` dispatching to the
+// class's own slot (CallClassVfunc). Both have the same three inputs — the vfunc's
+// GICallableInfo, an ffi_cif describing [instance, declared args, GError**] and the
+// function pointer — so the ~300 lines of IN/OUT/INOUT marshalling below are shared
+// rather than copied. `where` prefixes every diagnostic, so each caller names the
+// spelling the program actually used.
+static Napi::Value InvokeVFuncPointer(Napi::Env env, GObject* obj, GICallableInfo* ci,
+                                      ffi_cif* cif, gpointer fnPtr, const std::string& where,
+                                      Napi::Array args) {
   unsigned int nDeclared = gi_callable_info_get_n_args(ci);
   bool canThrow = gi_callable_info_can_throw_gerror(ci);
 
@@ -815,7 +770,7 @@ Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
         }
         if (size == 0) {
           Napi::TypeError::New(
-              env, "super." + vname + ": caller-allocates OUT parameter type is not yet supported")
+              env, where + ": caller-allocates OUT parameter type is not yet supported")
               .ThrowAsJavaScriptException();
           ok = false;
         } else {
@@ -825,7 +780,7 @@ Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
           giArgs[1 + i].v_pointer = blob;
         }
       } else if (!IsSupportedOutType(ti, &why)) {
-        Napi::TypeError::New(env, "super." + vname + ": OUT " + why +
+        Napi::TypeError::New(env, where + ": OUT " + why +
                                       " parameters are not yet supported")
             .ThrowAsJavaScriptException();
         ok = false;
@@ -842,7 +797,7 @@ Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
         Napi::Value v = jsCursor < args.Length() ? args.Get(jsCursor) : env.Undefined();
         jsCursor++;
         if (!IsSupportedContainerType(ti, &why)) {
-          Napi::TypeError::New(env, "super." + vname + ": INOUT " + why +
+          Napi::TypeError::New(env, where + ": INOUT " + why +
                                         " parameters are not yet supported")
               .ThrowAsJavaScriptException();
           ok = false;
@@ -895,7 +850,7 @@ Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
       Napi::Value v = jsCursor < args.Length() ? args.Get(jsCursor) : env.Undefined();
       jsCursor++;
       if (!IsSupportedContainerType(ti, &why)) {
-        Napi::TypeError::New(env, "super." + vname + ": IN " + why +
+        Napi::TypeError::New(env, where + ": IN " + why +
                                       " parameters are not yet supported")
             .ThrowAsJavaScriptException();
         ok = false;
@@ -951,7 +906,7 @@ Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
   GITypeInfo* retType = gi_callable_info_get_return_type(ci);
   GIFFIReturnValue ffiRet;
   ffiRet.v_uint64 = 0;
-  ffi_call(&vf->cif, reinterpret_cast<void (*)(void)>(vf->parentPtr), &ffiRet, avalue.data());
+  ffi_call(cif, reinterpret_cast<void (*)(void)>(fnPtr), &ffiRet, avalue.data());
 
   if (canThrow && error != nullptr) {
     gi_base_info_unref(retType);
@@ -959,7 +914,7 @@ Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
     for (gpointer s : ownedInStrings) g_free(s);  // callee did not adopt them on error
     for (gpointer b : callerAllocBlob)
       if (b != nullptr) g_free(b);
-    ThrowGError(env, error, "super." + vname);
+    ThrowGError(env, error, where);
     return env.Null();
   }
 
@@ -1027,6 +982,225 @@ Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
   for (size_t k = 0; k < results.size(); k++) arr.Set(static_cast<uint32_t>(k), results[k]);
   return arr;
 }
+
+// callParentVfunc(handle, vfuncName, args?) -> unknown
+//
+// Chain up to the parent implementation of an overridden vfunc — the engine half
+// of `super.vfunc_<name>(...)`. Resolves the NodeGiVFunc record for `vfuncName`
+// nearest the instance's type (the record whose trampoline currently owns the
+// vtable slot) and ffi_call's its captured parentPtr — the function that was in
+// the slot BEFORE the override was installed (the C default, or a JS override
+// further up the chain). The same `cif` the override's closure was built from
+// describes the call signature (instance + declared args → return), so it is
+// reused to call out. `this` (args[0]) goes back in as the instance, keeping the
+// canonical toggle-ref wrapper identity. Marshals IN args (JsToGIArgument) +
+// the return (gi_type_info_extract_ffi_return_value → GIArgumentToJs); throws a
+// GLib.Error for a can-throw vfunc whose parent set the GError.
+//
+// OUT / INOUT args: routed through per-arg storage slots exactly like the
+// function-invoke path (calls.cc InvokeFunctionInfo). The parent's ffi signature
+// takes a POINTER for each OUT/INOUT param, so giArgs[1+i] carries &slots[i] (the
+// stable storage the C parent writes THROUGH) — INOUT slots are pre-marshalled from
+// the JS input, OUT slots start zeroed; a caller-allocates OUT (fixed C array /
+// boxed struct) gets a g_malloc0 blob instead. The JS caller passes only IN + INOUT
+// args positionally (OUT params are engine-managed), and the result follows the GJS
+// return-tuple convention `[returnValue?, ...outArgs]` — one value bare, several as
+// an Array, matching exactly what a JS override of that vfunc receives as its call
+// args. Read-back reuses ReadOutOrReturn (array-length slots, containers, boxed).
+//
+// MULTI-LEVEL chain-up (registered chains, G2): chains to the DEEPEST registered
+// override's captured parent (the C-side default below the whole registered chain),
+// NOT the nearest. On a multi-level chain the level-to-level `super.vfunc_<name>()`
+// hops are resolved by the JS PROTOTYPE chain (each registered ancestor's
+// `vfunc_<name>` is a real JS method, invoked directly), so every level's JS impl
+// has already run by the time the chain bottoms out at the introspected base's
+// prototype and reaches this thunk — at which point the only thing left to call is
+// the C default. Using the nearest record would re-enter an intermediate level's
+// trampoline (a double-run / infinite loop). See FindDeepestVFuncRecord.
+Napi::Value CallParentVfunc(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 2 || !info[1].IsString()) {
+    Napi::TypeError::New(env, "callParentVfunc(handle, vfuncName: string, args?: unknown[])")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  GObject* obj = UnwrapGObject(env, info[0]);
+  if (obj == nullptr) return env.Null();  // UnwrapGObject threw or it was null
+  std::string vname = info[1].As<Napi::String>().Utf8Value();
+  Napi::Array args = (info.Length() >= 3 && info[2].IsArray()) ? info[2].As<Napi::Array>()
+                                                              : Napi::Array::New(env, 0);
+
+  NodeGiVFunc* vf = FindDeepestVFuncRecord(G_OBJECT_TYPE(obj), vname);
+  if (vf == nullptr || vf->parentPtr == nullptr || vf->info == nullptr) {
+    Napi::Error::New(env, "no parent vfunc '" + vname + "' to chain up to on " +
+                              g_type_name(G_OBJECT_TYPE(obj)) +
+                              " (is it overridden by a registerClass subclass?)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+
+  return InvokeVFuncPointer(env, obj, reinterpret_cast<GICallableInfo*>(vf->info), &vf->cif,
+                            vf->parentPtr, "super." + vname, args);
+}
+
+// ---- vfunc dispatch on an INTROSPECTED class (no registerClass involved) ----
+//
+// `new Gtk.Box().vfunc_add_child(builder, child, null)` works on gjs, and it is the
+// only route to a GtkBuildable adder — `add_child` is introspected as a vfunc ONLY,
+// so there is no plain method to call (measured on gjs 1.88.1; ADR 0027 § Context
+// rests on it, and two React-for-GJS renderers route every insertion through it).
+// node-gi had ONLY the chain-up thunk, which needs a registerClass override record
+// to find a captured parent pointer, so every `vfunc_*` on a plain introspected
+// instance threw "no parent vfunc … to chain up to".
+//
+// gjs resolves such a name against the prototype's own GIObjectInfo, its implemented
+// interfaces and then its parents, and it resolves the ADDRESS at that prototype's
+// GType (gi/object.cpp find_vfunc_on_parents). This mirrors that: walk the object-info
+// parent chain, then ask girepository for the vtable slot of the class the prototype
+// belongs to. A resolution that FAILS is not an error here — it is the signal for
+// gi.js to fall back to the chain-up thunk, which is what keeps `super.vfunc_dispose()`
+// working (GObject's own vfuncs report GI_UNKNOWN as their struct offset, so
+// gi_vfunc_info_get_address cannot locate them).
+
+// One resolved, immediately callable class vfunc. `usable` false = no such vfunc on
+// this class, or girepository cannot locate its slot for this GType.
+struct NodeGiClassVFunc {
+  GIVFuncInfo* info = nullptr;  // owned; process lifetime (a GIBaseInfo is immutable)
+  GIFunctionInvoker invoker{};  // cif + native_address, ffi_prep'd once
+  GType gtype = G_TYPE_INVALID; // the implementor whose slot `invoker` points into
+  bool usable = false;
+};
+
+// Cached per (namespace, typeName, vfuncName): the ffi cif behind an invoker costs a
+// malloc to build and a renderer calls vfunc_add_child on every insertion. thread_local
+// because GIBaseInfo refcounting is not thread-safe and a worker_threads env is its own
+// JS world with its own repository handles.
+static thread_local std::map<std::string, NodeGiClassVFunc> g_classVFuncs;
+
+// Walk the object-info PARENT chain, searching each level's own vfuncs AND the
+// interfaces that level implements (gi_object_info_find_vfunc_using_interfaces —
+// `add_child` lives on the GtkBuildable INTERFACE, not on GtkBox). Returns a new
+// ref, or nullptr when no ancestor declares `name`.
+static GIVFuncInfo* FindVFuncOnClassOrParents(GIObjectInfo* start, const char* name) {
+  GIObjectInfo* walk =
+      reinterpret_cast<GIObjectInfo*>(gi_base_info_ref(reinterpret_cast<GIBaseInfo*>(start)));
+  GIVFuncInfo* found = nullptr;
+  while (walk != nullptr && found == nullptr) {
+    // The declarer out-param is optional and we do not need it: the ADDRESS is resolved
+    // against the class the PROTOTYPE belongs to, never against the declaring level.
+    found = gi_object_info_find_vfunc_using_interfaces(walk, name, nullptr);
+    GIObjectInfo* parent = found == nullptr ? gi_object_info_get_parent(walk) : nullptr;
+    gi_base_info_unref(reinterpret_cast<GIBaseInfo*>(walk));
+    walk = parent;
+  }
+  return found;
+}
+
+static NodeGiClassVFunc* ResolveClassVFunc(const std::string& ns, const std::string& tn,
+                                           const std::string& vfuncName) {
+  const std::string key = ns + "." + tn + "." + vfuncName;
+  auto it = g_classVFuncs.find(key);
+  if (it != g_classVFuncs.end()) return &it->second;
+
+  NodeGiClassVFunc entry;
+  GIRepository* repo = DupDefaultRepository();
+  GIBaseInfo* base = gi_repository_find_by_name(repo, ns.c_str(), tn.c_str());
+  if (base != nullptr) {
+    if (GI_IS_OBJECT_INFO(base)) {
+      GIObjectInfo* oi = reinterpret_cast<GIObjectInfo*>(base);
+      GType gtype =
+          gi_registered_type_info_get_g_type(reinterpret_cast<GIRegisteredTypeInfo*>(oi));
+      GIVFuncInfo* vi = FindVFuncOnClassOrParents(oi, vfuncName.c_str());
+      if (vi != nullptr && gtype != G_TYPE_INVALID && G_TYPE_IS_CLASSED(gtype)) {
+        // gi_vfunc_info_get_address reads the slot out of the LIVE class struct, which
+        // exists only once the class has been referenced — and the ref is KEPT so the
+        // vtable the cached address points into cannot be torn down under us. gjs holds
+        // classes the same way; an instantiable GObject class lives for the process.
+        g_type_class_ref(gtype);
+        GError* err = nullptr;
+        void* addr = gi_vfunc_info_get_address(vi, gtype, &err);
+        if (addr != nullptr &&
+            gi_function_invoker_new_for_address(addr, reinterpret_cast<GICallableInfo*>(vi),
+                                                &entry.invoker, &err)) {
+          entry.info = reinterpret_cast<GIVFuncInfo*>(
+              gi_base_info_ref(reinterpret_cast<GIBaseInfo*>(vi)));
+          entry.gtype = gtype;
+          entry.usable = true;
+        }
+        g_clear_error(&err);
+      }
+      if (vi != nullptr) gi_base_info_unref(reinterpret_cast<GIBaseInfo*>(vi));
+    }
+    gi_base_info_unref(base);
+  }
+  g_object_unref(repo);
+  return &g_classVFuncs.emplace(key, entry).first->second;
+}
+
+// hasClassVfunc(namespace, typeName, vfuncName) -> boolean
+//
+// Whether `Ns.Type.prototype.vfunc_<name>` can be MATERIALIZED as a direct call — the
+// gate gi.js asks before defining one, so a name that resolves to nothing stays
+// `undefined` (gjs parity: an unknown vfunc is undefined, never a throw-on-call thunk)
+// and a name we cannot address falls through to the chain-up thunk.
+Napi::Value HasClassVfunc(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 3 || !info[0].IsString() || !info[1].IsString() || !info[2].IsString()) {
+    Napi::TypeError::New(env,
+                         "hasClassVfunc(namespace: string, typeName: string, vfuncName: string)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  NodeGiClassVFunc* entry = ResolveClassVFunc(info[0].As<Napi::String>().Utf8Value(),
+                                              info[1].As<Napi::String>().Utf8Value(),
+                                              info[2].As<Napi::String>().Utf8Value());
+  return Napi::Boolean::New(env, entry->usable);
+}
+
+// callClassVfunc(handle, namespace, typeName, vfuncName, args?) -> unknown
+//
+// Invoke the vtable entry `Ns.Type` carries for `vfuncName`, with `handle` as the
+// instance. Same marshalling and same GJS return-tuple convention as the chain-up
+// path (InvokeVFuncPointer); the only difference is where the function pointer came
+// from.
+Napi::Value CallClassVfunc(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 4 || !info[1].IsString() || !info[2].IsString() || !info[3].IsString()) {
+    Napi::TypeError::New(
+        env, "callClassVfunc(handle, namespace: string, typeName: string, vfuncName: string, "
+             "args?: unknown[])")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  GObject* obj = UnwrapGObject(env, info[0]);
+  if (obj == nullptr) return env.Null();  // UnwrapGObject threw or it was null
+  const std::string ns = info[1].As<Napi::String>().Utf8Value();
+  const std::string tn = info[2].As<Napi::String>().Utf8Value();
+  const std::string vname = info[3].As<Napi::String>().Utf8Value();
+  Napi::Array args = (info.Length() >= 5 && info[4].IsArray()) ? info[4].As<Napi::Array>()
+                                                              : Napi::Array::New(env, 0);
+  const std::string where = ns + "." + tn + ".prototype.vfunc_" + vname;
+
+  NodeGiClassVFunc* entry = ResolveClassVFunc(ns, tn, vname);
+  if (!entry->usable) {
+    Napi::Error::New(env, where + ": no addressable virtual function on " + ns + "." + tn)
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  // The cif was prepared for THIS class's slot, so an instance of an unrelated type
+  // would hand C a wrong `self` and crash the process rather than throw. A detached
+  // `Ns.Type.prototype.vfunc_x.call(other)` is the reachable spelling.
+  if (!g_type_is_a(G_OBJECT_TYPE(obj), entry->gtype)) {
+    Napi::TypeError::New(env, where + ": `this` is a " +
+                                  g_type_name(G_OBJECT_TYPE(obj)) + ", not a " +
+                                  g_type_name(entry->gtype))
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  return InvokeVFuncPointer(env, obj, reinterpret_cast<GICallableInfo*>(entry->info),
+                            &entry->invoker.cif, entry->invoker.native_address, where, args);
+}
+
 
 // Shared registration core: subclass `name` from an ALREADY-RESOLVED parent GObject
 // GType, reading the optional { properties, signals, vfuncs, template, children, ... }

@@ -8,7 +8,7 @@
     "packages/infra/rolldown-plugin-gjsify/AGENTS.md": 20095,
     "packages/napi/AGENTS.md": 7179,
     "packages/nativescript-bridge/AGENTS.md": 12060,
-    "packages/node-gi/AGENTS.md": 12475,
+    "packages/node-gi/AGENTS.md": 14216,
     "packages/node/AGENTS.md": 18085,
     "packages/web/AGENTS.md": 9477,
     "tests/AGENTS.md": 9638

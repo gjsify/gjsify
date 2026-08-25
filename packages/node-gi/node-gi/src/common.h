@@ -32,6 +32,7 @@
 
 #include <atomic>
 #include <deque>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -604,6 +605,8 @@ Napi::Value RegisterClass(const Napi::CallbackInfo& info);
 Napi::Value RegisterClassFromGType(const Napi::CallbackInfo& info);
 Napi::Value ConstructType(const Napi::CallbackInfo& info);
 Napi::Value CallParentVfunc(const Napi::CallbackInfo& info);
+Napi::Value HasClassVfunc(const Napi::CallbackInfo& info);
+Napi::Value CallClassVfunc(const Napi::CallbackInfo& info);
 Napi::Value SetConstructCallback(const Napi::CallbackInfo& info);
 
 // template.cc

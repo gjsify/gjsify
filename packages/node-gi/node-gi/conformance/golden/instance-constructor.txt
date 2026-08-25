@@ -1,0 +1,27 @@
+Gio.SimpleAction: ctor === the class: true
+Gio.SimpleAction: type_name(ctor.$gtype): GSimpleAction
+Gio.SimpleAction: named by its own class: true
+Gio.SimpleAction: own 'constructor': false
+Gio.SimpleAction: [[Prototype]] is the class prototype: true
+Gio.Menu: ctor === the class: true
+Gio.Menu: type_name(ctor.$gtype): GMenu
+Gio.Menu: named by its own class: true
+Gio.Menu: own 'constructor': false
+Gio.Menu: [[Prototype]] is the class prototype: true
+Gio.MemoryOutputStream: ctor === the class: true
+Gio.MemoryOutputStream: type_name(ctor.$gtype): GMemoryOutputStream
+Gio.MemoryOutputStream: named by its own class: true
+Gio.MemoryOutputStream: own 'constructor': false
+Gio.MemoryOutputStream: [[Prototype]] is the class prototype: true
+GObject.Object: ctor === the class: true
+GObject.Object: type_name(ctor.$gtype): GObject
+GObject.Object: named by its own class: true
+GObject.Object: own 'constructor': false
+GObject.Object: [[Prototype]] is the class prototype: true
+subclass: ctor === the subclass: true
+subclass: type_name(ctor.$gtype): ConfInstanceCtorSub
+subclass: an instance of the base too: true
+round-trip: same wrapper: true
+round-trip: type_name(ctor.$gtype): GSimpleAction
+signal sender: type_name(ctor.$gtype): GListStore
+plain object ctor: true

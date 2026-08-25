@@ -184,14 +184,22 @@ test('super.vfunc_name_lost() returns the parent vfunc return value', () => {
     assert.equal(result, true);
 });
 
-test('the chain-up thunk requires a node-gi instance as `this`', () => {
+test('a vfunc member off the prototype requires a node-gi instance as `this`', () => {
     const GObject = requireGi('GObject', '2.0');
-    // Reach the thunk off the base class prototype chain and call it unbound — it
-    // must reject a non-instance receiver rather than dereference undefined.
-    const baseProto = GObject.Object.prototype;
-    const thunk = baseProto.vfunc_constructed;
-    assert.equal(typeof thunk, 'function');
-    assert.throws(() => thunk.call({}), /chain-up requires a node-gi instance/);
+    const Gio = requireGi('Gio', '2.0');
+    // Reach the member off the base class prototype and call it unbound — it must
+    // reject a non-instance receiver rather than dereference undefined. BOTH routes
+    // are pinned, because a prototype's `vfunc_*` resolves to one of two things: the
+    // DIRECT dispatch materialized for an addressable slot (`constructed`), and the
+    // chain-up thunk for a slot girepository cannot address — `quit_mainloop` is
+    // declared on GApplication and left NULL, so it still falls through.
+    const direct = GObject.Object.prototype.vfunc_constructed;
+    assert.equal(typeof direct, 'function');
+    assert.throws(() => direct.call({}), /vfunc_constructed: `this` is not a node-gi instance/);
+
+    const chainUp = Gio.Application.prototype.vfunc_quit_mainloop;
+    assert.equal(typeof chainUp, 'function');
+    assert.throws(() => chainUp.call({}), /chain-up requires a node-gi instance/);
 });
 
 // ---- can-throw vfunc: the parent's GError propagates (GError** indirection) ----

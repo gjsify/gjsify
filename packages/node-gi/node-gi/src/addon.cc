@@ -86,6 +86,8 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("registerClassFromGType", Napi::Function::New(env, RegisterClassFromGType));
   exports.Set("constructType", Napi::Function::New(env, ConstructType));
   exports.Set("callParentVfunc", Napi::Function::New(env, CallParentVfunc));
+  exports.Set("hasClassVfunc", Napi::Function::New(env, HasClassVfunc));
+  exports.Set("callClassVfunc", Napi::Function::New(env, CallClassVfunc));
   exports.Set("getTemplateChild", Napi::Function::New(env, GetTemplateChild));
   exports.Set("getProperty", Napi::Function::New(env, GetProperty));
   exports.Set("setProperty", Napi::Function::New(env, SetProperty));

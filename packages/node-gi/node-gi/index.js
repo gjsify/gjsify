@@ -212,6 +212,8 @@ export const registerClassFromGType = native.registerClassFromGType;
 
 export const constructType = native.constructType;
 export const callParentVfunc = native.callParentVfunc;
+export const hasClassVfunc = native.hasClassVfunc;
+export const callClassVfunc = native.callClassVfunc;
 export const getTemplateChild = native.getTemplateChild;
 export const getProperty = native.getProperty;
 export const setProperty = native.setProperty;
