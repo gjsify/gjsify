@@ -79,9 +79,11 @@ from any one project: the oracle proves the table right or wrong.
 
 ### 1. Everything lands in `@gjsify/domparser`, split across leaf subpaths
 
-Not a new package: *"a `/core` subpath beats a new `-core` package — a new published name
-needs the manual first-publish bootstrap"* (root AGENTS.md § Don't patch; the v0.4.20
-incident in [publishing](../publishing.md) is the cost of forgetting it).
+Not a new package: *"a `/core` subpath beats a new `-core` package — and the criterion is
+STRUCTURAL: a separate name earns itself only through a real package-level cycle or
+independent external consumers"* (root AGENTS.md § Don't patch). Neither holds here:
+nothing in this decision closes a cycle, and nothing outside `@gjsify/domparser` consumes
+any half of it on its own.
 
 Not `@gjsify/dom-elements`, and this one is forced by the runtime axis rather than by
 taste. `domparser` is `node: "polyfill"` with **zero** runtime dependencies and runs

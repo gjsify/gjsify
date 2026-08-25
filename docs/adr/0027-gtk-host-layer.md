@@ -153,10 +153,22 @@ gjsify owns a framework-agnostic GTK4/Adwaita host as a Tier-3 package,
   `on:<raw-signal-name>`, direct widget access, and `mountRoot` into an
   application-owned shell — which appends AFTER what the application already put
   there, rather than at position 0.
-- Adapters share one package version. A framework contract break can force a
-  version that other adapters' consumers take along; the alternative — one npm
-  name per adapter — costs a manual `gjsify onboard` bootstrap each, whose
-  omission left 60+ packages behind in v0.4.20.
+- Adapters share one package version, because they are one implementation of one
+  contract rather than three products: each is ~280 lines that reach into this
+  host's internals (`insertNode`, `setProp`, the anchor resolution), and none of
+  them is separately useful or separately buildable. The cost that stays is real
+  and is not hidden: a framework contract break can force a version that the other
+  adapters' consumers take along.
+
+  **An earlier revision of this ADR gave a different reason and it is withdrawn.**
+  It said the alternative — one npm name per adapter — "costs a manual
+  `gjsify onboard` bootstrap each, whose omission left 60+ packages behind in
+  v0.4.20". The incident is real and the bootstrap is a real step, but it is a step
+  in SHIPPING a name, not a fact about where code belongs. Letting it decide a
+  boundary shapes the package tree around a release chore, and it dates instantly:
+  `onboard` is idempotent and cheap. Wherever this repo argues a boundary, the
+  criterion is structural — a package-level cycle, or independent external
+  consumers.
 
 ## Implementation
 

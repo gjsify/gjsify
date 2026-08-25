@@ -83,7 +83,7 @@ each with the incident that produced it, are [docs/code-anti-patterns.md](docs/c
 |**the legacy `imports.*` object is NOT an API** — it is the GJS host, absent on the node target, and a bare `imports.gi.X` is a `ReferenceError` thrown at the CALL, so the package tests green and the failure surfaces in a consumer. Portable spellings exist for every use (`gi://Ns`, `import system from 'system'`, `TextDecoder`). Enforced by `no-restricted-globals` and `node-bundle-guard.ts`
 |**patching classes you own**: put the method on the class, not on `globalThis.X.method=…` in a register module
 |**"no module to import from"**: check again — the workspace almost certainly exports it
-|**pure-JS → native swap**: keep the pure-JS path and lift it into a `/core` subpath; the other runtimes still need it. A `/core` subpath beats a new `-core` package — a new published name needs the manual first-publish bootstrap ([docs/publishing.md](docs/publishing.md))
+|**pure-JS → native swap**: keep the pure-JS path and lift it into a `/core` subpath; the other runtimes still need it. A `/core` subpath beats a new `-core` package — a separate NAME needs a package-level cycle or independent external consumers, never onboarding cost (a release step, § Package convention)
 
 ## Code anti-patterns — measured
 

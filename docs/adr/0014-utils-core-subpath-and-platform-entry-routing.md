@@ -99,9 +99,8 @@ exports on a runtime without GLib/Gio is well-defined — either no platform dep
 all, or a guarded probe with a portable fallback.
 
 **A subpath, deliberately not a new published package.** AGENTS.md's "Pure-JS → native
-swap" rule offers both shapes verbatim — *"lift it into a `-core` (or `/core` subpath)
-package"* — and here the subpath is strictly better, because a new `@gjsify/*` name is
-**not free**:
+swap" rule names both shapes, and here the subpath is the right one. A new `@gjsify/*`
+name does carry real overhead — listed next as CONTEXT, not as the reason:
 
 - it needs a tier and a runtime quadruplet;
 - it needs a **manual npm first-publish + Trusted Publisher bootstrap by a maintainer
@@ -116,7 +115,13 @@ package"* — and here the subpath is strictly better, because a new `@gjsify/*`
 `@gjsify/utils` — i.e. directly in front of `utils`, `uuid`, `v8`, `vm`, `web-*`,
 `webassembly`, `webaudio`, `webcrypto`, `webgl`, `webrtc`, `webstorage`,
 `worker_threads`, `ws` and `zlib` — in exchange for zero additional capability over a
-subpath. **That cost tipped the decision.** The precedent the audit cites,
+subpath.
+
+**What tipped the decision is the structural criterion below, not the release cost
+above.** An earlier revision of this ADR said the release-train cost tipped it; that is
+withdrawn. The bootstrap is a step in shipping a name and `gjsify onboard` is idempotent,
+so it cannot be allowed to decide where code lives — otherwise the package tree is
+shaped by a release chore. The precedent the audit cites,
 `@gjsify/canvas2d-core` ⇆ `@gjsify/canvas2d`, is a genuinely different case: it exists to
 break a *package-level dependency cycle* (`dom-elements` ↔ `canvas2d`) and both halves
 have independent external consumers. Neither is true here — nothing outside the
