@@ -1,0 +1,365 @@
+# 29. The widget vocabulary moves to `@girs/*`, dialects stay with consumers
+
+- Status: **Proposed**
+- Date: 2026-08-25
+- Deciders: Pascal Garber
+- Related: [ADR 0027 (GTK host layer)](0027-gtk-host-layer.md), [ADR 0028 (widget table provenance)](0028-widget-table-provenance.md), [ADR 0019 (ts-for-gir as a library)](0019-ts-for-gir-as-library.md), [ADR 0026 (HTML parsing and selector engine)](0026-html-parsing-and-selector-engine.md)
+
+## Context
+
+ADR 0028 § 6 said the generated type surfaces are "a published artifact, not an
+internal file" and left where they publish from open. They are currently emitted
+by `packages/framework/gtk-host/src/generator/` into `src/generated/`, and they
+describe nothing about gjsify: the input is the GIR and the installed typelib.
+
+### The seam, measured
+
+Code lines only — comments and blanks excluded, because these modules are 30 %
+comment and counting them measures prose, not coupling.
+
+| module | code | GIR-generic | dialect convention | gtk-host model | can it move? |
+|---|---:|---:|---:|---:|---|
+| `gir.mts` | 249 | 249 | 0 | 0 | verbatim |
+| `tsmap.mts` | 100 | 98 | 2 | 0 | verbatim |
+| `surface.mts` | 196 | 195 | 1 | 0 | verbatim |
+| `emit-types.mts` | 156 | 124 | 32 | 0 | split |
+| `emit.mts` | 103 | 13 | 0 | 90 | stays |
+| `main.mts` | 128 | 105 | 9 | 14 | split |
+| `mini.fixture.mts` | 59 | 59 | 0 | 0 | verbatim |
+| **total** | **991** | **843** | **44** | **104** | |
+
+The import graph decides it more sharply than the count does. `gir.mts`,
+`tsmap.mts`, `surface.mts` and the fixture import **nothing** outside
+`generator/`. `emit-types.mts` reaches out once, for `tagOf`. `emit.mts` reaches
+out for `ChildPolicy`, `WidgetDescriptor`, `GeneratedWidget` and `tagOf`, and
+every one of its four gates reads `CURATED_DESCRIPTORS`; `main.mts` wires those
+in. So the gtk-host-specific half is `emit.mts` plus `main.mts`'s wiring — which
+is the half that emits the **runtime table**, not the half that emits the
+**types**. A prior read put this at "roughly 840 of 1 158 generic". The
+generic count was right; the denominator was not (the file total is 1 620 lines,
+991 of them code).
+
+### What ts-for-gir already has, and what we duplicate
+
+`@girs/*` today emits, per class, three things this generator re-derives:
+
+- **`X.SignalSignatures`** — signal name → handler type, inheriting the parent
+  chain and every implemented interface, with `notify::<prop>` keys included.
+  Measured: 5 948 `notify::` keys in `@girs/gtk-4.0` alone.
+- **the phantom `$signals: X.SignalSignatures`** on every class, marked
+  `@internal`, "generated only for TypeScript type checking".
+- **`GObject.SignalCallback<Emitter, Fn>`**, which prepends the emitter. So
+  `SignalSignatures[K]` is the parameter list **without** the emitting object —
+  which lines up verbatim with the host's `next(...args.slice(1))`.
+
+`@gi.ts/parser` also already models `glib:nick` (`gir-types.ts:766`) and nothing
+reads it.
+
+**The independent-convergence evidence.** peachy's entire JSX type layer is
+46 lines (`packages/react/src/global.d.mts`). It declares **no**
+`IntrinsicElements` — its element type is the GI class — and its `SignalProps`
+mapped type reads `Self["$signals"]` and wraps it in
+`GObject.SignalCallback<Self, …>`. Both names already exist in `@girs/*`, with
+the same shape. peachy reached that encoding independently, through
+`@peachy/types` (its lockfile carries **zero** `@girs/*` entries). Two type
+generators arriving at the same phantom-member vocabulary is the argument that
+the vocabulary belongs in the type layer rather than in any one renderer.
+
+This corrects the premise this ADR started from. peachy does **not** lack typed
+signal handler props; it has them. What it lacks is narrower and still real:
+
+1. `Self["$readableProperties"]`, which `@peachy/types` emits and `@girs/*` does
+   not (measured: zero occurrences of `$properties` or `$readableProperties` in
+   the generated types). On `@girs/*` peachy's `notify::` branch has no input.
+2. `$type?: string` — declared on `IntrinsicAttributes`, so it is accepted on
+   **every** element, including function components, with **every** value.
+
+### What `ConstructorProps` is not
+
+The obvious "we already have this" answer is `X.ConstructorProps`. It is the
+wrong shape on three axes, and the first is a correctness bug:
+
+- **It offers read-only properties as settable.** Measured on Gtk-4.0: 150
+  read-only property declarations across 68 classes and interfaces, all present.
+  `Gtk.Widget.ConstructorProps` carries `has_default`, `has_focus`, `parent`,
+  `root` and `scale_factor`. GTK's failure mode for writing one is **exit 0** —
+  no throw, no diagnostic (ADR 0027 § Context 1).
+- **Its members are required**, so every consumer wraps it in `Partial<>`.
+- **It spells snake_case and camelCase, never kebab** — the spelling GObject
+  itself uses, and GtkBuilder's, and Blueprint's. A dialect whose attributes are
+  kebab has no key to check against.
+- Enum properties carry the enum constant, never the nick. Compiled against the
+  shipped types: `{ top_bar_style: 'raised' }` is TS2322 and `{ 'margin-top': 6 }`
+  is TS2353, while `{ has_default: true }` and `{ root: null }` compile clean.
+
+## Decision
+
+**`@girs/*` emits the GIR-derived widget vocabulary as module-scoped exports on
+an opt-in subpath. It emits no JSX namespace and no tag spelling. Each consumer
+declares its own dialect on top.**
+
+### 1. Data-shaped, never JSX-shaped
+
+A JSX namespace is a global declaration; two consumers declaring one is a merge,
+not two dialects. This is observed rather than feared: gtkx emits
+`declare global { namespace React.JSX { interface IntrinsicElements { … } } }`
+per namespace, with no module-scoped `JSX`, no `jsxImportSource` indirection and
+no opt-out. Importing one widget pulls the whole element table, React's DOM
+intrinsics stay in scope, and a second library augmenting the same interface
+collides hard on any shared tag.
+
+`@girs/*` is used by projects that want nothing to do with JSX, so it is exactly
+the package that must not do this.
+
+### 2. What the subpath exports
+
+`@girs/<ns>/surface`, module-scoped, four kinds of name. Shapes as generated:
+
+```ts
+// Enum nicks — GIR's `glib:nick`, which the parser already models.
+export type AdwToolbarStyleNick = 'flat' | 'raised' | 'raised-border';
+
+// One props interface per GIR DECLARATION, mirroring GIR's own inheritance:
+// writable-only, optional, kebab-keyed, nick-widened. Kebab because that is
+// GObject's OWN spelling — `g_object_set(o, "top-bar-style", …)` — not a JSX
+// choice; `top_bar_style` and `topBarStyle` are binding conveniences and
+// therefore dialect, which is why they are not here.
+export interface AdwToolbarViewProps extends GtkWidgetProps, GtkAccessibleProps {
+    'top-bar-style'?: AdwToolbarStyleNick | Adw.ToolbarStyle;
+    'reveal-top-bars'?: boolean;
+    'extend-content-to-top-edge'?: boolean;
+}
+
+// The name union a renderer needs to know it must REBUILD rather than patch.
+export type AdwAboutDialogConstructOnly = AdwDialogConstructOnly | 'appdata-resource-path';
+
+// The GType-keyed map. GType is also the GtkBuilder key and the typelib key.
+export interface Widgets {
+    AdwToolbarView: {
+        class: Adw.ToolbarView;
+        props: AdwToolbarViewProps;
+        signals: Adw.ToolbarView.SignalSignatures;   // reuses what @girs already emits
+        constructOnly: AdwToolbarViewConstructOnly;
+        slotCandidates: { top: 'add_top_bar'; bottom: 'add_bottom_bar'; content: 'set_content' };
+    };
+}
+export type WidgetGType = keyof Widgets;
+```
+
+`signals` **points at** the existing `SignalSignatures` rather than emitting a
+second copy. That is the whole duplication, deleted.
+
+**No new phantom member.** Adding `$properties` to the class body would mirror
+the already-shipped `$signals`, and it would land in the base `.d.ts` where every
+consumer pays for it. The GType-keyed `Widgets` map carries the same link from
+inside the subpath, so the base package is untouched.
+
+### 2b. The test for what belongs here
+
+**General goes to `@girs/*`; framework-specific stays in the framework.** peachy
+implemented its own signal-prop types because `@girs/*` did not offer them, not
+because it wanted its own — so "peachy already has it" is not evidence that it is
+framework-specific, and the earlier reading of that as independent invention was
+too generous.
+
+The line this ADR draws, applied case by case:
+
+| | belongs where | because |
+|---|---|---|
+| `$signals`, `SignalCallback` | `@girs/*` (already there) | a GIR fact |
+| `$readableProperties` | `@girs/*` (missing today) | a GIR fact; peachy re-derived it only because it was absent |
+| enum nicks | `@girs/*` | `glib:nick` is in the GIR |
+| property keys in **kebab** | `@girs/*` | GObject's canonical spelling, see above |
+| `slotCandidates` | `@girs/*` | derivable, and honestly named as candidates |
+| tag spelling, `on…` names, `JSX.IntrinsicElements`, Vue `GlobalComponents` | the consumer | each framework answers it differently |
+| camelCase / snake_case property keys | the consumer | binding convenience, not the GObject name |
+| **which** candidate is a real slot | gtk-host | runtime behaviour ts-for-gir cannot verify |
+
+The failure mode this test prevents is one dialect winning by being first: a
+kebab `IntrinsicElements` in `@girs/*` would make every non-JSX consumer pay for
+a choice only JSX consumers need.
+
+### 3. The dialect is the consumer's, and it is small
+
+Everything gtk-host emits today that the surface does not — the kebab tag map,
+`on…` handler prop names, `WidgetPropsByTag`, both `JSX.IntrinsicElements`
+dialects, the Vue `GlobalComponents` key and its Volar camelize repair — is
+built from the exports above, in the consumer. Prototype measurement: **66 lines, 39 of them code**
+of consumer-side dialect produce a kebab intrinsic map, `on<Signal>` and
+`onNotify<Prop>` handler props with GIR-exact parameter types, a `ref` that
+infers the concrete class, and a `$type` narrowed to the container's own slots.
+
+peachy needs no dialect at all: its element type is the class, so `props` and
+`constructOnly` reach it through the class it already imports, and `$type`
+narrows from `slotCandidates`.
+
+### 4. Placement stays curated, and the GIR supplies the gate
+
+A GIR-only surface **cannot** express adoption. Measured across the 164 concrete
+Gtk + Adw widgets, a naming rule over methods taking exactly one widget argument
+(`pack_*`, `set_*[_widget]`, `add_*[_bar]`) finds 121 candidates on 77 widgets and
+recovers **every curated slot of every slotted container exactly** —
+`AdwHeaderBar` → start/end/title, `AdwToolbarView` → top/bottom/content,
+`AdwActionRow` → prefix/suffix. It also yields `AdwActionRow.set_activatable_widget`,
+which parents nothing. Both are `void f(GtkWidget*)` at
+`transfer-ownership="none"`; **nothing in the GIR separates them.**
+
+Cambalache bounds the residue independently: 16 of 166 widget types (9.6 %) carry
+hand-written slot info, 32 rows total, and 2.2 % of all catalog rows are
+un-derivable — after fifteen years of Glade heritage. That is a bill of materials,
+not an argument against the move.
+
+So: the subpath emits `slotCandidates`, named honestly as candidates. The
+adoption table stays curated in gtk-host, because it encodes runtime behaviour
+ts-for-gir has no way to verify. The candidate list becomes the **gate**: a GTK
+release that adds a candidate no curated row covers shows up as a diff.
+
+Two cautions taken from the same measurement: `layout='container'` is worthless
+as a takes-children signal under GTK 4 (true for all 166 types), and the
+parent → `<Type>LayoutChild` link exists only as an `f"{owner}LayoutChild"` string
+convention, declared nowhere.
+
+**gtkx's `omittedProps` is not copied.** It is 40 hand-typed entries in
+`@gtkx/react`, not GIR-derived, applied as a `continue` in the prop collector.
+The link to the placement rule is two parallel hand-maintained tables joined by a
+shared `string[]` with no consistency check — their own comment calls the field
+"inert at runtime; read only by codegen". The version worth having derives the
+omission **from** the placement rule, which is the gap they left open. Not decided
+here; it needs the curated table to move first.
+
+### 5. Defaults come from a construction probe, never from GIR
+
+Three independent measurements agree. Ours: GIR `default-value` and a probed
+instance disagree in 104 of 953 cases. Cambalache never reads `default-value` at
+all (zero hits in its tree) — it instantiates a real object, subclassing abstract
+classes to do so, and where pspec-default and instance-value disagree it ships
+**both**. gtkx trusts the GIR default and is the outlier. Whatever this surface
+emits for defaults must come from a probe, which means it cannot come from
+ts-for-gir's headless generation at all — so **no defaults are emitted here**, and
+the probe stays in gjsify where a GTK is installed.
+
+### 6. The reader is `@gi.ts/parser`, and the faster one loses
+
+Measured on `Gtk-4.0.gir`:
+
+| reader | file | time | RSS |
+|---|---|---:|---:|
+| `@gjsify/domparser` (gtk-host) | 6.2 MB | 232 ms | 53 → 96 MB |
+| `@gi.ts/parser` / fast-xml-parser | 5.9 MB | 745 ms | 92 → 200 MB |
+
+domparser is ~3× faster and ~2.5× lighter, and it still loses, for three reasons
+that are not performance:
+
+1. **One reader, one model.** The surface points at
+   `Adw.Carousel.SignalSignatures` — a name the main emitter produced. If a second
+   reader decided what a class is, the surface could reference a class the emitter
+   did not emit. That is precisely the second truth ADR 0028 § 1 exists to prevent,
+   and it would be invisible until a namespace with an unusual shape hit it.
+2. `@gi.ts/parser` already models `glib:nick`. The nick vocabulary is the one
+   thing gtk-host's reader adds, and it is already sitting unread in ts-for-gir.
+3. **ADR 0026 § Decision 4 froze a wart under domparser** for a different
+   consumer's sake: in `application/xml` mode `tagName` is LOWERCASED and
+   `nodeName` UPPERCASED, both wrong by the XML spec, frozen because a measured
+   consumer switches on lowercase literals at 24 sites. `gir.mts`'s own header
+   already records that "a generator for a mixed-case dialect could not use this
+   reader as-is". Building a published contract on a deliberately-frozen defect is
+   a bill that comes due later.
+
+The cost is bounded and one-time: 2.25 s for all seven namespaces, at generation
+time, inside a generator that already parses 705 GIR files.
+
+**The dogfooding loss is real and gets paid explicitly rather than absorbed.**
+`gir.mts` was worth having partly because it exercised a Tier-1 package against a
+real 6 MB document. Retiring it silently removes that coverage. It is therefore
+kept in gjsify as a **differential test**: the same GIR parsed through both
+readers, asserting identical models — the shape the `domparser`-vs-`parse5` check
+already uses. That turns a side effect of production use into a named gate.
+
+## Consequences
+
+- **gtk-host's `src/generated/props.ts` (254 KB, 6 374 lines) is deleted** and
+  replaced by imports from `@girs/gtk-4.0/surface` and `@girs/adw-1/surface` plus
+  the consumer dialect. `generated/widgets.ts` (the runtime tag/GType/ctor table)
+  **stays**: it is `emit.mts`'s output, it is gtk-host's model, and ADR 0028 § 1
+  already decided what it may carry.
+- **`generated.spec.ts` cannot move, and must not.** It asks the *installed*
+  typelib whether every emitted name is real — every property a writable
+  ParamSpec, every signal resolvable by `GObject.signal_lookup`, every nick
+  resolvable through `coerce()`. ts-for-gir generates 705 GIRs headlessly in CI
+  with no GTK and no GJS; it cannot run that check. It is also the one thing
+  neither peachy nor gtkx nor Cambalache has. **It stays in gjsify**, which makes
+  a hard requirement on the subpath: it must ship the same facts as a **runtime
+  data module** beside the `.d.ts` (`OWN_PROPS`, `OWN_SIGNALS`, `DECLS`,
+  `ENUM_NICKS`, `SINCE`), because types are erased and a spec cannot read them.
+  Without `SINCE` the version-skew rule from ADR 0028 § Implementation loses its
+  input and degrades to an allowlist.
+- The surface is emitted only for namespaces that actually declare `GtkWidget`
+  descendants — not for all 1 061 GIRs.
+- ADR 0028 § 6's "gtkx is explicitly not a design constraint" survives unchanged,
+  and is now better supported: gtkx binds GObject through napi and augments
+  `React.JSX` globally. What this ADR takes from it is a hazard to avoid, not a
+  contract to serve.
+
+## Alternatives rejected
+
+- **Keep it in gtk-host.** Costs nothing today and concedes the 843 generic lines
+  permanently. It also leaves `@girs/*` with a `ConstructorProps` that offers 150
+  read-only Gtk properties as settable — a defect every `@girs` consumer carries,
+  fixed for one renderer only.
+- **A separate package (`@gjsify/gir-surface` or similar).** Needs its own GIR
+  reader, its own release, its own version skew against `@girs/*`, and it would
+  reference `@girs` types it does not generate — reintroducing the two-readers
+  problem the reader decision just closed. It buys independence from ts-for-gir's
+  cadence, which risk 1 below shows is not the binding constraint.
+- **Emit JSX.** § 1. The escape hatch is visible in gtkx's own repo: it exports
+  every element twice, once as an intrinsic tag and once as a
+  `(props: XProps) => ReactNode` const, and the component path never touches
+  `IntrinsicElements`. That the workaround exists in-tree is the measurement.
+
+## Risks
+
+1. **Release coupling.** Lower than it looks: `@gjsify/gtk-host@0.41.0` already
+   declares **eight** `@girs/*` packages as runtime dependencies at `^4.1.0`. The
+   dependency exists; what is new is a contract on it. The real hazard is the
+   **caret**: a minor `@girs` release can move the surface under a lockfile-less
+   install. `@girs` carries two cadences already — package `version` 4.1.0 (the
+   generator) and `libraryVersion` 4.23.0 (the GTK) — so the pin must be exact on
+   the former, and gtk-host's committed artifact (ADR 0028 § Implementation) means
+   a bad release breaks a regeneration, never a fresh clone.
+2. **Curated knowledge leaking back.** It does leak, and the leak is now bounded
+   twice: 32 rows over 16 types (Cambalache), 121 GIR candidates with at least one
+   false positive that the GIR provably cannot exclude (ours). The design keeps
+   the derived candidates in `@girs/*` and the adoption table in gtk-host, so the
+   leak has a fixed size and a gate that reports growth.
+3. **Making every `@girs/*` consumer pay.** Answered structurally, not by
+   promising it is small: the surface is a **separate subpath**, so a consumer
+   that never imports it parses **zero** additional bytes — TypeScript reads only
+   files a program reaches. For scale: the Gtk-4.0 surface is 145 KB / 3 259 lines
+   against a 5.86 MB / 147 574-line base `.d.ts` — 2.5 % if imported, 0 % if not.
+   The design's refusal to add a `$properties` phantom is what makes this true;
+   a phantom would land in the base file and be unavoidable.
+
+## Implementation
+
+Prototype (branch `proto/girs-widget-surface` off ts-for-gir `main` @ 87dc649,
+`prototypes/widget-surface/`, not wired into the release path):
+
+- Adw-1: 62 widgets, 81 declarations, 28 enums, 62 slot candidates — 2 754 lines.
+- Gtk-4.0: 102 widgets, 127 declarations, 38 enums, 59 slot candidates — 3 259 lines.
+- 102 + 62 = **164**, matching gtk-host's own concrete-widget count exactly.
+- Both compile with `skipLibCheck: false`, `strict`, `noImplicitAny`: `tsc` exit 0,
+  with a deliberately-wrong control confirming the config checks.
+
+Migration order, each step green before the next:
+
+1. Land the subpath in ts-for-gir behind a per-namespace opt-in, plus the runtime
+   data module. `@girs/*` main `.d.ts` untouched.
+2. Add `$readableProperties`' equivalent — the `props` axis reached through
+   `Widgets` — and verify peachy's `global.d.mts` compiles against `@girs/*`
+   unchanged. That is the "does an outsider benefit" test, and it is falsifiable.
+3. gjsify pins the exact `@girs` version, replaces `generated/props.ts` with the
+   consumer dialect, and repoints `generated.spec.ts` at the published runtime
+   data. `widgets.ts`, `descriptors/` and `emit.mts` do not move.
+4. Retire `gir.mts` from the generation path; keep it as the domparser
+   differential test.
+5. Only then consider deriving `omittedProps` from the curated placement rule.
