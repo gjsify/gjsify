@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/devtools-nativescript",
-    "version": "0.42.0",
+    "version": "0.43.0",
     "description": "In-app NativeScript devtools agent — exposes a running NS app's view tree + screenshots to the @gjsify/devtools-mcp bridge over the V8 CDP inspector (org.gjsify.Devtools method registry)",
     "type": "module",
     "module": "lib/esm/index.js",

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/devtools-browser",
-    "version": "0.42.0",
+    "version": "0.43.0",
     "description": "Minimalist Adwaita web browser for GJS — shared BrowserCore + native Adw shell + a devtools extension so an agent can drive and inspect web apps over MCP",
     "type": "module",
     "module": "lib/esm/index.js",

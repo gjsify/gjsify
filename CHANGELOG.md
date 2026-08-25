@@ -1,5 +1,69 @@
 # Changelog
 
+## [0.43.0](https://github.com/gjsify/gjsify/compare/v0.42.0...v0.43.0) (2026-08-25)
+
+### Features
+
+* **adwaita-app:** bind an app's translations ([#1271](https://github.com/gjsify/gjsify/issues/1271)) ([205698a](https://github.com/gjsify/gjsify/commit/205698a797b7f9ce6485d87f52769fe2a1582768))
+* **adwaita-web:** drag a carousel with the mouse ([#1266](https://github.com/gjsify/gjsify/issues/1266)) ([29ef370](https://github.com/gjsify/gjsify/commit/29ef370c0e7f102141a796c5c03b6d5bed8b9670)), closes [#292](https://github.com/gjsify/gjsify/issues/292)
+* **cli:** ship can define file types ([#1272](https://github.com/gjsify/gjsify/issues/1272)) ([1a86198](https://github.com/gjsify/gjsify/commit/1a8619861205c4c68773ebadde2b46377489e52f))
+* **gtk-host:** add the Solid and Vue adapters ([#1267](https://github.com/gjsify/gjsify/issues/1267)) ([e6c689a](https://github.com/gjsify/gjsify/commit/e6c689a0db816e481f367e0dc3df04aba5408f5f))
+* **gtk-host:** export setProp under its compiler-contract name ([#1285](https://github.com/gjsify/gjsify/issues/1285)) ([9fb06ef](https://github.com/gjsify/gjsify/commit/9fb06ef5cd682fdab74ad214d04060d8475b6eb5))
+* **gtk-host:** generate the widget table and type surfaces from the GIR ([#1281](https://github.com/gjsify/gjsify/issues/1281)) ([6834302](https://github.com/gjsify/gjsify/commit/68343022cbd94a846705f81162bd43bda5565239))
+* **gtk-host:** give renderers a GTK element model ([#1256](https://github.com/gjsify/gjsify/issues/1256)) ([d3889cf](https://github.com/gjsify/gjsify/commit/d3889cfe594d6dc37d110287f48dc16bdf610d57))
+* **gtk-host:** render React onto the host ops ([#1293](https://github.com/gjsify/gjsify/issues/1293)) ([794e190](https://github.com/gjsify/gjsify/commit/794e19054e94ac251e793165f13247e3708aa646)), closes [#1285](https://github.com/gjsify/gjsify/issues/1285)
+* **rolldown-plugin-gjsify:** Blueprint in libraries ([#1275](https://github.com/gjsify/gjsify/issues/1275)) ([19fbf28](https://github.com/gjsify/gjsify/commit/19fbf288b58822b39515a512b38d4f031ba62ab5))
+* **ship:** pack from a stage alone ([#1268](https://github.com/gjsify/gjsify/issues/1268)) ([60deb97](https://github.com/gjsify/gjsify/commit/60deb9711cb496ffa8ac16e3c90af75bad90fab0)), closes [#1057](https://github.com/gjsify/gjsify/issues/1057) [#1263](https://github.com/gjsify/gjsify/issues/1263) [#1269](https://github.com/gjsify/gjsify/issues/1269)
+* **solid:** compile Solid JSX for GJS builds ([#1292](https://github.com/gjsify/gjsify/issues/1292)) ([49670de](https://github.com/gjsify/gjsify/commit/49670de59eba53282164ffd8a9f12ac5e2a8c956))
+* **vue:** compile .vue SFCs for GJS builds ([#1295](https://github.com/gjsify/gjsify/issues/1295)) ([7d55832](https://github.com/gjsify/gjsify/commit/7d5583266646644d485048e5b91cd4c18306373b))
+* **website:** generate the documented attribute surface ([#1279](https://github.com/gjsify/gjsify/issues/1279)) ([ea8b411](https://github.com/gjsify/gjsify/commit/ea8b41134e1abb8df0b75c10237dda14134d2541))
+
+### Bug Fixes
+
+* **assert:** make require('assert') callable ([#1291](https://github.com/gjsify/gjsify/issues/1291)) ([b69a421](https://github.com/gjsify/gjsify/commit/b69a421311e77139b246b93130093f43da71ba37))
+* **audit:** print every rule's notes, and name what the stylesheet rule cannot see ([#1299](https://github.com/gjsify/gjsify/issues/1299)) ([0beebc3](https://github.com/gjsify/gjsify/commit/0beebc34224017b0549b6d38a68948cf5e554446))
+* **cli:** apply user plugins in library builds too ([#1288](https://github.com/gjsify/gjsify/issues/1288)) ([c42d7b6](https://github.com/gjsify/gjsify/commit/c42d7b6ce887d5ddf32d537025667c2afd440a4d))
+* **cli:** let the packument decide whether a name exists ([#1307](https://github.com/gjsify/gjsify/issues/1307)) ([dbcf7c1](https://github.com/gjsify/gjsify/commit/dbcf7c15edcfa361dd6d170e73aa7977a3003bc2))
+* **cli:** refresh the stale affected bundle ([#1278](https://github.com/gjsify/gjsify/issues/1278)) ([1f95a71](https://github.com/gjsify/gjsify/commit/1f95a717ca5d51d26aec906db70fc576f29c1f85)), closes [#1274](https://github.com/gjsify/gjsify/issues/1274) [#1274](https://github.com/gjsify/gjsify/issues/1274)
+* **cli:** refuse a --app gjs artifact GJS cannot load ([#1294](https://github.com/gjsify/gjsify/issues/1294)) ([d7ab0e8](https://github.com/gjsify/gjsify/commit/d7ab0e86ce996eeaa924555b05e5ed05c57e50c4))
+* **fs:** honour recursive in fs.watch ([#1300](https://github.com/gjsify/gjsify/issues/1300)) ([f302136](https://github.com/gjsify/gjsify/commit/f302136743c356df3b460292cdc30274b38fbfdf))
+* **gtk-host:** close the review round on the adapters ([#1274](https://github.com/gjsify/gjsify/issues/1274)) ([fd3c392](https://github.com/gjsify/gjsify/commit/fd3c39209f7e9564236781b37d2ea257b9d41246)), closes [#15](https://github.com/gjsify/gjsify/issues/15)
+* **gtk-host:** close the two findings on the generated surface ([#1287](https://github.com/gjsify/gjsify/issues/1287)) ([b71e011](https://github.com/gjsify/gjsify/commit/b71e011756905c27005a0c91e617189eb9ac7c0b)), closes [#1281](https://github.com/gjsify/gjsify/issues/1281)
+* **gtk-host:** drop the duplicated error constructor ([#1289](https://github.com/gjsify/gjsify/issues/1289)) ([62ec143](https://github.com/gjsify/gjsify/commit/62ec1438d7e882dfaecae328b25414d44f4df858)), closes [#1287](https://github.com/gjsify/gjsify/issues/1287)
+* **gtk-host:** read the nick GIR carries, and count pairs once ([#1286](https://github.com/gjsify/gjsify/issues/1286)) ([9b2a944](https://github.com/gjsify/gjsify/commit/9b2a944437862cc6ff7225dd874b9086ce27fb20))
+* **gtk-host:** restore the constructed default, not the declared one ([#1284](https://github.com/gjsify/gjsify/issues/1284)) ([2261691](https://github.com/gjsify/gjsify/commit/22616917a1cc04f7da61e1d6bf513a43a1b7c576)), closes [#1281](https://github.com/gjsify/gjsify/issues/1281) [#1281](https://github.com/gjsify/gjsify/issues/1281)
+* **gtk-host:** the generic adder is real, just unsafe ([#1303](https://github.com/gjsify/gjsify/issues/1303)) ([e52a659](https://github.com/gjsify/gjsify/commit/e52a659410d92def8332d7c78b8accbe94c4c667))
+* hold the claims the JSX bindings were making ([#1296](https://github.com/gjsify/gjsify/issues/1296)) ([0fafc53](https://github.com/gjsify/gjsify/commit/0fafc535080ca92ff8ab29720ccfdf7b5ef65725)), closes [#1281](https://github.com/gjsify/gjsify/issues/1281) [#1293](https://github.com/gjsify/gjsify/issues/1293)
+* **lint:** exempt type-test fixtures from the caption rule ([#1282](https://github.com/gjsify/gjsify/issues/1282)) ([84a138e](https://github.com/gjsify/gjsify/commit/84a138ee90d0adda6c31c5e6d89ccd9688c8a5a0)), closes [#1275](https://github.com/gjsify/gjsify/issues/1275) [#1281](https://github.com/gjsify/gjsify/issues/1281)
+* **oxlint-plugin-gjsify:** act on the review findings ([#1290](https://github.com/gjsify/gjsify/issues/1290)) ([7628aa6](https://github.com/gjsify/gjsify/commit/7628aa64f21bd9138430cc925b8febe1b13d2a29))
+* point every package's repository at itself ([#1308](https://github.com/gjsify/gjsify/issues/1308)) ([343cf6d](https://github.com/gjsify/gjsify/commit/343cf6d926cd9dfaaecf73f2faa5289786912857))
+
+### Documentation
+
+* **adr:** 0029 — the widget vocabulary moves to @girs/* ([#1306](https://github.com/gjsify/gjsify/issues/1306)) ([b830844](https://github.com/gjsify/gjsify/commit/b830844c545c43e2a9280e8909131cdbc3fdd660))
+* **frameworks:** install for every package manager ([#1305](https://github.com/gjsify/gjsify/issues/1305)) ([19c0273](https://github.com/gjsify/gjsify/commit/19c0273d19a41cae06389e80a5e0871592fa1102))
+* record two things that were true only by accident ([#1301](https://github.com/gjsify/gjsify/issues/1301)) ([d91690d](https://github.com/gjsify/gjsify/commit/d91690de7645f628ef6bcd3fc1fd146c037cf80d))
+* **release:** add the UI-framework section ([#1309](https://github.com/gjsify/gjsify/issues/1309)) ([42e5ec2](https://github.com/gjsify/gjsify/commit/42e5ec2da76c2426c5400133e83aaec269248354))
+* say why .blp uses the JavaScript lexer ([#1273](https://github.com/gjsify/gjsify/issues/1273)) ([0df738c](https://github.com/gjsify/gjsify/commit/0df738c8463f6c0123ba4bc03c7bf882637f894a))
+* **website:** document the UI framework bindings ([#1298](https://github.com/gjsify/gjsify/issues/1298)) ([bee7d25](https://github.com/gjsify/gjsify/commit/bee7d25f581f64f23e8b6c331e7889fd7ba7a601))
+* **website:** give the framework bindings their own section ([#1302](https://github.com/gjsify/gjsify/issues/1302)) ([831fcc5](https://github.com/gjsify/gjsify/commit/831fcc5984973e9f1692b32ed71bc23be6cb4d8b))
+
+### Code Refactoring
+
+* **gtk-host:** one probe, one vector table, no adapter copies ([#1297](https://github.com/gjsify/gjsify/issues/1297)) ([ce0ad4a](https://github.com/gjsify/gjsify/commit/ce0ad4a11a383b89525ae410699e969e72d2cb9e)), closes [#1298](https://github.com/gjsify/gjsify/issues/1298)
+
+### Continuous Integration
+
+* **adwaita:** hold every Adwaita doc sample to a compile ([#1277](https://github.com/gjsify/gjsify/issues/1277)) ([04b0371](https://github.com/gjsify/gjsify/commit/04b03713a899572e2499b57cfbb29d1eb76a24fa))
+* run build:infra on a cold tree with no node ([#1259](https://github.com/gjsify/gjsify/issues/1259)) ([d823982](https://github.com/gjsify/gjsify/commit/d8239821620e7291de86cb2e43722cb36476a659))
+
+### Maintenance
+
+* **refs:** add cambalache, refresh peachy and gtkx ([#1304](https://github.com/gjsify/gjsify/issues/1304)) ([31defcf](https://github.com/gjsify/gjsify/commit/31defcf0553610b6da1d4351f9f0976b5319b335)), closes [#1303](https://github.com/gjsify/gjsify/issues/1303) [#1303](https://github.com/gjsify/gjsify/issues/1303)
+* update native prebuilds [skip ci] ([90d497a](https://github.com/gjsify/gjsify/commit/90d497ab75fe30cacb31fc64e6bb81e4baadf1bb))
+* update native prebuilds [skip ci] ([559ce58](https://github.com/gjsify/gjsify/commit/559ce58052787146b114ac1656ffcbff39ce7131))
+* update native prebuilds [skip ci] ([fe39e5d](https://github.com/gjsify/gjsify/commit/fe39e5d981a63dca85cd1b600b78c984e7134786))
+
 ## [0.42.0](https://github.com/gjsify/gjsify/compare/v0.41.0...v0.42.0) (2026-08-22)
 
 ### Features

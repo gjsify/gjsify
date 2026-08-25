@@ -1,6 +1,6 @@
 {
     "name": "gjsify",
-    "version": "0.42.0",
+    "version": "0.43.0",
     "description": "The full JavaScript ecosystem, native on GNOME",
     "type": "module",
     "private": true,
@@ -56,7 +56,7 @@
         "test:e2e:dlx-version-pin": "node --test tests/e2e/dlx-version-pin/run.mjs",
         "test:e2e:cjs-require-stream": "node --test tests/e2e/cjs-require-stream/run.mjs",
         "test:e2e:unresolved-workspace-import": "node --test tests/e2e/unresolved-workspace-import/run.mjs",
-    "test:e2e:jsx-config-gate": "node --test tests/e2e/jsx-config-gate/run.mjs",
+        "test:e2e:jsx-config-gate": "node --test tests/e2e/jsx-config-gate/run.mjs",
         "test:e2e:plugins-by-name": "node --test tests/e2e/plugins-by-name/run.mjs",
         "test:e2e:plugins-by-name-gjs": "node --test tests/e2e/plugins-by-name-gjs/run.mjs",
         "test:e2e:workspace-node-free-gjs": "node --test tests/e2e/workspace-node-free-gjs/run.mjs",

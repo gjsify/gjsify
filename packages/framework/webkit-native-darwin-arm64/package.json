@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/webkit-native-darwin-arm64",
-    "version": "0.42.0",
+    "version": "0.43.0",
     "description": "darwin-arm64 prebuilt native library + GObject-Introspection typelib for @gjsify/webkit-native. Installed automatically on darwin/arm64 as an optionalDependency of that package (ADR 0017) and skipped everywhere else. Contains no JavaScript.",
     "license": "MIT",
     "os": [

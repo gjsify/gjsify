@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/storybook-core",
-    "version": "0.42.0",
+    "version": "0.43.0",
     "description": "Renderer-agnostic storybook logic (story base, registry, control binding, controller, discovery, devtools) shared by the GTK, browser and NativeScript storybook renderers",
     "type": "module",
     "module": "lib/esm/index.js",

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/storybook-nativescript",
-    "version": "0.42.0",
+    "version": "0.43.0",
     "description": "NativeScript renderer for the @gjsify/stories contract — the NS counterpart of @gjsify/storybook (GTK) and @gjsify/adwaita-storybook (browser), built on @gjsify/adwaita-nativescript real native widgets",
     "type": "module",
     "module": "lib/esm/index.js",

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/tls-native-linux-arm64",
-    "version": "0.42.0",
+    "version": "0.43.0",
     "description": "linux-arm64 prebuilt native library + GObject-Introspection typelib for @gjsify/tls-native. Installed automatically on linux/arm64 as an optionalDependency of that package (ADR 0017) and skipped everywhere else. Contains no JavaScript.",
     "license": "MIT",
     "os": [

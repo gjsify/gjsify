@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/tsc",
-    "version": "0.42.0",
+    "version": "0.43.0",
     "description": "TypeScript compiler for GJS — bundles upstream `typescript` to a single GJS module + ships a Node-free `tsc` bin.",
     "type": "module",
     "main": "src/index.ts",

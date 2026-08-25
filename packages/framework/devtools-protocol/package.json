@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/devtools-protocol",
-    "version": "0.42.0",
+    "version": "0.43.0",
     "description": "Transport-agnostic devtools contract (methods, JSON envelope, method-kinds, transport interface) shared by every gjsify devtools adapter and the MCP bridge",
     "type": "module",
     "module": "lib/esm/index.js",
