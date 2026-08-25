@@ -51,6 +51,7 @@ the TODO records the *what's left*.
 | [0028](0028-widget-table-provenance.md) | GIR-generated widget table, runtime ParamSpec for values | Accepted |
 | [0029](0029-girs-widget-vocabulary.md) | The widget vocabulary ships from `@girs/*` under a `surface` subpath, with no JSX namespace | Proposed |
 | [0030](0030-one-corpus-gjs-as-oracle.md) | One test corpus per claim, parameterised by runtime; GJS is the oracle | Accepted |
+| [0031](0031-node-gi-napi-outside-the-workspace.md) | `node-gi` and `napi` stay outside the npm workspace | Accepted |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
