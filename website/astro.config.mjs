@@ -19,6 +19,11 @@ export default defineConfig({
     // and naming it after the design system leaves room for a second one
     // (Material, say) beside it rather than under it.
     redirects: {
+        // The framework pages moved out of `guides/` into their own section. They
+        // shipped days earlier, so the old paths are already in the wild.
+        '/guides/ui-frameworks': '/gjsify/frameworks/',
+        '/guides/solid-jsx': '/gjsify/frameworks/solid/',
+        '/guides/vue-sfc': '/gjsify/frameworks/vue/',
         '/framework/bridges': '/gjsify/patterns/bridges/',
         '/patterns': '/gjsify/patterns/gobject-classes/',
         '/widgets': '/gjsify/adwaita/',
@@ -119,14 +124,19 @@ export default defineConfig({
                     label: 'Guides',
                     items: [
                         { slug: 'guides/native-adwaita-app' },
-                        { slug: 'guides/ui-frameworks' },
-                        { slug: 'guides/solid-jsx' },
-                        { slug: 'guides/vue-sfc' },
                         { slug: 'patterns/gobject-classes' },
                         { slug: 'patterns/bridges', label: 'Bridge Widgets' },
                         { slug: 'guides/storybook' },
                         { slug: 'guides/devtools' },
                         { slug: 'guides/vite-plugin' },
+                    ],
+                },
+                {
+                    label: 'UI Frameworks',
+                    items: [
+                        { slug: 'frameworks', label: 'Overview' },
+                        { slug: 'frameworks/solid', label: 'Solid' },
+                        { slug: 'frameworks/vue', label: 'Vue' },
                     ],
                 },
                 {

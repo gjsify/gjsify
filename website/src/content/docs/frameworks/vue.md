@@ -5,7 +5,7 @@ description: Compile Vue 3 single-file components for a GTK 4 build with @gjsify
 
 [`@gjsify/rolldown-plugin-vue`](https://www.npmjs.com/package/@gjsify/rolldown-plugin-vue)
 compiles Vue 3 single-file components during a gjsify build, for the `@vue/runtime-core`
-custom renderer in [`@gjsify/gtk-host/vue`](/gjsify/guides/ui-frameworks/). Write your window
+custom renderer in [`@gjsify/gtk-host/vue`](/gjsify/frameworks/). Write your window
 as `.vue`, build it for `--app gjs`, and the template's tags become real GTK widgets.
 
 It is an ordinary Rolldown plugin, so it also loads under Rollup and Vite.
@@ -159,7 +159,7 @@ put the selector on the widget with `cssClasses`.
 **`<script lang="jsx">` and `lang="tsx"` are refused too.** Rolldown picks a parser from the
 module id's extension, and that choice happens before anything has read the file, so it cannot
 depend on the block's `lang`. Write JSX in a `.tsx` file and compile it with
-[`@gjsify/rolldown-plugin-solid`](/gjsify/guides/solid-jsx/) instead. A `<script>` with no
+[`@gjsify/rolldown-plugin-solid`](/gjsify/frameworks/solid/) instead. A `<script>` with no
 `lang` is parsed as TypeScript.
 
 **A split SFC is refused as well** — `<template src>` and `<script src>`, and a
@@ -175,9 +175,9 @@ and otherwise ignores it.
 
 ## Related
 
-- [UI Frameworks](/gjsify/guides/ui-frameworks/) for the host, the widget table and the
+- [UI Frameworks](/gjsify/frameworks/) for the host, the widget table and the
   placement rules
-- [Solid JSX](/gjsify/guides/solid-jsx/) for the same pipeline on `babel-preset-solid`
+- [Solid JSX](/gjsify/frameworks/solid/) for the same pipeline on `babel-preset-solid`
 - [`vue-host-counter`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/vue-host-counter),
   a complete window that asserts its own widget tree on every launch
 - [`@gjsify/rolldown-plugin-vue` on npm](https://www.npmjs.com/package/@gjsify/rolldown-plugin-vue)
