@@ -110,11 +110,13 @@ const IGNORE = [
     /^docs\//,
     ...OTHER_WORKFLOW_INPUTS,
     // Neither `@gjsify/node-gi` (the Node-native GI engine) nor `@gjsify/napi` (the
-    // N-API host over SpiderMonkey) is a gjsify workspace member: the GJS-first
-    // install/foreach tooling cannot build their node-gyp addons or Vala+C++/meson
-    // shim, so `main.yml` neither builds nor tests them and their own workflows are
-    // the source of truth. Without the carve-outs their files map to no workspace,
-    // land in `unmatched`, and force a full run on every node-gi/napi PR.
+    // N-API host over SpiderMonkey) is a gjsify workspace member — WHY is ADR 0031,
+    // which this comment used to carry alone. The short of it: node-gi's `build` is
+    // `node-gyp rebuild`, so a member would enter `foreach build` in a container with
+    // no GTK/GI toolchain. `main.yml` therefore neither builds nor tests them and
+    // their own workflows are the source of truth. Without the carve-outs their files
+    // map to no workspace, land in `unmatched`, and force a full run on every
+    // node-gi/napi PR.
     /^packages\/node-gi\//,
     /^packages\/napi\//,
     // Flatpak build/distribution tooling (SDK-extension manifest + metainfo). No
