@@ -270,14 +270,17 @@ export class WatchTree {
     /**
      * Attach the fan-out monitor for one FILE.
      *
-     * It reports ONLY modifications. Create, delete and rename of this same path
-     * already arrive on its parent directory's monitor — on every backend, that
-     * being the half a directory monitor does deliver — so mapping them here as
-     * well would emit each of them twice.
+     * It reports ONLY modifications, because a create and a delete are the half a
+     * directory monitor does deliver on every backend measured here — mapping them
+     * a second time would emit each of them twice. The case that is neither, and
+     * is an open question rather than a measurement, is an editor's atomic
+     * same-name replace: `watch-backend.gjs.spec.ts` records what each monitor
+     * shape sees of one, and if darwin turns out to report it through neither,
+     * this monitor has to re-arm itself on DELETED.
      */
     private _watchFile(path: string): void {
         if (this._closed || this._fileMonitors.has(path)) return;
-        if (!this._reserve(path)) return;
+        if (!this._admit(path)) return;
         let monitor: Gio.FileMonitor;
         try {
             monitor = Gio.File.new_for_path(path).monitor(Gio.FileMonitorFlags.NONE, null);
@@ -300,24 +303,24 @@ export class WatchTree {
     }
 
     /**
-     * Take one unit of budget, or refuse LOUDLY.
+     * Is there budget left for one more monitor? Refuses LOUDLY when there is not.
      *
      * Announced once per watch, not once per path: past the limit every remaining
-     * entry would raise the same error, and a storm of them is a different way of
-     * being unreadable. The one that is raised says the watch is incomplete from
-     * here on, which is the fact a consumer has to act on.
+     * entry raises the same fact, and a storm of them is another way to be unread.
+     * The one error that is raised says the watch is incomplete from here on, which
+     * is what a consumer has to act on.
      */
-    private _reserve(path: string): boolean {
+    private _admit(path: string): boolean {
         if (this.monitorCount < this._budget) return true;
         if (this._budgetReported) return false;
         this._budgetReported = true;
         const err: Error & { code?: string; path?: string } = new Error(
-            `fs.watch: this watch already holds ${this._budget} file monitors — its whole budget — and stopped at ` +
-                `${path}. Anything under ${this._root} that is not already attached is NOT being watched, and no ` +
-                `further event will arrive for it. On this host every watched file costs a kernel file descriptor, ` +
-                `so continuing past the budget would exhaust the process descriptor table and surface as an ` +
-                `unrelated open() failing somewhere else entirely. Watch a narrower directory, or raise the ` +
-                `process RLIMIT_NOFILE and the budget with it.`,
+            `fs.watch: this watch holds its whole budget of ${this._budget} monitors and stopped at ${path}. ` +
+                `Anything under ${this._root} that is not already attached is NOT being watched, and no further ` +
+                `event will arrive for it. The budget is finite because a monitor costs a kernel file descriptor ` +
+                `on the hosts that need one per file, and spending the process's descriptor table surfaces as an ` +
+                `unrelated open() failing elsewhere, in a trace that never mentions fs.watch. Watch a narrower ` +
+                `directory, or raise the process RLIMIT_NOFILE and the budget with it.`,
         );
         err.code = 'ERR_FS_WATCH_MONITOR_BUDGET';
         err.path = path;
@@ -399,7 +402,7 @@ export class WatchTree {
      */
     private _addSubtree(dir: string, announce: boolean): void {
         if (this._closed || this._monitors.has(dir)) return;
-        if (!this._reserve(dir)) return;
+        if (!this._admit(dir)) return;
         try {
             this._open(dir, Gio.File.new_for_path(dir));
         } catch (err: unknown) {

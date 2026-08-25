@@ -19,8 +19,9 @@
 // GI modules load at runtime rather than through a static `@girs/*` import so the
 // `--app node` bundle stays clean.
 
-import { describe, expect, it, on } from '@gjsify/unit';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { describe, expect, it, on, print } from '@gjsify/unit';
+import { isDarwin } from '@gjsify/utils/core';
+import { mkdirSync, mkdtempSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
@@ -91,51 +92,75 @@ export default async () => {
                 }
             });
 
-            await it('reports a child being MODIFIED in a monitored directory', async () => {
-                const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'gjsify-gio-mon-')));
-                const child = join(tmp, 'existing.txt');
-                writeFileSync(child, 'one');
-                try {
-                    const seen = await record(tmp, () => {
-                        writeFileSync(child, 'two');
-                    });
-                    // This is the event `fs.watch`'s 'change' is built from, and the one
-                    // the darwin failures all have in common.
-                    const changes = seen.filter(isChange);
-                    expect(changes.length > 0 ? '' : `no ${CHANGE_EVENTS.join('/')}; raw: ${dump(seen)}`).toBe('');
-                    // And it has to NAME the child. A backend that reports the monitored
-                    // directory instead leaves `relative(root, path)` empty, which is the
-                    // shape that would break the recursive filenames without breaking the
-                    // event count.
-                    expect(
-                        changes.some((t) => t.includes(`path=${child} `)) ? '' : `named no child; raw: ${dump(seen)}`,
-                    ).toBe('');
-                } finally {
-                    rmSync(tmp, { recursive: true, force: true });
-                }
-            });
+            await it.failing(
+                'reports a child being MODIFIED in a monitored directory',
+                async () => {
+                    const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'gjsify-gio-mon-')));
+                    const child = join(tmp, 'existing.txt');
+                    writeFileSync(child, 'one');
+                    try {
+                        const seen = await record(tmp, () => {
+                            writeFileSync(child, 'two');
+                        });
+                        // This is the event `fs.watch`'s 'change' is built from, and the one
+                        // the darwin failures all have in common.
+                        const changes = seen.filter(isChange);
+                        expect(changes.length > 0 ? '' : `no ${CHANGE_EVENTS.join('/')}; raw: ${dump(seen)}`).toBe('');
+                        // And it has to NAME the child. A backend that reports the monitored
+                        // directory instead leaves `relative(root, path)` empty, which is the
+                        // shape that would break the recursive filenames without breaking the
+                        // event count.
+                        expect(
+                            changes.some((t) => t.includes(`path=${child} `))
+                                ? ''
+                                : `named no child; raw: ${dump(seen)}`,
+                        ).toBe('');
+                    } finally {
+                        rmSync(tmp, { recursive: true, force: true });
+                    }
+                },
+                'GLib serves g_file_monitor() from kqueue on darwin, and a directory vnode raises ' +
+                    'NOTE_WRITE when an entry is ADDED or REMOVED — not when a write lands inside an ' +
+                    'existing child. The FILE-monitor row below proves the same host reports that write ' +
+                    'through a monitor on the file, which is what watch-tree.ts fans out to. Declared ' +
+                    'rather than guarded so the row still RUNS here and fails the day the backend ' +
+                    'starts delivering.',
+                { when: isDarwin() },
+            );
 
-            await it('reports a child MODIFIED in a monitored SUBdirectory', async () => {
-                // The per-directory monitor recursion is built from: if this row is the
-                // one that fails, the recursion is sound and its leaves are not.
-                const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'gjsify-gio-mon-')));
-                const sub = join(tmp, 'sub');
-                mkdirSync(sub, { recursive: true });
-                const child = join(sub, 'nested.txt');
-                writeFileSync(child, 'one');
-                try {
-                    const seen = await record(sub, () => {
-                        writeFileSync(child, 'two');
-                    });
-                    const changes = seen.filter(isChange);
-                    expect(changes.length > 0 ? '' : `no ${CHANGE_EVENTS.join('/')}; raw: ${dump(seen)}`).toBe('');
-                    expect(
-                        changes.some((t) => t.includes(`path=${child} `)) ? '' : `named no child; raw: ${dump(seen)}`,
-                    ).toBe('');
-                } finally {
-                    rmSync(tmp, { recursive: true, force: true });
-                }
-            });
+            await it.failing(
+                'reports a child MODIFIED in a monitored SUBdirectory',
+                async () => {
+                    // The per-directory monitor recursion is built from: if this row is the
+                    // one that fails, the recursion is sound and its leaves are not.
+                    const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'gjsify-gio-mon-')));
+                    const sub = join(tmp, 'sub');
+                    mkdirSync(sub, { recursive: true });
+                    const child = join(sub, 'nested.txt');
+                    writeFileSync(child, 'one');
+                    try {
+                        const seen = await record(sub, () => {
+                            writeFileSync(child, 'two');
+                        });
+                        const changes = seen.filter(isChange);
+                        expect(changes.length > 0 ? '' : `no ${CHANGE_EVENTS.join('/')}; raw: ${dump(seen)}`).toBe('');
+                        expect(
+                            changes.some((t) => t.includes(`path=${child} `))
+                                ? ''
+                                : `named no child; raw: ${dump(seen)}`,
+                        ).toBe('');
+                    } finally {
+                        rmSync(tmp, { recursive: true, force: true });
+                    }
+                },
+                'GLib serves g_file_monitor() from kqueue on darwin, and a directory vnode raises ' +
+                    'NOTE_WRITE when an entry is ADDED or REMOVED — not when a write lands inside an ' +
+                    'existing child. The FILE-monitor row below proves the same host reports that write ' +
+                    'through a monitor on the file, which is what watch-tree.ts fans out to. Declared ' +
+                    'rather than guarded so the row still RUNS here and fails the day the backend ' +
+                    'starts delivering.',
+                { when: isDarwin() },
+            );
 
             await it('reports a MODIFY when the monitor is on the FILE itself', async () => {
                 // THE ROW THAT DECIDES THE FIX, which is why it is separated from the two
@@ -169,9 +194,63 @@ export default async () => {
                         changes.length > 0
                             ? ''
                             : `a monitor ON THE FILE raised no ${CHANGE_EVENTS.join('/')} for a write to it; ` +
-                              `raw: ${dump(seen)}`,
+                                  `raw: ${dump(seen)}`,
                     ).toBe('');
                 } finally {
+                    rmSync(tmp, { recursive: true, force: true });
+                }
+            });
+
+            await it('records what an atomic same-name REPLACE delivers', async () => {
+                // AN OPEN QUESTION, RECORDED RATHER THAN ASSERTED — both answers are
+                // plausible and only the host can say which is true.
+                //
+                // Editors do not write in place. They write a temp file and rename it
+                // over the target, so the watched path keeps its NAME and gains a new
+                // inode. Two monitors can miss that in two different ways: a directory
+                // monitor that reports entries appearing and disappearing has no name
+                // change to report, and a file monitor bound to the old inode may go
+                // DELETED and stop. `writeFileSync` is not this shape — it opens the
+                // path O_TRUNC and writes in place, which is why the rows above measure
+                // the write and this one has to stage the rename itself.
+                //
+                // What the answer buys: if BOTH sides stay silent on darwin, the fan-out
+                // in `watch-tree.ts` has to re-arm a file monitor on DELETED, or a
+                // `gjsify dev` loop on macOS stops seeing a file after the first save in
+                // any editor that saves this way. If either side reports it, it does not.
+                const tmp = realpathSync.native(mkdtempSync(join(tmpdir(), 'gjsify-gio-mon-')));
+                const target = join(tmp, 'target.txt');
+                const staged = join(tmp, 'target.txt.tmp');
+                writeFileSync(target, 'one');
+                const onDir: string[] = [];
+                const onFile: string[] = [];
+                const dirMonitor = Gio.File.new_for_path(tmp).monitor(Gio.FileMonitorFlags.NONE, null);
+                const fileMonitor = Gio.File.new_for_path(target).monitor(Gio.FileMonitorFlags.NONE, null);
+                dirMonitor.connect('changed', (_m, file, _other, ev) => {
+                    onDir.push(`${eventNames.get(ev) ?? `UNKNOWN(${ev})`} path=${file?.get_path() ?? 'null'}`);
+                });
+                fileMonitor.connect('changed', (_m, file, _other, ev) => {
+                    onFile.push(`${eventNames.get(ev) ?? `UNKNOWN(${ev})`} path=${file?.get_path() ?? 'null'}`);
+                });
+                try {
+                    await sleep(60);
+                    writeFileSync(staged, 'two');
+                    await sleep(SETTLE_MS);
+                    // The liveness control, and the reason the staging write is a separate
+                    // step: a create IS delivered on every backend measured here, so a
+                    // directory monitor that reports nothing for it is not a finding about
+                    // renames — it is a dead monitor, and the print below would be noise.
+                    expect(onDir.length > 0 ? '' : 'the directory monitor raised nothing for a create').toBe('');
+                    onDir.length = 0;
+                    onFile.length = 0;
+
+                    renameSync(staged, target);
+                    await sleep(SETTLE_MS);
+                    print(`    ↳ replace, seen by the DIRECTORY monitor: ${dump(onDir)}`);
+                    print(`    ↳ replace, seen by the FILE monitor:      ${dump(onFile)}`);
+                } finally {
+                    dirMonitor.cancel();
+                    fileMonitor.cancel();
                     rmSync(tmp, { recursive: true, force: true });
                 }
             });
