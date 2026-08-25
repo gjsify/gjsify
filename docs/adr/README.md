@@ -50,6 +50,7 @@ the TODO records the *what's left*.
 | [0027](0027-gtk-host-layer.md) | One GTK host layer, framework adapters on top | Accepted |
 | [0028](0028-widget-table-provenance.md) | GIR-generated widget table, runtime ParamSpec for values | Accepted |
 | [0029](0029-girs-widget-vocabulary.md) | The widget vocabulary ships from `@girs/*` under a `surface` subpath, with no JSX namespace | Proposed |
+| [0030](0030-one-corpus-gjs-as-oracle.md) | One test corpus per claim, parameterised by runtime; GJS is the oracle | Proposed |
 
 Source review: [docs/reports/2026-07-01-architecture-review.md](../reports/2026-07-01-architecture-review.md)
 (condensed findings + prioritized backlog).
