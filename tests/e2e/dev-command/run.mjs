@@ -144,6 +144,68 @@ function writeFlatProject(projectDir, source) {
 }
 
 /**
+ * A project that is NOT flat: the entry sits at the root (so the watch dir derives
+ * to `.`, with `dist/` written INTO it) and the module it imports lives one
+ * directory down, in `components/`.
+ *
+ * Every other fixture in this suite keeps its whole source in one top-level file,
+ * which is exactly why `fs.watch(dir, { recursive: true })` silently ignoring
+ * `recursive` under GJS was invisible from here: a flat tree is the one shape a
+ * FLAT directory monitor covers completely. On a real project — an edit to
+ * `components/Button.tsx` — the loop produced no rebuild at all and the suite
+ * stayed green. The nested module carries that extension for the same reason;
+ * whether its JSX would COMPILE is `tests/e2e/jsx-config-gate`'s question, not
+ * this row's.
+ *
+ * Both halves of the arrangement are load-bearing, and the row measures both.
+ * Recursion makes `dist/` and the linked `node_modules/` watched directories too,
+ * so the reported filename has to be the path relative to the watched dir for
+ * `isSelfWrite` to recognise the bundle the loop just wrote; a basename does not
+ * resolve back to it, and the loop feeds itself forever.
+ */
+function writeNestedProject(projectDir, pidPath, marker) {
+    mkdirSync(join(projectDir, 'components'), { recursive: true });
+    writeFileSync(
+        join(projectDir, 'package.json'),
+        JSON.stringify(
+            {
+                name: 'dev-nested-fixture',
+                version: '1.0.0',
+                type: 'module',
+                private: true,
+                scripts: { 'build:node': 'gjsify build index.ts --app node --outfile dist/out.mjs --no-minify' },
+                gjsify: { example: { node: 'dist/out.mjs' } },
+            },
+            null,
+            2,
+        ) + '\n',
+        'utf-8',
+    );
+    writeFileSync(
+        join(projectDir, 'index.ts'),
+        [
+            "import { writeFileSync } from 'node:fs';",
+            "import { MARKER } from './components/marker.js';",
+            `writeFileSync(${JSON.stringify(pidPath)}, String(process.pid));`,
+            "console.log('started ' + MARKER);",
+            'setInterval(() => {}, 60000);',
+            '',
+        ].join('\n'),
+        'utf-8',
+    );
+    writeNestedMarker(projectDir, marker);
+}
+
+/** Rewrite ONLY the nested module — the entry point is left untouched. */
+function writeNestedMarker(projectDir, marker) {
+    writeFileSync(
+        join(projectDir, 'components', 'marker.tsx'),
+        `export const MARKER = ${JSON.stringify(marker)};\n`,
+        'utf-8',
+    );
+}
+
+/**
  * Link the workspace packages the GJS build engine resolves, instead of running a
  * real install into every fixture. `@girs`/`rolldown` come along because the
  * bundler's own resolution reaches for them.
@@ -489,6 +551,42 @@ describe('gjsify dev under GJS', { skip: SKIP_GJS, timeout: 8 * 60 * 1000 }, () 
                 },
                 () => `\`gjsify run dev\` did not survive its first build; output:\n${session.output()}`,
                 4 * 60 * 1000,
+            );
+        } finally {
+            await session.stop();
+        }
+    });
+
+    it('rebuilds for an edit in a SUBDIRECTORY of the watched tree', async () => {
+        const projectDir = join(tmpDir, 'nested');
+        // The pid file goes OUTSIDE the project: this fixture watches its own root, so
+        // anything written inside it drives the loop the row is measuring.
+        const pidFile = join(tmpDir, 'nested.pid');
+        writeNestedProject(projectDir, pidFile, 'NEST-A');
+        linkWorkspaceModules(projectDir);
+        const session = await startGjs(projectDir, ['dev', '--runtime', 'node', '--debounce', '50'], /started NEST-A/);
+
+        try {
+            // Under GJS `recursive` was accepted and dropped — a Gio directory monitor
+            // reports its direct children only — so this edit reached nothing at all and
+            // the wait below ran to its timeout with the app still on NEST-A.
+            writeNestedMarker(projectDir, 'NEST-B');
+            await waitFor(
+                () => session.output().includes('started NEST-B'),
+                () => `a nested edit produced no rebuild under GJS; output:\n${session.output()}`,
+                4 * 60 * 1000,
+            );
+
+            // ONE rebuild. Recursion put `dist/` and the linked `node_modules/` under
+            // watch as well, so a loop that cannot recognise its own output relaunches
+            // again a build later and keeps climbing while nothing is edited. One build
+            // here measures in seconds, so this window covers several rounds of it.
+            await new Promise((resolve) => setTimeout(resolve, 15 * 1000));
+            const launches = session.output().match(/started NEST-/g) ?? [];
+            assert.equal(
+                launches.length,
+                2,
+                `expected exactly one rebuild for one nested edit, saw ${launches.length}:\n${session.output()}`,
             );
         } finally {
             await session.stop();

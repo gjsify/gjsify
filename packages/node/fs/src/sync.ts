@@ -694,11 +694,22 @@ export function chownSync(path: PathLike, uid: number, gid: number): void {
     }
 }
 
-export function watch(
-    filename: PathLike,
-    options: { persistent?: boolean; recursive?: boolean; encoding?: string } | undefined,
-    listener: ((eventType: string, filename: string | null) => void) | undefined,
-) {
+type WatchListener = (eventType: string, filename: string | null) => void;
+type WatchOpts = { persistent?: boolean; recursive?: boolean; encoding?: string };
+
+export function watch(filename: PathLike, listener?: WatchListener): FSWatcher;
+export function watch(filename: PathLike, options?: WatchOpts, listener?: WatchListener): FSWatcher;
+
+export function watch(filename: PathLike, options?: WatchOpts | WatchListener, listener?: WatchListener): FSWatcher {
+    // `fs.watch(path, listener)` is the two-argument form Node documents first, and
+    // it reached FSWatcher as an options object that failed the `typeof === 'object'`
+    // test — so the options were replaced by the defaults and the LISTENER was
+    // dropped on the floor. A watcher that fires nothing looks exactly like a
+    // filesystem that changed nothing.
+    if (typeof options === 'function') {
+        listener = options;
+        options = undefined;
+    }
     return new FSWatcher(normalizePath(filename), options, listener);
 }
 
