@@ -3,6 +3,8 @@ title: Vue SFCs
 description: Compile Vue 3 single-file components for a GTK 4 build with @gjsify/rolldown-plugin-vue. The tag predicate, the build defines that keep the DOM out, and the vue-tsc trap that fakes a green check.
 ---
 
+import CommandTabs from '../../../components/CommandTabs.astro';
+
 [`@gjsify/rolldown-plugin-vue`](https://www.npmjs.com/package/@gjsify/rolldown-plugin-vue)
 compiles Vue 3 single-file components during a gjsify build, for the `@vue/runtime-core`
 custom renderer in [`@gjsify/gtk-host/vue`](/gjsify/frameworks/). Write your window
@@ -12,9 +14,38 @@ It is an ordinary Rolldown plugin, so it also loads under Rollup and Vite.
 
 ## Install
 
-```bash
-gjsify install @gjsify/rolldown-plugin-vue @gjsify/gtk-host @vue/runtime-core
-```
+<CommandTabs title="Install" group="pm">
+  <Fragment slot="gjsify">
+    ```bash
+    gjsify install @gjsify/rolldown-plugin-vue @gjsify/gtk-host @vue/runtime-core
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    npm install -D @gjsify/rolldown-plugin-vue @gjsify/gtk-host @vue/runtime-core
+    ```
+  </Fragment>
+  <Fragment slot="yarn">
+    ```bash
+    yarn add -D @gjsify/rolldown-plugin-vue @gjsify/gtk-host @vue/runtime-core
+    ```
+  </Fragment>
+  <Fragment slot="pnpm">
+    ```bash
+    pnpm add -D @gjsify/rolldown-plugin-vue @gjsify/gtk-host @vue/runtime-core
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    bun add --dev @gjsify/rolldown-plugin-vue @gjsify/gtk-host @vue/runtime-core
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno add --dev npm:@gjsify/rolldown-plugin-vue npm:@gjsify/gtk-host npm:@vue/runtime-core
+    ```
+  </Fragment>
+</CommandTabs>
 
 `vue` and `vue-tsc` are devDependencies for the type check; only `@vue/runtime-core` ends up
 in the bundle.

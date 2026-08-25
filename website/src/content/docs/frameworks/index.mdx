@@ -3,6 +3,8 @@ title: UI Frameworks
 description: Write your GTK 4 window in Solid, Vue or React. One host layer underneath, real Gtk and Adw widgets on top.
 ---
 
+import CommandTabs from '../../../components/CommandTabs.astro';
+
 Write your GTK 4 window in Solid, Vue or React, and get real `Gtk` and `Adw` widgets.
 
 GTK can already describe a window rather than assemble it — that is what Blueprint is for, and
@@ -26,9 +28,38 @@ for a framework where the shape follows the data.
 
 ## Install
 
-```bash
-gjsify install @gjsify/gtk-host
-```
+<CommandTabs title="Install" group="pm">
+  <Fragment slot="gjsify">
+    ```bash
+    gjsify install @gjsify/gtk-host
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    npm install -D @gjsify/gtk-host
+    ```
+  </Fragment>
+  <Fragment slot="yarn">
+    ```bash
+    yarn add -D @gjsify/gtk-host
+    ```
+  </Fragment>
+  <Fragment slot="pnpm">
+    ```bash
+    pnpm add -D @gjsify/gtk-host
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    bun add --dev @gjsify/gtk-host
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno add --dev npm:@gjsify/gtk-host
+    ```
+  </Fragment>
+</CommandTabs>
 
 Your framework is a peer dependency and stays yours: `solid-js`, `@vue/runtime-core`, or
 `react` + `react-reconciler`. Install only the one you use.
