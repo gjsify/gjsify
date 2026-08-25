@@ -77,7 +77,7 @@ npm install @gjsify/node-gi
 
 To build the native addon you need a C++ toolchain (or the shipped prebuild for your platform) and the GLib 2.80 or newer development headers that expose `girepository-2.0`. At runtime you need the typelibs of the libraries you import, the same requirement `gi://` has under GJS. On macOS and Windows the `@gjsify/gtk-runtime-*` package covers that instead, bundling the GTK 4 and Adwaita closure so there is no system GTK to install.
 
-On Deno, run the bundle with `deno run -A --node-modules-dir=manual` so it uses the `node_modules` you already installed. Under `--node-modules-dir=auto` Deno re-resolves the whole build-time dependency tree, including platform binaries nothing at runtime imports, and that either hangs or needs registry access you may not have. The [package README](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/node-gi#readme) has the full API and the rest of the Deno notes.
+On Deno, run the bundle with `deno run -A --node-modules-dir=manual` so it uses the `node_modules` you already installed. Under `--node-modules-dir=auto` Deno re-resolves the whole build-time dependency tree, including platform binaries nothing at runtime imports, and that either hangs or needs registry access you may not have. The [package README](https://github.com/gjsify/gjsify/tree/main/packages/node-gi/node-gi#readme) covers requirements and install; the [GJS-compatible surface reference](https://github.com/gjsify/gjsify/blob/main/docs/node-gi-gjs-surface.md) has the full API, and the [platform notes](https://github.com/gjsify/gjsify/blob/main/docs/node-gi-platform-notes.md) the rest of the Deno notes.
 
 ## How it works
 
