@@ -37,6 +37,12 @@ import { installDiagnosticsGate, type DiagnosticsGate } from './conformance/diag
  * own result line a diagnostic it then counts.
  */
 declare const print: (message: string) => void;
+/**
+ * Same reason as `print` above, and one more: this is the only way to report from
+ * inside the failure path of the GUI entry, where the diagnostics gate has already
+ * replaced GLib's writer and `console.error` would route straight back into it.
+ */
+declare const printerr: (message: string) => void;
 
 /** Record one assertion. A `false` is a finding; nothing else is. */
 export type ProbeCheck = (what: string, ok: boolean) => void;
@@ -53,8 +59,28 @@ export interface HostProbe<T> {
      * and the exact getters, never the host's own bookkeeping, which would agree
      * with itself while the window is wrong. Return whatever belongs in the result
      * line; the harness adds the failure list and the diagnostic count.
+     *
+     * MAY BE ASYNC, and one adapter forces it: Vue flushes render jobs on a
+     * microtask, so an assertion after a click has to `await nextTick()` or it reads
+     * the pre-patch tree. Without this the Vue showcase hand-rolled the whole
+     * harness, and the copy carried the pre-`describeLogRecord` collector bug with
+     * it — a log record with no `MESSAGE` counted as a diagnostic and then described
+     * as the empty string.
      */
-    assert(ui: T, check: ProbeCheck): Record<string, unknown>;
+    assert(ui: T, check: ProbeCheck): Record<string, unknown> | Promise<Record<string, unknown>>;
+    /**
+     * Release what the assertions built, before the diagnostics are counted.
+     *
+     * ORDER IS THE POINT. Teardown is exactly where GTK reports a mis-parented tree
+     * — `Finalizing GtkLabel …, but it still has children left` arrives at finalize,
+     * at exit 0 (ADR 0027 § Context). A probe that counts diagnostics and THEN tears
+     * down cannot see the one class of defect that only surfaces there, which is
+     * what both hand-written probes did.
+     *
+     * Optional because a probe that owns nothing has nothing to release; the
+     * harness's own `build` result is reachable only from here.
+     */
+    teardown?(ui: T): void;
     /** Prefix of the machine-readable result line. Default `PROBE`. */
     label?: string;
 }
@@ -111,6 +137,15 @@ function recorderIsHonest(check: ProbeCheck, failures: string[]): string | null 
 /**
  * Run the showcase's assertions once and return the process exit code.
  *
+ * **The probe always builds HEADLESS, in both paths.** It is handed `null` rather
+ * than the `GApplication`, for two reasons that point the same way. It makes the two
+ * paths return the same verdict about the same tree — a probe whose GUI run differs
+ * from its headless run is two probes. And it keeps the GUI path from constructing
+ * and (now that `teardown` exists) destroying an `Adw.ApplicationWindow` INSIDE
+ * `activate`, which is the exact neighbourhood of the segfault recorded on
+ * `runHostProbeApp` below. Nothing a probe asserts needs an application; `present`
+ * gets the real one.
+ *
  * The diagnostics gate is reset first and asserted last, and both halves are the
  * harness's rather than the showcase's. Reset, because in the GUI path this runs
  * from `activate` — AFTER Adw startup, where a session-bus, portal, theme or a11y
@@ -119,7 +154,7 @@ function recorderIsHonest(check: ProbeCheck, failures: string[]): string | null 
  * failure mode is exit 0: a mis-parented widget floods `Gtk-WARNING` and the
  * process still succeeds.
  */
-export function runHostProbe<T>(probe: HostProbe<T>, app: Adw.Application | null = null): number {
+export async function runHostProbe<T>(probe: HostProbe<T>): Promise<number> {
     const label = probe.label ?? 'PROBE';
     const gate: DiagnosticsGate = installDiagnosticsGate();
     gate.reset();
@@ -138,7 +173,11 @@ export function runHostProbe<T>(probe: HostProbe<T>, app: Adw.Application | null
 
     let report: Record<string, unknown> = {};
     try {
-        report = probe.assert(probe.build(app), check);
+        const ui = probe.build(null);
+        report = await probe.assert(ui, check);
+        // Inside the same `try`: a throw here is a finding like any other, and a
+        // teardown that throws is itself a defect worth reporting by name.
+        probe.teardown?.(ui);
     } catch (error) {
         // A throw is a finding, not a crash. The hand-written probes let one
         // escape into GJS's `activate` handler, which LOGS the exception and
@@ -146,7 +185,7 @@ export function runHostProbe<T>(probe: HostProbe<T>, app: Adw.Application | null
         failures.push(`threw: ${(error as Error).message}`);
     }
 
-    // Last, so it covers the build AND the assertions.
+    // Last, so it covers the build, the assertions AND the teardown.
     const diagnostics = gate.seen.length;
     check(`no GTK diagnostics (saw ${diagnostics})`, diagnostics === 0);
 
@@ -170,13 +209,41 @@ export function runHostProbe<T>(probe: HostProbe<T>, app: Adw.Application | null
 export async function runHostProbeApp<T>(probe: HostProbeApp<T>): Promise<void> {
     if (probeEnabled()) {
         Gtk.init();
-        return system.exit(runHostProbe(probe, null));
+        return system.exit(await runHostProbe(probe));
     }
     const app = new Adw.Application({ application_id: probe.applicationId });
     app.connect('activate', () => {
-        const failed = runHostProbe(probe, app);
-        if (failed !== 0) system.exit(failed);
-        probe.present(probe.build(app));
+        // `activate` IS A GLIB CALLBACK AND CANNOT BE AWAITED, while the probe may
+        // be async. So the work is STARTED here, and `app.hold()` is what makes
+        // that legal.
+        //
+        // MEASURED, without the hold — in the Vue showcase, before this harness
+        // owned the path: `activate` returned having presented nothing,
+        // GApplication's hold count reached zero, and `gtk_application_shutdown`
+        // ran its own nested main loop. The probe's continuation was then dispatched
+        // from INSIDE that shutdown, constructed a window with `application: app`,
+        // and `gtk_application_window_added` segfaulted — `PROBE: PASS` on stdout,
+        // exit 139, and a stack ending in `gtk_application_shutdown ->
+        // g_main_loop_run -> PromiseJobDispatcher`. Nothing about the crash names
+        // the missing hold, which is why it is recorded here rather than rediscovered.
+        app.hold();
+        void (async () => {
+            try {
+                const failed = await runHostProbe(probe);
+                if (failed !== 0) return system.exit(failed);
+                probe.present(probe.build(app));
+            } catch (error) {
+                // A REAL throw path: the probe reaches into GTK and into a
+                // framework's scheduler. Caught because a rejected promise would
+                // leave the `hold()` above un-released forever, and an application
+                // that never exits is what `showcase-smoke` reads as "still up after
+                // the dwell" — a failure that reports itself as a pass.
+                printerr(`JS ERROR: ${probe.applicationId} probe threw: ${String(error)}`);
+                return system.exit(1);
+            } finally {
+                app.release();
+            }
+        })();
     });
     await app.runAsync([]);
 }

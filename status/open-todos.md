@@ -58,33 +58,42 @@ rendered through the GTK host and through `adwaita-web`, satisfies the same
 then the goal is a direction, not a claim — and the longer horizon it points at
 (NativeScript and browser builds from one native-authored source) needs its own ADR.
 
-### Two measured placement defects the adapters PR did NOT fix
+### An adopted composite offsets by its own internals
 
-Both surfaced while reviewing the Solid/Vue adapters, both are pre-existing in
-the host rather than introduced by them, and both are recorded here with the
-measurement rather than shipped quietly.
+Surfaced while reviewing the Solid/Vue adapters, pre-existing in the host rather than
+introduced by them, and recorded with the measurement rather than shipped quietly. Its
+sibling — a removed element child not restoring the text it displaced — is FIXED; this
+one is not, because its fix needs a curated descriptor field and a measurement round of
+its own.
 
-- **An adopted composite offsets by its own internals.** A fresh
-  `Adw.PreferencesPage` has one direct child — its internal `GtkScrolledWindow` —
-  so `adopt()` records `foreign.length === 1` and every subsequent `index` is off
-  by one. Measured on gtk 4.22.4 / libadwaita 1.9.3: `mountRoot` into an
-  `AdwPreferencesPage`, insert a group "one", then prepend "zero" before it, and
-  GTK renders **[one, zero]**; the identical tree in a NON-adopted page renders
-  **[zero, one]**. Exit 0, zero diagnostics. Reachable from any `<For>`/`v-for`
-  that prepends into the canonical Adwaita settings page.
-  The root cause is the same insight the occupied-slot refusal already acts on —
-  a composite's DIRECT children are not the list its `add()` addresses — but the
-  getter that fixes it for one-child slots has no counterpart for appending
-  policies, so it needs its own round. Adder slots that are NOT composites are
-  fine: an adopted `AdwToolbarView` still renders `[app bar, host bar]`.
+A fresh `Adw.PreferencesPage` has one direct child, its internal `GtkScrolledWindow`, so
+`adopt()` records `foreign.length === 1` and every subsequent `index` is off by one.
+Measured on gtk 4.22.4 / libadwaita 1.9.3: `mountRoot` into an `AdwPreferencesPage`,
+insert a group "one", then prepend "zero" before it, and GTK renders **[one, zero]**;
+the identical tree in a NON-adopted page renders **[zero, one]**. Exit 0, zero
+diagnostics. Reachable from any `<For>`/`v-for` that prepends into the canonical Adwaita
+settings page. Adder slots that are NOT composites are fine — an adopted
+`AdwToolbarView` still renders `[app bar, host bar]`.
 
-- **Removing an element child does not restate the text it displaced.** GTK's
-  `set_child(icon)` clears `label` to null, so `createElement('GtkButton', {label:
-  'Save'})` + insert an icon + remove it leaves a BLANK button, while the host
-  still holds `props.label === 'Save'`. That is
-  `<Button label="Save"><Show when={x}><Icon/></Show></Button>` toggling off, or
-  the `v-if` equivalent — reachable, not theoretical, and the mirror image of the
-  text-side guard that IS in place.
+**Located.** `adoptedChildren()` (`src/host.ts`) branches on
+`setterSlots(descriptor.children)`: with setter slots it asks each slot's GETTER, which
+is why the one-child case is right, and with none it falls through to
+`directChildren(container)`, a raw child-list snapshot. `AdwPreferencesPage` has no
+setter slot, so its internal `GtkScrolledWindow` is counted as application content. The
+second half of the bug is what the index MEANS: `Adw.PreferencesPage` is one of the few
+Adwaita containers that really has `insert`, and its `position` addresses the page's
+GROUPS, not its direct children — so a `foreign` of length 1 offsets every position by
+one.
+
+The shape of the fix follows, and it is a CURATED discriminator rather than a derived
+one. For a container whose adder re-parents into an internal, the direct children are
+never adder-addressed content — and nothing introspectable says which containers those
+are, because the internal child comes from a `.ui` template. So it is a new descriptor
+field in the ADR 0028 § 2 sense (what the GIR cannot express stays curated), plus the
+measurement of which of the 26 curated containers need it. Deriving it by adding a probe
+child and reading `get_parent()` back would mutate the very container being adopted,
+which belongs to the application.
+
 ### Nothing runs `build:infra` on a cold tree with no `node`
 
 The bootstrap ADR 0002 documents — `gjs -m install.mjs` → `gjsify install

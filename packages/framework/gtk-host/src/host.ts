@@ -771,6 +771,52 @@ function restore(node: HostNode, parent: HostElement, before: HostNode | null): 
     }
 }
 
+/**
+ * Give back the text a child displaced.
+ *
+ * GTK's text sink IS the one-child slot, and putting a child in CLEARS the sink.
+ * Measured on gtk 4.22.4: `createElement('GtkButton', {label: 'Save'})` followed by
+ * `set_child(icon)` leaves `label` null, and taking the icon out again does not
+ * bring it back — so `<Button label="Save"><Show when={x}><Icon/></Show></Button>`
+ * toggling OFF renders a blank button while this host still holds
+ * `props.label === 'Save'`. Exit 0, no diagnostic.
+ *
+ * This is the mirror of the guard `writeTextSink` already carries in the other
+ * direction, where clearing the sink must not take an element child with it. Only
+ * the pair is complete: one direction alone means the loss just moves to the other
+ * axis, which is how this one survived the round that fixed its sibling.
+ */
+function restoreTextSink(el: HostElement): void {
+    const sink = el.descriptor.textSink;
+    if (!sink || el.destroyed || !el.widget) return;
+    const policy = el.descriptor.children;
+    // `single` is where the conflation lives, and `writeTextSink` reads the same
+    // narrowing: a `none` policy can hold no child to displace the text with.
+    if (policy.kind !== 'single') return;
+    // Only once the slot is genuinely free. Solid and React reconcile
+    // insert-then-remove (`solid-js/universal`'s `replaceNode`), so a sink written
+    // here would land ON TOP of the replacement that has already arrived.
+    if (holdsOursInSlot(el, null)) return;
+    if (slotOccupant(el.widget as unknown as Gtk.Widget, policy.set)) return;
+    // `setProp` records the AUTHORED key while `writeTextSink` records the kebab
+    // sink name. All four curated sinks are one word, so the two coincide today;
+    // asking both costs one lookup and does not go stale if a two-word sink is
+    // ever curated.
+    const camel = sink.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase());
+    const recorded = el.props[sink] ?? el.props[camel];
+    if (typeof recorded !== 'string' || recorded === '') return;
+    const spec = requireSpec(paramSpecs(el.descriptor.ctor(), el.descriptor.gtype), el.descriptor.gtype, sink);
+    beginHostWrite();
+    try {
+        (el.widget as unknown as { set_property(n: string, v: unknown): void }).set_property(
+            sink,
+            coerce(spec, recorded, el.descriptor.gtype),
+        );
+    } finally {
+        endHostWrite();
+    }
+}
+
 /** Detach only — reversible. Frameworks move nodes; `remove` must not destroy one. */
 export function remove(node: HostNode): void {
     const parent = node.parent;
@@ -784,6 +830,7 @@ export function remove(node: HostNode): void {
             (node.wrapper as unknown as { set_child(w: unknown): void }).set_child(null);
             node.wrapper = null;
         }
+        restoreTextSink(parent);
     }
     unlink(node);
     if (parent && node.kind === 'text') flushText(parent);

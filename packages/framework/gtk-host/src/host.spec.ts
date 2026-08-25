@@ -335,6 +335,33 @@ export default async () => {
                 expect(widget.label).toBe('authored');
             });
 
+            await it('gives back the label a child displaced', async () => {
+                // The mirror of the guard above, and it was live in a shipped
+                // release. GTK's text sink IS the one-child slot, measured on
+                // gtk 4.22.4 in this exact order: `new Gtk.Button({label:'Save'})`
+                // reads `label === 'Save'`; `set_child(img)` reads `null`;
+                // `set_child(null)` still reads `null` — a BLANK button — and only
+                // writing the property back brings it round, at which point GTK
+                // rebuilds its own internal GtkLabel as the child.
+                //
+                // That sequence is `<Button label="Save"><Show when={x}><Icon/>
+                // </Show></Button>` toggling off, with the host still holding
+                // `props.label === 'Save'` the whole time. Exit 0, no diagnostic.
+                const button = createElement('GtkButton', { label: 'Save' });
+                const widget = materialize(button) as unknown as Gtk.Button;
+                expect(widget.label).toBe('Save');
+
+                const icon = createElement('GtkImage');
+                insert(icon, button);
+                // GTK's own doing, asserted so the premise cannot rot in silence:
+                // if a future GTK stops clearing the sink, this line says so rather
+                // than the restore quietly becoming a no-op nobody notices.
+                expect(widget.label).toBe(null);
+
+                remove(icon);
+                expect(widget.label).toBe('Save');
+            });
+
             await it('refuses text on a widget with no sink, naming the tag', async () => {
                 const image = createElement('GtkImage');
                 materialize(image);
