@@ -34,9 +34,21 @@ const WALK_ATTRS = 'standard::name,standard::type';
  * 'change'-listener registration but silently drops every rename/create/delete
  * for any consumer (chokidar, vite, tsc) that registers only
  * `watcher.on('change', listener)` per Node's contract.
+ *
+ * CHANGED and CHANGES_DONE_HINT BOTH map to 'change', and the first one is the one
+ * that has to be here. GIO documents CHANGES_DONE_HINT as exactly that, "a hint that
+ * this was probably the last change in a set of changes": a local-monitor backend
+ * synthesises it on a quiet-period timer if it synthesises it at all. A watcher whose
+ * only route to 'change' is that hint therefore reports NOTHING for a modification on
+ * any backend that does not raise it, which is a promise nothing in GIO makes. Node
+ * is chattier than the hint in any case — libuv emits one 'change' per inotify
+ * IN_MODIFY — so taking both moves toward its contract rather than away from it.
+ * Found by the darwin GJS leg: it saw no 'change' event at all for an overwrite, at
+ * any depth, while every create and delete arrived.
  */
 function gioEventToNodeType(eventType: Gio.FileMonitorEvent): WatchEventType | null {
     switch (eventType) {
+        case Gio.FileMonitorEvent.CHANGED:
         case Gio.FileMonitorEvent.CHANGES_DONE_HINT:
             return 'change';
         case Gio.FileMonitorEvent.DELETED:
