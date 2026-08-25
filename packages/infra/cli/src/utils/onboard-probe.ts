@@ -137,8 +137,27 @@ export async function probeTrustState(
     // an empty list both for "published, nobody trusted it" and for "no such name".
     // Only that case pays for the extra read — `trusted` cannot be a missing package
     // and `unpublished` already has its answer.
-    if (state === 'untrusted') {
+    // Two questions, two endpoints. The trust list answers "who may publish this",
+    // and onboard also needs "does this name exist at all" — which it can only
+    // INFER from the trust list, and infers wrongly in both ambiguous states:
+    //
+    //   untrusted      npm serves 2xx and an EMPTY list for a name that was never
+    //                  published — byte-identical to a real package that simply has
+    //                  no trusted publisher configured.
+    //   auth-required  a 401 says nothing whatsoever about existence. It is also
+    //                  where EVERY package lands in a `--dry-run` run before the
+    //                  maintainer has an OTP to hand, which is exactly the moment
+    //                  the plan is being read to decide whether to proceed.
+    //
+    // The packument answers the question directly and unauthenticated, and a 404
+    // there is proof no OTP could change. Only these two states pay for the extra
+    // read: `trusted` cannot be a missing package, and `unpublished` already has
+    // its answer from the endpoint it just asked.
+    if (state === 'untrusted' || state === 'auth-required') {
         const exists = await (opts.exists ?? packumentExists)(registry, ws.name);
+        // ONLY a definitive 404 reclassifies. `null` — network failure, unexpected
+        // status — leaves the state exactly as it was: a bootstrap that publishes
+        // on a failed read is worse than one that reports itself blocked.
         if (exists === false) state = 'unpublished';
     }
 

@@ -111,6 +111,10 @@ export default async () => {
             const plan = await probeTrustState(request, ws('@gjsify/foo'), ctx(), {
                 retryOn401: false,
                 sleep: noSleep,
+                // Same reason as the sibling above: a 401 now consults the
+                // packument, so what this case measures — that the RETRY is
+                // suppressed — needs existence pinned or it decides the outcome.
+                exists: async () => true,
             });
             expect(n).toBe(1);
             expect(plan.state).toBe('auth-required');
@@ -123,8 +127,53 @@ export default async () => {
                 n++;
                 return { status: 401, json: undefined, text: '' };
             };
-            const plan = await probeTrustState(request, ws('@gjsify/foo'), ctx(), { sleep: noSleep });
+            // `exists: true` is now load-bearing, and stating it is the point: a
+            // persistent 401 on a package that DOES exist is genuinely undecidable,
+            // so it stays blocked. Without the injection this reads the live
+            // registry — and `@gjsify/foo` is a name nobody published, so the test
+            // would flip to `publish-and-trust` for a reason that has nothing to do
+            // with what it is measuring.
+            const plan = await probeTrustState(request, ws('@gjsify/foo'), ctx(), {
+                sleep: noSleep,
+                exists: async () => true,
+            });
             expect(n).toBe(2); // initial + one retry, then give up
+            expect(plan.action).toBe('blocked');
+        });
+    });
+
+    await describe('probeTrustState — a 401 does not hide a missing package', async () => {
+        // The state a no-OTP `--dry-run` produces for the whole tree. Before this,
+        // 202 packages reported `unreadable` and the plan was empty — including for
+        // the two names that had never been published, which is the ONE thing the
+        // dry run was being consulted about.
+        await it('calls it UNPUBLISHED when the trust read 401s and no packument exists', async () => {
+            const request: TrustRequester = async (): Promise<TrustRequestResult> => ({
+                status: 401,
+                json: undefined,
+                text: '',
+            });
+            const plan = await probeTrustState(request, ws('@gjsify/never-published'), ctx(), {
+                sleep: noSleep,
+                exists: async () => false,
+            });
+            expect(plan.state).toBe('unpublished');
+            expect(plan.action).toBe('publish-and-trust');
+        });
+
+        await it('stays blocked when the packument read is itself undecided', async () => {
+            // Registry unreachable. Two failed reads are not evidence of absence,
+            // and publishing on them would create the package this command exists
+            // to notice was missing.
+            const request: TrustRequester = async (): Promise<TrustRequestResult> => ({
+                status: 401,
+                json: undefined,
+                text: '',
+            });
+            const plan = await probeTrustState(request, ws('@gjsify/unknown'), ctx(), {
+                sleep: noSleep,
+                exists: async () => null,
+            });
             expect(plan.action).toBe('blocked');
         });
     });
