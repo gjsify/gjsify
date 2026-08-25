@@ -30,6 +30,33 @@ export function toPropertyName(name: string): string {
     return name.includes('-') ? name : name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
 }
 
+/**
+ * A props object without the keys a framework reserves for itself.
+ *
+ * The SET is per-framework and stays with the adapter that owns it — Vue's is
+ * `@vue/shared`'s `isReservedProp`, React's is `children` — but the LOOP was
+ * written twice, byte-for-byte apart from the identifier names. That is the second
+ * copy this repo lifts on: the two would drift, and the drifted one fails in a
+ * consumer while the host stays green.
+ *
+ * `undefined` rather than `{}` for an empty result, and that is load-bearing:
+ * `createElement(tag, undefined)` skips the property loop entirely, so a vnode
+ * whose props are ALL reserved must not look like a vnode with one unknown
+ * property.
+ */
+export function withoutKeys(
+    props: Record<string, unknown> | null | undefined,
+    skip: ReadonlySet<string>,
+): Record<string, unknown> | undefined {
+    if (!props) return undefined;
+    let kept: Record<string, unknown> | undefined;
+    for (const key of Object.keys(props)) {
+        if (skip.has(key)) continue;
+        (kept ??= {})[key] = props[key];
+    }
+    return kept;
+}
+
 const specCache = new Map<string, Map<string, GObject.ParamSpec>>();
 
 /** All ParamSpecs of a class, by kebab name. Cached per GType — `list_properties()` is not cheap. */

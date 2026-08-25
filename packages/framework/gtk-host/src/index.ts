@@ -3,6 +3,7 @@ export { GtkHostError } from './errors.js';
 export {
     adopt,
     createAnchor,
+    createDetachedContainer,
     createElement,
     createText,
     destroyChildren,
@@ -10,6 +11,7 @@ export {
     disconnectHandlers,
     firstChild,
     insert,
+    isHostElement,
     isText,
     materialize,
     mountRoot,
@@ -22,6 +24,7 @@ export {
     setProp,
     setSlot,
     setText,
+    widgetOf,
 } from './host.js';
 export { addressOf, reorderMode } from './policies.js';
 export { toSignalName, isEventProp } from './signals.js';
@@ -34,6 +37,14 @@ export {
     toPropertyName,
 } from './props.js';
 export { assertInjective, tagOf } from './tags.js';
+export {
+    probeEnabled,
+    runHostProbe,
+    runHostProbeApp,
+    type HostProbe,
+    type HostProbeApp,
+    type ProbeCheck,
+} from './probe.js';
 export type {
     ElementChild,
     ElementChildren,

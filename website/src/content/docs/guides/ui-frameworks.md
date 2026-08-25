@@ -93,9 +93,8 @@ await app.runAsync([]);
 `createRoot` rather than bare JSX: every `{count()}` compiles to a computation, and a
 computation created without an owner is never disposed. Solid says so on stderr.
 
-`widgetOf(node)` hands you the real widget behind a host node. It is exported from
-`@gjsify/gtk-host/solid` and `@gjsify/gtk-host/react` — the two adapters whose root *is* a
-node you hold. Vue's is not; see below.
+`widgetOf(node)` hands you the real widget behind a host node. It lives in the host and every
+adapter re-exports it, so the call is the same whichever one you are on.
 
 Import `For`, `Index`, `Show` and `Dynamic` from the **adapter**, never from `solid-js/web`.
 That package is Solid's DOM renderer; its components build DOM elements nothing here can
@@ -161,10 +160,11 @@ app.connect('activate', () => {
 await app.runAsync([]);
 ```
 
-The Vue adapter exports `render`, `createApp`, `mount` and `adopt` — and deliberately no
-`widgetOf`. You already hold the window you mounted into, and everything below it belongs to
-Vue's own reconciler rather than to a node you can name. Reach for a widget inside the tree
-with a `ref` on the element, as you would in any Vue app.
+The Vue adapter exports `render`, `createApp`, `mount`, `adopt` and `widgetOf`. You will reach
+for the last one less often here than in Solid or React: you already hold the window you
+mounted into, and a widget *inside* the tree is what a `ref` on the element gives you, as in
+any Vue app. `widgetOf` is there for the case where what you hold is a host node rather than a
+component instance.
 
 Both tag spellings work in a template. `<GtkLabel>` and `<gtk-label>` resolve to the same
 widget and to the same type-check key, so pick one and stay with it. The build needs

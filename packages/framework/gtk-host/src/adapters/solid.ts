@@ -19,17 +19,18 @@ import {
     adopt,
     createElement as hostCreateElement,
     createText,
+    describeValue,
     destroyChildren,
     disconnectHandlers,
     firstChild,
     insert as hostInsert,
     isText,
-    materialize,
     nextSibling,
     parentNode,
     remove,
     setProp as setHostProp,
     setText,
+    widgetOf,
 } from '../host.js';
 import type { HostElement, HostNode, HostText } from '../types.js';
 
@@ -55,7 +56,7 @@ function assertHostNode(node: HostNode): void {
     const kind = (node as { kind?: unknown } | null)?.kind;
     if (typeof kind === 'string' && HOST_KINDS.has(kind)) return;
     throw new Error(
-        `@gjsify/gtk-host/solid: insertNode got ${describe(node)}, which is not a node of this renderer. ` +
+        `@gjsify/gtk-host/solid: insertNode got ${describeValue(node)}, which is not a node of this renderer. ` +
             `Almost always this is a component from solid-js/web — the DOM renderer — reaching a universal ` +
             `one: its <Dynamic>, <Portal> and template() build DOM elements with document.createElement and ` +
             `spread onto them with the DOM's own spread, so nothing arrives through these host ops and the ` +
@@ -63,16 +64,6 @@ function assertHostNode(node: HostNode): void {
             `@gjsify/gtk-host/solid instead; solid-js's own control flow (For/Index/Show) is ` +
             `renderer-agnostic, everything under solid-js/web is not.`,
     );
-}
-
-/** Name a foreign value the way its owner would recognise it. */
-function describe(value: unknown): string {
-    if (value === null || value === undefined) return String(value);
-    if (typeof value !== 'object') return `a ${typeof value}`;
-    const name = (value as { constructor?: { name?: string } }).constructor?.name;
-    const tag = (value as { tagName?: unknown }).tagName;
-    if (typeof tag === 'string') return `a DOM element <${tag.toLowerCase()}>`;
-    return name ? `a ${name}` : 'a plain object';
 }
 
 const renderer = createRenderer<HostNode>({
@@ -271,21 +262,17 @@ export function Dynamic<P extends Record<string, unknown>>(
         }
         throw new Error(
             `@gjsify/gtk-host/solid: <Dynamic component={…}> needs a registered tag name or a component ` +
-                `function, and got ${describe(component)}. Solid's own DOM version returns undefined here and ` +
+                `function, and got ${describeValue(component)}. Solid's own DOM version returns undefined here and ` +
                 `renders nothing at all — a lookup that missed is indistinguishable from an empty branch. ` +
                 `Use <Show when={…}> to render nothing on purpose.`,
         );
     }, false) as unknown as HostNode;
 }
 
-/** The materialised widget of a host node — for a test, or a `ref`. */
-export function widgetOf(node: HostNode): Gtk.Widget {
-    if (node.kind !== 'element') throw new Error('only an element node has a widget');
-    // `materialize` would happily build a fresh, propertyless, unparented widget
-    // for a node that was destroyed — the "destroyed element looks
-    // re-materialisable" trap the host's own `destroy` warns about. The flag is
-    // exact; the obvious heuristic (no widget, not attached, no props) also
-    // describes a brand-new element and misdiagnosed it.
-    if (node.destroyed) throw new Error('this node was destroyed; its widget is gone');
-    return materialize(node) as unknown as Gtk.Widget;
-}
+/**
+ * Re-exported, not re-implemented: this and the React adapter carried the SAME
+ * function, and Vue carried none — so a Vue app had no supported way to reach a
+ * widget at all. It is a host op now (`../host.js`), and its two refusals are
+ * coded errors rather than the bare `new Error` they used to be.
+ */
+export { widgetOf };

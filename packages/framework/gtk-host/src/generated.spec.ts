@@ -25,7 +25,7 @@ import {
     GENERATED_WIDGETS,
     REQUIRED_CONSTRUCT_PROPS,
 } from './descriptors/index.js';
-import { createElement, materialize } from './host.js';
+import { createElement, insert, materialize, setEventHandler, setProp } from './host.js';
 import { DECLS, ENUM_NICKS, OWN_PROPS, OWN_SIGNALS, SINCE, TAGS } from './generated/surface-data.mjs';
 import { camelOf, eventPropOf } from './generator/tsmap.mjs';
 import { isWritable, lookupEnumNick, paramSpecs } from './props.js';
@@ -207,6 +207,57 @@ export default async () => {
                 expect(missingPortal.test('Cannot get portal org.freedesktop.portal.Screenshot version: x')).toBe(true);
                 expect(missingPortal.test('Trying to snapshot GtkButton without a current allocation')).toBe(false);
                 expect(missingPortal.test('gtk_box_append: assertion failed')).toBe(false);
+            });
+
+            await it('has a FLOOR — a deleted row cannot pass unnoticed', async () => {
+                // Every other check in this file iterates the committed table and
+                // therefore agrees with whatever the table happens to say; the one
+                // length assertion it had (`BUILTIN_DESCRIPTORS.length` ===
+                // `GENERATED_WIDGETS.length`) compares the merge against its own
+                // input. So deleting a row from `generated/widgets.ts` was invisible:
+                // the tag stops existing, nothing iterates it, exit 0.
+                //
+                // `TAGS` is the floor because it is a SECOND artifact — the generator
+                // writes `generated/widgets.ts` (shipped) and `generated/surface-data.mts`
+                // (test-only) in the same run, from the same GIR, and nothing in the
+                // package reads one from the other. Agreement between them is the only
+                // claim here that a hand edit to either file can break, and it is
+                // exact in BOTH directions rather than a hard-coded count, which would
+                // itself be a number that drifts unseen.
+                const shipped = new Set(GENERATED_WIDGETS.map((w) => w.gtype));
+                const surfaced = Object.keys(TAGS);
+                expect(GENERATED_WIDGETS.length).toBe(surfaced.length);
+                expect(surfaced.filter((gtype) => !shipped.has(gtype))).toStrictEqual([]);
+                // And a floor under the floor: an empty table would satisfy both
+                // lines above, so the two halves must be non-trivially large and the
+                // curated rules must all still be reachable through them.
+                expect(surfaced.length > CURATED_DESCRIPTORS.length).toBe(true);
+                expect(CURATED_DESCRIPTORS.filter((d) => !shipped.has(d.gtype))).toStrictEqual([]);
+            });
+
+            await it('refuses to guess a placement for an uncurated row', async () => {
+                // A/B in the shape of `REQUIRED_CONSTRUCT_PROPS`' one above, for the
+                // other curated-vs-generated fact — and the only safety property 138
+                // of the 164 rows have. It had ZERO tests: `grep uncurated-placement`
+                // found two throw sites and this error's constructor.
+                //
+                // `GtkExpander` really does hold one child, so this is what a user
+                // hits first; `add`, `append` and `set_child` all exist somewhere in
+                // GTK and calling the wrong one is a warning at exit 0.
+                const expander = createElement('gtk-expander');
+                materialize(expander);
+                expect(lookupWidget('GtkExpander').children.kind).toBe('uncurated');
+                expect(() => insert(createElement('gtk-label'), expander)).toThrow(/GENERATED table/);
+                // And it is a REFUSAL, not a ban: the row is creatable, settable and
+                // handler-bearing — which is the whole content of "uncurated".
+                setProp(expander, 'label', 'Details');
+                setEventHandler(expander, 'onActivate', () => {});
+                expect((materialize(expander) as unknown as Gtk.Expander).label).toBe('Details');
+                // The curated twin of the same one-child shape takes the child.
+                const frame = createElement('gtk-frame');
+                materialize(frame);
+                insert(createElement('gtk-label', { label: 'x' }), frame);
+                expect((materialize(frame) as unknown as Gtk.Frame).get_child() instanceof Gtk.Label).toBe(true);
             });
 
             await it('refuses a fatal construction by name instead of aborting', async () => {

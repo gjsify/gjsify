@@ -125,6 +125,17 @@ Construct-only properties cannot be patched; GObject accepts the write and keeps
 the old value. Changing one **rebuilds** the widget in place, preserving position,
 properties and listeners.
 
+**`undefined` and `null` both mean REMOVED**, and the value that lands is what
+CONSTRUCTION leaves behind rather than the ParamSpec default — the two disagree in
+104 places. `null` counts because every other op already read it that way
+(`slot: null` is no slot, `layout: null` is no position, `onClicked: null`
+unbinds), and because the alternative was three adapters each translating DOM's
+`null` into the host's `undefined`: Vue did, React did it only for a key that
+vanished and not for an authored `label={null}`, and Solid did not at all, so
+`null` reached `set_property` verbatim — a throw for a `gint`, and a `null`
+recorded for the next rebuild to replay. Nothing is lost by folding them: every
+GObject type that CAN hold NULL has NULL as its construction default anyway.
+
 ## Conformance
 
 `@gjsify/gtk-host/conformance` exports the checks that keep the table honest and
@@ -132,15 +143,52 @@ the readers every vector asserts through:
 
 - `descriptorProblems()` — every method and text sink a descriptor names must
   exist on that GType in the *installed* GTK.
-- `gtkChildren()` / `gtkChildTypes()` / `dumpTree()` — read the **real** widget
-  tree. A renderer that asserts against its own bookkeeping agrees with itself
-  while the window is wrong.
+- `gtkChildren()` / `gtkChildTypes()` / `dumpTree()` / `findDescendant()` /
+  `descendants()` — read the **real** widget tree. A renderer that asserts against
+  its own bookkeeping agrees with itself while the window is wrong.
+- `installDiagnosticsGate()` — GTK's failure mode is exit 0, so every vector counts
+  GLib warnings-or-worse and fails the test that produced one.
+
+**One vector table runs through all three adapters.** `conformance/vectors.mts`
+(a `.mts` file, so it never reaches the published bundle: it imports
+`@gjsify/unit`, a devDependency) exports `runAdapterVectors(harness, gate)`, and
+each adapter's spec supplies a `mount`/`patch`/`unmount` harness over its own
+framework. It exists because a per-framework spec agrees with the framework it was
+written against: measured over the three specs, `slot` and `layout` had ZERO hits
+in any of them, and only React's ever created a text node — so `createText`,
+`setText`, `replaceText`, `isTextNode`, `flushText` and the `text-not-accepted`
+refusal went unexercised through two of the three adapters. Deleting `flushText`
+from `host.ts` now reds twelve vectors across all three, where before it reds two,
+in React alone.
+
+**Self-verification for a showcase**, from the main barrel rather than from here:
+`runHostProbeApp({ applicationId, build, assert, present })` owns the
+`GJSIFY_HOST_PROBE`-vs-`activate` split, the diagnostics gate, the `check()`
+recorder and the `PROBE: PASS|FAIL <json>` line, so a showcase writes only its own
+assertions. The recorder checks ITSELF first — every assertion speaks through one
+closure, so a `check` that drops its findings would turn the whole probe green with
+nothing to say, and no showcase assertion could notice.
 
 ## Adapters
 
 Three of them today — `/solid`, `/vue`, `/react` — over one table.
 `scripts/check-adapter-import-direction.mjs` holds all three to that mechanically:
-an adapter that reaches for `descriptors`, `policies` or `registry` fails the check.
+an adapter fails the check if it reaches for `descriptors`, `policies` or
+`registry`, names a widget in a string, uses one as a VALUE (`new Gtk.Box()`,
+`instanceof`, `$gtype`, a call — a type annotation is fine and is what every
+adapter writes), imports a typelib at runtime (`gi://…`), or names a placement
+method. The last two landed with the violation they describe: the Vue adapter held
+the one runtime `gi://` import and the one concrete widget class in the whole
+adapter set, for `<KeepAlive>`'s off-screen storage. That is `createDetachedContainer()`
+now — a host op, so the adapter has nothing left to know.
+
+Everything an adapter needs beyond the fourteen ops is exported from the host, once:
+`widgetOf(node)` (the `ref` seam — Solid and React each carried their own copy and
+Vue carried none, so a Vue app's only route to a widget was `materialize()`, the
+call `widgetOf`'s destroyed-node refusal exists to intercept), `isHostElement(value)`,
+`describeValue(value)` for naming what arrived instead of a node, and
+`withoutKeys(props, reserved)` for the reserved-prop filter whose SET is
+per-framework and whose loop is not.
 
 `@gjsify/gtk-host/solid` is the first, and it is the thesis made checkable: Solid
 publishes a ten-method renderer contract, every one of them is a host op, and the
@@ -395,6 +443,17 @@ detector answers with the same register. With both flags the bundle loads with n
 
 `react` and `react-reconciler` are OPTIONAL peer dependencies, like `solid-js` and
 `@vue/runtime-core`.
+
+## What ships
+
+`files` negates two shapes the library build already excludes:
+`!lib/types/**/*.d.mts` and `!lib/types/**/*.spec.d.ts`. `build:gjsify` globs
+`src/**/*.{ts,js}` minus the specs, so a `.mts` file is this package's marker for
+"test-only, never in the bundle" — but `build:types` compiles all of `src`, and the
+tarball therefore carried 17 type declarations for runtime modules that are not in
+it, `lib/types/testing/gate.d.mts` among them. Nothing could import one (the exports
+map gates every subpath), so the cost was a package describing modules it does not
+contain, and a reader who concludes `@gjsify/gtk-host/testing` exists.
 
 ## The widget table, and the type surfaces
 

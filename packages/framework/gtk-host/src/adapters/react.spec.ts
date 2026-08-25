@@ -30,6 +30,7 @@ import { ConcurrentRoot } from 'react-reconciler/constants.js';
 import { createElement, useState, type ReactNode } from 'react';
 
 import { gtkChildTypes, gtkChildren, installDiagnosticsGate } from '../conformance/index.js';
+import { runAdapterVectors, type VectorHarness, type VectorNode } from '../conformance/vectors.mjs';
 import { gated } from '../testing/gate.mjs';
 import { registerBuiltinWidgets } from '../descriptors/index.js';
 import { firstChild } from '../host.js';
@@ -46,6 +47,25 @@ interface DirectReconciler {
 }
 
 const labelsOf = (w: Gtk.Widget) => gtkChildren(w).map((c) => (c as Gtk.Label).label);
+
+/** The shared vector table as React elements. Children spread, so no key is implied. */
+const toReactTree = (node: VectorNode): ReactNode =>
+    typeof node === 'string'
+        ? node
+        : createElement(node.tag, node.props ?? null, ...(node.children ?? []).map(toReactTree));
+
+const reactVectors: VectorHarness = {
+    framework: 'react-reconciler',
+    async mount(container, tree) {
+        const root = createRoot(container);
+        // `render` flushes synchronously (see `createRoot`), so nothing here pumps.
+        root.render(toReactTree(tree));
+        return {
+            patch: async (next) => root.render(toReactTree(next)),
+            unmount: () => root.unmount(),
+        };
+    },
+};
 
 /** Titles of every `AdwActionRow`-shaped descendant, in tree order. */
 function titlesOf(root: Gtk.Widget): string[] {
@@ -650,7 +670,7 @@ export default async () => {
                 } catch (e) {
                     textError = e as Error;
                 }
-                expect(String(textError?.message)).toContain('only an element node has a widget');
+                expect(String(textError?.message)).toContain('Only an element node owns a widget');
 
                 root.unmount();
                 let deadError: Error | undefined;
@@ -663,5 +683,7 @@ export default async () => {
                 noRecovery();
             });
         });
+
+        await runAdapterVectors(reactVectors, diagnostics);
     });
 };

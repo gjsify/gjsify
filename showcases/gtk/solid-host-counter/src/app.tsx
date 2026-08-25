@@ -27,47 +27,19 @@
 // authored as a plain JSX attribute, and the probe reads it back off the real
 // widget.
 //
-// SELF-VERIFYING ON EVERY LAUNCH, like its sibling. `GJSIFY_HOST_PROBE=1` runs
-// the assertions headlessly and exits; the GUI path runs the SAME assertions from
-// `activate` before the window is shown, so `scripts/showcase-smoke.mjs` — which
-// only launches and waits — carries them. A throw inside a GLib callback prints
-// `JS ERROR` and lets the process exit 0, and that marker is exactly what the
-// smoke gate greps for.
+// SELF-VERIFYING ON EVERY LAUNCH, like its sibling, through the SAME harness:
+// `runHostProbeApp` from `@gjsify/gtk-host` owns the env gate, the diagnostics
+// collector, the `check()` recorder, the `PROBE: PASS|FAIL <json>` protocol and
+// the rule that the GUI path runs the same assertions before presenting. This file
+// used to carry 68 lines of that, 58 of them byte-identical to the sibling's copy.
 
 import Adw from 'gi://Adw?version=1';
-import GLib from 'gi://GLib?version=2.0';
 import Gtk from 'gi://Gtk?version=4.0';
-
-/**
- * Every GLib/GTK diagnostic this process emits, captured rather than merely
- * printed — GTK's failure mode is exit 0, so a mis-parented tree has to be read
- * out of the log rather than out of the exit code. Identical mechanism to
- * `adw-host-counter`; see that file for why the writer forwards instead of
- * swallowing.
- */
-const diagnostics: string[] = [];
-const decoder = new TextDecoder();
-const verboseLogging = GLib.getenv('G_MESSAGES_DEBUG') !== null;
-
-GLib.log_set_writer_func((level, fields) => {
-    try {
-        const raw = (fields as unknown as { MESSAGE?: unknown } | null)?.MESSAGE;
-        const message = raw instanceof Uint8Array ? decoder.decode(raw) : String(raw ?? '');
-        // MASK the level: `g_logv` ORs in `G_LOG_FLAG_FATAL`, so `WARNING|FATAL`
-        // is 18 and an unmasked `<= 16` misses it under `--g-fatal-warnings`.
-        const severity = level & GLib.LogLevelFlags.LEVEL_MASK;
-        if (severity <= GLib.LogLevelFlags.LEVEL_WARNING) diagnostics.push(message);
-        if (verboseLogging || severity <= GLib.LogLevelFlags.LEVEL_MESSAGE) printerr(message);
-    } catch {
-        printerr('<solid-host probe: a log message could not be decoded>');
-    }
-    return GLib.LogWriterOutput.HANDLED;
-});
 
 import { createRoot, createSignal } from 'solid-js';
 
-import { registerBuiltinWidgets } from '@gjsify/gtk-host';
-import { dumpTree, gtkChildren } from '@gjsify/gtk-host/conformance';
+import { registerBuiltinWidgets, runHostProbeApp, type ProbeCheck } from '@gjsify/gtk-host';
+import { descendants, dumpTree, findDescendant } from '@gjsify/gtk-host/conformance';
 import { For, widgetOf } from '@gjsify/gtk-host/solid';
 import type { HostNode } from '@gjsify/gtk-host';
 
@@ -148,42 +120,14 @@ function buildUi(app: Adw.Application | null): Ui {
     return { node, increment, addRow, removeFirstRow, count };
 }
 
-/** First descendant matching `pred`, breadth-first over the REAL widget tree. */
-function findDescendant(root: Gtk.Widget, pred: (w: Gtk.Widget) => boolean): Gtk.Widget | null {
-    const queue: Gtk.Widget[] = [root];
-    while (queue.length > 0) {
-        const widget = queue.shift() as Gtk.Widget;
-        if (widget !== root && pred(widget)) return widget;
-        queue.push(...gtkChildren(widget));
-    }
-    return null;
-}
-
 /** Titles of the Adw.ActionRows GTK actually holds, in GTK's own order. */
-function rowTitles(root: Gtk.Widget): string[] {
-    const found: string[] = [];
-    const walk = (widget: Gtk.Widget) => {
-        if (widget instanceof Adw.ActionRow) found.push(widget.title);
-        for (const child of gtkChildren(widget)) walk(child);
-    };
-    walk(root);
-    return found;
-}
+const rowTitles = (root: Gtk.Widget): string[] =>
+    descendants(root)
+        .filter((w): w is Adw.ActionRow => w instanceof Adw.ActionRow)
+        .map((row) => row.title);
 
-function runProbe(): number {
-    // Start from zero: in the GUI path this runs from `activate`, after Adw
-    // startup, where a portal/theme/a11y warning is routine in a container.
-    diagnostics.length = 0;
-
-    const failures: string[] = [];
-    const check = (what: string, ok: boolean) => {
-        if (!ok) failures.push(what);
-    };
-
-    // `createRoot` and not bare JSX: every `{count()}` in the markup above
-    // compiles to a computation, and a computation created without an owner is
-    // never disposed — Solid says so on stderr, and this showcase counts stderr.
-    const ui = createRoot(() => buildUi(null));
+/** Everything this showcase claims, read back off the REAL widget tree. */
+function assertUi(ui: Ui, check: ProbeCheck): Record<string, unknown> {
     const window = widgetOf(ui.node);
 
     // The button is found FIRST because two later checks reach the tree through it
@@ -269,35 +213,15 @@ function runProbe(): number {
         JSON.stringify(rowTitles(window)) === JSON.stringify(['Row 2', 'Clicks']),
     );
 
-    // 6. …and none of it may have been reported to GLib.
-    check(`no GTK diagnostics (saw ${diagnostics.length})`, diagnostics.length === 0);
-
-    const report = {
-        rows: rowTitles(window),
-        count: ui.count(),
-        diagnostics: diagnostics.length,
-        tree: dumpTree(window).split('\n').length,
-    };
-    if (failures.length > 0) {
-        print(`PROBE: FAIL ${JSON.stringify({ failures, ...report })}`);
-        return 1;
-    }
-    print(`PROBE: PASS ${JSON.stringify(report)}`);
-    return 0;
+    return { rows: rowTitles(window), count: ui.count(), tree: dumpTree(window).split('\n').length };
 }
 
-if (GLib.getenv('GJSIFY_HOST_PROBE') === '1') {
-    // Headless one-shot: assert and exit, no window, no main loop.
-    Gtk.init();
-    imports.system.exit(runProbe());
-} else {
-    const app = new Adw.Application({ application_id: 'eu.jumplink.SolidHostCounter' });
-    app.connect('activate', () => {
-        const failed = runProbe();
-        if (failed !== 0) imports.system.exit(failed);
-
-        const ui = createRoot(() => buildUi(app));
-        (widgetOf(ui.node) as Adw.ApplicationWindow).present();
-    });
-    await app.runAsync([]);
-}
+await runHostProbeApp<Ui>({
+    applicationId: 'eu.jumplink.SolidHostCounter',
+    // `createRoot` and not bare JSX: every `{count()}` in the markup above compiles
+    // to a computation, and a computation created without an owner is never disposed
+    // — Solid says so on stderr, and the harness counts stderr.
+    build: (app) => createRoot(() => buildUi(app)),
+    assert: assertUi,
+    present: (ui) => (widgetOf(ui.node) as Adw.ApplicationWindow).present(),
+});
