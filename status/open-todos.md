@@ -4,6 +4,48 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### Two node:test FILES fail with no named test and no message, on legs nobody watches
+
+Two cases in one day, same shape, different packages — which is why this is one entry
+rather than two.
+
+- **`packages/napi` `na_test_instance_data`**: red twice on PRs that could not affect
+  it, `got ""` against `want "\"ok\""`, green on rerun both times. Its diagnosability
+  half is fixed (one marker per stage), so the NEXT occurrence names the stage.
+- **`packages/node-gi` `test/bytes.test.mjs`** on the Windows batteries-included leg
+  (`no gvsbuild`, staged prebuild, bundled GTK): `tests 10, pass 9, fail 1` where all
+  NINE named tests are green and the tenth "test" is the FILE — `'test failed'`, no
+  message, no assertion, no stack, no abort or access-violation anywhere in the log.
+  Immediately before it: `(node-gi) warning: could not watch a GLib poll fd from
+  libuv; falling back to timed main-context polling`. Green on rerun.
+
+**The shared shape is the finding.** A `node:test` file that fails at FILE level
+reports nothing usable: node attributes a post-test process problem to the file, so
+the log carries a name and a duration and no cause. An assertion failure would print
+a diff; this prints `'test failed'`.
+
+**And the baseline is unknown, which is worse than the flake.** node-gi.yml's `scope`
+job narrows the OS matrix, so the Windows legs run only when `packages/node-gi/**` is
+touched. Measured while chasing this: the leg is `skipped` on every recent `main`
+push, so a green tick on `main` says nothing about it, and the last run that actually
+EXECUTED it was two PRs earlier. Reading `main` as the baseline would have blamed the
+wrong change — it nearly did.
+
+What would make the next occurrence cost minutes instead of an afternoon, in order:
+
+- **Make a file-level failure say something.** The two candidates are a `process.on('exit')`
+  hook that prints the pending-handle set, and running the file with
+  `--test-reporter=spec --test-force-exit` off so a hanging handle surfaces as a
+  timeout with a name rather than as an exit code.
+- **Record the leg's own history.** A `skipped` leg is indistinguishable from a green
+  one in the checks UI; anything that surfaces "this gate has not run since <sha>"
+  removes the trap that cost the wrong attribution here.
+- Only then chase the cause. The `bytes` suite exercises GBytes ref lifetime across
+  GC (`a callee that KEEPS the bytes stays valid after the engine drops its ref`), and
+  it appeared in the run that first linked instance prototypes to their class
+  (#1322) — a change that touches every wrapped instance. That is a hypothesis with
+  no evidence behind it: the same leg passed on rerun with the same code.
+
 ### `na_test_instance_data` fails non-deterministically, and cannot say where
 
 Measured twice in one session, both times on a PR that could not affect it — a
