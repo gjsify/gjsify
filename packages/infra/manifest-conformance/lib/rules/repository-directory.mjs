@@ -112,7 +112,50 @@ export function auditRepositoryDirectory(ctx) {
         ok++;
     }
 
-    return { failures, stats: { checked, ok } };
+    // ONE TREE, ONE URL. `directory` is a path INSIDE the repo that `url` names,
+    // so the two are a single claim and checking them separately checks neither.
+    // A package carrying a foreign `url` plus a local `directory` describes a path
+    // in somebody else's repository — and it renders on npm as an ordinary,
+    // confident link.
+    //
+    // MEASURED: `@gjsify/unit` shipped `git+https://github.com/gjsify/unit.git`,
+    // a repo whose last push was 2020-02-18, while the package is developed here
+    // in `packages/gjs/unit`. Published npm metadata carried it as far as 0.42.0.
+    // Adding `directory` to that manifest — which the first half of this rule
+    // demands — would have MANUFACTURED the exact defect the rest of it rejects.
+    //
+    // Deciding by disagreement rather than by a majority vote is deliberate: a
+    // tie needs no arbiter, and a rule that silently anoints the more popular URL
+    // would ratify a mass copy-paste. Every distinct value is reported.
+    const byUrl = new Map();
+    for (const pkg of ctx.allPackages) {
+        if (pkg.private) continue;
+        const repo = pkg.manifest.repository;
+        if (typeof repo !== 'object' || repo === null || Array.isArray(repo)) continue;
+        if (typeof repo.url !== 'string') continue;
+        const group = byUrl.get(repo.url);
+        if (group) group.push(pkg.name);
+        else byUrl.set(repo.url, [pkg.name]);
+    }
+    if (byUrl.size > 1) {
+        const groups = [...byUrl.entries()].sort((a, b) => b[1].length - a[1].length);
+        const rendered = groups
+            .map(([url, names]) => {
+                const shown = names.slice(0, 4).join(', ');
+                const more = names.length > 4 ? `, +${names.length - 4} more` : '';
+                return `    ${url}  —  ${names.length} package(s): ${shown}${more}`;
+            })
+            .join('\n');
+        failures.push(
+            'packages in one tree declare ' +
+                `${byUrl.size} different \`repository.url\` values. Every package here lives in ONE repository, ` +
+                'so one of these names a repo the package is not in — and its `directory` then points at a path ' +
+                'inside that other repo:\n' +
+                rendered,
+        );
+    }
+
+    return { failures, stats: { checked, ok, urls: byUrl.size } };
 }
 
 export const repositoryDirectoryRule = defineRule({
@@ -128,7 +171,7 @@ export const repositoryDirectoryRule = defineRule({
             stats,
             summary:
                 `repository-directory: OK. ${stats.checked} non-private package(s) checked; every declared ` +
-                '`repository.directory` matches its own path.',
+                `\`repository.directory\` matches its own path, under ${stats.urls} shared \`repository.url\`.`,
         };
     },
 });
