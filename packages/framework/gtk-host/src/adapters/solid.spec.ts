@@ -15,7 +15,7 @@ import { createRenderer } from 'solid-js/universal';
 
 import { installDiagnosticsGate, gtkChildren, gtkChildTypes } from '../conformance/index.js';
 import { runAdapterVectors, type VectorElement, type VectorHarness, type VectorNode } from '../conformance/vectors.mjs';
-import { gated } from '../testing/gate.mjs';
+import { GTK_HOSTS, gated } from '../testing/gate.mjs';
 import { registerBuiltinWidgets } from '../descriptors/index.js';
 import * as adapter from './solid.js';
 import { Dynamic, For, createComponent, createElement, effect, insert, insertNode, mount, setProp } from './solid.js';
@@ -78,7 +78,7 @@ const solidVectors: VectorHarness = {
 };
 
 export default async () => {
-    await on('Gjs', async () => {
+    await on(GTK_HOSTS, async () => {
         Gtk.init();
         registerBuiltinWidgets();
         const diagnostics = installDiagnosticsGate();

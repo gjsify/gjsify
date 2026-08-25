@@ -20,21 +20,29 @@
 
 import Adw from 'gi://Adw?version=1';
 import Gtk from 'gi://Gtk?version=4.0';
-import { describe, expect, on } from '@gjsify/unit';
+import { expect, it, on } from '@gjsify/unit';
 
 import { installDiagnosticsGate } from './conformance/index.js';
-import { gated } from './testing/gate.mjs';
+import { GTK_HOSTS, gated } from './testing/gate.mjs';
 
 export default async () => {
     // GJS only, and `Gtk.init()` before any widget: these rows construct real
     // containers, and an uninitialised GTK aborts the process rather than throwing.
-    await on('Gjs', async () => {
+    await on(GTK_HOSTS, async () => {
         Gtk.init();
-        await describe('Gtk.Buildable — what the generic adder really does', async () => {
-            // Every row asserts against real widgets, so a GTK critical raised by one
-            // of them has to fail its own row rather than the next one.
-            const diagnostics = installDiagnosticsGate();
-            await gated(diagnostics, 'the vfunc form is callable, which the docs used to deny', async () => {
+        // Every row asserts against real widgets, so a GTK critical raised by one of
+        // them has to fail its own row rather than the next one — which is what the
+        // per-`it` hooks `gated` registers do.
+        //
+        // The rows are `it()`s and not nested `gated()` describes, and that is a fix
+        // rather than a style change. An assertion in a describe BODY is not a test:
+        // it is outside the tally, cannot be skipped, and on failure it aborts the
+        // ENTIRE run — `describe` rethrows, and every later suite is dropped. Measured
+        // here: under `@gjsify/node-gi` the first row's `vfunc_add_child` expectation
+        // fails, and this package's node leg stopped after one suite of nine.
+        const diagnostics = installDiagnosticsGate();
+        await gated(diagnostics, 'Gtk.Buildable — what the generic adder really does', async () => {
+            await it('the vfunc form is callable, which the docs used to deny', async () => {
                 // The introspection fact everyone quotes: the plain name is absent — and
                 // `@girs/*` does not declare it either, which is the same fact seen from the
                 // type side, hence the cast rather than a property access.
@@ -45,7 +53,7 @@ export default async () => {
                 expect(typeof new Gtk.Box().vfunc_add_child).toBe('function');
             });
 
-            await gated(diagnostics, 'and it places correctly, including the slotted containers', async () => {
+            await it('and it places correctly, including the slotted containers', async () => {
                 // If this row ever fails, the paragraph above is wrong again and the
                 // curated slot tables in `descriptors/adw.ts` are the only route left.
                 const builder = Gtk.Builder.new();
@@ -66,7 +74,7 @@ export default async () => {
                 expect(list.get_row_at_index(0) === null).toBe(false);
             });
 
-            await gated(diagnostics, 'a CHILDLESS widget accepts a child and says nothing', async () => {
+            await it('a CHILDLESS widget accepts a child and says nothing', async () => {
                 // THE ROW THAT PAYS FOR THE TABLE.
                 //
                 // `Gtk.Label` holds no children. The generic adder does not refuse it —
@@ -87,7 +95,7 @@ export default async () => {
                 orphan.unparent();
             });
 
-            await gated(diagnostics, 'a keyed container loses the name the key is read from', async () => {
+            await it('a keyed container loses the name the key is read from', async () => {
                 // `GtkStack` is why `{ kind: 'keyed' }` names its adder: the generic call
                 // adds the page but leaves `page.name` null, so `visible-child-name` —
                 // the whole point of a stack — addresses nothing.

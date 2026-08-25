@@ -32,7 +32,7 @@ import { isWritable, lookupEnumNick, paramSpecs } from './props.js';
 import { isEventProp, toSignalName } from './signals.js';
 import { hasWidget, lookupWidget } from './registry.js';
 import { assertInjective, tagOf } from './tags.js';
-import { gated } from './testing/gate.mjs';
+import { GTK_HOSTS, gated } from './testing/gate.mjs';
 
 /**
  * Every member the surface offers for a widget, and WHERE it was declared.
@@ -71,7 +71,7 @@ const writableSpecs = (gtype: string): string[] => {
 };
 
 export default async () => {
-    await on('Gjs', async () => {
+    await on(GTK_HOSTS, async () => {
         Gtk.init();
         // The table registers itself here rather than in a hook: registration is
         // keyed on the GType name and idempotent, and every case below needs it.

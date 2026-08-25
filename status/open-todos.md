@@ -38,6 +38,43 @@ finalizers work as such — this is the node-api variant over
 `napi_create_external_buffer`. Which stage it really is remains unmeasured, which
 is the whole reason the marker change comes first.
 
+### Two node-gi gaps keep gtk-host's node leg red, and they are 103 of 125 failures
+
+`@gjsify/gtk-host` now runs its own suite on Node (ADR 0030 § Implementation step 1):
+**1701 tests execute, 125 fail.** Grouped by cause, two divergences from GJS account
+for 103 of them, each with a one-line repro:
+
+    // 99 failures — "No descriptor registered for <null>"
+    const b = new Gtk.Box();
+    b.constructor.$gtype        // GJS: the GType.  node-gi: undefined
+    // → GObject.type_name(undefined) is null → String(null) is 'null'
+
+    // 4 failures
+    new Adw.HeaderBar().vfunc_add_child   // GJS: a function.  node-gi: undefined
+
+The first is the expensive one, and not because of the count: `constructor.$gtype`
+is the GJS idiom for "what type is this instance", and gtk-host reads it in
+`adopt()`, in `nearestRegistered()` and in every descriptor lookup. On GJS the
+constructor IS the introspected class object and carries `$gtype`; under node-gi an
+instance's `constructor` does not. `Gtk.Box.$gtype` itself is fine — measured,
+`GObject.type_name()` on it answers `GtkBox` — so this is the instance→class link,
+not GType support.
+
+The second is narrower but the same shape: `vfuncChainProto` installs `vfunc_*` for
+classes registered THROUGH node-gi, and an introspected GTK class's instance does
+not get it. ADR 0027 § Context rests on `vfunc_add_child` being callable, measured on
+gjs 1.88.1 across 29 containers.
+
+Both belong in node-gi with a conformance program each (ADR 0030 § Decision 1: GJS
+defines the answer, so the golden is gjs's output), the way the class-struct statics
+gap was closed. The remaining ~22 failures are not yet attributed; some are plainly
+downstream of the first two, and the honest thing is to re-measure after they land
+rather than guess now.
+
+**Why the leg is not wired into CI yet.** `test:gjs-on-node` exists and anyone can
+run it; adding it to a job today would make that job red for defects in a different
+package. It goes in with, or after, the two fixes.
+
 ### The Vue plugin's virtual suffix is coupled to deepkit's filter, and nothing checks it
 
 `@gjsify/rolldown-plugin-vue` mints module ids ending in `VIRTUAL_SUFFIX =

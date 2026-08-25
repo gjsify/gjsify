@@ -10,6 +10,8 @@
 
 import { expect, it, on } from '@gjsify/unit';
 
+import { GTK_HOSTS } from './testing/gate.mjs';
+
 import { methodsOf } from './conformance/index.js';
 import { emitWidgets, type GateFailure } from './generator/emit.mjs';
 import { emitProps, emitSurfaceData, volarResolves } from './generator/emit-types.mjs';
@@ -47,7 +49,7 @@ const emitFixture = (curated: readonly WidgetDescriptor[], floor = 2) =>
     emitWidgets({ namespaces: [mini], widgets, curated, methodsOf, modules: MINI_MODULES }, floor);
 
 export default async () => {
-    await on('Gjs', async () => {
+    await on(GTK_HOSTS, async () => {
         await it('reads the classes GIR describes, and skips the two it must', async () => {
             expect(mini.name).toBe('Mini');
             expect(mini.version).toBe('1.0');
