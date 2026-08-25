@@ -48,6 +48,12 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
 /** Long enough for the monitors to be live before the test writes anything. */
 const ARM_MS = 60;
 
+/**
+ * Long enough for a backend's own event horizon to move past a tree that was just
+ * built, before a watch over it is opened. See the startup-silence row.
+ */
+const TREE_SETTLE_MS = 1200;
+
 /** A filesystem event as the `fs.watch` listener receives it. */
 type Seen = [eventType: string, filename: string | null];
 
@@ -161,6 +167,21 @@ export default async () => {
             writeFileSync(join(tmp, 'sub', 'a.txt'), 'one');
             const target = join(nested, 'b.txt');
             writeFileSync(target, 'one');
+            // SETTLE BEFORE THE WATCH STARTS, and this is not padding.
+            //
+            // Measured on darwin (PR #1300): Node's own recursive watcher yielded
+            // `rename <tmpdir>, rename sub, rename sub/deep, rename top.txt,
+            // rename sub/a.txt, rename sub/deep/b.txt` — the tree built immediately
+            // above, in the exact order it was BUILT, the temp directory's own
+            // creation included. A startup walk cannot produce that order (it would
+            // list `sub` and `top.txt` together, and never name the root); FSEvents
+            // replaying its recent history can, because libuv arms the stream with
+            // kFSEventStreamEventIdSinceNow and the kernel's horizon reaches back
+            // past that instant. inotify has no such window, which is why Linux
+            // never showed it. So the noise is about files created microseconds
+            // before the watch, not about the watch announcing what it found, and
+            // waiting separates the two instead of weakening the assertion.
+            await sleep(TREE_SETTLE_MS);
 
             const ac = new AbortController();
             const yielded: Seen[] = [];
@@ -193,7 +214,10 @@ export default async () => {
                 await iteration;
                 rmSync(tmp, { recursive: true, force: true });
             }
-        });
+            // The settle, the silence window and the positive control's own wait add
+            // up past the 5 s default, and a row that runs out of time reports a bare
+            // Timeout naming nothing instead of the event dump this one exists for.
+        }, 8000);
 
         await it('watches a directory that is created after the watch started', async () => {
             const tmp = makeTmp();
