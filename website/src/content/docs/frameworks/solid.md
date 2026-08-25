@@ -6,7 +6,7 @@ description: Compile SolidJS JSX for a GTK 4 build with @gjsify/rolldown-plugin-
 [`@gjsify/rolldown-plugin-solid`](https://www.npmjs.com/package/@gjsify/rolldown-plugin-solid)
 compiles SolidJS JSX during a gjsify build, in `universal` generate mode — the only mode whose
 output contains no DOM. It targets the renderer in
-[`@gjsify/gtk-host/solid`](/gjsify/guides/ui-frameworks/), and it is the whole compile step: a
+[`@gjsify/gtk-host/solid`](/gjsify/frameworks/), and it is the whole compile step: a
 `.tsx` entry plus this plugin is a GTK app.
 
 It is an ordinary Rolldown plugin, so it also loads under Rollup and Vite.
@@ -145,9 +145,9 @@ untested, because nothing here has a DOM to render into.
 
 ## Related
 
-- [UI Frameworks](/gjsify/guides/ui-frameworks/) for the host, the widget table and the
+- [UI Frameworks](/gjsify/frameworks/) for the host, the widget table and the
   placement rules
-- [Vue SFCs](/gjsify/guides/vue-sfc/) for the same pipeline on `@vue/compiler-sfc`
+- [Vue SFCs](/gjsify/frameworks/vue/) for the same pipeline on `@vue/compiler-sfc`
 - [`solid-host-counter`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/solid-host-counter),
   a complete window that asserts its own widget tree on every launch
 - [`@gjsify/rolldown-plugin-solid` on npm](https://www.npmjs.com/package/@gjsify/rolldown-plugin-solid)

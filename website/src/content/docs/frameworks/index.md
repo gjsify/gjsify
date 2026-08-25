@@ -1,21 +1,28 @@
 ---
 title: UI Frameworks
-description: Describe your GTK 4 window instead of assembling it. One host layer under Solid, Vue and React, with the widget table, the placement rules and the type surfaces generated from the GIR.
+description: Write your GTK 4 window in Solid, Vue or React. One host layer underneath, real Gtk and Adw widgets on top.
 ---
 
-A GTK app is usually written imperatively: `new Gtk.Box()`, `append()`, `connect()`, and you
-keep the tree in your head. Every modern UI framework offers the opposite deal — describe the
-tree, let a renderer reconcile it. Solid, Vue and React each publish a contract for rendering
-into something that is not the DOM. What none of them ships is the *something*.
+Write your GTK 4 window in Solid, Vue or React, and get real `Gtk` and `Adw` widgets.
 
-[`@gjsify/gtk-host`](https://www.npmjs.com/package/@gjsify/gtk-host) is that something: an
-element model over GTK 4 and libadwaita that can create a widget, set a property, adopt a
-child and navigate the result. The three adapters sit on top of it and hold no widget
-knowledge at all.
+GTK can already describe a window rather than assemble it — that is what Blueprint is for, and
+it does property bindings too. What a template cannot do is change its own shape: a `.blp` is
+instantiated once, so anything that appears, disappears or reorders while the app runs goes
+back into imperative code.
 
-Nothing here hides `Gtk` or `Adw`. Every tag names a real GTK class, `on:<raw-signal-name>`
-reaches a signal whose spelling is irregular, and you mount into a window your application
-already built.
+Keeping a tree in sync with your state is exactly what a UI framework is for. Solid, Vue and
+React can all render somewhere other than a browser — they just need an object model to build
+against, and GTK's is not the DOM.
+
+[`@gjsify/gtk-host`](https://www.npmjs.com/package/@gjsify/gtk-host) is that object model.
+Nothing is hidden: every tag names a real GTK class, and you mount into a window your
+application already built.
+
+:::tip[Blueprint is not replaced]
+The two answer different questions and mix well. Blueprint is the better choice for a window
+whose shape is fixed — and it is the only one of the two that `xgettext` can translate. Reach
+for a framework where the shape follows the data.
+:::
 
 ## Install
 
@@ -30,19 +37,16 @@ Your framework is a peer dependency and stays yours: `solid-js`, `@vue/runtime-c
 
 | Adapter | Import | Framework contract | Compile step |
 |---|---|---|---|
-| Solid | `@gjsify/gtk-host/solid` | `solid-js/universal`, 10 methods | [`@gjsify/rolldown-plugin-solid`](/gjsify/guides/solid-jsx/) |
-| Vue | `@gjsify/gtk-host/vue` | `@vue/runtime-core`, 10 required + 4 optional | [`@gjsify/rolldown-plugin-vue`](/gjsify/guides/vue-sfc/) |
+| Solid | `@gjsify/gtk-host/solid` | `solid-js/universal`, 10 methods | [`@gjsify/rolldown-plugin-solid`](/gjsify/frameworks/solid/) |
+| Vue | `@gjsify/gtk-host/vue` | `@vue/runtime-core`, 10 required + 4 optional | [`@gjsify/rolldown-plugin-vue`](/gjsify/frameworks/vue/) |
 | React | `@gjsify/gtk-host/react` | `react-reconciler` HostConfig | none — TypeScript's own automatic runtime |
 
-Three different renderer contracts satisfied by one descriptor table and one placement engine
-is what makes "framework-agnostic" a measurement rather than an intention. A check
-(`scripts/check-adapter-import-direction.mjs`) fails the build if an adapter reaches past the
-table for widget knowledge, so the split cannot erode.
+Pick one and the rest of this page is the same for all three.
 
 ## Solid JSX
 
 `registerBuiltinWidgets()` loads the generated table; after that the tags are available.
-Build with [`@gjsify/rolldown-plugin-solid`](/gjsify/guides/solid-jsx/), which is what turns
+Build with [`@gjsify/rolldown-plugin-solid`](/gjsify/frameworks/solid/), which is what turns
 the JSX into calls against the host.
 
 ```tsx
@@ -168,7 +172,7 @@ component instance.
 
 Both tag spellings work in a template. `<GtkLabel>` and `<gtk-label>` resolve to the same
 widget and to the same type-check key, so pick one and stay with it. The build needs
-[`@gjsify/rolldown-plugin-vue`](/gjsify/guides/vue-sfc/) and four `--define` flags; that page
+[`@gjsify/rolldown-plugin-vue`](/gjsify/frameworks/vue/) and four `--define` flags; that page
 has the recipe and the reason.
 
 ## React
@@ -307,8 +311,8 @@ the **real** widget tree on every launch:
 
 ## See also
 
-- [Solid JSX](/gjsify/guides/solid-jsx/) for the compile step a `.tsx` entry needs
-- [Vue SFCs](/gjsify/guides/vue-sfc/) for the compile step a `.vue` entry needs
+- [Solid JSX](/gjsify/frameworks/solid/) for the compile step a `.tsx` entry needs
+- [Vue SFCs](/gjsify/frameworks/vue/) for the compile step a `.vue` entry needs
 - [Native Adwaita Apps](/gjsify/guides/native-adwaita-app/) for the application shell you
   mount into
 - [GObject Classes](/gjsify/patterns/gobject-classes/) for the `registerClass` rules your own

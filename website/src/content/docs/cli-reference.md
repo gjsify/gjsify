@@ -136,8 +136,8 @@ JSX and `.vue` are compiler input, not runtime syntax, so the build needs a plug
 gjsify build src/app.tsx --app gjs --outfile dist/app.gjs.mjs
 ```
 
-- [`@gjsify/rolldown-plugin-solid`](/gjsify/guides/solid-jsx/) for SolidJS JSX
-- [`@gjsify/rolldown-plugin-vue`](/gjsify/guides/vue-sfc/) for Vue single-file components
+- [`@gjsify/rolldown-plugin-solid`](/gjsify/frameworks/solid/) for SolidJS JSX
+- [`@gjsify/rolldown-plugin-vue`](/gjsify/frameworks/vue/) for Vue single-file components
 
 **`--app gjs` refuses a JSX entry that configures no transform**, and that refusal is the point. Left unset, the transformer applies its own default — the automatic React runtime — so the bundle imports `react/jsx-runtime`. GJS resolves no bare specifier, so the build would report the miss as a *warning*, exit 0, and the artifact would abort at load with `ImportError: Module not found: react/jsx-runtime`. On a project that does have React installed it is worse: the bundle builds React elements, which a GTK host does nothing with.
 
