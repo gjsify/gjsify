@@ -120,7 +120,10 @@ the package that must not do this.
 export type AdwToolbarStyleNick = 'flat' | 'raised' | 'raised-border';
 
 // One props interface per GIR DECLARATION, mirroring GIR's own inheritance:
-// writable-only, optional, kebab-keyed, nick-widened.
+// writable-only, optional, kebab-keyed, nick-widened. Kebab because that is
+// GObject's OWN spelling — `g_object_set(o, "top-bar-style", …)` — not a JSX
+// choice; `top_bar_style` and `topBarStyle` are binding conveniences and
+// therefore dialect, which is why they are not here.
 export interface AdwToolbarViewProps extends GtkWidgetProps, GtkAccessibleProps {
     'top-bar-style'?: AdwToolbarStyleNick | Adw.ToolbarStyle;
     'reveal-top-bars'?: boolean;
@@ -150,6 +153,31 @@ second copy. That is the whole duplication, deleted.
 the already-shipped `$signals`, and it would land in the base `.d.ts` where every
 consumer pays for it. The GType-keyed `Widgets` map carries the same link from
 inside the subpath, so the base package is untouched.
+
+### 2b. The test for what belongs here
+
+**General goes to `@girs/*`; framework-specific stays in the framework.** peachy
+implemented its own signal-prop types because `@girs/*` did not offer them, not
+because it wanted its own — so "peachy already has it" is not evidence that it is
+framework-specific, and the earlier reading of that as independent invention was
+too generous.
+
+The line this ADR draws, applied case by case:
+
+| | belongs where | because |
+|---|---|---|
+| `$signals`, `SignalCallback` | `@girs/*` (already there) | a GIR fact |
+| `$readableProperties` | `@girs/*` (missing today) | a GIR fact; peachy re-derived it only because it was absent |
+| enum nicks | `@girs/*` | `glib:nick` is in the GIR |
+| property keys in **kebab** | `@girs/*` | GObject's canonical spelling, see above |
+| `slotCandidates` | `@girs/*` | derivable, and honestly named as candidates |
+| tag spelling, `on…` names, `JSX.IntrinsicElements`, Vue `GlobalComponents` | the consumer | each framework answers it differently |
+| camelCase / snake_case property keys | the consumer | binding convenience, not the GObject name |
+| **which** candidate is a real slot | gtk-host | runtime behaviour ts-for-gir cannot verify |
+
+The failure mode this test prevents is one dialect winning by being first: a
+kebab `IntrinsicElements` in `@girs/*` would make every non-JSX consumer pay for
+a choice only JSX consumers need.
 
 ### 3. The dialect is the consumer's, and it is small
 
