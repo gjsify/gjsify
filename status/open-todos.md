@@ -80,42 +80,48 @@ finalizers work as such — this is the node-api variant over
 `napi_create_external_buffer`. Which stage it really is remains unmeasured, which
 is the whole reason the marker change comes first.
 
-### Two node-gi gaps keep gtk-host's node leg red, and they are 103 of 125 failures
+### 25 of gtk-host's 1907 node tests still fail, and 16 are one cluster
 
-`@gjsify/gtk-host` now runs its own suite on Node (ADR 0030 § Implementation step 1):
-**1701 tests execute, 125 fail.** Grouped by cause, two divergences from GJS account
-for 103 of them, each with a one-line repro:
+The two divergences that used to dominate this entry are FIXED — an instance's
+`constructor` now carries `$gtype`, and `vfunc_*` dispatches on an introspected
+instance. Measured on merged `main`, with node-gi's addon built locally:
 
-    // 99 failures — "No descriptor registered for <null>"
-    const b = new Gtk.Box();
-    b.constructor.$gtype        // GJS: the GType.  node-gi: undefined
-    // → GObject.type_name(undefined) is null → String(null) is 'null'
+    GJS leg     1930 tests, 0 failures
+    node leg    1907 tests, 25 failures      (was 125 of 1701)
 
-    // 4 failures
-    new Adw.HeaderBar().vfunc_add_child   // GJS: a function.  node-gi: undefined
+100 failures removed, and 206 more tests reached execution at all, because a failure
+had been aborting its enclosing describe.
 
-The first is the expensive one, and not because of the count: `constructor.$gtype`
-is the GJS idiom for "what type is this instance", and gtk-host reads it in
-`adopt()`, in `nearestRegistered()` and in every descriptor lookup. On GJS the
-constructor IS the introspected class object and carries `$gtype`; under node-gi an
-instance's `constructor` does not. `Gtk.Box.$gtype` itself is fine — measured,
-`GObject.type_name()` on it answers `GtkBox` — so this is the instance→class link,
-not GType support.
+Per ADR 0030 the remaining 25 are node-gi binding defects rather than host bugs: the
+same suite is clean under GJS, which is what makes the split attributable. By suite:
 
-The second is narrower but the same shape: `vfuncChainProto` installs `vfunc_*` for
-classes registered THROUGH node-gi, and an introspected GTK class's instance does
-not get it. ADR 0027 § Context rests on `vfunc_add_child` being callable, measured on
-gjs 1.88.1 across 29 containers.
+| failures | suite |
+|---:|---|
+| 13 | `solid-js/universal over the GTK host` |
+| 3 | `conformance vectors through solid-js/universal` |
+| 2 | `what a real renderer does` |
+| 1 each | Vue, React, `single/slotted/keyed/coords`, two review-regression rows, `descriptor table vs installed typelib`, `a rejected operation writes nothing down` |
 
-Both belong in node-gi with a conformance program each (ADR 0030 § Decision 1: GJS
-defines the answer, so the golden is gjs's output), the way the class-struct statics
-gap was closed. The remaining ~22 failures are not yet attributed; some are plainly
-downstream of the first two, and the honest thing is to re-measure after they land
-rather than guess now.
+**Sixteen of the 25 are the Solid path**, which makes it the one worth chasing first —
+and the assertion messages do not name a cause (15 "deeply strictly equal", 5 "match
+using ===", 4 "expected to throw"), so the cluster has to be read from the tests rather
+than the log. The reported shape is a property update that does not reach GTK:
+`Expected ["second"], Actual ["first"]`.
 
-**Why the leg is not wired into CI yet.** `test:gjs-on-node` exists and anyone can
-run it; adding it to a job today would make that job red for defects in a different
-package. It goes in with, or after, the two fixes.
+Two concrete ones already named:
+
+- **GI method arity reports 0.** `descriptor table vs installed typelib` fails with
+  `GtkStack: titled: true implies add_titled() takes 3 argument(s), but GtkStack's takes
+  0` — node-gi's materialized methods are `function (...args)`. Needs a native arity
+  query.
+- **A declared-but-unimplemented vfunc.** GJS *throws* `Virtual function not
+  implemented` at the property read; node-gi reports it absent. Making that faithful
+  means throwing from a descriptor trap, which is real regression surface for a corner
+  nobody uses — so it is recorded rather than fixed.
+
+`test:gjs-on-node` is still not wired into CI, and these 25 are the reason. It goes in
+when the Solid cluster is understood, because a leg that is red for another package's
+defects teaches people to ignore it.
 
 ### The Vue plugin's virtual suffix is coupled to deepkit's filter, and nothing checks it
 
