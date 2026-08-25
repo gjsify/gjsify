@@ -1291,6 +1291,60 @@ Napi::Value HasClassMethod(const Napi::CallbackInfo& info) {
   return Napi::Boolean::New(env, invocable);
 }
 
+// Resolve a CLASS-STRUCT method — one of the GObjectClass functions gjs exposes as a
+// STATIC on the constructor (`Gtk.Button.list_properties()`, `.find_property()`).
+// Absent from the object's own GIObjectInfo, which is why CallStaticMethod's three
+// find_method arms missed it and every such call threw "no static method '…' on
+// Ns.Class" — including @gjsify/gtk-host's paramSpecs(), on every element-creation
+// path. `list_properties` is declared on GObject.ObjectClass and NOWHERE else
+// (Gio.SimpleActionClass has no GIR record at all) and class structs carry no GI
+// inheritance, so the walk is over the object-info PARENT chain, each level's class
+// struct in turn — reproducing what gjs reaches through the CONSTRUCTOR PROTOTYPE
+// CHAIN, where gjs_define_static_methods put GObjectClass's methods on
+// GObject.Object's constructor and Gtk.Button inherits them. Returns a new ref or
+// nullptr; same shape as ResolveMethodByName's parent walk above.
+static GIFunctionInfo* ResolveClassStructMethod(GIObjectInfo* objInfo, const char* name) {
+  GIObjectInfo* walk =
+      reinterpret_cast<GIObjectInfo*>(gi_base_info_ref(reinterpret_cast<GIBaseInfo*>(objInfo)));
+  GIFunctionInfo* found = nullptr;
+  while (walk != nullptr) {
+    GIStructInfo* cs = gi_object_info_get_class_struct(walk);
+    if (cs != nullptr) {
+      if (gi_struct_info_is_gtype_struct(cs)) found = gi_struct_info_find_method(cs, name);
+      gi_base_info_unref(reinterpret_cast<GIBaseInfo*>(cs));
+    }
+    if (found != nullptr) break;
+    GIObjectInfo* parent = gi_object_info_get_parent(walk);
+    gi_base_info_unref(reinterpret_cast<GIBaseInfo*>(walk));
+    walk = parent;
+  }
+  if (walk != nullptr) gi_base_info_unref(reinterpret_cast<GIBaseInfo*>(walk));
+  return found;
+}
+
+// The GTypeClass a class-struct method runs ON: the LEAF type's class, never the
+// declarer's — list_properties() on GtkButton's class must return the button's 44
+// pspecs, not GObject's zero. gjs resolves the same way, reading the gtype off the
+// constructor the call went THROUGH (`this`), which is the leaf.
+//
+// gjs's GTypeStructInstanceIn uses g_type_class_peek and states its reason: "we use
+// peek here to simplify reference counting … GType classes are never really freed …
+// we know that the GType class is referenced at least once when the JS constructor
+// is initialized". node-gi's class proxy takes no such ref, so peek alone is nullptr
+// for a type nothing has instantiated yet — hence g_type_class_ref, to REALISE the
+// class (the same reason ConstructGObject refs it before reading its pspecs). That
+// ref is KEPT: it establishes gjs's invariant once per GType (bounded — every later
+// call is served by the peek), while unrefing is the one call that could invalidate
+// the GParamSpecs list_properties just handed out, which the class owns. Since GLib
+// 2.84 g_type_class_unref is a documented no-op, so pairing buys nothing anyway.
+static gpointer ClassStructInstance(GIObjectInfo* objInfo) {
+  GType gtype =
+      gi_registered_type_info_get_g_type(reinterpret_cast<GIRegisteredTypeInfo*>(objInfo));
+  if (gtype == G_TYPE_INVALID) return nullptr;
+  gpointer klass = g_type_class_peek(gtype);
+  return klass != nullptr ? klass : g_type_class_ref(gtype);
+}
+
 // callStaticMethod(namespace, typeName, methodName, args?) -> unknown
 // Invoke a type-level constructor/static function (e.g. Gio.File.new_for_path,
 // Gtk.Label.new) — a function found ON a type but taking no instance. The Node
@@ -1317,8 +1371,27 @@ Napi::Value CallStaticMethod(const Napi::CallbackInfo& info) {
     return env.Null();
   }
   GIFunctionInfo* func = nullptr;
+  // Non-null ONLY when the class-struct fallback is what resolved `func`: the
+  // GTypeClass to invoke it on. It doubles as the flag that the "is an instance
+  // method" rejection below must not fire — a class-struct method IS is_method,
+  // its instance is the class rather than an object.
+  gpointer classInstance = nullptr;
   if (GI_IS_OBJECT_INFO(typeInfo)) {
-    func = gi_object_info_find_method(reinterpret_cast<GIObjectInfo*>(typeInfo), method.c_str());
+    GIObjectInfo* objInfo = reinterpret_cast<GIObjectInfo*>(typeInfo);
+    func = gi_object_info_find_method(objInfo, method.c_str());
+    if (func == nullptr) {
+      func = ResolveClassStructMethod(objInfo, method.c_str());
+      if (func != nullptr) {
+        classInstance = ClassStructInstance(objInfo);
+        if (classInstance == nullptr) {
+          // No GType behind the info, so there is no class to call it on. Drop back
+          // to the plain "no static method" error rather than invoking with a null
+          // instance, which would hand the C function a null GObjectClass*.
+          gi_base_info_unref(reinterpret_cast<GIBaseInfo*>(func));
+          func = nullptr;
+        }
+      }
+    }
   } else if (GI_IS_INTERFACE_INFO(typeInfo)) {
     func = gi_interface_info_find_method(reinterpret_cast<GIInterfaceInfo*>(typeInfo), method.c_str());
   } else if (GI_IS_STRUCT_INFO(typeInfo)) {
@@ -1331,7 +1404,8 @@ Napi::Value CallStaticMethod(const Napi::CallbackInfo& info) {
         .ThrowAsJavaScriptException();
     return env.Null();
   }
-  if (gi_callable_info_is_method(reinterpret_cast<GICallableInfo*>(func))) {
+  const bool isMethod = gi_callable_info_is_method(reinterpret_cast<GICallableInfo*>(func));
+  if (isMethod && classInstance == nullptr) {
     gi_base_info_unref(func);
     g_object_unref(repo);
     Napi::TypeError::New(env, ns + "." + tn + "." + method +
@@ -1339,7 +1413,10 @@ Napi::Value CallStaticMethod(const Napi::CallbackInfo& info) {
         .ThrowAsJavaScriptException();
     return env.Null();
   }
-  Napi::Value result = InvokeFunctionInfo(env, func, nullptr, args, ns + "." + tn + "." + method);
+  // A class struct may also declare plain functions (no instance); only the
+  // is_method ones take the class.
+  Napi::Value result = InvokeFunctionInfo(env, func, isMethod ? classInstance : nullptr, args,
+                                          ns + "." + tn + "." + method);
   gi_base_info_unref(func);
   g_object_unref(repo);
   return result;

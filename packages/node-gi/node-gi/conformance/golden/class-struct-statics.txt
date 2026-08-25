@@ -1,0 +1,13 @@
+SimpleAction is array: true
+SimpleAction count: 5
+SimpleAction names: enabled,name,parameter-type,state,state-type
+GObject.Object count: 0
+BufferedInputStream count: 3
+BufferedInputStream names: base-stream,buffer-size,close-base-stream
+inherited find_property: base-stream
+inherited value_type: GInputStream
+own find_property: enabled
+own value_type: gboolean
+own owner_type: GSimpleAction
+own instanceof ParamSpec: true
+miss find_property: null
