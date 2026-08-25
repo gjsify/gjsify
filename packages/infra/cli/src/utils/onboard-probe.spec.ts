@@ -36,6 +36,55 @@ function trustedBody(): unknown {
 const noSleep = async (): Promise<void> => {};
 
 export default async () => {
+    await describe('probeTrustState — the packument decides existence', async () => {
+        // npm's trust endpoint answers 2xx with an EMPTY LIST for a name that was
+        // never published, which reads as `untrusted`. That is how `gjsify onboard`
+        // came to trust a package that did not exist, report `0 to publish+trust`
+        // and publish nothing — its own gap, reported as closed.
+        const emptyTrustList: TrustRequester = async () => ({ status: 200, json: [], text: '' });
+
+        await it('calls it UNPUBLISHED when the registry serves no packument', async () => {
+            const plan = await probeTrustState(emptyTrustList, ws('@gjsify/never-published'), ctx(), {
+                exists: async () => false,
+            });
+            expect(plan.state).toBe('unpublished');
+            expect(plan.action).toBe('publish-and-trust');
+        });
+
+        await it('leaves a real package untrusted, so the sweep only trusts it', async () => {
+            const plan = await probeTrustState(emptyTrustList, ws('@gjsify/real'), ctx(), {
+                exists: async () => true,
+            });
+            expect(plan.state).toBe('untrusted');
+            expect(plan.action).toBe('trust');
+        });
+
+        await it('does not publish on an UNDECIDED probe', async () => {
+            // Network failure is not evidence of absence, and a bootstrap that
+            // publishes on a failed read is worse than one that reports blocked.
+            const plan = await probeTrustState(emptyTrustList, ws('@gjsify/unknown'), ctx(), {
+                exists: async () => null,
+            });
+            expect(plan.state).toBe('untrusted');
+            expect(plan.action).toBe('trust');
+        });
+
+        await it('does not pay for the extra read when the name is already trusted', async () => {
+            // `trusted` cannot be a missing package, and `unpublished` already has
+            // its answer — so only the ambiguous case costs a second request.
+            let asked = 0;
+            const request: TrustRequester = async () => ({ status: 200, json: trustedBody(), text: '' });
+            const plan = await probeTrustState(request, ws('@gjsify/foo'), ctx(), {
+                exists: async () => {
+                    asked++;
+                    return true;
+                },
+            });
+            expect(plan.state).toBe('trusted');
+            expect(asked).toBe(0);
+        });
+    });
+
     await describe('probeTrustState — retry-on-401', async () => {
         await it('retries ONCE on a transient 401 and then classifies the 200', async () => {
             const calls: Array<{ method: string; url: string }> = [];
