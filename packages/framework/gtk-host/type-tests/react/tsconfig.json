@@ -1,0 +1,54 @@
+{
+    // The REACT half of the type-surface gate — the third dialect, and the only one
+    // whose JSX runtime is the framework's OWN. Read `scripts/check-type-surfaces.mjs`
+    // for what the halves prove; this file pins only the settings this half REQUIRES,
+    // and each is proved load-bearing by a probe the script generates on every run.
+    //
+    //  - `jsx: "react-jsx"` — the AUTOMATIC runtime, the opposite of the `jsx` half's
+    //    `preserve`. React's `jsx()` builds a renderer-agnostic element record and the
+    //    host mapping happens later, in `react-reconciler`, so an automatic runtime is
+    //    correct here where it is a misconfiguration for Solid and Vue.
+    //  - `jsxImportSource: "@gjsify/gtk-host/react"` — the spelling a consumer writes;
+    //    TypeScript appends `/jsx-runtime`. Pointing it at `"react"` is the 208-tag
+    //    trap, and so is FORGETTING it: measured, an unset or empty `jsxImportSource`
+    //    under `jsx: "react-jsx"` defaults to `"react"`, so the two are one failure
+    //    (probe `react-namespace`).
+    //  - `noImplicitAny: true` — load-bearing TOGETHER with the setting above, which is
+    //    what probe `evaporate` removes as a pair. On its own it changes nothing here:
+    //    measured, with a valid `jsxImportSource` all eight negatives still error with
+    //    `noImplicitAny: false`. What it decides is whether the surface's ABSENCE is
+    //    loud — with no JSX namespace it reports `TS7026` per element, without it exit 0
+    //    and silence.
+    //
+    // NOT PINNED, deliberately: `strict`. Each setting here has a probe behind it, and a
+    // superset would smuggle in flags nothing measures. `strictFunctionTypes` is the one
+    // that would otherwise belong — the handler signatures it holds are the generated
+    // ones, and the `jsx` half already gates them over the same mapped types.
+    "compilerOptions": {
+        "noEmit": true,
+        "target": "es2020",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "skipLibCheck": true,
+        "noImplicitAny": true,
+        "jsx": "react-jsx",
+        "jsxImportSource": "@gjsify/gtk-host/react",
+        // Resolves the package's own subpath to SOURCE, for the same measured reason as
+        // the `jsx` half: without it TypeScript follows the `exports` map into `lib/`,
+        // which is a build output, and a stale `lib/types` reports the whole surface as
+        // an implicit `any` for a reason that has nothing to do with the surface. What
+        // this deliberately does NOT prove is that `package.json#exports` carries
+        // `./react/jsx-runtime` at all — that is `verify-package-outputs.mjs`.
+        "paths": {
+            "@gjsify/gtk-host/react/jsx-runtime": ["../../src/react-jsx-runtime.ts"]
+        },
+        "lib": ["es2015", "es2016", "es2017", "DOM"],
+        "types": []
+    },
+    // Every `.tsx` beside this file EXCEPT the sentinel, which is a deliberate error and
+    // has its own tsconfig. A file list that misses a fixture is the vacuous-green shape
+    // this whole directory exists to refuse, so the glob is wide and the exclusion is
+    // explicit.
+    "include": ["*.tsx"],
+    "exclude": ["sentinel.tsx"]
+}

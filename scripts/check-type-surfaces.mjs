@@ -5,8 +5,9 @@
 //
 // `src/generated/props.ts` is derived from the GTK/Adwaita GIR: 164 kebab tags, 164 GType
 // keys, every writable property in BOTH spellings, `on<Signal>` handlers carrying the GIR
-// signature, `*Nick` unions carrying the enum nicks. Two dialect surfaces sit on top of it
-// (`jsx-runtime.ts` for JSX/Solid, `vue-components.ts` for Vue's `GlobalComponents`). None of
+// signature, `*Nick` unions carrying the enum nicks. Dialect surfaces sit on top of it —
+// `jsx-runtime.ts` for JSX/Solid, `react-jsx-runtime.ts` for React, `vue-components.ts` for
+// Vue's `GlobalComponents`. None of
 // that is exercised by `gjsify tsc --noEmit` on the package: a type surface type-checks
 // against ITSELF whatever it says about `<gtk-box>`, and a surface that accepts everything is
 // indistinguishable from a correct one until something tries to write a wrong program.
@@ -19,11 +20,12 @@
 // checked NOTHING. That is the repository's most expensive shape — a green check that
 // verified nothing — so every claim this script makes has a negative behind it:
 //
-//   · JSX half: each negative carries a `@ts-expect-error`, and TypeScript reports an UNUSED
-//     `@ts-expect-error` as an error (TS2578). So each negative asserts ITS OWN failure and
-//     the half reduces to "exit code 0" with no error output to parse. A separate SENTINEL
-//     program then carries one deliberate, unsuppressed error, because exit 0 is also what a
-//     compiler that never read a fixture reports.
+//   · JSX halves (`jsx` for Solid, `react` for React — one mechanism, two dialects and two
+//     fixture directories): each negative carries a `@ts-expect-error`, and TypeScript reports
+//     an UNUSED `@ts-expect-error` as an error (TS2578). So each negative asserts ITS OWN
+//     failure and the half reduces to "exit code 0" with no error output to parse. A separate
+//     SENTINEL program then carries one deliberate, unsuppressed error, because exit 0 is also
+//     what a compiler that never read a fixture reports.
 //   · Vue half: `@ts-expect-error` does not work inside an SFC template, so each negative
 //     declares the error code it must produce in its own first line and the script asserts an
 //     EXPECTED SET — per file, both directions (a negative with no error, and an error in a
@@ -36,7 +38,15 @@
 // WHAT THIS DOES NOT PROVE
 //
 //   · Nothing about RUNTIME. This is a type-level gate; that GTK accepts the value a nick
-//     denotes is the package's conformance suite (`src/conformance/`).
+//     denotes is the package's conformance suite (`src/conformance/`), and that a real
+//     application compiles and renders is the four `showcases/gtk/*-host-counter` probes.
+//   · The `react` half does NOT re-state the element list. `GtkReactIntrinsicElements` is a
+//     mapped type over the same generated `WidgetPropsByTag`/`WidgetClassByTag` the `jsx` half
+//     already gates property by property, so a second copy of that matrix would only drift.
+//     What the `react` half adds is the React-specific plumbing — `JSX.Element`,
+//     `JSX.ElementType`, `JSX.IntrinsicAttributes` and React's `Ref<T>`/`ReactNode` spellings
+//     of `ref` and `children` — plus the two tag negatives that prove the React runtime
+//     reaches that shared list at all.
 //   · Not that a HYPHENATED unknown JSX attribute is refused — it is not, and cannot be.
 //     TypeScript exempts every hyphen-containing JSX attribute from excess-property checking,
 //     so `<gtk-box no-such={1}/>` is accepted. `type-tests/jsx/known-hole-hyphen.tsx` holds
@@ -53,7 +63,7 @@
 //     not, so the build-resolving variant reported the whole surface as an implicit `any` for
 //     a reason that had nothing to do with the surface.
 //
-// TWO MEASURED CONFIGURATION TRAPS, both of which silently produce a green half
+// MEASURED CONFIGURATION TRAPS, each of which silently produces a green half
 //
 //  1. `vue-tsc` (3.3.11 / @vue/language-core 3.3.11) lets the BASE of an `extends` chain win
 //     `vueCompilerOptions.strictTemplates` in BOTH directions: a child setting it `false`
@@ -64,11 +74,22 @@
 //     that `strictTemplates` changes nothing. The JSX probes DO use `extends`, where
 //     `compilerOptions` overrides were measured to apply.
 //  2. A tsconfig whose `include` lists only `.ts` globs makes `vue-tsc` check ZERO SFCs and
-//     exit 0. Both halves therefore assert the PROGRAM CONTENTS with `--listFiles`, not just
+//     exit 0. Every half therefore asserts the PROGRAM CONTENTS with `--listFiles`, not just
 //     the exit code: every fixture on disk must be in the program that claims to have checked
 //     it. Probe `ts-only-include` keeps the trap itself executable.
+//  3. The two JSX halves EVAPORATE DIFFERENTLY, and one probe table could not serve both.
+//     Under `jsx: "preserve"` (the `jsx` half) an unset `jsxImportSource` leaves no JSX
+//     namespace at all, so `noImplicitAny: false` turns the whole surface into `any`. Under
+//     `jsx: "react-jsx"` (the `react` half) an unset or EMPTY `jsxImportSource` falls back to
+//     `"react"` — measured byte-identical to naming it — so "drop it" and "point it at react"
+//     are ONE failure there, and the evaporating shape has to take `jsx` away too. Worse,
+//     `@types/react` declares a GLOBAL `JSX` namespace, so a program that imports React's
+//     types has React's 208 tags as its fallback surface: with a `react` type import in the
+//     probe program, `evaporate` silenced 1 of 8 assertions instead of 6. The `react`
+//     negatives are therefore deliberately free of `react` imports, and that is stated in
+//     their own header rather than only here.
 //
-// Usage: node scripts/check-type-surfaces.mjs [--help] [--root <dir>] [--only jsx|vue] [--no-probes]
+// Usage: node scripts/check-type-surfaces.mjs [--help] [--root <dir>] [--only jsx|react|vue] [--no-probes]
 
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -76,17 +97,17 @@ import { createRequire } from 'node:module';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const HELP = `check-type-surfaces — hold @gjsify/gtk-host's generated type surface, both dialects.
+const HELP = `check-type-surfaces — hold @gjsify/gtk-host's generated type surface, every dialect.
 
   node scripts/check-type-surfaces.mjs [options]
 
   --root <dir>     repository root (default: the parent of scripts/)
-  --only jsx|vue   run one half only
+  --only <half>    run one half only: jsx, react or vue
   --no-probes      skip the load-bearing-setting probes (they are the half of this
                    gate that proves the settings matter; skip only when bisecting)
   --help           this text
 
-Exits 0 when both halves hold, 1 on any deviation or harness failure.`;
+Exits 0 when every half holds, 1 on any deviation or harness failure.`;
 
 const args = process.argv.slice(2);
 if (args.includes('--help') || args.includes('-h')) {
@@ -100,16 +121,24 @@ const onlyFlag = args.indexOf('--only');
 const ONLY = onlyFlag === -1 ? null : args[onlyFlag + 1];
 const PROBES = !args.includes('--no-probes');
 
-if (ONLY !== null && ONLY !== 'jsx' && ONLY !== 'vue') {
-    console.error(`check-type-surfaces: --only takes 'jsx' or 'vue', got ${JSON.stringify(ONLY)}`);
+const HALF_NAMES = ['jsx', 'react', 'vue'];
+if (ONLY !== null && !HALF_NAMES.includes(ONLY)) {
+    console.error(`check-type-surfaces: --only takes one of ${HALF_NAMES.join(', ')}, got ${JSON.stringify(ONLY)}`);
     process.exit(1);
 }
 
 const PKG = join(ROOT, 'packages', 'framework', 'gtk-host');
 const TYPE_TESTS = join(PKG, 'type-tests');
-const JSX_DIR = join(TYPE_TESTS, 'jsx');
 const VUE_DIR = join(TYPE_TESTS, 'vue');
-/** Under the package's gitignored `tmp/`, which `gjsify clear` already owns. */
+/**
+ * Under the package's gitignored `tmp/`, which `gjsify clear` already owns.
+ *
+ * TWO levels below the package root, exactly like `type-tests/<half>/`, and that is
+ * load-bearing rather than incidental: the stripped copies of the negatives are compiled from
+ * HERE, so a fixture's relative import (`../../src/types.js`, which the React plumbing
+ * negatives need) has to resolve to the same file from both places. It self-reports if it
+ * ever stops: the baseline run would raise a `TS2307` no directive covers.
+ */
 const WORK = join(PKG, 'tmp', 'type-surfaces');
 
 const require = createRequire(import.meta.url);
@@ -144,7 +173,10 @@ function fail(message) {
  */
 const CAPABILITIES = new Map([
     ['jsxSurface', 'the JSX surface being wired at all (`jsxImportSource` + `noImplicitAny`)'],
-    ['ownRuntime', 'shipping our OWN jsx-runtime instead of augmenting Solid’s namespace'],
+    // Shared by both JSX halves, because it is one claim asked of two dialects: the element
+    // list must be OURS. The probe that removes it differs — `jsx` repoints `jsxImportSource`
+    // at `solid-js`, `react` at `react` — and both land on the same 208 HTML/SVG/MathML tags.
+    ['ownRuntime', 'shipping our OWN jsx-runtime instead of borrowing the framework’s element list'],
     ['strictFunctionTypes', '`strictFunctionTypes` (without it a handler parameter is bivariant)'],
     ['strictTemplates', '`vueCompilerOptions.strictTemplates`'],
     ['none', 'nothing — the negative holds under every probe'],
@@ -229,10 +261,10 @@ function parseNeeds(raw, where, implicit) {
  * `known-hole-*` must carry NONE (it documents what is accepted); `sentinel` is a program of
  * its own with an inverted expectation.
  */
-function jsxInventory() {
+function jsxInventory(half) {
     const inventory = { positives: [], negatives: [], holes: [], sentinel: null, assertions: [] };
-    for (const name of listFixtures(JSX_DIR, '.tsx')) {
-        const file = join(JSX_DIR, name);
+    for (const name of listFixtures(half.dir, '.tsx')) {
+        const file = join(half.dir, name);
         const text = readFixture(file);
         if (text === null) continue;
         if (BLOCK_DIRECTIVE.test(text)) {
@@ -463,60 +495,106 @@ function writeWorkFile(name, contents) {
     return file;
 }
 
-// ── half 1: JSX / Solid ─────────────────────────────────────────────────
-
-const JSX_CONFIG = join(JSX_DIR, 'tsconfig.json');
-const JSX_SENTINEL_CONFIG = join(JSX_DIR, 'tsconfig.sentinel.json');
+// ── the JSX halves: Solid and React ─────────────────────────────────────
+//
+// ONE mechanism, one fixture grammar, one `checkJsxHalf`, two dialects. They are separate
+// HALVES rather than one directory because the compiler settings they pin are different in
+// kind — `jsx: "preserve"` handing JSX to a framework compiler versus `jsx: "react-jsx"`
+// naming an automatic runtime — and therefore so is every probe that removes one. Sharing the
+// table would have meant a `checkJsxHalf` that branches on the dialect, which is the same
+// second truth in a different place.
 
 /**
- * The probes that hold the JSX half's settings to being load-bearing.
+ * A JSX-dialect half: where its fixtures live and what removing each setting must do.
  *
- * Each removes ONE capability and is asserted from both sides: the negatives declaring it go
- * green, and every other negative still errors. `evaporate` is the incident — it is the exact
- * configuration in which the entire surface disappears in silence.
+ * `probes` remove ONE capability each and are asserted from both sides: the negatives
+ * declaring it go green, and every other negative still errors. The second half is what stops
+ * a probe from "passing" because the program broke. `configProbes` are settings TypeScript
+ * refuses at the config level, so they have no per-negative expectation.
  */
-const JSX_PROBES = [
+const JSX_HALVES = [
     {
-        name: 'evaporate',
-        disables: 'jsxSurface',
-        options: { noImplicitAny: false, jsxImportSource: '' },
-        why: 'jsx=preserve + no jsxImportSource + noImplicitAny=false — every element becomes implicitly `any`',
+        name: 'jsx',
+        dir: join(TYPE_TESTS, 'jsx'),
+        config: join(TYPE_TESTS, 'jsx', 'tsconfig.json'),
+        sentinelConfig: join(TYPE_TESTS, 'jsx', 'tsconfig.sentinel.json'),
+        probes: [
+            {
+                name: 'evaporate',
+                disables: 'jsxSurface',
+                options: { noImplicitAny: false, jsxImportSource: '' },
+                why: 'jsx=preserve + no jsxImportSource + noImplicitAny=false — every element becomes implicitly `any`',
+            },
+            {
+                name: 'solid-namespace',
+                disables: 'ownRuntime',
+                options: { jsxImportSource: 'solid-js', paths: {} },
+                why: "pointing at Solid's own namespace leaves its 208 HTML/SVG/MathML tags valid on a GTK renderer",
+            },
+            {
+                name: 'bivariant',
+                disables: 'strictFunctionTypes',
+                options: { strictFunctionTypes: false },
+                why: 'a handler parameter narrowed to a subtype stops being an error',
+            },
+        ],
+        configProbes: [
+            {
+                name: 'jsx-react',
+                options: { jsx: 'react' },
+                expect: 'TS5089',
+                why: '`jsx: "react"` cannot be combined with jsxImportSource — the setting a consumer reaches for first',
+            },
+        ],
     },
     {
-        name: 'solid-namespace',
-        disables: 'ownRuntime',
-        options: { jsxImportSource: 'solid-js', paths: {} },
-        why: "pointing at Solid's own namespace leaves its 208 HTML/SVG/MathML tags valid on a GTK renderer",
-    },
-    {
-        name: 'bivariant',
-        disables: 'strictFunctionTypes',
-        options: { strictFunctionTypes: false },
-        why: 'a handler parameter narrowed to a subtype stops being an error',
+        name: 'react',
+        dir: join(TYPE_TESTS, 'react'),
+        config: join(TYPE_TESTS, 'react', 'tsconfig.json'),
+        sentinelConfig: join(TYPE_TESTS, 'react', 'tsconfig.sentinel.json'),
+        probes: [
+            {
+                // NOT the `jsx` half's evaporating shape, and the difference is measured rather
+                // than stylistic. Under `jsx: "react-jsx"` an unset or EMPTY `jsxImportSource`
+                // DEFAULTS to `"react"` — byte-identical to the `react-namespace` probe below —
+                // so taking the surface away needs `jsx` itself. `noImplicitAny` is what makes
+                // the difference between loud and silent once it is gone: with it on, the same
+                // config reports `TS7026` on every element; with it off, exit 0 and nothing.
+                name: 'evaporate',
+                disables: 'jsxSurface',
+                options: { noImplicitAny: false, jsx: 'preserve', jsxImportSource: '' },
+                why: 'no jsxImportSource + noImplicitAny=false — TS7026 on every element becomes silence',
+            },
+            {
+                // Also the measurement for "the consumer forgot `jsxImportSource`": TypeScript
+                // defaults it to `"react"` under `jsx: "react-jsx"`, so forgetting it and naming
+                // it produce the same program, and the same 208 tags.
+                name: 'react-namespace',
+                disables: 'ownRuntime',
+                options: { jsxImportSource: 'react', paths: {} },
+                why: "pointing at React's own namespace brings @types/react's 208 HTML/SVG/MathML tags back onto a GTK renderer",
+            },
+        ],
+        // No config probe: `jsx: "react"` + `jsxImportSource` is TS5089 whatever the dialect,
+        // and the `jsx` half already holds it. The setting a React consumer gets wrong instead
+        // is `jsx: "preserve"` copied from the Solid recipe — which type-checks CLEAN here and
+        // fails at BUILD time, where `packages/infra/cli/src/utils/jsx-config.ts` and the
+        // post-bundle parse check own it.
+        configProbes: [],
     },
 ];
 
-/** A setting that is refused at the CONFIG level, so it has no per-negative expectation. */
-const JSX_CONFIG_PROBES = [
-    {
-        name: 'jsx-react',
-        options: { jsx: 'react' },
-        expect: 'TS5089',
-        why: '`jsx: "react"` cannot be combined with jsxImportSource — the setting a consumer reaches for first',
-    },
-];
-
-function writeJsxProbeConfig(name, options, includes) {
+function writeJsxProbeConfig(half, name, options, includes) {
     // `extends` with an absolute base was MEASURED to carry the base's relative `paths` and to
     // honour a child's compilerOptions overrides, which is what keeps the probes from being a
     // second copy of the committed settings.
     const config = {
-        extends: resolve(JSX_CONFIG),
+        extends: resolve(half.config),
         compilerOptions: options,
         include: includes.map((file) => resolve(file)),
         exclude: [],
     };
-    return writeWorkFile(`tsconfig.jsx-${name}.json`, `${JSON.stringify(config, null, 4)}\n`);
+    return writeWorkFile(`tsconfig.${half.name}-${name}.json`, `${JSON.stringify(config, null, 4)}\n`);
 }
 
 /**
@@ -527,46 +605,48 @@ function writeJsxProbeConfig(name, options, includes) {
  * gone the run reports the errors themselves, so the annotated code can be compared and an
  * error appearing anywhere ELSE is caught too.
  */
-function stripDirectives(names) {
+function stripDirectives(half, names) {
     const stripped = new Map();
     for (const name of names) {
-        const text = readFixture(join(JSX_DIR, name));
+        const text = readFixture(join(half.dir, name));
         if (text === null) continue;
         const bare = text
             .split('\n')
             .map((line) => (JSX_DIRECTIVE.test(line) ? '//' : line))
             .join('\n');
-        stripped.set(name, writeWorkFile(`_stripped-${name}`, bare));
+        stripped.set(name, writeWorkFile(`_stripped-${half.name}-${name}`, bare));
     }
     return stripped;
 }
 
-function checkJsxHalf() {
-    const inventory = jsxInventory();
+function checkJsxHalf(half) {
+    const inventory = jsxInventory(half);
     const gateFixtures = [...inventory.positives, ...inventory.negatives, ...inventory.holes].map((name) =>
-        join(JSX_DIR, name),
+        join(half.dir, name),
     );
 
     if (inventory.negatives.length === 0)
-        fail('jsx: no negative fixtures. A positive-only suite cannot detect a misconfigured compiler.');
+        fail(`${half.name}: no negative fixtures. A positive-only suite cannot detect a misconfigured compiler.`);
+    if (inventory.positives.length === 0)
+        fail(`${half.name}: no positive fixture. Without one, a surface that refuses everything scores perfect.`);
     if (inventory.sentinel === null)
-        fail('jsx: no sentinel.tsx. Without it, "exit 0" and "read nothing" are the same result.');
+        fail(`${half.name}: no sentinel.tsx. Without it, "exit 0" and "read nothing" are the same result.`);
 
     // (a) THE GATE. Exit code 0 — checked as a code, never as the absence of error lines —
     // means every positive compiled and every @ts-expect-error was consumed.
     const beforeGate = failures.length;
-    const gate = compile(TSC, JSX_CONFIG, ['--listFiles']);
+    const gate = compile(TSC, half.config, ['--listFiles']);
     if (gate !== null) {
-        assertProgramCovers('jsx gate', gate.program, gateFixtures);
+        assertProgramCovers(`${half.name} gate`, gate.program, gateFixtures);
         if (gate.code !== 0) {
             fail(
-                `jsx gate: tsc exited ${gate.code}, expected 0. Either a positive fixture broke or a ` +
+                `${half.name} gate: tsc exited ${gate.code}, expected 0. Either a positive fixture broke or a ` +
                     `@ts-expect-error went unused (TS2578 — the negative stopped being an error):\n${reportOutput(gate)}`,
             );
         } else {
             measureIfClean(
                 beforeGate,
-                `jsx gate: exit 0 over ${gateFixtures.length} fixture(s) — ` +
+                `${half.name} gate: exit 0 over ${gateFixtures.length} fixture(s) — ` +
                     `${inventory.positives.length} positive, ${inventory.negatives.length} negative ` +
                     `(${inventory.assertions.length} assertions), ${inventory.holes.length} documented hole(s)`,
             );
@@ -577,7 +657,7 @@ function checkJsxHalf() {
     // that reports the half green has shown, in the same invocation, that it can still see an
     // error at all.
     if (inventory.sentinel !== null) {
-        const sentinel = compile(TSC, JSX_SENTINEL_CONFIG);
+        const sentinel = compile(TSC, half.sentinelConfig);
         if (sentinel !== null) {
             const hit = sentinel.diagnostics.find(
                 (diagnostic) =>
@@ -585,13 +665,13 @@ function checkJsxHalf() {
             );
             if (sentinel.code === 0 || hit === undefined) {
                 fail(
-                    `jsx sentinel: expected a failing run reporting ${inventory.sentinel.code} in ` +
+                    `${half.name} sentinel: expected a failing run reporting ${inventory.sentinel.code} in ` +
                         `${relative(ROOT, inventory.sentinel.file)}, got exit ${sentinel.code}:\n${reportOutput(sentinel)}` +
                         '\n  A harness that cannot see THIS error cannot have seen the negatives either.',
                 );
             } else {
                 measured.push(
-                    `jsx sentinel: exit ${sentinel.code} carrying ${inventory.sentinel.code} — the harness reports errors`,
+                    `${half.name} sentinel: exit ${sentinel.code} carrying ${inventory.sentinel.code} — the harness reports errors`,
                 );
             }
         }
@@ -600,19 +680,19 @@ function checkJsxHalf() {
     if (inventory.assertions.length === 0) return;
 
     // (c) EVERY NEGATIVE, INDIVIDUALLY, with its annotated code.
-    const stripped = stripDirectives(inventory.negatives);
+    const stripped = stripDirectives(half, inventory.negatives);
     const strippedFiles = [...stripped.values()];
     const byStrippedFile = new Map([...stripped].map(([name, file]) => [resolve(file), name]));
-    const baselineConfig = writeJsxProbeConfig('baseline', {}, strippedFiles);
+    const baselineConfig = writeJsxProbeConfig(half, 'baseline', {}, strippedFiles);
     const baseline = compile(TSC, baselineConfig, ['--listFiles']);
     if (baseline === null) return;
-    assertProgramCovers('jsx negatives', baseline.program, strippedFiles);
+    assertProgramCovers(`${half.name} negatives`, baseline.program, strippedFiles);
 
     const located = new Map();
     for (const diagnostic of baseline.diagnostics) {
         if (diagnostic.file === null) {
             fail(
-                `jsx negatives: a diagnostic with no file — the program is wrong, not the fixtures: ${diagnostic.text}`,
+                `${half.name} negatives: a diagnostic with no file — the program is wrong, not the fixtures: ${diagnostic.text}`,
             );
             continue;
         }
@@ -646,12 +726,12 @@ function checkJsxHalf() {
         located.delete(key);
     }
     for (const [key, hits] of located) {
-        fail(`jsx negatives: unexpected error at ${key} — no @ts-expect-error covers it: ${hits[0].text}`);
+        fail(`${half.name} negatives: unexpected error at ${key} — no @ts-expect-error covers it: ${hits[0].text}`);
     }
     if (proven > 0) {
         const codes = [...new Set(inventory.assertions.map((assertion) => assertion.code))].sort();
         measured.push(
-            `jsx negatives: ${proven}/${inventory.assertions.length} fire individually with the annotated code (${codes.join(', ')})`,
+            `${half.name} negatives: ${proven}/${inventory.assertions.length} fire individually with the annotated code (${codes.join(', ')})`,
         );
     }
 
@@ -660,9 +740,10 @@ function checkJsxHalf() {
     // (d) THE SETTINGS. Each probe removes one capability; the negatives naming it must go
     // green and every other negative must stay red. The second half is what stops a probe
     // from passing because the program broke.
-    for (const probe of JSX_PROBES) {
+    for (const probe of half.probes) {
         const before = failures.length;
-        const configPath = writeJsxProbeConfig(probe.name, probe.options, strippedFiles);
+        const label = `probe ${half.name}/${probe.name}`;
+        const configPath = writeJsxProbeConfig(half, probe.name, probe.options, strippedFiles);
         const run = compile(TSC, configPath);
         if (run === null) continue;
         const erroring = new Set(
@@ -677,12 +758,12 @@ function checkJsxHalf() {
             const dependsOnProbe = assertion.needs.includes(probe.disables);
             if (dependsOnProbe && erroring.has(key)) {
                 fail(
-                    `probe ${probe.name}: ${key} declares needs=${probe.disables} but still errors without it. ` +
+                    `${label}: ${key} declares needs=${probe.disables} but still errors without it. ` +
                         'Either the setting is not what makes that negative work, or the annotation is wrong.',
                 );
             } else if (!dependsOnProbe && !erroring.has(key)) {
                 fail(
-                    `probe ${probe.name}: ${key} went green, and it does not declare needs=${probe.disables}. ` +
+                    `${label}: ${key} went green, and it does not declare needs=${probe.disables}. ` +
                         `Removing ${probe.disables} silently disabled more than it claims — add it to the ` +
                         'annotation, or the probe is measuring a broken program.',
                 );
@@ -692,34 +773,34 @@ function checkJsxHalf() {
         }
         if (silenced === 0) {
             fail(
-                `probe ${probe.name}: no negative declares needs=${probe.disables}, so the probe proves nothing. ` +
+                `${label}: no negative declares needs=${probe.disables}, so the probe proves nothing. ` +
                     'A setting nothing depends on is not load-bearing — drop the setting or add the negative.',
             );
         } else {
             measureIfClean(
                 before,
-                `probe ${probe.name} (removes ${probe.disables}): ${silenced} negative(s) go green, ${survived} still error — ${probe.why}`,
+                `${label} (removes ${probe.disables}): ${silenced} negative(s) go green, ${survived} still error — ${probe.why}`,
             );
         }
     }
 
-    for (const probe of JSX_CONFIG_PROBES) {
-        const configPath = writeJsxProbeConfig(probe.name, probe.options, strippedFiles);
+    for (const probe of half.configProbes) {
+        const label = `probe ${half.name}/${probe.name}`;
+        const configPath = writeJsxProbeConfig(half, probe.name, probe.options, strippedFiles);
         const run = compile(TSC, configPath);
         if (run === null) continue;
         const hit = run.diagnostics.some((diagnostic) => diagnostic.code === probe.expect);
         if (run.code === 0 || !hit) {
             fail(
-                `probe ${probe.name}: expected ${probe.expect}, got exit ${run.code}:\n${reportOutput(run)}` +
-                    `\n  ${probe.why}`,
+                `${label}: expected ${probe.expect}, got exit ${run.code}:\n${reportOutput(run)}` + `\n  ${probe.why}`,
             );
         } else {
-            measured.push(`probe ${probe.name}: refused with ${probe.expect} — ${probe.why}`);
+            measured.push(`${label}: refused with ${probe.expect} — ${probe.why}`);
         }
     }
 }
 
-// ── half 2: Vue SFC ─────────────────────────────────────────────────────
+// ── the Vue SFC half ────────────────────────────────────────────────────
 
 const VUE_CONFIG = join(VUE_DIR, 'tsconfig.json');
 /** The `GlobalComponents` augmentation only applies to a program that LOADS it. */
@@ -962,8 +1043,10 @@ function indent(text) {
 const started = Date.now();
 prepareWorkDir();
 try {
-    if (ONLY !== 'vue') checkJsxHalf();
-    if (ONLY !== 'jsx') checkVueHalf();
+    for (const half of JSX_HALVES) {
+        if (ONLY === null || ONLY === half.name) checkJsxHalf(half);
+    }
+    if (ONLY === null || ONLY === 'vue') checkVueHalf();
 } finally {
     rmSync(WORK, { recursive: true, force: true });
 }
