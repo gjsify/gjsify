@@ -10,6 +10,7 @@
 import { stringIsNotEmpty } from '@gjsify/adwaita-core';
 
 import { bindEmptySections } from '../empty-sections.js';
+import { bindSlottedChildren } from '../slotted-children.js';
 import { type AdwIcon, createAdwIcon } from './adw-icon.js';
 
 export class AdwStatusPage extends HTMLElement {
@@ -27,8 +28,6 @@ export class AdwStatusPage extends HTMLElement {
         if (this._initialized) return;
         this._initialized = true;
 
-        const children = Array.from(this.childNodes);
-
         this._iconEl = createAdwIcon(null, 'adw-status-page-icon');
 
         this._titleEl = document.createElement('span');
@@ -39,9 +38,16 @@ export class AdwStatusPage extends HTMLElement {
 
         this._childEl = document.createElement('div');
         this._childEl.className = 'adw-status-page-child';
-        for (const child of children) this._childEl.appendChild(child);
 
-        this.replaceChildren(this._iconEl, this._titleEl, this._descEl, this._childEl);
+        // `Adw.StatusPage:child` is a property, so the action a status page offers can be
+        // set at any point — a button appended after connect has to land in the child box,
+        // not beside it. `src/slotted-children.ts` has the incident.
+        bindSlottedChildren(this, [{ into: this._childEl }]).install(
+            this._iconEl,
+            this._titleEl,
+            this._descEl,
+            this._childEl,
+        );
         // `_render` only ever runs from `attributeChangedCallback`, which an action
         // appended into the child slot after connect does not trigger.
         bindEmptySections(this._childEl);

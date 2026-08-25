@@ -36,6 +36,7 @@ import {
 } from '@gjsify/adwaita-core';
 
 import { bindBreakpointSetter } from '../breakpoints.js';
+import { bindSlottedChildren } from '../slotted-children.js';
 
 /** Detail of the `navigation-push` / `navigation-pop` delegation event. */
 export interface NavigationDelegateDetail {
@@ -142,18 +143,24 @@ export class AdwNavigationSplitView extends HTMLElement {
         if (this._initialized) return;
         this._initialized = true;
 
-        const sidebarChildren = Array.from(this.querySelectorAll(':scope > [slot="sidebar"]'));
-        const contentChildren = Array.from(this.querySelectorAll(':scope > [slot="content"]'));
-
         this._sidebarEl = document.createElement('div');
         this._sidebarEl.className = 'adw-nsv-sidebar';
-        for (const child of sidebarChildren) this._sidebarEl.appendChild(child);
 
         this._contentEl = document.createElement('div');
         this._contentEl.className = 'adw-nsv-content';
-        for (const child of contentChildren) this._contentEl.appendChild(child);
 
-        this.replaceChildren(this._sidebarEl, this._contentEl);
+        // Both panes stay LIVE. `adw_navigation_split_view_set_sidebar` is a property
+        // setter, callable whenever, so a pane appended after connect has to reach the
+        // pane box AND the state that decides the stack — which is what `_mountPane` does
+        // on the way. `src/slotted-children.ts` has the incident.
+        bindSlottedChildren(
+            this,
+            [
+                { name: 'sidebar', into: this._sidebarEl },
+                { name: 'content', into: this._contentEl },
+            ],
+            (_node, slot) => this._mountPane(slot.name === 'sidebar' ? 'sidebar' : 'content'),
+        ).install(this._sidebarEl, this._contentEl);
 
         // Parse-time attributes are the CONSTRUCTION properties, as in the overlay view:
         // applying them as sequential setters emits a transition for a state the markup
@@ -175,12 +182,28 @@ export class AdwNavigationSplitView extends HTMLElement {
         // Which children EXIST decides the stack, so the panes are mounted into the state
         // and not merely into the DOM — a lone child stays visible whatever
         // `show-content` says, which two CSS classes cannot express.
-        this._state.setSidebar(sidebarChildren.length > 0 ? { tag: this._tagOf(sidebarChildren) } : null);
-        this._state.setContent(contentChildren.length > 0 ? { tag: this._tagOf(contentChildren) } : null);
+        this._mountPane('sidebar');
+        this._mountPane('content');
         this._state.subscribe(() => {
             this._reflectShowContent();
             this._syncClasses();
         });
+    }
+
+    /**
+     * Mount whatever a pane box currently HOLDS into the state — `null` while it is empty.
+     *
+     * Re-mounting an unchanged pane re-emits the plan, because the state compares the page
+     * ref by identity. Both subscribers are idempotent reflections (an attribute and a
+     * class list), so a second child in the same pane costs a repaint decision and never a
+     * navigation event.
+     */
+    private _mountPane(pane: 'sidebar' | 'content'): void {
+        const box = pane === 'sidebar' ? this._sidebarEl : this._contentEl;
+        const children = Array.from(box.children);
+        const page = children.length > 0 ? { tag: this._tagOf(children) } : null;
+        if (pane === 'sidebar') this._state.setSidebar(page);
+        else this._state.setContent(page);
     }
 
     /** `Adw.NavigationPage:tag` off the slotted pane, or `null` when untagged. */

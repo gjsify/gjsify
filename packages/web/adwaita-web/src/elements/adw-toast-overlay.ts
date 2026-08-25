@@ -19,6 +19,7 @@
 
 import { AdwToast, AdwToastQueue } from '@gjsify/adwaita-core';
 
+import { bindSlottedChildren } from '../slotted-children.js';
 import { createAdwIcon } from './adw-icon.js';
 import type { ToastScheduler, ToastTimerHandle } from '@gjsify/adwaita-core';
 
@@ -86,16 +87,17 @@ export class AdwToastOverlay extends HTMLElement {
         if (this._initialized) return;
         this._initialized = true;
 
-        // The declared children become the wrapped content (Adw.ToastOverlay:child);
-        // the toast container is layered over the bottom edge.
+        // The children become the wrapped content (Adw.ToastOverlay:child); the toast
+        // container is layered over the bottom edge. LIVE, because the overlay is the
+        // outermost widget of a window and the app it wraps is very often appended to it
+        // after it exists. `src/slotted-children.ts` has the incident.
         const content = document.createElement('div');
         content.className = 'adw-toast-overlay-content';
-        for (const child of Array.from(this.childNodes)) content.appendChild(child);
 
         this._toasts = document.createElement('div');
         this._toasts.className = 'adw-toast-overlay-toasts';
 
-        this.replaceChildren(content, this._toasts);
+        bindSlottedChildren(this, [{ into: content }]).install(content, this._toasts);
     }
 
     /**
