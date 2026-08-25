@@ -3,6 +3,8 @@ title: Solid JSX
 description: Compile SolidJS JSX for a GTK 4 build with @gjsify/rolldown-plugin-solid. Universal generate mode, the tsconfig half that goes with it, and the silent failure it exists to stop.
 ---
 
+import CommandTabs from '../../../components/CommandTabs.astro';
+
 [`@gjsify/rolldown-plugin-solid`](https://www.npmjs.com/package/@gjsify/rolldown-plugin-solid)
 compiles SolidJS JSX during a gjsify build, in `universal` generate mode — the only mode whose
 output contains no DOM. It targets the renderer in
@@ -13,9 +15,38 @@ It is an ordinary Rolldown plugin, so it also loads under Rollup and Vite.
 
 ## Install
 
-```bash
-gjsify install @gjsify/rolldown-plugin-solid @gjsify/gtk-host solid-js
-```
+<CommandTabs title="Install" group="pm">
+  <Fragment slot="gjsify">
+    ```bash
+    gjsify install @gjsify/rolldown-plugin-solid @gjsify/gtk-host solid-js
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    npm install -D @gjsify/rolldown-plugin-solid @gjsify/gtk-host solid-js
+    ```
+  </Fragment>
+  <Fragment slot="yarn">
+    ```bash
+    yarn add -D @gjsify/rolldown-plugin-solid @gjsify/gtk-host solid-js
+    ```
+  </Fragment>
+  <Fragment slot="pnpm">
+    ```bash
+    pnpm add -D @gjsify/rolldown-plugin-solid @gjsify/gtk-host solid-js
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    bun add --dev @gjsify/rolldown-plugin-solid @gjsify/gtk-host solid-js
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno add --dev npm:@gjsify/rolldown-plugin-solid npm:@gjsify/gtk-host npm:solid-js
+    ```
+  </Fragment>
+</CommandTabs>
 
 ## Wire it up
 
