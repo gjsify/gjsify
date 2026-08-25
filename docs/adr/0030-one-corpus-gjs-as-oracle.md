@@ -1,6 +1,6 @@
 # 30. One test corpus per claim, parameterised by runtime; GJS is the oracle
 
-- Status: **Proposed**
+- Status: **Accepted**
 - Date: 2026-08-25
 - Deciders: Pascal Garber
 - Related: [ADR 0027 (GTK host layer)](0027-gtk-host-layer.md), [ADR 0005 (node-gi scope)](0005-node-gi-scope.md), [ADR 0011 (N-API host in GJS)](0011-napi-host-in-gjs.md), [ADR 0018 (OS axis declaration)](0018-os-axis-declaration.md), [ADR 0008 (release versioning policy)](0008-release-versioning-policy.md)
@@ -166,9 +166,25 @@ columns are meant to close, not to stay printed.
 
 Not scheduled as one change. The order that follows from the risk in § Decision 4:
 
-1. gtk-host's declaration and test path — the smallest step with the largest
-   claim, because its code is already portable and only the manifest and the
-   script say otherwise.
+1. gtk-host's declaration and test path. Its code is already portable, so this
+   looks like a manifest edit and a new script — and it is not, because of one
+   thing measured while scoping it.
+
+   **Every gtk-host suite is gated on `on('Gjs', …)`, an interpreter IDENTITY, and
+   therefore stands down under Node.** Built for the node target and run, the suite
+   exits **0** having executed **0 tests from 0 gates, 9 stood down**. That is the
+   green-that-checked-nothing shape, produced by the very step meant to add
+   coverage — and it would have shipped as a passing CI leg.
+
+   `@gjsify/unit` already has the concept and its own reason for it: `Runtime` is
+   documented as "a runtime IDENTITY, or a host CAPABILITY", and `'Display'` and
+   `'Gl'` were split apart because "a gate must state the thing it actually
+   requires". These suites require a reachable GTK, not a particular interpreter.
+   So step 1 is: a `'Gtk'` capability beside those two, the suites gated on it, and
+   the node entry declaring `requireAxes: ['Gtk']` — the existing mechanism that
+   turns a stood-down run into a failure instead of a pass. The manifest flip and
+   the drift-check tolerance ride along, because a declaration without a suite is
+   what § Decision 6 refuses.
 2. The showcase columns, since the showcases already self-verify on every launch
    through `runHostProbeApp` and a `--app node` build already succeeds.
 3. node-gi's oracle-able tests, migrated in themed groups, highest binding risk
