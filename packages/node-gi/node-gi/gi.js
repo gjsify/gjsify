@@ -1142,6 +1142,26 @@ function protoForInstance(handle) {
     return proto === null ? undefined : proto;
 }
 
+// Attach a class prototype to a wrapper — as its [[Prototype]] AND as the USER_PROTO
+// symbol the traps resolve members through.
+//
+// The symbol alone is not the link. `constructor` is RESERVED, so the get trap hands
+// it straight to the bare target, whose [[Prototype]] was Object.prototype: every
+// introspected instance answered `Object` — carrying no `$gtype`, so
+// `GObject.type_name(inst.constructor.$gtype)` was `null` and @gjsify/gtk-host's
+// adopt() / nearestRegistered() / every descriptor lookup failed with
+// "No descriptor registered for null" (99 rows of its node leg). On gjs an instance's
+// [[Prototype]] IS its class's prototype and `constructor` is the class object itself
+// (measured on gjs 1.88.1), which is what the class prototype's own `constructor`
+// back-link — the makeClass Proxy, the object `requireGi` returns — now supplies.
+// It is also what puts a class prototype on the chain findProtoDescriptor walks for
+// `vfunc_*` (see makeClassPrototype). Works on the wrapper Proxy too: neither
+// setPrototypeOf nor the symbol write is trapped, so both reach the target.
+function linkInstanceProto(objOrProxy, proto) {
+    objOrProxy[USER_PROTO] = proto;
+    Object.setPrototypeOf(objOrProxy, proto);
+}
+
 // Wrap a live GObject handle as a GJS-shaped instance. The wrapper resolves its
 // class prototype chain FIRST (a registerClass subclass's own methods, anything
 // the program put on the introspected prototype) — so `inst.myMethod()` runs the
@@ -1164,14 +1184,14 @@ function wrapInstance(handle, userProto) {
         if (userProto !== undefined && userProto !== cached[USER_PROTO]) {
             const current = cached[USER_PROTO];
             if (current === undefined || isProtoSameOrDescendantOf(userProto, current)) {
-                cached[USER_PROTO] = userProto;
+                linkInstanceProto(cached, userProto);
             }
         }
         return cached;
     }
     const target = { [HANDLE]: handle };
     const proto = userProto ?? protoForInstance(handle);
-    if (proto !== undefined) target[USER_PROTO] = proto;
+    if (proto !== undefined) linkInstanceProto(target, proto);
     const proxy = new Proxy(target, {
         get(t, prop) {
             if (prop === HANDLE) return handle;
@@ -1388,6 +1408,27 @@ function makeGiMethod(where, method) {
     return fn;
 }
 
+// The invocable form of an introspected VFUNC as it sits on a class prototype. Like
+// makeGiMethod, but the engine resolves the vtable slot of THIS class (not a captured
+// parent pointer), so it works on a plain `new Ns.Class()` — which is what gjs does
+// and what `vfunc_add_child` (a GtkBuildable slot with no introspected method form)
+// has no other route to.
+function makeGiVFunc(namespace, typeName, vfuncName, where) {
+    const fn = function (...args) {
+        return wrapReturn(
+            native.callClassVfunc(
+                prototypeMethodHandle(this, where),
+                namespace,
+                typeName,
+                vfuncName,
+                unwrapArgs(args),
+            ),
+        );
+    };
+    Object.defineProperty(fn, 'name', { value: `vfunc_${vfuncName}`, configurable: true });
+    return fn;
+}
+
 // A class prototype that MATERIALIZES its introspected methods on first look-up —
 // the JS twin of the SpiderMonkey `resolve` hook gjs installs on every GObject
 // prototype (refs/gjs gi/object.cpp). Without it a node-gi prototype stayed
@@ -1421,6 +1462,25 @@ function makeClassPrototype(namespace, typeName) {
     const materialize = (prop) => {
         if (typeof prop !== 'string' || RESERVED.has(prop)) return false;
         if (Object.prototype.hasOwnProperty.call(target, prop)) return true;
+        // A vfunc slot. Defining it HERE — rather than leaving it to the vfuncChainProto
+        // Proxy below the prototype — is what makes it reachable from an INSTANCE: the
+        // wrapper resolves members by descriptor (findProtoDescriptor), and a Proxy that
+        // traps only `get` reports no descriptor and no `in`, so `new Gtk.Box()
+        // .vfunc_add_child` was `undefined` while `Gtk.Box.prototype.vfunc_add_child` was
+        // a function. Gated on the engine being able to ADDRESS the slot, which gives gjs
+        // parity two ways: an unknown vfunc name stays `undefined` instead of becoming a
+        // throw-on-call thunk, and a name the engine cannot address (GObject's own vfuncs
+        // report GI_UNKNOWN as their struct offset) still falls through to the chain-up
+        // thunk, so `super.vfunc_dispose()` keeps working.
+        if (prop.startsWith('vfunc_')) {
+            const vfuncName = prop.slice('vfunc_'.length);
+            let addressable = resolved.get(prop);
+            if (addressable === undefined) {
+                addressable = native.hasClassVfunc(namespace, typeName, vfuncName);
+                resolved.set(prop, addressable);
+            }
+            return addressable && define(prop, makeGiVFunc(namespace, typeName, vfuncName, `${where}.${prop}`));
+        }
         // gjs's GObject.Object.prototype members are JS shims over namespace-level
         // functions (see objectPrototypeShim), and `bind_property_full` even HAS an
         // introspected GIR shadow — bind_with_closures, whose GValue write-back a
@@ -2064,6 +2124,15 @@ function collectVfuncs(klass) {
     const vfuncs = {};
     const seen = new Set();
     for (let p = klass.prototype; p !== null && p !== Object.prototype; p = Object.getPrototypeOf(p)) {
+        // The INTROSPECTED base's prototype declares no user override, and since it
+        // materializes its own `vfunc_*` members on first look-up (makeClassPrototype)
+        // it now CARRIES such names: without this boundary a program that read
+        // `base.vfunc_activate` before registering a subclass had that vfunc collected
+        // as the subclass's own override, installing a trampoline for a slot the user
+        // never wrote ("registerClass vfunc 'activate' not found on any ancestor").
+        // CLASS_INFO is stamped only by makeClassPrototype, and only OWN counts — a
+        // registered subclass's prototype inherits it from its base.
+        if (p !== klass.prototype && Object.prototype.hasOwnProperty.call(p, CLASS_INFO)) break;
         const owner = Object.getOwnPropertyDescriptor(p, 'constructor')?.value;
         if (owner !== undefined && owner !== klass && registeredClasses.has(owner)) break;
         for (const key of Object.getOwnPropertyNames(p)) {

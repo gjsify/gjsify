@@ -233,6 +233,34 @@ export function registerClass(
 export function callParentVfunc(handle: GObjectHandle, vfuncName: string, args?: unknown[]): unknown;
 
 /**
+ * Whether `Ns.Type.prototype.vfunc_<vfuncName>` can be dispatched directly — i.e.
+ * an ancestor of `typeName` (or one of the interfaces it implements) declares that
+ * virtual function AND girepository can locate its slot in the class's vtable.
+ * The gate the L1 class prototype asks before materializing a vfunc member: `false`
+ * leaves the name `undefined` (gjs parity for an unknown vfunc) or, for a declared
+ * one whose struct offset girepository reports as unknown — GObject's own vfuncs —
+ * lets it fall through to the {@link callParentVfunc} chain-up thunk.
+ */
+export function hasClassVfunc(namespace: string, typeName: string, vfuncName: string): boolean;
+
+/**
+ * Invoke the virtual function `Ns.Type` carries in its vtable, with `handle` as the
+ * instance — what `new Gtk.Box().vfunc_add_child(builder, child, null)` does on gjs,
+ * and the ONLY route to a `Gtk.Buildable` adder (`add_child` is introspected as a
+ * vfunc, never as a method). Unlike {@link callParentVfunc} this needs no
+ * {@link registerClass} override: the slot comes from the class itself. Same
+ * marshalling and same `[returnValue?, ...outArgs]` return convention. Throws if the
+ * vfunc is not addressable on that class, or if `handle` is not an instance of it.
+ */
+export function callClassVfunc(
+    handle: GObjectHandle,
+    namespace: string,
+    typeName: string,
+    vfuncName: string,
+    args?: unknown[],
+): unknown;
+
+/**
  * Construct a GObject of a registered type handle (from {@link registerClass})
  * with optional construct/settable properties. For a templated type the engine
  * runs `gtk_widget_init_template` on the new instance before returning it.

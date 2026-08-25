@@ -1,0 +1,13 @@
+typeof store.vfunc_get_n_items: function
+store.vfunc_get_n_items(): 1
+type_name(store.vfunc_get_item_type()): GSimpleAction
+store.vfunc_get_item(0) === the appended action: true
+typeof store.vfunc_get_item(5): object
+menu.vfunc_get_n_items(): 1
+vfunc_activate reached the implementation: 1
+inst fn === proto fn: true
+'vfunc_get_n_items' in store: true
+own on the instance: false
+the prototype reports a value descriptor: function
+typeof store.vfunc_not_a_real_vfunc: undefined
+subclass ctor ran through the chained vfunc: true chained
