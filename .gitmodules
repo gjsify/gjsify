@@ -278,3 +278,6 @@
 [submodule "refs/gtk"]
 	path = refs/gtk
 	url = https://gitlab.gnome.org/GNOME/gtk.git
+[submodule "refs/cambalache"]
+	path = refs/cambalache
+	url = https://gitlab.gnome.org/jpu/cambalache
