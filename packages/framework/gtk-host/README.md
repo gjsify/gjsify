@@ -28,7 +28,9 @@ NativeScript carries five framework flavours over one host, and the adapters are
 small because the host exists: its Solid adapter is **91 lines**, its React
 adapter **505** — and both hold *zero* lines of widget knowledge. Under GTK4 the
 shared share is larger still: GTK4 deleted `GtkContainer`, so there is no generic
-`add`, and `Gtk.Buildable.add_child` is introspected as a vfunc only. Every
+`add`. `Gtk.Buildable.add_child` is introspected as a vfunc only — the `vfunc_`
+form is callable and correct, so it is an escape hatch, just not a safe default
+(a childless widget accepts a child in silence). Every
 container's adoption rule has to be written down somewhere. Written once, it is a
 table; written per adapter, it is the same table three times — which is what
 stalled `react-gtk`, `react-native-gtk4` and `svelte-gjs`.

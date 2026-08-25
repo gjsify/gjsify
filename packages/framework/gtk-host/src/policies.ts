@@ -3,7 +3,9 @@
 //
 // GTK4 removed `GtkContainer`. There is no generic `add`, and `Gtk.Buildable`'s
 // `add_child` is introspected as a vfunc only (`typeof headerBar.add_child ===
-// 'undefined'`, gjs 1.88.1), so it is not a fallback either. Every container
+// 'undefined'`, gjs 1.88.1) — but `vfunc_add_child` is callable and dispatches
+// correctly, so it IS available as a fallback. It is not a SAFE one: a childless
+// widget accepts a child in silence. Every container
 // therefore states its own rules as DATA in its descriptor, and this file is the
 // only code that reads them. Four framework adapters share it; none of them may
 // contain an insertion rule of its own.

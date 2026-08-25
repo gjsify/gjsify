@@ -100,9 +100,15 @@ export type PolicyKind = 'none' | 'single' | 'ordered' | 'indexed' | 'slotted' |
 
 /**
  * How a parent adopts children. GTK4 deleted `GtkContainer`, so there is no
- * generic `add` — and `Gtk.Buildable.add_child` is introspected as a vfunc only
- * (`typeof headerBar.add_child === 'undefined'`, measured on gjs 1.88.1), so it
- * is not an escape hatch either. Every container states its own rules here.
+ * generic `add`. `Gtk.Buildable.add_child` is introspected as a vfunc only
+ * (`typeof headerBar.add_child === 'undefined'`, gjs 1.88.1) — but the vfunc form
+ * IS callable and DOES dispatch correctly, measured across 29 containers, so it is
+ * a real escape hatch. This comment used to claim otherwise.
+ *
+ * The table exists because the generic call is unsafe as a default, not because it
+ * is unavailable: `GtkLabel.vfunc_add_child` accepts a child and says nothing until
+ * `Finalizing GtkLabel …, but it still has children left` at teardown. Every
+ * container states its own rules here, and a widget with no rule is REFUSED.
  */
 export type ChildPolicy =
     | { kind: 'none' }
