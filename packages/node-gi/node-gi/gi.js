@@ -1416,13 +1416,7 @@ function makeGiMethod(where, method) {
 function makeGiVFunc(namespace, typeName, vfuncName, where) {
     const fn = function (...args) {
         return wrapReturn(
-            native.callClassVfunc(
-                prototypeMethodHandle(this, where),
-                namespace,
-                typeName,
-                vfuncName,
-                unwrapArgs(args),
-            ),
+            native.callClassVfunc(prototypeMethodHandle(this, where), namespace, typeName, vfuncName, unwrapArgs(args)),
         );
     };
     Object.defineProperty(fn, 'name', { value: `vfunc_${vfuncName}`, configurable: true });
