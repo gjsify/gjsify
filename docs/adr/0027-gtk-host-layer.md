@@ -31,7 +31,19 @@ The first two hold **zero** lines of widget knowledge; they declare `dominative`
 as a peer and stop. Under GTK4 the shared share is larger still, because GTK4
 deleted `GtkContainer`: there is no generic `add`, and `Gtk.Buildable.add_child`
 is introspected as a vfunc only — `typeof headerBar.add_child === 'undefined'` on
-gjs 1.88.1 — so every container's adoption rule has to be stated somewhere. Stated
+gjs 1.88.1. An earlier revision of this ADR concluded from that "so it is not an
+escape hatch either", and that conclusion was wrong.
+`vfunc_add_child(builder, child, type)` IS callable from GJS and dispatches
+correctly — measured on gjs 1.88.1 / GTK 4.22.4 / Adw 1.10 across 29 containers:
+`GtkBox` appends, `AdwHeaderBar` type `title` lands in the title slot, `GtkListBox`
+wraps the row, `AdwPreferencesGroup` reaches its internal list. What it is not is a
+safe DEFAULT: `GtkLabel.vfunc_add_child` accepts a child, reports nothing, and
+surfaces only as `Finalizing GtkLabel …, but it still has children left` at
+teardown, exit 0. A wrong child type is a warning followed by a wrong placement;
+a move is a `CRITICAL` and a silent no-op. So the table earns its place by refusing
+what the generic call accepts, not by being the only way to place a child.
+
+Every container's adoption rule therefore still has to be stated somewhere. Stated
 once, that is a table. Stated per adapter, it is the same table three times, and
 hand-maintained widget tables are what stalled `react-gtk`, `react-native-gtk4`
 and `svelte-gjs`.
