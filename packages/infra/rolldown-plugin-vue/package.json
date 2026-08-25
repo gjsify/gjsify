@@ -58,6 +58,7 @@
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
+        "@gjsify/rolldown-plugin-deepkit": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@types/node": "^25.9.2",
         "rolldown": "^1.1.4"
