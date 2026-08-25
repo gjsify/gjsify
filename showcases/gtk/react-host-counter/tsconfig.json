@@ -1,0 +1,32 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "target": "ESNext",
+        "outDir": "dist",
+        "rootDir": "src",
+        "strict": true,
+        "skipLibCheck": true,
+        "types": [],
+        "lib": ["ESNext", "DOM", "DOM.Iterable"],
+        // The JSX half of the contract, and this one is the AUTOMATIC runtime —
+        // the opposite of the two siblings, which both preserve JSX for a
+        // framework compiler. `react-jsx` is what makes oxc emit
+        // `import { jsx } from "@gjsify/gtk-host/react/jsx-runtime"`, and that
+        // subpath re-exports React's OWN factories: a React JSX expression is a
+        // renderer-agnostic element record, and the host mapping happens later in
+        // `react-reconciler`. So there is no plugin under `gjsify.bundler.plugins`
+        // here, and nothing for one to consume.
+        //
+        // `jsxImportSource` must NOT be `"react"` — that is the 208-tag trap ADR
+        // 0028 § 8 measured: the element list would come from `@types/react` and
+        // every HTML, SVG and MathML tag would type-check clean on a GTK renderer
+        // and render nothing.
+        //
+        // `strict` supplies `noImplicitAny`, without which every JSX element is
+        // implicitly `any` and `tsc` exits 0 having checked nothing at all.
+        "jsx": "react-jsx",
+        "jsxImportSource": "@gjsify/gtk-host/react"
+    },
+    "include": ["src/**/*"]
+}
