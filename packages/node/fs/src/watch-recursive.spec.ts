@@ -76,6 +76,28 @@ const named =
     ([, name]: Seen): boolean =>
         name === filename;
 
+/** Every event that arrived, for a failure message that can be acted on. */
+function describeEvents(events: Seen[]): string {
+    if (events.length === 0) return '(no events at all)';
+    return events.map(([type, name]) => `${type} ${name}`).join(', ');
+}
+
+/**
+ * Wait for an event named `filename`; return `''` when it arrives and a description
+ * of what arrived instead when it does not.
+ *
+ * Compared as a STRING rather than a boolean so a failure can be diagnosed from the
+ * log alone. `Expected: true, Actual: false` cannot distinguish "nothing arrived",
+ * "something arrived under a different name" and "the watch was never live", and
+ * those are three different bugs. The darwin GJS leg needed exactly that distinction
+ * and a boolean could not give it: four rows failed identically while the create and
+ * delete rows beside them passed, and only the event dump says why.
+ */
+async function eventNamed(events: Seen[], filename: string): Promise<string> {
+    if (await sawEvent(events, named(filename))) return '';
+    return `expected an event named "${filename}", saw: ${describeEvents(events)}`;
+}
+
 /**
  * Did this event name something INSIDE `sub`, under either spelling a leak takes?
  *
@@ -105,7 +127,7 @@ export default async () => {
             try {
                 await sleep(ARM_MS);
                 writeFileSync(target, 'two');
-                expect(await sawEvent(events, named(join('sub', 'deep', 'a.txt')))).toBe(true);
+                expect(await eventNamed(events, join('sub', 'deep', 'a.txt'))).toBe('');
             } finally {
                 watcher.close();
                 rmSync(tmp, { recursive: true, force: true });
@@ -124,11 +146,11 @@ export default async () => {
                 // The new directory being REPORTED is not the point and would be true of
                 // a flat monitor too; waiting for it here only establishes that the
                 // watcher has had its chance to start monitoring it.
-                expect(await sawEvent(events, named('late'))).toBe(true);
+                expect(await eventNamed(events, 'late')).toBe('');
                 events.length = 0;
 
                 writeFileSync(join(tmp, 'late', 'b.txt'), 'hello');
-                expect(await sawEvent(events, named(join('late', 'b.txt')))).toBe(true);
+                expect(await eventNamed(events, join('late', 'b.txt'))).toBe('');
             } finally {
                 watcher.close();
                 rmSync(tmp, { recursive: true, force: true });
@@ -149,16 +171,21 @@ export default async () => {
             try {
                 await sleep(ARM_MS);
                 writeFileSync(join(tmp, 'x', 'dup.txt'), 'two');
-                expect(await sawEvent(events, named(join('x', 'dup.txt')))).toBe(true);
+                expect(await eventNamed(events, join('x', 'dup.txt'))).toBe('');
                 // The two files are the same string once reduced to a basename, so a
                 // consumer resolving the reported name against the watched directory —
                 // `isSelfWrite()` in the CLI's watch loop does exactly that — would act on
                 // the wrong file.
-                expect(events.some(named('dup.txt'))).toBe(false);
+                expect(
+                    events
+                        .filter(named('dup.txt'))
+                        .map(([type]) => type)
+                        .join(', '),
+                ).toBe('');
 
                 events.length = 0;
                 writeFileSync(join(tmp, 'y', 'dup.txt'), 'two');
-                expect(await sawEvent(events, named(join('y', 'dup.txt')))).toBe(true);
+                expect(await eventNamed(events, join('y', 'dup.txt'))).toBe('');
             } finally {
                 watcher.close();
                 rmSync(tmp, { recursive: true, force: true });
@@ -178,11 +205,11 @@ export default async () => {
             try {
                 await sleep(ARM_MS);
                 rmSync(nested, { recursive: true, force: true });
-                expect(await sawEvent(events, named('sub'))).toBe(true);
+                expect(await eventNamed(events, 'sub')).toBe('');
                 events.length = 0;
 
                 mkdirSync(nested);
-                expect(await sawEvent(events, named('sub'))).toBe(true);
+                expect(await eventNamed(events, 'sub')).toBe('');
                 events.length = 0;
 
                 writeFileSync(join(nested, 'c.txt'), 'x');
@@ -191,7 +218,7 @@ export default async () => {
                 // monitor left behind still occupies this path, so the directory that
                 // now exists under it never gets one, and the write below reaches
                 // nothing at all.
-                expect(await sawEvent(events, named(join('sub', 'c.txt')))).toBe(true);
+                expect(await eventNamed(events, join('sub', 'c.txt'))).toBe('');
             } finally {
                 watcher.close();
                 rmSync(tmp, { recursive: true, force: true });
@@ -212,7 +239,7 @@ export default async () => {
             try {
                 await sleep(ARM_MS);
                 writeFileSync(target, 'two');
-                expect(await sawEvent(events, named(join('sub', 'a.txt')))).toBe(true);
+                expect(await eventNamed(events, join('sub', 'a.txt'))).toBe('');
             } finally {
                 watcher.close();
             }
@@ -224,7 +251,7 @@ export default async () => {
             writeFileSync(target, 'three');
             writeFileSync(join(tmp, 'top.txt'), 'x');
             await sleep(600);
-            expect(events).toStrictEqual([]);
+            expect(describeEvents(events)).toBe('(no events at all)');
             rmSync(tmp, { recursive: true, force: true });
         });
 
@@ -248,7 +275,7 @@ export default async () => {
                 writeFileSync(top, 'two');
                 // The top-level write is the positive control: without it, "saw nothing
                 // nested" is also what a watcher that never armed at all would report.
-                expect(await sawEvent(events, named('top.txt'))).toBe(true);
+                expect(await eventNamed(events, 'top.txt')).toBe('');
                 await sleep(500);
                 // Compared as a STRING so a failure NAMES what leaked. The first
                 // spelling was `events.some(...)` against a boolean, and when it went
@@ -277,12 +304,14 @@ export default async () => {
             // nested event, and a hung suite reports nothing at all.
             const bail = setTimeout(() => ac.abort(), 2500);
             let seen = false;
+            const yielded: string[] = [];
             const write = sleep(ARM_MS * 2).then(() => {
                 writeFileSync(target, 'two');
             });
 
             try {
                 for await (const event of promises.watch(tmp, { recursive: true, signal: ac.signal })) {
+                    yielded.push(`${event.eventType} ${event.filename}`);
                     if (event.filename === join('sub', 'a.txt')) {
                         seen = true;
                         ac.abort();
@@ -296,7 +325,9 @@ export default async () => {
                 await write;
             }
 
-            expect(seen).toBe(true);
+            expect(
+                seen ? '' : `no event named "${join('sub', 'a.txt')}"; saw: ${yielded.join(', ') || '(nothing)'}`,
+            ).toBe('');
             rmSync(tmp, { recursive: true, force: true });
         });
     });
