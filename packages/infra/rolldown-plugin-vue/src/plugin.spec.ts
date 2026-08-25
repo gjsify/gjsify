@@ -13,6 +13,7 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { reflectsModuleId } from '@gjsify/rolldown-plugin-deepkit';
 import { describe, expect, it } from '@gjsify/unit';
 
 import { vuePlugin } from './index.js';
@@ -78,6 +79,16 @@ export default async () => {
         await it('renames a .vue specifier to the resolved path plus the virtual suffix', async () => {
             const { ctx } = context(file);
             expect(idOf(await resolveId.call(ctx, './App.vue', join(dir, 'main.ts')))).toBe(`${file}${SUFFIX}`);
+        });
+
+        await it('mints an id that still lands inside the deepkit plugin’s reflection filter', async () => {
+            // The coupling `status/open-todos.md` names: `SUFFIX` exists so rolldown's
+            // extension-based parser selection reaches TypeScript, and the SAME tail is
+            // what makes `@gjsify/rolldown-plugin-deepkit` see a `.vue` id at all — its
+            // filter is `/\.(m|c)?tsx?$/`. Renaming either constant so this goes red is
+            // the failure the ledger entry describes: reflection switches off for every
+            // `.vue` file with no diagnostic, from a build that exits 0.
+            expect(reflectsModuleId(`/a/App.vue${SUFFIX}`)).toBe(true);
         });
 
         await it('hands an EXTERNAL .vue back unchanged', async () => {

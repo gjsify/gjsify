@@ -33,6 +33,22 @@ async function getLoader(): Promise<DeepkitLoader> {
 
 const FILTER = /\.(m|c)?tsx?$/;
 
+/**
+ * Whether `id` is inside the set this plugin reflects — the same `FILTER` the
+ * `transform` hook tests at runtime, not a second copy of the regex.
+ *
+ * Exists because that filter is also a load-bearing DEPENDENCY of anything that
+ * mints a virtual module id meant to be reflected: `@gjsify/rolldown-plugin-vue`
+ * appends a `.gjsify-vue.ts` tail to route `.vue` SFCs through TypeScript parsing,
+ * and the same tail is what makes deepkit see the id at all (`status/open-todos.md`
+ * § "The Vue plugin's virtual suffix is coupled to deepkit's filter"). A silent
+ * drift here switches reflection off for every consumer with no diagnostic — the
+ * build still exits 0.
+ */
+export function reflectsModuleId(id: string): boolean {
+    return FILTER.test(id);
+}
+
 function printDiagnostics(...args: unknown[]): void {
     console.log('[deepkit] printDiagnostics', inspect(args, false, 10, true));
 }
@@ -46,7 +62,7 @@ export function deepkitPlugin(options: DeepkitPluginOptions = {}): Plugin {
             order: 'pre' as const,
             async handler(code, id) {
                 if (!reflection) return null;
-                if (!FILTER.test(id)) return null;
+                if (!reflectsModuleId(id)) return null;
 
                 try {
                     const loader = await getLoader();
