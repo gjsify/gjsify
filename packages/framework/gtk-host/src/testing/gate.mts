@@ -25,7 +25,7 @@
 // already excludes — `!lib/types/**/*.d.mts` and `!lib/types/**/*.spec.d.ts` —
 // which is the whole class rather than this one instance: 68 packed files to 51.
 
-import { afterEach, beforeEach, describe } from '@gjsify/unit';
+import { afterEach, beforeEach, describe, type Runtime } from '@gjsify/unit';
 
 import type { DiagnosticsGate } from '../conformance/diagnostics.js';
 
@@ -35,3 +35,26 @@ export const gated = (gate: DiagnosticsGate, name: string, body: () => Promise<v
         afterEach(() => gate.assertQuiet());
         await body();
     }) as Promise<void>;
+
+/**
+ * The runtimes that can host GTK — and an IDENTITY list on purpose.
+ *
+ * These suites need a reachable GTK, not a particular interpreter, so the
+ * expressive form would be a capability (`@gjsify/unit` splits `'Display'` from
+ * `'Gl'` for exactly that reason). It is not used here, and the reason is the
+ * failure mode rather than taste.
+ *
+ * A capability can only be PROBED — nothing about `(os, env)` answers "is the Gtk
+ * typelib reachable from this process", and `@gjsify/unit` is Tier 1 and must not
+ * import `gi://` to find out. A probe that answers "no" makes the whole suite STAND
+ * DOWN, and `requireAxes` cannot catch that: it only holds axes the host MATCHES.
+ * So a container that lost its GTK would run zero tests and report success — the
+ * green-that-checked-nothing shape, arriving through the very gate meant to widen
+ * coverage. Measured once already: gated on `'Gjs'` alone, this suite built for the
+ * node target exited 0 having run 0 tests from 0 gates, 9 stood down.
+ *
+ * Named identities instead mean the suite RUNS wherever it was built, and a missing
+ * GTK dies loudly at `Gtk.init()` in the first line of each suite. Louder beats
+ * more expressive when the quiet failure is a pass.
+ */
+export const GTK_HOSTS: Runtime[] = ['Gjs', 'Node.js', 'Bun', 'Deno'];

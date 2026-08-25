@@ -31,7 +31,7 @@ import { createElement, useState, type ReactNode } from 'react';
 
 import { gtkChildTypes, gtkChildren, installDiagnosticsGate } from '../conformance/index.js';
 import { runAdapterVectors, type VectorHarness, type VectorNode } from '../conformance/vectors.mjs';
-import { gated } from '../testing/gate.mjs';
+import { GTK_HOSTS, gated } from '../testing/gate.mjs';
 import { registerBuiltinWidgets } from '../descriptors/index.js';
 import { firstChild } from '../host.js';
 import type { HostElement, HostNode, HostText } from '../types.js';
@@ -238,7 +238,7 @@ function readHostConfigMembers(): string[] {
 }
 
 export default async () => {
-    await on('Gjs', async () => {
+    await on(GTK_HOSTS, async () => {
         Gtk.init();
         registerBuiltinWidgets();
         const diagnostics = installDiagnosticsGate();

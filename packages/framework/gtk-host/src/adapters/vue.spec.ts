@@ -25,7 +25,7 @@ import {
 
 import { gtkChildTypes, gtkChildren, installDiagnosticsGate } from '../conformance/index.js';
 import { runAdapterVectors, type VectorElement, type VectorHarness, type VectorNode } from '../conformance/vectors.mjs';
-import { gated } from '../testing/gate.mjs';
+import { GTK_HOSTS, gated } from '../testing/gate.mjs';
 import { registerBuiltinWidgets } from '../descriptors/index.js';
 import type { GtkHostError } from '../index.js';
 import { mount } from './vue.js';
@@ -66,7 +66,7 @@ const vueVectors: VectorHarness = {
 };
 
 export default async () => {
-    await on('Gjs', async () => {
+    await on(GTK_HOSTS, async () => {
         Gtk.init();
         registerBuiltinWidgets();
         const diagnostics = installDiagnosticsGate();

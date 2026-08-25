@@ -8,7 +8,7 @@ import Gtk from 'gi://Gtk?version=4.0';
 import type Adw from 'gi://Adw?version=1';
 
 import { installDiagnosticsGate } from './conformance/index.js';
-import { gated } from './testing/gate.mjs';
+import { GTK_HOSTS, gated } from './testing/gate.mjs';
 import { GtkHostError } from './errors.js';
 import { createElement, materialize, setProp } from './host.js';
 import { constructOnlyNames, paramSpecs, removedValue, toPropertyName } from './props.js';
@@ -16,7 +16,7 @@ import { registerBuiltinWidgets } from './descriptors/index.js';
 import { hasWidget } from './registry.js';
 
 export default async () => {
-    await on('Gjs', async () => {
+    await on(GTK_HOSTS, async () => {
         Gtk.init();
         registerBuiltinWidgets();
 

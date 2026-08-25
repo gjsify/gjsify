@@ -28,7 +28,7 @@ import {
     setProp,
 } from './host.js';
 import { reorderMode } from './policies.js';
-import { gated } from './testing/gate.mjs';
+import { GTK_HOSTS, gated } from './testing/gate.mjs';
 import { lookupWidget } from './registry.js';
 import type { HostElement } from './types.js';
 
@@ -44,7 +44,7 @@ function labels(n: number): HostElement[] {
 }
 
 export default async () => {
-    await on('Gjs', async () => {
+    await on(GTK_HOSTS, async () => {
         Gtk.init();
         registerBuiltinWidgets();
 

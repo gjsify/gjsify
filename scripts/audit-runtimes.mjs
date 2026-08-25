@@ -1150,6 +1150,33 @@ function diffDeclared(rows) {
             !r.signals.imports_legacy &&
             !r.signals.dynamic_gi;
         const portableContractSlot = (s) => s === 'node' || s === 'browser' || s === 'nativescript';
+        // A SECOND, much narrower tolerance, and only for the `node` slot: a package
+        // whose sole GJS binding is a STATIC `gi://` import genuinely reaches Node,
+        // because on `--app node` that specifier is claimed and routed to
+        // `@gjsify/node-gi` (axis 5). So `none` and `polyfill` are both honest
+        // readings and neither is drift — the same argument the pure-TS tolerance
+        // above makes, applied one signal further out.
+        //
+        // Every bound deliberately: only where the heuristic itself suggested `none`
+        // (elsewhere it has a real opinion this must not silence); only `node` (on
+        // `browser` and `nativescript` a `gi://` import is substituted with `{}`, so
+        // a wrong declaration there fails SILENTLY, which is why those two are the
+        // fatal targets of the reachability pass); and NOT for `imports_legacy`,
+        // `gjs_imports_guard` or `dynamic_gi` — the legacy object is an anti-pattern
+        // this repo bans outright rather than accommodates, and a dynamic `gi://`
+        // specifier is not statically rewritable, so the bridge cannot promise it.
+        //
+        // `@gjsify/gtk-host` is the case this was written for (ADR 0027's amended
+        // quadruplet, ADR 0030 § Decision 6): its host, props, policies, registry and
+        // types modules import nothing but `gi://`, and a showcase built for the node
+        // target already runs.
+        const giUrlReachesNodeBridge =
+            r.suggested.node === 'none' &&
+            r.signals.gi_url &&
+            !r.signals.gjs_imports_guard &&
+            !r.signals.girs_value &&
+            !r.signals.imports_legacy &&
+            !r.signals.dynamic_gi;
         const mismatches = slots.filter((s) => {
             // The 4th slot is OPTIONAL: packages that declared their triplet before NS was
             // an axis are backfilled opportunistically, so an undeclared `nativescript`
@@ -1164,6 +1191,9 @@ function diffDeclared(rows) {
             ) {
                 return false;
             }
+            // The gi://-reaches-node-gi tolerance (see above). `none` needs no clause:
+            // it already equals the suggestion, so it never reaches this filter.
+            if (giUrlReachesNodeBridge && s === 'node' && r.declared[s] === 'polyfill') return false;
             return r.declared[s] !== r.suggested[s];
         });
         if (mismatches.length > 0) {

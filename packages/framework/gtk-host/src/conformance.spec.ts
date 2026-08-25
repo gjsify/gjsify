@@ -5,13 +5,13 @@ import { expect, it, on } from '@gjsify/unit';
 import Gtk from 'gi://Gtk?version=4.0';
 
 import { descriptorProblems, describeLogRecord, installDiagnosticsGate, methodsOf } from './conformance/index.js';
-import { gated } from './testing/gate.mjs';
+import { GTK_HOSTS, gated } from './testing/gate.mjs';
 import { lookupWidget, registeredTags } from './registry.js';
 import type { WidgetDescriptor } from './types.js';
 import { BUILTIN_DESCRIPTORS, registerBuiltinWidgets } from './descriptors/index.js';
 
 export default async () => {
-    await on('Gjs', async () => {
+    await on(GTK_HOSTS, async () => {
         Gtk.init();
         registerBuiltinWidgets();
 
