@@ -101,33 +101,37 @@ Whoever picks it up: the A/B is renaming the suffix to `.gjsify-vue.js` and watc
 the new case go red. Related: the same `order: 'pre'` collision in the SOLID plugin
 was a real defect, fixed in #1296 by splitting `GjsifyConfig.prePlugins`.
 
-### `adwaita-web` adopts `[slot=]` children once, which blocks the shared-vocabulary goal
+### The one-vocabulary goal has no alignment check yet
 
 ADR 0027 § 9 makes one widget vocabulary across native GTK, Blueprint/XML, TSX/JSX,
-Vue templates and this pillar's `adw-*` elements an explicit goal, and names the
-obstacle that lives here: **42 of 51 element files under
-`packages/web/adwaita-web/src/elements/` re-home their `[slot=]` children exactly
-once, in `connectedCallback`.** Only two adopt children appended later. A renderer
-mutates its tree after mount by definition — that is what a renderer is — so the
-same authored markup cannot drive both surfaces while that holds.
+Vue templates and the web pillar's `adw-*` elements an explicit goal. **Its named
+obstacle is gone**: `adwaita-web` adopted `[slot=]` children exactly once, in
+`connectedCallback`, and adoption is now live through `src/slotted-children.ts`. A
+renderer mutates its tree after mount by definition, so that was an upstream fix and
+it landed upstream.
 
-Two pieces of work, in order:
+What is still missing is the mechanism, and it is cheap once the generator
+(ADR 0028 § 6) exists: assert that the emitted surfaces — `JSX.IntrinsicElements`,
+the Vue `GlobalComponents` interface, and the React intrinsics — name the same
+widgets, and that every `adw-*` custom element maps to exactly one of them or is
+listed as deliberately web-only. A name may then only diverge on purpose.
 
-- **The fix is upstream, in this pillar, not in a renderer.** Slot adoption has to be
-  live: observe childList (or re-home on each connected child), so a child appended
-  after mount lands in the same place it would have at parse time. That is also
-  simply correct for hand-written HTML that appends.
-- **Then the alignment mechanism**, which is cheap once the generator (ADR 0028 § 6)
-  exists: assert that the three emitted surfaces — `JSX.IntrinsicElements`, the Vue
-  `GlobalComponents` interface, and the Blueprint/XML tag validator — name the same
-  widgets, and that every `adw-*` custom element maps to exactly one of them or is
-  listed as deliberately web-only. A name may then only diverge on purpose.
+The criterion that closes the GOAL out is in ADR 0027 § 9 and is unchanged: the same
+authored tree, rendered through the GTK host and through `adwaita-web`, satisfies the
+same `@gjsify/adwaita-core/conformance` vectors with no per-surface markup branch.
+Until that is measured the goal stays a direction, not a claim — and the longer
+horizon it points at (NativeScript and browser builds from one native-authored
+source) needs its own ADR.
 
-The criterion that closes this out is in ADR 0027 § 9: the same authored tree,
-rendered through the GTK host and through `adwaita-web`, satisfies the same
-`@gjsify/adwaita-core/conformance` vectors with no per-surface markup branch. Until
-then the goal is a direction, not a claim — and the longer horizon it points at
-(NativeScript and browser builds from one native-authored source) needs its own ADR.
+Two things the slot work left for whoever picks this up. **Ten of the 23 re-homing
+elements are deliberately not converted**: eight consume typed children into a state
+model (pages, sections, selection, roving focus) where going live changes semantics
+and wants its own vectors, `adw-checks` routes conditionally on its `label`
+attribute, and `adw-bottom-sheet` unwraps its wrappers rather than moving children.
+And `bindEmptySections` derives SYNCHRONOUSLY, so it must run AFTER the router's
+`install` — routing first hides a section a declared child had already earned, and it
+only un-hides a microtask later, after `_syncClasses` has measured a bar at
+`offsetHeight` 0. That cost 8 real failures once; the three call sites now say so.
 
 ### An adopted composite offsets by its own internals
 

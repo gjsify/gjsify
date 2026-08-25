@@ -146,11 +146,20 @@ behind it is exactly the defect ADR 0030 § Decision 6 names.
    **What this is not yet: a promise that one component tree renders natively and in
    a browser.** ADR 0007 bought portability at the CONTROLLER layer because that was
    what the surfaces allowed at the time — before any framework renderer existed. The
-   measured obstacle at the markup layer is in the web pillar: 42 of 51
-   `adwaita-web` element files re-home `[slot=]` children exactly once, in
-   `connectedCallback`, so a child appended afterwards is never adopted. A renderer
-   mutates its tree after mount by definition, so that is an upstream fix, not a
-   renderer workaround.
+   measured obstacle at the markup layer was in the web pillar, and it is now FIXED:
+   an `adwaita-web` element re-homed its `[slot=]` children exactly once, in
+   `connectedCallback`, so a child appended afterwards was never adopted. A renderer
+   mutates its tree after mount by definition, so that was an upstream fix rather
+   than a renderer workaround, and it landed there — `src/slotted-children.ts` is the
+   single owner, and adoption is live.
+
+   **The numbers this paragraph used to carry were wrong on both sides, and the
+   correction is worth keeping.** It said "42 of 51 element files … only two adopt
+   late". Re-measured: the directory holds 55 files, 50 of which define elements, so
+   51 matched nothing; 42 was the count of files calling `replaceChildren`, which
+   means "installs its own subtree" rather than "has a slot"; and of the 23 that
+   really re-homed authored children, exactly ONE adopted a late child. A live count
+   inside prose, drifting exactly as the agent-context rules warn.
 
    The criterion that would turn this goal into a decision: **the same authored tree,
    rendered through this host and through `adwaita-web`, satisfies the same
