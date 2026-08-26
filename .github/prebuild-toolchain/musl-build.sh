@@ -362,12 +362,14 @@ done < "$BRIDGES"
 # `musl-committed-check.sh`, which carries the reasoning, the accepted-gap ledger
 # and the incident behind them.
 #
-# It left this file because this leg cannot be the only caller. This job is
-# `workflow_dispatch`-only and `continue-on-error: true` — both correct for a
-# canary that builds undeclared targets, both fatal for a check that must be able
-# to fail a PR. It runs in two more places now (a `check-committed-musl` job, and
-# a step inside `commit-prebuilds` before the binaries are committed), and one
-# body is what keeps the self-retiring ledger from drifting between them.
+# It left this file because this leg cannot be the only caller. It WAS
+# `workflow_dispatch`-only and `continue-on-error: true` back then, so nothing it
+# asserted could colour a PR — both of those are gone now, but the split stands on
+# what made it worth doing: the committed-artifact question needs no build, so it
+# also runs where a build leg has no business being. Two more places today (a
+# `check-committed-musl` job, and a step inside `commit-prebuilds` before the
+# binaries are committed), and one body is what keeps the self-retiring ledger
+# from drifting between them.
 #
 # `TARGET` is this leg's token without the libc suffix: the committed directory
 # holding the glibc artifacts users actually get. Called under `if`, not bare —
