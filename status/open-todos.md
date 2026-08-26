@@ -839,7 +839,38 @@ second row (a name-based deny-list is ugly; a `gjsify.nodeOnly` manifest flag is
 honest) or whether "fails further in" is acceptable. Nobody has hit it yet
 because every host that runs those has Node.
 
-### `systemGiLibraryDirs()` lives in two places, pinned by a test rather than shared
+### 53 scalar GIR properties no `adw-*` element observes yet
+
+`<adw-alert-dialog>` shipped observing FOUR attributes while `Adw.AlertDialog` carries
+eight own properties, and the website's widget table — which reads `observedAttributes` —
+truthfully rendered "takes 4 attributes". The DOC was right and the ELEMENT was short.
+Nothing compared the two, which is why the gap survived: `check-vocabulary-alignment.mjs`
+settles which element NAMES which widget and stops there.
+
+`scripts/check-adwaita-element-properties.mjs` closes the mechanism half. It is pinned red
+against that original defect (reverting the four attributes reproduces exactly four
+findings) and excludes the two classes that would have drowned it — measured, not assumed:
+**224 signal props** (`on-clicked`, `on-notify-*`; a custom element dispatches events, and
+an `on-*` attribute is the inline-handler shape nobody wants) and **52 widget-valued
+props** (`child`, `content`, `extra-child`, `title-widget` — slots on this renderer, since
+an attribute cannot carry a widget). That leaves the scalar surface, the only half whose
+absence carries information.
+
+**What remains: 53 scalar properties across 20 elements**, listed in the check's
+`KNOWN_GAPS`. They are listed rather than individually justified, deliberately — inventing
+53 rationales would be worse than naming none, because a rule without its real reason gets
+"simplified" back into the bug. What the list buys today is the RATCHET: a new gap fails,
+and closing one fails too until it leaves the list, so the number can only go down.
+
+The worst three are `adw-about-dialog` (10 — the credit-list and release-notes surface),
+`adw-wrap-box` (7 — nearly its whole layout surface; it observes NO attributes at all) and
+`adw-header-bar` (5 — `show-title`, `show-back-button` and the two title-button toggles).
+Those three are 22 of the 53 and are the obvious first pass. Each needs its own decision:
+some of these are genuinely missing attributes, and some are properties a web element is
+right to expose another way (`artists`/`developers` are string LISTS, which an attribute
+carries badly). The check does not pretend to know which; it makes the question visible.
+
+### `systemGiLibraryDirs()` lives in three places, pinned by a test rather than shared
 
 The darwin bare-leaf `dlopen` gap is one rule with THREE consumers now:
 `@gjsify/node-gi` re-execs itself with the host's GI libdirs on

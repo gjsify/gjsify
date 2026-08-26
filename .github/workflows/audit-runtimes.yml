@@ -346,6 +346,17 @@ jobs:
       - name: Check the widget vocabulary is aligned across surfaces (self-testing)
         run: node scripts/check-vocabulary-alignment.mjs
 
+      # The step above settles which `adw-*` element names which widget. This one asks
+      # whether the element carries that widget's SCALAR GIR properties — the half that
+      # was missing when `<adw-alert-dialog>` shipped observing 4 of Adw.AlertDialog's 8
+      # own properties and the website's generated table truthfully said "takes 4
+      # attributes": the doc was right and the element was short, and nothing compared
+      # them. Signal props and widget-valued (slot) props are excluded with the count, so
+      # the rule cannot drown its findings in false ones. Self-tests first, and it is
+      # pinned red against that original defect.
+      - name: Check adw-* elements hold their widget's GIR properties (self-testing)
+        run: node scripts/check-adwaita-element-properties.mjs
+
       # `$adw-components` in adwaita-web's `_reset.scss` is a hand-written copy of every
       # `customElements.define('adw-…')` call, and it is what applies the ADR 0010
       # style-isolation floor. A tag missing from it renders in the host page's font and
