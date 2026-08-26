@@ -230,13 +230,49 @@ export function setProp(el: HostElement, key: string, next: unknown, _prev?: unk
 
     beginHostWrite();
     try {
-        (el.widget as unknown as GObject.Object & { set_property(n: string, v: unknown): void }).set_property(
-            name,
-            value,
-        );
+        writeProperty(el.widget, name, value);
     } finally {
         endHostWrite();
     }
+}
+
+/**
+ * `css-classes` on a widget that already exists, and why it cannot be `set_property`.
+ *
+ * MEASURED on gjs 1.88.1, `Gtk.Box`, all four spellings:
+ *
+ *   set_property('css-classes', ['a','b'])   THROWS "Could not guess unspecified GValue type"
+ *   widget.cssClasses = ['a','b']            works
+ *   widget.set_css_classes(['a','b'])        works
+ *   new Gtk.Box({ cssClasses: ['a','b'] })   works
+ *
+ * `set_property` builds its GValue by GUESSING a GType from the JS value, and a JS
+ * array names none — `GStrv` is boxed, and so is every other list-valued property
+ * (`Gtk.Widget:css-classes`, `Gtk.CssProvider`, `Gtk.StringList`). The JS ACCESSOR
+ * has the ParamSpec and does not have to guess.
+ *
+ * WHY NOTHING CAUGHT THIS UNTIL A NON-REACT ADAPTER EXISTED, which is the part worth
+ * keeping: the first write of any property happens before the node is materialised,
+ * so it is buffered into `el.props` and replayed by CONSTRUCTION — the one path that
+ * works. Only a write to an ALREADY MOUNTED widget reaches `set_property`, and
+ * changing a class list after mount is exactly what a reconciler does on a
+ * `className` change and what a signal does under Solid. Every widget spec in this
+ * repository rendered once and asserted, so the throw sat behind the first update
+ * nobody performed.
+ *
+ * Restricted to arrays on purpose. `set_property` is the path that refuses what
+ * GObject would silently mis-store (`coerce`'s enum branch exists because
+ * `box.orientation = 'vertical'` keeps HORIZONTAL with no diagnostic at all), so it
+ * stays the default for every scalar; the accessor is used only where GJS cannot
+ * form the GValue, and by then `coerce` has already normalised the value.
+ */
+function writeProperty(widget: GObject.Object, name: string, value: unknown): void {
+    if (!Array.isArray(value)) {
+        (widget as unknown as { set_property(n: string, v: unknown): void }).set_property(name, value);
+        return;
+    }
+    const accessor = name.replace(/-([a-z0-9])/g, (_, character: string) => character.toUpperCase());
+    (widget as unknown as Record<string, unknown>)[accessor] = value;
 }
 
 export function setEventHandler(el: HostElement, prop: string, next: ((...args: unknown[]) => unknown) | null): void {

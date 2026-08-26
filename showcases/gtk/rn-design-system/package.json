@@ -1,0 +1,56 @@
+{
+    "name": "@gjsify/example-gtk-rn-design-system",
+    "version": "0.43.0",
+    "description": "An ordinary design-system layer — badge, button, card, chip, rule, rail, screen, section header, thumbnail, typography — rendered through @gjsify/react-native onto GTK4, with an in-process probe that asserts the widgets, the css-classes and zero GTK diagnostics",
+    "type": "module",
+    "private": true,
+    "main": "dist/app.gjs.mjs",
+    "files": [
+        "dist",
+        "src"
+    ],
+    "scripts": {
+        "clear": "gjsify clear dist tsconfig.tsbuildinfo",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjs",
+        "build:gjs": "gjsify build src/app.tsx --app gjs --outfile dist/app.gjs.mjs --define 'process.env.NODE_ENV=\"production\"' --exclude-globals navigator",
+        "start:gjs": "gjs -m dist/app.gjs.mjs",
+        "probe": "gjsify run build:gjs && GJSIFY_HOST_PROBE=1 gjs -m dist/app.gjs.mjs"
+    },
+    "gjsify": {
+        "main": "dist/app.gjs.mjs",
+        "tier": 3,
+        "example": {
+            "runtimes": [
+                "gjs"
+            ]
+        }
+    },
+    "devDependencies": {
+        "@girs/adw-1": "^4.1.0",
+        "@girs/gjs": "^4.1.0",
+        "@girs/glib-2.0": "^4.1.0",
+        "@girs/gobject-2.0": "^4.1.0",
+        "@girs/gtk-4.0": "^4.1.0",
+        "@girs/pango-1.0": "^4.1.0",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/gtk-host": "workspace:^",
+        "@gjsify/react-native": "workspace:^",
+        "@types/node": "^25.9.2",
+        "@types/react": "^19.2.2",
+        "react": "^19.2.0",
+        "react-reconciler": "^0.33.0",
+        "typescript": "^6.0.3"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "showcases/gtk/rn-design-system"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/gtk/rn-design-system#readme"
+}

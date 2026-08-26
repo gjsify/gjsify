@@ -147,7 +147,15 @@ function useSignals(
             };
         }
         return out;
-    }, [signature, events]);
+        // `signature` ALONE, deliberately. `events` is freshly allocated by every
+        // `resolvePrimitive` call, so including it invalidated the memo on every
+        // render and the host reconnected every signal on every commit — the exact
+        // opposite of what this function exists for. Dropping it is safe because the
+        // closures read only `event.prop`/`event.signal`/`event.read`, all three of
+        // which `signature` encodes; a stale array with an equal signature is
+        // behaviourally identical, and the CALLBACKS come from `latest.current`.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [signature]);
     return { props: bound, widgetRef };
 }
 
@@ -195,6 +203,39 @@ function usePlan(primitive: string, authored: object): Rendered {
         ...(parent === null ? {} : { parent }),
         children: childFacts(children, config.tokens),
     });
+
+    // THE ONE SILENT DROP THIS LAYER HAD, AND WHY IT IS NOW LOUD.
+    //
+    // `resolveIntent` answers what it can and hands back the rest as
+    // `plan.intent` — `expand` and `alignSelf` when no parent context exists,
+    // `overlay` when the parent never became one. Nothing read it, so at the ROOT of
+    // a tree `flex-1`, `self-*` and `absolute` did exactly nothing, with no message
+    // anywhere. That is the failure mode the whole partition is built against, sitting
+    // in the layer that argues for it.
+    //
+    // A root element genuinely cannot answer these — `flex-1` means "grow along my
+    // parent's main axis" and there is no parent — so the honest answer is a refusal
+    // naming the utility and the position, not a no-op.
+    //
+    // THE OBVIOUS FIX WAS TRIED AND WITHDRAWN, so nobody spends the afternoon again.
+    // Defining a root context as a column (React Native's root view IS one, so it
+    // reads as a definition rather than a guess) makes `flex-1` at the root resolve —
+    // and the parity vector immediately caught the two bindings DISAGREEING: React
+    // wrote `vexpand` onto the adopted container widget and Solid did not, for the
+    // same authored tree. A feature whose two frameworks differ is worse than a
+    // refusal, so this stays a refusal until that difference is understood. The
+    // workaround is the container's own expand, which the application owns anyway.
+    const unresolved = Object.keys(plan.intent);
+    if (unresolved.length > 0) {
+        throw new PrimitiveError(
+            primitive,
+            unresolved.join(', '),
+            'carries layout that cannot be resolved at this position. These need a parent to resolve against — ' +
+                '`flex-1` and `self-*` need the parent orientation, `absolute` needs the parent to be an overlay — ' +
+                'and this element is the root of its tree, or its parent is not a box. Wrap it in a <View>, or move ' +
+                'the utility to a child.',
+        );
+    }
 
     const signals = useSignals(plan.events, props);
     const userRef = (props as { ref?: Ref<unknown> }).ref;

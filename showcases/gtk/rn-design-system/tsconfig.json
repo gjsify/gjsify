@@ -1,0 +1,28 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "target": "ESNext",
+        "outDir": "dist",
+        "rootDir": "src",
+        "strict": true,
+        "skipLibCheck": true,
+        "types": [],
+        "lib": ["ESNext", "DOM", "DOM.Iterable"],
+        // The automatic runtime, pointed at gtk-host rather than at `react` — the
+        // same recipe `react-host-counter` documents, and it earns its place here for
+        // a second reason. This showcase writes NO intrinsic element at all: every
+        // widget is chosen by `@gjsify/react-native`'s L2 table. With
+        // `jsxImportSource: "react"` the element list would come from `@types/react`
+        // and all 208 HTML/SVG/MathML tags would type-check clean on a GTK renderer
+        // and render nothing — so an accidental `<div>` would be a silent blank
+        // rather than a type error. The factories are React's own either way: the
+        // subpath re-exports `jsx`/`jsxs`/`Fragment` verbatim.
+        //
+        // `strict` supplies `noImplicitAny`, without which every JSX element is
+        // implicitly `any` and `tsc` exits 0 having checked nothing at all.
+        "jsx": "react-jsx",
+        "jsxImportSource": "@gjsify/gtk-host/react"
+    },
+    "include": ["src/**/*"]
+}

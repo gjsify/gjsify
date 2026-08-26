@@ -304,5 +304,20 @@ export function partitionPaint(props: PaintProps): readonly string[] {
         }
         css.push(`${name}: ${value}`);
     }
+
+    // A WIDTH WITHOUT A STYLE PAINTS NOTHING, and it occupies nothing either. CSS's
+    // initial `border-style` is `none`, and `none` zeroes the width — measured on
+    // GTK 4.22.4, `border-width: 4px` alone leaves a box at 9x18 px where adding
+    // `border-style: solid` gives 17x26. So a `border` utility that emitted only a
+    // width would be a class that does absolutely nothing, silently, which is the
+    // failure this whole partition exists against.
+    //
+    // Tailwind solves it in its preflight, globally. There is no preflight here — a
+    // generated class must be self-sufficient — so the style travels with the width,
+    // and only when the author has not chosen one.
+    const setsWidth = css.some((declaration) => /^border(-(top|right|bottom|left))?-width:/.test(declaration));
+    const setsStyle = css.some((declaration) => /^border(-(top|right|bottom|left))?-style:/.test(declaration));
+    if (setsWidth && !setsStyle) css.push('border-style: solid');
+
     return css;
 }

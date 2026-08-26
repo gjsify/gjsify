@@ -12,9 +12,10 @@ Architecture and the decisions behind it: [ADR 0032](../../../docs/adr/0032-reac
 
 > **Status: the P1 surface.** All three layers the ADR describes exist — the style
 > partition (`@gjsify/gtk-host/style`), the framework-agnostic primitive descriptors
-> (`./primitives`), and the React components. Seven primitives and four APIs are
-> implemented, each with its limits written out below. Everything else is a loud
-> refusal. Read the table before pointing an application at this.
+> (`./primitives`), and the framework components, in **two** bindings: React at the
+> package root and Solid at `@gjsify/react-native/solid`. Seven primitives and four
+> APIs are implemented, each with its limits written out below. Everything else is a
+> loud refusal. Read the table before pointing an application at this.
 
 ## The support table is the contract
 
@@ -51,12 +52,41 @@ the table rather than only here.
 |---|---|---|
 | L1 — the style partition | `@gjsify/gtk-host/style` | GTK property names, GTK CSS, ParamSpec coercion. No framework, no React Native. |
 | L2 — the primitive descriptors | `./primitives` (`primitives.resolvePrimitive`) | which widget a primitive becomes, and where each prop goes. **No React.** |
-| L3 — the components | the package root | `createElement`, hooks, the parent context. Two lines each. |
+| L3 — the components | the package root (React), `./solid` (Solid) | `createElement` / signals, the parent-context carrier. Two lines each. |
 
-L2 is exported (`import { primitives } from '@gjsify/react-native'`) so a Vue or
-Solid binding can render the same vocabulary without going through the React
-components — which is what keeps "L2 is below the framework" checkable from outside
-rather than a sentence in an ADR.
+L2 is exported (`import { primitives } from '@gjsify/react-native'`) so any binding
+can render the same vocabulary without going through the React components.
+
+### The split is measured, not asserted
+
+`@gjsify/react-native/solid` exports the same seven primitives as SolidJS components
+over the **same** L2, and `src/solid/solid.spec.ts` renders one authored tree — held
+in neither framework's spelling — through React's reconciler and through Solid's
+non-reconciler, then asserts the two GTK widget trees are identical: widget types,
+`css-classes` including the generated class name, and every probed property, at every
+depth. Solid was chosen because it has no VDOM and no reconciler, so "L1 and L2
+secretly depend on React" cannot survive it.
+
+```ts
+import { mount, View, Text } from '@gjsify/react-native/solid';
+
+const dispose = mount(() => <View className="p-2"><Text>hello</Text></View>, window);
+```
+
+`solid-js` is an OPTIONAL peer: nothing in the React path imports it, and nothing in
+the Solid path imports React.
+
+Two things the Solid binding does differently, both consequences of a framework that
+builds a tree bottom-up and never re-renders a subtree, and neither of them a change
+to L2:
+
+- **children must arrive lazily** — `get children() { … }`, which is what every Solid
+  JSX compiler emits. An eagerly built child resolves outside its parent's context
+  and would silently lose `flex-1` and any inherited alignment, so it is a named
+  refusal.
+- **a reactive update may not change the WIDGET.** `multiline` swapping `Gtk.Entry`
+  for `Gtk.TextView` is fine on first render and refused as an update: a Solid
+  element is created once, and there is no commit that could replace it.
 
 ## The token scales come from the project
 

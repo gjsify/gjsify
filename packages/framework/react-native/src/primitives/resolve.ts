@@ -1,8 +1,10 @@
 // One primitive plus its props → the widget, its properties and its class name.
 //
 // This is L2's whole public surface, and it is a PLAIN FUNCTION over plain records
-// on purpose (ADR 0032 § 1: L2 sits below the framework, and the Solid proof of
-// that is a later milestone which depends on it being true today). Nothing here
+// on purpose (ADR 0032 § 1: L2 sits below the framework). `../solid/index.ts` is
+// what measures that rather than asserting it — the same function, under a
+// framework with no VDOM and no reconciler, and the only thing it had to change
+// here is the prop loop below. Nothing here
 // imports React, nothing imports `gi://`, and the only GTK knowledge it holds comes
 // from `@gjsify/gtk-host/style` — which is where ADR 0027 rule 1 says widget
 // knowledge lives.
@@ -175,12 +177,25 @@ export function resolvePrimitive(primitive: string, props: PrimitiveProps, conte
         [content?.styleProp, content?.classNameProp].filter((name): name is string => typeof name === 'string'),
     );
 
-    for (const [prop, value] of Object.entries(props)) {
+    // KEYS FIRST, AND THE SKIP LIST BEFORE THE VALUE IS READ. `Object.entries` would
+    // read every prop, and reading a prop is only free in React: Solid's props object
+    // is a record of GETTERS, and the getter behind `children` CREATES the child
+    // components when it is touched. So the entries form built this element's whole
+    // subtree — outside the parent-context provider, and again on every re-resolution
+    // — for props this loop then skipped by name. `FRAMEWORK_PROPS` already said which
+    // props L2 does not answer for; this only stops it finding out too late.
+    //
+    // Nothing changes for React (a plain value read twice costs nothing), which is
+    // what makes it the right place to fix rather than a per-adapter shim: the
+    // assumption "reading a prop has no side effect" is framework knowledge, and this
+    // file is the layer that is not allowed to hold any.
+    for (const prop of Object.keys(props)) {
+        if (FRAMEWORK_PROPS.has(prop) || contentStyleProps.has(prop)) continue;
+        const value = props[prop];
         // `undefined` is React's absent prop, not an authored one — every optional
         // prop in a spread is `undefined`, and refusing those would refuse every
         // `{...rest}` in the ecosystem.
         if (value === undefined) continue;
-        if (FRAMEWORK_PROPS.has(prop) || contentStyleProps.has(prop)) continue;
         const route = spec.props[prop];
         if (route === undefined) {
             throw new PrimitiveError(
