@@ -2224,7 +2224,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # For the cross-workflow coverage query below.
+      # For the coverage-history query below — run and job records of past runs.
       actions: read
     timeout-minutes: 10
     steps:
@@ -2294,88 +2294,55 @@ jobs:
             echo
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # Cross-workflow coverage: which of this repo's workflows produced NO run
-      # for this commit — and, the half that was missing, what the last thing
-      # they DID say on `main` was. Derived from GitHub's own trigger evaluation,
-      # so a new main-only workflow shows up here the day it is added — no list
-      # to keep.
+      # Coverage HISTORY, at the two granularities that hide the same thing: a
+      # workflow that produced no run for this commit, and a job INSIDE a run that
+      # resolved to `skipped`. Both are indistinguishable from a green one in the
+      # checks UI, and the second one is the half this job could not see.
       #
-      # A row is not automatically a bug: `release.yml` is post-merge by
-      # definition. What made the list unreadable is that a workflow which is
-      # merely quiet and one that is RED looked identical in it. Measured
-      # (#1173): `node-gi.yml` sat in this table from 2026-08-13 while `main` was
-      # red on it, and nothing in the row said so. The conclusion column is what
-      # makes a row actionable; the annotation is what carries it out of a step
-      # summary nobody opens.
-      - name: Report workflows with no run for this commit
+      # It is what the second half cost that put it here. `node-gi.yml`'s `scope` job
+      # gates the OS legs on `packages/node-gi/**`, so on a consumer-only change the
+      # Windows legs resolve to `skipped` — and a file-level `node:test` failure on
+      # one of them was chased against a `main` whose green tick said nothing about
+      # it, the last run that actually EXECUTED it being two PRs earlier.
+      #
+      # A row is not automatically a bug: `release.yml` is post-merge by definition
+      # and `node-gi.yml` skips fourteen legs on purpose. What made the old table
+      # unreadable is that a gate which is merely quiet and one that is RED looked
+      # identical in it. Measured (#1173): `node-gi.yml` sat in it from 2026-08-13
+      # while `main` was red on it, and nothing in the row said so. The conclusion
+      # column is what makes a row actionable; the annotation is what carries it out
+      # of a step summary nobody opens.
+      #
+      # A SCRIPT rather than inline bash, so the derivation has tests. The failure
+      # mode of a reporter is an EMPTY report, which a broken detector and a healthy
+      # repository produce alike — `tests/e2e/ci-gate-history` therefore drives it
+      # with the incident as a fixture and with the same shape green, and asserts
+      # this wiring from the other side.
+      - name: Check out the reporter
+        uses: actions/checkout@v6
+
+      - name: Report gates that did not run at this commit
         shell: bash
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          # For `pull_request` the run's head_sha may be recorded as either the
-          # merge commit or the PR head, depending on the triggering event, so
-          # both are queried and the results unioned.
+          # For `pull_request` the run's head_sha may be recorded as either the merge
+          # commit or the PR head depending on the triggering event, so both are
+          # queried and the results unioned.
           SHA_A: ${{ github.sha }}
           SHA_B: ${{ github.event.pull_request.head.sha }}
-          # Annotate only where a red `main` is the reader's problem. The row
-          # still prints on a PR; warning there would tag every open PR with
-          # someone else's breakage, which is exactly how #906 taught people to
-          # read a red check as noise.
-          ANNOTATE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+          # Annotate only where a red `main` is the reader's problem. The rows still
+          # print on a PR; warning there would tag every open PR with someone else's
+          # breakage, which is how #906 taught people to read a red check as noise.
+          ANNOTATE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && '--annotate' || '' }}
+        # Markdown lands in $GITHUB_STEP_SUMMARY, which the script reads from the
+        # environment; annotations go to stdout, where GitHub reads workflow commands.
         run: |
           set -uo pipefail
-          all=$(mktemp); ran=$(mktemp); tbl=$(mktemp)
-          if ! gh api "repos/$REPO/actions/workflows" --paginate \
-                 --jq '.workflows[] | select(.state == "active") | [.path, .name] | @tsv' \
-                 | sort -u > "$all"; then
-            echo "> Could not list workflows (\`actions: read\` unavailable?) — cross-workflow coverage not reported." \
-              >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          : > "$ran"
-          for sha in "$SHA_A" "$SHA_B"; do
-            [ -n "$sha" ] || continue
-            gh api "repos/$REPO/actions/runs?head_sha=$sha&per_page=100" \
-              --jq '.workflow_runs[].path' >> "$ran" 2>/dev/null || true
-          done
-          sort -u -o "$ran" "$ran"
-
-          # Annotations go to STDOUT and the table to a file, because the two
-          # cannot share a redirect: a `::warning::` written into the summary is
-          # markdown, not an annotation.
-          : > "$tbl"
-          while IFS=$'\t' read -r wpath wname; do
-            [ -n "$wpath" ] || continue
-            last=$(gh api "repos/$REPO/actions/workflows/${wpath##*/}/runs?branch=main&per_page=1&status=completed" \
-                     --jq '.workflow_runs[0] | [.conclusion, .updated_at, .html_url] | @tsv' 2>/dev/null) || last=''
-            case "$last" in
-              ''|$'\t'*|null*)
-                printf '| %s | `%s` | never completed on `main` |\n' "$wname" "$wpath" >> "$tbl"
-                ;;
-              *)
-                concl=${last%%$'\t'*}; rest=${last#*$'\t'}
-                when=${rest%%$'\t'*}; url=${rest#*$'\t'}
-                printf '| %s | `%s` | [%s](%s) · %s |\n' "$wname" "$wpath" "$concl" "$url" "${when%%T*}" >> "$tbl"
-                if [ "$concl" != success ] && [ "$ANNOTATE" = true ]; then
-                  printf '::warning title=%s has no run here and last %s on main::%s\n' "$wname" "$concl" "$url"
-                fi
-                ;;
-            esac
-          done < <(awk -F'\t' 'NR==FNR { seen[$0]=1; next } !($1 in seen) { print }' "$ran" "$all")
-
-          {
-            echo "### Workflows with no run for this commit"
-            echo
-            echo "| Workflow | File | Last completed run on \`main\` |"
-            echo "| --- | --- | --- |"
-            cat "$tbl"
-            echo
-            echo "_Derived by comparing the repo's active workflows against the runs GitHub"
-            echo "created for this commit — not a maintained list. A workflow that is quiet"
-            echo "for good reason and one that is red look the same until the last column._"
-            echo
-          } >> "$GITHUB_STEP_SUMMARY"
+          args=(--repo "$GITHUB_REPOSITORY" --sha "$SHA_A")
+          if [ -n "$SHA_B" ]; then args+=(--sha "$SHA_B"); fi
+          if [ -n "$ANNOTATE" ]; then args+=("$ANNOTATE"); fi
+          node scripts/report-gate-history.mjs "${args[@]}"
 
   # The integration suites are gated by the `integration` job above, for the
   # subset measured green in this image. Which suites those are, and the cause
