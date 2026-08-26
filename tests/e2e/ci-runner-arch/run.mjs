@@ -22,7 +22,7 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -720,6 +720,83 @@ jobs:
 `),
             {},
             'a manually-dispatched exploratory job is not a platform CI produces, so declaring its target would promise an artifact no user receives.',
+        );
+    });
+});
+
+// THE LIBC AXIS, AGAINST THE WORKFLOW AS IT ACTUALLY IS.
+//
+// The fixtures above hold the PARSER: they prove that a `libc: musl` entry is
+// dropped and that an entry without one is credited. They say nothing about
+// `.github/workflows/prebuilds.yml`, because every one of them writes its own
+// YAML into a temp dir — so deleting `libc: musl` from the real Alpine leg left
+// all of them green, and the audit green with them (measured: both keys removed,
+// `node --test tests/e2e/ci-runner-arch/run.mjs` 34/34 and
+// `node scripts/audit-runtimes.mjs --check --strict` exit 0). The workflow said
+// in two places that deleting the key is "a defect the `ci-runner-arch` e2e
+// fixtures fail on"; nothing fetched that claim from the file it is about.
+//
+// This block does. It lifts the REAL job out of the REAL workflow and runs the
+// parser over it — so the key is load-bearing in the tree, not only in a string
+// literal. The second test is the control that keeps the first from passing
+// vacuously: it deletes the very lines the first relies on and shows the same
+// job then hands both packages a `linux-<arch>` promise the glibc legs build and
+// this one does not.
+describe('the libc axis — the real prebuilds.yml', () => {
+    // The two packages the Alpine leg actually compiles. Named here rather than
+    // discovered, so a leg that stopped building them fails this block instead
+    // of quietly measuring nothing.
+    const muslPkgs = [
+        { name: '@gjsify/sab-native', path: 'packages/node/sab-native' },
+        { name: '@gjsify/lightningcss-native', path: 'packages/infra/lightningcss-native' },
+    ];
+
+    /** `build-prebuilds-musl`, lifted out of the real workflow as a one-job document. */
+    const realMuslJob = () => {
+        const lines = readFileSync(join(MONOREPO_ROOT, '.github', 'workflows', 'prebuilds.yml'), 'utf8').split('\n');
+        const start = lines.indexOf('  build-prebuilds-musl:');
+        assert.ok(start >= 0, '`build-prebuilds-musl` is gone from prebuilds.yml — this whole block is about it.');
+        // The next job HEADER ends the slice. Anything between the two is that
+        // job's comment banner, which `parseCiPlatforms` strips anyway.
+        let end = start + 1;
+        while (end < lines.length && !/^ {2}[A-Za-z0-9][\w-]*:\s*$/.test(lines[end])) end++;
+        return ['name: prebuilds', 'jobs:', ...lines.slice(start, end)].join('\n');
+    };
+
+    /** The parser's `name → targets` map for ONE workflow document. */
+    const coverage = async (yaml) => {
+        const root = mkdtempSync(join(tmpdir(), 'gjsify-ci-musl-'));
+        try {
+            mkdirSync(join(root, '.github', 'workflows'), { recursive: true });
+            writeFileSync(join(root, '.github', 'workflows', 'prebuilds.yml'), yaml);
+            const map = await parseCiPlatforms(root, muslPkgs, ['prebuilds.yml']);
+            return Object.fromEntries([...map].map(([name, targets]) => [name, [...targets].sort()]));
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    };
+
+    it('credits the Alpine leg in the real workflow with nothing', async () => {
+        assert.deepEqual(
+            await coverage(realMuslJob()),
+            {},
+            'the real `build-prebuilds-musl` must contribute no `<os>-<arch>` promise. If this fails, `libc: musl` has left its matrix entries (or an entry was added without one) and the leg is now credited with targets the glibc legs build — a green audit measuring the wrong job.',
+        );
+    });
+
+    it('credits both bare targets once those `libc:` lines are deleted', async () => {
+        const stripped = realMuslJob()
+            .split('\n')
+            .filter((line) => line.trim() !== 'libc: musl')
+            .join('\n');
+        assert.notEqual(stripped, realMuslJob(), 'nothing was stripped — the real job carries no `libc: musl` line.');
+        assert.deepEqual(
+            await coverage(stripped),
+            {
+                '@gjsify/lightningcss-native': ['linux-arm64', 'linux-x64'],
+                '@gjsify/sab-native': ['linux-arm64', 'linux-x64'],
+            },
+            'the control for the test above: without the key the SAME job promises `linux-x64`/`linux-arm64` for both packages. That is what makes the first assertion a measurement rather than a tautology.',
         );
     });
 });

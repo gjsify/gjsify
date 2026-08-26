@@ -2416,8 +2416,11 @@ jobs:
   # parse error rather than a silent fold. Without that key the parser would
   # credit these packages with `linux-x64`/`linux-arm64` — targets the glibc legs
   # build and this one does not — which is a green audit measuring the wrong job,
-  # and would let the real leg be deleted unnoticed. Deleting the key is
-  # therefore a defect the `ci-runner-arch` e2e fixtures fail on.
+  # and would let the real leg be deleted unnoticed. Deleting the key from THIS
+  # FILE is therefore a defect `ci-runner-arch`'s "the real prebuilds.yml" block
+  # fails on: it lifts this job out of this workflow and runs the parser over it,
+  # because the synthetic fixtures beside it carry their own YAML and stayed green
+  # while both keys were removed here.
   #
   # WHAT WOULD STILL HAVE TO LAND FOR A COMMITTED `-musl` ARTIFACT: this leg
   # uploads and commits nothing, so nothing here promises a musl binary to a
@@ -2670,8 +2673,10 @@ jobs:
           # DEFECT, not a simplification: without it the parser credits these two
           # packages with `linux-x64`/`linux-arm64`, which the glibc legs build and
           # this one does not, so the audit would go green having measured the
-          # wrong job — and the real leg could then be deleted unnoticed. The
-          # `ci-runner-arch` e2e fixtures fail on both halves of that.
+          # wrong job — and the real leg could then be deleted unnoticed.
+          # `ci-runner-arch` fails on both halves of that, and it reads THIS FILE
+          # to do it: its synthetic fixtures hold the parser, its "the real
+          # prebuilds.yml" block holds this job.
           #
           # `machine` is `file(1)`'s spelling of the ELF e_machine this leg must
           # produce. The committed tree's machine-vs-directory invariant is held
