@@ -1,36 +1,61 @@
-name: Cancel PR runs on close
+name: Cancel superseded PR runs
 
 # WHY THIS EXISTS
 #
-# Closing or merging a PR does NOT stop its in-flight runs, and `concurrency`
-# structurally cannot help: its group is per-REF, so a closed PR's run has no
-# successor on that ref to supersede it. It therefore keeps a full `main.yml`
-# matrix (build + check + 4 test shards + 4 e2e shards + …) burning runner
-# capacity for work whose verdict nobody will ever read.
+# A run whose verdict nobody will read still occupies a runner. Two events produce
+# them, and `concurrency` covers NEITHER on its own.
 #
-# MEASURED, 2026-08-02 18:35: four merged PRs — #929 (merged 17:55), #943
-# (18:23), #939 (18:31) — still held five concurrent `GJS` runs, with `main`'s
-# own post-merge run and an open PR's run queued behind them.
+# CLOSING a PR does not stop its in-flight runs, and `concurrency` structurally cannot
+# help: its group is per-REF, so a closed PR's run has no successor on that ref to
+# supersede it. It therefore keeps a full `main.yml` matrix (build + check + 4 test
+# shards + 4 e2e shards + …) burning runner capacity for work nobody will read.
 #
-# The second-order effect is the reason this is a workflow and not a note in a
-# runbook. `main.yml` already sets `cancel-in-progress` for pull_request, but
-# that fires when the SUPERSEDING run STARTS — and starting is exactly what a
-# saturated queue prevents. So a force-push during a backlog leaves the stale
-# run alive, the stale run keeps the queue saturated, and the queue keeps the
-# new run from starting: a deadlock whose only exit is a human cancelling runs
-# by hand. Draining the merged-PR half keeps the queue below the point where
-# that bites.
+# MEASURED, 2026-08-02 18:35: four merged PRs — #929 (merged 17:55), #943 (18:23),
+# #939 (18:31) — still held five concurrent `GJS` runs, with `main`'s own post-merge
+# run and an open PR's run queued behind them.
+#
+# PUSHING to an open PR supersedes the previous commit's runs, and there `concurrency`
+# is not structurally absent but conditionally useless. `main.yml` already sets
+# `cancel-in-progress` for pull_request, but that fires when the SUPERSEDING run
+# STARTS — and starting is exactly what a saturated queue prevents. So a force-push
+# during a backlog leaves the stale run alive, the stale run keeps the queue saturated,
+# and the queue keeps the new run from starting: a deadlock whose only exit is a human
+# cancelling runs by hand.
+#
+# MEASURED, 2026-08-26: five parallel PRs (#1329–#1333) saturated the runner pool. Run
+# 32937220245 — branch `fix/prebuilds-musl-leg`, commit 1fc2ebbdc, superseded hours
+# earlier — sat `queued` holding the `main-pr` group; its successor could not start, so
+# `cancel-in-progress` never fired, and `CI gate (GJS)` was never green on that branch
+# until a human cancelled the run by hand. THAT is what the `synchronize` trigger buys
+# over `cancel-in-progress`: ONE small job takes a runner long before a 20-job matrix
+# does, so the cancel no longer depends on the queue having room for the work it
+# unblocks. For `audit-runtimes.yml`, `build-ci-image.yml` and `commitlint.yml`, which
+# carry no `concurrency` block at all, it is the only superseding mechanism there is.
+#
+# ONE SELECTION, TWO WINDOWS — and it lives in `scripts/select-superseded-runs.mjs`,
+# not in the `run:` block below, because it ends in a cancel POST against other
+# people's runs: a filter embedded in a workflow can only be reviewed by reading it,
+# and nothing runs it until it runs for real. That script's header carries the window
+# per event and why its time bound is load-bearing on BOTH; the decision itself is
+# under fixtures in `tests/e2e/ci-cancel-superseded-runs`.
 #
 # DELIBERATELY `pull_request`, NOT `pull_request_target`. Cancelling needs
-# `actions: write`, and AGENTS.md forbids pairing a write token with head code.
-# The price is that a FORK PR gets a read-only token and the cancel no-ops for
-# it; that is the right trade for a cost control (a gate would be a different
-# discussion). The step is written to report that outcome rather than fail, so a
-# fork PR closing does not leave a red run behind.
+# `actions: write`, and AGENTS.md forbids pairing a write token with head code. The
+# price is that a FORK PR gets a read-only token and the cancel no-ops for it; that is
+# the right trade for a cost control (a gate would be a different discussion). The step
+# is written to report that outcome rather than fail, so a fork PR closing does not
+# leave a red run behind.
+#
+# The checkout follows from the same decision. It is pinned to the head SHA rather than
+# left on the default merge ref, which is not guaranteed to still resolve once the PR
+# is closed — the event this workflow has always served; and it is sparse to the one
+# script, so the job holding `actions: write` materialises as little head code as it
+# can. What that leaves is head code from a branch whose author already has write
+# access to this repository, or from a fork whose token cannot cancel anything.
 
 on:
     pull_request:
-        types: [closed]
+        types: [closed, synchronize]
 
 # Only what the one API call needs.
 permissions:
@@ -39,50 +64,43 @@ permissions:
 
 jobs:
     cancel:
-        name: Cancel remaining runs for this PR
+        name: Cancel superseded runs for this PR
         runs-on: ubuntu-latest
         steps:
-            - name: Cancel non-completed runs from this PR's branch
+            - name: Check out the selection
+              uses: actions/checkout@v6
+              with:
+                  ref: ${{ github.event.pull_request.head.sha }}
+                  fetch-depth: 1
+                  sparse-checkout: scripts/select-superseded-runs.mjs
+                  sparse-checkout-cone-mode: false
+
+            - name: Cancel the runs this event superseded
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  HEAD_REF: ${{ github.event.pull_request.head.ref }}
-                  CLOSED_AT: ${{ github.event.pull_request.closed_at }}
-                  SELF_RUN_ID: ${{ github.run_id }}
                   REPO: ${{ github.repository }}
               run: |
                   set -euo pipefail
 
-                  # Matched by HEAD BRANCH, not by head SHA: a PR that was
-                  # force-pushed has runs under several SHAs and every one of
-                  # them is moot now, while a SHA match would leave the older
-                  # ones running — which is half the backlog this exists to
-                  # drain.
-                  #
-                  # Bounded by `created_at <= closed_at` because branch names in
-                  # this repo ARE reused (the agent worktrees and the release
-                  # tooling both do it). Without the bound, closing an old PR
-                  # would cancel a fresh run belonging to whatever reopened that
-                  # name. With it, only runs that existed when this PR closed
-                  # can be touched.
-                  ids=$(gh api \
-                          "repos/${REPO}/actions/runs?per_page=100&event=pull_request" \
-                          --jq "
-                            .workflow_runs[]
-                            | select(.head_branch == \"${HEAD_REF}\")
-                            | select(.status != \"completed\")
-                            | select(.created_at <= \"${CLOSED_AT}\")
-                            | select(.id != ${SELF_RUN_ID})
-                            | .id
-                          " 2>/dev/null || true)
-
-                  if [ -z "${ids}" ]; then
-                      echo "No in-flight runs left for ${HEAD_REF} — nothing to cancel."
+                  # The selection reads the event from `$GITHUB_EVENT_PATH` and its own
+                  # run id from `$GITHUB_RUN_ID`, both of which the runner already
+                  # exports — so no PR-controlled value (a branch name most of all)
+                  # passes through this shell at all.
+                  if ! gh api "repos/${REPO}/actions/runs?per_page=100&event=pull_request" > "${RUNNER_TEMP}/runs.json"; then
+                      echo "::notice::could not list this repository's runs — a fork PR's token is read-only. Nothing cancelled."
                       exit 0
                   fi
 
-                  # `|| true` per run: a run that finished between the list and
-                  # the cancel returns 409, and that is the success case arriving
-                  # a second early — not a reason to fail the job.
+                  ids=$(node scripts/select-superseded-runs.mjs < "${RUNNER_TEMP}/runs.json")
+
+                  if [ -z "${ids}" ]; then
+                      echo "No superseded runs for this event — nothing to cancel."
+                      exit 0
+                  fi
+
+                  # `|| true` per run: a run that finished between the list and the
+                  # cancel returns 409, and that is the success case arriving a second
+                  # early — not a reason to fail the job.
                   n=0
                   for id in ${ids}; do
                       if gh api -X POST "repos/${REPO}/actions/runs/${id}/cancel" >/dev/null 2>&1; then
@@ -92,4 +110,4 @@ jobs:
                           echo "run ${id} could not be cancelled (already finishing, or read-only token on a fork PR)"
                       fi
                   done
-                  echo "::notice::cancelled ${n} in-flight run(s) for ${HEAD_REF} after PR #${{ github.event.pull_request.number }} closed."
+                  echo "::notice::cancelled ${n} run(s) superseded by ${{ github.event.action }} on PR #${{ github.event.pull_request.number }}."
