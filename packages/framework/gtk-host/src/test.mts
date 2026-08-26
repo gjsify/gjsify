@@ -13,8 +13,10 @@ import gtkCssSuite from './style/gtk-css.spec.js';
 import gtkPropsSuite from './style/gtk-props.spec.js';
 import layoutSuite from './style/layout.spec.js';
 import paintSuite from './style/paint.spec.js';
+import sheetSuite from './style/sheet.spec.js';
 
 run({
+    sheetSuite,
     paintSuite,
     layoutSuite,
     gtkCssSuite,
