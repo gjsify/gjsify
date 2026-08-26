@@ -66,13 +66,24 @@ const DEFAULT_MAX_RUNS_BACK = 12;
 const DEFAULT_BUDGET = 90;
 
 /**
- * A conclusion that means the job EXECUTED. `skipped` did not run; `cancelled` stopped
- * before it could measure; a null conclusion is a job still in flight. Everything else —
- * `success`, `failure`, `timed_out`, `neutral`, `action_required` — reached the code.
+ * The conclusions that mean the job REACHED THE CODE. An allow-list, not a deny-list, and
+ * the polarity is the point: "it executed at <sha>" is a positive claim, so a conclusion
+ * this script does not recognise must not be read as one.
+ *
+ * The four here are the ones a job earns by running: it passed, it failed, it ran out of
+ * time, or it reported neutral. Everything GitHub can put in that field otherwise means the
+ * steps never started — `skipped`, `cancelled` (killed before it could measure),
+ * `action_required` (held at an approval gate) and `stale` (retired unrun) — and a null
+ * conclusion is a job still in flight.
+ *
+ * A deny-list had the failure the wrong way round. An unknown conclusion would have counted
+ * as an execution, and since it is also `!== 'success'` it would have ANNOTATED: a warning
+ * naming a SHA at which the leg did not run. Denied by default, the same unknown costs one
+ * over-cautious table row and no annotation at all.
  */
-const DID_NOT_EXECUTE = new Set(['skipped', 'cancelled', null, undefined]);
+const EXECUTED = new Set(['success', 'failure', 'timed_out', 'neutral']);
 
-export const executed = (conclusion) => !DID_NOT_EXECUTE.has(conclusion);
+export const executed = (conclusion) => EXECUTED.has(conclusion);
 
 /** `owner/name` → the workflow file's basename, which is what the runs endpoint keys on. */
 const basename = (path) => path.slice(path.lastIndexOf('/') + 1);

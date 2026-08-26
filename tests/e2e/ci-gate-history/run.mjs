@@ -236,10 +236,35 @@ describe('`cancelled` and a pending conclusion did not measure anything', () => 
         assert.equal(executed('success'), true);
         assert.equal(executed('failure'), true);
         assert.equal(executed('timed_out'), true);
+        assert.equal(executed('neutral'), true);
         assert.equal(executed('skipped'), false);
         assert.equal(executed('cancelled'), false);
+        // Held at an approval gate, and retired without being started: neither ran a step.
+        assert.equal(executed('action_required'), false);
+        assert.equal(executed('stale'), false);
         assert.equal(executed(null), false);
         assert.equal(executed(undefined), false);
+    });
+
+    // The allow-list's reason. An unrecognised conclusion read as an execution would also
+    // be read as `!== 'success'`, so it would annotate — a warning naming a SHA at which
+    // the leg never ran. Denied by default it costs a table row and warns about nothing.
+    it('does not invent an execution out of a conclusion it does not know', async () => {
+        const fixture = fakeApi({
+            headSha: 'ffff111',
+            runs: [
+                { id: 2000, path: WF, head_sha: 'ffff111', jobs: { [LEG]: 'skipped' } },
+                {
+                    id: 1999,
+                    path: WF,
+                    head_sha: '5555555555555555555555555555555555555555',
+                    jobs: { [LEG]: 'action_required' },
+                },
+            ],
+        });
+        const report = await run(fixture);
+        assert.equal(report.staleLegs[0].sha, null);
+        assert.deepEqual(annotationsFor(report, { annotate: true }), []);
     });
 
     it('walks past a cancelled run to the last real one', async () => {
