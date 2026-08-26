@@ -11,7 +11,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import type { Command, ConfigData, ConfigDataFlatpak } from '../../types/index.js';
 import { Config } from '../../config.js';
-import { defaultCiContainer, looksLikeAppId, readPackageJson, resolveRuntime } from './utils.js';
+import { defaultCiContainer, looksLikeAppId, readPackageJson } from './utils.js';
+import { resolveRuntime } from '../../utils/flatpak-runtime.js';
 
 interface FlatpakCiOptions {
     manifest?: string;

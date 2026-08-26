@@ -15,13 +15,13 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import type { Command, ConfigData, ConfigDataFlatpak } from '../../types/index.js';
+import { looksLikeAppId, readPackageJson } from './utils.js';
 import {
     DEFAULT_CLI_FINISH_ARGS,
     DEFAULT_GUI_FINISH_ARGS,
-    looksLikeAppId,
-    readPackageJson,
+    deriveAppendPath,
     resolveRuntime,
-} from './utils.js';
+} from '../../utils/flatpak-runtime.js';
 import {
     renderDesktop,
     renderFlathubJson,
@@ -314,16 +314,6 @@ function friendlyName(pkgName: string, appId: string): string {
 function mergeArrays(a: string[] | undefined, b: string[] | undefined): string[] | undefined {
     if (!a?.length && !b?.length) return undefined;
     return [...(a ?? []), ...(b ?? [])];
-}
-
-function deriveAppendPath(sdkExtensions: string[]): string[] {
-    const out: string[] = [];
-    for (const ext of sdkExtensions) {
-        const m = /^org\.freedesktop\.Sdk\.Extension\.([A-Za-z0-9-]+)$/.exec(ext);
-        if (m) out.push(`/usr/lib/sdk/${m[1]}/bin`);
-    }
-    out.push('/app/bin');
-    return out;
 }
 
 function deriveModuleName(appId: string): string {
