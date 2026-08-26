@@ -10,8 +10,9 @@
 // GJS: SharedArrayBuffer is not exposed under SpiderMonkey 140 in stock GJS
 //   (Mozilla disables the constructor unless the embedder opts in), and our
 //   subprocess-based Worker harness cannot share memory pages either.
-//   Status tracked under "Open TODOs → SharedArrayBuffer cross-process
-//   sharing". The suite degrades gracefully on GJS to an availability check.
+//   Status: `status/open-todos.md` → "SharedArrayBuffer constructor opt-in
+//   (Mozilla pref)". The suite degrades gracefully on GJS to an availability
+//   check.
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import type { Worker } from 'node:worker_threads';
@@ -28,7 +29,7 @@ export default async () => {
 
         await it('SharedArrayBuffer availability', async () => {
             // Documented expectations. GJS today: undefined (see
-            // status/open-todos.md → "SharedArrayBuffer cross-process sharing").
+            // status/open-todos.md → "SharedArrayBuffer constructor opt-in").
             if (hasSAB) {
                 expect(typeof SAB).toBe('function');
             } else {
