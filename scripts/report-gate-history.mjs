@@ -174,7 +174,7 @@ export async function gateHistoryReport(options) {
         budget = DEFAULT_BUDGET,
     } = options;
 
-    const stats = { calls: 0, runsRead: 0, jobsRead: 0, budgetExhausted: false, jobsTruncated: false };
+    const stats = { calls: 0, runsRead: 0, jobsRead: 0, budgetExhausted: false, pageTruncated: false };
     /** Job lists are asked for repeatedly while walking back — ask the API once. */
     const jobCache = new Map();
 
@@ -187,19 +187,29 @@ export async function gateHistoryReport(options) {
         return api(path);
     }
 
+    /**
+     * One page, for the three queries whose page must hold the WHOLE set: the active
+     * workflows, the runs at this commit, and a run's jobs. Read short, each of them turns
+     * into a WRONG ROW rather than a missing one — a leg past the hundredth job reads as a
+     * leg that never executed. The widest of the three is 24 of 100 today, so nothing is
+     * tight; the day one is, the ceiling is SAID instead of becoming a finding.
+     *
+     * The history query is deliberately NOT held to this: `per_page=maxRunsBack` asks for a
+     * window on purpose, and a workflow with 500 completed runs is not a short read.
+     */
+    function wholePage(body, items) {
+        if (body && typeof body.total_count === 'number' && body.total_count > items.length) {
+            stats.pageTruncated = true;
+        }
+        return items;
+    }
+
     async function jobsOf(runId) {
         if (jobCache.has(runId)) return jobCache.get(runId);
         const body = await call(`repos/${repo}/actions/runs/${runId}/jobs?per_page=100`);
-        const jobs = body?.jobs ?? null;
+        const jobs = body ? wholePage(body, body.jobs ?? []) : null;
         jobCache.set(runId, jobs);
-        if (jobs) {
-            stats.jobsRead += jobs.length;
-            // ONE page. A run with more jobs than fits it is read SHORT, and a leg that fell
-            // off the end reads as one that never executed — the false alarm this reporter
-            // exists to avoid. The largest run here carries 24 jobs, so the page is not tight
-            // today; the day it is, the ceiling is SAID rather than turned into a finding.
-            if (typeof body.total_count === 'number' && body.total_count > jobs.length) stats.jobsTruncated = true;
-        }
+        if (jobs) stats.jobsRead += jobs.length;
         return jobs;
     }
 
@@ -223,7 +233,7 @@ export async function gateHistoryReport(options) {
 
     const workflowsBody = await call(`repos/${repo}/actions/workflows?per_page=100`);
     if (!workflowsBody) throw new Error('could not list the repository’s workflows');
-    const active = (workflowsBody.workflows ?? [])
+    const active = wholePage(workflowsBody, workflowsBody.workflows ?? [])
         .filter((w) => w.state === 'active')
         .map((w) => ({ path: w.path, name: w.name }))
         .sort((a, b) => a.path.localeCompare(b.path));
@@ -235,7 +245,7 @@ export async function gateHistoryReport(options) {
     for (const sha of shas) {
         if (!sha) continue;
         const body = await call(`repos/${repo}/actions/runs?head_sha=${sha}&per_page=100`);
-        for (const run of body?.workflow_runs ?? []) {
+        for (const run of body ? wholePage(body, body.workflow_runs ?? []) : []) {
             const previous = runsHere.get(run.path);
             if (!previous || run.id > previous.id) runsHere.set(run.path, run);
         }
@@ -377,12 +387,13 @@ export function renderMarkdown(report) {
             `workflow. A \`skipped\` leg is usually a cost control firing on purpose; what it must ` +
             `not be is indistinguishable from a leg that passed._`,
     );
-    if (stats.jobsTruncated) {
+    if (stats.pageTruncated) {
         out.push(
             '',
-            '> **A run carried more jobs than one page holds, so its job list was read SHORT** — ' +
-                'a leg past the hundredth is missing from the tables above rather than reported as ' +
-                'stale. Paginate `…/jobs` before trusting a "not in the last N runs" row here.',
+            '> **A list endpoint returned more than one page holds, so it was read SHORT** — a ' +
+                'workflow, a run at this commit or a job past the hundredth is missing above, and a ' +
+                'leg missing from an older run reads as one that never executed. Paginate before ' +
+                'trusting a "not in the last N runs" row here.',
         );
     }
     if (stats.budgetExhausted) {

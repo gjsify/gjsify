@@ -44,11 +44,12 @@ const LINUX_LEG = 'Build & test (Node / Fedora 44)';
  * carries the job conclusions that run recorded. `calls` records every path asked for, so
  * a case can assert what was NOT fetched.
  */
-function fakeApi({ runs, workflows = [{ path: WF, name: 'node-gi', state: 'active' }], headSha }) {
+function fakeApi({ runs, workflows = [{ path: WF, name: 'node-gi', state: 'active' }], headSha, totalWorkflows }) {
     const calls = [];
     const api = async (path) => {
         calls.push(path);
-        if (path.startsWith(`repos/${REPO}/actions/workflows?`)) return { workflows };
+        if (path.startsWith(`repos/${REPO}/actions/workflows?`))
+            return { total_count: totalWorkflows ?? workflows.length, workflows };
         const atCommit = /^repos\/.+\/actions\/runs\?head_sha=([^&]+)/.exec(path);
         if (atCommit) {
             return { workflow_runs: runs.filter((r) => r.head_sha === atCommit[1]).map(toRunRecord) };
@@ -497,13 +498,24 @@ describe('a reporter that read nothing must not look like a clean bill of health
         assert.doesNotMatch(md, /not in the last/);
     });
 
-    it('says a job list was read short instead of calling the missing leg stale', async () => {
+    it('says a page was read short instead of calling the missing leg stale', async () => {
         const fixture = fakeApi({
             headSha: 'cccc111',
             runs: [
                 { id: 1900, path: WF, head_sha: 'cccc111', total_jobs: 140, jobs: { [LEG]: 'skipped' } },
                 ...skippedHistory(2, 1899),
             ],
+        });
+        const report = await run(fixture);
+        assert.equal(report.stats.pageTruncated, true);
+        assert.match(renderMarkdown(report), /read SHORT/);
+    });
+
+    it('holds the workflow list to the same rule', async () => {
+        const fixture = fakeApi({
+            headSha: 'cccc222',
+            totalWorkflows: 400,
+            runs: [{ id: 1950, path: WF, head_sha: 'cccc222', jobs: { [LINUX_LEG]: 'success' } }],
         });
         assert.match(renderMarkdown(await run(fixture)), /read SHORT/);
     });
