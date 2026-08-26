@@ -93,6 +93,8 @@ const DIALECTS = [
  * they must be elements, because a declarative child is the only way to write them in
  * HTML.
  */
+const TABLE_SOURCE = 'WEB_ELEMENT_ALIGNMENT in scripts/check-vocabulary-alignment.mjs';
+
 const WEB_ELEMENT_ALIGNMENT = {
     // Same widget, different spelling.
     'adw-button': { gtk: 'gtk-button' },
@@ -174,12 +176,27 @@ function readTagsConst(text) {
     return out;
 }
 
-/** Which generated maps a dialect module imports, and any widget name it spells itself. */
+/**
+ * Which generated maps a dialect module imports, and any widget name it spells itself.
+ *
+ * Both `import type { X }` and `import { type X }` count, and so does a plain value
+ * import. They are the same import, and a reader that recognised only the first shape
+ * made a REQUIRED job go red on a change that was correct — with a message saying the
+ * module "no longer imports WidgetPropsByTag" while the import sat two lines above it.
+ * A guard whose failure text is false is worse than no guard: it teaches the next
+ * person to switch it off. Measured before the fix, on the real `jsx-runtime.ts`.
+ */
 function readDialect(source) {
     const code = stripComments(source);
     const imported = new Set();
-    for (const [, names] of code.matchAll(/import\s+type\s*\{([^}]+)\}\s*from\s*'\.\/generated\/props\.js'/g)) {
-        for (const name of names.split(',')) imported.add(name.trim());
+    for (const [, names] of code.matchAll(
+        /import\s+(?:type\s+)?\{([^}]+)\}\s*from\s*'\.\/generated\/props\.(?:js|ts|mjs|mts)'/g,
+    )) {
+        for (const name of names.split(',')) {
+            // Trailing comma in a wrapped import list: `.split(',')` yields an empty tail.
+            const bare = name.trim().replace(/^type\s+/, '');
+            if (bare !== '') imported.add(bare);
+        }
     }
     // A tag or GType literal in a dialect module is the start of a per-framework table.
     // Type ANNOTATIONS are not matched: every module writes `Gtk.Widget`, so a bare
@@ -293,15 +310,16 @@ export function alignmentProblems(world) {
             if (entry) {
                 problems.push(
                     `<${element}> already shares its spelling with a GTK tag, so its alignment entry is ` +
-                        'redundant — delete it rather than leaving two answers',
+                        `redundant — delete it from ${TABLE_SOURCE} rather than leaving two answers`,
                 );
             }
             continue;
         }
         if (!entry) {
             problems.push(
-                `<${element}> has no GTK tag of the same name and no alignment entry. Give it a 'gtk' ` +
-                    "target if it is the same widget, or a 'webOnly' reason if it is not.",
+                `<${element}> has no GTK tag of the same name and no alignment entry. Add one to ` +
+                    `${TABLE_SOURCE}: a 'gtk' target if it is the same widget under another ` +
+                    "spelling, or a 'webOnly' reason if there is no GTK widget behind it.",
             );
             continue;
         }
@@ -315,7 +333,10 @@ export function alignmentProblems(world) {
     const present = new Set(webElements);
     for (const element of declared) {
         if (!present.has(element)) {
-            problems.push(`the alignment table declares <${element}>, which adwaita-web no longer registers`);
+            problems.push(
+                `the alignment table declares <${element}>, which adwaita-web no longer registers — ` +
+                    `drop the entry from ${TABLE_SOURCE}`,
+            );
         }
     }
 
@@ -421,6 +442,52 @@ const VECTORS = [
     ],
 ];
 
+/**
+ * The READERS get their own vectors, because the rules cannot cover them.
+ *
+ * `alignmentProblems` takes plain data, so every vector above proves a rule and none of
+ * them proves that the thing which BUILT the data read the file correctly. That gap is
+ * not hypothetical: `readDialect` recognised `import type { X }` and not `import { type
+ * X }`, so a correct, semantically identical edit turned this required job red with a
+ * message asserting the opposite of the file it had just read. A reader that under-reads
+ * does not fail quietly here — it fails LOUDLY and wrongly, which is the more expensive
+ * shape, because the fix that makes CI green is deleting the check.
+ *
+ * Each vector is a source fragment plus what the reader must find in it.
+ */
+const READER_VECTORS = [
+    ["import type { A, B } from './generated/props.js';", ['A', 'B'], []],
+    ["import { type A, type B } from './generated/props.js';", ['A', 'B'], []],
+    ["import { A } from './generated/props.js';", ['A'], []],
+    ["import type {\n    A,\n    B,\n} from './generated/props.js';", ['A', 'B'], []],
+    ["import type { A } from './generated/props.ts';", ['A'], []],
+    // Not this module's map, so not an answer to "does it still derive from ours".
+    ["import type { A } from './other.js';", [], []],
+    // The literal half: a tag or GType spelled in the module, and the shapes that are not.
+    ["const t = 'gtk-box';", [], ["'gtk-box'"]],
+    ["const g = 'AdwToolbarView';", [], ["'AdwToolbarView'"]],
+    ["throw new Error('GtkWidget expected here');", [], []],
+    ["// 'gtk-box' in a comment is prose, not a table\nconst x = 1;", [], []],
+    ['let w: Gtk.Widget | null = null;', [], []],
+];
+
+function readerSelfTest() {
+    const failures = [];
+    for (const [source, wantImports, wantLiterals] of READER_VECTORS) {
+        const { imported, literals } = readDialect(source);
+        const got = [...imported].sort().join(',');
+        if (got !== [...wantImports].sort().join(',')) {
+            failures.push(`readDialect(${JSON.stringify(source)}) imported [${got}], wanted [${wantImports}]`);
+        }
+        if (literals.sort().join(',') !== [...wantLiterals].sort().join(',')) {
+            failures.push(
+                `readDialect(${JSON.stringify(source)}) found literals [${literals}], wanted [${wantLiterals}]`,
+            );
+        }
+    }
+    return failures;
+}
+
 function selfTest() {
     const failures = [];
     // The baseline has to be GREEN, or every vector below "fails" for the wrong reason and
@@ -441,7 +508,7 @@ function selfTest() {
 
 // ------------------------------------------------------------------ run
 
-const selfTestFailures = selfTest();
+const selfTestFailures = [...readerSelfTest(), ...selfTest()];
 if (selfTestFailures.length > 0) {
     console.error('check-vocabulary-alignment: SELF-TEST failed — the check itself is broken:');
     for (const failure of selfTestFailures) console.error(`  - ${failure}`);
@@ -481,7 +548,8 @@ const aliased = Object.values(WEB_ELEMENT_ALIGNMENT).filter((entry) => entry.gtk
 const webOnly = Object.values(WEB_ELEMENT_ALIGNMENT).filter((entry) => entry.webOnly).length;
 const shared = world.webElements.filter((element) => new Set(world.runtime.values()).has(element)).length;
 console.log(
-    `check-vocabulary-alignment: self-test green — ${VECTORS.length - 1} failing vector(s). ` +
+    `check-vocabulary-alignment: self-test green — ${VECTORS.length - 1} failing vector(s), ` +
+        `${READER_VECTORS.length} reader vector(s). ` +
         `${world.runtime.size} GTK tags across ${DIALECTS.length} dialect surfaces + the runtime table + the ` +
         `surface data; ${world.webElements.length} adw-* web elements — ${shared} share a spelling, ` +
         `${aliased} alias one, ${webOnly} declared web-only.`,
