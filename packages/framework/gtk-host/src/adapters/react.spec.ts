@@ -46,7 +46,8 @@ interface DirectReconciler {
     createContainer(...args: unknown[]): unknown;
     updateContainer(...args: unknown[]): unknown;
     updateContainerSync(...args: unknown[]): unknown;
-    flushSyncWork(): void;
+    // `true` means React did NOT flush — see `renderSync` in `react.ts`.
+    flushSyncWork(): boolean;
 }
 
 const labelsOf = (w: Gtk.Widget) => gtkChildren(w).map((c) => (c as Gtk.Label).label);
@@ -479,6 +480,54 @@ export default async () => {
                 noRecovery();
             });
 
+            await it('a refusal on the CONCURRENT lane is reported, not swallowed', async () => {
+                // The hole the rethrow does not cover, and the reason `createRoot`'s
+                // default handler LOGS as well as holds.
+                //
+                // `resolveUpdatePriority` answers the default lane, so a `setState`
+                // made outside `render()` commits on a later main-loop iteration with
+                // no `render()` on the stack to throw from. React's own answer to an
+                // uncaught error there is to unmount the whole tree — so without the
+                // log the window goes blank, the held error is discarded by the next
+                // `render`, and nothing reaches stderr at all.
+                //
+                // `console.error` is the observable, because it is what the DEFAULT
+                // handler writes through. Passing a recorder as `onUncaughtError`
+                // would test a handler this file supplied and leave the default —
+                // the thing every consumer gets — unmeasured.
+                const container = new Gtk.Box();
+                let setOrientation: ((value: string) => void) | undefined;
+                function Subject() {
+                    const [orientation, set] = useState('vertical');
+                    setOrientation = set;
+                    return createElement('GtkBox', { orientation });
+                }
+                const root = mount(createElement(Subject), container);
+
+                const reported: string[] = [];
+                const realError = console.error;
+                console.error = (...args: unknown[]) => {
+                    reported.push(args.map((argument) => String(argument)).join(' '));
+                };
+                try {
+                    // An enum nick GtkOrientation does not have. The host refuses it
+                    // by name — in a commit no `render()` call is waiting on.
+                    setOrientation?.('sideways');
+                    pumpMainLoop(() => reported.length > 0);
+                } finally {
+                    console.error = realError;
+                }
+
+                // The assertion with teeth: React unmounted the tree AND nothing was
+                // said is the outcome this vector exists to forbid.
+                expect(reported.length > 0).toBe(true);
+                expect(reported.join(' ')).toContain('GtkOrientation');
+                root.unmount();
+                // The refusal was reported, not RECOVERED — `noRecovery` would fire
+                // on a recoverable error, which this is not.
+                noRecovery();
+            });
+
             await it("React clears the container first, and the application's chrome survives", async () => {
                 // `updateHostRoot` sets the `Snapshot` flag whenever the previous
                 // render produced no child, and `commitBeforeMutationEffects` then
@@ -615,7 +664,7 @@ export default async () => {
             });
 
             await it('a prop that disappears is reset, not set to null', async () => {
-                // React's `prepareUpdate` diff has to spell a removed key
+                // the diff in `commitUpdate` has to spell a removed key
                 // `undefined`: the host reads that as "back to what construction
                 // leaves behind", while `null` reaches `set_property` verbatim.
                 const container = new Gtk.Box();

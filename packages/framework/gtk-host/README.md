@@ -383,7 +383,8 @@ capability flags the config declares false (`supportsPersistence`,
 `supportsHydration`, `supportsResources`, `supportsSingletons`), by two it declares
 not at all (`supportsTestSelectors`, `supportsMicrotasks`), and by three families no
 flag gates and nothing here can mean (view transitions and the gesture timeline,
-fragment instances, DevTools metadata). `react.spec.ts` asserts all three
+fragment instances, DevTools metadata, and the suspended-commit reason React reads
+only to name a commit in its own timeline). `react.spec.ts` asserts all three
 directions, so a version bump that starts asking for something new fails a test
 instead of reading `undefined` inside a commit.
 

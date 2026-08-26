@@ -164,8 +164,13 @@ const HOST_CONTEXT: object = Object.freeze({});
  *
  * React 19 replaced the single `getCurrentEventPriority` read with a three-member
  * protocol the host has to STORE for: React writes the lane it is entering with
- * `setCurrentUpdatePriority` and reads it back. Module scope is correct here
- * because a process has one reconciler; `react-dom` keeps it the same way.
+ * `setCurrentUpdatePriority` and reads it back. Module scope is correct across
+ * ROOTS — `react-dom` keeps it the same way, and React saves and restores the value
+ * around every entry point, so nesting is LIFO-safe. It is deliberately NOT claimed
+ * to be correct across reconciler INSTANCES: `react.spec.ts` builds two more over a
+ * Proxy of this same config, and `gtkHostConfig` is documented below as the seam for
+ * a consumer who wants a differently configured one. They share this variable. No
+ * interleave that corrupts it is known, and none is ruled out either.
  */
 let currentUpdatePriority: number = NoEventPriority;
 
@@ -192,7 +197,7 @@ export const gtkHostConfig = {
 
     // React 19's two new capability gates, declared for the same reason the three
     // above are: answering `false` is what keeps their whole member families
-    // (fourteen for resources, eight for singletons) from being called at all,
+    // (thirteen for resources, five for singletons) from being called at all,
     // rather than leaving them `undefined` in a commit path. Resources are the
     // DOM's `<link>`/`<script>` hoisting and singletons are `<html>`/`<head>`/
     // `<body>` — neither has a GTK counterpart, and inventing one would mean
@@ -520,10 +525,24 @@ export interface ReactRootOptions {
     /**
      * An error NO error boundary caught. React 19 split this out of the single
      * callback React 18 had, and it is the one that means the tree is broken.
+     *
+     * SUPPLYING THIS TURNS OFF THE RETHROW. By default `render()` throws the first
+     * uncaught error rather than returning normally, because a host refusal that
+     * only reaches a log has bought nothing. An application with its own error
+     * surface should not also get a throw — but it then owns reporting entirely.
      */
     onUncaughtError?(error: Error): void;
 
-    /** An error an error boundary DID catch — reported, then handled by the boundary. */
+    /**
+     * An error an error boundary DID catch — reported, then handled by the boundary.
+     *
+     * The default reports through `console.error`, which under GJS routes into the
+     * GLib log system at CRITICAL — so `installDiagnosticsGate()` COUNTS it, and a
+     * spec that deliberately renders a failing boundary will be told GTK reported a
+     * diagnostic. Such a spec should pass its own recorder here. Left as
+     * `console.error` because that is the right channel for an application, and a
+     * quieter default would be the wrong trade for the common case.
+     */
     onCaughtError?(error: Error): void;
 }
 
@@ -567,11 +586,22 @@ export function createRoot(container: Gtk.Widget, options: ReactRootOptions = {}
      * the DEFAULT is to hold the first uncaught error and rethrow it from `render`,
      * where the caller is. Passing `onUncaughtError` opts out — an application with
      * its own error surface should not also get a throw.
+     *
+     * IT LOGS *AND* HOLDS, AND THE "AND" IS LOAD-BEARING. Holding alone reopens the
+     * hole one lane over: `resolveUpdatePriority` answers the default lane, so a
+     * `setState` from a GTK signal handler commits on a LATER main-loop iteration
+     * with no `render()` on the stack. React's own response to an uncaught error
+     * there is to unmount the whole tree — so the window goes blank, the held error
+     * is discarded by the next `render`, and nothing reaches stderr. React's floor
+     * is higher than that (`defaultOnUncaughtError` always reports), and a renderer
+     * must not lower it. The log is the one that fires in the concurrent case; the
+     * rethrow is the one that fires in the synchronous case; neither covers both.
      */
     let refusal: Error | null = null;
     const onUncaught = options.onUncaughtError
         ? report('React hit an error no boundary caught', options.onUncaughtError)
         : (error: Error): void => {
+              console.error('@gjsify/gtk-host/react: React hit an error no boundary caught', error);
               refusal ??= error;
           };
 
@@ -608,15 +638,36 @@ export function createRoot(container: Gtk.Widget, options: ReactRootOptions = {}
      * `updateContainerSync` schedules the work on the sync lane and
      * `flushSyncWork` drains it. Both are needed: the first alone leaves the work
      * queued.
+     *
+     * AND `flushSyncWork`'S RETURN IS NOT DECORATION. It answers `true` for "I did
+     * NOT flush" — React refuses to flush while it is already inside a render or a
+     * commit (`executionContext & 6`). That happens on a re-entrant render: a `ref`
+     * callback, a `useLayoutEffect`, or a GTK `notify::` handler that fires while
+     * the host is writing a property and renders a second root. Discarding the
+     * boolean makes `render()` return CLEANLY WITH AN EMPTY CONTAINER and the
+     * widgets appear later — which breaks this function's own documented promise
+     * and is worse than either honest outcome, because the caller has already read
+     * the empty tree. React 19 handed us this signal; refusing to look at it would
+     * be the same class of mistake as the `flushSync` rename above.
      */
     const renderSync = (element: ReactNode): void => {
         refusal = null;
         reconciler.updateContainerSync(element, root, null, null);
-        reconciler.flushSyncWork();
+        const notFlushed = reconciler.flushSyncWork();
         if (refusal !== null) {
             const error = refusal;
             refusal = null;
             throw error;
+        }
+        if (notFlushed === true) {
+            throw new Error(
+                '@gjsify/gtk-host/react: render() could not flush, because React is already ' +
+                    'rendering or committing — this call is re-entrant (a ref callback, a ' +
+                    'useLayoutEffect, or a GTK signal handler that fired during a commit). The ' +
+                    'widgets do NOT exist yet, which is what render() promises, so this throws ' +
+                    'rather than returning an empty container. Render the second tree from a ' +
+                    'useEffect or an idle callback instead.',
+            );
         }
     };
 
