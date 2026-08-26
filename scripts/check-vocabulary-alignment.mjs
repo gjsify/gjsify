@@ -79,6 +79,9 @@ const DIALECTS = [
     { name: 'vue', file: join(HOST, 'vue-components.ts'), needs: ['WidgetPropsByGType', 'WidgetPropsVueAliases'] },
 ];
 
+/** Named in every failure that asks for an edit to the table below. */
+const TABLE_SOURCE = 'WEB_ELEMENT_ALIGNMENT in scripts/check-vocabulary-alignment.mjs';
+
 /**
  * Every `adw-*` element whose spelling is NOT a GTK tag, and what it is instead.
  *
@@ -93,8 +96,6 @@ const DIALECTS = [
  * they must be elements, because a declarative child is the only way to write them in
  * HTML.
  */
-const TABLE_SOURCE = 'WEB_ELEMENT_ALIGNMENT in scripts/check-vocabulary-alignment.mjs';
-
 const WEB_ELEMENT_ALIGNMENT = {
     // Same widget, different spelling.
     'adw-button': { gtk: 'gtk-button' },
