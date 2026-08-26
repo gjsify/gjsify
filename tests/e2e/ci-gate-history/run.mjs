@@ -66,13 +66,14 @@ function fakeApi({ runs, workflows = [{ path: WF, name: 'node-gi', state: 'activ
         const jobs = /^repos\/.+\/actions\/runs\/(\d+)\/jobs/.exec(path);
         if (jobs) {
             const run = runs.find((r) => r.id === Number(jobs[1]));
-            return {
-                jobs: Object.entries(run?.jobs ?? {}).map(([name, conclusion]) => ({
-                    name,
-                    conclusion,
-                    html_url: `https://example.invalid/job/${run.id}/${encodeURIComponent(name)}`,
-                })),
-            };
+            const page = Object.entries(run?.jobs ?? {}).map(([name, conclusion]) => ({
+                name,
+                conclusion,
+                html_url: `https://example.invalid/job/${run.id}/${encodeURIComponent(name)}`,
+            }));
+            // `total_count` is the API's count of the WHOLE set, not of this page — a
+            // fixture sets `total_jobs` to stand for a run whose jobs do not fit one page.
+            return { total_count: run?.total_jobs ?? page.length, jobs: page };
         }
         throw new Error(`the fixture API was asked for an unexpected path: ${path}`);
     };
@@ -433,6 +434,53 @@ describe('a reporter that read nothing must not look like a clean bill of health
         const report = await run(fixture, { budget: 4 });
         assert.equal(report.stats.budgetExhausted, true);
         assert.match(renderMarkdown(report), /LOWER BOUND/);
+    });
+
+    // A refused query and an empty answer are the same shape in a report and NOT the same
+    // fact. This is the reporter's own version of the failure it exists to catch, so it is
+    // checked at both granularities: "never completed on `main`" and "not in the last N
+    // runs" are both claims, and neither may rest on a call that was never made.
+    it('does not turn an unasked question into "never completed"', async () => {
+        const fixture = fakeApi({
+            headSha: 'aaaa999',
+            workflows: [
+                { path: WF, name: 'node-gi', state: 'active' },
+                { path: '.github/workflows/release.yml', name: 'Release', state: 'active' },
+            ],
+            runs: [{ id: 1700, path: WF, head_sha: 'aaaa999', jobs: { [LEG]: 'skipped' } }],
+        });
+        // Two calls: the workflow list and the runs at this commit. The history query for
+        // `release.yml` is the third and never happens.
+        const report = await run(fixture, { budget: 2 });
+        assert.equal(report.missingWorkflows[0].unread, true);
+        const md = renderMarkdown(report);
+        assert.match(md, /history not read/);
+        assert.doesNotMatch(md, /never completed on `main`/);
+    });
+
+    it('does not turn an unwalked history into "not in the last N runs"', async () => {
+        const fixture = fakeApi({
+            headSha: 'bbbb999',
+            runs: [{ id: 1800, path: WF, head_sha: 'bbbb999', jobs: { [LEG]: 'skipped' } }, ...skippedHistory(3, 1799)],
+        });
+        // Three calls get through — workflow list, runs at this commit, this run's jobs —
+        // and the history walk is the fourth.
+        const report = await run(fixture, { budget: 3 });
+        assert.equal(report.staleLegs[0].historyUnread, true);
+        const md = renderMarkdown(report);
+        assert.match(md, /history not read/);
+        assert.doesNotMatch(md, /not in the last/);
+    });
+
+    it('says a job list was read short instead of calling the missing leg stale', async () => {
+        const fixture = fakeApi({
+            headSha: 'cccc111',
+            runs: [
+                { id: 1900, path: WF, head_sha: 'cccc111', total_jobs: 140, jobs: { [LEG]: 'skipped' } },
+                ...skippedHistory(2, 1899),
+            ],
+        });
+        assert.match(renderMarkdown(await run(fixture)), /read SHORT/);
     });
 
     it('surfaces an unreachable API as an error rather than as an empty report', async () => {

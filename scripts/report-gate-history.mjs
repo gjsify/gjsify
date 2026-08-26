@@ -163,7 +163,7 @@ export async function gateHistoryReport(options) {
         budget = DEFAULT_BUDGET,
     } = options;
 
-    const stats = { calls: 0, runsRead: 0, jobsRead: 0, budgetExhausted: false };
+    const stats = { calls: 0, runsRead: 0, jobsRead: 0, budgetExhausted: false, jobsTruncated: false };
     /** Job lists are asked for repeatedly while walking back — ask the API once. */
     const jobCache = new Map();
 
@@ -181,17 +181,31 @@ export async function gateHistoryReport(options) {
         const body = await call(`repos/${repo}/actions/runs/${runId}/jobs?per_page=100`);
         const jobs = body?.jobs ?? null;
         jobCache.set(runId, jobs);
-        if (jobs) stats.jobsRead += jobs.length;
+        if (jobs) {
+            stats.jobsRead += jobs.length;
+            // ONE page. A run with more jobs than fits it is read SHORT, and a leg that fell
+            // off the end reads as one that never executed — the false alarm this reporter
+            // exists to avoid. The largest run here carries 24 jobs, so the page is not tight
+            // today; the day it is, the ceiling is SAID rather than turned into a finding.
+            if (typeof body.total_count === 'number' && body.total_count > jobs.length) stats.jobsTruncated = true;
+        }
         return jobs;
     }
 
-    /** Completed runs of one workflow on the gated branch, newest first. */
+    /**
+     * Completed runs of one workflow on the gated branch, newest first — or `null` when the
+     * query was never made. NOT the same as an empty history, and the difference is a
+     * sentence the report would otherwise get wrong: an unasked question rendered as "never
+     * completed on `main`" is a claim about the repository derived from a claim about the
+     * API budget.
+     */
     async function historyOf(workflowFile) {
         const body = await call(
             `repos/${repo}/actions/workflows/${workflowFile}/runs` +
                 `?branch=${branch}&status=completed&per_page=${maxRunsBack}`,
         );
-        const runs = body?.workflow_runs ?? [];
+        if (!body) return null;
+        const runs = body.workflow_runs ?? [];
         stats.runsRead += runs.length;
         return runs;
     }
@@ -220,7 +234,8 @@ export async function gateHistoryReport(options) {
     const missingWorkflows = [];
     for (const workflow of active) {
         if (runsHere.has(workflow.path)) continue;
-        const [last] = await historyOf(basename(workflow.path));
+        const history = await historyOf(basename(workflow.path));
+        const last = history?.[0];
         missingWorkflows.push(
             last
                 ? {
@@ -229,7 +244,7 @@ export async function gateHistoryReport(options) {
                       day: dayOf(last.updated_at),
                       url: last.html_url,
                   }
-                : { ...workflow, conclusion: null },
+                : { ...workflow, conclusion: null, unread: history === null },
         );
     }
 
@@ -246,7 +261,7 @@ export async function gateHistoryReport(options) {
 
         const history = await historyOf(basename(path));
         let walked = 0;
-        for (const older of history) {
+        for (const older of history ?? []) {
             if (unresolved.size === 0) break;
             // The run in hand is not evidence about itself; on a `main` push it is still
             // in flight and the completed-runs query excludes it anyway.
@@ -283,11 +298,28 @@ export async function gateHistoryReport(options) {
                 members: 0,
                 runsBack: walked,
                 matchable: matcher.anchorable,
+                historyUnread: history === null,
             });
         }
     }
 
     return { missingWorkflows, staleLegs, stats, branch, maxRunsBack };
+}
+
+/** A question that was never asked, told apart from an answer of "nothing". */
+const UNREAD = '**history not read — the API budget stopped the walk**';
+
+/**
+ * Why a row has no SHA. Four different reasons, and collapsing them is how a reporter
+ * starts asserting things it never measured: "not in the last 11 runs" over a walk that
+ * was cut short, or "never completed" over a query that was never sent.
+ */
+function whyNoSha(leg, branch) {
+    if (leg.matchable === false)
+        return '**its name is an unexpanded template with no literal fragment to anchor on — not matchable**';
+    if (leg.historyUnread) return UNREAD;
+    if (leg.runsBack === 0) return `**no completed run on \`${branch}\` to compare against**`;
+    return `**not in the last ${leg.runsBack} completed run(s) on \`${branch}\`**`;
 }
 
 /** The step-summary markdown. Both tables always print, empty or not — see the header. */
@@ -301,7 +333,11 @@ export function renderMarkdown(report) {
     } else {
         out.push(`| Workflow | File | Last completed run on \`${branch}\` |`, '| --- | --- | --- |');
         for (const w of missingWorkflows) {
-            const last = w.conclusion ? `[${w.conclusion}](${w.url}) · ${w.day}` : `never completed on \`${branch}\``;
+            const last = w.conclusion
+                ? `[${w.conclusion}](${w.url}) · ${w.day}`
+                : w.unread
+                  ? UNREAD
+                  : `never completed on \`${branch}\``;
             out.push(`| ${w.name} | \`${w.path}\` | ${last} |`);
         }
         out.push('');
@@ -317,11 +353,7 @@ export function renderMarkdown(report) {
             const last = leg.sha
                 ? `[${leg.conclusion}](${leg.url}) · \`${shortSha(leg.sha)}\` · ${leg.day} · ` +
                   `${leg.runsBack} run(s) back${family}`
-                : leg.matchable === false
-                  ? '**its name is an unexpanded template with no literal fragment to anchor on — ' + 'not matchable**'
-                  : leg.runsBack === 0
-                    ? `**no completed run on \`${branch}\` to compare against**`
-                    : `**not in the last ${leg.runsBack} completed run(s) on \`${branch}\`**`;
+                : whyNoSha(leg, branch);
             out.push(`| ${leg.workflow} | ${leg.leg} | ${last} |`);
         }
         out.push('');
@@ -334,6 +366,14 @@ export function renderMarkdown(report) {
             `workflow. A \`skipped\` leg is usually a cost control firing on purpose; what it must ` +
             `not be is indistinguishable from a leg that passed._`,
     );
+    if (stats.jobsTruncated) {
+        out.push(
+            '',
+            '> **A run carried more jobs than one page holds, so its job list was read SHORT** — ' +
+                'a leg past the hundredth is missing from the tables above rather than reported as ' +
+                'stale. Paginate `…/jobs` before trusting a "not in the last N runs" row here.',
+        );
+    }
     if (stats.budgetExhausted) {
         out.push(
             '',
