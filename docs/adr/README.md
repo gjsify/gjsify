@@ -49,7 +49,7 @@ the TODO records the *what's left*.
 | [0026](0026-html-parsing-and-selector-engine.md) | HTML parsing stays in `@gjsify/domparser` behind leaf subpaths; one adapter-based selector engine serves both DOM models; verification is differential against parse5 | Accepted |
 | [0027](0027-gtk-host-layer.md) | One GTK host layer, framework adapters on top | Accepted |
 | [0028](0028-widget-table-provenance.md) | GIR-generated widget table, runtime ParamSpec for values | Accepted |
-| [0029](0029-girs-widget-vocabulary.md) | The widget vocabulary ships from `@girs/*` under a `surface` subpath, with no JSX namespace | Proposed |
+| [0029](0029-girs-widget-vocabulary.md) | The widget vocabulary ships from `@girs/*` under a `surface` subpath, with no JSX namespace | Accepted |
 | [0030](0030-one-corpus-gjs-as-oracle.md) | One test corpus per claim, parameterised by runtime; GJS is the oracle | Accepted |
 | [0031](0031-node-gi-napi-outside-the-workspace.md) | `node-gi` and `napi` stay outside the npm workspace | Accepted |
 
