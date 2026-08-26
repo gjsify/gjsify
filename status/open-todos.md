@@ -4,25 +4,25 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
-### Two node:test FILES fail with no named test and no message, on legs nobody watches
+### A node:test FILE fails with no named test and no message, on a leg nobody watches
 
-Two cases in one day, same shape, different packages — which is why this is one entry
-rather than two.
+**`packages/node-gi` `test/bytes.test.mjs`** on the Windows batteries-included leg
+(`no gvsbuild`, staged prebuild, bundled GTK): `tests 10, pass 9, fail 1` where all
+NINE named tests are green and the tenth "test" is the FILE — `'test failed'`, no
+message, no assertion, no stack, no abort or access-violation anywhere in the log.
+Immediately before it: `(node-gi) warning: could not watch a GLib poll fd from
+libuv; falling back to timed main-context polling`. Green on rerun.
 
-- **`packages/napi` `na_test_instance_data`**: red twice on PRs that could not affect
-  it, `got ""` against `want "\"ok\""`, green on rerun both times. Its diagnosability
-  half is fixed (one marker per stage), so the NEXT occurrence names the stage.
-- **`packages/node-gi` `test/bytes.test.mjs`** on the Windows batteries-included leg
-  (`no gvsbuild`, staged prebuild, bundled GTK): `tests 10, pass 9, fail 1` where all
-  NINE named tests are green and the tenth "test" is the FILE — `'test failed'`, no
-  message, no assertion, no stack, no abort or access-violation anywhere in the log.
-  Immediately before it: `(node-gi) warning: could not watch a GLib poll fd from
-  libuv; falling back to timed main-context polling`. Green on rerun.
+A napi case used to sit beside this one, on the theory that the two shared a shape.
+They did not, and the theory cost a wrong grouping: that one was a conformance program
+awaiting something nobody resolves, which exits 0 with a truncated transcript. Nothing
+about it was file-level or unattributable once the reference leg stopped reporting
+success for a run that never finished.
 
-**The shared shape is the finding.** A `node:test` file that fails at FILE level
-reports nothing usable: node attributes a post-test process problem to the file, so
-the log carries a name and a duration and no cause. An assertion failure would print
-a diff; this prints `'test failed'`.
+**The shape is the finding.** A `node:test` file that fails at FILE level reports
+nothing usable: node attributes a post-test process problem to the file, so the log
+carries a name and a duration and no cause. An assertion failure would print a diff;
+this prints `'test failed'`.
 
 **And the baseline WAS unknown, which is worse than the flake.** node-gi.yml's `scope`
 job narrows the OS matrix, so the Windows legs run only when `packages/node-gi/**` is
@@ -44,40 +44,6 @@ What would make the next occurrence cost minutes instead of an afternoon, in ord
   it appeared in the run that first linked instance prototypes to their class
   (#1322) — a change that touches every wrapped instance. That is a hypothesis with
   no evidence behind it: the same leg passed on rerun with the same code.
-
-### `na_test_instance_data` fails non-deterministically, and cannot say where
-
-Measured twice in one session, both times on a PR that could not affect it — a
-`repository.directory` correction and a README split — and green on a rerun both
-times. It has no record anywhere: not here, not in `packages/napi/napi/AGENTS.md`,
-not in `packages/napi/napi/conformance/ledger.json`. A red that is always cleared
-by a rerun and never written down is how a real defect eventually hides behind a
-habit.
-
-**A ledger entry is the wrong home for it.** That ledger is for a documented,
-UNDERSTOOD exclusion, and it fails on a STALE entry by design — so ledgering a
-case that passes on rerun makes the next green run red. Non-determinism is not an
-exclusion.
-
-**The program cannot locate its own failure, and that is the part to fix first.**
-`conformance/programs/na_test_instance_data.mjs` awaits three things — instance
-data reached from an async_work completion callback, from a
-`napi_create_external_buffer` finalizer driven by an explicit `h.gc()`, and from a
-threadsafe-function callback — and then emits exactly ONE marker, `ok`. So a hang
-in any of the three produces byte-identical evidence, and the observed diff is
-exactly that: `got ""`, `want "ok"`.
-
-The cheap change is a marker per stage, so the next occurrence names the stage
-rather than the program: `got "async-work"` points at the await that did not
-return. It costs one golden regeneration on the reference leg.
-
-The suspicion the shape invites, stated as a suspicion because nothing here
-measures it: the finalizer stage is the one with a real timing dependency, since it
-needs a forced GC to actually collect the external buffer in that pass. The sibling
-`test_instance_data` program passes and does assert `finalizer-callback-ran`, so
-finalizers work as such — this is the node-api variant over
-`napi_create_external_buffer`. Which stage it really is remains unmeasured, which
-is the whole reason the marker change comes first.
 
 ### node-gi: two callable shapes diverge from gjs in calling convention, and their arity with it
 
