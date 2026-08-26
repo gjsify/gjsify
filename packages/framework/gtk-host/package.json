@@ -10,6 +10,10 @@
             "types": "./lib/types/index.d.ts",
             "default": "./lib/esm/index.js"
         },
+        "./style": {
+            "types": "./lib/types/style/index.d.ts",
+            "default": "./lib/esm/style/index.js"
+        },
         "./vue": {
             "types": "./lib/types/adapters/vue.d.ts",
             "default": "./lib/esm/adapters/vue.js"
