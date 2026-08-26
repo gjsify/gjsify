@@ -19,7 +19,7 @@ gjsify tsc …                              # Node-free tsc via the @gjsify/tsc 
 gjsify publish|whoami|login|logout        # Node-free npm publish/auth (npm-otp header, no web-OAuth)
 gjsify trust [pkg] | gjsify onboard       # Trusted-Publisher config / full first-publish+trust sweep (one shared OTP)
 gjsify upgrade [--latest|--minor|--patch|--align|--check] [-p glob]   # workspace-wide dep upgrades; --check = CI drift gate
-gjsify ship [--target deb,rpm] [--stage]   # phase 1: assemble ONE staged payload (ADR 0024)
+gjsify ship [--target deb,rpm,flatpak] [--stage]   # phase 1: assemble ONE staged payload (ADR 0024)
 gjsify ship --from-stage <dir> [--expect-target <os>-<arch>]   # phase 2: pack a stage, no project needed
 gjsify install [--immutable|--refresh-lockfile] | gjsify dlx <pkg> | gjsify showcase <name> | gjsify storybook | gjsify debug
 gjsify dev [entry] [--runtime <r>] [--script <s>]   # watch → rebuild → relaunch; the templates' `dev` script
@@ -48,6 +48,19 @@ packer, because the packer has to run under GJS, offline, and on a Fedora CI ima
 `dpkg-deb` does not exist. What that bought, and the defect `rpm`-as-an-independent-oracle caught
 on the first artifact: [ADR 0024](../../../docs/adr/0024-ship-installable-artifacts.md) §
 Implementation status.
+
+**A FORMAT DECLARES WHERE IT CAN BE PACKED** (ADR 0024 § A3) — `FormatDescriptor.host` is
+`finishOn`/`requiredTools`/`oracle`, and `flatpak` is the first that is not `'any'`. Four things
+follow, each with a silent-failure story in
+[docs/ship-formats.md](../../../docs/ship-formats.md): the gates fire BEFORE the project's `build`
+script; `DEFAULT_FORMAT_IDS` is a SECOND derivation from `FORMATS`, because a bare `gjsify ship`
+must not demand `flatpak-builder` of every project that packaged a `.deb`; `deriveDepends` takes a
+`DistroFormatId`, because a Flatpak has no `Depends:` field at all; and **`flatpak-builder
+--show-manifest` is not a validator** (it took `buildsystem: "nonsense"` at exit 0). Flatpak's whole
+content is one prefix row (`/app`) plus `buildsystem: simple` + `cp -a stage/.` — that is what
+removes meson from the sandbox — and the six `gjsify.flatpak` BUILD keys have a per-KEY deprecation
+window into `gjsify.ship.flatpak` that `flatpak init` resolves too (one-sided, it would silently
+rewrite the manifest that command commits); the `AppMetadata` half is an alias and is NOT deprecated.
 
 **`gjsify ship` is TWO PHASES, and the boundary is a TYPE** (ADR 0024 § A2): `--stage` assembles and
 writes `.gjsify-ship-stage.json`, a CLOSURE rather than a settings dump; `--from-stage <dir>` packs it

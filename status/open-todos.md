@@ -477,12 +477,19 @@ misled. These are the upstream source of that claim, and a stale comment is how 
 grows back. Left for a commit of its own because both files path-filter CI job
 selection, and editing them from a docs branch is churn where it is riskiest.
 
-### ADR 0024 §8 is unblocked: `gjsify flatpak` + `generate-installer` move under `ship`
+### ADR 0024 §8, second half: `gjsify flatpak <sub>` + `generate-installer` move under `ship`
 
-The ADR sequenced the flatpak migration as stage 6 and gated it on one condition:
-"the migration lands only once `ship` can actually stage, so the tree never carries
-two staging models." Stages 2 and 3 have landed, so that condition is now met and
-nothing else is holding this.
+The FORMAT half is DONE (stage 6): `gjsify ship --target flatpak` builds a bundle
+out of the staged payload, its module is `buildsystem: simple` + `cp -a stage/.`,
+meson is gone from the sandbox, and the six `gjsify.flatpak` BUILD keys have their
+deprecation window into `gjsify.ship.flatpak`. **Do not redo any of that** — the
+window, what is deliberately NOT in it, and the measured flatpak-builder facts are
+`docs/ship-formats.md`.
+
+What is left is the COMMAND rename, which turned out to be independent of the
+format: `flatpak ci`, `deps`, `sources`, `diff`, `release` and `sync-flathub` are
+Flathub-submission tooling with nothing to do with a staged payload, so moving
+them buys consistency with the website's channel table and costs an alias.
 
 Scope, as decided 2026-08-17:
 
@@ -499,17 +506,22 @@ Scope, as decided 2026-08-17:
   packaging channel, so the line is: `ship` owns the channels, `build` owns the
   bundle shapes.
 
-Two costs §8 names and this must pay:
+One cost §8 names and this must still pay:
 
-- `gjsify.flatpak` is a **published config contract**. The keys move behind a
-  deprecation window in which both spellings resolve and the old one warns.
 - `gjsify flatpak …` is in published releases and in the Flathub sync automation,
   so the old command path needs a warning ALIAS, not a removal.
 
 Already done, so do not redo it: the AppStream and desktop-entry renderers moved
 out of `commands/flatpak/scaffold.ts` into `utils/app-metadata.ts`, and
-`ConfigDataFlatpak` extends a shared base. That was §8's "the metadata half is the
-app's, not Flatpak's" half.
+`ConfigDataFlatpak` extends a shared base (§8's "the metadata half is the app's,
+not Flatpak's"); the runtime/SDK/finish-args resolution moved to
+`utils/flatpak-runtime.ts` when `ship` became its second caller; and the
+`gjsify.flatpak` config-key window exists. What that window does NOT cover, on
+purpose, is the toolchain keys these very subcommands read — `lockfile`,
+`ciContainer`, `ciBranches`, `flathubRepo`, `modules`, `extraModules`, `command`.
+Deprecating them before their commands moved would warn on every invocation of a
+command with nowhere else to read from, so they are this item's job, not the
+format's.
 
 ### Excalibur's own renderer swap runs on GJS but never reaches the screen
 
@@ -1776,7 +1788,7 @@ The `org.freedesktop.Sdk.Extension.gjsify` SDK extension (toolchain under `/usr/
 
 ### `gjsify ship` — remaining roadmap (ADR 0024, amended 2026-08-21)
 
-Stages 2 and 3 have landed: one staged payload, `.deb` and `.rpm` packed by hand-written writers (no `dpkg-deb`, no `rpmbuild`, no vendored `nfpm`), proven end to end by `tests/e2e/ship` against `rpm`, GNU `ar` and GNU `tar`.
+Stages 2, 3 and 6 have landed: one staged payload, `.deb` and `.rpm` packed by hand-written writers (no `dpkg-deb`, no `rpmbuild`, no vendored `nfpm`), proven end to end by `tests/e2e/ship` against `rpm`, GNU `ar` and GNU `tar`; and `--target flatpak` packing a single-file bundle out of the same stage, proven by `tests/e2e/ship-flatpak` reading it back with `flatpak build-import-bundle` + `ostree ls -R`. Host-boundness is now a declared `HostRequirement` on the format descriptor — the field ADR 0024 § A3 asked for, written because Flatpak needed it first.
 
 **The framing changed.** A format this Linux workstation cannot produce is not a format to defer — it is produced on the host that owns it, in CI, the way this repo already builds per-platform prebuilds (ADR 0024 § A1-A7). Host-boundness becomes a declared `HostRequirement` on the format descriptor, with the independent oracle as a REQUIRED field: `selfReading: true` is legal to declare and illegal to release.
 
@@ -1795,14 +1807,13 @@ Open, in order — each independently mergeable, each with its proof:
 2. ~~**`kind: 'app'` was dead under the shipped GJS bin, and the cause was TWO gates deep.**~~ **DONE (#1257).** one of its six sites was already fixed at the call site by #1251, which moved that template into source. What the first reading of this entry got right: `rewrite-node-modules-paths.ts`'s `shouldRewrite()` returns false unless the path contains `node_modules`, and it guards the only production call site of `inlineStaticReads`, so the CLI never offered its own reads to the inliner. What it MISSED, and what makes opening that gate insufficient on its own: the inliner parsed with acorn, **which cannot read TypeScript**, and its `catch` returns `inlined: 0` — a value indistinguishable from "this file has no static reads". An installed package ships JS, so the scope kept the parser limitation invisible; measured, the same expression returned 1 as `.js` and 0 as `.ts`. Also worth keeping: the obvious repair is a trap. Rolldown's own oxc parser links npm `rolldown` into a module that must load under GJS, and the CLI bundle then died at startup with `createRequire: Cannot require builtin module "fs" synchronously in GJS`. Fixed with `acorn-typescript`, which is pure JS. **Correcting the reason this list gave for that trap, because the wrong reason makes it look unfixable:** npm `rolldown` does not fail under GJS because it is "a napi crate that cannot run under GJS". It fails one layer higher, in JS: `rolldown/dist/shared/binding-*.mjs` evaluates `createRequire(import.meta.url)` at module scope and its platform-detection preamble calls `__require('node:fs')` / `__require('node:child_process')` — the error quoted above is that require, and no `.node` is ever opened. So the blocker is a module-loading strategy, not an ABI. The published 0.41.0 still ENOENTs on `generate-installer`, `flatpak scaffold` and the two oxc config templates until 0.42.0 ships.
 3. **Pack from a stage alone** (`--from-stage` + `.gjsify-ship-stage.json`). **In flight: #1268.** The sidecar is a closure — `{settings (arch resolved at stage time), staged, overlay, namespaces, mtime}` — not a settings dump: measured, dropping `staged` packs the launcher 0644, dropping the overlay omits the Debian-Policy copyright file, dropping `namespaces` loses `gir1.2-gtk-4.0` and `gir1.2-adw-1` from `Depends`, all silently at exit 0. `readStage` must fail on a staged path the plan does not name AND on a planned path the stage lacks (its `?? 0o644` fallback inherits the open `download-artifact` MERGE hazard). Never `writeStage` onto an arriving stage — it opens with `rmSync(root, {recursive: true})`. *Proof, and the deletion IS the discriminator:* stage into a tmpdir, **delete the project tree**, pack from the stage, assert byte-equality with the single-host artifact.
 4. **`ship-pack-linux` on a bare `ubuntu-latest`** (no container), downloading a stage and packing deb+rpm. **In flight: #1268**, the `FORMAT_IDS` binding included — it was folded in rather than opened as a third PR once the CI queue, not review capacity, turned out to be the scarce resource. First real `dpkg -i --dry-run` this project has ever run, plus `rpm` via `docker run --rm fedora:44`, on a free runner — it closes the `dpkg` gap below and exercises the whole cross-host handoff with formats that already exist, before any darwin runner is involved. The vocabulary turned out to have SIX copies, not two: `FormatId`, `FORMATS`, `FORMAT_IDS`, two `extraDepends` reads, the packer dispatch, two ternaries in `depends.ts`, `manifest-conformance`'s `TARGETS`, and a `--target deb,rpm` in `main.yml`. Seven are now compiler-bound or derived, `TARGETS` is bound by `scripts/check-ship-format-vocabulary.mjs` (an import would break the rule's `portable` scope), and the workflow flag is gone. The two `depends.ts` ternaries were the ones that mattered: a third format silently took rpm's package name into a Debian `Depends:`, at exit 0.
-5. **Stages 4/5 proper** — macOS `.app` + zip and the Windows program directory + zip (`finishOn: 'any'`), then `.dmg` on `macos-latest`/`macos-15-intel` and `.msi`. Blocked on 2 and 3. Windows launcher is unresolved and is a VM measurement, not a design argument: `node.exe` is a CONSOLE-subsystem image (Subsystem=3 at offset 0xd4, v24.19.0), `nodew.exe` does not exist, and every Windows CI leg starts the app from a shell and therefore inherits a console — so no CI leg can observe the defect. Instrument is `win11-gjsify`.
-6. **Stage 6 — Flatpak as a target under `ship`.** The metadata half already moved (`utils/app-metadata.ts`); what is left is the staging path (`buildsystem: simple` + `cp -a stage/.`, which is what removes meson from inside the sandbox) and the deprecation window for the `gjsify.flatpak` config keys. Sequenced AFTER the descriptor refactor: Flatpak's whole content is one prefix-layout row, and writing it first means writing it twice.
-7. **Bundled Node for `--app node`** — still undecided between a ship-time fetch and a platform package (ADR 0017's shape). Stages 4/5 need it: an unsigned artifact is a legitimate output, an artifact with no interpreter is not.
-8. **`dpkg` is on no CI runner this project uses**, so the `.deb` is never verified by a real `dpkg -i`. What IS verified: GNU `ar` and GNU `tar` (independent readers of the container and of both inner tars), every `md5sums` digest recomputed, and the data member unpacked and compared byte-for-byte against the staged tree. The `.rpm` half has no such gap — `rpm` is on every Fedora image and `rpm -i --test` runs there. Item 4 closes this for free (#1268 carries it). Also undeclared while it stands: `tests/e2e/ship` makes `ar` required on Linux, but `binutils` appears nowhere in `.docker/ci-fedora.Dockerfile` — it is present only transitively via `gcc`.
-9. **Two docs sentences become false** with host-bound formats: `website/src/content/docs/ship/index.mdx` promises the packers "run anywhere" and that there is "no packaging file to keep in your repo". Both need replacing when `--format dmg` and `gjsify ship ci` land.
-10. **A scaffolded workflow is verified by nothing.** The only scaffolder in the tree (`flatpak ci`) is asserted by four `assert.match` regexes on raw text — never parsed as YAML, never actionlint'd (which discovers only this repo's `.github/workflows/**`), never run. ADR 0024 names this exact class for `ship`; it already exists one command over. Minimum bar for `ship ci`: emit into gjsify's own workflows directory too, and `bash -n` every extracted `run:` block.
+5. **Stages 4/5 proper** — macOS `.app` + zip and the Windows program directory + zip (`finishOn: 'any'`), then `.dmg` on `macos-latest`/`macos-15-intel` and `.msi`. UNBLOCKED — items 1-4 have landed, and `HostRequirement` is in the descriptor. Windows launcher is unresolved and is a VM measurement, not a design argument: `node.exe` is a CONSOLE-subsystem image (Subsystem=3 at offset 0xd4, v24.19.0), `nodew.exe` does not exist, and every Windows CI leg starts the app from a shell and therefore inherits a console — so no CI leg can observe the defect. Instrument is `win11-gjsify`.
+6. **Bundled Node for `--app node`** — still undecided between a ship-time fetch and a platform package (ADR 0017's shape). Stages 4/5 need it: an unsigned artifact is a legitimate output, an artifact with no interpreter is not.
+7. **`dpkg` is on no CI runner this project uses**, so the `.deb` is never verified by a real `dpkg -i`. What IS verified: GNU `ar` and GNU `tar` (independent readers of the container and of both inner tars), every `md5sums` digest recomputed, and the data member unpacked and compared byte-for-byte against the staged tree. The `.rpm` half has no such gap — `rpm` is on every Fedora image and `rpm -i --test` runs there. Item 4 closes this for free (#1268 carries it). Also undeclared while it stands: `tests/e2e/ship` makes `ar` required on Linux, but `binutils` appears nowhere in `.docker/ci-fedora.Dockerfile` — it is present only transitively via `gcc`.
+8. ~~**Two docs sentences become false** with host-bound formats.~~ **HALF DONE.** The "run anywhere" claim in `website/src/content/docs/ship/index.mdx` was made false by `--target flatpak` in the same PR and is replaced there: the page now states per format where it can be packed and what reads it back, and `docs/ship-formats.md` carries the model. Still open: *"no packaging file to keep in your repo"*, which only `gjsify ship ci` makes false — it scaffolds a workflow the consumer commits.
+9. **A scaffolded workflow is verified by nothing.** The only scaffolder in the tree (`flatpak ci`) is asserted by four `assert.match` regexes on raw text — never parsed as YAML, never actionlint'd (which discovers only this repo's `.github/workflows/**`), never run. ADR 0024 names this exact class for `ship`; it already exists one command over. Minimum bar for `ship ci`: emit into gjsify's own workflows directory too, and `bash -n` every extracted `run:` block.
 
-11. **Every `.deb` this writer produces ships no `changelog.Debian.gz`.** `E: gjsify: no-changelog usr/share/doc/gjsify/changelog.Debian.gz (non-native package)` — Debian Policy § 4.4, and the only error-severity tag left once the copyright landed. Ledgered rather than fixed in #1268 because it is a FEATURE, not a repair: a second overlay beside the copyright, assembled on the build host and carried in the sidecar the same way, whose open question is what the entry SAYS. A Debian changelog is a release history with a distribution and an urgency per entry, so the honest minimum needs a source for each version's prose (the GitHub release body? a `CHANGELOG.md`?) and an RFC822 date this writer does not produce anywhere yet. Measured by the first real lintian this project has ever run (2.117 on ubuntu-24.04); reproduce the whole leg locally with `podman run --rm -v <workdir>:/w:z -w /w ubuntu:24.04` plus `apt-get install -y sudo gjs lintian`, which is how this entry and #1268's two `verify-deb.sh` corrections were found without a CI round trip each.
+10. **Every `.deb` this writer produces ships no `changelog.Debian.gz`.** `E: gjsify: no-changelog usr/share/doc/gjsify/changelog.Debian.gz (non-native package)` — Debian Policy § 4.4, and the only error-severity tag left once the copyright landed. Ledgered rather than fixed in #1268 because it is a FEATURE, not a repair: a second overlay beside the copyright, assembled on the build host and carried in the sidecar the same way, whose open question is what the entry SAYS. A Debian changelog is a release history with a distribution and an urgency per entry, so the honest minimum needs a source for each version's prose (the GitHub release body? a `CHANGELOG.md`?) and an RFC822 date this writer does not produce anywhere yet. Measured by the first real lintian this project has ever run (2.117 on ubuntu-24.04); reproduce the whole leg locally with `podman run --rm -v <workdir>:/w:z -w /w ubuntu:24.04` plus `apt-get install -y sudo gjs lintian`, which is how this entry and #1268's two `verify-deb.sh` corrections were found without a CI round trip each.
 
 ### Upstream PRs in flight (NativeScript) — track until merged
 

@@ -15,13 +15,14 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import type { Command, ConfigData, ConfigDataFlatpak } from '../../types/index.js';
+import { looksLikeAppId, readPackageJson } from './utils.js';
 import {
     DEFAULT_CLI_FINISH_ARGS,
     DEFAULT_GUI_FINISH_ARGS,
-    looksLikeAppId,
-    readPackageJson,
+    deriveAppendPath,
     resolveRuntime,
-} from './utils.js';
+} from '../../utils/flatpak-runtime.js';
+import { pickFlatpakBuildKeys } from '../../utils/ship/flatpak-config.js';
 import {
     renderDesktop,
     renderFlathubJson,
@@ -151,20 +152,29 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
         const kind: 'app' | 'cli' =
             (args.kind as 'app' | 'cli' | undefined) ?? flatpak.kind ?? (args.cliOnly ? 'cli' : 'app');
 
-        const { runtime, runtimeId, sdk, runtimeVersion } = resolveRuntime(flatpak, {
+        // The six BUILD keys come through the deprecation window
+        // (`utils/ship/flatpak-config.ts`), not straight off `gjsify.flatpak`.
+        // These commands did NOT move, but the keys did: a project that followed
+        // `ship`'s own advice and moved them would otherwise lose them here and
+        // get a committed manifest against a different runtime version with
+        // different finish-args, silently, at exit 0.
+        const buildKeys = pickFlatpakBuildKeys(configData.ship?.flatpak, flatpak).values;
+
+        const { runtime, runtimeId, sdk, runtimeVersion } = resolveRuntime(buildKeys, {
             runtime: args.runtime,
             runtimeVersion: args.runtimeVersion,
         });
 
-        const sdkExtensions = mergeArrays(flatpak.sdkExtensions, args.sdkExtension);
-        const appendPath = flatpak.appendPath ?? (sdkExtensions?.length ? deriveAppendPath(sdkExtensions) : undefined);
+        const sdkExtensions = mergeArrays(buildKeys.sdkExtensions, args.sdkExtension);
+        const appendPath =
+            buildKeys.appendPath ?? (sdkExtensions?.length ? deriveAppendPath(sdkExtensions) : undefined);
         const command = (args.command as string | undefined) ?? flatpak.command ?? appId;
 
         const explicitFinishArgs = args.finishArg as string[] | undefined;
         const finishArgs =
             explicitFinishArgs !== undefined
                 ? explicitFinishArgs
-                : (flatpak.finishArgs ?? (kind === 'cli' ? DEFAULT_CLI_FINISH_ARGS : DEFAULT_GUI_FINISH_ARGS));
+                : (buildKeys.finishArgs ?? (kind === 'cli' ? DEFAULT_CLI_FINISH_ARGS : DEFAULT_GUI_FINISH_ARGS));
 
         const manifest: Record<string, unknown> = {
             id: appId,
@@ -179,7 +189,7 @@ export const flatpakInitCommand: Command<unknown, FlatpakInitOptions> = {
         manifest.command = command;
         manifest['finish-args'] = finishArgs;
 
-        const cleanup = flatpak.cleanup;
+        const cleanup = buildKeys.cleanup;
         if (cleanup?.length) manifest.cleanup = cleanup;
 
         // Module assembly. Two precedence rules:
@@ -314,16 +324,6 @@ function friendlyName(pkgName: string, appId: string): string {
 function mergeArrays(a: string[] | undefined, b: string[] | undefined): string[] | undefined {
     if (!a?.length && !b?.length) return undefined;
     return [...(a ?? []), ...(b ?? [])];
-}
-
-function deriveAppendPath(sdkExtensions: string[]): string[] {
-    const out: string[] = [];
-    for (const ext of sdkExtensions) {
-        const m = /^org\.freedesktop\.Sdk\.Extension\.([A-Za-z0-9-]+)$/.exec(ext);
-        if (m) out.push(`/usr/lib/sdk/${m[1]}/bin`);
-    }
-    out.push('/app/bin');
-    return out;
 }
 
 function deriveModuleName(appId: string): string {

@@ -21,7 +21,7 @@
 // those live in separate `gir1.2-*` packages — the two tables answer different
 // questions and would be wrong as one.
 
-import type { FormatId } from './types.js';
+import type { DistroFormatId } from './types.js';
 
 /**
  * The GJS the bundles target (root AGENTS.md § Constraints: GJS 1.86 /
@@ -45,9 +45,9 @@ export const DEFAULT_GJS_FLOOR = '1.86';
  * A record, not `format === 'deb' ? … : …`. The ternary reads as a two-way
  * choice and is really "deb, or ELSE rpm's package name" — measured on a third
  * format, `dmg` got `glib2`, at exit 0, in the `Depends:` of a package that has
- * no such thing. Adding a `FormatId` now fails to build here instead.
+ * no such thing. Adding a `DistroFormatId` now fails to build here instead.
  */
-const SCHEMA_COMPILER_PACKAGE: Record<FormatId, string> = { deb: 'libglib2.0-bin', rpm: 'glib2' };
+const SCHEMA_COMPILER_PACKAGE: Record<DistroFormatId, string> = { deb: 'libglib2.0-bin', rpm: 'glib2' };
 
 /** Debian's `gjs` versions per suite, as measured 2026-08-15 — see {@link warnAboutGjsFloor}. */
 const DEBIAN_GJS = 'trixie ships 1.82.3 and forky 1.88.1; 1.84 and 1.86 were skipped';
@@ -59,16 +59,16 @@ const DEBIAN_GJS = 'trixie ships 1.82.3 and forky 1.88.1; 1.84 and 1.86 were ski
 /**
  * Which formats this Debian-suite warning is ABOUT.
  *
- * A `Record<FormatId, …>` and not `format !== 'deb'`: the negative form answers
+ * A `Record<DistroFormatId, …>` and not `format !== 'deb'`: the negative form answers
  * for every format that will ever exist, and answers "stay quiet" — so a third
  * format would inherit silence about a floor nobody has checked for its distro,
- * with no compile error. As a record, adding a `FormatId` fails to build until
+ * with no compile error. As a record, adding a `DistroFormatId` fails to build until
  * someone decides. `rpm` is false because Fedora ships a current GJS, which is a
  * measured fact about Fedora, not a default.
  */
-const GJS_FLOOR_IS_DEBIAN_NEWS: Record<FormatId, boolean> = { deb: true, rpm: false };
+const GJS_FLOOR_IS_DEBIAN_NEWS: Record<DistroFormatId, boolean> = { deb: true, rpm: false };
 
-export function warnAboutGjsFloor(format: FormatId, floor: string): string[] {
+export function warnAboutGjsFloor(format: DistroFormatId, floor: string): string[] {
     if (!GJS_FLOOR_IS_DEBIAN_NEWS[format]) return [];
     // Only a floor forky ACTUALLY satisfies is quiet. The first cut tested
     // `>= 1.88.1` and therefore went silent for 1.90 and 2.0 as well — the
@@ -102,7 +102,7 @@ function compareVersions(a: string, b: string): number {
  * in a `gir1.2-*` package separate from the runtime library, which is why the
  * two columns look nothing alike for the same namespace.
  */
-const TYPELIB_PACKAGES: Record<string, { deb: string; rpm: string }> = {
+const TYPELIB_PACKAGES: Record<string, Record<DistroFormatId, string>> = {
     // GLib stack — one package each side covers all four namespaces.
     'GLib-2.0': { deb: 'gir1.2-glib-2.0', rpm: 'glib2' },
     'GObject-2.0': { deb: 'gir1.2-glib-2.0', rpm: 'glib2' },
@@ -155,7 +155,7 @@ export interface DependsInputs {
     /** User-supplied additions for this format. */
     extra: readonly string[];
     /** Project-supplied table rows, filling gaps in {@link TYPELIB_PACKAGES}. */
-    typelibPackages?: Record<string, { deb: string; rpm: string }>;
+    typelibPackages?: Record<string, Record<DistroFormatId, string>>;
     /**
      * Paths of typelib files the payload carries itself. The namespaces they cover need no distro
      * dependency — and are derived from these filenames, never declared separately.
@@ -188,7 +188,7 @@ const BUNDLED_TYPELIB = /^Gjsify[A-Z]/;
  *
  * @throws when a namespace has no entry in the table — see the module header.
  */
-export function deriveDepends(format: FormatId, inputs: DependsInputs): string[] {
+export function deriveDepends(format: DistroFormatId, inputs: DependsInputs): string[] {
     const out: string[] = [`gjs >= ${inputs.minGjsVersion ?? DEFAULT_GJS_FLOOR}`];
     const unmapped: string[] = [];
 
@@ -260,8 +260,8 @@ export function deriveDepends(format: FormatId, inputs: DependsInputs): string[]
  */
 function lookupTypelib(
     specifier: string,
-    overrides: Record<string, { deb: string; rpm: string }> = {},
-): { deb: string; rpm: string } | undefined {
+    overrides: Record<string, Record<DistroFormatId, string>> = {},
+): Record<DistroFormatId, string> | undefined {
     // A project row wins over the built-in one: the table here is a snapshot
     // of what two distributions call things today, and a project that knows
     // better must not have to wait for a gjsify release to say so.

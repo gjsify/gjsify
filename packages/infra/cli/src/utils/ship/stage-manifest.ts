@@ -40,7 +40,15 @@ import { join, sep } from 'node:path';
 
 import { cliVersion } from '../publish-headers.js';
 import { FORMAT_IDS } from './formats.js';
-import type { FormatDescriptor, FormatId, PackSettings, ShipSettings, StagedFile, StagedMode } from './types.js';
+import type {
+    FormatDescriptor,
+    FormatId,
+    PackSettings,
+    ShipFlatpakSettings,
+    ShipSettings,
+    StagedFile,
+    StagedMode,
+} from './types.js';
 
 /** The one file a stage carries that is not payload. Lives at the stage ROOT. */
 export const STAGE_MANIFEST_FILE = '.gjsify-ship-stage.json';
@@ -54,8 +62,14 @@ export const STAGE_MANIFEST_FILE = '.gjsify-ship-stage.json';
  * Bump it whenever a field's MEANING changes, not when one is added that an
  * older reader would simply ignore; a reader that ignores a field it does not
  * know is exactly how a mode plan silently loses an entry.
+ *
+ * 2 added `settings.appId` and `settings.flatpak` for the Flatpak target. That
+ * is the second case and not the first: an older reader ignoring
+ * `settings.flatpak` would not skip a field, it would pack a Flatpak against
+ * whatever runtime IT defaults to — a different `org.gnome.Platform` version
+ * than the project asked for, at exit 0.
  */
-export const STAGE_SCHEMA_VERSION = 1;
+export const STAGE_SCHEMA_VERSION = 2;
 
 /**
  * The OS whose layout `planStage` produces.
@@ -120,11 +134,15 @@ export interface StageManifestInput {
  * `extraFiles` and `licenseFile` — seven absolute paths from the assembling
  * host — into a file whose whole purpose is to be read somewhere else. The
  * explicit list is also what makes adding a field a decision: see the comment
- * on {@link PackSettings} for what belongs on each side.
+ * on {@link PackSettings} for what belongs on each side. `appId` and `flatpak`
+ * were that decision for the Flatpak target, and the `--from-stage` e2e is
+ * where an omission would have shown: it deletes the project, so a field the
+ * packer needs and the manifest lacks has nowhere to be read from.
  */
 export function toPackSettings(settings: ShipSettings): PackSettings {
     return {
         binaryName: settings.binaryName,
+        appId: settings.appId,
         version: settings.version,
         release: settings.release,
         maintainer: settings.maintainer,
@@ -137,6 +155,7 @@ export function toPackSettings(settings: ShipSettings): PackSettings {
         extraDepends: settings.extraDepends,
         typelibPackages: settings.typelibPackages,
         minGjsVersion: settings.minGjsVersion,
+        flatpak: settings.flatpak,
     };
 }
 
@@ -442,6 +461,7 @@ function readPackSettings(data: Record<string, unknown>, at: string): PackSettin
     const typelibPackages = record(data.typelibPackages, field('typelibPackages'));
     return {
         binaryName: expectString(data.binaryName, field('binaryName')),
+        appId: expectString(data.appId, field('appId')),
         version: expectString(data.version, field('version')),
         release: expectString(data.release, field('release')),
         maintainer: expectString(data.maintainer, field('maintainer')),
@@ -474,6 +494,33 @@ function readPackSettings(data: Record<string, unknown>, at: string): PackSettin
             }),
         ),
         minGjsVersion: expectString(data.minGjsVersion, field('minGjsVersion')),
+        flatpak: readFlatpakSettings(record(data.flatpak, field('flatpak')), field('flatpak')),
+    };
+}
+
+/**
+ * The Flatpak half, validated the same way as everything else here.
+ *
+ * Every field is required and none is defaulted, deliberately: a `?? []` on
+ * `finishArgs` would turn a mutilated manifest into an app with no display
+ * socket — it installs, it starts, and it draws nothing. The defaults belong on
+ * the assembling host, where `gjsify.ship` and `kind` are in reach; by the time
+ * a manifest exists the answer has already been decided and writing it down
+ * twice is how the two hosts disagree.
+ */
+function readFlatpakSettings(data: Record<string, unknown>, at: string): ShipFlatpakSettings {
+    const field = (name: string): string => `${at}.${name}`;
+    const strings = (value: unknown, name: string): string[] =>
+        expectArray(value, field(name)).map((entry, index) => expectString(entry, field(`${name}[${index}]`)));
+    return {
+        runtime: expectString(data.runtime, field('runtime')),
+        runtimeVersion: expectString(data.runtimeVersion, field('runtimeVersion')),
+        sdk: expectString(data.sdk, field('sdk')),
+        branch: expectString(data.branch, field('branch')),
+        sdkExtensions: strings(data.sdkExtensions, 'sdkExtensions'),
+        appendPath: strings(data.appendPath, 'appendPath'),
+        finishArgs: strings(data.finishArgs, 'finishArgs'),
+        cleanup: strings(data.cleanup, 'cleanup'),
     };
 }
 

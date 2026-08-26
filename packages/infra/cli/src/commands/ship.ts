@@ -21,7 +21,7 @@
 // the split exists at all: a `.dmg` is a UDIF image over a real HFS+/APFS
 // volume and no Linux host in this tree can write one (§ A1).
 
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, relative, resolve } from 'node:path';
 import type { Argv } from 'yargs';
 
@@ -38,7 +38,14 @@ import { describeExit, spawnToCompletion } from '../utils/spawn.js';
 import { buildDeb } from '../utils/ship/deb.js';
 import { deriveDepends, warnAboutGjsFloor } from '../utils/ship/depends.js';
 import { discoverPayload } from '../utils/ship/discover.js';
-import { resolveFormats, FORMAT_IDS } from '../utils/ship/formats.js';
+import { buildFlatpakBundle } from '../utils/ship/flatpak.js';
+import {
+    assertHostCanFinish,
+    assertToolsInstalled,
+    resolveFormats,
+    DEFAULT_FORMAT_IDS,
+    FORMAT_IDS,
+} from '../utils/ship/formats.js';
 import { scanGiNamespaces } from '../utils/ship/gi-namespaces.js';
 import {
     assertPayloadMatchesArch,
@@ -59,6 +66,7 @@ import {
     resolveStageMtime,
     warnOnToolSkew,
     writeStageManifest,
+    STAGE_MANIFEST_FILE,
 } from '../utils/ship/stage-manifest.js';
 import { readStage, writeStage } from '../utils/ship/stage-writer.js';
 import type {
@@ -86,12 +94,19 @@ const LOG = '[gjsify ship]';
 export const shipCommand: Command<unknown, ShipOptions> = {
     command: 'ship',
     description: `Build installable artifacts (${FORMAT_IDS.join(', ')}) from the current project.`,
+    // `DEFAULT_FORMAT_IDS` in the flag text, `FORMAT_IDS` in the description:
+    // one of them answers "what can this build", the other "what will it build
+    // if I say nothing", and they stopped being the same list when a host-bound
+    // format arrived.
     builder: (yargs: Argv) =>
         yargs
             .option('target', {
                 type: 'string',
                 array: true,
-                description: `Formats to build, comma-separated or repeated. Default: ${FORMAT_IDS.join(',')}.`,
+                description:
+                    `Formats to build, comma-separated or repeated. Default: ${DEFAULT_FORMAT_IDS.join(',')}. ` +
+                    `Also available, and opt-in because it needs tooling this CLI does not carry: ` +
+                    `${FORMAT_IDS.filter((id) => !DEFAULT_FORMAT_IDS.includes(id)).join(', ')}.`,
             })
             .option('out', {
                 type: 'string',
@@ -128,7 +143,9 @@ export const shipCommand: Command<unknown, ShipOptions> = {
             .option('verbose', {
                 type: 'boolean',
                 default: false,
-                description: 'Print each staged file and the GI namespaces the bundle imports.',
+                description:
+                    'Print each staged file, the GI namespaces the bundle imports, and every tool a ' +
+                    'host-bound packer invokes.',
             }),
 
     handler: async (args) => {
@@ -160,7 +177,13 @@ async function assemble(args: ShipOptions): Promise<void> {
 
     // Resolved before anything is built or written: a typo'd `--target`
     // should not cost a build and leave a half-written `ship/stage/`.
-    const formats = resolveFormats(args.target ?? ship.targets ?? FORMAT_IDS);
+    const formats = resolveFormats(args.target ?? ship.targets ?? DEFAULT_FORMAT_IDS);
+    // BEFORE the build, not before the pack. `gjsify ship` runs the project's
+    // own `build` script first, so discovering a missing `flatpak-builder`
+    // afterwards costs the whole build for a refusal that was knowable up
+    // front. Skipped under `--stage`, which is precisely the phase that does
+    // NOT need the format's tooling — that asymmetry is the point of the split.
+    if (!args.stage) for (const format of formats) assertCanPack(format);
 
     if (!args['skip-build']) await runProjectBuild(projectDir);
 
@@ -243,16 +266,25 @@ async function assemble(args: ShipOptions): Promise<void> {
     // paths the payload will have.
     const facts = readPayloadFacts(staged);
     for (const format of formats) {
-        deriveDepends(format.id, {
+        // `format.depends`, not `format.id`: a Flatpak has no package
+        // dependency list at all, and asking for one would either invent a
+        // third column in the typelib table or silently reuse rpm's — which is
+        // the exact defect `check-ship-format-vocabulary.mjs`'s header records
+        // from the other direction (a third format taking rpm's package name
+        // into a Debian `Depends:`, at exit 0).
+        if (format.depends === null) continue;
+        deriveDepends(format.depends, {
             namespaces,
             hasIcons: facts.hasIcons,
             hasSchemas: facts.hasSchemas,
-            extra: settings.extraDepends[format.id],
+            extra: settings.extraDepends[format.depends],
             typelibPackages: settings.typelibPackages,
             bundledTypelibs: facts.bundledTypelibs,
             minGjsVersion: settings.minGjsVersion,
         });
-        for (const warning of warnAboutGjsFloor(format.id, settings.minGjsVersion)) console.warn(`${LOG} ${warning}`);
+        for (const warning of warnAboutGjsFloor(format.depends, settings.minGjsVersion)) {
+            console.warn(`${LOG} ${warning}`);
+        }
     }
 
     // Written unconditionally, not only under `--stage`: a `ship/stage/` that
@@ -279,6 +311,7 @@ async function assemble(args: ShipOptions): Promise<void> {
                 outRoot,
                 namespaces,
                 mtime,
+                verbose: args.verbose,
             }),
         );
     }
@@ -323,6 +356,7 @@ async function finishFromStage(args: ShipOptions, fromStage: string): Promise<vo
 
     const formats = resolveFormats(args.target ?? manifest.formats);
     assertFormatsStaged(manifest, formats);
+    for (const format of formats) assertCanPack(format);
 
     for (const warning of warnOnToolSkew(manifest)) console.warn(`${LOG} ${warning}`);
     const { mtime, warnings } = resolveStageMtime(manifest);
@@ -345,8 +379,10 @@ async function finishFromStage(args: ShipOptions, fromStage: string): Promise<vo
 
     const artifacts: ShipArtifact[] = [];
     for (const format of formats) {
-        for (const warning of warnAboutGjsFloor(format.id, manifest.settings.minGjsVersion)) {
-            console.warn(`${LOG} ${warning}`);
+        if (format.depends !== null) {
+            for (const warning of warnAboutGjsFloor(format.depends, manifest.settings.minGjsVersion)) {
+                console.warn(`${LOG} ${warning}`);
+            }
         }
         artifacts.push(
             await packOne({
@@ -359,6 +395,7 @@ async function finishFromStage(args: ShipOptions, fromStage: string): Promise<vo
                 outRoot,
                 namespaces: manifest.namespaces,
                 mtime,
+                verbose: args.verbose,
             }),
         );
     }
@@ -380,6 +417,8 @@ interface PackInput {
     stageDir: string;
     outRoot: string;
     namespaces: readonly string[];
+    /** Print each tool invocation a host-bound packer makes. */
+    verbose: boolean;
 }
 
 async function packOne(input: PackInput): Promise<ShipArtifact> {
@@ -395,15 +434,18 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
     // this answers used to be answered from the project's file lists, which are
     // absolute paths on the build host and therefore unavailable here.
     const facts = readPayloadFacts(payload);
-    const depends = deriveDepends(format.id, {
-        namespaces: input.namespaces,
-        hasIcons: facts.hasIcons,
-        hasSchemas: facts.hasSchemas,
-        extra: settings.extraDepends[format.id],
-        typelibPackages: settings.typelibPackages,
-        bundledTypelibs: facts.bundledTypelibs,
-        minGjsVersion: settings.minGjsVersion,
-    });
+    const depends =
+        format.depends === null
+            ? []
+            : deriveDepends(format.depends, {
+                  namespaces: input.namespaces,
+                  hasIcons: facts.hasIcons,
+                  hasSchemas: facts.hasSchemas,
+                  extra: settings.extraDepends[format.depends],
+                  typelibPackages: settings.typelibPackages,
+                  bundledTypelibs: facts.bundledTypelibs,
+                  minGjsVersion: settings.minGjsVersion,
+              });
 
     // `--arch` is a CLAIM about the payload and nothing else compared it to one:
     // an x86-64 `.so` staged with `--arch arm64` packed at exit 0 and `rpm -qp
@@ -422,19 +464,42 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
 
     const archLabel = format.archName(input.arch, isArchIndependent(payload));
     const common = { settings, payload, prefix: format.prefix, depends, archLabel, mtime };
+
+    const outDir = join(outRoot, 'out');
+    mkdirSync(outDir, { recursive: true });
+    const target = join(outDir, format.fileName(settings, archLabel));
+
     // A SWITCH with a `never` guard, not a ternary. `format.id === 'deb' ? deb : rpm`
     // read as a dispatch and behaved as one only while there were exactly two
     // formats: a third would have taken the else-branch and written an RPM under a
     // `.dmg` name, at exit 0. This is the same closed-vocabulary hazard the format
     // list has, one level worse — a wrong ARTIFACT rather than a rejected
     // declaration — so the compiler owns it now.
-    let bytes: Uint8Array;
+    //
+    // Each branch WRITES `target` rather than returning bytes. It used to return
+    // them, which is the right shape only while every packer is a byte writer: a
+    // Flatpak is produced by `flatpak build-bundle`, so its bytes exist as a file
+    // before this process could hold them, and reading a bundle back into memory
+    // to hand it to one `writeFileSync` would be a copy for the sake of a
+    // signature. The size is stat'ed off what landed, for every format.
     switch (format.id) {
         case 'deb':
-            bytes = await buildDeb(common);
+            writeFileSync(target, await buildDeb(common));
             break;
         case 'rpm':
-            bytes = await buildRpm(common);
+            writeFileSync(target, await buildRpm(common));
+            break;
+        case 'flatpak':
+            await buildFlatpakBundle({
+                settings,
+                stageDir,
+                overlayDir,
+                stageManifestFile: STAGE_MANIFEST_FILE,
+                workDir: join(outRoot, 'flatpak'),
+                target,
+                archLabel,
+                verbose: input.verbose,
+            });
             break;
         default: {
             const unhandled: never = format.id;
@@ -442,17 +507,26 @@ async function packOne(input: PackInput): Promise<ShipArtifact> {
         }
     }
 
-    const outDir = join(outRoot, 'out');
-    mkdirSync(outDir, { recursive: true });
-    const target = join(outDir, format.fileName(settings, archLabel));
-    writeFileSync(target, bytes);
-    return { format: format.id, path: target, size: bytes.byteLength };
+    return { format: format.id, path: target, size: statSync(target).size };
 }
 
 function printArtifacts(base: string, artifacts: readonly ShipArtifact[]): void {
     for (const artifact of artifacts) {
         console.log(`${LOG} ${artifact.format}: ${relative(base, artifact.path)} (${artifact.size} bytes)`);
     }
+}
+
+/**
+ * Refuse a format this host cannot finish, and say which half is missing.
+ *
+ * Two checks and not one, because the fixes differ: the wrong OS needs another
+ * machine, an absent tool needs a package. Both run on the pack path only —
+ * `--stage` deliberately needs neither, which is what makes a Flatpak
+ * assemblable on a host that cannot build one (ADR 0024 § A1).
+ */
+function assertCanPack(format: FormatDescriptor): void {
+    assertHostCanFinish(format);
+    assertToolsInstalled(format);
 }
 
 /**

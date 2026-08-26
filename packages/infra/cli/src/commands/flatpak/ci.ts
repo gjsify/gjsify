@@ -11,7 +11,9 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import type { Command, ConfigData, ConfigDataFlatpak } from '../../types/index.js';
 import { Config } from '../../config.js';
-import { defaultCiContainer, looksLikeAppId, readPackageJson, resolveRuntime } from './utils.js';
+import { defaultCiContainer, looksLikeAppId, readPackageJson } from './utils.js';
+import { resolveRuntime } from '../../utils/flatpak-runtime.js';
+import { pickFlatpakBuildKeys } from '../../utils/ship/flatpak-config.js';
 
 interface FlatpakCiOptions {
     manifest?: string;
@@ -89,7 +91,13 @@ export const flatpakCiCommand: Command<unknown, FlatpakCiOptions> = {
         const manifest = (args.manifest as string | undefined) ?? `${appId}.json`;
         const bundle = (args.bundle as string | undefined) ?? `${appId}.flatpak`;
 
-        const { runtime, runtimeVersion } = resolveRuntime(flatpak, {});
+        // Through the deprecation window, not straight off `gjsify.flatpak`: a
+        // project told to move these keys to `gjsify.ship.flatpak` must not lose
+        // them here — the CI container tag is derived from the runtime, so
+        // reading the old block alone scaffolds a workflow against the default
+        // GNOME release rather than the pinned one.
+        const buildKeys = pickFlatpakBuildKeys(configData.ship?.flatpak, flatpak).values;
+        const { runtime, runtimeVersion } = resolveRuntime(buildKeys, {});
         const runtimeImage =
             (args.runtimeImage as string | undefined) ??
             flatpak.ciContainer ??

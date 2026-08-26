@@ -31,8 +31,17 @@ import { defineRule } from '../registry.mjs';
 const APP_ID = /^[A-Za-z][\w-]*(\.[A-Za-z][\w-]*){2,}$/;
 /** dpkg's package-name grammar; rpm's is looser, so satisfying dpkg satisfies both. */
 const BINARY_NAME = /^[a-z\d][a-z\d+.-]+$/;
-/** The formats `gjsify ship` can build today. */
-const TARGETS = new Set(['deb', 'rpm']);
+/**
+ * The formats `gjsify ship` can build today.
+ *
+ * Held against the CLI's own `FormatId` by `scripts/check-ship-format-vocabulary.mjs` —
+ * textually, because this rule is `portable` and must not import `@gjsify/cli`.
+ * `flatpak` is in the set even though it needs `flatpak-builder` on the packing
+ * host: a DECLARATION is legal wherever the format exists, and refusing it here
+ * would tell a project its target is unsupported on the very machine that
+ * assembles the stage for a different one.
+ */
+const TARGETS = new Set(['deb', 'rpm', 'flatpak']);
 /**
  * Keys whose value is a SOURCE path that must exist relative to the package.
  *

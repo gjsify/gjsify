@@ -32,169 +32,82 @@ https://github.com/gjsify/gjsify/releases/tag/v0.28.0
 
 ## What this release is about
 
-**Four things an app could not do, every one of which fails silently when you get it wrong.**
+**A Flatpak is now a `gjsify ship` target, and meson leaves the sandbox.**
 
 ---
 
-### A UI framework can drive GTK
+### One payload, and Flatpak is a row in a table
 
-GTK could already describe a window instead of assembling it — that is what Blueprint is for, and it
-does property bindings too. What a template cannot do is change its own shape. A `.blp` is
-instantiated once; a list that grows, a page that swaps, a widget that appears when a checkbox is
-ticked all fall back to imperative code holding a reference to every widget it might later mutate.
-That is the code a UI framework exists to delete, and no UI framework could reach GTK from GJS.
+`gjsify ship` has staged one prefix-relative payload since 0.42.0 — `bin/`, `lib/<name>/`,
+`share/` — and wrapped it as a `.deb` and an `.rpm`. ADR 0024 predicted that the whole difference
+between that and a Flatpak would be "a four-line prefix map". Measured, it is `prefix: '/app'`, an
+architecture table with no `noarch` in it, and a filename:
 
-`@gjsify/gtk-host` is the layer that lets one: fourteen operations over GTK4/Adwaita widgets —
-create, insert, remove, set a property, read a parent — with no framework in them at all. Three
-adapters sit on top and share it, so a fix to how a child is parented reaches all three at once
-rather than being fixed once per renderer:
-
-```tsx
-import { render } from '@gjsify/gtk-host/solid';
-
-render(() => (
-    <gtk-box orientation="vertical">
-        <gtk-button label={label()} onClicked={() => setCount(count() + 1)} />
-    </gtk-box>
-), window);
+```bash
+gjsify ship --target flatpak
+flatpak install ./ship/out/org.example.MyApp-1.2.3-1.x86_64.flatpak
 ```
 
-Solid (`/solid`), Vue (`/vue`) and React (`/react`) are all real entry points, and two new packages
-compile what they are written in — `@gjsify/rolldown-plugin-solid` for Solid's JSX and
-`@gjsify/rolldown-plugin-vue` for single-file components.
-
-**Why the compile step is a package and not four lines of config.** Point rolldown's own transformer
-at a `.tsx` with no JSX configuration and it emits `import { jsx } from "react/jsx-runtime"`, reports
-the unresolved import as a WARNING, and exits 0. The build succeeds. The artifact throws at import,
-in a bundle nobody has reason to suspect, and the message names React — a dependency the project does
-not have and never asked for.
-
-The plugins are gated on their EMITTED CODE for the same reason, and one of those gates already
-caught something a running showcase could not. The Solid plugin cached its assembled Babel preset
-chain rather than the compiler modules, which made every option inert after the first plugin
-instance. A single build with a single instance never sees it; a process that builds two packages
-emits the first one's renderer imports into the second one's bundle, and that artifact fails at
-import with a module that is not there. A showcase asserts the real widget tree and is blind to it,
-because a showcase is one build.
-
-Two properties of the host are load-bearing enough to be pinned rather than described. The compiler
-emits `insertNode` BEFORE `setProp`, which is why the host defers materialising a widget — a
-construct-only property has to survive as a JSX attribute, and it can only do that if nothing has
-been constructed yet (ADR 0027 § Decision 5). And the renderer must never emit DOM: Solid's `dom`
-output cannot run under GJS at all, and it fails on an unresolved `document` at runtime, wherever the
-first render happens to be.
-
-The widget vocabulary is not hand-written. It is generated from the GIR, so a property that GTK has
-is a property the types have (ADR 0028) — and ADR 0029, landed in this release, proposes moving that
-vocabulary to `@girs/*`, where every GJS UI framework can share it instead of each generating its
-own.
-
-### An app can find its own translations
-
-`gjsify ship` learned to package compiled catalogues in 0.42.0, and its launcher exports
-`GJSIFY_LOCALE_DIR` because only the launcher knows whether the payload became `/usr` in a `.deb`, a
-`--prefix` tree, or `/app` in a Flatpak. Nothing read that variable. Every app was expected to write
-the same four calls, and the two that tried had no translation at all.
-
-`initLocale(domain)` in `@gjsify/adwaita-app` is the reading half:
-
-```ts
-import { initLocale } from '@gjsify/adwaita-app';
-
-const _ = initLocale('bauplaner');
-label.set_label(_('Assembly'));
-status.set_label(_.plural('%d layer', '%d layers', n));
-```
-
-Two details are the reason this is shared code and not a snippet:
-
-- **`textdomain()` is set, not only `dgettext()` used.** GtkBuilder resolves every
-  `translatable="yes"` string — so everything from a `.blp` file — in the DEFAULT domain, inside GTK,
-  where the app never gets to pass one. Binding only through `dgettext` translates the TypeScript
-  strings and leaves the Blueprint ones in the source language, which reads as a half-finished
-  translation rather than as a missing call.
-- **An empty `GJSIFY_LOCALE_DIR` counts as unset.** The launcher exports it only when it staged
-  catalogues, but a wrapper that sets it unconditionally hands over `''` — and
-  `bindtextdomain(domain, '')` binds to the *current directory*, where the lookup finds nothing and
-  reports it exactly as "this app has no German".
-
-Measured against a real compiled catalogue, because "the calls did not throw" is not evidence that a
-lookup resolves: `de_DE.utf8` returns the translation and picks the right plural form, `en_US.utf8`
-returns the msgids (English needs no catalogue of its own), and an unset variable falls back to
-`/usr/share/locale`.
-
-### A package can define a file type, not just claim to open one
-
-`MimeType=` in a desktop entry says "I open this type". It does not say the type EXISTS. For
-`text/plain` that never matters — the distribution defines it. For a type of your own it decides
-whether the feature works, and nothing tells you when it does not: no component knows what a
-`.bauplan` file is, so the file manager never assigns the type, `MimeType=` matches nothing, and a
-double-click does nothing at all. No error, no log line. It is indistinguishable from the app not
-being installed.
-
-`gjsify.ship.mimeTypes` defines types as a shared-mime-info document staged into
-`share/mime/packages/<app-id>.xml`, and the package refreshes the MIME cache on install — detection
-reads the compiled cache under `share/mime`, not the packages directory, so without that refresh the
-document installs and the type still does not exist.
+The generated module is the interesting part, because of what is not in it:
 
 ```json
-"gjsify": {
-  "ship": {
-    "mimeTypes": [
-      { "type": "application/x-bauplan", "comment": "Bauplaner project", "globs": ["*.bauplan"] }
-    ]
-  }
+{
+  "buildsystem": "simple",
+  "build-commands": ["mkdir -p /app", "cp -a stage/. /app/", "cp -a overlay/. /app/"]
 }
 ```
 
-Declared types are folded into `provides.mimetypes` automatically, so the desktop entry and the
-metainfo need no knowledge of the new field — they already render `MimeType=` (with the `%f` field
-code) and `<mediatype>` from that one list. Keeping the two independent would make "defined but not
-handled" reachable by omission, and that state installs cleanly and does nothing.
+If you have written a Flatpak for a GJS app before, that is the meson glue gone. Learn6502 carried
+158 lines of it whose only job was to call `gjsify build` and copy the results into a prefix, 66 of
+them setting `GI_TYPELIB_PATH` and `LD_LIBRARY_PATH` by hand. The launcher `ship` stages works out
+its own prefix at run time, so nothing in the payload needs to know whether it landed in `/usr` or
+`/app`.
 
-Four declarations are refused outright, each of which would otherwise install and never resolve: a
-malformed type name (`update-mime-database` ignores it), a glob with no wildcard (`bauplan` matches
-only a file called exactly that), a type with neither a glob nor a parent type (nothing can ever
-match it), and a duplicate definition (which comment wins would depend on document order). See
-ADR 0024 § A11.
+### A format now says where it can be packed
 
-### A shared widget can have a Blueprint template
+Flatpak is the first `ship` target that needs tooling: only `flatpak build-bundle` writes an OSTree
+static delta, and it runs on Linux. Rather than making that a footnote, each format declares it —
+where it can be finished, what it execs, and who can read the artifact back — and `ship` refuses
+instead of guessing:
 
-Blueprint was quietly an application-only feature. The `.blp` transform was installed by the
-`--app gjs|node|browser` build factories and by nothing else, so a `.blp` imported from a package
-built with `--library` reached rolldown's JavaScript parser — and a Blueprint file's first line,
-`using Gtk 4.0;`, is *valid JavaScript*: a `using` resource declaration with no initializer. The
-build died on `Using declarations must have an initializer.` with nothing anywhere naming Blueprint.
+```bash
+gjsify ship --stage --target flatpak                       # here, any OS, offline
+gjsify ship --from-stage ./ship/stage --target flatpak      # there, on a Linux runner
+```
 
-The consequence was not the error message, which at least stops you. It was what the error pushed
-people to do instead: a widget shared between applications had to assemble itself in TypeScript, and
-a caption assigned from TypeScript carries no `translatable` attribute, so `xgettext` never sees it.
-`LoadingStack`'s error page says "Something went wrong" in every consumer, in English, permanently —
-and that is invisible, because an untranslatABLE string looks exactly like one nobody has translated
-yet.
+Three details are the difference between a declaration and a comment. The checks run **before** your
+`build` script, so an absent `flatpak-builder` does not cost a full build to discover. The wrong OS
+and a missing tool are two different messages, because the fixes are a different machine and a
+package. And `flatpak` is deliberately *not* in the default target set — a bare `gjsify ship` must
+not start demanding `flatpak-builder` of every project that only ever wanted a `.deb`.
 
-`--library` builds now run the same transform the app factories do.
+### The `gjsify.flatpak` build keys have a new home, and a window
 
-`LoadingStack` itself stays as it was, and the reason is worth writing down because it applies to
-every package in THIS repo. Converting it was tried and reverted: `blueprint-compiler` is not
-installed on the macOS or Windows runners, and this package builds on all three — so a `.blp` here
-makes the compiler a hard build requirement for every host rather than only for hosts that ship an
-app. Worse, the repo bootstraps from the PUBLISHED CLI (ADR 0002), which is the release BEFORE this
-one and therefore has no library-mode transform; during a cold bootstrap the `.blp` reaches the
-JavaScript parser and the consumer-gate jobs fail exactly there. A capability cannot be used by the
-tree that introduces it until it has shipped once. The first real consumers are applications, which
-build with their own installed CLI: an app's shared widgets can carry templates today.
+`runtime`, `runtimeVersion`, `sdkExtensions`, `appendPath`, `finishArgs` and `cleanup` now live at
+`gjsify.ship.flatpak.*`. The old spelling still resolves, per KEY, so a project can move one at a
+time; `ship` prints one line naming exactly what it inherited and where it goes. They are read from
+`gjsify.flatpak` until 1.0.0.
 
-`tests/e2e/library-blueprint/` holds the capability instead. It builds a library fixture and asserts
-the emitted module carries the compiled Builder XML with `translatable="yes"` — and, as the
-discriminator, that a MALFORMED `.blp` fails through blueprint-compiler rather than through the
-JavaScript parser, since a JS-parser message would mean the transform never ran and the first
-assertion passed for some other reason.
+What is **not** deprecated: the app metadata — `name`, `summary`, `developer`, `categories`,
+`license`. Both blocks describe the same application and either may carry it, which is the whole
+point of ADR 0024 § 8's "those files are not Flatpak's, they are the app's". And `gjsify flatpak
+<sub>` is untouched: it is still the way to produce the committed manifest and AppStream files a
+Flathub submission wants.
 
-Two new lint rules keep the door shut, both measured against this workspace before being switched
-on. `gjsify/prefer-blueprint-template` reports a `Gtk`/`Adw` subclass that constructs widgets *and*
-parents them while declaring no `Template` — both signals are required, because constructing without
-parenting is a model and parenting without constructing is a reparent. `gjsify/no-literal-widget-label`
-reports a bare string literal in a prose property (`title`, `label`, `subtitle`, `tooltip-text`, …),
-which is the half that survives even after a class has a template. Learn6502, which carries a whole
-application in 24 Blueprint files, reports zero under both.
+### How this is proven, and what is honestly not
+
+A `.flatpak` is read back with `flatpak build-import-bundle` into a fresh repo and `ostree ls -R`,
+which prints a path, a mode and a size per file — an independent reader, since ostree parses a delta
+this project never wrote. That tier only runs where the tooling and the GNOME runtime are installed,
+and it prints its skip where they are not; this project's Fedora CI image has neither.
+
+So two tiers run everywhere, and both can fail on a real defect. One is structural. The other
+executes the module's own `build-commands` under `sh` against a temporary prefix and compares what
+lands, file by file and mode by mode, against the staged payload — with two negative controls,
+because a comparison that cannot fail proves nothing: dropping the source's `skip` must put the
+stage's own sidecar inside `/app`, and `cp -a stage /app/` without the trailing `/.` must lose the
+launcher.
+
+One measurement worth keeping, because it looks like a gate and is not: `flatpak-builder
+--show-manifest` accepted an unknown source property and `buildsystem: "nonsense"` at exit 0. It
+reads and normalises JSON. It validates nothing.

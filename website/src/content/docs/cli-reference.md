@@ -1308,13 +1308,14 @@ Turn a built application into something a stranger can install. The payload is s
 gjsify ship                     # build the project, then a .deb and an .rpm
 gjsify ship --skip-build        # package what is already built
 gjsify ship --target deb        # one format
+gjsify ship --target flatpak    # a single-file Flatpak bundle (needs flatpak-builder)
 gjsify ship --stage             # produce the payload and stop
 gjsify ship --arch arm64        # package for another architecture
 ```
 
 | Option | Default | Description |
 |---|---|---|
-| `--target <fmt..>` | `gjsify.ship.targets`, else `deb,rpm` | Formats to build. Comma-separated or repeated. |
+| `--target <fmt..>` | `gjsify.ship.targets`, else `deb,rpm` | Formats to build. Comma-separated or repeated. `flatpak` is available and opt-in — it is the one format that needs tooling on the packing host. |
 | `--out <dir>` | `gjsify.ship.outDir`, else `ship` | Output root, relative to the project. |
 | `--stage` | `false` | Produce the staged payload and stop, packing nothing. |
 | `--skip-build` | `false` | Do not run the project's `build` script first. |
@@ -1326,6 +1327,7 @@ What lands under `ship/`:
 ```
 ship/stage/            the prefix-relative payload: bin/, lib/<name>/, share/
 ship/overlay/<format>/ per-format additions, such as the licence where each format wants it
+ship/flatpak/          --target flatpak only: the generated manifest, the build dir, the export repo
 ship/out/              the artifacts
 ```
 
@@ -1335,7 +1337,7 @@ ship/out/              the artifacts
 
 - **Runtime dependencies** come from the `gi://` imports in your built bundle, mapped to the package that ships each typelib (`gir1.2-gtk-4.0` on Debian, `gtk4` on Fedora). A namespace the table does not know fails the build and names itself, because an undeclared runtime dependency otherwise fails on a user's machine after the download. Fill the gap with `gjsify.ship.typelibPackages`.
 - **Architecture** is `all` or `noarch` unless the payload contains a `.so` or `.node`. A pure-JS GJS app really does install everywhere, and claiming `amd64` would make apt refuse it on a machine it runs on.
-- **The launcher** works out its own prefix at runtime, so one payload works under `/usr`, under `/app`, or anywhere else.
+- **The launcher** works out its own prefix at runtime, so one payload works under `/usr`, under `/app`, or anywhere else. That is the entire difference between the `.rpm` and the Flatpak: the Flatpak module is `buildsystem: simple` plus `cp -a stage/. /app/`, with no meson and no build system inside the sandbox.
 - **`Section:` and `Group:`** follow from `categories`, and the version is normalised so a prerelease (`1.2.0-rc.1`) still sorts before the release in both package managers (`1.2.0~rc.1`).
 - **Metadata** falls back to `gjsify.flatpak`, so a project that already ships a Flatpak usually needs no `gjsify.ship` block at all.
 
@@ -1366,7 +1368,7 @@ No runtime is bundled on Linux: GJS and GTK come from the distribution, so the p
 | `version` | `package.json#version` | Upstream version, normalised. |
 | `release` | `1` | Package revision within one upstream version. |
 | `maintainer` | `package.json#author` | `Maintainer:` and `Packager:`, as `Name <email>`. dpkg refuses a package without one. |
-| `targets` | `["deb", "rpm"]` | Formats built when `--target` is not given. |
+| `targets` | `["deb", "rpm"]` | Formats built when `--target` is not given. `flatpak` is deliberately not in the default: it needs `flatpak-builder`. |
 | `outDir` | `ship` | Output root. |
 | `bundle` | `gjsify.main`, else `package.json#main` | The built bundle `bin/<name>` executes. Its whole directory is staged into `lib/<name>/`. |
 | `icon` | `data/icons` or `data/icons/hicolor` | Icon file or directory. Sizes are read from the path or the filename. |
@@ -1378,6 +1380,7 @@ No runtime is bundled on Linux: GJS and GTK come from the distribution, so the p
 | `typelibPackages` | `{}` | GI namespace to the package shipping its typelib. This is what unblocks an unknown namespace. |
 | `extraFiles` | `{}` | Extra payload entries: prefix-relative destination to project-relative source. |
 | `execArgs` | `[]` | Arguments the launcher appends before the user's own. |
+| `flatpak` | derived | The Flatpak half: `runtime` (`gnome`/`freedesktop`), `runtimeVersion`, `branch` (`stable`), `sdkExtensions`, `appendPath`, `finishArgs`, `cleanup`. |
 
 Metadata keys (`name`, `summary`, `description`, `developer`, `license`, `categories`, `keywords`, `homepageUrl`, `screenshots`, and the rest) are shared with `gjsify.flatpak` and listed under [`flatpak init`](#gjsify-flatpak-init).
 
@@ -1385,9 +1388,30 @@ Metadata keys (`name`, `summary`, `description`, `developer`, `license`, `catego
 
 The emitted dependency is `gjs (>= 1.86)`, which is what the bundler targets. No released Debian satisfies it: Debian went from 1.82.3 (trixie) straight to 1.88.1 (forky). `gjsify ship` tells you rather than lowering the floor quietly, because a `.deb` that apt refuses beats one that installs and then dies on a syntax error. Set `gjsify.ship.minGjsVersion` if your bundle genuinely runs on an older GJS.
 
+#### Where each format can be packed
+
+Declared per format, and checked before your `build` script runs rather than after it.
+
+| Format | Packed by | Runs on | Read back with |
+|---|---|---|---|
+| `deb` | `ship` itself — no `dpkg-deb` | any host, offline | GNU `ar` + `tar`, `dpkg-deb`, `lintian` |
+| `rpm` | `ship` itself — no `rpmbuild` | any host, offline | `rpm` |
+| `flatpak` | `flatpak-builder` + `flatpak build-bundle` | Linux, tools installed | `flatpak build-import-bundle` + `ostree` |
+
+Ask for a format this host cannot finish and you get a refusal naming the two-phase way across, never a broken file:
+
+```bash
+gjsify ship --stage --target flatpak                          # here, any OS, offline
+gjsify ship --from-stage ./ship/stage --target flatpak        # there, on Linux
+```
+
+A missing tool is a separate message from the wrong OS, because the fixes differ.
+
+The six Flatpak build keys also resolve from a legacy `gjsify.flatpak` block, with one warning line naming what was inherited; they are removed from there in 1.0.0. `gjsify flatpak init` and `flatpak ci` read both spellings too, so moving them does not change the manifest those commands write. The app metadata in `gjsify.flatpak` is shared by design and is not deprecated.
+
 #### Scope today
 
-Linux and `--app gjs`. A project declaring any other `gjsify.app` is refused, because the launcher runs `gjs -m <bundle>`. macOS, Windows and Flatpak as a target under this command are later stages.
+Linux and `--app gjs`. A project declaring any other `gjsify.app` is refused, because the launcher runs `gjs -m <bundle>`. macOS and Windows artifacts are later stages.
 
 ### `gjsify flatpak`
 

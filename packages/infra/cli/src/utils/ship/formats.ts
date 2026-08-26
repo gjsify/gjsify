@@ -1,9 +1,15 @@
-// The per-format table. Everything that differs between `.deb` and `.rpm`
-// outside the archive container itself lives here as DATA, so a new format is
-// a row rather than an edit across the stager, the overlay builder and the
-// artifact namer.
+// The per-format table. Everything that differs between the formats outside the
+// archive container itself lives here as DATA, so a new format is a row rather
+// than an edit across the stager, the overlay builder and the artifact namer.
+//
+// Flatpak is the row that proves the claim: ADR 0024 § 2 predicted "the whole
+// difference between a Flatpak and an `.rpm` is a four-line prefix map", and
+// this file is where that turned out to be one `prefix: '/app'`, one arch table
+// and one filename. What it also proved is what the design did NOT predict —
+// a format can be host-bound (§ A3), so `host` is a descriptor field now.
 
-import type { FormatDescriptor, FormatId, PackSettings } from './types.js';
+import { isOnPath } from '../check-system-deps.js';
+import type { FormatDescriptor, FormatId, HostOs, PackSettings } from './types.js';
 
 // `process.arch` → the format's architecture name. Taken from dpkg's own
 // `data/cputable` and rpm's arch table. `arm` cannot be told apart from
@@ -40,6 +46,18 @@ function lookupArch(table: Record<string, string>, arch: string, label: string):
     return mapped;
 }
 
+// Flatpak's own vocabulary, which is ostree's: `flatpak --supported-arches` on
+// x86_64 answers `x86_64` then `i386`, and a ref is `app/<id>/<arch>/<branch>`.
+// Deliberately short — a name this table does not know is refused rather than
+// guessed, because the arch is not a label here, it is part of the ref the
+// bundle is exported under and installed from.
+const FLATPAK_ARCH: Record<string, string> = {
+    x64: 'x86_64',
+    arm64: 'aarch64',
+    ia32: 'i386',
+    arm: 'arm',
+};
+
 function debArch(arch: string, archIndependent: boolean): string {
     return archIndependent ? 'all' : lookupArch(DEBIAN_ARCH, arch, 'Debian');
 }
@@ -48,10 +66,34 @@ function rpmArch(arch: string, archIndependent: boolean): string {
     return archIndependent ? 'noarch' : lookupArch(RPM_ARCH, arch, 'RPM');
 }
 
+/**
+ * Flatpak has no `noarch`, so `archIndependent` is ignored — and that is a
+ * measured difference, not an oversight.
+ *
+ * `all`/`noarch` exist because apt and dnf REFUSE a package whose architecture
+ * is not the machine's. Flatpak asks the opposite question: every ref names an
+ * arch, `flatpak install` resolves the one matching the host, and an app with no
+ * arch is not installable at all. So a payload of pure JavaScript still ships as
+ * `app/<id>/x86_64/stable` — which is also what Flathub does for every
+ * interpreted app it hosts.
+ */
+function flatpakArch(arch: string, _archIndependent: boolean): string {
+    return lookupArch(FLATPAK_ARCH, arch, 'Flatpak');
+}
+
+/** `.deb` and `.rpm` are written by this tree, so they exec nothing and read back with GNU tools. */
+const WRITTEN_HERE = (readWith: readonly string[]): FormatDescriptor['host'] => ({
+    finishOn: 'any',
+    requiredTools: [],
+    oracle: { readWith, readOn: ['linux'], selfReading: false },
+});
+
 export const FORMATS: Record<FormatId, FormatDescriptor> = {
     deb: {
         id: 'deb',
         prefix: '/usr',
+        host: WRITTEN_HERE(['ar', 'tar', 'dpkg-deb', 'lintian']),
+        depends: 'deb',
         // Debian policy § 12.5: every package ships its copyright in
         // /usr/share/doc/<package>/copyright, and lintian errors without it.
         licenseDest: (binaryName) => `share/doc/${binaryName}/copyright`,
@@ -62,10 +104,54 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
     rpm: {
         id: 'rpm',
         prefix: '/usr',
+        host: WRITTEN_HERE(['rpm', 'rpm2cpio', 'cpio']),
+        depends: 'rpm',
         licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
         licenseKind: 'plain',
         archName: rpmArch,
         fileName: (s: PackSettings, archLabel: string) => `${s.binaryName}-${s.version}-${s.release}.${archLabel}.rpm`,
+    },
+    flatpak: {
+        id: 'flatpak',
+        // The one-line difference ADR 0024 § 2 promised. Nothing in the payload
+        // changes: the launcher derives its prefix at runtime (§ 3), so the same
+        // staged `bin/<name>` works under /usr and under /app.
+        prefix: '/app',
+        host: {
+            // A single-file bundle is an OSTree static delta, and the only writer
+            // of one is `flatpak build-bundle`. Unlike the `.dmg` (§ A6) that is
+            // not an OS restriction: flatpak runs on Linux, so the format is
+            // Linux-bound the way the app itself is.
+            finishOn: ['linux'],
+            requiredTools: ['flatpak-builder', 'flatpak'],
+            installHint:
+                'Fedora: `sudo dnf install flatpak flatpak-builder`, Debian/Ubuntu: ' +
+                '`sudo apt install flatpak flatpak-builder`',
+            oracle: {
+                // `flatpak build-import-bundle` into a FRESH repo, then
+                // `ostree ls -R`: ostree parses the delta this tree never wrote,
+                // and prints a path + mode + size per file. Measured on this
+                // workstation — that listing is what the e2e suite compares
+                // against the staged payload.
+                readWith: ['flatpak', 'ostree'],
+                readOn: ['linux'],
+                selfReading: false,
+            },
+        },
+        // A Flatpak's one dependency is its runtime, named in the manifest. See
+        // `DistroFormatId`: there is no `Depends:` field here to under-declare,
+        // which also means the unmapped-namespace refusal ADR 0024 § 6 built for
+        // deb and rpm has nothing to say about this format.
+        depends: null,
+        // No policy demands a location, so this follows rpm's — one fewer shape
+        // for a reader to learn, and `/app/share/licenses/<name>/LICENSE` is
+        // where the equivalent file sits in the `.rpm` built from the same stage.
+        licenseDest: (binaryName) => `share/licenses/${binaryName}/LICENSE`,
+        licenseKind: 'plain',
+        archName: flatpakArch,
+        // Named after the APP ID, not the binary: the id is the ref the file
+        // installs as, and it is what `flatpak install ./file.flatpak` prints.
+        fileName: (s: PackSettings, archLabel: string) => `${s.appId}-${s.version}-${s.release}.${archLabel}.flatpak`,
     },
 };
 
@@ -74,10 +160,72 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
 // back inherits that guarantee for free. Written out by hand this was the one
 // unbound copy of the vocabulary: adding a format to `FormatId` and `FORMATS`
 // compiled fine and left this list short, which would have made the new format
-// absent from the default targets (`ship.ts` uses it as the `??` fallback),
-// missing from `--help`, and REFUSED by `readStage` as an unknown id.
+// missing from `--help` and REFUSED by `readStage` as an unknown id.
 // Insertion order is stable for string keys, and `resolveFormats` sorts anyway.
 export const FORMAT_IDS: FormatId[] = Object.keys(FORMATS) as FormatId[];
+
+/**
+ * What `gjsify ship` builds when nothing said otherwise — every format that
+ * needs no tool and no particular host.
+ *
+ * A SECOND derivation from the same table, and it has to be one: `FORMAT_IDS`
+ * used to be both "every format that exists" and "every format to build by
+ * default", which was the same list only while every format was `finishOn:
+ * 'any'`. Adding Flatpak to `FORMAT_IDS` alone would have made a bare
+ * `gjsify ship` demand `flatpak-builder` of every project that ever packaged a
+ * `.deb` — and on a host without it, of every `release-cut.yml` run, which
+ * packs `@gjsify/cli` itself on a bare ubuntu runner. A host-bound format is
+ * opt-in through `--target` or `gjsify.ship.targets`; `--help` still lists all
+ * of them.
+ */
+export const DEFAULT_FORMAT_IDS: FormatId[] = FORMAT_IDS.filter((id) => FORMATS[id].host.finishOn === 'any');
+
+/**
+ * Refuse a format this host cannot finish, BEFORE anything is built or written.
+ *
+ * `host` is injected so both branches are unit-testable from any machine — the
+ * same reason `resolvePrebuildDirName` and `checkTypeSkew`'s readers are pure.
+ * The message names the two-phase split rather than just saying no: the answer
+ * to "I am on macOS and want a Flatpak" is `--stage` here and `--from-stage` on
+ * a Linux runner, and a refusal that does not say so reads as "unsupported".
+ */
+export function assertHostCanFinish(format: FormatDescriptor, host: string = process.platform): void {
+    const { finishOn } = format.host;
+    if (finishOn === 'any' || (finishOn as readonly string[]).includes(host)) return;
+    throw new Error(
+        `gjsify ship: a ${format.id} artifact is packed on ${(finishOn as readonly HostOs[]).join(' or ')} and ` +
+            `this host is ${host} (ADR 0024 § A1: a container is produced where its format's tool lives). ` +
+            'Assembly is not host-bound, so the way across is the two-phase split: run ' +
+            '`gjsify ship --stage` here, move `ship/stage/` to a ' +
+            `${(finishOn as readonly HostOs[]).join('/')} runner, and finish with ` +
+            `\`gjsify ship --from-stage <dir> --target ${format.id}\`.`,
+    );
+}
+
+/**
+ * Refuse a format whose tools are not installed, with the tool named.
+ *
+ * Separate from {@link assertHostCanFinish} because the two failures have
+ * different fixes — one needs a different machine, the other needs a package —
+ * and separate from the packer's own `notFound` handler because it fires BEFORE
+ * a build: `gjsify ship` runs the project's `build` script first, and finding
+ * out afterwards that `flatpak-builder` is absent costs the whole build.
+ */
+export function assertToolsInstalled(format: FormatDescriptor, present: (cmd: string) => boolean = isOnPath): void {
+    const missing = format.host.requiredTools.filter((tool) => !present(tool));
+    if (missing.length === 0) return;
+    // The install instruction is the DESCRIPTOR's, not this function's: hardcoded
+    // here it was `dnf install flatpak flatpak-builder` for every format that
+    // will ever need a tool, which is the branch this table exists to avoid.
+    const hint = format.host.installHint;
+    throw new Error(
+        `gjsify ship: packing a ${format.id} needs ${format.host.requiredTools.join(' and ')}, and ` +
+            `${missing.join(', ')} ${missing.length > 1 ? 'are' : 'is'} not on PATH. ` +
+            `${hint === undefined ? 'Install it' : `Install it (${hint})`}, or drop this target — the other ` +
+            `formats need no tools at all. \`gjsify ship --stage\` also works without ${missing.join('/')}: ` +
+            'the payload is assembled by this CLI and only the container needs them.',
+    );
+}
 
 /** Parse `--target deb,rpm` into a sorted, deduplicated descriptor list. */
 export function resolveFormats(raw: readonly string[]): FormatDescriptor[] {

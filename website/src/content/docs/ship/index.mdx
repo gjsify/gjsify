@@ -1,6 +1,6 @@
 ---
 title: Ship your app
-description: Turn a built GJS app into something other people can install. One command gives you a .deb and an .rpm; this page also points at Flatpak, the one-line installer, self-executing bundles and dlx.
+description: Turn a built GJS app into something other people can install. One command gives you a .deb, an .rpm and a Flatpak bundle; this page also points at the one-line installer, self-executing bundles and dlx.
 ---
 
 import CommandTabs from '../../../components/CommandTabs.astro';
@@ -38,6 +38,16 @@ That runs your project's `build` script, collects everything the app needs into
 one payload, and wraps that payload once per format. There is no manifest to
 write, no meson, and no packaging file to keep in your repo.
 
+Ask for a Flatpak and you get one out of the same payload:
+
+```bash
+gjsify ship --target flatpak      # a single-file bundle, from the same stage
+```
+
+That one is not in the default set, because it is the only format that needs
+tooling on your machine — `flatpak-builder` and `flatpak`. Everything below
+about assembling and packing separately exists for exactly that.
+
 ## What comes out
 
 ```
@@ -45,9 +55,11 @@ ship/
 ├── stage/              the payload: bin/, lib/<name>/, share/
 │   └── .gjsify-ship-stage.json   what a packing host needs, if it is not this one
 ├── overlay/<format>/   what one format wants elsewhere (today: the licence)
+├── flatpak/            only with --target flatpak: the generated manifest, the build dir, the repo
 └── out/
     ├── my-app_1.2.3-1_all.deb
-    └── my-app-1.2.3-1.noarch.rpm
+    ├── my-app-1.2.3-1.noarch.rpm
+    └── org.example.MyApp-1.2.3-1.x86_64.flatpak
 ```
 
 The payload in `ship/stage/` is built once, and both packers read it back off
@@ -93,6 +105,58 @@ Note that `--arch` only reaches the label when the payload contains a native
 image at all. A pure-JS payload is `Architecture: all` / `BuildArch: noarch`
 whatever you pass, because that is what it honestly is.
 
+## The Flatpak target
+
+The payload does not change. `ship` stages one prefix-relative tree — `bin/`,
+`lib/<name>/`, `share/` — and the launcher inside it works out its own prefix at
+run time, so the same tree is `/usr` in a `.deb` and `/app` in a Flatpak. That
+is the whole difference, and it is why the generated Flatpak module is three
+shell commands with no build system in it:
+
+```json
+{
+  "name": "my-app",
+  "buildsystem": "simple",
+  "build-commands": ["mkdir -p /app", "cp -a stage/. /app/", "cp -a overlay/. /app/"]
+}
+```
+
+If you have written a Flatpak for a GJS app before, that is the meson glue gone.
+Learn6502 carried 158 lines of it whose only job was to call `gjsify build` and
+copy the results into a prefix, 66 of them setting `GI_TYPELIB_PATH` and
+`LD_LIBRARY_PATH` by hand.
+
+The runtime and the sandbox permissions are the only things left to configure,
+and every one has a default:
+
+```json
+"gjsify": {
+  "ship": {
+    "appId": "org.example.MyApp",
+    "flatpak": {
+      "runtime": "gnome",
+      "runtimeVersion": "50",
+      "branch": "stable",
+      "finishArgs": ["--device=dri", "--share=ipc", "--socket=wayland"]
+    }
+  }
+}
+```
+
+`finishArgs` defaults to that GUI set for an app and to nothing at all for a
+`kind: "cli"` tool. The app id names the exported ref, so the artifact is
+`org.example.MyApp-1.2.3-1.x86_64.flatpak` and installs with
+`flatpak install ./that-file`.
+
+**Already have a `gjsify.flatpak` block?** It keeps working. `runtime`,
+`runtimeVersion`, `sdkExtensions`, `appendPath`, `finishArgs` and `cleanup` are
+read from there too, and `ship` prints one line naming the keys it inherited and
+where to move them. Moving them is safe: `gjsify flatpak init` and `flatpak ci`
+read the new spelling as well, so the manifest those commands generate does not
+change under you. The app metadata — `name`, `summary`, `developer`,
+`categories`, `license` — is *not* deprecated: both blocks describe the same
+application, and either may carry it.
+
 ## Give it to someone
 
 <CommandTabs title="Install the artifact" group="distro">
@@ -125,24 +189,27 @@ They also stack: the same built bundle feeds all of them.
 | You want | Reach for | Guide |
 |---|---|---|
 | A file a Linux user installs with their own package manager | `gjsify ship` | [deb & rpm packages](/gjsify/ship/linux-packages/) |
-| A GUI app on Flathub, sandboxed, with a pinned GTK on every distro | `gjsify flatpak init` | [Flatpak: GUI app](/gjsify/guides/flatpak-app/) |
+| A single Flatpak file, sandboxed, with a pinned GTK on every distro | `gjsify ship --target flatpak` | this page |
+| A GUI app on Flathub, with the manifest and metadata files in your repo | `gjsify flatpak init` | [Flatpak: GUI app](/gjsify/guides/flatpak-app/) |
 | The same for a headless command-line tool | `gjsify flatpak init --kind cli` | [Flatpak: CLI tool](/gjsify/guides/flatpak-cli-tool/) |
 | A `curl … \| gjs` one-liner that installs into `~/.local`, no root | `gjsify generate-installer` | [One-line installer](/gjsify/guides/distributing-gjs-apps/) |
 | A single executable file people download, `chmod +x` and run | `gjsify build --shebang` | [Self-executing bundle](/gjsify/guides/self-executing-package/) |
 | No installation at all, run it straight from npm | publish a `dlx`-friendly package | [Run via dlx](/gjsify/guides/dlx-packaging/) |
 
-A rough rule of thumb. Choose **Flatpak** when you want a store listing and a
-GTK version you control. Choose **`gjsify ship`** when you want a user to type
-`dnf install` once and forget about it. Choose the **one-line installer** while
-you are still iterating quickly and your users are early adopters. Choose
-**dlx** for a tool nobody wants permanently installed.
+A rough rule of thumb. Choose **`gjsify ship`** when you want a user to type
+`dnf install` once, or to double-click one Flatpak file, and forget about it.
+Choose **`gjsify flatpak init`** on top of it when you are submitting to
+Flathub, which wants the manifest and the AppStream files committed in your
+repository. Choose the **one-line installer** while you are still iterating
+quickly and your users are early adopters. Choose **dlx** for a tool nobody
+wants permanently installed.
 
 **Looking for an AppImage?** There isn't one, and the nearest thing that exists
-today is a single-file Flatpak bundle: one file, no repository, works offline.
+is the Flatpak bundle above: one file, no repository, works offline.
 
 ```bash
-gjsify flatpak build --repo=/tmp/repo --bundle=my-app.flatpak
-flatpak install my-app.flatpak
+gjsify ship --target flatpak
+flatpak install ./ship/out/org.example.MyApp-1.2.3-1.x86_64.flatpak
 ```
 
 One thing to weigh before you promise a `.deb`: the dependency `gjsify ship`
@@ -158,17 +225,30 @@ your options.
 Linux, and apps built for the `gjs` target. The build target is enforced: a
 project declaring anything other than `gjsify.app: "gjs"` is refused with a
 message saying so, instead of producing a package that installs and then fails
-to start. The Linux half is not enforced, only true. Both packers are plain
-JavaScript with no `dpkg-deb` or `rpmbuild` behind them, so the command runs
-anywhere; what you get on a Mac is a Linux package built on a Mac. That is a
-property of these two formats, not of `ship`: a macOS `.dmg` is an image over a
-real HFS+/APFS volume and will have to be packed on macOS, which is why
-assembling and packing are separable at all.
+to start.
 
-macOS bundles, Windows installers, and Flatpak as a target of this command are
-planned but not here yet. Use `gjsify flatpak` for Flatpak in the meantime, and
-see [Platform Support](/gjsify/platform-support/) for where gjsify apps run at
-all.
+**Where each format can be packed is declared, and the command refuses rather
+than guessing.** `.deb` and `.rpm` are written by `ship` itself — plain
+JavaScript, no `dpkg-deb`, no `rpmbuild` — so those two really do pack
+anywhere, and what you get on a Mac is a Linux package built on a Mac. Flatpak
+is different and says so: a bundle is an OSTree static delta, only
+`flatpak-builder` and `flatpak build-bundle` write one, and both are Linux
+tools. Ask for `--target flatpak` on macOS and you get a refusal naming the
+two-phase way across, not a broken file:
+
+```bash
+gjsify ship --stage --target flatpak       # here, on any OS, offline
+gjsify ship --from-stage ./ship/stage \
+            --target flatpak               # there, on a Linux runner
+```
+
+Missing tooling is a separate message from the wrong OS, because the fixes
+differ, and both fire **before** your build script runs rather than after it.
+
+macOS bundles and Windows installers are planned but not here yet; a `.dmg` is
+an image over a real HFS+/APFS volume and will have to be packed on macOS, which
+is the same split one platform over. See
+[Platform Support](/gjsify/platform-support/) for where gjsify apps run at all.
 
 ## Next
 
