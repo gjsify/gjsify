@@ -139,6 +139,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const refused = output.split('\n').filter((l) => l.startsWith('export const')).length;
     const table = readTable(readFileSync(TABLE, 'utf8'));
     writeFileSync(README, spliceReadme(readFileSync(README, 'utf8'), renderReadmeTable(entries, table)));
-    console.log(`generate-exports: ${refused} refusing export(s) of ${entries.length} name(s) → src/generated/unsupported-exports.ts`);
+    console.log(
+        `generate-exports: ${refused} refusing export(s) of ${entries.length} name(s) → src/generated/unsupported-exports.ts`,
+    );
     console.log(`generate-exports: support section for ${entries.length} name(s) → README.md`);
 }

@@ -69,7 +69,11 @@ const registry = new Map<string, Registration>();
  * toolbar view's CONTENT, so the application's own chrome survives the first commit
  * (`clearContainer` clears the host's shadow children, never the adopted ones).
  */
-function buildWindow(app: Adw.Application, key: string, options: RunApplicationOptions): { window: Gtk.Window; content: Gtk.Widget } {
+function buildWindow(
+    app: Adw.Application,
+    key: string,
+    options: RunApplicationOptions,
+): { window: Gtk.Window; content: Gtk.Widget } {
     const window = new Adw.ApplicationWindow({
         application: app,
         title: options.title ?? key,

@@ -72,7 +72,10 @@ export class EventEmitter<TEvents extends Record<string, readonly unknown[]> = R
     emit<K extends keyof TEvents & string>(eventType: K, ...args: TEvents[K]): void {
         const list = this.#registrations.get(eventType);
         if (list === undefined || list.length === 0) return;
-        for (const registration of [...list]) {
+        // `.slice()`, not `[...list]`: this is a defensive COPY, not iteration
+        // sugar, and the spread spelling reads as the latter (oxlint's
+        // `unicorn/no-useless-spread` says so, and for a plain iteration it is right).
+        for (const registration of list.slice()) {
             if (registration.removed) continue;
             // `[...args]` rather than `args`: the rest parameter is a READONLY tuple
             // and `Function.prototype.apply` wants a mutable array. Copying is also

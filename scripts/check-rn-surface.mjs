@@ -72,14 +72,28 @@ function selfTest() {
         if (a !== e) fail(`self-test ${name}: expected ${e}, got ${a}`);
     };
 
-    const wrap = (inner) => `export const SUPPORT_TABLE: Readonly<Record<string, E>> = {\n${inner}\n};\nexport const X = 1;\n`;
+    const wrap = (inner) =>
+        `export const SUPPORT_TABLE: Readonly<Record<string, E>> = {\n${inner}\n};\nexport const X = 1;\n`;
 
-    ok('flat keys', readTableKeys(wrap(`    View: { status: 'planned' },\n    Text: { status: 'planned' },`)), ['View', 'Text']);
-    ok('multi-line entry', readTableKeys(wrap(`    View: {\n        status: 'planned',\n        reason: 'x',\n    },`)), ['View']);
-    ok('underscored name', readTableKeys(wrap(`    unstable_batchedUpdates: { status: 'supported' },`)), ['unstable_batchedUpdates']);
+    ok('flat keys', readTableKeys(wrap(`    View: { status: 'planned' },\n    Text: { status: 'planned' },`)), [
+        'View',
+        'Text',
+    ]);
+    ok(
+        'multi-line entry',
+        readTableKeys(wrap(`    View: {\n        status: 'planned',\n        reason: 'x',\n    },`)),
+        ['View'],
+    );
+    ok('underscored name', readTableKeys(wrap(`    unstable_batchedUpdates: { status: 'supported' },`)), [
+        'unstable_batchedUpdates',
+    ]);
     // Negatives.
     ok('nested key is not an entry', readTableKeys(wrap(`    View: {\n        nested: { a: 1 },\n    },`)), ['View']);
-    ok('commented entry is not an entry', readTableKeys(wrap(`    // Gone: { status: 'planned' },\n    View: { status: 'planned' },`)), ['View']);
+    ok(
+        'commented entry is not an entry',
+        readTableKeys(wrap(`    // Gone: { status: 'planned' },\n    View: { status: 'planned' },`)),
+        ['View'],
+    );
     ok('string value is not an entry', readTableKeys(wrap(`    View: 'planned',`)), []);
 
     let threw = false;
