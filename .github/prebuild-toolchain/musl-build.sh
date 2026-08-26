@@ -22,7 +22,10 @@
 # surface passes there, including the `from_fd` second-mapping semantics that a
 # load test cannot reach. The generator's own note cites an `alpine:3.24.1`
 # container probe for six bridges; that probe was x64 only, so arm64 musl rested
-# on the same reasoning with no measurement behind it until this one.
+# on the same reasoning with no measurement behind it until this one. The BUILD
+# side of aarch64 is measured too now: the first run of this leg that ever
+# executed compiled both bridges on `ubuntu-24.04-arm`, loaded both under
+# Alpine's gjs and dlopened both with no library-path variable, in ~5 minutes.
 #
 # WHY THIS IS A SCRIPT AND NOT A JOB-LEVEL `container:`
 #

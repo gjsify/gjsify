@@ -2429,16 +2429,16 @@ jobs:
   # these bridges at all. (That mapping is the one claim here taken from the
   # web rather than from a container.)
   #
-  # EVIDENCE. Everything else below was measured in a container probe on
-  # `alpine:3.24.1`, x86_64 natively and aarch64 under qemu-user, against this
-  # repo's own sources and committed artifacts. Where a line rests on inference
-  # rather than an observed run it says so — and here are the two that do:
-  #   • THE aarch64 BUILDS ARE INFERRED. On aarch64 the probe verified the apk
-  #     toolchain, `gjs`, and which committed glibc artifacts load; it compiled
-  #     ONE Vala bridge there, not these two packages. Their aarch64 musl build
-  #     rests on the x86_64 build plus a toolchain that is the same package set.
-  #     A first dispatch is what turns that into evidence.
-  #   • THE JOB SHAPE IS INFERRED — see the last paragraph of this comment.
+  # EVIDENCE. Everything below was measured, and the two lines that used to say
+  # "inferred" no longer do — the first real run of this job settled both. On
+  # `ubuntu-24.04-arm` the aarch64 leg builds BOTH bridges in `alpine:3.24`,
+  # resolves the host as `linux-arm64-musl`, loads `GjsifySabNative.SharedBuffer`
+  # and `GjsifyLightningcss.Engine` under Alpine's gjs, `dlopen(RTLD_NOW)`s both
+  # with no library-path variable and uploads both artifacts, in ~5 minutes; the
+  # x64 leg does the same. The earlier `alpine:3.24.1` container probe (x86_64
+  # natively, aarch64 under qemu-user) is what the per-package reasoning below
+  # rests on, and it compiled only ONE Vala bridge on aarch64 — that gap is the
+  # one this run closed.
   #
   # ── WHICH PACKAGES, AND THE MEASURED REASON FOR EACH ──────────────────────
   #

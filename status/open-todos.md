@@ -2099,19 +2099,10 @@ Why the artifact is a separate change rather than one line more here, and what i
 Until then the leg's value is exactly what its script says: the npm `libc` policy — a
 `libc`-less `@gjsify/<x>-linux-<arch>` is installed on musl hosts BY DESIGN — rests on the claim
 that these sources work when built against musl, and nothing else in CI compiles or runs anything
-on musl.
-
-### The Alpine aarch64 build is measured for one of the two bridges
-
-`musl-build.sh`'s header called both aarch64 builds INFERRED from the x86_64 ones plus an
-identical apk package set. Half of that is now measured: on an emulated `linux/arm64` `alpine:3.24`
-container, `stage-prebuild.mjs` resolves the host as `linux-arm64-musl` and `@gjsify/sab-native`
-compiles and stages its three artifacts. `@gjsify/lightningcss-native` was NOT reached there — its
-`cargo build --release` with LTO under qemu-user outran the local disk before it linked, which is
-a fact about the reproduction and not about the leg. Its aarch64 evidence therefore comes from the
-CI run on the native `ubuntu-24.04-arm` runner, which is also the cheaper answer; if that leg ever
-needs debugging by hand, expect the emulated Rust build to be the expensive part and give it a
-target directory outside `tmpfs`.
+on musl. That claim is now measured on BOTH arches: the leg's first real run built both bridges on
+`ubuntu-latest` and `ubuntu-24.04-arm`, loaded both under Alpine's gjs, dlopened both with no
+library-path variable and uploaded all four artifacts, in about five minutes per arch — which also
+retires the "the aarch64 builds are INFERRED" caveat the workflow header used to carry.
 
 ### `@gjsify/webrtc` cannot work on Alpine / postmarketOS — no `webrtcbin` element
 

@@ -272,7 +272,9 @@ export async function parseCiPlatforms(
             // Dropped here rather than at the composition above so the throw
             // guarding the vocabulary still sees every value, and so the reason
             // sits with the invariant it protects.
-            for (const target of [...targets]) {
+            // Deleting the current entry mid-iteration is defined for a Set (the
+            // iterator skips removed entries), so no copy is needed.
+            for (const target of targets) {
                 if (parsePrebuildTarget(target).libc) targets.delete(target);
             }
             // Attribute nothing when every target was dropped. Adding an EMPTY
