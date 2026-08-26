@@ -659,6 +659,108 @@ jobs:
           export PATH="$PWD/../../../node_modules/.bin:$PATH"
           gjsify run test:gjs-on-node
 
+  # @gjsify/gtk-host's node leg — the SAME 1934-test suite its gjs leg runs, built
+  # `--app node` and executed over the node-gi reverse bridge (ADR 0030: one corpus
+  # per claim, gjs is the oracle; the package's `test:gjs-on-node` script). This is
+  # the widest GTK-shaped consumer of the bridge — solid/vue/react renderers over
+  # the whole curated widget table — and it lives HERE rather than in main.yml
+  # because a red on it is node-gi's to answer: the identical source is green on
+  # gjs in main.yml's sharded sweep, so a gjs-green/node-red diff is a binding (or
+  # reverse-bridge build) defect by construction. Deliberately wired only now: it
+  # was left out while 25 of its tests were red for defects outside gtk-host,
+  # because a leg that is red for another package's defects teaches people to
+  # ignore it. It went in at 0 failures.
+  gtk-host-node:
+    name: gtk-host suite over the reverse bridge (Node + Xvfb / Fedora 44)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: ghcr.io/gjsify/ci-fedora:44
+    steps:
+      - name: Verify the baked toolchain
+        run: |
+          gjs --version
+          echo "gtk4: $(pkg-config --modversion gtk4)"
+          echo "libadwaita: $(pkg-config --modversion libadwaita-1)"
+
+      # Official nodejs.org build, NOT Fedora's dnf node (which crashes rolldown's
+      # prebuilt napi binding — the gjsify bundler engine). Same as the sibling jobs.
+      - name: Use official Node.js (Fedora's dnf node crashes the bundler)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build @gjsify/node-gi native addon (node-gyp)
+        working-directory: packages/node-gi/node-gi
+        run: npm install --no-audit --no-fund --foreground-scripts
+
+      # Node-free workspace install via the published CLI (the supported
+      # `gjsify install --immutable` path) — gtk-host needs its workspace deps
+      # (@girs/*, @gjsify/unit) AND its npm peer/dev deps (solid-js, vue,
+      # react, react-reconciler) present.
+      - name: Install the gjsify workspace (published CLI, Node-free)
+        run: |
+          B=$(gjs -m install.mjs --fetch-only)
+          gjs -m "$B" install --immutable
+
+      # A published @gjsify/cli (npm rolldown) is the BOOTSTRAP bundler: the committed
+      # GJS bundle needs the absent @gjsify/rolldown-native, and the published cli
+      # ships a prebuilt Node entry. It is NOT the bundler under test — a job that
+      # builds with the LAST RELEASE cannot observe a change to the bundler in THIS
+      # checkout (the reverse-bridge resolve fix is exactly such a change). The
+      # bootstrap's only job is to build this checkout's cli; from there on we use
+      # that one. Same block as consumer-sqlite / storybook-node-gi-bundle.
+      - name: Bootstrap a Node bundler, then switch to this checkout's cli
+        run: |
+          CLI_VERSION="$(node -p "require('./packages/infra/cli/package.json').version")"
+          mkdir -p /tmp/gjsify-node-cli
+          # Prefer the version this checkout declares, but do NOT require it to be
+          # on npm yet — between the release commit and release.yml's publish that
+          # version provably does not exist (same guard as the sibling jobs).
+          ( cd /tmp/gjsify-node-cli && npm init -y >/dev/null 2>&1 \
+            && "${GITHUB_WORKSPACE}/.github/scripts/install-published-cli.sh" "${CLI_VERSION}" )
+          ln -sf /tmp/gjsify-node-cli/node_modules/@gjsify/cli/lib/index.js node_modules/.bin/gjsify
+          echo "Bootstrap bundler: $(node_modules/.bin/gjsify --version)"
+
+          PATH="$PWD/node_modules/.bin:$PATH" node_modules/.bin/gjsify run build:infra
+          ln -sfn "$PWD/packages/infra/cli/lib/index.js" node_modules/.bin/gjsify
+          echo "Node bundler (this checkout): $(node_modules/.bin/gjsify --version)"
+
+      # Build gtk-host's lib + its transitive workspace deps (incl. @gjsify/unit).
+      # build:gjsify (the --library step) emits the lib/esm/*.js the --app node
+      # bundle inlines — no .d.ts emit needed here.
+      - name: Build @gjsify/gtk-host lib under Node (+ workspace deps)
+        run: |
+          export PATH="$PWD/node_modules/.bin:$PATH"
+          gjsify workspace @gjsify/unit build:gjsify --with-dependencies
+          gjsify workspace @gjsify/gtk-host build:gjsify --with-dependencies
+
+      # Guarantee the devDependency file: link resolves to the freshly node-gyp-built
+      # addon regardless of how the install materialised it (belt-and-suspenders,
+      # same as consumer-sqlite).
+      - name: Link the node-gi devDependency
+        run: |
+          mkdir -p packages/framework/gtk-host/node_modules/@gjsify
+          ln -sfn ../../../../node-gi/node-gi packages/framework/gtk-host/node_modules/@gjsify/node-gi
+          ls -l packages/framework/gtk-host/node_modules/@gjsify/node-gi
+
+      # Xvfb + a private session bus, software rendering — the gtk-smoke recipe.
+      # NODE_GI_NATIVE=build pins the just-built addon over any staged prebuild.
+      # A stood-down green is structurally excluded: the suites gate on runtime
+      # IDENTITIES that include Node.js (GTK_HOSTS in src/testing/gate.mts — a
+      # capability probe would stand down silently, which is why it is not one),
+      # so on this leg they RUN, and a missing GTK dies loudly at Gtk.init().
+      - name: Run the gtk-host suite on node-gi (xvfb + dbus)
+        working-directory: packages/framework/gtk-host
+        run: |
+          export PATH="$PWD/../../../node_modules/.bin:$PATH"
+          xvfb-run -a dbus-run-session -- \
+            env GSK_RENDERER=cairo GDK_BACKEND=x11 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none \
+            NODE_GI_NATIVE=build gjsify run test:gjs-on-node
+
   # aarch64 proof: build the Node-API addon + run the core suite, the golden-diff
   # conformance (gjs/node/bun/deno byte-identical) and the tier-B typelib oracle on
   # a NATIVE arm64 runner (ubuntu-24.04-arm — no qemu). node-gi has hand-written
