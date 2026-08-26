@@ -10,8 +10,9 @@
 // GJS: SharedArrayBuffer is not exposed under SpiderMonkey 140 in stock GJS
 //   (Mozilla disables the constructor unless the embedder opts in), and our
 //   subprocess-based Worker harness cannot share memory pages either.
-//   Status tracked under "Open TODOs → SharedArrayBuffer cross-process
-//   sharing". The suite degrades gracefully on GJS to an availability check.
+//   Status: `status/open-todos.md` → "SharedArrayBuffer constructor opt-in
+//   (Mozilla pref)". The suite degrades gracefully on GJS to an availability
+//   check.
 
 import { describe, it, expect, on } from '@gjsify/unit';
 import type { Worker } from 'node:worker_threads';
@@ -28,7 +29,7 @@ export default async () => {
 
         await it('SharedArrayBuffer availability', async () => {
             // Documented expectations. GJS today: undefined (see
-            // status/open-todos.md → "SharedArrayBuffer cross-process sharing").
+            // status/open-todos.md → "SharedArrayBuffer constructor opt-in").
             if (hasSAB) {
                 expect(typeof SAB).toBe('function');
             } else {
@@ -49,25 +50,31 @@ export default async () => {
                 // Deterministic input pattern.
                 for (let i = 0; i < SAB_BYTES; i++) view[i] = (i * 31 + 7) & 0xff;
 
-                // 32-byte completion barrier: each worker writes its slot index to
-                // signal "done"; main thread spins on Atomics.load.
+                // 16-byte completion barrier: each worker writes 1 into its own slot,
+                // and the main thread reads all four ONCE, after the last message. No
+                // spin, deliberately — a spin would pass whatever the write order was,
+                // and what this asserts is precisely that receiving a worker's message
+                // implies seeing the write that preceded it.
                 const barrierSab = new SAB!(WORKER_COUNT * 4);
                 const barrier = new Int32Array(barrierSab);
 
                 const partialHashes = Array.from<Buffer>({ length: WORKER_COUNT });
                 const slice = SAB_BYTES / WORKER_COUNT;
 
-                // ORDER IS LOAD-BEARING: the barrier store comes BEFORE the
-                // postMessage, and the message is the last thing the worker does.
+                // The store comes BEFORE the post, and that is not a narrowed window —
+                // it is the difference between a write that has happened and one that
+                // has not. `postMessage` is a release edge (the port queue publishes
+                // everything sequenced before it, and a SeqCst `Atomics.store` cannot
+                // be moved across a call), so storing first makes the write visible to
+                // anyone who receives the message. Posting first was never a visibility
+                // race at all: the store had simply not RUN yet, so no barrier anywhere
+                // could have helped.
                 //
-                // The other way round is a race, and it is not theoretical — it turned
-                // the required `CI gate (GJS)` red on an unrelated docs PR under Node
-                // 26.7.0 with `Expected: 1, Actual: 0`. The main thread resolves on the
-                // FOURTH `message` event and then asserts every barrier slot is 1; if a
-                // worker posts before it stores, the main thread is allowed to read the
-                // slot it has not written yet. Storing first makes the message the proof
-                // that the write already happened, which is what the assertion below
-                // actually claims to be testing.
+                // The old order failed at 0.07% on two pinned cores and 4.95% on one,
+                // with no artificial delay — matching the 1-in-1036 seen on a 4-core CI
+                // runner (run 32944683338 / job 98117667852, `Expected: 1, Actual: 0`).
+                // This order missed nothing in 30500 rounds across the same pinnings,
+                // including with a 2 ms stall wedged between the store and the post.
                 const workerCode = `
           const { parentPort, workerData } = require('node:worker_threads');
           const { createHash } = require('node:crypto');
@@ -78,7 +85,6 @@ export default async () => {
           h.update(view.subarray(sliceStart, sliceEnd));
           const digest = h.digest();
           Atomics.store(barrier, slot, 1);
-          Atomics.notify(barrier, slot, 1);
           parentPort.postMessage({ slot, digest });
         `;
 
