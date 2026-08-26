@@ -1,4 +1,4 @@
-export { setupForGjs, isRegisterSubpath, isGjsifyShim, createGjsExternalsPredicate } from './gjs.js';
+export { setupForGjs, isRegisterSubpath, isGjsifyShim, createGjsExternalsPredicate, gjsResolveOptions } from './gjs.js';
 export type { GjsBuildConfig, GjsFactoryInput } from './gjs.js';
 export { setupForNode, enableGjsRegistersForNode, isGjsSourceBuild } from './node.js';
 export type { NodeBuildConfig, NodeFactoryInput } from './node.js';

@@ -16,6 +16,7 @@ import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
 import { gjsGiNodePlugin, gjsBuiltinModulesNodePlugin } from '../plugins/gjs-gi-node.js';
 import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
 import { wrapInputWithSideEffects } from '../utils/entry-wrapper.js';
+import { gjsResolveOptions, resolveShim } from './gjs.js';
 
 /**
  * Side-effect specifier the node target injects when GJS ambient globals
@@ -72,6 +73,10 @@ export function enableGjsRegistersForNode(baseAliases: Record<string, string>): 
     for (const [key, value] of Object.entries(ALIASES_WEB_FOR_GJS)) {
         if (REGISTER_SUBPATH_RE.test(key)) out[key] = value;
     }
+    // The reverse bridge resolves with the GJS view (`gjsResolveOptions`), which
+    // omits the `node` condition — so `unicorn-magic`, whose full API sits behind
+    // that condition, needs the same bundled-shim route `--app gjs` uses.
+    out['unicorn-magic'] = resolveShim('unicorn-magic');
     return out;
 }
 
@@ -213,13 +218,25 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         // The function form survives only for `getAliasesForNode({ external })`,
         // which runs in-process and is never serialized.
         external: exactExternal,
-        resolve: {
-            mainFields: format === 'esm' ? ['module', 'main', 'browser'] : ['main', 'module', 'browser'],
-            // CJS-priority conditions. Rolldown takes the package's first matching
-            // key, so adding 'import' would route ws v8 (which lists 'import'
-            // before 'require') through its incomplete ESM wrapper.
-            conditionNames: format === 'esm' ? ['require', 'node', 'module'] : ['require'],
-        },
+        // A REVERSE-BRIDGE build resolves the npm world with the GJS view: the
+        // bundle is the same GJS program as its `--app gjs` build, only the
+        // runtime differs — and per-runtime export conditions encode assumptions
+        // (`node` ⇒ SSR/server) that are wrong for a GTK program running on node.
+        // Measured on `solid-js`, whose `node` condition is `dist/server.js`: a
+        // no-op `createEffect`, so every reactive update silently never reached
+        // GTK while the identical `--app gjs` bundle passed — and ADR 0030's
+        // gjs-vs-node attribution blamed node-gi for a resolution difference.
+        // Sharing `gjsResolveOptions` (not a copy) is what keeps the two legs
+        // comparing one program. Cross-platform node bundles are byte-unchanged.
+        resolve: gjsSourceBuild
+            ? gjsResolveOptions(format)
+            : {
+                  mainFields: format === 'esm' ? ['module', 'main', 'browser'] : ['main', 'module', 'browser'],
+                  // CJS-priority conditions. Rolldown takes the package's first matching
+                  // key, so adding 'import' would route ws v8 (which lists 'import'
+                  // before 'require') through its incomplete ESM wrapper.
+                  conditionNames: format === 'esm' ? ['require', 'node', 'module'] : ['require'],
+              },
         transform: {
             target: 'node24',
             define: {

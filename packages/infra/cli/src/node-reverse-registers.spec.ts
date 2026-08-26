@@ -19,7 +19,9 @@
 // — `@gjsify/rolldown-plugin-gjsify` has no test runner of its own.
 
 import { describe, expect, it } from '@gjsify/unit';
-import { enableGjsRegistersForNode, isGjsSourceBuild } from '@gjsify/rolldown-plugin-gjsify';
+import { existsSync } from 'node:fs';
+
+import { enableGjsRegistersForNode, gjsResolveOptions, isGjsSourceBuild } from '@gjsify/rolldown-plugin-gjsify';
 import { ALIASES_WEB_FOR_NODE, ALIASES_WEB_FOR_GJS } from '@gjsify/resolve-npm';
 
 const REGISTER_SUBPATH_RE = /\/register(\/|$)/;
@@ -56,6 +58,36 @@ export default async () => {
 
         await it('does not mutate the input map', async () => {
             expect(base['@gjsify/dom-elements/register/document']).toBe('@gjsify/empty');
+        });
+
+        await it('routes unicorn-magic to the bundled shim, and the shim exists', async () => {
+            // The reverse bridge resolves with the GJS view (no `node` condition),
+            // so unicorn-magic's full API needs the same shim route `--app gjs`
+            // carries. A dangling path would resurface much later as an unrelated
+            // "could not resolve", so assert the file, not just the key.
+            const shim = out['unicorn-magic'];
+            expect(typeof shim).toBe('string');
+            expect(existsSync(shim)).toBe(true);
+        });
+    });
+
+    // The npm-world resolution a reverse-bridge node build shares with `--app gjs`.
+    // The SHARING is the contract (one function, not a copy): `solid-js` routes its
+    // `node` condition to dist/server.js — the SSR build whose createEffect is a
+    // no-op — so a reverse-bridge bundle resolved with node conditions rendered
+    // once and dropped every reactive update, failing 16 of @gjsify/gtk-host's
+    // node-leg suites as "Expected [\"second\"], Actual [\"first\"]" while the
+    // identical source passed on gjs. ADR 0030's attribution depends on the two
+    // legs running ONE program.
+    await describe('gjsResolveOptions — the GJS view of the npm world', async () => {
+        await it('prefers browser entries and omits the node condition', async () => {
+            for (const format of ['esm', 'cjs'] as const) {
+                const resolve = gjsResolveOptions(format);
+                expect(resolve.conditionNames).toStrictEqual(['browser']);
+                expect(resolve.mainFields?.[0]).toBe('browser');
+                expect(resolve.mainFields?.includes('node' as never)).toBe(false);
+                expect(resolve.conditionNames?.includes('node' as never)).toBe(false);
+            }
         });
     });
 
