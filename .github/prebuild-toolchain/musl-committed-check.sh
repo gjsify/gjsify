@@ -14,13 +14,15 @@
 #
 # WHY IT HAD TO LEAVE THE BUILD LEG
 #
-# `build-prebuilds-musl` is `if: github.event_name == 'workflow_dispatch'` AND
-# `continue-on-error: true`. Both are right for what that job is — a canary that
-# builds targets no package declares (see its own header, and the 41-hour outage
-# the `continue-on-error` exists for). Both are fatal for this check: nothing
-# asserted musl loadability on a PR or a merge, and even the dispatch runs could
-# not colour anything red. Meanwhile this half of the leg needs no build at all —
-# it reads binaries already in the tree.
+# `build-prebuilds-musl` WAS `if: github.event_name == 'workflow_dispatch'` AND
+# `continue-on-error: true`, so nothing it asserted could reach a PR or a merge
+# and it could not colour anything red even on a dispatch. It has since lost
+# both, which makes that the history of the split rather than its justification.
+# What keeps the two separate is the next paragraph's distinction plus one fact:
+# this half needs no build at all — it reads binaries already in the tree — so it
+# can also run inside `commit-prebuilds`, where a build leg has no business being.
+# Two questions, two jobs: that one asks whether the SOURCES work when compiled
+# against musl, this one whether the binaries users actually get resolve there.
 #
 # WHAT IT ANSWERS, AND WHAT IT DOES NOT
 #
