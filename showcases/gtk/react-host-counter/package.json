@@ -35,9 +35,9 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/gtk-host": "workspace:^",
         "@types/node": "^25.9.2",
-        "@types/react": "^18.3.12",
-        "react": "^18.3.1",
-        "react-reconciler": "^0.29.2",
+        "@types/react": "^19.2.2",
+        "react": "^19.2.0",
+        "react-reconciler": "^0.33.0",
         "typescript": "^6.0.3"
     },
     "author": "Pascal Garber <pascal@artandcode.studio>",

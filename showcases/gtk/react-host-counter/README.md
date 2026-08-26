@@ -28,7 +28,7 @@ inside a `GApplication`. Three things only this file reaches:
   own `jsx`/`jsxs`/`Fragment`. There is no plugin under `gjsify.bundler.plugins` here and nothing
   for one to consume. The export **names** are the framework's contract — TypeScript emits those
   three literally, so a rename there is a `MISSING_EXPORT` in this bundle.
-- **The scheduled lane, under GJS, in an application.** `getCurrentEventPriority` returns the
+- **The scheduled lane, under GJS, in an application.** `resolveUpdatePriority` returns the
   DEFAULT lane, so a `setState` from a `clicked` handler is concurrent: it is handed to
   `scheduler`, which under GJS lands on a GLib timer source. The probe asserts **both** halves —
   the tree is unchanged the instant the signal returns, and it is patched once the main context

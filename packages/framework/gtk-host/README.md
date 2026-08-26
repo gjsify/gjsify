@@ -377,13 +377,29 @@ is not in this table because `@vue/runtime-core` does not export it at all
 READ instead of restated. `react-reconciler` is `module.exports = function
 $$$reconciler($$$hostConfig) { … }` and its body opens by destructuring the whole
 config, so a recording `Proxy` over the config reports exactly which members the
-installed version asks for. Measured on **0.29.2**, production bundle: **76**
-members read, **37** answered here, **39** switched off by three flags the config
-does declare (`supportsPersistence: false`, `supportsHydration: false`,
-`supportsTestSelectors` absent) plus `supportsMicrotasks`, and 4 more declared for
-the development bundle, which reads 94. `react.spec.ts` asserts all three
+installed version asks for. Measured on **0.33.0** (React 19.2), production bundle:
+**160** members read, **58** answered here, **102** switched off — by the four
+capability flags the config declares false (`supportsPersistence`,
+`supportsHydration`, `supportsResources`, `supportsSingletons`), by two it declares
+not at all (`supportsTestSelectors`, `supportsMicrotasks`), and by three families no
+flag gates and nothing here can mean (view transitions and the gesture timeline,
+fragment instances, DevTools metadata, and the suspended-commit reason React reads
+only to name a commit in its own timeline). `react.spec.ts` asserts all three
 directions, so a version bump that starts asking for something new fails a test
 instead of reading `undefined` inside a commit.
+
+**What the React 19 bump cost, because the numbers alone understate it.** 0.29.2 read
+76 members and the development bundle read 94, which made the count itself a guard
+against a lost `NODE_ENV=production` define; on 0.33.0 both bundles read 160 and that
+guard is gone — the "runs without a DOM at all" vector, which asserts `document`,
+`HTMLCanvasElement` and `Path2D` are absent, is now the only thing holding the build
+recipe. Three further changes were silent rather than typed: `flushSync(() =>
+updateContainer(…))` on a ConcurrentRoot mounts NOTHING under 19 (the sync path is
+`updateContainerSync` + `flushSyncWork`); `createContainer` grew two error callbacks
+*before* `onRecoverableError`, so the React 18 argument list keeps working and wires
+the wrong handler; and an error the host throws no longer propagates out of
+`render()` but goes to `onUncaughtError`, which is why `createRoot` holds the first
+one and rethrows it — a named refusal that only reaches a log has bought nothing.
 
 ```ts
 import { createRoot, flushSync } from '@gjsify/gtk-host/react';
@@ -396,11 +412,13 @@ root.render(createElement('GtkBox', null, createElement('GtkLabel', { label: 'hi
   `ConcurrentRoot`'s updates are DEFAULT-lane, so they are handed to `scheduler`,
   which under GJS is a GLib timer source — with no main loop running yet, an
   unflushed first render leaves the container empty and says nothing. `render()`
-  therefore wraps `updateContainer` in `flushSync`, which sets the current update
-  priority to `DiscreteEventPriority` and makes everything scheduled inside it a
-  sync lane the same call then flushes.
+  therefore calls `updateContainerSync`, which puts the work on the sync lane, and
+  then `flushSyncWork`, which drains it. Under React 18 this was
+  `flushSync(() => updateContainer(…))`; under 19 that combination on a
+  `ConcurrentRoot` mounts nothing at all, silently, so the two calls are spelled
+  separately and the reason is written down where they are.
 - **A `setState` from a GTK signal handler is concurrent** and lands on the next
-  main-loop iteration, because `getCurrentEventPriority` returns the default lane
+  main-loop iteration, because `resolveUpdatePriority` returns the default lane
   (there is no ambient DOM event to derive a priority from). `flushSync` is the
   escape hatch. A vector pumps `GLib.MainContext.default()` and proves the
   scheduled path works at all under GJS — it does, on gjs 1.88.1, with no
