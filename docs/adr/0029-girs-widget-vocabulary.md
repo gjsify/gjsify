@@ -100,16 +100,45 @@ declares its own dialect on top.**
 
 ### 1. Data-shaped, never JSX-shaped
 
-A JSX namespace is a global declaration; two consumers declaring one is a merge,
-not two dialects. This is observed rather than feared: gtkx emits
-`declare global { namespace React.JSX { interface IntrinsicElements { … } } }`
-per namespace, with no module-scoped `JSX`, no `jsxImportSource` indirection and
-no opt-out. Importing one widget pulls the whole element table, React's DOM
+A JSX namespace does NOT have to be global. `gtk-host` ships TWO module-scoped
+ones — `src/jsx-runtime.ts:41` for Solid and `src/react-jsx-runtime.ts:97` for
+React — in ONE package, each reached through its own `jsxImportSource`, and they
+do not collide with each other or with anything else; the package contains no
+`declare global` at all. An earlier revision of this ADR said a JSX namespace *is*
+a global declaration; that is false as stated, and two dialects coexisting in one
+of our own packages is the counterexample.
+What is true is the PRACTICE: gtkx emits
+`declare global { namespace React.JSX { interface IntrinsicElements { … } } }` per
+namespace, with no module-scoped `JSX`, no `jsxImportSource` indirection and no
+opt-out — so importing one widget pulls the whole element table, React's DOM
 intrinsics stay in scope, and a second library augmenting the same interface
-collides hard on any shared tag.
+collides hard on any shared tag. That is the shape to avoid, not JSX itself.
 
-`@girs/*` is used by projects that want nothing to do with JSX, so it is exactly
-the package that must not do this.
+So the reason the surface is data-shaped is not that a JSX form is impossible
+here. It is that every JSX form is a DIALECT decision, and there are four of them:
+
+- **The tag spelling.** The GIR knows `AdwToolbarView`. Turning that into
+  `adw-toolbar-view` is a renderer's choice, and the constraint behind it is
+  Volar's resolution rule rather than anything in the GIR.
+- **The signal prop names.** `onClicked` in Solid and React, `@clicked` in a Vue
+  template. GObject itself says `clicked`.
+- **The shape each framework wants.** Solid wants a `JSX` namespace off its own
+  `jsxImportSource`, React wants `React.JSX`, Vue wants a `GlobalComponents`
+  interface. A package emitting all three would have to know all three.
+- **Bundler knowledge.** `jsx-runtime`'s four exports are throwing stubs whose
+  message names `babel-preset-solid` and the Vue SFC compiler. That is a statement
+  about the build, not about the type system.
+
+And the cost of leaving all four to the consumer is one line — `GtkIntrinsicElements`
+is a single mapped type over the maps this subpath emits. Everything expensive
+(properties per widget, enum nicks, construct-only unions, the GType map) is here;
+what stays with the consumer is the spelling. A second consumer with a different
+dialect writes its own line and duplicates nothing.
+
+`@girs/*` is used by projects that want nothing to do with JSX, so an opt-in
+data subpath is what serves both. Should a JSX surface ever be worth SHARING
+between consumers, the answer is a package layered ON `@girs/*` — never `@girs/*`
+itself, and never a global augment.
 
 ### 2. What the subpath exports
 
