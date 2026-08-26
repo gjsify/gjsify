@@ -260,6 +260,24 @@ export async function parseCiPlatforms(
                     targets.add(canonicalPrebuildTarget(hostPrebuildTarget(entryOs, arch, entry.libc ?? 'glibc')));
                 }
             } else {
+                // The libc key is read ONLY from `matrix.include` entries above.
+                // A job that carries one in any other shape (a list-form
+                // `matrix.libc:`, a job-level `env:`) would have it silently
+                // ignored here and be credited with the BARE token — the same
+                // wrong credit the key exists to prevent, arriving through a
+                // matrix shape instead of through a deleted line. This branch
+                // therefore refuses rather than composing, for the reason the
+                // vocabulary above is closed: a libc key that is load-bearing in
+                // one code path and inert in another is worse than no key.
+                const stray = job.body.find((line) => /^\s*libc:\s*\S/.test(line));
+                if (stray !== undefined) {
+                    throw new TypeError(
+                        `${file}: job \`${job.job}\` carries \`${stray.trim()}\` outside a ` +
+                            '`matrix.include` entry, where the libc axis is not read. Move it onto the include ' +
+                            'entries: read from anywhere else it would be ignored and the job credited with the ' +
+                            'bare `<os>-<arch>` token, which is the silent fold the key exists to prevent.',
+                    );
+                }
                 const archs = job.archs.size > 0 ? [...job.archs] : [archFromRunner(job.runsOn, os)];
                 for (const arch of archs) targets.add(canonicalPlatform(`${os}-${arch}`));
             }

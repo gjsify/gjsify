@@ -695,6 +695,37 @@ jobs:
         );
     });
 
+    it('refuses a `libc:` key the include-entry path would never read', async () => {
+        // The other way a libc key goes silently inert: a LIST-form matrix has no
+        // `- key: value` entries, so `parseMatrixIncludes` returns nothing and the
+        // whole libc branch above is skipped. The job would then be credited with
+        // the bare token — the same wrong credit as a deleted key, arriving
+        // through a matrix SHAPE instead. A key that is load-bearing in one code
+        // path and ignored in another is worse than no key, so the shape refuses.
+        await assert.rejects(
+            () =>
+                coverage(`
+name: fixture
+jobs:
+  build-prebuilds-musl:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [x64]
+        libc: musl
+    steps:
+      - name: Collect @gjsify/tls-native prebuilds
+        run: node scripts/stage-prebuild.mjs packages/node/tls-native --scratch
+      - name: Upload @gjsify/tls-native prebuilds artifact
+        uses: actions/upload-artifact@v7
+        with:
+          path: packages/node/tls-native/prebuilds/linux-x64-musl/
+`),
+            /outside a `matrix.include` entry/,
+            'the include-entry path is the only one that reads `libc:`; anywhere else it must refuse rather than compose the bare token.',
+        );
+    });
+
     // The `workflow_dispatch` exclusion, which the workflow header claims is
     // matched "character for character" and which nothing tested. It is the other
     // half of how an exploratory leg stays out of the promise audit — and the two
