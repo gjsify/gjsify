@@ -17,14 +17,33 @@ import { resolve } from 'node:path';
 
 import {
     canonicalPlatform,
+    canonicalPrebuildTarget,
     collectNativePackages,
     defineRule,
+    hostPrebuildTarget,
     isPlatformPackageManifest,
     KNOWN_ARCH_TOKENS,
+    parsePrebuildTarget,
     platformPackageName,
     prebuildOwnership,
     PLATFORM_RE,
 } from '../../../packages/infra/manifest-conformance/lib/index.mjs';
+
+/**
+ * The `libc:` values a matrix entry may carry — the LIBC AXIS of the target
+ * grammar, which is orthogonal to `<os>-<arch>` and does not live in
+ * `gjsify.platforms` at all (the distinction rides npm's `libc` field, measured
+ * from the ELF by `generate-platform-packages.mjs`).
+ *
+ * A closed vocabulary, because the failure mode of an open one is silent: an
+ * entry reading `libc: gnu` or `libc: mulsl` would compose the BARE
+ * `<os>-<arch>` token and hand the job a platform promise it does not build,
+ * which is a green audit measuring the wrong leg. Both members earn their place:
+ * `musl` composes a libc-carrying token that is dropped from the promise map
+ * below, `glibc` composes the bare one and IS a promise — so the key means the
+ * same thing in both directions rather than "present ⇒ ignore me".
+ */
+const KNOWN_MATRIX_LIBC = new Set(['glibc', 'musl']);
 
 /** Default arch a bare runner label implies, keyed by the OS it maps to. */
 const RUNNER_DEFAULT_ARCH = { linux: 'x64', darwin: 'arm64', win32: 'x64' };
@@ -58,7 +77,7 @@ export function archFromRunner(runsOn, os = osFromRunner(runsOn)) {
 }
 
 /**
- * The `strategy.matrix.include` entries of one job, as `{arch?, runner?}` PAIRS.
+ * The `strategy.matrix.include` entries of one job, as `{arch?, runner?, libc?, …}` records.
  *
  * `runs-on` is read literally, so `runs-on: ${{ matrix.runner }}` tells
  * `osFromRunner` nothing and falls through to `linux` — right for the Linux legs BY
@@ -127,9 +146,19 @@ export function splitSteps(lines) {
  * that does not exist.
  *
  * Jobs gated on `github.event_name == 'workflow_dispatch'` are EXCLUDED: a
- * manually-dispatched exploratory job (today: napi's blocked Windows attempt) is not
- * a platform CI produces, and counting it lets a package declare a target no user
- * will ever receive.
+ * manually-dispatched exploratory job (today: napi's blocked Windows attempt and
+ * `build-prebuilds-macos-experimental`) is not a platform CI produces, and counting it
+ * lets a package declare a target no user will ever receive.
+ *
+ * A LIBC-CARRYING target is excluded too, and for a different reason: it is not a
+ * `gjsify.platforms` promise in the first place. `prebuilds.yml`'s Alpine leg marks its
+ * matrix entries `libc: musl`, composes `linux-<arch>-musl`, and contributes nothing
+ * here — it proves that the SOURCES build and load on musl, which is what keeps the
+ * npm `libc` policy honest, without promising anybody a musl binary. That exclusion is
+ * what let the leg stop being `workflow_dispatch`-only: without the key it would be
+ * credited with `linux-x64`/`linux-arm64`, the targets the glibc legs build, and the
+ * audit would pass having measured the wrong job. An unrecognised `libc:` value, or the
+ * right one on a non-Linux entry, THROWS rather than folding down to a bare token.
  *
  * ADVISORY — a package the parser finds no job for is reported as unverified rather
  * than failed, so a build wired up in a shape this parser cannot read never produces
@@ -196,12 +225,84 @@ export async function parseCiPlatforms(
                     const entryOs = entry.runner ? osFromRunner(entry.runner) : os;
                     const arch =
                         entry.arch && KNOWN_ARCH_TOKENS.has(entry.arch) ? entry.arch : archFromRunner(runsOn, entryOs);
-                    targets.add(canonicalPlatform(`${entryOs}-${arch}`));
+                    // The LIBC AXIS. An entry with no `libc:` is glibc by
+                    // omission, which is what every leg but the Alpine one is.
+                    if (entry.libc !== undefined && !KNOWN_MATRIX_LIBC.has(entry.libc)) {
+                        throw new TypeError(
+                            `${file}: job \`${job.job}\` has a matrix entry with \`libc: ${entry.libc}\`, which is not ` +
+                                `one of ${[...KNOWN_MATRIX_LIBC].join(', ')}. Refusing to guess: an unrecognised value ` +
+                                'would compose the bare `<os>-<arch>` token and credit this job with a platform it does ' +
+                                'not build, so the audit would pass having measured the wrong leg.',
+                        );
+                    }
+                    // Same refusal for the right value on the wrong OS.
+                    // `hostPrebuildTarget` honours `-musl` on linux ONLY (npm's
+                    // `libc` field is documented Linux-only), so a `libc: musl`
+                    // entry on a macOS or Windows runner would come back as the
+                    // BARE token — i.e. as a promise — and half-honouring the key
+                    // is exactly the silence the closed vocabulary above exists
+                    // to prevent.
+                    if (entry.libc === 'musl' && entryOs !== 'linux') {
+                        throw new TypeError(
+                            `${file}: job \`${job.job}\` declares \`libc: musl\` on a ${entryOs} matrix entry ` +
+                                `(runner \`${runsOn}\`). The libc axis is Linux-only, so this token cannot be composed ` +
+                                'and the entry would silently be read as an ordinary platform promise.',
+                        );
+                    }
+                    // `canonicalPrebuildTarget`, NOT `canonicalPlatform`: the
+                    // latter is libc-BLIND by design (it splits on `-` and keeps
+                    // two parts), so it folds `linux-x64-musl` straight back down
+                    // to `linux-x64` — which is the very silent credit this key
+                    // exists to prevent, arriving through the canonicaliser
+                    // instead of through the missing key. Measured: with
+                    // `canonicalPlatform` here the musl fixture below credits
+                    // `linux-x64` and passes as if the axis did not exist.
+                    targets.add(canonicalPrebuildTarget(hostPrebuildTarget(entryOs, arch, entry.libc ?? 'glibc')));
                 }
             } else {
+                // The libc key is read ONLY from `matrix.include` entries above.
+                // A job that carries one in any other shape (a list-form
+                // `matrix.libc:`, a job-level `env:`) would have it silently
+                // ignored here and be credited with the BARE token — the same
+                // wrong credit the key exists to prevent, arriving through a
+                // matrix shape instead of through a deleted line. This branch
+                // therefore refuses rather than composing, for the reason the
+                // vocabulary above is closed: a libc key that is load-bearing in
+                // one code path and inert in another is worse than no key.
+                const stray = job.body.find((line) => /^\s*libc:\s*\S/.test(line));
+                if (stray !== undefined) {
+                    throw new TypeError(
+                        `${file}: job \`${job.job}\` carries \`${stray.trim()}\` outside a ` +
+                            '`matrix.include` entry, where the libc axis is not read. Move it onto the include ' +
+                            'entries: read from anywhere else it would be ignored and the job credited with the ' +
+                            'bare `<os>-<arch>` token, which is the silent fold the key exists to prevent.',
+                    );
+                }
                 const archs = job.archs.size > 0 ? [...job.archs] : [archFromRunner(job.runsOn, os)];
                 for (const arch of archs) targets.add(canonicalPlatform(`${os}-${arch}`));
             }
+            // A libc-carrying target is NOT a `gjsify.platforms` promise, so it
+            // must not reach the map declared-vs-built is computed from. The
+            // vocabulary is `<os>-<arch>` and the libc distinction rides npm's
+            // own field; a musl leg therefore proves that the SOURCES build and
+            // load on musl without promising anyone a musl binary.
+            //
+            // Dropped here rather than at the composition above so the throw
+            // guarding the vocabulary still sees every value, and so the reason
+            // sits with the invariant it protects.
+            // Deleting the current entry mid-iteration is defined for a Set (the
+            // iterator skips removed entries), so no copy is needed.
+            for (const target of targets) {
+                if (parsePrebuildTarget(target).libc) targets.delete(target);
+            }
+            // Attribute nothing when every target was dropped. Adding an EMPTY
+            // set would be worse than adding none: `auditPlatforms` treats the
+            // presence of a set as "the parser found jobs for this package" and
+            // then fails every declared target as unbuilt. Today the glibc legs
+            // are parsed first so the set is already populated, which makes this
+            // a correctness property that would otherwise depend on job ORDER in
+            // the file.
+            if (targets.size === 0) continue;
             // This map means exactly "which targets does CI BUILD", so a job that
             // only CONSUMES another job's artifacts must contribute nothing. The
             // per-step verb test cannot see that alone: `commit-prebuilds`' steps
