@@ -346,6 +346,18 @@ jobs:
       - name: Check the widget vocabulary is aligned across surfaces (self-testing)
         run: node scripts/check-vocabulary-alignment.mjs
 
+      # The React Native support table (ADR 0032 § 8) is one file three readers share:
+      # the bundler gate, the runtime refusals and the generated README section. This
+      # holds all three against it — the key set against react-native's own export list,
+      # and both generated artifacts against what the generator would emit now. A stale
+      # generated file is the quiet failure: the table says a name is planned, the gate
+      # agrees, and the import still resolves to nothing.
+      # It prints whether it compared the committed snapshot alone or a real
+      # react-native install, because a gate that degrades silently to the weaker half
+      # is worse than one that only ever had the weaker half.
+      - name: Check the React Native support table covers react-native (self-testing)
+        run: node scripts/check-rn-surface.mjs
+
       # The step above settles which `adw-*` element names which widget. This one asks
       # whether the element carries that widget's SCALAR GIR properties — the half that
       # was missing when `<adw-alert-dialog>` shipped observing 4 of Adw.AlertDialog's 8

@@ -308,6 +308,11 @@
       "status": "full",
       "note": "parse/stringify with full encoding."
     },
+    "@gjsify/react-native": {
+      "status": "partial",
+      "note": "React Native's export surface over @gjsify/gtk-host (ADR 0032). The support table in `src/support-table.ts` carries a status and a reason for all 92 names react-native publicly exports; the bundler gate, the runtime refusals and the generated README all read the same file.",
+      "missing": "The three layers themselves: the style partition (L1), the primitive descriptors (L2) and the components (L3). Implemented: AppRegistry/registerRootComponent over @gjsify/adwaita-app, EventEmitter, unstable_batchedUpdates. Every other name resolves to a value that refuses with the table's own sentence."
+    },
     "@gjsify/readline": {
       "status": "full",
       "note": "Interface (lifecycle, line events, mixed line endings, Unicode, chunked input, long lines, history), question (sequential, output), prompt, pause/resume, async iterator, clearLine/clearScreenDown/cursorTo/moveCursor, readline/promises, `Interface[Symbol.dispose]` = close() (`using`)."
