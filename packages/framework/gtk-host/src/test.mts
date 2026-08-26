@@ -10,11 +10,15 @@ import generatorSuite from './generator.spec.js';
 import hostSuite from './host.spec.js';
 import propsSuite from './props.spec.js';
 import gtkCssSuite from './style/gtk-css.spec.js';
+import gtkPropsSuite from './style/gtk-props.spec.js';
+import layoutSuite from './style/layout.spec.js';
 import paintSuite from './style/paint.spec.js';
 
 run({
     paintSuite,
+    layoutSuite,
     gtkCssSuite,
+    gtkPropsSuite,
     buildableSuite,
     propsSuite,
     hostSuite,

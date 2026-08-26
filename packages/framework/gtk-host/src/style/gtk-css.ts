@@ -11,8 +11,8 @@
 // disagrees with, and it cannot go stale against a GTK upgrade without a test going
 // red first.
 //
-// Measured on GTK 4.22.4. Two results are worth carrying, because both look like
-// mistakes:
+// Measured on GTK 4.22.4. Three results are worth carrying, because all three look
+// like mistakes:
 //
 //   1. `text-align` IS NOT GTK CSS. It reads like a paint property and belongs in
 //      the layout half, where it becomes `Gtk.Label:xalign`. A class compiler that
@@ -23,6 +23,14 @@
 //      are not equivalent (CSS margin sits outside the border, the widget property
 //      does not compose with it), and choosing between them is the layout half's
 //      decision, not this file's.
+//   3. GTK CSS margins and paddings are PHYSICAL ONLY: `margin-start`, `margin-end`,
+//      `padding-start` and `padding-end` are all refused. The widget's own margins
+//      are the exact opposite — `margin-start`/`margin-end` and no
+//      `margin-left`/`margin-right` (`gtk-props.ts`). So the two mechanisms of
+//      result 2 are not two routes to one place: each is the ONLY route to one half
+//      of the vocabulary, which is why `ml-*`/`mr-*` and `ms-*`/`me-*` land in
+//      different channels in `layout.ts`, and why the layout half refuses an element
+//      that spells both.
 //
 // Every entry carries a value that parses, because "is this a property" and "does
 // this value parse" are different questions and only the pair is testable.
@@ -69,8 +77,14 @@ export const GTK_CSS_PROBES: ReadonlyArray<readonly [property: string, value: st
     ['text-transform', 'uppercase'],
     ['margin', '8px'],
     ['margin-top', '8px'],
+    ['margin-right', '8px'],
+    ['margin-bottom', '8px'],
+    ['margin-left', '8px'],
     ['padding', '8px'],
     ['padding-top', '8px'],
+    ['padding-right', '8px'],
+    ['padding-bottom', '8px'],
+    ['padding-left', '8px'],
     ['min-width', '10px'],
     ['min-height', '10px'],
     ['transform', 'scale(1.1)'],
@@ -82,14 +96,16 @@ export const GTK_CSS_PROBES: ReadonlyArray<readonly [property: string, value: st
 /**
  * Property names GTK4 REFUSES, and the reason each one is here.
  *
- * Twelve of the thirteen are the layout model the web has and GTK does not — there
- * is no `display: flex`, no absolute positioning, no intrinsic `width`. They must
- * become widget selection and widget properties, which is the layout half.
+ * Most of them are the layout model the web has and GTK does not — there is no
+ * `display: flex`, no absolute positioning, no intrinsic `width`. They must become
+ * widget selection and widget properties, which is the layout half.
  *
- * `text-align` is the one that is not about layout at all, and it is why this list
- * exists as a list rather than as a comment: it is the property most likely to be
- * grouped with `color` and `font-size` by anyone reading a Tailwind `text-*`
- * vocabulary, and GTK drops it in silence.
+ * Two groups are not that, and both are here because a reader would assume the
+ * opposite. `text-align` is not about layout at all: it is the property most likely
+ * to be grouped with `color` and `font-size` by anyone reading a Tailwind `text-*`
+ * vocabulary, and GTK drops it in silence. The four logical spacings ARE spacing,
+ * whose physical spellings sit in the accepted table three lines up — the refusal
+ * is per NAME, not per concept, and that is the asymmetry `layout.ts` is built on.
  */
 export const NOT_GTK_CSS: ReadonlyArray<readonly [property: string, value: string]> = [
     ['text-align', 'center'],
@@ -104,7 +120,13 @@ export const NOT_GTK_CSS: ReadonlyArray<readonly [property: string, value: strin
     ['overflow', 'hidden'],
     ['z-index', '1'],
     ['top', '0'],
+    ['right', '0'],
+    ['bottom', '0'],
     ['left', '0'],
+    ['margin-start', '8px'],
+    ['margin-end', '8px'],
+    ['padding-start', '8px'],
+    ['padding-end', '8px'],
 ];
 
 /** The property names of {@link GTK_CSS_PROBES}, for a membership test. */

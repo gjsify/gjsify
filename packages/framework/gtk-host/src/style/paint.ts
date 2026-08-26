@@ -12,12 +12,19 @@
 // WHAT THIS FILE REFUSES TO DO. It does not touch the layout half — `flex`, `items`,
 // `justify`, `gap`, spacing, positioning. Those become widget selection and widget
 // properties, and the interesting one (`flex-1` resolving to `hexpand` or `vexpand`
-// depending on the PARENT) cannot be answered here at all. Reaching a layout utility
-// is therefore an ERROR naming the milestone, never a silent drop: a styling layer
-// that quietly ignores half its input is invisible in CI and obvious on screen.
+// depending on the PARENT) cannot be answered here at all.
+//
+// It says so by returning `null`, NOT by throwing. The distinction is the whole
+// dispatch in `resolve.ts`: a family this half does not own is somebody else's
+// question, while a family it DOES own with a token no scale carries is an error
+// here and nowhere else. Collapsing the two would make `mt-2xs` and `bg-nonsuch`
+// the same diagnostic, and only one of them is a typo. What must never happen is
+// the third option — a silent drop — because a styling layer that quietly ignores
+// part of its input is invisible in CI and obvious on screen.
 
+import { UnknownUtilityError } from './errors.js';
 import { GTK_CSS_PROPERTIES } from './gtk-css.js';
-import type { Scale, StyleTokens } from './tokens.js';
+import { lookupToken, requireToken, type StyleTokens } from './tokens.js';
 
 /** The properties the paint half understands, in React Native's spelling. */
 export interface PaintProps {
@@ -78,61 +85,6 @@ export const CSS_NAME: Readonly<Record<keyof PaintProps, string>> = {
 };
 
 /**
- * The utility families the LAYOUT half owns, so this one can name them.
- *
- * Without this list a layout class is indistinguishable from a typo, and the error
- * a user gets says "unknown utility `flex-1`" — which sends them looking for a
- * spelling mistake that is not there. The distinction costs one array.
- */
-const LAYOUT_FAMILIES: ReadonlySet<string> = new Set([
-    'flex',
-    'items',
-    'justify',
-    'self',
-    'gap',
-    'm',
-    'mt',
-    'mr',
-    'mb',
-    'ml',
-    'mx',
-    'my',
-    'p',
-    'pt',
-    'pr',
-    'pb',
-    'pl',
-    'px',
-    'py',
-    'w',
-    'h',
-    'absolute',
-    'relative',
-    'top',
-    'right',
-    'bottom',
-    'left',
-    'inset',
-    'overflow',
-    'hidden',
-    'grow',
-    'shrink',
-    'basis',
-]);
-
-/** A utility class this vocabulary cannot answer for, and why. */
-export class UnknownUtilityError extends Error {
-    override readonly name = 'UnknownUtilityError';
-    readonly utility: string;
-    constructor(utility: string, detail: string) {
-        super(`@gjsify/gtk-host/style: "${utility}" — ${detail}`);
-        this.utility = utility;
-    }
-}
-
-const lookup = (scale: Scale | undefined, token: string): string | undefined => scale?.[token];
-
-/**
  * Apply an `/alpha` modifier to a colour value.
  *
  * `bg-always-dark/70` is ordinary in a real vocabulary and cannot be pre-resolved:
@@ -149,12 +101,12 @@ const withAlpha = (value: string, alpha: string): string => {
 };
 
 /**
- * One utility class → the properties it sets.
+ * One utility class → the paint properties it sets, or `null` for "not mine".
  *
  * Returns a partial record rather than mutating, so a caller can see what a single
- * class contributed — which is what makes the conflict rule below testable.
+ * class contributed — which is what makes the last-wins rule testable.
  */
-export function resolveUtility(utility: string, tokens: StyleTokens): PaintProps {
+export function resolvePaintUtility(utility: string, tokens: StyleTokens): PaintProps | null {
     // Variants (`active:opacity-70`, `dark:bg-x`) are not this function's business:
     // they select WHEN a declaration applies, which is a CSS pseudo-class or a
     // scheme, and the caller strips them before asking what the utility means.
@@ -208,10 +160,10 @@ export function resolveUtility(utility: string, tokens: StyleTokens): PaintProps
             return { fontStyle: 'normal' };
         case 'rounded':
             noAlpha();
-            return { borderRadius: required(tokens.borderRadius, 'DEFAULT', utility, 'borderRadius') };
+            return { borderRadius: requireToken(tokens.borderRadius, 'DEFAULT', utility, 'borderRadius') };
         case 'border':
             noAlpha();
-            return { borderWidth: required(tokens.borderWidth, 'DEFAULT', utility, 'borderWidth') };
+            return { borderWidth: requireToken(tokens.borderWidth, 'DEFAULT', utility, 'borderWidth') };
     }
 
     const dash = bare.indexOf('-');
@@ -220,31 +172,33 @@ export function resolveUtility(utility: string, tokens: StyleTokens): PaintProps
 
     switch (family) {
         case 'bg': {
-            return { backgroundColor: colour(required(tokens.colors, token, utility, 'colors')) };
+            return { backgroundColor: colour(requireToken(tokens.colors, token, utility, 'colors')) };
         }
         case 'opacity': {
             noAlpha();
-            return { opacity: required(tokens.opacity, token, utility, 'opacity') };
+            return { opacity: requireToken(tokens.opacity, token, utility, 'opacity') };
         }
         case 'rounded': {
             noAlpha();
             const corner = CORNERS[token];
             if (corner !== undefined) {
-                return { [corner]: required(tokens.borderRadius, 'DEFAULT', utility, 'borderRadius') } as PaintProps;
+                return {
+                    [corner]: requireToken(tokens.borderRadius, 'DEFAULT', utility, 'borderRadius'),
+                } as PaintProps;
             }
-            return { borderRadius: required(tokens.borderRadius, token, utility, 'borderRadius') };
+            return { borderRadius: requireToken(tokens.borderRadius, token, utility, 'borderRadius') };
         }
         case 'border': {
             const side = BORDER_SIDES[token];
             if (side !== undefined) {
                 noAlpha();
-                return { [side]: required(tokens.borderWidth, 'DEFAULT', utility, 'borderWidth') } as PaintProps;
+                return { [side]: requireToken(tokens.borderWidth, 'DEFAULT', utility, 'borderWidth') } as PaintProps;
             }
             // `border-<n>` is a width, `border-<colour>` is a colour, and the scales
             // decide which — not a hard-coded list of colour names. A token in both
             // scales is a project's own ambiguity and is reported as one.
-            const width = lookup(tokens.borderWidth, token);
-            const tint = lookup(tokens.colors, token);
+            const width = lookupToken(tokens.borderWidth, token);
+            const tint = lookupToken(tokens.colors, token);
             if (width !== undefined && tint !== undefined) {
                 throw new UnknownUtilityError(
                     utility,
@@ -262,15 +216,13 @@ export function resolveUtility(utility: string, tokens: StyleTokens): PaintProps
             // The genuinely ambiguous family, and the scales settle it: `text-sm` is
             // a size, `text-grey-700` a colour — and `text-center` is NEITHER. It is
             // alignment, which is not GTK CSS at all (measured: `No property named
-            // "text-align"`), so it belongs to the layout half.
-            if (ALIGNMENTS.has(token)) {
-                throw new UnknownUtilityError(
-                    utility,
-                    'text alignment is not GTK CSS — it becomes a widget property (Gtk.Label:xalign) and belongs to the layout half',
-                );
-            }
-            const size = lookup(tokens.fontSize, token);
-            const tint = lookup(tokens.colors, token);
+            // "text-align"`), so it is the layout half's and is handed back
+            // UNCLAIMED. It used to throw a bespoke "belongs to the layout half"
+            // here, which was right while that half did not exist and is now a
+            // refusal of a utility the partition supports.
+            if (ALIGNMENTS.has(token)) return null;
+            const size = lookupToken(tokens.fontSize, token);
+            const tint = lookupToken(tokens.colors, token);
             if (size !== undefined && tint !== undefined) {
                 throw new UnknownUtilityError(
                     utility,
@@ -286,8 +238,8 @@ export function resolveUtility(utility: string, tokens: StyleTokens): PaintProps
         }
         case 'font': {
             noAlpha();
-            const weight = lookup(tokens.fontWeight, token);
-            const familyValue = lookup(tokens.fontFamily, token);
+            const weight = lookupToken(tokens.fontWeight, token);
+            const familyValue = lookupToken(tokens.fontFamily, token);
             if (weight !== undefined && familyValue !== undefined) {
                 throw new UnknownUtilityError(
                     utility,
@@ -300,21 +252,15 @@ export function resolveUtility(utility: string, tokens: StyleTokens): PaintProps
         }
         case 'tracking': {
             noAlpha();
-            return { letterSpacing: required(tokens.letterSpacing, token, utility, 'letterSpacing') };
+            return { letterSpacing: requireToken(tokens.letterSpacing, token, utility, 'letterSpacing') };
         }
         case 'leading': {
             noAlpha();
-            return { lineHeight: required(tokens.lineHeight, token, utility, 'lineHeight') };
+            return { lineHeight: requireToken(tokens.lineHeight, token, utility, 'lineHeight') };
         }
     }
 
-    if (LAYOUT_FAMILIES.has(family) || LAYOUT_FAMILIES.has(bare)) {
-        throw new UnknownUtilityError(
-            utility,
-            'belongs to the layout half of the partition, which is not implemented yet',
-        );
-    }
-    throw new UnknownUtilityError(utility, 'is not a utility this vocabulary declares');
+    return null;
 }
 
 const CORNERS: Readonly<Record<string, keyof PaintProps>> = {
@@ -333,40 +279,11 @@ const BORDER_SIDES: Readonly<Record<string, keyof PaintProps>> = {
 
 const ALIGNMENTS: ReadonlySet<string> = new Set(['left', 'center', 'right', 'justify', 'start', 'end']);
 
-function required(scale: Scale | undefined, token: string, utility: string, scaleName: string): string {
-    const value = lookup(scale, token);
-    if (value !== undefined) return value;
-    const known = scale === undefined ? '(the scale is not configured)' : Object.keys(scale).sort().join(', ');
-    throw new UnknownUtilityError(utility, `"${token}" is not in the ${scaleName} scale. Known: ${known}`);
-}
+/** The {@link PaintProps} keys, for the dispatch's ownership test. */
+export const PAINT_PROPERTIES: ReadonlySet<string> = new Set(Object.keys(CSS_NAME));
 
 /**
- * A class list → the properties it sets, later classes winning.
- *
- * Last-wins is CSS's own rule for equal specificity and the one authors expect from
- * a utility vocabulary. It is done HERE, on the property record, rather than by
- * emitting two declarations and letting GTK resolve them — GTK resolves equal
- * specificity by SHEET ORDER, not by the order of names in `css-classes`, so
- * "the later class wins" would be false the moment two generated classes met.
- */
-export function resolveUtilities(utilities: readonly string[], tokens: StyleTokens): PaintProps {
-    const out: PaintProps = {};
-    for (const utility of utilities) Object.assign(out, resolveUtility(utility, tokens));
-    return out;
-}
-
-/** What the partition hands back. `props` and `intent` are the layout half's. */
-export interface Partitioned {
-    /** GTK CSS declarations, `property: value`, without the braces. */
-    readonly css: readonly string[];
-    /** Widget properties. Empty until the layout half exists. */
-    readonly props: Readonly<Record<string, unknown>>;
-    /** Placement intents L2 resolves against the parent. Empty until the layout half exists. */
-    readonly intent: Readonly<Record<string, unknown>>;
-}
-
-/**
- * Properties → GTK CSS.
+ * Paint properties → GTK CSS declarations.
  *
  * Every emitted name is checked against the MEASURED accepted set rather than
  * trusted: a property this table maps but GTK does not accept would be dropped by
@@ -374,7 +291,7 @@ export interface Partitioned {
  * exists to avoid. The check is cheap and it has caught the one property that looks
  * like paint and is not.
  */
-export function partition(props: PaintProps): Partitioned {
+export function partitionPaint(props: PaintProps): readonly string[] {
     const css: string[] = [];
     for (const [key, value] of Object.entries(props)) {
         if (value === undefined) continue;
@@ -387,5 +304,5 @@ export function partition(props: PaintProps): Partitioned {
         }
         css.push(`${name}: ${value}`);
     }
-    return { css, props: {}, intent: {} };
+    return css;
 }

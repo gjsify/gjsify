@@ -6,8 +6,15 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
+// THE IMPORTS MOVED WITH THE PARTITION REFACTOR, and nothing else here did. This
+// half no longer owns the whole vocabulary: `resolveUtility` (which now tries both
+// halves) and `partition` live in `resolve.ts`, the error class in `errors.ts`, and
+// what remains here is `resolvePaintUtility` — the same function under a name that
+// says which half it is.
 import { MINIMAL_TOKENS, type StyleTokens } from './tokens.js';
-import { CSS_NAME, UnknownUtilityError, partition, resolveUtilities, resolveUtility } from './paint.js';
+import { UnknownUtilityError } from './errors.js';
+import { CSS_NAME, resolvePaintUtility } from './paint.js';
+import { partition, resolveUtilities } from './resolve.js';
 import { GTK_CSS_PROPERTIES } from './gtk-css.js';
 
 const TOKENS: StyleTokens = {
@@ -38,70 +45,77 @@ const threw = (fn: () => unknown): UnknownUtilityError => {
 export default async () => {
     await describe('the paint vocabulary', async () => {
         await it('resolves a colour, a radius, an opacity and a border', async () => {
-            expect(resolveUtility('bg-grey-100', TOKENS)).toStrictEqual({
+            expect(resolvePaintUtility('bg-grey-100', TOKENS)).toStrictEqual({
                 backgroundColor: 'rgb(var(--color-grey-100))',
             });
-            expect(resolveUtility('rounded-md', TOKENS)).toStrictEqual({ borderRadius: '6px' });
-            expect(resolveUtility('opacity-70', TOKENS)).toStrictEqual({ opacity: '0.7' });
-            expect(resolveUtility('border', TOKENS)).toStrictEqual({ borderWidth: '1px' });
-            expect(resolveUtility('border-b', TOKENS)).toStrictEqual({ borderBottomWidth: '1px' });
+            expect(resolvePaintUtility('rounded-md', TOKENS)).toStrictEqual({ borderRadius: '6px' });
+            expect(resolvePaintUtility('opacity-70', TOKENS)).toStrictEqual({ opacity: '0.7' });
+            expect(resolvePaintUtility('border', TOKENS)).toStrictEqual({ borderWidth: '1px' });
+            expect(resolvePaintUtility('border-b', TOKENS)).toStrictEqual({ borderBottomWidth: '1px' });
         });
 
         await it('lets the SCALES disambiguate text-*, not a hard-coded name list', async () => {
             // The same family answers two questions, and which one it is depends on
             // the project's tokens rather than on anything this file knows.
-            expect(resolveUtility('text-s', TOKENS)).toStrictEqual({ fontSize: '13px' });
-            expect(resolveUtility('text-grey-700', TOKENS)).toStrictEqual({ color: 'rgb(var(--color-grey-700))' });
+            expect(resolvePaintUtility('text-s', TOKENS)).toStrictEqual({ fontSize: '13px' });
+            expect(resolvePaintUtility('text-grey-700', TOKENS)).toStrictEqual({ color: 'rgb(var(--color-grey-700))' });
         });
 
         await it('reports a token that is in two scales as ambiguous, rather than picking one', async () => {
             const ambiguous: StyleTokens = { colors: { s: 'red' }, fontSize: { s: '13px' } };
-            expect(threw(() => resolveUtility('text-s', ambiguous)).message).toContain('ambiguous');
+            expect(threw(() => resolvePaintUtility('text-s', ambiguous)).message).toContain('ambiguous');
         });
 
         await it('composes an alpha modifier through GTK’s own alpha()', async () => {
             // `bg-always-dark/70` is ordinary, and the base colour is a token whose
             // value may be a `var()` expression — so the alpha has to COMPOSE rather
             // than parse the colour apart.
-            expect(resolveUtility('bg-always-dark/70', TOKENS)).toStrictEqual({
+            expect(resolvePaintUtility('bg-always-dark/70', TOKENS)).toStrictEqual({
                 backgroundColor: 'alpha(rgb(var(--color-always-dark)), 0.7)',
             });
         });
 
         await it('refuses an alpha modifier on something that is not a colour', async () => {
-            expect(threw(() => resolveUtility('rounded-md/70', TOKENS)).message).toContain('colour');
+            expect(threw(() => resolvePaintUtility('rounded-md/70', TOKENS)).message).toContain('colour');
         });
 
         await it('names the scale and its contents when a token is missing', async () => {
             // The message has to be actionable: "not in the borderRadius scale" plus
             // what IS in it turns a typo into a one-line fix.
-            const error = threw(() => resolveUtility('rounded-huge', TOKENS));
+            const error = threw(() => resolvePaintUtility('rounded-huge', TOKENS));
             expect(error.message).toContain('borderRadius');
             expect(error.message).toContain('full');
         });
 
-        await it('tells a layout utility apart from a typo', async () => {
-            // Both throw. Only one of them sends the reader looking for a spelling
-            // mistake that is not there.
-            expect(threw(() => resolveUtility('flex-1', TOKENS)).message).toContain('layout half');
-            expect(threw(() => resolveUtility('mt-2xs', TOKENS)).message).toContain('layout half');
-            expect(threw(() => resolveUtility('bg-nonsuch', TOKENS)).message).toContain('colors scale');
-            expect(threw(() => resolveUtility('wibble-3', TOKENS)).message).toContain(
-                'not a utility this vocabulary declares',
-            );
+        await it('hands a family it does not own back, rather than judging it', async () => {
+            // CHANGED BY THE REFACTOR, and this is the change: `flex-1` and `mt-2xs`
+            // used to throw "belongs to the layout half" from a copy of the layout
+            // vocabulary kept in this file. Returning null is what lets the two
+            // halves stay ignorant of each other — `resolve.ts` is the only module
+            // that knows both said no, so it is the only one that can say "unknown".
+            expect(resolvePaintUtility('flex-1', TOKENS)).toBeNull();
+            expect(resolvePaintUtility('mt-2xs', TOKENS)).toBeNull();
+            expect(resolvePaintUtility('wibble-3', TOKENS)).toBeNull();
+            // A family it DOES own, with a token no scale carries, is still ITS error
+            // — and keeping that difference is the entire point of the split.
+            expect(threw(() => resolvePaintUtility('bg-nonsuch', TOKENS)).message).toContain('colors scale');
         });
 
-        await it('refuses text-align by name, because it reads like paint and is not', async () => {
-            const error = threw(() => resolveUtility('text-center', TOKENS));
-            expect(error.message).toContain('not GTK CSS');
-            expect(error.message).toContain('xalign');
+        await it('does not claim text alignment, because it reads like paint and is not', async () => {
+            // Measured: `No property named "text-align"`. It is a widget property on
+            // a widget only the shadow tree can find, so this half hands it back —
+            // where it used to throw a bespoke message naming a milestone that has
+            // since arrived.
+            expect(resolvePaintUtility('text-center', TOKENS)).toBeNull();
+            // Still the same family, still settled by the scales.
+            expect(resolvePaintUtility('text-s', TOKENS)).toStrictEqual({ fontSize: '13px' });
         });
 
         await it('refuses a variant rather than silently dropping it', async () => {
             // `active:opacity-70` means "when pressed", which is a pseudo-class the
             // caller has to place. Resolving it as if it were unconditional would
             // paint the pressed style permanently.
-            expect(threw(() => resolveUtility('active:opacity-70', TOKENS)).message).toContain('variant');
+            expect(threw(() => resolvePaintUtility('active:opacity-70', TOKENS)).message).toContain('variant');
         });
 
         await it('lets a later class win, on the property record', async () => {
@@ -130,8 +144,13 @@ export default async () => {
         await it('refuses a property it does not route, instead of dropping it', async () => {
             // The silence this whole file exists against: an unrouted property that
             // simply vanishes leaves the widget unpainted and the run green.
-            expect(threw(() => partition({ textAlign: 'center' } as never)).message).toContain(
-                'not a property the paint partition routes',
+            //
+            // The VECTOR changed with the refactor — `textAlign` is a property the
+            // partition routes now, to an intent — so the probe is a React Native
+            // property nothing has mapped yet, which is the case that actually
+            // matters: a `style={{…}}` object has no class name to check.
+            expect(threw(() => partition({ zIndex: '1' } as never)).message).toContain(
+                'not a property the style partition routes',
             );
         });
 

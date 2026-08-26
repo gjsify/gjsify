@@ -60,6 +60,17 @@ export default async () => {
                 expect(error === null).toBe(false);
                 expect(String(error)).toContain('text-align');
             });
+
+            await it('accepts the PHYSICAL spacings and refuses the LOGICAL ones, in one place', async () => {
+                // The pair the layout half is built on, asserted together because the
+                // decision is the CONTRAST rather than either half: `ml-*` has to go
+                // through CSS and `ms-*` cannot, and a table that listed only one
+                // side would read as an oversight rather than as a constraint.
+                const physical = ['margin-left', 'margin-right', 'padding-left', 'padding-right'];
+                const logical = ['margin-start', 'margin-end', 'padding-start', 'padding-end'];
+                expect(physical.filter((property) => parseError(property, '8px') !== null)).toStrictEqual([]);
+                expect(logical.filter((property) => parseError(property, '8px') === null)).toStrictEqual([]);
+            });
         });
     });
 };
