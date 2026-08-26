@@ -104,6 +104,10 @@ gjsify ship --target deb     # one format
 gjsify ship --stage          # write ship/stage/ and stop
 ```
 
+The same payload also becomes a Flatpak — `gjsify ship --target flatpak`, opt-in
+because it is the only format that needs `flatpak-builder` on the packing host.
+That one is covered in [Ship your app](/gjsify/ship/#the-flatpak-target).
+
 ## Read the staged payload
 
 Everything lands under `ship/` (change it with `--out`):
@@ -344,6 +348,8 @@ to set. The ones you are most likely to meet:
 | cannot tell what size an icon is | use an SVG, a `128x128/` directory, or `icon-128.png` |
 | a file in the bundle directory is a symlink | replace it with the real file; the payload has to stand alone |
 | no package is known to ship a typelib | see [Add a typelib ship does not know](#add-a-typelib-ship-does-not-know) |
+| a `<fmt>` artifact is packed on … and this host is … | that format is host-bound: `--stage` here, `--from-stage` on the host it names |
+| packing a `<fmt>` needs … not on PATH | install the named tool, or drop that target — `deb` and `rpm` need none |
 
 ## Where to next
 

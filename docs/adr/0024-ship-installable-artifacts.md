@@ -1,6 +1,6 @@
 # 24. `gjsify ship` — one payload, a runtime policy per OS, several install formats
 
-- Status: **Accepted** — stages 1, 2 and 3 of § Implementation have landed; see § Implementation status
+- Status: **Accepted** — stages 1, 2, 3 and 6 of § Implementation have landed; see § Implementation status
 - Date: 2026-08-14 (accepted 2026-08-15)
 - Deciders: Pascal Garber
 - Related: [ADR 0017 (native distribution)](0017-native-package-distribution.md), [ADR 0018 (OS-axis declaration)](0018-os-axis-declaration.md), [ADR 0021 (in-process prebuild resolution)](0021-launcher-free-prebuild-resolution.md), [ADR 0023 (which GTK a process uses)](0023-gtk-source-precedence.md), [docs/publishing.md](../publishing.md), `status/open-todos.md` § *gjsify on Flatpak — remaining roadmap*
@@ -191,6 +191,18 @@ move with a deprecation window in which both spellings resolve and the old one w
 migration lands only once `ship` can actually stage, so the tree never carries two staging
 models. Until then the flatpak commands keep working unchanged.
 
+**Landed 2026-08-26, and the migration turned out to be TWO independent halves.** The FORMAT moved:
+`gjsify ship --target flatpak` builds a bundle out of the staged payload, its module is
+`buildsystem: simple` + `cp -a stage/.`, and meson is gone from inside the sandbox. The nine
+SUBCOMMANDS have not: `gjsify flatpak <sub>` is unchanged, because `flatpak ci`, `deps`, `sources`,
+`diff`, `release` and `sync-flathub` are Flathub-submission tooling with nothing to do with a
+staged payload, and moving them is a rename with its own alias problem (`status/open-todos.md`).
+Splitting the two is what let the deprecation window be HONEST rather than blanket: the six BUILD
+keys moved to `gjsify.ship.flatpak` and warn from the old spelling, the `AppMetadata` half is an
+alias and is not deprecated, and the toolchain keys are untouched because their commands have not
+moved. Deprecating the whole block now would have warned on every invocation of a command that
+still has nowhere else to read from.
+
 ### 9. AppImage is DEFERRED, and this names what would unblock it
 
 Not "rejected". An AppImage makes one promise — *one file, no install, any distro* — and that
@@ -267,17 +279,18 @@ Staged, each stage independently useful and independently mergeable:
    prebuild, proven on the existing macOS legs; signing behind § 5's separation.
 5. **Windows program directory + installer**, same shape against `gtk-runtime-win32-x64`.
 6. **Flatpak as a format under `ship`** (§ 8), retiring the duplicate staging path once 2–3
-   have landed.
+   have landed. Landed — see § Implementation status.
 7. **`@gjsify/gjs-runtime-darwin-<arch>`**, after which § 4's macOS row can change to GJS.
 
 Follow-up work lands in `status/open-todos.md` per governance; this ADR records the why.
 
 ## Implementation status
 
-**Landed: stages 2 and 3.** `gjsify ship` stages the payload and packs `.deb` and `.rpm`, proven by
+**Landed: stages 2, 3 and 6.** `gjsify ship` stages the payload and packs `.deb` and `.rpm`, proven by
 `tests/e2e/ship` — which builds real artifacts and reads them back with `rpm` (`-K`, `-qp --info`,
 `-qpl`, `-qp --requires`, `-qp --scripts`, `-i --test`, `rpm2cpio | cpio -it`), GNU `ar` and GNU
-`tar`.
+`tar` — and `--target flatpak` packs a single-file bundle out of the same stage, proven by
+`tests/e2e/ship-flatpak` reading it back with `flatpak build-import-bundle` + `ostree ls -R`.
 
 **Stage 1 (the ELF glibc floor) was already landed when this ADR was written**, and this paragraph
 previously said the opposite. Both halves are in the tree and have been since 2026-08-01,
