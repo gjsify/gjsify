@@ -230,16 +230,13 @@ root.render(
 );
 ```
 
-`root.render()` is synchronous on purpose. A concurrent root hands its updates to the
-scheduler, which under GJS is a GLib timer source — with no main loop running yet, an
-unflushed first render leaves the container empty and says nothing. A `setState` from a GTK
-signal handler *is* concurrent and lands on the next main-loop iteration; `flushSync` is the
-escape hatch.
+`root.render()` is synchronous on purpose: with no main loop running yet nothing drives the
+scheduler, so an unflushed first render would leave the container empty and say nothing.
 
-Build it with `--define 'process.env.NODE_ENV="production"' --exclude-globals navigator`.
-The development `react-reconciler` bundle reaches for `document`, `HTMLCanvasElement` and
-`Path2D`, and `--globals auto` is a static scan: it answers those identifiers by pulling
-`gi://Gdk`, `GdkPixbuf`, `Pango` and `PangoCairo` into a bundle that needs none of them.
+Pointing `jsxImportSource` at the subpath rather than at `react` is what keeps 208 DOM tags
+from type-checking clean against a GTK renderer. The build needs two flags instead of a
+plugin — `--define 'process.env.NODE_ENV="production"' --exclude-globals navigator`; the
+[React page](/gjsify/frameworks/react/) has both, with the reason each one exists.
 
 ## What the host refuses to do quietly
 
@@ -325,12 +322,12 @@ template tag to either key spelling but a Pascal tag only to a Pascal key, so on
 covers both — and that key is also the table key and the GtkBuilder XML key.
 
 `noImplicitAny: true` and `strictTemplates: true` are load-bearing in the same way: without
-them the checker accepts everything and you conclude the surface works. See the two pipeline
-pages for the exact traps.
+them the checker accepts everything and you conclude the surface works. Each framework page
+names the exact trap for its pipeline.
 
 ## Read the source
 
-Three showcases build the same window three ways, and each asserts the resulting tree against
+Four showcases build the same window four ways, and each asserts the resulting tree against
 the **real** widget tree on every launch:
 
 - [`adw-host-counter`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/adw-host-counter)
@@ -339,11 +336,15 @@ the **real** widget tree on every launch:
   — the same window as Solid JSX
 - [`vue-host-counter`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/vue-host-counter)
   — the same window as a `.vue` single-file component
+- [`react-host-counter`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/react-host-counter)
+  — the same window as React, with no compile plugin at all
 
 ## See also
 
 - [Solid JSX](/gjsify/frameworks/solid/) for the compile step a `.tsx` entry needs
 - [Vue SFCs](/gjsify/frameworks/vue/) for the compile step a `.vue` entry needs
+- [React](/gjsify/frameworks/react/) for the `jsxImportSource` and build defines a `.tsx` entry
+  needs instead of a compile step
 - [Native Adwaita Apps](/gjsify/guides/native-adwaita-app/) for the application shell you
   mount into
 - [GObject Classes](/gjsify/patterns/gobject-classes/) for the `registerClass` rules your own
