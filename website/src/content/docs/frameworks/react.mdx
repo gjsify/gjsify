@@ -1,6 +1,6 @@
 ---
 title: React
-description: Render React into GTK 4 with @gjsify/gtk-host/react. No compile plugin, the jsxImportSource that keeps 208 DOM tags out, and the build recipe that is not optional.
+description: Render React into GTK 4 with @gjsify/gtk-host/react. No compile plugin, the jsxImportSource that keeps 178 DOM tags out, and the build recipe that is not optional.
 ---
 
 import CommandTabs from '../../../components/CommandTabs.astro';
@@ -22,38 +22,39 @@ empty window, which is the failure mode this package exists to refuse.
 <CommandTabs title="Install" group="pm">
   <Fragment slot="gjsify">
     ```bash
-    gjsify install @gjsify/gtk-host react react-reconciler
+    gjsify install @gjsify/gtk-host react react-reconciler @types/react
     ```
   </Fragment>
   <Fragment slot="npm">
     ```bash
-    npm install -D @gjsify/gtk-host react react-reconciler
+    npm install -D @gjsify/gtk-host react react-reconciler @types/react
     ```
   </Fragment>
   <Fragment slot="yarn">
     ```bash
-    yarn add -D @gjsify/gtk-host react react-reconciler
+    yarn add -D @gjsify/gtk-host react react-reconciler @types/react
     ```
   </Fragment>
   <Fragment slot="pnpm">
     ```bash
-    pnpm add -D @gjsify/gtk-host react react-reconciler
+    pnpm add -D @gjsify/gtk-host react react-reconciler @types/react
     ```
   </Fragment>
   <Fragment slot="bun">
     ```bash
-    bun add --dev @gjsify/gtk-host react react-reconciler
+    bun add --dev @gjsify/gtk-host react react-reconciler @types/react
     ```
   </Fragment>
   <Fragment slot="deno">
     ```bash
-    deno add --dev npm:@gjsify/gtk-host npm:react npm:react-reconciler
+    deno add --dev npm:@gjsify/gtk-host npm:react npm:react-reconciler npm:@types/react
     ```
   </Fragment>
 </CommandTabs>
 
-Both are optional peer dependencies of `@gjsify/gtk-host` — installing them is what selects the
-React adapter. `react-dom` is not involved and must not be installed for this.
+`react` and `react-reconciler` are optional peer dependencies of `@gjsify/gtk-host` — installing
+them is what selects the React adapter. `@types/react` is what the JSX surface is typed against.
+`react-dom` is not involved and must not be installed for this.
 
 ## Wire it up
 
@@ -87,14 +88,15 @@ already held, so your tree renders *after* the app's own chrome rather than on t
 This is the trap worth spending a paragraph on, because the wrong answer type-checks clean.
 
 Write `"jsxImportSource": "react"` and the element list comes from `@types/react`'s own
-`JSX.IntrinsicElements`. That is 113 HTML elements + 4 deprecated + 59 SVG + 32 MathML — **208
-tags that pass `tsc` against a GTK renderer and then render nothing.** `<div>` becomes a
-perfectly valid expression in a program that cannot draw a `div`.
+`JSX.IntrinsicElements` — **178 HTML and SVG tags that pass `tsc` against a GTK renderer and
+then render nothing** (measured against `@types/react@18.3.31`; React's list carries no MathML).
+`<div>` becomes a perfectly valid expression in a program that cannot draw a `div`.
 
 Pointing at `@gjsify/gtk-host/react` swaps that list for the generated GTK one, so `<div/>` is
 a `TS2339` naming the element and `<gtk-label label="hi" />` is checked against the real
-`GtkLabel` properties. The measurement behind the number is
-[ADR 0028 § 8](https://github.com/gjsify/gjsify/blob/main/docs/adr/0028-widget-table-provenance.md).
+`GtkLabel` properties. Solid has the same problem one package over, at a different size —
+[ADR 0028 § 8](https://github.com/gjsify/gjsify/blob/main/docs/adr/0028-widget-table-provenance.md)
+measures the 208 tags `solid-js` pre-declares, and the fix there is the same one.
 
 TypeScript appends `/jsx-runtime` to whatever you name (`/jsx-dev-runtime` under
 `"jsx": "react-jsxdev"`), and the package exports both. The functions underneath are **React's

@@ -233,8 +233,8 @@ root.render(
 `root.render()` is synchronous on purpose: with no main loop running yet nothing drives the
 scheduler, so an unflushed first render would leave the container empty and say nothing.
 
-Pointing `jsxImportSource` at the subpath rather than at `react` is what keeps 208 DOM tags
-from type-checking clean against a GTK renderer. The build needs two flags instead of a
+Pointing `jsxImportSource` at the subpath rather than at `react` is what keeps `@types/react`'s
+178 DOM tags from type-checking clean against a GTK renderer. The build needs two flags instead of a
 plugin — `--define 'process.env.NODE_ENV="production"' --exclude-globals navigator`; the
 [React page](/gjsify/frameworks/react/) has both, with the reason each one exists.
 
