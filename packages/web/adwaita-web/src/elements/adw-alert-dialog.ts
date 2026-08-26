@@ -14,8 +14,20 @@
 // Attributes:
 //   heading    (the bold heading text)
 //   body       (the body text below the heading)
+//   heading-use-markup (boolean — read `heading` as markup rather than plain text)
+//   body-use-markup    (boolean — read `body` as markup rather than plain text)
+//   close-response     (the response ID emitted on dismissal; default `close`)
+//   default-response   (the response ID whose button is highlighted and focused)
 //   open       (boolean — whether the dialog is shown; default closed)
 //   prefer-wide-layout (boolean — lay responses out horizontally when they fit)
+//
+// MARKUP IS OPT-IN, and here that MATCHES libadwaita rather than departing from it:
+// `Adw.AlertDialog:heading-use-markup` and `:body-use-markup` both default to FALSE
+// (`Adw.Banner:use-markup` is the one that defaults to TRUE, which is why
+// `adw-banner.ts` documents a deliberate departure and this file does not need to).
+// Opting in renders through `innerHTML`, which is the author asserting the string is
+// trusted — Pango markup has a fixed tag set and no scripting, HTML has neither
+// property.
 //
 // Buttons are stacked vertically by default (the Adw.AlertDialog default at medium
 // sizes) and laid out horizontally when prefer-wide-layout is set and there are no more
@@ -82,7 +94,16 @@ export class AdwAlertDialog extends HTMLElement {
     private _blockCloseResponse = false;
 
     static get observedAttributes() {
-        return ['heading', 'body', 'open', 'prefer-wide-layout'];
+        return [
+            'heading',
+            'body',
+            'heading-use-markup',
+            'body-use-markup',
+            'close-response',
+            'default-response',
+            'open',
+            'prefer-wide-layout',
+        ];
     }
 
     get heading(): string {
@@ -108,6 +129,26 @@ export class AdwAlertDialog extends HTMLElement {
     set open(value: boolean) {
         if (value) this.setAttribute('open', '');
         else this.removeAttribute('open');
+    }
+
+    /** Whether {@link heading} is read as markup rather than plain text. */
+    get headingUseMarkup(): boolean {
+        return this.hasAttribute('heading-use-markup');
+    }
+
+    set headingUseMarkup(value: boolean) {
+        if (value) this.setAttribute('heading-use-markup', '');
+        else this.removeAttribute('heading-use-markup');
+    }
+
+    /** Whether {@link body} is read as markup rather than plain text. */
+    get bodyUseMarkup(): boolean {
+        return this.hasAttribute('body-use-markup');
+    }
+
+    set bodyUseMarkup(value: boolean) {
+        if (value) this.setAttribute('body-use-markup', '');
+        else this.removeAttribute('body-use-markup');
     }
 
     /** Whether to prefer horizontal button layout when the buttons fit. */
@@ -205,6 +246,15 @@ export class AdwAlertDialog extends HTMLElement {
         this._model.heading = this.heading;
         this._model.body = this.body;
 
+        // And the two response IDs. `attributeChangedCallback` returns early until
+        // `_initialized`, so an attribute present in the MARKUP — the declarative case
+        // these attributes exist for — is never delivered to it. `heading` and `body`
+        // survive that only because `_render()` re-reads them from the attribute; these
+        // two live in the model and would simply be dropped.
+        const closeResponse = this.getAttribute('close-response');
+        if (closeResponse !== null) this._model.closeResponse = closeResponse;
+        this._model.defaultResponse = this.getAttribute('default-response');
+
         this._render();
     }
 
@@ -236,6 +286,14 @@ export class AdwAlertDialog extends HTMLElement {
         } else if (name === 'body') {
             this._model.body = this.body;
             this.dispatchEvent(new CustomEvent('notify::body', { bubbles: true, detail: { body: this.body } }));
+        } else if (name === 'close-response') {
+            // The MODEL stays the source of truth for response semantics (see the
+            // header) — the attribute is a markup entry point that feeds it, so the
+            // setter is not mirrored back and there is no reflection loop. An absent
+            // attribute means "leave the model's default", not "reset to `close`".
+            if (newValue !== null) this.setCloseResponse(newValue);
+        } else if (name === 'default-response') {
+            this.setDefaultResponse(newValue);
         } else if (name === 'open') {
             this.dispatchEvent(new CustomEvent('notify::open', { bubbles: true, detail: { open: this.open } }));
             if (this.open) this._modal.present();
@@ -402,11 +460,13 @@ export class AdwAlertDialog extends HTMLElement {
         this.classList.toggle('open', this.open);
 
         const heading = this.heading;
-        this._headingEl.textContent = heading;
+        if (this.headingUseMarkup) this._headingEl.innerHTML = heading;
+        else this._headingEl.textContent = heading;
         this._headingEl.hidden = heading.length === 0;
 
         const body = this.body;
-        this._bodyEl.textContent = body;
+        if (this.bodyUseMarkup) this._bodyEl.innerHTML = body;
+        else this._bodyEl.textContent = body;
         this._bodyEl.hidden = body.length === 0;
 
         // Horizontal only when prefer-wide-layout is set AND there are at most two

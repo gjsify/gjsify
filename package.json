@@ -112,6 +112,7 @@
         "check": "gjsify foreach check -ptv --exclude \"@girs/*\" --exclude \"@gjsify/example-*\" --exclude \"@gjsify/website\"",
         "check:examples": "gjsify foreach check -ptv --include \"@gjsify/example-*\"",
         "check:type-surfaces": "node scripts/check-type-surfaces.mjs",
+        "check:adwaita-element-properties": "node scripts/check-adwaita-element-properties.mjs",
         "check:vocabulary-alignment": "node scripts/check-vocabulary-alignment.mjs",
         "clear": "gjsify foreach clear -v --no-private -p --exclude \"@gjsify/example-*\" --exclude \"@gjsify/website\"",
         "clear:examples": "gjsify foreach clear -v -p --include \"@gjsify/example-*\"",

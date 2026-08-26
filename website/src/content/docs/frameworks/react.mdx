@@ -1,0 +1,190 @@
+---
+title: React
+description: Render React into GTK 4 with @gjsify/gtk-host/react. No compile plugin, the jsxImportSource that keeps 178 DOM tags out, and the build recipe that is not optional.
+---
+
+import CommandTabs from '../../../components/CommandTabs.astro';
+
+[`@gjsify/gtk-host/react`](https://www.npmjs.com/package/@gjsify/gtk-host) renders React into
+real `Gtk` and `Adw` widgets, over the same host layer Solid and Vue use.
+
+React is the one of the three that needs **no compile plugin**. Its JSX is a runtime, not a
+transform: `jsx()` builds a plain `{type, props, key}` record and the host mapping happens
+afterwards, inside `react-reconciler`. So where the [Solid](/gjsify/frameworks/solid/) and
+[Vue](/gjsify/frameworks/vue/) pages are about a build step, this page is about two
+configuration decisions — where `jsxImportSource` points, and what the bundle defines.
+
+Both are load-bearing. Get either wrong and you get a green type-check or a green build with an
+empty window, which is the failure mode this package exists to refuse.
+
+## Install
+
+<CommandTabs title="Install" group="pm">
+  <Fragment slot="gjsify">
+    ```bash
+    gjsify install @gjsify/gtk-host react react-reconciler @types/react
+    ```
+  </Fragment>
+  <Fragment slot="npm">
+    ```bash
+    npm install -D @gjsify/gtk-host react react-reconciler @types/react
+    ```
+  </Fragment>
+  <Fragment slot="yarn">
+    ```bash
+    yarn add -D @gjsify/gtk-host react react-reconciler @types/react
+    ```
+  </Fragment>
+  <Fragment slot="pnpm">
+    ```bash
+    pnpm add -D @gjsify/gtk-host react react-reconciler @types/react
+    ```
+  </Fragment>
+  <Fragment slot="bun">
+    ```bash
+    bun add --dev @gjsify/gtk-host react react-reconciler @types/react
+    ```
+  </Fragment>
+  <Fragment slot="deno">
+    ```bash
+    deno add --dev npm:@gjsify/gtk-host npm:react npm:react-reconciler npm:@types/react
+    ```
+  </Fragment>
+</CommandTabs>
+
+`react` and `react-reconciler` are optional peer dependencies of `@gjsify/gtk-host` — installing
+them is what selects the React adapter. `@types/react` is what the JSX surface is typed against.
+`react-dom` is not involved and must not be installed for this.
+
+## Wire it up
+
+```jsonc
+// tsconfig.json
+{
+    "compilerOptions": {
+        "jsx": "react-jsx",
+        "jsxImportSource": "@gjsify/gtk-host/react",
+        "noImplicitAny": true
+    }
+}
+```
+
+```tsx
+import { createRoot } from '@gjsify/gtk-host/react';
+
+const root = createRoot(myWindow);
+root.render(
+    <gtk-box orientation="vertical" spacing={12}>
+        <gtk-label label="hi" />
+    </gtk-box>,
+);
+```
+
+`createRoot` takes a widget your application already built. It records what that container
+already held, so your tree renders *after* the app's own chrome rather than on top of it.
+
+## Point `jsxImportSource` at the subpath, not at `react`
+
+This is the trap worth spending a paragraph on, because the wrong answer type-checks clean.
+
+Write `"jsxImportSource": "react"` and the element list comes from `@types/react`'s own
+`JSX.IntrinsicElements` — **178 HTML and SVG tags that pass `tsc` against a GTK renderer and
+then render nothing** (measured against `@types/react@18.3.31`; React's list carries no MathML).
+`<div>` becomes a perfectly valid expression in a program that cannot draw a `div`.
+
+Pointing at `@gjsify/gtk-host/react` swaps that list for the generated GTK one, so `<div/>` is
+a `TS2339` naming the element and `<gtk-label label="hi" />` is checked against the real
+`GtkLabel` properties. Solid has the same problem one package over, at a different size —
+[ADR 0028 § 8](https://github.com/gjsify/gjsify/blob/main/docs/adr/0028-widget-table-provenance.md)
+measures the 208 tags `solid-js` pre-declares, and the fix there is the same one.
+
+TypeScript appends `/jsx-runtime` to whatever you name (`/jsx-dev-runtime` under
+`"jsx": "react-jsxdev"`), and the package exports both. The functions underneath are **React's
+own** `jsx`/`jsxs`/`jsxDEV`, re-typed rather than reimplemented — a second `createElement`
+would be a second element format to keep in step with React's.
+
+:::note[Why this is a separate subpath]
+`@gjsify/gtk-host/jsx-runtime` — no `react` segment — deliberately THROWS. That is correct for
+Solid and Vue, whose reactivity lives in what their compilers emit, so an automatic runtime
+reaching those functions means the pipeline is misconfigured. One module cannot both refuse the
+automatic runtime and provide it, which is why React gets its own.
+:::
+
+## The build recipe, and it is not optional
+
+```bash
+gjsify build --app gjs \
+  --define 'process.env.NODE_ENV="production"' \
+  --exclude-globals navigator
+```
+
+**`--define`**, because `react-reconciler/index.js` is literally
+`process.env.NODE_ENV === 'production' ? require('./cjs/…production.min.js') :
+require('./cjs/…development.js')`. Without the define you bundle the development build, which
+reaches for `document`, `HTMLCanvasElement` and `Path2D`. `--globals auto` is a *static scan*:
+it answers those identifiers by injecting the GTK-backed DOM registers and pulling
+`gi://Gdk`, `GdkPixbuf`, `Pango` and `PangoCairo` into a bundle that needs none of them.
+
+**`--exclude-globals navigator`**, because even the production `scheduler` carries
+`typeof navigator !== 'undefined' && navigator.scheduling`. That branch is dead under GJS, but
+the identifier is still free, and the detector answers it with the same GTK-backed register.
+
+Vue needs the same `NODE_ENV` define for the same reason; the two recipes differ only in the
+`navigator` flag.
+
+## `render()` is synchronous, on purpose
+
+React's own `createRoot().render()` returns before the tree is committed and lets the scheduler
+drive. Under GJS that scheduler is a GLib timer source — so with no main loop running yet, an
+unflushed first render leaves the container **empty, with no error**. `render()` here wraps
+`updateContainer` in `flushSync`, so the widgets exist when it returns.
+
+The root is still a concurrent root, and that matters after startup: a `setState` from a GTK
+signal handler lands on a later main-loop iteration, which in a running application is the
+behaviour you want. When you need a change visible immediately — typically in a test, outside a
+main loop — `flushSync` is the escape hatch:
+
+```tsx
+import { flushSync } from '@gjsify/gtk-host/react';
+
+flushSync(() => setCount(1));
+// the label's text has already changed here
+```
+
+## What the adapter exports
+
+| Export | What it is |
+|---|---|
+| `createRoot(container, options?)` | a root over a widget you own; `render`, `unmount`, `container` |
+| `mount(element, container, options?)` | `createRoot(…).render(…)`, for the common case |
+| `flushSync(fn)` | run `fn` and flush every update it schedules |
+| `widgetOf(node)` | the `Gtk.Widget` behind a host node |
+| `adopt(widget)` | wrap a container you hold in a host element |
+| `gtkHostConfig` | the raw `react-reconciler` HostConfig, for reconciler-level control |
+
+`options.onRecoverableError` handles an error React *recovered* from — one an error boundary
+caught and retried. It defaults to `console.error`, matching what `react-dom` does. Rethrowing
+is deliberately not the default: React calls it from inside the commit, so throwing would break
+the error boundary that had just done its job.
+
+## Two places React differs from a DOM renderer
+
+**`ref` gives you your own widget.** Where the host wraps a child — a `GtkListBoxRow` around a
+row, say — `getPublicInstance` still returns the widget *you* wrote. A `ref` handing back a
+wrapper the author never mentioned would be a silent lie about which widget they hold.
+
+**The first commit does not clear your window.** React clears a root before its first commit
+(`updateHostRoot` sets `Snapshot` whenever `current.child` is null — "this handles the case of
+React rendering into a container with previous children"). On GTK that container is your
+application's own widget and your chrome is inside it, so `clearContainer` maps to the shadow
+children only and never touches what was already there.
+
+## Related
+
+- [UI Frameworks](/gjsify/frameworks/) for the host, the widget table and the
+  placement rules
+- [Solid JSX](/gjsify/frameworks/solid/) and [Vue SFCs](/gjsify/frameworks/vue/) for the two
+  adapters that do need a compile step
+- [`react-host-counter`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/react-host-counter),
+  a complete window that asserts its own widget tree on every launch
+- [`@gjsify/gtk-host` on npm](https://www.npmjs.com/package/@gjsify/gtk-host)

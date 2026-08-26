@@ -137,6 +137,7 @@ export default defineConfig({
                         { slug: 'frameworks', label: 'Overview' },
                         { slug: 'frameworks/solid', label: 'Solid' },
                         { slug: 'frameworks/vue', label: 'Vue' },
+                        { slug: 'frameworks/react', label: 'React' },
                     ],
                 },
                 {
