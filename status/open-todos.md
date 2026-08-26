@@ -303,6 +303,20 @@ generator does not have:
 | `gtk-host/src/conformance/`, `registry.ts` | 165 + — | 0 | walks the LIVE GObject type system, not GIR |
 | `docs/gnome-mappings.md` | 12 | 0 | which GNOME lib backs which Node/Web API — a polyfill choice |
 
+**One of those rows is a latent bug, found while sorting them.** `parseGiSpecifier`
+exists twice under the same name with DIFFERENT accept sets:
+`packages/infra/cli/src/utils/ship/gi-namespaces.ts` validates the namespace against
+`/^[A-Za-z][A-Za-z0-9_]*$/` and returns `Ns-Version` as one string;
+`packages/infra/rolldown-plugin-gjsify/src/plugins/gjs-gi-node.ts` only checks
+non-empty and returns `{ namespace, version }`. So `gi://9Foo` is rejected by the
+first and accepted by the second, and the second is the one on the BUILD path — it
+would emit a `requireGi('9Foo', …)` shim for a specifier the ship path refuses to
+declare a `Depends:` for. Both are Tier 1, so a shared home is legal; it needs a
+decision about which accept set is right (the validating one, on the evidence that
+GObject namespaces are C identifiers) rather than a mechanical lift. Not done here:
+this audit was about the ts-for-gir boundary, and consolidating these is on the other
+side of it.
+
 `generated.spec.ts` belongs in this second list for the sharpest version of the reason:
 it asks the *installed* typelib whether every emitted name is real. ADR 0029 § Consequences
 already fixed it here, and that is what forces the surface to ship runtime data beside the
