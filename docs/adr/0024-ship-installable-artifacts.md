@@ -406,6 +406,8 @@ export interface HostRequirement {
     finishOn: 'any' | readonly HostOs[];
     /** Tools the packer EXECS. Empty iff we write the format ourselves. */
     requiredTools: readonly string[];
+    /** How to install them, in this format's words. Required when `requiredTools` is non-empty. */
+    installHint?: string;
     oracle: {
         /** Readers from a DIFFERENT implementation family than the packer. */
         readWith: readonly string[];
@@ -422,6 +424,10 @@ Three fields rather than one `hostOs`, because the measurements split three ways
 `finishOn` (an `.msi` we write ourselves is `'any'` with no tools); and `oracle` is derivable from
 neither. `selfReading: true` is the honest declaration that a format has no discriminator yet — the
 `ship` conformance rule lets it be declared and refuses to release it.
+
+`installHint` joined them when the first host-bound format landed, and for the same reason the other
+three are data: the refusal that names a missing tool is ONE generic function, so a hint written
+inside it says `dnf install flatpak flatpak-builder` to the first `.dmg` user too.
 
 ### A4. Signing is a payload MUTATION, not a wrapper — measured, and it kills the obvious design
 
