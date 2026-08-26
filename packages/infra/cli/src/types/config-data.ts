@@ -484,9 +484,68 @@ export interface ConfigDataShip extends AppMetadata {
     extraFiles?: Record<string, string>;
     /** Arguments the launcher appends before the user's own. */
     execArgs?: string[];
+    /**
+     * How `--target flatpak` builds the app: the runtime it links against and
+     * what the finished app is allowed to do.
+     *
+     * The new home of the `gjsify.flatpak` BUILD keys (ADR 0024 § 8). The old
+     * spelling still resolves and warns — the window, and what deliberately did
+     * NOT move, is `utils/ship/flatpak-config.ts`.
+     */
+    flatpak?: ShipFlatpakOptions;
 }
 
-/** Flatpak-toolchain config for the `gjsify flatpak` subcommand group. */
+/**
+ * The Flatpak knobs `gjsify ship` reads. Every one has a derived default.
+ *
+ * There is no `modules` / `extraModules` here, and that is a decision rather
+ * than an omission: under `ship` the module list IS the staged payload
+ * (`buildsystem: simple` + `cp -a stage/.`), and an escape hatch injecting
+ * arbitrary build modules would put the second staging model back in the tree —
+ * the one thing ADR 0024 § 8 gates the whole migration on. A project that has
+ * to BUILD something inside the sandbox still has `gjsify flatpak init` +
+ * `gjsify flatpak build`, unchanged.
+ */
+export interface ShipFlatpakOptions {
+    /**
+     * Runtime family. Default `'gnome'` — a GJS bundle needs GLib/GObject/GIO at
+     * runtime, and no GJS interpreter ships in the Freedesktop runtime.
+     */
+    runtime?: 'gnome' | 'freedesktop';
+    /** Runtime/SDK version, e.g. `'50'` for GNOME or `'24.08'` for Freedesktop. */
+    runtimeVersion?: string;
+    /**
+     * The branch the app is exported under — the last segment of
+     * `app/<id>/<arch>/<branch>`. Default `'stable'`, which is what Flathub
+     * publishes and what `flatpak install` resolves without being told.
+     */
+    branch?: string;
+    /** Extra SDK extensions, e.g. `['org.freedesktop.Sdk.Extension.llvm17']`. */
+    sdkExtensions?: string[];
+    /**
+     * Path components prepended to `PATH` inside the build sandbox. Derived from
+     * `sdkExtensions` when unset, because an extension whose `bin` is not on
+     * PATH is one the build cannot use.
+     */
+    appendPath?: string[];
+    /** Finish-args (capabilities). Default depends on `kind`: GUI args for an app, none for a CLI. */
+    finishArgs?: string[];
+    /** Cleanup globs applied to `/app`, e.g. `['/include', '/lib/pkgconfig']`. */
+    cleanup?: string[];
+}
+
+/**
+ * Flatpak-toolchain config for the `gjsify flatpak` subcommand group.
+ *
+ * Six of these keys — `runtime`, `runtimeVersion`, `sdkExtensions`,
+ * `appendPath`, `finishArgs`, `cleanup` — have a second home at
+ * {@link ShipFlatpakOptions}, and `gjsify ship` warns when it reads them from
+ * here (ADR 0024 § 8; the window is `utils/ship/flatpak-config.ts`). They are
+ * NOT marked `@deprecated`: for the subcommands in this group they are still
+ * the only spelling, and those commands have not moved under `ship` yet
+ * (`status/open-todos.md`). Nothing else in this block is deprecated at all —
+ * the {@link AppMetadata} half is a designed alias, not a legacy one.
+ */
 export interface ConfigDataFlatpak extends AppMetadata {
     /** Reverse-DNS app id, e.g. `eu.jumplink.Learn6502`. Defaults to `package.json#name` if it looks like a reverse-DNS id. */
     appId?: string;

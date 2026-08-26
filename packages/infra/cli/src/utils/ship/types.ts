@@ -49,7 +49,62 @@ export interface ShipArtifact {
     size: number;
 }
 
-export type FormatId = 'deb' | 'rpm';
+export type FormatId = 'deb' | 'rpm' | 'flatpak';
+
+/**
+ * The formats whose ARTIFACT carries a distro dependency list.
+ *
+ * Not every `FormatId`, and this is where the difference is written down once
+ * instead of being rediscovered per call site. A `.deb` says
+ * `Depends: gir1.2-gtk-4.0`, an `.rpm` says `Requires: gtk4`, and both are
+ * package names in a distribution's namespace. A Flatpak has no such field: it
+ * declares ONE dependency, its runtime (`org.gnome.Platform//50`), in the
+ * manifest — and inside that runtime a typelib is either present or nothing on
+ * the system provides it, so there is no package to name and no gap a name
+ * could close.
+ *
+ * `Extract<…>` rather than a fresh literal union, so this cannot outlive
+ * `FormatId`: dropping a member there shrinks this and reds every table keyed on
+ * it. The other direction is covered by {@link FormatDescriptor.depends} being
+ * REQUIRED — a new format cannot be added without saying which side it is on.
+ */
+export type DistroFormatId = Extract<FormatId, 'deb' | 'rpm'>;
+
+/** An operating system in the repo-wide `process.platform` spelling (root AGENTS.md § Runtime & platform model). */
+export type HostOs = 'linux' | 'darwin' | 'win32';
+
+/**
+ * Where a format can be FINISHED, and who can read the result back (ADR 0024 § A3).
+ *
+ * Three fields rather than one `hostOs`, because the three questions have
+ * different answers. `finishOn` is not the LAYOUT — a `<App>.app` tree is
+ * assembled anywhere while the `.dmg` around it needs macOS. `requiredTools` is
+ * not implied by `finishOn` — `.deb` and `.rpm` are written by this tree and
+ * exec nothing, which is the whole reason `rpm` could become an independent
+ * oracle and catch the dpkg-`$1` defect in the first artifact. And `oracle` is
+ * derivable from neither: a format built by the platform's own tool forfeits
+ * that independence unless a reader from a DIFFERENT implementation family
+ * exists, which is exactly what `selfReading` is the honest confession of.
+ */
+export interface HostRequirement {
+    /** OSes whose tooling can finish this format. `'any'` = pure JS, under GJS, offline. */
+    finishOn: 'any' | readonly HostOs[];
+    /** Commands the packer EXECS. Empty iff this tree writes the format itself. */
+    requiredTools: readonly string[];
+    oracle: {
+        /** Readers from a DIFFERENT implementation family than the packer. */
+        readWith: readonly string[];
+        /** Where each reader runs. A Linux-runnable reader is worth more — every CI leg has one. */
+        readOn: readonly HostOs[];
+        /**
+         * No independent discriminator yet. Legal to DECLARE while a format is
+         * being built; illegal to release — `formats.spec.ts` is what turns that
+         * sentence into a red test, so flipping it is a decision somebody makes
+         * rather than a field nobody reads.
+         */
+        selfReading: boolean;
+    };
+}
 
 /**
  * Everything that is per-FORMAT, as data.
@@ -62,6 +117,13 @@ export interface FormatDescriptor {
     id: FormatId;
     /** Install prefix the format's contents hang under. */
     prefix: string;
+    /** Where this format can be packed, what it execs, and who reads it back. */
+    host: HostRequirement;
+    /**
+     * The key this format's dependency list is spelled under, or `null` when its
+     * dependencies are not a package list at all — see {@link DistroFormatId}.
+     */
+    depends: DistroFormatId | null;
     /** Where the project's licence text goes in this format's overlay. */
     licenseDest: (binaryName: string) => string;
     /**
@@ -125,8 +187,12 @@ export interface ShipMimeType {
  *    `share/locale/<rel>`, and no packer reads the field. So translations
  *    cross in the payload, where they belong, and the `abs` path does not
  *    cross at all. This list being explicit is what caught that.
- *  - `appId`, `name`, `kind`, `execArgs` — read by the planner and the metadata
- *    renderers, all of which have run by the time a stage exists.
+ *  - `name`, `kind`, `execArgs` — read by the planner and the metadata
+ *    renderers, all of which have run by the time a stage exists. `appId` was
+ *    on this line and MOVED: the Flatpak packer needs it at pack time twice
+ *    over — it is the manifest's `id` and the ref `flatpak build-bundle`
+ *    exports — and neither is derivable from the payload, because the desktop
+ *    entry that carries the id is only staged for `kind: 'app'`.
  *  - `arch` — carried by the manifest's `target`, which is also the value a
  *    mismatched stage is refused on, so it lives in exactly one place.
  *  - `mimeTypes` — phase 1 renders the shared-mime-info document into the
@@ -137,6 +203,8 @@ export interface ShipMimeType {
 export interface PackSettings {
     /** Package name: the `bin/` entry, the deb `Package:`, the rpm `Name:`. */
     binaryName: string;
+    /** Reverse-DNS application id — the Flatpak manifest's `id` and the exported ref. */
+    appId: string;
     /** Upstream version, normalised for package managers. */
     version: string;
     /** Package revision within one upstream version (deb revision / rpm release). */
@@ -155,19 +223,52 @@ export interface PackSettings {
     /** rpm `Group:`. */
     group: string;
     /** Extra runtime dependencies per format, appended to the derived set. */
-    extraDepends: { deb: string[]; rpm: string[] };
+    extraDepends: Record<DistroFormatId, string[]>;
     /** Project-supplied GI-namespace → package rows, filling gaps in the built-in table. */
-    typelibPackages: Record<string, { deb: string; rpm: string }>;
+    typelibPackages: Record<string, Record<DistroFormatId, string>>;
     /** Minimum GJS the emitted dependency asks for. */
     minGjsVersion: string;
+    /** The Flatpak manifest's non-payload half, fully defaulted at stage time. */
+    flatpak: ShipFlatpakSettings;
+}
+
+/**
+ * What the generated Flatpak manifest says about everything that is not the payload.
+ *
+ * Resolved — defaults applied — while the project is still in reach, because
+ * the defaults depend on `kind` and on `gjsify.flatpak`/`gjsify.ship.flatpak`,
+ * and the finishing host has neither.
+ *
+ * There is deliberately no `modules` / `extraModules` here. Under `ship` the
+ * module list IS the staged payload (ADR 0024 § 2: "a target that needs an
+ * extra file gets an overlay, never a branch in the staging code"), and an
+ * escape hatch that injects arbitrary build modules would put a second staging
+ * model back in the tree — which is the one thing § 8 gates the whole migration
+ * on. A project that genuinely needs to BUILD something inside the sandbox
+ * still has `gjsify flatpak init` + `gjsify flatpak build`, unchanged.
+ */
+export interface ShipFlatpakSettings {
+    /** Runtime id, e.g. `org.gnome.Platform`. */
+    runtime: string;
+    /** Runtime/SDK version, e.g. `50`. */
+    runtimeVersion: string;
+    /** SDK id, e.g. `org.gnome.Sdk`. */
+    sdk: string;
+    /** The branch the app is exported under — the last segment of `app/<id>/<arch>/<branch>`. */
+    branch: string;
+    sdkExtensions: string[];
+    /** Path components prepended to `PATH` inside the build sandbox. */
+    appendPath: string[];
+    /** Capabilities the finished app is granted. */
+    finishArgs: string[];
+    /** Cleanup globs applied to `/app` after the module has run. */
+    cleanup: string[];
 }
 
 /** The resolved, fully defaulted configuration for one `gjsify ship` run. */
 export interface ShipSettings extends PackSettings {
     /** Absolute path to the project being shipped. */
     projectDir: string;
-    /** Reverse-DNS application id — desktop entry, metainfo and icon basename. */
-    appId: string;
     /** Human-readable display name. */
     name: string;
     /** Absolute path to the licence file, when one was found. */

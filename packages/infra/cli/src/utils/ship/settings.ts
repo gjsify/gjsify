@@ -15,6 +15,7 @@ import { basename } from 'node:path';
 
 import type { AppMetadata, ConfigDataFlatpak, ConfigDataShip, DescriptionBlock } from '../../types/config-data.js';
 import { DEFAULT_GJS_FLOOR } from './depends.js';
+import { resolveShipFlatpakSettings } from './flatpak-config.js';
 import { assertRelease, normaliseVersion } from './version.js';
 import type { ShipSettings } from './types.js';
 
@@ -138,6 +139,12 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
         );
     }
 
+    // Resolved here rather than in the packer, because the packer may run on a
+    // host with no `package.json` at all (ADR 0024 § A2) — and because the
+    // finish-args default depends on `kind`, which is a project fact.
+    const flatpakSettings = resolveShipFlatpakSettings({ ship, flatpak, kind });
+    warnings.push(...flatpakSettings.warnings);
+
     const settings: ShipSettings = {
         projectDir: input.projectDir,
         appId,
@@ -168,6 +175,7 @@ export function resolveShipSettings(input: SettingsInput): ResolvedSettings {
         outDir: input.cli.outDir ?? ship.outDir ?? 'ship',
         arch: input.cli.arch ?? process.arch,
         minGjsVersion: ship.minGjsVersion ?? DEFAULT_GJS_FLOOR,
+        flatpak: flatpakSettings.settings,
     };
 
     return { settings, metadata, warnings };
