@@ -20,10 +20,21 @@ export default async function run(h) {
     h.emit('async-work');
 
     // Instance data from a node::Buffer (external buffer) finalizer.
-    await new Promise((resolve) => {
-        t.testBufferFinalizer(resolve);
-        h.gc();
+    //
+    // `gcUntil`, not one `h.gc()` plus hope: a single collection does not
+    // reliably reclaim an external buffer, and Node schedules the JS finalizer on
+    // the immediate tick rather than the microtask queue. When it did not run, the
+    // await never returned and the program died after line 1 — the golden then
+    // "drifted" with `got: ""` against `want: "\"finalizer\""`, which reads like a
+    // wrong answer rather than a missing one (measured: run 32952785170, job
+    // 98127767705; earlier occurrences reported the same shape at other lines).
+    // The green sibling `test_instance_data.mjs` already does it this way, and
+    // gcUntil's budget turns a hang into a throw that names the stage.
+    let finalized = false;
+    t.testBufferFinalizer(() => {
+        finalized = true;
     });
+    await h.gcUntil(() => finalized, 'external buffer finalizer via instance data');
     h.emit('finalizer');
 
     // Instance data from a threadsafe-function callback.
