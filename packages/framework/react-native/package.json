@@ -46,10 +46,14 @@
         "@gjsify/gtk-host": "workspace:^"
     },
     "peerDependencies": {
-        "react": "^19.2.0"
+        "react": "^19.2.0",
+        "react-reconciler": "^0.33.0"
     },
     "peerDependenciesMeta": {
         "react": {
+            "optional": true
+        },
+        "react-reconciler": {
             "optional": true
         }
     },
@@ -57,14 +61,26 @@
         "@gjsify/cli": "workspace:^",
         "@gjsify/unit": "workspace:^",
         "@girs/adw-1": "^4.1.0",
+        "@girs/gdk-4.0": "^4.1.0",
         "@girs/gjs": "^4.1.0",
         "@girs/gtk-4.0": "^4.1.0",
         "@types/node": "^25.9.2",
         "@types/react": "^19.2.2",
+        "@types/react-reconciler": "^0.33.0",
         "react": "^19.2.0",
+        "react-reconciler": "^0.33.0",
         "typescript": "^6.0.3"
     },
     "gjsify": {
+        "os": {
+            "linux": "supported",
+            "darwin": "partial",
+            "win32": "partial"
+        },
+        "osNotes": {
+            "darwin": "Platform.OS reads the host OS, so this package owes an OS claim (ADR 0018). Nothing in it is Linux-specific — the widgets are GTK4/Adwaita and the style partition is pure TS — but no leg of its suite has been run on darwin, and ADR 0032's own Consequences put macOS on Node + @gjsify/node-gi + @gjsify/gtk-runtime-darwin-*, whose installable artifact is ADR 0024 stage 4 and does not exist yet.",
+            "win32": "As darwin, and one step further: there is no GJS host on Windows at all (ADR 0024 § 4), so the only route is node-gi, and ADR 0024 stage 5 is unbuilt. Platform.OS reports 'windows' correctly; nothing else here has been exercised there."
+        },
         "runtimes": {
             "gjs": "polyfill",
             "node": "polyfill",

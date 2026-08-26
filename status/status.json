@@ -311,7 +311,7 @@
     "@gjsify/react-native": {
       "status": "partial",
       "note": "React Native's export surface over @gjsify/gtk-host (ADR 0032). The support table in `src/support-table.ts` carries a status and a reason for all 92 names react-native publicly exports; the bundler gate, the runtime refusals and the generated README all read the same file.",
-      "missing": "The three layers themselves: the style partition (L1), the primitive descriptors (L2) and the components (L3). Implemented: AppRegistry/registerRootComponent over @gjsify/adwaita-app, EventEmitter, unstable_batchedUpdates. Every other name resolves to a value that refuses with the table's own sentence."
+      "missing": "P2 and P3: the list family (FlatList/SectionList over Gtk.ListView), Image, the Touchable family, Dimensions, Alert, Animated. `StyleSheet` (React Native's own, not the generated sheet) is still P1 and unbuilt. `Modal` stays refused for a measured reason rather than a scheduling one: an Adw.Dialog is presented against a parent and never parented by it, and `box.append(dialog)` calls g_error() — SIGABRT, not a catchable exception — so it needs a portal seam in the host. Implemented: all three layers, seven P1 primitives, four P1 APIs, AppRegistry/registerRootComponent over @gjsify/adwaita-app, EventEmitter, unstable_batchedUpdates. Every other name resolves to a value that refuses with the table's own sentence."
     },
     "@gjsify/readline": {
       "status": "full",

@@ -200,7 +200,9 @@ export class StyleSheet {
         if (!survived) {
             throw new StyleSheetError(
                 `a generated rule would disable every rule after it in the document, so it is refused:\n  ${rule}\n` +
-                    (errors.length > 0 ? `  GTK said: ${errors.join('; ')}` : '  GTK reported no error, which is why this is checked by containment rather than by the error signal.'),
+                    (errors.length > 0
+                        ? `  GTK said: ${errors.join('; ')}`
+                        : '  GTK reported no error, which is why this is checked by containment rather than by the error signal.'),
             );
         }
         if (errors.length > 0) {

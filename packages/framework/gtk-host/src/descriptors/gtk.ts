@@ -44,6 +44,28 @@ export const GTK_DESCRIPTORS: readonly WidgetDescriptor[] = [
         children: { kind: 'single', set: 'set_child' },
     },
     {
+        gtype: 'GtkOverlay',
+        ctor: () => Gtk.Overlay,
+        // TWO slots that are not interchangeable, which is why this is `slotted`
+        // and not `single`: `set_child` holds the widget the overlay SIZES ITSELF
+        // TO, `add_overlay` stacks widgets on top of it. Measured on gtk 4.22.4 —
+        // `set_child`, `get_child`, `add_overlay`, `remove_overlay` present, no
+        // `remove` at all, so the overlay slot removes with `remove_overlay` and
+        // the child slot with `set_child(null)`, which is what `detachChild`
+        // already does for every `set_`-prefixed slot.
+        //
+        // Curated for ADR 0032 § 6: a React Native `View` whose CHILD is
+        // absolutely positioned becomes this widget. As an `uncurated` row it
+        // refused the insertion by name — correct, and useless to the layer that
+        // has to build it.
+        children: {
+            kind: 'slotted',
+            slots: { child: 'set_child', overlay: 'add_overlay' },
+            defaultSlot: 'child',
+            remove: 'remove_overlay',
+        },
+    },
+    {
         gtype: 'GtkLabel',
         ctor: () => Gtk.Label,
         children: { kind: 'none' },

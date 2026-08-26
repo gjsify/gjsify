@@ -10,10 +10,11 @@ can tell them it is tier P2, maps onto `Gtk.ListView`, and is not built yet.
 
 Architecture and the decisions behind it: [ADR 0032](../../../docs/adr/0032-react-native-on-the-gtk-host.md).
 
-> **Status: early.** The three layers the ADR describes — the style partition, the
-> primitive descriptors, and the components — are not built yet. What works today is
-> the entry point and the mechanism that makes every gap loud. Read the table below
-> before pointing an application at this.
+> **Status: the P1 surface.** All three layers the ADR describes exist — the style
+> partition (`@gjsify/gtk-host/style`), the framework-agnostic primitive descriptors
+> (`./primitives`), and the React components. Seven primitives and four APIs are
+> implemented, each with its limits written out below. Everything else is a loud
+> refusal. Read the table before pointing an application at this.
 
 ## The support table is the contract
 
@@ -44,24 +45,73 @@ Native: `AppRegistry.runApplication` there is handed a root tag by a host that
 already exists, while on a desktop **the application is the host**. That limit is in
 the table rather than only here.
 
+## Three layers, and where each one lives
+
+| layer | where | knows about |
+|---|---|---|
+| L1 — the style partition | `@gjsify/gtk-host/style` | GTK property names, GTK CSS, ParamSpec coercion. No framework, no React Native. |
+| L2 — the primitive descriptors | `./primitives` (`primitives.resolvePrimitive`) | which widget a primitive becomes, and where each prop goes. **No React.** |
+| L3 — the components | the package root | `createElement`, hooks, the parent context. Two lines each. |
+
+L2 is exported (`import { primitives } from '@gjsify/react-native'`) so a Vue or
+Solid binding can render the same vocabulary without going through the React
+components — which is what keeps "L2 is below the framework" checkable from outside
+rather than a sentence in an ADR.
+
+## The token scales come from the project
+
+ADR 0032 § 3: the class FAMILIES are declared in `@gjsify/gtk-host/style`, the VALUES
+belong to the project. Nothing reads a Tailwind config at runtime, so hand them in
+once, before the first render:
+
+```ts
+import { configureStyle } from '@gjsify/react-native';
+import tokens from './design-tokens.json' with { type: 'json' };
+
+configureStyle({ tokens });
+```
+
+Without it the default is `MINIMAL_TOKENS`, which is deliberately tiny — so the first
+`className="mt-2xs"` is a named error listing what the scale does hold, rather than a
+margin resolved against a value nobody chose.
+
+## What the style layer refuses, and why that is the feature
+
+An unknown utility, an unmapped prop, a combination GTK cannot express: every one is
+a named error saying what arrived, why GTK has no answer, and what to write instead.
+The reason is not strictness for its own sake — GTK's failure mode is **exit 0**.
+`box.orientation = 'vertical'` keeps HORIZONTAL with no diagnostic; a CSS property
+GTK does not know is dropped by its parser in silence; a prop this layer ignored is
+indistinguishable from a bug in the application, forever.
+
+A few that are worth knowing before they surprise you:
+
+- **`justify-between`** is refused. ADR 0032 § 6 maps it to `Gtk.CenterBox`, and
+  `Gtk.CenterBox` installs no `remove` method (measured), which the host's `slotted`
+  placement policy requires. Use a `flex-1` spacer or `gap-*` until the policy grows
+  a shape for it.
+- **`active:`** is the only variant idiom that pays off, and it costs nothing: it
+  becomes a GTK CSS `:active` pseudo-class on the generated class, so GTK animates a
+  press with no re-render at all. A variant on a WIDGET property (`active:flex-1`) is
+  refused — GTK has no pseudo-class form of one.
+- **`<Modal>`** is not implemented, and not for lack of a mapping. An `Adw.Dialog` is
+  PRESENTED against a parent, never parented by it: `box.append(dialog)` calls
+  `g_error()` — SIGABRT and a core dump, measured. It needs a portal seam in the
+  host, so it stays a refusing export instead of a `partial` that kills the process.
+
 ## Support
 
 <!-- BEGIN generated support table -->
 
-### Supported (2)
+### Supported (3)
 
 | export | tier | GTK | why |
 |---|---|---|---|
+| `useColorScheme` | P1 | Adw.StyleManager.dark | Follows the Adwaita colour scheme — the dark property, which is what the user is looking at, not color-scheme, which is what the application asked for. |
 | `EventEmitter` | — | — | Pure JavaScript; nothing in it touches a platform. |
 | `unstable_batchedUpdates` | — | — | React 19 batches automatically; this is the identity call it already is upstream. |
 
-### Supported, with named limits (1)
-
-| export | tier | GTK | why |
-|---|---|---|---|
-| `AppRegistry` | P1 | Adw.Application + Adw.ApplicationWindow | The entry point. Nothing renders without a window, so this is P1 despite being a shim. |
-
-### Planned (54)
+### Supported, with named limits (11)
 
 | export | tier | GTK | why |
 |---|---|---|---|
@@ -73,10 +123,15 @@ the table rather than only here.
 | `TextInput` | P1 | Gtk.Entry / Gtk.TextView | Single- versus multi-line is one prop in React Native and two different widgets in GTK. |
 | `Linking` | P1 | Gtk.UriLauncher | openURL and canOpenURL only. |
 | `Switch` | P1 | Gtk.Switch | Direct counterpart. |
-| `Platform` | P1 | — | OS is "linux" | "macos" | "windows"; select() picks the default branch. |
-| `Modal` | P1 | Adw.Dialog | A dialog rather than a full-screen overlay, which is what a desktop expects. |
-| `useColorScheme` | P1 | Adw.StyleManager.dark | Follows the Adwaita colour scheme. |
-| `Share` | P1 | clipboard + Gtk.UriLauncher | No desktop share sheet worth pretending about; copying the link is the honest mapping. |
+| `Platform` | P1 | — | OS is "linux" \| "macos" \| "windows"; select() picks the default branch. |
+| `Share` | P1 | Gdk.Clipboard | No desktop share sheet worth pretending about; copying the link is the honest mapping. |
+| `AppRegistry` | P1 | Adw.Application + Adw.ApplicationWindow | The entry point. Nothing renders without a window, so this is P1 despite being a shim. |
+
+### Planned (43)
+
+| export | tier | GTK | why |
+|---|---|---|---|
+| `Modal` | P1 | Adw.Dialog | An Adw.Dialog cannot be an ordinary element. MEASURED on libadwaita 1.10: box.append(dialog) calls g_error() — SIGABRT and a core dump, not a catchable exception — but ONLY when the box is rooted in a window. A detached box accepts the append in silence, so a re-test on a bare box appears to disprove this and puts the primitive back. A dialog is PRESENTED against a parent, never parented by it, so this is a PORTAL and needs a host seam that does not exist yet. |
 | `StyleSheet` | P1 | — | create/flatten/hairlineWidth/absoluteFill. Style objects go through the same partition as classes. |
 | `FlatList` | P2 | Gtk.ListView + Gio.ListStore | GTK virtualises for real, so this fits better here than it does on the web. |
 | `SectionList` | P2 | Gtk.ListView + a section model | Sections map onto GTK section models. |

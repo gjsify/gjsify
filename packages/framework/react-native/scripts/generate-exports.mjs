@@ -93,7 +93,14 @@ export function renderReadmeTable(entries, table) {
         out.push(`### ${heading} (${rows.length})`, '', '| export | tier | GTK | why |', '|---|---|---|---|');
         for (const { name } of rows) {
             const entry = table[name];
-            out.push(`| \`${name}\` | ${entry.tier ?? '—'} | ${entry.gtk ?? '—'} | ${entry.reason} |`);
+            // A `|` in a cell ENDS the cell. `Platform`'s reason is
+            // `OS is "linux" | "macos" | "windows"`, which silently split one row
+            // into four columns and pushed the reason out of the table — visible
+            // only to a reader, which is the audience this section has.
+            const cell = (text) => String(text).replaceAll('|', '\\|');
+            out.push(
+                `| \`${name}\` | ${cell(entry.tier ?? '—')} | ${cell(entry.gtk ?? '—')} | ${cell(entry.reason)} |`,
+            );
         }
         out.push('');
     }

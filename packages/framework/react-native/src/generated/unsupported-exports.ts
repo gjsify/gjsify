@@ -6,18 +6,7 @@
 
 import { unsupported } from '../unsupported.js';
 
-export const View = unsupported('View');
-export const Text = unsupported('Text');
-export const Pressable = unsupported('Pressable');
-export const ScrollView = unsupported('ScrollView');
-export const ActivityIndicator = unsupported('ActivityIndicator');
-export const TextInput = unsupported('TextInput');
-export const Linking = unsupported('Linking');
-export const Switch = unsupported('Switch');
-export const Platform = unsupported('Platform');
 export const Modal = unsupported('Modal');
-export const useColorScheme = unsupported('useColorScheme');
-export const Share = unsupported('Share');
 export const StyleSheet = unsupported('StyleSheet');
 export const FlatList = unsupported('FlatList');
 export const SectionList = unsupported('SectionList');
