@@ -202,11 +202,22 @@ is blocked on a RELEASE, and is not attempted here rather than faked.
 
 **What exactly is missing, and how to tell it has arrived.** `@girs/gtk-4.0@4.1.0`
 (the installed version, and the newest published) has four `exports` keys: `.`,
-`./ambient`, `./import`, `./gtk-4.0`. The subpath is a fifth. The one-line probe:
+`./ambient`, `./import`, `./gtk-4.0`. The subpath is a fifth.
 
-    node -e "console.log(Object.keys(require('@girs/gtk-4.0/package.json').exports))"
+Ask the REGISTRY, because that is the question — the local `node_modules` can be stale
+either way:
 
-When that prints `./surface`, and the file it names carries a `Widgets` interface plus
+    npm view @girs/gtk-4.0 exports --json
+
+Or the installed copy, read as a FILE. Note what does not work and why: `require(
+'@girs/gtk-4.0/package.json')` throws `ERR_PACKAGE_PATH_NOT_EXPORTED`, because the
+package does not export `./package.json` and asking a package about its own `exports`
+through `exports` is circular — a probe that fails identically before and after the
+release answers nothing:
+
+    node -e "console.log(Object.keys(JSON.parse(require('node:fs').readFileSync('node_modules/@girs/gtk-4.0/package.json','utf8')).exports).join(' '))"
+
+When either prints `./surface`, and the file it names carries a `Widgets` interface plus
 the runtime constants (`OWN_PROPS`, `OWN_SIGNALS`, `DECLS`, `ENUM_NICKS`,
 `SLOT_CANDIDATES`, `SINCE`), migration steps 3–5 of ADR 0029 § Implementation can
 start. Until then a consumer-side branch could only resolve against a local
