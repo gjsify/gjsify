@@ -18,7 +18,12 @@ import {
     FORMAT_IDS,
     resolveFormats,
 } from './formats.js';
-import { LEGACY_FLATPAK_KEYS_REMOVED_IN, MIGRATED_FLATPAK_KEYS, resolveShipFlatpakSettings } from './flatpak-config.js';
+import {
+    LEGACY_FLATPAK_KEYS_REMOVED_IN,
+    MIGRATED_FLATPAK_KEYS,
+    pickFlatpakBuildKeys,
+    resolveShipFlatpakSettings,
+} from './flatpak-config.js';
 import { renderShipFlatpakManifest } from './flatpak.js';
 import type { PackSettings } from './types.js';
 
@@ -169,6 +174,18 @@ export default async () => {
         await it('resolves flatpak only when it is asked for', async () => {
             expect(resolveFormats(['flatpak']).map((f) => f.id)).toStrictEqual(['flatpak']);
             expect(resolveFormats(['deb,rpm,flatpak']).map((f) => f.id)).toStrictEqual(['deb', 'flatpak', 'rpm']);
+        });
+
+        await it('gives every tool-needing format a way to install them', async () => {
+            // The refusal is ONE generic function. Hardcoded in it, the hint said
+            // `dnf install flatpak flatpak-builder` — correct for exactly one format,
+            // and what the first `.dmg` or `.msi` user would have been told to run.
+            for (const id of FORMAT_IDS) {
+                const { requiredTools, installHint } = FORMATS[id].host;
+                if (requiredTools.length === 0) continue;
+                expect(typeof installHint).toBe('string');
+                expect((installHint ?? '').length > 0).toBe(true);
+            }
         });
 
         await it('publishes no format without an independent reader', async () => {
@@ -325,11 +342,58 @@ export default async () => {
                 kind: 'app',
             });
             expect(warnings).toStrictEqual([]);
-            for (const key of MIGRATED_FLATPAK_KEYS) {
-                expect(['runtime', 'runtimeVersion', 'sdkExtensions', 'appendPath', 'finishArgs', 'cleanup']).toContain(
-                    key,
-                );
-            }
+        });
+
+        await it('reads EVERY declared key from the old block, and names each one', async () => {
+            // The list and the resolution used to be two copies: `MIGRATED_FLATPAK_KEYS`
+            // was the vocabulary and six hand-written picks were the behaviour, so a key
+            // added to the list with nothing reading it was simply not in the window —
+            // and the only test that mentioned the constant compared it to a literal
+            // copy of itself, which cannot fail. This drives the constant THROUGH the
+            // resolver: a key the window does not actually read reds here.
+            const legacy = {
+                runtime: 'freedesktop' as const,
+                runtimeVersion: '24.08',
+                sdkExtensions: ['org.freedesktop.Sdk.Extension.node24'],
+                appendPath: ['/usr/lib/sdk/node24/bin'],
+                finishArgs: ['--share=network'],
+                cleanup: ['/include'],
+            };
+            // The fixture has to declare every key, or the loop below is vacuous for
+            // the ones it forgot.
+            for (const key of MIGRATED_FLATPAK_KEYS) expect(legacy[key] === undefined).toBe(false);
+            const { settings, warnings } = resolveShipFlatpakSettings({ ship: {}, flatpak: legacy, kind: 'app' });
+            expect(warnings.length).toBe(1);
+            for (const key of MIGRATED_FLATPAK_KEYS) expect(warnings[0]).toContain(`gjsify.flatpak.${key}`);
+            // …and each value actually reached the settings, so "named in the warning"
+            // cannot pass for a key the resolver ignores.
+            expect(settings.runtime).toBe('org.freedesktop.Platform');
+            expect(settings.runtimeVersion).toBe('24.08');
+            expect(settings.sdkExtensions).toStrictEqual(legacy.sdkExtensions);
+            expect(settings.appendPath).toStrictEqual(legacy.appendPath);
+            expect(settings.finishArgs).toStrictEqual(legacy.finishArgs);
+            expect(settings.cleanup).toStrictEqual(legacy.cleanup);
+        });
+
+        await it('resolves both spellings for `gjsify flatpak init` too', async () => {
+            // The window has TWO sides, and the first cut built one. These six keys are
+            // read by `flatpak init` and `flatpak ci` as well, and those commands have
+            // not moved — so a project that followed the warning and moved them lost
+            // them there, silently, in a manifest it commits. `pickFlatpakBuildKeys` is
+            // the one resolution both command groups go through; this is the half
+            // `ship`'s own tests never exercise.
+            const moved = pickFlatpakBuildKeys({ runtimeVersion: '49', cleanup: ['/lib/pkgconfig'] }, {});
+            expect(moved.values.runtimeVersion).toBe('49');
+            expect(moved.values.cleanup).toStrictEqual(['/lib/pkgconfig']);
+            expect(moved.fromLegacy).toStrictEqual([]);
+            // The old spelling still answers, and the new one wins over it per key.
+            const both = pickFlatpakBuildKeys(
+                { runtimeVersion: '50' },
+                { runtimeVersion: '47', cleanup: ['/include'] },
+            );
+            expect(both.values.runtimeVersion).toBe('50');
+            expect(both.values.cleanup).toStrictEqual(['/include']);
+            expect(both.fromLegacy).toStrictEqual(['cleanup']);
         });
 
         await it('gives a CLI no display sockets and an app the GUI set', async () => {

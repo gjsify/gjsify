@@ -13,6 +13,16 @@
 // because `gjsify flatpak <sub>` has not moved, so deprecating them would warn
 // on commands with nowhere else to read from.
 //
+// A WINDOW HAS TWO SIDES, and the first cut only built one. The six build keys
+// are read by `gjsify flatpak init` and `flatpak ci` as well, and those
+// commands have NOT moved — so a project that did what this file's warning told
+// it to do, and moved them, silently lost them there: `flatpak init` fell back
+// to its own defaults and wrote a manifest against a different
+// `org.gnome.Platform` version with different finish-args, committed, at exit 0.
+// That is why {@link pickFlatpakBuildKeys} is exported and BOTH command groups
+// go through it. "Both spellings resolve" is now true of every reader of these
+// keys, which is what makes the advice safe to follow.
+//
 // WHY A NAMED VERSION, IN ONE PLACE. The precedent is
 // `utils/normalize-bundler-options.ts`, the `esbuild` → `bundler` shim, and it
 // also carries the precedent's DEFECT: its warning text names 0.5.0, the tree is
@@ -20,7 +30,7 @@
 // that string too". So the version here is a constant the message reads, and the
 // spec asserts the message names it.
 
-import type { ConfigDataFlatpak, ConfigDataShip } from '../../types/config-data.js';
+import type { ConfigDataFlatpak, ConfigDataShip, ShipFlatpakOptions } from '../../types/config-data.js';
 import {
     DEFAULT_CLI_FINISH_ARGS,
     DEFAULT_GUI_FINISH_ARGS,
@@ -50,6 +60,57 @@ export const MIGRATED_FLATPAK_KEYS = [
 
 export type MigratedFlatpakKey = (typeof MIGRATED_FLATPAK_KEYS)[number];
 
+/** The six keys as a reader sees them, before any default is applied. */
+export type MigratedFlatpakValues = { [K in MigratedFlatpakKey]: ConfigDataFlatpak[K] };
+
+export interface PickedFlatpakBuildKeys {
+    values: MigratedFlatpakValues;
+    /** Keys that came from `gjsify.flatpak`, in {@link MIGRATED_FLATPAK_KEYS} order. */
+    fromLegacy: MigratedFlatpakKey[];
+}
+
+/**
+ * `gjsify.ship.flatpak.<key>` when set, else `gjsify.flatpak.<key>` — per KEY,
+ * noting which side answered.
+ *
+ * Per-key and not per-block: a project migrating one key at a time must not
+ * lose the five it has not moved yet. That is also what makes the warning
+ * actionable — it names the keys still coming from the old block, so the reader
+ * knows what to edit rather than being told a block is deprecated.
+ *
+ * A LOOP over {@link MIGRATED_FLATPAK_KEYS}, not six hand-written picks. Written
+ * out, the list was the one unbound copy of this vocabulary: a key added to it
+ * with no `pick` call behind it compiled fine, went missing from the window, and
+ * the only test that mentioned the constant compared it to a literal copy of
+ * itself. Reading the keys off the constant is what makes "this list IS the
+ * window" true rather than asserted.
+ *
+ * NO default is applied here. The defaults differ per reader — `ship` derives
+ * `finishArgs` from `kind`, `flatpak init` also merges `--sdk-extension` flags —
+ * and a default applied here would be a third answer neither of them chose.
+ */
+export function pickFlatpakBuildKeys(
+    preferred: ShipFlatpakOptions | undefined,
+    legacy: ConfigDataFlatpak,
+): PickedFlatpakBuildKeys {
+    const ship = preferred ?? {};
+    // Assembled through an index signature because the value type varies per
+    // key; the cast is on the finished object, where every key is present.
+    const values: Record<string, unknown> = {};
+    const fromLegacy: MigratedFlatpakKey[] = [];
+    for (const key of MIGRATED_FLATPAK_KEYS) {
+        const own = ship[key];
+        if (own !== undefined) {
+            values[key] = own;
+            continue;
+        }
+        const inherited = legacy[key];
+        if (inherited !== undefined) fromLegacy.push(key);
+        values[key] = inherited;
+    }
+    return { values: values as MigratedFlatpakValues, fromLegacy };
+}
+
 /** The branch a `ship` Flatpak is exported under when the project names none. */
 export const DEFAULT_SHIP_FLATPAK_BRANCH = 'stable';
 
@@ -67,39 +128,21 @@ export interface ResolvedShipFlatpak {
 
 /**
  * Resolve the Flatpak half of `gjsify.ship`, reading the legacy block where the
- * new one is silent.
+ * new one is silent, and applying `ship`'s own defaults.
  *
- * Per-KEY fallback, not whole-block: a project migrating one key at a time must
- * not lose the five it has not moved yet. That is also what makes the warning
- * actionable — it names the keys still coming from the old block, so the reader
- * knows what to edit rather than being told a block is deprecated.
+ * The per-key fallback itself is {@link pickFlatpakBuildKeys}, shared with
+ * `gjsify flatpak init`/`ci`; what is `ship`-specific and stays here is the
+ * defaulting — `branch`, the `kind`-dependent finish-args, the derived
+ * `appendPath` — plus the warning, which only `ship` prints because only `ship`
+ * has somewhere else to point at.
  */
 export function resolveShipFlatpakSettings(input: ShipFlatpakInput): ResolvedShipFlatpak {
     const shipFlatpak = input.ship.flatpak ?? {};
-    const legacy = input.flatpak;
-    const fromLegacy: MigratedFlatpakKey[] = [];
+    const { values, fromLegacy } = pickFlatpakBuildKeys(shipFlatpak, input.flatpak);
 
-    /** `gjsify.ship.flatpak.<key>` when set, else `gjsify.flatpak.<key>`, noting which. */
-    function pick<K extends MigratedFlatpakKey>(key: K): ConfigDataFlatpak[K] {
-        const preferred = shipFlatpak[key];
-        if (preferred !== undefined) return preferred;
-        const inherited = legacy[key];
-        if (inherited !== undefined) fromLegacy.push(key);
-        return inherited;
-    }
-
-    // Resolved in `pick` order so `fromLegacy` reads in the order
-    // `MIGRATED_FLATPAK_KEYS` declares — a warning whose key order depends on
-    // evaluation order is a warning whose text is not testable.
-    const runtime = pick('runtime');
-    const runtimeVersion = pick('runtimeVersion');
-    const sdkExtensions = pick('sdkExtensions');
-    const appendPath = pick('appendPath');
-    const finishArgs = pick('finishArgs');
-    const cleanup = pick('cleanup');
-
-    const resolved = resolveRuntime({ runtime, runtimeVersion }, {});
-    const extensions = sdkExtensions ?? [];
+    const resolved = resolveRuntime(values, {});
+    const extensions = values.sdkExtensions ?? [];
+    const { appendPath, finishArgs, cleanup } = values;
 
     const settings: ShipFlatpakSettings = {
         runtime: resolved.runtimeId,
