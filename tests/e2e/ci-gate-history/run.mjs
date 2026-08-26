@@ -327,7 +327,48 @@ describe('a skipped MATRIX leg is not named the way it runs', () => {
         });
         const report = await run(fixture);
         assert.equal(report.staleLegs[0].conclusion, 'failure');
-        assert.equal(annotationsFor(report, { annotate: true }).length, 1, 'a red family is annotated');
+        const [line] = annotationsFor(report, { annotate: true });
+        assert.ok(line, 'a red family is annotated');
+        // The link must reach the job the conclusion came from. Sending the reader to the
+        // green arm under a row that says `failure` is how a warning stops being followed.
+        assert.match(line, /darwin-x64/, 'the annotation links the member that failed');
+    });
+
+    // A name that is ONE expression anchors nothing, and `name: ${{ matrix.name }}` is a
+    // common idiom. Fuzzy is the wrong failure here: matching on what is left of such a
+    // name accepts every job, so the row would carry an unrelated job's SHA as this leg's
+    // history and annotate its conclusion under this leg's name.
+    it('refuses a name with no literal fragment to anchor on', () => {
+        const matcher = legMatcher('${{ matrix.name }}');
+        assert.equal(matcher.anchorable, false);
+        assert.equal(matcher.test('Lint commit messages'), false);
+        assert.equal(matcher.test('${{ matrix.name }}'), false);
+        // A middle fragment is no anchor either — this would claim every name with a dash.
+        assert.equal(legMatcher('${{ matrix.os }}-${{ matrix.arch }}').anchorable, false);
+        // One literal end is enough to decide, and both ends stay decidable.
+        assert.equal(legMatcher('${{ matrix.os }} build').anchorable, true);
+        assert.equal(legMatcher(TEMPLATE).anchorable, true);
+    });
+
+    it('says the name is not matchable instead of inventing a history for it', async () => {
+        const fixture = fakeApi({
+            headSha: 'eeee333',
+            runs: [
+                { id: 1600, path: WF, head_sha: 'eeee333', jobs: { '${{ matrix.name }}': 'skipped' } },
+                {
+                    id: 1599,
+                    path: WF,
+                    head_sha: '4444444444444444444444444444444444444444',
+                    jobs: { [LINUX_LEG]: 'failure' },
+                },
+            ],
+        });
+        const report = await run(fixture);
+        assert.equal(report.staleLegs.length, 1);
+        assert.equal(report.staleLegs[0].sha, null, 'no unrelated job may become this leg’s history');
+        assert.equal(report.staleLegs[0].matchable, false);
+        assert.match(renderMarkdown(report), /not matchable/);
+        assert.deepEqual(annotationsFor(report, { annotate: true }), [], 'and it annotates nobody');
     });
 });
 

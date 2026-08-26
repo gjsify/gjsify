@@ -91,12 +91,24 @@ const basename = (path) => path.slice(path.lastIndexOf('/') + 1);
  * So a templated name matches on its LITERAL fragments, anchored at both ends, which
  * cannot confuse `macOS GTK runtime bundle (…)` with `macOS windowing GTK runtime
  * bundle (…)`: the first fragment must start at index 0.
+ *
+ * A name with NO literal fragment at either end anchors nothing, and fuzzy is the wrong
+ * failure here: `name: ${{ matrix.name }}` — one of the commonest job-name idioms there is —
+ * splits into two empty fragments, and matching on what is left accepts EVERY job (measured
+ * against this matcher: `legMatcher('${{ matrix.name }}').test('Lint commit messages')` was
+ * true). The row would then carry whichever job the older run listed first as this leg's
+ * history, SHA and conclusion included, and annotate a red one under the wrong leg's name.
+ * A middle fragment is no substitute — `${{ a }}-${{ b }}` would claim every name holding a
+ * dash — so such a leg is reported as not matchable, the one answer that is true.
  */
 export function legMatcher(name) {
     const fragments = name.split(/\$\{\{[^}]*\}\}/);
-    if (fragments.length === 1) return { templated: false, test: (candidate) => candidate === name };
+    if (fragments.length === 1) return { templated: false, anchorable: true, test: (candidate) => candidate === name };
+    if (fragments[0] === '' && fragments[fragments.length - 1] === '')
+        return { templated: true, anchorable: false, test: () => false };
     return {
         templated: true,
+        anchorable: true,
         test(candidate) {
             let at = 0;
             for (const [i, fragment] of fragments.entries()) {
@@ -113,11 +125,13 @@ export function legMatcher(name) {
 }
 
 /**
- * The conclusion of a matrix FAMILY. A green sibling must not hide a red one — the reader
- * is asking what this gate last SAID, and "success" when one arch failed is the wrong
- * answer to that.
+ * The job a matrix FAMILY's row speaks for. A green sibling must not hide a red one — the
+ * reader is asking what this gate last SAID, and "success" when one arch failed is the
+ * wrong answer to that. The LINK comes from the same job as the conclusion for that reason:
+ * pointing the reader at whichever member the API listed first sent them to a green log
+ * under a row that says `failure`.
  */
-const familyConclusion = (jobs) => jobs.find((job) => job.conclusion !== 'success')?.conclusion ?? 'success';
+const representative = (jobs) => jobs.find((job) => job.conclusion !== 'success') ?? jobs[0];
 
 const shortSha = (sha) => (typeof sha === 'string' ? sha.slice(0, 7) : '<unknown>');
 
@@ -245,20 +259,21 @@ export async function gateHistoryReport(options) {
                 const members = olderJobs.filter((job) => matcher.test(job.name) && executed(job.conclusion));
                 if (members.length === 0) continue;
                 unresolved.delete(leg);
+                const speaksFor = representative(members);
                 staleLegs.push({
                     workflow: run.name ?? path,
                     path,
                     leg,
-                    conclusion: familyConclusion(members),
+                    conclusion: speaksFor.conclusion,
                     members: members.length,
                     sha: older.head_sha,
                     day: dayOf(older.updated_at),
                     runsBack: walked,
-                    url: members[0].html_url ?? older.html_url,
+                    url: speaksFor.html_url ?? older.html_url,
                 });
             }
         }
-        for (const leg of [...unresolved.keys()].sort()) {
+        for (const [leg, matcher] of [...unresolved].sort((a, b) => a[0].localeCompare(b[0]))) {
             staleLegs.push({
                 workflow: run.name ?? path,
                 path,
@@ -267,6 +282,7 @@ export async function gateHistoryReport(options) {
                 sha: null,
                 members: 0,
                 runsBack: walked,
+                matchable: matcher.anchorable,
             });
         }
     }
@@ -301,9 +317,11 @@ export function renderMarkdown(report) {
             const last = leg.sha
                 ? `[${leg.conclusion}](${leg.url}) · \`${shortSha(leg.sha)}\` · ${leg.day} · ` +
                   `${leg.runsBack} run(s) back${family}`
-                : leg.runsBack === 0
-                  ? `**no completed run on \`${branch}\` to compare against**`
-                  : `**not in the last ${leg.runsBack} completed run(s) on \`${branch}\`**`;
+                : leg.matchable === false
+                  ? '**its name is an unexpanded template with no literal fragment to anchor on — ' + 'not matchable**'
+                  : leg.runsBack === 0
+                    ? `**no completed run on \`${branch}\` to compare against**`
+                    : `**not in the last ${leg.runsBack} completed run(s) on \`${branch}\`**`;
             out.push(`| ${leg.workflow} | ${leg.leg} | ${last} |`);
         }
         out.push('');
