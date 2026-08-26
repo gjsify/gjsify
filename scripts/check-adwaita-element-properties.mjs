@@ -13,19 +13,25 @@
 // disabled and then protects nothing (`check-workflow-inline-scripts.mjs`'s header
 // records the same lesson from its own first draft — "23 findings, 21 false"):
 //
-//   · SIGNAL props (`on-clicked`, `on-notify-*`). 224 of them across the mapped
+//   · SIGNAL props (`on-clicked`, `on-notify-*`). 271 of them across the 43 mapped
 //     elements. They are a JSX convention; a custom element dispatches events instead,
 //     and an `on-*` ATTRIBUTE would be the inline-handler shape nobody wants.
 //   · WIDGET-VALUED props (`child`, `content`, `sidebar`, `extra-child`, `title-widget`
-//     — anything typed `Gtk.*`/`Adw.*`/`Gio.*`/`Gdk.*`/`Pango.*`/`GObject.*`). 52 of
-//     them. On this renderer those are SLOTS, not attributes: an attribute cannot
-//     carry a widget. `<adw-alert-dialog>`'s `extra-child` is exactly this shape.
+//     — anything typed `Gtk.*`/`Adw.*`/`Gio.*`/`Gdk.*`/`Pango.*`/`GObject.*` and NOT an
+//     enum). 47 of them. On this renderer those are SLOTS, not attributes: an attribute
+//     cannot carry a widget. `<adw-alert-dialog>`'s `extra-child` is exactly this shape.
+//
+// ENUMS ARE NOT EXCLUDED, though the naive namespace test catches them: the generator
+// spells one `AdwToolbarStyleNick | Adw.ToolbarStyle`, and a nick is a STRING. 24 of them
+// are in scope here, 17 already observed as attributes today — which is the proof they
+// belong. Dropping them would have hidden real gaps behind a justification ("an attribute
+// cannot carry a widget") that does not apply to them.
 //
 // That leaves the scalar surface — strings, booleans, numbers, enums — which an
 // attribute genuinely can carry, and which is therefore the only half whose absence
 // carries information.
 //
-// KNOWN_GAPS IS A MEASURED BACKLOG, NOT A BLESSING. 53 scalar properties across 20
+// KNOWN_GAPS IS A MEASURED BACKLOG, NOT A BLESSING. 83 scalar properties across 28
 // elements are unobserved today. They are listed rather than individually justified,
 // because inventing 53 rationales would be worse than naming none: a rule without its
 // real reason gets "simplified" back into the bug. What this check buys now is the
@@ -55,15 +61,22 @@ const KNOWN_GAPS = {
         'designers',
         'developers',
         'documenters',
+        'license-type',
         'release-notes',
         'release-notes-version',
         'translator-credits',
     ],
+    'adw-action-row': ['icon-name', 'subtitle-lines', 'subtitle-selectable', 'title-lines'],
     'adw-avatar': ['icon-name'],
     'adw-bottom-sheet': ['align', 'can-open', 'full-width', 'reveal-bottom-bar'],
-    'adw-combo-row': ['enable-search', 'use-subtitle'],
+    'adw-carousel': ['reveal-duration'],
+    'adw-clamp': ['unit'],
+    'adw-combo-row': ['enable-search', 'search-match-mode', 'use-subtitle'],
     'adw-dialog': ['follows-content-size'],
+    'adw-entry-row': ['enable-emoji-completion', 'input-hints', 'input-purpose'],
+    'adw-expander-row': ['icon-name', 'subtitle-lines', 'title-lines'],
     'adw-header-bar': [
+        'centering-policy',
         'decoration-layout',
         'show-back-button',
         'show-end-title-buttons',
@@ -71,31 +84,53 @@ const KNOWN_GAPS = {
         'show-title',
     ],
     'adw-inline-view-switcher': ['can-shrink', 'homogeneous'],
-    'adw-navigation-split-view': ['sidebar-width-fraction'],
+    'adw-navigation-split-view': ['sidebar-width-fraction', 'sidebar-width-unit'],
     'adw-navigation-view': ['hhomogeneous', 'vhomogeneous'],
+    'adw-overlay-split-view': ['sidebar-width-unit'],
     'adw-preferences-dialog': ['search-enabled', 'visible-page-name'],
     'adw-preferences-group': ['separate-rows'],
     'adw-preferences-page': ['description', 'description-centered'],
     'adw-sidebar': ['drop-preload'],
+    'adw-spin-row': ['climb-rate', 'digits', 'numeric', 'snap-to-ticks', 'update-policy', 'wrap'],
     'adw-split-button': ['can-shrink'],
     'adw-status-page': ['icon-name'],
     'adw-tab-view': ['shortcuts'],
     'adw-toggle-group': ['active-name', 'can-shrink', 'homogeneous'],
     'adw-toolbar-view': ['reveal-bottom-bars', 'reveal-top-bars'],
     'adw-view-stack': ['enable-transitions', 'hhomogeneous', 'transition-duration', 'vhomogeneous'],
+    'adw-window': ['adaptive-preview'],
     'adw-wrap-box': [
         'align',
         'child-spacing',
+        'child-spacing-unit',
+        'justify',
         'justify-last-line',
         'line-homogeneous',
         'line-spacing',
+        'line-spacing-unit',
         'natural-line-length',
+        'natural-line-length-unit',
+        'pack-direction',
+        'wrap-policy',
         'wrap-reverse',
     ],
 };
 
 /** A GIR type that holds an object — a slot on this renderer, never an attribute. */
 const OBJECT_TYPE = /\b(?:Gtk|Adw|Gio|Gdk|Pango|GObject)\.\w+/;
+
+/**
+ * An ENUM, which {@link OBJECT_TYPE} also matches and must not exclude.
+ *
+ * The generator spells an enum property `AdwToolbarStyleNick | Adw.ToolbarStyle`, so the
+ * namespaced half makes it look object-typed. It is not: a nick is a STRING, exactly what
+ * an attribute carries. The proof that these belong to the checked surface is that 17 of
+ * them are already observed as attributes today (`adw-banner/button-style`,
+ * `adw-dialog/presentation-mode`, `adw-toolbar-view/top-bar-style`, …). Excluding them
+ * would have hidden 14 real gaps behind a justification — "an attribute cannot carry a
+ * widget" — that does not apply to them.
+ */
+const ENUM_TYPE = /\b\w+Nick\b/;
 
 const kebab = (name) => name.replace(/([A-Z])/g, (c) => `-${c.toLowerCase()}`);
 
@@ -114,7 +149,11 @@ export function tagGTypes(widgetsSource) {
  */
 export function propsBodies(propsSource) {
     const bodies = new Map();
-    const head = /export interface (\w+)Props(?:\s+extends [^{]*)?\{/g;
+    // `extends\s`, NOT `extends ` — the generator wraps long heritage lists onto the
+    // next line, and a literal space missed 65 of 190 interfaces. Each one then had no
+    // body, and `propertyProblems` skipped its element as unmapped: eight `adw-*`
+    // elements passed by being invisible. A vector pins it.
+    const head = /export interface (\w+)Props(?:\s+extends\s[^{]*)?\{/g;
     let m;
     while ((m = head.exec(propsSource))) {
         let depth = 1;
@@ -143,7 +182,7 @@ export function scalarProps(body) {
         if (!m) continue;
         const name = m[1] ?? kebab(m[2]);
         if (name.startsWith('on-')) continue;
-        if (OBJECT_TYPE.test(m[3])) continue;
+        if (OBJECT_TYPE.test(m[3]) && !ENUM_TYPE.test(m[3])) continue;
         names.add(name);
     }
     return names;
@@ -204,6 +243,9 @@ export interface DemoWidgetProps extends GtkWidgetProps {
     /** Multiword, emitted twice by the generator. */
     canShrink?: boolean;
     'can-shrink'?: boolean;
+    /** An ENUM — namespaced, but a nick is a string an attribute carries. */
+    barStyle?: AdwBarStyleNick | Adw.BarStyle;
+    'bar-style'?: AdwBarStyleNick | Adw.BarStyle;
     /** A slot, not an attribute. */
     child?: Gtk.Widget | null;
     /** A signal, not a property. */
@@ -213,38 +255,106 @@ export interface EmptyWidgetProps extends GtkWidgetProps {}
 export interface AfterEmptyProps extends GtkWidgetProps {
     trap?: string;
 }
+export interface WrappedWidgetProps
+    extends GtkWidgetProps,
+        GtkAccessibleProps,
+        GtkBuildableProps {
+    /** Reachable ONLY if the head reader tolerates a newline after \`extends\`. */
+    wrapped?: string;
+}
 `;
 
 const FIXTURE_WIDGETS = `
     { gtype: 'DemoWidget', tag: 'adw-demo', ctor: () => Adw.Demo },
     { gtype: 'EmptyWidget', tag: 'adw-empty', ctor: () => Adw.Empty },
+    { gtype: 'WrappedWidget', tag: 'adw-wrapped', ctor: () => Adw.Wrapped },
 `;
 
-const world = (attributes, knownGaps = {}) => ({
-    byTag: new Map([['adw-demo', attributes]]),
+const world = (attributes, knownGaps = {}, tag = 'adw-demo') => ({
+    byTag: new Map([[tag, attributes]]),
     tagToGtype: tagGTypes(FIXTURE_WIDGETS),
     bodies: propsBodies(FIXTURE_PROPS),
     knownGaps,
 });
 
+/** Every scalar `DemoWidget` offers — an enum among them, on purpose. */
+const DEMO_SCALARS = ['label', 'can-shrink', 'bar-style'];
+
 const VECTORS = [
-    ['an observed scalar is not a problem', () => world(['label', 'can-shrink']), 0],
-    ['an unobserved scalar IS a problem', () => world(['label']), 1],
-    ['both unobserved are two problems', () => world([]), 2],
-    ['a declared gap is accepted', () => world(['label'], { 'adw-demo': ['can-shrink'] }), 0],
-    [
-        'a declaration the element now honours fails',
-        () => world(['label', 'can-shrink'], { 'adw-demo': ['can-shrink'] }),
-        1,
-    ],
-    [
-        'a declaration for a property that does not exist fails',
-        () => world(['label', 'can-shrink'], { 'adw-demo': ['ghost'] }),
-        1,
-    ],
-    ['a missing SLOT property is not a problem', () => world(['label', 'can-shrink']), 0],
-    ['a missing SIGNAL property is not a problem', () => world(['label', 'can-shrink']), 0],
+    ['every scalar observed is not a problem', () => world(DEMO_SCALARS), 0],
+    ['one unobserved scalar IS a problem', () => world(['label', 'can-shrink']), 1],
+    ['all unobserved is one problem each', () => world([]), 3],
+    ['a declared gap is accepted', () => world(['label', 'bar-style'], { 'adw-demo': ['can-shrink'] }), 0],
+    ['a declaration the element now honours fails', () => world(DEMO_SCALARS, { 'adw-demo': ['can-shrink'] }), 1],
+    ['a declaration for a property that does not exist fails', () => world(DEMO_SCALARS, { 'adw-demo': ['ghost'] }), 1],
+    ['a missing SLOT property is not a problem', () => world(DEMO_SCALARS), 0],
+    ['a missing SIGNAL property is not a problem', () => world(DEMO_SCALARS), 0],
+
+    // BLOCKER-1 REGRESSION. `WrappedWidget` declares its heritage across three lines,
+    // which is how the generator emits a long `extends` list. With the old `extends `
+    // (literal space) head reader this interface had no body at all, so the element was
+    // skipped as unmapped and reported ZERO problems — green by being invisible.
+    ['a widget whose extends list wraps is still read', () => world([], {}, 'adw-wrapped'), 1],
+    ['a wrapped widget with its scalar observed is clean', () => world(['wrapped'], {}, 'adw-wrapped'), 0],
 ];
+
+/**
+ * The ORIGINAL defect, as a vector rather than as a claim.
+ *
+ * `<adw-alert-dialog>` observed `heading`, `body`, `open` and `prefer-wide-layout` while
+ * `Adw.AlertDialog` carries eight own scalar properties. Reproduced against a synthetic
+ * twin so the pin survives the real element being fixed — a regression test that reads
+ * the fixed source proves nothing once it is fixed.
+ */
+const ALERT_DIALOG_FIXTURE = `
+export interface AlertTwinProps
+    extends AdwDialogProps,
+        GtkAccessibleProps {
+    body?: string;
+    bodyUseMarkup?: boolean;
+    'body-use-markup'?: boolean;
+    closeResponse?: string;
+    'close-response'?: string;
+    defaultResponse?: string;
+    'default-response'?: string;
+    extraChild?: Gtk.Widget | null;
+    'extra-child'?: Gtk.Widget | null;
+    heading?: string;
+    headingUseMarkup?: boolean;
+    'heading-use-markup'?: boolean;
+    preferWideLayout?: boolean;
+    'prefer-wide-layout'?: boolean;
+}
+`;
+
+function alertDialogRegression() {
+    const shipped = ['heading', 'body', 'open', 'prefer-wide-layout'];
+    const fixed = [...shipped, 'heading-use-markup', 'body-use-markup', 'close-response', 'default-response'];
+    const build = (attributes) => ({
+        byTag: new Map([['adw-alert-twin', attributes]]),
+        tagToGtype: new Map([['adw-alert-twin', 'AlertTwin']]),
+        bodies: propsBodies(ALERT_DIALOG_FIXTURE),
+        knownGaps: {},
+    });
+    const failures = [];
+    const before = propertyProblems(build(shipped));
+    const missing = ['body-use-markup', 'close-response', 'default-response', 'heading-use-markup'];
+    if (before.length !== 4) {
+        failures.push(`the shipped alert dialog must give 4 problems, got ${before.length}`);
+    }
+    for (const property of missing) {
+        if (!before.some((problem) => problem.includes(`'${property}'`))) {
+            failures.push(`the shipped alert dialog must name '${property}'`);
+        }
+    }
+    // `extra-child` is a slot and must NOT be among them.
+    if (before.some((problem) => problem.includes("'extra-child'"))) {
+        failures.push('extra-child is a slot and must not be reported');
+    }
+    const after = propertyProblems(build(fixed));
+    if (after.length !== 0) failures.push(`the fixed alert dialog must be clean, got ${after.length}`);
+    return failures;
+}
 
 function selfTest() {
     const failures = [];
@@ -257,13 +367,23 @@ function selfTest() {
     if (!scalarProps(bodies.get('AfterEmpty') ?? '').has('trap')) {
         failures.push('the interface after an empty one must still be read');
     }
+    if (!bodies.has('WrappedWidget')) {
+        failures.push('an interface whose `extends` list wraps must be found — the head reader needs `\\s`');
+    }
     const demo = scalarProps(bodies.get('DemoWidget') ?? '');
-    if (demo.size !== 2) failures.push(`DemoWidget must expose 2 scalars, got ${demo.size}: ${[...demo].join(', ')}`);
+    for (const property of DEMO_SCALARS) {
+        if (!demo.has(property)) failures.push(`DemoWidget must expose '${property}' as a scalar`);
+    }
+    if (demo.has('child')) failures.push('a widget-valued property must not count as a scalar');
+    if (demo.size !== DEMO_SCALARS.length) {
+        failures.push(`DemoWidget must expose ${DEMO_SCALARS.length} scalars, got ${[...demo].join(', ')}`);
+    }
 
     for (const [label, build, expected] of VECTORS) {
         const got = propertyProblems(build()).length;
         if (got !== expected) failures.push(`${label}: expected ${expected} problem(s), got ${got}`);
     }
+    failures.push(...alertDialogRegression());
     return failures;
 }
 

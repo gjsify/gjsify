@@ -839,7 +839,7 @@ second row (a name-based deny-list is ugly; a `gjsify.nodeOnly` manifest flag is
 honest) or whether "fails further in" is acceptable. Nobody has hit it yet
 because every host that runs those has Node.
 
-### 53 scalar GIR properties no `adw-*` element observes yet
+### 83 scalar GIR properties no `adw-*` element observes yet
 
 `<adw-alert-dialog>` shipped observing FOUR attributes while `Adw.AlertDialog` carries
 eight own properties, and the website's widget table — which reads `observedAttributes` —
@@ -847,28 +847,47 @@ truthfully rendered "takes 4 attributes". The DOC was right and the ELEMENT was 
 Nothing compared the two, which is why the gap survived: `check-vocabulary-alignment.mjs`
 settles which element NAMES which widget and stops there.
 
-`scripts/check-adwaita-element-properties.mjs` closes the mechanism half. It is pinned red
-against that original defect (reverting the four attributes reproduces exactly four
-findings) and excludes the two classes that would have drowned it — measured, not assumed:
-**224 signal props** (`on-clicked`, `on-notify-*`; a custom element dispatches events, and
-an `on-*` attribute is the inline-handler shape nobody wants) and **52 widget-valued
-props** (`child`, `content`, `extra-child`, `title-widget` — slots on this renderer, since
-an attribute cannot carry a widget). That leaves the scalar surface, the only half whose
-absence carries information.
+`scripts/check-adwaita-element-properties.mjs` closes the mechanism half. A synthetic twin
+of the shipped 4-of-8 element is a self-test VECTOR, so the pin survives the real element
+being fixed — a regression test that reads the fixed source proves nothing once it is
+fixed.
 
-**What remains: 53 scalar properties across 20 elements**, listed in the check's
+Two classes are excluded, measured rather than assumed, because a rule with a high
+false-positive rate gets disabled and then protects nothing: **271 signal props**
+(`on-clicked`, `on-notify-*`; a custom element dispatches events, and an `on-*` attribute
+is the inline-handler shape nobody wants) and **47 widget-valued props** (`child`,
+`content`, `extra-child`, `title-widget` — slots, since an attribute cannot carry a
+widget).
+
+**ENUMS ARE IN SCOPE, and getting that wrong was the first version's own bug.** The
+generator spells an enum property `AdwToolbarStyleNick | Adw.ToolbarStyle`, so a namespace
+test reads it as object-typed and drops it. A nick is a STRING. 24 enum properties are in
+scope; 17 are already observed as attributes today, which is the proof they belong. The
+first draft excluded them and hid 14 real gaps behind a justification that did not apply.
+
+The same draft carried a second silent hole worth recording, because it is the
+unrepresentative-fixture class: its interface-head reader required a literal space after
+`extends`, and the generator wraps long heritage lists onto the next line. **65 of 190
+interfaces had no body**, and an element whose body is missing was skipped as unmapped —
+so eight elements (`adw-action-row`, `adw-spin-row`, `adw-entry-row`, `adw-expander-row`,
+`adw-carousel`, `adw-button-row`, `adw-password-entry-row`, `adw-window`) passed by being
+INVISIBLE, and the summary line read "35 elements hold their properties" while the honest
+number was 35 of 43. Both shapes are fixture vectors now.
+
+**What remains: 83 scalar properties across 28 elements**, listed in the check's
 `KNOWN_GAPS`. They are listed rather than individually justified, deliberately — inventing
-53 rationales would be worse than naming none, because a rule without its real reason gets
+83 rationales would be worse than naming none, because a rule without its real reason gets
 "simplified" back into the bug. What the list buys today is the RATCHET: a new gap fails,
 and closing one fails too until it leaves the list, so the number can only go down.
 
-The worst three are `adw-about-dialog` (10 — the credit-list and release-notes surface),
-`adw-wrap-box` (7 — nearly its whole layout surface; it observes NO attributes at all) and
-`adw-header-bar` (5 — `show-title`, `show-back-button` and the two title-button toggles).
-Those three are 22 of the 53 and are the obvious first pass. Each needs its own decision:
-some of these are genuinely missing attributes, and some are properties a web element is
-right to expose another way (`artists`/`developers` are string LISTS, which an attribute
-carries badly). The check does not pretend to know which; it makes the question visible.
+The worst three are `adw-wrap-box` (13 — its whole layout surface; it observes NO
+attributes at all), `adw-about-dialog` (11 — the credit-list and release-notes surface)
+and `adw-header-bar` (6 — `show-title`, `show-back-button`, `centering-policy` and the two
+title-button toggles). Those three are 30 of the 83 and are the obvious first pass. Each
+needs its own decision: some are genuinely missing attributes, and some are properties a
+web element is right to expose another way (`artists`/`developers` are string LISTS, which
+an attribute carries badly). The check does not pretend to know which; it makes the
+question visible.
 
 ### `systemGiLibraryDirs()` lives in three places, pinned by a test rather than shared
 
