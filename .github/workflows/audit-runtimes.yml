@@ -327,6 +327,25 @@ jobs:
       - name: Check the framework adapters carry no widget knowledge (self-testing)
         run: node scripts/check-adapter-import-direction.mjs
 
+      # The other half of the same rule, and the one ADR 0027 § 9 asked for by name: do the
+      # surfaces that claim to share a widget vocabulary actually name the same widgets?
+      # `check-adapter-import-direction.mjs` above holds `src/adapters/`; the three DIALECT
+      # type surfaces live one directory up at `src/` and nothing looked at them, so a
+      # `jsx-runtime.ts` that grew its own element list would have been invisible.
+      # Two halves. The generated maps, the runtime table and the test-only surface data are
+      # four separately emitted artifacts across three files: a tag in `WidgetPropsByTag`
+      # with no row in `generated/widgets.ts` is a tag JSX accepts and `createElement`
+      # refuses. And `adwaita-web`'s 65 `adw-*` custom elements are the one INDEPENDENT
+      # source in the arrangement — derived from no GIR and no generated file — so each one
+      # either shares its spelling with a GTK tag (43 do), names the same widget under
+      # another spelling, or is declared web-only WITH a reason. That table is held against
+      # both live sets in both directions, which is the difference between it and gtkx's
+      # 40 hand-typed omissions that ADR 0029 § 4 refuses to copy.
+      # Self-tests before it reads the repository, for the reason the step above spells out:
+      # no run of the real scan can show a rule that cannot fail.
+      - name: Check the widget vocabulary is aligned across surfaces (self-testing)
+        run: node scripts/check-vocabulary-alignment.mjs
+
       # `$adw-components` in adwaita-web's `_reset.scss` is a hand-written copy of every
       # `customElements.define('adw-…')` call, and it is what applies the ADR 0010
       # style-isolation floor. A tag missing from it renders in the host page's font and
