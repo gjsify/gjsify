@@ -119,13 +119,27 @@ export const AdwAlertDialogTest = async () => {
         });
 
         await it('a dismissal emits the close response the attribute named', () => {
+            // The scrim click, not `open = false`. `_dismiss()` SETS `open = false` and
+            // then emits, so the property is the lower-level state change and driving it
+            // directly would assert a contract this element does not have.
             const { el, host } = mount({ 'close-response': 'cancel', open: '' });
             let seen: string | null = null;
             el.addEventListener('response', (event) => {
                 seen = (event as CustomEvent<{ response: string }>).detail.response;
             });
-            el.open = false;
+            (el.querySelector('.adw-alert-dialog-scrim') as HTMLElement).click();
             expect(seen).toBe('cancel');
+            expect(el.open).toBe(false);
+            host.remove();
+        });
+
+        await it('removing close-response keeps the model value, unlike default-response', () => {
+            // An ASYMMETRY worth pinning rather than discovering: `close-response` has a
+            // non-null GIR default (`close`), so an absent attribute means "leave the
+            // model alone", while `default-response` defaults to null and clears.
+            const { el, host } = mount({ 'close-response': 'cancel' });
+            el.removeAttribute('close-response');
+            expect(el.closeResponse).toBe('cancel');
             host.remove();
         });
     });

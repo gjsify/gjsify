@@ -246,6 +246,15 @@ export class AdwAlertDialog extends HTMLElement {
         this._model.heading = this.heading;
         this._model.body = this.body;
 
+        // And the two response IDs. `attributeChangedCallback` returns early until
+        // `_initialized`, so an attribute present in the MARKUP — the declarative case
+        // these attributes exist for — is never delivered to it. `heading` and `body`
+        // survive that only because `_render()` re-reads them from the attribute; these
+        // two live in the model and would simply be dropped.
+        const closeResponse = this.getAttribute('close-response');
+        if (closeResponse !== null) this._model.closeResponse = closeResponse;
+        this._model.defaultResponse = this.getAttribute('default-response');
+
         this._render();
     }
 
