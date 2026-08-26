@@ -137,7 +137,9 @@ it: `@ts-for-gir/lib`, `@ts-for-gir/cli` and `@gi.ts/parser` all resolve
 `exports["."]` to `./src/index.ts`. So a **`dependencies` edge from a published
 `@gjsify/*` package onto one of them publishes raw TypeScript to everyone who installs
 the depending package.** The sanctioned seam is a `devDependency` that gjsify bundles,
-which is what all eight existing edges in this repo already are.
+which is what all seven published edges in this repo already are (all of them on
+`@ts-for-gir/cli`; `@ts-for-gir/lib` itself appears only under the private
+integration test, which declares no tier and publishes nothing).
 
 Nothing enforced that. `scripts/manifest-conformance/rules/tier.mjs` collects only
 `dep.startsWith('@gjsify/')`, so an external `@ts-for-gir/*` edge was invisible to it,

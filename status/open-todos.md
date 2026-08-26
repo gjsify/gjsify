@@ -260,19 +260,32 @@ library cannot move to a generator that runs without one.
 **Moves — and it is all one thing, already decided.** ADR 0029 steps 3–5, blocked on the
 release above:
 
-| module | code | GIR-generic | what holds it here |
-|---|---:|---:|---|
-| `gtk-host/src/generator/gir.mts` | 249 | 248 | one import, `@gjsify/domparser` |
-| `gtk-host/src/generator/surface.mts` | 196 | 196 | nothing — imports only its two siblings |
-| `gtk-host/src/generator/tsmap.mts` | 100 | 100 | nothing |
-| `gtk-host/src/generator/mini.fixture.mts` | 59 | 59 | nothing |
-| `gtk-host/src/generator/emit-types.mts` | 156 | ~151 | `tagOf` + the emitted `../attrs.js` import — the dialect half stays |
-| `gtk-host/src/generator/emit.mts` | 103 | 13 | the runtime table is gtk-host's model (ADR 0028 § 1) |
+ADR 0029 § "The seam, measured" owns the per-module counts and they are not restated
+here. What this audit adds is the second, different question — not "how many lines are
+GIR-generic" but **"how many lines mention gjsify at all"**, which is what decides
+whether a module can compile somewhere else:
 
-The first four are a closed subgraph: 604 code lines whose only edge outside
-`generator/` is a single XML-parser import. `tsmap.mts` is worth naming separately —
-its `GIRS_PACKAGES` table maps `Gtk` → `@girs/gtk-4.0`, which is **ts-for-gir's own
-naming convention, written down on the wrong side of the boundary.**
+| module | code (ADR 0029) | lines referencing gjsify | what holds it here |
+|---|---:|---:|---|
+| `generator/gir.mts` | 249 | 1 | `import { DOMParser } from '@gjsify/domparser'` |
+| `generator/surface.mts` | 196 | 0 | nothing — imports only its two siblings |
+| `generator/tsmap.mts` | 100 | 8 | the `@girs/*` package table, and see below |
+| `generator/mini.fixture.mts` | 59 | 0 | nothing |
+| `generator/emit-types.mts` | 156 | 5 | `tagOf` + the emitted `../attrs.js` import |
+| `generator/emit.mts` | 103 | 0 | the runtime table is gtk-host's MODEL (ADR 0028 § 1) |
+| `generator/main.mts` | 128 | 3 | `CURATED_DESCRIPTORS` + `methodsOf` wiring |
+
+Read the two questions together and the split is sharper than either alone. The first
+four modules are a closed subgraph — 604 code lines whose only edge outside `generator/`
+is a single XML-parser import — while `emit.mts` mentions gjsify **nowhere** and still
+must stay, because ADR 0029's own column shows only 13 of its 103 lines are GIR-generic:
+it is gtk-host's model expressed in pure TypeScript. A module can be free of gjsify
+imports and still be entirely about gjsify.
+
+`tsmap.mts`'s 8 lines are worth naming separately, because they are the one case where
+the reference points the other way: `GIRS_PACKAGES` maps `Gtk` → `@girs/gtk-4.0`, which
+is **ts-for-gir's own naming convention, written down on the wrong side of the
+boundary.**
 
 **Does not move, and the reason is the same reason each time.** These read as candidates
 because they are full of GI vocabulary, but every one of them needs something a headless
@@ -306,9 +319,10 @@ generator to dodge a tier rule.
 **The dependency-direction check, per ADR 0019, and one finding.** ADR 0019 Decision 1
 keeps ts-for-gir build-step-free — `@ts-for-gir/lib`'s `exports` is literally
 `{".": "./src/index.ts"}` — so a published `@gjsify/*` package taking a
-`dependencies` edge on it would hand raw TypeScript to every consumer. Today all eight
-`@ts-for-gir/*` edges in this repo are `devDependencies`, which is the sanctioned seam,
-and `@ts-for-gir/lib` itself appears only under the private integration test.
+`dependencies` edge on it would hand raw TypeScript to every consumer. Today all SEVEN
+published `@ts-for-gir/*` edges in this repo are `devDependencies` on `@ts-for-gir/cli`,
+which is the sanctioned seam; `@ts-for-gir/lib` itself appears only under the private
+integration test, which declares no tier and publishes nothing.
 
 Two things follow, and the first is the good news:
 
