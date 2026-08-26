@@ -254,4 +254,22 @@ describe('the workflow that runs it', () => {
         assert.match(yaml, /types:\s*\[closed,\s*synchronize\]/);
         assert.match(yaml, /node scripts\/select-superseded-runs\.mjs/);
     });
+
+    it('checks the selection out from the BASE, not the head', () => {
+        // TWO failures ride on this one line, and the first one already happened.
+        //
+        // A branch created BEFORE this script landed does not contain it, so a head
+        // checkout gives `Cannot find module` and `set -euo pipefail` fails the job —
+        // measured on #1340, whose branch predated #1334 by hours and which therefore
+        // went red on a job about its own obsolete runs. That is not a transition cost:
+        // every branch cut before a later change to this script has the same shape.
+        //
+        // And the job holds `actions: write`, which AGENTS.md forbids pairing with head
+        // code. The base SHA is the only spelling that satisfies both.
+        const yaml = readFileSync(WORKFLOW, 'utf8');
+        const ref = /^\s*ref:\s*(\S.*)$/m.exec(yaml);
+        assert.ok(ref, 'the checkout must pin an explicit ref, not fall back to the merge ref');
+        assert.match(ref[1], /pull_request\.base\.sha/);
+        assert.doesNotMatch(ref[1], /head\.sha/);
+    });
 });
