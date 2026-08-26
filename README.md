@@ -197,6 +197,7 @@ Vala prebuild), `webaudio`, `web-streams`, `compression-streams`, `eventsource`,
 | canvas2d | canvas2d-core, Gtk 4 | Re-exports canvas2d-core + `FontFace` + `Canvas2DBridge` → `Gtk.DrawingArea` |
 | dom-elements | GdkPixbuf, canvas2d-core | `Node`, `Element`, `HTMLCanvasElement` (auto-registers `'2d'`), `HTMLImageElement`, `Document` |
 | gtk-host | Adw, Gtk 4, Gdk 4, GObject | Framework-agnostic element model (`createElement`/`insert`/`setProp`) that UI-framework renderers bind to; 26 GTK 4 + libadwaita descriptors carry each container's adoption rule |
+| react-native | Adw, Gtk 4, gtk-host | React Native's export surface on GTK4 — the package a bundler aliases `react-native` to. A support table carries a status and a reason for all 92 names react-native exports, and an unimplemented one refuses with that reason instead of being absent |
 | event-bridge | Gtk 4, Gdk 4 | GTK → DOM event mapping (Mouse, Pointer, Keyboard, Wheel, Focus) |
 | iframe | WebKit 6.0 | `HTMLIFrameElement`, `IFrameBridge` → `WebKit.WebView` |
 | video | Gst 1.0, Gtk 4 | `HTMLVideoElement`, `VideoBridge` → `Gtk.Picture` (gtk4paintablesink) |

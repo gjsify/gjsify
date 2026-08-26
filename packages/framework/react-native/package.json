@@ -1,0 +1,86 @@
+{
+    "name": "@gjsify/react-native",
+    "version": "0.43.0",
+    "description": "The React Native view vocabulary rendered onto GTK4/Adwaita, over @gjsify/gtk-host",
+    "type": "module",
+    "module": "lib/esm/index.js",
+    "types": "lib/types/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./lib/types/index.d.ts",
+            "default": "./lib/esm/index.js"
+        },
+        "./support-table": {
+            "types": "./lib/types/support-table.d.ts",
+            "default": "./lib/esm/support-table.js"
+        }
+    },
+    "files": [
+        "lib",
+        "react-native-surface.json",
+        "!lib/types/**/*.spec.d.ts"
+    ],
+    "scripts": {
+        "clear": "gjsify clear lib tmp tsconfig.tsbuildinfo test.gjs.mjs",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjsify && gjsify run build:types",
+        "build:gjsify": "gjsify build --library 'src/**/*.{ts,js}' --exclude 'src/**/*.spec.{mts,ts}' 'src/test.{mts,ts}'",
+        "build:types": "gjsify tsc",
+        "build:test": "gjsify run build:test:gjs",
+        "build:test:gjs": "gjsify build src/test.mts --app gjs --outfile test.gjs.mjs --define 'process.env.NODE_ENV=\"production\"' --exclude-globals navigator",
+        "build:test:node": "gjsify build src/test.mts --app node --outfile dist/test.node.mjs --define 'process.env.NODE_ENV=\"production\"' --exclude-globals navigator",
+        "test": "gjsify run build:gjsify && gjsify run build:test && gjsify run test:gjs",
+        "test:gjs": "gjsify run test.gjs.mjs",
+        "test:gjs-on-node": "gjsify run build:gjsify && gjsify run build:test:node && NODE_GI_NATIVE=${NODE_GI_NATIVE:-prebuild} node dist/test.node.mjs",
+        "generate": "node scripts/generate-exports.mjs && gjsify format src/generated"
+    },
+    "keywords": [
+        "gjs",
+        "gtk",
+        "adwaita",
+        "react",
+        "react-native"
+    ],
+    "dependencies": {
+        "@gjsify/adwaita-app": "workspace:^",
+        "@gjsify/gtk-host": "workspace:^"
+    },
+    "peerDependencies": {
+        "react": "^19.2.0"
+    },
+    "peerDependenciesMeta": {
+        "react": {
+            "optional": true
+        }
+    },
+    "devDependencies": {
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/unit": "workspace:^",
+        "@girs/adw-1": "^4.1.0",
+        "@girs/gjs": "^4.1.0",
+        "@girs/gtk-4.0": "^4.1.0",
+        "@types/node": "^25.9.2",
+        "@types/react": "^19.2.2",
+        "react": "^19.2.0",
+        "typescript": "^6.0.3"
+    },
+    "gjsify": {
+        "runtimes": {
+            "gjs": "polyfill",
+            "node": "polyfill",
+            "browser": "none",
+            "nativescript": "none"
+        },
+        "tier": 3
+    },
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "packages/framework/react-native"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/packages/framework/react-native#readme"
+}

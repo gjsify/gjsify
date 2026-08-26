@@ -1,0 +1,32 @@
+{
+    "compilerOptions": {
+        "outDir": "lib",
+        "declarationDir": "lib/types",
+        "rootDir": "src",
+        "tsBuildInfoFile": "tmp/.tsbuildinfo",
+        "target": "es2020",
+        "declaration": true,
+        "emitDeclarationOnly": true,
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "esModuleInterop": true,
+        "resolveJsonModule": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "removeComments": false,
+        "preserveConstEnums": true,
+        "sourceMap": true,
+        "skipLibCheck": true,
+        "composite": true,
+        "incremental": true,
+        "types": ["node"],
+        "lib": ["es2020", "DOM"],
+        "strict": true
+    },
+    "include": [
+        "src",
+        "../../../node_modules/@girs/adw-1/adw-1-ambient.d.ts",
+        "../../../node_modules/@girs/gtk-4.0/gtk-4.0-ambient.d.ts"
+    ],
+    "exclude": ["src/test.mts"]
+}
