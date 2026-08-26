@@ -25,11 +25,22 @@
 // SHAs and every one of them is moot, while a SHA match would leave the older ones
 // running — which is half the backlog the workflow exists to drain.
 //
+// A branch name alone does not identify a PR, so the head REPOSITORY is matched too.
+// `head_branch` on a fork's run is the name in the FORK, and the two namespaces
+// collide on exactly the names people reach for by default — `main`, `patch-1` (what
+// the GitHub web editor calls its branch, on either side). Without the repository
+// match, a push to an internal `patch-1` cancels a FORK PR's in-flight matrix: a
+// different PR, superseded by nothing, which is the one outcome this file is
+// organised around avoiding. Measured against fixtures before the match existed;
+// `tests/e2e/ci-cancel-superseded-runs` holds the case.
+//
 // T IS LOAD-BEARING, in two different ways.
 //
-// Branch names in this repository ARE reused (the agent worktrees and the release
-// tooling both do it), so without the bound, closing an old PR would cancel a fresh
-// run belonging to whatever reopened that name.
+// Branch names in this repository ARE reused OVER TIME (the agent worktrees and the
+// release tooling both do it), so without the bound, closing an old PR would cancel a
+// fresh run belonging to whatever reopened that name. Concurrent reuse across
+// namespaces is the repository match above, not this bound — the clock cannot see it,
+// because a fork's run is not older than the push that would cancel it.
 //
 // On `synchronize` it additionally carries the ORDERING case, which is the one that
 // costs a valid measurement. Two pushes land in quick succession; the first push's
@@ -37,6 +48,14 @@
 // head, so every other rule agrees that the second push's runs — the current ones —
 // are cancellable. The bound is the only thing that saves them: they were created
 // after the event that this job is acting on.
+//
+// The bound's RESOLUTION is one second, because that is what these timestamps carry.
+// Two pushes inside a single clock second truncate to the same value, and `<=` then
+// admits the second push's runs into the first push's window. Left as is: a second
+// `git push` to the same branch cannot complete inside the first one's second, and the
+// alternative — a strict `<` — would exclude the head run by the CLOCK, which is
+// precisely how the head-exemption test was green for the wrong reason on the first
+// draft.
 //
 // Usage (the workflow's shape, and the way to reproduce a decision by hand):
 //   GITHUB_EVENT_PATH=event.json GITHUB_RUN_ID=<id> \
@@ -48,7 +67,7 @@
 import { readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-/** Every field this reads is one GitHub always sends; an absent one is a defect, not a case. */
+/** For the fields GitHub always sends, where an absent one is a defect rather than a case. */
 function required(value, what) {
     if (value === undefined || value === null || value === '') {
         throw new Error(`select-superseded-runs: the event carries no ${what}, so no window can be derived.`);
@@ -71,20 +90,33 @@ function instant(value, what) {
 }
 
 /**
- * The window one event opens: the head branch, the moment T, and the SHA that survives
- * it.
+ * The window one event opens: the head repository and branch, the moment T, and the SHA
+ * that survives it.
+ *
+ * `head.repo` is the one field here that GitHub legitimately sends as `null` — a PR
+ * whose fork has been deleted. That is not a reason to fall back to matching on the
+ * branch name alone: the name is shared across namespaces, so the fallback would cancel
+ * whatever else currently answers to it. Refusing loudly costs a red job on a PR nobody
+ * is waiting for; guessing costs somebody else's measurement.
  *
  * @param {{ action?: string, pull_request?: Record<string, any> }} event
- * @returns {{ headRef: string, cutoff: number, keepSha: string | null }}
+ * @returns {{ headRepo: string, headRef: string, cutoff: number, keepSha: string | null }}
  */
 export function cancellationWindow(event) {
     const pr = required(event?.pull_request, 'pull_request');
+    const headRepo = pr.head?.repo?.full_name;
+    if (!headRepo) {
+        throw new Error(
+            'select-superseded-runs: the event carries no head repository (a deleted fork), so no run can be attributed to this PR.',
+        );
+    }
     const headRef = required(pr.head?.ref, 'head branch');
     switch (event.action) {
         case 'closed':
-            return { headRef, cutoff: instant(pr.closed_at, 'closed_at'), keepSha: null };
+            return { headRepo, headRef, cutoff: instant(pr.closed_at, 'closed_at'), keepSha: null };
         case 'synchronize':
             return {
+                headRepo,
                 headRef,
                 cutoff: instant(pr.updated_at, 'updated_at'),
                 keepSha: required(pr.head?.sha, 'head sha'),
@@ -106,7 +138,7 @@ export function cancellationWindow(event) {
  * @returns {number[]}
  */
 export function supersededRunIds({ event, runs, selfRunId }) {
-    const { headRef, cutoff, keepSha } = cancellationWindow(event);
+    const { headRepo, headRef, cutoff, keepSha } = cancellationWindow(event);
     // Not a guard against a missing field but against cancelling THIS job: an empty
     // `SELF_RUN_ID` matches no run, the cancel loop kills the job running it, and the
     // rest of the list stays alive with nothing saying so.
@@ -116,6 +148,10 @@ export function supersededRunIds({ event, runs, selfRunId }) {
     return runs
         .filter(
             (run) =>
+                // Read off the RUN rather than trusted from the query: a run whose
+                // `head_repository` is absent stays unmatched, which is the safe
+                // direction — an unattributable run is left running.
+                run.head_repository?.full_name === headRepo &&
                 run.head_branch === headRef &&
                 run.status !== 'completed' &&
                 (keepSha === null || run.head_sha !== keepSha) &&

@@ -30,6 +30,9 @@ const WORKFLOW = join(MONOREPO_ROOT, '.github', 'workflows', 'cancel-pr-runs.yml
 
 const { cancellationWindow, supersededRunIds } = await import(`file://${SCRIPT}`);
 
+const REPO = 'gjsify/gjsify';
+/** A fork. Its branch NAMESPACE is its own, so a name here says nothing about this repo. */
+const FORK = 'contrib/gjsify';
 const BRANCH = 'fix/prebuilds-musl-leg';
 /** The commit the stale run was on. */
 const STALE_SHA = '1fc2ebbdc';
@@ -40,18 +43,34 @@ const EVENT_AT = '2026-08-26T10:00:00Z';
 const SELF_RUN_ID = 32938000000;
 
 /** One row of `GET /actions/runs`, with only the fields the selection reads. */
-function run({ id, sha = STALE_SHA, branch = BRANCH, status = 'queued', created = '2026-08-26T08:30:00Z' }) {
-    return { id, head_branch: branch, head_sha: sha, status, created_at: created };
+function run({
+    id,
+    sha = STALE_SHA,
+    branch = BRANCH,
+    repo = REPO,
+    status = 'queued',
+    created = '2026-08-26T08:30:00Z',
+}) {
+    return {
+        id,
+        head_branch: branch,
+        head_sha: sha,
+        head_repository: repo === null ? null : { full_name: repo },
+        status,
+        created_at: created,
+    };
 }
 
-const synchronizeEvent = (updatedAt = EVENT_AT) => ({
+const prHead = (repo) => ({ ref: BRANCH, sha: HEAD_SHA, repo: repo === null ? null : { full_name: repo } });
+
+const synchronizeEvent = (updatedAt = EVENT_AT, repo = REPO) => ({
     action: 'synchronize',
-    pull_request: { number: 1331, head: { ref: BRANCH, sha: HEAD_SHA }, updated_at: updatedAt },
+    pull_request: { number: 1331, head: prHead(repo), updated_at: updatedAt },
 });
 
-const closedEvent = (closedAt = EVENT_AT) => ({
+const closedEvent = (closedAt = EVENT_AT, repo = REPO) => ({
     action: 'closed',
-    pull_request: { number: 1331, head: { ref: BRANCH, sha: HEAD_SHA }, closed_at: closedAt, updated_at: closedAt },
+    pull_request: { number: 1331, head: prHead(repo), closed_at: closedAt, updated_at: closedAt },
 });
 
 const idsFor = (event, runs) => supersededRunIds({ event, runs, selfRunId: SELF_RUN_ID });
@@ -102,6 +121,32 @@ describe('the window a push opens', () => {
         const runs = [run({ id: 32937400000, branch: 'feat/gtk-host-react' }), run({ id: 32937220245 })];
         assert.deepEqual(idsFor(synchronizeEvent(), runs), [32937220245]);
     });
+
+    it('does not reach a fork PR that happens to use the same branch name', () => {
+        // `head_branch` on a fork's run is the name in the FORK, and the clock cannot
+        // separate the two: the fork's run is not OLDER than the push that would cancel
+        // it, so every time-based rule here calls it stale. Only the repository does.
+        // The names that collide are the ones nobody chooses on purpose — `main`, or
+        // `patch-1` on whichever side used the GitHub web editor.
+        const runs = [
+            run({
+                id: 32937500000,
+                repo: FORK,
+                sha: 'f00df00d0',
+                status: 'in_progress',
+                created: '2026-08-26T09:55:00Z',
+            }),
+            run({ id: 32937220245 }),
+        ];
+        assert.deepEqual(idsFor(synchronizeEvent(), runs), [32937220245]);
+    });
+
+    it('leaves a run it cannot attribute to any repository', () => {
+        // An absent `head_repository` stays unmatched rather than falling back to the
+        // branch name — the safe direction is a run left running, never a run cancelled
+        // on a guess.
+        assert.deepEqual(idsFor(synchronizeEvent(), [run({ id: 32937600000, repo: null })]), []);
+    });
 });
 
 describe('the window a close opens', () => {
@@ -132,11 +177,13 @@ describe('the window a close opens', () => {
 describe('the windows themselves', () => {
     it('reads the close bound from closed_at and the push bound from updated_at', () => {
         assert.deepEqual(cancellationWindow(closedEvent()), {
+            headRepo: REPO,
             headRef: BRANCH,
             cutoff: Date.parse(EVENT_AT),
             keepSha: null,
         });
         assert.deepEqual(cancellationWindow(synchronizeEvent()), {
+            headRepo: REPO,
             headRef: BRANCH,
             cutoff: Date.parse(EVENT_AT),
             keepSha: HEAD_SHA,
@@ -155,6 +202,14 @@ describe('the inputs it refuses to guess at', () => {
         // An empty `SELF_RUN_ID` matches no run: the loop cancels this very job, the
         // rest of the list stays alive, and nothing says so.
         assert.throws(() => supersededRunIds({ event: synchronizeEvent(), runs: [], selfRunId: '' }), /no own run id/);
+    });
+
+    it('refuses a PR whose head repository is gone', () => {
+        // GitHub sends `head.repo: null` once a fork is deleted. Matching on the branch
+        // name alone would then cancel whatever else currently answers to that name, so
+        // this throws instead — a red job on a PR nobody waits for, against somebody
+        // else's measurement.
+        assert.throws(() => idsFor(closedEvent(EVENT_AT, null), []), /no head repository/);
     });
 
     it('refuses a bound it cannot parse instead of selecting nothing', () => {
