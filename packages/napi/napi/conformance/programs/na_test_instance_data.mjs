@@ -21,15 +21,25 @@ export default async function run(h) {
 
     // Instance data from a node::Buffer (external buffer) finalizer.
     //
-    // `gcUntil`, not one `h.gc()` plus hope: a single collection does not
-    // reliably reclaim an external buffer, and Node schedules the JS finalizer on
-    // the immediate tick rather than the microtask queue. When it did not run, the
-    // await never returned and the program died after line 1 — the golden then
-    // "drifted" with `got: ""` against `want: "\"finalizer\""`, which reads like a
-    // wrong answer rather than a missing one (measured: run 32952785170, job
-    // 98127767705; earlier occurrences reported the same shape at other lines).
-    // The green sibling `test_instance_data.mjs` already does it this way, and
-    // gcUntil's budget turns a hang into a throw that names the stage.
+    // `gcUntil`, not one `h.gc()` and hope. Measured 40 runs on each leg: the
+    // finalizer has NOT run by the time a synchronous collection returns, and one
+    // turn of the runtime's own loop after it is enough — never a second
+    // collection. So there is no "this finalizer needs several collections"
+    // defect underneath; what the old shape lacked was a retry for the run where
+    // that one collection does not reclaim the buffer, which is a real outcome
+    // (run 32952785170 / job 98127767705) even though it did not reproduce in 30
+    // local runs.
+    //
+    // This is the idiom, not a workaround for us: nine of upstream's own N-API
+    // finalizer tests drive `test/common/gc.js`'s `gcUntil`, and the twin
+    // `test_instance_data.mjs` here does too. The one that does a bare
+    // `global.gc()` is `node-api/test_instance_data/test.js` — the file this was
+    // ported from, so the flake came with it.
+    //
+    // The awaiting shape is what made the failure unreadable, and that half is
+    // fixed in the runner: a pending promise is not work, so Node's loop ran dry
+    // and the process exited 0 with two thirds of the transcript missing, which
+    // the golden reported as DRIFT and offered `--update-golden` for.
     let finalized = false;
     t.testBufferFinalizer(() => {
         finalized = true;
