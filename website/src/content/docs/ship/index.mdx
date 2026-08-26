@@ -151,7 +151,9 @@ and every one has a default:
 **Already have a `gjsify.flatpak` block?** It keeps working. `runtime`,
 `runtimeVersion`, `sdkExtensions`, `appendPath`, `finishArgs` and `cleanup` are
 read from there too, and `ship` prints one line naming the keys it inherited and
-where to move them. The app metadata — `name`, `summary`, `developer`,
+where to move them. Moving them is safe: `gjsify flatpak init` and `flatpak ci`
+read the new spelling as well, so the manifest those commands generate does not
+change under you. The app metadata — `name`, `summary`, `developer`,
 `categories`, `license` — is *not* deprecated: both blocks describe the same
 application, and either may carry it.
 

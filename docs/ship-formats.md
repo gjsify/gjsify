@@ -30,6 +30,7 @@ measurements split three ways:
 |---|---|---|
 | `finishOn` | which OSes can pack this | not the LAYOUT — a `<App>.app` tree assembles anywhere while the `.dmg` around it needs macOS |
 | `requiredTools` | what the packer EXECS | not implied by `finishOn` — an `.msi` we wrote ourselves would be `'any'` with no tools |
+| `installHint` | how to install those tools | the refusal is one generic function; hardcoded there the hint said `dnf install flatpak flatpak-builder` for every format that will ever need a tool |
 | `oracle` | who reads the artifact back, and where | derivable from neither; a format built by the platform's own tool forfeits independence unless a reader from another implementation family exists |
 
 `oracle.selfReading: true` is the honest confession that a format has no independent discriminator
@@ -119,8 +120,19 @@ one warns." `utils/ship/flatpak-config.ts` is that window, and only part of the 
 | `AppMetadata` (`name`, `summary`, `developer`, `categories`, `license`, …) | NOT deprecated. Both blocks extend `AppMetadata` by design — § 8's own words are "those files are not Flatpak's, they are the app's" — so this is an alias, not a legacy spelling. Warning on it would print for every project that has a `gjsify.flatpak` block at all |
 | `lockfile`, `ciContainer`, `ciBranches`, `flathubRepo`, `modules`, `extraModules`, `command` | untouched: they belong to `gjsify flatpak <sub>`, whose own move to `gjsify ship flatpak <sub>` is a separate item in `status/open-todos.md`. Deprecating them now would warn on commands that have not moved |
 
+**The window has TWO sides, and only building one is a trap.** The six build keys are read by
+`gjsify flatpak init` and `flatpak ci` as well, and those commands have NOT moved. So a project that
+did what the warning told it and moved the keys would have lost them there: `flatpak init` falls back
+to its own defaults and writes a manifest against a different `org.gnome.Platform` version, with
+different finish-args, into a file the project commits — at exit 0. Both command groups therefore
+resolve through the same `pickFlatpakBuildKeys`, so "both spellings resolve" is true of every reader
+of these keys and the advice is safe to follow.
+
 Fallback is per-KEY, not per-block, so a project migrating one key at a time does not lose the five
-it has not moved yet — and that is also what makes the warning actionable: it names the keys still
+it has not moved yet. It is also a LOOP over `MIGRATED_FLATPAK_KEYS` rather than six hand-written
+picks: written out, the constant was the one unbound copy of this vocabulary — a key added to it with
+nothing reading it compiled fine and was simply not in the window, and the only test that mentioned
+the constant compared it to a literal copy of itself — and that is also what makes the warning actionable: it names the keys still
 coming from the old block rather than telling the reader a block is deprecated and leaving them to
 diff it by hand.
 

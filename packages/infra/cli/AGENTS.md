@@ -59,8 +59,8 @@ must not demand `flatpak-builder` of every project that packaged a `.deb`; `deri
 --show-manifest` is not a validator** (it took `buildsystem: "nonsense"` at exit 0). Flatpak's whole
 content is one prefix row (`/app`) plus `buildsystem: simple` + `cp -a stage/.` — that is what
 removes meson from the sandbox — and the six `gjsify.flatpak` BUILD keys have a per-KEY deprecation
-window into `gjsify.ship.flatpak`, while the `AppMetadata` half is a designed alias and is NOT
-deprecated.
+window into `gjsify.ship.flatpak` that `flatpak init` resolves too (one-sided, it would silently
+rewrite the manifest that command commits); the `AppMetadata` half is an alias and is NOT deprecated.
 
 **`gjsify ship` is TWO PHASES, and the boundary is a TYPE** (ADR 0024 § A2): `--stage` assembles and
 writes `.gjsify-ship-stage.json`, a CLOSURE rather than a settings dump; `--from-stage <dir>` packs it

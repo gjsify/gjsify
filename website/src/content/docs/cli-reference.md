@@ -1407,7 +1407,7 @@ gjsify ship --from-stage ./ship/stage --target flatpak        # there, on Linux
 
 A missing tool is a separate message from the wrong OS, because the fixes differ.
 
-The six Flatpak build keys also resolve from a legacy `gjsify.flatpak` block, with one warning line naming what was inherited; they are removed from there in 1.0.0. The app metadata in `gjsify.flatpak` is shared by design and is not deprecated.
+The six Flatpak build keys also resolve from a legacy `gjsify.flatpak` block, with one warning line naming what was inherited; they are removed from there in 1.0.0. `gjsify flatpak init` and `flatpak ci` read both spellings too, so moving them does not change the manifest those commands write. The app metadata in `gjsify.flatpak` is shared by design and is not deprecated.
 
 #### Scope today
 
