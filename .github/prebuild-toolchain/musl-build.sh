@@ -51,37 +51,47 @@
 # apk branch would need — the third being that `build_pkg` stages into
 # `prebuilds/linux-${ARCH}`, which on Alpine would overwrite a COMMITTED glibc
 # artifact with a musl one while every downstream declaration check stayed green.
-# Staging here cannot do that: it goes through `scripts/stage-prebuild.mjs` with
-# an explicit `--dest` OUTSIDE the package tree, so no committed directory is
-# reachable at all — and the guard below independently refuses unless the host
-# resolves as this leg's own musl token.
+# Staging here cannot do that either: the target token carries `-musl`, so the
+# directory is `prebuilds/linux-<arch>-musl/` and the committed glibc one is not a
+# name this leg can produce — and the guard below independently refuses unless the
+# host resolves as this leg's own musl token before anything is built.
 #
 # REPRODUCE LOCALLY (the property the QEMU legs have and this leg lacked). Both
-# extra flags were paid for once: without `:z` SELinux denies the bind mount on
-# Fedora (`can't open '…/musl-build.sh': Permission denied`, which reads like a
-# missing exec bit and is not), and without `--platform` a cached foreign-arch
-# `alpine` image runs EMULATED behind nothing but a podman warning:
+# extra flags were paid for once: without a relabelling flag SELinux denies the
+# bind mount on Fedora (`can't open '…/musl-build.sh': Permission denied`, which
+# reads like a missing exec bit and is not), and without `--platform` a cached
+# foreign-arch `alpine` image runs EMULATED behind nothing but a podman warning:
 #
-#     podman run --rm --platform linux/amd64 -v "$PWD:/w:z" -w /w \
-#       -e PREBUILD=linux-x64-musl -e MACHINE=x86-64 \
+#     podman run --rm --platform linux/amd64 \
+#       --security-opt label=disable -v "$PWD:/w" -w /w \
+#       -e PREBUILD=linux-x64-musl -e MACHINE=x86-64 -e CI=true \
 #       alpine:3.24 sh .github/prebuild-toolchain/musl-build.sh
 #
-# In CI neither is needed — no SELinux on the runners, and the runner's own arch
-# is the target — which is precisely why the guard below asserts the arch instead
-# of trusting the invocation.
+# `--security-opt label=disable`, NOT `-v …:z`. `:z` relabels the work tree into a
+# SHARED container category and `:Z` into a private one; either way the label is
+# left behind on your checkout afterwards, and two concurrent `:Z` mounts lock
+# each other out with a `Permission denied` that reads like a broken build.
+# `label=disable` relabels nothing. This leg WRITES into the mount (that is where
+# the artifacts have to end up), so `:ro` is not available here the way it is for
+# the committed-artifact check — run it on a scratch copy of the tree if you do
+# not want `build/` and `prebuilds/linux-*-musl/` appearing in your worktree.
+#
+# `-e CI=true` reproduces what CI enforces: it is what turns `${CI:+--locked}` in
+# `lightningcss-native/meson.build` into `cargo build --locked`, i.e. whether a
+# stale committed `Cargo.lock` FAILS or is silently updated. A bare `docker`/
+# `podman run` inherits nothing, so the flag is the whole difference.
 #
 # POSIX `sh` ONLY. The Alpine base image has no bash — only busybox `sh` (ash).
 # Verified in `alpine:3.24` that busybox ash takes everything used here:
 # `set -euo pipefail`, the `case`-based `built()` helper, `while IFS='|' read`
-# over a heredoc, `${var%%pattern}`, `env -u`. No arrays anywhere, which is the
-# one bashism the macOS legs rely on.
+# from a file, `${var%%pattern}`, `env -u`, `mktemp`, `trap … EXIT`,
+# `tr '[:upper:]' '[:lower:]'`. No arrays anywhere, which is the one bashism the
+# macOS legs rely on.
 #
 # Env in:
 #   PREBUILD       `linux-<arch>-musl` — the target token, asserted below
 #   MACHINE        file(1)'s spelling of the ELF e_machine this leg must produce
 #   PREBUILD_SKIP  the `changes` job's JSON array, verbatim
-#   STAGE_DIR      where artifacts land (default /tmp/musl-prebuilds). Outside any
-#                  package ON PURPOSE — see the `--dest` note below.
 
 # `pipefail` is NOT a POSIX option, but busybox ash supports it and the steps
 # this replaces all set it. Keeping it matters: `rustc -vV | grep '^host:'` and
@@ -91,16 +101,71 @@ set -euo pipefail
 
 : "${PREBUILD:?PREBUILD must be set (e.g. linux-x64-musl)}"
 : "${MACHINE:?MACHINE must be set (e.g. x86-64)}"
-# Outside the package tree, and that is the fix for the SECOND thing broken here.
-# After ADR 0017 a bridge owns no `prebuilds/` — `stage-prebuild.mjs` resolves the
-# destination to a sibling platform package and REFUSES when there is none. For
-# this leg there never is one: it builds targets no package declares yet, so
-# declaring them would publish a promise CI must reproduce and commit. Measured:
-# the musl build of sab-native succeeds and staging fails with
-# `sab-native-linux-x64-musl/ does not exist`. `--dest` names a destination
-# instead of relaxing the default, so every other caller keeps the refusal.
-STAGE_DIR="${STAGE_DIR:-/tmp/musl-prebuilds}"
-echo "--- staging destination: ${STAGE_DIR}/${PREBUILD}"
+
+# ── ONE TABLE, and the destination is DERIVED from it ───────────────────────
+#
+# This file used to carry FOUR hand-maintained lists of the same two bridges —
+# a build block each, a `for dir in …` machine check, a `while read` load test
+# and a `for lib in …` dlopen list — and they disagreed. That is what the whole
+# leg died on, and the failure did not name its cause:
+#
+#     ::error::GjsifySabNative prebuild in /tmp/musl-prebuilds/linux-x64-musl
+#              does not load under gjs
+#     JS ERROR: Requiring GjsifySabNative: Typelib file for namespace
+#              'GjsifySabNative' (any version) not found
+#
+# Both packages were staged into ONE `--dest` directory, and
+# `stage-prebuild.mjs` REPLACES its destination rather than merging into it
+# (`rmSync(outDir)`, so a renamed library cannot ship a stale set). So
+# lightningcss-native, staged second, deleted every file sab-native had staged;
+# the machine check then read the same directory twice and reported
+# lightningcss's two objects twice while sab-native's `.so` was judged by
+# nothing; and the load test failed on a typelib that had been built correctly
+# and then removed. Reproduced in `alpine:3.24` on x86_64 against the sources at
+# 5f6485fa2 — nothing about musl, gjs or GI was involved.
+#
+# The fix is not a guard against the collision, it is removing the shape that
+# can express one: `--scratch` DERIVES the destination from the package
+# (`<pkg>/prebuilds/<target>/`), so two bridges cannot name one directory. That
+# is also the flag every other build leg in `prebuilds.yml` uses, and what makes
+# it correct here is the same property as there — this job uploads its artifacts
+# and commits nothing. `--allow-undeclared` stays, because `linux-<arch>-musl`
+# is deliberately in no `gjsify.platforms` (see the workflow header), and it is
+# what `build-prebuilds-macos-experimental` pairs with `--scratch` for the same
+# reason. A `-musl` suffix also cannot collide with the committed `linux-<arch>`
+# of the pre-ADR-0017 layout, and the guard below independently refuses a host
+# that does not resolve as this leg's own musl token.
+#
+# The two consequences worth stating, because they were both broken before:
+#   • the artifacts land in the BIND-MOUNTED workspace, which is the only place
+#     `actions/upload-artifact` can see them. `/tmp/musl-prebuilds` is inside a
+#     `--rm` container, so both upload steps — `if-no-files-found: error` — could
+#     never have found anything, whatever the build did.
+#   • each bridge's directory is written and read by that bridge alone.
+#
+# A file, not a function: `bridges | while read` puts the loop in a subshell in
+# every POSIX shell, so an `rc=1` set inside it is discarded — the exact shape of
+# a check that cannot fail. Every loop below redirects from this file instead.
+BRIDGES="$(mktemp)"
+# dir|namespace|class — `dir` is the workspace-relative package directory (also
+# the `changed-packages.mjs` skip key), `namespace` the GI namespace the typelib
+# declares (= `meson.project_name()`), `class` a GObject class whose resolution
+# forces GI to call `…_get_type` and therefore to dlopen the library.
+#
+# The Vala library leaf and the typelib file name are DERIVED from the namespace
+# (`lib<lowercased>.so`, `<Ns>-1.0.typelib`) — the meson convention both
+# `meson.build`s follow, and safe to derive for the reason
+# `.github/prebuild-toolchain/darwin-bridges.mjs` derives the same leaf: the only
+# consumer of the name is an error message naming the file it could not open.
+cat > "$BRIDGES" <<'EOF'
+packages/node/sab-native|GjsifySabNative|SharedBuffer
+packages/infra/lightningcss-native|GjsifyLightningcss|Engine
+EOF
+trap 'rm -f "$BRIDGES"' EXIT
+
+# `lib<namespace lowercased>.so` — the leaf the typelib records and
+# `g_module_open()` resolves at load.
+vala_leaf() { printf 'lib%s.so' "$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"; }
 
 # Did THIS run build it? Keyed on the directory basename, the key
 # `changed-packages.mjs` emits, quoted so `"sab-native"` cannot match a longer
@@ -156,48 +221,67 @@ fi
 
 WORKSPACE="$PWD"
 
-# ── @gjsify/sab-native (GjsifySabNative) ────────────────────────────────────
-if built packages/node/sab-native; then
-    echo "--- building @gjsify/sab-native against musl"
-    cd "$WORKSPACE/packages/node/sab-native"
-    meson setup build .
-    meson compile -C build
-    node "$WORKSPACE/scripts/stage-prebuild.mjs" . --allow-undeclared --dest "$STAGE_DIR"
-    ls -lh "${STAGE_DIR}/${PREBUILD}/"
+# ── build every bridge in the table ─────────────────────────────────────────
+# Both bridges build identically (`meson setup` + `meson compile` + stage), so
+# the loop is the whole difference between them — the Rust half of
+# lightningcss-native is driven by its own `meson.build` custom_target, not from
+# here. Staging matches artifacts by EXTENSION, which is what picks up BOTH
+# halves of a Vala+Rust pair (`libgjsifylightningcss.so` plus the
+# `libgjsify_lightningcss.so` cdylib it links), and the stager then runs
+# `checkPrebuildDir()` over what it wrote — the staged-sibling + `$ORIGIN`
+# invariant, verified here on musl.
+#
+# `< /dev/null` on every child: the loop's stdin is $BRIDGES, and a build tool
+# that read it would swallow the remaining rows.
+while IFS='|' read -r dir ns class; do
+    [ -n "$dir" ] || continue
+    if ! built "$dir"; then
+        echo "--- ${dir}: not in this run's package set, skipped"
+        continue
+    fi
+    echo "--- building ${dir} (${ns}) against musl"
+    cd "$WORKSPACE/$dir"
+    meson setup build . < /dev/null
+    meson compile -C build < /dev/null
+    node "$WORKSPACE/scripts/stage-prebuild.mjs" . --scratch --allow-undeclared < /dev/null
+    ls -lh "prebuilds/${PREBUILD}/"
     cd "$WORKSPACE"
-else
-    echo "--- @gjsify/sab-native: not in this run's package set, skipped"
-fi
+done < "$BRIDGES"
 
-# ── @gjsify/lightningcss-native (GjsifyLightningcss) ────────────────────────
-if built packages/infra/lightningcss-native; then
-    echo "--- building @gjsify/lightningcss-native against musl (Rust cdylib + Vala bridge)"
-    cd "$WORKSPACE/packages/infra/lightningcss-native"
-    meson setup build .
-    meson compile -C build
-    # Matching by EXTENSION is what picks up both halves of the pair here
-    # (`libgjsifylightningcss.so` + the `libgjsify_lightningcss.so` cdylib it
-    # links), and the stager then runs `checkPrebuildDir()` over what it wrote —
-    # the staged-sibling + `$ORIGIN` invariant, verified on musl.
-    node "$WORKSPACE/scripts/stage-prebuild.mjs" . --allow-undeclared --dest "$STAGE_DIR"
-    ls -lh "${STAGE_DIR}/${PREBUILD}/"
-    cd "$WORKSPACE"
-else
-    echo "--- @gjsify/lightningcss-native: not in this run's package set, skipped"
-fi
-
-# ── each staged artifact's machine must match its directory ─────────────────
-echo "--- verifying each staged artifact's machine matches its directory"
+# ── each bridge's staged set must be COMPLETE and of this machine ───────────
+# Two assertions in one pass, and the completeness half is the one that was
+# missing: a bridge this run BUILT must still have a `.so` and its typelib in its
+# own directory when the verification reads it. That is what a destination shared
+# between two packages destroys, and the symptom without this assertion is gjs
+# reporting a typelib "not found" three steps later — a message that names musl
+# and GI rather than the staging that deleted the file.
+echo "--- verifying each staged set is complete and of this machine"
 rc=0
-for dir in packages/node/sab-native packages/infra/lightningcss-native; do
+while IFS='|' read -r dir ns class; do
+    [ -n "$dir" ] || continue
     built "$dir" || { echo "--- $dir: not built by this run, not verified"; continue; }
-    out="${STAGE_DIR}/${PREBUILD}"
+    out="$WORKSPACE/$dir/prebuilds/${PREBUILD}"
     if [ ! -d "$out" ]; then
         echo "::error::$out does not exist — the build ran but staged somewhere else"
         rc=1
         continue
     fi
+    typelib="${out}/${ns}-1.0.typelib"
+    if [ ! -f "$typelib" ]; then
+        echo "::error::${dir} staged no ${ns}-1.0.typelib in ${out}."
+        echo "::error::The build produced one (g-ir-compiler is a meson target and the stager"
+        echo "::error::refuses a typelib with no .gir), so it was staged and then REMOVED —"
+        echo "::error::stage-prebuild.mjs replaces its destination, so a destination shared with"
+        echo "::error::another package erases this one. Every bridge stages with --scratch."
+        rc=1
+    fi
+    found=0
     for lib in "$out"/*.so; do
+        # An unmatched glob stays literal in POSIX sh, so a directory with no
+        # `.so` at all would otherwise reach `file -b` as a non-existent path and
+        # abort under `set -e` with the shell's own message rather than this one.
+        [ -e "$lib" ] || break
+        found=$((found + 1))
         desc="$(file -b "$lib")"
         echo "$lib: $desc"
         case "$desc" in
@@ -205,7 +289,11 @@ for dir in packages/node/sab-native packages/infra/lightningcss-native; do
             *) echo "::error file=$lib::expected a $MACHINE object in ${PREBUILD}, got: $desc"; rc=1 ;;
         esac
     done
-done
+    if [ "$found" -eq 0 ]; then
+        echo "::error::${dir} staged no shared library at all in ${out} — see the typelib note above."
+        rc=1
+    fi
+done < "$BRIDGES"
 [ "$rc" -eq 0 ] || exit $rc
 
 # ── load-test every prebuild under Alpine gjs ──────────────────────────────
@@ -225,10 +313,10 @@ rc=0
 while IFS='|' read -r dir ns sym; do
     [ -n "$dir" ] || continue
     built "$dir" || { echo "--- ${ns}: not built by this run, not load-tested"; continue; }
-    abs="${STAGE_DIR}/${PREBUILD}"
+    abs="$WORKSPACE/$dir/prebuilds/${PREBUILD}"
     echo "--- ${ns}.${sym} from ${abs}"
-    # `< /dev/null`: the loop's stdin is the heredoc below, and a child that
-    # reads it would eat the remaining rows.
+    # `< /dev/null`: the loop's stdin is $BRIDGES, and a child that reads it
+    # would eat the remaining rows.
     if GI_TYPELIB_PATH="$abs" LD_LIBRARY_PATH="$abs" gjs -c \
         "const T = imports.gi.${ns}.${sym};
          if (typeof T !== 'function') { throw new Error('${ns}.${sym} did not resolve to a class'); }
@@ -237,10 +325,7 @@ while IFS='|' read -r dir ns sym; do
         echo "::error::${ns} prebuild in ${abs} does not load under gjs"
         rc=1
     fi
-done <<'EOF'
-packages/node/sab-native|GjsifySabNative|SharedBuffer
-packages/infra/lightningcss-native|GjsifyLightningcss|Engine
-EOF
+done < "$BRIDGES"
 [ "$rc" -eq 0 ] || exit $rc
 
 # ── every relocation must resolve with no library-path variable ─────────────
@@ -256,18 +341,17 @@ echo "--- proving every relocation resolves with no library-path variable"
 # No `-ldl`: musl has no separate libdl.
 cc -o /tmp/dlopen-rtld-now .github/prebuild-toolchain/dlopen-rtld-now.c
 rc=0
-for lib in \
-    "packages/node/sab-native|${STAGE_DIR}/${PREBUILD}/libgjsifysabnative.so" \
-    "packages/infra/lightningcss-native|${STAGE_DIR}/${PREBUILD}/libgjsifylightningcss.so"; do
-    pkg="${lib%%|*}"
-    lib="${lib#*|}"
-    built "$pkg" || { echo "--- $pkg: not built by this run, not dlopened"; continue; }
+while IFS='|' read -r dir ns class; do
+    [ -n "$dir" ] || continue
+    built "$dir" || { echo "--- $dir: not built by this run, not dlopened"; continue; }
+    lib="$WORKSPACE/$dir/prebuilds/${PREBUILD}/$(vala_leaf "$ns")"
     echo "--- dlopen(RTLD_NOW) $lib with LD_LIBRARY_PATH unset"
-    if env -u LD_LIBRARY_PATH /tmp/dlopen-rtld-now "$lib"; then :; else
+    # `< /dev/null` for the same reason as every other child in this file.
+    if env -u LD_LIBRARY_PATH /tmp/dlopen-rtld-now "$lib" < /dev/null; then :; else
         echo "::error::$lib does not fully resolve on musl"
         rc=1
     fi
-done
+done < "$BRIDGES"
 
 # ── the COMMITTED glibc artifacts must resolve here too ─────────────────────
 # The step above proves the artifacts THIS LEG BUILT are sound. It says nothing
