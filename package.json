@@ -112,6 +112,7 @@
         "check": "gjsify foreach check -ptv --exclude \"@girs/*\" --exclude \"@gjsify/example-*\" --exclude \"@gjsify/website\"",
         "check:examples": "gjsify foreach check -ptv --include \"@gjsify/example-*\"",
         "check:type-surfaces": "node scripts/check-type-surfaces.mjs",
+        "check:vocabulary-alignment": "node scripts/check-vocabulary-alignment.mjs",
         "clear": "gjsify foreach clear -v --no-private -p --exclude \"@gjsify/example-*\" --exclude \"@gjsify/website\"",
         "clear:examples": "gjsify foreach clear -v -p --include \"@gjsify/example-*\"",
         "npm:publish": "gjsify run build && gjsify run build:examples && node scripts/verify-package-outputs.mjs --scope examples && gjsify foreach -v --topological --no-private --exclude \"@girs/*\" --exec -- gjsify publish --tolerate-republish --tolerate-untrusted-new --tag latest --access public",

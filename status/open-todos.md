@@ -150,7 +150,7 @@ Whoever picks it up: the A/B is renaming the suffix to `.gjsify-vue.js` and watc
 the new case go red. Related: the same `order: 'pre'` collision in the SOLID plugin
 was a real defect, fixed in #1296 by splitting `GjsifyConfig.prePlugins`.
 
-### The one-vocabulary goal has no alignment check yet
+### The one-vocabulary goal is checked by NAME, not yet by BEHAVIOUR
 
 ADR 0027 § 9 makes one widget vocabulary across native GTK, Blueprint/XML, TSX/JSX,
 Vue templates and the web pillar's `adw-*` elements an explicit goal. **Its named
@@ -159,11 +159,20 @@ obstacle is gone**: `adwaita-web` adopted `[slot=]` children exactly once, in
 renderer mutates its tree after mount by definition, so that was an upstream fix and
 it landed upstream.
 
-What is still missing is the mechanism, and it is cheap once the generator
-(ADR 0028 § 6) exists: assert that the emitted surfaces — `JSX.IntrinsicElements`,
-the Vue `GlobalComponents` interface, and the React intrinsics — name the same
-widgets, and that every `adw-*` custom element maps to exactly one of them or is
-listed as deliberately web-only. A name may then only diverge on purpose.
+**The name-agreement mechanism now exists**: `scripts/check-vocabulary-alignment.mjs`,
+a step of the required `Detect runtime-triplet drift` job. It holds the four generated
+maps against the runtime table and the test-only surface data (four artifacts, three
+files), refuses a dialect surface that stops deriving its element list from those maps
+or spells a widget itself, and holds every `adw-*` custom element against the GTK tag
+set. Measured at the time it landed: 164 GTK tags, 65 `adw-*` elements, 43 sharing a
+spelling exactly, 10 declared as the same widget under another name, 12 declared
+web-only with a reason. The gjsify half of ADR 0029 is what made it cheap; it does not
+depend on the `@girs` subpath.
+
+What the check deliberately does NOT prove is BEHAVIOUR. Agreeing on `adw-action-row`
+as a name says nothing about the two renderers producing the same tree, and the
+`gtk`-alias half is weaker still: it asserts that `<adw-checkbox>` is declared to mean
+`gtk-check-button`, never that it behaves like one.
 
 The criterion that closes the GOAL out is in ADR 0027 § 9 and is unchanged: the same
 authored tree, rendered through the GTK host and through `adwaita-web`, satisfies the
@@ -181,6 +190,54 @@ And `bindEmptySections` derives SYNCHRONOUSLY, so it must run AFTER the router's
 `install` — routing first hides a section a declared child had already earned, and it
 only un-hides a microtask later, after `_syncClasses` has measured a bar at
 `offsetHeight` 0. That cost 8 real failures once; the three call sites now say so.
+
+### The `@girs/*` widget surface exists but gtk-host cannot consume it yet
+
+ADR 0029 moves the GIR-derived widget vocabulary to `@girs/<ns>/surface`. The
+ts-for-gir half is implemented and landed there (generator in
+`packages/generator-typescript/src/surface/`, gate in `tests/widget-surface`). The
+gjsify half — deleting `gtk-host/src/generated/props.ts`, replacing it with the
+consumer dialect, and repointing `generated.spec.ts` at the published runtime data —
+is blocked on a RELEASE, and is not attempted here rather than faked.
+
+**What exactly is missing, and how to tell it has arrived.** `@girs/gtk-4.0@4.1.0`
+(the installed version, and the newest published) has four `exports` keys: `.`,
+`./ambient`, `./import`, `./gtk-4.0`. The subpath is a fifth.
+
+Ask the REGISTRY, because that is the question — the local `node_modules` can be stale
+either way:
+
+    npm view @girs/gtk-4.0 exports --json
+
+Or the installed copy, read as a FILE. Note what does not work and why: `require(
+'@girs/gtk-4.0/package.json')` throws `ERR_PACKAGE_PATH_NOT_EXPORTED`, because the
+package does not export `./package.json` and asking a package about its own `exports`
+through `exports` is circular — a probe that fails identically before and after the
+release answers nothing:
+
+    node -e "console.log(Object.keys(JSON.parse(require('node:fs').readFileSync('node_modules/@girs/gtk-4.0/package.json','utf8')).exports).join(' '))"
+
+When either prints `./surface`, and the file it names carries a `Widgets` interface plus
+the runtime constants (`OWN_PROPS`, `OWN_SIGNALS`, `DECLS`, `ENUM_NICKS`,
+`SLOT_CANDIDATES`, `SINCE`), migration steps 3–5 of ADR 0029 § Implementation can
+start. Until then a consumer-side branch could only resolve against a local
+ts-for-gir checkout, which is not something CI can reproduce.
+
+**Two things to pin when it does arrive.** The `@girs` version must be EXACT, not a
+caret: `@gjsify/gtk-host` declares eight `@girs/*` packages at `^4.1.0`, and a minor
+`@girs` release moving the surface under a lockfile-less install is the hazard ADR
+0029 § Risks 1 names. And `@girs` carries two cadences — package `version` 4.1.0 and
+`libraryVersion` 4.23.0 — so the pin is on the former.
+
+**One measured shape difference to expect in the diff, not a bug.** `props.ts` widens
+every object-typed property with `| null`; the `@girs` surface prints the nullability
+GIR states, because it reads the same model the main emitter does. Measured against the
+generated Gtk-4.0 surface: **12 of its 418 dashed keys** — `action-target`, `cell-area`,
+`cell-area-context`, `pointing-to`, `page-setup`, `print-settings`, `accel-size-group`,
+`title-size-group` and the four `primary-`/`secondary-icon-gicon`/`-paintable` keys. So
+the migration will surface fixtures that pass `null` to a property GIR does not mark
+nullable. That is a real narrowing and wants a decision — widen in the consumer dialect,
+or fix the fixtures — rather than a silent cast.
 
 ### An adopted composite offsets by its own internals
 

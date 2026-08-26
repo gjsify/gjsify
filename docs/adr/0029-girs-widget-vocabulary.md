@@ -1,7 +1,7 @@
 # 29. The widget vocabulary moves to `@girs/*`, dialects stay with consumers
 
-- Status: **Proposed**
-- Date: 2026-08-25
+- Status: **Accepted**
+- Date: 2026-08-25, accepted 2026-08-26 with the three corrections in § Implementation
 - Deciders: Pascal Garber
 - Related: [ADR 0027 (GTK host layer)](0027-gtk-host-layer.md), [ADR 0028 (widget table provenance)](0028-widget-table-provenance.md), [ADR 0019 (ts-for-gir as a library)](0019-ts-for-gir-as-library.md), [ADR 0026 (HTML parsing and selector engine)](0026-html-parsing-and-selector-engine.md)
 
@@ -193,6 +193,17 @@ peachy needs no dialect at all: its element type is the class, so `props` and
 `constructOnly` reach it through the class it already imports, and `$type`
 narrows from `slotCandidates`.
 
+One shape difference the consumer migration will meet, recorded so it is not read as a
+bug: gtk-host's `props.ts` widens EVERY object-typed property with `| null` ("clearing
+one is legitimate"), while the `@girs` surface prints the nullability GIR states,
+because it reads the same model the main emitter does. **Measured, so the migration has a
+number rather than a shrug: 12 of the 418 dashed keys in the Gtk-4.0 surface** —
+`action-target`, `cell-area`, `cell-area-context`, `pointing-to`, `page-setup`,
+`print-settings`, `accel-size-group`, `title-size-group` and the four
+`primary-`/`secondary-icon-gicon`/`-paintable` keys. That is a narrowing, and it wants a
+decision in the consumer — widen in the dialect, or fix the fixtures that pass `null` to a
+property GIR does not mark nullable — rather than a cast.
+
 ### 4. Placement stays curated, and the GIR supplies the gate
 
 A GIR-only surface **cannot** express adoption. Measured across the 164 concrete
@@ -268,6 +279,18 @@ that are not performance:
 The cost is bounded and one-time: 2.25 s for all seven namespaces, at generation
 time, inside a generator that already parses 705 GIR files.
 
+**As implemented it is stronger than "the same parser twice".** The surface is built
+from ts-for-gir's own MODEL — `IntrospectedClass`, `IntrospectedProperty`,
+`IntrospectedEnum` — not from a second `parser.parseGir()` pass, so a name the surface
+references is literally a name the main emitter emitted rather than a name a second
+read agreed about. That closes the § 6.1 concern by construction, and it cost three
+fields the model was throwing away: `GirEnumMember.nick` (the parser has modelled
+`glib:nick` since the beginning and nothing read it), `IntrospectedBase.glibTypeName`
+(the GType was reachable only inside `resolve_names`, mixed with `c:type` and
+`glib:type-struct`), and `IntrospectedProperty.girName` (`fromXML` rewrites `-` to `_`,
+and `propertyCase: "both"` then emits a camelCase COPY, so neither spelling in the
+model is the name GObject registered).
+
 **The dogfooding loss is real and gets paid explicitly rather than absorbed.**
 `gir.mts` was worth having partly because it exercised a Tier-1 package against a
 real 6 MB document. Retiring it silently removes that coverage. It is therefore
@@ -294,7 +317,23 @@ already uses. That turns a side effect of production use into a named gate.
   Without `SINCE` the version-skew rule from ADR 0028 § Implementation loses its
   input and degrades to an allowlist.
 - The surface is emitted only for namespaces that actually declare `GtkWidget`
-  descendants — not for all 1 061 GIRs.
+  descendants. Measured on the landed generator: 705 `.gir` files in ts-for-gir's
+  `girs/` reduce to 475 distinct namespaces, 102 of which declare a concrete
+  `GtkWidget` descendant; a full run emits 703 `@girs/*` packages and **138** of them
+  carry a `./surface` (more than 102 because a namespace with two versions — Gtk-3.0
+  and Gtk-4.0 — is two packages).
+- **One correction to the rule above, and it is a real one.** A base a widget inherits
+  from can live in a namespace that declares no widgets and still carry settable
+  properties. Dropping it shrinks the vocabulary by properties nobody would notice were
+  missing; giving its namespace a surface would publish a widget surface with no widgets
+  in it. So such a base is INLINED into the consuming surface, and named in that file's
+  provenance line so growth shows up in a diff. Measured across all 475 namespaces this
+  happens EXACTLY ONCE — `Gcr.Prompt`, a GObject interface with ten writable properties,
+  implemented by widgets that live in `GcrUi` — and the first version of the generator
+  refused the input instead, which took a 705-namespace run down at namespace 265. A
+  base from such a namespace that carries NOTHING settable is still dropped: Gtk-4.0 and
+  Adw-1 each reach four (`GObject.Object`, `GObject.InitiallyUnowned`,
+  `Gio.ActionGroup`, `Gio.ActionMap`), all empty.
 - ADR 0028 § 6's "gtkx is explicitly not a design constraint" survives unchanged,
   and is now better supported: gtkx binds GObject through napi and augments
   `React.JSX` globally. What this ADR takes from it is a hazard to avoid, not a
@@ -334,32 +373,73 @@ already uses. That turns a side effect of production use into a named gate.
 3. **Making every `@girs/*` consumer pay.** Answered structurally, not by
    promising it is small: the surface is a **separate subpath**, so a consumer
    that never imports it parses **zero** additional bytes — TypeScript reads only
-   files a program reaches. For scale: the Gtk-4.0 surface is 145 KB / 3 259 lines
-   against a 5.86 MB / 147 574-line base `.d.ts` — 2.5 % if imported, 0 % if not.
+   files a program reaches. For scale, as landed: the Gtk-4.0 surface is 158 KB /
+   3 193 lines against a 5.86 MB / 147 574-line base `.d.ts` — 2.8 % if imported, 0 %
+   if not.
    The design's refusal to add a `$properties` phantom is what makes this true;
    a phantom would land in the base file and be unavoidable.
 
 ## Implementation
 
-Prototype (branch `proto/girs-widget-surface` off ts-for-gir `main` @ 87dc649,
-`prototypes/widget-surface/`, not wired into the release path):
+**Step 1 is landed in ts-for-gir** (`packages/generator-typescript/src/surface/`, behind
+a `widgetSurface` flag that `.ts-for-gir.packages-all.rc.js` turns on). The measurement
+from the real generator, against the prototype numbers this ADR was written from:
 
-- Adw-1: 62 widgets, 81 declarations, 28 enums, 62 slot candidates — 2 754 lines.
-- Gtk-4.0: 102 widgets, 127 declarations, 38 enums, 59 slot candidates — 3 259 lines.
-- 102 + 62 = **164**, matching gtk-host's own concrete-widget count exactly.
-- Both compile with `skipLibCheck: false`, `strict`, `noImplicitAny`: `tsc` exit 0,
-  with a deliberately-wrong control confirming the config checks.
+| | prototype | landed | why it moved |
+|---|---:|---:|---|
+| Gtk-4.0 widgets / declarations | 102 / 127 | 102 / 123 | four empty bases from namespaces with no surface are dropped |
+| Gtk-4.0 enum nick unions | 38 | 105 | a namespace emits a union for EVERY registered enum it declares, not only the ones its own properties reference — see below |
+| Gtk-4.0 slot candidates | 59 | 60 | candidates are keyed by SLOT, and two methods can derive one name (`set_child`/`add_child` → `child`); first wins in sorted order, because a duplicate key in a type literal is TS1117 |
+| Gtk-4.0 surface lines | 3 259 | 3 193 | — |
+| Adw-1 widgets / declarations | 62 / 81 | 62 / 63 | the Gtk half of the chain is IMPORTED from `@girs/gtk-4.0/surface`, not copied |
+| Adw-1 enum nick unions | 28 | 25 | the Gtk-owned unions — six in the landed version — are imported rather than copied, and the all-registered rule below adds Adw's own unreferenced enums |
+| Adw-1 surface lines | 2 754 | 2 373 | both of the above |
+
+**Why "every registered enum", and why the first count was 38.** Emit-what-you-reference
+is what shipped first, and the per-package `tsc --project` failed it:
+`GtkSourceView:text-window-type` reaches `Gtk.TextWindowType`, no Gtk-4.0 widget property
+does, so `@girs/gtk-4.0/surface` had no `GtkTextWindowTypeNick` for
+`@girs/gtksource-5/surface` to import — TS2305, and the same shape for `GtkPackTypeNick`
+in Handy-1 against Gtk-3.0. The nick vocabulary of a namespace is a property of the
+NAMESPACE, not of which of its own properties happen to use it, and emitting all of them
+is also what makes `ENUM_NICKS` a complete answer for a consumer checking nicks against
+the installed library. The 38 and 16 in the first version of this table are the
+pre-fix numbers; the +67 unions on Gtk-4.0 and +9 on Adw-1 account for the line deltas
+above exactly, in the `.d.ts` and in the runtime data alike.
+
+102 + 62 = **164** still matches gtk-host's own concrete-widget count exactly. The
+Gtk-4.0 surface is 158 KB / 3 193 lines against a 5.86 MB / 147 574-line base `.d.ts` —
+2.8 % if imported, 0 % if not — plus 45 KB / 600 lines of runtime data.
+
+Three corrections this ADR needed, all of them from running the thing:
+
+1. **Cross-namespace declarations are imported, not inlined.** The prototype copied the
+   whole Gtk chain into Adw's file, which is what its 81/28 counts measure. Two
+   nominally distinct `GtkWidgetProps` in one program is a confusing error waiting for
+   the first consumer that mixes them.
+2. **A base from a namespace with no surface is inlined when it carries settable
+   properties**, not refused — § Consequences, with the one corpus-wide counterexample.
+3. **The reader is ts-for-gir's own MODEL, not a second parse** — § 6.
+
+The gate is `tests/widget-surface`: positives over a small fixture toolkit, plus three
+controls that must go the other way — the flag off emits nothing and no `./surface`
+export, an unmappable property type exits non-zero naming the property, and the `.d.ts`
+and `.js` halves are read independently and compared. The emitted surface is also in
+each generated package's `tsconfig.json#include`, which is what caught the first real
+defect: 9 × TS2304 in Adw-1, because nick unions owned by Gtk were skipped locally
+without being imported.
 
 Migration order, each step green before the next:
 
-1. Land the subpath in ts-for-gir behind a per-namespace opt-in, plus the runtime
-   data module. `@girs/*` main `.d.ts` untouched.
-2. Add `$readableProperties`' equivalent — the `props` axis reached through
-   `Widgets` — and verify peachy's `global.d.mts` compiles against `@girs/*`
-   unchanged. That is the "does an outsider benefit" test, and it is falsifiable.
+1. Land the subpath in ts-for-gir behind a per-namespace opt-in, plus the runtime data
+   module, `@girs/*` main `.d.ts` untouched — **done**.
+2. Verify peachy's `global.d.mts` compiles against `@girs/*` unchanged, with the `props`
+   axis reached through `Widgets` standing in for `$readableProperties`. That is the
+   "does an outsider benefit" test, and it is falsifiable. Not done.
 3. gjsify pins the exact `@girs` version, replaces `generated/props.ts` with the
-   consumer dialect, and repoints `generated.spec.ts` at the published runtime
-   data. `widgets.ts`, `descriptors/` and `emit.mts` do not move.
-4. Retire `gir.mts` from the generation path; keep it as the domparser
-   differential test.
+   consumer dialect, and repoints `generated.spec.ts` at the published runtime data.
+   `widgets.ts`, `descriptors/` and `emit.mts` do not move. **Blocked on a published
+   `@girs` release**; the probe that says it has arrived is in `status/open-todos.md`.
+4. Retire `gir.mts` from the generation path; keep it as the domparser differential
+   test. Needs 3.
 5. Only then consider deriving `omittedProps` from the curated placement rule.
