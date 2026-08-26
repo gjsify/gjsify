@@ -22,12 +22,14 @@ name: Build Native Prebuilds
 # held back with it: `windows-latest` bills at 2x where macOS bills at 10x, and
 # on a public repo both are free — so the cost that justifies the macOS opt-in
 # does not exist here, and a target with no PR coverage is a target whose breaks
-# are found on main. The two EXPLORATORY legs
-# (`build-prebuilds-macos-experimental`, `build-prebuilds-musl`) are
-# workflow_dispatch-only and nothing depends on them: each builds a target that
-# is not yet declared in any `gjsify.platforms`, and this repo's
-# declared-vs-built invariant is symmetric, so the leg proves itself first and
-# the declaration follows. That is wider than the "native x86_64, Vala-only" shape
+# are found on main. The EXPLORATORY leg `build-prebuilds-macos-experimental` is
+# workflow_dispatch-only and nothing depends on it: it builds a target that is
+# not yet declared in any `gjsify.platforms`, and this repo's declared-vs-built
+# invariant is symmetric, so the leg proves itself first and the declaration
+# follows. `build-prebuilds-musl` was in that category and is NOT any more — it
+# runs here like the glibc legs and can go red, because `-musl` is not a
+# `gjsify.platforms` token in the first place (its header carries why). That is
+# wider than the "native x86_64, Vala-only" shape
 # the status notes once proposed, for two measured reasons:
 #   • A Vala-only leg would have been GREEN on the very break that motivated
 #     this — #827 was a Rust dependency-resolution failure in oxfmt-native. A PR
@@ -2392,22 +2394,35 @@ jobs:
   # ----------------------------------------------------------------
   # Alpine / musl — prebuilds/linux-{x64,arm64}-musl
   #
-  # MANUAL DISPATCH ONLY, and deliberately absent from every `needs` in this
-  # file — the same posture `build-prebuilds-macos-experimental` above takes,
-  # for the same reason plus one that is specific to this axis.
+  # RUNS ON EVERY PR AND PUSH the workflow's paths reach, like the glibc build
+  # legs, and it can go RED. It spent its whole life `workflow_dispatch`-only and
+  # `continue-on-error: true`, and in that shape it was never dispatched once —
+  # so the one leg that executes anything on musl gated nothing for its entire
+  # existence, while the status surface described it as "unproven" rather than
+  # "unrun". Measured: the GitHub API lists no `workflow_dispatch` run of this
+  # workflow after 2026-08-10, and this job was added on 2026-08-16.
   #
-  # WHY IT CANNOT SIMPLY BE ADDED TO THE REQUIRED LEGS. No `-musl` token is
-  # declared in any package's `gjsify.platforms`, and the declared-vs-built
-  # invariant is SYMMETRIC: `audit-runtimes --check` fails a declared target no
-  # CI job produces AND a CI-produced target no package declares. So the
-  # declaration, the leg and the artifact have to land in ONE change — and the
-  # honest order is leg first, green run, then the other two. That order is
-  # available precisely because `parseCiPlatforms()` EXCLUDES jobs gated on
-  # `github.event_name == 'workflow_dispatch'` (a manually-dispatched
-  # exploratory job is not a platform CI produces), so while this leg is
-  # unproven it contributes nothing to the audit in either direction. The `if:`
-  # line below is what that parser matches, character for character — do not
-  # rewrite it into an equivalent expression without teaching the parser first.
+  # WHY IT CAN BE A GATE NOW, given that the declared-vs-built invariant is
+  # SYMMETRIC (`audit-runtimes --check` fails a declared target no CI job
+  # produces AND a CI-produced target no package declares): because `-musl` is
+  # not a `gjsify.platforms` token AT ALL, by an existing decision this leg does
+  # not get to revisit. The target vocabulary is `<os>-<arch>` and the libc
+  # distinction rides the npm `libc` field, which
+  # `generate-platform-packages.mjs` MEASURES from the ELF — see
+  # `musl-build.sh`'s header. So this job makes no platform PROMISE, and
+  # `parseCiPlatforms()` must not credit it with one: each matrix entry carries
+  # `libc: musl`, the parser composes `linux-<arch>-musl` from it and drops
+  # libc-carrying tokens from the promise map, with an unknown libc value a hard
+  # parse error rather than a silent fold. Without that key the parser would
+  # credit these packages with `linux-x64`/`linux-arm64` — targets the glibc legs
+  # build and this one does not — which is a green audit measuring the wrong job,
+  # and would let the real leg be deleted unnoticed. Deleting the key is
+  # therefore a defect the `ci-runner-arch` e2e fixtures fail on.
+  #
+  # WHAT WOULD STILL HAVE TO LAND FOR A COMMITTED `-musl` ARTIFACT: this leg
+  # uploads and commits nothing, so nothing here promises a musl binary to a
+  # consumer. That promotion is a separate change with its own prerequisites —
+  # `status/open-todos.md` carries them.
   #
   # WHY MUSL. postmarketOS v26.06 ("Alpen Avocado", 2026-06-21) is based on
   # Alpine 3.24, which is the target that makes a GJS/GNOME phone able to use
@@ -2538,64 +2553,58 @@ jobs:
   # `<os>-<arch>`. The "Confirm this container resolves as a musl target" step
   # below asserts that resolution BEFORE anything is built, using the very
   # function the stager calls, so a node that mis-detected the host fails loudly
-  # instead of clobbering. `--allow-undeclared` is the documented flag for
-  # exactly this state — CI leg now, declaration later, symmetry never broken —
-  # and it prints its own warning that the result must not be committed.
+  # instead of clobbering.
+  #
+  # EACH BRIDGE STAGES INTO ITS OWN DIRECTORY, and that is not tidiness — it is
+  # the defect that kept this leg from ever being green. Both packages used to
+  # pass one `--dest` directory, and the stager REPLACES its destination
+  # (`rmSync`, so a renamed library cannot ship a stale set), so whichever
+  # package staged second deleted the first one's typelib and the leg died on
+  # `Typelib file for namespace 'GjsifySabNative' (any version) not found` —
+  # a message naming musl and GI for a file its own run had removed. The fix is
+  # `--scratch`, which DERIVES the destination from the package, so two bridges
+  # cannot name one directory; `--allow-undeclared` stays, because
+  # `linux-<arch>-musl` is in no `gjsify.platforms` (see the header above) and
+  # the stager then prints its own "do NOT commit this" warning. Exactly the pair
+  # `build-prebuilds-macos-experimental` uses, for the same two reasons.
+  #   It is also what makes the uploads possible at all: `--scratch` writes into
+  #   the BIND-MOUNTED workspace, and `/tmp/musl-prebuilds` did not — it lived in
+  #   a `--rm` container, so both upload steps (`if-no-files-found: error`) could
+  #   never have found a file, whatever the build did.
   #
   # NOTHING IS WIRED INTO `commit-prebuilds`, and no `gjsify.platforms` /
-  # `libc` / `optionalDependencies` entry is added. The artifacts are uploaded
-  # so a dispatch can be inspected and diffed; committing them is the promotion
-  # step, together with the declaration.
-  #   WHAT THAT PROMOTION HAS TO INCLUDE, because it is not obvious and it is
-  #   easy to ship a prebuild nobody can install: both packages here declare
-  #   `libc: ["glibc"]` today (npm, yarn and pnpm all honour it as an install
-  #   FILTER), which is correct while the only artifact is a glibc one — and
-  #   which would keep every musl host from ever receiving the `-musl` sibling.
-  #   Promotion is therefore four things in one change: the `-musl` tokens in
-  #   `gjsify.platforms`, `libc: ["glibc","musl"]`, this job losing its
-  #   dispatch-only gate, and the matching download + `git add` in
-  #   `commit-prebuilds`. `PLATFORM_RE`/`canonicalPlatform` in
-  #   manifest-conformance's `lib/platforms.mjs` must learn the optional suffix
-  #   in that same change — they are libc-blind today, which `prebuild-libc.mjs`
-  #   records as its own follow-up.
+  # `libc` / `optionalDependencies` entry is added. The artifacts are uploaded so
+  # a run can be inspected and diffed; committing them is a separate promotion
+  # whose prerequisites (a published musl-carrying platform package, and
+  # `PLATFORM_RE`/`canonicalPlatform` learning the optional suffix — they are
+  # libc-blind today, which `prebuild-libc.mjs` records as its own follow-up) are
+  # in `status/open-todos.md`. What this leg buys without any of that is the thing
+  # it was always for: the npm `libc` policy — `@gjsify/<x>-linux-<arch>` is
+  # installed on musl hosts BY DESIGN — rests on the claim that these sources
+  # work when built against musl, and nothing else in CI compiles or runs
+  # anything on musl.
   #
   # ── REPRODUCE BY HAND ─────────────────────────────────────────────────────
   #
-  #   podman run --rm -it --security-opt label=disable \
-  #     -v "$PWD:/repo:ro" alpine:3.24 sh
-  #   # then, inside: apk add … ; cp -r /repo/packages/<pkg> /work ; cd /work ;
-  #   #               meson setup build . && meson compile -C build
+  # `musl-build.sh`'s header carries the one-liner, and running THAT is the
+  # reproduction — the script is the whole job. Read the SELinux and `--platform`
+  # notes there before improvising the flags: both were paid for once.
   #
-  # `--security-opt label=disable`, NEVER `-v …:Z`. On an SELinux host `:Z`
-  # relabels the work tree into a container-private MCS category; two concurrent
-  # `:Z` mounts then lock each other out and the symptom is a `Permission
-  # denied` that reads like a broken build, plus a work tree left relabelled
-  # afterwards. `label=disable` relabels nothing. The `:ro` and the copy are the
-  # other half of the same caution: a container build must not be able to write
-  # a musl artifact into your checkout.
+  # ── THE JOB'S SHAPE IS NOT A GUESS ────────────────────────────────────────
   #
-  # ── THE SECOND INFERENCE: THIS JOB'S SHAPE ────────────────────────────────
-  #
-  # The probe ran its builds with `podman run`; it never ran a GitHub Actions
-  # CONTAINER JOB on a musl image. What is therefore assumed here is that the
-  # runner can execute its JavaScript actions
-  # (actions/checkout, actions/upload-artifact) inside an Alpine container,
-  # i.e. that it supplies a musl node for them. If that assumption is wrong the
-  # run dies before the first `run:` step with something like
-  # `/__e/node20/bin/node: not found`, which is unmistakable.
-  # THE FALLBACK, if so: keep this job's steps but move the compile into a
-  # `docker run --platform … alpine:3.24` from an ordinary ubuntu runner, the
-  # way `build-prebuilds-qemu` already does (no QEMU needed — both arches have
-  # native runners). That means teaching `.github/prebuild-toolchain/
-  # emulated-build.sh` an apk branch and a libc-carrying target token, NOT
-  # adding a second build script beside it; the refusal branch that file now
-  # carries names both prerequisites.
+  # There is no job-level `container:` and no JavaScript action runs inside
+  # Alpine: `actions/checkout` and `actions/upload-artifact` run on the glibc
+  # host, and everything that must observe musl runs inside `alpine:3.24` through
+  # one script. That inversion is what the arm64 leg needs — GitHub's action
+  # runtime ships for musl only as an x64 binary, so a job-level Alpine container
+  # dies at `Checkout repository` there with "JavaScript Actions in Alpine
+  # containers are only supported on x64 Linux runners" — and it is also what
+  # makes the leg reproducible by hand, since the script takes the whole job.
   # ----------------------------------------------------------------
   build-prebuilds-musl:
-    name: Build prebuilds (linux-${{ matrix.arch }}-musl) [experimental — Alpine/musl]
+    name: Build prebuilds (linux-${{ matrix.arch }}-musl) [Alpine/musl]
     needs: [changes]
     runs-on: ${{ matrix.runner }}
-    if: github.event_name == 'workflow_dispatch'
     timeout-minutes: 60
 
     # NO job-level `container:`, and that is the fix rather than a preference.
@@ -2621,16 +2630,21 @@ jobs:
     # assuming it, by requiring `stage-prebuild.mjs` to resolve the host as the
     # matrix entry's own token before it builds anything.
     #
-    # `continue-on-error` because this leg is a CANARY, not a gate: it is
-    # dispatch-only, it appears in no `needs:` (see `commit-prebuilds`), and its
-    # artifacts are NEVER committed — it builds targets no package declares yet,
-    # so it proves itself before the declaration exists. What it must not do is
-    # colour the run red, because that is how it spent 2026-08-01..03 hiding the
-    # real blocker: `commit-prebuilds` was failing at its gate for 41 hours with
-    # every build leg green, and two permanently-red musl legs sat next to it
-    # making the workflow look broken for a reason nobody was chasing. A
-    # canary's failure has to be visible and harmless, in that order.
-    continue-on-error: true
+    # NO `continue-on-error`, and that removal is the point of this shape. It was
+    # justified as "a canary's failure has to be visible and harmless, in that
+    # order" — the incident being 2026-08-01..03, when two permanently-red musl
+    # legs made the workflow look broken while `commit-prebuilds` failed at its
+    # gate for 41 hours with every build leg green. That reasoning holds for a leg
+    # EXPECTED to be red; both of its premises are now gone. The legs were red
+    # because of a job shape (a musl `container:` on arm64) and a staging defect
+    # (two packages, one `--dest`), and both are fixed and reproduced locally, so
+    # a red run here means a real regression on the one libc axis nothing else in
+    # CI touches. `continue-on-error` on a leg that can be green is the exact
+    # shape of a gate that cannot fail, which is this repository's most expensive
+    # defect class.
+    #   The 41-hour incident's real lesson is kept elsewhere and is not undone
+    #   here: `commit-prebuilds` still owns its own gate and is not gated on this
+    #   job, so a musl failure cannot hide or block the commit path.
 
     strategy:
       fail-fast: false
@@ -2645,8 +2659,19 @@ jobs:
           # `arch` carries the bare CPU token, exactly as in `build-prebuilds`;
           # the `-musl` suffix is composed into `PREBUILD` below rather than
           # smuggled into this key, so the value stays the one
-          # `${process.arch}` computes. (It is inert for the audit either way:
-          # `parseCiPlatforms()` skips this job entirely, see the header.)
+          # `${process.arch}` computes.
+          #
+          # `libc` is what keeps this job out of the platform-PROMISE audit now
+          # that it is no longer dispatch-only. `parseCiPlatforms()` reads it,
+          # composes `linux-<arch>-musl`, and drops libc-carrying tokens from the
+          # map that declared-vs-built is computed from — because `-musl` is not a
+          # `gjsify.platforms` token at all (the libc distinction rides the npm
+          # `libc` field; see `musl-build.sh`'s header). DELETING THIS KEY IS A
+          # DEFECT, not a simplification: without it the parser credits these two
+          # packages with `linux-x64`/`linux-arm64`, which the glibc legs build and
+          # this one does not, so the audit would go green having measured the
+          # wrong job — and the real leg could then be deleted unnoticed. The
+          # `ci-runner-arch` e2e fixtures fail on both halves of that.
           #
           # `machine` is `file(1)`'s spelling of the ELF e_machine this leg must
           # produce. The committed tree's machine-vs-directory invariant is held
@@ -2656,9 +2681,11 @@ jobs:
           # the same way `emulated-build.sh` reports `file` on what it just
           # produced, and for the same incident.
           - arch: x64
+            libc: musl
             runner: ubuntu-latest
             machine: x86-64
           - arch: arm64
+            libc: musl
             runner: ubuntu-24.04-arm
             machine: aarch64
 
@@ -2697,13 +2724,31 @@ jobs:
       # locally: without a forced platform, a cached foreign-arch image runs
       # emulated and podman warns rather than fails — an assertion is the only
       # thing that catches that in CI.)
+      #
+      # `-e CI=true` is what makes the committed `src/rust/Cargo.lock` ENFORCED in
+      # here, exactly as the emulated Fedora leg above documents: a `docker run`
+      # inherits NOTHING, so without it `${CI:+--locked}` in
+      # `lightningcss-native/meson.build` expands to nothing, the build still USES
+      # the lock and silently stops FAILING on a stale one. This leg is the only
+      # place a musl `cargo build` happens, and the musl notes claim the committed
+      # lock resolves UNCHANGED there — a claim that is only tested with the flag.
+      # Passed as the literal rather than `"$CI"` so `set -u` cannot trip when the
+      # command is reproduced by hand.
       - name: Build and verify every musl prebuild inside alpine:3.24
         run: |
           set -euo pipefail
           docker run --rm \
             -v "$PWD:/workspace" -w /workspace \
             -e PREBUILD -e MACHINE -e PREBUILD_SKIP \
+            -e CI=true \
             alpine:3.24 sh .github/prebuild-toolchain/musl-build.sh
+
+      # The build ran as root inside the container, so the staged files are
+      # root-owned on the runner. Hand them back before the uploads read them —
+      # the same step, for the same reason, as the emulated Fedora leg.
+      - name: Restore workspace ownership
+        if: always()
+        run: sudo chown -R "$(id -u):$(id -g)" packages || true
 
       # The uploads stay on the host: their paths are in the bind-mounted
       # workspace, and `upload-artifact` is a JS action that must not be asked to
@@ -2731,9 +2776,11 @@ jobs:
   #
   # The libc axis is the one no other CI branch covers, and until this job it was
   # asserted nowhere that a PR or a merge could see. `build-prebuilds-musl` owns
-  # the same question for the artifacts it BUILDS, but it is
-  # `workflow_dispatch`-only AND `continue-on-error: true` — both right for a
-  # canary (see its header), both fatal for a gate.
+  # the same question for the artifacts it BUILDS, and it is a gate too now — but
+  # a different one, and both are wanted: that leg answers "do these SOURCES work
+  # when compiled against musl", this job answers "do the binaries users actually
+  # get resolve there". Only the second needs no build, which is what lets it run
+  # unconditionally and cost nothing.
   #
   # This job needs no build at all: it reads binaries already in the tree, which
   # is also what makes it cheap enough to run unconditionally. No `needs:` —
@@ -2838,13 +2885,19 @@ jobs:
   # ----------------------------------------------------------------
   commit-prebuilds:
     name: Commit prebuilds to repo
-    # build-prebuilds-macos-experimental and build-prebuilds-musl are
-    # deliberately absent: both are workflow_dispatch-only, and a skipped job in
-    # `needs` would skip this one too. For the musl leg that absence is doubly
-    # deliberate — it produces `-musl` artifacts no package declares, and
-    # committing an undeclared target is exactly what the `prebuild-artifacts`
-    # rule fails on. It gets wired in here in the same change that adds the
-    # declaration, not before.
+    # build-prebuilds-macos-experimental is deliberately absent: it is
+    # workflow_dispatch-only, and a skipped job in `needs` would skip this one
+    # too.
+    #
+    # build-prebuilds-musl is absent for a DIFFERENT reason now that it is no
+    # longer dispatch-only, and the difference matters in both directions. It
+    # produces `-musl` artifacts no package declares, and committing an undeclared
+    # target is exactly what the `prebuild-artifacts` rule fails on — so there is
+    # nothing here to download and it gets wired in only with the declaration.
+    # Keeping it out of `needs` is also what preserves the 41-hour incident's
+    # lesson: a musl regression colours the run red on its own without taking the
+    # commit path down with it, which is what `continue-on-error` used to buy at
+    # the price of a leg that could not fail at all.
     #
     # `build-prebuilds-win32` IS here, and it is what that sentence looks like
     # once it has been paid: the leg lost its dispatch gate, `@gjsify/webgl`
@@ -3811,10 +3864,12 @@ jobs:
               echo 'skipped leg that matters is `build-prebuilds-macos` — every Linux target in'
               echo '`package.json#gjsify.platforms` is built, neither `darwin-arm64` nor'
               echo '`darwin-x64` is (both are legs of that one matrixed job). Label the PR'
-              echo '`ci:macos` to add them. (`build-prebuilds-macos-experimental` and'
-              echo '`build-prebuilds-musl` are dispatch-only by design — each builds targets no'
-              echo 'package declares yet, so they prove themselves before the declaration'
-              echo 'exists — and `commit-prebuilds` is main-only by design.)'
+              echo '`ci:macos` to add them. (`build-prebuilds-macos-experimental` is dispatch-only'
+              echo 'by design — it builds targets no package declares yet, so it proves itself'
+              echo 'before the declaration exists — and `commit-prebuilds` is main-only by'
+              echo 'design. `build-prebuilds-musl` is neither: it runs here like the glibc legs'
+              echo 'and a skip means the `changes` job found neither of its two packages'
+              echo 'affected.)'
             else
               echo '**Every prebuild leg in this workflow ran.**'
             fi

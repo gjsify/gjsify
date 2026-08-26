@@ -610,4 +610,116 @@ jobs:
             'the job-level test cannot separate these two steps, so the per-step one has to: a download step’s `path:` is a DESTINATION, and `@gjsify/tls-native` is not built on Windows by anything.',
         );
     });
+
+    // THE LIBC AXIS. `prebuilds.yml`'s Alpine leg builds the same sources against
+    // musl on ordinary ubuntu runners, so its `runs-on` says `linux-x64` — the
+    // very target the glibc legs build and it does not. It carries `libc: musl`
+    // on each matrix entry precisely so the parser composes `linux-<arch>-musl`
+    // and drops it: `-musl` is not a `gjsify.platforms` token (the distinction
+    // rides npm's `libc` field), so the leg proves the sources build and load on
+    // musl without promising anyone a musl binary.
+    //
+    // The PAIR below is the point. The first fixture is what the workflow looks
+    // like; the second is what deleting one key does, and it is why the key
+    // cannot be "simplified" away — the same job then hands a package a platform
+    // promise it never builds, the audit stays green, and the leg that really
+    // builds `linux-x64` could be deleted with nothing going red.
+    const alpineJob = (libcLine) => `
+name: fixture
+jobs:
+  build-prebuilds-musl:
+    runs-on: \${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+${libcLine}
+            runner: ubuntu-latest
+    steps:
+      - name: Build and verify every musl prebuild inside alpine:3.24
+        run: docker run --rm alpine:3.24 sh .github/prebuild-toolchain/musl-build.sh
+      - name: Upload @gjsify/tls-native musl prebuilds artifact
+        uses: actions/upload-artifact@v7
+        with:
+          path: packages/node/tls-native/prebuilds/linux-x64-musl/
+`;
+
+    it('credits nothing to a leg whose matrix entries declare `libc: musl`', async () => {
+        assert.deepEqual(
+            await coverage(alpineJob('            libc: musl')),
+            {},
+            'a musl leg makes no `<os>-<arch>` promise, so it must contribute nothing to declared-vs-built.',
+        );
+    });
+
+    it('credits the bare target as soon as the `libc:` key is dropped', async () => {
+        assert.deepEqual(
+            await coverage(alpineJob('')),
+            { '@gjsify/tls-native': ['linux-x64'] },
+            'this is what deleting `libc: musl` from the workflow does: the Alpine leg is credited with the glibc target it does not build. The key is load-bearing, not decoration.',
+        );
+    });
+
+    it('refuses an unrecognised `libc:` value instead of folding it down', async () => {
+        await assert.rejects(
+            () => coverage(alpineJob('            libc: gnu')),
+            /libc: gnu/,
+            'an unknown value must not compose the bare token — that is the silent form of the failure the fixture above makes loud.',
+        );
+    });
+
+    it('refuses `libc: musl` on a non-Linux entry', async () => {
+        await assert.rejects(
+            () =>
+                coverage(`
+name: fixture
+jobs:
+  build-prebuilds-macos:
+    runs-on: \${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: arm64
+            libc: musl
+            runner: macos-latest
+    steps:
+      - name: Collect @gjsify/webgl prebuilds
+        run: node scripts/stage-prebuild.mjs packages/framework/webgl --scratch
+      - name: Upload @gjsify/webgl prebuilds artifact
+        uses: actions/upload-artifact@v7
+        with:
+          path: packages/framework/webgl/prebuilds/darwin-arm64/
+`),
+            /Linux-only/,
+            'the libc axis is Linux-only, so the token cannot be composed and the entry would otherwise read as an ordinary promise.',
+        );
+    });
+
+    // The `workflow_dispatch` exclusion, which the workflow header claims is
+    // matched "character for character" and which nothing tested. It is the other
+    // half of how an exploratory leg stays out of the promise audit — and the two
+    // mechanisms are NOT interchangeable: dispatch-only keeps a leg out because
+    // nobody receives what it builds, `libc:` keeps one out because what it builds
+    // is not a platform. The musl leg moved from the first to the second, and the
+    // move is only safe because both are held here.
+    it('credits nothing to a job gated on workflow_dispatch', async () => {
+        assert.deepEqual(
+            await coverage(`
+name: fixture
+jobs:
+  build-prebuilds-macos-experimental:
+    runs-on: macos-latest
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Build @gjsify/tls-native Vala library
+        run: node scripts/stage-prebuild.mjs packages/node/tls-native --scratch --allow-undeclared
+      - name: Upload @gjsify/tls-native prebuilds artifact
+        uses: actions/upload-artifact@v7
+        with:
+          path: packages/node/tls-native/prebuilds/darwin-arm64/
+`),
+            {},
+            'a manually-dispatched exploratory job is not a platform CI produces, so declaring its target would promise an artifact no user receives.',
+        );
+    });
 });

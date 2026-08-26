@@ -1188,7 +1188,7 @@ gjs exposes `$gtype` uniformly (`[object GType for 'X']`); node-gi does not, and
 
 The arch axis is covered: `node-gi.yml`'s `arm64` leg builds the addon on a native `ubuntu-24.04-arm` Fedora 44 container, runs the gjs/node/bun/deno golden-diff plus the tier-B typelib oracle, and re-verifies the STAGED prebuild with `test:bun`+`test:deno`. Two other axes are not, and a 2026-08-03 hand run on a OnePlus 6T / postmarketOS (aarch64) is currently their only evidence:
 
-- **musl.** Every CI image is Fedora/glibc, and the one leg that would cover it is not wired: `prebuilds.yml`'s `build-prebuilds-musl` (which runs `.github/prebuild-toolchain/musl-build.sh`, including its `dlopen(RTLD_NOW)` assertion, in `alpine:3.24`) carries `if: github.event_name == 'workflow_dispatch'` — the workflow header documents it and `build-prebuilds-macos-experimental` as dispatch-only with nothing depending on them, since each builds a target no `gjsify.platforms` declares yet. The COMMITTED bridge prebuilds have since left that hole: `musl-committed-check.sh` was split out of the build leg and now runs on PRs and pushes as `check-committed-musl` (one native runner per arch) and again inside `commit-prebuilds`, over the staged tree. It cannot reach node-gi — this entry's subject commits no binary at all, its addon being published from `napi.yml`/`release.yml` — so for THE BRIDGE nothing still asserts musl loadability on a PR or a merge. That the assertion is `RTLD_NOW` is not incidental and must not be "simplified": measured with `@gjsify/sab-native`'s pre-#955 prebuild on aarch64 musl and in `alpine:3.24` x86-64, a plain/lazy load LOADS the broken library and the two unresolvable symbols (`fcntl64`, `__cmsg_nxthdr`) only surface at the first call — which is why its suite lost exactly two fd-passing tests and `@gjsify/worker_threads` four cross-process tests instead of everything, and GI's own `G_MODULE_BIND_LAZY` is that lazy path. A load-only gate using default flags would have passed that library; `RTLD_NOW` fails it at load. Both arches behave identically here. Wiring options, cheapest first: run `musl-build.sh` (or just its `dlopen(RTLD_NOW)` step over the committed prebuilds) on `pull_request`; add an Alpine leg driving the existing `test:bun` for real execution coverage; and keep the glibc-floor `SHT_GNU_verneed` audit (#963) as the check that needs no musl machine at all — it is what caught this one. Deno cannot participate in a musl leg: it publishes no musl build.
+- **musl.** Every CI image is Fedora/glibc, and the one leg that executes anything on musl does not reach this bridge. `prebuilds.yml`'s `build-prebuilds-musl` (which runs `.github/prebuild-toolchain/musl-build.sh`, including its `dlopen(RTLD_NOW)` assertion, in `alpine:3.24`) is no longer dispatch-only — it runs on every PR and push the workflow's paths reach and can go red — but it builds `@gjsify/sab-native` and `@gjsify/lightningcss-native`, not node-gi, whose addon is published from `napi.yml`/`release.yml` and whose `paths:` are deliberately a different trigger. The COMMITTED bridge prebuilds have left the other half of the hole: `musl-committed-check.sh` was split out of the build leg and now runs on PRs and pushes as `check-committed-musl` (one native runner per arch) and again inside `commit-prebuilds`, over the staged tree. It cannot reach node-gi — this entry's subject commits no binary at all, its addon being published from `napi.yml`/`release.yml` — so for THE BRIDGE nothing still asserts musl loadability on a PR or a merge. That the assertion is `RTLD_NOW` is not incidental and must not be "simplified": measured with `@gjsify/sab-native`'s pre-#955 prebuild on aarch64 musl and in `alpine:3.24` x86-64, a plain/lazy load LOADS the broken library and the two unresolvable symbols (`fcntl64`, `__cmsg_nxthdr`) only surface at the first call — which is why its suite lost exactly two fd-passing tests and `@gjsify/worker_threads` four cross-process tests instead of everything, and GI's own `G_MODULE_BIND_LAZY` is that lazy path. A load-only gate using default flags would have passed that library; `RTLD_NOW` fails it at load. Both arches behave identically here. Wiring options, cheapest first: give `node-gi.yml` an Alpine leg shaped like `build-prebuilds-musl` (one `docker run alpine:3.24` from a glibc runner, so no JavaScript action has to run on musl — the arm64 constraint that shape exists for); add an Alpine leg driving the existing `test:bun` for real execution coverage; and keep the glibc-floor `SHT_GNU_verneed` audit (#963) as the check that needs no musl machine at all — it is what caught this one. Deno cannot participate in a musl leg: it publishes no musl build.
 - **gjs 1.86.0, the declared floor.** Fedora 44 ships 1.88.x, so the floor this repo advertises is never exercised. Measured green through `org.gnome.Platform//49` (glibc 2.42, gjs 1.86.0), and it immediately caught a test encoding an unstated GLib ≥ 2.88 assumption (`GLib.Bytes.new_from_bytes` static-vs-instance introspection, fixed in the same change). A flatpak-runtime leg would be the honest gate; the GNOME runtime is a stable, pinnable image.
 
 Also unmeasured on aarch64 specifically, in CI and by hand: the display legs (`gtk-smoke`, `adw-smoke`, `gtk-template*`, `strv-construct`, `interface-props`) and the `--expose-gc` toggle-ref stress leg — `gtk-smoke` is `ubuntu-latest` (x64), and the device is driven over SSH with no display. Note the GTK TYPELIB path itself is fine there: `Gtk`/`Gdk`/`Adw`/`Pango`/`Graphene` all resolve and `Gtk.DrawingArea` subclasses with NO `GI_TYPELIB_PATH`/`LD_LIBRARY_PATH` help, on musl and inside the flatpak — the darwin "Failed to load shared library … referenced by the typelib" class is dyld-specific (no rpath on a plain `node`), not a Linux exposure.
@@ -2067,6 +2067,51 @@ printed on every musl run, and that entry FAILS the check the day the symbol
 stops appearing — so it cannot outlive the problem. Since the check left
 `musl-build.sh` it also runs on every PR and push touching the native paths, so
 the gap is now re-measured continuously rather than only on a dispatch.
+
+### The musl leg BUILDS and load-tests a `-musl` prebuild; nothing commits one
+
+`prebuilds.yml`'s `build-prebuilds-musl` is a gate now — it lost `continue-on-error` and its
+`workflow_dispatch` gate, runs on every PR and push the workflow's paths reach, and compiles
+`@gjsify/sab-native` + `@gjsify/lightningcss-native` inside `alpine:3.24` on native x64 and arm64
+runners, load-tests each under Alpine's `gjs` and `dlopen(RTLD_NOW)`s them with `LD_LIBRARY_PATH`
+unset. What it does NOT do is ship anything: the artifacts are uploaded and never committed, so a
+musl host still installs the glibc binary and lives with the `gnu_get_libc_version` gap above.
+
+Why the artifact is a separate change rather than one line more here, and what it needs:
+- **`libc: ["glibc"]` on `@gjsify/lightningcss-native-linux-x64` is an install FILTER** that npm,
+  yarn and pnpm all honour, so that package is not installed on a musl host at all. A `-musl`
+  artifact reaches a user only via a package a musl host installs — either by dropping that
+  filter from the existing platform package (the CLI already prefers `prebuilds/<os>-<arch>-musl/`
+  over `<os>-<arch>/`, see `prebuildDirCandidates`), or by a new `…-linux-x64-musl` sibling. The
+  second needs a manual npm first-publish + Trusted Publisher bootstrap BEFORE the release that
+  ships it (`docs/publishing.md`); skipping that stalls the release train for every
+  alphabetically later package, which is why it is not smuggled into a CI fix.
+- **`PLATFORM_RE`/`canonicalPlatform` in `packages/infra/manifest-conformance/lib/platforms.mjs`
+  are still libc-blind** — `PLATFORM_RE` rejects `linux-x64-musl` and `canonicalPlatform` folds it
+  down to `linux-x64`. That fold is not hypothetical: it silently swallowed the whole libc axis on
+  the first attempt at the CI parser, which credited the Alpine leg with the glibc target and
+  passed. `platforms-ci` now composes with `canonicalPrebuildTarget` instead, so the gap is
+  unreachable from there; a COMMITTED `-musl` directory would reach it, and both functions must
+  learn the optional suffix in that change.
+- **`commit-prebuilds` needs the matching download + `git add`**, and this job is deliberately
+  absent from its `needs` so a musl regression cannot take the commit path down with it.
+
+Until then the leg's value is exactly what its script says: the npm `libc` policy — a
+`libc`-less `@gjsify/<x>-linux-<arch>` is installed on musl hosts BY DESIGN — rests on the claim
+that these sources work when built against musl, and nothing else in CI compiles or runs anything
+on musl.
+
+### The Alpine aarch64 build is measured for one of the two bridges
+
+`musl-build.sh`'s header called both aarch64 builds INFERRED from the x86_64 ones plus an
+identical apk package set. Half of that is now measured: on an emulated `linux/arm64` `alpine:3.24`
+container, `stage-prebuild.mjs` resolves the host as `linux-arm64-musl` and `@gjsify/sab-native`
+compiles and stages its three artifacts. `@gjsify/lightningcss-native` was NOT reached there — its
+`cargo build --release` with LTO under qemu-user outran the local disk before it linked, which is
+a fact about the reproduction and not about the leg. Its aarch64 evidence therefore comes from the
+CI run on the native `ubuntu-24.04-arm` runner, which is also the cheaper answer; if that leg ever
+needs debugging by hand, expect the emulated Rust build to be the expensive part and give it a
+target directory outside `tmpfs`.
 
 ### `@gjsify/webrtc` cannot work on Alpine / postmarketOS — no `webrtcbin` element
 
