@@ -22,7 +22,16 @@ export const ADWAITA_ATTRIBUTES: Readonly<Record<string, readonly string[]>> = {
         'open',
     ],
     'adw-action-row': ['title', 'subtitle', 'activatable'],
-    'adw-alert-dialog': ['heading', 'body', 'open', 'prefer-wide-layout'],
+    'adw-alert-dialog': [
+        'heading',
+        'body',
+        'heading-use-markup',
+        'body-use-markup',
+        'close-response',
+        'default-response',
+        'open',
+        'prefer-wide-layout',
+    ],
     'adw-alert-response': ['id', 'appearance', 'enabled'],
     'adw-avatar': ['text', 'size', 'show-initials', 'icon', 'custom-image'],
     'adw-banner': ['title', 'button-label', 'revealed', 'use-markup', 'button-style'],
@@ -151,7 +160,7 @@ export const ADWAITA_ATTRIBUTES: Readonly<Record<string, readonly string[]>> = {
 };
 
 /** How many attributes the web pillar observes in total. */
-export const ADWAITA_ATTRIBUTE_COUNT = 256;
+export const ADWAITA_ATTRIBUTE_COUNT = 260;
 
 /** How many elements the pillar registers. An element with none is still an entry. */
 export const ADWAITA_ELEMENT_COUNT = 65;

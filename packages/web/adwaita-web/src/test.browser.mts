@@ -25,6 +25,7 @@ import { AdwActionRowsTest } from './adw-action-rows.spec.js';
 import { AdwBreakpointsTest } from './breakpoints.spec.js';
 import { AdwDataGridTest } from './adw-data-grid.spec.js';
 import { AdwDialogTest } from './adw-dialog.spec.js';
+import { AdwAlertDialogTest } from './adw-alert-dialog.spec.js';
 import { AdwDropDownTest } from './adw-drop-down.spec.js';
 import { AdwRowStateTest } from './adw-row-state.spec.js';
 import { AdwTabViewTest } from './adw-tab-view.spec.js';
@@ -62,6 +63,7 @@ run({
     AdwAccentTest,
     AdwShortcutLabelTest,
     AdwAboutDialogTest,
+    AdwAlertDialogTest,
     AdwBannerTest,
     AdwButtonContentTest,
     AdwIconTest,
