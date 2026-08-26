@@ -3873,8 +3873,9 @@ jobs:
               echo 'by design — it builds targets no package declares yet, so it proves itself'
               echo 'before the declaration exists — and `commit-prebuilds` is main-only by'
               echo 'design. `build-prebuilds-musl` is neither: it runs here like the glibc legs'
-              echo 'and a skip means the `changes` job found neither of its two packages'
-              echo 'affected.)'
+              echo 'and, like them, never skips as a whole job — the `changes` decision reaches'
+              echo 'it through `PREBUILD_SKIP` and the upload gates, never a job-level `if:`. So'
+              echo 'seeing it named here means `changes` itself did not succeed.)'
             else
               echo '**Every prebuild leg in this workflow ran.**'
             fi
