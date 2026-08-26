@@ -79,48 +79,50 @@ finalizers work as such — this is the node-api variant over
 `napi_create_external_buffer`. Which stage it really is remains unmeasured, which
 is the whole reason the marker change comes first.
 
-### 25 of gtk-host's 1907 node tests still fail, and 16 are one cluster
+### node-gi: two callable shapes diverge from gjs in calling convention, and their arity with it
 
-The two divergences that used to dominate this entry are FIXED — an instance's
-`constructor` now carries `$gtype`, and `vfunc_*` dispatches on an introspected
-instance. Measured on merged `main`, with node-gi's addon built locally:
+Found by the `callable-arity` conformance probe while closing the gtk-host node
+leg (which is now green, 1934/1934 on both runtimes, and CI-wired — see
+node-gi.yml's `gtk-host-node` job). A materialized method's `Function.length`
+is derived from the SAME skip pre-scan the invoke loop consumes JS args with,
+so where the length diverges from gjs, the CALL SHAPE diverges — the length is
+the messenger, not the defect:
 
-    GJS leg     1930 tests, 0 failures
-    node leg    1907 tests, 25 failures      (was 125 of 1701)
+- **`Gio.InputStream.read`** — a variable-length caller-allocates OUT array.
+  gjs reports length 2 (you PASS the buffer to fill); node-gi reports 1 and
+  cannot take a caller buffer (the caller-alloc path covers fixed-size C
+  arrays and structs only, see the "size=0 defers cleanly" branch in
+  calls.cc).
+- **`Gio.MemoryInputStream.add_data`** — a GDestroyNotify with no closure
+  index. gjs reports 1 (the notify is not JS-consumed); node-gi reports 2 and
+  consumes a JS function for it.
 
-100 failures removed, and 206 more tests reached execution at all, because a failure
-had been aborting its enclosing describe.
+Both are deliberately NOT pinned by `callable-arity` — pinning the length
+without aligning the call shape would make the reported arity lie about the
+invoke. Fix the calling convention first; the arity then follows for free from
+the shared pre-scan.
 
-Per ADR 0030 the remaining 25 are node-gi binding defects rather than host bugs: the
-same suite is clean under GJS, which is what makes the split attributable. By suite:
+One string/object leniency measured in the same pass and also left open:
+node-gi accepts BOTH `null` and `undefined` as a NULL utf8/object IN arg,
+while gjs throws `Expected type string … got type undefined` for `undefined`
+everywhere and refuses `null` for non-nullable args. Every gtk-host call site
+spells `?? null`, so nothing observable rests on it today; tightening it is
+regression surface for consumers that pass `undefined` through optional
+params, so it needs its own conformance program when it moves.
 
-| failures | suite |
-|---:|---|
-| 13 | `solid-js/universal over the GTK host` |
-| 3 | `conformance vectors through solid-js/universal` |
-| 2 | `what a real renderer does` |
-| 1 each | Vue, React, `single/slotted/keyed/coords`, two review-regression rows, `descriptor table vs installed typelib`, `a rejected operation writes nothing down` |
+### node-gi: a declared-but-unimplemented vfunc reads as absent instead of throwing
 
-**Sixteen of the 25 are the Solid path**, which makes it the one worth chasing first —
-and the assertion messages do not name a cause (15 "deeply strictly equal", 5 "match
-using ===", 4 "expected to throw"), so the cluster has to be read from the tests rather
-than the log. The reported shape is a property update that does not reach GTK:
-`Expected ["second"], Actual ["first"]`.
-
-Two concrete ones already named:
-
-- **GI method arity reports 0.** `descriptor table vs installed typelib` fails with
-  `GtkStack: titled: true implies add_titled() takes 3 argument(s), but GtkStack's takes
-  0` — node-gi's materialized methods are `function (...args)`. Needs a native arity
-  query.
-- **A declared-but-unimplemented vfunc.** GJS *throws* `Virtual function not
-  implemented` at the property read; node-gi reports it absent. Making that faithful
-  means throwing from a descriptor trap, which is real regression surface for a corner
-  nobody uses — so it is recorded rather than fixed.
-
-`test:gjs-on-node` is still not wired into CI, and these 25 are the reason. It goes in
-when the Solid cluster is understood, because a leg that is red for another package's
-defects teaches people to ignore it.
+gjs 1.88.1 THROWS `Virtual function not implemented` at the PROPERTY READ of
+`vfunc_notify` on a plain instance whose class declares but does not implement
+the slot; node-gi reports the member absent (`undefined`). Making that
+faithful means throwing from inside the prototype's materialize trap — a
+descriptor read that throws is real regression surface for `in`-checks,
+spreads and devtools over every wrapper, in exchange for a corner no consumer
+has hit. Recorded rather than fixed, deliberately: the divergence is kept out
+of the conformance corpus (nothing pins the current behaviour as correct
+either), and the day a consumer needs the throw, the place to add it is the
+`vfunc_` branch of `makeClassPrototype`'s `materialize` (gi.js), gated on the
+engine addressing the slot.
 
 ### The Vue plugin's virtual suffix is coupled to deepkit's filter, and nothing checks it
 

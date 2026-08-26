@@ -109,6 +109,16 @@ export function hasMethod(handle: GObjectHandle, methodName: string): boolean;
 export function hasClassMethod(namespace: string, typeName: string, methodName: string): boolean;
 
 /**
+ * The JS-visible IN-arg count of an instance method — what gjs reports as the
+ * materialized function's `length` (IN/INOUT args minus array-length and
+ * callback user_data/destroy-notify slots) — or -1 when the name does not
+ * resolve to an invocable instance method. Resolution is shared with
+ * {@link hasClassMethod}, so `classMethodArity(...) >= 0` answers both
+ * questions in one call.
+ */
+export function classMethodArity(namespace: string, typeName: string, methodName: string): number;
+
+/**
  * Invoke a type-level constructor/static function (e.g. `Gio.File.new_for_path`,
  * `Gtk.Label.new`) — a function found on a type but taking no instance. The Node
  * twin of `Ns.Class.method(...)`. OUT/INOUT params follow {@link callFunction}'s
@@ -572,6 +582,7 @@ declare const native: {
     callMethod: typeof callMethod;
     hasMethod: typeof hasMethod;
     hasClassMethod: typeof hasClassMethod;
+    classMethodArity: typeof classMethodArity;
     callStaticMethod: typeof callStaticMethod;
     constructStruct: typeof constructStruct;
     newObject: typeof newObject;

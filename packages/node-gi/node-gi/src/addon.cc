@@ -79,6 +79,7 @@ static Napi::Object Init(Napi::Env env, Napi::Object exports) {
   exports.Set("callMethod", Napi::Function::New(env, CallMethod));
   exports.Set("hasMethod", Napi::Function::New(env, HasMethod));
   exports.Set("hasClassMethod", Napi::Function::New(env, HasClassMethod));
+  exports.Set("classMethodArity", Napi::Function::New(env, ClassMethodArity));
   exports.Set("callStaticMethod", Napi::Function::New(env, CallStaticMethod));
   exports.Set("constructStruct", Napi::Function::New(env, ConstructStruct));
   exports.Set("newObject", Napi::Function::New(env, NewObject));

@@ -1,0 +1,4 @@
+number: Error: Expected type string for argument 'label' but got type number
+boolean: Error: Expected type string for argument 'label' but got type boolean
+object: Error: Expected type string for argument 'label' but got type Object
+wrong-gobject: TypeError: Object is of type Gio.SimpleAction - cannot convert to GMenuItem
