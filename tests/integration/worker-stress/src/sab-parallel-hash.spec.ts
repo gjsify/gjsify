@@ -57,6 +57,17 @@ export default async () => {
                 const partialHashes = Array.from<Buffer>({ length: WORKER_COUNT });
                 const slice = SAB_BYTES / WORKER_COUNT;
 
+                // ORDER IS LOAD-BEARING: the barrier store comes BEFORE the
+                // postMessage, and the message is the last thing the worker does.
+                //
+                // The other way round is a race, and it is not theoretical — it turned
+                // the required `CI gate (GJS)` red on an unrelated docs PR under Node
+                // 26.7.0 with `Expected: 1, Actual: 0`. The main thread resolves on the
+                // FOURTH `message` event and then asserts every barrier slot is 1; if a
+                // worker posts before it stores, the main thread is allowed to read the
+                // slot it has not written yet. Storing first makes the message the proof
+                // that the write already happened, which is what the assertion below
+                // actually claims to be testing.
                 const workerCode = `
           const { parentPort, workerData } = require('node:worker_threads');
           const { createHash } = require('node:crypto');
@@ -66,9 +77,9 @@ export default async () => {
           const h = createHash('sha256');
           h.update(view.subarray(sliceStart, sliceEnd));
           const digest = h.digest();
-          parentPort.postMessage({ slot, digest });
           Atomics.store(barrier, slot, 1);
           Atomics.notify(barrier, slot, 1);
+          parentPort.postMessage({ slot, digest });
         `;
 
                 const startMs = Date.now();
