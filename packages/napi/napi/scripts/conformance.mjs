@@ -24,6 +24,12 @@
 // a hard error regardless of the ledger. Exit 0 only with zero unexpected
 // results. Each ledger entry = { addon, reason }.
 //
+// The verdict "Node≠golden" is only usable while a Node run that STOPPED cannot
+// look like one that ANSWERED DIFFERENTLY — a truncated transcript reported as
+// drift invites `--update-golden`, which retires every stage after the one that
+// stopped. So the Node twin fails a run whose program never settled; see
+// `writeNodeTwin`.
+//
 // NB: filename deliberately avoids Node's default test glob so `node --test`
 // does not pick this orchestrator up.
 
@@ -233,7 +239,27 @@ function writeNodeTwin(name, map) {
         `  gc: () => { if (global.gc) global.gc(); },\n` +
         `  tick: () => new Promise((r) => setImmediate(r)),\n` +
         `});\n` +
-        `run(h).catch((e) => { process.stderr.write('DRIVER-ERROR ' + (e && e.stack || e) + '\\n'); process.exit(1); });\n`;
+        // A program that AWAITS SOMETHING NOBODY RESOLVES exits 0. Node's loop
+        // simply runs dry — a pending promise is not work — so the process ends
+        // successfully having printed a prefix of its transcript. Then `nodeRun.ok`
+        // is true, the golden comparison is the only thing that notices, and it
+        // reports the truncation as DRIFT and advises `--update-golden`: following
+        // that advice commits the short transcript and retires every stage after
+        // the one that stopped, permanently green. Measured 2026-08-26 on
+        // `na_test_instance_data` (run 32952785170 / job 98127767705, `got: ""`
+        // against `want: "\\"finalizer\\""`) and reproduced exactly with
+        // `await new Promise(() => {})` in place of the finalizer stage.
+        //
+        // So a run that did not finish must not report success. `process.exitCode`
+        // assigned from an `exit` listener still takes effect, which is the only
+        // hook left once the loop is already draining.
+        `let _settled = false;\n` +
+        `run(h).then(() => { _settled = true; }, (e) => { process.stderr.write('DRIVER-ERROR ' + (e && e.stack || e) + '\\n'); process.exit(1); });\n` +
+        `process.on('exit', (code) => {\n` +
+        `  if (_settled || code !== 0) return;\n` +
+        `  process.stderr.write('DRIVER-ERROR the program never settled — an await here has no resolver, so Node ran out of work and the transcript stops early\\n');\n` +
+        `  process.exitCode = 1;\n` +
+        `});\n`;
     const out = join(DIST_DIR, `${name}.node.mjs`);
     writeFileSync(out, body);
     return out;
