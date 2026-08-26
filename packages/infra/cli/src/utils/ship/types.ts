@@ -91,6 +91,18 @@ export interface HostRequirement {
     finishOn: 'any' | readonly HostOs[];
     /** Commands the packer EXECS. Empty iff this tree writes the format itself. */
     requiredTools: readonly string[];
+    /**
+     * How to install {@link requiredTools}, in this format's own words.
+     *
+     * DATA, because the refusal that names it is one generic function. The
+     * first cut hardcoded `sudo dnf install flatpak flatpak-builder` inside
+     * `assertToolsInstalled`, which is correct for exactly one format and would
+     * have told the first `.dmg` or `.msi` user to install flatpak — from the
+     * same branchless dispatch this whole table exists to keep branchless.
+     * Required whenever `requiredTools` is non-empty; `flatpak.spec.ts` holds
+     * that, the same way it holds `selfReading`.
+     */
+    installHint?: string;
     oracle: {
         /** Readers from a DIFFERENT implementation family than the packer. */
         readWith: readonly string[];
@@ -98,7 +110,7 @@ export interface HostRequirement {
         readOn: readonly HostOs[];
         /**
          * No independent discriminator yet. Legal to DECLARE while a format is
-         * being built; illegal to release — `formats.spec.ts` is what turns that
+         * being built; illegal to release — `flatpak.spec.ts` is what turns that
          * sentence into a red test, so flipping it is a decision somebody makes
          * rather than a field nobody reads.
          */

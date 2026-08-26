@@ -143,7 +143,9 @@ export const shipCommand: Command<unknown, ShipOptions> = {
             .option('verbose', {
                 type: 'boolean',
                 default: false,
-                description: 'Print each staged file and the GI namespaces the bundle imports.',
+                description:
+                    'Print each staged file, the GI namespaces the bundle imports, and every tool a ' +
+                    'host-bound packer invokes.',
             }),
 
     handler: async (args) => {

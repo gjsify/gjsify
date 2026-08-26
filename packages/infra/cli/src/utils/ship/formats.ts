@@ -124,6 +124,9 @@ export const FORMATS: Record<FormatId, FormatDescriptor> = {
             // Linux-bound the way the app itself is.
             finishOn: ['linux'],
             requiredTools: ['flatpak-builder', 'flatpak'],
+            installHint:
+                'Fedora: `sudo dnf install flatpak flatpak-builder`, Debian/Ubuntu: ' +
+                '`sudo apt install flatpak flatpak-builder`',
             oracle: {
                 // `flatpak build-import-bundle` into a FRESH repo, then
                 // `ostree ls -R`: ostree parses the delta this tree never wrote,
@@ -211,11 +214,14 @@ export function assertHostCanFinish(format: FormatDescriptor, host: string = pro
 export function assertToolsInstalled(format: FormatDescriptor, present: (cmd: string) => boolean = isOnPath): void {
     const missing = format.host.requiredTools.filter((tool) => !present(tool));
     if (missing.length === 0) return;
+    // The install instruction is the DESCRIPTOR's, not this function's: hardcoded
+    // here it was `dnf install flatpak flatpak-builder` for every format that
+    // will ever need a tool, which is the branch this table exists to avoid.
+    const hint = format.host.installHint;
     throw new Error(
         `gjsify ship: packing a ${format.id} needs ${format.host.requiredTools.join(' and ')}, and ` +
             `${missing.join(', ')} ${missing.length > 1 ? 'are' : 'is'} not on PATH. ` +
-            'Install it (Fedora: `sudo dnf install flatpak flatpak-builder`, Debian/Ubuntu: ' +
-            '`sudo apt install flatpak flatpak-builder`), or drop this target — the other ' +
+            `${hint === undefined ? 'Install it' : `Install it (${hint})`}, or drop this target — the other ` +
             `formats need no tools at all. \`gjsify ship --stage\` also works without ${missing.join('/')}: ` +
             'the payload is assembled by this CLI and only the container needs them.',
     );

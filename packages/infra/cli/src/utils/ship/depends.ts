@@ -59,7 +59,7 @@ const DEBIAN_GJS = 'trixie ships 1.82.3 and forky 1.88.1; 1.84 and 1.86 were ski
 /**
  * Which formats this Debian-suite warning is ABOUT.
  *
- * A `Record<FormatId, …>` and not `format !== 'deb'`: the negative form answers
+ * A `Record<DistroFormatId, …>` and not `format !== 'deb'`: the negative form answers
  * for every format that will ever exist, and answers "stay quiet" — so a third
  * format would inherit silence about a floor nobody has checked for its distro,
  * with no compile error. As a record, adding a `DistroFormatId` fails to build until
