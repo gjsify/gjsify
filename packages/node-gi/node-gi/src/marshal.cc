@@ -424,6 +424,40 @@ static bool JsBinaryData(Napi::Env env, Napi::Value v, const uint8_t** data, siz
   return false;
 }
 
+// The name SpiderMonkey's JS::InformalValueTypeName gives a value — what gjs
+// interpolates into its marshalling errors. Primitives report their typeof;
+// objects report their class name, which for the shapes reachable here is
+// enough at "Object"/"Function".
+static const char* InformalValueTypeName(const Napi::Value& v) {
+  if (v.IsNull()) return "null";
+  if (v.IsUndefined()) return "undefined";
+  if (v.IsBoolean()) return "boolean";
+  if (v.IsNumber()) return "number";
+  if (v.IsBigInt()) return "bigint";
+  if (v.IsString()) return "string";
+  if (v.IsSymbol()) return "symbol";
+  if (v.IsFunction()) return "Function";
+  if (v.IsArray()) return "Array";
+  return "Object";
+}
+
+// "Gtk.Box" for an introspected GType, g_type_name() otherwise (a registerClass
+// subtype has no GI info of its own; its C name is still exact). The gjs twin is
+// GIWrapperBase::format_name() (refs/gjs/gi/wrapperutils.h).
+static std::string GTypeDisplayName(GType gtype) {
+  GIRepository* repo = DupDefaultRepository();
+  GIBaseInfo* info = gi_repository_find_by_gtype(repo, gtype);
+  std::string name;
+  if (info != nullptr) {
+    name = std::string(gi_base_info_get_namespace(info)) + "." + gi_base_info_get_name(info);
+    gi_base_info_unref(info);
+  } else {
+    name = g_type_name(gtype);
+  }
+  g_object_unref(repo);
+  return name;
+}
+
 // `ownedStrings` (optional): when a transfer-full string IN/INOUT arg is g_strdup'd
 // here, the freshly-allocated pointer is appended so the caller can g_free it if the
 // invoke never adopts it (an arg-marshal error before the call, or a failed invoke).
@@ -434,7 +468,8 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
                     std::vector<gpointer>* ownedStrings,
                     CreatedClosures* closures,
                     CreatedBytes* bytes,
-                    CreatedValues* values) {
+                    CreatedValues* values,
+                    const char* argName) {
   if (v.IsEmpty()) {
     // Residue of a swallowed napi failure (a fallible Get()/coercion upstream
     // failed on a terminating env, or a throwing getter left the exception
@@ -472,6 +507,19 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
         out->v_string = nullptr;
         return true;
       }
+      if (!v.IsString()) {
+        // gjs refuses any non-string here rather than coercing (arg-cache.cpp
+        // report_typeof_mismatch) — coercion is how `add_titled(child, 5, …)`
+        // silently registered a stack page named "5" while the same call threw
+        // on gjs, so @gjsify/gtk-host's refused-layout-write recovery never ran.
+        // Thrown as a plain Error, not TypeError: gjs_throw builds JSEXN_ERR.
+        std::string msg = std::string("Expected type string for ") +
+                          (argName != nullptr ? std::string("argument '") + argName + "'"
+                                              : std::string("argument")) +
+                          " but got type " + InformalValueTypeName(v);
+        Napi::Error::New(env, msg).ThrowAsJavaScriptException();
+        return false;
+      }
       if (transfer == GI_TRANSFER_EVERYTHING) {
         // The callee adopts the string and g_free's it. heldString points into a
         // std::string buffer (NOT g_malloc'd) → an invalid free. Hand over a
@@ -497,6 +545,25 @@ bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* 
             handled = true;
           } else if (v.IsExternal()) {
             GObject* obj = v.As<Napi::External<GObject>>().Data();
+            // Runtime type check, as gjs (wrapperutils.h GIWrapperBase::typecheck):
+            // handing GTK a pointer of the wrong GType is not an error IT reports
+            // as an exception — adw_preferences_page_add() logs one CRITICAL and
+            // returns at exit 0, so the caller's recovery path never runs. Only a
+            // handle carrying the GObject type tag can be dereferenced safely (a
+            // fundamental handle also lands here and keeps the old pass-through).
+            if (v.As<Napi::External<GObject>>().CheckTypeTag(&kGObjectHandleTag) &&
+                obj != nullptr) {
+              GType expected = gi_registered_type_info_get_g_type(
+                  reinterpret_cast<GIRegisteredTypeInfo*>(iface));
+              if (expected != G_TYPE_INVALID && expected != G_TYPE_NONE &&
+                  !g_type_is_a(G_OBJECT_TYPE(obj), expected)) {
+                std::string msg = "Object is of type " + GTypeDisplayName(G_OBJECT_TYPE(obj)) +
+                                  " - cannot convert to " + g_type_name(expected);
+                gi_base_info_unref(iface);
+                Napi::TypeError::New(env, msg).ThrowAsJavaScriptException();
+                return false;
+              }
+            }
             // A (transfer full) GObject IN arg CONSUMES a reference: the callee
             // takes over the one it is handed. Passing the handle's own ref
             // makes the callee and the JS wrapper share a single ref that BOTH

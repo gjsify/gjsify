@@ -198,6 +198,7 @@ export const callFunction = native.callFunction;
 export const callMethod = native.callMethod;
 export const hasMethod = native.hasMethod;
 export const hasClassMethod = native.hasClassMethod;
+export const classMethodArity = native.classMethodArity;
 export const callStaticMethod = native.callStaticMethod;
 export const constructStruct = native.constructStruct;
 export const newObject = native.newObject;

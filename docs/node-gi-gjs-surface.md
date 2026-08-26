@@ -65,6 +65,22 @@ implementation (with the toggle-ref GC bridge) and general struct field access
 land in subsequent drops — for now a vfunc override fully replaces the inherited
 implementation.
 
+**Wrong-typed arguments THROW as on gjs rather than coercing**: a non-string
+for a utf8/filename IN arg is a plain `Error` (`Expected type string for
+argument 'name' but got type number`), and a GObject of the wrong GType for an
+object/interface IN arg is a `TypeError` (`Object is of type Gtk.Box - cannot
+convert to AdwPreferencesGroup`) — both messages byte-identical to gjs, pinned
+by the `wrong-arg-type-errors` conformance program. The refusal is
+load-bearing, not cosmetic: GTK's own failure mode for a passed-through wrong
+pointer is one CRITICAL at exit 0 (`adw_preferences_page_add: assertion
+'ADW_IS_PREFERENCES_GROUP (group)' failed`), so a binding that forwards the
+value turns every caller's catch-and-recover path into dead code — six of
+@gjsify/gtk-host's refused-operation recoveries were unreachable on node while
+the same source threw and recovered on gjs. One measured leniency kept: node-gi
+accepts BOTH `null` and `undefined` as a NULL string/object (gjs refuses
+`undefined` everywhere and `null` for non-nullable args) — see
+`status/open-todos.md`.
+
 ## The raw engine API (`@gjsify/node-gi`)
 
 The low-level entry points the L1 layer is built on. Most code should use L1 below; these
@@ -245,6 +261,20 @@ Until 0.39 an instance ignored its prototype: the assignment stuck, `d.convert`
 still reached the native method, and a spy-based test reported itself installed
 while measuring nothing. Byte-compared against GJS by the `prototype-chain`
 conformance program.
+
+A materialized method also carries gjs's **`Function.length`** — the JS-visible
+IN-arg count (IN/INOUT args minus array-length and callback
+user_data/destroy-notify slots; gjs's `m_js_in_argc`). The engine derives it
+from the SAME skip pre-scan its invoke loop consumes JS arguments with
+(`classMethodArity` / `JsInArgCount` in calls.cc), so the arity a method
+reports is by construction the arity a call consumes. A rest-args thunk
+reported 0 for everything, which @gjsify/gtk-host's descriptor conformance
+read as `add_titled() takes 3 argument(s), but GtkStack's takes 0`. Pinned by
+the `callable-arity` conformance program. Two shapes still diverge because
+their CALLING CONVENTION diverges (see `status/open-todos.md`): a
+variable-length caller-allocates OUT array (`Gio.InputStream.read`: gjs 2,
+node-gi 1) and a GDestroyNotify with no closure index
+(`Gio.MemoryInputStream.add_data`: gjs 1, node-gi 2).
 
 Lookup order on a wrapper: own JS field → the class prototype chain →
 `runAsync` / the GObject.js shims → GObject property → inherited `Object.prototype`

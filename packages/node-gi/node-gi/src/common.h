@@ -340,13 +340,17 @@ GClosure* NodeGiMakeGenericJsClosure(Napi::Env env, Napi::Value fn);
 // `values` (optional): enables the JS-value→GValue IN-arg boxing above; nullptr
 // (the default) keeps the previous behaviour (plain value → TypeError) on paths
 // that cannot release a created GValue.
+// `argName` (optional): the introspected argument name, used ONLY in error
+// messages so a refusal reads like gjs's ("Expected type string for argument
+// 'name' but got type number"); nullptr degrades to a message without the name.
 bool JsToGIArgument(Napi::Env env, Napi::Value v, GITypeInfo* type, GIArgument* out,
                     std::string* heldString,
                     GITransfer transfer = GI_TRANSFER_NOTHING,
                     std::vector<gpointer>* ownedStrings = nullptr,
                     CreatedClosures* closures = nullptr,
                     CreatedBytes* bytes = nullptr,
-                    CreatedValues* values = nullptr);
+                    CreatedValues* values = nullptr,
+                    const char* argName = nullptr);
 
 // ---- IN container building -----------------------------------------
 //
@@ -558,6 +562,9 @@ Napi::Value CallFunction(const Napi::CallbackInfo& info);
 Napi::Value CallMethod(const Napi::CallbackInfo& info);
 Napi::Value HasMethod(const Napi::CallbackInfo& info);
 Napi::Value HasClassMethod(const Napi::CallbackInfo& info);
+Napi::Value ClassMethodArity(const Napi::CallbackInfo& info);
+// The JS-visible IN-arg count of a callable — gjs's `Function.length` (see calls.cc).
+int JsInArgCount(GICallableInfo* callable);
 // The nearest ancestor GType carrying object introspection info (a concrete type
 // may be private — GLocalFile); a new ref, or nullptr. Shared with object.cc so
 // method dispatch and prototype lookup resolve to the same class.

@@ -432,6 +432,70 @@ void ThrowGError(Napi::Env env, GError* error, const std::string& context) {
   Napi::Error::New(env, "Calling " + context + ": " + message).ThrowAsJavaScriptException();
 }
 
+// Which of a callable's args are NOT consumed from the JS argument list:
+//  - the user_data + destroy-notify slots associated with a callback arg
+//    (filled from the callback itself);
+//  - array-length args of an array IN/OUT arg or of the return value
+//    (autofilled from the array's JS length / wired as an OUT slot; flagged
+//    in `isLenArg` so the invoke loop can tell the two skip kinds apart).
+// SHARED between the invoke loop and JsInArgCount below so the arity a
+// function REPORTS is by construction the arity the invoke CONSUMES.
+static void ComputeSkippedArgs(GICallableInfo* callable, unsigned int n_args,
+                               std::vector<bool>* skip, std::vector<bool>* isLenArg) {
+  for (unsigned int i = 0; i < n_args; i++) {
+    GIArgInfo* ai = gi_callable_info_get_arg(callable, i);
+    GITypeInfo* ti = gi_arg_info_get_type_info(ai);
+    if (gi_type_info_get_tag(ti) == GI_TYPE_TAG_INTERFACE) {
+      GIBaseInfo* iface = gi_type_info_get_interface(ti);
+      if (iface != nullptr && GI_IS_CALLBACK_INFO(iface)) {
+        int ci = ArgClosureIndex(ai);
+        int di = ArgDestroyIndex(ai);
+        if (ci >= 0 && static_cast<unsigned int>(ci) < n_args) (*skip)[ci] = true;
+        if (di >= 0 && static_cast<unsigned int>(di) < n_args) (*skip)[di] = true;
+      }
+      if (iface != nullptr) gi_base_info_unref(iface);
+    } else if (gi_type_info_get_tag(ti) == GI_TYPE_TAG_ARRAY) {
+      unsigned int L = 0;
+      if (gi_type_info_get_array_length_index(ti, &L) && L < n_args) {
+        (*skip)[L] = true;
+        (*isLenArg)[L] = true;
+      }
+    }
+    gi_base_info_unref(ti);
+    gi_base_info_unref(ai);
+  }
+  GITypeInfo* rt = gi_callable_info_get_return_type(callable);
+  if (gi_type_info_get_tag(rt) == GI_TYPE_TAG_ARRAY) {
+    unsigned int L = 0;
+    if (gi_type_info_get_array_length_index(rt, &L) && L < n_args) {
+      (*skip)[L] = true;
+      (*isLenArg)[L] = true;
+    }
+  }
+  gi_base_info_unref(rt);
+}
+
+// The number of JS arguments a callable consumes: IN/INOUT args minus the
+// skipped ones. This is what gjs reports as `Function.length` (m_js_in_argc,
+// refs/gjs/gi/function.cpp Function::init counts exactly the same set), and it
+// is what @gjsify/gtk-host's descriptor conformance reads to hold the widget
+// table against the installed typelib.
+int JsInArgCount(GICallableInfo* callable) {
+  unsigned int n_args = gi_callable_info_get_n_args(callable);
+  std::vector<bool> skip(n_args, false);
+  std::vector<bool> isLenArg(n_args, false);
+  ComputeSkippedArgs(callable, n_args, &skip, &isLenArg);
+  int count = 0;
+  for (unsigned int i = 0; i < n_args; i++) {
+    if (skip[i]) continue;
+    GIArgInfo* ai = gi_callable_info_get_arg(callable, i);
+    GIDirection d = gi_arg_info_get_direction(ai);
+    gi_base_info_unref(ai);
+    if (d == GI_DIRECTION_IN || d == GI_DIRECTION_INOUT) count++;
+  }
+  return count;
+}
+
 static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpointer instance,
                                       Napi::Array args, const std::string& displayName) {
   GICallableInfo* callable = reinterpret_cast<GICallableInfo*>(func);
@@ -488,56 +552,10 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
     }
   }
 
-  // Pre-scan: the user_data + destroy-notify slots associated with a callback
-  // arg are filled from the callback, not consumed from the JS argument list.
+  // Pre-scan: which args are NOT JS-consumed (see ComputeSkippedArgs).
   std::vector<bool> skip(n_args, false);
-  for (unsigned int i = 0; i < n_args; i++) {
-    GIArgInfo* ai = gi_callable_info_get_arg(callable, i);
-    GITypeInfo* ti = gi_arg_info_get_type_info(ai);
-    if (gi_type_info_get_tag(ti) == GI_TYPE_TAG_INTERFACE) {
-      GIBaseInfo* iface = gi_type_info_get_interface(ti);
-      if (iface != nullptr && GI_IS_CALLBACK_INFO(iface)) {
-        int ci = ArgClosureIndex(ai);
-        int di = ArgDestroyIndex(ai);
-        if (ci >= 0 && static_cast<unsigned int>(ci) < n_args) skip[ci] = true;
-        if (di >= 0 && static_cast<unsigned int>(di) < n_args) skip[di] = true;
-      }
-      if (iface != nullptr) gi_base_info_unref(iface);
-    }
-    gi_base_info_unref(ti);
-    gi_base_info_unref(ai);
-  }
-
-  // Pre-scan: array-length args. An array IN/OUT arg — or the return value — may
-  // carry a separate introspectable length arg. Mark it skip (not JS-consumed)
-  // and flag it so its OUT slot is wired below / its IN value is autofilled from
-  // the array's JS length when the array arg is marshalled. This extends the same
-  // skip mechanism the callback closure/destroy slots already use.
   std::vector<bool> isLenArg(n_args, false);
-  for (unsigned int i = 0; i < n_args; i++) {
-    GIArgInfo* ai = gi_callable_info_get_arg(callable, i);
-    GITypeInfo* ti = gi_arg_info_get_type_info(ai);
-    if (gi_type_info_get_tag(ti) == GI_TYPE_TAG_ARRAY) {
-      unsigned int L = 0;
-      if (gi_type_info_get_array_length_index(ti, &L) && L < n_args) {
-        skip[L] = true;
-        isLenArg[L] = true;
-      }
-    }
-    gi_base_info_unref(ti);
-    gi_base_info_unref(ai);
-  }
-  {
-    GITypeInfo* rt = gi_callable_info_get_return_type(callable);
-    if (gi_type_info_get_tag(rt) == GI_TYPE_TAG_ARRAY) {
-      unsigned int L = 0;
-      if (gi_type_info_get_array_length_index(rt, &L) && L < n_args) {
-        skip[L] = true;
-        isLenArg[L] = true;
-      }
-    }
-    gi_base_info_unref(rt);
-  }
+  ComputeSkippedArgs(callable, n_args, &skip, &isLenArg);
 
   // Caller-allocates OUT storage (fixed C array or boxed struct): blob != nullptr
   // marks the arg; boxedGType != 0 selects the boxed copy/free path on read-back.
@@ -739,7 +757,8 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
           Napi::Value v = jsCursor < args.Length() ? args.Get(jsCursor) : env.Undefined();
           jsCursor++;
           GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
-          if (JsToGIArgument(env, v, ti, &slots[i], &held[i], tr, &ownedInStrings)) {
+          if (JsToGIArgument(env, v, ti, &slots[i], &held[i], tr, &ownedInStrings, nullptr,
+                             nullptr, nullptr, gi_base_info_get_name(reinterpret_cast<GIBaseInfo*>(ai)))) {
             in_args[inPos[i]].v_pointer = &slots[i];
             out_args[outPos[i]].v_pointer = &slots[i];
           } else {
@@ -835,7 +854,8 @@ static Napi::Value InvokeFunctionInfo(Napi::Env env, GIFunctionInfo* func, gpoin
       } else {
         GITransfer tr = gi_arg_info_get_ownership_transfer(ai);
         ok = JsToGIArgument(env, v, ti, &in_args[inPos[i]], &held[i], tr, &ownedInStrings,
-                            &createdClosures, &createdBytes, &createdValues);
+                            &createdClosures, &createdBytes, &createdValues,
+                            gi_base_info_get_name(reinterpret_cast<GIBaseInfo*>(ai)));
       }
     }
 
@@ -1250,19 +1270,12 @@ Napi::Value HasMethod(const Napi::CallbackInfo& info) {
 // implemented-interface and inherited methods. Keyed by TYPE rather than by an
 // instance handle because it backs the lazy method resolution on the class
 // PROTOTYPE (#1175), which must answer before any instance exists.
-Napi::Value HasClassMethod(const Napi::CallbackInfo& info) {
-  Napi::Env env = info.Env();
-  if (info.Length() < 3 || !info[0].IsString() || !info[1].IsString() || !info[2].IsString()) {
-    Napi::TypeError::New(env,
-                         "hasClassMethod(namespace: string, typeName: string, methodName: string)")
-        .ThrowAsJavaScriptException();
-    return env.Null();
-  }
-  std::string ns = info[0].As<Napi::String>().Utf8Value();
-  std::string tn = info[1].As<Napi::String>().Utf8Value();
-  std::string method = info[2].As<Napi::String>().Utf8Value();
-
-  GIRepository* repo = DupDefaultRepository();
+// The class-level resolution HasClassMethod and ClassMethodArity share: the
+// literal-then-snake_case walk over own, implemented-interface and inherited
+// methods for an object type, or the interface's own methods for an interface
+// type. Returns a new ref or nullptr.
+static GIFunctionInfo* ResolveClassLevelMethod(GIRepository* repo, const std::string& ns,
+                                               const std::string& tn, const std::string& method) {
   GIBaseInfo* base = gi_repository_find_by_name(repo, ns.c_str(), tn.c_str());
   GIFunctionInfo* func = nullptr;
   if (base != nullptr) {
@@ -1284,11 +1297,57 @@ Napi::Value HasClassMethod(const Napi::CallbackInfo& info) {
     }
     gi_base_info_unref(base);
   }
+  return func;
+}
+
+Napi::Value HasClassMethod(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 3 || !info[0].IsString() || !info[1].IsString() || !info[2].IsString()) {
+    Napi::TypeError::New(env,
+                         "hasClassMethod(namespace: string, typeName: string, methodName: string)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string ns = info[0].As<Napi::String>().Utf8Value();
+  std::string tn = info[1].As<Napi::String>().Utf8Value();
+  std::string method = info[2].As<Napi::String>().Utf8Value();
+
+  GIRepository* repo = DupDefaultRepository();
+  GIFunctionInfo* func = ResolveClassLevelMethod(repo, ns, tn, method);
   g_object_unref(repo);
   if (func == nullptr) return Napi::Boolean::New(env, false);
   const bool invocable = gi_callable_info_is_method(reinterpret_cast<GICallableInfo*>(func));
   gi_base_info_unref(func);
   return Napi::Boolean::New(env, invocable);
+}
+
+// classMethodArity(namespace, typeName, methodName) -> number
+// The JS-visible IN-arg count of the method — what gjs reports as the
+// materialized function's `length` — or -1 when the name does not resolve to an
+// invocable instance method. Resolution is byte-identical to hasClassMethod
+// (shared ResolveClassLevelMethod), so `arity >= 0` IS the hasClassMethod
+// answer and the prototype materializer needs a single native call for both.
+// Arity 0 is a real answer (`Gtk.Widget.show()`), which is why absence is -1.
+Napi::Value ClassMethodArity(const Napi::CallbackInfo& info) {
+  Napi::Env env = info.Env();
+  if (info.Length() < 3 || !info[0].IsString() || !info[1].IsString() || !info[2].IsString()) {
+    Napi::TypeError::New(
+        env, "classMethodArity(namespace: string, typeName: string, methodName: string)")
+        .ThrowAsJavaScriptException();
+    return env.Null();
+  }
+  std::string ns = info[0].As<Napi::String>().Utf8Value();
+  std::string tn = info[1].As<Napi::String>().Utf8Value();
+  std::string method = info[2].As<Napi::String>().Utf8Value();
+
+  GIRepository* repo = DupDefaultRepository();
+  GIFunctionInfo* func = ResolveClassLevelMethod(repo, ns, tn, method);
+  g_object_unref(repo);
+  if (func == nullptr) return Napi::Number::New(env, -1);
+  const bool invocable = gi_callable_info_is_method(reinterpret_cast<GICallableInfo*>(func));
+  const int arity = invocable ? JsInArgCount(reinterpret_cast<GICallableInfo*>(func)) : -1;
+  gi_base_info_unref(func);
+  return Napi::Number::New(env, arity);
 }
 
 // Resolve a CLASS-STRUCT method — one of the GObjectClass functions gjs exposes as a

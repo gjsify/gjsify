@@ -1400,11 +1400,18 @@ function prototypeMethodHandle(self, where) {
 // The invocable form of an introspected instance method, as it sits on a class
 // prototype: `this` supplies the GObject, so ONE function serves every instance of
 // the class and `inst.m === Cls.prototype.m` holds (gjs parity).
-function makeGiMethod(where, method) {
+//
+// `arity` becomes the function's `length`, as on gjs (m_js_in_argc — the
+// JS-visible IN args, not the C arg count). A rest-args thunk reports 0, and
+// @gjsify/gtk-host's descriptor conformance reads `.length` to hold the widget
+// table against the installed GTK — `add_titled() takes 3 argument(s), but
+// GtkStack's takes 0` was this thunk, not the typelib.
+function makeGiMethod(where, method, arity) {
     const fn = function (...args) {
         return wrapReturn(native.callMethod(prototypeMethodHandle(this, where), method, unwrapArgs(args)));
     };
     Object.defineProperty(fn, 'name', { value: method, configurable: true });
+    Object.defineProperty(fn, 'length', { value: arity, configurable: true });
     return fn;
 }
 
@@ -1442,7 +1449,7 @@ function makeClassPrototype(namespace, typeName) {
         configurable: true,
     });
     const where = `${namespace}.${typeName}.prototype`;
-    const resolved = new Map(); // accessor name -> is an introspected method of this class
+    const resolved = new Map(); // accessor name -> method arity (-1 = absent) or vfunc addressability
     // Writable + configurable: a program REPLACES a method to instrument it and puts
     // the original back afterwards, which is the whole point of the prototype.
     // Enumerable, like the methods gjs's resolve hook defines.
@@ -1485,12 +1492,14 @@ function makeClassPrototype(namespace, typeName) {
                 return shim(prototypeMethodHandle(this, `${where}.${prop}`), args);
             });
         }
-        let present = resolved.get(prop);
-        if (present === undefined) {
-            present = native.hasClassMethod(namespace, typeName, prop);
-            resolved.set(prop, present);
+        // ONE native call answers both presence (arity >= 0) and the function's
+        // `length` — see classMethodArity in calls.cc.
+        let arity = resolved.get(prop);
+        if (arity === undefined) {
+            arity = native.classMethodArity(namespace, typeName, prop);
+            resolved.set(prop, arity);
         }
-        return present && define(prop, makeGiMethod(where, prop));
+        return arity >= 0 && define(prop, makeGiMethod(where, prop, arity));
     };
     return new Proxy(target, {
         get(t, prop, receiver) {
