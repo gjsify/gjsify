@@ -36,7 +36,9 @@
 // `run:` block is a YAML BLOCK SCALAR, whose rule is one line long — everything indented
 // deeper than the key belongs to it — so the extractor below is the whole parser needed.
 //
-// Usage: node scripts/check-workflow-run-syntax.mjs [--root <dir>]
+// Usage: node scripts/check-workflow-run-syntax.mjs [--root <dir>] [--require-pwsh]
+// `--require-pwsh` is what the Windows leg passes: there, being unable to read the
+// PowerShell blocks IS the failure — see the flag's own comment at the bottom.
 
 import { readdirSync, readFileSync, existsSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -65,11 +67,18 @@ const PWSH_LIKE = new Set(['pwsh', 'powershell', 'pwsh -Command {0}', 'pwsh -Fil
  *
  * Measured 2026-08-26 over `.github/workflows/`: 51 blocks default to `pwsh` on a Windows
  * runner (35 in `audit-runtimes.yml`'s own `check-windows` job, which is where THIS check
- * runs from) and 19 more inherit `defaults.run.shell: cmd` from `windows-suites.yml`'s
- * `node-suites`. All 70 were read as bash. `bash -n` accepts the cmd.exe batch
+ * runs from) and 18 inherit `defaults.run.shell: cmd` from `windows-suites.yml`'s
+ * `node-suites`. Those 69 were read as bash. `bash -n` accepts the cmd.exe batch
  * `where sh 2>nul && (echo FAIL & exit /b 1)` without complaint, so the answer was not
  * merely unhelpful — it was a green from the wrong grammar, which is the exact shape this
  * file was written against one layer up.
+ *
+ * Two counts of 51 meet here and they are DIFFERENT sets, which is worth saying once: the
+ * ledger's "51 pwsh blocks" are the ones declaring `shell: pwsh` (eleven of them in
+ * `release.yml`) and have been parsed since #1210; these 51 declare nothing and were being
+ * parsed with the wrong grammar. The tree's cmd blocks number 19, not 18 — `prebuilds.yml`
+ * has one EXPLICIT `shell: cmd`, which was never mistaken for bash because `cmd` was never
+ * in `BASH_LIKE`.
  *
  * The precedence GitHub applies, and therefore the one resolved here: step `shell:` →
  * job `defaults.run.shell` → workflow `defaults.run.shell` → the runner's default (`pwsh`
@@ -457,8 +466,13 @@ rmSync(tmp, { recursive: true, force: true });
 // leg that exists to check PowerShell would pass by skipping all of it, which is the
 // shape this repository has paid for most.
 if (REQUIRE_PWSH && !HAVE_PWSH) {
+    // Counted over the PowerShell blocks only. `unparsed` also holds the cmd ones, and no
+    // `pwsh` on PATH would have read those either — reporting them here would overstate what
+    // this flag is about, in the file whose whole subject is a count attributed to the wrong
+    // grammar.
+    const pwshUnread = unparsed.filter((u) => PWSH_LIKE.has(u.shell)).length;
     console.error(
-        `run-syntax: --require-pwsh was passed and no \`pwsh\` is on PATH, so ${unparsed.length} ` +
+        `run-syntax: --require-pwsh was passed and no \`pwsh\` is on PATH, so ${pwshUnread} ` +
             'PowerShell block(s) went unread. This flag exists so that cannot pass quietly.',
     );
     process.exit(1);
