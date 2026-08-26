@@ -294,7 +294,15 @@ export default async () => {
                 // production define or `--exclude-globals navigator` was lost.
                 const g = globalThis as unknown as Record<string, unknown>;
                 expect(typeof g.document).toBe('undefined');
-                expect(typeof g.navigator).toBe('undefined');
+                expect(typeof g.HTMLCanvasElement).toBe('undefined');
+                expect(typeof g.Path2D).toBe('undefined');
+                // `navigator` cannot be asserted ABSENT: Node ≥21 ships a native
+                // one, so on the gjs-on-node leg "defined" is the runtime, not the
+                // recipe. What the register would install is a bare `{}` (see
+                // @gjsify/dom-elements/register/navigator) — so the honest claim on
+                // every runtime is "absent, or the runtime's own", and the runtime's
+                // own always carries `userAgent`, which the injected `{}` never does.
+                expect(g.navigator === undefined || 'userAgent' in (g.navigator as object)).toBe(true);
             });
 
             await it('renders a tree into a widget the application owns', async () => {
