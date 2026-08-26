@@ -14,11 +14,13 @@
 //     bundle arrives and reaches for `document`, `HTMLCanvasElement` and `Path2D`
 //     — which makes `--globals auto` inject the GTK-backed DOM registers. The
 //     "runs without a DOM at all" vector is what notices.
-//  2. `flushSync`. A ConcurrentRoot's updates are DEFAULT-lane, so they are handed
-//     to `scheduler` and land on a later main-loop iteration. `flushSync` sets the
-//     current update priority to `DiscreteEventPriority`, which makes everything
-//     scheduled inside it a SYNC lane that the same call then flushes — that is
-//     why `render()` is synchronous. The scheduled path is not left unmeasured:
+//  2. The SYNCHRONOUS render path. A ConcurrentRoot's updates are DEFAULT-lane, so
+//     they are handed to `scheduler` and land on a later main-loop iteration.
+//     `updateContainerSync` puts the work on the sync lane and `flushSyncWork`
+//     drains it — that is why `render()` is synchronous. Under React 18 this was
+//     `flushSync(() => updateContainer(…))`; under 19 that same combination mounts
+//     NOTHING on a ConcurrentRoot, silently, which is why the two calls are spelled
+//     separately here and in `react.ts`. The scheduled path is not left unmeasured:
 //     one vector pumps the GLib main context and proves it works.
 
 import { expect, it, on } from '@gjsify/unit';
@@ -39,11 +41,12 @@ import { jsx as reactJsx } from '../react-jsx-runtime.js';
 import { jsx as refusedJsx } from '../jsx-runtime.js';
 import { adopt, createRoot, flushSync, gtkHostConfig, mount, widgetOf } from './react.js';
 
-/** The two reconciler entry points this suite drives directly. */
+/** The reconciler entry points this suite drives directly. */
 interface DirectReconciler {
     createContainer(...args: unknown[]): unknown;
     updateContainer(...args: unknown[]): unknown;
-    flushSync(fn: () => void): void;
+    updateContainerSync(...args: unknown[]): unknown;
+    flushSyncWork(): void;
 }
 
 const labelsOf = (w: Gtk.Widget) => gtkChildren(w).map((c) => (c as Gtk.Label).label);
@@ -120,28 +123,51 @@ function recordingRoot(container: Gtk.Widget, onRecoverableError: (error: Error)
             },
         }) as never,
     ) as unknown as DirectReconciler;
-    // The adopt/createContainer/flushSync sequence of `createRoot`, restated here
-    // because the point is to drive it through the INSTRUMENTED reconciler.
+    // The adopt/createContainer/render sequence of `createRoot`, restated here
+    // because the point is to drive it through the INSTRUMENTED reconciler. It
+    // must stay argument-for-argument identical to the real one: React 19 inserted
+    // `onUncaughtError`/`onCaughtError` BEFORE `onRecoverableError`, so a copy that
+    // kept React 18's eight-argument list would silently instrument a differently
+    // wired root than the one under test.
     const host = adopt(container);
-    const root = recorder.createContainer(host, ConcurrentRoot, null, false, null, '', onRecoverableError, null);
+    const root = recorder.createContainer(
+        host,
+        ConcurrentRoot,
+        null,
+        false,
+        null,
+        '',
+        onRecoverableError,
+        onRecoverableError,
+        onRecoverableError,
+        () => {},
+    );
     return {
         calls,
         container: host,
         render(element: ReactNode) {
-            recorder.flushSync(() => {
-                recorder.updateContainer(element, root, null, null);
-            });
+            // `flushSync(() => updateContainer(…))` mounts NOTHING on a
+            // ConcurrentRoot under React 19 — see `createRoot` in `react.ts`.
+            recorder.updateContainerSync(element, root, null, null);
+            recorder.flushSyncWork();
         },
     };
 }
 
 // --- the contract, as the installed react-reconciler states it ----------------
 //
-// Measured on react-reconciler 0.29.2, PRODUCTION bundle (the one the build recipe
-// mandates). The development bundle reads 94 members — the four
-// `*ActiveInstanceBlur`/scope ones below plus the `didNotFindHydratable*` dev
-// warnings — so a count of 94 here means the production define was lost.
-const READS = 76;
+// Measured on react-reconciler 0.33.0, PRODUCTION bundle (the one the build recipe
+// mandates). It was 76 on 0.29.2 — the jump is React 19 adding the resource,
+// singleton, view-transition, gesture, form-state and suspend-commit families.
+//
+// WHAT THIS NUMBER NO LONGER DOES. On 0.29.2 the development bundle read 94, so
+// pinning 76 also caught a lost `NODE_ENV=production` define. On 0.33.0 BOTH
+// bundles read 160 and the count cannot tell them apart at all. That job now
+// belongs entirely to the "runs without a DOM at all" vector below, which tests
+// the fact itself (`document` / `HTMLCanvasElement` / `Path2D` are absent) rather
+// than a proxy for it. Said here because a count that silently stopped
+// discriminating is worth more as a recorded loss than as a deleted line.
+const READS = 160;
 
 /**
  * What React asks for and this adapter deliberately does not answer, by family.
@@ -164,34 +190,116 @@ const GATED_OFF = {
         'replaceContainerChildren',
     ],
     // `supportsHydration: false` — hydration means adopting markup a server
-    // produced, and there is none.
+    // produced, and there is none. React 19 widened this family considerably:
+    // Activity boundaries, the form-state marker and the dev-warning differs are
+    // all new, while 18's two `didNotMatchHydrated*TextInstance` warners are gone.
     hydration: [
+        'canHydrateActivityInstance',
+        'canHydrateFormStateMarker',
         'canHydrateInstance',
         'canHydrateSuspenseInstance',
         'canHydrateTextInstance',
+        'clearActivityBoundary',
+        'clearActivityBoundaryFromContainer',
         'clearSuspenseBoundary',
         'clearSuspenseBoundaryFromContainer',
+        'commitHydratedActivityInstance',
         'commitHydratedContainer',
+        'commitHydratedInstance',
         'commitHydratedSuspenseInstance',
-        'didNotMatchHydratedContainerTextInstance',
-        'didNotMatchHydratedTextInstance',
+        'describeHydratableInstanceForDevWarnings',
+        'diffHydratedPropsForDevWarnings',
+        'diffHydratedTextForDevWarnings',
+        'finalizeHydratedChildren',
+        'flushHydrationEvents',
         'getFirstHydratableChild',
+        'getFirstHydratableChildWithinActivityInstance',
         'getFirstHydratableChildWithinContainer',
+        'getFirstHydratableChildWithinSingleton',
         'getFirstHydratableChildWithinSuspenseInstance',
+        'getNextHydratableInstanceAfterActivityInstance',
         'getNextHydratableInstanceAfterSuspenseInstance',
         'getNextHydratableSibling',
+        'getNextHydratableSiblingAfterSingleton',
         'getSuspenseInstanceFallbackErrorDetails',
+        'hideDehydratedBoundary',
+        'hydrateActivityInstance',
         'hydrateInstance',
         'hydrateSuspenseInstance',
         'hydrateTextInstance',
+        'isFormStateMarkerMatching',
         'isSuspenseInstanceFallback',
         'isSuspenseInstancePending',
         'registerSuspenseInstanceRetry',
         'shouldDeleteUnhydratedTailInstances',
+        'unhideDehydratedBoundary',
+        'validateHydratableInstance',
+        'validateHydratableTextInstance',
+    ],
+    // `supportsResources: false` — the DOM's `<link>`/`<script>` hoisting. There is
+    // no document head to hoist into and no GTK analogue of a shared, deduplicated
+    // external asset.
+    resources: [
+        'acquireResource',
+        'createHoistableInstance',
+        'getHoistableRoot',
+        'getResource',
+        'hydrateHoistable',
+        'isHostHoistableType',
+        'mayResourceSuspendCommit',
+        'mountHoistable',
+        'preloadResource',
+        'prepareToCommitHoistables',
+        'releaseResource',
+        'suspendResource',
+        'unmountHoistable',
+    ],
+    // `supportsSingletons: false` — `<html>`, `<head>`, `<body>`: the elements React
+    // adopts rather than creates because the document already owns them. Declaring
+    // a singleton here would mean deciding that some widget is the document.
+    singletons: [
+        'acquireSingletonInstance',
+        'isHostSingletonType',
+        'isSingletonScope',
+        'releaseSingletonInstance',
+        'resolveSingletonInstance',
+    ],
+    // View transitions and the gesture timeline: React 19 animating BETWEEN two
+    // committed states by cloning the old one and cross-fading. It rests on the
+    // browser's own View Transition API, which has no GTK counterpart — and the
+    // animation story here is `Adw.TimedAnimation`/`Adw.SpringAnimation`, driven by
+    // the app rather than by the reconciler.
+    viewTransitions: [
+        'cancelRootViewTransitionName',
+        'cancelViewTransitionName',
+        'cloneMutableInstance',
+        'cloneMutableTextInstance',
+        'cloneRootViewTransitionContainer',
+        'createViewTransitionInstance',
+        'getCurrentGestureOffset',
+        'hasInstanceAffectedParent',
+        'hasInstanceChanged',
+        'measureClonedInstance',
+        'removeRootViewTransitionClone',
+        'restoreRootViewTransitionName',
+        'startGestureTransition',
+        'startViewTransition',
+        'stopViewTransition',
+        'suspendOnActiveViewTransition',
+    ],
+    // `<Fragment ref={…}>` — a handle onto a fragment's host children, for event
+    // listeners and observers across nodes that share no parent element. It is a
+    // DOM-event-system affordance; GTK has no event target above the widget.
+    fragmentInstances: [
+        'commitNewChildToFragmentInstance',
+        'createFragmentInstance',
+        'deleteChildFromFragmentInstance',
+        'updateFragmentInstanceFiber',
     ],
     // `supportsTestSelectors` absent — `findAllNodes`/`focusWithin` are React's
     // own test API; this package's equivalent is `./conformance`, which reads the
-    // real GTK tree.
+    // real GTK tree. `warnsIfNotActing` belongs with them: it is `act()`'s warning
+    // switch, and `act()` is React's own test harness.
     testSelectors: [
         'findFiberRoot',
         'getBoundingRect',
@@ -201,26 +309,34 @@ const GATED_OFF = {
         'setFocusIfFocusable',
         'setupIntersectionObserver',
         'supportsTestSelectors',
+        'warnsIfNotActing',
     ],
     // `supportsMicrotasks` absent — see the note in `react.ts`: it would add a
     // second scheduling path without removing the first.
     microtasks: ['scheduleMicrotask', 'supportsMicrotasks'],
+    // Metadata React reads only to hand to the DevTools hook, which this adapter
+    // never installs (`injectIntoDevTools` is not called). Deliberately NOT
+    // answered: `rendererVersion` would have to be this package's version as a
+    // literal, and a literal version in a source file is a second truth that drifts
+    // from `package.json` the first time it is bumped.
+    devtools: ['bindToConsole', 'extraDevToolsConfig', 'rendererPackageName', 'rendererVersion'],
+    // Read only to name a suspended commit in a DevTools timeline; the commit path
+    // itself is answered (`waitForCommitToBeReady` returns `null`, i.e. never).
+    suspendedCommitReason: ['getSuspendedCommitReason'],
 };
 
 /**
- * Declared here, read only by the DEVELOPMENT bundle.
+ * Declared here, read only by the DEVELOPMENT bundle — and on 0.33.0 there are none.
  *
- * Not dead: a consumer who drops the production define gets a reconciler that
- * reads all four, and `beforeActiveInstanceBlur()` on `undefined` is a TypeError
- * inside a commit. They stay, and this list is why the "everything declared is
- * read" direction does not fail.
+ * On 0.29.2 this held four members: `afterActiveInstanceBlur` (deleted in React 19)
+ * plus `beforeActiveInstanceBlur`, `getInstanceFromScope` and `prepareScopeUpdate`,
+ * which the production bundle did not read. All three are now read in production
+ * too, so the list is empty rather than removed: an EMPTY expectation still fails
+ * the day a declared member stops being read, which is the direction that catches a
+ * misspelling — a wrong name would sit in the config, never be called, and React
+ * would read `undefined` for the correct spelling with nothing to show for it.
  */
-const DEV_BUNDLE_ONLY = [
-    'afterActiveInstanceBlur',
-    'beforeActiveInstanceBlur',
-    'getInstanceFromScope',
-    'prepareScopeUpdate',
-];
+const DEV_BUNDLE_ONLY: string[] = [];
 
 /** Every member the installed reconciler reads out of a HostConfig. */
 function readHostConfigMembers(): string[] {
@@ -265,12 +381,10 @@ export default async () => {
                 expect(read.length).toBe(READS);
 
                 const unanswered = read.filter((name) => !declared.includes(name));
-                const gatedOff = [
-                    ...GATED_OFF.persistence,
-                    ...GATED_OFF.hydration,
-                    ...GATED_OFF.testSelectors,
-                    ...GATED_OFF.microtasks,
-                ].sort();
+                // Every family, by iteration rather than by a hand-kept spread list:
+                // the spread version silently dropped a family the moment one was
+                // added, which turns a widening surface into a passing test.
+                const gatedOff = Object.values(GATED_OFF).flat().sort();
                 // Both directions: a member React starts asking for that no family
                 // claims, and a family entry React stopped asking for.
                 expect(unanswered).toStrictEqual(gatedOff);
@@ -338,7 +452,7 @@ export default async () => {
 
             await it('an unflushed update lands when the main loop runs — the scheduler works', async () => {
                 // The other half of the concurrency story, and the reason
-                // `getCurrentEventPriority` returns the DEFAULT lane rather than a
+                // `resolveUpdatePriority` returns the DEFAULT lane rather than a
                 // discrete one: a `setState` outside `flushSync` is handed to
                 // `scheduler`, which under GJS means a GLib timer source. If that
                 // path did not work, an app updating state from a signal handler

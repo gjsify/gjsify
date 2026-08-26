@@ -19,7 +19,7 @@
 //     re-exports React's OWN `jsx`/`jsxs`/`Fragment`. The export NAMES are the
 //     framework's contract: TypeScript emits those three literally, so a rename
 //     there is a `MISSING_EXPORT` in this bundle rather than a matter of taste.
-//   · THE SCHEDULED LANE, under GJS, in an application. `getCurrentEventPriority`
+//   · THE SCHEDULED LANE, under GJS, in an application. `resolveUpdatePriority`
 //     returns the DEFAULT lane (a GTK signal is not a DOM event, so there is no
 //     ambient event to derive a priority from), which means a `setState` from a
 //     `clicked` handler is CONCURRENT: it is handed to `scheduler`, which under
@@ -67,7 +67,10 @@ interface Row {
  * window is not a child of anything. An `adw-application-window` at the root of
  * this tree would ask GTK to parent a toplevel and earn a `Gtk-WARNING` at exit 0.
  */
-function Counter({ incrementRef }: { readonly incrementRef: RefObject<Gtk.Button> }) {
+// `RefObject<Gtk.Button | null>`, not `RefObject<Gtk.Button>`: React 19's
+// `createRef<T>()` is typed `RefObject<T | null>`, because a ref genuinely holds
+// null until the commit that fills it. React 18's types hid that.
+function Counter({ incrementRef }: { readonly incrementRef: RefObject<Gtk.Button | null> }) {
     const [count, setCount] = useState(0);
     const [rows, setRows] = useState<readonly Row[]>([]);
     const nextRow = useRef(1);
@@ -125,7 +128,7 @@ function Counter({ incrementRef }: { readonly incrementRef: RefObject<Gtk.Button
 interface Ui {
     readonly window: Adw.ApplicationWindow;
     readonly root: ReturnType<typeof createRoot>;
-    readonly incrementRef: RefObject<Gtk.Button>;
+    readonly incrementRef: RefObject<Gtk.Button | null>;
 }
 
 function buildUi(app: Adw.Application | null): Ui {

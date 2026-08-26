@@ -90,8 +90,8 @@
     "peerDependencies": {
         "@vue/runtime-core": "^3.5.0",
         "solid-js": "^1.9.0",
-        "react": "^18.3.1",
-        "react-reconciler": "^0.29.2"
+        "react": "^19.2.0",
+        "react-reconciler": "^0.33.0"
     },
     "peerDependenciesMeta": {
         "@vue/runtime-core": {
@@ -118,10 +118,10 @@
         "@gjsify/node-gi": "file:../../node-gi/node-gi",
         "vue": "^3.5.41",
         "vue-tsc": "^3.3.11",
-        "react": "^18.3.1",
-        "react-reconciler": "^0.29.2",
-        "@types/react": "^18.3.12",
-        "@types/react-reconciler": "^0.28.9"
+        "react": "^19.2.0",
+        "react-reconciler": "^0.33.0",
+        "@types/react": "^19.2.2",
+        "@types/react-reconciler": "^0.33.0"
     },
     "gjsify": {
         "runtimes": {
