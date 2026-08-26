@@ -196,9 +196,13 @@ narrows from `slotCandidates`.
 One shape difference the consumer migration will meet, recorded so it is not read as a
 bug: gtk-host's `props.ts` widens EVERY object-typed property with `| null` ("clearing
 one is legitimate"), while the `@girs` surface prints the nullability GIR states,
-because it reads the same model the main emitter does. That is a narrowing, and it wants
-a decision in the consumer — widen in the dialect, or fix the fixtures that pass `null`
-to a property GIR does not mark nullable — rather than a cast.
+because it reads the same model the main emitter does. **Measured, so the migration has a
+number rather than a shrug: 12 of the 418 dashed keys in the Gtk-4.0 surface** —
+`action-target`, `cell-area`, `cell-area-context`, `pointing-to`, `page-setup`,
+`print-settings`, `accel-size-group`, `title-size-group` and the four
+`primary-`/`secondary-icon-gicon`/`-paintable` keys. That is a narrowing, and it wants a
+decision in the consumer — widen in the dialect, or fix the fixtures that pass `null` to a
+property GIR does not mark nullable — rather than a cast.
 
 ### 4. Placement stays curated, and the GIR supplies the gate
 
@@ -369,8 +373,9 @@ already uses. That turns a side effect of production use into a named gate.
 3. **Making every `@girs/*` consumer pay.** Answered structurally, not by
    promising it is small: the surface is a **separate subpath**, so a consumer
    that never imports it parses **zero** additional bytes — TypeScript reads only
-   files a program reaches. For scale: the Gtk-4.0 surface is 145 KB / 3 259 lines
-   against a 5.86 MB / 147 574-line base `.d.ts` — 2.5 % if imported, 0 % if not.
+   files a program reaches. For scale, as landed: the Gtk-4.0 surface is 158 KB /
+   3 193 lines against a 5.86 MB / 147 574-line base `.d.ts` — 2.8 % if imported, 0 %
+   if not.
    The design's refusal to add a `$properties` phantom is what makes this true;
    a phantom would land in the base file and be unavoidable.
 
@@ -383,16 +388,28 @@ from the real generator, against the prototype numbers this ADR was written from
 | | prototype | landed | why it moved |
 |---|---:|---:|---|
 | Gtk-4.0 widgets / declarations | 102 / 127 | 102 / 123 | four empty bases from namespaces with no surface are dropped |
-| Gtk-4.0 enum nick unions | 38 | 38 | — |
+| Gtk-4.0 enum nick unions | 38 | 105 | a namespace emits a union for EVERY registered enum it declares, not only the ones its own properties reference — see below |
 | Gtk-4.0 slot candidates | 59 | 60 | candidates are keyed by SLOT, and two methods can derive one name (`set_child`/`add_child` → `child`); first wins in sorted order, because a duplicate key in a type literal is TS1117 |
-| Gtk-4.0 surface lines | 3 259 | 3 126 | — |
+| Gtk-4.0 surface lines | 3 259 | 3 193 | — |
 | Adw-1 widgets / declarations | 62 / 81 | 62 / 63 | the Gtk half of the chain is IMPORTED from `@girs/gtk-4.0/surface`, not copied |
-| Adw-1 enum nick unions | 28 | 16 | the twelve Gtk-owned unions are imported too |
-| Adw-1 surface lines | 2 754 | 2 364 | both of the above |
+| Adw-1 enum nick unions | 28 | 25 | the Gtk-owned unions — six in the landed version — are imported rather than copied, and the all-registered rule below adds Adw's own unreferenced enums |
+| Adw-1 surface lines | 2 754 | 2 373 | both of the above |
+
+**Why "every registered enum", and why the first count was 38.** Emit-what-you-reference
+is what shipped first, and the per-package `tsc --project` failed it:
+`GtkSourceView:text-window-type` reaches `Gtk.TextWindowType`, no Gtk-4.0 widget property
+does, so `@girs/gtk-4.0/surface` had no `GtkTextWindowTypeNick` for
+`@girs/gtksource-5/surface` to import — TS2305, and the same shape for `GtkPackTypeNick`
+in Handy-1 against Gtk-3.0. The nick vocabulary of a namespace is a property of the
+NAMESPACE, not of which of its own properties happen to use it, and emitting all of them
+is also what makes `ENUM_NICKS` a complete answer for a consumer checking nicks against
+the installed library. The 38 and 16 in the first version of this table are the
+pre-fix numbers; the +67 unions on Gtk-4.0 and +9 on Adw-1 account for the line deltas
+above exactly, in the `.d.ts` and in the runtime data alike.
 
 102 + 62 = **164** still matches gtk-host's own concrete-widget count exactly. The
-Gtk-4.0 surface is 151 KB / 3 126 lines against a 5.86 MB / 147 574-line base `.d.ts` —
-2.6 % if imported, 0 % if not — plus 39 KB / 533 lines of runtime data.
+Gtk-4.0 surface is 158 KB / 3 193 lines against a 5.86 MB / 147 574-line base `.d.ts` —
+2.8 % if imported, 0 % if not — plus 45 KB / 600 lines of runtime data.
 
 Three corrections this ADR needed, all of them from running the thing:
 

@@ -220,10 +220,13 @@ caret: `@gjsify/gtk-host` declares eight `@girs/*` packages at `^4.1.0`, and a m
 
 **One measured shape difference to expect in the diff, not a bug.** `props.ts` widens
 every object-typed property with `| null`; the `@girs` surface prints the nullability
-GIR states, because it reads the same model the main emitter does. So the migration
-will surface fixtures that pass `null` to a property GIR does not mark nullable. That
-is a real narrowing and wants a decision — widen in the consumer dialect, or fix the
-fixtures — rather than a silent cast.
+GIR states, because it reads the same model the main emitter does. Measured against the
+generated Gtk-4.0 surface: **12 of its 418 dashed keys** — `action-target`, `cell-area`,
+`cell-area-context`, `pointing-to`, `page-setup`, `print-settings`, `accel-size-group`,
+`title-size-group` and the four `primary-`/`secondary-icon-gicon`/`-paintable` keys. So
+the migration will surface fixtures that pass `null` to a property GIR does not mark
+nullable. That is a real narrowing and wants a decision — widen in the consumer dialect,
+or fix the fixtures — rather than a silent cast.
 
 ### An adopted composite offsets by its own internals
 
