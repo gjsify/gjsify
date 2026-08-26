@@ -33,7 +33,7 @@ const _shimDir = dirname(fileURLToPath(import.meta.url));
  * `createRequire` is used only for its `exports`-map-aware RESOLVER; nothing is
  * loaded through it (this source is ESM — see AGENTS.md "no bare `require`").
  */
-export function resolveShim(shimName: string): string {
+function resolveShim(shimName: string): string {
     // Normal Node consumption: `_shimDir` = `<pkg>/lib/app/`.
     const relative = resolve(_shimDir, `../shims/${shimName}.js`);
     if (existsSync(relative)) return relative;
@@ -90,48 +90,6 @@ export interface GjsFactoryInput {
     giSystemProbes?: readonly GiSystemProbe[];
     /** Plugin options forwarded to sub-plugins (deepkit, css, …). */
     pluginOptions: PluginOptions;
-}
-
-/**
- * The GJS target's module-resolution view of the npm world — how `--app gjs`
- * answers `mainFields` and `conditionNames`.
- *
- * 'browser' first so packages like create-hash/create-hmac/randombytes take
- * their pure-JS browser entry instead of an index.js that `require('crypto')`s
- * and cycles back through the @gjsify/crypto alias.
- *
- * NEITHER 'import' NOR 'require' belongs in `conditionNames` — rolldown adds
- * the one matching each CALL SITE, and naming either explicitly applies it to
- * both kinds. The exports-map resolver takes the PACKAGE's first key our list
- * contains, so `'import'` here made a require() call match an `import` key
- * declared first, handing a CJS consumer an ESM namespace where it expects
- * `module.exports`. MEASURED on the express showcase: `is-promise@4` declares
- * `[{import,require,default}, …]` in that order, so `router`'s
- * `require('is-promise')` bound `{default: fn}` and every request threw
- * `TypeError: n is not a function` — answered 200 anyway, and express logged
- * `err.stack`, which carries no message line on SpiderMonkey, so the flagship
- * slide printed ~59 anonymous frames per request naming nothing.
- *
- * `'node'` is absent for a different reason: it hands `cross-fetch-ponyfill`
- * its Node-only entry, which imports `blobFrom`/`fileFrom` and breaks the
- * bundle at link time. Packages that genuinely need their `node` export under
- * GJS (so far only `unicorn-magic`'s `traversePathUp`) get an explicit alias.
- *
- * Exported because the `--app node` REVERSE BRIDGE must resolve with exactly
- * this view: a genuine GJS source built for node is the same program as its
- * `--app gjs` build, and letting the `node` condition swap a dependency's
- * entrails breaks ADR 0030's attribution — the two legs then compare two
- * different programs. Measured on `solid-js`, whose export map routes `node`
- * to `dist/server.js`: the SSR build renders a perfect initial tree and has a
- * no-op `createEffect`, so all sixteen Solid suites in @gjsify/gtk-host's node
- * leg failed as `Expected ["second"], Actual ["first"]` — misattributed to
- * node-gi until the resolution was compared.
- */
-export function gjsResolveOptions(format: 'esm' | 'cjs'): NonNullable<RolldownOptions['resolve']> {
-    return {
-        mainFields: format === 'esm' ? ['browser', 'module', 'main'] : ['browser', 'main', 'module'],
-        conditionNames: ['browser'],
-    };
 }
 
 export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfig> => {
@@ -194,7 +152,31 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         platform: 'neutral',
         // EXACT names only — see the externals policy note above.
         external: exactExternal,
-        resolve: gjsResolveOptions(format),
+        // 'browser' first so packages like create-hash/create-hmac/randombytes
+        // take their pure-JS browser entry instead of an index.js that
+        // `require('crypto')`s and cycles back through the @gjsify/crypto alias.
+        resolve: {
+            mainFields: format === 'esm' ? ['browser', 'module', 'main'] : ['browser', 'main', 'module'],
+            // NEITHER 'import' NOR 'require' belongs here — rolldown adds the
+            // one matching each CALL SITE, and naming either explicitly applies
+            // it to both kinds. The exports-map resolver takes the PACKAGE's
+            // first key our list contains, so `'import'` here made a require()
+            // call match an `import` key declared first, handing a CJS consumer
+            // an ESM namespace where it expects `module.exports`. MEASURED on the
+            // express showcase: `is-promise@4` declares `[{import,require,default}, …]`
+            // in that order, so `router`'s `require('is-promise')` bound
+            // `{default: fn}` and every request threw `TypeError: n is not a
+            // function` — answered 200 anyway, and express logged `err.stack`,
+            // which carries no message line on SpiderMonkey, so the flagship
+            // slide printed ~59 anonymous frames per request naming nothing.
+            //
+            // `'node'` is absent for a different reason: it hands
+            // `cross-fetch-ponyfill` its Node-only entry, which imports
+            // `blobFrom`/`fileFrom` and breaks the bundle at link time. Packages
+            // that genuinely need their `node` export under GJS (so far only
+            // `unicorn-magic`'s `traversePathUp`) get an explicit alias.
+            conditionNames: ['browser'],
+        },
         transform: {
             // GJS 1.86 / SpiderMonkey 140 ≈ firefox140.
             target: 'firefox140',

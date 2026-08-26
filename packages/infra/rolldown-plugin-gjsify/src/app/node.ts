@@ -1,5 +1,7 @@
 // `--app node` Rolldown configuration factory.
 
+import { createRequire } from 'node:module';
+
 import { aliasPlugin } from '../plugins/alias.js';
 import type { RolldownOptions, RolldownPluginOption } from 'rolldown';
 
@@ -16,7 +18,6 @@ import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
 import { gjsGiNodePlugin, gjsBuiltinModulesNodePlugin } from '../plugins/gjs-gi-node.js';
 import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
 import { wrapInputWithSideEffects } from '../utils/entry-wrapper.js';
-import { gjsResolveOptions, resolveShim } from './gjs.js';
 
 /**
  * Side-effect specifier the node target injects when GJS ambient globals
@@ -49,17 +50,100 @@ const NODE_GI_BARE_MODULE_SPECIFIERS = Object.values(ALIASES_GJS_FOR_NODE);
 const REGISTER_SUBPATH_RE = /\/register(\/|$)/;
 
 /**
+ * npm packages a REVERSE-BRIDGE build must be routed away from, because their
+ * `node` export condition is not a node build of the same program — it is a
+ * DIFFERENT program, chosen for an assumption a GJS-on-node bundle does not
+ * hold. The value is the entry the `--app gjs` build of the same source gets,
+ * so the two ADR 0030 legs run one program.
+ *
+ * `solid-js` is the measured case and so far the only one. Its export map
+ * routes `node` (and `deno`, and `worker`) to `dist/server.js` — the SSR
+ * build, whose `createEffect` is `function createEffect(fn, value) {}`, an
+ * empty body. The initial render is therefore PERFECT and every reactive
+ * update silently never reaches GTK: sixteen of @gjsify/gtk-host's node-leg
+ * suites failed as `Expected ["second"], Actual ["first"]` while the identical
+ * source passed on gjs, and under ADR 0030's "same suite green on gjs ⇒
+ * node-gi defect" that read as a binding defect for as long as it stood. The
+ * map's own top-level `import`/`require` keys already point at the client
+ * build — `node` merely shadows them, being declared first.
+ *
+ * A ROUTE and not a condition change, deliberately. The obvious fix is to stop
+ * applying `node`, and it does not work: `platform: 'node'` implies that
+ * condition whatever `conditionNames` says (measured — dropping it from the
+ * list left solid-js on the SSR build). The reachable lever is `browser`,
+ * which outranks `node` in solid-js's map, and taking it wholesale is the
+ * SYMMETRIC defect: the gjs target can afford `browser` only because
+ * `getAliasesForGjs` has already replaced the node-facing npm packages, while
+ * the reverse bridge lifts the `/register` routes and keeps the rest real. Then
+ * `ws` — whose map declares `browser` FIRST, pointing at a one-line
+ * `throw new Error('ws does not work in the browser…')` — took the node-gi
+ * consumer harness from `pass 19/19` to `0/5 passed, 10 failed`, every one
+ * `W.WebSocket is not a constructor`. One named package resolves differently;
+ * every other package, and every cross-platform node bundle, is byte-unchanged.
+ */
+const REVERSE_BRIDGE_ENTRY_ROUTES: Record<string, string> = {
+    // The client build both legs share. Subpaths need no route: `solid-js/universal`
+    // (the renderer @gjsify/gtk-host binds to) declares no `node` condition at all,
+    // and reaches the root through this same specifier.
+    'solid-js': 'solid-js/dist/solid.js',
+};
+
+/**
+ * A dangling route above is SILENT, and silence here restores exactly the bug
+ * the route exists to prevent. MEASURED: point the solid-js route at a file
+ * that does not exist and the build exits 0 with an EMPTY log — `aliasPlugin`
+ * answers an unresolvable target with `null`, which a `pre`-order `resolveId`
+ * means as "let the default chain continue", and the default chain is the
+ * `node` condition, i.e. the SSR build with the empty `createEffect`. So a
+ * route that stops resolving fails the BUILD instead, naming the package.
+ *
+ * The CONTROL is the unrouted resolution of the same specifier — what the
+ * route replaces. If that does not resolve, the package is not in this
+ * project's graph at all and there is nothing to route (the routes are a
+ * table, not a dependency list). If it DOES resolve, the routed entry must
+ * too: a package that is installed and whose client entry has moved is the
+ * one case that must not pass quietly.
+ *
+ * `createRequire` is used only as an `exports`-map-aware RESOLVER, as in
+ * `app/gjs.ts`'s `resolveShim`; nothing is loaded through it.
+ */
+function assertReverseBridgeRoutes(): void {
+    const require_ = createRequire(import.meta.url);
+    const resolves = (specifier: string): boolean => {
+        try {
+            require_.resolve(specifier);
+            return true;
+        } catch {
+            return false;
+        }
+    };
+    for (const [pkg, target] of Object.entries(REVERSE_BRIDGE_ENTRY_ROUTES)) {
+        if (!resolves(pkg)) continue; // not in this graph — see the CONTROL note
+        if (resolves(target)) continue;
+        throw new Error(
+            `@gjsify/rolldown-plugin-gjsify: the reverse-bridge entry route for "${pkg}" is dangling — ` +
+                `"${target}" does not resolve, while "${pkg}" does. Without the route this build silently ` +
+                `takes ${pkg}'s "node" export condition, which is why the route exists; update ` +
+                `REVERSE_BRIDGE_ENTRY_ROUTES in app/node.ts to the entry the --app gjs build resolves.`,
+        );
+    }
+}
+
+/**
  * Reverse-bridge register routing: a node build of a GENUINE GJS SOURCE needs the
  * REAL `@gjsify/*` register bodies (document, HTMLCanvasElement, the `'2d'` context
  * factory, matchMedia, …) over `@gjsify/node-gi`, not the default `@gjsify/empty`
  * stubs that keep CROSS-PLATFORM node bundles loadable on plain Node.
  *
- * Two adjustments over the standard node alias map:
+ * Three adjustments over the standard node alias map:
  *  1. every `<pkg>/register…` → `@gjsify/empty` entry is DROPPED so the register
  *     import resolves to its real body;
  *  2. the gjs target's bare→scoped register routes (`xmlhttprequest/register` →
  *     `@gjsify/fetch/register/xhr`, …) are merged in so the inject stub's bare
- *     specifiers resolve on node exactly as they do on gjs.
+ *     specifiers resolve on node exactly as they do on gjs;
+ *  3. `REVERSE_BRIDGE_ENTRY_ROUTES` is merged in, so a package whose `node`
+ *     export condition is a different program (solid-js's SSR build) is routed
+ *     to the entry the `--app gjs` build of the same source gets.
  *
  * Applied to the BASE map only, when `isGjsSourceBuild` — `pluginOptions.aliases` /
  * user aliases still override, and a non-reverse-bridge build is untouched.
@@ -73,10 +157,8 @@ export function enableGjsRegistersForNode(baseAliases: Record<string, string>): 
     for (const [key, value] of Object.entries(ALIASES_WEB_FOR_GJS)) {
         if (REGISTER_SUBPATH_RE.test(key)) out[key] = value;
     }
-    // The reverse bridge resolves with the GJS view (`gjsResolveOptions`), which
-    // omits the `node` condition — so `unicorn-magic`, whose full API sits behind
-    // that condition, needs the same bundled-shim route `--app gjs` uses.
-    out['unicorn-magic'] = resolveShim('unicorn-magic');
+    // 3. the packages whose `node` export is a different PROGRAM — see the table.
+    Object.assign(out, REVERSE_BRIDGE_ENTRY_ROUTES);
     return out;
 }
 
@@ -185,6 +267,9 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
     // pins the asymmetry it fixed.
     const gjsSourceBuild = isGjsSourceBuild({ ...input.pluginOptions, registerInject });
 
+    // Only a reverse-bridge build carries the routes, so only it is held to them.
+    if (gjsSourceBuild) assertReverseBridgeRoutes();
+
     const baseAliases = getAliasesForNode({ external });
     const aliasMap = {
         ...(gjsSourceBuild ? enableGjsRegistersForNode(baseAliases) : baseAliases),
@@ -218,25 +303,13 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         // The function form survives only for `getAliasesForNode({ external })`,
         // which runs in-process and is never serialized.
         external: exactExternal,
-        // A REVERSE-BRIDGE build resolves the npm world with the GJS view: the
-        // bundle is the same GJS program as its `--app gjs` build, only the
-        // runtime differs — and per-runtime export conditions encode assumptions
-        // (`node` ⇒ SSR/server) that are wrong for a GTK program running on node.
-        // Measured on `solid-js`, whose `node` condition is `dist/server.js`: a
-        // no-op `createEffect`, so every reactive update silently never reached
-        // GTK while the identical `--app gjs` bundle passed — and ADR 0030's
-        // gjs-vs-node attribution blamed node-gi for a resolution difference.
-        // Sharing `gjsResolveOptions` (not a copy) is what keeps the two legs
-        // comparing one program. Cross-platform node bundles are byte-unchanged.
-        resolve: gjsSourceBuild
-            ? gjsResolveOptions(format)
-            : {
-                  mainFields: format === 'esm' ? ['module', 'main', 'browser'] : ['main', 'module', 'browser'],
-                  // CJS-priority conditions. Rolldown takes the package's first matching
-                  // key, so adding 'import' would route ws v8 (which lists 'import'
-                  // before 'require') through its incomplete ESM wrapper.
-                  conditionNames: format === 'esm' ? ['require', 'node', 'module'] : ['require'],
-              },
+        resolve: {
+            mainFields: format === 'esm' ? ['module', 'main', 'browser'] : ['main', 'module', 'browser'],
+            // CJS-priority conditions. Rolldown takes the package's first matching
+            // key, so adding 'import' would route ws v8 (which lists 'import'
+            // before 'require') through its incomplete ESM wrapper.
+            conditionNames: format === 'esm' ? ['require', 'node', 'module'] : ['require'],
+        },
         transform: {
             target: 'node24',
             define: {
