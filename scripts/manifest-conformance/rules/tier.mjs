@@ -12,6 +12,9 @@
  *      looseness and are exempt by design;
  *   3. no Tier-1/2 package hard-depends on `@gjsify/node-gi`. Subsumed by 2 while
  *      node-gi is Tier 3, but asserted by name so it survives a tier edit.
+ *   4. no published package hard-depends on `@ts-for-gir/*` or `@gi.ts/*` (ADR 0019
+ *      Decision 1). Same by-name shape as 3, and for the same reason: those packages
+ *      are deliberately build-step-free, so the edge is not a tier question at all.
  */
 
 import { defineRule, packagesUnder, readManifest } from '../../../packages/infra/manifest-conformance/lib/index.mjs';
@@ -19,6 +22,18 @@ import { relative, resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 
 const VALID_TIERS = new Set([1, 2, 3]);
+
+/**
+ * The scopes ts-for-gir publishes, which ADR 0019 Decision 1 keeps build-step-free:
+ * every one of them resolves `exports["."]` to `./src/index.ts`, verified on the
+ * registry rather than assumed. A `dependencies` edge on one therefore ships raw
+ * TypeScript to everyone who installs the depending package from npm.
+ *
+ * Checked by NAME, like the node-gi rule above, because it is not a tier question —
+ * these are external packages with no `gjsify.tier` at all, which is exactly why the
+ * tier walk below used to skip them and this boundary went unenforced.
+ */
+const isBuildStepFree = (dep) => dep.startsWith('@ts-for-gir/') || dep.startsWith('@gi.ts/');
 
 /**
  * Workspace roots that may contain published packages (root package.json
@@ -41,7 +56,7 @@ export function collectPublishedPackages(root) {
         const edges = [];
         for (const field of ['dependencies', 'optionalDependencies']) {
             for (const dep of Object.keys(pkg[field] ?? {})) {
-                if (dep.startsWith('@gjsify/')) edges.push({ dep, field });
+                if (dep.startsWith('@gjsify/') || isBuildStepFree(dep)) edges.push({ dep, field });
             }
         }
         published.set(pkg.name, { path: relative(root, dir), tier: pkg.gjsify?.tier, edges });
@@ -62,6 +77,12 @@ export function auditTiers(published) {
     for (const [name, info] of published) {
         if (!VALID_TIERS.has(info.tier)) continue; // already reported above
         for (const { dep, field } of info.edges) {
+            if (isBuildStepFree(dep)) {
+                failures.push(
+                    `${name} (${info.path}) → ${dep} via ${field}: forbidden by ADR 0019 Decision 1 — ${dep} exports \`./src/index.ts\`, so a hard edge publishes raw TypeScript to every consumer of ${name}. The sanctioned seam is a devDependency that gjsify BUNDLES (\`gjsify build --app node\`), which is what all existing edges in this repo are.`,
+                );
+                continue;
+            }
             const target = published.get(dep);
             // Not a published workspace package (private example, or an external
             // `@gjsify/*`) — out of tier-contract scope. A published package depending
@@ -96,7 +117,8 @@ export const tierRule = defineRule({
             stats: { published: published.size },
             summary:
                 `tier audit: OK. ${published.size} published package(s) declare a tier; ` +
-                'dependency-direction + ADR-0005 node-gi isolation hold on every deps/optionalDeps edge.',
+                'dependency-direction, ADR-0005 node-gi isolation and the ADR-0019 build-step-free ' +
+                'boundary hold on every deps/optionalDeps edge.',
             published,
         };
     },
