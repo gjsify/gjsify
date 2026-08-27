@@ -50,11 +50,11 @@ gjsify upgrade --check
 
 Every package declares a tier, and CI checks the declaration.
 
-**Tier 1, core.** Full dual-runtime CI and no known-broken releases. This is the Node.js, Web and DOM pillars, the GTK bridge packages and the build tooling, which is nearly every package you will ever import.
+**Tier 1, core.** Full dual-runtime CI and no known-broken releases. This is the Node.js, Web and DOM pillars, the GTK bridge widgets and the build tooling, which is nearly every package you will ever import.
 
 **Tier 2, product.** Tested and released on the same train, but a breaking change can arrive in a minor version with a changelog note. This covers the Adwaita packages, storybook, devtools, the native app shell, the published showcase apps and [node-gi](/gjsify/projects/node-gi/).
 
-**Tier 3, experimental.** No promise at all. New directions start here: today that is [`@gjsify/napi`](/gjsify/projects/napi/), the browser and CDP devtools adapters, and the prebuilt GTK runtime bundles for macOS and Windows.
+**Tier 3, experimental.** No promise at all. New directions start here: today that is [`@gjsify/napi`](/gjsify/projects/napi/) with its shim prebuilds, the browser and CDP devtools adapters, the prebuilt GTK runtime bundles for macOS and Windows, the [GTK host](/gjsify/frameworks/) and the [React Native layer](/gjsify/frameworks/react-native/) over it. Each package's own `gjsify.tier` field is the authority — this list is what those fields say.
 
 A package's runtime dependencies may only point at its own tier or a lower one, so nothing experimental can end up underneath something core.
 

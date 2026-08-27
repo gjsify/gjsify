@@ -36,6 +36,25 @@ export default async () => {
             expect(wrongly).toStrictEqual([]);
         });
 
+        await it('dates every entry it does schedule', async () => {
+            // THE CONVERSE of the assertion above, and the half that was missing.
+            // One direction alone let the website say tiers are absent only from
+            // `refused` and `not-reachable`, while seven entries outside those two
+            // carried none — five `no-desktop-meaning` stubs and two `supported`
+            // names that were answered rather than scheduled.
+            //
+            // So the rule is not "not refused, therefore tiered", which is false.
+            // It is: the two statuses that PROMISE something about when — `planned`
+            // and `partial` — must say when. A tier-less entry in one of those is a
+            // promise with no date, and it reads to a porter as "soon".
+            const undated = SUPPORTED_NAMES.filter((name) => {
+                const entry = SUPPORT_TABLE[name]!;
+                const scheduled = entry.status === 'planned' || entry.status === 'partial';
+                return scheduled && entry.tier === undefined;
+            });
+            expect(undated).toStrictEqual([]);
+        });
+
         await it('lists limits for every partial entry and for no other', async () => {
             const missing = SUPPORTED_NAMES.filter(
                 (name) => SUPPORT_TABLE[name]!.status === 'partial' && (SUPPORT_TABLE[name]!.limits ?? []).length === 0,

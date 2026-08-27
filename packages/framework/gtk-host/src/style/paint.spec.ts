@@ -141,6 +141,34 @@ export default async () => {
             expect(intent).toStrictEqual({});
         });
 
+        await it('sends border-style: solid along with a width, and only then', async () => {
+            // The append at the end of `partitionPaint` had NO assertion at all, and
+            // it is the one behaviour in this file that is invisible when it breaks:
+            // CSS's initial `border-style` is `none`, `none` zeroes the width, and a
+            // width-only rule therefore paints nothing and occupies nothing.
+            // MEASURED on GTK 4.22.4, a Gtk.Box rooted in a window: `border-width:
+            // 4px` alone measures what no border at all measures — 0x0 empty, 9x18
+            // holding a Label('x') — while `+ border-style: solid` adds 4 px per
+            // edge on both shapes.
+            expect(partition({ borderWidth: '4px' }).css).toStrictEqual(['border-width: 4px', 'border-style: solid']);
+            // Per edge as well: the condition is keyed on the border-*-width family,
+            // not on the shorthand, because `border-b` is the utility people reach
+            // for first and it would be the silent one.
+            expect(partition({ borderBottomWidth: '1px' }).css).toStrictEqual([
+                'border-bottom-width: 1px',
+                'border-style: solid',
+            ]);
+            // And through the class route, which is how it actually arrives.
+            expect(partition(resolveUtilities(['border-b'], TOKENS)).css).toStrictEqual([
+                'border-bottom-width: 1px',
+                'border-style: solid',
+            ]);
+            // THE CONTROL, and it is what makes the three above mean anything: an
+            // implementation that appended the style unconditionally satisfies all of
+            // them, and would put a border on every generated class in the sheet.
+            expect(partition({ backgroundColor: 'red' }).css).toStrictEqual(['background-color: red']);
+        });
+
         await it('refuses a property it does not route, instead of dropping it', async () => {
             // The silence this whole file exists against: an unrouted property that
             // simply vanishes leaves the widget unpainted and the run green.

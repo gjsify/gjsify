@@ -180,7 +180,7 @@ A few that are worth knowing before they surprise you:
 
 | export | tier | GTK | why |
 |---|---|---|---|
-| `Modal` | P1 | Adw.Dialog | An Adw.Dialog cannot be an ordinary element. MEASURED on libadwaita 1.10: box.append(dialog) calls g_error() — SIGABRT and a core dump, not a catchable exception — but ONLY when the box is rooted in a window. A detached box accepts the append in silence, so a re-test on a bare box appears to disprove this and puts the primitive back. A dialog is PRESENTED against a parent, never parented by it, so this is a PORTAL and needs a host seam that does not exist yet. |
+| `Modal` | P1 | Adw.Dialog | An Adw.Dialog cannot be an ordinary element. MEASURED on libadwaita 1.9.3: box.append(dialog) calls g_error() — SIGABRT and a core dump, not a catchable exception — but ONLY when the box is rooted in a window. A detached box accepts the append in silence, so a re-test on a bare box appears to disprove this and puts the primitive back. A dialog is PRESENTED against a parent, never parented by it, so this is a PORTAL and needs a host seam that does not exist yet. |
 | `AppState` | P3 | Gtk.Application / Gdk.Surface state | active/background from window focus and visibility. |
 | `PixelRatio` | P3 | Gdk.Surface.scale-factor | The scale factor of the surface the widget is on. |
 | `PlatformColor` | P3 | Adwaita named colours | Maps unusually well — GTK’s palette is exactly this idea. |

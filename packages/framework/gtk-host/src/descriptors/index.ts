@@ -28,7 +28,7 @@ export const CURATED_DESCRIPTORS: readonly WidgetDescriptor[] = [...GTK_DESCRIPT
  * `descriptorProblems()` cannot see it because it never instantiates anything.
  *
  * MEASURED bare-constructing all 164 generated rows on gjs 1.88.1 / GTK 4.22.4 /
- * Adw 1.10, resuming past each abort: **163 construct, one does not**, and not a
+ * libadwaita 1.9.3, resuming past each abort: **163 construct, one does not**, and not a
  * single row throws. So this map is one entry rather than a policy — and
  * `constructsEveryDescriptor` in `generated.spec.ts` is what keeps it one entry.
  *

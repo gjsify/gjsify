@@ -16,6 +16,7 @@ gjsify/
 │   ├── framework/           # GTK host, bridges, storybook, devtools, adwaita-app shell
 │   ├── nativescript-bridge/ # NativeScript (Android/iOS) native wrappers
 │   ├── node-gi/             # GObject-Introspection runtime for Node/Bun/Deno
+│   ├── napi/                # N-API host: native .node addons under GJS
 │   ├── gjs/                 # GJS runtime utilities, types, test framework
 │   └── infra/               # CLI, Rolldown / Vite plugins, build tools
 ├── showcases/       # Curated, published example applications
@@ -59,6 +60,6 @@ GJSify treats the **Node.js API**, the **Web API**, the **DOM API** and the **Fr
 - `packages/node/`: Node.js builtins (`fs`, `http`, `crypto`, …)
 - `packages/web/`: Web platform APIs (`fetch`, `WebSocket`, `ReadableStream`, Web Crypto, …)
 - `packages/dom/`: DOM element classes (`HTMLCanvasElement`, `HTMLImageElement`, …) with headless Canvas 2D
-- `packages/framework/`: everything that glues DOM and GTK together without being a spec implementation: the [GTK host](/gjsify/frameworks/) (`@gjsify/gtk-host`) that UI-framework renderers target, the [bridge widgets](/gjsify/patterns/bridges/), the [storybook](/gjsify/guides/storybook/), the [devtools control plane](/gjsify/guides/devtools/) and the [Adwaita app shell](/gjsify/guides/native-adwaita-app/)
+- `packages/framework/`: everything that glues DOM and GTK together without being a spec implementation: the [GTK host](/gjsify/frameworks/) (`@gjsify/gtk-host`) that UI-framework renderers target, its [style partition](/gjsify/frameworks/styling/) (`@gjsify/gtk-host/style`), the [React Native layer](/gjsify/frameworks/react-native/) (`@gjsify/react-native`) over both, the [bridge widgets](/gjsify/patterns/bridges/), the [storybook](/gjsify/guides/storybook/), the [devtools control plane](/gjsify/guides/devtools/) and the [Adwaita app shell](/gjsify/guides/native-adwaita-app/)
 
 The DOM-element ↔ GTK-widget pairings are documented in [Bridge Widgets](/gjsify/patterns/bridges/).

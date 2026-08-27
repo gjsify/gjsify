@@ -196,17 +196,17 @@ Vala prebuild), `webaudio`, `web-streams`, `compression-streams`, `eventsource`,
 | canvas2d-core | Cairo, PangoCairo | Headless `CanvasRenderingContext2D`, gradients, patterns, `Path2D`, `ImageData` |
 | canvas2d | canvas2d-core, Gtk 4 | Re-exports canvas2d-core + `FontFace` + `Canvas2DBridge` → `Gtk.DrawingArea` |
 | dom-elements | GdkPixbuf, canvas2d-core | `Node`, `Element`, `HTMLCanvasElement` (auto-registers `'2d'`), `HTMLImageElement`, `Document` |
-| gtk-host | Adw, Gtk 4, Gdk 4, GObject | Framework-agnostic element model (`createElement`/`insert`/`setProp`) that UI-framework renderers bind to; 26 GTK 4 + libadwaita descriptors carry each container's adoption rule |
-| react-native | Adw, Gtk 4, gtk-host | React Native's export surface on GTK4 — the package a bundler aliases `react-native` to. A support table carries a status and a reason for all 92 names react-native exports, and an unimplemented one refuses with that reason instead of being absent |
+| gtk-host | Adw, Gtk 4, Gdk 4, GObject | Framework-agnostic element model (`createElement`/`insert`/`setProp`) that UI-framework renderers bind to. Each container's adoption rule is data in a hand-curated GTK 4 / libadwaita descriptor, with a generated row tagging every other widget in the GIR |
+| react-native | Adw, Gtk 4, gtk-host | React Native's export surface on GTK4 — the package a bundler aliases `react-native` to. A support table carries a status and a reason for every name react-native exports — key set held by `scripts/check-rn-surface.mjs` against a committed snapshot of that surface always, and against an installed `react-native` when there is one — and an unimplemented one refuses with that reason instead of being absent |
 | event-bridge | Gtk 4, Gdk 4 | GTK → DOM event mapping (Mouse, Pointer, Keyboard, Wheel, Focus) |
 | iframe | WebKit 6.0 | `HTMLIFrameElement`, `IFrameBridge` → `WebKit.WebView` |
 | video | Gst 1.0, Gtk 4 | `HTMLVideoElement`, `VideoBridge` → `Gtk.Picture` (gtk4paintablesink) |
 | webgl | gwebgl (Vala) | WebGL 1.0/2.0, `WebGLBridge` → `Gtk.GLArea` |
 
-The framework pillar also ships the **GTK host** — the element model
-Vue/React/Solid/Angular renderers bind to, where each container's adoption rule is
-data in a descriptor table — plus composition helpers, a GTK **Storybook**, and
-**devtools** you can drive over D-Bus to screenshot and inspect a running GJS app.
+The framework pillar also ships composition helpers, the `gtk-host/style` partition
+that routes a utility class or a style object to GTK CSS, a widget property or an
+attach-time intent, a GTK **Storybook**, and **devtools** you can drive over D-Bus
+to screenshot and inspect a running GJS app.
 
 ### GNOME library mappings
 

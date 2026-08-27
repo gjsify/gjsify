@@ -1,0 +1,219 @@
+---
+title: Styling on GTK
+description: How @gjsify/gtk-host/style turns utility classes and style objects into GTK CSS, widget properties and attach-time intents — with the measured traps behind that split, the worst of which fail with no diagnostic at all.
+---
+
+[`@gjsify/gtk-host/style`](https://www.npmjs.com/package/@gjsify/gtk-host) is the styling
+partition: a utility class (`flex-1`, `mt-2xs`, `bg-emphasis`) or a `style={{…}}` object goes in,
+and GTK-shaped output comes out.
+
+It is framework-agnostic by construction. `class="flex-1"` in a Vue template is the same question
+as `className="flex-1"` on a React element, and both are the same question as a style object — so
+the answer lives one level below any of them, in the host rather than beside it. Today the binding
+that consumes it is [`@gjsify/react-native`](/gjsify/frameworks/react-native/), on both its React
+and its Solid front ends.
+
+**Everything on this page is a measurement against a real GTK, not a reading of a specification.**
+That matters here more than in most places, because GTK's failure mode for a styling mistake is
+*exit 0 and a window that looks nearly right*.
+
+## Three destinations, and no fourth
+
+A property is answered in exactly one of three ways:
+
+| Destination | Meaning | Example |
+|---|---|---|
+| **GTK CSS** | GTK's CSS parser accepts the property name | `padding-left`, `background-color`, `margin-left` |
+| **widget property** | some GTK class installs a property by that name | `margin-start`, `hexpand`, `overflow`, `width-request` |
+| **intent** | neither can answer it *here*, because the answer needs the parent, the children, or the widget this element becomes | `flex-1`, `items-center`, `gap-x-2`, `text-center` |
+
+Which one a property takes is a **measurement**, not a preference. Two committed tables hold it:
+one loads every accepted CSS property name into a real `Gtk.CssProvider` and asserts it parses,
+and loads every refused one and asserts it does not; the other calls `list_properties()` on the
+class and does the same in both directions. Both carry a value alongside the name, because "is
+this a property" and "does this value parse" are different questions and only the pair is
+testable.
+
+Anything the partition cannot answer is a **named error** — an unknown utility, a token missing
+from a scale, or a combination GTK has no way to express. There is no silent drop, because a
+styling layer that quietly ignores part of its input is invisible in CI and obvious on screen.
+
+## `text-align` is not GTK CSS
+
+It is the single most likely mistake in this whole area, because it reads like paint. Anyone
+reading a `text-*` vocabulary groups it with `color` and `font-size`, emits it as a CSS
+declaration, and **GTK's parser drops it in silence** — the text stays left-aligned with no
+diagnostic anywhere.
+
+Text alignment on GTK is a **widget property**, and specifically `Gtk.Label`'s: `xalign` (a float)
+together with `justify` (an enum). Both are needed for one `text-*`, because `xalign` positions a
+line inside the label's allocation while `justify` positions the lines relative to each other — so
+a single-line label ignores `justify` and a wrapped one looks unaligned without `xalign`. Setting
+one of the two is the shape that passes the test and fails on the first paragraph.
+
+And `Gtk.Box` has neither, measured. So `text-center` on a `<View>` wrapping a `<Text>` — ordinary
+authoring — cannot be resolved where the class is written. It becomes an **intent**, and the value
+travels down to the first descendant that can take it.
+
+There is no logical spelling to map onto, either: `Gtk.Label:xalign` is `0 = left` and
+`GtkJustification` has exactly `LEFT`, `RIGHT`, `CENTER` and `FILL`. `text-start` and `text-end`
+are named refusals pointing at `text-left` / `text-right`.
+
+## GTK CSS margins are physical; widget margins are logical
+
+This is the decisive measurement of the whole partition, and the one to keep if everything else is
+rewritten:
+
+- **GTK CSS** accepts `margin-left` and `margin-right`. It **refuses** `margin-start`,
+  `margin-end`, `padding-start` and `padding-end`.
+- **`Gtk.Widget`** installs `margin-start` and `margin-end`. It installs **no** `margin-left` and
+  **no** `margin-right`.
+
+The two mechanisms are therefore not two ways to spell one thing that a layer gets to choose
+between. Each is the **only** route for one half of the source vocabulary, which splits along the
+same line: `ml-*` / `mr-*` are physical, `ms-*` / `me-*` are logical.
+
+So `ml-*` / `mr-*` go through CSS and `ms-*` / `me-*` go through the widget property — and that is
+what stays correct under RTL. Routing `ms-*` through CSS would produce a margin that does not flip
+for a reader of Arabic or Hebrew: a bug with no failing test and no visible symptom in the
+language it was written in.
+
+`mt-*` / `mb-*` have no logical-versus-physical distinction to preserve, so they join the widget
+channel. Which leaves `m-*` straddling both, because `m-*` is physical: its horizontal half is CSS
+and its vertical half is widget properties. That looks like an inconsistency and is the opposite —
+it is what keeps `m-4 mx-2` resolving by last-wins on one key instead of stacking a CSS margin on
+top of a widget margin.
+
+`m-4 ms-2` cannot be saved that way, so it is a **refusal by name**:
+
+> a physical horizontal margin (`ml-*`/`mr-*`/`mx-*`/`m-*`) becomes GTK CSS and a logical one
+> (`ms-*`/`me-*`) becomes the widget property; GTK applies BOTH and they ADD, where CSS would have
+> let one win. Spell the horizontal margin one way
+
+### Padding has no second route at all
+
+No GTK class installs a `padding` property of any kind — not `Gtk.Widget`, not `Gtk.Box`. Every
+padding is CSS, and a **logical** padding (`ps-*`, `pe-*`) is therefore a named refusal rather than
+a physical approximation: `padding-start` is not a CSS property either, so there is nothing to
+approximate it with. Use `pl-*` / `pr-*`.
+
+## `border-width` without `border-style` paints nothing — and occupies nothing
+
+CSS's initial `border-style` is `none`, and `none` zeroes the width. Measured on GTK 4.22.4, on a
+`Gtk.Box` carrying the class and rooted in a `Gtk.Window` — and the box's **contents are part of
+the measurement**, because a box's minimum size is its children's, so the absolute numbers only
+reproduce on the shape they were taken on:
+
+| Declarations | empty `Gtk.Box` | one holding `Label("x")` |
+|---|---|---|
+| *(no border at all)* | 0 × 0 px | 9 × 18 px |
+| `border-width: 4px` | 0 × 0 px | 9 × 18 px |
+| `border-width: 4px; border-style: solid` | 8 × 8 px | 17 × 26 px |
+
+The no-border row is what makes the point, which is why it is in the table rather than assumed: a
+width without a style measures **identical to no border at all**, on either shape, and adding the
+style adds 4 px per edge — 8 px on each axis — on both. So a `border` utility that emitted only a
+width would be a class that does absolutely nothing, silently: no paint, and no space taken
+either, which is why it does not even show up as a layout shift you might notice.
+
+Tailwind solves this in its preflight, globally. There is no preflight here, because a generated
+class has to be self-sufficient. The style therefore travels with the width: `border-style: solid`
+is appended whenever a rule sets a border width and nothing in the same rule has already set one.
+
+## One malformed rule can silently discard every rule after it
+
+GTK's CSS parser recovers from a bad **declaration** by dropping it. It does not always recover
+from a malformed **construct**: one can end the document, and every rule that follows is then
+silently absent. The symptom is "the application lost its styling", with no error anywhere — and
+in the measured case (an unterminated string) **GTK reported no error at all**.
+
+That is why a generated rule is **probed before it joins the sheet**. Each new rule is loaded into
+a throwaway `Gtk.CssProvider` together with a sentinel rule, the provider is serialised back, and
+the rule is accepted only if the sentinel survived the round trip. A behavioural test against the
+real parser rather than a model of its grammar — the only kind that cannot drift against a GTK
+upgrade.
+
+The refusal says which of the two happened:
+
+```
+@gjsify/gtk-host/style: a generated rule would disable every rule after it in the
+document, so it is refused:
+  .gjsify-s1abc { … }
+  GTK reported no error, which is why this is checked by containment rather than by
+  the error signal.
+```
+
+## `orientation` and `spacing` belong to `Gtk.Box`, not to `Gtk.Widget`
+
+Measured: `orientation` and `spacing` are not on `Gtk.Widget`. They are `Gtk.Box`'s — `orientation`
+via `Gtk.Orientable` — and a `Gtk.Label` has neither. `Gtk.CenterBox` has `orientation` and no
+`spacing` at all.
+
+So `flex-row` and `gap-*` name properties the partition can identify but cannot legally *apply*
+without knowing which widget the element becomes. They are intents for that reason, resolved one
+layer up with the tag in hand. It is also why the membership set the partition guards with is
+deliberately weaker than the per-class table: the strongest thing it can assert on its own is
+"GTK installs a property by this name *somewhere* in the vocabulary".
+
+`items-*` is missing two things at once. GTK has no `align-items`: the alignment lives on each
+child as `halign` / `valign`, so resolving it means walking children. And *which* of the two it is
+depends on the element's own orientation — where the defaults disagree, since a `Gtk.Box` is
+horizontal and a React Native `View` is a column. There is not even a safe fallback to guess with.
+
+## The generated stylesheet
+
+A widget takes `css-classes`, a string array. So something has to turn a set of declarations into
+a **name** and keep a document that defines it.
+
+- **Class names are content-addressed** — FNV-1a over the rule text. Two elements with the same
+  declarations get the same class and the document holds one rule, not one per element. A
+  per-element name is the shape that makes a long list re-parse the whole sheet on every row.
+- **Reload is coalesced.** Mounting a tree produces one rule per distinct style, and reloading the
+  document per rule is quadratic. It is rebuilt once per microtask instead, with an explicit
+  `flush()` for a test or for an application about to present a window.
+- **Variants become pseudo-classes** on the same generated name: `active:` → `:active`, and
+  likewise `hover:`, `focus:` and `disabled:`. That is what makes a pressed style free — GTK
+  animates the state itself, and nothing has to reach the framework when a finger goes down. A
+  variant with no pseudo-class equivalent is refused by name, listing the ones that work.
+
+## What it refuses, and why refusing beats approximating
+
+| You write | What happens |
+|---|---|
+| `justify-around`, `justify-evenly` | refused at the partition: GTK's box gives leftover main-axis space to the children that expand and has no per-gap distribution mode |
+| `justify-between` | deferred, then refused at attach time: the mapping is `Gtk.CenterBox`, which installs no `remove` method, so the host's slotted adoption policy cannot curate it. Spell the distribution with a spacer child (`flex-1`) or with `gap-*` |
+| `ps-*` / `pe-*` | refused: GTK has no logical padding in either mechanism |
+| `text-start` / `text-end` | refused: GTK aligns text physically |
+| `w-1/2` and other fractions | refused: a widget requests a *minimum* in pixels or expands to fill. `w-full` / `h-full` are the only fractions with an exact GTK meaning |
+| `overflow-scroll`, `overflow-auto` | refused: scrolling is a **widget** on GTK, not an overflow mode — wrap the element in a `Gtk.ScrolledWindow`. `Gtk.Overflow` has exactly `VISIBLE` and `HIDDEN` |
+| `flex-2`, `grow-2`, `shrink-*`, `basis-*` | refused: GTK expresses main-axis growth as the boolean `hexpand` / `vexpand`, so there is no growth factor, shrink factor or flex basis to carry. `flex-1` is the only spelling with a GTK meaning |
+| a name no family claims | `UnknownUtilityError`, naming the utility — never a silent drop |
+
+The first two rows refuse at different moments, and it is worth knowing why. **No child count
+makes `space-around` or `space-evenly` expressible**, so an attach-time answer could add nothing —
+refusing them where the class is read is the earliest and strongest place available. For
+`space-between` the child count *is* the whole question, so it travels as an intent and is answered
+where the children are known. Either way the message names the GTK mechanism that is missing, not
+the utility that is unsupported.
+
+The pattern is the same throughout: a refusal costs a reader one sentence, and an approximation
+costs them an afternoon in a window where every widget is present and something is quietly in the
+wrong place.
+
+## This is not the Adwaita web token contract
+
+[Adwaita theming](/gjsify/adwaita/theming/) covers `@gjsify/adwaita-web` in a **browser**:
+CSS custom properties, re-theming a subtree, switching light and dark, setting the accent. Same
+design system, different mechanism, different failure mode. Nothing on this page applies there,
+and nothing there applies here.
+
+## See also
+
+- [React Native](/gjsify/frameworks/react-native/) for the primitive vocabulary that consumes this
+  partition, and how `className` and `style={{…}}` reach it
+- [UI Frameworks](/gjsify/frameworks/) for the host layer, and for the *property-coercion*
+  refusals — enum nicks, read-only writes, misspelled properties — which are a different table
+  from this page's
+- [Adwaita theming](/gjsify/adwaita/theming/) for the web token contract
+- [ADR 0032](https://github.com/gjsify/gjsify/blob/main/docs/adr/0032-react-native-on-the-gtk-host.md)
+  §§ 1–6 for the layer split, the one normalised property set, and why an intent exists at all

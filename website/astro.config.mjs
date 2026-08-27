@@ -138,6 +138,8 @@ export default defineConfig({
                         { slug: 'frameworks/solid', label: 'Solid' },
                         { slug: 'frameworks/vue', label: 'Vue' },
                         { slug: 'frameworks/react', label: 'React' },
+                        { slug: 'frameworks/react-native', label: 'React Native' },
+                        { slug: 'frameworks/styling', label: 'Styling on GTK' },
                     ],
                 },
                 {

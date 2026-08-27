@@ -7,11 +7,15 @@
 // hand-maintained support table beside it is the second truth this repository has
 // already collected several times.
 //
-// PROVENANCE OF THE KEY SET. The 92 names are `react-native`'s own public exports
-// — the getters on `module.exports` in its `index.js`, read from the installed
-// package rather than from documentation. `scripts/check-rn-surface.mjs` re-reads
-// them and fails if the installed React Native gained or lost one, so a version
-// bump cannot quietly widen the surface this table claims to cover.
+// PROVENANCE OF THE KEY SET. The names are `react-native`'s own public exports —
+// the getters on `module.exports` in its `index.js`, read from an installed copy
+// rather than from documentation, and committed as `react-native-surface.json`.
+// `scripts/check-rn-surface.mjs` compares this table against that snapshot on every
+// run, which is what stops a name going missing here or being invented. It compares
+// the SNAPSHOT against an installed `react-native` only when one is resolvable —
+// and says which of the two modes it ran in, because with no `react-native` on disk
+// an upstream version bump CAN widen the real surface with nothing here noticing.
+// Claiming the stronger half unconditionally is how this comment read before.
 //
 // WHY EVERY NAME IS PRESENT, INCLUDING THE ONES WE WILL NEVER BUILD. An absent key
 // is indistinguishable from an unknown one, and the gate would have to guess. A
@@ -38,7 +42,13 @@ export type SupportTier = 'P1' | 'P2' | 'P3';
 
 export interface SupportEntry {
     readonly status: SupportStatus;
-    /** Absent for `refused` / `not-reachable`, which are not scheduled at all. */
+    /**
+     * When. Required on `planned` and `partial`, absent on `refused` and
+     * `not-reachable` — neither is a schedule. Optional elsewhere: a `supported`
+     * or `no-desktop-meaning` name was answered rather than scheduled, so the
+     * converse ("not refused, therefore tiered") is measurably false and
+     * `support-table.spec.ts` pins the narrower rule that holds.
+     */
     readonly tier?: SupportTier;
     /** The GTK or Adwaita counterpart, where there is one. */
     readonly gtk?: string;
@@ -156,7 +166,7 @@ export const SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
         status: 'planned',
         tier: 'P1',
         gtk: 'Adw.Dialog',
-        reason: 'An Adw.Dialog cannot be an ordinary element. MEASURED on libadwaita 1.10: box.append(dialog) calls g_error() — SIGABRT and a core dump, not a catchable exception — but ONLY when the box is rooted in a window. A detached box accepts the append in silence, so a re-test on a bare box appears to disprove this and puts the primitive back. A dialog is PRESENTED against a parent, never parented by it, so this is a PORTAL and needs a host seam that does not exist yet.',
+        reason: 'An Adw.Dialog cannot be an ordinary element. MEASURED on libadwaita 1.9.3: box.append(dialog) calls g_error() — SIGABRT and a core dump, not a catchable exception — but ONLY when the box is rooted in a window. A detached box accepts the append in silence, so a re-test on a bare box appears to disprove this and puts the primitive back. A dialog is PRESENTED against a parent, never parented by it, so this is a PORTAL and needs a host seam that does not exist yet.',
     },
     useColorScheme: {
         status: 'supported',

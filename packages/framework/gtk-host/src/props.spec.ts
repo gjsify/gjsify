@@ -180,7 +180,7 @@ export default async () => {
             await it('answers with the CONSTRUCTED value where the ParamSpec disagrees', async () => {
                 // The four behavioural disagreements, named so a future GTK that
                 // changes one of them fails by name instead of drifting quietly.
-                // Measured on gjs 1.88.1 / GTK 4.22.4 / Adw 1.10.
+                // Measured on gjs 1.88.1 / GTK 4.22.4 / libadwaita 1.9.3.
                 const vectors: ReadonlyArray<readonly [string, string, unknown, unknown]> = [
                     // gtype, property, ParamSpec says, construction says
                     ['AdwActionRow', 'activatable', true, false],

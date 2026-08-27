@@ -22,7 +22,7 @@
 //
 // WHY `Modal` IS NOT HERE, and it is the sharpest measurement of this milestone.
 // ADR 0032 maps it to `Adw.Dialog`, and an `Adw.Dialog` cannot be an ordinary
-// element. Measured on libadwaita 1.10 / gjs 1.88.1, with the box ROOTED IN A
+// element. Measured on libadwaita 1.9.3 / gjs 1.88.1, with the box ROOTED IN A
 // WINDOW — a detached box accepts the append in silence, so a re-test on a bare
 // box 'disproves' this and puts the primitive back: `box.append(dialog)` calls
 // `g_error()` — "Trying to add AdwDialog … to GtkBox. Use adw_dialog_present() to
