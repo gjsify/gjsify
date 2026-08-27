@@ -12,7 +12,12 @@
 // FIDELITY: faithful for the structural layout (start / center / end + flat).
 // The NS CSS subset has no box-shadow, so the non-flat header's bottom separator
 // is a 1px bottom border rather than libadwaita's subtle shadow — a close visual
-// approximation.
+// approximation. And the DERIVED CENTRE diverges: `construct_title_label`
+// (refs/libadwaita/src/adw-header-bar.c:512) builds a plain `gtk_label_new (NULL)`
+// with no subtitle at all, where this bar defaults to an {@link AdwWindowTitle} —
+// the same divergence `@gjsify/adwaita-web` carries, recorded as
+// `HeaderBarRenderState.derivedSubtitle` in `@gjsify/adwaita-core`. It was absent
+// from this ledger, which reads as "no divergence here".
 //
 // Visual spec ported from `@gjsify/adwaita-web`'s `adw-header-bar` / `_headerbar.scss`.
 // Reference: refs/libadwaita/src/stylesheet/widgets/_header-bar.scss

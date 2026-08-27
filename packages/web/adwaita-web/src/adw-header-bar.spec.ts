@@ -4,9 +4,13 @@
 // the open document keeps its construction-time title otherwise, and nothing notices
 // because the attribute is still there and A title still renders.
 //
-// `Adw.HeaderBar` builds its centre from `title`/`subtitle` through a derived
-// `AdwWindowTitle` bound to the properties, unless a `title-widget` replaces it — the
-// either/or the `slot="center"` case below asserts.
+// The either/or the `slot="center"` case below asserts IS `Adw.HeaderBar`'s: setting
+// `title-widget` empties the centre bin (adw-header-bar.c:1201), and clearing it builds the
+// derived centre again (:1211). What C builds there is a plain `gtk_label_new (NULL)`
+// (`construct_title_label`, :512) with no subtitle, and no `title` property behind it —
+// `update_title` (:475) resolves one from the ancestry. The `<adw-window-title>` centre and
+// the title/subtitle PAIR are this port's DIVERGENCE, named in `elements/adw-header-bar.ts`
+// and recorded as `HeaderBarRenderState.derivedSubtitle` in `@gjsify/adwaita-core`.
 
 import { describe, expect, it } from '@gjsify/unit';
 
@@ -122,7 +126,8 @@ export const AdwHeaderBarTest = async () => {
         });
     });
 
-    // The centre is the `<adw-window-title>` Adw.HeaderBar itself derives, so the three
+    // The centre is an `<adw-window-title>` — this port's divergence, not the bare
+    // `GtkLabel` `construct_title_label` builds (adw-header-bar.c:512) — so the three
     // rules that element holds through @gjsify/adwaita-core reach the header bar too.
     // None of them did while the centre was a bare span.
     await describe('<adw-header-bar> derives an <adw-window-title>', async () => {
