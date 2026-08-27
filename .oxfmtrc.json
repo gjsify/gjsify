@@ -32,7 +32,19 @@
         "**/*.gql",
         "**/node_modules",
         "**/dist",
-        "**/lib",
+        // NO `**/lib` here, deliberately, and for the same reason it is gone from
+        // `.oxlintrc.json`. `lib/` is this repo's build-output directory in 119
+        // packages and the root `.gitignore` already says so (`lib/`, line 53) —
+        // oxfmt honours .gitignore, MEASURED both inside a git checkout and in a
+        // tree with no `.git` at all, so the pattern bought nothing for build
+        // output. What it did buy was a blind spot: it OVERRODE the deliberate
+        // `!lib/` re-include in `@gjsify/manifest-conformance` and
+        // `@gjsify/resolve-npm`, whose `lib/` is hand-written committed ESM. 15 of
+        // those 26 tracked sources were unformatted while `oxfmt --check .` stayed
+        // green, because it never opened them. Letting .gitignore be the single
+        // reader for "is this build output" also makes the next such package right
+        // by default: committing source under `lib/` requires an explicit `!lib/`,
+        // and that same act now makes the file visible to the formatter.
         "**/build",
         "**/build-dir",
         "**/builddir",
@@ -51,6 +63,24 @@
         "**/test.node.mjs",
         "**/*.gresource",
         "**/*.compiled",
-        "**/*.metainfo.xml"
+        "**/*.metainfo.xml",
+        // The two things under a committed `lib/` that are OUTPUT, named one by one
+        // now that the blanket glob is gone.
+        //
+        // 108 verbatim copies of upstream TypeScript's default-library
+        // declarations, refreshed from `node_modules/typescript/lib` by this
+        // package's own `build-bundle.mjs` and re-included in `.gitignore` so a
+        // consumer without `typescript` resolves them. All 108 are unformatted
+        // against this config, and reformatting them would rewrite Microsoft's
+        // bytes into a diff the next refresh throws away.
+        "packages/infra/tsc/lib",
+        // A GENERATED map whose bytes already have an author:
+        // `packages/infra/cli/scripts/generate-register-closure.mjs` emits it as
+        // `JSON.stringify(closure, null, 4)` and its `--check` mode compares the
+        // committed file to that string EXACTLY. Formatting it (double → single
+        // quotes, 1140 lines) would make the two gates contradict each other, and
+        // the next legitimate regeneration would silently revert the formatting and
+        // turn `oxfmt --check .` red. One file, one writer.
+        "packages/infra/resolve-npm/lib/register-globals-closure.mjs"
     ]
 }
