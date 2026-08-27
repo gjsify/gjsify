@@ -415,8 +415,7 @@ export const packageOutputsRule = defineRule({
         'gjsify.main',
         'gjsify.example',
     ],
-    description:
-        'every path a package.json declares (main/exports/types/bin/gjsify.{bin,main,example}) exists on disk',
+    description: 'every path a package.json declares (main/exports/types/bin/gjsify.{bin,main,example}) exists on disk',
     run(ctx) {
         const results = inspectDeclaredOutputs(ctx);
         const broken = results.filter((r) => r.missing.length > 0);

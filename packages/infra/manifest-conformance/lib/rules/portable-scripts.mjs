@@ -163,7 +163,8 @@ export const portableScriptsRule = defineRule({
     id: 'portable-scripts',
     scope: 'portable',
     fields: ['scripts'],
-    description: 'every package script is portable — no `rm`/`cp`/… that cmd.exe lacks (use `gjsify clear` / `gjsify copy`)',
+    description:
+        'every package script is portable — no `rm`/`cp`/… that cmd.exe lacks (use `gjsify clear` / `gjsify copy`)',
     run(ctx) {
         const { failures, stats } = auditScripts(ctx);
         return {

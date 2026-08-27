@@ -633,6 +633,15 @@ export type {
     ToolbarViewMeasureInput,
 } from './chrome.js';
 
+// --- Breakpoint bin (pick one, and what the change writes) ---
+export { BreakpointBinState } from './breakpoint-bin.js';
+export type {
+    BreakpointDefinition,
+    BreakpointSetter,
+    BreakpointTransition,
+    BreakpointWrite,
+} from './breakpoint-bin.js';
+
 // --- Scroll edge indicators (GtkScrolledWindow undershoot + overshoot) ---
 export {
     ADW_MAX_OVERSHOOT_DISTANCE,

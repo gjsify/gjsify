@@ -83,12 +83,10 @@ function withDerivedSlotRouting(table, target) {
         return routed;
     };
     return new Proxy(table, {
-        get: (_t, prop) =>
-            typeof prop === 'string' ? materialise()[prop] : Reflect.get(table, prop),
+        get: (_t, prop) => (typeof prop === 'string' ? materialise()[prop] : Reflect.get(table, prop)),
         has: (_t, prop) => Reflect.has(materialise(), prop),
         ownKeys: () => Reflect.ownKeys(materialise()),
-        getOwnPropertyDescriptor: (_t, prop) =>
-            Reflect.getOwnPropertyDescriptor(materialise(), prop),
+        getOwnPropertyDescriptor: (_t, prop) => Reflect.getOwnPropertyDescriptor(materialise(), prop),
     });
 }
 
@@ -148,13 +146,10 @@ export const EXTERNALS_NODE = [
     'sqlite',
     'worker_threads',
     'zlib',
-]
+];
 
 /** Array of NPM module names for which we have our own implementation */
-export const EXTERNALS_NPM = [
-    'readable-stream',
-    'node-fetch'
-]
+export const EXTERNALS_NPM = ['readable-stream', 'node-fetch'];
 
 /** General record of modules for Gjs */
 export const ALIASES_GENERAL_FOR_GJS = {
@@ -163,7 +158,7 @@ export const ALIASES_GENERAL_FOR_GJS = {
     // DOMParser is not available; on GJS we provide DOMParser via
     // @gjsify/domparser, so jsdom and its whatwg-url/webidl-conversions
     // deps (which use SharedArrayBuffer — unavailable in GJS) are never needed.
-    'jsdom': '@gjsify/empty',
+    jsdom: '@gjsify/empty',
 
     // engine.io-client ships both polling-xhr.node.js (uses xmlhttprequest-ssl /
     // Node http.request) and polling-xhr.js (uses globalThis.XMLHttpRequest).
@@ -176,66 +171,65 @@ export const ALIASES_GENERAL_FOR_GJS = {
     './polling-xhr.node.js': './polling-xhr.js',
     './websocket.node.js': './websocket.js',
     './globals.node.js': './globals.js',
-
-}
+};
 
 /** Record of Node.js modules (build in or not) and his replacement for Gjs */
 export const ALIASES_NODE_FOR_GJS = {
     // Internal Node.js modules
-    'assert': '@gjsify/assert',
+    assert: '@gjsify/assert',
     'assert/strict': '@gjsify/assert/strict',
-    'async_hooks': '@gjsify/async_hooks',
-    'buffer': '@gjsify/buffer',
-    'child_process': '@gjsify/child_process',
-    'cluster': '@gjsify/cluster',
-    'console': '@gjsify/console',
-    'constants': '@gjsify/constants',
-    'crypto': '@gjsify/crypto',
-    'dgram': '@gjsify/dgram',
-    'diagnostics_channel': '@gjsify/diagnostics_channel',
-    'dns': '@gjsify/dns',
+    async_hooks: '@gjsify/async_hooks',
+    buffer: '@gjsify/buffer',
+    child_process: '@gjsify/child_process',
+    cluster: '@gjsify/cluster',
+    console: '@gjsify/console',
+    constants: '@gjsify/constants',
+    crypto: '@gjsify/crypto',
+    dgram: '@gjsify/dgram',
+    diagnostics_channel: '@gjsify/diagnostics_channel',
+    dns: '@gjsify/dns',
     'dns/promises': '@gjsify/dns/promises',
-    'domain': '@gjsify/domain',
-    'events': '@gjsify/events',
-    'fs': '@gjsify/fs',
+    domain: '@gjsify/domain',
+    events: '@gjsify/events',
+    fs: '@gjsify/fs',
     'fs/promises': '@gjsify/fs/promises',
-    'http': '@gjsify/http',
-    'http2': '@gjsify/http2',
-    'https': '@gjsify/https',
-    'inspector': '@gjsify/inspector',
-    'module': '@gjsify/module',
-    'net': '@gjsify/net',
-    'os': '@gjsify/os',
-    'path': '@gjsify/path',
+    http: '@gjsify/http',
+    http2: '@gjsify/http2',
+    https: '@gjsify/https',
+    inspector: '@gjsify/inspector',
+    module: '@gjsify/module',
+    net: '@gjsify/net',
+    os: '@gjsify/os',
+    path: '@gjsify/path',
     'path/posix': '@gjsify/path/posix',
     'path/win32': '@gjsify/path/win32',
-    'perf_hooks': '@gjsify/perf_hooks',
-    'process': '@gjsify/process',
-    'punycode': '@gjsify/punycode', // stub — deprecated, low priority
-    'querystring': '@gjsify/querystring',
-    'readline': '@gjsify/readline',
+    perf_hooks: '@gjsify/perf_hooks',
+    process: '@gjsify/process',
+    punycode: '@gjsify/punycode', // stub — deprecated, low priority
+    querystring: '@gjsify/querystring',
+    readline: '@gjsify/readline',
     'readline/promises': '@gjsify/readline/promises',
-    'repl': '@gjsify/repl', // stub — low priority
-    'stream': '@gjsify/stream',
+    repl: '@gjsify/repl', // stub — low priority
+    stream: '@gjsify/stream',
     'stream/web': '@gjsify/stream/web',
     'stream/consumers': '@gjsify/stream/consumers',
     'stream/promises': '@gjsify/stream/promises',
-    'string_decoder': '@gjsify/string_decoder',
-    'sys': '@gjsify/sys',
+    string_decoder: '@gjsify/string_decoder',
+    sys: '@gjsify/sys',
     // 'test': '@gjsify/test', // not planned — use @gjsify/unit instead
-    'timers': '@gjsify/timers',
+    timers: '@gjsify/timers',
     'timers/promises': '@gjsify/timers/promises',
-    'tls': '@gjsify/tls',
-    'tty': '@gjsify/tty',
-    'url': '@gjsify/url',
-    'util': '@gjsify/util',
+    tls: '@gjsify/tls',
+    tty: '@gjsify/tty',
+    url: '@gjsify/url',
+    util: '@gjsify/util',
     'util/types': '@gjsify/util/types',
-    'v8': '@gjsify/v8',
-    'vm': '@gjsify/vm',
-    'wasi': '@gjsify/wasi', // stub — low priority (WebAssembly System Interface)
-    'sqlite': '@gjsify/sqlite',
-    'worker_threads': '@gjsify/worker_threads',
-    'zlib': '@gjsify/zlib',
+    v8: '@gjsify/v8',
+    vm: '@gjsify/vm',
+    wasi: '@gjsify/wasi', // stub — low priority (WebAssembly System Interface)
+    sqlite: '@gjsify/sqlite',
+    worker_threads: '@gjsify/worker_threads',
+    zlib: '@gjsify/zlib',
 
     // Third party Node Modules
     'node-fetch': '@gjsify/fetch',
@@ -249,7 +243,7 @@ export const ALIASES_NODE_FOR_GJS = {
     // resolves to @gjsify/ws unchanged, including the `typeof ws ===
     // 'function'` heuristic used by @thaunknown/simple-websocket and
     // similar transitive users.
-    'ws': '@gjsify/ws',
+    ws: '@gjsify/ws',
 
     // isomorphic-ws's browser.js is literally `module.exports = WebSocket`
     // — just the native class. On GJS that native class is @gjsify/websocket
@@ -258,7 +252,7 @@ export const ALIASES_NODE_FOR_GJS = {
     // Consumers who do `import WS from 'isomorphic-ws'` get our class
     // unchanged — one less delegation hop than going through @gjsify/ws.
     'isomorphic-ws': '@gjsify/websocket',
-}
+};
 
 /**
  * Record of Node.js modules (built-in or 3rd-party) and their `@gjsify/<X>`
@@ -332,65 +326,65 @@ export const ALIASES_NODE_FOR_GJS = {
  * made the `crypto` / `zlib` root-body routing read as latent.)
  */
 const ALIASES_NODE_FOR_BROWSER_TABLE = {
-    'assert':              '@gjsify/assert',
-    'assert/strict':       '@gjsify/assert/strict',
-    'async_hooks':         '@gjsify/async_hooks',
-    'buffer':              '@gjsify/buffer',
-    'child_process':       '@gjsify/child_process/browser', // none slot — NAMED throwing stub
-    'cluster':             '@gjsify/empty',        // (B) simulatable over Web Workers — unbuilt
-    'console':             '@gjsify/console',
-    'constants':           '@gjsify/constants',
-    'crypto':              '@gjsify/crypto/browser',   // partial slot — name the platform entry
-    'dgram':               '@gjsify/empty',        // (B) simulatable over WebRTC data channels — unbuilt
-    'diagnostics_channel': '@gjsify/diagnostics_channel',
-    'dns':                 '@gjsify/dns/browser',      // partial slot — name the platform entry
-    'dns/promises':        '@gjsify/empty',        // (A) blocked: no ./browser/promises subpath yet
-    'domain':              '@gjsify/domain',
-    'events':              '@gjsify/events',
-    'fs':                  '@gjsify/fs/browser',       // partial slot — name the platform entry
-    'fs/promises':         '@gjsify/fs/browser/promises',
-    'http':                '@gjsify/http/browser',     // partial slot — name the platform entry
-    'http2':               '@gjsify/empty',        // (C) impossible — needs a named throwing stub
-    'https':               '@gjsify/https/browser',    // partial slot — name the platform entry
-    'inspector':           '@gjsify/empty',        // (C) impossible — needs a named throwing stub
-    'module':              '@gjsify/module/browser',   // partial slot — name the platform entry
-    'net':                 '@gjsify/net/browser',      // none slot — NAMED throwing stub
-    'os':                  '@gjsify/os',
-    'path':                '@gjsify/path',
-    'path/posix':          '@gjsify/path/posix',
-    'path/win32':          '@gjsify/path/win32',
-    'perf_hooks':          '@gjsify/perf_hooks',
-    'process':             '@gjsify/process',      // PR-D: flips today's `@gjsify/empty`
-    'punycode':            '@gjsify/punycode',
-    'querystring':         '@gjsify/querystring',
-    'readline':            '@gjsify/empty',        // (B) stream-generic; simulatable — unbuilt
-    'readline/promises':   '@gjsify/empty',        // (B) stream-generic; simulatable — unbuilt
-    'repl':                '@gjsify/empty',        // (C) impossible, and no @gjsify/repl package exists
-    'stream':              '@gjsify/stream',
-    'stream/web':          '@gjsify/stream/web',
-    'stream/consumers':    '@gjsify/stream/consumers',
-    'stream/promises':     '@gjsify/stream/promises',
-    'string_decoder':      '@gjsify/string_decoder',
-    'sys':                 '@gjsify/sys',
-    'timers':              '@gjsify/timers',
-    'timers/promises':     '@gjsify/timers/promises',
-    'tls':                 '@gjsify/tls/browser',      // none slot — NAMED throwing stub
-    'tty':                 '@gjsify/empty',        // (B) isatty()===false is honest — unbuilt
-    'url':                 '@gjsify/url',
-    'util':                '@gjsify/util',
-    'util/types':          '@gjsify/util/types',
-    'v8':                  '@gjsify/empty',        // (B) serialize/deserialize over structuredClone — unbuilt
-    'vm':                  '@gjsify/vm',
-    'wasi':                '@gjsify/empty',        // (C) impossible, and no @gjsify/wasi package exists
-    'sqlite':              '@gjsify/sqlite/browser',   // partial slot — name the platform entry
-    'worker_threads':      '@gjsify/worker_threads/browser', // partial slot — name the platform entry
-    'zlib':                '@gjsify/zlib/browser',     // partial slot — name the platform entry
+    assert: '@gjsify/assert',
+    'assert/strict': '@gjsify/assert/strict',
+    async_hooks: '@gjsify/async_hooks',
+    buffer: '@gjsify/buffer',
+    child_process: '@gjsify/child_process/browser', // none slot — NAMED throwing stub
+    cluster: '@gjsify/empty', // (B) simulatable over Web Workers — unbuilt
+    console: '@gjsify/console',
+    constants: '@gjsify/constants',
+    crypto: '@gjsify/crypto/browser', // partial slot — name the platform entry
+    dgram: '@gjsify/empty', // (B) simulatable over WebRTC data channels — unbuilt
+    diagnostics_channel: '@gjsify/diagnostics_channel',
+    dns: '@gjsify/dns/browser', // partial slot — name the platform entry
+    'dns/promises': '@gjsify/empty', // (A) blocked: no ./browser/promises subpath yet
+    domain: '@gjsify/domain',
+    events: '@gjsify/events',
+    fs: '@gjsify/fs/browser', // partial slot — name the platform entry
+    'fs/promises': '@gjsify/fs/browser/promises',
+    http: '@gjsify/http/browser', // partial slot — name the platform entry
+    http2: '@gjsify/empty', // (C) impossible — needs a named throwing stub
+    https: '@gjsify/https/browser', // partial slot — name the platform entry
+    inspector: '@gjsify/empty', // (C) impossible — needs a named throwing stub
+    module: '@gjsify/module/browser', // partial slot — name the platform entry
+    net: '@gjsify/net/browser', // none slot — NAMED throwing stub
+    os: '@gjsify/os',
+    path: '@gjsify/path',
+    'path/posix': '@gjsify/path/posix',
+    'path/win32': '@gjsify/path/win32',
+    perf_hooks: '@gjsify/perf_hooks',
+    process: '@gjsify/process', // PR-D: flips today's `@gjsify/empty`
+    punycode: '@gjsify/punycode',
+    querystring: '@gjsify/querystring',
+    readline: '@gjsify/empty', // (B) stream-generic; simulatable — unbuilt
+    'readline/promises': '@gjsify/empty', // (B) stream-generic; simulatable — unbuilt
+    repl: '@gjsify/empty', // (C) impossible, and no @gjsify/repl package exists
+    stream: '@gjsify/stream',
+    'stream/web': '@gjsify/stream/web',
+    'stream/consumers': '@gjsify/stream/consumers',
+    'stream/promises': '@gjsify/stream/promises',
+    string_decoder: '@gjsify/string_decoder',
+    sys: '@gjsify/sys',
+    timers: '@gjsify/timers',
+    'timers/promises': '@gjsify/timers/promises',
+    tls: '@gjsify/tls/browser', // none slot — NAMED throwing stub
+    tty: '@gjsify/empty', // (B) isatty()===false is honest — unbuilt
+    url: '@gjsify/url',
+    util: '@gjsify/util',
+    'util/types': '@gjsify/util/types',
+    v8: '@gjsify/empty', // (B) serialize/deserialize over structuredClone — unbuilt
+    vm: '@gjsify/vm',
+    wasi: '@gjsify/empty', // (C) impossible, and no @gjsify/wasi package exists
+    sqlite: '@gjsify/sqlite/browser', // partial slot — name the platform entry
+    worker_threads: '@gjsify/worker_threads/browser', // partial slot — name the platform entry
+    zlib: '@gjsify/zlib/browser', // partial slot — name the platform entry
 
     // Third-party
-    'node-fetch':          '@gjsify/empty',        // (A') native-available: wants @gjsify/fetch/globals
-    'ws':                  '@gjsify/ws/browser',       // partial slot — name the platform entry
-    'isomorphic-ws':       '@gjsify/empty',        // (A') native-available: wants a WebSocket re-export
-}
+    'node-fetch': '@gjsify/empty', // (A') native-available: wants @gjsify/fetch/globals
+    ws: '@gjsify/ws/browser', // partial slot — name the platform entry
+    'isomorphic-ws': '@gjsify/empty', // (A') native-available: wants a WebSocket re-export
+};
 
 /**
  * Bare Node-builtin specifier → polyfill / empty-stub mapping for `--app
@@ -399,10 +393,7 @@ const ALIASES_NODE_FOR_BROWSER_TABLE = {
  * and it exports a `./browser` subpath). See `withDerivedSlotRouting` above for
  * why the two-pass chain has to be collapsed here.
  */
-export const ALIASES_NODE_FOR_BROWSER = withDerivedSlotRouting(
-    ALIASES_NODE_FOR_BROWSER_TABLE,
-    'browser',
-);
+export const ALIASES_NODE_FOR_BROWSER = withDerivedSlotRouting(ALIASES_NODE_FOR_BROWSER_TABLE, 'browser');
 
 /**
  * Bare Node-builtin specifier → polyfill / empty-stub mapping for `--app
@@ -438,66 +429,66 @@ export const ALIASES_NODE_FOR_BROWSER = withDerivedSlotRouting(
  */
 export const ALIASES_NODE_FOR_NATIVESCRIPT = {
     // Server-only Node built-ins → empty stub
-    'child_process':       '@gjsify/empty',
-    'cluster':             '@gjsify/empty',
-    'dgram':               '@gjsify/empty',
-    'dns':                 '@gjsify/empty',
-    'dns/promises':        '@gjsify/empty',
-    'inspector':           '@gjsify/empty',
-    'net':                 '@gjsify/empty',
-    'tls':                 '@gjsify/empty',
-    'tty':                 '@gjsify/empty',
-    'http':                '@gjsify/empty',
-    'https':               '@gjsify/empty',
-    'http2':               '@gjsify/empty',
-    'readline':            '@gjsify/empty',
-    'repl':                '@gjsify/empty',
-    'v8':                  '@gjsify/empty',
-    'vm':                  '@gjsify/empty',
-    'worker_threads':      '@gjsify/empty',
-    'perf_hooks':          '@gjsify/empty',
-    'diagnostics_channel': '@gjsify/empty',
-    'domain':              '@gjsify/empty',
-    'sqlite':              '@gjsify/empty',
-    'sys':                 '@gjsify/empty',
-    'zlib':                '@gjsify/empty',
+    child_process: '@gjsify/empty',
+    cluster: '@gjsify/empty',
+    dgram: '@gjsify/empty',
+    dns: '@gjsify/empty',
+    'dns/promises': '@gjsify/empty',
+    inspector: '@gjsify/empty',
+    net: '@gjsify/empty',
+    tls: '@gjsify/empty',
+    tty: '@gjsify/empty',
+    http: '@gjsify/empty',
+    https: '@gjsify/empty',
+    http2: '@gjsify/empty',
+    readline: '@gjsify/empty',
+    repl: '@gjsify/empty',
+    v8: '@gjsify/empty',
+    vm: '@gjsify/empty',
+    worker_threads: '@gjsify/empty',
+    perf_hooks: '@gjsify/empty',
+    diagnostics_channel: '@gjsify/empty',
+    domain: '@gjsify/empty',
+    sqlite: '@gjsify/empty',
+    sys: '@gjsify/empty',
+    zlib: '@gjsify/empty',
 
     // Mobile-tractable Node built-ins → @gjsify/<X>
-    'assert':              '@gjsify/assert',
-    'assert/strict':       '@gjsify/assert',
-    'async_hooks':         '@gjsify/async_hooks',
-    'buffer':              '@gjsify/buffer',
+    assert: '@gjsify/assert',
+    'assert/strict': '@gjsify/assert',
+    async_hooks: '@gjsify/async_hooks',
+    buffer: '@gjsify/buffer',
     // `@gjsify/module` (not `@gjsify/empty`): provides the named exports
     // `createRequire` / `builtinModules` / `isBuiltin`, so `import { createRequire }
     // from 'module'` in deps (e.g. css-tree) resolves instead of failing the build.
-    'module':              '@gjsify/module',
-    'crypto':              '@gjsify/crypto',
-    'events':              '@gjsify/events',
+    module: '@gjsify/module',
+    crypto: '@gjsify/crypto',
+    events: '@gjsify/events',
     // @gjsify/fs uses gi://Gio (GJS-only). On NS, route to the native bridge.
-    'fs':                  '@gjsify/native-fs-bridge',
-    'fs/promises':         '@gjsify/native-fs-bridge',
-    'os':                  '@gjsify/os',
-    'path':                '@gjsify/path',
-    'path/posix':          '@gjsify/path/posix',
-    'path/win32':          '@gjsify/path/win32',
-    'process':             '@gjsify/process',
-    'stream':              '@gjsify/stream',
-    'stream/promises':     '@gjsify/stream/promises',
-    'stream/web':          '@gjsify/stream/web',
-    'string_decoder':      '@gjsify/string_decoder',
-    'url':                 '@gjsify/url',
-    'util':                '@gjsify/util',
-    'util/types':          '@gjsify/util/types',
-    'querystring':         '@gjsify/querystring',
-    'console':             '@gjsify/console',
-    'timers':              '@gjsify/timers',
-    'timers/promises':     '@gjsify/timers/promises',
+    fs: '@gjsify/native-fs-bridge',
+    'fs/promises': '@gjsify/native-fs-bridge',
+    os: '@gjsify/os',
+    path: '@gjsify/path',
+    'path/posix': '@gjsify/path/posix',
+    'path/win32': '@gjsify/path/win32',
+    process: '@gjsify/process',
+    stream: '@gjsify/stream',
+    'stream/promises': '@gjsify/stream/promises',
+    'stream/web': '@gjsify/stream/web',
+    string_decoder: '@gjsify/string_decoder',
+    url: '@gjsify/url',
+    util: '@gjsify/util',
+    'util/types': '@gjsify/util/types',
+    querystring: '@gjsify/querystring',
+    console: '@gjsify/console',
+    timers: '@gjsify/timers',
+    'timers/promises': '@gjsify/timers/promises',
 
     // Third-party
-    'node-fetch':          '@gjsify/empty',        // NS has native fetch
-    'ws':                  '@gjsify/empty',        // NS has its own WebSocket
-    'isomorphic-ws':       '@gjsify/empty',
-}
+    'node-fetch': '@gjsify/empty', // NS has native fetch
+    ws: '@gjsify/empty', // NS has its own WebSocket
+    'isomorphic-ws': '@gjsify/empty',
+};
 
 /** Record of Web modules and his replacement for Gjs */
 export const ALIASES_WEB_FOR_GJS = {
@@ -508,14 +499,14 @@ export const ALIASES_WEB_FOR_GJS = {
     'dom-exception': '@gjsify/dom-exception',
     'event-target-shim': '@gjsify/dom-events',
     'message-channel': '@gjsify/message-channel',
-    'eventsource': '@gjsify/eventsource',
-    'fetch': '@gjsify/fetch',
-    'formdata': '@gjsify/formdata',
+    eventsource: '@gjsify/eventsource',
+    fetch: '@gjsify/fetch',
+    formdata: '@gjsify/formdata',
     'html-image-element': '@gjsify/html-image-element',
-    'webcrypto': '@gjsify/webcrypto',
-    'webgl': '@gjsify/webgl',
-    'websocket': '@gjsify/websocket',
-    'webstorage': '@gjsify/webstorage',
+    webcrypto: '@gjsify/webcrypto',
+    webgl: '@gjsify/webgl',
+    websocket: '@gjsify/websocket',
+    webstorage: '@gjsify/webstorage',
 
     // /register subpaths (side-effect only — opt-in to global registration)
     'abort-controller/register': '@gjsify/abort-controller/register',
@@ -540,23 +531,23 @@ export const ALIASES_WEB_FOR_GJS = {
     'web-streams/register/queuing': '@gjsify/web-streams/register/queuing',
 
     // xmlhttprequest (implemented in @gjsify/fetch)
-    'xmlhttprequest': '@gjsify/fetch',
+    xmlhttprequest: '@gjsify/fetch',
     'xmlhttprequest/register': '@gjsify/fetch/register/xhr',
     '@gjsify/xmlhttprequest': '@gjsify/fetch',
     '@gjsify/xmlhttprequest/register': '@gjsify/fetch/register/xhr',
-    'domparser': '@gjsify/domparser',
+    domparser: '@gjsify/domparser',
     'domparser/register': '@gjsify/domparser/register',
 
     // Web Audio API (GStreamer backend)
-    'webaudio': '@gjsify/webaudio',
+    webaudio: '@gjsify/webaudio',
     'webaudio/register': '@gjsify/webaudio/register',
 
     // Gamepad API (libmanette backend)
-    'gamepad': '@gjsify/gamepad',
+    gamepad: '@gjsify/gamepad',
     'gamepad/register': '@gjsify/gamepad/register',
 
     // WebRTC API (GStreamer webrtcbin backend)
-    'webrtc': '@gjsify/webrtc',
+    webrtc: '@gjsify/webrtc',
     'webrtc/register': '@gjsify/webrtc/register',
     'webrtc/register/peer-connection': '@gjsify/webrtc/register/peer-connection',
     'webrtc/register/data-channel': '@gjsify/webrtc/register/data-channel',
@@ -567,10 +558,10 @@ export const ALIASES_WEB_FOR_GJS = {
     // WebAssembly Promise APIs polyfill — wraps the synchronous Module/Instance
     // constructors so WebAssembly.{compile,instantiate,validate,...} resolve
     // instead of throwing the SpiderMonkey 128 stub error.
-    'webassembly': '@gjsify/webassembly',
+    webassembly: '@gjsify/webassembly',
     'webassembly/register': '@gjsify/webassembly/register',
     'webassembly/register/promise': '@gjsify/webassembly/register/promise',
-}
+};
 
 /** General record of modules for Node */
 export const ALIASES_GENERAL_FOR_NODE = {
@@ -587,7 +578,7 @@ export const ALIASES_GENERAL_FOR_NODE = {
     '@gjsify/web-globals/register': '@gjsify/empty',
     '@gjsify/web-globals/register/performance': '@gjsify/empty',
     '@gjsify/web-globals/register/formdata': '@gjsify/empty',
-}
+};
 
 /**
  * Record of GJS built-in module specifiers and their replacement for the
@@ -611,10 +602,10 @@ export const ALIASES_GENERAL_FOR_NODE = {
  * the engine's foreign-struct seam knows about).
  */
 const ALIASES_GJS_FOR_NODE = {
-    'system': '@gjsify/node-gi/system',
-    'gettext': '@gjsify/node-gi/gettext',
-    'cairo': '@gjsify/node-gi/cairo',
-}
+    system: '@gjsify/node-gi/system',
+    gettext: '@gjsify/node-gi/gettext',
+    cairo: '@gjsify/node-gi/cairo',
+};
 
 export { ALIASES_GJS_FOR_NODE };
 
@@ -643,19 +634,19 @@ export const ALIASES_WEB_FOR_NODE = {
     // works without any GJS deps; routing to it gives consumers a working
     // EventSource on Node out of the box. Same fix pattern as the `dom-events`
     // entry above.
-    'eventsource': '@gjsify/eventsource',
+    eventsource: '@gjsify/eventsource',
     // 'fetch' routes to @gjsify/fetch/globals on Node — the globals.mjs
     // re-exports the native globalThis.{fetch,Request,Response,Headers,
     // FormData} as named exports. The dynamic resolver routes
     // @gjsify/fetch to the same /globals subpath via its runtimes
     // triplet declaration (`node:"native"`), so both entry forms converge.
-    'fetch': '@gjsify/fetch/globals',
-    'formdata': '@gjsify/formdata/globals',
+    fetch: '@gjsify/fetch/globals',
+    formdata: '@gjsify/formdata/globals',
     'html-image-element': '@gjsify/html-image-element',
-    'webcrypto': '@gjsify/webcrypto/globals',
-    'webgl': '@gjsify/webgl',
-    'websocket': '@gjsify/websocket/globals',
-    'webstorage': '@gjsify/webstorage',
+    webcrypto: '@gjsify/webcrypto/globals',
+    webgl: '@gjsify/webgl',
+    websocket: '@gjsify/websocket/globals',
+    webstorage: '@gjsify/webstorage',
 
     // /register subpaths — no-op on Node (native globals are already set)
     'abort-controller/register': '@gjsify/empty',
@@ -718,26 +709,26 @@ export const ALIASES_WEB_FOR_NODE = {
     '@gjsify/buffer/register': '@gjsify/empty',
 
     // xmlhttprequest + DOMParser — no-op on Node
-    'xmlhttprequest': '@gjsify/empty',
+    xmlhttprequest: '@gjsify/empty',
     'xmlhttprequest/register': '@gjsify/empty',
     '@gjsify/xmlhttprequest': '@gjsify/empty',
     '@gjsify/xmlhttprequest/register': '@gjsify/empty',
-    'domparser': '@gjsify/empty',
+    domparser: '@gjsify/empty',
     'domparser/register': '@gjsify/empty',
     '@gjsify/domparser/register': '@gjsify/empty',
 
     // Web Audio API — no-op on Node (experimental --experimental-web-audio not widely available)
-    'webaudio': '@gjsify/empty',
+    webaudio: '@gjsify/empty',
     'webaudio/register': '@gjsify/empty',
     '@gjsify/webaudio/register': '@gjsify/empty',
 
     // Gamepad API — no-op on Node
-    'gamepad': '@gjsify/empty',
+    gamepad: '@gjsify/empty',
     'gamepad/register': '@gjsify/empty',
     '@gjsify/gamepad/register': '@gjsify/empty',
 
     // WebRTC API — no-op on Node (Phase 1 is GStreamer-only, no fallback)
-    'webrtc': '@gjsify/empty',
+    webrtc: '@gjsify/empty',
     'webrtc/register': '@gjsify/empty',
     'webrtc/register/peer-connection': '@gjsify/empty',
     'webrtc/register/data-channel': '@gjsify/empty',
@@ -755,9 +746,9 @@ export const ALIASES_WEB_FOR_NODE = {
     // WebAssembly Promise APIs — native on Node (no polyfill needed); the
     // bare `webassembly` specifier maps to /globals so consumers can import
     // typed helpers without dragging the polyfill into the bundle.
-    'webassembly': '@gjsify/webassembly/globals',
+    webassembly: '@gjsify/webassembly/globals',
     'webassembly/register': '@gjsify/empty',
     'webassembly/register/promise': '@gjsify/empty',
     '@gjsify/webassembly/register': '@gjsify/empty',
     '@gjsify/webassembly/register/promise': '@gjsify/empty',
-}
+};

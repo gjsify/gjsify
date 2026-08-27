@@ -65,7 +65,11 @@ const DOCS_DIR = join(ROOT, 'website/src/content/docs/adwaita');
  */
 const GENERATORS = [
     'website/scripts/generate-adwaita-attributes.mjs',
-    'website/scripts/generate-theming-tokens.mjs',
+    // Not under `website/` any more, and the move is the point: it emits the website's
+    // grouped shape AND `@gjsify/adwaita-core`'s light+dark map from ONE read of the
+    // stylesheet. A second reader of one source is a second truth, and this tree already
+    // carries the same Adwaita values in nine registers and four notations.
+    'scripts/generate-adwaita-tokens.mjs',
     'website/scripts/generate-coverage.mjs',
 ];
 

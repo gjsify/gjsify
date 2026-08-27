@@ -220,13 +220,7 @@ async function ingestPackageDir(dir, out) {
         const json = JSON.parse(raw);
         const name = typeof json.name === 'string' ? json.name : null;
         const runtimes = json?.gjsify?.runtimes;
-        if (
-            name &&
-            name.startsWith('@gjsify/') &&
-            !out.has(name) &&
-            runtimes &&
-            typeof runtimes === 'object'
-        ) {
+        if (name && name.startsWith('@gjsify/') && !out.has(name) && runtimes && typeof runtimes === 'object') {
             /** @type {RuntimeTriplet} */
             const triplet = {};
             for (const t of VALID_TARGETS) {
@@ -256,13 +250,7 @@ function ingestPackageDirSync(dir, out) {
         const json = JSON.parse(raw);
         const name = typeof json.name === 'string' ? json.name : null;
         const runtimes = json?.gjsify?.runtimes;
-        if (
-            name &&
-            name.startsWith('@gjsify/') &&
-            !out.has(name) &&
-            runtimes &&
-            typeof runtimes === 'object'
-        ) {
+        if (name && name.startsWith('@gjsify/') && !out.has(name) && runtimes && typeof runtimes === 'object') {
             /** @type {RuntimeTriplet} */
             const triplet = {};
             for (const t of VALID_TARGETS) {

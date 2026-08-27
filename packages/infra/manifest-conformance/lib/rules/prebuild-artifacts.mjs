@@ -247,7 +247,15 @@ export function dlopenProbe(file) {
 export function auditPrebuildArtifacts(nativePkgs, { girGaps = {} } = {}) {
     /** @type {string[]} */ const failures = [];
     /** @type {string[]} */ const notes = [];
-    const stats = { dirs: 0, packages: 0, loaded: 0, structuralOnly: 0, uncommitted: 0, hostSkipped: 0, girDeferred: 0 };
+    const stats = {
+        dirs: 0,
+        packages: 0,
+        loaded: 0,
+        structuralOnly: 0,
+        uncommitted: 0,
+        hostSkipped: 0,
+        girDeferred: 0,
+    };
     // Which ledger entries this run actually matched. The "stale entry" half of
     // the contract needs the WHOLE population to be sound, and this function is
     // also driven against single synthetic rows by the e2e suite — so it reports
