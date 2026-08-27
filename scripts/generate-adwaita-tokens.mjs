@@ -90,6 +90,10 @@ function headingTitle(blockLines) {
         )
         .join(' ')
         .trim();
+    // A block of nothing but rule characters is a divider, not a caption. The strip
+    // above runs PER LINE and takes only the last dash run, so `// ---- ----` survives
+    // it as the title `----` and would render as a section header.
+    if (!/[\p{L}\p{N}]/u.test(text)) return '';
     // `. ` and not `.`, so `(\`_colors.scss:79,141\`).` stays one sentence.
     const end = text.indexOf('. ');
     return (end === -1 ? text : text.slice(0, end + 1)).replace(/\.$/, '').trim();
@@ -135,8 +139,89 @@ function parseFlat(body) {
     return out;
 }
 
+// ------------------------------------------------------------------ self-test
+
+/**
+ * `[what it holds, a mixin body, the shape it must parse to]`.
+ *
+ * Run on EVERY invocation, this repo's own shape for a reader: a reader with no
+ * fixtures behind it reports its own bugs as facts about the stylesheet, and this one
+ * is walked by hand — `parseGroups` steps its own index through a comment block and
+ * hands it back to the loop, and `headingTitle` decides where a sentence ends.
+ *
+ * Every row is a shape that was measured, not imagined. The divider row is the one
+ * that was WRONG: the trailing-dash strip runs per line and takes only the last run,
+ * so `// ---- ----` came through as the section title `----`.
+ *
+ * The orphan row pins a rule `assertFullyRead` now makes unreachable from a real
+ * stylesheet, and it stays because it is the ONLY input that tells the "captions
+ * nothing" test apart from `parseGroups` dropping an empty group at the end: measured,
+ * deleting that test leaves every other row here green.
+ */
+const PARSER_VECTORS = [
+    ['a one-line caption titles what follows it', '// Window\n--a: 1;', 'Window=--a'],
+    [
+        'a paragraph is titled by its FIRST sentence, not its last line',
+        '// Hairline separators. Subtle in\n// BOTH themes, the way libadwaita draws them.\n--a: 1;',
+        'Hairline separators=--a',
+    ],
+    ['a blank line between caption and declaration still captions it', '// Window\n\n--a: 1;', 'Window=--a'],
+    ['a trailing paragraph captions nothing and is not a section', '--a: 1;\n\n// A closing note', 'General=--a'],
+    ['a comment block at the very end does not run off the body', '--a: 1;\n// last line of the file', 'General=--a'],
+    [
+        'a block followed by neither blank nor declaration captions nothing',
+        '--a: 1;\n// Orphan\nnot-a-declaration\n--b: 2;',
+        'General=--a+--b',
+    ],
+    [
+        'of two blocks split by a blank, the one touching the declaration wins',
+        '// Orphan\n\n// Real\n--a: 1;',
+        'Real=--a',
+    ],
+    ['a block of rule characters is a divider, not a heading', '// ---- ----\n--a: 1;', 'General=--a'],
+    ['a block of nothing but `//` has no title to give', '//\n//\n--a: 1;', 'General=--a'],
+    ['a first sentence that is empty is no title either', '// . Not a sentence\n--a: 1;', 'General=--a'],
+    ['prose with no declaration under it yields no group at all', '// only prose', ''],
+];
+
+const parserFailures = PARSER_VECTORS.flatMap(([label, body, expected]) => {
+    const parsed = parseGroups(body)
+        .map((group) => `${group.title}=${group.tokens.map((token) => token.name).join('+')}`)
+        .join(' | ');
+    return parsed === expected ? [] : [`${label} — expected \`${expected}\`, parsed \`${parsed}\``];
+});
+if (parserFailures.length > 0) {
+    console.error('generate-adwaita-tokens: SELF-TEST failed. The reader is broken, so nothing it goes on to');
+    console.error('  say about the stylesheet can be believed:');
+    for (const failure of parserFailures) console.error(`  - ${failure}`);
+    process.exit(1);
+}
+
+/**
+ * Every line of a mixin body is a comment, a blank, or a declaration `DECL_RE` reads.
+ *
+ * Anything else is a token dropped with no signal: a value wrapped over two lines, an
+ * uppercase custom property (`--Foo` is a distinct property to CSS and no property at
+ * all to `DECL_RE`), a nested `@media`. The emission would simply be missing it, and
+ * every check downstream compares that emission with itself.
+ */
+function assertFullyRead(body, source) {
+    const stray = body
+        .split('\n')
+        .filter((line) => line.trim() !== '' && !COMMENT_RE.test(line) && !DECL_RE.test(line));
+    if (stray.length === 0) return;
+    console.error(
+        `generate-adwaita-tokens: ${stray.length} line(s) in ${source} that this reader does not\n` +
+            '  understand, and a line it cannot read is a token it drops without saying so:\n' +
+            stray.map((line) => `    ${line.trim()}`).join('\n'),
+    );
+    process.exit(1);
+}
+
 const lightBody = mixinBody(readFileSync(lightSource, 'utf8'), 'light-theme', lightSource);
 const darkBody = mixinBody(readFileSync(darkSource, 'utf8'), 'dark-theme', darkSource);
+assertFullyRead(lightBody, lightSource);
+assertFullyRead(darkBody, darkSource);
 
 const groups = parseGroups(lightBody);
 const light = parseFlat(lightBody);
@@ -151,6 +236,23 @@ if (Object.keys(dark).length === 0) {
     console.error('generate-adwaita-tokens: parsed the dark mixin and found no tokens — that is a broken parse.');
     process.exit(1);
 }
+// One name declared twice in the light mixin: the map keeps the last value, the
+// grouped shape keeps both records, and `ADWAITA_TOKEN_COUNT` counts the records — so
+// the two emissions would disagree about the size of the same contract.
+if (Object.keys(light).length !== total) {
+    const seen = new Map();
+    for (const group of groups) {
+        for (const token of group.tokens) seen.set(token.name, (seen.get(token.name) ?? 0) + 1);
+    }
+    console.error(
+        `generate-adwaita-tokens: declared twice in ${lightSource} — ` +
+            `${[...seen]
+                .filter(([, n]) => n > 1)
+                .map(([name]) => name)
+                .join(', ')}.`,
+    );
+    process.exit(1);
+}
 
 // A dark declaration whose name never appears in light is a token with no default. It
 // is not an error — libadwaita has dark-only values — but it must be VISIBLE, because
@@ -159,18 +261,52 @@ const darkOnly = Object.keys(dark)
     .filter((name) => light[name] === undefined)
     .sort();
 
-// `oklab(from …)`, `color-mix(…)` and bare `var(…)` aliases are deliberately
+// `oklab(from …)`, `color-mix(…)` and `var(…)` references are deliberately
 // EXPRESSIONS in the stylesheet: `--success-color` tracks a re-themed
 // `--success-bg-color` (`_variables.scss:91-93`), which a literal cannot do. A browser
 // evaluates them; a TypeScript object and NativeScript's CSS subset cannot. They are
 // emitted verbatim and NAMED here, so a consumer that needs literals refuses by name
 // rather than shipping the string "oklab(from var(--success-bg-color) min(l, 0.5) a b)"
 // as if it were a colour.
-const UNRESOLVED_RE = /\b(?:oklab|oklch|color-mix)\s*\(|^var\(/;
+//
+// `\bvar\s*\(` and not `^var\(`: the anchored form only saw an alias that IS the whole
+// value, so `calc(var(--font-size-base) * 1.2)` would read as a literal. Measured
+// against today's stylesheet the two forms select the same seven tokens — this widens
+// the rule for the next value, it does not correct the current output.
+const UNRESOLVED_RE =
+    /\b(?:oklab|oklch|color-mix|light-dark)\s*\(|\bvar\s*\(|\b(?:rgb|rgba|hsl|hsla|hwb|lab|lch|color)\s*\(\s*from\b/;
 const unresolved = Object.entries(light)
     .filter(([, value]) => UNRESOLVED_RE.test(value))
     .map(([name]) => name)
     .sort();
+
+// The reader in `--check` unescapes `\'`, `\"` and `\\` and nothing else, because that is
+// all a CSS value in this stylesheet has ever needed. A value carrying anything else
+// would round-trip through the formatter into an escape the reader misreads, and
+// misreading compares WRONG rather than failing. So draw the limit here, loudly,
+// instead of widening a decoder for a case that does not exist yet.
+const unreadable = [
+    ...Object.entries(light),
+    ...Object.entries(dark),
+    ...groups.map((group) => ['a group title', group.title]),
+].filter(([, text]) => /[\\\n\r]/.test(text));
+if (unreadable.length > 0) {
+    console.error(
+        'generate-adwaita-tokens: value(s) this generator cannot read back out of its own output —\n' +
+            unreadable.map(([name, text]) => `    ${name}: ${JSON.stringify(text)}`).join('\n') +
+            '\n  Widen `unquote` in the --check reader before emitting them.',
+    );
+    process.exit(1);
+}
+
+// Built once and used twice: this is what the core file says, and it is what --check
+// expects to read back out of it. Two spellings of the same rule would drift.
+const tokenValues = Object.fromEntries(
+    Object.entries(light).map(([name, value]) => [
+        name,
+        dark[name] !== undefined && dark[name] !== value ? { light: value, dark: dark[name] } : { light: value },
+    ]),
+);
 
 const banner = (script) =>
     `// AUTO-GENERATED by scripts/${script}. DO NOT EDIT BY HAND.\n` +
@@ -192,16 +328,7 @@ export interface AdwTokenValues {
  * The VALUES as the stylesheet writes them — including the expressions listed in
  * {@link ADWAITA_UNRESOLVED_TOKENS}. Nothing here is evaluated.
  */
-export const ADWAITA_TOKENS: Readonly<Record<string, AdwTokenValues>> = ${JSON.stringify(
-    Object.fromEntries(
-        Object.entries(light).map(([name, value]) => [
-            name,
-            dark[name] !== undefined && dark[name] !== value ? { light: value, dark: dark[name] } : { light: value },
-        ]),
-    ),
-    null,
-    4,
-)};
+export const ADWAITA_TOKENS: Readonly<Record<string, AdwTokenValues>> = ${JSON.stringify(tokenValues, null, 4)};
 
 /**
  * Tokens the dark theme declares and the light theme does not.
@@ -249,23 +376,103 @@ export const ADWAITA_TOKEN_COUNT = ${total};
 `;
 
 // Compare the DATA, not the bytes — and the two emissions do not have the same shape,
-// so they do not share an extractor. Written with one regex for both first, and the
-// "read NO tokens" guard below caught it immediately: the pattern keyed on the token
+// so they do not share a reader. Written with one regex for both first, and reading
+// NOTHING out of the website file caught it immediately: the pattern keyed on the token
 // name being a KEY, which is true of the core map (`'--x': { light: 'v' }`) and false
-// of the website's records (`{ name: '--x', value: 'v' }`). The guard is the reason
-// that was a failure rather than a green run over nothing.
-const CORE_PAIRS = /['"](--[a-z0-9-]+)['"]\s*:\s*\{\s*["']?light["']?\s*:\s*['"]([^'"]*)['"]/g;
-const WEBSITE_PAIRS = /["']?name["']?\s*:\s*['"](--[a-z0-9-]+)['"]\s*,\s*["']?value["']?\s*:\s*['"]([^'"]*)['"]/g;
+// of the website's records (`{ name: '--x', value: 'v' }`). A reader that comes back
+// empty is why that was a failure rather than a green run over nothing.
+//
+// AGAINST THE DATA, not against a second reading of this run's own output. The first
+// version compared reader(committed) with reader(body), and a reader that mis-reads
+// BOTH sides the same way passes: the value pattern was `['"]([^'"]*)['"]`, the two
+// font stacks START with a quote (`'Adwaita Sans', …`), so both sides yielded the
+// empty string and reordering the stack in the stylesheet left --check green.
+// Measured on this tree, the same symmetry hid every dark value, both name lists, the
+// token count and all 21 website group titles — the emitted half of the point of
+// reading the dark mixin at all. `readCore`/`readWebsite` are checked against the
+// data, and against this run's own output FIRST, which keeps the two failures apart:
+// reader broken, or file stale.
 
-const pairsWith = (re) => (text) =>
-    [...text.matchAll(re)]
-        .map(([, name, value]) => `${name}=${value}`)
-        .sort()
-        .join('\n');
+/** One JavaScript string literal, in either quote style, escapes included. */
+const STRING = String.raw`'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"`;
+/** An object key the formatter may have quoted (`JSON.stringify`) or not (oxfmt). */
+const key = (word) => String.raw`(?:'${word}'|"${word}"|\b${word}\b)`;
+/** Only the escapes the emitted values can contain — held to that by `unreadable`. */
+const unquote = (literal) => literal.slice(1, -1).replace(/\\(['"\\])/g, '$1');
+
+const CORE_ENTRY = new RegExp(
+    String.raw`(${STRING})\s*:\s*\{\s*${key('light')}\s*:\s*(${STRING})` +
+        String.raw`(?:\s*,\s*${key('dark')}\s*:\s*(${STRING}))?\s*,?\s*\}`,
+    'g',
+);
+const WEBSITE_ITEM = new RegExp(
+    String.raw`${key('title')}\s*:\s*(${STRING})` +
+        String.raw`|${key('name')}\s*:\s*(${STRING})\s*,\s*${key('value')}\s*:\s*(${STRING})`,
+    'g',
+);
+
+const listOf = (text, name) => {
+    const block = text.match(new RegExp(String.raw`export const ${name}[^=]*=\s*\[([^\]]*)\]`));
+    return block === null ? null : [...block[1].matchAll(new RegExp(STRING, 'g'))].map(([literal]) => unquote(literal));
+};
+const numberOf = (text, name) => {
+    const found = text.match(new RegExp(String.raw`export const ${name}[^=]*=\s*(\d+)`));
+    return found === null ? null : Number(found[1]);
+};
+
+/** Everything the core emission asserts, read back out of the TypeScript. */
+const readCore = (text) => ({
+    tokens: Object.fromEntries(
+        [...text.matchAll(CORE_ENTRY)].map(([, name, lightValue, darkValue]) => [
+            unquote(name),
+            darkValue === undefined
+                ? { light: unquote(lightValue) }
+                : { light: unquote(lightValue), dark: unquote(darkValue) },
+        ]),
+    ),
+    darkOnly: listOf(text, 'ADWAITA_DARK_ONLY_TOKENS'),
+    unresolved: listOf(text, 'ADWAITA_UNRESOLVED_TOKENS'),
+    count: numberOf(text, 'ADWAITA_TOKEN_COUNT'),
+});
+
+/** The same for the website's grouped shape: titles and grouping, not only the pairs. */
+function readWebsite(text) {
+    const found = [];
+    for (const [, title, name, value] of text.matchAll(WEBSITE_ITEM)) {
+        if (title !== undefined) found.push({ title: unquote(title), tokens: [] });
+        // A record before any title cannot be placed. Reported as a read failure rather
+        // than quietly dropped, which is the whole reason this file compares shapes.
+        else if (found.length === 0) return null;
+        else found.at(-1).tokens.push({ name: unquote(name), value: unquote(value) });
+    }
+    return { groups: found, count: numberOf(text, 'ADWAITA_TOKEN_COUNT') };
+}
+
+/**
+ * Every JSON path at which two emitted shapes disagree.
+ *
+ * So a failure NAMES what moved. Key order counts as a difference on purpose: the
+ * emission order is part of what the website page renders.
+ */
+function differences(want, found, path = '') {
+    if (JSON.stringify(want) === JSON.stringify(found)) return [];
+    if (want === null || found === null || typeof want !== 'object' || typeof found !== 'object') {
+        return [
+            `${path === '' ? '(whole file)' : path}: expected ${JSON.stringify(want)}, found ${JSON.stringify(found)}`,
+        ];
+    }
+    const keys = [...new Set([...Object.keys(want), ...Object.keys(found)])];
+    return keys.flatMap((each) => differences(want[each], found[each], path === '' ? each : `${path}.${each}`));
+}
 
 const emissions = [
-    { path: coreOut, body: coreBody, pairs: pairsWith(CORE_PAIRS) },
-    { path: websiteOut, body: websiteBody, pairs: pairsWith(WEBSITE_PAIRS) },
+    {
+        path: coreOut,
+        body: coreBody,
+        read: readCore,
+        data: { tokens: tokenValues, darkOnly, unresolved, count: total },
+    },
+    { path: websiteOut, body: websiteBody, read: readWebsite, data: { groups, count: total } },
 ];
 
 // Why data and not bytes: this script emits `JSON.stringify` output while the committed
@@ -276,19 +483,32 @@ const emissions = [
 // token names and their values; reformatting is not a change to it, and
 // `gjsify format --check` holds style tree-wide on its own.
 
+/** At most a screenful of differences, indented under the line that introduces them. */
+const listed = (lines) =>
+    lines
+        .slice(0, 8)
+        .map((line) => `    ${line}`)
+        .join('\n') + (lines.length > 8 ? `\n    … and ${lines.length - 8} more` : '');
+
 if (CHECK) {
     let stale = false;
-    for (const { path, body, pairs } of emissions) {
-        const committed = pairs(readFileSync(path, 'utf8'));
-        if (committed.length === 0) {
+    for (const { path, body, read, data } of emissions) {
+        // Reading this run's OWN output has to reproduce the data exactly. Until it does,
+        // a difference in the committed file cannot be read as staleness — and a reader
+        // that cannot see a field is a reader that passes over any value of it.
+        const unread = differences(data, read(body));
+        if (unread.length > 0) {
             console.error(
-                `generate-adwaita-tokens --check: read NO tokens out of ${path}. That is the reader\n` +
-                    '  broken, not the data stale — an empty comparison would pass against anything.',
+                `generate-adwaita-tokens --check: cannot read back what this run just emitted for\n` +
+                    `  ${path}. That is the READER broken, not the data stale — a field it cannot see\n` +
+                    '  would compare equal against anything.\n' +
+                    listed(unread),
             );
             process.exit(1);
         }
-        if (committed !== pairs(body)) {
-            console.error(`generate-adwaita-tokens --check: ${path} is STALE.`);
+        const drift = differences(data, read(readFileSync(path, 'utf8')));
+        if (drift.length > 0) {
+            console.error(`generate-adwaita-tokens --check: ${path} is STALE.\n${listed(drift)}`);
             stale = true;
         }
     }
@@ -298,7 +518,8 @@ if (CHECK) {
     }
     console.log(
         `generate-adwaita-tokens --check: OK (${total} light tokens in ${groups.length} groups, ` +
-            `${Object.keys(dark).length} dark, ${darkOnly.length} dark-only, ${unresolved.length} unresolved)`,
+            `${Object.keys(dark).length} dark, ${darkOnly.length} dark-only, ${unresolved.length} unresolved; ` +
+            `${PARSER_VECTORS.length} parser vector(s) green)`,
     );
     process.exit(0);
 }
