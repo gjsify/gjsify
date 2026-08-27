@@ -76,10 +76,18 @@ export declare function getDerivedAliases(
 /** Reset the in-memory cache. Test-only. */
 export declare function resetRuntimeAliasesCache(): void;
 
-/** Diagnostic — list every declared runtime triplet keyed by package name. */
+/**
+ * Diagnostic — list every declared runtime triplet keyed by package name.
+ *
+ * `platformEntries` (the `./<target>` subpaths the package's `exports` declares, which is
+ * what `polyfill` routes to under ADR 0014) was missing here for the same reason
+ * `nativescript` was missing from {@link RuntimeTriplet}: the record is built in
+ * `runtime-aliases.mjs` and restated here by hand.
+ */
 export declare function listDeclaredRuntimes(): Promise<Map<string, {
     name: string;
     dir: string;
     runtimes: RuntimeTriplet;
     hasGlobals: boolean;
+    platformEntries: Set<string>;
 }>>;

@@ -65,7 +65,7 @@ import { getDerivedAliasesSync as _getDerivedAliasesSync } from './runtime-alias
  * direct indexing.
  *
  * @param {Record<string,string>} table
- * @param {'gjs'|'node'|'browser'|'nativescript'} target
+ * @param {import('./runtime-aliases.mjs').Target} target
  * @returns {Record<string,string>}
  */
 function withDerivedSlotRouting(table, target) {

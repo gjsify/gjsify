@@ -64,6 +64,16 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+/**
+ * The slot values a declaration may use, and the runtimes it may name.
+ *
+ * EXPORTED because they are the CANONICAL lists and every hand-retyped copy of them has
+ * drifted: `lib/index.d.ts` denied `nativescript` for the whole life of the 4th slot, and
+ * `scripts/audit-runtimes.mjs` — the gate that would have caught that — carried a second
+ * copy of both lists. Import these; do not retype them. What cannot import them (the
+ * `.d.ts` unions, which are types) is held against them by
+ * `tests/e2e/runtime-slot-declarations`.
+ */
 const VALID_SLOTS = new Set(['polyfill', 'native', 'partial', 'none']);
 // `react-native` is the 5th target and the second one gjsify does not BUNDLE:
 // Metro owns a React Native application's build the way `@nativescript/vite` owns
@@ -72,6 +82,17 @@ const VALID_SLOTS = new Set(['polyfill', 'native', 'partial', 'none']);
 // react-native` is a DIFFERENT axis: it says what the SOURCE is written in, not what
 // the PACKAGE runs on, so it is not this slot's sibling and the two are never equal.
 const VALID_TARGETS = new Set(['gjs', 'node', 'browser', 'nativescript', 'react-native']);
+
+export { VALID_SLOTS, VALID_TARGETS };
+
+/**
+ * A runtime a package can declare a slot for. ONE union in this file, referenced from
+ * everywhere else via `import('./runtime-aliases.mjs').Target` — the five hand-written
+ * copies this replaces are how `index.mjs` ended up still naming four targets after the
+ * fifth landed.
+ *
+ * @typedef {'gjs'|'node'|'browser'|'nativescript'|'react-native'} Target
+ */
 
 /**
  * Collect the target names for which `exports` declares a `./<target>`
@@ -382,7 +403,7 @@ function warnOnce(key, message) {
  * Given a package record + target runtime, resolve the alias target.
  *
  * @param {PackageRecord} rec
- * @param {'gjs'|'node'|'browser'|'nativescript'|'react-native'} target
+ * @param {Target} target
  * @returns {string|null} The alias target specifier, or null if no rewrite applies.
  */
 function resolveSlot(rec, target) {
@@ -454,7 +475,7 @@ function resolveSlot(rec, target) {
  * (callers should `{ ...derived, ...hardcoded }` to preserve current behavior
  * for packages opted out of the triplet model).
  *
- * @param {'gjs'|'node'|'browser'|'nativescript'|'react-native'} target
+ * @param {Target} target
  * @returns {Record<string,string>}
  */
 export function getDerivedAliasesSync(target) {
@@ -475,7 +496,7 @@ export function getDerivedAliasesSync(target) {
  * Async variant of {@link getDerivedAliasesSync} — preferred when callable from
  * an async config hook.
  *
- * @param {'gjs'|'node'|'browser'|'nativescript'|'react-native'} target
+ * @param {Target} target
  * @returns {Promise<Record<string,string>>}
  */
 export async function getDerivedAliases(target) {
