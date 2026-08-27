@@ -1,6 +1,6 @@
 ---
 title: React Native
-description: Run React Native components on GTK 4. Primitives, lists, routing, styling and the one build flag that turns it on.
+description: Run React Native components on GTK 4. Primitives, lists, routing, styling, Adwaita containers, and the one build flag that turns it on.
 ---
 
 import CommandTabs from '../../../components/CommandTabs.astro';
@@ -159,6 +159,72 @@ is generated from that data, so it cannot drift. You can read the same data from
 ```ts
 import { SUPPORT_TABLE, isImportable, explainUnsupported } from '@gjsify/react-native';
 ```
+
+## Adwaita widgets
+
+The table above reaches libadwaita exactly once, for `Adw.Spinner`, and it names no Adwaita
+container at all. That is the honest shape of this layer: it maps React Native's primitives onto
+GTK, and React Native has no clamp, no header bar and no preferences group to map.
+
+You still get them, from the other side. `@gjsify/gtk-host` carries a
+[generated tag for every concrete widget](/gjsify/frameworks/#the-widget-table-and-the-type-surfaces)
+in Gtk and Adw, and pointing `jsxImportSource` at `@gjsify/gtk-host/react` — the same tsconfig a
+React app on GTK already uses — is what puts that tag list in scope. So an Adwaita container and
+a React Native primitive live in one tree:
+
+```tsx
+import { Pressable, Text, View } from 'react-native';
+
+export function Documents({ onAdd }: { onAdd: () => void }) {
+    return (
+        <adw-toolbar-view>
+            <adw-header-bar slot="top">
+                <adw-window-title slot="title" title="Documents" subtitle="12 items" />
+            </adw-header-bar>
+
+            <View className="flex-col gap-s p-xl">
+                <Text className="text-title">Your library</Text>
+            </View>
+
+            <gtk-box slot="bottom" cssClasses={['toolbar']}>
+                <Pressable onPress={onAdd}>
+                    <Text>Add</Text>
+                </Pressable>
+            </gtk-box>
+        </adw-toolbar-view>
+    );
+}
+```
+
+Three rules hold there, and the layer states each of them by refusing rather than by dropping:
+
+- **A React Native primitive goes in the container's default slot.** `slot` is not one of its
+  props, and an unlisted prop is refused by name — so a named slot (`top`, `bottom`, `title`,
+  `end`) takes a gtk-host tag instead. A toolbar view's default slot is its content; a header
+  bar's is `start`.
+- **Layout that needs a parent needs a `<View>` above it.** `flex-1`, `self-*` and `absolute`
+  resolve against the parent's orientation, and an Adwaita container publishes none — so an
+  element directly under one is the root of its React tree and is told so.
+- **The container needs a curated child policy.** gtk-host will not guess how a widget adopts a
+  child: `add`, `append` and `set_child` all exist somewhere in GTK and the wrong one is a
+  warning at exit 0. 26 of the 164 tags carry such a rule; toolbar view, header bar, status page,
+  navigation view, preferences page and action row are among them. Clamp, wrap box and action bar
+  are not, and refuse a child by name until someone writes their policy.
+
+The [Layout page](/gjsify/adwaita/layout/) of the Adwaita gallery carries this as a **React
+Native on GTK** tab beside the GJS, Blueprint, web and NativeScript ones — on the header bar and
+the toolbar view, and on neither of the two whose policy is missing.
+
+### What this is not
+
+**There is no Adwaita widget set built out of React Native primitives.** Not in this repository:
+no package, no export, no component. `<adw-toolbar-view>` above is `Adw.ToolbarView` — a GTK 4
+widget, in a GTK 4 window, on a machine where libadwaita is installed. Nothing on this page runs
+on a phone, and no tab in the gallery claims otherwise.
+
+That is the distinction worth keeping: this layer takes React Native's *components* to GTK. The
+opposite direction — Adwaita's *components*, rebuilt on React Native's primitives, so an Adwaita
+app could run on iOS and Android — is a different piece of software, and it is not written.
 
 ## Two defaults that are inverted
 

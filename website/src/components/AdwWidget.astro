@@ -7,10 +7,12 @@
 //      screenshots: the browser paints the actual component, exactly like the
 //      official Libadwaita widget gallery shows one, and it follows the site's
 //      light/dark theme toggle.
-//   2. A WINDOW with IMPLEMENTATION TABS — one Adw.TabBar tab per port
-//      (GJS · Web · NativeScript), each holding that port's code snippet.
-//      Native GJS is the primary implementation and always comes first; Web
-//      and NativeScript are additional and optional.
+//   2. A WINDOW with IMPLEMENTATION TABS — one Adw.TabBar tab per port, each
+//      holding that port's code snippet. Native GJS is the primary
+//      implementation and always comes first; the rest are additional and
+//      optional. {@link IMPLS} is the list, and it is the one place a port is
+//      declared: `scripts/check-website-adwaita-gallery.mjs` holds it against the
+//      pages in both directions.
 //
 // The tab window mirrors CommandTabs (the runtime tabs used elsewhere): an
 // Adwaita headerbar with a centered title + copy button, an <adw-tab-view>
@@ -20,7 +22,9 @@
 // implementation is remembered (localStorage) and synced across every
 // AdwWidget on the site: pick "Web" once and all widget snippets follow.
 //
-// Feed the three snippets as named MDX slots (one fenced code block each):
+// Feed the snippets as named MDX slots (one fenced code block each). A tab
+// appears only where its slot was given, so a port that cannot express THIS
+// widget simply has no tab on it:
 //
 //   <AdwWidget title="Adw.SwitchRow">
 //     <Fragment slot="preview">
@@ -105,6 +109,20 @@ const IMPLS = [
     // widget tree and nothing else, and padding it with a loader would make it
     // look like a fourth complete program rather than the thing it is.
     { slot: 'blueprint', label: 'Blueprint' },
+    // "on GTK" is load-bearing, not a decoration. `@gjsify/react-native` renders
+    // React Native components onto GTK 4 IN-PROCESS; there is no Adwaita widget set
+    // built out of React Native primitives, so nothing in this tab runs on a phone.
+    // A tab labelled plainly "React Native" beside Web and NativeScript would read
+    // as the port that does, which is the one claim this repository must not make
+    // about code it has not written.
+    //
+    // It sits third, with the two GTK tabs, because that is what it targets: `@girs`
+    // TypeScript, Blueprint and this all describe the SAME native widget tree, and
+    // Web and NativeScript are the ports away from it. The snippet is JSX over
+    // gtk-host's own Adwaita tags with React Native primitives inside them, so a
+    // widget can only carry this tab where gtk-host has a curated child policy for
+    // it — see the Layout page for the two there that have none, and why.
+    { slot: 'react-native', label: 'React Native on GTK' },
     { slot: 'web', label: 'Web' },
     { slot: 'nativescript', label: 'NativeScript' },
 ];
@@ -377,7 +395,7 @@ const hasPreview = Astro.slots.has('preview');
 
     /* Narrow viewports: stop stretching the tabs to equal widths and let the bar
        scroll instead — which is what Adw.TabBar itself does when its tabs no
-       longer fit. Equal widths on a phone give each of four tabs about 80px, and
+       longer fit. Equal widths on a phone gave each of four tabs about 80px, and
        "GJS · Node · Bun · Deno" then ellipsises down to something that names
        nothing. The bar already has `overflow-x: auto`; it just needs tabs that
        keep their own width. */
