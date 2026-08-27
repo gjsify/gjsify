@@ -42,6 +42,8 @@ import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { registeredSymbols, resolveToSource, stripComments } from './suite-registration.mjs';
+
 const args = process.argv.slice(2);
 const rootIndex = args.indexOf('--root');
 const ROOT = rootIndex === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : args[rootIndex + 1];
@@ -53,45 +55,6 @@ const SHARED_ENTRY_NAMES = ['test.mts', 'test.ts'];
 function fail(lines) {
     console.error(`check-browser-test-registration: ${lines.join('\n  ')}`);
     process.exit(1);
-}
-
-/**
- * Comments out, string literals through untouched.
- *
- * Every scan below is LEXICAL, and a comment is the one place a suite name can appear
- * while registering nothing. Both directions were measured on a copy of the real
- * adwaita-web tree: a block-commented `{ AdwSwitchTest }` left as the last element of
- * the object passed GREEN over a suite that ran nowhere, a block comment anywhere inside
- * the object swallowed the following key and falsely accused it, and a line
- * `// e.g. run({ … })` above the real call captured the `run(` search outright and
- * reported every spec as unregistered.
- *
- * A regex pair would be shorter and WRONG: `packages/node/url/src/test.browser.mts` is
- * built out of `'http://example.com/…'` literals, and a `//`-to-end-of-line strip eats
- * the rest of every line one of them sits on — measured, it deletes real code from that
- * entry today. So this walks the source and skips quoted runs, because a check that
- * reads the file differently from the engine that runs it is the bug, not the guard.
- */
-function stripComments(source) {
-    let out = '';
-    let i = 0;
-    while (i < source.length) {
-        const c = source[i];
-        if (c === '/' && source[i + 1] === '/') {
-            while (i < source.length && source[i] !== '\n') i++;
-        } else if (c === '/' && source[i + 1] === '*') {
-            const end = source.indexOf('*/', i + 2);
-            i = end === -1 ? source.length : end + 2;
-        } else if (c === "'" || c === '"' || c === '`') {
-            const start = i++;
-            while (i < source.length && source[i] !== c) i += source[i] === '\\' ? 2 : 1;
-            out += source.slice(start, ++i);
-        } else {
-            out += c;
-            i++;
-        }
-    }
-    return out;
 }
 
 /**
@@ -163,41 +126,23 @@ const DEFAULT_IMPORT = /^import\s+([A-Za-z_$][\w$]*)\s*(?:,\s*\{[^}]*\})?\s+from
 /** Any relative import, in any binding form — used only to ask "does anything reach this file". */
 const RELATIVE_IMPORT = /(?:from|import)\s+['"](\.[^'"]+)['"]/g;
 
-/** An identifier in KEY position: preceded by `{` or `,`, never by `:`. */
-const KEY = /([A-Za-z_$][\w$]*)/g;
-
 /** The emitted specifier a TypeScript source imports by, back to the source file it names. */
-const resolveSpecifier = (fromFile, specifier) =>
-    join(dirname(fromFile), specifier.replace(/\.mjs$/, '.mts').replace(/\.js$/, '.ts'));
+const resolveSpecifier = (fromFile, specifier) => join(dirname(fromFile), resolveToSource(specifier));
 
 /**
- * The namespace keys of the FIRST `run({…})` in `source`, or `null` when there is none.
+ * The suites the FIRST `run({…})` in `source` registers, or `null` when there is none.
  *
- * Keys at every depth count: `runTests` recurses into a nested object, so a suite
- * grouped inside one is registered just as much as a top-level entry.
+ * The parse is `scripts/suite-registration.mjs`, shared with the driver gate and the node
+ * registration gate: three readers of one `run({…})` is three chances to disagree about
+ * what runs. `registered` and not `called` — this file's own arm fails an entry whose
+ * object registers NOTHING, and `run` is itself a called identifier.
  */
 function registeredKeys(source) {
-    const call = /\brun\s*\(\s*\{/.exec(source);
-    if (call === null) return null;
-    const open = source.indexOf('{', call.index);
-    let depth = 0;
-    let close = -1;
-    for (let i = open; i < source.length; i++) {
-        if (source[i] === '{') depth++;
-        else if (source[i] === '}' && --depth === 0) {
-            close = i;
-            break;
-        }
-    }
-    if (close === -1) return null;
-
-    const body = source.slice(open + 1, close);
-    const keys = new Set();
-    for (const match of body.matchAll(KEY)) {
-        const before = body.slice(0, match.index).trimEnd();
-        if (before === '' || before.endsWith('{') || before.endsWith(',')) keys.add(match[1]);
-    }
-    return keys;
+    const { registered, registers, properties } = registeredSymbols(source);
+    // `count` and not `named.size`: 23 entries register an INLINE suite by method shorthand
+    // (`run({ async DomExceptionTest() {…} })`), which registers a namespace while naming no
+    // module. The emptiness arm below asks the first question, the two arms after it the second.
+    return registers ? { named: registered, count: properties } : null;
 }
 
 /**
@@ -234,13 +179,13 @@ for (const { name, src, entry, browserOnly } of entries) {
             continue;
         }
         keys = registeredKeys(stripComments(readFileSync(delegate, 'utf8')));
-        if (keys === null || keys.size === 0) {
+        if (keys === null || keys.count === 0) {
             problems.push(`${where}: delegates to ${relative(ROOT, delegate)}, which registers nothing.`);
             continue;
         }
     }
 
-    if (keys.size === 0) {
+    if (keys.count === 0) {
         problems.push(`${where}: \`run({})\` registers no namespace — the bundle would report 0/0/0 and pass.`);
         continue;
     }
@@ -268,7 +213,7 @@ for (const { name, src, entry, browserOnly } of entries) {
         const binding = bindings.get(spec);
 
         if (suites.length > 0) {
-            const unregistered = suites.filter((symbol) => !keys.has(symbol));
+            const unregistered = suites.filter((symbol) => !keys.named.has(symbol));
             if (unregistered.length > 0)
                 problems.push(
                     `${rel}: ${unregistered.join(', ')} is not in the \`run({…})\` of ${where},`,
@@ -283,7 +228,7 @@ for (const { name, src, entry, browserOnly } of entries) {
                     `${rel}: default-exports a suite that ${where} does not import, and ${name} is`,
                     '  browser-only — so it runs NOWHERE. Import it there and register it.',
                 );
-            else if (!keys.has(binding))
+            else if (!keys.named.has(binding))
                 problems.push(
                     `${rel}: imported into ${where} as \`${binding}\`, but \`${binding}\` is not in its`,
                     `  \`run({…})\` — so that suite runs NOWHERE. Register it.`,
