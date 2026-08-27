@@ -61,370 +61,117 @@ interface Expect {
 
 /** Every gallery tree this probe builds, from `scripts/adwaita-gallery-trees.mjs`. */
 const EXPECTED: readonly { widget: string; root: Expect }[] = [
-    {
-        widget: 'Adw.PreferencesGroup',
-        root: {
-            tag: 'adw-preferences-group',
-            gtype: 'AdwPreferencesGroup',
-            props: { title: 'Account', description: 'Manage how this device signs in and syncs.' },
-            children: [
-                { tag: 'adw-entry-row', gtype: 'AdwEntryRow', props: { title: 'Display name', text: 'Grace Hopper' } },
-                {
-                    tag: 'adw-switch-row',
-                    gtype: 'AdwSwitchRow',
-                    props: {
-                        title: 'Sync over Wi-Fi only',
-                        subtitle: 'Avoid using mobile data for backups',
-                        active: true,
-                    },
-                },
-            ],
-        },
+    { widget: 'Adw.PreferencesGroup', root:
+        { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', props: {"title":"Account","description":"Manage how this device signs in and syncs."}, children: [
+                { tag: 'adw-entry-row', gtype: 'AdwEntryRow', props: {"title":"Display name","text":"Grace Hopper"} },
+                { tag: 'adw-switch-row', gtype: 'AdwSwitchRow', props: {"title":"Sync over Wi-Fi only","subtitle":"Avoid using mobile data for backups","active":true} }
+            ] }
     },
-    {
-        widget: 'Adw.ActionRow',
-        root: {
-            tag: 'adw-preferences-group',
-            gtype: 'AdwPreferencesGroup',
-            children: [
-                {
-                    tag: 'adw-action-row',
-                    gtype: 'AdwActionRow',
-                    props: { title: 'Wi-Fi', subtitle: 'Connected to Highgarden 5GHz', activatable: true },
-                    children: [
-                        {
-                            tag: 'gtk-image',
-                            gtype: 'GtkImage',
-                            slot: 'prefix',
-                            props: { iconName: 'network-wireless-symbolic' },
-                        },
-                        {
-                            tag: 'gtk-button',
-                            gtype: 'GtkButton',
-                            slot: 'suffix',
-                            props: { iconName: 'go-next-symbolic', cssClasses: ['flat'], valign: 'center' },
-                        },
-                    ],
-                },
-            ],
-        },
+    { widget: 'Adw.ActionRow', root:
+        { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
+                { tag: 'adw-action-row', gtype: 'AdwActionRow', props: {"title":"Wi-Fi","subtitle":"Connected to Highgarden 5GHz","activatable":true}, children: [
+                        { tag: 'gtk-image', gtype: 'GtkImage', slot: 'prefix', props: {"iconName":"network-wireless-symbolic"} },
+                        { tag: 'gtk-button', gtype: 'GtkButton', slot: 'suffix', props: {"iconName":"go-next-symbolic","cssClasses":["flat"],"valign":"center"} }
+                    ] }
+            ] }
     },
-    {
-        widget: 'Adw.SwitchRow',
-        root: {
-            tag: 'adw-preferences-group',
-            gtype: 'AdwPreferencesGroup',
-            children: [
-                {
-                    tag: 'adw-switch-row',
-                    gtype: 'AdwSwitchRow',
-                    props: {
-                        title: 'Automatic updates',
-                        subtitle: 'Download and install updates without asking',
-                        active: true,
-                    },
-                },
-            ],
-        },
+    { widget: 'Adw.SwitchRow', root:
+        { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
+                { tag: 'adw-switch-row', gtype: 'AdwSwitchRow', props: {"title":"Automatic updates","subtitle":"Download and install updates without asking","active":true} }
+            ] }
     },
-    {
-        widget: 'Adw.EntryRow',
-        root: {
-            tag: 'adw-preferences-group',
-            gtype: 'AdwPreferencesGroup',
-            children: [
-                { tag: 'adw-entry-row', gtype: 'AdwEntryRow', props: { title: 'Display name', text: 'Ada Lovelace' } },
-            ],
-        },
+    { widget: 'Adw.EntryRow', root:
+        { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
+                { tag: 'adw-entry-row', gtype: 'AdwEntryRow', props: {"title":"Display name","text":"Ada Lovelace"} }
+            ] }
     },
-    {
-        widget: 'Adw.PasswordEntryRow',
-        root: {
-            tag: 'adw-preferences-group',
-            gtype: 'AdwPreferencesGroup',
-            children: [
-                {
-                    tag: 'adw-password-entry-row',
-                    gtype: 'AdwPasswordEntryRow',
-                    props: { title: 'Password', text: 'correct-horse-battery' },
-                },
-            ],
-        },
+    { widget: 'Adw.PasswordEntryRow', root:
+        { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
+                { tag: 'adw-password-entry-row', gtype: 'AdwPasswordEntryRow', props: {"title":"Password","text":"correct-horse-battery"} }
+            ] }
     },
-    {
-        widget: 'Adw.ButtonRow',
-        root: {
-            tag: 'adw-preferences-group',
-            gtype: 'AdwPreferencesGroup',
-            children: [
-                {
-                    tag: 'adw-button-row',
-                    gtype: 'AdwButtonRow',
-                    props: {
-                        title: 'Add account',
-                        startIconName: 'list-add-symbolic',
-                        cssClasses: ['suggested-action'],
-                    },
-                },
-            ],
-        },
+    { widget: 'Adw.ButtonRow', root:
+        { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
+                { tag: 'adw-button-row', gtype: 'AdwButtonRow', props: {"title":"Add account","startIconName":"list-add-symbolic","cssClasses":["suggested-action"]} }
+            ] }
     },
-    {
-        widget: 'Adw.ButtonContent',
-        root: {
-            tag: 'gtk-button',
-            gtype: 'GtkButton',
-            props: { cssClasses: ['suggested-action', 'pill'] },
-            children: [
-                {
-                    tag: 'adw-button-content',
-                    gtype: 'AdwButtonContent',
-                    props: { label: 'Download', iconName: 'folder-download-symbolic' },
-                },
-            ],
-        },
+    { widget: 'Adw.ButtonContent', root:
+        { tag: 'gtk-button', gtype: 'GtkButton', props: {"cssClasses":["suggested-action","pill"]}, children: [
+                { tag: 'adw-button-content', gtype: 'AdwButtonContent', props: {"label":"Download","iconName":"folder-download-symbolic"} }
+            ] }
     },
-    {
-        widget: 'Gtk.Button',
-        root: {
-            tag: 'gtk-box',
-            gtype: 'GtkBox',
-            props: { orientation: 'horizontal', spacing: 12, halign: 'center' },
-            children: [
-                { tag: 'gtk-button', gtype: 'GtkButton', props: { label: 'Pill', cssClasses: ['pill'] } },
-                {
-                    tag: 'gtk-button',
-                    gtype: 'GtkButton',
-                    props: { iconName: 'list-add-symbolic', cssClasses: ['circular'] },
-                },
-                {
-                    tag: 'gtk-button',
-                    gtype: 'GtkButton',
-                    props: { label: 'Suggested', cssClasses: ['suggested-action'] },
-                },
-                {
-                    tag: 'gtk-button',
-                    gtype: 'GtkButton',
-                    props: { label: 'Delete', cssClasses: ['destructive-action'] },
-                },
-                { tag: 'gtk-button', gtype: 'GtkButton', props: { label: 'Flat', cssClasses: ['flat'] } },
-            ],
-        },
+    { widget: 'Gtk.Button', root:
+        { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"horizontal","spacing":12,"halign":"center"}, children: [
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Pill","cssClasses":["pill"]} },
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"iconName":"list-add-symbolic","cssClasses":["circular"]} },
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Suggested","cssClasses":["suggested-action"]} },
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Delete","cssClasses":["destructive-action"]} },
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Flat","cssClasses":["flat"]} }
+            ] }
     },
-    {
-        widget: 'Gtk.Entry',
-        root: { tag: 'gtk-entry', gtype: 'GtkEntry', props: { placeholderText: 'Search files…', widthRequest: 280 } },
+    { widget: 'Gtk.Entry', root:
+        { tag: 'gtk-entry', gtype: 'GtkEntry', props: {"placeholderText":"Search files…","widthRequest":280} }
     },
-    {
-        widget: 'Adw.HeaderBar',
-        root: {
-            tag: 'adw-header-bar',
-            gtype: 'AdwHeaderBar',
-            children: [
-                {
-                    tag: 'gtk-button',
-                    gtype: 'GtkButton',
-                    slot: 'start',
-                    props: { iconName: 'go-previous-symbolic', cssClasses: ['flat'] },
-                },
-                {
-                    tag: 'adw-window-title',
-                    gtype: 'AdwWindowTitle',
-                    slot: 'title',
-                    props: { title: 'Text Editor', subtitle: 'notes.md' },
-                },
-                {
-                    tag: 'gtk-menu-button',
-                    gtype: 'GtkMenuButton',
-                    slot: 'end',
-                    props: { iconName: 'open-menu-symbolic', cssClasses: ['flat'] },
-                },
-            ],
-        },
+    { widget: 'Adw.HeaderBar', root:
+        { tag: 'adw-header-bar', gtype: 'AdwHeaderBar', children: [
+                { tag: 'gtk-button', gtype: 'GtkButton', slot: 'start', props: {"iconName":"go-previous-symbolic","cssClasses":["flat"]} },
+                { tag: 'adw-window-title', gtype: 'AdwWindowTitle', slot: 'title', props: {"title":"Text Editor","subtitle":"notes.md"} },
+                { tag: 'gtk-menu-button', gtype: 'GtkMenuButton', slot: 'end', props: {"iconName":"open-menu-symbolic","cssClasses":["flat"]} }
+            ] }
     },
-    {
-        widget: 'Adw.ToolbarView',
-        root: {
-            tag: 'adw-toolbar-view',
-            gtype: 'AdwToolbarView',
-            children: [
-                {
-                    tag: 'adw-header-bar',
-                    gtype: 'AdwHeaderBar',
-                    slot: 'top',
-                    children: [
-                        {
-                            tag: 'adw-window-title',
-                            gtype: 'AdwWindowTitle',
-                            slot: 'title',
-                            props: { title: 'Documents', subtitle: '12 items' },
-                        },
-                    ],
-                },
-                {
-                    tag: 'adw-status-page',
-                    gtype: 'AdwStatusPage',
-                    slot: 'content',
-                    props: {
-                        iconName: 'folder-documents-symbolic',
-                        title: 'Your library',
-                        description: 'Content sits between the toolbars and scrolls independently of them.',
-                    },
-                },
-                {
-                    tag: 'gtk-box',
-                    gtype: 'GtkBox',
-                    slot: 'bottom',
-                    props: { cssClasses: ['toolbar'], spacing: 6 },
-                    children: [
-                        {
-                            tag: 'gtk-button',
-                            gtype: 'GtkButton',
-                            props: { iconName: 'list-add-symbolic', cssClasses: ['flat'] },
-                        },
-                        {
-                            tag: 'gtk-button',
-                            gtype: 'GtkButton',
-                            props: { iconName: 'list-remove-symbolic', cssClasses: ['flat'] },
-                        },
-                        { tag: 'gtk-label', gtype: 'GtkLabel', props: { label: 'Selection: none', hexpand: true } },
-                        {
-                            tag: 'gtk-button',
-                            gtype: 'GtkButton',
-                            props: { iconName: 'send-to-symbolic', cssClasses: ['flat'] },
-                        },
-                    ],
-                },
-            ],
-        },
+    { widget: 'Adw.ToolbarView', root:
+        { tag: 'adw-toolbar-view', gtype: 'AdwToolbarView', children: [
+                { tag: 'adw-header-bar', gtype: 'AdwHeaderBar', slot: 'top', children: [
+                        { tag: 'adw-window-title', gtype: 'AdwWindowTitle', slot: 'title', props: {"title":"Documents","subtitle":"12 items"} }
+                    ] },
+                { tag: 'adw-status-page', gtype: 'AdwStatusPage', slot: 'content', props: {"iconName":"folder-documents-symbolic","title":"Your library","description":"Content sits between the toolbars and scrolls independently of them."} },
+                { tag: 'gtk-box', gtype: 'GtkBox', slot: 'bottom', props: {"cssClasses":["toolbar"],"spacing":6}, children: [
+                        { tag: 'gtk-button', gtype: 'GtkButton', props: {"iconName":"list-add-symbolic","cssClasses":["flat"]} },
+                        { tag: 'gtk-button', gtype: 'GtkButton', props: {"iconName":"list-remove-symbolic","cssClasses":["flat"]} },
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Selection: none","hexpand":true} },
+                        { tag: 'gtk-button', gtype: 'GtkButton', props: {"iconName":"send-to-symbolic","cssClasses":["flat"]} }
+                    ] }
+            ] }
     },
-    {
-        widget: 'Adw.NavigationView',
-        root: {
-            tag: 'adw-navigation-view',
-            gtype: 'AdwNavigationView',
-            children: [
-                {
-                    tag: 'adw-navigation-page',
-                    gtype: 'AdwNavigationPage',
-                    props: { tag: 'root', title: 'Contacts' },
-                    children: [
-                        {
-                            tag: 'adw-toolbar-view',
-                            gtype: 'AdwToolbarView',
-                            children: [
-                                {
-                                    tag: 'adw-header-bar',
-                                    gtype: 'AdwHeaderBar',
-                                    slot: 'top',
-                                    children: [
-                                        {
-                                            tag: 'adw-window-title',
-                                            gtype: 'AdwWindowTitle',
-                                            slot: 'title',
-                                            props: { title: 'Contacts' },
-                                        },
-                                    ],
-                                },
-                                {
-                                    tag: 'adw-status-page',
-                                    gtype: 'AdwStatusPage',
-                                    slot: 'content',
-                                    props: { title: 'Contacts', description: 'Push a page to see the transition.' },
-                                },
-                            ],
-                        },
-                    ],
-                },
-                {
-                    tag: 'adw-navigation-page',
-                    gtype: 'AdwNavigationPage',
-                    props: { tag: 'detail', title: 'Ada Lovelace' },
-                    children: [
-                        {
-                            tag: 'adw-toolbar-view',
-                            gtype: 'AdwToolbarView',
-                            children: [
-                                {
-                                    tag: 'adw-header-bar',
-                                    gtype: 'AdwHeaderBar',
-                                    slot: 'top',
-                                    children: [
-                                        {
-                                            tag: 'adw-window-title',
-                                            gtype: 'AdwWindowTitle',
-                                            slot: 'title',
-                                            props: { title: 'Ada Lovelace' },
-                                        },
-                                    ],
-                                },
-                                {
-                                    tag: 'adw-status-page',
-                                    gtype: 'AdwStatusPage',
-                                    slot: 'content',
-                                    props: {
-                                        iconName: 'avatar-default-symbolic',
-                                        title: 'Ada Lovelace',
-                                        description: 'Mathematician and writer, the first computer programmer.',
-                                    },
-                                },
-                            ],
-                        },
-                    ],
-                },
-            ],
-        },
+    { widget: 'Adw.NavigationView', root:
+        { tag: 'adw-navigation-view', gtype: 'AdwNavigationView', children: [
+                { tag: 'adw-navigation-page', gtype: 'AdwNavigationPage', props: {"tag":"root","title":"Contacts"}, children: [
+                        { tag: 'adw-toolbar-view', gtype: 'AdwToolbarView', children: [
+                                { tag: 'adw-header-bar', gtype: 'AdwHeaderBar', slot: 'top', children: [
+                                        { tag: 'adw-window-title', gtype: 'AdwWindowTitle', slot: 'title', props: {"title":"Contacts"} }
+                                    ] },
+                                { tag: 'adw-status-page', gtype: 'AdwStatusPage', slot: 'content', props: {"title":"Contacts","description":"Push a page to see the transition."} }
+                            ] }
+                    ] },
+                { tag: 'adw-navigation-page', gtype: 'AdwNavigationPage', props: {"tag":"detail","title":"Ada Lovelace"}, children: [
+                        { tag: 'adw-toolbar-view', gtype: 'AdwToolbarView', children: [
+                                { tag: 'adw-header-bar', gtype: 'AdwHeaderBar', slot: 'top', children: [
+                                        { tag: 'adw-window-title', gtype: 'AdwWindowTitle', slot: 'title', props: {"title":"Ada Lovelace"} }
+                                    ] },
+                                { tag: 'adw-status-page', gtype: 'AdwStatusPage', slot: 'content', props: {"iconName":"avatar-default-symbolic","title":"Ada Lovelace","description":"Mathematician and writer, the first computer programmer."} }
+                            ] }
+                    ] }
+            ] }
     },
-    {
-        widget: 'Adw.Avatar',
-        root: {
-            tag: 'adw-avatar',
-            gtype: 'AdwAvatar',
-            props: { text: 'Ada Lovelace', size: 96, showInitials: true, iconName: 'avatar-default-symbolic' },
-        },
+    { widget: 'Adw.Avatar', root:
+        { tag: 'adw-avatar', gtype: 'AdwAvatar', props: {"text":"Ada Lovelace","size":96,"showInitials":true,"iconName":"avatar-default-symbolic"} }
     },
-    {
-        widget: 'Adw.Banner',
-        root: {
-            tag: 'adw-banner',
-            gtype: 'AdwBanner',
-            props: { title: 'Metered connection: updates paused', buttonLabel: 'Resume', revealed: true },
-        },
+    { widget: 'Adw.Banner', root:
+        { tag: 'adw-banner', gtype: 'AdwBanner', props: {"title":"Metered connection: updates paused","buttonLabel":"Resume","revealed":true} }
     },
-    {
-        widget: 'Adw.ShortcutLabel',
-        root: { tag: 'adw-shortcut-label', gtype: 'AdwShortcutLabel', props: { accelerator: '<Control>C' } },
+    { widget: 'Adw.ShortcutLabel', root:
+        { tag: 'adw-shortcut-label', gtype: 'AdwShortcutLabel', props: {"accelerator":"<Control>C"} }
     },
-    {
-        widget: 'Adw.Spinner',
-        root: { tag: 'adw-spinner', gtype: 'AdwSpinner', props: { widthRequest: 48, heightRequest: 48 } },
+    { widget: 'Adw.Spinner', root:
+        { tag: 'adw-spinner', gtype: 'AdwSpinner', props: {"widthRequest":48,"heightRequest":48} }
     },
-    {
-        widget: 'Adw.StatusPage',
-        root: {
-            tag: 'adw-status-page',
-            gtype: 'AdwStatusPage',
-            props: {
-                iconName: 'folder-symbolic',
-                title: 'No Documents',
-                description: 'Documents you create or open will appear here.',
-            },
-            children: [
-                {
-                    tag: 'gtk-button',
-                    gtype: 'GtkButton',
-                    props: { label: 'New Document', cssClasses: ['pill', 'suggested-action'], halign: 'center' },
-                },
-            ],
-        },
+    { widget: 'Adw.StatusPage', root:
+        { tag: 'adw-status-page', gtype: 'AdwStatusPage', props: {"iconName":"folder-symbolic","title":"No Documents","description":"Documents you create or open will appear here."}, children: [
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"New Document","cssClasses":["pill","suggested-action"],"halign":"center"} }
+            ] }
     },
-    {
-        widget: 'Adw.WindowTitle',
-        root: {
-            tag: 'adw-window-title',
-            gtype: 'AdwWindowTitle',
-            props: { title: 'Inbox', subtitle: '3 unread messages' },
-        },
+    { widget: 'Adw.WindowTitle', root:
+        { tag: 'adw-window-title', gtype: 'AdwWindowTitle', props: {"title":"Inbox","subtitle":"3 unread messages"} }
     },
 ];
 
@@ -459,12 +206,7 @@ function findUnused(root: Gtk.Widget, expect: Expect, used: Set<Gtk.Widget>): Gt
     const queue: Gtk.Widget[] = [root];
     while (queue.length > 0) {
         const widget = queue.shift() as Gtk.Widget;
-        if (
-            widget !== root &&
-            !used.has(widget) &&
-            gtypeOf(widget) === expect.gtype &&
-            propsMatch(widget, expect.props)
-        )
+        if (widget !== root && !used.has(widget) && gtypeOf(widget) === expect.gtype && propsMatch(widget, expect.props))
             return widget;
         for (let c = widget.get_first_child(); c !== null; c = c.get_next_sibling()) queue.push(c);
     }

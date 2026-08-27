@@ -47,7 +47,6 @@
 // Usage: `node scripts/generate-adwaita-framework-snippets.mjs [--check]`
 //        `--check` writes nothing and exits 1 on any drift.
 
-import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -60,30 +59,38 @@ const INDENT = '    ';
 // ---------------------------------------------------------------- markup emitters
 
 /**
- * Run the emitted text through the repo's own formatter before it is written OR
- * compared.
+ * THE EMITTED BYTES ARE FINAL — nothing formats them, and that is a requirement
+ * rather than a preference.
  *
- * Without this the generator and `oxfmt --check` contradict each other: the
- * generator writes its own spacing, a `yarn format` rewrites it, and the next
- * `--check` reports drift that is not drift. Formatting HERE makes the bytes the
- * fixed point of both — `--check` can then compare bytes exactly, which is
- * stricter than the whitespace-insensitive comparison the sibling generators use.
+ * THE INCIDENT. The first version piped every output through
+ * `node_modules/.bin/oxfmt --stdin-filepath`, so the generator and `oxfmt --check`
+ * could not contradict each other. It went red on `main` in two jobs at once, on
+ * both platforms:
  *
- * `.vue` is in `.oxfmtrc.json`'s `ignorePatterns`, so the SFC is returned
- * unchanged rather than silently reformatted by a parser that does not know it.
+ *     cannot format AdwPreferencesGroup.snippet.tsx — spawnSync …/node_modules/.bin/oxfmt ENOENT
+ *     cannot format AdwPreferencesGroup.snippet.tsx — spawnSync D:\a\…\node_modules\.bin\oxfmt ENOENT
+ *
+ * `Detect runtime-triplet drift` and `Manifest checks (Windows)` are `checkout` +
+ * `setup-node` and NOTHING else — no install, no build, no `node_modules`. That is
+ * deliberate and it is what `check-generated-website-data.mjs`'s own header
+ * promises: "Plain Node over the repo's own files — no install, no build". So the
+ * dependency could not be relocated, only removed: `require.resolve('oxfmt')` has
+ * no package to find, and `packages/infra/oxfmt-native` is a build output that job
+ * does not have either. (The Windows path also shows a `.bin` shim spawned without
+ * its `.cmd` — a second failure waiting behind the first, and one more thing that
+ * simply stops existing when the subprocess does.)
+ *
+ * WHAT REPLACES IT. This file owns its own line breaking, the three generated probe
+ * sources are exempt in `.oxfmtrc.json` — their formatting is a generator's output,
+ * not a person's, the same reason that file already exempts `cli.gjs.mjs`,
+ * `test.gjs.mjs` and `templates/` — and `--check` compares BYTES with no dependency
+ * at all. Arm 7 of the gate holds the exemption so it cannot quietly stop matching.
+ *
+ * The gain is not only portability: snippet text and probe text are now identical
+ * BY CONSTRUCTION, because both come from `markup()` through the same frame. The
+ * formatter used to reach only one of the two and arm 6 had to compare trimmed
+ * lines to survive it.
  */
-function formatted(rel, content) {
-    if (rel.endsWith('.vue')) return content;
-    const oxfmt = join(ROOT, 'node_modules/.bin/oxfmt');
-    const proc = spawnSync(oxfmt, ['--stdin-filepath', join(ROOT, rel)], { input: content, encoding: 'utf8' });
-    // Loudly, never silently: an unformatted emission would land in the tree and
-    // fail `oxfmt --check` somewhere far away from the generator that caused it.
-    if (proc.status !== 0 || typeof proc.stdout !== 'string' || proc.stdout.length === 0) {
-        console.error(`cannot format ${rel} — ${proc.stderr || proc.error?.message || `oxfmt exited ${proc.status}`}`);
-        process.exit(1);
-    }
-    return proc.stdout;
-}
 
 const kebab = (name) => name.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
 
@@ -180,6 +187,21 @@ export function snippetLines(tree, dialect) {
     return lines.filter((line) => !line.startsWith('//'));
 }
 
+/**
+ * The generated outputs `.oxfmtrc.json` must exempt, so the gate does not restate
+ * them.
+ *
+ * `Gallery.vue` is deliberately absent: the config's blanket Vue pattern already
+ * covers it, and listing it again would be an entry arm 7 could not distinguish
+ * from a live one.
+ */
+export const OXFMT_EXEMPT_OUTPUTS = [
+    'website/src/data/adwaita-framework-snippets.ts',
+    'showcases/gtk/adwaita-gallery-solid/src/app.tsx',
+    'showcases/gtk/adwaita-gallery-react/src/app.tsx',
+    'showcases/gtk/adwaita-gallery-vue/src/app.ts',
+];
+
 /** Where each dialect's probe source lives, so the gate does not restate it. */
 export const PROBE_SOURCES = {
     solid: 'showcases/gtk/adwaita-gallery-solid/src/app.tsx',
@@ -200,15 +222,9 @@ ${markup(tree.root, 'vue', 1)}
         dialect === 'solid'
             ? `// mount(() => <${name} />, container) — from '@gjsify/gtk-host/solid'`
             : `// createRoot(container).render(<${name} />) — from '@gjsify/gtk-host/react'`;
-    // Through the FORMATTER, and for the same reason the outputs go through it: the
-    // probe file is formatted, so an unformatted snippet would ship markup that
-    // differs from the markup that was run — by whitespace, but the claim is that
-    // they are the same text. `.vue` above is exempt in `.oxfmtrc.json`, which is why
-    // only this branch needs it and why the gate compares the Vue pair line-wise.
-    return formatted(
-        `${name}.snippet.tsx`,
-        `${note}${mount}\nconst ${name} = () => (\n${markup(tree.root, dialect, 1)}\n);\n`,
-    ).trimEnd();
+    // The SAME frame the probe emits around the same `markup()` call, so the two are
+    // one string, not two that happen to agree.
+    return `${note}${mount}\nconst ${name} = () => (\n${markup(tree.root, dialect, 1)}\n);`;
 }
 
 // ------------------------------------------------------------- website data file
@@ -613,11 +629,21 @@ ${INDENT}present: (ui) => present(ui, 'Vue'),
 
 // ------------------------------------------------------------------------- main
 
-const OUTPUTS = [
+/**
+ * Every committed output, built ON DEMAND.
+ *
+ * A function and not a top-level array, for the same reason `RUN_AS_PROGRAM` below
+ * exists: `check-generated-website-data.mjs` IMPORTS this module for `snippetLines`
+ * and `PROBE_SOURCES`, and whatever the module body does, it does during that
+ * import. The array version rendered all five files on import — which is how the
+ * formatter's `ENOENT` became a crash inside a gate that never asked for a file to
+ * be written. An import should cost a definition, nothing else.
+ */
+const buildOutputs = () => [
     ['website/src/data/adwaita-framework-snippets.ts', websiteData()],
-    ['showcases/gtk/adwaita-gallery-solid/src/app.tsx', solidProbe()],
-    ['showcases/gtk/adwaita-gallery-react/src/app.tsx', reactProbe()],
-    ['showcases/gtk/adwaita-gallery-vue/src/Gallery.vue', vueSfc()],
+    [PROBE_SOURCES.solid, solidProbe()],
+    [PROBE_SOURCES.react, reactProbe()],
+    [PROBE_SOURCES.vue, vueSfc()],
     ['showcases/gtk/adwaita-gallery-vue/src/app.ts', vueEntry()],
 ];
 
@@ -635,9 +661,9 @@ const OUTPUTS = [
 const RUN_AS_PROGRAM = process.argv[1] !== undefined && pathToFileURL(process.argv[1]).href === import.meta.url;
 
 const check = process.argv.includes('--check');
+const outputs = RUN_AS_PROGRAM ? buildOutputs() : [];
 let drifted = 0;
-for (const [rel, raw] of RUN_AS_PROGRAM ? OUTPUTS : []) {
-    const content = formatted(rel, raw);
+for (const [rel, content] of outputs) {
     const file = join(ROOT, rel);
     let current = null;
     try {
@@ -657,5 +683,5 @@ for (const [rel, raw] of RUN_AS_PROGRAM ? OUTPUTS : []) {
 }
 if (RUN_AS_PROGRAM && check) {
     if (drifted > 0) process.exit(1);
-    console.log(`generated snippets are current (${OUTPUTS.length} files, ${ADWAITA_GALLERY_TREES.length} widgets)`);
+    console.log(`generated snippets are current (${outputs.length} files, ${ADWAITA_GALLERY_TREES.length} widgets)`);
 }

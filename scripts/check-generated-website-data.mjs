@@ -45,6 +45,14 @@
 //      hand edits one of the two generated files, or an emitter grows a branch that
 //      only the website takes, the site would publish markup nothing ever ran. That
 //      is the claim the whole arrangement rests on, so it is the one to hold.
+//   7. Every generated output is still EXEMPT in `.oxfmtrc.json`. The generator
+//      emits its final bytes itself and nothing formats them — it used to shell out
+//      to `node_modules/.bin/oxfmt`, which does not exist in this job or in
+//      `Manifest checks (Windows)`, because both are `checkout` + `setup-node` and
+//      nothing else. If an exemption is dropped, `yarn format` rewrites a generated
+//      file, arm 1 then reports drift that is not drift, and the repair is to
+//      re-add the exemption rather than to re-run the generator — so the failure
+//      has to say which of the two it is.
 //
 // Plain Node over the repo's own files — no install, no build, no astro render.
 //
@@ -57,7 +65,12 @@ import { fileURLToPath } from 'node:url';
 
 import { observedAttributes } from './adwaita-elements.mjs';
 import { ADWAITA_GALLERY_REFUSALS, ADWAITA_GALLERY_TREES } from './adwaita-gallery-trees.mjs';
-import { gtypeOfTag, PROBE_SOURCES, snippetLines } from './generate-adwaita-framework-snippets.mjs';
+import {
+    gtypeOfTag,
+    OXFMT_EXEMPT_OUTPUTS,
+    PROBE_SOURCES,
+    snippetLines,
+} from './generate-adwaita-framework-snippets.mjs';
 
 const rootFlag = process.argv.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : process.argv[rootFlag + 1];
@@ -364,6 +377,30 @@ for (const [dialect, rel] of Object.entries(PROBE_SOURCES)) {
 }
 notes.push(`${checkedSnippets} snippet(s) found verbatim in the showcase that compiles them`);
 if (checkedSnippets === 0) failures.push('no snippet was matched against a probe — arm 6 proved nothing');
+
+// ---------------------------------------------------------------------------
+// 7. the formatter still leaves the generated outputs alone
+// ---------------------------------------------------------------------------
+
+const OXFMT_CONFIG = '.oxfmtrc.json';
+try {
+    const ignored = JSON.parse(readFileSync(join(ROOT, OXFMT_CONFIG), 'utf8')).ignorePatterns;
+    if (!Array.isArray(ignored) || ignored.length === 0) {
+        failures.push(`${OXFMT_CONFIG}: no ignorePatterns array — arm 7 cannot judge anything`);
+    } else {
+        for (const rel of OXFMT_EXEMPT_OUTPUTS) {
+            if (ignored.includes(rel)) continue;
+            failures.push(
+                `${OXFMT_CONFIG} no longer exempts ${rel}. It is GENERATED — its bytes come from ` +
+                    'generate-adwaita-framework-snippets.mjs, which formats nothing because the jobs ' +
+                    'running this check have no node_modules. Re-add the exemption; do not reformat the file.',
+            );
+        }
+        notes.push(`${OXFMT_EXEMPT_OUTPUTS.length} generated output(s) exempt from ${OXFMT_CONFIG}`);
+    }
+} catch (error) {
+    failures.push(`${OXFMT_CONFIG} is unreadable (${error.message}) — arm 7 would pass vacuously`);
+}
 
 // A scan whose corpus is empty reports green while proving nothing.
 if (blocks === 0) failures.push('no <AdwWidget> block found on any gallery page — the reader is broken');

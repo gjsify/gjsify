@@ -16,75 +16,154 @@ import { createRoot, flushSync } from '@gjsify/gtk-host/react';
 registerBuiltinWidgets();
 
 const AdwPreferencesGroup = () => (
-    <adw-preferences-group title="Account" description="Manage how this device signs in and syncs.">
-        <adw-entry-row title="Display name" text="Grace Hopper" />
-        <adw-switch-row title="Sync over Wi-Fi only" subtitle="Avoid using mobile data for backups" active />
+    <adw-preferences-group
+        title="Account"
+        description="Manage how this device signs in and syncs."
+    >
+        <adw-entry-row
+            title="Display name"
+            text="Grace Hopper"
+        />
+        <adw-switch-row
+            title="Sync over Wi-Fi only"
+            subtitle="Avoid using mobile data for backups"
+            active
+        />
     </adw-preferences-group>
 );
 
 const AdwActionRow = () => (
     <adw-preferences-group>
-        <adw-action-row title="Wi-Fi" subtitle="Connected to Highgarden 5GHz" activatable>
-            <gtk-image slot="prefix" iconName="network-wireless-symbolic" />
-            <gtk-button slot="suffix" iconName="go-next-symbolic" cssClasses={['flat']} valign="center" />
+        <adw-action-row
+            title="Wi-Fi"
+            subtitle="Connected to Highgarden 5GHz"
+            activatable
+        >
+            <gtk-image
+                slot="prefix"
+                iconName="network-wireless-symbolic"
+            />
+            <gtk-button
+                slot="suffix"
+                iconName="go-next-symbolic"
+                cssClasses={['flat']}
+                valign="center"
+            />
         </adw-action-row>
     </adw-preferences-group>
 );
 
 const AdwSwitchRow = () => (
     <adw-preferences-group>
-        <adw-switch-row title="Automatic updates" subtitle="Download and install updates without asking" active />
+        <adw-switch-row
+            title="Automatic updates"
+            subtitle="Download and install updates without asking"
+            active
+        />
     </adw-preferences-group>
 );
 
 const AdwEntryRow = () => (
     <adw-preferences-group>
-        <adw-entry-row title="Display name" text="Ada Lovelace" />
+        <adw-entry-row
+            title="Display name"
+            text="Ada Lovelace"
+        />
     </adw-preferences-group>
 );
 
 const AdwPasswordEntryRow = () => (
     <adw-preferences-group>
-        <adw-password-entry-row title="Password" text="correct-horse-battery" />
+        <adw-password-entry-row
+            title="Password"
+            text="correct-horse-battery"
+        />
     </adw-preferences-group>
 );
 
 const AdwButtonRow = () => (
     <adw-preferences-group>
-        <adw-button-row title="Add account" startIconName="list-add-symbolic" cssClasses={['suggested-action']} />
+        <adw-button-row
+            title="Add account"
+            startIconName="list-add-symbolic"
+            cssClasses={['suggested-action']}
+        />
     </adw-preferences-group>
 );
 
 const AdwButtonContent = () => (
     <gtk-button cssClasses={['suggested-action', 'pill']}>
-        <adw-button-content label="Download" iconName="folder-download-symbolic" />
+        <adw-button-content
+            label="Download"
+            iconName="folder-download-symbolic"
+        />
     </gtk-button>
 );
 
 const GtkButton = () => (
-    <gtk-box orientation="horizontal" spacing={12} halign="center">
-        <gtk-button label="Pill" cssClasses={['pill']} />
-        <gtk-button iconName="list-add-symbolic" cssClasses={['circular']} />
-        <gtk-button label="Suggested" cssClasses={['suggested-action']} />
-        <gtk-button label="Delete" cssClasses={['destructive-action']} />
-        <gtk-button label="Flat" cssClasses={['flat']} />
+    <gtk-box
+        orientation="horizontal"
+        spacing={12}
+        halign="center"
+    >
+        <gtk-button
+            label="Pill"
+            cssClasses={['pill']}
+        />
+        <gtk-button
+            iconName="list-add-symbolic"
+            cssClasses={['circular']}
+        />
+        <gtk-button
+            label="Suggested"
+            cssClasses={['suggested-action']}
+        />
+        <gtk-button
+            label="Delete"
+            cssClasses={['destructive-action']}
+        />
+        <gtk-button
+            label="Flat"
+            cssClasses={['flat']}
+        />
     </gtk-box>
 );
 
-const GtkEntry = () => <gtk-entry placeholderText="Search files…" widthRequest={280} />;
+const GtkEntry = () => (
+    <gtk-entry
+        placeholderText="Search files…"
+        widthRequest={280}
+    />
+);
 
 const AdwHeaderBar = () => (
     <adw-header-bar>
-        <gtk-button slot="start" iconName="go-previous-symbolic" cssClasses={['flat']} />
-        <adw-window-title slot="title" title="Text Editor" subtitle="notes.md" />
-        <gtk-menu-button slot="end" iconName="open-menu-symbolic" cssClasses={['flat']} />
+        <gtk-button
+            slot="start"
+            iconName="go-previous-symbolic"
+            cssClasses={['flat']}
+        />
+        <adw-window-title
+            slot="title"
+            title="Text Editor"
+            subtitle="notes.md"
+        />
+        <gtk-menu-button
+            slot="end"
+            iconName="open-menu-symbolic"
+            cssClasses={['flat']}
+        />
     </adw-header-bar>
 );
 
 const AdwToolbarView = () => (
     <adw-toolbar-view>
         <adw-header-bar slot="top">
-            <adw-window-title slot="title" title="Documents" subtitle="12 items" />
+            <adw-window-title
+                slot="title"
+                title="Documents"
+                subtitle="12 items"
+            />
         </adw-header-bar>
         <adw-status-page
             slot="content"
@@ -92,29 +171,61 @@ const AdwToolbarView = () => (
             title="Your library"
             description="Content sits between the toolbars and scrolls independently of them."
         />
-        <gtk-box slot="bottom" cssClasses={['toolbar']} spacing={6}>
-            <gtk-button iconName="list-add-symbolic" cssClasses={['flat']} />
-            <gtk-button iconName="list-remove-symbolic" cssClasses={['flat']} />
-            <gtk-label label="Selection: none" hexpand />
-            <gtk-button iconName="send-to-symbolic" cssClasses={['flat']} />
+        <gtk-box
+            slot="bottom"
+            cssClasses={['toolbar']}
+            spacing={6}
+        >
+            <gtk-button
+                iconName="list-add-symbolic"
+                cssClasses={['flat']}
+            />
+            <gtk-button
+                iconName="list-remove-symbolic"
+                cssClasses={['flat']}
+            />
+            <gtk-label
+                label="Selection: none"
+                hexpand
+            />
+            <gtk-button
+                iconName="send-to-symbolic"
+                cssClasses={['flat']}
+            />
         </gtk-box>
     </adw-toolbar-view>
 );
 
 const AdwNavigationView = () => (
     <adw-navigation-view>
-        <adw-navigation-page tag="root" title="Contacts">
+        <adw-navigation-page
+            tag="root"
+            title="Contacts"
+        >
             <adw-toolbar-view>
                 <adw-header-bar slot="top">
-                    <adw-window-title slot="title" title="Contacts" />
+                    <adw-window-title
+                        slot="title"
+                        title="Contacts"
+                    />
                 </adw-header-bar>
-                <adw-status-page slot="content" title="Contacts" description="Push a page to see the transition." />
+                <adw-status-page
+                    slot="content"
+                    title="Contacts"
+                    description="Push a page to see the transition."
+                />
             </adw-toolbar-view>
         </adw-navigation-page>
-        <adw-navigation-page tag="detail" title="Ada Lovelace">
+        <adw-navigation-page
+            tag="detail"
+            title="Ada Lovelace"
+        >
             <adw-toolbar-view>
                 <adw-header-bar slot="top">
-                    <adw-window-title slot="title" title="Ada Lovelace" />
+                    <adw-window-title
+                        slot="title"
+                        title="Ada Lovelace"
+                    />
                 </adw-header-bar>
                 <adw-status-page
                     slot="content"
@@ -127,13 +238,33 @@ const AdwNavigationView = () => (
     </adw-navigation-view>
 );
 
-const AdwAvatar = () => <adw-avatar text="Ada Lovelace" size={96} showInitials iconName="avatar-default-symbolic" />;
+const AdwAvatar = () => (
+    <adw-avatar
+        text="Ada Lovelace"
+        size={96}
+        showInitials
+        iconName="avatar-default-symbolic"
+    />
+);
 
-const AdwBanner = () => <adw-banner title="Metered connection: updates paused" buttonLabel="Resume" revealed />;
+const AdwBanner = () => (
+    <adw-banner
+        title="Metered connection: updates paused"
+        buttonLabel="Resume"
+        revealed
+    />
+);
 
-const AdwShortcutLabel = () => <adw-shortcut-label accelerator="<Control>C" />;
+const AdwShortcutLabel = () => (
+    <adw-shortcut-label accelerator="<Control>C" />
+);
 
-const AdwSpinner = () => <adw-spinner widthRequest={48} heightRequest={48} />;
+const AdwSpinner = () => (
+    <adw-spinner
+        widthRequest={48}
+        heightRequest={48}
+    />
+);
 
 const AdwStatusPage = () => (
     <adw-status-page
@@ -141,11 +272,20 @@ const AdwStatusPage = () => (
         title="No Documents"
         description="Documents you create or open will appear here."
     >
-        <gtk-button label="New Document" cssClasses={['pill', 'suggested-action']} halign="center" />
+        <gtk-button
+            label="New Document"
+            cssClasses={['pill', 'suggested-action']}
+            halign="center"
+        />
     </adw-status-page>
 );
 
-const AdwWindowTitle = () => <adw-window-title title="Inbox" subtitle="3 unread messages" />;
+const AdwWindowTitle = () => (
+    <adw-window-title
+        title="Inbox"
+        subtitle="3 unread messages"
+    />
+);
 
 /** Every gallery snippet in one column, so one root carries them all. */
 const Gallery = () => (
@@ -215,370 +355,117 @@ interface Expect {
 
 /** Every gallery tree this probe builds, from `scripts/adwaita-gallery-trees.mjs`. */
 const EXPECTED: readonly { widget: string; root: Expect }[] = [
-    {
-        widget: 'Adw.PreferencesGroup',
-        root: {
-            tag: 'adw-preferences-group',
-            gtype: 'AdwPreferencesGroup',
-            props: { title: 'Account', description: 'Manage how this device signs in and syncs.' },
-            children: [
-                { tag: 'adw-entry-row', gtype: 'AdwEntryRow', props: { title: 'Display name', text: 'Grace Hopper' } },
-                {
-                    tag: 'adw-switch-row',
-                    gtype: 'AdwSwitchRow',
-                    props: {
-                        title: 'Sync over Wi-Fi only',
-                        subtitle: 'Avoid using mobile data for backups',
-                        active: true,
-                    },
-                },
-            ],
-        },
+    { widget: 'Adw.PreferencesGroup', root:
+        { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', props: {"title":"Account","description":"Manage how this device signs in and syncs."}, children: [
+                { tag: 'adw-entry-row', gtype: 'AdwEntryRow', props: {"title":"Display name","text":"Grace Hopper"} },
+                { tag: 'adw-switch-row', gtype: 'AdwSwitchRow', props: {"title":"Sync over Wi-Fi only","subtitle":"Avoid using mobile data for backups","active":true} }
+            ] }
     },
-    {
-        widget: 'Adw.ActionRow',
-        root: {
-            tag: 'adw-preferences-group',
-            gtype: 'AdwPreferencesGroup',
-            children: [
-                {
-                    tag: 'adw-action-row',
-                    gtype: 'AdwActionRow',
-                    props: { title: 'Wi-Fi', subtitle: 'Connected to Highgarden 5GHz', activatable: true },
-                    children: [
-                        {
-                            tag: 'gtk-image',
-                            gtype: 'GtkImage',
-                            slot: 'prefix',
-                            props: { iconName: 'network-wireless-symbolic' },
-                        },
-                        {
-                            tag: 'gtk-button',
-                            gtype: 'GtkButton',
-                            slot: 'suffix',
-                            props: { iconName: 'go-next-symbolic', cssClasses: ['flat'], valign: 'center' },
-                        },
-                    ],
-                },
-            ],
-        },
+    { widget: 'Adw.ActionRow', root:
+        { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
+                { tag: 'adw-action-row', gtype: 'AdwActionRow', props: {"title":"Wi-Fi","subtitle":"Connected to Highgarden 5GHz","activatable":true}, children: [
+                        { tag: 'gtk-image', gtype: 'GtkImage', slot: 'prefix', props: {"iconName":"network-wireless-symbolic"} },
+                        { tag: 'gtk-button', gtype: 'GtkButton', slot: 'suffix', props: {"iconName":"go-next-symbolic","cssClasses":["flat"],"valign":"center"} }
+                    ] }
+            ] }
     },
-    {
-        widget: 'Adw.SwitchRow',
-        root: {
-            tag: 'adw-preferences-group',
-            gtype: 'AdwPreferencesGroup',
-            children: [
-                {
-                    tag: 'adw-switch-row',
-                    gtype: 'AdwSwitchRow',
-                    props: {
-                        title: 'Automatic updates',
-                        subtitle: 'Download and install updates without asking',
-                        active: true,
-                    },
-                },
-            ],
-        },
+    { widget: 'Adw.SwitchRow', root:
+        { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
+                { tag: 'adw-switch-row', gtype: 'AdwSwitchRow', props: {"title":"Automatic updates","subtitle":"Download and install updates without asking","active":true} }
+            ] }
     },
-    {
-        widget: 'Adw.EntryRow',
-        root: {
-            tag: 'adw-preferences-group',
-            gtype: 'AdwPreferencesGroup',
-            children: [
-                { tag: 'adw-entry-row', gtype: 'AdwEntryRow', props: { title: 'Display name', text: 'Ada Lovelace' } },
-            ],
-        },
+    { widget: 'Adw.EntryRow', root:
+        { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
+                { tag: 'adw-entry-row', gtype: 'AdwEntryRow', props: {"title":"Display name","text":"Ada Lovelace"} }
+            ] }
     },
-    {
-        widget: 'Adw.PasswordEntryRow',
-        root: {
-            tag: 'adw-preferences-group',
-            gtype: 'AdwPreferencesGroup',
-            children: [
-                {
-                    tag: 'adw-password-entry-row',
-                    gtype: 'AdwPasswordEntryRow',
-                    props: { title: 'Password', text: 'correct-horse-battery' },
-                },
-            ],
-        },
+    { widget: 'Adw.PasswordEntryRow', root:
+        { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
+                { tag: 'adw-password-entry-row', gtype: 'AdwPasswordEntryRow', props: {"title":"Password","text":"correct-horse-battery"} }
+            ] }
     },
-    {
-        widget: 'Adw.ButtonRow',
-        root: {
-            tag: 'adw-preferences-group',
-            gtype: 'AdwPreferencesGroup',
-            children: [
-                {
-                    tag: 'adw-button-row',
-                    gtype: 'AdwButtonRow',
-                    props: {
-                        title: 'Add account',
-                        startIconName: 'list-add-symbolic',
-                        cssClasses: ['suggested-action'],
-                    },
-                },
-            ],
-        },
+    { widget: 'Adw.ButtonRow', root:
+        { tag: 'adw-preferences-group', gtype: 'AdwPreferencesGroup', children: [
+                { tag: 'adw-button-row', gtype: 'AdwButtonRow', props: {"title":"Add account","startIconName":"list-add-symbolic","cssClasses":["suggested-action"]} }
+            ] }
     },
-    {
-        widget: 'Adw.ButtonContent',
-        root: {
-            tag: 'gtk-button',
-            gtype: 'GtkButton',
-            props: { cssClasses: ['suggested-action', 'pill'] },
-            children: [
-                {
-                    tag: 'adw-button-content',
-                    gtype: 'AdwButtonContent',
-                    props: { label: 'Download', iconName: 'folder-download-symbolic' },
-                },
-            ],
-        },
+    { widget: 'Adw.ButtonContent', root:
+        { tag: 'gtk-button', gtype: 'GtkButton', props: {"cssClasses":["suggested-action","pill"]}, children: [
+                { tag: 'adw-button-content', gtype: 'AdwButtonContent', props: {"label":"Download","iconName":"folder-download-symbolic"} }
+            ] }
     },
-    {
-        widget: 'Gtk.Button',
-        root: {
-            tag: 'gtk-box',
-            gtype: 'GtkBox',
-            props: { orientation: 'horizontal', spacing: 12, halign: 'center' },
-            children: [
-                { tag: 'gtk-button', gtype: 'GtkButton', props: { label: 'Pill', cssClasses: ['pill'] } },
-                {
-                    tag: 'gtk-button',
-                    gtype: 'GtkButton',
-                    props: { iconName: 'list-add-symbolic', cssClasses: ['circular'] },
-                },
-                {
-                    tag: 'gtk-button',
-                    gtype: 'GtkButton',
-                    props: { label: 'Suggested', cssClasses: ['suggested-action'] },
-                },
-                {
-                    tag: 'gtk-button',
-                    gtype: 'GtkButton',
-                    props: { label: 'Delete', cssClasses: ['destructive-action'] },
-                },
-                { tag: 'gtk-button', gtype: 'GtkButton', props: { label: 'Flat', cssClasses: ['flat'] } },
-            ],
-        },
+    { widget: 'Gtk.Button', root:
+        { tag: 'gtk-box', gtype: 'GtkBox', props: {"orientation":"horizontal","spacing":12,"halign":"center"}, children: [
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Pill","cssClasses":["pill"]} },
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"iconName":"list-add-symbolic","cssClasses":["circular"]} },
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Suggested","cssClasses":["suggested-action"]} },
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Delete","cssClasses":["destructive-action"]} },
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"Flat","cssClasses":["flat"]} }
+            ] }
     },
-    {
-        widget: 'Gtk.Entry',
-        root: { tag: 'gtk-entry', gtype: 'GtkEntry', props: { placeholderText: 'Search files…', widthRequest: 280 } },
+    { widget: 'Gtk.Entry', root:
+        { tag: 'gtk-entry', gtype: 'GtkEntry', props: {"placeholderText":"Search files…","widthRequest":280} }
     },
-    {
-        widget: 'Adw.HeaderBar',
-        root: {
-            tag: 'adw-header-bar',
-            gtype: 'AdwHeaderBar',
-            children: [
-                {
-                    tag: 'gtk-button',
-                    gtype: 'GtkButton',
-                    slot: 'start',
-                    props: { iconName: 'go-previous-symbolic', cssClasses: ['flat'] },
-                },
-                {
-                    tag: 'adw-window-title',
-                    gtype: 'AdwWindowTitle',
-                    slot: 'title',
-                    props: { title: 'Text Editor', subtitle: 'notes.md' },
-                },
-                {
-                    tag: 'gtk-menu-button',
-                    gtype: 'GtkMenuButton',
-                    slot: 'end',
-                    props: { iconName: 'open-menu-symbolic', cssClasses: ['flat'] },
-                },
-            ],
-        },
+    { widget: 'Adw.HeaderBar', root:
+        { tag: 'adw-header-bar', gtype: 'AdwHeaderBar', children: [
+                { tag: 'gtk-button', gtype: 'GtkButton', slot: 'start', props: {"iconName":"go-previous-symbolic","cssClasses":["flat"]} },
+                { tag: 'adw-window-title', gtype: 'AdwWindowTitle', slot: 'title', props: {"title":"Text Editor","subtitle":"notes.md"} },
+                { tag: 'gtk-menu-button', gtype: 'GtkMenuButton', slot: 'end', props: {"iconName":"open-menu-symbolic","cssClasses":["flat"]} }
+            ] }
     },
-    {
-        widget: 'Adw.ToolbarView',
-        root: {
-            tag: 'adw-toolbar-view',
-            gtype: 'AdwToolbarView',
-            children: [
-                {
-                    tag: 'adw-header-bar',
-                    gtype: 'AdwHeaderBar',
-                    slot: 'top',
-                    children: [
-                        {
-                            tag: 'adw-window-title',
-                            gtype: 'AdwWindowTitle',
-                            slot: 'title',
-                            props: { title: 'Documents', subtitle: '12 items' },
-                        },
-                    ],
-                },
-                {
-                    tag: 'adw-status-page',
-                    gtype: 'AdwStatusPage',
-                    slot: 'content',
-                    props: {
-                        iconName: 'folder-documents-symbolic',
-                        title: 'Your library',
-                        description: 'Content sits between the toolbars and scrolls independently of them.',
-                    },
-                },
-                {
-                    tag: 'gtk-box',
-                    gtype: 'GtkBox',
-                    slot: 'bottom',
-                    props: { cssClasses: ['toolbar'], spacing: 6 },
-                    children: [
-                        {
-                            tag: 'gtk-button',
-                            gtype: 'GtkButton',
-                            props: { iconName: 'list-add-symbolic', cssClasses: ['flat'] },
-                        },
-                        {
-                            tag: 'gtk-button',
-                            gtype: 'GtkButton',
-                            props: { iconName: 'list-remove-symbolic', cssClasses: ['flat'] },
-                        },
-                        { tag: 'gtk-label', gtype: 'GtkLabel', props: { label: 'Selection: none', hexpand: true } },
-                        {
-                            tag: 'gtk-button',
-                            gtype: 'GtkButton',
-                            props: { iconName: 'send-to-symbolic', cssClasses: ['flat'] },
-                        },
-                    ],
-                },
-            ],
-        },
+    { widget: 'Adw.ToolbarView', root:
+        { tag: 'adw-toolbar-view', gtype: 'AdwToolbarView', children: [
+                { tag: 'adw-header-bar', gtype: 'AdwHeaderBar', slot: 'top', children: [
+                        { tag: 'adw-window-title', gtype: 'AdwWindowTitle', slot: 'title', props: {"title":"Documents","subtitle":"12 items"} }
+                    ] },
+                { tag: 'adw-status-page', gtype: 'AdwStatusPage', slot: 'content', props: {"iconName":"folder-documents-symbolic","title":"Your library","description":"Content sits between the toolbars and scrolls independently of them."} },
+                { tag: 'gtk-box', gtype: 'GtkBox', slot: 'bottom', props: {"cssClasses":["toolbar"],"spacing":6}, children: [
+                        { tag: 'gtk-button', gtype: 'GtkButton', props: {"iconName":"list-add-symbolic","cssClasses":["flat"]} },
+                        { tag: 'gtk-button', gtype: 'GtkButton', props: {"iconName":"list-remove-symbolic","cssClasses":["flat"]} },
+                        { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Selection: none","hexpand":true} },
+                        { tag: 'gtk-button', gtype: 'GtkButton', props: {"iconName":"send-to-symbolic","cssClasses":["flat"]} }
+                    ] }
+            ] }
     },
-    {
-        widget: 'Adw.NavigationView',
-        root: {
-            tag: 'adw-navigation-view',
-            gtype: 'AdwNavigationView',
-            children: [
-                {
-                    tag: 'adw-navigation-page',
-                    gtype: 'AdwNavigationPage',
-                    props: { tag: 'root', title: 'Contacts' },
-                    children: [
-                        {
-                            tag: 'adw-toolbar-view',
-                            gtype: 'AdwToolbarView',
-                            children: [
-                                {
-                                    tag: 'adw-header-bar',
-                                    gtype: 'AdwHeaderBar',
-                                    slot: 'top',
-                                    children: [
-                                        {
-                                            tag: 'adw-window-title',
-                                            gtype: 'AdwWindowTitle',
-                                            slot: 'title',
-                                            props: { title: 'Contacts' },
-                                        },
-                                    ],
-                                },
-                                {
-                                    tag: 'adw-status-page',
-                                    gtype: 'AdwStatusPage',
-                                    slot: 'content',
-                                    props: { title: 'Contacts', description: 'Push a page to see the transition.' },
-                                },
-                            ],
-                        },
-                    ],
-                },
-                {
-                    tag: 'adw-navigation-page',
-                    gtype: 'AdwNavigationPage',
-                    props: { tag: 'detail', title: 'Ada Lovelace' },
-                    children: [
-                        {
-                            tag: 'adw-toolbar-view',
-                            gtype: 'AdwToolbarView',
-                            children: [
-                                {
-                                    tag: 'adw-header-bar',
-                                    gtype: 'AdwHeaderBar',
-                                    slot: 'top',
-                                    children: [
-                                        {
-                                            tag: 'adw-window-title',
-                                            gtype: 'AdwWindowTitle',
-                                            slot: 'title',
-                                            props: { title: 'Ada Lovelace' },
-                                        },
-                                    ],
-                                },
-                                {
-                                    tag: 'adw-status-page',
-                                    gtype: 'AdwStatusPage',
-                                    slot: 'content',
-                                    props: {
-                                        iconName: 'avatar-default-symbolic',
-                                        title: 'Ada Lovelace',
-                                        description: 'Mathematician and writer, the first computer programmer.',
-                                    },
-                                },
-                            ],
-                        },
-                    ],
-                },
-            ],
-        },
+    { widget: 'Adw.NavigationView', root:
+        { tag: 'adw-navigation-view', gtype: 'AdwNavigationView', children: [
+                { tag: 'adw-navigation-page', gtype: 'AdwNavigationPage', props: {"tag":"root","title":"Contacts"}, children: [
+                        { tag: 'adw-toolbar-view', gtype: 'AdwToolbarView', children: [
+                                { tag: 'adw-header-bar', gtype: 'AdwHeaderBar', slot: 'top', children: [
+                                        { tag: 'adw-window-title', gtype: 'AdwWindowTitle', slot: 'title', props: {"title":"Contacts"} }
+                                    ] },
+                                { tag: 'adw-status-page', gtype: 'AdwStatusPage', slot: 'content', props: {"title":"Contacts","description":"Push a page to see the transition."} }
+                            ] }
+                    ] },
+                { tag: 'adw-navigation-page', gtype: 'AdwNavigationPage', props: {"tag":"detail","title":"Ada Lovelace"}, children: [
+                        { tag: 'adw-toolbar-view', gtype: 'AdwToolbarView', children: [
+                                { tag: 'adw-header-bar', gtype: 'AdwHeaderBar', slot: 'top', children: [
+                                        { tag: 'adw-window-title', gtype: 'AdwWindowTitle', slot: 'title', props: {"title":"Ada Lovelace"} }
+                                    ] },
+                                { tag: 'adw-status-page', gtype: 'AdwStatusPage', slot: 'content', props: {"iconName":"avatar-default-symbolic","title":"Ada Lovelace","description":"Mathematician and writer, the first computer programmer."} }
+                            ] }
+                    ] }
+            ] }
     },
-    {
-        widget: 'Adw.Avatar',
-        root: {
-            tag: 'adw-avatar',
-            gtype: 'AdwAvatar',
-            props: { text: 'Ada Lovelace', size: 96, showInitials: true, iconName: 'avatar-default-symbolic' },
-        },
+    { widget: 'Adw.Avatar', root:
+        { tag: 'adw-avatar', gtype: 'AdwAvatar', props: {"text":"Ada Lovelace","size":96,"showInitials":true,"iconName":"avatar-default-symbolic"} }
     },
-    {
-        widget: 'Adw.Banner',
-        root: {
-            tag: 'adw-banner',
-            gtype: 'AdwBanner',
-            props: { title: 'Metered connection: updates paused', buttonLabel: 'Resume', revealed: true },
-        },
+    { widget: 'Adw.Banner', root:
+        { tag: 'adw-banner', gtype: 'AdwBanner', props: {"title":"Metered connection: updates paused","buttonLabel":"Resume","revealed":true} }
     },
-    {
-        widget: 'Adw.ShortcutLabel',
-        root: { tag: 'adw-shortcut-label', gtype: 'AdwShortcutLabel', props: { accelerator: '<Control>C' } },
+    { widget: 'Adw.ShortcutLabel', root:
+        { tag: 'adw-shortcut-label', gtype: 'AdwShortcutLabel', props: {"accelerator":"<Control>C"} }
     },
-    {
-        widget: 'Adw.Spinner',
-        root: { tag: 'adw-spinner', gtype: 'AdwSpinner', props: { widthRequest: 48, heightRequest: 48 } },
+    { widget: 'Adw.Spinner', root:
+        { tag: 'adw-spinner', gtype: 'AdwSpinner', props: {"widthRequest":48,"heightRequest":48} }
     },
-    {
-        widget: 'Adw.StatusPage',
-        root: {
-            tag: 'adw-status-page',
-            gtype: 'AdwStatusPage',
-            props: {
-                iconName: 'folder-symbolic',
-                title: 'No Documents',
-                description: 'Documents you create or open will appear here.',
-            },
-            children: [
-                {
-                    tag: 'gtk-button',
-                    gtype: 'GtkButton',
-                    props: { label: 'New Document', cssClasses: ['pill', 'suggested-action'], halign: 'center' },
-                },
-            ],
-        },
+    { widget: 'Adw.StatusPage', root:
+        { tag: 'adw-status-page', gtype: 'AdwStatusPage', props: {"iconName":"folder-symbolic","title":"No Documents","description":"Documents you create or open will appear here."}, children: [
+                { tag: 'gtk-button', gtype: 'GtkButton', props: {"label":"New Document","cssClasses":["pill","suggested-action"],"halign":"center"} }
+            ] }
     },
-    {
-        widget: 'Adw.WindowTitle',
-        root: {
-            tag: 'adw-window-title',
-            gtype: 'AdwWindowTitle',
-            props: { title: 'Inbox', subtitle: '3 unread messages' },
-        },
+    { widget: 'Adw.WindowTitle', root:
+        { tag: 'adw-window-title', gtype: 'AdwWindowTitle', props: {"title":"Inbox","subtitle":"3 unread messages"} }
     },
 ];
 
@@ -613,12 +500,7 @@ function findUnused(root: Gtk.Widget, expect: Expect, used: Set<Gtk.Widget>): Gt
     const queue: Gtk.Widget[] = [root];
     while (queue.length > 0) {
         const widget = queue.shift() as Gtk.Widget;
-        if (
-            widget !== root &&
-            !used.has(widget) &&
-            gtypeOf(widget) === expect.gtype &&
-            propsMatch(widget, expect.props)
-        )
+        if (widget !== root && !used.has(widget) && gtypeOf(widget) === expect.gtype && propsMatch(widget, expect.props))
             return widget;
         for (let c = widget.get_first_child(); c !== null; c = c.get_next_sibling()) queue.push(c);
     }
