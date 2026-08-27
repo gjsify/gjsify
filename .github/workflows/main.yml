@@ -370,8 +370,13 @@ jobs:
       # It runs HERE, next to the lint it audits, and not in `audit-runtimes.yml` with
       # the other repo-scoped gates: that workflow deliberately installs nothing, and
       # this needs the pinned `oxlint` from `node_modules`.
+      #
+      # As TESTUSER, unlike the `check-doc-fences.mjs` step below: `gjsify-setup` runs
+      # `chown -R testuser:testuser .`, and this script's subject is `git ls-files`, so
+      # as root it would meet git's dubious-ownership refusal against a tree owned by
+      # someone else. `check-doc-fences.mjs` touches no git and does not care.
       - name: Check the lint gate sees every tracked file
-        run: node scripts/check-lint-visibility.mjs
+        run: su testuser -c 'node scripts/check-lint-visibility.mjs'
 
       # A formatter with a config and no gate formats nothing. `.oxfmtrc.json`
       # had been maintained all along while nothing enforced it, and the drift
