@@ -1160,9 +1160,7 @@ function auditRuntimeShape(rows) {
         const problems = [];
         for (const [key, value] of Object.entries(r.declared)) {
             if (!DECLARABLE_TARGETS.has(key)) {
-                problems.push(
-                    `unknown runtime "${key}" — known: ${[...DECLARABLE_TARGETS].join(', ')}`,
-                );
+                problems.push(`unknown runtime "${key}" — known: ${[...DECLARABLE_TARGETS].join(', ')}`);
                 continue;
             }
             if (!DECLARABLE_SLOTS.has(value)) {
