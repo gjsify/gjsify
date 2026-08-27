@@ -116,4 +116,74 @@ export const ADW_DESCRIPTORS: readonly WidgetDescriptor[] = [
         // page is a `get_page(child)` call, one layer up.
         children: { kind: 'keyed', add: 'add_titled', remove: 'remove', nameFrom: 'name', titled: true },
     },
+    {
+        gtype: 'AdwClamp',
+        ctor: () => Adw.Clamp,
+        // MEASURED on libadwaita 1.9.3: `set_child` / `get_child`, nothing else that
+        // takes a child. The same rule as `AdwBin`, and it was missing for the widget
+        // libadwaita's own layout advice reaches for first — `<adw-clamp>` with a child
+        // raised `uncurated-placement` in every JSX dialect this host serves.
+        children: { kind: 'single', set: 'set_child' },
+    },
+    {
+        gtype: 'AdwClampScrollable',
+        ctor: () => Adw.ClampScrollable,
+        // The scrollable sibling, and the same measurement: `set_child`/`get_child`.
+        // Curated together with `AdwClamp` because the two are chosen by whether the
+        // child scrolls, never by how it is adopted — leaving one uncurated would make
+        // that choice look like a placement decision.
+        //
+        // ITS CHILD MUST IMPLEMENT `GtkScrollable`, and nothing here can say so. This
+        // class forwards its own `hadjustment`/`vadjustment`/`hscroll-policy`/
+        // `vscroll-policy` to the child through `g_object_bind_property`, so a child
+        // without them is FOUR warnings at exit 0 — measured with a `GtkLabel`:
+        // `gbinding.c:1301: The target object of type GtkLabel has no property called
+        // 'hadjustment'`, and three more. The widget appears, nothing throws, and the
+        // scrolling silently does not work. A descriptor declares HOW a child is
+        // adopted, never WHICH child is allowed (that is `rejectedChild`'s territory
+        // and GTK's knowledge), so this is written down rather than enforced —
+        // `GtkTextView`, `GtkViewport` and `GtkListView` are scrollable, `GtkLabel`
+        // and `GtkButton` are not.
+        children: { kind: 'single', set: 'set_child' },
+    },
+    {
+        gtype: 'AdwBreakpointBin',
+        ctor: () => Adw.BreakpointBin,
+        // MEASURED: `set_child`/`get_child`, plus `add_breakpoint`/`remove_breakpoint`.
+        // Only the first pair is a CHILD policy. An `Adw.Breakpoint` is not a widget —
+        // it is a GObject holding a condition and its setters (`set_condition`,
+        // `add_setter`, measured) — so it can be neither a child nor a slot here, and a
+        // renderer applies it imperatively against the widget. Declaring it as a slot
+        // would put a non-widget through `addressOf()`, which throws `not-a-widget`.
+        children: { kind: 'single', set: 'set_child' },
+    },
+    {
+        gtype: 'AdwNavigationSplitView',
+        ctor: () => Adw.NavigationSplitView,
+        // Two setter-backed slots, and the reason `slotted.remove` is optional.
+        // MEASURED: this class has `set_sidebar`/`set_content` (+ their getters) and NO
+        // remove method of its own — every `remove*` on it is `GtkWidget`'s
+        // (`remove_controller`, `remove_css_class`, `remove_mnemonic_label`,
+        // `remove_tick_callback`). A setter-backed slot is emptied by writing `null`
+        // back through the setter, which `detachChild` already does, so naming a remove
+        // here would be a claim `descriptorProblems()` correctly rejects rather than a
+        // capability.
+        children: {
+            kind: 'slotted',
+            slots: { sidebar: 'set_sidebar', content: 'set_content' },
+            defaultSlot: 'content',
+        },
+    },
+    {
+        gtype: 'AdwOverlaySplitView',
+        ctor: () => Adw.OverlaySplitView,
+        // Same shape, same measurement as `AdwNavigationSplitView`, and the same
+        // absent remove. The difference between the two is collapse BEHAVIOUR, not
+        // adoption: this one overlays the sidebar, the other one replaces the content.
+        children: {
+            kind: 'slotted',
+            slots: { sidebar: 'set_sidebar', content: 'set_content' },
+            defaultSlot: 'content',
+        },
+    },
 ];
