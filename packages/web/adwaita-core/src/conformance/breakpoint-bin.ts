@@ -80,13 +80,21 @@ export const BREAKPOINT_PICK_VECTORS: ReadonlyArray<BreakpointPickVector> = [
     },
 ];
 
-/** One transition expectation, written as property names rather than objects. */
+/**
+ * One transition expectation, written as object and property NAMES rather than real widgets.
+ *
+ * The object is spelled out on every setter rather than left implicit, because rule 2's skip
+ * keys on object AND property (`setter_equal`, adw-breakpoint.c:1060): a table with one
+ * object in it cannot tell a correct implementation from one that drops the object half.
+ * Measured — with every setter on a single object, blinding the skip to the object left the
+ * whole suite green.
+ */
 export interface BreakpointTransitionVector {
-    /** Each breakpoint as `[condition, [[property, value] …]]`; originals are `orig:<property>`. */
-    breakpoints: readonly [string, readonly (readonly [string, string])[]][];
+    /** Each breakpoint as `[condition, [[object, property, value] …]]`; originals are `orig:<object>.<property>`. */
+    breakpoints: readonly [string, readonly (readonly [string, string, string])[]][];
     /** Sizes to evaluate in order. */
     sizes: readonly { width: number; height: number }[];
-    /** Expected writes per evaluation, `property=value`; `null` is "no transition". */
+    /** Expected writes per evaluation, `object.property=value`; `null` is "no transition". */
     writes: readonly (readonly string[] | null)[];
     rule: string;
 }
@@ -103,39 +111,39 @@ export interface BreakpointTransitionVector {
  */
 export const BREAKPOINT_TRANSITION_VECTORS: ReadonlyArray<BreakpointTransitionVector> = [
     {
-        breakpoints: [['max-width: 720sp', [['collapsed', 'true']]]],
+        breakpoints: [['max-width: 720sp', [['view', 'collapsed', 'true']]]],
         sizes: [{ width: 500, height: 600 }],
-        writes: [['collapsed=true']],
+        writes: [['view.collapsed=true']],
         rule: 'entering a breakpoint writes its setters',
     },
     {
-        breakpoints: [['max-width: 720sp', [['collapsed', 'true']]]],
+        breakpoints: [['max-width: 720sp', [['view', 'collapsed', 'true']]]],
         sizes: [
             { width: 500, height: 600 },
             { width: 900, height: 600 },
         ],
-        writes: [['collapsed=true'], ['collapsed=orig:collapsed']],
+        writes: [['view.collapsed=true'], ['view.collapsed=orig:view.collapsed']],
         rule: 'leaving restores the ORIGINAL, which was captured when the setter was registered',
     },
     {
-        breakpoints: [['max-width: 720sp', [['collapsed', 'true']]]],
+        breakpoints: [['max-width: 720sp', [['view', 'collapsed', 'true']]]],
         sizes: [
             { width: 500, height: 600 },
             { width: 400, height: 600 },
         ],
-        writes: [['collapsed=true'], null],
+        writes: [['view.collapsed=true'], null],
         rule: 'staying inside the same breakpoint produces no transition at all',
     },
     {
         breakpoints: [
-            ['max-width: 720sp', [['collapsed', 'true']]],
-            ['max-width: 400sp', [['collapsed', 'false']]],
+            ['max-width: 720sp', [['view', 'collapsed', 'true']]],
+            ['max-width: 400sp', [['view', 'collapsed', 'false']]],
         ],
         sizes: [
             { width: 500, height: 600 },
             { width: 300, height: 600 },
         ],
-        writes: [['collapsed=true'], ['collapsed=false']],
+        writes: [['view.collapsed=true'], ['view.collapsed=false']],
         rule: 'a property BOTH set is written once, not restored and re-set',
     },
     {
@@ -143,29 +151,70 @@ export const BREAKPOINT_TRANSITION_VECTORS: ReadonlyArray<BreakpointTransitionVe
             [
                 'max-width: 720sp',
                 [
-                    ['collapsed', 'true'],
-                    ['title', 'narrow'],
+                    ['view', 'collapsed', 'true'],
+                    ['view', 'title', 'narrow'],
                 ],
             ],
-            ['max-width: 400sp', [['collapsed', 'false']]],
+            ['max-width: 400sp', [['view', 'collapsed', 'false']]],
         ],
         sizes: [
             { width: 500, height: 600 },
             { width: 300, height: 600 },
         ],
         writes: [
-            ['collapsed=true', 'title=narrow'],
-            ['title=orig:title', 'collapsed=false'],
+            ['view.collapsed=true', 'view.title=narrow'],
+            ['view.title=orig:view.title', 'view.collapsed=false'],
         ],
         rule: 'only the property the incoming breakpoint does NOT set is restored, and restores come first',
     },
     {
         breakpoints: [
-            ['max-width: 400sp', [['collapsed', 'true']]],
-            ['max-width: 720sp', [['title', 'wide']]],
+            [
+                'max-width: 720sp',
+                [
+                    ['sidebar', 'collapsed', 'true'],
+                    ['content', 'collapsed', 'true'],
+                ],
+            ],
+            ['max-width: 400sp', [['sidebar', 'collapsed', 'false']]],
+        ],
+        sizes: [
+            { width: 500, height: 600 },
+            { width: 300, height: 600 },
+        ],
+        writes: [
+            ['sidebar.collapsed=true', 'content.collapsed=true'],
+            ['content.collapsed=orig:content.collapsed', 'sidebar.collapsed=false'],
+        ],
+        rule: 'the skip keys on OBJECT and property: the incoming breakpoint sets `collapsed` on the sidebar only, so the content is still restored',
+    },
+    {
+        breakpoints: [
+            [
+                'max-width: 720sp',
+                [
+                    ['sidebar', 'collapsed', 'true'],
+                    ['content', 'collapsed', 'true'],
+                ],
+            ],
+        ],
+        sizes: [
+            { width: 500, height: 600 },
+            { width: 900, height: 600 },
+        ],
+        writes: [
+            ['sidebar.collapsed=true', 'content.collapsed=true'],
+            ['sidebar.collapsed=orig:sidebar.collapsed', 'content.collapsed=orig:content.collapsed'],
+        ],
+        rule: 'leaving to NO breakpoint restores every setter, one per object',
+    },
+    {
+        breakpoints: [
+            ['max-width: 400sp', [['view', 'collapsed', 'true']]],
+            ['max-width: 720sp', [['view', 'title', 'wide']]],
         ],
         sizes: [{ width: 300, height: 600 }],
-        writes: [['title=wide']],
+        writes: [['view.title=wide']],
         rule: 'the later breakpoint wins outright, so the earlier one never applies and never restores',
     },
 ];

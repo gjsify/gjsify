@@ -1,5 +1,10 @@
-// Breakpoint-bin specs — driven by the shared conformance vectors, so this suite and
-// every renderer suite assert the SAME table.
+// Breakpoint-bin specs — driven by the shared conformance vectors in
+// `./conformance/breakpoint-bin.js`.
+//
+// No renderer drives those tables yet; the tables say so themselves (CORE-ONLY GAP,
+// #1343), and this suite is their only driver until the NativeScript bin moves onto
+// `BreakpointBinState`. That is a gap, not coverage, and it is written here so a reader of
+// the spec is told the same thing as a reader of the table.
 
 import { describe, it, expect } from '@gjsify/unit';
 
@@ -7,10 +12,19 @@ import { BreakpointBinState } from './breakpoint-bin.js';
 import type { BreakpointSetter } from './breakpoint-bin.js';
 import { BREAKPOINT_PICK_VECTORS, BREAKPOINT_TRANSITION_VECTORS } from './conformance/breakpoint-bin.js';
 
-/** `[property, value]` pairs into setters whose original is `orig:<property>`. */
-function setters(pairs: readonly (readonly [string, string])[]): BreakpointSetter<string>[] {
-    return pairs.map(([property, value]) => ({ object: 'w', property, value, originalValue: `orig:${property}` }));
+/** `[object, property, value]` triples into setters whose original is `orig:<object>.<property>`. */
+function setters(triples: readonly (readonly [string, string, string])[]): BreakpointSetter<string>[] {
+    return triples.map(([object, property, value]) => ({
+        object,
+        property,
+        value,
+        originalValue: `orig:${object}.${property}`,
+    }));
 }
+
+/** A write, spelled the way {@link BREAKPOINT_TRANSITION_VECTORS} spells one. */
+const spell = (write: { object: string; property: string; value: unknown }) =>
+    `${write.object}.${write.property}=${write.value}`;
 
 export default async () => {
     await describe('BreakpointBinState picks one breakpoint', async () => {
@@ -35,12 +49,12 @@ export default async () => {
         for (const vector of BREAKPOINT_TRANSITION_VECTORS) {
             await it(vector.rule, async () => {
                 const bin = new BreakpointBinState<string>();
-                for (const [condition, pairs] of vector.breakpoints) {
-                    bin.add({ condition, setters: setters(pairs) });
+                for (const [condition, triples] of vector.breakpoints) {
+                    bin.add({ condition, setters: setters(triples) });
                 }
                 const got = vector.sizes.map((size) => {
                     const transition = bin.evaluate(size);
-                    return transition === null ? null : transition.writes.map((w) => `${w.property}=${w.value}`);
+                    return transition === null ? null : transition.writes.map(spell);
                 });
                 expect(got).toStrictEqual(vector.writes.map((w) => (w === null ? null : [...w])));
             });
@@ -48,8 +62,8 @@ export default async () => {
 
         await it('reports which breakpoint it left and which it entered', async () => {
             const bin = new BreakpointBinState<string>();
-            bin.add({ condition: 'max-width: 720sp', setters: setters([['collapsed', 'true']]) });
-            bin.add({ condition: 'max-width: 400sp', setters: setters([['collapsed', 'false']]) });
+            bin.add({ condition: 'max-width: 720sp', setters: setters([['view', 'collapsed', 'true']]) });
+            bin.add({ condition: 'max-width: 400sp', setters: setters([['view', 'collapsed', 'false']]) });
 
             const entered = bin.evaluate({ width: 500, height: 600 });
             expect(entered?.from).toBe(null);
@@ -58,22 +72,6 @@ export default async () => {
             const swapped = bin.evaluate({ width: 300, height: 600 });
             expect(swapped?.from).toBe(0);
             expect(swapped?.to).toBe(1);
-        });
-
-        await it('setters on DIFFERENT objects are both restored, even for the same property', async () => {
-            // The skip keys on object AND property. Two widgets whose `collapsed` a
-            // breakpoint sets are two setters, and leaving must restore both.
-            const bin = new BreakpointBinState<string>();
-            bin.add({
-                condition: 'max-width: 720sp',
-                setters: [
-                    { object: 'a', property: 'collapsed', value: 'true', originalValue: 'origA' },
-                    { object: 'b', property: 'collapsed', value: 'true', originalValue: 'origB' },
-                ],
-            });
-            bin.evaluate({ width: 500, height: 600 });
-            const left = bin.evaluate({ width: 900, height: 600 });
-            expect(left?.writes.map((w) => `${w.object}:${w.value}`)).toStrictEqual(['a:origA', 'b:origB']);
         });
     });
 
@@ -99,7 +97,7 @@ export default async () => {
 
         await it('reset drops the applied breakpoint without producing writes', async () => {
             const bin = new BreakpointBinState<string>();
-            bin.add({ condition: 'max-width: 720sp', setters: setters([['collapsed', 'true']]) });
+            bin.add({ condition: 'max-width: 720sp', setters: setters([['view', 'collapsed', 'true']]) });
             bin.evaluate({ width: 500, height: 600 });
             bin.reset();
             expect(bin.current).toBe(null);
