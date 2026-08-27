@@ -32,7 +32,7 @@
  *      OWN manifest, with no parent lookup and no repository knowledge. Four
  *      repo-scoped checks need this, because a package that contains no
  *      JavaScript is outside what they audit and INSIDE what they scan:
- *        · `runtimes-drift` would demand a `gjsify.runtimes` quadruplet derived
+ *        · `runtimes-drift` would demand a `gjsify.runtimes` quintuplet derived
  *          from source signals, for a package with no source;
  *        · `platforms-ci` would demand a CI job whose name matches the platform
  *          package, when the job that produces the binary is the parent's;

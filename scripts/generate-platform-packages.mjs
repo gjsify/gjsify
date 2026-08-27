@@ -33,7 +33,7 @@
  *     the bundled directory before the split, which is why ADR 0017 needs no new
  *     runtime code path. A declared-but-absent entry point would (correctly) fail
  *     the `package-outputs` rule.
- *   · No `gjsify.runtimes`: that quadruplet describes an API's cross-runtime reach
+ *   · No `gjsify.runtimes`: that quintuplet describes an API's cross-runtime reach
  *     and a package with no JavaScript has none. `runtimes-drift` skips them on the
  *     same signal the generator writes — see `isPlatformPackageManifest()`.
  *   · No sources, build or tests. The four lifecycle scripts are no-ops so
