@@ -126,6 +126,43 @@ describe('--app gjs react-native alias + support gate (ADR 0032 § 2, § 8)', { 
             ].join('\n'),
         );
 
+        // The SAME planned name under the OTHER watched spelling. A ported
+        // application writes `react-native` and the alias rewrites it; this
+        // repository's own showcase writes `@gjsify/react-native`. The gate is about
+        // the SURFACE, not about which name reached it, and only a fixture proves it.
+        // Prefix `import { View, ` is 15 characters here too.
+        writeFileSync(
+            join(src, 'refused-gjsify.ts'),
+            [
+                `import { View, ${planned.name} } from '@gjsify/react-native';`,
+                `export const parts = [View, ${planned.name}];`,
+                '',
+            ].join('\n'),
+        );
+
+        // The layer's OWN export — a name react-native does not have, so the support
+        // table cannot hold one for it. `configureStyle` is ADR 0032 § 3's token hook,
+        // and the package README and the website's React Native page both tell a
+        // reader to write exactly this import while telling them to enable the gate.
+        // It was a build failure until the gate learnt the second population.
+        writeFileSync(
+            join(src, 'own.ts'),
+            [
+                "import { configureStyle } from '@gjsify/react-native';",
+                "export const marker = 'RN_OWN_BUILT';",
+                'export const parts = [configureStyle];',
+                '',
+            ].join('\n'),
+        );
+
+        // Neither population: not a React Native name, not one of ours. The opposite
+        // defect to the one `own.ts` covers, and the worse of the two — a gate that
+        // let this through would pass every typo.
+        writeFileSync(
+            join(src, 'unknown.ts'),
+            ["import { totalNonsense } from 'react-native';", 'export const parts = [totalNonsense];', ''].join('\n'),
+        );
+
         // The five type-only imports ADR 0032 measured, which cost nothing.
         writeFileSync(
             join(src, 'typeonly.ts'),
@@ -255,6 +292,67 @@ describe('--app gjs react-native alias + support gate (ADR 0032 § 2, § 8)', { 
         );
         // Only what is refused. `View` is `partial` and must not be reported.
         assert.ok(!/^\s+\S+:\d+:\d+\s+View$/m.test(output), `a supported name must not be reported.\n${output}`);
+    });
+
+    it('refuses the same name under the gjsify spelling of the package', () => {
+        const { status, output } = build(projectDir, [
+            'src/refused-gjsify.ts',
+            '--app',
+            'gjs',
+            '--dialect',
+            'react-native',
+            '--outfile',
+            'dist/refused-gjsify.mjs',
+        ]);
+        assert.notEqual(status, 0, `a refused import must fail under either spelling.\n${output}`);
+        assert.ok(output.includes(planned.name), `the refused NAME must be printed.\n${output}`);
+        assert.ok(output.includes('refused-gjsify.ts:1:15'), `the position must be printed.\n${output}`);
+        assert.ok(output.includes(planned.gtk), `the table's own sentence must be printed.\n${output}`);
+    });
+
+    // The layer exports more than react-native does, and the table cannot hold those
+    // names: `check-rn-surface.mjs` keeps its key set EQUAL to react-native's own
+    // exports. The gate therefore asks the layer, and the layer answers for both
+    // populations — this is the vector that fails when it answers for only one.
+    it('builds an import of the layer’s OWN export, which react-native has no name for', () => {
+        const { status, output } = build(projectDir, [
+            'src/own.ts',
+            '--app',
+            'gjs',
+            '--dialect',
+            'react-native',
+            '--outfile',
+            'dist/own.mjs',
+        ]);
+        assert.equal(status, 0, `the package's own documented API must build.\n${output}`);
+        const bundle = readFileSync(join(projectDir, 'dist', 'own.mjs'), 'utf-8');
+        assert.ok(bundle.includes('RN_OWN_BUILT'), 'the entry must be in the bundle');
+    });
+
+    // The other direction, and the reason the fix is not "allow what the table does
+    // not know": a name in NEITHER population is still a refusal, by name.
+    //
+    // WHICH REFUSAL, measured rather than assumed. The gate refuses it too —
+    // `isImportable` answers false for it, which `react-native-gate.spec.ts` pins —
+    // but what the build PRINTS is rolldown's own `MISSING_EXPORT`, and that is not a
+    // gap: the layer generates a refusing export for every name a table knows
+    // (`unsupported-exports.ts`), so the only names that can be missing from the
+    // module are exactly the ones in neither population. The two mechanisms partition
+    // the space, and both name the identifier at its position. So this vector holds
+    // the REFUSAL and the position, not whose sentence won the race.
+    it('refuses a name that is neither react-native’s nor the layer’s own', () => {
+        const { status, output } = build(projectDir, [
+            'src/unknown.ts',
+            '--app',
+            'gjs',
+            '--dialect',
+            'react-native',
+            '--outfile',
+            'dist/unknown.mjs',
+        ]);
+        assert.notEqual(status, 0, `an unknown name must fail the build.\n${output}`);
+        assert.ok(output.includes('totalNonsense'), `the refused NAME must be printed.\n${output}`);
+        assert.ok(/unknown\.ts:1:(9|10)/.test(output), `the position must be printed.\n${output}`);
     });
 
     // The highest-value negative: ADR 0032 counted five type-only imports and
