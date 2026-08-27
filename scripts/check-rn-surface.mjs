@@ -73,6 +73,13 @@ export function readTableKeys(source, declaration = 'SUPPORT_TABLE') {
  * Nothing at runtime could see it: `explainUnsupported` reads the field, not the
  * comment.
  *
+ * SCOPED PER TABLE, and that is not a detail. This file holds two of them —
+ * `SUPPORT_TABLE` and `ROUTER_SUPPORT_TABLE` — and the second has no banners at
+ * all. A scanner that carried the last banner across the boundary judged all 13
+ * router entries against the main table's closing `// --- P3 ---` and reported
+ * them as misfiled. MEASURED: it turned `main` red, because the check landed in
+ * one PR and the router table in another and neither run saw both.
+ *
  * Reported as a list rather than thrown, like every other comparison here.
  */
 export function tierSectionMismatches(source) {
@@ -80,6 +87,13 @@ export function tierSectionMismatches(source) {
     let section = null;
     let open = null;
     for (const line of source.split('\n')) {
+        // A new top-level declaration starts a new scope: a banner belongs to the
+        // table it was written inside, and says nothing about the next one.
+        if (/^export const \w+/.test(line)) {
+            section = null;
+            open = null;
+            continue;
+        }
         const banner = /^\s*\/\/ --- (P\d+):/.exec(line);
         if (banner !== null) {
             section = banner[1];
@@ -190,6 +204,24 @@ function selfTest() {
         'an entry before any banner is not judged',
         tierSectionMismatches(`    Foo: {\n        tier: 'P3',\n    },\n`),
         [],
+    );
+    // The vector that was missing, and it cost a red `main`: a banner belongs to
+    // the table it was written inside. A SECOND table in the same file starts with
+    // no section, so nothing in it is judged.
+    ok(
+        'a banner does not reach into the next table',
+        tierSectionMismatches(
+            `    // --- P3: y ---\n    Old: {\n        tier: 'P3',\n    },\n};\n` +
+                `export const OTHER_TABLE = {\n    New: {\n        tier: 'P1',\n    },\n};\n`,
+        ),
+        [],
+    );
+    ok(
+        'a banner inside the SECOND table still judges it',
+        tierSectionMismatches(
+            `};\nexport const OTHER_TABLE = {\n    // --- P2: z ---\n    New: {\n        tier: 'P1',\n    },\n};\n`,
+        ),
+        ['New declares tier P1 but sits under the P2 banner'],
     );
 
     return vectors;
