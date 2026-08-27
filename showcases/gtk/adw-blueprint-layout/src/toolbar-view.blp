@@ -1,0 +1,54 @@
+using Gtk 4.0;
+using Adw 1;
+
+// Adw.Bin and not Adw.ToolbarView: measured on libadwaita 1.9 / gjs 1.88.1,
+// AdwToolbarView is a FINAL type, so no class can be a template for it.
+template $GalleryToolbarView: Adw.Bin {
+  child: Adw.ToolbarView {
+    [top]
+    Adw.HeaderBar {
+      title-widget: Adw.WindowTitle {
+        title: _("Documents");
+        subtitle: _("12 items");
+      };
+    }
+
+    content: Adw.StatusPage {
+      icon-name: "folder-documents-symbolic";
+      title: _("Your library");
+      description: _("Content sits between the toolbars and scrolls independently of them.");
+    };
+
+    [bottom]
+    Gtk.ActionBar {
+      [start]
+      Gtk.Button {
+        icon-name: "list-add-symbolic";
+        tooltip-text: _("Add");
+
+        styles ["flat"]
+      }
+
+      [start]
+      Gtk.Button {
+        icon-name: "list-remove-symbolic";
+        tooltip-text: _("Remove");
+
+        styles ["flat"]
+      }
+
+      [center]
+      Gtk.Label {
+        label: _("Selection: none");
+      }
+
+      [end]
+      Gtk.Button {
+        icon-name: "send-to-symbolic";
+        tooltip-text: _("Share");
+
+        styles ["flat"]
+      }
+    }
+  };
+}

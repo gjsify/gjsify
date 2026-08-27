@@ -1,0 +1,65 @@
+{
+    "name": "@gjsify/example-gtk-adw-blueprint-layout",
+    "version": "0.44.0",
+    "description": "Adw.HeaderBar and Adw.ToolbarView declared entirely in Blueprint and loaded from TypeScript, with an in-process probe that asserts the real widget tree on GJS and on Node",
+    "type": "module",
+    "private": true,
+    "main": "dist/app.gjs.mjs",
+    "files": [
+        "dist",
+        "src"
+    ],
+    "scripts": {
+        "clear": "gjsify clear dist tsconfig.tsbuildinfo",
+        "check": "gjsify tsc --noEmit",
+        "build": "gjsify run build:gjs && gjsify run build:node",
+        "build:gjs": "gjsify build src/app.ts --app gjs --outfile dist/app.gjs.mjs",
+        "build:node": "gjsify build src/app.ts --app node --outfile dist/app.node.mjs",
+        "start:gjs": "gjs -m dist/app.gjs.mjs",
+        "start:node": "node dist/app.node.mjs",
+        "probe": "gjsify run build:gjs && GJSIFY_HOST_PROBE=1 gjs -m dist/app.gjs.mjs",
+        "probe:node": "gjsify run build:node && GJSIFY_HOST_PROBE=1 node dist/app.node.mjs",
+        "probe:bun": "gjsify run build:node && GJSIFY_HOST_PROBE=1 bun dist/app.node.mjs",
+        "probe:deno": "gjsify run build:node && GJSIFY_HOST_PROBE=1 deno run -A --no-lock dist/app.node.mjs",
+        "start:bun": "bun dist/app.node.mjs",
+        "start:deno": "deno run -A --no-lock dist/app.node.mjs"
+    },
+    "gjsify": {
+        "main": "dist/app.gjs.mjs",
+        "tier": 3,
+        "example": {
+            "runtimes": [
+                "gjs",
+                "node",
+                "bun",
+                "deno"
+            ],
+            "node": "dist/app.node.mjs"
+        }
+    },
+    "devDependencies": {
+        "@girs/adw-1": "^4.1.0",
+        "@girs/gio-2.0": "^4.1.0",
+        "@girs/gjs": "^4.1.0",
+        "@girs/glib-2.0": "^4.1.0",
+        "@girs/gobject-2.0": "^4.1.0",
+        "@girs/gtk-4.0": "^4.1.0",
+        "@gjsify/cli": "workspace:^",
+        "@gjsify/gtk-host": "workspace:^",
+        "@gjsify/node-gi": "file:../../../packages/node-gi/node-gi",
+        "@gjsify/vite-plugin-blueprint": "workspace:^",
+        "@types/node": "^25.9.2",
+        "typescript": "^6.0.3"
+    },
+    "author": "Pascal Garber <pascal@artandcode.studio>",
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/gjsify/gjsify.git",
+        "directory": "showcases/gtk/adw-blueprint-layout"
+    },
+    "bugs": {
+        "url": "https://github.com/gjsify/gjsify/issues"
+    },
+    "homepage": "https://github.com/gjsify/gjsify/tree/main/showcases/gtk/adw-blueprint-layout#readme"
+}
