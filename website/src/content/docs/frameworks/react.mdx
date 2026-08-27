@@ -7,7 +7,7 @@ import CommandTabs from '../../../components/CommandTabs.astro';
 
 Render React into real `Gtk` and `Adw` widgets. There is no compile plugin and no DOM, and
 `react-dom` is not involved. React's JSX is already a runtime, so two lines of `tsconfig.json`
-and one build flag are the whole setup.
+and two build flags are the whole setup.
 
 You keep React. Components, hooks, context, error boundaries, `useState`, `useEffect` and
 Suspense behave the way they do anywhere else. What changes is the element vocabulary:
@@ -51,9 +51,10 @@ Suspense behave the way they do anywhere else. What changes is the element vocab
 Installing `react` and `react-reconciler` is what selects the React adapter. They are optional
 peers, so nothing enforces a version on install.
 
-**Pin React 19.** The adapter needs `react ^19.2.0` and `react-reconciler ^0.33.0`. Against
-React 18 you get a window that renders nothing and raises no error, and it is not a type error
-either.
+**Pin React 19.** The adapter needs `react ^19.2.0` and `react-reconciler ^0.33.0`. On a React 18
+reconciler the synchronous render path is not there to call: `flushSync` was renamed
+`flushSyncFromReconciler`, `updateContainerSync` and `flushSyncWork` arrived with React 19, and
+`createContainer` grew two arguments in the middle of its list. None of that is a type error.
 
 ## Configure TypeScript
 
@@ -112,7 +113,8 @@ by pulling `gi://Gdk`, `GdkPixbuf`, `Pango` and `PangoCairo` into the bundle.
 `typeof` guard. The branch is dead under GJS, but the identifier is still free and the scanner
 answers it the same way.
 
-Vue needs the same `NODE_ENV` define. The two recipes differ only in the `navigator` flag.
+Vue needs the same `NODE_ENV` define and three Vue-specific ones besides, and it needs no
+`navigator` flag. The [Vue page](/gjsify/frameworks/vue/) has that recipe in full.
 
 ## Update outside a render
 
@@ -162,19 +164,24 @@ not to add a log line.
 
 ## Three differences from react-dom
 
-**`children`, `ref` and `key` never reach GObject.** The adapter reserves them; everything else
-in `props` is set on the widget, so a typo reads `<GtkBox> has no property "colour"` instead of
-doing nothing.
+**`children`, `ref` and `key` never reach GObject.** The adapter reserves `children` and `ref`,
+and React keeps `key` out of `props` on its own. Everything else in `props` is set on the widget,
+so a typo reads `<GtkBox> has no property "colour"` instead of doing nothing.
 
 **`ref` gives you your own widget.** Where the host wraps a child, a `GtkListBoxRow` around a row
 for instance, the ref still hands back the widget you wrote.
 
 ```tsx
-const entry = useRef<Gtk.Entry>(null);
+import { useEffect, useRef } from 'react';
+import type Gtk from '@girs/gtk-4.0';
 
-useEffect(() => entry.current?.grab_focus(), []);
+function SearchField() {
+    const entry = useRef<Gtk.Entry>(null);
 
-return <gtk-entry ref={entry} placeholder-text="Search" />;
+    useEffect(() => entry.current?.grab_focus(), []);
+
+    return <gtk-entry ref={entry} placeholder-text="Search" />;
+}
 ```
 
 **The first commit does not clear your window.** React clears a root before its first commit.

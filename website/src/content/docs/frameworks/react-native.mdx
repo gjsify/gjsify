@@ -50,7 +50,8 @@ you run the app rather than found in a window that looks plausible.
 </CommandTabs>
 
 Pin React 19, as the [React page](/gjsify/frameworks/react/) explains. For routing you also need
-`@react-navigation/core`, which is a peer rather than a bundled copy.
+`@react-navigation/core` and `@react-navigation/routers`, which are peers rather than bundled
+copies.
 
 ## Write a screen
 
@@ -60,7 +61,7 @@ import { View, Text, Pressable } from 'react-native';
 export function Counter({ count, onPress }: { count: number; onPress: () => void }) {
     return (
         <View className="flex-1 items-center justify-center gap-m">
-            <Text className="text-heading">{count}</Text>
+            <Text className="text-title">{count}</Text>
             <Pressable onPress={onPress}>
                 <Text>Add one</Text>
             </Pressable>
@@ -181,8 +182,10 @@ the code path runs.
 
 ## Routing
 
-`@gjsify/react-native/router` is the `expo-router` surface, and the build aliases `expo-router`
-to it. `router`, `usePathname`, `useLocalSearchParams`, `Stack` and `Tabs` are implemented.
+`@gjsify/react-native/router` mirrors the `expo-router` surface name for name. Import from the
+subpath: `--dialect react-native` rewrites `react-native` and nothing else, so an `expo-router`
+specifier stays an `expo-router` specifier. `router`, `usePathname`, `useLocalSearchParams`,
+`Stack` and `Tabs` are implemented.
 
 File-based routes follow four conventions:
 
@@ -200,10 +203,13 @@ Add the manifest plugin to your build and hand the manifest to the root:
 
 ```ts
 // build config
+import { rnRouteManifestPlugin } from '@gjsify/rolldown-plugin-gjsify';
+
 rnRouteManifestPlugin({ routesDir: 'app' });
 ```
 
 ```tsx
+import { AppRegistry } from 'react-native';
 import { RouterRoot } from '@gjsify/react-native/router';
 import { manifest } from 'virtual:gjsify-rn-routes';
 
@@ -260,17 +266,20 @@ a `Gtk.TextBuffer`, and press state is a CSS pseudo-class that never reaches Rea
 So a refusal points at the GTK object to reach through a `ref`, rather than at a to-do item:
 
 ```tsx
-import { useRef, useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { TextInput } from 'react-native';
+import type Gtk from '@girs/gtk-4.0';
 
-const input = useRef<Gtk.TextView>(null);
+function Notes() {
+    const input = useRef<Gtk.TextView>(null);
 
-useEffect(() => {
-    // multiline text lives in the buffer, not in `value`
-    input.current?.get_buffer().set_text('hello', -1);
-}, []);
+    useEffect(() => {
+        // multiline text lives in the buffer, not in `value`
+        input.current?.get_buffer().set_text('hello', -1);
+    }, []);
 
-return <TextInput multiline ref={input} />;
+    return <TextInput multiline ref={input} />;
+}
 ```
 
 ## Related
