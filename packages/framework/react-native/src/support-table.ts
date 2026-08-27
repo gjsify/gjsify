@@ -404,6 +404,9 @@ export const SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
         status: 'refused',
         reason: 'GTK has no pull-to-refresh idiom and should not grow one. Give the desktop build a refresh action instead.',
     },
+
+    // --- P3: the long tail ----------------------------------------------------
+
     AppState: {
         status: 'planned',
         tier: 'P3',
@@ -422,8 +425,6 @@ export const SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
         gtk: 'Adwaita named colours',
         reason: 'Maps unusually well — GTK’s palette is exactly this idea.',
     },
-
-    // --- P3: the long tail ----------------------------------------------------
 
     AccessibilityInfo: {
         status: 'planned',

@@ -59,6 +59,51 @@ export function readTableKeys(source) {
     return keys;
 }
 
+/**
+ * Entries whose declared `tier` disagrees with the `// --- Pn: … ---` banner
+ * they sit under.
+ *
+ * The banners are the only thing a reader SKIMMING this file has to go on, and
+ * they are a second statement of the same fact — so they drift. Measured: three
+ * entries (`AppState`, `PixelRatio`, `PlatformColor`) carried `tier: 'P3'` while
+ * sitting above the P3 banner, so the data was right and the file read wrong.
+ * Nothing at runtime could see it: `explainUnsupported` reads the field, not the
+ * comment.
+ *
+ * Reported as a list rather than thrown, like every other comparison here.
+ */
+export function tierSectionMismatches(source) {
+    const out = [];
+    let section = null;
+    let open = null;
+    for (const line of source.split('\n')) {
+        const banner = /^\s*\/\/ --- (P\d+):/.exec(line);
+        if (banner !== null) {
+            section = banner[1];
+            open = null;
+            continue;
+        }
+        if (open === null) {
+            const start = /^ {4}(\w+): \{/.exec(line);
+            if (start === null) continue;
+            open = { name: start[1], tier: null };
+            // A one-line entry opens and closes on the same line.
+            const inline = /tier: '(P\d+)'/.exec(line);
+            if (inline !== null) open.tier = inline[1];
+            if (!/\},\s*$/.test(line)) continue;
+        } else {
+            const tier = /^\s*tier: '(P\d+)'/.exec(line);
+            if (tier !== null) open.tier = tier[1];
+            if (!/^ {4}\},\s*$/.test(line)) continue;
+        }
+        if (section !== null && open.tier !== null && open.tier !== section) {
+            out.push(`${open.name} declares tier ${open.tier} but sits under the ${section} banner`);
+        }
+        open = null;
+    }
+    return out;
+}
+
 // --- self-test ---------------------------------------------------------------
 //
 // Six vectors. The three negatives are what make this a gate rather than a
@@ -66,7 +111,13 @@ export function readTableKeys(source) {
 // would report a surface that does not exist and pass every real comparison.
 
 function selfTest() {
+    // COUNTED, never written down. The summary line below used to print a literal
+    // `7`, which is a claim about this function that this function does not make —
+    // add a vector and the gate reports the old number, remove one and it reports a
+    // vector that no longer runs. Both read as "the self-test is unchanged".
+    let vectors = 0;
     const ok = (name, actual, expected) => {
+        vectors++;
         const a = JSON.stringify(actual);
         const e = JSON.stringify(expected);
         if (a !== e) fail(`self-test ${name}: expected ${e}, got ${a}`);
@@ -102,7 +153,43 @@ function selfTest() {
     } catch {
         threw = true;
     }
+    vectors++;
     if (!threw) fail('self-test: a source without the declaration must throw, not return []');
+
+    // The banner check, both directions. The negatives matter more than the
+    // positive: a scanner that reported every entry, or none, would be green here
+    // and useless against the file.
+    const sectioned = (inner) => `    // --- P2: x ---\n${inner}\n    // --- P3: y ---\n`;
+    ok(
+        'a tier that disagrees with its banner is reported',
+        tierSectionMismatches(sectioned(`    Foo: {\n        tier: 'P3',\n    },`)),
+        ['Foo declares tier P3 but sits under the P2 banner'],
+    );
+    ok(
+        'a tier that agrees with its banner is not',
+        tierSectionMismatches(sectioned(`    Foo: {\n        tier: 'P2',\n    },`)),
+        [],
+    );
+    ok(
+        'an entry with no tier is not reported',
+        tierSectionMismatches(sectioned(`    Foo: {\n        status: 'refused',\n    },`)),
+        [],
+    );
+    ok('a one-line entry is read too', tierSectionMismatches(sectioned(`    Foo: { tier: 'P3' },`)), [
+        'Foo declares tier P3 but sits under the P2 banner',
+    ]);
+    ok(
+        'a tier inside a NESTED object is not the entry’s own',
+        tierSectionMismatches(sectioned(`    Foo: {\n        limits: { tier: 'P3' },\n        tier: 'P2',\n    },`)),
+        [],
+    );
+    ok(
+        'an entry before any banner is not judged',
+        tierSectionMismatches(`    Foo: {\n        tier: 'P3',\n    },\n`),
+        [],
+    );
+
+    return vectors;
 }
 
 // --- the comparisons ---------------------------------------------------------
@@ -142,10 +229,21 @@ function readInstalledExports() {
     return [...names];
 }
 
-selfTest();
+const selfTestVectors = selfTest();
 
 const snapshot = JSON.parse(readFileSync(SNAPSHOT, 'utf8'));
-const declared = readTableKeys(readFileSync(TABLE_TS, 'utf8'));
+const tableSource = readFileSync(TABLE_TS, 'utf8');
+const declared = readTableKeys(tableSource);
+
+// The banners are a second statement of each entry's tier, so they drift; nothing
+// at runtime can see it, because the sentence reads the field and not the comment.
+const misfiled = tierSectionMismatches(tableSource);
+if (misfiled.length > 0) {
+    fail(
+        `${misfiled.length} entr${misfiled.length === 1 ? 'y sits' : 'ies sit'} under the wrong tier banner — ` +
+            `${misfiled.join('; ')}\n  The data is right and the file READS wrong: move the entry, or move the banner.`,
+    );
+}
 const snapshotNames = snapshot.exports;
 
 compare(
@@ -207,6 +305,6 @@ if (problems.length > 0) {
     console.error(`${label}: FAILED — ${mode}`);
     process.exit(1);
 }
-console.log(`${label}: self-test green — 7 vector(s).`);
+console.log(`${label}: self-test green — ${selfTestVectors} vector(s).`);
 console.log(`${label}: ${declared.length} React Native export(s) all carry a support status.`);
 console.log(`${label}: ${mode}.`);
