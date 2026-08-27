@@ -70,11 +70,24 @@
 //  10. a `CORE-ONLY:` reason citing a table as its coverage, where no chain of
 //      citations from it reaches a renderer-driven table                   → FAIL
 //  11. a `CORE-ONLY:` reason that names no table and is not a ledgered GAP  → FAIL
+//  12. a SPEC whose every table reaches no renderer, promising renderer coverage
+//      in its own header                                                     → FAIL
 //
 // 10 reads only citations whose clause is PHRASED as coverage (COVERAGE_PHRASING); a
 // precedent citation is held by the TABLE arm instead, on the table it names. 11 is what
 // makes an exemption falsifiable — every other arm keys off a citation, so naming none
 // was the cheapest way to write one.
+//
+// 12 is the same idea for the OTHER side of the file. Arms 6-10 all begin at a citation,
+// so a promise that names no table is invisible to them, and `BOTH_CLAIM` knows "both"
+// and "the two" but not "every". Measured: "…so this suite and every renderer suite
+// assert the SAME table" stood at the top of two spec files whose vectors are exempted
+// `CORE-ONLY: GAP — no renderer drives this table yet`, and every arm passed it. It needs
+// no prose parsing to catch, because the file contradicts itself: what a spec is ABOUT is
+// readable from its CODE, and where nothing it touches reaches a renderer, a renderer
+// coverage claim anywhere in it is false. Widening `BOTH_CLAIM` to "every" would have
+// been true and would have caught neither — the clause cites no table, so arm 8 never
+// reaches it.
 //
 // MODULE arm — the table arm is TABLE-keyed, so core behaviour with no table at
 // all is invisible to it. Every module under `adwaita-core/src` that exports
@@ -178,6 +191,20 @@ const SUITE_CLAIMS = [
     { label: 'nativescript', pattern: /\bNativeScript\b/i },
 ];
 const COVERAGE_VERB = /\b(?:suite|drives?|driven by|held to|asserts)\b/i;
+/**
+ * A renderer named as a CLASS rather than by name — "every renderer suite", "both ports".
+ * SUITE_CLAIMS above knows the two renderers by name and is the arm for a claim that picks
+ * one; this is for a claim that gestures at all of them, which is how both measured false
+ * promises were written.
+ */
+const RENDERER_WORD = /\b(?:renderers?|ports?|browser|adwaita-web|NativeScript)\b/i;
+/**
+ * A clause the CLAUSE_TURN split has already headed with a negation states the ABSENCE of
+ * coverage — "no renderer drives these yet" is the true sentence to write in exactly the
+ * files arm 12 examines, and reading it as a promise would fail the honest wording. `only`
+ * is deliberately not here: "only the browser suite drives these" is a claim, not a denial.
+ */
+const DENIAL = /^\s*(?:no|not|none|neither|nor)\b/i;
 /** An exemption that offers no coverage is a GAP, and a GAP with no anchor has no retirement. */
 const GAP_REASON = /\bGAP\b/;
 const GAP_ANCHOR = /#\d+/;
@@ -424,7 +451,7 @@ function reachesADriver(name, seen = new Set()) {
 
 const failures = [];
 /** What each arm actually resolved. A gate that reports only "green" cannot show it ran. */
-const resolved = { chains: 0, citations: 0, both: 0, suite: 0, counted: 0, exempted: 0, specs: 0 };
+const resolved = { chains: 0, citations: 0, both: 0, suite: 0, counted: 0, exempted: 0, specs: 0, promises: 0 };
 
 // SUITE arm. The arms below key off which tables are driven, so a spec that names a table
 // while running nowhere would otherwise surface one step downstream, as "driven only by the
@@ -501,6 +528,33 @@ for (const table of tables) {
             `${where}: its reason cites ${name} as the coverage that makes this table redundant, but ` +
                 `no chain of citations from ${name} reaches a table any renderer drives.`,
         );
+    }
+}
+
+// PROMISE arm. Every arm below starts at a citation, so a header that promises renderer
+// coverage without naming a table reaches none of them. This one starts at the CODE
+// instead: the tables a spec IMPORTS are what it is about, and where not one of them
+// reaches a renderer — directly or through an exemption chain — any renderer coverage
+// claim in that file is false, whatever words it is written in. That is why it needs no
+// new prose matcher precise enough to be argued with: the condition is already decided
+// before a clause is read.
+for (const file of walk(CORE_SUITE_DIR)) {
+    if (file.startsWith(CONFORMANCE_DIR) || !file.endsWith('.spec.ts')) continue;
+    // From the code, with comments blanked — the same rule as the TABLE arm, and for the
+    // same reason: a claim must not supply its own evidence.
+    const code = withoutComments(readFileSync(file, 'utf8'));
+    const about = names.filter((name) => new RegExp(`\\b${name}\\b`).test(code));
+    if (about.length === 0 || about.some((name) => reachesADriver(name))) continue;
+    resolved.promises += 1;
+    for (const block of commentBlocks(file)) {
+        for (const clause of claimUnitsIn(block.text)) {
+            if (DENIAL.test(clause) || !RENDERER_WORD.test(clause) || !COVERAGE_PHRASING.test(clause)) continue;
+            failures.push(
+                `${rel(ROOT, file)}:${block.line}: promises renderer coverage — "${clause.trim()}" — while no ` +
+                    `renderer drives ${about.join(', ')} and no exemption chain from them reaches one. ` +
+                    `Drive them from a renderer, or say what is actually true here.`,
+            );
+        }
     }
 }
 
@@ -631,5 +685,6 @@ console.log(
         `spec(s), ${resolved.exempted} core-only, ` +
         `${resolved.chains} coverage chain(s) walked to a driver. Read ${resolved.citations} prose citation(s), ` +
         `of which ${resolved.both} both-renderer claim(s), ${resolved.suite} single-suite claim(s) and ` +
-        `${resolved.counted} counted glob(s) were resolved against the tree.`,
+        `${resolved.counted} counted glob(s) were resolved against the tree, and read the header of ` +
+        `${resolved.promises} spec(s) no renderer stands behind.`,
 );
