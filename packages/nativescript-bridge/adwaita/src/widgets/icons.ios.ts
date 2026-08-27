@@ -32,6 +32,7 @@ import {
     DEFAULT_ICON_COLOR,
     extractIconPaths,
     parseHexColor,
+    parseHexColorOrNull,
     type SymbolicIconOptions,
 } from './icon-path.js';
 import { parseSvgPath } from './svg-path.js';
@@ -57,6 +58,8 @@ interface UIBezierPathInstance {
     closePath(): void;
     applyTransform(transform: CGAffineTransform): void;
     fill(): void;
+    /** `fill()` uses the even-odd rule instead of the non-zero default. */
+    usesEvenOddFillRule: boolean;
 }
 
 interface UIColorInstance {
@@ -70,6 +73,9 @@ declare const UIColor:
 declare const CGPointMake: ((x: number, y: number) => CGPoint) | undefined;
 declare const CGSizeMake: ((width: number, height: number) => CGSize) | undefined;
 declare const CGAffineTransformMakeScale: ((sx: number, sy: number) => CGAffineTransform) | undefined;
+declare const CGAffineTransformMake:
+    | ((a: number, b: number, c: number, d: number, tx: number, ty: number) => CGAffineTransform)
+    | undefined;
 declare const UIGraphicsBeginImageContextWithOptions:
     | ((size: CGSize, opaque: boolean, scale: number) => void)
     | undefined;
@@ -91,6 +97,7 @@ export function renderSymbolicIcon(svg: string, options?: SymbolicIconOptions): 
         !CGPointMake ||
         !CGSizeMake ||
         !CGAffineTransformMakeScale ||
+        !CGAffineTransformMake ||
         !UIGraphicsBeginImageContextWithOptions ||
         !UIGraphicsGetImageFromCurrentImageContext ||
         !UIGraphicsEndImageContext
@@ -115,7 +122,7 @@ export function renderSymbolicIcon(svg: string, options?: SymbolicIconOptions): 
         // Draw each `<path>` SEPARATELY, for the same two reasons as on Android:
         // Adwaita pairs a solid outline with a dimmed (`fill-opacity`) inner
         // shape, and a single path's subpaths carve holes by winding rule.
-        for (const { d, opacity } of iconPaths) {
+        for (const { d, opacity, transform, fillRule, fill } of iconPaths) {
             const commands = parseSvgPath(d);
             if (commands.length === 0) continue;
 
@@ -140,10 +147,31 @@ export function renderSymbolicIcon(svg: string, options?: SymbolicIconOptions): 
                         break;
                 }
             }
-            // The icons are authored on a 16×16 grid; scale the finished path
-            // rather than every coordinate.
+            // `evenOdd` where the path asks for it. `UIBezierPath.usesEvenOddFillRule`
+            // is a property of the PATH, so it has to be set before `fill()` — the
+            // default is the non-zero rule, which fills the holes those icons carve.
+            if (fillRule === 'evenodd') path.usesEvenOddFillRule = true;
+            // The icon's OWN transform first, then the 16×16 grid scale — the order
+            // the SVG means. A path authored at x≈684 under `translate(-680,-180)`
+            // has to come back onto the grid before the grid is scaled, not after.
+            // `CGAffineTransformMake` takes SVG's six numbers in SVG's own order.
+            path.applyTransform(
+                CGAffineTransformMake(
+                    transform[0],
+                    transform[1],
+                    transform[2],
+                    transform[3],
+                    transform[4],
+                    transform[5],
+                ),
+            );
             path.applyTransform(CGAffineTransformMakeScale(pathScale, pathScale));
-            UIColor.colorWithRedGreenBlueAlpha(red, green, blue, alpha * opacity).setFill();
+            // A path that names its own fill is not symbolic: a critical battery is
+            // red whatever colour the caller asked for. An unreadable spelling falls
+            // back rather than costing the icon.
+            const own = fill === null ? null : parseHexColorOrNull(fill);
+            const rgba = own ?? { red, green, blue, alpha };
+            UIColor.colorWithRedGreenBlueAlpha(rgba.red, rgba.green, rgba.blue, rgba.alpha * opacity).setFill();
             path.fill();
             drew = true;
         }
