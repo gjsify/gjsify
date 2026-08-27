@@ -383,8 +383,21 @@ if (checkedSnippets === 0) failures.push('no snippet was matched against a probe
 // ---------------------------------------------------------------------------
 
 const OXFMT_CONFIG = '.oxfmtrc.json';
+/**
+ * `.oxfmtrc.json` is JSONC, not JSON — it carries the reasoning for its patterns,
+ * which is the whole point of a rule file in this repository.
+ *
+ * MEASURED: the first version called `JSON.parse` on it and failed with
+ * `Unexpected token '/'` on the comment above its lib-directory pattern. It passed
+ * locally and went red in CI, because the comments arrived on `main` in #1372
+ * AFTER this branch was cut and CI checks out the MERGE of the two. A gate that
+ * only reads its own branch's version of a shared config has not read the file it
+ * will be judged against. `check-vocabulary-alignment.mjs` strips comments for the
+ * same reason, one file over.
+ */
+const stripJsonComments = (text) => text.replace(/^[ \t]*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
 try {
-    const ignored = JSON.parse(readFileSync(join(ROOT, OXFMT_CONFIG), 'utf8')).ignorePatterns;
+    const ignored = JSON.parse(stripJsonComments(readFileSync(join(ROOT, OXFMT_CONFIG), 'utf8'))).ignorePatterns;
     if (!Array.isArray(ignored) || ignored.length === 0) {
         failures.push(`${OXFMT_CONFIG}: no ignorePatterns array — arm 7 cannot judge anything`);
     } else {

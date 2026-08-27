@@ -99,6 +99,17 @@
             placeholder-text="Search files…"
             :width-request="280"
         />
+        <adw-clamp
+            :maximum-size="400"
+            :tightening-threshold="300"
+        >
+            <gtk-label
+                label="This content is clamped: it stops growing past the maximum size and stays centred."
+                :wrap="true"
+                :xalign="0"
+                :css-classes="['card']"
+            />
+        </adw-clamp>
         <adw-header-bar>
             <gtk-button
                 slot="start"
@@ -153,6 +164,76 @@
                 />
             </gtk-box>
         </adw-toolbar-view>
+        <adw-overlay-split-view :show-sidebar="true">
+            <adw-toolbar-view slot="sidebar">
+                <adw-header-bar slot="top">
+                    <adw-window-title
+                        slot="title"
+                        title="Library"
+                    />
+                </adw-header-bar>
+                <adw-status-page
+                    slot="content"
+                    icon-name="folder-music-symbolic"
+                    title="Sections"
+                />
+            </adw-toolbar-view>
+            <adw-toolbar-view slot="content">
+                <adw-header-bar slot="top">
+                    <adw-window-title
+                        slot="title"
+                        title="Your Library"
+                    />
+                </adw-header-bar>
+                <adw-status-page
+                    slot="content"
+                    icon-name="folder-music-symbolic"
+                    title="Your Library"
+                    description="Toggle the sidebar to browse sections."
+                />
+            </adw-toolbar-view>
+        </adw-overlay-split-view>
+        <adw-navigation-split-view :show-content="true">
+            <adw-navigation-page
+                slot="sidebar"
+                tag="sidebar"
+                title="Mailboxes"
+            >
+                <adw-toolbar-view>
+                    <adw-header-bar slot="top">
+                        <adw-window-title
+                            slot="title"
+                            title="Mailboxes"
+                        />
+                    </adw-header-bar>
+                    <adw-status-page
+                        slot="content"
+                        icon-name="mail-unread-symbolic"
+                        title="Mailboxes"
+                    />
+                </adw-toolbar-view>
+            </adw-navigation-page>
+            <adw-navigation-page
+                slot="content"
+                tag="content"
+                title="All Mail"
+            >
+                <adw-toolbar-view>
+                    <adw-header-bar slot="top">
+                        <adw-window-title
+                            slot="title"
+                            title="All Mail"
+                        />
+                    </adw-header-bar>
+                    <adw-status-page
+                        slot="content"
+                        icon-name="mail-unread-symbolic"
+                        title="All Mail"
+                        description="Select a conversation from the list to read it here."
+                    />
+                </adw-toolbar-view>
+            </adw-navigation-page>
+        </adw-navigation-split-view>
         <adw-navigation-view>
             <adw-navigation-page
                 tag="root"

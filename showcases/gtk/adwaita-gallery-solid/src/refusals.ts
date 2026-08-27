@@ -3,11 +3,22 @@
 // The other half of the gallery answer: the blocks that get NO framework snippet,
 // and `gtk-host`'s own reason, READ OUT OF THE HOST rather than assumed.
 //
-// `ADWAITA_GALLERY_REFUSALS` in `scripts/adwaita-gallery-trees.mjs` says thirteen
-// gallery widgets refuse a child with `uncurated-placement`. That is a claim about
-// the descriptor table on `main`, it moves when the table does (PR #1368 curates
-// `AdwClamp`), and a stale refusal is exactly as wrong as a missing snippet — it
-// tells a reader a port cannot do something it now can. So it is measured.
+// `ADWAITA_GALLERY_REFUSALS` in `scripts/adwaita-gallery-trees.mjs` says these
+// gallery widgets refuse a child. That is a claim about the descriptor table on
+// `main`, and a stale refusal is exactly as wrong as a missing snippet — it tells a
+// reader a port cannot do something it now can. So it is measured, and IT ALREADY
+// PAID: rebasing onto #1368 ("curate the five adaptive Adw containers") turned
+// three of these green, and this probe is what said so rather than the gallery
+// quietly shipping three refusals that had stopped being true.
+//
+//   ACCEPTED  <adw-clamp> took <gtk-label> — the refusal list is STALE
+//   ACCEPTED  <adw-overlay-split-view> took <adw-toolbar-view> — the refusal list is STALE
+//   refused   <adw-navigation-split-view> < <adw-toolbar-view>: rejected-child
+//
+// The third one is the interesting reading: `rejected-child` and NOT
+// `uncurated-placement` means the container IS curated and the CHILD TYPE is wrong
+// — GTK takes only an `Adw.NavigationPage` in those slots. All three are snippets
+// now; only a wrong-type child stays here.
 //
 // This is deliberately NOT a JSX file: the refusal comes from the HOST's placement
 // policy, not from any adapter's compiler, so driving it through `createElement` +
@@ -27,11 +38,8 @@ installDiagnosticsGate().reset();
 
 /** Every placement the refusal list claims is impossible, as parent + child. */
 const PLACEMENTS: readonly [parent: string, child: string][] = [
-    ['adw-clamp', 'gtk-label'],
     ['adw-wrap-box', 'gtk-button'],
     ['adw-preferences-dialog', 'adw-preferences-page'],
-    ['adw-navigation-split-view', 'adw-toolbar-view'],
-    ['adw-overlay-split-view', 'adw-toolbar-view'],
     ['adw-bottom-sheet', 'gtk-box'],
     ['adw-carousel', 'gtk-label'],
     ['adw-expander-row', 'adw-entry-row'],
@@ -39,6 +47,10 @@ const PLACEMENTS: readonly [parent: string, child: string][] = [
     ['adw-tab-view', 'gtk-label'],
     ['adw-toggle-group', 'gtk-label'],
     ['adw-view-switcher', 'gtk-label'],
+    // Curated by #1368, so this is no longer a PLACEMENT refusal — GTK refuses the
+    // child TYPE. Kept because the gallery's tree depends on it: the split view's
+    // slots take an `Adw.NavigationPage` and nothing else.
+    ['adw-navigation-split-view', 'adw-toolbar-view'],
     // Not a gallery block of its own, but the reason `Adw.ToolbarView`'s bottom bar
     // is a styled box in every framework snippet while the GJS and Blueprint tabs
     // use the real thing.

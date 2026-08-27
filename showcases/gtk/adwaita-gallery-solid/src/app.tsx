@@ -139,6 +139,20 @@ const GtkEntry = () => (
     />
 );
 
+const AdwClamp = () => (
+    <adw-clamp
+        maximumSize={400}
+        tighteningThreshold={300}
+    >
+        <gtk-label
+            label="This content is clamped: it stops growing past the maximum size and stays centred."
+            wrap
+            xalign={0}
+            cssClasses={['card']}
+        />
+    </adw-clamp>
+);
+
 const AdwHeaderBar = () => (
     <adw-header-bar>
         <gtk-button
@@ -197,6 +211,82 @@ const AdwToolbarView = () => (
             />
         </gtk-box>
     </adw-toolbar-view>
+);
+
+const AdwOverlaySplitView = () => (
+    <adw-overlay-split-view showSidebar>
+        <adw-toolbar-view slot="sidebar">
+            <adw-header-bar slot="top">
+                <adw-window-title
+                    slot="title"
+                    title="Library"
+                />
+            </adw-header-bar>
+            <adw-status-page
+                slot="content"
+                iconName="folder-music-symbolic"
+                title="Sections"
+            />
+        </adw-toolbar-view>
+        <adw-toolbar-view slot="content">
+            <adw-header-bar slot="top">
+                <adw-window-title
+                    slot="title"
+                    title="Your Library"
+                />
+            </adw-header-bar>
+            <adw-status-page
+                slot="content"
+                iconName="folder-music-symbolic"
+                title="Your Library"
+                description="Toggle the sidebar to browse sections."
+            />
+        </adw-toolbar-view>
+    </adw-overlay-split-view>
+);
+
+const AdwNavigationSplitView = () => (
+    <adw-navigation-split-view showContent>
+        <adw-navigation-page
+            slot="sidebar"
+            tag="sidebar"
+            title="Mailboxes"
+        >
+            <adw-toolbar-view>
+                <adw-header-bar slot="top">
+                    <adw-window-title
+                        slot="title"
+                        title="Mailboxes"
+                    />
+                </adw-header-bar>
+                <adw-status-page
+                    slot="content"
+                    iconName="mail-unread-symbolic"
+                    title="Mailboxes"
+                />
+            </adw-toolbar-view>
+        </adw-navigation-page>
+        <adw-navigation-page
+            slot="content"
+            tag="content"
+            title="All Mail"
+        >
+            <adw-toolbar-view>
+                <adw-header-bar slot="top">
+                    <adw-window-title
+                        slot="title"
+                        title="All Mail"
+                    />
+                </adw-header-bar>
+                <adw-status-page
+                    slot="content"
+                    iconName="mail-unread-symbolic"
+                    title="All Mail"
+                    description="Select a conversation from the list to read it here."
+                />
+            </adw-toolbar-view>
+        </adw-navigation-page>
+    </adw-navigation-split-view>
 );
 
 const AdwNavigationView = () => (
@@ -302,8 +392,11 @@ const Gallery = () => (
         <AdwButtonContent />
         <GtkButton />
         <GtkEntry />
+        <AdwClamp />
         <AdwHeaderBar />
         <AdwToolbarView />
+        <AdwOverlaySplitView />
+        <AdwNavigationSplitView />
         <AdwNavigationView />
         <AdwAvatar />
         <AdwBanner />
@@ -409,6 +502,11 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
     { widget: 'Gtk.Entry', root:
         { tag: 'gtk-entry', gtype: 'GtkEntry', props: {"placeholderText":"Search files…","widthRequest":280} }
     },
+    { widget: 'Adw.Clamp', root:
+        { tag: 'adw-clamp', gtype: 'AdwClamp', props: {"maximumSize":400,"tighteningThreshold":300}, children: [
+                { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"This content is clamped: it stops growing past the maximum size and stays centred.","wrap":true,"xalign":0,"cssClasses":["card"]} }
+            ] }
+    },
     { widget: 'Adw.HeaderBar', root:
         { tag: 'adw-header-bar', gtype: 'AdwHeaderBar', children: [
                 { tag: 'gtk-button', gtype: 'GtkButton', slot: 'start', props: {"iconName":"go-previous-symbolic","cssClasses":["flat"]} },
@@ -427,6 +525,42 @@ const EXPECTED: readonly { widget: string; root: Expect }[] = [
                         { tag: 'gtk-button', gtype: 'GtkButton', props: {"iconName":"list-remove-symbolic","cssClasses":["flat"]} },
                         { tag: 'gtk-label', gtype: 'GtkLabel', props: {"label":"Selection: none","hexpand":true} },
                         { tag: 'gtk-button', gtype: 'GtkButton', props: {"iconName":"send-to-symbolic","cssClasses":["flat"]} }
+                    ] }
+            ] }
+    },
+    { widget: 'Adw.OverlaySplitView', root:
+        { tag: 'adw-overlay-split-view', gtype: 'AdwOverlaySplitView', props: {"showSidebar":true}, children: [
+                { tag: 'adw-toolbar-view', gtype: 'AdwToolbarView', slot: 'sidebar', children: [
+                        { tag: 'adw-header-bar', gtype: 'AdwHeaderBar', slot: 'top', children: [
+                                { tag: 'adw-window-title', gtype: 'AdwWindowTitle', slot: 'title', props: {"title":"Library"} }
+                            ] },
+                        { tag: 'adw-status-page', gtype: 'AdwStatusPage', slot: 'content', props: {"iconName":"folder-music-symbolic","title":"Sections"} }
+                    ] },
+                { tag: 'adw-toolbar-view', gtype: 'AdwToolbarView', slot: 'content', children: [
+                        { tag: 'adw-header-bar', gtype: 'AdwHeaderBar', slot: 'top', children: [
+                                { tag: 'adw-window-title', gtype: 'AdwWindowTitle', slot: 'title', props: {"title":"Your Library"} }
+                            ] },
+                        { tag: 'adw-status-page', gtype: 'AdwStatusPage', slot: 'content', props: {"iconName":"folder-music-symbolic","title":"Your Library","description":"Toggle the sidebar to browse sections."} }
+                    ] }
+            ] }
+    },
+    { widget: 'Adw.NavigationSplitView', root:
+        { tag: 'adw-navigation-split-view', gtype: 'AdwNavigationSplitView', props: {"showContent":true}, children: [
+                { tag: 'adw-navigation-page', gtype: 'AdwNavigationPage', slot: 'sidebar', props: {"tag":"sidebar","title":"Mailboxes"}, children: [
+                        { tag: 'adw-toolbar-view', gtype: 'AdwToolbarView', children: [
+                                { tag: 'adw-header-bar', gtype: 'AdwHeaderBar', slot: 'top', children: [
+                                        { tag: 'adw-window-title', gtype: 'AdwWindowTitle', slot: 'title', props: {"title":"Mailboxes"} }
+                                    ] },
+                                { tag: 'adw-status-page', gtype: 'AdwStatusPage', slot: 'content', props: {"iconName":"mail-unread-symbolic","title":"Mailboxes"} }
+                            ] }
+                    ] },
+                { tag: 'adw-navigation-page', gtype: 'AdwNavigationPage', slot: 'content', props: {"tag":"content","title":"All Mail"}, children: [
+                        { tag: 'adw-toolbar-view', gtype: 'AdwToolbarView', children: [
+                                { tag: 'adw-header-bar', gtype: 'AdwHeaderBar', slot: 'top', children: [
+                                        { tag: 'adw-window-title', gtype: 'AdwWindowTitle', slot: 'title', props: {"title":"All Mail"} }
+                                    ] },
+                                { tag: 'adw-status-page', gtype: 'AdwStatusPage', slot: 'content', props: {"iconName":"mail-unread-symbolic","title":"All Mail","description":"Select a conversation from the list to read it here."} }
+                            ] }
                     ] }
             ] }
     },
@@ -511,6 +645,28 @@ function findUnused(root: Gtk.Widget, expect: Expect, used: Set<Gtk.Widget>): Gt
 }
 
 /**
+ * The widget a slot HOLDS, when the parent has an exact getter for it.
+ *
+ * `undefined` means no getter exists and the caller has to search. Selecting
+ * beats searching wherever it is possible, and not only for exactness: two
+ * children of the same GType with no distinguishing props are indistinguishable to
+ * a structural search, and the first one BFS reaches wins. MEASURED on
+ * `Adw.OverlaySplitView`, whose sidebar and content are both a bare
+ * `<adw-toolbar-view>`: the sidebar declaration matched the CONTENT widget, and
+ * the failure surfaced four levels down as "its window title was not built" — a
+ * true statement about the wrong widget, which is the most expensive kind.
+ */
+function slotChild(parent: Gtk.Widget, slot: string): Gtk.Widget | null | undefined {
+    if (parent instanceof Adw.ToolbarView) return slot === 'content' ? parent.get_content() : undefined;
+    if (parent instanceof Adw.HeaderBar) return slot === 'title' ? parent.get_title_widget() : undefined;
+    if (parent instanceof Adw.OverlaySplitView || parent instanceof Adw.NavigationSplitView) {
+        if (slot === 'sidebar') return parent.get_sidebar();
+        if (slot === 'content') return parent.get_content();
+    }
+    return undefined;
+}
+
+/**
  * Whether a slot was honoured — EXACTLY where the widget has a getter for it.
  *
  * `null` means the slot has no readable counterpart (`add_prefix` and
@@ -521,7 +677,6 @@ function findUnused(root: Gtk.Widget, expect: Expect, used: Set<Gtk.Widget>): Gt
  */
 function slotHonoured(parent: Gtk.Widget, slot: string, child: Gtk.Widget): boolean | null {
     if (parent instanceof Adw.ToolbarView) {
-        if (slot === 'content') return parent.get_content() === child;
         // `add_top_bar`/`add_bottom_bar` are write-only and the height getters read
         // 0 until allocation, which a headless probe never does. The style class
         // libadwaita puts on the revealer it wraps each bar in is readable, and it
@@ -534,7 +689,6 @@ function slotHonoured(parent: Gtk.Widget, slot: string, child: Gtk.Widget): bool
         return false;
     }
     if (parent instanceof Adw.HeaderBar) {
-        if (slot === 'title') return parent.get_title_widget() === child;
         // Same shape: `pack_start`/`pack_end` are write-only, and what is readable
         // is the Gtk.CenterBox libadwaita builds inside every header bar.
         let centerBox: Gtk.CenterBox | null = null;
@@ -573,6 +727,16 @@ function assertTree(expect: Expect, widget: Gtk.Widget, label: string, check: Pr
         check(`${label}: ${name} reached GTK`, propsMatch(widget, { [name]: value }));
     }
     for (const child of expect.children ?? []) {
+        // SELECT before searching: a getter names the exact widget the slot holds,
+        // which both proves the placement and removes the ambiguity a structural
+        // search has between two same-typed children.
+        const held = child.slot === undefined ? undefined : slotChild(widget, child.slot);
+        if (held !== undefined) {
+            check(`${label} > ${child.tag}: slot="${child.slot}" holds it`, held !== null);
+            if (held === null) continue;
+            assertTree(child, held, `${label} > ${child.tag}`, check, used);
+            continue;
+        }
         const found = findUnused(widget, child, used);
         check(`${label} > ${child.tag}: built`, found !== null);
         if (found === null) continue;

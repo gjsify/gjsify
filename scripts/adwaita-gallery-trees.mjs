@@ -184,6 +184,29 @@ export const ADWAITA_GALLERY_TREES = [
     },
     // ------------------------------------------------------------------ layout
     {
+        widget: 'Adw.Clamp',
+        page: 'layout',
+        // A refusal until #1368 landed, and the refusal probe is what said so: the
+        // moment `AdwClamp` gained a `single`/`set_child` policy, `probe:refusals`
+        // reported `<adw-clamp>` as ACCEPTED and failed. A stale refusal tells a
+        // reader a port cannot do something it now can.
+        root: {
+            tag: 'adw-clamp',
+            props: { maximumSize: 400, tighteningThreshold: 300 },
+            children: [
+                {
+                    tag: 'gtk-label',
+                    props: {
+                        label: 'This content is clamped: it stops growing past the maximum size and stays centred.',
+                        wrap: true,
+                        xalign: 0,
+                        cssClasses: ['card'],
+                    },
+                },
+            ],
+        },
+    },
+    {
         widget: 'Adw.HeaderBar',
         page: 'layout',
         root: {
@@ -248,6 +271,121 @@ export const ADWAITA_GALLERY_TREES = [
         },
     },
     // -------------------------------------------------------------- navigation
+    {
+        widget: 'Adw.OverlaySplitView',
+        page: 'navigation',
+        // Curated by #1368 as two setter-backed slots; measured accepted by
+        // `probe:refusals`, which had been claiming the opposite.
+        root: {
+            tag: 'adw-overlay-split-view',
+            props: { showSidebar: true },
+            children: [
+                {
+                    tag: 'adw-toolbar-view',
+                    slot: 'sidebar',
+                    children: [
+                        {
+                            tag: 'adw-header-bar',
+                            slot: 'top',
+                            children: [{ tag: 'adw-window-title', slot: 'title', props: { title: 'Library' } }],
+                        },
+                        {
+                            tag: 'adw-status-page',
+                            slot: 'content',
+                            props: { iconName: 'folder-music-symbolic', title: 'Sections' },
+                        },
+                    ],
+                },
+                {
+                    tag: 'adw-toolbar-view',
+                    slot: 'content',
+                    children: [
+                        {
+                            tag: 'adw-header-bar',
+                            slot: 'top',
+                            children: [{ tag: 'adw-window-title', slot: 'title', props: { title: 'Your Library' } }],
+                        },
+                        {
+                            tag: 'adw-status-page',
+                            slot: 'content',
+                            props: {
+                                iconName: 'folder-music-symbolic',
+                                title: 'Your Library',
+                                description: 'Toggle the sidebar to browse sections.',
+                            },
+                        },
+                    ],
+                },
+            ],
+        },
+    },
+    {
+        widget: 'Adw.NavigationSplitView',
+        page: 'navigation',
+        // The same two slots as the overlay sibling, and ONE difference that only a
+        // run finds: GTK refuses anything but an `Adw.NavigationPage` in them.
+        // `probe:refusals` reported `rejected-child` — not `uncurated-placement` —
+        // for a bare `<adw-toolbar-view>`, which is the host saying "the container
+        // is curated, the CHILD TYPE is wrong". Hence the pages below.
+        root: {
+            tag: 'adw-navigation-split-view',
+            props: { showContent: true },
+            children: [
+                {
+                    tag: 'adw-navigation-page',
+                    slot: 'sidebar',
+                    props: { tag: 'sidebar', title: 'Mailboxes' },
+                    children: [
+                        {
+                            tag: 'adw-toolbar-view',
+                            children: [
+                                {
+                                    tag: 'adw-header-bar',
+                                    slot: 'top',
+                                    children: [
+                                        { tag: 'adw-window-title', slot: 'title', props: { title: 'Mailboxes' } },
+                                    ],
+                                },
+                                {
+                                    tag: 'adw-status-page',
+                                    slot: 'content',
+                                    props: { iconName: 'mail-unread-symbolic', title: 'Mailboxes' },
+                                },
+                            ],
+                        },
+                    ],
+                },
+                {
+                    tag: 'adw-navigation-page',
+                    slot: 'content',
+                    props: { tag: 'content', title: 'All Mail' },
+                    children: [
+                        {
+                            tag: 'adw-toolbar-view',
+                            children: [
+                                {
+                                    tag: 'adw-header-bar',
+                                    slot: 'top',
+                                    children: [
+                                        { tag: 'adw-window-title', slot: 'title', props: { title: 'All Mail' } },
+                                    ],
+                                },
+                                {
+                                    tag: 'adw-status-page',
+                                    slot: 'content',
+                                    props: {
+                                        iconName: 'mail-unread-symbolic',
+                                        title: 'All Mail',
+                                        description: 'Select a conversation from the list to read it here.',
+                                    },
+                                },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        },
+    },
     {
         widget: 'Adw.NavigationView',
         page: 'navigation',
@@ -377,11 +515,8 @@ export const ADWAITA_GALLERY_REFUSALS = {
     // Measured by `showcases/gtk/adwaita-gallery-solid/src/refusals.ts`: the host
     // raises `uncurated-placement` BY NAME when the child is materialised. 13 of 13,
     // and the probe fails if any of them starts being accepted.
-    'Adw.Clamp': 'uncurated-placement, naming AdwClamp. PR #1368 curates it; nothing here depends on that.',
     'Adw.WrapBox': 'uncurated-placement: AdwWrapBox has no child policy.',
     'Adw.PreferencesDialog': 'uncurated-placement: a page cannot be a child of AdwPreferencesDialog.',
-    'Adw.NavigationSplitView': 'uncurated-placement: neither pane can be a child.',
-    'Adw.OverlaySplitView': 'uncurated-placement: neither pane can be a child.',
     'Adw.BottomSheet': 'uncurated-placement: no child policy for the sheet or the content.',
     'Adw.Carousel': 'uncurated-placement: AdwCarousel has no child policy.',
     'Adw.ExpanderRow': 'uncurated-placement: its rows go through add_row(), which no policy declares.',
