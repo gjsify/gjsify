@@ -663,9 +663,11 @@ async function runProbes(rows) {
 //      `null` elsewhere, so importing it from a `polyfill` slot is correct — the
 //      distinction `GJS_IMPORTS_GUARD_RE` / `DYNAMIC_GI_RE` already encode.
 //
-//      FATAL ON `browser` + `nativescript` ONLY, because that is where the failure mode
-//      is: there `gjsImportsEmptyPlugin` substitutes `{}` for `@girs/*` AND `gi://*`, so
-//      a leak stays SILENT until a consumer calls the helper. On `--app node`,
+//      FATAL ON `browser`, `nativescript` + `react-native` ONLY, because that is where the
+//      failure mode is. On the first two `gjsImportsEmptyPlugin` substitutes `{}` for
+//      `@girs/*` AND `gi://*`; on the third gjsify does not build at all — Metro does, and
+//      it resolves `gi://` to nothing. Either way a leak stays SILENT until a consumer
+//      calls the helper. On `--app node`,
 //      `gjsGiNodePlugin` claims a `gi://` specifier first and rewrites it to `requireGi(…)`
 //      against the EXTERNAL `@gjsify/node-gi`, so the same leak either resolves through
 //      the supported axis-5 reverse bridge or fails LOUDLY at module load. A loud
@@ -694,8 +696,8 @@ async function runProbes(rows) {
 /**
  * Targets that can carry a per-runtime platform entry. `gjs` never can — `src/index.ts`
  * IS the GJS implementation. Derived from `VALID_TARGETS` with exactly the predicate
- * `resolve-npm`'s `collectPlatformEntries` uses, so the set this gate audits and the set
- * the resolver routes cannot be different sets.
+ * `resolve-npm`'s `collectPlatformEntries` uses, so this gate and the resolver cannot come
+ * to know different targets — which the hand-written list this replaces could.
  */
 const REACH_TARGETS = [...VALID_TARGETS].filter((t) => t !== 'gjs');
 
@@ -895,7 +897,7 @@ async function auditReachability(meta) {
             const where = routes ? `src/${target}.ts` : 'src/**';
             const enforced = slot === REACH_FATAL_SLOT && REACH_FATAL_TARGETS.has(target);
             const why = !REACH_FATAL_TARGETS.has(target)
-                ? `target="${target}" → reported: a GJS leak fails LOUDLY at module load here (gjs:// routes to the external @gjsify/node-gi), it is not silently swallowed`
+                ? `target="${target}" → reported: a GJS leak fails LOUDLY at module load here (gi:// routes to the external @gjsify/node-gi), it is not silently swallowed`
                 : 'slot="partial" → reported, not enforced';
             const line =
                 `${rec.name}: runtimes.${target}="${slot}" but the ${target}-resolved code (${where}) reaches GJS-only code — ` +
