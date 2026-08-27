@@ -24,8 +24,8 @@ export default async () => {
                     // method is the failure the conformance suite exists to prevent.
                     else throw new Error(`unknown slot in pack vector call ${JSON.stringify(call)}`);
                 }
-                expect(bar.state.start).toEqual([...vector.start]);
-                expect(bar.state.end).toEqual([...vector.end]);
+                expect(bar.state.start).toStrictEqual([...vector.start]);
+                expect(bar.state.end).toStrictEqual([...vector.end]);
             });
         }
 
@@ -35,16 +35,16 @@ export default async () => {
             bar.packEnd('menu');
             bar.packEnd('search');
             expect(bar.remove('search')).toBe(true);
-            expect(bar.state.end).toEqual(['menu']);
+            expect(bar.state.end).toStrictEqual(['menu']);
             expect(bar.remove('back')).toBe(true);
-            expect(bar.state.start).toEqual([]);
+            expect(bar.state.start).toStrictEqual([]);
         });
 
         await it('remove reports false for a child the bar never held', async () => {
             const bar = new HeaderBarState<string>();
             bar.packStart('back');
             expect(bar.remove('nothing')).toBe(false);
-            expect(bar.state.start).toEqual(['back']);
+            expect(bar.state.start).toStrictEqual(['back']);
         });
 
         await it('remove of the title widget clears the centre and restores the derived title', async () => {
@@ -77,9 +77,9 @@ export default async () => {
             const bar = new HeaderBarState<string>();
             bar.packStart('x');
             bar.packStart('x');
-            expect(bar.state.start).toEqual(['x', 'x']);
+            expect(bar.state.start).toStrictEqual(['x', 'x']);
             expect(bar.remove('x')).toBe(true);
-            expect(bar.state.start).toEqual([]);
+            expect(bar.state.start).toStrictEqual([]);
         });
 
         await it('remove sweeps both slots, not just the first one holding the child', async () => {
@@ -87,8 +87,8 @@ export default async () => {
             bar.packStart('x');
             bar.packEnd('x');
             expect(bar.remove('x')).toBe(true);
-            expect(bar.state.start).toEqual([]);
-            expect(bar.state.end).toEqual([]);
+            expect(bar.state.start).toStrictEqual([]);
+            expect(bar.state.end).toStrictEqual([]);
         });
 
         await it('remove of a child that is packed AND the centre clears both', async () => {
@@ -96,7 +96,7 @@ export default async () => {
             bar.packStart('x');
             bar.setTitleWidget('x');
             expect(bar.remove('x')).toBe(true);
-            expect(bar.state.start).toEqual([]);
+            expect(bar.state.start).toStrictEqual([]);
             expect(bar.state.titleWidget).toBe(null);
         });
 
@@ -105,7 +105,7 @@ export default async () => {
             const packed = { node: 'back' };
             bar.packStart(packed);
             expect(bar.remove({ node: 'back' })).toBe(false);
-            expect(bar.state.start).toEqual([packed]);
+            expect(bar.state.start).toStrictEqual([packed]);
             expect(bar.remove(packed)).toBe(true);
         });
 
@@ -114,7 +114,7 @@ export default async () => {
             bar.packStart('back');
             const start = bar.state.start as string[];
             start.push('smuggled');
-            expect(bar.state.start).toEqual(['back']);
+            expect(bar.state.start).toStrictEqual(['back']);
         });
     });
 
@@ -123,7 +123,7 @@ export default async () => {
             await it(`${vector.calls.map((c) => c ?? 'null').join(' → ') || '(no calls)'} — ${vector.rule}`, async () => {
                 const bar = new HeaderBarState<string>();
                 const changed = vector.calls.map((call) => bar.setTitleWidget(call));
-                expect(changed).toEqual([...vector.changed]);
+                expect(changed).toStrictEqual([...vector.changed]);
                 expect(bar.state.titleWidget).toBe(vector.titleWidget);
                 expect(bar.state.derivedTitle !== null).toBe(vector.derivedPresent);
             });
