@@ -308,6 +308,12 @@ function detachChild(parent: HostElement, child: HostElement, host: AnyWidget): 
                 clearIfCurrent(host, setter, address);
                 return;
             }
+            // Adder-backed, so only a remove method can take the child out.
+            // `policyProblems()` rejects a descriptor that reaches here without
+            // one; an application-registered descriptor is checked by nobody, so
+            // the refusal is named rather than left as a TypeError on undefined.
+            const slot = child.slot ?? policy.defaultSlot;
+            if (!policy.remove) throw err.slotNeedsRemove(parent.descriptor.gtype, slot, policy.slots[slot] ?? '?');
             host[policy.remove](address);
             return;
         }

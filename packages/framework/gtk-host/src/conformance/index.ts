@@ -33,7 +33,10 @@ export function methodsOf(policy: ChildPolicy): string[] {
         case 'indexed':
             return [policy.insert, policy.remove];
         case 'slotted':
-            return [...Object.values(policy.slots), policy.remove];
+            // `remove` is absent on an all-setter policy, which names no remove
+            // method because it needs none — see `ChildPolicy`. The rule that it
+            // must be there for an adder-backed slot is `policyProblems()`'s.
+            return policy.remove ? [...Object.values(policy.slots), policy.remove] : Object.values(policy.slots);
         case 'keyed':
             return [policy.add, policy.remove];
         case 'coords':
@@ -141,6 +144,22 @@ function policyProblems(d: WidgetDescriptor, Klass: { prototype: object }, actua
             out.push({
                 gtype: d.gtype,
                 problem: `defaultSlot "${policy.defaultSlot}" is not one of ${Object.keys(policy.slots).join(', ')}`,
+            });
+        }
+        // The other half of making `remove` optional. A setter-backed slot is
+        // emptied by writing `null` back through the setter, so an all-setter
+        // policy needs no remove method — but an ADDER-backed slot has nothing
+        // else that takes a child out, and `detachChild` would reach for a
+        // method that is not there. Named here rather than left to the type,
+        // because `remove?: string` cannot express "required when a sibling
+        // field's VALUE does not start with set_".
+        const adderSlots = Object.entries(policy.slots)
+            .filter(([, method]) => !method.startsWith('set_'))
+            .map(([slot]) => slot);
+        if (adderSlots.length > 0 && !policy.remove) {
+            out.push({
+                gtype: d.gtype,
+                problem: `slot(s) ${adderSlots.join(', ')} are adder-backed, so removal needs a "remove" method and this policy names none`,
             });
         }
     }
