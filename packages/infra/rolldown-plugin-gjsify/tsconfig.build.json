@@ -1,0 +1,11 @@
+{
+    "extends": "./tsconfig.json",
+    "comment": [
+        "`*.spec.*` and not a two-entry list of extensions: measured in",
+        "`@gjsify/rolldown-plugin-vue`, with only `src/**/*.spec.ts` excluded an added",
+        "`*.spec.mts` emitted into `lib/` and `files: [lib]` published it, and",
+        "`verify-package-outputs.mjs` cannot catch that — it asserts that DECLARED",
+        "outputs exist, never that extras are absent."
+    ],
+    "exclude": ["src/test.mts", "src/**/*.spec.*"]
+}

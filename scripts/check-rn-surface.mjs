@@ -45,11 +45,14 @@ const fail = (message) => problems.push(message);
  * indented further and a comment line starts with `/` or `*`, so neither is picked
  * up — both of which the self-test below pins.
  */
-export function readTableKeys(source) {
-    const start = source.indexOf('SUPPORT_TABLE: Readonly');
-    if (start === -1) throw new Error('SUPPORT_TABLE declaration not found');
+export function readTableKeys(source, declaration = 'SUPPORT_TABLE') {
+    // Anchored on `export const <NAME>: Readonly`, not on `<NAME>: Readonly`: the
+    // router table's name ENDS with the react-native one's, so a bare substring
+    // search silently reads the wrong declaration for whichever is asked second.
+    const start = source.indexOf(`export const ${declaration}: Readonly`);
+    if (start === -1) throw new Error(`${declaration} declaration not found`);
     const end = source.indexOf('\n};', start);
-    if (end === -1) throw new Error('SUPPORT_TABLE literal is not terminated');
+    if (end === -1) throw new Error(`${declaration} literal is not terminated`);
     const body = source.slice(start, end);
     const keys = [];
     for (const line of body.split('\n')) {
@@ -144,6 +147,8 @@ function readInstalledExports() {
 
 selfTest();
 
+const label = 'check-rn-surface';
+
 const snapshot = JSON.parse(readFileSync(SNAPSHOT, 'utf8'));
 const declared = readTableKeys(readFileSync(TABLE_TS, 'utf8'));
 const snapshotNames = snapshot.exports;
@@ -162,26 +167,46 @@ compare(
 // to nothing because the export was never regenerated after the entry was added.
 {
     const generator = await import('../packages/framework/react-native/scripts/generate-exports.mjs');
-    const entries = generator.readEntries(readFileSync(TABLE_TS, 'utf8'));
-    const expected = generator.render(entries);
-    const path = join(PKG, 'src/generated/unsupported-exports.ts');
-    const actual = existsSync(path) ? readFileSync(path, 'utf8') : '';
-    const hint = '  run: gjsify workspace @gjsify/react-native run generate';
-    if (actual !== expected) fail(`src/generated/unsupported-exports.ts is stale\n${hint}`);
-
-    // The README's support section is the table's THIRD reader (ADR 0032 § 8). It
-    // drifts the most quietly of the three: nothing fails, a consumer just reads a
-    // status that stopped being true.
-    const table = generator.readTable(readFileSync(TABLE_TS, 'utf8'));
-    const block = generator.renderReadmeTable(entries, table);
+    const source = readFileSync(TABLE_TS, 'utf8');
     const readme = readFileSync(join(PKG, 'README.md'), 'utf8');
-    const begin = readme.indexOf(generator.README_BEGIN);
-    const end = readme.indexOf(generator.README_END);
-    if (begin === -1 || end === -1) {
-        fail('README.md has lost the generated-support-table markers');
-    } else if (readme.slice(begin, end + generator.README_END.length) !== block) {
-        fail(`README.md's generated support section is stale\n${hint}`);
+    const hint = '  run: gjsify workspace @gjsify/react-native run generate';
+    for (const spec of generator.TABLES) {
+        const entries = generator.readEntries(source, spec.declaration);
+        const expected = generator.render(entries, spec.label);
+        const relative = spec.out.slice(spec.out.indexOf('src/'));
+        const actual = existsSync(spec.out) ? readFileSync(spec.out, 'utf8') : '';
+        if (actual !== expected) fail(`${relative} is stale\n${hint}`);
+
+        // The README's support section is the table's THIRD reader (ADR 0032 § 8). It
+        // drifts the most quietly of the three: nothing fails, a consumer just reads a
+        // status that stopped being true.
+        const table = generator.readTable(source, spec.declaration);
+        const block = generator.renderReadmeTable(entries, table, spec.begin, spec.end);
+        const begin = readme.indexOf(spec.begin);
+        const end = readme.indexOf(spec.end);
+        if (begin === -1 || end === -1) {
+            fail(`README.md has lost the ${spec.begin} markers`);
+        } else if (readme.slice(begin, end + spec.end.length) !== block) {
+            fail(`README.md's generated ${spec.label} support section is stale\n${hint}`);
+        }
     }
+
+    // THE TWO KEY SETS MUST BE DISJOINT. A name in both gives `explainUnsupported`
+    // two answers and `isImportable` whichever table it looked in first — and the
+    // collision is silent, because both lookups succeed. Checked here as well as in
+    // the spec because this script is what a version bump runs.
+    const rnKeys = readTableKeys(source, 'SUPPORT_TABLE');
+    const routerKeys = readTableKeys(source, 'ROUTER_SUPPORT_TABLE');
+    const both = routerKeys.filter((name) => rnKeys.includes(name));
+    if (both.length > 0) {
+        fail(
+            `${both.length} name(s) are in BOTH support tables — ${both.join(', ')}\n` +
+                '  a name belongs to one surface; rename or remove one of the entries',
+        );
+    }
+    console.log(
+        `${label}: ${routerKeys.length} expo-router name(s) declared, disjoint from the ${rnKeys.length} React Native ones.`,
+    );
 }
 
 const installed = readInstalledExports();
@@ -201,7 +226,6 @@ if (installed === null) {
         : 'snapshot DISAGREES with the installed react-native';
 }
 
-const label = 'check-rn-surface';
 if (problems.length > 0) {
     for (const problem of problems) console.error(`${label}: ${problem}`);
     console.error(`${label}: FAILED — ${mode}`);

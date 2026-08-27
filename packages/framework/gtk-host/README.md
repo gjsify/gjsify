@@ -103,6 +103,15 @@ exists there, so it uses `indexed` and reorders natively. Near-identical APIs wi
 opposite capabilities are exactly why the table is measured per widget rather than
 inherited.
 
+`Adw.NavigationView` declares the same `remove-all` degradation and it is a HAZARD
+there rather than only a cost: its `remove()` also takes the page out of the
+**navigation stack**, which no other container in the table does, so a renderer that
+reorders these children disturbs navigation and not just paint order. It is `keyed`
+with `titled: false` — MEASURED, `add(page)` takes one argument — and the tag a page
+is addressed by afterwards (`push_by_tag`, `pop_to_tag`, `replace_with_tags`) is a
+property on the CHILD, not an argument to the add. That is what lets a route key be
+the join between React's membership and GTK's ordering.
+
 `slot` and `layout` are props the CHILD declares: `slot="end"` picks a `slotted`
 attachment point, `layout={{ column, row, columnSpan, rowSpan }}` a `coords` cell,
 `layout={{ name, title }}` a `keyed` page. Both are read at placement time, so

@@ -75,4 +75,45 @@ export const ADW_DESCRIPTORS: readonly WidgetDescriptor[] = [
         ctor: () => Adw.StatusPage,
         children: { kind: 'single', set: 'set_child' },
     },
+    {
+        gtype: 'AdwNavigationView',
+        ctor: () => Adw.NavigationView,
+        // `keyed` with `titled: false` — the arity that policy's own doc anticipated.
+        // MEASURED on libadwaita 1.9.3: `add` and `remove` exist, `insert` does not,
+        // and `add(page)` takes ONE argument, so calling it with a name and a title
+        // would be the "At least 3 arguments required" throw `titled` exists to stop.
+        //
+        // THE TAG IS NOT AN ARGUMENT HERE, which is why `nameFrom` names a property
+        // the CHILD carries rather than a key this policy passes: a page's identity
+        // lives in `Adw.NavigationPage:tag`, and the view addresses it afterwards
+        // through `push_by_tag` / `pop_to_tag` / `replace_with_tags`. That is the
+        // whole mechanism behind ADR 0032 § 10's "a route key is the widget's join
+        // key".
+        //
+        // AND `reorder: 'remove-all'` IS A DECLARED HAZARD, not only a cost. The tail
+        // rotation it pays calls `remove()` on siblings, and on this widget `remove()`
+        // also takes the page OUT OF THE NAVIGATION STACK — which no other container
+        // in this table does. A renderer that reorders these children therefore
+        // disturbs navigation, not just paint order. `@gjsify/react-native`'s Stack
+        // keeps its page list append-only for exactly this reason and says so.
+        children: { kind: 'keyed', add: 'add', remove: 'remove', nameFrom: 'tag', titled: false },
+    },
+    {
+        gtype: 'AdwNavigationPage',
+        ctor: () => Adw.NavigationPage,
+        // MEASURED: `set_child` / `get_child`, one child. Without this rule the
+        // generated table knows the tag and refuses every child by name — correct,
+        // and useless to a layer that has to put a screen inside a page.
+        children: { kind: 'single', set: 'set_child' },
+    },
+    {
+        gtype: 'AdwViewStack',
+        ctor: () => Adw.ViewStack,
+        // `Gtk.Stack`'s rule at the same arity: MEASURED, `add_titled(child, name,
+        // title)` and `remove(child)` both exist. `add_titled_with_icon` exists too
+        // and is NOT used — it is a fourth argument this policy has no field for, and
+        // an icon belongs to the `Adw.ViewStackPage` the add RETURNS. Reaching that
+        // page is a `get_page(child)` call, one layer up.
+        children: { kind: 'keyed', add: 'add_titled', remove: 'remove', nameFrom: 'name', titled: true },
+    },
 ];

@@ -69,6 +69,15 @@ export {
     nativescriptPlatformDefines,
 } from './plugins/platform-resolve.js';
 export type { PlatformResolvePluginOptions, NativescriptPlatform } from './plugins/platform-resolve.js';
+export {
+    rnRouteManifestPlugin,
+    renderRouteManifest,
+    walkRoutes,
+    RouteManifestError,
+    RN_ROUTES_MODULE_ID,
+    MAX_ROUTE_DEPTH,
+} from './plugins/rn-route-manifest.js';
+export type { RnRouteManifestOptions, FoundRoute } from './plugins/rn-route-manifest.js';
 
 export * from './plugin.js';
 import { gjsifyPlugin } from './plugin.js';

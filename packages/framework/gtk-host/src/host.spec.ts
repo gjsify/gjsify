@@ -1405,6 +1405,57 @@ export default async () => {
             });
         });
 
+        await gated(diagnostics, 'the navigation widgets a router needs', async () => {
+            // Added with the routing layer, and the reason they are vectors HERE rather
+            // than only in the consumer: this package owns the placement table (ADR
+            // 0027 rule 1), and `descriptorProblems()` only asserts that the methods a
+            // policy NAMES exist. It cannot say whether the right one was named.
+            //
+            // Measured before these three rules existed: rendering a screen into an
+            // `AdwNavigationPage` raised the uncurated-placement refusal — correct, and
+            // useless to a layer that has to put a screen inside a page.
+
+            await it('AdwNavigationPage takes ONE child, through set_child', async () => {
+                const page = createElement('AdwNavigationPage', { tag: 'p', title: 'P' });
+                const widget = materialize(page) as unknown as Adw.NavigationPage;
+                const label = createElement('GtkLabel', { label: 'screen' });
+                insert(label, page);
+                expect(widget.get_child() !== null).toBe(true);
+                expect((widget.get_child() as unknown as Gtk.Label).label).toBe('screen');
+            });
+
+            await it('AdwNavigationView adopts pages with add(), one argument', async () => {
+                // `titled: false` is the ARITY, and it is not a type error to get wrong:
+                // `adw_navigation_view_add(page)` takes one argument, and calling it
+                // with a name and a title is GJS's "At least 3 arguments required",
+                // which reads as a rejected child TYPE.
+                const view = createElement('AdwNavigationView');
+                const widget = materialize(view) as unknown as Adw.NavigationView;
+                for (const tag of ['a', 'b']) {
+                    const page = createElement('AdwNavigationPage', { tag, title: tag });
+                    insert(createElement('GtkLabel', { label: tag }), page);
+                    insert(page, view);
+                }
+                expect(widget.find_page('a') !== null).toBe(true);
+                expect(widget.find_page('b') !== null).toBe(true);
+                // MEASURED, and the fact the routing layer is built on: `add` POOLS a
+                // page and only the first one becomes the navigation stack. There is no
+                // declarative way to say "these two, in this order".
+                expect(widget.get_navigation_stack().get_n_items()).toBe(1);
+            });
+
+            await it('AdwViewStack takes a name and a title off the child’s layout', async () => {
+                const stack = createElement('AdwViewStack');
+                const widget = materialize(stack) as unknown as Adw.ViewStack;
+                const one = createElement('AdwBin', { layout: { name: 'one', title: 'One' } });
+                insert(createElement('GtkLabel', { label: '1' }), one);
+                insert(one, stack);
+                const child = widget.get_child_by_name('one');
+                expect(child !== null).toBe(true);
+                expect(widget.get_page(child as Gtk.Widget).get_title()).toBe('One');
+            });
+        });
+
         await gated(diagnostics, 'a parent that is not a host element', async () => {
             await it('refuses a raw Gtk.Widget instead of scribbling on it', async () => {
                 // Vue's `<Teleport :to="someGtkWidget">` passes the widget through
