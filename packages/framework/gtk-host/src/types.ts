@@ -123,8 +123,25 @@ export type ChildPolicy =
     | { kind: 'ordered'; append: string; after?: string; remove: string; reorder: 'native' | 'remove-all' }
     /** `Gtk.ListBox`/`Gtk.FlowBox`: index-addressed, and the parent addresses a WRAPPER row. */
     | { kind: 'indexed'; insert: string; remove: string; wrap: 'list-box-row' | 'flow-box-child' | null }
-    /** `Adw.HeaderBar`, `Adw.ToolbarView`, `Adw.ActionRow`: named attachment points. */
-    | { kind: 'slotted'; slots: Record<string, string>; defaultSlot: string; remove: string }
+    /**
+     * `Adw.HeaderBar`, `Adw.ToolbarView`, `Adw.ActionRow`: named attachment points.
+     *
+     * `remove` is OPTIONAL because a slot can be backed two ways and only one of them
+     * needs it. A `set_`-prefixed slot is emptied by writing `null` back through the
+     * same setter (`detachChild` already does exactly that, via `setterSlotOf`), so a
+     * policy whose slots are ALL setters never reaches a remove method — and
+     * `Adw.NavigationSplitView` / `Adw.OverlaySplitView` have none to name: measured on
+     * libadwaita 1.9.3, their only `remove*` methods are `GtkWidget`'s
+     * (`remove_controller`, `remove_css_class`, …). Declaring `remove: 'remove'` there
+     * would be a claim `descriptorProblems()` correctly rejects.
+     *
+     * An ADDER-backed slot (`add_top_bar`, `pack_start`) is the opposite: nothing takes
+     * a child back out of it but a remove method, so `remove` is REQUIRED the moment one
+     * slot does not start with `set_`. That rule is machine-checked in `policyProblems()`
+     * rather than left to this comment — optional in the type and unchecked would turn
+     * `Adw.ToolbarView` losing its `remove` into a `TypeError` deep inside an unmount.
+     */
+    | { kind: 'slotted'; slots: Record<string, string>; defaultSlot: string; remove?: string }
     /**
      * `Gtk.Stack`, `Adw.NavigationView`: children addressed by name/tag.
      *

@@ -14,11 +14,22 @@
 // and CSS px effectively are). Conditions support `min-width` / `max-width` / `min-height` /
 // `max-height` leaves joined by `and` / `or` with optional parentheses.
 //
-// DIVERGENCE from `Adw.Breakpoint`: Adwaita keeps at most ONE breakpoint applied at a time
-// (the best match) and unapplies the others, because breakpoints there fight over the same
-// GObject properties. Here each breakpoint owns independent apply/unapply callbacks, so a
-// renderer evaluates each on its own merits — identical for the common single-breakpoint
-// case.
+// ONE DIVERGENCE, ONE SPLIT — they used to be one paragraph here, and the paragraph got
+// the second one wrong.
+//
+// The DIVERGENCE: `Adw.Breakpoint` carries SETTERS as well as apply/unapply signals
+// (`adw_breakpoint_add_setter`); this class carries only the callbacks, because a headless
+// module holds no widgets and has no property to set. `./breakpoint-bin.ts` models the
+// setter side as DATA instead — a transition returns the writes and the renderer performs
+// them — and it records there that the two objects do not compose today.
+//
+// The SPLIT: "at most ONE breakpoint applied at a time", which Adwaita needs because
+// breakpoints there fight over the same GObject properties, is not this class's rule at
+// all. It is the BIN's, together with the rule that makes it non-obvious: the winner is
+// the one added LAST among those that match (adw-breakpoint-bin.c:432), not the narrowest
+// and not the best fit. This comment used to say "the best match" — the intuitive reading
+// and the wrong one, which is why it now has vectors. This class answers "does my
+// condition hold" for one breakpoint, which is what `adw_breakpoint_check_condition` does.
 //
 // Reference: refs/libadwaita/src/adw-breakpoint.c (condition grammar, apply/unapply)
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.

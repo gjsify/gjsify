@@ -509,3 +509,6 @@ export type {
     WrapBoxSpacingNotifyVector,
     WrapBoxSpacingVector,
 } from './wrap-box.js';
+
+export { BREAKPOINT_PICK_VECTORS, BREAKPOINT_TRANSITION_VECTORS } from './breakpoint-bin.js';
+export type { BreakpointPickVector, BreakpointTransitionVector } from './breakpoint-bin.js';

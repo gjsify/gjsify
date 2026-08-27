@@ -162,8 +162,7 @@ export const repositoryDirectoryRule = defineRule({
     id: 'repository-directory',
     scope: 'portable',
     fields: ['repository'],
-    description:
-        "every non-private package's `repository.directory` is present and equals its own repo-relative path",
+    description: "every non-private package's `repository.directory` is present and equals its own repo-relative path",
     run(ctx) {
         const { failures, stats } = auditRepositoryDirectory(ctx);
         return {
