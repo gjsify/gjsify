@@ -1134,6 +1134,46 @@ export default async () => {
             });
         });
 
+        await gated(diagnostics, 'a LIST-valued property, written after the widget exists', async () => {
+            await it('replaces css-classes on an already mounted widget', async () => {
+                // The write every renderer makes on a `className` change, and the one
+                // no vector in this repository performed until a non-React adapter
+                // needed it. The FIRST write of a property is buffered and replayed by
+                // construction — the path that works — so a throw from
+                // `set_property` could only ever appear on an update.
+                //
+                // Measured on gjs 1.88.1: `set_property('css-classes', ['a'])` throws
+                // "Could not guess unspecified GValue type" because GJS builds the
+                // GValue by guessing a GType from the JS value and an array names
+                // none. See `writeProperty`.
+                const box = createElement('GtkBox', { cssClasses: ['first'] });
+                const widget = widgetOf(box) as Gtk.Box;
+                expect([...widget.cssClasses]).toStrictEqual(['first']);
+                setProp(box, 'cssClasses', ['second', 'third']);
+                expect([...widget.cssClasses]).toStrictEqual(['second', 'third']);
+                // And a scalar on the same widget still goes through `set_property`,
+                // where `coerce`'s enum refusal lives.
+                setProp(box, 'orientation', 'vertical');
+                expect(widget.orientation).toBe(Gtk.Orientation.VERTICAL);
+            });
+
+            await it('still refuses a bad enum nick, which is what set_property buys', async () => {
+                // Not vacuous: the accessor path must NOT have become the default. The
+                // JS accessor accepts `'nonsuch'` for an enum and keeps the old value
+                // with no diagnostic at all — the exact silent mis-store `coerce`
+                // exists to prevent.
+                const box = createElement('GtkBox');
+                materialize(box);
+                let error: unknown = null;
+                try {
+                    setProp(box, 'orientation', 'nonsuch');
+                } catch (caught) {
+                    error = caught;
+                }
+                expect(error === null).toBe(false);
+            });
+        });
+
         await gated(diagnostics, 'the text sink and the one-child slot are the SAME GTK slot', async () => {
             // Measured on gtk 4.22, raw GTK, both directions:
             //   set_child(custom)          -> custom.get_parent() === GtkButton

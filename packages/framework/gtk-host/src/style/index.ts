@@ -32,3 +32,6 @@ export type {
 } from './layout.js';
 export { partition, resolveUtilities, resolveUtility } from './resolve.js';
 export type { Partitioned, StyleProps } from './resolve.js';
+
+export { StyleSheet, StyleSheetError, VARIANT_PSEUDO } from './sheet.js';
+export type { StyleSheetOptions } from './sheet.js';

@@ -26,6 +26,7 @@
     "include": [
         "src",
         "../../../node_modules/@girs/adw-1/adw-1-ambient.d.ts",
+        "../../../node_modules/@girs/gdk-4.0/gdk-4.0-ambient.d.ts",
         "../../../node_modules/@girs/gtk-4.0/gtk-4.0-ambient.d.ts"
     ],
     "exclude": ["src/test.mts"]

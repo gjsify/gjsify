@@ -232,6 +232,44 @@ export async function runAdapterVectors(harness: VectorHarness, gate: Diagnostic
             handle.unmount();
         });
 
+        // --- a LIST-valued property, on the update path -----------------------
+
+        await it('changing a list-valued property rewrites it', async () => {
+            // Every other patch vector here writes a STRING, an INT or a text node,
+            // and that gap hid a total failure: `setProp` wrote every property
+            // through `set_property`, which cannot build a `GStrv` GValue out of a JS
+            // array. Measured on gjs 1.88.1 —
+            //
+            //   box.set_property('css-classes', ['a'])  THROW  "Could not guess
+            //                                                   unspecified GValue type"
+            //   box.cssClasses = ['a']                  OK
+            //
+            // — and only on an UPDATE, because the first write of any property is
+            // buffered and replayed by construction, the one path that works. So a
+            // class list could be authored and never changed, which is what every
+            // showcase here did, and no adapter spec updated one.
+            //
+            // `css-classes` is the property every framework binding writes (a class
+            // compiler produces nothing else), so one vector on it covers all three
+            // adapters — which is the reason it lives in this table rather than in
+            // any one of their specs.
+            // ASSERTED AS A SET, because GTK does not preserve the authored order
+            // across a rewrite: measured on gtk 4.22.4, `['first','shared']` rewritten
+            // to `['shared','second']` reads back as `['second','shared']`. The class
+            // list is a membership fact to CSS, so ordering it would be asserting a
+            // GTK implementation detail — and `horizontal` is dropped because
+            // `Gtk.Orientable` adds it with nothing authored.
+            const own = (widget: Gtk.Widget): string[] =>
+                [...widget.cssClasses].filter((name) => name !== 'horizontal').sort();
+            const container = new Gtk.Box();
+            const handle = await mount(container, h('GtkBox', { cssClasses: ['first', 'shared'] }));
+            const box = onlyChild(container) as Gtk.Box;
+            expect(own(box)).toStrictEqual(['first', 'shared']);
+            await handle.patch(h('GtkBox', { cssClasses: ['shared', 'second'] }));
+            expect(own(box)).toStrictEqual(['second', 'shared']);
+            handle.unmount();
+        });
+
         // --- the uncurated refusal, through a framework ----------------------
 
         await it('an uncurated container refuses a child by name', async () => {

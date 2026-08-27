@@ -16,6 +16,41 @@ export type { ComponentProvider, RunApplicationOptions } from './app-registry.js
 export { EventEmitter } from './event-emitter.js';
 export type { EventSubscription } from './event-emitter.js';
 
+// The P1 primitives — ADR 0032 § 1's L3, thin React wrappers over the
+// framework-agnostic descriptors in `./primitives`.
+export { ActivityIndicator, Pressable, ScrollView, Switch, Text, TextInput, View } from './components.js';
+export type {
+    ActivityIndicatorProps,
+    CommonProps,
+    PressableProps,
+    ScrollViewProps,
+    SwitchProps,
+    TextInputProps,
+    TextProps,
+    ViewProps,
+} from './components.js';
+
+// The P1 APIs. `useColorScheme` is a hook and lives with the hooks; the other three
+// are plain objects over `gi://`.
+export { Linking, Platform, Share } from './apis/index.js';
+export type { ColorSchemeName, PlatformOS, PlatformSelectSpec, ShareAction, ShareContent } from './apis/index.js';
+export { useColorScheme } from './hooks.js';
+
+// NOT React Native names, and part of the surface anyway: a project's token scales
+// have to arrive from somewhere (ADR 0032 § 3 — the class families are declared here,
+// the values belong to the project), and there is no React Native prop or API that
+// carries them. `check-rn-surface.mjs` holds the SUPPORT TABLE's key set against
+// react-native's exports, not this module's, so an addition here widens the package
+// without weakening that gate.
+export { configureStyle, resetStyleConfig, styleConfig } from './style-config.js';
+export type { StyleConfig } from './style-config.js';
+
+// L2, so a non-React binding can render the same vocabulary without going through
+// the components above. This is the seam ADR 0032 § 1 exists to keep open, and
+// exporting it is what makes "L2 is below the framework" checkable from outside.
+export * as primitives from './primitives/index.js';
+export { PrimitiveError } from './primitives/errors.js';
+
 /**
  * React 19 batches every update on its own, so this is the identity call it already
  * is upstream — kept because application code and libraries still wrap in it, and an

@@ -1,0 +1,418 @@
+// Everything L2 CLAIMS about GTK, asked of the GTK that is installed.
+//
+// `primitives.spec.ts` proves the table resolves the way it says it does. It cannot
+// prove that `wrap`, `lines`, `input-purpose` and `notify::active` are real — a
+// misspelled property name resolves perfectly and fails in a consumer's window, and
+// GTK's own answer to a misspelled property is nothing at all. So this file asks the
+// typelib: every tag registered, every property installed on the class it is routed
+// to, every signal emitted by it.
+//
+// AND THEN IT RENDERS. The property check is necessary and not sufficient: it would
+// pass with the two inverted defaults missing, with the overlay switch never firing,
+// and with `contentContainerStyle` landing on the wrong node. The mount vectors are
+// what read the REAL widget tree — never the plan, which agrees with itself — and
+// every one of them asserts ZERO GTK diagnostics, because GTK's failure mode is
+// exit 0.
+//
+// `gated` is a local six-liner rather than an import: `@gjsify/gtk-host`'s own
+// version lives in `src/testing/gate.mts`, which the package's exports map
+// deliberately does not publish (a `.mts` file is outside its library build, and
+// `files` negates the declaration). Its REASON is what matters and is reproduced
+// here — `@gjsify/unit` keeps ONE `beforeEach`/`afterEach` slot per module and nulls
+// both when a `describe` returns, so hooks registered before the first of several
+// siblings leave every later one ungated. Measured in `host.spec.ts`: a GTK critical
+// injected into describe #15 printed to stderr, the case still reported a tick, and
+// the blame surfaced twelve tests later on an innocent neighbour.
+
+import GObject from 'gi://GObject';
+import Gtk from 'gi://Gtk?version=4.0';
+import { afterEach, beforeEach, describe, expect, it, on, type Runtime } from '@gjsify/unit';
+import { lookupWidget, paramSpecs, registerBuiltinWidgets } from '@gjsify/gtk-host';
+import { descriptorProblems, dumpTree, gtkChildren, installDiagnosticsGate } from '@gjsify/gtk-host/conformance';
+import { MINIMAL_TOKENS, type StyleTokens } from '@gjsify/gtk-host/style';
+import { createRoot } from '@gjsify/gtk-host/react';
+import { createElement, type ReactNode } from 'react';
+
+import { PRIMITIVES, type PrimitiveSpec } from './table.js';
+import { ActivityIndicator, Pressable, ScrollView, Switch, Text, TextInput, View } from '../components.js';
+import { configureStyle, resetStyleConfig } from '../style-config.js';
+
+/** Named identities, not a capability: a probe that answers "no" stands the suite DOWN, and a suite that ran zero tests reports success. */
+const GTK_HOSTS: Runtime[] = ['Gjs', 'Node.js', 'Bun', 'Deno'];
+
+const TOKENS: StyleTokens = {
+    ...MINIMAL_TOKENS,
+    spacing: { ...MINIMAL_TOKENS.spacing, '1': '4px', '2': '8px', '4': '16px' },
+    colors: { ...MINIMAL_TOKENS.colors, emphasis: 'rgb(17 34 51)' },
+};
+
+/** Properties `layout.ts` and `intents.ts` can emit on ANY widget — `Gtk.Widget`'s own. */
+const UNIVERSAL = [
+    'visible',
+    'margin-top',
+    'margin-bottom',
+    'margin-start',
+    'margin-end',
+    'halign',
+    'valign',
+    'hexpand',
+    'vexpand',
+    'width-request',
+    'height-request',
+    'overflow',
+    'css-classes',
+    'name',
+    'sensitive',
+] as const;
+
+interface Claim {
+    readonly gtype: string;
+    readonly property: string;
+    readonly where: string;
+}
+
+/** Every (gtype, property) pair the table can produce, derived from the table itself. */
+function propertyClaims(): Claim[] {
+    const claims: Claim[] = [];
+    const add = (gtype: string, property: string, where: string) => claims.push({ gtype, property, where });
+
+    const walk = (name: string, spec: PrimitiveSpec): void => {
+        const content = spec.content;
+        for (const property of Object.keys(spec.widgetProps)) add(spec.tag, property, `${name}.widgetProps`);
+        for (const property of Object.keys(content?.widgetProps ?? {})) {
+            add(content!.tag, property, `${name}.content.widgetProps`);
+        }
+        for (const [prop, route] of Object.entries(spec.props)) {
+            for (const single of Array.isArray(route) ? route : [route]) {
+                if (single.to !== 'property') continue;
+                const gtype = single.on === 'content' ? content!.tag : spec.tag;
+                for (const property of single.names) add(gtype, property, `${name}.${prop}`);
+                for (const property of Object.keys(single.also ?? {})) add(gtype, property, `${name}.${prop}.also`);
+            }
+        }
+        // The intent resolver's own emissions, gated on the facts the table declares.
+        for (const gtype of [spec.tag, content?.tag, spec.overlayOnAbsoluteChild?.tag]) {
+            if (gtype === undefined) continue;
+            for (const property of UNIVERSAL) add(gtype, property, `${name} (universal)`);
+        }
+        if (spec.widget.box) {
+            // A `View` that became an overlay keeps its box INSIDE, so these two land
+            // on `spec.tag` either way — which is exactly what `BOX_ONLY_PROPS` moves.
+            for (const property of ['orientation', 'spacing']) add(spec.tag, property, `${name} (box intent)`);
+        }
+        if (content?.widget.box === true) {
+            for (const property of ['orientation', 'spacing'])
+                add(content.tag, property, `${name}.content (box intent)`);
+        }
+        if (spec.widget.alignsText) {
+            for (const property of ['xalign', 'justify']) add(spec.tag, property, `${name} (text intent)`);
+        }
+        if (spec.switchOn !== undefined) walk(`${name}[${spec.switchOn.prop}]`, spec.switchOn.whenTrue);
+    };
+
+    for (const [name, spec] of Object.entries(PRIMITIVES)) walk(name, spec);
+    return claims;
+}
+
+function signalClaims(): { gtype: string; signal: string; where: string }[] {
+    const out: { gtype: string; signal: string; where: string }[] = [];
+    const walk = (name: string, spec: PrimitiveSpec): void => {
+        for (const [prop, route] of Object.entries(spec.props)) {
+            for (const single of Array.isArray(route) ? route : [route]) {
+                if (single.to !== 'event') continue;
+                out.push({ gtype: spec.tag, signal: single.signal, where: `${name}.${prop}` });
+            }
+        }
+        if (spec.switchOn !== undefined) walk(`${name}[${spec.switchOn.prop}]`, spec.switchOn.whenTrue);
+    };
+    for (const [name, spec] of Object.entries(PRIMITIVES)) walk(name, spec);
+    return out;
+}
+
+const klassOf = (gtype: string) => lookupWidget(gtype).ctor() as unknown as { $gtype: GObject.GType };
+
+/** The one place a mount happens, so nothing forgets to tear its root down. */
+function mounted(element: ReactNode, body: (container: Gtk.Box) => void): void {
+    const container = new Gtk.Box();
+    const root = createRoot(container);
+    try {
+        root.render(element);
+        body(container);
+    } finally {
+        root.unmount();
+    }
+}
+
+const typeOf = (widget: Gtk.Widget): string =>
+    // `type_name` is nullable in the GIR (an unregistered GType has no name), and a
+    // widget the reconciler produced always has one — so the `??` is a type
+    // narrowing with a sentinel, not a fallback anyone should ever see.
+    GObject.type_name((widget as unknown as { constructor: { $gtype: GObject.GType } }).constructor.$gtype) ??
+    '(unregistered GType)';
+
+/**
+ * The classes THIS layer put on a widget, separated from the ones GTK did.
+ *
+ * MEASURED: a `Gtk.Box` reports `css-classes` of its ORIENTATION with nothing
+ * authored — `Gtk.Orientable` adds it. So a vector that counted the whole list would
+ * be asserting a GTK behaviour, and one that expected the list to be EMPTY would
+ * fail for the same reason. The generated names are the only ones this layer owns.
+ */
+const generatedClasses = (widget: Gtk.Widget): string[] =>
+    [...widget.cssClasses].filter((name) => name.startsWith('gjsify-'));
+
+/** First strict descendant of a GType, breadth-first over the REAL tree. */
+function find(root: Gtk.Widget, gtype: string): Gtk.Widget {
+    const queue: Gtk.Widget[] = [...gtkChildren(root)];
+    while (queue.length > 0) {
+        const widget = queue.shift() as Gtk.Widget;
+        if (typeOf(widget) === gtype) return widget;
+        queue.push(...gtkChildren(widget));
+    }
+    throw new Error(`no ${gtype} under:\n${dumpTree(root)}`);
+}
+
+export default async () => {
+    await on(GTK_HOSTS, async () => {
+        Gtk.init();
+        registerBuiltinWidgets();
+        const diagnostics = installDiagnosticsGate();
+        const gated = (name: string, run: () => Promise<void>): Promise<void> =>
+            describe(name, async () => {
+                beforeEach(() => diagnostics.reset());
+                afterEach(() => diagnostics.assertQuiet());
+                await run();
+            }) as Promise<void>;
+
+        await gated('the widget table L2 depends on', async () => {
+            await it('has a placement rule for every tag L2 can name', async () => {
+                // `GtkOverlay` is the one this milestone added, and without a curated
+                // rule the overlay switch produces a tag whose insertion the host
+                // refuses BY NAME — correct, and useless to the layer that has to
+                // build it.
+                for (const spec of Object.values(PRIMITIVES)) {
+                    for (const gtype of [spec.tag, spec.content?.tag, spec.overlayOnAbsoluteChild?.tag]) {
+                        if (gtype === undefined) continue;
+                        expect(typeof lookupWidget(gtype).ctor()).toBe('function');
+                    }
+                }
+                expect(lookupWidget('GtkOverlay').children.kind).toBe('slotted');
+            });
+
+            await it('names only methods and sinks the installed GTK has', async () => {
+                expect(descriptorProblems()).toStrictEqual([]);
+            });
+        });
+
+        await gated('every property claim, against the installed typelib', async () => {
+            await it('is a property the class really installs', async () => {
+                const missing: string[] = [];
+                for (const claim of propertyClaims()) {
+                    const specs = paramSpecs(klassOf(claim.gtype) as never, claim.gtype);
+                    if (!specs.has(claim.property))
+                        missing.push(`${claim.where}: ${claim.gtype} has no "${claim.property}"`);
+                }
+                expect(missing).toStrictEqual([]);
+            });
+
+            await it('is WRITABLE, because a read-only write is accepted and stored nowhere', async () => {
+                const readOnly: string[] = [];
+                for (const claim of propertyClaims()) {
+                    const spec = paramSpecs(klassOf(claim.gtype) as never, claim.gtype).get(claim.property);
+                    if (spec === undefined) continue;
+                    if ((spec.flags & GObject.ParamFlags.WRITABLE) === 0) {
+                        readOnly.push(`${claim.where}: ${claim.gtype}.${claim.property}`);
+                    }
+                }
+                expect(readOnly).toStrictEqual([]);
+            });
+        });
+
+        await gated('every signal claim', async () => {
+            await it('is a signal the class really emits', async () => {
+                const missing: string[] = [];
+                for (const claim of signalClaims()) {
+                    // `notify::active` is a DETAIL on `notify`, so the lookup is on the
+                    // base name — which is also what the host's own
+                    // `assertSignalExists` does.
+                    const base = claim.signal.split('::')[0];
+                    if (GObject.signal_lookup(base, klassOf(claim.gtype).$gtype) === 0) {
+                        missing.push(`${claim.where}: ${claim.gtype} emits no "${base}"`);
+                    }
+                }
+                expect(missing).toStrictEqual([]);
+            });
+
+            await it('finds `changed` on Gtk.Entry through the Editable interface', async () => {
+                // Worth its own vector: `GObject.signal_list_ids(Gtk.Entry.$gtype)`
+                // returns `activate`, `icon-press`, `icon-release` and NOT `changed`
+                // — the signal belongs to the `GtkEditable` INTERFACE. A check that
+                // enumerated the class's own ids would have reported
+                // `onChangeText` as a broken claim.
+                expect(GObject.signal_lookup('changed', Gtk.Entry.$gtype) !== 0).toBe(true);
+            });
+        });
+
+        await gated('a real tree, through a real reconciler', async () => {
+            beforeEach(() => configureStyle({ tokens: TOKENS }));
+            afterEach(() => resetStyleConfig());
+
+            await it('renders a View as a VERTICAL box holding a label', async () => {
+                mounted(createElement(View, { className: 'p-2' }, createElement(Text, null, 'hello')), (container) => {
+                    const box = gtkChildren(container)[0] as Gtk.Box;
+                    expect(typeOf(box)).toBe('GtkBox');
+                    expect(box.orientation).toBe(Gtk.Orientation.VERTICAL);
+                    expect(generatedClasses(box).length).toBe(1);
+                    // GTK's own orientation class survived the `css-classes` write,
+                    // which it did not before this milestone: the property is a
+                    // whole-list write and `Gtk.Orientable` had already put `vertical`
+                    // there. ADR 0032 § 5's union rule, with GTK as the other author.
+                    expect([...box.cssClasses]).toContain('vertical');
+                    const label = gtkChildren(box)[0] as Gtk.Label;
+                    expect(typeOf(label)).toBe('GtkLabel');
+                    expect(label.label).toBe('hello');
+                    // The second inverted default, in the widget rather than the plan.
+                    expect(label.wrap).toBe(true);
+                });
+            });
+
+            await it('gives every child of a row the cross-axis alignment', async () => {
+                mounted(
+                    createElement(
+                        View,
+                        { className: 'flex-row items-center' },
+                        createElement(Text, { key: 'a' }, 'a'),
+                        createElement(Text, { key: 'b' }, 'b'),
+                    ),
+                    (container) => {
+                        const box = gtkChildren(container)[0] as Gtk.Box;
+                        expect(box.orientation).toBe(Gtk.Orientation.HORIZONTAL);
+                        for (const child of gtkChildren(box)) {
+                            expect((child as Gtk.Label).valign).toBe(Gtk.Align.CENTER);
+                        }
+                    },
+                );
+            });
+
+            await it('becomes a Gtk.Overlay when a CHILD is absolutely positioned', async () => {
+                mounted(
+                    createElement(
+                        View,
+                        { className: 'p-2' },
+                        createElement(Text, { key: 'body' }, 'body'),
+                        createElement(Text, { key: 'badge', className: 'absolute inset-0' }, 'badge'),
+                    ),
+                    (container) => {
+                        const overlay = gtkChildren(container)[0] as Gtk.Overlay;
+                        expect(typeOf(overlay)).toBe('GtkOverlay');
+                        // The main child is the box the ordinary children moved into;
+                        // the badge is in the overlay slot beside it, not inside it.
+                        const box = overlay.get_child() as Gtk.Box;
+                        expect(typeOf(box)).toBe('GtkBox');
+                        expect(gtkChildren(box).map((c) => (c as Gtk.Label).label)).toStrictEqual(['body']);
+                        const badge = gtkChildren(overlay).find((c) => c !== box) as Gtk.Label;
+                        expect((badge as Gtk.Label).label).toBe('badge');
+                        expect(badge.halign).toBe(Gtk.Align.FILL);
+                        expect(badge.valign).toBe(Gtk.Align.FILL);
+                        // The padding stayed on the OUTER node, which is what keeps an
+                        // overlay child positioned against the padding box.
+                        expect(generatedClasses(overlay).length).toBe(1);
+                        expect(generatedClasses(box)).toStrictEqual([]);
+                    },
+                );
+            });
+
+            await it('renders a Pressable as a flat button whose click reaches onPress', async () => {
+                let pressed = 0;
+                mounted(
+                    createElement(Pressable, { className: 'active:opacity-70', onPress: () => (pressed += 1) }, 'Go'),
+                    (container) => {
+                        const button = gtkChildren(container)[0] as Gtk.Button;
+                        expect(typeOf(button)).toBe('GtkButton');
+                        expect(button.label).toBe('Go');
+                        expect([...button.cssClasses]).toContain('flat');
+                        button.emit('clicked');
+                        expect(pressed).toBe(1);
+                    },
+                );
+            });
+
+            await it('puts a ScrollView’s children in the implicit content box', async () => {
+                mounted(
+                    createElement(ScrollView, { contentContainerClassName: 'p-2' }, createElement(Text, null, 'row')),
+                    (container) => {
+                        const scrolled = gtkChildren(container)[0] as Gtk.ScrolledWindow;
+                        expect(typeOf(scrolled)).toBe('GtkScrolledWindow');
+                        expect(scrolled.hscrollbarPolicy).toBe(Gtk.PolicyType.NEVER);
+                        // GTK wraps a scrolled window's child in a `GtkViewport` — the
+                        // host's own `slotOccupant` records the same measurement — so
+                        // the box is a DESCENDANT rather than the direct child.
+                        const box = find(scrolled, 'GtkBox') as Gtk.Box;
+                        expect(generatedClasses(box).length).toBe(1);
+                        expect(gtkChildren(box).map((c) => (c as Gtk.Label).label)).toStrictEqual(['row']);
+                    },
+                );
+            });
+
+            await it('renders a TextInput as a Gtk.Entry whose changes reach onChangeText', async () => {
+                const seen: unknown[] = [];
+                mounted(
+                    createElement(TextInput, {
+                        value: 'x',
+                        placeholder: 'p',
+                        onChangeText: (t: string) => seen.push(t),
+                    }),
+                    (container) => {
+                        const entry = gtkChildren(container)[0] as Gtk.Entry;
+                        expect(typeOf(entry)).toBe('GtkEntry');
+                        expect(entry.text).toBe('x');
+                        expect(entry.placeholderText).toBe('p');
+                        // The emitter never reaches a handler (the host strips it), so
+                        // the value comes off the ref — this is the vector that proves
+                        // that path rather than the plan's `read` field.
+                        //
+                        // ONE emission, and that is the whole reason the route binds
+                        // `notify::text`: with `Gtk.Editable::changed` this same write
+                        // produced `["", "xy"]`, because `gtk_editable_set_text` is a
+                        // delete followed by an insert. A controlled input would have
+                        // reported the intermediate empty string as the user clearing
+                        // the field.
+                        entry.text = 'xy';
+                        expect(seen).toStrictEqual(['xy']);
+                    },
+                );
+            });
+
+            await it('renders a multiline TextInput as a Gtk.TextView that wraps', async () => {
+                mounted(createElement(TextInput, { multiline: true }), (container) => {
+                    const view = gtkChildren(container)[0] as Gtk.TextView;
+                    expect(typeOf(view)).toBe('GtkTextView');
+                    expect(view.wrapMode).toBe(Gtk.WrapMode.WORD_CHAR);
+                });
+            });
+
+            await it('renders a Switch whose flip reaches onValueChange with the new value', async () => {
+                const seen: unknown[] = [];
+                mounted(
+                    createElement(Switch, { value: false, onValueChange: (v: boolean) => seen.push(v) }),
+                    (container) => {
+                        const toggle = gtkChildren(container)[0] as Gtk.Switch;
+                        expect(typeOf(toggle)).toBe('GtkSwitch');
+                        expect(toggle.active).toBe(false);
+                        toggle.active = true;
+                        expect(seen).toStrictEqual([true]);
+                    },
+                );
+            });
+
+            await it('renders an ActivityIndicator as a sized Adw.Spinner', async () => {
+                mounted(createElement(ActivityIndicator, { size: 'small' }), (container) => {
+                    const spinner = gtkChildren(container)[0];
+                    expect(typeOf(spinner)).toBe('AdwSpinner');
+                    expect(spinner.widthRequest).toBe(16);
+                    expect(spinner.heightRequest).toBe(16);
+                });
+            });
+        });
+    });
+};
