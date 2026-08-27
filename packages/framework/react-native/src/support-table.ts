@@ -524,7 +524,7 @@ export const SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
     BackHandler: {
         status: 'planned',
         tier: 'P3',
-        reason: 'An Android hardware back button. Maps to the navigation view’s own back, so it lands with routing.',
+        reason: 'An Android hardware back button. Routing has landed and this did NOT arrive with it, which the earlier reason assumed it would: BackHandler INTERCEPTS a back press and consumes it, and MEASURED on libadwaita 1.9.3, Adw.NavigationView emits `popped` AFTER the fact and has no vetoable "about to pop" signal at all — its only prevention is Adw.NavigationPage:can-pop, a property rather than an event. The honest counterpart is usePreventRemove, which the routing layer does honour through its popped bridge; this name needs a key controller of its own on the window.',
     },
     DynamicColorIOS: {
         status: 'planned',
@@ -640,45 +640,239 @@ export const SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
     // than only in the ADR, because this file is what a consumer reads.
 };
 
+// --- the routing surface, which is a DIFFERENT package's names ---------------
+//
+// `expo-router`, not `react-native`, so it is a second table rather than more rows
+// in the first: `check-rn-surface.mjs` holds SUPPORT_TABLE's key set against
+// react-native's own exports, and a `router` row in there would fail that gate for
+// being real. The two key sets are disjoint, and `support-table.spec.ts` asserts it —
+// a name in both would give `explainUnsupported` two answers.
+//
+// PROVENANCE, and it is weaker than the first table's, so it is stated rather than
+// implied. There is no installed `expo-router` to read: it is not a dependency (ADR
+// 0032 § 10 refuses it — full compatibility would drag `react-native-screens` and
+// `gesture-handler`, which the measured application never imports). So this key set
+// is DECLARED from expo-router's documented surface plus ADR 0032's own measurement
+// of which five names an application actually used. What that costs is the drift
+// check the snapshot buys for react-native; what it does not cost is honesty about
+// the five, which are measured.
+//
+// SCOPE OF THE CLAIM. `supported`/`partial` here means "this layer answers for the
+// name over React Navigation's `core` and `routers`". It does not claim byte-level
+// expo-router compatibility, which § 10 rejects by name.
+
+export const ROUTER_SUPPORT_TABLE: Readonly<Record<string, SupportEntry>> = {
+    // --- the five names ADR 0032 measured ------------------------------------
+
+    router: {
+        status: 'partial',
+        tier: 'P1',
+        gtk: 'Adw.NavigationView (push/pop) via React Navigation’s StackActions',
+        reason: 'push, back, replace and navigate — the four methods the measured application calls, 19 of the 27 calls being push.',
+        limits: [
+            'push falls back to NAVIGATE when the navigator that owns the target is not mounted yet. StackActions.push is dispatched at ONE navigator and an href can name a screen several navigators down; for an unmounted navigator, arriving there IS the new entry, so the fallback is correct rather than approximate — but a push into a mounted navigator that is not a stack cannot add an entry, because PUSH is the stack router’s action and no other router answers it.',
+            'back() THROWS when there is nothing to go back to, where expo-router and React Navigation both return quietly. A quiet return is a back button that does nothing with no message, which is the silent drop this layer refuses everywhere else.',
+            'setParams, dismiss, dismissAll, dismissTo and canGoBack are not implemented. They are not in the measured surface, and each is a named refusal rather than an undefined property read.',
+            'An href is a path. expo-router also accepts an object form ({ pathname, params }); this layer takes the string, which is what all 27 measured calls pass.',
+        ],
+    },
+    useLocalSearchParams: {
+        status: 'partial',
+        tier: 'P1',
+        reason: 'The current route’s params — the [param] values and the query string — read through React Navigation’s own useRoute().',
+        limits: [
+            'Values are strings, because a URL segment is one. A number or a boolean that arrived through a dispatched param is stringified; anything structural (an object, an array) is left out, and a [param] cannot produce one. expo-router additionally returns string[] for a repeated query key, which this layer does not.',
+            'React Navigation’s seven nesting keys — screen, params, initial, state, path, pop, merge — are filtered out, so a route cannot use those seven as param names.',
+        ],
+    },
+    usePathname: {
+        status: 'partial',
+        tier: 'P1',
+        reason: 'The current URL without its query string, from React Navigation’s getPathFromState over the published root state.',
+        limits: [
+            'On the +not-found route it reports "/+not-found" rather than the URL that missed. getPathFromState builds a path from the STATE, and the state records which screen matched, not the text that reached it.',
+            'It answers "/" before the navigation container is ready. That is not a placeholder — nothing has been navigated to yet — but a component that renders on the first commit and compares against a literal will see it.',
+        ],
+    },
+    Stack: {
+        status: 'partial',
+        tier: 'P1',
+        gtk: 'Adw.NavigationView + Adw.NavigationPage',
+        reason: 'The stack navigator: React declares which pages exist, the widget owns their order, and the route key is the tag that joins the two.',
+        limits: [
+            'A screen answers title, headerShown and animation. Every other expo-router / React Navigation stack option is refused BY NAME at the point of declaration, because an option that is accepted and ignored is invisible until someone looks at the window.',
+            'The header is an Adw.HeaderBar inside an Adw.ToolbarView, which grows its own back button and reads the page’s own title. A custom header component is not supported; headerShown={false} drops the bar, and with it the back affordance.',
+            'animation is "default" or "none" — Adw.NavigationView has one transition and a switch for it (animate-transitions), not a set of named ones.',
+            'Screen preloading is not implemented. React Navigation’s preloadedRoutes would need pages added to the widget’s pool without entering the stack, which is expressible and untested here.',
+        ],
+    },
+    Tabs: {
+        status: 'partial',
+        tier: 'P1',
+        gtk: 'Adw.ViewStack + Adw.ViewSwitcher',
+        reason: 'The tab navigator. The switcher is driven by the stack’s own page model, so a route file adds a button with no tab-bar bookkeeping.',
+        limits: [
+            'A tab answers title only. tabBarIcon is refused: in React Native it is a COMPONENT and Adwaita paints a switcher button from Adw.ViewStackPage:icon-name, an icon NAME on a page object the add returns — reachable through a ref, not through this declaration.',
+            'Every tab is mounted. React Native’s tab navigator is lazy because a phone cannot afford five screens; an Adw.ViewStack page that is not the visible child is not realised, and laziness would buy a flash on first switch.',
+            'The switcher sits in the header bar with policy WIDE (MEASURED: the default is NARROW, the phone-shaped one). A narrow-window breakpoint is the application’s to declare — Adw.ViewSwitcherBar is not wired here.',
+            'tabBarBadge, tabBarPosition and the rest of the tab-bar vocabulary are refused by name for the same reason as tabBarIcon: they describe a bar this layer does not draw.',
+        ],
+    },
+
+    // --- the rest of the surface, on the map -----------------------------------
+
+    Link: {
+        status: 'planned',
+        tier: 'P2',
+        gtk: 'Gtk.Button (flat) or Gtk.LinkButton',
+        reason: 'An href as an element rather than a call. Cheap once `router` exists, and the honest widget question — button or link — is worth measuring first.',
+    },
+    Redirect: {
+        status: 'planned',
+        tier: 'P2',
+        reason: 'A declarative navigate-on-render. It needs a rule for what happens when it redirects during the first commit, which is the commit that must not be empty.',
+    },
+    Slot: {
+        status: 'planned',
+        tier: 'P2',
+        gtk: 'Adw.Bin',
+        reason: 'A layout that renders its child route with no navigator around it. It is the one layout shape that has no widget of its own.',
+    },
+    useRouter: {
+        status: 'planned',
+        tier: 'P2',
+        reason: 'The hook form of `router`. Identical behaviour, and it exists so a test can substitute the object — which is worth having once there is something to substitute.',
+    },
+    useSegments: {
+        status: 'planned',
+        tier: 'P2',
+        reason: 'The current route split into segments. Derivable from the published root state, and unused in the measured application.',
+    },
+    useGlobalSearchParams: {
+        status: 'planned',
+        tier: 'P2',
+        reason: 'The params of the focused route anywhere in the tree, rather than of the calling screen. It re-renders on every navigation by design, which is why expo-router documents preferring the local form.',
+    },
+    useNavigation: {
+        status: 'planned',
+        tier: 'P2',
+        reason: 'React Navigation’s own hook, re-exported by expo-router. It works already through @react-navigation/core; exporting it from here is a decision about what this surface promises, not a build.',
+    },
+    useFocusEffect: {
+        status: 'planned',
+        tier: 'P2',
+        reason: 'As useNavigation: it is core’s, and it works. The open question is the same one.',
+    },
+    useRootNavigationState: {
+        status: 'planned',
+        tier: 'P3',
+        reason: 'The root state as a hook. The store `usePathname` reads is already there; this is a second selector over it.',
+    },
+    Drawer: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'Adw.OverlaySplitView',
+        reason: 'A sidebar navigator. The pattern survives on a desktop better than it does on a phone, and Adwaita has the exact widget — it is a third navigator, not a variation on these two.',
+    },
+    withLayoutContext: {
+        status: 'planned',
+        tier: 'P3',
+        reason: 'The escape hatch that lets a third-party navigator take its screens from the file tree. It is exactly `useRouteNode` plus screen synthesis, made public — worth doing once a third navigator exists to prove the shape.',
+    },
+    Navigator: {
+        status: 'planned',
+        tier: 'P3',
+        reason: 'expo-router’s low-level navigator primitive. It belongs with withLayoutContext and for the same reason.',
+    },
+    ErrorBoundary: {
+        status: 'planned',
+        tier: 'P3',
+        gtk: 'Adw.StatusPage',
+        reason: 'A per-route error screen. React 19 routes an uncaught error to the root’s handler and @gjsify/gtk-host/react rethrows it from render() — deliberately, so a refusal is not swallowed — and a boundary here has to be reconciled with that rather than bolted beside it.',
+    },
+    ExpoRoot: {
+        status: 'refused',
+        reason: 'It takes a Metro `require.context`, which does not exist in this build chain. `RouterRoot` takes the manifest a bundler plugin emits instead — the same job, with the one input that is available.',
+    },
+    useUnstableGlobalHref: {
+        status: 'refused',
+        reason: 'Unstable by its own name, and it answers the question usePathname already answers for the only surface this layer has.',
+    },
+    useNavigationContainerRef: {
+        status: 'refused',
+        reason: 'The container ref is this layer’s own (one process routes one tree), and handing it out would let a consumer dispatch around the refusals `router` exists to give.',
+    },
+    SplashScreen: {
+        status: 'refused',
+        reason: 'A native splash screen belongs to a phone launcher. A GTK application maps its window when it is ready, which is the desktop equivalent and is Gio.Application’s job, not the router’s.',
+    },
+};
+
 /** Every name `react-native` publicly exports, as this table claims to cover it. */
 export const SUPPORTED_NAMES: readonly string[] = Object.keys(SUPPORT_TABLE);
+
+/** Every `expo-router` name the routing surface declares a status for. */
+export const ROUTER_NAMES: readonly string[] = Object.keys(ROUTER_SUPPORT_TABLE);
 
 /** Statuses a build may import. Everything else is a named refusal. */
 const IMPORTABLE: ReadonlySet<SupportStatus> = new Set<SupportStatus>(['supported', 'partial']);
 
+/**
+ * The two tables, each with the module a reader would import the name FROM.
+ *
+ * One list so `isImportable` and `explainUnsupported` cannot disagree about which
+ * names exist — the same reason there is one `explainUnsupported` rather than a
+ * sentence in the gate and another in the runtime.
+ */
+const TABLES: readonly (readonly [string, Readonly<Record<string, SupportEntry>>])[] = [
+    ['@gjsify/react-native', SUPPORT_TABLE],
+    ['@gjsify/react-native/router', ROUTER_SUPPORT_TABLE],
+];
+
+const lookup = (name: string): { readonly module: string; readonly entry: SupportEntry } | undefined => {
+    for (const [module, table] of TABLES) {
+        const entry = table[name];
+        if (entry !== undefined) return { module, entry };
+    }
+    return undefined;
+};
+
 export const isImportable = (name: string): boolean => {
-    const entry = SUPPORT_TABLE[name];
-    return entry !== undefined && IMPORTABLE.has(entry.status);
+    const found = lookup(name);
+    return found !== undefined && IMPORTABLE.has(found.entry.status);
 };
 
 /**
  * The sentence a build error and a runtime throw both print.
  *
  * One function so the two cannot drift into describing the same gap differently —
- * which is the whole reason the table is data rather than prose in two places.
+ * which is the whole reason the table is data rather than prose in two places. It
+ * covers BOTH tables, and prints the module the name belongs to, so a reader who
+ * imported `Tabs` from the wrong entry point learns which one has it.
  */
 export function explainUnsupported(name: string): string {
-    const entry = SUPPORT_TABLE[name];
-    if (entry === undefined) {
+    const found = lookup(name);
+    if (found === undefined) {
         return (
             `@gjsify/react-native: "${name}" is not a React Native export this layer knows about. ` +
             `If the installed react-native really exports it, the support table is out of date — ` +
             `run scripts/check-rn-surface.mjs, which compares the two.`
         );
     }
+    const { module, entry } = found;
     const where = entry.tier ? ` (tier ${entry.tier})` : '';
     const gtk = entry.gtk ? ` The GTK counterpart is ${entry.gtk}.` : '';
     switch (entry.status) {
         case 'supported':
         case 'partial':
-            return `@gjsify/react-native: "${name}" is available.`;
+            return `${module}: "${name}" is available.`;
         case 'planned':
-            return `@gjsify/react-native: "${name}" is not implemented yet${where}. ${entry.reason}${gtk}`;
+            return `${module}: "${name}" is not implemented yet${where}. ${entry.reason}${gtk}`;
         case 'refused':
-            return `@gjsify/react-native: "${name}" will not be implemented. ${entry.reason}`;
+            return `${module}: "${name}" will not be implemented. ${entry.reason}`;
         case 'no-desktop-meaning':
-            return `@gjsify/react-native: "${name}" has no meaning on a desktop window${where}. ${entry.reason}`;
+            return `${module}: "${name}" has no meaning on a desktop window${where}. ${entry.reason}`;
         case 'not-reachable':
-            return `@gjsify/react-native: "${name}" cannot be implemented in this build chain. ${entry.reason}`;
+            return `${module}: "${name}" cannot be implemented in this build chain. ${entry.reason}`;
     }
 }

@@ -7,12 +7,21 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-import { SUPPORT_TABLE, SUPPORTED_NAMES, explainUnsupported, isImportable } from './support-table.js';
+import {
+    ROUTER_NAMES,
+    ROUTER_SUPPORT_TABLE,
+    SUPPORT_TABLE,
+    SUPPORTED_NAMES,
+    explainUnsupported,
+    isImportable,
+    type SupportEntry,
+} from './support-table.js';
 // The whole package, because the invariant below is about the EXPORT SURFACE and not
 // about the table: a name cannot be both a real export and a generated refusing one.
 // It is the one vector here that needs the module graph, and it needs no display —
 // nothing in it renders.
 import * as reactNative from './index.js';
+import * as routerSurface from './router/index.js';
 import { UnsupportedError } from './unsupported.js';
 
 export default async () => {
@@ -108,6 +117,15 @@ export default async () => {
             expect(wrong).toStrictEqual([]);
         });
 
+        await it('keeps the two key sets DISJOINT', async () => {
+            // A name in both tables gives `explainUnsupported` two answers and
+            // `isImportable` whichever it looked in first — and the collision is silent,
+            // because both lookups succeed. `check-rn-surface.mjs` holds the same line
+            // from the outside, over source; this holds it over the values.
+            const both = ROUTER_NAMES.filter((name) => SUPPORTED_NAMES.includes(name));
+            expect(both).toStrictEqual([]);
+        });
+
         await it('tells a reader what to do about a name it does not know', async () => {
             const message = explainUnsupported('TotallyMadeUp');
             expect(message).toContain('TotallyMadeUp');
@@ -115,6 +133,83 @@ export default async () => {
             // the message must say which script settles that rather than leaving the
             // reader to conclude they typed it wrong.
             expect(message).toContain('check-rn-surface');
+        });
+    });
+
+    await describe('the routing surface table', async () => {
+        // The same contract as the React Native table, over the OTHER key set — and one
+        // more that only this surface can be asked, at the bottom.
+        const entryOf = (name: string): SupportEntry => ROUTER_SUPPORT_TABLE[name] as SupportEntry;
+
+        await it('gives every entry a status and a non-empty reason', async () => {
+            const bad = ROUTER_NAMES.filter((name) => {
+                const entry = ROUTER_SUPPORT_TABLE[name];
+                return entry === undefined || typeof entry.reason !== 'string' || entry.reason.trim().length === 0;
+            });
+            expect(bad).toStrictEqual([]);
+        });
+
+        await it('lists limits for every partial entry and for no other', async () => {
+            const missing = ROUTER_NAMES.filter(
+                (name) => entryOf(name).status === 'partial' && (entryOf(name).limits ?? []).length === 0,
+            );
+            const spurious = ROUTER_NAMES.filter(
+                (name) => entryOf(name).status !== 'partial' && entryOf(name).limits !== undefined,
+            );
+            expect(missing).toStrictEqual([]);
+            expect(spurious).toStrictEqual([]);
+        });
+
+        await it('schedules exactly the statuses that can be scheduled', async () => {
+            const wrongly = ROUTER_NAMES.filter((name) => {
+                const entry = entryOf(name);
+                const schedulable = entry.status !== 'refused' && entry.status !== 'not-reachable';
+                return !schedulable && entry.tier !== undefined;
+            });
+            expect(wrongly).toStrictEqual([]);
+        });
+
+        await it('names the module a reader should import the name FROM', async () => {
+            for (const name of ROUTER_NAMES) {
+                expect(explainUnsupported(name)).toContain('@gjsify/react-native/router');
+            }
+        });
+
+        await it('answers for the five names ADR 0032 measured, and says so', async () => {
+            for (const name of ['router', 'useLocalSearchParams', 'usePathname', 'Stack', 'Tabs']) {
+                expect(isImportable(name)).toBe(true);
+            }
+        });
+
+        await it('exports every name EXACTLY ONCE — real or refusing, never both', async () => {
+            // THE CONSTRAINT THIS FILE EXISTS FOR, on this surface. A name that is real
+            // AND generated resolves to whichever `export *` lost the tie, and the
+            // symptom is a working component that throws on its second use. The
+            // discriminator is behavioural: a refusing export is a Proxy that throws on
+            // ANY unknown property read (`unsupported.ts`), and a real component or
+            // object answers `undefined`.
+            const surface = routerSurface as unknown as Record<string, unknown>;
+            const refuses = (value: unknown): boolean => {
+                try {
+                    void (value as Record<string, unknown>)['__probe_that_no_export_has__'];
+                    return false;
+                } catch {
+                    return true;
+                }
+            };
+            const wrong: string[] = [];
+            for (const name of ROUTER_NAMES) {
+                const value = surface[name];
+                if (value === undefined) {
+                    wrong.push(`${name}: not exported at all`);
+                    continue;
+                }
+                const importable = isImportable(name);
+                if (importable === refuses(value)) {
+                    wrong.push(`${name}: table says ${importable ? 'importable' : 'refused'}, the export disagrees`);
+                }
+            }
+            expect(wrong).toStrictEqual([]);
         });
     });
 };

@@ -14,6 +14,10 @@
             "types": "./lib/types/solid/index.d.ts",
             "default": "./lib/esm/solid/index.js"
         },
+        "./router": {
+            "types": "./lib/types/router/index.d.ts",
+            "default": "./lib/esm/router/index.js"
+        },
         "./support-table": {
             "types": "./lib/types/support-table.d.ts",
             "default": "./lib/esm/support-table.js"
@@ -50,11 +54,19 @@
         "@gjsify/gtk-host": "workspace:^"
     },
     "peerDependencies": {
+        "@react-navigation/core": "^7.21.13",
+        "@react-navigation/routers": "^7.6.4",
         "react": "^19.2.0",
         "react-reconciler": "^0.33.0",
         "solid-js": "^1.9.0"
     },
     "peerDependenciesMeta": {
+        "@react-navigation/core": {
+            "optional": true
+        },
+        "@react-navigation/routers": {
+            "optional": true
+        },
         "react": {
             "optional": true
         },
@@ -67,6 +79,8 @@
     },
     "devDependencies": {
         "@gjsify/cli": "workspace:^",
+        "@react-navigation/core": "^7.21.13",
+        "@react-navigation/routers": "^7.6.4",
         "@gjsify/unit": "workspace:^",
         "@girs/adw-1": "^4.1.0",
         "@girs/gdk-4.0": "^4.1.0",
