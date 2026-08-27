@@ -90,7 +90,7 @@ export function renderSymbolicIcon(svg: string, options?: SymbolicIconOptions): 
     // dimmed (`fill-opacity`) inner shape, and each path's subpaths carve holes via
     // the non-zero winding rule — concatenating them into one fill destroys both.
     let drew = false;
-    for (const { d, opacity } of iconPaths) {
+    for (const { d, opacity, transform, fillRule, fill } of iconPaths) {
         // `extractIconPaths` already runs `normalizeArcFlags` over `d`; still guard
         // the native call — a path PathParser cannot tokenise THROWS a Java
         // exception, which must NOT crash the whole view (onCreateView). Skip the
@@ -102,10 +102,32 @@ export function renderSymbolicIcon(svg: string, options?: SymbolicIconOptions): 
             path = null;
         }
         if (!path) continue;
+        // Set BEFORE the transform: `Path.transform` preserves the fill type, but
+        // `createPathFromPathData` starts every path at the WINDING default — so
+        // leaving it alone filled the holes `fill-rule="evenodd"` exists to carve.
+        if (fillRule === 'evenodd') path.setFillType(gfx.Path.FillType.EVEN_ODD);
         const matrix = new gfx.Matrix();
-        matrix.setScale(scale, scale);
+        // `Matrix.setValues` is ROW-major (`[a c e; b d f; 0 0 1]`) while SVG's
+        // `matrix(a b c d e f)` is column-major, so the six numbers interleave here
+        // rather than copying across.
+        matrix.setValues([transform[0], transform[2], transform[4], transform[1], transform[3], transform[5], 0, 0, 1]);
+        // The icon's own transform FIRST, then the grid scale — the order the SVG
+        // means. A path authored at x≈684 under `translate(-680,-180)` has to come
+        // back onto the grid before the grid is scaled, not after.
+        matrix.postScale(scale, scale);
         path.transform(matrix);
-        paint.setColor(colorInt);
+        // A path that names its own fill is not symbolic: a critical battery is red
+        // whatever colour the caller asked for. `parseColor` throws on a spelling it
+        // does not know, and one unreadable fill must not cost the whole icon.
+        let pathColor = colorInt;
+        if (fill !== null) {
+            try {
+                pathColor = gfx.Color.parseColor(fill);
+            } catch {
+                pathColor = colorInt;
+            }
+        }
+        paint.setColor(pathColor);
         paint.setAlpha(Math.round(255 * opacity));
         canvas.drawPath(path, paint);
         drew = true;

@@ -7,10 +7,39 @@
 
 import { describe, expect, it } from '@gjsify/unit';
 
-// A namespace import: the package exports one const per icon, not a map.
+// Namespace imports: the package exports one const per icon, not a map.
+//
+// ALL NINE CATEGORIES, not just `actions`. This swept `actions` alone — 182 of the
+// 644 shipped icons, 28 % — while its own heading said "every shipped Adwaita
+// symbolic icon" and the guard below only asked for `> 100`. The two icons that
+// carry a `<g transform>` and the twelve that render off-grid without it are all in
+// `status` and `legacy`, so the sweep could not have seen any of them.
 import * as actionIcons from '@gjsify/adwaita-icons/actions';
+import * as categoryIcons from '@gjsify/adwaita-icons/categories';
+import * as deviceIcons from '@gjsify/adwaita-icons/devices';
+import * as emoteIcons from '@gjsify/adwaita-icons/emotes';
+import * as legacyIcons from '@gjsify/adwaita-icons/legacy';
+import * as mimetypeIcons from '@gjsify/adwaita-icons/mimetypes';
+import * as placeIcons from '@gjsify/adwaita-icons/places';
+import * as statusIcons from '@gjsify/adwaita-icons/status';
+import * as uiIcons from '@gjsify/adwaita-icons/ui';
 
-import { extractIconPaths, parseHexColor } from './widgets/icon-path.js';
+/** Every shipped icon, as `[name, svg]`. */
+const ALL_ICONS: [string, unknown][] = [
+    ['actions', actionIcons],
+    ['categories', categoryIcons],
+    ['devices', deviceIcons],
+    ['emotes', emoteIcons],
+    ['legacy', legacyIcons],
+    ['mimetypes', mimetypeIcons],
+    ['places', placeIcons],
+    ['status', statusIcons],
+    ['ui', uiIcons],
+].flatMap(([group, mod]) =>
+    Object.entries(mod as Record<string, unknown>).map(([name, svg]) => [`${group}/${name}`, svg] as [string, unknown]),
+);
+
+import { extractIconPaths, IDENTITY_TRANSFORM, parseHexColor, parseIconTransform } from './widgets/icon-path.js';
 import { parseSvgPath, type SvgPathCommand } from './widgets/svg-path.js';
 
 /** Sample a cubic Bézier at `t`. */
@@ -190,7 +219,7 @@ export default async () => {
             const problems: string[] = [];
             let icons = 0;
             let commands = 0;
-            for (const [name, svg] of Object.entries(actionIcons)) {
+            for (const [name, svg] of ALL_ICONS) {
                 if (typeof svg !== 'string' || !svg.includes('<path')) continue;
                 icons++;
                 for (const { d } of extractIconPaths(svg)) {
@@ -209,11 +238,119 @@ export default async () => {
                 }
             }
             expect(problems).toStrictEqual([]);
-            // Guard against the sweep silently becoming a no-op.
-            expect(icons > 100).toBe(true);
-            expect(commands > 1000).toBe(true);
+            // Guard against the sweep silently becoming a no-op — and against it
+            // silently narrowing again. `> 100` passed while it covered 28 % of the
+            // tree; the floor is now the count the tree actually holds, so dropping a
+            // category fails here instead of shrinking in silence.
+            expect(icons).toBeGreaterThan(600);
+            expect(commands).toBeGreaterThan(20000);
         });
     });
+    await describe('extractIconPaths carries what the renderers have to draw', async () => {
+        const svg = (body: string) => `<svg viewBox="0 0 16 16">${body}</svg>`;
+
+        await it('gives an untransformed path the identity', () => {
+            const [path] = extractIconPaths(svg('<path d="M0 0 L4 4"/>'));
+            expect(path!.transform).toStrictEqual(IDENTITY_TRANSFORM);
+        });
+
+        await it('applies an enclosing group transform — the twelve-icon defect', () => {
+            const [path] = extractIconPaths(svg('<g transform="translate(-680,-180)"><path d="M684 180"/></g>'));
+            expect(path!.transform).toStrictEqual([1, 0, 0, 1, -680, -180]);
+        });
+
+        await it('composes nested groups outermost-first', () => {
+            const [path] = extractIconPaths(
+                svg('<g transform="translate(10,0)"><g transform="scale(2)"><path d="M1 1"/></g></g>'),
+            );
+            expect(path!.transform).toStrictEqual([2, 0, 0, 2, 10, 0]);
+        });
+
+        await it('composes a path transform under its group', () => {
+            const [path] = extractIconPaths(
+                svg('<g transform="translate(10,0)"><path transform="translate(0,5)" d="M1 1"/></g>'),
+            );
+            expect(path!.transform).toStrictEqual([1, 0, 0, 1, 10, 5]);
+        });
+
+        await it('leaves a group once it closes', () => {
+            const paths = extractIconPaths(
+                svg('<g transform="translate(9,9)"><path d="M1 1"/></g><path d="M2 2"/>'),
+            );
+            expect(paths[0]!.transform).toStrictEqual([1, 0, 0, 1, 9, 9]);
+            expect(paths[1]!.transform).toStrictEqual(IDENTITY_TRANSFORM);
+        });
+
+        await it('a self-closing group opens nothing', () => {
+            const paths = extractIconPaths(svg('<g transform="translate(9,9)"/><path d="M1 1"/>'));
+            expect(paths[0]!.transform).toStrictEqual(IDENTITY_TRANSFORM);
+        });
+
+        await it('SKIPS a path under an unreadable transform rather than dropping the transform', () => {
+            // Dropping it is what drew those twelve icons off-canvas. Losing the
+            // sub-shape keeps the rest of the icon correct; silently un-transforming
+            // it puts geometry somewhere nobody asked for.
+            expect(extractIconPaths(svg('<path transform="wobble(3)" d="M1 1"/>'))).toStrictEqual([]);
+        });
+
+        await it('carries fill-rule, defaulting to nonzero', () => {
+            expect(extractIconPaths(svg('<path d="M1 1"/>'))[0]!.fillRule).toBe('nonzero');
+            expect(extractIconPaths(svg('<path fill-rule="evenodd" d="M1 1"/>'))[0]!.fillRule).toBe('evenodd');
+        });
+
+        await it('carries a literal fill and treats currentColor as the caller colour', () => {
+            expect(extractIconPaths(svg('<path fill="#ed333b" d="M1 1"/>'))[0]!.fill).toBe('#ed333b');
+            expect(extractIconPaths(svg('<path fill="currentColor" d="M1 1"/>'))[0]!.fill).toBe(null);
+            expect(extractIconPaths(svg('<path d="M1 1"/>'))[0]!.fill).toBe(null);
+        });
+
+        await it('reads a fill out of style=, where the icon generator never reached', () => {
+            const [path] = extractIconPaths(svg('<path style="fill:#2e3436;stroke:none" d="M1 1"/>'));
+            expect(path!.fill).toBe('#2e3436');
+        });
+
+        await it('lets style= win over the attribute, as CSS does', () => {
+            const [path] = extractIconPaths(svg('<path fill="#ffffff" style="fill:#000000" d="M1 1"/>'));
+            expect(path!.fill).toBe('#000000');
+        });
+    });
+
+    await describe('parseIconTransform reads the whole SVG grammar', async () => {
+        const cases: [string, number[]][] = [
+            ['matrix(1 0 0 1 -40 -620)', [1, 0, 0, 1, -40, -620]],
+            ['translate(118)', [1, 0, 0, 1, 118, 0]],
+            ['translate(-191.9899,-488)', [1, 0, 0, 1, -191.9899, -488]],
+            ['scale(2)', [2, 0, 0, 2, 0, 0]],
+            ['scale(2,3)', [2, 0, 0, 3, 0, 0]],
+            ['skewX(45)', [1, 0, 1, 1, 0, 0]],
+            ['skewY(45)', [1, 1, 0, 1, 0, 0]],
+        ];
+        for (const [input, expected] of cases) {
+            await it(`reads \`${input}\``, () => {
+                const got = parseIconTransform(input);
+                expect(got).not.toBe(null);
+                for (const [i, want] of expected.entries()) expect(got![i]!).toBeCloseTo(want, 6);
+            });
+        }
+
+        await it('rotates about a centre', () => {
+            const got = parseIconTransform('rotate(90,8,8)');
+            expect(got).not.toBe(null);
+            // (8,0) rotated 90° about (8,8) lands on (16,8).
+            const [a, b, c, d, e, f] = got!;
+            expect(a * 8 + c * 0 + e).toBeCloseTo(16, 6);
+            expect(b * 8 + d * 0 + f).toBeCloseTo(8, 6);
+        });
+
+        await it('refuses what it cannot read instead of returning identity', () => {
+            expect(parseIconTransform('wobble(3)')).toBe(null);
+            expect(parseIconTransform('translate(1,2,3)')).toBe(null);
+            expect(parseIconTransform('matrix(1 0 0 1)')).toBe(null);
+            expect(parseIconTransform('translate(nope)')).toBe(null);
+            expect(parseIconTransform('')).toBe(null);
+        });
+    });
+
     await describe('parseHexColor (UIKit has no hex constructor)', async () => {
         await it('reads the #RRGGBB form', () => {
             expect(parseHexColor('#33333A')).toStrictEqual({
