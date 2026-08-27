@@ -10,20 +10,28 @@ import {
     HEADER_BAR_TITLE_WIDGET_VECTORS,
 } from './conformance/header-bar.js';
 
+/**
+ * Dispatch one `start:a` / `end:a` vector call.
+ *
+ * ONE copy, run by the vector loop AND by the guard test below. Without the `else` a
+ * typo'd slot fell into `packEnd` and the row still asserted — a table that reads as
+ * driven while exercising the wrong method is the failure the conformance suite exists
+ * to prevent — and a guard test holding its own second copy of the dispatch would keep
+ * passing after the dispatch the vectors actually run had lost the `else`.
+ */
+const applyPackCall = (bar: HeaderBarState<string>, call: string): void => {
+    const [slot, child] = call.split(':');
+    if (slot === 'start') bar.packStart(child as string);
+    else if (slot === 'end') bar.packEnd(child as string);
+    else throw new Error(`unknown slot in pack vector call ${JSON.stringify(call)}`);
+};
+
 export default async () => {
     await describe('HeaderBarState packing', async () => {
         for (const vector of HEADER_BAR_PACK_VECTORS) {
             await it(`${vector.calls.join(', ') || '(no calls)'} — ${vector.rule}`, async () => {
                 const bar = new HeaderBarState<string>();
-                for (const call of vector.calls) {
-                    const [slot, child] = call.split(':');
-                    if (slot === 'start') bar.packStart(child as string);
-                    else if (slot === 'end') bar.packEnd(child as string);
-                    // Without this, a typo'd slot fell into `packEnd` and the row still
-                    // asserted — a table that reads as driven while exercising the wrong
-                    // method is the failure the conformance suite exists to prevent.
-                    else throw new Error(`unknown slot in pack vector call ${JSON.stringify(call)}`);
-                }
+                for (const call of vector.calls) applyPackCall(bar, call);
                 expect(bar.state.start).toStrictEqual([...vector.start]);
                 expect(bar.state.end).toStrictEqual([...vector.end]);
             });
@@ -59,14 +67,9 @@ export default async () => {
 
         await it('a pack vector naming an unknown slot fails instead of packing at the end', async () => {
             const bar = new HeaderBarState<string>();
-            expect(() => {
-                for (const call of ['strt:a']) {
-                    const [slot, child] = call.split(':');
-                    if (slot === 'start') bar.packStart(child as string);
-                    else if (slot === 'end') bar.packEnd(child as string);
-                    else throw new Error(`unknown slot in pack vector call ${JSON.stringify(call)}`);
-                }
-            }).toThrow('unknown slot');
+            expect(() => applyPackCall(bar, 'strt:a')).toThrow('unknown slot');
+            expect(bar.state.start).toStrictEqual([]);
+            expect(bar.state.end).toStrictEqual([]);
         });
 
         // libadwaita cannot reach any of the next three: pack_start/pack_end refuse a child
