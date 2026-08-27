@@ -84,6 +84,16 @@ export interface ConfigData {
      * working ANSI colors). Default: true.
      */
     consoleShim?: boolean;
+    /**
+     * React Native port mode (ADR 0032 § 2 + § 8): alias `react-native` onto
+     * `@gjsify/react-native` and gate every named import against the support
+     * table at BUILD time. `gjs` and `node` app builds. Default: false.
+     *
+     * Opt-in and never inferred from the dependency list: a monorepo with a phone
+     * leg installs the real `react-native` on purpose, and redirecting the
+     * specifier for every build in that tree would change what that leg resolves.
+     */
+    reactNative?: boolean;
     /** Comma-separated global identifiers to register. Format: see CliBuildOptions. */
     globals?: string;
     /**

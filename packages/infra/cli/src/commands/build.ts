@@ -115,6 +115,12 @@ export const buildCommand: Command<unknown, CliBuildOptions> = {
                 choices: ['silent', 'error', 'warning', 'info', 'debug', 'verbose'],
                 default: 'warning',
             })
+            .option('react-native', {
+                description:
+                    "React Native port mode: alias 'react-native' onto '@gjsify/react-native' and fail the build on an import whose ADR 0032 support-table status is not supported/partial. GJS and Node app builds.",
+                type: 'boolean',
+                default: false,
+            })
             .option('console-shim', {
                 description:
                     'Inject a console shim into GJS builds for clean output without the GLib prefix and with working ANSI colors. Use --no-console-shim to disable. Only applies to GJS app builds.',

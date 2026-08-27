@@ -44,6 +44,7 @@ import { globToEntryPoints } from '../utils/entry-points.js';
 import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
 import {
     platformResolvePlugin,
+    nativescriptSuffixChain,
     detectNativescriptPlatform,
     nativescriptPlatformDefines,
 } from '../plugins/platform-resolve.js';
@@ -168,7 +169,7 @@ export const setupForNativescript = async (input: NativescriptFactoryInput): Pro
         // Platform-specific source variants (`*.android` / `*.ios` /
         // `*.native`) win over the base file — resolved BEFORE the Node-builtin
         // alias routing so a platform fork of a portable module is honored.
-        platformResolvePlugin({ platform }),
+        platformResolvePlugin({ suffixes: nativescriptSuffixChain(platform) }),
         aliasPlugin({ entries: aliasEntries }),
         // NO blueprintPlugin — Blueprint is a GTK-specific UI DSL
         // NO cssAsStringPlugin — NS ships its own CSS pipeline via

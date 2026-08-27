@@ -27,6 +27,13 @@ export interface CliBuildOptions {
      */
     consoleShim?: boolean;
     /**
+     * React Native port mode (ADR 0032): alias `react-native` onto
+     * `@gjsify/react-native` and fail the build on an import whose support-table
+     * status is not `supported` or `partial`. `gjs` and `node` targets. Default:
+     * false — a tree with a phone leg has the real `react-native` on purpose.
+     */
+    reactNative?: boolean;
+    /**
      * Comma-separated global identifiers the code needs, e.g.
      * `"fetch,Buffer,process,URL,crypto"`. Each maps to the corresponding
      * `@gjsify/<pkg>/register` module, injected into the bundle. GJS app builds only.

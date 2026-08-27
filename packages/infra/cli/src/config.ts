@@ -297,6 +297,7 @@ export class Config {
         configData.verbose = cliArgs.verbose || cliArgs.logLevel === 'debug' || cliArgs.logLevel === 'verbose';
         configData.exclude = cliArgs.exclude || [];
         if (cliArgs.consoleShim !== undefined) configData.consoleShim = cliArgs.consoleShim;
+        if (cliArgs.reactNative !== undefined) configData.reactNative = cliArgs.reactNative;
         // Default `--app` FOLLOWS the host runtime the CLI executes in: gjs when
         // run under gjs, node when run under node/bun/deno (both consume the
         // `--app node` bundle). Applied post-merge (not as a yargs `default:`)

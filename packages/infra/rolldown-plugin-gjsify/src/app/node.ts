@@ -17,6 +17,14 @@ import { cssAsStringPlugin } from '../plugins/css-as-string.js';
 import { gjsImportsEmptyPlugin } from '../plugins/gjs-imports-empty.js';
 import { gjsGiNodePlugin, gjsBuiltinModulesNodePlugin } from '../plugins/gjs-gi-node.js';
 import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
+import {
+    platformResolvePlugin,
+    desktopSuffixChain,
+    desktopOsSuffix,
+    DESKTOP_REFUSED_SUFFIXES,
+} from '../plugins/platform-resolve.js';
+import { reactNativeAliasPlugin } from '../plugins/react-native-alias.js';
+import { reactNativeSupportGatePlugin } from '../plugins/react-native-gate.js';
 import { wrapInputWithSideEffects } from '../utils/entry-wrapper.js';
 
 /**
@@ -331,6 +339,10 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
     // Reflection reads the ORIGINAL TypeScript, so it runs before any user
     // transform can strip the annotations out from under it (see `GjsifyConfig`).
     const prePlugins: RolldownPluginOption[] = [deepkitPlugin({ reflection: input.pluginOptions.reflection })];
+    // ADR 0032 § 8's build-time gate reads the ORIGINAL source for the same reason
+    // reflection does: `import type { ViewProps }` is what tells it a name costs
+    // nothing, and a normal-order transform may already have stripped it.
+    if (input.pluginOptions.reactNative) prePlugins.push(reactNativeSupportGatePlugin());
 
     const plugins: RolldownPluginOption[] = [
         // Virtual-entry plugin runs FIRST so its resolveId/load match the synthetic
@@ -359,6 +371,22 @@ export const setupForNode = async (input: NodeFactoryInput): Promise<NodeBuildCo
         //     `requireGi('Adw','1')` with no lowercased-pkg→namespace map needed.
         //     This plugin's own `gi://` branch is dead on the node target.
         gjsImportsEmptyPlugin({ emptyGirs: !gjsSourceBuild }),
+        // Platform-file forks for the desktop, ADR 0032 § 9: `.gtk` → `.<os>` →
+        // `.desktop` → base. BEFORE the alias layer, so a platform fork of a
+        // module that also has a Node-builtin substitution wins over the
+        // substitution — the fork is the more specific statement. `.native` and
+        // `.web` are deliberately absent from the chain and warned about when
+        // present; `DESKTOP_REFUSED_SUFFIXES` carries the reason.
+        platformResolvePlugin({
+            suffixes: desktopSuffixChain(desktopOsSuffix()),
+            refusedSuffixes: DESKTOP_REFUSED_SUFFIXES,
+            siblingIndex: true,
+        }),
+        // ADR 0032 § 2's alias line, only when the consumer asked for it
+        // (`--react-native`). `pre`, ahead of the substitution table and the
+        // externals policy — a redirect after `externalsPlugin` would find the
+        // specifier already externalised.
+        ...(input.pluginOptions.reactNative ? [reactNativeAliasPlugin()] : []),
         aliasPlugin({ entries: aliasEntries }),
         // Blueprint (.blp → XML string): the reverse bridge runs REAL GTK on Node,
         // so a GJS app entry with composite-template windows must build for
