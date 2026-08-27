@@ -9,7 +9,7 @@
 import { describe, it, expect } from '@gjsify/unit';
 
 import { BreakpointBinState } from './breakpoint-bin.js';
-import type { BreakpointSetter } from './breakpoint-bin.js';
+import type { BreakpointDefinition, BreakpointSetter } from './breakpoint-bin.js';
 import { BREAKPOINT_PICK_VECTORS, BREAKPOINT_TRANSITION_VECTORS } from './conformance/breakpoint-bin.js';
 
 /** `[object, property, value]` triples into setters whose original is `orig:<object>.<property>`. */
@@ -75,7 +75,7 @@ export default async () => {
         });
     });
 
-    await describe('BreakpointBinState child and reset', async () => {
+    await describe('BreakpointBinState child and inheritance', async () => {
         await it('a childless bin keeps the breakpoint it had', async () => {
             const bin = new BreakpointBinState<string>();
             bin.add({ condition: 'max-width: 720sp', setters: [] });
@@ -95,16 +95,54 @@ export default async () => {
             expect(bin.evaluate({ width: 900, height: 600 })?.to).toBe(null);
         });
 
-        await it('reset drops the applied breakpoint without producing writes', async () => {
+        // The paid-for bug, at bin level: a renderer that REBUILDS the bin on reconnect
+        // (the browser rebinds its ResizeObserver after a re-parent) loses which breakpoint
+        // was applied. `evaluate` fires on a change only, so the 900px pass that should
+        // leave the breakpoint matches the fresh bin's own "none applied" starting state
+        // and writes nothing. Measured on `AdwBreakpoint`: 800 → 500 → 900 stayed collapsed
+        // at 900. The three sizes are the sequence, not a round number.
+        await it('a rebuilt bin that inherits the pick still restores on the way out', async () => {
+            const definition: BreakpointDefinition<string> = {
+                condition: 'max-width: 720sp',
+                setters: setters([['view', 'collapsed', 'true']]),
+            };
+
+            const first = new BreakpointBinState<string>();
+            first.add(definition);
+            expect(first.evaluate({ width: 800, height: 600 })).toBe(null);
+            expect(first.evaluate({ width: 500, height: 600 })?.writes.map(spell)).toStrictEqual([
+                'view.collapsed=true',
+            ]);
+
+            // The element reconnects: same definitions, a brand-new bin.
+            const rebuilt = new BreakpointBinState<string>();
+            rebuilt.add(definition);
+            rebuilt.inherit(first.current);
+
+            const widened = rebuilt.evaluate({ width: 900, height: 600 });
+            expect(widened?.from).toBe(0);
+            expect(widened?.to).toBe(null);
+            expect(widened?.writes.map(spell)).toStrictEqual(['view.collapsed=orig:view.collapsed']);
+        });
+
+        await it('inherit(null) starts with none applied, so the next evaluation enters', async () => {
             const bin = new BreakpointBinState<string>();
             bin.add({ condition: 'max-width: 720sp', setters: setters([['view', 'collapsed', 'true']]) });
             bin.evaluate({ width: 500, height: 600 });
-            bin.reset();
+            bin.inherit(null);
             expect(bin.current).toBe(null);
-            // The next evaluation is a first evaluation: it enters, it does not transition out.
             const again = bin.evaluate({ width: 500, height: 600 });
             expect(again?.from).toBe(null);
             expect(again?.to).toBe(0);
+        });
+
+        await it('inherit throws on an index this bin does not have', async () => {
+            const bin = new BreakpointBinState<string>();
+            bin.add({ condition: 'max-width: 720sp', setters: [] });
+            expect(() => bin.inherit(1)).toThrow();
+            // Loud beats quiet here: a swallowed stale index is the restore that never
+            // happens, which is the bug `inherit` exists to prevent.
+            expect(bin.current).toBe(null);
         });
     });
 };

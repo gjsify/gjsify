@@ -3,28 +3,40 @@
 // `AdwBreakpoint` (`./breakpoint.ts`) answers "does this condition hold" for ONE
 // breakpoint, independently of every other. The BIN is the part that was missing: it
 // owns a list of them, picks at most one, and works out what to write when the pick
-// changes. Three rules in it are not guessable, and all three come from the C source.
+// changes. Four rules in it are not guessable, and all four come from the C source.
 //
 //   1. **The last matching breakpoint added wins**, not the narrowest and not the best
 //      fit. `adw_breakpoint_bin_size_allocate` iterates the array backwards and takes
 //      the first match: "Iterate in reverse order since we prioritize breakpoints added
-//      last" (adw-breakpoint-bin.c:432). `./breakpoint.ts` describes this as "the best
+//      last" (adw-breakpoint-bin.c:432). `./breakpoint.ts` described this as "the best
 //      match", which is the intuitive reading and the wrong one.
 //   2. **A property both breakpoints set is never restored in between.**
 //      `adw_breakpoint_transition` skips a setter the incoming breakpoint also carries:
 //      "Don't unset the property if we'll immediately set it again afterwards"
 //      (adw-breakpoint.c:1799). Restoring it first would put the widget through a state
-//      neither breakpoint describes, once per resize across the boundary.
+//      neither breakpoint describes, once per resize across the boundary. The skip keys
+//      on OBJECT and property together (`setter_equal`, adw-breakpoint.c:1060), so the
+//      same property on a second widget is still restored.
 //   3. **The original value is captured when the setter is REGISTERED**, not when the
 //      breakpoint applies (`g_object_get_property` at adw-breakpoint.c:1627). A property
 //      changed by other code after registration is therefore restored to what it held at
 //      registration, which is surprising until you need it: it makes unapply the exact
 //      inverse of apply rather than a diff against a moving target.
+//   4. **Unapply is signalled BEFORE the writes, apply AFTER them.**
+//      `adw_breakpoint_transition` emits the outgoing breakpoint's `unapply`
+//      (adw-breakpoint.c:1793), then restores, then sets, then emits the incoming one's
+//      `apply` (:1819) — so a callback on either end sees the properties in the state its
+//      own breakpoint describes, never the other one's.
 //
 // The size SOURCE stays with the renderer, as it does for `AdwBreakpoint`. What this
 // module never does is write anything: `evaluate` returns the writes and the renderer
 // performs them, because a headless module has no property setter and should not pretend
 // to.
+//
+// One method has no C counterpart at all — `BreakpointBinState.inherit`, which seeds
+// the applied breakpoint. A GTK bin is never rebuilt; a browser element is, on every
+// reconnect, and a bin that restarts at "none applied" silently keeps the properties the
+// bin it replaced had set. Its docblock carries the measurement.
 //
 // Reference: refs/libadwaita/src/adw-breakpoint-bin.c
 // Reference: refs/libadwaita/src/adw-breakpoint.c (adw_breakpoint_transition)
@@ -61,7 +73,15 @@ export interface BreakpointWrite<O> {
     readonly value: unknown;
 }
 
-/** What changes when the applied breakpoint changes. */
+/**
+ * What changes when the applied breakpoint changes.
+ *
+ * `Adw.Breakpoint`'s apply/unapply signals have no field here, because the bin holds
+ * condition strings and setter DATA — never an `AdwBreakpoint` (`./breakpoint.ts`), whose
+ * callbacks it therefore cannot run. {@link from} and {@link to} are how a renderer that
+ * has callbacks gets the ORDER right, and rule 4 above is what that order is: the
+ * outgoing breakpoint's unapply, then {@link writes}, then the incoming one's apply.
+ */
 export interface BreakpointTransition<O> {
     /** Index of the breakpoint being left, or null when none was applied. */
     readonly from: number | null;
@@ -166,14 +186,40 @@ export class BreakpointBinState<O> {
     }
 
     /**
-     * Drop the applied breakpoint without producing writes.
+     * Take over the applied breakpoint from the bin this one REPLACES, or `null` to start
+     * with none applied.
      *
-     * For a renderer rebuilding the bin: the widget is going away, so restoring
-     * properties on it is pointless, and the next `evaluate` should behave as a first
-     * evaluation rather than transition out of a breakpoint nothing is applying.
+     * No `Adw.BreakpointBin` counterpart, because a GTK bin is never rebuilt — the widget
+     * outlives every resize. A browser element rebinds on every `connectedCallback`, and
+     * {@link evaluate} fires on a CHANGE only, so a fresh bin that starts at "none
+     * applied" reads the size that LEFT the old breakpoint's range as no change at all,
+     * produces no writes, and leaves the widget holding what the old bin set. This is the
+     * seed `AdwBreakpoint`'s `applied` parameter carries (`./breakpoint.ts`), one level
+     * up, and it was paid for once already: a `<adw-navigation-split-view>` driven
+     * 800px → 500px → 900px stayed collapsed at 900px, and only a narrow → wide cycle IN
+     * PLACE healed it.
+     *
+     * Call it after {@link add}, and read each setter's `originalValue` BEFORE the old bin
+     * applied anything: the restore this enables writes the NEW definitions' originals, so
+     * an original read off a widget the outgoing breakpoint has already changed restores
+     * it to the applied value, which is no restore at all.
+     *
+     * Throws on an index this bin does not have rather than quietly applying nothing — a
+     * stale index means the caller's breakpoint list moved, and the restore it would skip
+     * is the whole bug this method exists to prevent.
      */
-    reset(): void {
-        this._current = null;
+    inherit(current: number | null): void {
+        if (current === null) {
+            this._current = null;
+            return;
+        }
+        const breakpoint = this._breakpoints[current];
+        if (!breakpoint) {
+            throw new RangeError(
+                `BreakpointBinState.inherit: no breakpoint at index ${current}; ${this._breakpoints.length} added.`,
+            );
+        }
+        this._current = breakpoint;
     }
 }
 
