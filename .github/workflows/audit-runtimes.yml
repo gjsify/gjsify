@@ -400,8 +400,10 @@ jobs:
       # name its coverage or be a ledgered GAP, fails a marker whose table has since
       # gained a driver, and holds every adwaita-core MODULE — not just every table —
       # to having a conformance file or a ledgered reason. "Driven" is a name used
-      # OUTSIDE a comment in a `*.spec.ts`: the second version read comments too, so a
-      # comment claiming coverage supplied its own evidence.
+      # OUTSIDE a comment in a `*.spec.ts` that RUNS: the second version read comments
+      # too, so a comment claiming coverage supplied its own evidence, and the third
+      # counted any spec naming the table — including one no `run({…})` registers, which
+      # executes nowhere (#1365).
       - name: Check every conformance table is driven and every reason is true
         run: node scripts/check-adwaita-conformance-drivers.mjs
 
@@ -890,8 +892,10 @@ jobs:
       # name its coverage or be a ledgered GAP, fails a marker whose table has since
       # gained a driver, and holds every adwaita-core MODULE — not just every table —
       # to having a conformance file or a ledgered reason. "Driven" is a name used
-      # OUTSIDE a comment in a `*.spec.ts`: the second version read comments too, so a
-      # comment claiming coverage supplied its own evidence.
+      # OUTSIDE a comment in a `*.spec.ts` that RUNS: the second version read comments
+      # too, so a comment claiming coverage supplied its own evidence, and the third
+      # counted any spec naming the table — including one no `run({…})` registers, which
+      # executes nowhere (#1365).
       - name: Check every conformance table is driven and every reason is true
         run: node scripts/check-adwaita-conformance-drivers.mjs
 
