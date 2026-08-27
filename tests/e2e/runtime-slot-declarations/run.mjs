@@ -199,10 +199,14 @@ describe('a malformed declaration is reported once, as malformed', () => {
         assert.deepEqual(suppressed.drifted, []);
         assert.deepEqual(suppressed.missing, []);
 
-        // The control: WITHOUT the suppression the same row drifts on every slot the
-        // comparison has an opinion about, which is the four extra lines this exists to
-        // keep out of the failure report.
-        assert.equal(diffDeclared([malformed]).drifted.length, 1);
+        // The control: WITHOUT the suppression the same row is ALSO reported as drift —
+        // on the three slots the comparison still has an opinion about, in a block that
+        // names none of them as the actual problem. The slot list is pinned, not just the
+        // count: `suggested` here declares four, and a comparison that stopped exempting
+        // `nativescript` would still report "1 drifted".
+        const unsuppressed = diffDeclared([malformed]);
+        assert.equal(unsuppressed.drifted.length, 1);
+        assert.deepEqual(unsuppressed.drifted[0].mismatches, ['gjs', 'node', 'browser']);
     });
 
     it('still drifts a WELL-FORMED declaration that disagrees with the signals', () => {
@@ -225,7 +229,7 @@ describe('the reachability pass covers every target the resolver routes', () => 
         for (const target of REACH_FATAL_TARGETS) {
             assert.ok(REACH_TARGETS.includes(target), `${target} is fatal but never audited`);
         }
-        // The non-fatal branch prints a Node-specific explanation (`gjs://` routes to the
+        // The non-fatal branch prints a Node-specific explanation (`gi://` routes to the
         // external `@gjsify/node-gi`), so a second non-fatal target would be described
         // wrongly. A 6th slot must land in one list or the other deliberately.
         assert.deepEqual(
