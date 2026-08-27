@@ -1,6 +1,6 @@
 ---
 title: Boxed Lists
-description: "Adwaita boxed-list rows: preferences group, action, switch, entry, combo, spin, expander and button. Live preview plus the code for GJS, Blueprint, the web and NativeScript."
+description: "Adwaita boxed-list rows: preferences group, action, switch, entry, combo, spin, expander and button. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
@@ -10,16 +10,18 @@ of related rows gathered into one rounded card. The card is a **preferences
 group**, and each row is a small self-contained control (a toggle, a text field,
 a drop-down, a button).
 
-Each preview below is the live web component, so it follows the light and dark
-toggle the way a real window would. Under it, the tabs give you the same widget
-four ways: `@girs` TypeScript (one program, running on GJS, Node, Bun and Deno),
-the matching Blueprint declaration, the web port and the NativeScript port.
+Each block below is a stack of windows. The first one RUNS the widget: the preview
+is the live browser port, so it follows the light and dark toggle the way a real
+window would, and the tab under it holds the very markup that paints it. Then comes
+one window per kind of implementation — **Vanilla TypeScript**, the `@girs` program
+that runs unchanged on GJS, Node, Bun and Deno, with the matching Blueprint
+declaration beside it, and **NativeScript**, the port that runs on a phone.
 
 Libadwaita is the reference here, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
 [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
 and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
-follow its naming, and where one of them differs, its tab says so.
+follow its naming, and where one of them differs, its own window says so.
 
 :::note
 The previews run the browser port, so behaviour Libadwaita drives natively (an
@@ -36,12 +38,14 @@ preferences page.
 
 <AdwWidget title="Adw.PreferencesGroup">
   <Fragment slot="preview">
+    ```html
     <adw-preferences-group title="Account" description="Manage how this device signs in and syncs.">
-      <button data-adw-slot="header-suffix" class="adw-button flat">Sign out</button>
+      <button slot="header-suffix" class="adw-button flat">Sign out</button>
       <adw-entry-row title="Display name" text="Grace Hopper"></adw-entry-row>
       <adw-switch-row title="Sync over Wi-Fi only" subtitle="Avoid using mobile data for backups" active></adw-switch-row>
       <adw-combo-row title="Region" items='["Europe","Americas","Asia","Oceania"]' selected="0"></adw-combo-row>
     </adw-preferences-group>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -98,19 +102,6 @@ preferences page.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <!-- import '@gjsify/adwaita-web' once to register the elements -->
-    <adw-preferences-group
-        title="Account"
-        description="Manage how this device signs in and syncs."
-    >
-        <button slot="header-suffix" class="adw-button flat">Sign out</button>
-        <adw-entry-row title="Display name" text="Grace Hopper"></adw-entry-row>
-        <adw-switch-row title="Sync over Wi-Fi only" active></adw-switch-row>
-    </adw-preferences-group>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwPreferencesGroup, AdwEntryRow, AdwSwitchRow } from '@gjsify/adwaita-nativescript';
@@ -141,12 +132,14 @@ row responds to a click, which is how you open a detail page.
 
 <AdwWidget title="Adw.ActionRow">
   <Fragment slot="preview">
+    ```html
     <adw-preferences-group>
       <adw-action-row title="Wi-Fi" subtitle="Connected to Highgarden 5GHz" activatable>
-        <span data-adw-slot="prefix" class="adw-icon adw-icon--network-wireless"></span>
-        <adw-button data-adw-slot="suffix" icon="go-next" flat></adw-button>
+        <span slot="prefix" class="adw-icon adw-icon--network-wireless"></span>
+        <adw-button slot="suffix" icon="go-next" flat></adw-button>
       </adw-action-row>
     </adw-preferences-group>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -192,14 +185,6 @@ row responds to a click, which is how you open a detail page.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-action-row title="Wi-Fi" subtitle="Connected to Highgarden 5GHz" activatable>
-        <span slot="prefix" class="adw-icon adw-icon--network-wireless"></span>
-        <adw-button slot="suffix" icon="go-next" flat></adw-button>
-    </adw-action-row>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwActionRow, AdwIcon } from '@gjsify/adwaita-nativescript';
@@ -228,9 +213,11 @@ the row you will use most in a preferences page.
 
 <AdwWidget title="Adw.SwitchRow">
   <Fragment slot="preview">
+    ```html
     <adw-preferences-group>
       <adw-switch-row title="Automatic updates" subtitle="Download and install updates without asking" active></adw-switch-row>
     </adw-preferences-group>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -257,15 +244,6 @@ the row you will use most in a preferences page.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-switch-row
-        title="Automatic updates"
-        subtitle="Download and install updates without asking"
-        active
-    ></adw-switch-row>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwSwitchRow } from '@gjsify/adwaita-nativescript';
@@ -287,9 +265,11 @@ user types.
 
 <AdwWidget title="Adw.EntryRow">
   <Fragment slot="preview">
+    ```html
     <adw-preferences-group>
       <adw-entry-row title="Display name" text="Ada Lovelace"></adw-entry-row>
     </adw-preferences-group>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -315,11 +295,6 @@ user types.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-entry-row title="Display name" text="Ada Lovelace"></adw-entry-row>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwEntryRow } from '@gjsify/adwaita-nativescript';
@@ -338,9 +313,11 @@ to reveal it. Use it anywhere a password or key is edited inline.
 
 <AdwWidget title="Adw.PasswordEntryRow">
   <Fragment slot="preview">
+    ```html
     <adw-preferences-group>
       <adw-password-entry-row title="Password" text="correct-horse-battery"></adw-password-entry-row>
     </adw-preferences-group>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -365,11 +342,6 @@ to reveal it. Use it anywhere a password or key is edited inline.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-password-entry-row title="Password" text="correct-horse-battery"></adw-password-entry-row>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwPasswordEntryRow } from '@gjsify/adwaita-nativescript';
@@ -388,6 +360,7 @@ selection is an index into the model you gave it, not the string itself.
 
 <AdwWidget title="Adw.ComboRow">
   <Fragment slot="preview">
+    ```html
     <adw-preferences-group>
       <adw-combo-row
         title="Accent colour"
@@ -396,6 +369,7 @@ selection is an index into the model you gave it, not the string itself.
         selected="1"
       ></adw-combo-row>
     </adw-preferences-group>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -428,16 +402,6 @@ selection is an index into the model you gave it, not the string itself.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-combo-row
-        title="Accent colour"
-        subtitle="Used to highlight selected items"
-        items='["Blue","Teal","Green","Orange","Purple"]'
-        selected="1"
-    ></adw-combo-row>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwComboRow } from '@gjsify/adwaita-nativescript';
@@ -459,9 +423,11 @@ size or a count.
 
 <AdwWidget title="Adw.SpinRow">
   <Fragment slot="preview">
+    ```html
     <adw-preferences-group>
       <adw-spin-row title="Font size" min="0" max="100" value="16" step="1"></adw-spin-row>
     </adw-preferences-group>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -494,11 +460,6 @@ size or a count.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-spin-row title="Font size" min="0" max="100" value="16" step="1"></adw-spin-row>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwSpinRow } from '@gjsify/adwaita-nativescript';
@@ -521,12 +482,14 @@ whole section.
 
 <AdwWidget title="Adw.ExpanderRow">
   <Fragment slot="preview">
+    ```html
     <adw-preferences-group>
       <adw-expander-row title="Proxy settings" subtitle="Route traffic through a custom proxy" expanded>
         <adw-entry-row title="Host" text="proxy.example.com"></adw-entry-row>
         <adw-switch-row title="Use authentication"></adw-switch-row>
       </adw-expander-row>
     </adw-preferences-group>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -565,14 +528,6 @@ whole section.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-expander-row title="Proxy settings" subtitle="Route traffic through a custom proxy" expanded>
-        <adw-entry-row title="Host" text="proxy.example.com"></adw-entry-row>
-        <adw-switch-row title="Use authentication"></adw-switch-row>
-    </adw-expander-row>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwExpanderRow, AdwEntryRow, AdwSwitchRow } from '@gjsify/adwaita-nativescript';
@@ -602,9 +557,11 @@ Adwaita style classes (`.suggested-action`, `.destructive-action`).
 
 <AdwWidget title="Adw.ButtonRow">
   <Fragment slot="preview">
+    ```html
     <adw-preferences-group>
       <adw-button-row title="Add account" start-icon-name="list-add" class="suggested-action"></adw-button-row>
     </adw-preferences-group>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -630,15 +587,6 @@ Adwaita style classes (`.suggested-action`, `.destructive-action`).
         styles ["suggested-action"]
       }
     }
-    ```
-  </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-button-row
-        title="Add account"
-        start-icon-name="list-add"
-        class="suggested-action"
-    ></adw-button-row>
     ```
   </Fragment>
   <Fragment slot="nativescript">

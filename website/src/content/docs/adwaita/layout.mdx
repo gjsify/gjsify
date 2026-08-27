@@ -1,6 +1,6 @@
 ---
 title: Layout
-description: "Adwaita layout containers: Clamp, HeaderBar, ToolbarView and WrapBox. Live preview plus the code for GJS, Blueprint, React Native on GTK, the web and NativeScript."
+description: "Adwaita layout containers: Clamp, HeaderBar, ToolbarView and WrapBox. A live preview with its markup, plus the TypeScript, Blueprint, React Native on GTK and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
@@ -11,22 +11,23 @@ view** to frame content between fixed bars, and a **wrap box** to let a run of
 children flow onto new lines. None of them hold data: they position what you put
 inside and adapt as the space around them changes.
 
-Each preview below is the live web component, so it follows the light and dark
-toggle the way a real window would. Under it, the tabs give you the same widget
-in every target that can express it. Four of them are on all four widgets here:
-`@girs` TypeScript (one program, running on GJS, Node, Bun and Deno), the
-matching Blueprint declaration, the web port and the NativeScript port.
+Each block below is a stack of windows. The first one RUNS the widget: the preview
+is the live browser port, so it follows the light and dark toggle the way a real
+window would, and the tab under it holds the very markup that paints it. Then comes
+one window per kind of implementation, for every kind that can express this widget.
+Two are on all four widgets here — **Vanilla TypeScript**, the `@girs` program that
+runs unchanged on GJS, Node, Bun and Deno, with the matching Blueprint declaration
+beside it, and **NativeScript**, the port that runs on a phone.
 
-The clamp, the header bar and the toolbar view carry a fifth, **React Native on
-GTK**: the same widget written with
-[`@gjsify/react-native`](/gjsify/frameworks/react-native/) primitives inside it.
-The wrap box does not, because
+The clamp, the header bar and the toolbar view carry a third, **UI frameworks**: the
+same widget written with [`@gjsify/react-native`](/gjsify/frameworks/react-native/)
+primitives inside it. The wrap box does not, because
 [`@gjsify/gtk-host`](https://github.com/gjsify/gjsify/tree/main/packages/framework/gtk-host)
-has no child policy for `AdwWrapBox` yet, and a renderer that guessed one would
-call `add`, `append` or `set_child` and be wrong at exit 0. That tab renders a
-GTK window, not a phone screen — the [React Native
-page](/gjsify/frameworks/react-native/#adwaita-widgets) says what does and does
-not exist there.
+has no child policy for `AdwWrapBox` yet, and a renderer that guessed one would call
+`add`, `append` or `set_child` and be wrong at exit 0. That window renders a GTK window,
+not a phone screen — which is why it is not the NativeScript one, and the [React Native
+page](/gjsify/frameworks/react-native/#adwaita-widgets) says what does and does not
+exist there.
 
 Two of those three style with `className`, and both configure their token scales
 on the way in. That line is not decoration: the values behind a class name come
@@ -39,7 +40,7 @@ Libadwaita is the reference here, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
 [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
 and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
-follow its naming, and where one of them differs, its tab says so.
+follow its naming, and where one of them differs, its own window says so.
 
 :::note
 The previews run the browser port, so behaviour Libadwaita drives natively (a
@@ -56,11 +57,13 @@ at a comfortable measure on a large display without wasting room on a small one.
 
 <AdwWidget title="Adw.Clamp">
   <Fragment slot="preview">
+    ```html
     <adw-clamp maximum-size="400">
       <adw-card style="width: 100%; box-sizing: border-box; padding: 18px;">
         This content is clamped: it stops growing past the maximum size and stays centred.
       </adw-card>
     </adw-clamp>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -129,16 +132,6 @@ at a comfortable measure on a large display without wasting room on a small one.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <!-- import '@gjsify/adwaita-web' once to register the elements -->
-    <adw-clamp maximum-size="400">
-        <adw-card style="width: 100%; box-sizing: border-box; padding: 18px;">
-            This content is clamped: it stops growing past the maximum size and stays centred.
-        </adw-card>
-    </adw-clamp>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwButtonContent, AdwClamp } from '@gjsify/adwaita-nativescript';
@@ -162,11 +155,13 @@ the trailing one.
 
 <AdwWidget title="Adw.HeaderBar">
   <Fragment slot="preview">
+    ```html
     <adw-header-bar style="width: 100%;">
-      <adw-button data-adw-slot="start" icon="go-previous" flat></adw-button>
-      <adw-window-title data-adw-slot="center" title="Text Editor" subtitle="notes.md"></adw-window-title>
-      <adw-button data-adw-slot="end" icon="open-menu" flat></adw-button>
+      <adw-button slot="start" icon="go-previous" flat></adw-button>
+      <adw-window-title slot="center" title="Text Editor" subtitle="notes.md"></adw-window-title>
+      <adw-button slot="end" icon="open-menu" flat></adw-button>
     </adw-header-bar>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -239,15 +234,6 @@ the trailing one.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-header-bar style="width: 100%;">
-        <adw-button slot="start" icon="go-previous" flat></adw-button>
-        <adw-window-title slot="center" title="Text Editor" subtitle="notes.md"></adw-window-title>
-        <adw-button slot="end" icon="open-menu" flat></adw-button>
-    </adw-header-bar>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwButton, AdwHeaderBar, AdwWindowTitle } from '@gjsify/adwaita-nativescript';
@@ -279,26 +265,26 @@ bar above and an action bar below. Each set of bars reveals and hides
 independently, and the content scrolls underneath, so the chrome stays put while
 the view moves.
 
-<AdwWidget title="Adw.ToolbarView" padding="flush">
+{/* `width: 100%` on the stage because it is a flex row: without it the stage is
+    shrink-to-fit, so the toolbar view came out as wide as its widest bar and
+    floated inside a panel whose `flush` padding exists to let it sit edge to
+    edge. Every other fixed-height preview on these pages sets it too. */}
+<AdwWidget title="Adw.ToolbarView" padding="flush" stage="height: 300px; width: 100%; display: flex;">
   <Fragment slot="preview">
-    {/* `width: 100%` because the stage is a flex row: without it this wrapper is
-        shrink-to-fit, so the toolbar view came out as wide as its widest bar and
-        floated inside a panel whose `flush` padding exists to let it sit edge to
-        edge. Every other fixed-height preview on these pages already sets it. */}
-    <div style="height: 300px; width: 100%; display: flex;">
-      <adw-toolbar-view style="flex: 1;">
-        <adw-header-bar data-adw-slot="top">
-          <adw-window-title data-adw-slot="center" title="Documents" subtitle="12 items"></adw-window-title>
-        </adw-header-bar>
-        <adw-status-page icon="folder-documents" title="Your library" description="Content sits between the toolbars and scrolls independently of them."></adw-status-page>
-        <div data-adw-slot="bottom" class="toolbar" style="border-top: 1px solid var(--separator-color, rgba(0, 0, 0, 0.15));">
-          <adw-button icon="list-add" flat tooltip="Add"></adw-button>
-          <adw-button icon="list-remove" flat tooltip="Remove"></adw-button>
-          <span style="flex: 1 1 auto; text-align: center;">Selection: none</span>
-          <adw-button icon="send-to" flat tooltip="Share"></adw-button>
-        </div>
-      </adw-toolbar-view>
-    </div>
+    ```html
+    <adw-toolbar-view style="flex: 1;">
+      <adw-header-bar slot="top">
+        <adw-window-title slot="center" title="Documents" subtitle="12 items"></adw-window-title>
+      </adw-header-bar>
+      <adw-status-page icon="folder-documents" title="Your library" description="Content sits between the toolbars and scrolls independently of them."></adw-status-page>
+      <div slot="bottom" class="toolbar" style="border-top: 1px solid var(--separator-color, rgba(0, 0, 0, 0.15));">
+        <adw-button icon="list-add" flat tooltip="Add"></adw-button>
+        <adw-button icon="list-remove" flat tooltip="Remove"></adw-button>
+        <span style="flex: 1 1 auto; text-align: center;">Selection: none</span>
+        <adw-button icon="send-to" flat tooltip="Share"></adw-button>
+      </div>
+    </adw-toolbar-view>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -430,26 +416,6 @@ the view moves.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-toolbar-view style="flex: 1;">
-        <adw-header-bar slot="top">
-            <adw-window-title slot="center" title="Documents" subtitle="12 items"></adw-window-title>
-        </adw-header-bar>
-        <adw-status-page
-            icon="folder-documents"
-            title="Your library"
-            description="Content sits between the toolbars and scrolls independently of them."
-        ></adw-status-page>
-        <div slot="bottom" class="toolbar" style="border-top: 1px solid var(--separator-color, rgba(0, 0, 0, 0.15));">
-            <adw-button icon="list-add" flat tooltip="Add"></adw-button>
-            <adw-button icon="list-remove" flat tooltip="Remove"></adw-button>
-            <span style="flex: 1 1 auto; text-align: center;">Selection: none</span>
-            <adw-button icon="send-to" flat tooltip="Share"></adw-button>
-        </div>
-    </adw-toolbar-view>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import {
@@ -509,6 +475,7 @@ chips or filter pills. **Child spacing** sets the gap between items on a line,
 
 <AdwWidget title="Adw.WrapBox">
   <Fragment slot="preview">
+    ```html
     <adw-wrap-box child-spacing="8" line-spacing="8">
       <adw-button label="Design" pill></adw-button>
       <adw-button label="Adwaita" pill></adw-button>
@@ -519,6 +486,7 @@ chips or filter pills. **Child spacing** sets the gap between items on a line,
       <adw-button label="Wrapping" pill></adw-button>
       <adw-button label="Layout" pill></adw-button>
     </adw-wrap-box>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -592,20 +560,6 @@ chips or filter pills. **Child spacing** sets the gap between items on a line,
         styles ["pill"]
       }
     }
-    ```
-  </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-wrap-box child-spacing="8" line-spacing="8">
-        <adw-button label="Design" pill></adw-button>
-        <adw-button label="Adwaita" pill></adw-button>
-        <adw-button label="GNOME" pill></adw-button>
-        <adw-button label="GTK" pill></adw-button>
-        <adw-button label="Typescript" pill></adw-button>
-        <adw-button label="Storybook" pill></adw-button>
-        <adw-button label="Wrapping" pill></adw-button>
-        <adw-button label="Layout" pill></adw-button>
-    </adw-wrap-box>
     ```
   </Fragment>
   <Fragment slot="nativescript">

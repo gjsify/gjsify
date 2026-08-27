@@ -35,12 +35,29 @@
 //      misspelled port is a snippet that is written, reviewed, committed and shown to
 //      nobody. Arms 1-4 cannot see it: the block has a title, the title has a meta,
 //      and the page is in the sidebar.
-//   6. Every port in `AdwWidget`'s `IMPLS` is provided by at least one block. The
-//      component renders a tab only for a slot a page actually gave it, so an entry
-//      nothing provides renders nowhere — a port declared to every reader of the
+//   6. Every port in `AdwWidget`'s {@link WINDOWS} is provided by at least one block.
+//      The component renders a tab only for a slot a page actually gave it, so an
+//      entry nothing provides renders nowhere — a port declared to every reader of the
 //      component and shipped to none of them. The two arms are each other's inverse:
 //      5 refuses a page naming a port the component has not got, 6 refuses a component
 //      naming a port no page has got.
+//   7. Every WINDOW has at least one tab, and at least one tab some block provides. A
+//      window is a header bar, a title and a subtitle around its tabs; declared with an
+//      empty `tabs` list it renders that chrome over nothing, on all 40 blocks, and arm
+//      6 cannot see it because there is no slot to be unprovided. Same class as 6, one
+//      level up — the level the restructure added.
+//   8. Every block providing the MARKUP OVERRIDE is ledgered in
+//      {@link MARKUP_OVERRIDE_LEDGER} with its reason, and every ledger entry names a
+//      block that provides it.
+//
+//      This is the arm that keeps the preview/markup unification honest. A block's
+//      `preview` fence is BOTH what mounts and what is shown, so for 39 of 40 blocks
+//      there is no second copy to drift. The override is the exception, and an
+//      exception nothing counts is how the rule was lost the first time: the `web`
+//      fence used to stand beside every preview saying the same thing, and measured
+//      across the 40 blocks 17 were byte-identical and 23 had already diverged, with
+//      nothing checking either way. One policed copy, named and reasoned, is the price
+//      of the widget whose API is imperative; a second one has to say why.
 //
 // The `title` IS the join: `Adw.ViewSwitcherBar` → `view-switcher-bar`, the same
 // bare name the widget files, the story metas and the ledgers are already spelled
@@ -143,24 +160,45 @@ function widgetBlocks(root, pages) {
 const WIDGET_COMPONENT = 'website/src/components/AdwWidget.astro';
 
 /**
- * The slots `AdwWidget` reads, split into the PORTS it renders a tab for and the
- * ones it renders some other way (`preview`, which is a live web component rather
- * than a snippet).
+ * Blocks whose `preview` fence is NOT the markup a reader should copy, so the
+ * component shows a hand-written `web` fragment on that tab instead — and why.
  *
- * Both are read out of the component for the same reason the widget title is
- * derived rather than tabled: a second hand-written list is the thing that drifts,
- * and this one would drift in the more expensive direction — a port named here and
- * absent from `IMPLS` would make this gate bless a tab that never renders.
+ * The bar is high on purpose. Every other block has ONE markup: the fence that the
+ * live preview mounts is the fence the tab shows, so there is nothing to keep in
+ * step. An entry here restores exactly the two-copies-one-hand arrangement that
+ * left 23 of 40 blocks quietly disagreeing with their own preview, and it earns
+ * that only where the widget cannot be expressed as markup at all.
  */
-function componentSlots(root) {
+const MARKUP_OVERRIDE_LEDGER = {
+    'Adw.Toast':
+        "`<adw-toast-overlay>` has no declarative toast child — `addToast()` is the whole API — so the markup that PAINTS a toast in a static preview is the overlay's own internal DOM (`.adw-toast.visible` and friends), which is the one thing a reader must not copy. The preview depicts the result; the tab teaches the call.",
+};
+
+/**
+ * The window model `AdwWidget` renders: each window's id and the tab slots under it,
+ * plus the one slot that is an override rather than a tab.
+ *
+ * Read out of the component for the same reason the widget title is derived rather
+ * than tabled: a second hand-written list is the thing that drifts, and this one
+ * would drift in the more expensive direction — a port named here and absent from
+ * `WINDOWS` would make this gate bless a tab that never renders.
+ */
+function componentWindows(root) {
     const text = readFileSync(join(root, WIDGET_COMPONENT), 'utf8');
-    const impls = /\bconst IMPLS = \[([\s\S]*?)\n\];/.exec(text);
-    const ports = impls === null ? [] : [...impls[1].matchAll(/\bslot:\s*'([a-z][a-z0-9-]*)'/g)].map(([, s]) => s);
-    const others = [
-        ...text.matchAll(/Astro\.slots\.has\('([a-z][a-z0-9-]*)'\)/g),
-        ...text.matchAll(/<slot name="([a-z][a-z0-9-]*)"/g),
-    ].map(([, s]) => s);
-    return { ports: new Set(ports), others: new Set(others) };
+    const decl = /\bconst WINDOWS = \[([\s\S]*?)\n\];/.exec(text);
+    const windows = [];
+    if (decl !== null) {
+        // Split on the `id:` that opens each window, so every `slot:` between two ids
+        // belongs to the window it follows. `split` with one capture group yields
+        // [preamble, id, chunk, id, chunk, …].
+        const parts = decl[1].split(/\bid:\s*'([a-z][a-z0-9-]*)',/);
+        for (let i = 1; i < parts.length; i += 2) {
+            const slots = [...parts[i + 1].matchAll(/\bslot:\s*'([a-z][a-z0-9-]*)'/g)].map(([, s]) => s);
+            windows.push({ id: parts[i], slots });
+        }
+    }
+    const override = /\bconst MARKUP_OVERRIDE = '([a-z][a-z0-9-]*)';/.exec(text);
+    return { windows, override: override === null ? null : override[1] };
 }
 
 /** Where the site's navigation is hand-written, and how a page is spelled in it. */
@@ -267,13 +305,22 @@ for (const page of pages) {
     );
 }
 
-// --- the tab arms: what a page provides against what the component renders ---
+// --- the window/tab arms: what a page provides against what the component renders ---
 
-const { ports, others } = componentSlots(ROOT);
-if (ports.size === 0) {
+const { windows, override } = componentWindows(ROOT);
+const ports = new Set(windows.flatMap((w) => w.slots));
+if (windows.length === 0 || ports.size === 0) {
     console.error(
-        `check-website-adwaita-gallery: no port found in the IMPLS array of ${WIDGET_COMPONENT} — that is\n` +
-            '  a broken scan, not a component with no tabs. Nothing is unprovided in an empty set.',
+        `check-website-adwaita-gallery: no window or no port found in the WINDOWS array of\n` +
+            `  ${WIDGET_COMPONENT} — that is a broken scan, not a component with no tabs. Nothing is\n` +
+            '  unprovided in an empty set, and no window is dead in one either.',
+    );
+    process.exit(1);
+}
+if (override === null) {
+    console.error(
+        `check-website-adwaita-gallery: no MARKUP_OVERRIDE declared in ${WIDGET_COMPONENT}. Without it\n` +
+            '  the override slot reads as an unknown one, and arm 8 would police an empty set.',
     );
     process.exit(1);
 }
@@ -288,18 +335,23 @@ if (blocks.length === 0) {
 }
 
 const provided = new Set();
+/** The blocks that override the preview window's markup tab — arm 8's input. */
+const overriding = new Map();
 for (const block of blocks) {
     for (const [, slot] of block.body.matchAll(/<Fragment slot="([^"]+)"/g)) {
         if (ports.has(slot)) {
             provided.add(slot);
             continue;
         }
-        if (others.has(slot)) continue;
+        if (slot === override) {
+            overriding.set(block.title, block.page);
+            continue;
+        }
         failures.push(
             `${block.page}: <AdwWidget title="${block.title}"> provides a "${slot}" fragment, and AdwWidget\n` +
                 '    renders no slot of that name. Astro drops an unmatched slot in SILENCE — no warning, no\n' +
                 '    build failure — so the snippet is written, reviewed, committed and shown to nobody.\n' +
-                `    Ports: ${[...ports].join(', ')}. Other slots: ${[...others].join(', ')}.`,
+                `    Ports: ${[...ports].join(', ')}. Markup override: ${override}.`,
         );
     }
 }
@@ -307,10 +359,51 @@ for (const block of blocks) {
 for (const port of ports) {
     if (provided.has(port)) continue;
     failures.push(
-        `${WIDGET_COMPONENT} declares the port "${port}" in IMPLS, and no <AdwWidget> block under\n` +
+        `${WIDGET_COMPONENT} declares the port "${port}" in WINDOWS, and no <AdwWidget> block under\n` +
             `    ${GALLERY} provides it. The component renders a tab only where a page gave it that slot, so\n` +
             '    the entry renders nowhere at all: a port declared to every reader of the component and\n' +
             '    shipped to none of them. Write the first snippet, or drop the entry.',
+    );
+}
+
+for (const window of windows) {
+    if (window.slots.length === 0) {
+        failures.push(
+            `${WIDGET_COMPONENT} declares the window "${window.id}" with no tabs at all. A window is a\n` +
+                '    header bar, a title and a subtitle around its tabs, so an empty one renders that chrome\n' +
+                '    over nothing on every block — and arm 6 cannot see it, because there is no slot to be\n' +
+                '    unprovided. Give it a tab, or drop the window.',
+        );
+        continue;
+    }
+    if (window.slots.some((slot) => provided.has(slot))) continue;
+    failures.push(
+        `${WIDGET_COMPONENT} declares the window "${window.id}" (${window.slots.join(', ')}), and no\n` +
+            `    <AdwWidget> block under ${GALLERY} provides any of its tabs. The window renders nowhere:\n` +
+            '    a kind of implementation announced to every reader of the component and shown to none.',
+    );
+}
+
+// --- arm 8: the markup override, and the reason it is allowed to exist ---
+
+for (const [title, page] of overriding) {
+    if (title in MARKUP_OVERRIDE_LEDGER) continue;
+    failures.push(
+        `${page}: <AdwWidget title="${title}"> provides a "${override}" fragment, which OVERRIDES the\n` +
+            "    markup tab of its own live preview. That is a second copy of the widget's markup, kept by\n" +
+            '    hand, next to the one that actually renders — the arrangement that left 23 of 40 blocks\n' +
+            '    disagreeing with their own preview. Delete it and let the preview fence be the tab, or add\n' +
+            `    "${title}" to MARKUP_OVERRIDE_LEDGER in this script with the reason it cannot be.`,
+    );
+}
+
+for (const title of Object.keys(MARKUP_OVERRIDE_LEDGER)) {
+    if (overriding.has(title)) continue;
+    failures.push(
+        `${title}: ledgered in MARKUP_OVERRIDE_LEDGER as needing a "${override}" fragment, and no block\n` +
+            '    under ' +
+            `${GALLERY} provides one. A stale exemption reads as considered when it is merely\n` +
+            '    forgotten, and this one would license the next hand-kept copy.',
     );
 }
 
@@ -332,7 +425,8 @@ console.log(
         `${exempt} ledgered with a reason.`,
 );
 console.log(
-    `check-website-adwaita-gallery: ${ports.size} port(s) in ${WIDGET_COMPONENT} — ` +
-        `${[...ports].join(', ')} — each provided by at least one of ${blocks.length} blocks, and every ` +
-        'fragment slot they write is one the component renders.',
+    `check-website-adwaita-gallery: ${windows.length} window(s) in ${WIDGET_COMPONENT} — ` +
+        `${windows.map((w) => `${w.id} [${w.slots.join(' ')}]`).join(', ')} — each with a tab at least one ` +
+        `of ${blocks.length} blocks provides, every fragment slot they write is one the component renders, ` +
+        `and ${overriding.size} block(s) override the markup tab, all ledgered.`,
 );

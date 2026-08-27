@@ -1,0 +1,133 @@
+---
+// AdwWidgetWindow — ONE window of an {@link AdwWidget} block: an Adwaita header
+// bar with a title and a subtitle, an optional live-preview pane under it, and an
+// Adw.TabBar holding this kind's tabs.
+//
+// It is a component rather than a loop body in `AdwWidget.astro` because the
+// Astro compiler cannot parse a JSX expression nested inside another one:
+// `windows.map((win) => (<div>{win.live && (<div/>)}</div>))` fails to compile with
+// `Expected "}" but found ")"`, measured on astro 6.4.5, and so does a `.map()`
+// inside a `.map()`. One level of JSX per expression is the budget, so the window
+// gets its own file — which is the right seam anyway: `AdwWidget` decides WHICH
+// windows exist and what they claim, this one knows how a window is drawn.
+//
+// The header bar sits above BOTH panes on purpose; the reasoning, and the two
+// claims the subtitles carry, are in AdwWidget.astro's header.
+
+interface Props {
+    /** Window title. The live-preview window takes the WIDGET's; the rest name their kind. */
+    title: string;
+    /** What kind of implementation this window holds — see AdwWidget's WINDOWS. */
+    subtitle: string;
+    /** Canonical upstream docs for the widget, on the window that is about the widget. */
+    refHref?: string | null;
+    /** The widget, for the reference link's labels. */
+    widget: string;
+    /** This window's tab slots, in order, for the cross-widget preference sync. */
+    impls: string;
+    /** One tab per port this block filled: the Adw.TabBar label and the rendered snippet. */
+    tabs: { label: string; html: string }[];
+    /** The markup to mount and paint above the tabs, or null on a window that only shows code. */
+    preview?: string | null;
+    /** Padding around the preview widget — see AdwWidget. */
+    padding?: 'comfortable' | 'flush';
+    /** Horizontal scrolling for a wide preview — see AdwWidget. */
+    scroll?: boolean;
+    /** Inline CSS for the preview stage: preview-only scaffolding — see AdwWidget. */
+    stage?: string;
+}
+
+const {
+    title,
+    subtitle,
+    refHref = null,
+    widget,
+    impls,
+    tabs,
+    preview = null,
+    padding = 'comfortable',
+    scroll = false,
+    stage,
+} = Astro.props;
+---
+
+<div class="command-tabs adw-widget-window not-content" data-impl-tabs data-impls={impls}>
+    <div class="command-tabs-headerbar">
+        <span class="command-tabs-headerbar-start">
+            {
+                refHref && (
+                    <a
+                        class="command-tabs-ref"
+                        href={refHref}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={`Reference for ${widget}`}
+                        aria-label={`Open the reference for ${widget} in a new tab`}
+                    >
+                        <span class="command-tabs-ref-icon" aria-hidden="true" />
+                    </a>
+                )
+            }
+        </span>
+        <span class="command-tabs-headerbar-title">
+            <span class="adw-widget-window-title">{title}</span>
+            <span class="adw-widget-window-subtitle">{subtitle}</span>
+        </span>
+        <span class="command-tabs-headerbar-end">
+            <button class="command-tabs-copy" aria-label="Copy active tab" type="button">
+                <span class="command-tabs-copy-icon" aria-hidden="true"></span>
+            </button>
+        </span>
+    </div>
+
+    {
+        preview !== null && (
+            <div class:list={['adw-widget-preview', 'not-content', `is-${padding}`, { 'is-scroll': scroll }]}>
+                {/* `not-content` for the same reason CommandTabs.astro states it, and
+                    it was missing HERE while the tabs below already carried it.
+                    Starlight gives every content element that FOLLOWS a sibling a
+                    `margin-top: 1rem`, exempting only `:where(.not-content *)`. Inside
+                    a preview that lands on the widgets: measured on the deployed page,
+                    the second button of a wrap box and every one after it took
+                    `margin-top: 16px` while the first took none — and in a flex line
+                    the first then STRETCHED by exactly that much, 50px against its
+                    siblings' 34px. The same rule pushed a header bar's trailing button
+                    below its own title and set the two panes of a split view onto
+                    baselines 16px apart, which clipped the sidebar's last row. A
+                    preview is a rendering of a widget, not prose: it has to be laid out
+                    by the widget's own stylesheet alone.
+
+                    It also carries what `check-website-preview-not-content.mjs` used to
+                    read off the gallery pages themselves. Their preview markup is a
+                    fenced block now and that scanner masks fences as code, so the
+                    marker stopped being restated on 40 blocks and became structural:
+                    one component mounts every preview, into this element. */}
+                {/* The preview is CLONED into the stage at runtime (see AdwWidget's
+                    script) rather than server-rendered directly: adwaita-web custom
+                    elements upgrade as the page is parsed, and a nested composite (a
+                    split view holding toolbar views) can lose its slotted children to
+                    an upgrade-order race. A <template> is inert, so cloning AFTER the
+                    elements are defined uses the reliable build-then-attach path.
+
+                    The markup is the preview tab's own fence, read back out of
+                    Expressive Code, so `slot="…"` needs no rewriting here: it never
+                    passes through the MDX compiler, which reads `slot` as its own
+                    slot-assignment directive and strips it. That is what retired
+                    `data-adw-slot` HERE; AdwGalleryCard still needs it, because the
+                    index page's cards mount MDX markup rather than a fence. */}
+                {/* NOT self-closing. `<template … set:html={…} />` compiles to a
+                    template element that swallows its following siblings and an
+                    unbalanced expression: measured on astro 6.4.5, the generated
+                    module ended `</div>`}</div>`;` and esbuild refused it with
+                    `Expected ")" but found "}"` pointing at a line that does not
+                    exist in this file. */}
+                <template class="adw-widget-preview-tpl" set:html={preview}></template>
+                <div class="adw-widget-preview-stage" style={stage} />
+            </div>
+        )
+    }
+
+    <adw-tab-view no-close expand-tabs data-impl-view>
+        {tabs.map((tab) => <adw-tab-page title={tab.label} set:html={tab.html} />)}
+    </adw-tab-view>
+</div>

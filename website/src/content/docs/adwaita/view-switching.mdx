@@ -1,6 +1,6 @@
 ---
 title: View Switching
-description: "Adwaita view-switching widgets: view switcher, view switcher bar, tab view, inline view switcher and carousel. Live preview plus the code for GJS, Blueprint, the web and NativeScript."
+description: "Adwaita view-switching widgets: view switcher, view switcher bar, tab view, inline view switcher and carousel. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
@@ -12,16 +12,18 @@ edge for a narrow window, a strip of tabs, a compact toolbar control and a
 swipeable pager. All of them adapt to the window, so a wide desktop gets the full
 switcher and a narrow phone gets a collapsed one.
 
-Each preview below is the live web component, so it follows the light and dark
-toggle the way a real window would. Under it, the tabs give you the same widget
-four ways: `@girs` TypeScript (one program, running on GJS, Node, Bun and Deno),
-the matching Blueprint declaration, the web port and the NativeScript port.
+Each block below is a stack of windows. The first one RUNS the widget: the preview
+is the live browser port, so it follows the light and dark toggle the way a real
+window would, and the tab under it holds the very markup that paints it. Then comes
+one window per kind of implementation — **Vanilla TypeScript**, the `@girs` program
+that runs unchanged on GJS, Node, Bun and Deno, with the matching Blueprint
+declaration beside it, and **NativeScript**, the port that runs on a phone.
 
 Libadwaita is the reference here, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
 [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
 and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
-follow its naming, and where one of them differs, its tab says so.
+follow its naming, and where one of them differs, its own window says so.
 
 :::note
 The previews run the browser port, so gestures Libadwaita drives natively
@@ -38,21 +40,21 @@ button layout. `wide` puts the icon and label side by side; `narrow` stacks the
 icon above the label so the bar fits a slim window. An adaptive layout normally
 swaps between the two on a breakpoint.
 
-<AdwWidget title="Adw.ViewSwitcher" padding="flush">
+<AdwWidget title="Adw.ViewSwitcher" padding="flush" stage="height: 300px; width: 100%; display: flex; flex-direction: column;">
   <Fragment slot="preview">
-    <div style="height: 300px; width: 100%; display: flex; flex-direction: column;">
-      <adw-view-switcher policy="wide" style="flex: 1; width: 100%;">
-        <adw-view-switcher-page name="inbox" title="Inbox" icon-name="mail-unread">
-          <adw-status-page icon="mail-unread" title="Inbox" description="You have three unread conversations."></adw-status-page>
-        </adw-view-switcher-page>
-        <adw-view-switcher-page name="starred" title="Starred" icon-name="starred">
-          <adw-status-page icon="starred" title="Starred" description="Messages you have marked as important."></adw-status-page>
-        </adw-view-switcher-page>
-        <adw-view-switcher-page name="archive" title="Archive" icon-name="folder">
-          <adw-status-page icon="folder" title="Archive" description="Older conversations kept for reference."></adw-status-page>
-        </adw-view-switcher-page>
-      </adw-view-switcher>
-    </div>
+    ```html
+    <adw-view-switcher policy="wide" style="flex: 1; width: 100%;">
+      <adw-view-switcher-page name="inbox" title="Inbox" icon-name="mail-unread">
+        <adw-status-page icon="mail-unread" title="Inbox" description="You have three unread conversations."></adw-status-page>
+      </adw-view-switcher-page>
+      <adw-view-switcher-page name="starred" title="Starred" icon-name="starred">
+        <adw-status-page icon="starred" title="Starred" description="Messages you have marked as important."></adw-status-page>
+      </adw-view-switcher-page>
+      <adw-view-switcher-page name="archive" title="Archive" icon-name="folder">
+        <adw-status-page icon="folder" title="Archive" description="Older conversations kept for reference."></adw-status-page>
+      </adw-view-switcher-page>
+    </adw-view-switcher>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -140,22 +142,6 @@ swaps between the two on a breakpoint.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <!-- import '@gjsify/adwaita-web' once to register the elements -->
-    <adw-view-switcher policy="wide">
-        <adw-view-switcher-page name="inbox" title="Inbox" icon-name="mail-unread">
-            <adw-status-page icon="mail-unread" title="Inbox" description="You have three unread conversations."></adw-status-page>
-        </adw-view-switcher-page>
-        <adw-view-switcher-page name="starred" title="Starred" icon-name="starred">
-            <adw-status-page icon="starred" title="Starred" description="Messages you have marked as important."></adw-status-page>
-        </adw-view-switcher-page>
-        <adw-view-switcher-page name="archive" title="Archive" icon-name="folder">
-            <adw-status-page icon="folder" title="Archive" description="Older conversations kept for reference."></adw-status-page>
-        </adw-view-switcher-page>
-    </adw-view-switcher>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwViewSwitcher, AdwStatusPage, type AdwViewPage } from '@gjsify/adwaita-nativescript';
@@ -190,24 +176,25 @@ stack. `reveal` is a **request, not a state**: a stack with fewer than two pages
 stays collapsed however loudly it is asked, so a bar over a one-page stack simply
 does not appear.
 
-<AdwWidget title="Adw.ViewSwitcherBar" padding="flush">
+<AdwWidget title="Adw.ViewSwitcherBar" padding="flush" stage="height: 340px; width: 100%; display: flex; flex-direction: column;">
   <Fragment slot="preview">
-    <div style="height: 340px; width: 100%; display: flex; flex-direction: column;">
-      <adw-toolbar-view style="flex: 1; width: 100%;">
-        <adw-view-stack id="gallery-switcher-bar-stack" style="flex: 1;">
-          <adw-view-stack-page name="inbox" title="Inbox" icon-name="mail-unread">
-            <adw-status-page icon="mail-unread" title="Inbox" description="The inbox page."></adw-status-page>
-          </adw-view-stack-page>
-          <adw-view-stack-page name="starred" title="Starred" icon-name="starred">
-            <adw-status-page icon="starred" title="Starred" description="The starred page."></adw-status-page>
-          </adw-view-stack-page>
-          <adw-view-stack-page name="archive" title="Archive" icon-name="folder">
-            <adw-status-page icon="folder" title="Archive" description="The archive page."></adw-status-page>
-          </adw-view-stack-page>
-        </adw-view-stack>
-        <adw-view-switcher-bar data-adw-slot="bottom" stack="gallery-switcher-bar-stack" reveal></adw-view-switcher-bar>
-      </adw-toolbar-view>
-    </div>
+    ```html
+    <!-- `stack` takes the id of the <adw-view-stack> to bind to. -->
+    <adw-toolbar-view style="flex: 1; width: 100%;">
+      <adw-view-stack id="gallery-switcher-bar-stack" style="flex: 1;">
+        <adw-view-stack-page name="inbox" title="Inbox" icon-name="mail-unread">
+          <adw-status-page icon="mail-unread" title="Inbox" description="The inbox page."></adw-status-page>
+        </adw-view-stack-page>
+        <adw-view-stack-page name="starred" title="Starred" icon-name="starred">
+          <adw-status-page icon="starred" title="Starred" description="The starred page."></adw-status-page>
+        </adw-view-stack-page>
+        <adw-view-stack-page name="archive" title="Archive" icon-name="folder">
+          <adw-status-page icon="folder" title="Archive" description="The archive page."></adw-status-page>
+        </adw-view-stack-page>
+      </adw-view-stack>
+      <adw-view-switcher-bar slot="bottom" stack="gallery-switcher-bar-stack" reveal></adw-view-switcher-bar>
+    </adw-toolbar-view>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -286,25 +273,6 @@ does not appear.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <!-- `stack` takes the id of the <adw-view-stack> to bind to. -->
-    <adw-toolbar-view>
-        <adw-view-stack id="mail-stack">
-            <adw-view-stack-page name="inbox" title="Inbox" icon-name="mail-unread">
-                <adw-status-page icon="mail-unread" title="Inbox"></adw-status-page>
-            </adw-view-stack-page>
-            <adw-view-stack-page name="starred" title="Starred" icon-name="starred">
-                <adw-status-page icon="starred" title="Starred"></adw-status-page>
-            </adw-view-stack-page>
-            <adw-view-stack-page name="archive" title="Archive" icon-name="folder">
-                <adw-status-page icon="folder" title="Archive"></adw-status-page>
-            </adw-view-stack-page>
-        </adw-view-stack>
-        <adw-view-switcher-bar slot="bottom" stack="mail-stack" reveal></adw-view-switcher-bar>
-    </adw-toolbar-view>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwStatusPage, AdwToolbarView, AdwViewStack, AdwViewSwitcherBar } from '@gjsify/adwaita-nativescript';
@@ -345,21 +313,21 @@ draws one chip per page, each with a title and a close button, and raises the
 selected chip onto the view background. Turn on **autohide** and the bar
 disappears once a single page is left, so a one-tab document looks chrome-free.
 
-<AdwWidget title="Adw.TabView" padding="flush">
+<AdwWidget title="Adw.TabView" padding="flush" stage="height: 260px; width: 100%; display: flex;">
   <Fragment slot="preview">
-    <div style="height: 260px; width: 100%; display: flex;">
-      <adw-tab-view style="flex: 1; width: 100%;">
-        <adw-tab-page title="Overview">
-          <adw-status-page icon="view-paged" title="Overview" description="A summary of everything at a glance."></adw-status-page>
-        </adw-tab-page>
-        <adw-tab-page title="Details">
-          <adw-status-page icon="view-paged" title="Details" description="The specifics, broken down line by line."></adw-status-page>
-        </adw-tab-page>
-        <adw-tab-page title="History">
-          <adw-status-page icon="view-paged" title="History" description="A log of every change made so far."></adw-status-page>
-        </adw-tab-page>
-      </adw-tab-view>
-    </div>
+    ```html
+    <adw-tab-view style="flex: 1; width: 100%;">
+      <adw-tab-page title="Overview">
+        <adw-status-page icon="view-paged" title="Overview" description="A summary of everything at a glance."></adw-status-page>
+      </adw-tab-page>
+      <adw-tab-page title="Details">
+        <adw-status-page icon="view-paged" title="Details" description="The specifics, broken down line by line."></adw-status-page>
+      </adw-tab-page>
+      <adw-tab-page title="History">
+        <adw-status-page icon="view-paged" title="History" description="A log of every change made so far."></adw-status-page>
+      </adw-tab-page>
+    </adw-tab-view>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -402,21 +370,6 @@ disappears once a single page is left, so a one-tab document looks chrome-free.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-tab-view>
-        <adw-tab-page title="Overview">
-            <adw-status-page icon="view-paged" title="Overview" description="A summary of everything at a glance."></adw-status-page>
-        </adw-tab-page>
-        <adw-tab-page title="Details">
-            <adw-status-page icon="view-paged" title="Details" description="The specifics, broken down line by line."></adw-status-page>
-        </adw-tab-page>
-        <adw-tab-page title="History">
-            <adw-status-page icon="view-paged" title="History" description="A log of every change made so far."></adw-status-page>
-        </adw-tab-page>
-    </adw-tab-view>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwTabView, AdwStatusPage, type AdwViewPage } from '@gjsify/adwaita-nativescript';
@@ -447,21 +400,21 @@ from a linked toggle group and drives the same kind of view stack, but its
 **display mode** lets each toggle show **labels**, **icons** or **both**. That
 makes it fit a header bar or a tight toolbar.
 
-<AdwWidget title="Adw.InlineViewSwitcher" padding="flush">
+<AdwWidget title="Adw.InlineViewSwitcher" padding="flush" stage="height: 300px; width: 100%; display: flex; flex-direction: column;">
   <Fragment slot="preview">
-    <div style="height: 300px; width: 100%; display: flex; flex-direction: column;">
-      <adw-inline-view-switcher display-mode="both" style="flex: 1; width: 100%;">
-        <adw-view-stack-page title="Overview" icon-name="view-grid">
-          <adw-status-page id="overview" icon="view-grid" title="Overview" description="A quick summary of your project."></adw-status-page>
-        </adw-view-stack-page>
-        <adw-view-stack-page title="Activity" icon-name="document-edit">
-          <adw-status-page id="activity" icon="document-edit" title="Activity" description="Recent edits and changes."></adw-status-page>
-        </adw-view-stack-page>
-        <adw-view-stack-page title="Settings" icon-name="emblem-system">
-          <adw-status-page id="settings" icon="emblem-system" title="Settings" description="Configure how things behave."></adw-status-page>
-        </adw-view-stack-page>
-      </adw-inline-view-switcher>
-    </div>
+    ```html
+    <adw-inline-view-switcher display-mode="both" style="flex: 1; width: 100%;">
+      <adw-view-stack-page title="Overview" icon-name="view-grid">
+        <adw-status-page id="overview" icon="view-grid" title="Overview" description="A quick summary of your project."></adw-status-page>
+      </adw-view-stack-page>
+      <adw-view-stack-page title="Activity" icon-name="document-edit">
+        <adw-status-page id="activity" icon="document-edit" title="Activity" description="Recent edits and changes."></adw-status-page>
+      </adw-view-stack-page>
+      <adw-view-stack-page title="Settings" icon-name="emblem-system">
+        <adw-status-page id="settings" icon="emblem-system" title="Settings" description="Configure how things behave."></adw-status-page>
+      </adw-view-stack-page>
+    </adw-inline-view-switcher>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -548,21 +501,6 @@ makes it fit a header bar or a tight toolbar.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-inline-view-switcher display-mode="both">
-        <adw-view-stack-page title="Overview" icon-name="view-grid">
-            <adw-status-page id="overview" icon="view-grid" title="Overview" description="A quick summary of your project."></adw-status-page>
-        </adw-view-stack-page>
-        <adw-view-stack-page title="Activity" icon-name="document-edit">
-            <adw-status-page id="activity" icon="document-edit" title="Activity" description="Recent edits and changes."></adw-status-page>
-        </adw-view-stack-page>
-        <adw-view-stack-page title="Settings" icon-name="emblem-system">
-            <adw-status-page id="settings" icon="emblem-system" title="Settings" description="Configure how things behave."></adw-status-page>
-        </adw-view-stack-page>
-    </adw-inline-view-switcher>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwInlineViewSwitcher, AdwStatusPage, type AdwViewPage } from '@gjsify/adwaita-nativescript';
@@ -612,28 +550,31 @@ them on to let one flick skip several pages — with the caveat that a *touchpad
 flick can already cross more than one page here, because that gesture is the
 browser's and it does not consult the setting.
 
-<AdwWidget title="Adw.Carousel" padding="flush">
+<AdwWidget title="Adw.Carousel" padding="flush" stage="height: 220px; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;">
   <Fragment slot="preview">
-    <div style="height: 220px; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;">
-      <adw-carousel id="view-switching-carousel" style="width: 100%; max-width: 480px; height: 160px;">
-        {/* No `color` on these three on purpose. Each tints itself with 14% of an
-            accent over `--window-bg-color`, so in the LIGHT scheme the fill lands near
-            rgb(222, 234, 248), and the `#ffffff` they carried put white text on that
-            at about 1.2:1: the labels were invisible under the site's light toggle
-            while looking right in dark. Inherited, the label takes `--card-fg-color`,
-            near-black in light and `#ffffff` in dark, so dark is unchanged. */}
-        <adw-card style="width:440px;height:140px;display:flex;align-items:center;justify-content:center;background-color:color-mix(in srgb, var(--accent-bg-color) 14%, var(--window-bg-color));box-sizing:border-box;">
-          <span style="font-size:24pt;font-weight:800;">Welcome</span>
-        </adw-card>
-        <adw-card style="width:440px;height:140px;display:flex;align-items:center;justify-content:center;background-color:color-mix(in srgb, #2ec27e 14%, var(--window-bg-color));box-sizing:border-box;">
-          <span style="font-size:24pt;font-weight:800;">Discover</span>
-        </adw-card>
-        <adw-card style="width:440px;height:140px;display:flex;align-items:center;justify-content:center;background-color:color-mix(in srgb, #e5a50a 14%, var(--window-bg-color));box-sizing:border-box;">
-          <span style="font-size:24pt;font-weight:800;">Get started</span>
-        </adw-card>
-      </adw-carousel>
-      <adw-carousel-indicator-dots for="view-switching-carousel"></adw-carousel-indicator-dots>
-    </div>
+    ```html
+    <adw-carousel id="view-switching-carousel" style="width: 100%; max-width: 480px; height: 160px;">
+      <!-- The wheel pages the carousel by default; allow-scroll-wheel="false" opts out.
+           Bind an indicator with `for`; swap in adw-carousel-indicator-lines for lines.
+
+           No `color` on these three on purpose. Each tints itself with 14% of an
+           accent over `--window-bg-color`, so in the LIGHT scheme the fill lands near
+           rgb(222, 234, 248), and the `#ffffff` they carried put white text on that
+           at about 1.2:1: the labels were invisible under the site's light toggle
+           while looking right in dark. Inherited, the label takes `--card-fg-color`,
+           near-black in light and `#ffffff` in dark, so dark is unchanged. -->
+      <adw-card style="width:440px;height:140px;display:flex;align-items:center;justify-content:center;background-color:color-mix(in srgb, var(--accent-bg-color) 14%, var(--window-bg-color));box-sizing:border-box;">
+        <span style="font-size:24pt;font-weight:800;">Welcome</span>
+      </adw-card>
+      <adw-card style="width:440px;height:140px;display:flex;align-items:center;justify-content:center;background-color:color-mix(in srgb, #2ec27e 14%, var(--window-bg-color));box-sizing:border-box;">
+        <span style="font-size:24pt;font-weight:800;">Discover</span>
+      </adw-card>
+      <adw-card style="width:440px;height:140px;display:flex;align-items:center;justify-content:center;background-color:color-mix(in srgb, #e5a50a 14%, var(--window-bg-color));box-sizing:border-box;">
+        <span style="font-size:24pt;font-weight:800;">Get started</span>
+      </adw-card>
+    </adw-carousel>
+    <adw-carousel-indicator-dots for="view-switching-carousel"></adw-carousel-indicator-dots>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -698,18 +639,6 @@ browser's and it does not consult the setting.
         carousel: carousel;
       }
     }
-    ```
-  </Fragment>
-  <Fragment slot="web">
-    ```html
-    <!-- The wheel pages the carousel by default; allow-scroll-wheel="false" opts out. -->
-    <adw-carousel id="onboarding">
-        <adw-card>Welcome</adw-card>
-        <adw-card>Discover</adw-card>
-        <adw-card>Get started</adw-card>
-    </adw-carousel>
-    <!-- Bind an indicator via `for`; swap in adw-carousel-indicator-lines for lines. -->
-    <adw-carousel-indicator-dots for="onboarding"></adw-carousel-indicator-dots>
     ```
   </Fragment>
   <Fragment slot="nativescript">

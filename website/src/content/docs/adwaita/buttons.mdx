@@ -1,6 +1,6 @@
 ---
 title: Buttons
-description: "Adwaita buttons: icon-plus-label content, the style classes, menu buttons, split buttons and toggle groups. Live preview plus the code for GJS, Blueprint, the web and NativeScript."
+description: "Adwaita buttons: icon-plus-label content, the style classes, menu buttons, split buttons and toggle groups. A live preview with its markup, plus the TypeScript, Blueprint and NativeScript code."
 ---
 
 import AdwWidget from '../../../components/AdwWidget.astro';
@@ -12,16 +12,18 @@ happens. This page covers the five things you will want from one. Give it an
 pair an action with a menu of alternatives, or a **toggle group** when a row of
 linked buttons should act as a single-choice selector.
 
-Each preview below is the live web component, so it follows the light and dark
-toggle the way a real window would. Under it, the tabs give you the same widget
-four ways: `@girs` TypeScript (one program, running on GJS, Node, Bun and Deno),
-the matching Blueprint declaration, the web port and the NativeScript port.
+Each block below is a stack of windows. The first one RUNS the widget: the preview
+is the live browser port, so it follows the light and dark toggle the way a real
+window would, and the tab under it holds the very markup that paints it. Then comes
+one window per kind of implementation — **Vanilla TypeScript**, the `@girs` program
+that runs unchanged on GJS, Node, Bun and Deno, with the matching Blueprint
+declaration beside it, and **NativeScript**, the port that runs on a phone.
 
 Libadwaita is the reference here, typed by
 [`@girs/adw-1`](https://www.npmjs.com/package/@girs/adw-1).
 [`@gjsify/adwaita-web`](https://github.com/gjsify/gjsify/tree/main/packages/web/adwaita-web)
 and [`@gjsify/adwaita-nativescript`](https://github.com/gjsify/gjsify/tree/main/packages/nativescript-bridge/adwaita)
-follow its naming, and where one of them differs, its tab says so.
+follow its naming, and where one of them differs, its own window says so.
 
 :::note
 The previews run the browser port, so behaviour Libadwaita drives natively (a
@@ -38,9 +40,11 @@ short.
 
 <AdwWidget title="Adw.ButtonContent">
   <Fragment slot="preview">
+    ```html
     <button class="adw-button suggested-action pill">
       <adw-button-content label="Download" icon-name="folder-download"></adw-button-content>
     </button>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -71,14 +75,6 @@ short.
 
       styles ["suggested-action", "pill"]
     }
-    ```
-  </Fragment>
-  <Fragment slot="web">
-    ```html
-    <!-- import '@gjsify/adwaita-web' once to register the elements -->
-    <button class="adw-button suggested-action pill">
-        <adw-button-content label="Download" icon-name="folder-download"></adw-button-content>
-    </button>
     ```
   </Fragment>
   <Fragment slot="nativescript">
@@ -112,6 +108,7 @@ like one in a dialog.
 
 <AdwWidget title="Gtk.Button">
   <Fragment slot="preview">
+    ```html
     <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">
       <adw-button label="Pill" pill></adw-button>
       <adw-button icon="list-add" circular></adw-button>
@@ -119,6 +116,7 @@ like one in a dialog.
       <adw-button label="Delete" destructive></adw-button>
       <adw-button label="Flat" flat></adw-button>
     </div>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -190,17 +188,6 @@ like one in a dialog.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;align-items:center;">
-        <adw-button label="Pill" pill></adw-button>
-        <adw-button icon="list-add" circular></adw-button>
-        <adw-button label="Suggested" suggested></adw-button>
-        <adw-button label="Delete" destructive></adw-button>
-        <adw-button label="Flat" flat></adw-button>
-    </div>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwButton, AdwWrapBox } from '@gjsify/adwaita-nativescript';
@@ -242,11 +229,13 @@ shape.
 
 <AdwWidget title="Gtk.MenuButton">
   <Fragment slot="preview">
+    ```html
     <adw-menu-button
       icon-name="open-menu"
       menu-title="Document"
       menu='[{"label":"Save as…"},{"label":"Export"},{"label":"Print"}]'
     ></adw-menu-button>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -298,15 +287,6 @@ shape.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-menu-button
-        icon-name="open-menu"
-        menu-title="Document"
-        menu='[{"label":"Save as…"},{"label":"Export"},{"label":"Print"}]'
-    ></adw-menu-button>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwMenuButton } from '@gjsify/adwaita-nativescript';
@@ -330,11 +310,13 @@ header bar or toolbar, where a raised button looks too heavy.
 
 <AdwWidget title="Adw.SplitButton">
   <Fragment slot="preview">
+    ```html
     <adw-split-button
       label="Save"
       icon-name="document-save"
       menu='[{"label":"Save as…","action":"app.save-as"},{"label":"Export","action":"app.export"},{"label":"Print","action":"app.print"}]'
     ></adw-split-button>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -383,15 +365,6 @@ header bar or toolbar, where a raised button looks too heavy.
     }
     ```
   </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-split-button
-        label="Save"
-        icon-name="document-save"
-        menu='[{"label":"Save as…","action":"app.save-as"},{"label":"Export","action":"app.export"},{"label":"Print","action":"app.print"}]'
-    ></adw-split-button>
-    ```
-  </Fragment>
   <Fragment slot="nativescript">
     ```ts
     import { AdwSplitButton } from '@gjsify/adwaita-nativescript';
@@ -434,11 +407,13 @@ once set", and the only setter is class-level.
 
 <AdwWidget title="Adw.ToggleGroup">
   <Fragment slot="preview">
+    ```html
     <adw-toggle-group active="0">
       <adw-toggle label="List" icon-name="view-list"></adw-toggle>
       <adw-toggle label="Grid" icon-name="view-grid"></adw-toggle>
       <adw-toggle label="Columns" icon-name="view-columns"></adw-toggle>
     </adw-toggle-group>
+    ```
   </Fragment>
   <Fragment slot="gjs">
     ```ts
@@ -474,15 +449,6 @@ once set", and the only setter is class-level.
         icon-name: "view-columns-symbolic";
       }
     }
-    ```
-  </Fragment>
-  <Fragment slot="web">
-    ```html
-    <adw-toggle-group active="0">
-        <adw-toggle label="List" icon-name="view-list"></adw-toggle>
-        <adw-toggle label="Grid" icon-name="view-grid"></adw-toggle>
-        <adw-toggle label="Columns" icon-name="view-columns"></adw-toggle>
-    </adw-toggle-group>
     ```
   </Fragment>
   <Fragment slot="nativescript">
