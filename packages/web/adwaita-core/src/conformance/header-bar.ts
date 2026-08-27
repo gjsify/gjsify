@@ -78,7 +78,7 @@ export interface HeaderBarTitleWidgetVector {
 /**
  * `adw_header_bar_set_title_widget` (:1189): same-widget returns early (:1198), the
  * centre is emptied unconditionally (:1201), and a NULL argument calls
- * `construct_title_label` again (:1210).
+ * `construct_title_label` again (:1211, guarded by `self->title_label == NULL` at :1210).
  *
  * CORE-ONLY: GAP — no renderer drives this table yet. Rewiring the NativeScript and web
  * header bars onto `HeaderBarState` is a diff per renderer with its own spec surface, and
@@ -104,7 +104,7 @@ export const HEADER_BAR_TITLE_WIDGET_VECTORS: ReadonlyArray<HeaderBarTitleWidget
         titleWidget: null,
         derivedPresent: true,
         changed: [true, true],
-        rule: 'clearing REBUILDS the derived title (construct_title_label at :1210) — no port does this',
+        rule: 'clearing REBUILDS the derived title (construct_title_label at :1211) — no port does this',
     },
     {
         calls: ['entry', 'entry'],
@@ -145,8 +145,11 @@ export interface HeaderBarTitleSourceVector {
 }
 
 /**
- * `update_title` (:475-509). The walk tests POINTERS (`if (!title)`), so an empty
- * string is a value and ends the chain — it does not fall through.
+ * `update_title` (:475-508). The walk tests POINTERS (`if (!title)` at :491, :494, :501
+ * and :504), so an empty string is a value and ends the chain — it does not fall through.
+ * Which is the DEFAULT for two of the five sources, not a corner case: the page and dialog
+ * titles are `""` until set and never NULL, so only the window title can fall through by
+ * being unset.
  *
  * CORE-ONLY: GAP — no renderer drives this table yet. Rewiring the NativeScript and web
  * header bars onto `HeaderBarState` is a diff per renderer with its own spec surface, and
@@ -179,6 +182,21 @@ export const HEADER_BAR_TITLE_SOURCE_VECTORS: ReadonlyArray<HeaderBarTitleSource
         sources: { windowTitle: '', applicationName: 'Files' },
         title: '',
         rule: 'an EMPTY window title is a pointer and ends the walk — it does not fall through',
+    },
+    {
+        sources: { navigationPageTitle: '', dialogTitle: 'D', windowTitle: 'W', applicationName: 'A' },
+        title: '',
+        rule: 'AdwNavigationPage:title DEFAULTS to "" and refuses NULL — an untitled page blanks the bar',
+    },
+    {
+        sources: { dialogTitle: '', windowTitle: 'W', applicationName: 'A' },
+        title: '',
+        rule: 'AdwDialog:title DEFAULTS to "" and normalises NULL to it — an untitled dialog blanks it too',
+    },
+    {
+        sources: { navigationPageTitle: undefined, dialogTitle: undefined, windowTitle: undefined },
+        title: '',
+        rule: 'explicit `undefined` is the skipped branch, like an absent key — the shape `{ windowTitle: root?.title }` builds',
     },
     {
         sources: { bottomSheetShowsDragHandle: true, navigationPageTitle: 'Inbox', windowTitle: 'W' },
