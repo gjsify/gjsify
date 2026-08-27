@@ -372,10 +372,19 @@ export function reorderMode(policy: ChildPolicy): 'native' | 'remove-all' | 'n/a
         case 'indexed':
             return 'native';
         case 'slotted':
+            // Measured: `Adw.HeaderBar.reorder_child_after` is `undefined`, so a
+            // move within an ADDER slot costs a tail rotation. An ALL-SETTER
+            // policy pays nothing at all — every slot holds exactly one child,
+            // `rotateTail` returns before it touches anything, and re-inserting
+            // `Adw.NavigationSplitView`'s two children in the other order leaves
+            // GTK's own `get_sidebar()`/`get_content()` unchanged (measured).
+            // Same answer as `coords`, for the same reason: the slot is data on
+            // the child, so document order carries nothing to pay for.
+            return adderSlots(policy).length > 0 ? 'remove-all' : 'n/a';
         case 'keyed':
-            // Measured: `Gtk.Stack.reorder_child_after` and
-            // `Adw.HeaderBar.reorder_child_after` are both `undefined`. These
-            // containers only append, so a move costs a tail rotation.
+            // Measured: `Gtk.Stack.reorder_child_after` is `undefined` too, so a
+            // keyed reversal was a complete no-op in GTK while the host's own
+            // navigators reported the new order.
             return 'remove-all';
         case 'coords':
         case 'single':

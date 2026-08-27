@@ -831,6 +831,19 @@ export default async () => {
                 expect(reorderMode(lookupWidget('GtkBox').children)).toBe('native');
                 expect(reorderMode(lookupWidget('GtkListBox').children)).toBe('native');
                 expect(reorderMode(lookupWidget('AdwPreferencesGroup').children)).toBe('remove-all');
+                // A slotted policy is not one answer. `AdwHeaderBar` above has
+                // `pack_start`, so a move within that slot really does pay a tail
+                // rotation; `Adw.NavigationSplitView` has nothing but setters, and
+                // measured, re-inserting its two children in the other order
+                // leaves `get_sidebar()`/`get_content()` exactly as they were —
+                // `rotateTail` returns before it touches anything. Reporting
+                // `remove-all` there names a cost nobody pays.
+                expect(reorderMode(lookupWidget('AdwNavigationSplitView').children)).toBe('n/a');
+                expect(reorderMode(lookupWidget('AdwOverlaySplitView').children)).toBe('n/a');
+                // The MIXED case is what keeps that from becoming "slotted is
+                // n/a": `GtkOverlay` holds one setter slot and one adder, and the
+                // adder is the one that orders.
+                expect(reorderMode(lookupWidget('GtkOverlay').children)).toBe('remove-all');
             });
 
             await it('an empty text placeholder mounts into a sink-less container', async () => {
