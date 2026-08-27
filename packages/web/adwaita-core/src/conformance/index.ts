@@ -510,6 +510,7 @@ export type {
     WrapBoxSpacingVector,
 } from './wrap-box.js';
 
+// --- Adw.HeaderBar packing order, title-widget either/or + title-resolution vectors ---
 export {
     HEADER_BAR_PACK_VECTORS,
     HEADER_BAR_TITLE_SOURCE_VECTORS,

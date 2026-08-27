@@ -23,11 +23,13 @@
 //
 // AND THE DERIVED CENTRE IS A `GtkLabel`, not an `AdwWindowTitle`. `construct_title_label`
 // (:512) builds `gtk_label_new (NULL)` with the `title` class, `single-line-mode`,
-// `ellipsize=END` and `width-chars = MIN_TITLE_CHARS`. Both ports document the opposite —
-// `adwaita-web`'s element says "the title widget it creates when none is given IS an
-// `AdwWindowTitle`" — and that claim is what made a title/subtitle PAIR look like
-// fidelity. It is a divergence, and a defensible one for a declarative surface, but it
-// has to be named as one; {@link HeaderBarState} keeps the subtitle and marks it.
+// `ellipsize=END` and `width-chars = MIN_TITLE_CHARS`. Both ports put a window title there
+// instead. Only `adwaita-web` said so outright — "the title widget it creates when none is
+// given IS an `AdwWindowTitle`" — and that claim is what made a title/subtitle PAIR look
+// like fidelity; the NativeScript one left it out of a `FIDELITY:` ledger that names its
+// other divergence, which reads the same way. It is a divergence, and a defensible one for
+// a declarative surface, but it has to be named as one; {@link HeaderBarState} keeps the
+// subtitle and marks it.
 //
 // Reference: refs/libadwaita/src/adw-header-bar.c
 // Copyright (c) GNOME contributors (libadwaita). LGPLv2.1+.
@@ -263,8 +265,9 @@ export class HeaderBarState<T> {
         // the walk, exactly as an untitled page or dialog does in C; as the bar's OWN
         // `title` it means "unset", the state `Adw.HeaderBar` is permanently in since it
         // has no such property. A renderer with sources installed therefore cannot force
-        // a blank centre with `setTitle('')` — it clears the sources instead, which is
-        // the only lever C offers either.
+        // a blank centre with `setTitle('')`; it reaches for what C reaches for — install
+        // no source, or let one ANSWER `''`, which an untitled page, an untitled dialog
+        // and `gtk_window_set_title (win, "")` each do.
         const derived = this._title.title !== '' ? this._title.title : resolveHeaderBarTitle(this._sources);
         return {
             start: [...this._start],

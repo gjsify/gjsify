@@ -125,7 +125,7 @@ export const HEADER_BAR_TITLE_WIDGET_VECTORS: ReadonlyArray<HeaderBarTitleWidget
         titleWidget: 'b',
         derivedPresent: false,
         changed: [true, true],
-        rule: 'replacing one title widget with another never shows the derived title in between',
+        rule: 'replacing one title widget with another is a change twice, and the derived title stays gone',
     },
 ];
 
