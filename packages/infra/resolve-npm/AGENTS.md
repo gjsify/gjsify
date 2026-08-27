@@ -1,11 +1,11 @@
 # AGENTS.md — `@gjsify/resolve-npm` (slot routing)
 
 > Scope: this directory. Repo-wide rules live in the [root AGENTS.md](../../../AGENTS.md) — read that first.
-> The runtime quadruplet this routes on is defined in the root's § Runtime & platform model.
+> The runtime quintuplet this routes on is defined in the root's § Runtime & platform model.
 
 ### Slot routing — how `--app <target>` resolves `@gjsify/<X>`
 
-Implemented by `packages/infra/resolve-npm/lib/runtime-aliases.mjs`: reads each package's declared quadruplet at config time and emits a derived alias map COMPOSED UNDER the hardcoded `ALIASES_*_FOR_*` baseline (hardcoded wins on conflict).
+Implemented by `packages/infra/resolve-npm/lib/runtime-aliases.mjs`: reads each package's declared quintuplet at config time and emits a derived alias map COMPOSED UNDER the hardcoded `ALIASES_*_FOR_*` baseline (hardcoded wins on conflict).
 |rules: `polyfill` → `@gjsify/<X>/<target>` when the package's `exports` declares that platform-entry subpath (ADR 0014, e.g. `@gjsify/os` → `@gjsify/os/browser`), else no rewrite · `partial` → NO rewrite (the shared impl's degradation IS the contract; VALUE-export parity with the root is the promotion gate to `polyfill`, machine-checked by `platform-entry-parity`) · `native` → `@gjsify/<X>/globals` (re-exports the runtime-native value) · `none` → `@gjsify/empty`.
 |ONE hop, deliberately: the map `aliasPlugin` receives is already merged flat across four tiers (derived → curated `ALIASES_*` → per-target overrides → user `--alias`, later wins) and resolves each alias target in exactly one hop (`skipSelf: true`). A resolver CHAIN would apply slot routing to USER aliases — `--alias node:stream=@gjsify/stream` (the node-gi consumer harness's entire mechanism; 34 polyfills declare `node:"native"`) would bounce to `@gjsify/stream/globals` = Node's own builtin, and the suite would measure nothing. Measured: chaining changes 0 of 114 `gjs` and 0 of 148 `node` entries; the only 4 changes on `nativescript` are regressions — which is why `ALIASES_NODE_FOR_NATIVESCRIPT` is deliberately NOT composed (a bridge declaring `nativescript:"native"` in the "I AM the native impl" sense promises a `globals.mjs` it does not ship; open TODO). Composing a table is an explicit per-table decision.
 |`aliasPlugin` NEVER rewrites an import whose importer is a `\0gjsify-*` virtual module (`isGjsifyVirtualModuleId`) — gjsify-generated module bodies name the RUNTIME module they need; a user `--alias node:module=…` reaching `gjsGiNodePlugin`'s `createRequire` import once made `@gjsify/module` unbuildable on every runtime.
