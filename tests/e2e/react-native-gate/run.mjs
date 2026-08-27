@@ -24,9 +24,55 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { createTestEnvironment, cleanupTestEnvironment, setupProject } from '../helpers.mjs';
+
+const RN_PKG = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'packages', 'framework', 'react-native');
+
+/**
+ * The refused name this suite builds against — DERIVED, never written down.
+ *
+ * It used to be `FlatList`, and that is exactly the bug: the fixture's premise is
+ * "this name is `planned`", which is a status the layer is in the business of
+ * CHANGING. When `FlatList` became `partial` the gate correctly let it through and
+ * three assertions in here failed — a vector that goes red because the product
+ * improved is a vector that will be deleted rather than fixed.
+ *
+ * So the name comes out of the generated artifacts, which move with the table:
+ * the README's `### Planned` block gives a name AND its GTK counterpart, and the
+ * generated refusing-exports module is asked to agree. Both are written by
+ * `scripts/generate-exports.mjs` from the one table, so a name that graduates
+ * disappears from both in the same commit and this picker moves to the next one.
+ *
+ * `planned` specifically, not any refusing status: only that branch of
+ * `explainUnsupported` prints "The GTK counterpart is …", which is the assertion
+ * that proves the message came from the real table rather than from the plugin.
+ */
+function pickPlannedName() {
+    const readme = readFileSync(join(RN_PKG, 'README.md'), 'utf8');
+    const planned = readme.split(/^### Planned\b.*$/m)[1];
+    assert.ok(planned, 'the README has no generated "### Planned" section to read a fixture name out of');
+    // Stop at the next heading so a later section cannot donate a row.
+    const rows = planned.split(/^#{2,3} /m)[0].matchAll(/^\| `(\w+)` \| [^|]*\| ([^|]+)\|/gm);
+
+    const generated = readFileSync(join(RN_PKG, 'src', 'generated', 'unsupported-exports.ts'), 'utf8');
+    const refusing = new Set([...generated.matchAll(/^export const (\w+) = unsupported\(/gm)].map((match) => match[1]));
+
+    for (const [, name, gtkCell] of rows) {
+        const gtk = gtkCell.trim();
+        // `—` is the table's "no counterpart", and the sentence then omits it.
+        if (gtk === '' || gtk === '\u2014') continue;
+        assert.ok(
+            refusing.has(name),
+            `${name} is in the README's Planned block but not in the generated refusing exports — ` +
+                'the two generated artifacts disagree, which means one of them is stale.',
+        );
+        return { name, gtk };
+    }
+    throw new Error('no planned entry with a GTK counterpart — the fixture cannot assert the table wrote the message');
+}
 
 /** One `gjsify build` in the fixture, with both streams captured. */
 function build(projectDir, args) {
@@ -41,8 +87,11 @@ function build(projectDir, args) {
 describe('--app gjs react-native alias + support gate (ADR 0032 § 2, § 8)', { timeout: 20 * 60 * 1000 }, () => {
     let tmpDir;
     let projectDir;
+    /** `{ name, gtk }` of the planned entry this run builds against. */
+    let planned;
 
     before(() => {
+        planned = pickPlannedName();
         const env = createTestEnvironment('gjsify-e2e-react-native-gate-');
         tmpDir = env.tmpDir;
 
@@ -63,12 +112,18 @@ describe('--app gjs react-native alias + support gate (ADR 0032 § 2, § 8)', { 
             ].join('\n'),
         );
 
-        // `FlatList` is `planned` in the table — importable at the type level,
-        // refused by the gate. Imported next to a supported name so the vector
-        // also shows the gate reporting only what is actually refused.
+        // A `planned` name — importable at the type level, refused by the gate.
+        // Imported next to a supported one so the vector also shows the gate
+        // reporting only what is actually refused. The prefix `import { View, ` is
+        // fixed at 15 characters on purpose: the position assertion below then holds
+        // whichever name the picker chose.
         writeFileSync(
             join(src, 'refused.ts'),
-            ["import { View, FlatList } from 'react-native';", 'export const parts = [View, FlatList];', ''].join('\n'),
+            [
+                `import { View, ${planned.name} } from 'react-native';`,
+                `export const parts = [View, ${planned.name}];`,
+                '',
+            ].join('\n'),
         );
 
         // The five type-only imports ADR 0032 measured, which cost nothing.
@@ -189,11 +244,15 @@ describe('--app gjs react-native alias + support gate (ADR 0032 § 2, § 8)', { 
             'dist/refused.mjs',
         ]);
         assert.notEqual(status, 0, `a refused import must fail the build.\n${output}`);
-        assert.ok(output.includes('FlatList'), `the refused NAME must be printed.\n${output}`);
+        assert.ok(output.includes(planned.name), `the refused NAME must be printed.\n${output}`);
         assert.ok(output.includes('refused.ts:1:15'), `the position must be printed.\n${output}`);
-        // Read out of the real table, not restated here: `@gjsify/react-native`'s
-        // own entry for FlatList names the GTK counterpart.
-        assert.ok(output.includes('Gtk.ListView'), `the message must be the support table's own sentence.\n${output}`);
+        // Read out of the real table, not restated here: the entry's own GTK
+        // counterpart, which only the `planned` branch of `explainUnsupported`
+        // prints. A message assembled by the plugin could not contain it.
+        assert.ok(
+            output.includes(planned.gtk),
+            `the message must be the support table's own sentence, naming ${planned.gtk}.\n${output}`,
+        );
         // Only what is refused. `View` is `partial` and must not be reported.
         assert.ok(!/^\s+\S+:\d+:\d+\s+View$/m.test(output), `a supported name must not be reported.\n${output}`);
     });
