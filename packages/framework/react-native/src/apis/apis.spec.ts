@@ -80,7 +80,18 @@ export default async () => {
 
         await gated('Linking', async () => {
             await it('answers canOpenURL from Gtk.UriLauncher, synchronously underneath', async () => {
-                expect(await Linking.canOpenURL('https://example.invalid/')).toBe(true);
+                // ONLY THE FALSE DIRECTION IS ASSERTED, and that is the whole lesson
+                // of this vector. `canOpenURL` asks GTK whether a handler is
+                // INSTALLED, so asserting `https:` is openable asserts that the
+                // machine running the test has a browser. It does on a desktop and it
+                // does not in a headless container — measured: this test passed here
+                // and failed the Fedora shard in CI, which is a claim about the host
+                // masquerading as a claim about the code.
+                //
+                // What IS ours: that the answer is a boolean, that it comes back
+                // without waiting on a callback, and that a scheme nobody can handle
+                // is `false`. A made-up scheme is stable on every host.
+                expect(typeof (await Linking.canOpenURL('https://example.invalid/'))).toBe('boolean');
                 expect(await Linking.canOpenURL('x-gjsify-probe://nothing')).toBe(false);
             });
 
