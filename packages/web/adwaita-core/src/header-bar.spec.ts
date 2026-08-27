@@ -1,5 +1,11 @@
-// Header-bar specs — driven by the shared conformance vectors, so this suite and every
-// renderer suite assert the SAME table.
+// Header-bar specs — driven by the shared conformance vectors in
+// `./conformance/header-bar.js`.
+//
+// No renderer suite drives those tables yet; the tables say so themselves (CORE-ONLY GAP,
+// #1343), and this suite is their only driver until the NativeScript and web header bars
+// move onto `HeaderBarState`. That is a gap, not coverage. The sentence that stood here
+// claimed "every renderer suite asserts the SAME table" over three tables no renderer
+// names — a coverage promise the file itself contradicted four lines further down.
 
 import { describe, it, expect } from '@gjsify/unit';
 
