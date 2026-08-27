@@ -154,7 +154,6 @@ function useSignals(
         // closures read only `event.prop`/`event.signal`/`event.read`, all three of
         // which `signature` encodes; a stale array with an equal signature is
         // behaviourally identical, and the CALLBACKS come from `latest.current`.
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [signature]);
     return { props: bound, widgetRef };
 }
