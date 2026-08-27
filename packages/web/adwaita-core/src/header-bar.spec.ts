@@ -55,7 +55,9 @@ export default async () => {
             expect(bar.state.start).toStrictEqual(['back']);
         });
 
-        await it('remove of the title widget clears the centre and restores the derived title', async () => {
+        // A DIVERGENCE, not a derivation: `adw_header_bar_remove` empties the centre bin
+        // and stops (:1144), leaving no label and a stale `title_widget`. See `remove`.
+        await it('remove of the title widget restores the derived title — where C leaves the centre empty', async () => {
             const bar = new HeaderBarState<string>();
             bar.setTitle('Files');
             bar.setTitleWidget('entry');

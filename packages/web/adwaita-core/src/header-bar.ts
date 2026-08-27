@@ -165,6 +165,17 @@ export class HeaderBarState<T> {
      * A child the bar never held is `false` here and a `g_critical` there
      * (`ADW_CRITICAL_CANNOT_REMOVE_CHILD`, :1146); the return value is the seam a renderer
      * raises its own diagnostic from.
+     *
+     * DIVERGENCE, deliberate — taking the CENTRE out brings the derived title back here,
+     * and in C it does not. `adw_header_bar_remove` on the centre bin runs one line
+     * (`adw_bin_set_child (…, NULL)`, :1144): it never clears `self->title_widget`, so
+     * `adw_header_bar_get_title_widget` (:1163) keeps returning the widget that just left,
+     * and it never reaches `construct_title_label`, so the centre stays EMPTY —
+     * `title_label` was set NULL at :1209 and `update_title` returns on it at :479. Only
+     * an explicit `set_title_widget (NULL)` afterwards takes the label back, through
+     * :1211. That is a stale pointer plus a third state this model does not have —
+     * {@link HeaderBarRenderState.derivedTitle} is null exactly while a title widget holds
+     * the centre — so `remove` routes through {@link setTitleWidget} instead.
      */
     remove(child: T): boolean {
         let removed = false;
