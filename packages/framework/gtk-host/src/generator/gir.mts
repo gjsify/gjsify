@@ -61,8 +61,16 @@ export interface GirProperty {
  * GIR writes `baseline_fill`; the nick GObject registered is `baseline-fill`. This
  * is the FALLBACK for a `<member>` with no `glib:nick` — the attribute itself is
  * the answer wherever it exists, because the substitution is right for Gtk and Adw
- * by luck and not by construction: across every GIR in this workspace 40,940
- * members carry the attribute and 97 disagree with it.
+ * by luck and not by construction: some nicks keep an underscore it would have
+ * replaced, and nothing but the attribute knows which one survived.
+ *
+ * The count that used to sit here is now `ts-for-gir/scripts/check-nick-derivation.mjs`,
+ * which owns the corpus this measures over. It also settles what looked like a
+ * contradiction: this file said 97 and ts-for-gir said 889 over the SAME 705 GIRs,
+ * and both were right — the derivations differ. 889 counts a fallback that also
+ * lowercases, which adds the 792 members whose GIR name carries uppercase and whose
+ * nick preserves it. This one does not lowercase, so 97 is its number. Quote a
+ * derived-nick count without naming its derivation and you get that pair back.
  */
 export const nickOf = (member: string): string => member.replace(/_/g, '-');
 

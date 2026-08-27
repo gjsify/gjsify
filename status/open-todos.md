@@ -189,6 +189,42 @@ the runtime constants (`OWN_PROPS`, `OWN_SIGNALS`, `DECLS`, `ENUM_NICKS`,
 start. Until then a consumer-side branch could only resolve against a local
 ts-for-gir checkout, which is not something CI can reproduce.
 
+**Who unblocks it, and in what order.** Re-measured 2026-08-26: still four keys, so
+nothing below has happened yet. The whole chain hangs off ONE human action in the
+ts-for-gir repo — everything after it is automatic, and none of it is a gjsify action:
+
+1. **A ts-for-gir maintainer cuts a release** from `main` on a clean tree
+   (`yarn release:stable`; release-it has `requireBranch: main`). ts-for-gir is at
+   4.1.0 and tag `v4.1.0` already exists, so the surface — merged as ts-for-gir#438
+   on 2026-08-26 — is UNRELEASED code. #438 is a `feat`, so the cut is 4.2.0.
+   `.release-it.json` has `npm.publish: false`; the cut only tags and opens a GitHub
+   release.
+2. The `release: published` event fires `release-types.yml`, which runs
+   `build:types:release` and pushes the regenerated `@girs/*` to `gjsify/types@main`.
+   Nothing needs enabling: the config it uses, `.ts-for-gir.packages-all.rc.js`, already
+   sets `widgetSurface: true`, and `packages/templates/templates/package.json` emits the
+   `./surface` key conditionally on `girModule.hasWidgetSurface` — so the key appears for
+   the namespaces that declare a concrete `GtkWidget` descendant and nowhere else.
+3. That push fires `gjsify/types`' own `Release CI` (`on: push: branches: [main]`),
+   which publishes every `@girs/*` to npm. This is the step that makes the subpath
+   installable, and it is triggered by the push rather than by the release — so a cut
+   whose `release-types.yml` leg fails publishes `@ts-for-gir/*` and NO new `@girs/*`,
+   which looks like a successful release from the tag.
+4. Probe again. `npm view @girs/gtk-4.0 version` must read 4.2.0 AND
+   `npm view @girs/gtk-4.0 exports --json` must show the fifth key. Both, because
+   step 3 is where the two can come apart.
+
+Only then do ADR 0029 steps 3–5 become gjsify work. Nothing here is a gjsify PR, and
+there is no partial version of it worth landing first: a consumer-side branch pinned to
+a local ts-for-gir checkout is not something CI can resolve.
+
+**The same release retires a second thing.** `checkTypeSkew` in
+`packages/infra/cli/src/utils/check-system-deps.ts` carries `isDegenerate()`, which
+detects `@girs`' namespace-version-as-release fallback — the value ADR 0019 Decision 3
+removed in ts-for-gir#436, also unreleased. Once a released `@girs` omits
+`libraryVersion` where the library declares none, that detector is reading for a shape
+that can no longer be published, and it goes away rather than moving anywhere.
+
 **Two things to pin when it does arrive.** The `@girs` version must be EXACT, not a
 caret: `@gjsify/gtk-host` declares eight `@girs/*` packages at `^4.1.0`, and a minor
 `@girs` release moving the surface under a lockfile-less install is the hazard ADR
@@ -204,6 +240,115 @@ generated Gtk-4.0 surface: **12 of its 418 dashed keys** — `action-target`, `c
 the migration will surface fixtures that pass `null` to a property GIR does not mark
 nullable. That is a real narrowing and wants a decision — widen in the consumer dialect,
 or fix the fixtures — rather than a silent cast.
+
+### What else could move to ts-for-gir, and the line that decides it
+
+Asked directly: ts-for-gir is meant to be used as a LIBRARY (ADR 0019), ADR 0029 just
+moved the widget vocabulary there, so what else in gjsify is really ts-for-gir's? Audited
+2026-08-26 across every module in this repo that carries introspection knowledge. Code
+lines exclude comments and blanks, because several of these files are 60 % comment and
+counting prose measures the incident record, not the coupling.
+
+**The line, stated once so it does not have to be re-argued per file.** ts-for-gir knows
+**GIR as XML**: it parses `.gir` files headlessly, in CI, with no GTK installed and no
+typelib loaded. gjsify knows **GI as a loaded runtime**: which libdir girepository will
+search, what `gi://Gtk?version=4.0` resolves to on this host, whether the installed
+library actually has the member the types promise. Everything below sorts cleanly on that
+one question, and the sort is not a judgement call — a module that needs an installed
+library cannot move to a generator that runs without one.
+
+**Moves — and it is all one thing, already decided.** ADR 0029 steps 3–5, blocked on the
+release above:
+
+ADR 0029 § "The seam, measured" owns the per-module counts and they are not restated
+here. What this audit adds is the second, different question — not "how many lines are
+GIR-generic" but **"how many lines mention gjsify at all"**, which is what decides
+whether a module can compile somewhere else:
+
+| module | code (ADR 0029) | lines referencing gjsify | what holds it here |
+|---|---:|---:|---|
+| `generator/gir.mts` | 249 | 1 | `import { DOMParser } from '@gjsify/domparser'` |
+| `generator/surface.mts` | 196 | 0 | nothing — imports only its two siblings |
+| `generator/tsmap.mts` | 100 | 8 | the `@girs/*` package table, and see below |
+| `generator/mini.fixture.mts` | 59 | 0 | nothing |
+| `generator/emit-types.mts` | 156 | 5 | `tagOf` + the emitted `../attrs.js` import |
+| `generator/emit.mts` | 103 | 0 | the runtime table is gtk-host's MODEL (ADR 0028 § 1) |
+| `generator/main.mts` | 128 | 3 | `CURATED_DESCRIPTORS` + `methodsOf` wiring |
+
+Read the two questions together and the split is sharper than either alone. The first
+four modules are a closed subgraph — 604 code lines whose only edge outside `generator/`
+is a single XML-parser import — while `emit.mts` mentions gjsify **nowhere** and still
+must stay, because ADR 0029's own column shows only 13 of its 103 lines are GIR-generic:
+it is gtk-host's model expressed in pure TypeScript. A module can be free of gjsify
+imports and still be entirely about gjsify.
+
+`tsmap.mts`'s 8 lines are worth naming separately, because they are the one case where
+the reference points the other way: `GIRS_PACKAGES` maps `Gtk` → `@girs/gtk-4.0`, which
+is **ts-for-gir's own naming convention, written down on the wrong side of the
+boundary.**
+
+**Does not move, and the reason is the same reason each time.** These read as candidates
+because they are full of GI vocabulary, but every one of them needs something a headless
+generator does not have:
+
+| module | code | GIR-generic | why it stays |
+|---|---:|---:|---|
+| `gjs/utils/src/system-gi-dirs.ts` | 44 | 43 | `<libdir>/girepository-1.0` layout — a typelib-LOADING rule |
+| `infra/cli/src/utils/system-gi.ts` | 77 | 77 | same rule, plus `DYLD_FALLBACK_LIBRARY_PATH` composition |
+| `node-gi/node-gi/system-gi.js` | 70 | 70 | same rule, third copy |
+| `infra/cli/src/utils/gi-typelib.ts` | 80 | 80 | finds `Ns-Ver.typelib` on this host |
+| `node-gi/scripts/typelib-backers.mjs` | 170 | ~155 | parses the typelib BINARY header; ts-for-gir never opens one |
+| `parseGiSpecifier` (two copies) | 9 + 13 | 22 | `gi://` is a GJS import specifier, not a GIR concept |
+| `node-gi/src/repo.cc` | 245 | — | N-API binding; `gi_repository_require` IS the runtime |
+| `gtk-host/src/conformance/`, `registry.ts` | 165 + — | 0 | walks the LIVE GObject type system, not GIR |
+| `docs/gnome-mappings.md` | 12 | 0 | which GNOME lib backs which Node/Web API — a polyfill choice |
+
+**One of those rows is a latent bug, found while sorting them.** `parseGiSpecifier`
+exists twice under the same name with DIFFERENT accept sets:
+`packages/infra/cli/src/utils/ship/gi-namespaces.ts` validates the namespace against
+`/^[A-Za-z][A-Za-z0-9_]*$/` and returns `Ns-Version` as one string;
+`packages/infra/rolldown-plugin-gjsify/src/plugins/gjs-gi-node.ts` only checks
+non-empty and returns `{ namespace, version }`. So `gi://9Foo` is rejected by the
+first and accepted by the second, and the second is the one on the BUILD path — it
+would emit a `requireGi('9Foo', …)` shim for a specifier the ship path refuses to
+declare a `Depends:` for. Both are Tier 1, so a shared home is legal; it needs a
+decision about which accept set is right (the validating one, on the evidence that
+GObject namespaces are C identifiers) rather than a mechanical lift. Not done here:
+this audit was about the ts-for-gir boundary, and consolidating these is on the other
+side of it.
+
+`generated.spec.ts` belongs in this second list for the sharpest version of the reason:
+it asks the *installed* typelib whether every emitted name is real. ADR 0029 § Consequences
+already fixed it here, and that is what forces the surface to ship runtime data beside the
+types.
+
+**Three of those rows are a real duplicate, and ts-for-gir is not its home.**
+`systemGiLibraryDirs()` exists three times because ADR 0005 Decision 2 forbids a Tier-1
+package a `dependencies` edge on `@gjsify/node-gi` — a tier rule, not a technical
+obstacle. The already-tracked fix (§ "`systemGiLibraryDirs()` lives in two places") is a
+shared `@gjsify/system-gi`, and it stays right: the rule is about loading libraries.
+Answering "can it move to ts-for-gir" with yes would export a runtime concern into a
+generator to dodge a tier rule.
+
+**The dependency-direction check, per ADR 0019, and one finding.** ADR 0019 Decision 1
+keeps ts-for-gir build-step-free — `@ts-for-gir/lib`'s `exports` is literally
+`{".": "./src/index.ts"}` — so a published `@gjsify/*` package taking a
+`dependencies` edge on it would hand raw TypeScript to every consumer. Today all SEVEN
+published `@ts-for-gir/*` edges in this repo are `devDependencies` on `@ts-for-gir/cli`,
+which is the sanctioned seam; `@ts-for-gir/lib` itself appears only under the private
+integration test, which declares no tier and publishes nothing.
+
+Two things follow, and the first is the good news:
+
+- **The prize costs no new dependency edge at all.** The surface arrives as generated
+  `@girs/*` — `.d.ts` plus a runtime `.js` — and `@gjsify/gtk-host` already declares
+  eight `@girs/*` packages. It is Tier 3, so the tier rule constrains it least of
+  anything here. ADR 0029 steps 3–5 add zero `@ts-for-gir` dependency.
+- **The rule that would catch the mistake does not exist.** `tier.mjs` collects only
+  `dep.startsWith('@gjsify/')`, so an external `@ts-for-gir/*` edge in `dependencies` is
+  invisible to it, and no other manifest-conformance rule inspects external dependency
+  names. ADR 0019's boundary is discipline-only today. Closed in this change by extending
+  the rule that already special-cases one package by name.
 
 ### An adopted composite offsets by its own internals
 

@@ -129,6 +129,46 @@ is still open".
 Decision 2 is **independent** of this: declaring `gjsify.prebuilds` adds a `.gir`
 to the tarball, not a dependency edge.
 
+### 4. The boundary Decision 1 implies is now enforced, not trusted
+
+Added 2026-08-26, while auditing what else could move to ts-for-gir. Decision 1 keeps
+every `@ts-for-gir/*` and `@gi.ts/*` package build-step-free, and the registry confirms
+it: `@ts-for-gir/lib`, `@ts-for-gir/cli` and `@gi.ts/parser` all resolve
+`exports["."]` to `./src/index.ts`. So a **`dependencies` edge from a published
+`@gjsify/*` package onto one of them publishes raw TypeScript to everyone who installs
+the depending package.** The sanctioned seam is a `devDependency` that gjsify bundles,
+which is what all seven published edges in this repo already are (all of them on
+`@ts-for-gir/cli`; `@ts-for-gir/lib` itself appears only under the private
+integration test, which declares no tier and publishes nothing).
+
+Nothing enforced that. `scripts/manifest-conformance/rules/tier.mjs` collects only
+`dep.startsWith('@gjsify/')`, so an external `@ts-for-gir/*` edge was invisible to it,
+and no other conformance rule inspects external dependency names — a package could
+have taken that edge and passed `audit-runtimes --check` silently. The `tier` rule now
+also fails on it, by name, the same shape it already used for ADR 0005's node-gi
+isolation and for the same reason: these are external packages with no `gjsify.tier`,
+so the tier walk structurally cannot see them.
+
+**This does not restrict where GIR-derived DATA may flow.** `@girs/*` packages ship
+`.d.ts` plus runtime `.js` and are unaffected — which is why ADR 0029's migration of the
+widget vocabulary into `@gjsify/gtk-host` costs no new dependency edge at all: the
+surface arrives as generated types on a package gtk-host already depends on.
+
+### 5. What the boundary answers about migrating more code here
+
+The audit behind Decision 4 sorted every introspection-carrying module in gjsify on one
+question, recorded in `status/open-todos.md` § "What else could move to ts-for-gir":
+**ts-for-gir knows GIR as XML** — parsed headlessly, in CI, with no GTK installed and no
+typelib loaded — while **gjsify knows GI as a loaded runtime**. A module that needs an
+installed library cannot move to a generator that runs without one, so the whole
+typelib-loading cluster (`systemGiLibraryDirs()` and its two mirrors, `gi-typelib.ts`,
+the typelib binary-header parser, both `parseGiSpecifier` copies, `repo.cc`) stays,
+and ADR 0029's already-decided generator move is the only real candidate. The three
+`systemGiLibraryDirs()` copies are held apart by ADR 0005's tier rule rather than by a
+technical obstacle, and their home is a shared `@gjsify/*` package: answering "can it
+move to ts-for-gir" with yes would export a runtime concern into a generator to dodge a
+tier rule.
+
 ## Consequences
 
 - `@ts-for-gir/lib` gains a public programmatic surface, so it acquires a
