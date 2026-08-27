@@ -148,7 +148,13 @@ export function osDecisionSites(pkg) {
             // rule instead of reporting it twice in different words.
             continue;
         }
-        if (decidesOnOs(text)) sites.push(file.slice(pkg.dir.length + 1).split(/[\\/]/).join('/'));
+        if (decidesOnOs(text))
+            sites.push(
+                file
+                    .slice(pkg.dir.length + 1)
+                    .split(/[\\/]/)
+                    .join('/'),
+            );
     }
     return sites;
 }
@@ -191,7 +197,9 @@ function auditOsAxis(ctx) {
         declared++;
 
         if (typeof os !== 'object' || Array.isArray(os)) {
-            failures.push(`${pkg.rel}/package.json: \`gjsify.os\` must be an object keyed by operating system, got ${JSON.stringify(os)}.`);
+            failures.push(
+                `${pkg.rel}/package.json: \`gjsify.os\` must be an object keyed by operating system, got ${JSON.stringify(os)}.`,
+            );
             continue;
         }
 
@@ -271,7 +279,8 @@ export const osAxisRule = defineRule({
     id: 'os-axis',
     scope: 'portable',
     fields: ['gjsify.os', 'gjsify.osNotes'],
-    description: 'a package that branches on the operating system declares `gjsify.os`, and every claim below `supported` states why',
+    description:
+        'a package that branches on the operating system declares `gjsify.os`, and every claim below `supported` states why',
     run(ctx) {
         const { failures, notes, stats } = auditOsAxis(ctx);
         return {

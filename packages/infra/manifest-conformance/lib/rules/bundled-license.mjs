@@ -92,7 +92,7 @@ export function auditBundledLicense(packages) {
         if (typeof license !== 'string' || license.trim() === '') {
             failures.push(
                 `${pkg.name} (${pkg.path}): ships a third-party payload (${pkg.payload.join(', ')}) and declares no \`license\`. ` +
-                    'A package that redistributes other projects\' binaries must say so in the one field a scanner reads.',
+                    "A package that redistributes other projects' binaries must say so in the one field a scanner reads.",
             );
             continue;
         }
@@ -143,8 +143,7 @@ export const bundledLicenseRule = defineRule({
     id: 'bundled-license',
     scope: 'portable',
     fields: ['license'],
-    description:
-        "a package shipping another project's binaries declares a licence that says so, not just its own",
+    description: "a package shipping another project's binaries declares a licence that says so, not just its own",
     run(ctx) {
         const packages = collectBundlingPackages(ctx);
         const result = auditBundledLicense(packages);
