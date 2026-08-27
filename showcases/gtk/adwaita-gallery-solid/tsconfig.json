@@ -1,0 +1,20 @@
+{
+    "compilerOptions": {
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "target": "ESNext",
+        "outDir": "dist",
+        "rootDir": "src",
+        "strict": true,
+        "skipLibCheck": true,
+        "types": [],
+        "lib": ["ESNext", "DOM", "DOM.Iterable"],
+        // Both halves, as in `solid-host-counter`: `preserve` is what
+        // `babel-preset-solid` needs, and `strict` supplies `noImplicitAny` —
+        // without it every JSX element is implicitly `any` and `tsc` exits 0
+        // having checked nothing at all.
+        "jsx": "preserve",
+        "jsxImportSource": "@gjsify/gtk-host"
+    },
+    "include": ["src/**/*"]
+}
