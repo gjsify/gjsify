@@ -118,17 +118,21 @@ and the table is exported (`SUPPORT_TABLE`, `SUPPORTED_NAMES`, `explainUnsupport
 ### An unimplemented name refuses; it is not absent
 
 Omitting a name would already be loud — a bundler reports `MISSING_EXPORT`. But what it reports is
-"this package does not export `FlatList`", which sends you to check your spelling. The table knows
-something better: that `FlatList` is tier P2, that it maps onto `Gtk.ListView` with a real
-`Gio.ListStore` behind it, and that it is not built yet.
+"this package does not export `Animated`", which sends you to check your spelling. The table knows
+something better: that `Animated` is tier P3, that it maps onto `Adw.TimedAnimation` and
+`Adw.SpringAnimation`, and that it is not built yet.
 
 So every unimplemented name is exported as a value that refuses with the table's sentence:
 
 ```
-@gjsify/react-native: "FlatList" is not implemented yet (tier P2). GTK virtualises for
-real, so this fits better here than it does on the web. The GTK counterpart is
-Gtk.ListView + Gio.ListStore.
+@gjsify/react-native: "Animated" is not implemented yet (tier P3). Genuinely mappable,
+but it is a subsystem rather than a component. Doing it badly is worse than not doing
+it. The GTK counterpart is Adw.TimedAnimation / Adw.SpringAnimation.
 ```
+
+The example above used to be `FlatList`, which is the warning two paragraphs up making itself:
+`FlatList` shipped, its sentence became `"FlatList" is available.`, and the illustration was
+quietly false. **Any name on this page can move; the README's generated listing cannot.**
 
 It throws on **property access**, not only on call, because `Animated.timing` and
 `NativeModules.Foo` are property reads — and a module that reads one during its own evaluation
