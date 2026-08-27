@@ -22,9 +22,12 @@ import { ADWAITA_ICON_GRID, DEFAULT_ICON_COLOR, extractIconPaths, type SymbolicI
 
 interface AndroidPath {
     transform(matrix: AndroidMatrix): void;
+    setFillType(fillType: unknown): void;
 }
 interface AndroidMatrix {
-    setScale(sx: number, sy: number): void;
+    /** Row-major `[a c e; b d f; 0 0 1]` — nine floats, not six. */
+    setValues(values: number[]): void;
+    postScale(sx: number, sy: number): void;
 }
 interface AndroidPaint {
     setAntiAlias(aa: boolean): void;
@@ -49,6 +52,7 @@ declare const android:
               Canvas: { new (bitmap: AndroidBitmap): AndroidCanvas };
               Paint: { new (): AndroidPaint; Style: { FILL: unknown } };
               Matrix: { new (): AndroidMatrix };
+              Path: { FillType: { EVEN_ODD: unknown } };
               Color: { parseColor(color: string): number };
           };
       }

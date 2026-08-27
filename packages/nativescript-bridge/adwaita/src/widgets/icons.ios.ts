@@ -156,7 +156,14 @@ export function renderSymbolicIcon(svg: string, options?: SymbolicIconOptions): 
             // has to come back onto the grid before the grid is scaled, not after.
             // `CGAffineTransformMake` takes SVG's six numbers in SVG's own order.
             path.applyTransform(
-                CGAffineTransformMake(transform[0], transform[1], transform[2], transform[3], transform[4], transform[5]),
+                CGAffineTransformMake(
+                    transform[0],
+                    transform[1],
+                    transform[2],
+                    transform[3],
+                    transform[4],
+                    transform[5],
+                ),
             );
             path.applyTransform(CGAffineTransformMakeScale(pathScale, pathScale));
             // A path that names its own fill is not symbolic: a critical battery is

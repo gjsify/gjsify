@@ -39,13 +39,25 @@ const ALL_ICONS: [string, unknown][] = [
     Object.entries(mod as Record<string, unknown>).map(([name, svg]) => [`${group}/${name}`, svg] as [string, unknown]),
 );
 
-import { extractIconPaths, IDENTITY_TRANSFORM, parseHexColor, parseIconTransform } from './widgets/icon-path.js';
+import {
+    extractIconPaths,
+    type IconTransform,
+    IDENTITY_TRANSFORM,
+    parseHexColor,
+    parseIconTransform,
+} from './widgets/icon-path.js';
 import { parseSvgPath, type SvgPathCommand } from './widgets/svg-path.js';
 
 /** Sample a cubic Bézier at `t`. */
 function cubicAt(t: number, p0: number, p1: number, p2: number, p3: number): number {
     const u = 1 - t;
     return u * u * u * p0 + 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t * p3;
+}
+
+/** Where `(x, y)` lands under an {@link IconTransform} — SVG's `[a c e; b d f]`. */
+function pointAt(transform: IconTransform, x: number, y: number): [number, number] {
+    const [a, b, c, d, e, f] = transform;
+    return [a * x + c * y + e, b * x + d * y + f];
 }
 
 /** Sample a quadratic Bézier at `t`. */
@@ -274,9 +286,7 @@ export default async () => {
         });
 
         await it('leaves a group once it closes', () => {
-            const paths = extractIconPaths(
-                svg('<g transform="translate(9,9)"><path d="M1 1"/></g><path d="M2 2"/>'),
-            );
+            const paths = extractIconPaths(svg('<g transform="translate(9,9)"><path d="M1 1"/></g><path d="M2 2"/>'));
             expect(paths[0]!.transform).toStrictEqual([1, 0, 0, 1, 9, 9]);
             expect(paths[1]!.transform).toStrictEqual(IDENTITY_TRANSFORM);
         });
@@ -337,9 +347,9 @@ export default async () => {
             const got = parseIconTransform('rotate(90,8,8)');
             expect(got).not.toBe(null);
             // (8,0) rotated 90° about (8,8) lands on (16,8).
-            const [a, b, c, d, e, f] = got!;
-            expect(a * 8 + c * 0 + e).toBeCloseTo(16, 6);
-            expect(b * 8 + d * 0 + f).toBeCloseTo(8, 6);
+            const [x, y] = pointAt(got!, 8, 0);
+            expect(x).toBeCloseTo(16, 6);
+            expect(y).toBeCloseTo(8, 6);
         });
 
         await it('refuses what it cannot read instead of returning identity', () => {
