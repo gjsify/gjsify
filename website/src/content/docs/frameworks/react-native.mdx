@@ -71,9 +71,10 @@ That is what the support table is for.
 </CommandTabs>
 
 Your framework stays yours and arrives as a peer: `react` + `react-reconciler`, or `solid-js`.
-Every one of them is optional, so install the one you render with — and mind the version ranges,
-because an optional peer is not enforced on install and the
-[React page](/gjsify/frameworks/react/) carries the measurement behind them.
+Routing adds two more, `@react-navigation/core` and `@react-navigation/routers`. Every one of them
+is optional, so install the ones you actually use — and mind the version ranges, because an
+optional peer is not enforced on install and the [React page](/gjsify/frameworks/react/) carries
+the measurement behind them.
 
 The Solid binding (`@gjsify/react-native/solid`) renders the same primitives, and it exists for a
 reason worth stating: with one framework binding, "the layers below are framework-agnostic" is a
@@ -471,27 +472,119 @@ rules out.
 it is where the desktop chain will land, never as a second plugin. Until then, a GTK build reads
 the base file, and a `.gtk.tsx` beside it is a file nothing imports.
 
-## The toolchain, as it actually stands
+## The build opt-in: `--dialect react-native`
 
-Two pieces of ADR 0032 § 8's build-time story are declared and not wired up, and it is worth
-knowing which:
+One flag turns an ordinary `gjsify build` into a React Native port:
 
-- **The `'react-native'` → `'@gjsify/react-native'` alias.** Import the package by its own name
-  for now. The import surface is identical either way; what the alias buys is an *unmodified*
-  application tree building.
-- **The bundler gate** that would fail a build on an import the table marks unsupported, naming
-  the file and the line. Nothing in the build pipeline reads the support table today, so the
-  runtime refusal is the only reader that fires — a sentence at the right moment instead of a
-  sentence before the run.
+```bash
+gjsify build src/app.tsx --app gjs --outfile dist/app.gjs.mjs \
+  --dialect react-native \
+  --define 'process.env.NODE_ENV="production"' \
+  --exclude-globals navigator
+```
 
-What does hold today: the runtime refusals, the generated README section, and
-`scripts/check-rn-surface.mjs`. That last one compares the table against a committed snapshot of
-React Native's export list on every run, and against the *installed* `react-native` whenever one is
-resolvable — printing which of the two modes it ran in, because a gate that quietly degrades to the
-weaker half is worth less than one that says so.
+It composes exactly two plugins, on the `gjs` and `node` targets. The first is the alias
+line: `'react-native'` → `'@gjsify/react-native'`, so an unmodified application tree
+builds without a rename per file. The second is the build-time half of the gate — it
+fails the build on an import of a name the support table does not mark `supported` or
+`partial`, naming the importing file and the line before anything runs. That is the
+only thing it has over the runtime refusal, and it is the whole point: a sentence at
+build time rather than the same sentence the first time a code path is reached in a
+window.
 
-The **build recipe is React's, not this package's** — `--define 'process.env.NODE_ENV="production"'`
-and `--exclude-globals navigator`, with the reason each flag exists on the
+The flag is also readable as `gjsify.dialect` in `package.json#gjsify` or an
+`.gjsifyrc.*`. yargs' `choices` already rejects an unknown value typed on the command
+line, but a config-file value never passes through yargs — so the narrowing lives where
+both spellings meet, and it names the alternatives rather than ignoring what it did not
+understand.
+
+**It is opt-in and never inferred, and that is load-bearing rather than cautious.** A
+monorepo with a phone leg and a desktop leg has the real `react-native` installed *on
+purpose*; redirecting the specifier for every `gjsify build` in that tree changes what
+the phone build resolves. And `@gjsify/react-native` is an optional tier-3 package, so
+an unconditional alias would fail every build in every tree that does not have it — on
+a package nobody asked for, with a gjsify name in the error, which reads as our bug.
+
+### The four shapes it answers
+
+The alias is a `resolveId` hook rather than an entry in the alias table, because two of
+these cannot be expressed as a rewrite.
+
+**A subpath is a named refusal, not a rewrite.** `react-native/Libraries/Components/…`
+reaches into a module layout that exists because of Metro and the native bridge; the
+alias covers the package *root*, because the root is the export surface being mirrored.
+Resolving it to the real React Native source would build and then fail in the window on
+`NativeModules`, so the build says so with the importer named. The match on the root is
+exact and never a prefix — `react-native-web`, `react-native-reanimated` and
+`react-native-gesture-handler` share the first eleven characters and none of them is
+this package.
+
+**An unresolvable target is a named error, not a silent external.** The substitution
+*is* the promise, so its failure is the one thing that must not exit 0. It deliberately
+does not fall back to the real `react-native` for the reason above.
+
+**A namespace import warns and builds.** `import * as RN from 'react-native'` makes the
+names a runtime question, so the gate says which form it hit, and that the runtime
+refusal — reading the same table — still covers the module, just later. Guessing would
+be worse than saying so.
+
+**A type-only import costs nothing and is not refused.** That works because the gate is
+a `transform` hook at `order: 'pre'`: by the time a normal-order hook runs the
+annotations may already have been stripped, and the gate would then be unable to tell a
+type-only import from a value import and would fail a program that cannot fail.
+
+### It reads the table, never a copy
+
+The gate resolves `@gjsify/react-native/support-table` through the bundler's own
+resolver, from a module of the *project being built*, and imports it. So it states what
+this build's own copy of the layer supports, and a version skew between the plugin and
+the layer cannot make it lie in either direction. It is deliberately not a dependency:
+the bundler plugin is tier 1, the layer is tier 3, and a tier-1 package may not depend
+on a higher tier. Both spellings are watched — the ported application writes
+`react-native` and a gjsify-native one writes `@gjsify/react-native` — because the gate
+is about the surface, not about which name reached it.
+
+Every refused import in one module is reported as one message. An application importing
+three unsupported names from the same file has one porting decision to make, and three
+separate build failures would show it one third of that decision per run.
+
+:::note[One place the gate deliberately does not fail]
+A module the pinned parser cannot read produces a warning, per file, and the build goes
+on. `acorn-typescript` 1.4.13 cannot parse a `satisfies` expression or a `const` type
+parameter, both of which are ordinary TypeScript in a tree on `typescript ^6.0.3` —
+erroring there would refuse a correct program, and a false violation is how a checker
+teaches people to ignore it. The shape used instead is the one
+`scripts/check-rn-surface.mjs` already uses: degrade to the weaker half and say so out
+loud, rather than degrade quietly.
+:::
+
+:::note[`--dialect react-native` is not `gjsify.runtimes['react-native']`]
+They answer opposite questions, and the flag is spelled as it is so the two cannot be
+read as one.
+
+`gjsify.runtimes['react-native']` declares that **this package runs on** React Native.
+`--dialect react-native` declares that **this source is** a React Native application,
+being built for GTK.
+
+A package can truthfully be both — shipped to a phone through Metro *and* ported to the
+desktop through this build — and while the flag was also spelled `react-native`, those
+two true statements read as a contradiction. A reader could reasonably expect a manifest
+declaring `react-native: 'none'` to fail the build, and it never should: the two are
+unrelated facts. The closed runtime vocabulary keeps the name because it is the older,
+machine-checked one; the dialect is spelled as what it is. It is a union rather than a
+boolean because `nativescript` is the named follow-on and fits here without a second
+flag.
+:::
+
+All three readers of the table now fire: the build gate above, the runtime refusals, and the
+generated README section. `scripts/check-rn-surface.mjs` holds the key set from outside — against a
+committed snapshot of React Native's export list on every run, and against the *installed*
+`react-native` whenever one is resolvable, printing which of the two modes it ran in, because a
+gate that quietly degrades to the weaker half is worth less than one that says so.
+
+The rest of the **build recipe is React's, not this package's** —
+`--define 'process.env.NODE_ENV="production"'` and `--exclude-globals navigator`, with the reason
+each flag exists on the
 [React page](/gjsify/frameworks/react/#the-build-recipe-and-it-is-not-optional). It applies
 unchanged here, because `react-reconciler` is what is underneath.
 
