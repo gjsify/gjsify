@@ -98,6 +98,23 @@ export function setterSlotOf(parent: HostElement, child: HostElement): string | 
     return method?.startsWith('set_') === true ? method : null;
 }
 
+/**
+ * The slots this policy fills with an ADDER, by slot name.
+ *
+ * `set_`-prefixed or not is the whole distinction, and TWO decisions turn on it,
+ * which is why the predicate is here once rather than spelled out at each. A
+ * setter-backed slot is emptied by writing `null` back through itself, so
+ * `policyProblems()` lets such a policy name no `remove`; and it holds one child,
+ * so `rotateTail` returns before touching it — a policy with no adder slot at all
+ * has no order to pay for, which is what `reorderMode()` reports.
+ */
+export function adderSlots(policy: ChildPolicy): string[] {
+    if (policy.kind !== 'slotted') return [];
+    return Object.entries(policy.slots)
+        .filter(([, method]) => !method.startsWith('set_'))
+        .map(([slot]) => slot);
+}
+
 /** Every one-child slot this policy has, by setter name — `single` has exactly one. */
 export function setterSlots(policy: ChildPolicy): string[] {
     if (policy.kind === 'single') return [policy.set];
@@ -308,6 +325,12 @@ function detachChild(parent: HostElement, child: HostElement, host: AnyWidget): 
                 clearIfCurrent(host, setter, address);
                 return;
             }
+            // Adder-backed, so only a remove method can take the child out.
+            // `policyProblems()` rejects a descriptor that reaches here without
+            // one; an application-registered descriptor is checked by nobody, so
+            // the refusal is named rather than left as a TypeError on undefined.
+            const slot = child.slot ?? policy.defaultSlot;
+            if (!policy.remove) throw err.slotNeedsRemove(parent.descriptor.gtype, slot, policy.slots[slot] ?? '?');
             host[policy.remove](address);
             return;
         }
@@ -349,10 +372,19 @@ export function reorderMode(policy: ChildPolicy): 'native' | 'remove-all' | 'n/a
         case 'indexed':
             return 'native';
         case 'slotted':
+            // Measured: `Adw.HeaderBar.reorder_child_after` is `undefined`, so a
+            // move within an ADDER slot costs a tail rotation. An ALL-SETTER
+            // policy pays nothing at all — every slot holds exactly one child,
+            // `rotateTail` returns before it touches anything, and re-inserting
+            // `Adw.NavigationSplitView`'s two children in the other order leaves
+            // GTK's own `get_sidebar()`/`get_content()` unchanged (measured).
+            // Same answer as `coords`, for the same reason: the slot is data on
+            // the child, so document order carries nothing to pay for.
+            return adderSlots(policy).length > 0 ? 'remove-all' : 'n/a';
         case 'keyed':
-            // Measured: `Gtk.Stack.reorder_child_after` and
-            // `Adw.HeaderBar.reorder_child_after` are both `undefined`. These
-            // containers only append, so a move costs a tail rotation.
+            // Measured: `Gtk.Stack.reorder_child_after` is `undefined` too, so a
+            // keyed reversal was a complete no-op in GTK while the host's own
+            // navigators reported the new order.
             return 'remove-all';
         case 'coords':
         case 'single':

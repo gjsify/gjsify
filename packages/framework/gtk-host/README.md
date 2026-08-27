@@ -488,7 +488,8 @@ contain, and a reader who concludes `@gjsify/gtk-host/testing` exists.
 
 The table is **generated from the GIR** and committed. 164 concrete GtkWidget
 descendants (Gtk 102, Adw 62), each with its GType name, its kebab tag and a lazy
-`ctor`; 26 of them also carry a **curated** placement rule, and the generator may
+`ctor`; 35 of them also carry a **curated** placement rule (Gtk 18, Adw 17 —
+`tableProvenance()` reports the live figure), and the generator may
 only ever ADD a tag, never contradict one. A tag with no curated rule gets
 `children: { kind: 'uncurated' }` — the widget can be created, given properties and
 given handlers, while inserting a child raises an error naming the tag that needs a

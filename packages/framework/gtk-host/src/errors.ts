@@ -132,6 +132,23 @@ export const err = {
         ),
     unknownSlot: (parentTag: string, slot: string, known: string[]) =>
         new GtkHostError('unknown-slot', `<${parentTag}> has no slot "${slot}". Known slots: ${known.join(', ')}.`),
+    /**
+     * An adder-backed slot with nothing that takes the child back out.
+     *
+     * `descriptorProblems()` rejects this shape up front, so a BUILT-IN descriptor can
+     * never reach here — but `registerWidget` takes descriptors from applications, which
+     * run no such check. Without this the unmount would be
+     * `TypeError: host[undefined] is not a function`, blaming the host for a claim the
+     * descriptor made.
+     */
+    slotNeedsRemove: (parentTag: string, slot: string, adder: string) =>
+        new GtkHostError(
+            'slot-needs-remove',
+            `<${parentTag}> puts children into slot "${slot}" with ${adder}() and its policy names no ` +
+                `"remove" method, so this child cannot be taken out again. A set_-prefixed slot is emptied ` +
+                `by writing null back through the setter and needs nothing; an adder-backed one needs ` +
+                `children.remove. Add it to the descriptor.`,
+        ),
     rejectedChild: (parentTag: string, childTag: string, reason: string) =>
         new GtkHostError(
             'rejected-child',

@@ -11,7 +11,7 @@ import Adw from 'gi://Adw?version=1';
 import GObject from 'gi://GObject';
 import Gtk from 'gi://Gtk?version=4.0';
 
-import { gtkChildTypes, gtkChildren, installDiagnosticsGate } from './conformance/index.js';
+import { dumpTree, gtkChildTypes, gtkChildren, installDiagnosticsGate } from './conformance/index.js';
 import { BUILTIN_DESCRIPTORS, registerBuiltinWidgets } from './descriptors/index.js';
 import {
     adopt,
@@ -27,7 +27,7 @@ import {
     setEventHandler,
     setProp,
 } from './host.js';
-import { reorderMode } from './policies.js';
+import { reorderMode, slotOccupant } from './policies.js';
 import { GTK_HOSTS, gated } from './testing/gate.mjs';
 import { lookupWidget } from './registry.js';
 import type { HostElement } from './types.js';
@@ -831,6 +831,19 @@ export default async () => {
                 expect(reorderMode(lookupWidget('GtkBox').children)).toBe('native');
                 expect(reorderMode(lookupWidget('GtkListBox').children)).toBe('native');
                 expect(reorderMode(lookupWidget('AdwPreferencesGroup').children)).toBe('remove-all');
+                // A slotted policy is not one answer. `AdwHeaderBar` above has
+                // `pack_start`, so a move within that slot really does pay a tail
+                // rotation; `Adw.NavigationSplitView` has nothing but setters, and
+                // measured, re-inserting its two children in the other order
+                // leaves `get_sidebar()`/`get_content()` exactly as they were —
+                // `rotateTail` returns before it touches anything. Reporting
+                // `remove-all` there names a cost nobody pays.
+                expect(reorderMode(lookupWidget('AdwNavigationSplitView').children)).toBe('n/a');
+                expect(reorderMode(lookupWidget('AdwOverlaySplitView').children)).toBe('n/a');
+                // The MIXED case is what keeps that from becoming "slotted is
+                // n/a": `GtkOverlay` holds one setter slot and one adder, and the
+                // adder is the one that orders.
+                expect(reorderMode(lookupWidget('GtkOverlay').children)).toBe('remove-all');
             });
 
             await it('an empty text placeholder mounts into a sink-less container', async () => {
@@ -923,13 +936,29 @@ export default async () => {
             // slot method EXISTS, never that removal through that slot works. The
             // asymmetric cases are the ones that bite — `AdwToolbarView.content`
             // is a setter, its `top` is an adder, and one `remove` serves both.
+            // The child is a `GtkButton` unless the container refuses one. A
+            // container that accepts only a specific type is not an exception to
+            // this mechanism, it is the reason the mechanism cannot use one tag
+            // for everything: MEASURED, `adw_navigation_split_view_set_sidebar`
+            // takes an `AdwNavigationPage` and a button lands as
+            // "Object is of type Gtk.Button - cannot convert to AdwNavigationPage".
+            // Its overlay sibling takes any widget, so only this one is listed —
+            // a blanket "use a page for every Adw split view" would have hidden
+            // that difference behind a convention.
+            const CHILD_TAG: Readonly<Record<string, string>> = { AdwNavigationSplitView: 'AdwNavigationPage' };
             for (const d of BUILTIN_DESCRIPTORS) {
                 if (d.children.kind !== 'slotted') continue;
                 for (const slot of Object.keys(d.children.slots)) {
                     await it(`${d.gtype} slot "${slot}"`, async () => {
                         const parent = createElement(d.gtype);
                         materialize(parent);
-                        const child = createElement('GtkButton', { label: slot, slot });
+                        const childTag = CHILD_TAG[d.gtype] ?? 'GtkButton';
+                        // `label` is the button's; a page reads `title`. Both are
+                        // just something to look at in a failure message.
+                        const child = createElement(childTag, {
+                            [childTag === 'GtkButton' ? 'label' : 'title']: slot,
+                            slot,
+                        });
                         insert(child, parent);
                         expect(child.attached).toBe(true);
                         remove(child);
@@ -938,6 +967,68 @@ export default async () => {
                         // a removal through the wrong API is a critical at exit 0
                     });
                 }
+
+                await it(`${d.gtype} defaultSlot "${d.children.defaultSlot}"`, async () => {
+                    // Where a child with NO `slot=` lands. WHICH slot that should
+                    // be is a choice and has no oracle — GTK has no opinion on
+                    // whether a bare `<adw-toolbar-view>` child belongs in
+                    // "content" — so this does not try to hold the declared value
+                    // against anything. Deriving both sides from `defaultSlot`
+                    // would compare the field with itself, and flipping it in the
+                    // descriptor would move the assertion with it.
+                    //
+                    // What IS falsifiable is that the host resolves the field at
+                    // all, on the way IN and on the way BACK OUT, and neither was
+                    // measured: `appendChild`'s `child.slot ?? policy.defaultSlot`
+                    // reduced to the FIRST slot leaves the whole suite green
+                    // except these four cases, and `setterSlotOf`'s copy of the
+                    // same expression leaves it green outright — a `remove()` that
+                    // clears the wrong setter finds it empty, declines to clear,
+                    // and reports success with the widget still in the window.
+                    const policy = d.children;
+                    if (policy.kind !== 'slotted') return;
+                    const childTag = CHILD_TAG[d.gtype] ?? 'GtkButton';
+                    // A FINGERPRINT rather than the tree alone, and the extra half
+                    // is the point: measured, `GtkOverlay`'s `set_child` and
+                    // `add_overlay` produce byte-identical GType dumps, so a
+                    // dump-only comparison would be blind for exactly the
+                    // container whose two slots are hardest to tell apart. Asking
+                    // each setter slot whether it is occupied separates them.
+                    const fingerprint = (widget: Gtk.Widget): string =>
+                        [
+                            dumpTree(widget),
+                            ...Object.entries(policy.slots)
+                                .filter(([, method]) => method.startsWith('set_'))
+                                .map(([name, method]) => `${name}=${slotOccupant(widget, method) ? 'held' : 'free'}`),
+                        ].join('\n');
+                    const placed = (slot: string | null) => {
+                        const parent = createElement(d.gtype);
+                        const widget = materialize(parent) as unknown as Gtk.Widget;
+                        const child = createElement(childTag, {
+                            [childTag === 'GtkButton' ? 'label' : 'title']: 'x',
+                            slot,
+                        });
+                        insert(child, parent);
+                        const held = fingerprint(widget);
+                        remove(child);
+                        return { held, cleared: fingerprint(widget) };
+                    };
+                    const declared = placed(policy.defaultSlot);
+                    // The fingerprint has to be able to TELL THE SLOTS APART, or
+                    // the comparison below asserts nothing. Held first, so a
+                    // container whose slots all look alike fails loudly here
+                    // instead of passing quietly underneath.
+                    for (const slot of Object.keys(policy.slots)) {
+                        if (slot === policy.defaultSlot) continue;
+                        expect(placed(slot).held === declared.held).toBe(false);
+                    }
+                    const bare = placed(null);
+                    expect(bare.held).toBe(declared.held);
+                    // And the way back out, which is the silent half.
+                    expect(bare.cleared).toBe(
+                        fingerprint(materialize(createElement(d.gtype)) as unknown as Gtk.Widget),
+                    );
+                });
             }
         });
 

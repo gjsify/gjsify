@@ -163,7 +163,7 @@ const cross = (orientation: Orientation): 'halign' | 'valign' => (orientation ==
 const main = (orientation: Orientation): 'halign' | 'valign' => (orientation === 'horizontal' ? 'halign' : 'valign');
 
 const NO_CENTER_BOX =
-    "GTK's box has no main-axis justification, and ADR 0032 § 6's mapping for this one is `Gtk.CenterBox`. Measured on gtk 4.22.4, `Gtk.CenterBox` installs NO `remove` method — it clears a slot with `set_center_widget(null)` — and the host's `slotted` policy names a `remove` that `descriptorProblems()` checks exists, so the widget cannot be curated without changing the policy's shape. Until it is, spell the distribution with a spacer child (`flex-1`) or with `gap-*`";
+    "GTK's box has no main-axis justification, and ADR 0032 § 6's mapping for this one is `Gtk.CenterBox` — a different WIDGET, not another property on this one. The host's `slotted` policy used to be what blocked it, because it named a `remove` that gtk 4.22.4's `Gtk.CenterBox` does not install (it clears a slot with `set_center_widget(null)`); that block is gone, since `children.remove` is optional for a policy whose slots are all setters. What is missing is the CHILD COUNT — two or three children pick the widget, and this layer resolves properties for the widget it was handed, with no children to count. Spell the distribution with a spacer child (`flex-1`) or with `gap-*`";
 
 export function resolveIntent(input: IntentInput): IntentResolution {
     const { primitive, intent, orientation, widget, parent } = input;

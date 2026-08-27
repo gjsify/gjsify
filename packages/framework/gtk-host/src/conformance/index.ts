@@ -15,7 +15,7 @@ import GObject from 'gi://GObject';
 import type Gtk from '@girs/gtk-4.0';
 
 import { BUILTIN_DESCRIPTORS } from '../descriptors/index.js';
-import { addressOf, unhandledPolicy } from '../policies.js';
+import { addressOf, adderSlots, unhandledPolicy } from '../policies.js';
 import type { ChildPolicy, HostElement, WidgetDescriptor } from '../types.js';
 
 /** Every method name a policy names, so the check does not have to know the shapes. */
@@ -33,7 +33,10 @@ export function methodsOf(policy: ChildPolicy): string[] {
         case 'indexed':
             return [policy.insert, policy.remove];
         case 'slotted':
-            return [...Object.values(policy.slots), policy.remove];
+            // `remove` is absent on an all-setter policy, which names no remove
+            // method because it needs none — see `ChildPolicy`. The rule that it
+            // must be there for an adder-backed slot is `policyProblems()`'s.
+            return policy.remove ? [...Object.values(policy.slots), policy.remove] : Object.values(policy.slots);
         case 'keyed':
             return [policy.add, policy.remove];
         case 'coords':
@@ -141,6 +144,27 @@ function policyProblems(d: WidgetDescriptor, Klass: { prototype: object }, actua
             out.push({
                 gtype: d.gtype,
                 problem: `defaultSlot "${policy.defaultSlot}" is not one of ${Object.keys(policy.slots).join(', ')}`,
+            });
+        }
+        // The other half of making `remove` optional. A setter-backed slot is
+        // emptied by writing `null` back through the setter, so an all-setter
+        // policy needs no remove method — but an ADDER-backed slot has nothing
+        // else that takes a child out, so `detachChild` can only refuse the
+        // unmount by name. Refusing is the right runtime answer and a poor
+        // shipping one: caught here, the table never carries the shape at all.
+        // Named here rather than left to the type, because `remove?: string`
+        // cannot express "required when a sibling field's VALUE does not start
+        // with set_".
+        const adders = adderSlots(policy);
+        if (adders.length > 0 && !policy.remove) {
+            out.push({
+                gtype: d.gtype,
+                // QUOTED, and that is not decoration: a slot name is a substring
+                // of its own adder (`top` of `add_top_bar`), so an unquoted name
+                // cannot be told from the method — measured, a version of this
+                // message naming the METHOD and no slot at all left the test that
+                // asserts the slot is named green.
+                problem: `slot(s) ${adders.map((slot) => `"${slot}"`).join(', ')} are adder-backed, so removal needs a "remove" method and this policy names none`,
             });
         }
     }
