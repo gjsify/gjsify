@@ -116,10 +116,10 @@ indistinguishable from a bug in the application, forever.
 
 A few that are worth knowing before they surprise you:
 
-- **`justify-between`** is refused. ADR 0032 § 6 maps it to `Gtk.CenterBox`, and
-  `Gtk.CenterBox` installs no `remove` method (measured), which the host's `slotted`
-  placement policy requires. Use a `flex-1` spacer or `gap-*` until the policy grows
-  a shape for it.
+- **`justify-between`** is refused. ADR 0032 § 6 maps it to `Gtk.CenterBox` — a
+  different WIDGET, not another property on this one, and WHICH widget it is depends
+  on the child count. This layer resolves properties for the widget it was handed
+  and has no children to count. Use a `flex-1` spacer or `gap-*`.
 - **`active:`** is the only variant idiom that pays off, and it costs nothing: it
   becomes a GTK CSS `:active` pseudo-class on the generated class, so GTK animates a
   press with no re-render at all. A variant on a WIDGET property (`active:flex-1`) is

@@ -200,10 +200,15 @@ export default async () => {
             expect(plan('View', { className: 'flex-row justify-end' }).plan.node.props.halign).toBe('end');
         });
 
-        await it('refuses justify-between with the CenterBox measurement', async () => {
+        await it('refuses justify-between by naming the widget AND what decides it', async () => {
+            // A refusal without its reason sends the reader to try the next class
+            // name. The reason is the CHILD COUNT, and this assertion used to read
+            // `NO \`remove\` method` — a blocker the message outlived, because
+            // `slotted.remove` became optional and `Gtk.CenterBox`'s three slots
+            // are all setters. Held on the reason that still applies.
             const error = threw(() => plan('View', { className: 'justify-between' }));
             expect(error.message).toContain('Gtk.CenterBox');
-            expect(error.message).toContain('NO `remove` method');
+            expect(error.message).toContain('CHILD COUNT');
         });
 
         await it('makes an axis gap the box’s spacing when the axis matches', async () => {
