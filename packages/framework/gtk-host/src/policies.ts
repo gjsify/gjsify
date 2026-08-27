@@ -98,6 +98,23 @@ export function setterSlotOf(parent: HostElement, child: HostElement): string | 
     return method?.startsWith('set_') === true ? method : null;
 }
 
+/**
+ * The slots this policy fills with an ADDER, by slot name.
+ *
+ * `set_`-prefixed or not is the whole distinction, and TWO decisions turn on it,
+ * which is why the predicate is here once rather than spelled out at each. A
+ * setter-backed slot is emptied by writing `null` back through itself, so
+ * `policyProblems()` lets such a policy name no `remove`; and it holds one child,
+ * so `rotateTail` returns before touching it — a policy with no adder slot at all
+ * has no order to pay for, which is what `reorderMode()` reports.
+ */
+export function adderSlots(policy: ChildPolicy): string[] {
+    if (policy.kind !== 'slotted') return [];
+    return Object.entries(policy.slots)
+        .filter(([, method]) => !method.startsWith('set_'))
+        .map(([slot]) => slot);
+}
+
 /** Every one-child slot this policy has, by setter name — `single` has exactly one. */
 export function setterSlots(policy: ChildPolicy): string[] {
     if (policy.kind === 'single') return [policy.set];

@@ -171,9 +171,9 @@ export default async () => {
             await it('reports an adder-backed slot with nothing to remove it with', async () => {
                 // `slotted.remove` is optional because a set_-prefixed slot is
                 // emptied through its own setter and needs no remove method. An
-                // ADDER-backed slot has no such fallback: `detachChild` would
-                // reach for `host[undefined]`. So the optionality has to come
-                // with a rule, and the rule has to be held against a defect.
+                // ADDER-backed slot has no such fallback: `detachChild` can only
+                // refuse the unmount by name. So the optionality has to come with
+                // a rule, and the rule has to be held against a defect.
                 const problems = descriptorProblems([
                     {
                         gtype: 'AdwToolbarView',
@@ -185,10 +185,24 @@ export default async () => {
                         },
                     },
                 ]);
+                const said = problems.map((p) => p.problem).join('\n');
                 // The SLOT is named, not just the widget: a message that says
                 // "needs a remove" without saying which slot forced it sends the
                 // reader to read the whole policy back.
-                expect(problems.some((p) => p.problem.includes('top'))).toBe(true);
+                //
+                // QUOTED, because the slot name is a SUBSTRING of its own adder.
+                // `problem.includes('top')` matches `add_top_bar` just as happily,
+                // so it could not tell a message naming the slot from one naming
+                // the method — measured: with `policyProblems()` reporting the
+                // method and no slot at all, the unquoted assertion stayed green
+                // and the suite passed 2053/2053.
+                expect(said).toContain('"top"');
+                // And ONLY the adder slot. `content` is setter-backed and needs no
+                // remove; naming it here would send the reader to fix the half of
+                // the policy that is fine. A `Object.keys(policy.slots)` slip
+                // reports the right COUNT of problems with the wrong content, and
+                // nothing but this line separates the two.
+                expect(said.includes('"content"')).toBe(false);
             });
 
             await it('an adder-backed slot with no remove refuses BY NAME, not by TypeError', async () => {
