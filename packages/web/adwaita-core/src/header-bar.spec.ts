@@ -150,6 +150,24 @@ export default async () => {
             expect(bar.setTitle(null)).toBe(true);
             expect(bar.title).toBe('');
         });
+
+        await it('setSubtitle reports whether it changed, and the getter reads it back', async () => {
+            const bar = new HeaderBarState<string>();
+            expect(bar.setSubtitle('/home')).toBe(true);
+            expect(bar.subtitle).toBe('/home');
+            expect(bar.setSubtitle('/home')).toBe(false);
+            expect(bar.setSubtitle(null)).toBe(true);
+            expect(bar.subtitle).toBe('');
+        });
+
+        await it('the titleWidget getter tracks the centre, like the snapshot', async () => {
+            const bar = new HeaderBarState<string>();
+            expect(bar.titleWidget).toBe(null);
+            bar.setTitleWidget('entry');
+            expect(bar.titleWidget).toBe('entry');
+            expect(bar.remove('entry')).toBe(true);
+            expect(bar.titleWidget).toBe(null);
+        });
     });
 
     await describe('resolveHeaderBarTitle', async () => {
