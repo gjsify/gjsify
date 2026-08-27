@@ -41,8 +41,10 @@ export class AdwHeaderBar extends HTMLElement {
     private _endEl: HTMLDivElement | null = null;
     /**
      * The derived `<adw-window-title>`, or `null` when a `slot="center"`
-     * title-widget took the centre. `Adw.HeaderBar` has the same either/or:
-     * setting `title-widget` replaces the derived `AdwWindowTitle` outright.
+     * title-widget took the centre. `Adw.HeaderBar` has the same either/or —
+     * `adw_header_bar_set_title_widget` empties the centre bin before installing
+     * (adw-header-bar.c:1201) — over a derived `GtkLabel`, not an `AdwWindowTitle`;
+     * see the divergence at the top of this file.
      */
     private _titleEl: HTMLElement | null = null;
 
@@ -98,8 +100,9 @@ export class AdwHeaderBar extends HTMLElement {
         ).install(this._startEl, this._centerEl, this._endEl);
 
         // Derived only when the centre is still free — the same either/or as
-        // `Adw.HeaderBar`, which builds an `AdwWindowTitle` exactly while no title-widget
-        // was given.
+        // `Adw.HeaderBar`, which runs `construct_title_label` exactly while no
+        // title-widget holds the centre (adw-header-bar.c:1211). What it builds there is
+        // a `GtkLabel`; this is the documented `<adw-window-title>` divergence.
         if (this._centerEl.childElementCount === 0) {
             this._titleEl = document.createElement('adw-window-title');
             this._titleEl.className = 'adw-header-bar-title';
@@ -111,18 +114,24 @@ export class AdwHeaderBar extends HTMLElement {
     /**
      * `title` used to be read ONCE, in `connectedCallback`, so every later write
      * was a silent no-op — a header bar whose title tracked the open document
-     * kept whatever it was created with. `Adw.HeaderBar`'s derived title widget
-     * is bound to the property and re-renders on every change.
+     * kept whatever it was created with. `Adw.HeaderBar` never reads its title once
+     * either: it has no `title` property at all, and re-runs `update_title`
+     * (adw-header-bar.c:475) on every ancestor change that could move the answer.
      */
     attributeChangedCallback() {
         if (this._initialized) this._renderTitle();
     }
 
     /**
-     * Give the centre up to a title-widget. `adw_header_bar_set_title_widget` destroys the
-     * derived `AdwWindowTitle` rather than stacking the two, so the late case has to remove
-     * it too — a bar showing both would be a shape neither GTK nor the declared markup can
-     * produce.
+     * Give the centre up to a title-widget. `adw_header_bar_set_title_widget` empties the
+     * centre bin and drops its derived label (adw-header-bar.c:1201, :1209) rather than
+     * stacking the two, so the late case has to remove ours too — a bar showing both would
+     * be a shape neither GTK nor the declared markup can produce.
+     *
+     * NOT SYMMETRIC HERE, AND KNOWN: C rebuilds the label the moment the title-widget goes
+     * away (:1211); nothing in this element brings the derived centre back, so a bar that
+     * gave it up has given it up for good. `HeaderBarState` in `@gjsify/adwaita-core` holds
+     * the rebuild, and this element adopting it is the rewiring tracked in #1343.
      */
     private _dropDerivedTitle() {
         this._titleEl?.remove();
