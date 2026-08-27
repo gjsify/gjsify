@@ -139,6 +139,7 @@ export default defineConfig({
                         { slug: 'frameworks/vue', label: 'Vue' },
                         { slug: 'frameworks/react', label: 'React' },
                         { slug: 'frameworks/react-native', label: 'React Native' },
+                        { slug: 'frameworks/react-native-routing', label: 'React Native: routing' },
                         { slug: 'frameworks/styling', label: 'Styling on GTK' },
                     ],
                 },
