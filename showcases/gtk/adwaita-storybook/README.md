@@ -31,7 +31,8 @@ this package's `./metas` barrel and the shared logic lives in
 [`@gjsify/storybook-core`](../../../packages/framework/storybook-core), so each renderer is a
 thin adapter. That the sets really stay identical is machine-checked —
 `scripts/check-storybook-story-parity.mjs` fails when a story is missing a rendering on any
-target. There is no screenshot-comparison harness (#1052); behaviour parity across renderers is
+target, or when a target's registration does not reach the rendering it has: the browser list
+in `src/browser/stories.ts` and the NativeScript one decide what renders, not the filename. There is no screenshot-comparison harness (#1052); behaviour parity across renderers is
 held by the `@gjsify/adwaita-core/conformance` vectors.
 
 ## Prerequisites

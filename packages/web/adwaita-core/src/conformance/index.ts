@@ -510,6 +510,9 @@ export type {
     WrapBoxSpacingVector,
 } from './wrap-box.js';
 
+export { BREAKPOINT_PICK_VECTORS, BREAKPOINT_TRANSITION_VECTORS } from './breakpoint-bin.js';
+export type { BreakpointPickVector, BreakpointTransitionVector } from './breakpoint-bin.js';
+
 // --- Adw.HeaderBar packing order, title-widget either/or + title-resolution vectors ---
 export {
     HEADER_BAR_PACK_VECTORS,

@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/tls-native",
-    "version": "0.43.0",
+    "version": "0.44.0",
     "description": "Optional Vala/GObject bridge providing GnuTLS capabilities not exposed by Gio.TlsConnection — OCSP-response parsing (RFC 6960), session resumption data extraction, channel binding (tls-finished bytes for SCRAM-SHA-*). Enhances @gjsify/tls when installed.",
     "type": "module",
     "main": "lib/esm/index.js",

@@ -37,6 +37,7 @@ import * as nodePath from 'node:path';
 import {
     gjsImportsEmptyPlugin,
     platformResolvePlugin,
+    nativescriptSuffixChain,
     detectNativescriptPlatform,
     nativescriptPlatformDefines,
     cssAsStringPlugin,
@@ -425,7 +426,7 @@ export function gjsifyNativescript(options: GjsifyNativescriptOptions = {}): Plu
         // `*.native`). A `resolveId` HOOK, NOT a `resolve.alias` — so it works
         // under Vite 8 / Rolldown, where @nativescript/vite's function-based
         // alias for the same feature is rejected.
-        platformResolvePlugin({ platform }) as unknown as Plugin,
+        platformResolvePlugin({ suffixes: nativescriptSuffixChain(platform) }) as unknown as Plugin,
         // Register `xmlns`-referenced barrel modules that @nativescript/vite's
         // ns-bundler-context leaves unregistered (its tree-shaking gap for
         // barrels with no `.xml` sibling). Reproduces webpack's xml-namespace-loader.

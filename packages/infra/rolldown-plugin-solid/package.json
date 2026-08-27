@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/rolldown-plugin-solid",
-    "version": "0.43.0",
+    "version": "0.44.0",
     "description": "SolidJS JSX compiler plugin for Rolldown / Rollup / Vite — universal generate, targeting a gjsify renderer",
     "type": "module",
     "main": "lib/index.js",

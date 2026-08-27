@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/example-gtk-vue-host-counter",
-    "version": "0.43.0",
+    "version": "0.44.0",
     "description": "The gtk-host counter written as a Vue single-file component — compiled by @gjsify/rolldown-plugin-vue, with an in-process probe that asserts the real widget tree",
     "type": "module",
     "private": true,

@@ -633,6 +633,15 @@ export type {
     ToolbarViewMeasureInput,
 } from './chrome.js';
 
+// --- Breakpoint bin (pick one, and what the change writes) ---
+export { BreakpointBinState } from './breakpoint-bin.js';
+export type {
+    BreakpointDefinition,
+    BreakpointSetter,
+    BreakpointTransition,
+    BreakpointWrite,
+} from './breakpoint-bin.js';
+
 // --- Header bar (packing order, the title-widget either/or, title resolution) ---
 export { HeaderBarState, resolveHeaderBarTitle } from './header-bar.js';
 export type { HeaderBarRenderState, HeaderBarTitleSources } from './header-bar.js';

@@ -1,11 +1,11 @@
 {
     "name": "@gjsify/website",
-    "version": "0.43.0",
+    "version": "0.44.0",
     "private": true,
     "scripts": {
         "copy:assets": "node scripts/copy-showcase-assets.mjs",
         "generate:coverage": "node scripts/generate-coverage.mjs",
-        "generate:tokens": "node scripts/generate-theming-tokens.mjs",
+        "generate:tokens": "node ../scripts/generate-adwaita-tokens.mjs",
         "generate:platform-matrix": "node scripts/generate-platform-matrix.mjs",
         "build:deps": "gjsify workspace @gjsify/adwaita-web build -d",
         "start": "gjsify run build:deps && gjsify run generate:coverage && gjsify run generate:tokens && gjsify run generate:platform-matrix && gjsify run copy:assets && astro dev",

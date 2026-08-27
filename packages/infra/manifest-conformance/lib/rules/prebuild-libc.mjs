@@ -615,19 +615,27 @@ export function auditPrebuildLibc(nativePkgs) {
                 `${pkg.name} (${pkg.path}): declares \`libc: ${JSON.stringify(declaredLibc)}\`, but its committed targets are ${
                     incompatible.length > 0 ? `musl-incompatible (${incompatible.join(', ')})` : ''
                 }${incompatible.length > 0 && undetermined.length > 0 ? ' and ' : ''}${
-                    undetermined.length > 0 ? `glibc-linked with musl-loadability undetermined (${undetermined.join(', ')})` : ''
+                    undetermined.length > 0
+                        ? `glibc-linked with musl-loadability undetermined (${undetermined.join(', ')})`
+                        : ''
                 }. The only defensible package-level value here is \`["glibc"]\` — a restriction a musl load test has proven — or none at all.`,
             );
         }
         if (declaredLibc === null) {
             notes.push(
                 `${pkg.name}: \`libc\` deliberately ABSENT. Per-target musl verdicts: ${[
-                    incompatible.length > 0 ? `${incompatible.join(', ')} incompatible (glibc loader in DT_NEEDED)` : null,
-                    undetermined.length > 0 ? `${undetermined.join(', ')} undetermined (glibc-linked, no glibc loader — musl aliases libc.so.6 to itself, so only a real dlopen on musl decides)` : null,
+                    incompatible.length > 0
+                        ? `${incompatible.join(', ')} incompatible (glibc loader in DT_NEEDED)`
+                        : null,
+                    undetermined.length > 0
+                        ? `${undetermined.join(', ')} undetermined (glibc-linked, no glibc loader — musl aliases libc.so.6 to itself, so only a real dlopen on musl decides)`
+                        : null,
                     agnostic.length > 0 ? `${agnostic.join(', ')} agnostic` : null,
                 ]
                     .filter(Boolean)
-                    .join('; ')}. npm's field has no per-target dimension and refusing the install everywhere would also refuse it where the artifact works; the bridge's own graceful no-native path covers the targets where it does not. Ship a \`${MUSL_SUFFIX}\` sibling for the constrained target(s) and this note goes away.`,
+                    .join(
+                        '; ',
+                    )}. npm's field has no per-target dimension and refusing the install everywhere would also refuse it where the artifact works; the bridge's own graceful no-native path covers the targets where it does not. Ship a \`${MUSL_SUFFIX}\` sibling for the constrained target(s) and this note goes away.`,
             );
         } else {
             notes.push(

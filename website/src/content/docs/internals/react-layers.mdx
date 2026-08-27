@@ -1,0 +1,231 @@
+---
+title: How the React layers work
+description: The measurements and decisions behind the React adapter, the React Native primitives and the router.
+---
+
+This page is optional. You can build and ship a React or React Native app on gjsify without
+reading a line of it, and the [React](/gjsify/frameworks/react/) and
+[React Native](/gjsify/frameworks/react-native/) pages are the ones that tell you how.
+
+Read this when a rule on one of those pages looks arbitrary and you want the number behind it, or
+when you are changing this part of gjsify and need to know which decisions were paid for. Each
+section stands alone.
+
+Versions matter here. Unless a section says otherwise, the measurements are GTK 4.22.4, gjs
+1.88.1, libadwaita 1.9.3 and `react-reconciler` 0.33.0.
+
+## Why the JSX runtime is a separate subpath
+
+`@gjsify/gtk-host/jsx-runtime`, with no `react` segment, deliberately throws. That is correct for
+Solid and Vue, whose reactivity lives in what their compilers emit, so an automatic runtime
+reaching those functions means the pipeline is misconfigured. One module cannot both refuse the
+automatic runtime and provide it, so React gets its own subpath.
+
+The functions underneath are React's own `jsx`, `jsxs` and `jsxDEV`, re-typed rather than
+reimplemented. A second `createElement` would be a second element format to keep in step with
+React's.
+
+Solid has the same `jsxImportSource` trap one package over, and a worse one: its pre-declared
+element list includes MathML, which the React one does not.
+[ADR 0028, item 8](https://github.com/gjsify/gjsify/blob/main/docs/adr/0028-widget-table-provenance.md)
+measures it.
+
+## What holds the build recipe
+
+Until `react-reconciler` 0.29.2, the HostConfig member count told the production and development
+bundles apart: 76 against 94. A spec pinning 76 therefore also caught a lost `--define`. On
+0.33.0 both bundles read the same count and it discriminates nothing.
+
+One conformance vector carries the whole recipe now, and it asserts the fact rather than a proxy
+for it: `document`, `HTMLCanvasElement` and `Path2D` are absent from the built bundle. Recorded
+rather than dropped, because a guard that silently stopped guarding is worth more as a known loss
+than as a deleted line.
+
+`navigator` is deliberately not asserted absent. Node 21 and later ship their own, so on the
+gjs-on-node leg "defined" would mean the runtime rather than a lost flag. The honest claim on
+every runtime is "absent, or the runtime's own", and `userAgent` tells the two apart because the
+injected register's bare `{}` never has one.
+
+### Both flags are warts with a known shape
+
+Neither is fixed, so the recipe on the React page is required exactly as written. What kind of
+thing they are is still worth knowing.
+
+**The `NODE_ENV` define is a default the build could hold itself.** Neither the CLI nor the
+bundler plugin mentions `NODE_ENV`, while `--minify` already defaults to on. The build takes a
+production posture by default in one place and declines to in the other, and every consumer
+spells the same constant by hand.
+
+**`--exclude-globals navigator` is the more arguable of the two.** The detector already models
+this case and stops one step short: a `typeof X` guard that is the only occurrence of `X` is not
+counted as a use, because such guards are pervasive in isomorphic packages and the branch is dead
+under GJS. It fires here only because `navigator.scheduling`, inside the guarded branch, is a
+genuine reference. The injection cannot help even in principle, since the register installs a
+bare `{}` that flips `typeof navigator` to `'object'` and then answers `undefined` for
+`scheduling`. What the flag buys is four `gi://` imports, not behaviour.
+
+## Why render() is synchronous
+
+React's own `createRoot().render()` returns before the tree is committed and lets the scheduler
+drive. Under GJS that scheduler is a GLib timer source, so with no main loop running yet an
+unflushed first render leaves the container empty with no error.
+
+`render()` here calls `updateContainerSync` and then `flushSyncWork`. Both are needed; the first
+alone leaves the work queued.
+
+Under React 18 the recipe was `flushSync(() => updateContainer(…))`. Do not reach for that shape
+if you drive the reconciler yourself through `gtkHostConfig`: on a concurrent root under React 19
+that combination mounts nothing, returns cleanly and raises no error.
+
+`render()` throws for two separate reasons. It rethrows the first uncaught error because React 19
+routes host refusals to `onUncaughtError` and returns normally, and a named refusal that only
+reaches a log has bought nothing. The default handler also logs, and the "also" is load-bearing:
+a `setState` from a GTK signal handler commits on a later main-loop iteration with no `render()`
+on the stack, and React's answer to an uncaught error there is to unmount the tree.
+
+The second reason is re-entrancy. `flushSyncWork()` answers `true` for "I did not flush", because
+React refuses to flush while already inside a render or a commit. That is what a re-entrant
+`render()` is: one called from a `ref` callback, a `useLayoutEffect`, or a GTK signal handler
+firing during a commit. Discarding that boolean would return cleanly with an empty container. The
+message names the remedy, which is to render the second tree from a `useEffect` or an idle
+callback.
+
+`onRecoverableError` does not rethrow, because React calls it from inside the commit and a throw
+there would break the boundary that had just done its job. `onCaughtError` stays on
+`console.error`, which under GJS routes into the GLib log at CRITICAL. A spec that deliberately
+renders a failing boundary will be told GTK reported a diagnostic unless it passes its own
+recorder.
+
+## Why lists are not ordinary elements
+
+`FlatList`, `SectionList`, `VirtualizedList` and `VirtualizedSectionList` are one component that
+differs only in how it receives its rows. Three measurements force that.
+
+A `Gtk.ListView` takes no children: no `append`, `add`, `insert`, `prepend`, `remove` or
+`set_child` on its prototype. The host's placement policies are data naming a method, so there is
+no method to name.
+
+Rebinding is driven by the model, not by identity. `items_changed(0, 1, 1)` over the same carrier
+object produced no rebind at all, while `splice(0, 1, [fresh])` produced `setup, bind 0,
+unbind 0, teardown`.
+
+Virtualisation is real but the allocation is not. With a 500-row model in a presented 400×300
+window the adjustment's `upper` is 11 000, the list is allocated its whole 11 000 px content
+height, and only 205 of the 500 rows are realised.
+
+Teardown needs care: destroying a window whose `Gtk.SignalListItemFactory` still had JS handlers
+connected produced six `Gjs-CRITICAL` lines.
+
+## Overlay, dialogs and window size
+
+A `Gtk.Overlay` measures only its main child. A 9 px main child beside a 266 px overlay child
+gave the overlay 9 px, which is why absolute positioning changes which widget a `View` becomes
+rather than adding a property to it.
+
+`Modal` is not a primitive and stays unimplemented rather than partial. `box.append(dialog)`
+calls `g_error()`, which is SIGABRT and a core dump rather than a catchable exception, when the
+box is rooted in a window. A detached box accepts the same append in silence, so a re-test on a
+bare box appears to disprove this and puts the primitive back.
+
+`Dimensions` reads the surface, not the window: a 640×480 window has a 668×509 surface, which
+carries the client-side-decoration shadow. Whether the window's allocation is already updated
+inside the `notify` handler has not been measured.
+
+## Why the router reuses React Navigation
+
+React Navigation 7's `core` and `routers` run unmodified without React Native, which is four
+navigators for 163 lines of own router logic. A URL matcher with nested navigators is the part of
+a router with the most edge cases and the least novelty.
+
+Full `expo-router` compatibility is refused because it drags React Navigation's own peers,
+`react-native-screens` and `gesture-handler`, which nothing here imports.
+
+### Two navigation stacks, one join key
+
+`Adw.NavigationView` owns a real navigation stack and React Navigation owns another, and neither
+is willing to mirror the other. React declares membership and GTK owns ordering, joined by a key.
+
+That split is measured. With three pages `add`ed to an `Adw.NavigationView`,
+`get_navigation_stack().get_n_items()` is 1: `add` puts a page in the pool and only the first
+becomes the stack. There is no declarative way to say "these three, in this order", so
+`replace_with_tags` is it.
+
+The stack diff is classified rather than replayed. Desired is a strict prefix of current, so
+`pop_to_tag` animates a back transition. Current is a strict prefix of desired, so the base is set
+and the last page is pushed. Anything else is one `replace_with_tags`.
+
+The page list is append-only, and that is a requirement: `Adw.NavigationView` has `add` and
+`remove` and no `insert`, so a reorder costs a `remove-all`. And `remove()` takes the page out of
+the navigation stack, which no other container in the table does. A renderer reordering those
+children disturbs navigation, not paint order.
+
+The reverse direction is not optional. `pop_to_tag` over two pages emits `popped` twice, and a
+`replace_with_tags` emits none at all, which is why this layer carries no re-entrancy guard.
+A widget-driven pop emits `hidden` while it pops, before React has been told.
+
+`Adw.ViewSwitcher` defaults to the narrow, phone-shaped policy, so this layer sets wide
+explicitly. A switcher that defaults to narrow in a 900 px window looks like a bug rather than a
+choice.
+
+## Route files are walked, not globbed
+
+Entries are sorted in code-unit order rather than with `localeCompare`. ICU's default collation
+put `_layout.tsx` before `README.md`, and a build whose emitted module text depends on the host's
+collation data is a build cache that misses for no reason.
+
+The conventions live in the runtime package rather than in the bundler plugin, and that has a
+cost: a route shape the plugin never saw throws at runtime rather than at build time. It is the
+price of bundler independence, not an oversight.
+
+## Why the build opt-in is never inferred
+
+`--dialect react-native` composes two plugins and only on the `gjs` and `node` targets. It is
+opt-in because a monorepo with a phone leg and a desktop leg has the real `react-native`
+installed on purpose, and rewriting the specifier for every build in that tree changes what the
+phone build resolves.
+
+`@gjsify/react-native` is tier 3 and optional, so an unconditional alias would fail every build
+in a tree without it, on a package nobody asked for, with a gjsify name in the error.
+
+The gate is a `transform` hook at `order: 'pre'`, because by the time a normal-order hook runs
+the annotations may already have been stripped. It reads the support table rather than a copy of
+it. One place it deliberately does not fail: `acorn-typescript` 1.4.13 cannot parse a `satisfies`
+expression or a `const` type parameter, so a file it cannot parse is skipped rather than refused.
+
+The bundler plugin is tier 1 and the layer is tier 3, and a tier-1 package may not depend on a
+higher tier, so the gate reads the table through a resolved import rather than a dependency.
+
+### The flag is not the runtime slot
+
+`--dialect react-native` says what the **source** is written in. `gjsify.runtimes['react-native']`
+says what the **package** runs on. A package can truthfully be both: shipped to a phone through
+Metro, and ported to the desktop through this build. The closed runtime vocabulary keeps the name
+because it is the older and machine-checked one.
+
+## Platform files
+
+[ADR 0032 § 9](https://github.com/gjsify/gjsify/blob/main/docs/adr/0032-react-native-on-the-gtk-host.md)
+declares the resolution order a shared codebase should get:
+
+```
+foo.gtk.tsx      →  GTK-specific
+foo.linux.tsx    →  OS-specific (likewise .macos / .windows)
+foo.desktop.tsx  →  any desktop target
+foo.tsx          →  base
+```
+
+`.native` is deliberately not in that chain and `.web` never is. A `.native.tsx` is written for a
+React Native runtime, so reaching for it would feed the GTK build code expecting `NativeModules`.
+Falling through to the base file is the honest outcome. `.web` is worse, because it looks right
+for a desktop target while carrying the DOM assumptions this design rules out.
+
+**None of that chain resolves yet.** The bundler's platform resolver knows `.android`, `.ios`,
+`.visionos` and `.native`, and extending it is where the desktop chain will land. Until then a
+GTK build reads the base file, and a `.gtk.tsx` beside it is a file nothing imports.
+
+## Related
+
+- [ADR 0032](https://github.com/gjsify/gjsify/blob/main/docs/adr/0032-react-native-on-the-gtk-host.md)
+  for the decision record this page reports the measurements of
+- [How gjsify works](/gjsify/how-it-works/) for the global scanner and the build in general
+- [Contributing](/gjsify/contributing/development-setup/) if you want to change any of it

@@ -2,7 +2,7 @@
 
 The full **Adwaita storybook** as a real **NativeScript-Android** app — the same component browser as the native **GTK** (`@gjsify/storybook`) and **browser** (`@gjsify/adwaita-storybook`) targets, rendered with **real native** `@gjsify/adwaita-nativescript` widgets (NOT a webview) via `@gjsify/storybook-nativescript`.
 
-All three targets share the renderer-agnostic `*.meta.ts` metadata: this app imports it from the GTK showcase's `@gjsify/example-gtk-adwaita-storybook/metas` barrel, so every story exposes identical controls on every target. What holds that together is machine-checked: `scripts/check-storybook-story-parity.mjs` fails the build when a story exists on one target and not the others. There is **no screenshot-comparison harness** (#1052) — behaviour parity is held by the `@gjsify/adwaita-core/conformance` vectors both renderer suites drive their real widgets with.
+All three targets share the renderer-agnostic `*.meta.ts` metadata: this app imports it from the GTK showcase's `@gjsify/example-gtk-adwaita-storybook/metas` barrel, so every story exposes identical controls on every target. What holds that together is machine-checked: `scripts/check-storybook-story-parity.mjs` fails the build when a story exists on one target and not the others, and when a target has the rendering and never registers it — `src/stories.ts` here, `src/browser/stories.ts` in the GTK showcase, and the `./metas` barrel this app imports from. There is **no screenshot-comparison harness** (#1052) — behaviour parity is held by the `@gjsify/adwaita-core/conformance` vectors both renderer suites drive their real widgets with.
 
 Part of the [gjsify](https://github.com/gjsify/gjsify) project — Node.js and Web APIs for GJS (GNOME JavaScript).
 
@@ -39,7 +39,7 @@ npm run run:android        # or: npm run debug:android  (serves the V8 CDP inspe
 - Native Adwaita widgets on NativeScript (`@gjsify/adwaita-nativescript`), styled with the Adwaita CSS theme + Adwaita Sans, with no webview anywhere
 - The narrow-width shell: a collapsed `AdwNavigationSplitView` (story list ↔ detail + back button), matching the GTK `NavigationSplitView` at phone width
 - The storybook control plane over a third transport — `installStorybookDevtools` exposes `ListStories` / `OpenStory` / `SetStoryArg` plus `DumpTree` / `Screenshot` to an MCP agent over the V8 CDP inspector, the same surface the GTK target serves over DBus
-- Story-set parity between the GTK, browser and Android renderings, enforced by `scripts/check-storybook-story-parity.mjs` (no screenshot comparison — see #1052)
+- Story-set parity between the GTK, browser and Android renderings — the rendering AND its registration — enforced by `scripts/check-storybook-story-parity.mjs` (no screenshot comparison — see #1052)
 
 ## MCP / devtools
 
