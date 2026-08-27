@@ -11,6 +11,7 @@ import tabViewTestSuite from './tab-view.spec.js';
 import carouselTestSuite from './carousel.spec.js';
 import preferencesTestSuite from './preferences.spec.js';
 import chromeTestSuite from './chrome.spec.js';
+import headerBarTestSuite from './header-bar.spec.js';
 import dataGridTestSuite from './data-grid.spec.js';
 import avatarTestSuite from './avatar.spec.js';
 import actionRowTestSuite from './action-row.spec.js';
@@ -59,6 +60,7 @@ run({
     swipeTestSuite,
     preferencesTestSuite,
     chromeTestSuite,
+    headerBarTestSuite,
     dataGridTestSuite,
     wrapBoxTestSuite,
     spinnerTestSuite,
