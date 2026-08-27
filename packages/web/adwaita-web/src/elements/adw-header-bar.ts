@@ -1,8 +1,20 @@
 // <adw-header-bar> — Adwaita header bar with centered title and start/end button slots.
 //
-// The derived centre is an `<adw-window-title>`, which is what `Adw.HeaderBar`
-// itself puts there (`adw-header-bar.c`: the title widget it creates when none is
-// given IS an `AdwWindowTitle`). It used to be a bare span with
+// The derived centre is an `<adw-window-title>`. That is a DIVERGENCE, and the comment
+// here used to claim the opposite — that `Adw.HeaderBar` puts one there. Measured
+// against the source: `construct_title_label` (adw-header-bar.c:512) builds a plain
+// `gtk_label_new (NULL)` with the `title` class, `single-line-mode` and
+// `ellipsize=END`, and `Adw.HeaderBar` has NO `title` property at all — `update_title`
+// (:475) resolves one from the navigation page, then the dialog, then the root window,
+// then `g_get_application_name`, then `g_get_prgname`. An app that wants a subtitle
+// there sets an `AdwWindowTitle` as its title-widget.
+//
+// The divergence is kept: a declarative surface wants `title=` / `subtitle=` attributes
+// rather than a widget handoff, and both renderers already use them. It is recorded as
+// `HeaderBarRenderState.derivedSubtitle` in `@gjsify/adwaita-core`, so it is a named
+// difference instead of a mistaken claim of fidelity.
+//
+// It used to be a bare span with
 // `textContent = title ?? ''`, and that span carried none of the three rules the
 // window title already held in `@gjsify/adwaita-core`: an EMPTY title still
 // reserved a blank line, re-setting the same value repainted, and there was no

@@ -633,6 +633,10 @@ export type {
     ToolbarViewMeasureInput,
 } from './chrome.js';
 
+// --- Header bar (packing order, the title-widget either/or, title resolution) ---
+export { HeaderBarState, resolveHeaderBarTitle } from './header-bar.js';
+export type { HeaderBarRenderState, HeaderBarTitleSources } from './header-bar.js';
+
 // --- Scroll edge indicators (GtkScrolledWindow undershoot + overshoot) ---
 export {
     ADW_MAX_OVERSHOOT_DISTANCE,
