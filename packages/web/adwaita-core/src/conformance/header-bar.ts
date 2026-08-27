@@ -22,6 +22,10 @@ export interface HeaderBarPackVector {
 /**
  * `adw_header_bar_pack_start` is `gtk_box_append` (:1083); `adw_header_bar_pack_end`
  * is `gtk_box_prepend` (:1106).
+ *
+ * CORE-ONLY: GAP — no renderer drives this table yet. Rewiring the NativeScript and web
+ * header bars onto `HeaderBarState` is a diff per renderer with its own spec surface, and
+ * the rule lands first so the React Native set is written against it. Tracked in #1343.
  */
 export const HEADER_BAR_PACK_VECTORS: ReadonlyArray<HeaderBarPackVector> = [
     { calls: [], start: [], end: [], rule: 'an empty bar has both slots empty' },
@@ -75,6 +79,10 @@ export interface HeaderBarTitleWidgetVector {
  * `adw_header_bar_set_title_widget` (:1189): same-widget returns early (:1198), the
  * centre is emptied unconditionally (:1201), and a NULL argument calls
  * `construct_title_label` again (:1210).
+ *
+ * CORE-ONLY: GAP — no renderer drives this table yet. Rewiring the NativeScript and web
+ * header bars onto `HeaderBarState` is a diff per renderer with its own spec surface, and
+ * the rule lands first so the React Native set is written against it. Tracked in #1343.
  */
 export const HEADER_BAR_TITLE_WIDGET_VECTORS: ReadonlyArray<HeaderBarTitleWidgetVector> = [
     {
@@ -139,6 +147,10 @@ export interface HeaderBarTitleSourceVector {
 /**
  * `update_title` (:475-509). The walk tests POINTERS (`if (!title)`), so an empty
  * string is a value and ends the chain — it does not fall through.
+ *
+ * CORE-ONLY: GAP — no renderer drives this table yet. Rewiring the NativeScript and web
+ * header bars onto `HeaderBarState` is a diff per renderer with its own spec surface, and
+ * the rule lands first so the React Native set is written against it. Tracked in #1343.
  */
 export const HEADER_BAR_TITLE_SOURCE_VECTORS: ReadonlyArray<HeaderBarTitleSourceVector> = [
     { sources: {}, title: '', rule: 'nothing to inherit from renders an empty label' },

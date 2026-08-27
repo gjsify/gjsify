@@ -515,8 +515,4 @@ export {
     HEADER_BAR_TITLE_SOURCE_VECTORS,
     HEADER_BAR_TITLE_WIDGET_VECTORS,
 } from './header-bar.js';
-export type {
-    HeaderBarPackVector,
-    HeaderBarTitleSourceVector,
-    HeaderBarTitleWidgetVector,
-} from './header-bar.js';
+export type { HeaderBarPackVector, HeaderBarTitleSourceVector, HeaderBarTitleWidgetVector } from './header-bar.js';
