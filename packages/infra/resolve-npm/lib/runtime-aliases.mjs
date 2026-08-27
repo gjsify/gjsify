@@ -65,7 +65,13 @@ import { join, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const VALID_SLOTS = new Set(['polyfill', 'native', 'partial', 'none']);
-const VALID_TARGETS = new Set(['gjs', 'node', 'browser', 'nativescript']);
+// `react-native` is the 5th target and the second one gjsify does not BUNDLE:
+// Metro owns a React Native application's build the way `@nativescript/vite` owns
+// NativeScript's, so this slot feeds the ALIAS layer only. There is deliberately no
+// `--app react-native` — `build.ts`'s `choices` stays at four. `gjsify build --dialect
+// react-native` is a DIFFERENT axis: it says what the SOURCE is written in, not what
+// the PACKAGE runs on, so it is not this slot's sibling and the two are never equal.
+const VALID_TARGETS = new Set(['gjs', 'node', 'browser', 'nativescript', 'react-native']);
 
 /**
  * Collect the target names for which `exports` declares a `./<target>`
@@ -91,12 +97,13 @@ function collectPlatformEntries(exportsField) {
 
 /** @typedef {'polyfill'|'native'|'partial'|'none'} Slot */
 /**
- * Per-package runtime slot declaration. Quadruplet (gjs / node / browser /
- * nativescript). The legacy "triplet" name is kept on the typedef for
- * minimal churn while NativeScript is being landed; the type is canonically
- * a quadruplet from VALID_TARGETS' perspective.
+ * Per-package runtime slot declaration. Quintuplet (gjs / node / browser /
+ * nativescript / react-native). The legacy "triplet" name is kept on the typedef
+ * for minimal churn; the type is canonically a quintuplet from VALID_TARGETS'
+ * perspective.
  *
- * @typedef {{gjs?:Slot, node?:Slot, browser?:Slot, nativescript?:Slot}} RuntimeTriplet
+ * @typedef {{gjs?:Slot, node?:Slot, browser?:Slot, nativescript?:Slot,
+ *            'react-native'?:Slot}} RuntimeTriplet
  */
 /**
  * @typedef {{name:string, dir:string, runtimes:RuntimeTriplet, hasGlobals:boolean,
@@ -375,7 +382,7 @@ function warnOnce(key, message) {
  * Given a package record + target runtime, resolve the alias target.
  *
  * @param {PackageRecord} rec
- * @param {'gjs'|'node'|'browser'|'nativescript'} target
+ * @param {'gjs'|'node'|'browser'|'nativescript'|'react-native'} target
  * @returns {string|null} The alias target specifier, or null if no rewrite applies.
  */
 function resolveSlot(rec, target) {
@@ -447,7 +454,7 @@ function resolveSlot(rec, target) {
  * (callers should `{ ...derived, ...hardcoded }` to preserve current behavior
  * for packages opted out of the triplet model).
  *
- * @param {'gjs'|'node'|'browser'|'nativescript'} target
+ * @param {'gjs'|'node'|'browser'|'nativescript'|'react-native'} target
  * @returns {Record<string,string>}
  */
 export function getDerivedAliasesSync(target) {
@@ -468,7 +475,7 @@ export function getDerivedAliasesSync(target) {
  * Async variant of {@link getDerivedAliasesSync} — preferred when callable from
  * an async config hook.
  *
- * @param {'gjs'|'node'|'browser'|'nativescript'} target
+ * @param {'gjs'|'node'|'browser'|'nativescript'|'react-native'} target
  * @returns {Promise<Record<string,string>>}
  */
 export async function getDerivedAliases(target) {

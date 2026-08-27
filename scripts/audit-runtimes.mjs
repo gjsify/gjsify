@@ -679,14 +679,20 @@ async function runProbes(rows) {
 // a routed entry must also have no unconditionally throwing value export.
 
 /** Targets that can carry a per-runtime platform entry. `gjs` never can. */
-const REACH_TARGETS = ['browser', 'nativescript', 'node'];
+const REACH_TARGETS = ['browser', 'nativescript', 'node', 'react-native'];
 
 /**
  * Targets where a GJS leak is SILENT (`gjsImportsEmptyPlugin` → `{}`) and must
  * therefore be caught statically. `node` is excluded on purpose — see the
  * "FATAL SCOPE" note in this section's header.
+ *
+ * `react-native` joins `nativescript` rather than `node`, and for the same reason
+ * rather than by analogy: Hermes has no GObject introspection at all, so nothing
+ * downstream can claim a `gi://` specifier and fail loudly the way `gjsGiNodePlugin`
+ * does on `--app node`. Metro resolves it to nothing and the leak surfaces as an
+ * undefined member at CALL time, on a phone, in a consumer's app.
  */
-const REACH_FATAL_TARGETS = new Set(['browser', 'nativescript']);
+const REACH_FATAL_TARGETS = new Set(['browser', 'nativescript', 'react-native']);
 
 /** Slots whose promise implies the target-resolved code must be GJS-free. */
 const REACH_FATAL_SLOT = 'polyfill';
@@ -1122,6 +1128,54 @@ function renderJson(rows) {
  * skipped — the script has nothing to say about them. A row with a suggestion and no
  * declaration is flagged too: a new package landed without declaring its triplet.
  */
+/** The slot values a declaration may use. Mirrors `resolve-npm`'s `VALID_SLOTS`. */
+const DECLARABLE_SLOTS = new Set(['polyfill', 'native', 'partial', 'none']);
+/** The runtimes a declaration may name. Mirrors `resolve-npm`'s `VALID_TARGETS`. */
+const DECLARABLE_TARGETS = new Set(['gjs', 'node', 'browser', 'nativescript', 'react-native']);
+
+/**
+ * Validate the SHAPE of every `gjsify.runtimes` declaration: each key must name a
+ * runtime this repo knows, each value must be a slot it knows.
+ *
+ * This did not exist before the 5th slot, and its absence was invisible by
+ * construction — BOTH readers iterate the known targets and look the declaration up
+ * by name (`resolve-npm/lib/runtime-aliases.mjs`, `diffDeclared`'s `slots`), so a key
+ * nobody knows is never visited by anything. `runtimes: { reactNative: "polyfill" }`
+ * therefore parses, passes every check, routes nothing, and reads in review as a
+ * package that declared its React Native support. A wrong VALUE hid in the same
+ * shadow wherever drift has no opinion: `runtime-aliases.mjs` skips it with
+ * `VALID_SLOTS.has(v)` and no `else`, and the optional 4th slot compares undeclared
+ * against undeclared.
+ *
+ * The 5th slot is where that stops being theoretical — it is declaration-only, so
+ * drift has nothing to say about it at all and this is the ONLY thing standing
+ * between a typo and silence.
+ *
+ * @returns {{name:string, problems:string[]}[]} one entry per package with problems
+ */
+function auditRuntimeShape(rows) {
+    const bad = [];
+    for (const r of rows) {
+        if (!r.declared || typeof r.declared !== 'object') continue;
+        const problems = [];
+        for (const [key, value] of Object.entries(r.declared)) {
+            if (!DECLARABLE_TARGETS.has(key)) {
+                problems.push(
+                    `unknown runtime "${key}" — known: ${[...DECLARABLE_TARGETS].join(', ')}`,
+                );
+                continue;
+            }
+            if (!DECLARABLE_SLOTS.has(value)) {
+                problems.push(
+                    `runtimes.${key} is ${JSON.stringify(value)} — known: ${[...DECLARABLE_SLOTS].join(', ')}`,
+                );
+            }
+        }
+        if (problems.length > 0) bad.push({ name: r.name, problems });
+    }
+    return bad;
+}
+
 function diffDeclared(rows) {
     const drifted = [];
     const missing = [];
@@ -1131,7 +1185,7 @@ function diffDeclared(rows) {
             missing.push(r);
             continue;
         }
-        const slots = ['gjs', 'node', 'browser', 'nativescript'];
+        const slots = ['gjs', 'node', 'browser', 'nativescript', 'react-native'];
         // A pure-TS contract (no `.imports?.gi` guard, none of the hard GJS-binding
         // signals) is platform-agnostic: it runs unmodified on Node, the browser and NS'
         // V8, resolving to its real `lib/esm/index.js`. So it may opt the node / browser /
@@ -1182,6 +1236,15 @@ function diffDeclared(rows) {
             // an axis are backfilled opportunistically, so an undeclared `nativescript`
             // makes the suggestion a hint rather than a target.
             if (s === 'nativescript' && r.declared[s] === undefined) return false;
+            // The 5th slot is DECLARATION-ONLY, and this is not the 4th slot's optionality
+            // one step further out — it is a different statement. `suggestTriplet` has no
+            // react-native branch, so `suggested['react-native']` is `undefined` for every
+            // row. Comparing against that would flag EVERY correct declaration as drift:
+            // `'polyfill' !== undefined`. The slot is still checked — `slotValues` rejects a
+            // value outside VALID_SLOTS, and the reachability pass treats it as fatal — it
+            // is only DRIFT that has nothing to say, because a heuristic nobody measured is
+            // a guess, and `--apply` would write that guess into 200 manifests.
+            if (s === 'react-native') return false;
             // Pure-TS contract: `none` and `polyfill` are both valid on the portable slots
             // (see above), so neither drifts.
             if (
@@ -1283,13 +1346,20 @@ defineRule({
     id: 'runtimes-drift',
     scope: 'repo',
     fields: ['gjsify.runtimes'],
-    description: 'the declared cross-runtime slot quadruplet matches what the source signals suggest',
+    description:
+        'every `gjsify.runtimes` declaration is well-shaped, and the declared cross-runtime slot quintuplet matches what the source signals suggest',
     async run() {
         const rows = await rowsFor();
+        const shapeProblems = auditRuntimeShape(rows);
         const { drifted, missing } = diffDeclared(rows);
         const probeFailures = STRICT ? await runProbes(rows) : [];
         const declarable = rows.filter((r) => r.suggested).length;
         const failures = [
+            // Shape first: a declaration that names a runtime nobody knows makes every
+            // reading below meaningless, so it must not be reported as drift.
+            ...shapeProblems.flatMap(({ name, problems }) =>
+                problems.map((p) => `${name}: malformed \`gjsify.runtimes\` — ${p}.`),
+            ),
             ...missing.map(
                 (r) =>
                     `${r.name ?? r.path} (packages/${r.path}): no \`gjsify.runtimes\` declaration; signals suggest ${fmtTriplet(r.suggested)} (${summarizeSignals(r)}).`,
@@ -1307,11 +1377,18 @@ defineRule({
         ];
         return {
             failures,
-            stats: { declarable, drifted: drifted.length, missing: missing.length, probes: probeFailures.length },
+            stats: {
+                declarable,
+                malformed: shapeProblems.length,
+                drifted: drifted.length,
+                missing: missing.length,
+                probes: probeFailures.length,
+            },
             summary:
                 `audit-runtimes --check${STRICT ? ' --strict' : ''}: OK. ${declarable} declarable package(s) match the signal-based suggestion ` +
                 `(${rows.length - declarable} infra/unknown skipped).${STRICT ? ` (functional probes passed on every declared slot)` : ''}`,
             rows,
+            shapeProblems,
             drifted,
             missing,
             probeFailures,
@@ -1599,6 +1676,18 @@ async function main() {
         }
 
         console.error(`audit-runtimes --check${STRICT ? ' --strict' : ''}: DRIFT DETECTED.\n`);
+        if (drift.shapeProblems.length > 0) {
+            console.error(
+                `Malformed \`gjsify.runtimes\` declaration on ${drift.shapeProblems.length} package(s) — ` +
+                    `nothing below was read for these, because a declaration that names a runtime this repo ` +
+                    `does not know routes nothing and drifts from nothing:`,
+            );
+            for (const { name, problems } of drift.shapeProblems) {
+                console.error(`  - ${name}`);
+                for (const p of problems) console.error(`      problem:   ${p}`);
+            }
+            console.error('');
+        }
         if (drift.missing.length > 0) {
             console.error(`Missing gjsify.runtimes declaration on ${drift.missing.length} package(s):`);
             for (const r of drift.missing) {

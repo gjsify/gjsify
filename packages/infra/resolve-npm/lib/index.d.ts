@@ -41,23 +41,36 @@ export declare const ALIASES_WEB_FOR_NODE: {[alias:string]: string};
 /** Runtime-slot type carried by `package.json#gjsify.runtimes.<target>`. */
 export type RuntimeSlot = 'polyfill' | 'native' | 'partial' | 'none';
 
-/** Per-package runtime triplet — `{gjs, node, browser}` × {RuntimeSlot}. */
+/**
+ * Per-package runtime quintuplet — `{gjs, node, browser, nativescript,
+ * react-native}` × {RuntimeSlot}. The name is legacy; `runtime-aliases.mjs`'s
+ * `VALID_TARGETS` is the canonical list.
+ *
+ * `nativescript` was missing here for the whole life of the 4th slot: the runtime
+ * read it, the type denied it, and nothing compared the two — which is why the 5th
+ * arrives with both halves in one change.
+ */
 export interface RuntimeTriplet {
     gjs?: RuntimeSlot;
     node?: RuntimeSlot;
     browser?: RuntimeSlot;
+    nativescript?: RuntimeSlot;
+    'react-native'?: RuntimeSlot;
 }
+
+/** The runtimes a package can declare a slot for. */
+export type RuntimeTarget = 'gjs' | 'node' | 'browser' | 'nativescript' | 'react-native';
 
 /**
  * Build a derived `@gjsify/<X>` alias map for the given target runtime, driven
  * by each workspace package's declared `gjsify.runtimes` triplet. See
  * `runtime-aliases.mjs` for the routing semantics.
  */
-export declare function getDerivedAliasesSync(target: 'gjs' | 'node' | 'browser' | 'nativescript'): {[alias: string]: string};
+export declare function getDerivedAliasesSync(target: RuntimeTarget): {[alias: string]: string};
 
 /** Async variant of {@link getDerivedAliasesSync}. */
 export declare function getDerivedAliases(
-    target: 'gjs' | 'node' | 'browser' | 'nativescript',
+    target: RuntimeTarget,
 ): Promise<{[alias: string]: string}>;
 
 /** Reset the in-memory cache. Test-only. */
