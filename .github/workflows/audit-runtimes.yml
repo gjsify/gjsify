@@ -503,7 +503,12 @@ jobs:
       # got — so the claim went, and this holds the part that IS true and checkable:
       # the three targets render the same story SET. A story on one target and not the
       # others is the one state where no comparison is possible at all.
-      - name: Check every storybook story exists on all three targets
+      #
+      # It read a FILENAME for its first life, and two of the three targets render what a
+      # hand-written list module imports: deleting one import and one array entry from
+      # browser/stories.ts dropped a story out of the browser storybook and out of the
+      # website embed with this step green. It reads the registration now.
+      - name: Check every storybook story is registered on all three targets
         run: node scripts/check-storybook-story-parity.mjs
 
       # Story-set parity says the same stories EXIST; it cannot say the reader meets
@@ -992,7 +997,12 @@ jobs:
       # got — so the claim went, and this holds the part that IS true and checkable:
       # the three targets render the same story SET. A story on one target and not the
       # others is the one state where no comparison is possible at all.
-      - name: Check every storybook story exists on all three targets
+      #
+      # It read a FILENAME for its first life, and two of the three targets render what a
+      # hand-written list module imports: deleting one import and one array entry from
+      # browser/stories.ts dropped a story out of the browser storybook and out of the
+      # website embed with this step green. It reads the registration now.
+      - name: Check every storybook story is registered on all three targets
         run: node scripts/check-storybook-story-parity.mjs
 
       # Story-set parity says the same stories EXIST; it cannot say the reader meets
