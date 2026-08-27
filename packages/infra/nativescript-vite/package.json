@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/nativescript-vite",
-    "version": "0.43.0",
+    "version": "0.44.0",
     "description": "Vite 8 / Rolldown compatibility + gjsify transforms for building NativeScript apps — composes @nativescript/vite and fixes the pieces Rolldown rejects.",
     "type": "module",
     "main": "lib/index.js",

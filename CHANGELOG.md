@@ -1,5 +1,70 @@
 # Changelog
 
+## [0.44.0](https://github.com/gjsify/gjsify/compare/v0.43.0...v0.44.0) (2026-08-27)
+
+### Features
+
+* **cli:** ship a Flatpak from the staged payload ([#1331](https://github.com/gjsify/gjsify/issues/1331)) ([f02a25e](https://github.com/gjsify/gjsify/commit/f02a25e4b3492e83bf803882394f06a2691ed32d))
+* **gtk-host:** both halves of the style partition ([#1348](https://github.com/gjsify/gjsify/issues/1348)) ([d44050e](https://github.com/gjsify/gjsify/commit/d44050e51b85f1ee92cd04b5ff75a6e0c9ad9512))
+* **gtk-host:** check the widget vocabulary across surfaces, accept ADR 0029 ([#1332](https://github.com/gjsify/gjsify/issues/1332)) ([1268a66](https://github.com/gjsify/gjsify/commit/1268a6635a33aa91d960a9d5f7e48cd6fb82a99e)), closes [#438](https://github.com/gjsify/gjsify/issues/438)
+* **gtk-host:** cover the React surface end to end ([#1323](https://github.com/gjsify/gjsify/issues/1323)) ([90fa93a](https://github.com/gjsify/gjsify/commit/90fa93a3305d0516fb35d903229239fb830731f0))
+* **gtk-host:** move the React adapter to React 19 ([#1344](https://github.com/gjsify/gjsify/issues/1344)) ([b9964e4](https://github.com/gjsify/gjsify/commit/b9964e4cbf63addb1012fe04884a1ef49c9f3cf1))
+* **gtk-host:** run the suite on Node too ([#1318](https://github.com/gjsify/gjsify/issues/1318)) ([fa57084](https://github.com/gjsify/gjsify/commit/fa570848640bb0d1071094944bcc8de937ab7df2))
+* **manifest-conformance:** hold the ADR 0019 library boundary ([#1340](https://github.com/gjsify/gjsify/issues/1340)) ([9e7fb24](https://github.com/gjsify/gjsify/commit/9e7fb2492dda9d443d058db25394591fc366260f))
+* **react-native:** primitives, the Solid proof and a showcase ([#1349](https://github.com/gjsify/gjsify/issues/1349)) ([4aebe98](https://github.com/gjsify/gjsify/commit/4aebe98fa0d669aa8c9cf5592495553d892659a8))
+* **react-native:** routing over React Navigation ([#1352](https://github.com/gjsify/gjsify/issues/1352)) ([52210b5](https://github.com/gjsify/gjsify/commit/52210b51123d6f469030cc6e741eeabc20d4dd4a))
+* **react-native:** the P2 component surface ([#1353](https://github.com/gjsify/gjsify/issues/1353)) ([43b0ef8](https://github.com/gjsify/gjsify/commit/43b0ef8ab7910f7d9899d45460bbc001b04e953e))
+* **react-native:** the package, and a table that makes gaps loud ([#1347](https://github.com/gjsify/gjsify/issues/1347)) ([4fb741b](https://github.com/gjsify/gjsify/commit/4fb741b16388a7f035f9929178be46c3b68d10a8))
+* **rolldown-plugin-gjsify:** the three unbuilt ADR 0032 promises ([#1350](https://github.com/gjsify/gjsify/issues/1350)) ([a899f17](https://github.com/gjsify/gjsify/commit/a899f17fa1dd0d98faf78d6819c76f4d2e88a0a2))
+
+### Bug Fixes
+
+* **adwaita-web:** adopt slotted children live ([#1321](https://github.com/gjsify/gjsify/issues/1321)) ([f6542d0](https://github.com/gjsify/gjsify/commit/f6542d030be1ab1ec4241781cb6ac4b82bff4e67))
+* **ci:** check the cancel selection out from the base ([#1346](https://github.com/gjsify/gjsify/issues/1346)) ([30df302](https://github.com/gjsify/gjsify/commit/30df302762d9418d1887c584986ab33051a12493)), closes [#1334](https://github.com/gjsify/gjsify/issues/1334) [#1340](https://github.com/gjsify/gjsify/issues/1340) [#1334](https://github.com/gjsify/gjsify/issues/1334)
+* **ci:** make the musl prebuild leg build what it claims ([#1329](https://github.com/gjsify/gjsify/issues/1329)) ([20513ef](https://github.com/gjsify/gjsify/commit/20513ef2a1db0b56ceb7e10509008c2464c65c5f))
+* close the gtk-host node leg, 25 failures to 0 ([#1333](https://github.com/gjsify/gjsify/issues/1333)) ([94c9f08](https://github.com/gjsify/gjsify/commit/94c9f08798de0e17b90ebec66b968d14cc9f710d))
+* **gtk-host:** restore displaced text, unify the probe ([#1312](https://github.com/gjsify/gjsify/issues/1312)) ([19387f6](https://github.com/gjsify/gjsify/commit/19387f66170f22417e23eda9ae8b44f40892808d))
+* **napi:** a truncated reference run is not golden drift ([#1336](https://github.com/gjsify/gjsify/issues/1336)) ([5e26f24](https://github.com/gjsify/gjsify/commit/5e26f24faca5d4fec8c992c2550f8b8264eea1b1))
+* **node-gi:** link instances to their class, dispatch vfuncs ([#1322](https://github.com/gjsify/gjsify/issues/1322)) ([5b2d405](https://github.com/gjsify/gjsify/commit/5b2d405e7c5e566a0c47c3a63f66dbc1be113894)), closes [#47](https://github.com/gjsify/gjsify/issues/47)
+* **node-gi:** reach class-struct statics ([#1310](https://github.com/gjsify/gjsify/issues/1310)) ([e9b6a18](https://github.com/gjsify/gjsify/commit/e9b6a1806e7c82f00a7826477f4076f735c26408))
+* **react-native:** three claims about the table that the table disproves ([#1357](https://github.com/gjsify/gjsify/issues/1357)) ([63b8b2a](https://github.com/gjsify/gjsify/commit/63b8b2ad19fc619780c19bd0e3395b8d413818d5))
+* **scripts:** a tier banner belongs to its own table, not the next one ([#1361](https://github.com/gjsify/gjsify/issues/1361)) ([48561ae](https://github.com/gjsify/gjsify/commit/48561ae5827cd0634d79693424f1377d5eb2d062)), closes [#1357](https://github.com/gjsify/gjsify/issues/1357) [#1352](https://github.com/gjsify/gjsify/issues/1352)
+* **unit:** a suite body that throws must fail ([#1317](https://github.com/gjsify/gjsify/issues/1317)) ([a5a9b87](https://github.com/gjsify/gjsify/commit/a5a9b87c0268f832d3db51844ed1b5bdd21276b2))
+
+### Documentation
+
+* add the React page, complete adw-alert-dialog, check the class ([#1341](https://github.com/gjsify/gjsify/issues/1341)) ([670fe60](https://github.com/gjsify/gjsify/commit/670fe60e409c145b0c27c053757dfc08a6aa5960))
+* **adr:** a JSX namespace need not be global ([#1337](https://github.com/gjsify/gjsify/issues/1337)) ([077f0b8](https://github.com/gjsify/gjsify/commit/077f0b8045dccede6b10dab92495b19d6850bbda))
+* **adr:** a React Native view layer over the GTK host ([#1345](https://github.com/gjsify/gjsify/issues/1345)) ([400bd42](https://github.com/gjsify/gjsify/commit/400bd42d96b7243bd2ba8ba88fa25cc9d3b5c097))
+* **adr:** accept 0030, amend the 0027 quadruplet ([#1316](https://github.com/gjsify/gjsify/issues/1316)) ([5a4b7c8](https://github.com/gjsify/gjsify/commit/5a4b7c86ad32b126380d828dbbdc4b1af30e16b9))
+* **adr:** why node-gi and napi are not members ([#1324](https://github.com/gjsify/gjsify/issues/1324)) ([6c6b517](https://github.com/gjsify/gjsify/commit/6c6b5179b20a4a31ed706a1f97191c527ef0adfe))
+* correct the slot-adoption count, retire its half ([#1325](https://github.com/gjsify/gjsify/issues/1325)) ([a7e1a16](https://github.com/gjsify/gjsify/commit/a7e1a165ccdf0326d4fdf533e109f73d016a099b))
+* drop the fixture counts, name all four showcases ([#1328](https://github.com/gjsify/gjsify/issues/1328)) ([5f6485f](https://github.com/gjsify/gjsify/commit/5f6485fa22d25d5a8a9c59ccffe1a6717ed8c34a))
+* **node-gi:** split README into reference docs ([#1313](https://github.com/gjsify/gjsify/issues/1313)) ([fe2b86e](https://github.com/gjsify/gjsify/commit/fe2b86e7f3da36d32c20e63cfbb5e3e19c819d4a))
+* **react-native:** routing, the second tier, and the build opt-in ([#1360](https://github.com/gjsify/gjsify/issues/1360)) ([ff8c76a](https://github.com/gjsify/gjsify/commit/ff8c76a8aabc055994375306567f5a84ff76ce28)), closes [#1357](https://github.com/gjsify/gjsify/issues/1357) [#1350](https://github.com/gjsify/gjsify/issues/1350)
+* repair five verified defects and the claims behind them ([#1351](https://github.com/gjsify/gjsify/issues/1351)) ([28c0758](https://github.com/gjsify/gjsify/commit/28c0758ea9f5908c8786734d63860fa40d20cfc6))
+* **status:** a file-level test failure says nothing ([#1326](https://github.com/gjsify/gjsify/issues/1326)) ([9b90e80](https://github.com/gjsify/gjsify/commit/9b90e80dcf38613e2151dff8c2e28bb060a9a8e0))
+* **status:** record the napi instance-data flake ([#1315](https://github.com/gjsify/gjsify/issues/1315)) ([6f59b47](https://github.com/gjsify/gjsify/commit/6f59b47465f0ccc2f8c3da931621cfdcf7ae3374))
+* **status:** the node leg is 25 of 1907, and 16 are one cluster ([#1327](https://github.com/gjsify/gjsify/issues/1327)) ([27560a0](https://github.com/gjsify/gjsify/commit/27560a014616301e98fdf1826f10821c84e9526c))
+* withdraw a dead rule, add the corpus ADR ([#1311](https://github.com/gjsify/gjsify/issues/1311)) ([6d61575](https://github.com/gjsify/gjsify/commit/6d61575f5a631ff8b9d22fd608c8368bb3e607e8))
+
+### Continuous Integration
+
+* cancel a PR's superseded runs on every push ([#1334](https://github.com/gjsify/gjsify/issues/1334)) ([cbf8289](https://github.com/gjsify/gjsify/commit/cbf8289aed9082043a19f0858bc3fb01734b152c))
+* surface a gate's own history, and the shell each run block really uses ([2171539](https://github.com/gjsify/gjsify/commit/21715394562eb20ba4e3d86950b5c356ce52c9a9))
+
+### Maintenance
+
+* update native prebuilds [skip ci] ([8af0d78](https://github.com/gjsify/gjsify/commit/8af0d78f855cb0c1a291bec6c5ca43497e9ac873))
+* update native prebuilds [skip ci] ([ef99189](https://github.com/gjsify/gjsify/commit/ef991896e5c184d1934578d34562adf2fef23d19))
+
+### Tests
+
+* **e2e:** wait for the release before installing ([#1314](https://github.com/gjsify/gjsify/issues/1314)) ([7f015c3](https://github.com/gjsify/gjsify/commit/7f015c38c10ee2860ab98aeb63003ab671c7ec94))
+* **napi:** make the instance-data probe self-locating ([#1319](https://github.com/gjsify/gjsify/issues/1319)) ([09645af](https://github.com/gjsify/gjsify/commit/09645afd53f6b5fe94a61e4987119182e286d3fe))
+* **vue:** hold the deepkit filter coupling ([#1320](https://github.com/gjsify/gjsify/issues/1320)) ([6b8a702](https://github.com/gjsify/gjsify/commit/6b8a7025218c3c7e7e30884aecc252c8a700b504))
+* **worker-stress:** drop the dead notify, fix the stale note ([#1335](https://github.com/gjsify/gjsify/issues/1335)) ([b63ada5](https://github.com/gjsify/gjsify/commit/b63ada5d7c5b3a382b680d35fd6b06b174a50169)), closes [#1332](https://github.com/gjsify/gjsify/issues/1332)
+
 ## [0.43.0](https://github.com/gjsify/gjsify/compare/v0.42.0...v0.43.0) (2026-08-25)
 
 ### Features

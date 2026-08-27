@@ -1,6 +1,6 @@
 {
     "name": "@gjsify/tty",
-    "version": "0.43.0",
+    "version": "0.44.0",
     "description": "Node.js tty module for Gjs",
     "module": "lib/esm/index.js",
     "types": "lib/types/index.d.ts",
