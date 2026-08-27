@@ -102,6 +102,7 @@ gjsify build src/index.ts --watch                               # rebuild on cha
 | `-d`, `--outdir` | path | from `package.json` | Output directory (library mode). |
 | `--minify` | bool | `true` | Minify the output. Pass `--no-minify` for pretty-printed code. |
 | `--globals` | string | `auto` | Which globals to inject. See [Globals](#globals). |
+| `--dialect` | `react-native` | none | Build a React Native application for a desktop target. Aliases `react-native` to [`@gjsify/react-native`](/gjsify/frameworks/react-native/) so your files keep the import they already have, and fails the build on a name that layer does not implement, naming the file and the line. Opt-in only, on `--app gjs` and `--app node`; also readable as `gjsify.dialect` in `package.json`. |
 | `--exclude-globals` | list | none | Identifiers to drop from the auto-detected set, for false positives out of dead compat code (`--exclude-globals fetch,XMLHttpRequest`). |
 | `--shebang` | bool | `false` | Prepend a target-appropriate shebang and `chmod 755` the output: `#!/usr/bin/env -S gjs -m` for `--app gjs`, `#!/usr/bin/env node` for `--app node`. Needs a single `--outfile`. |
 | `-w`, `--watch` | bool | `false` | Watch sources and rebuild on change, logging each rebuild with its duration. Ctrl-C stops it cleanly. Rejected with `--library`, and it needs the npm `rolldown` engine, so run it under Node. On GJS use [`gjsify dev`](#gjsify-dev), which needs no watcher API and relaunches the app too. |
