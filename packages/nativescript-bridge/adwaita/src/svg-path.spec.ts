@@ -54,10 +54,38 @@ function cubicAt(t: number, p0: number, p1: number, p2: number, p3: number): num
     return u * u * u * p0 + 3 * u * u * t * p1 + 3 * u * t * t * p2 + t * t * t * p3;
 }
 
+/** An axis-aligned box, or `null` for geometry that has no points. */
+type Bounds = { minX: number; minY: number; maxX: number; maxY: number } | null;
+
 /** Where `(x, y)` lands under an {@link IconTransform} — SVG's `[a c e; b d f]`. */
 function pointAt(transform: IconTransform, x: number, y: number): [number, number] {
     const [a, b, c, d, e, f] = transform;
     return [a * x + c * y + e, b * x + d * y + f];
+}
+
+/** Where `commands` actually land once `transform` is applied. */
+function transformedBounds(commands: SvgPathCommand[], transform: IconTransform): Bounds {
+    let box: Bounds = null;
+    const add = (x: number, y: number): void => {
+        const [px, py] = pointAt(transform, x, y);
+        box = box
+            ? {
+                  minX: Math.min(box.minX, px),
+                  minY: Math.min(box.minY, py),
+                  maxX: Math.max(box.maxX, px),
+                  maxY: Math.max(box.maxY, py),
+              }
+            : { minX: px, minY: py, maxX: px, maxY: py };
+    };
+    for (const command of commands) {
+        if (command.type === 'M' || command.type === 'L') add(command.x, command.y);
+        else if (command.type === 'C') {
+            add(command.x1, command.y1);
+            add(command.x2, command.y2);
+            add(command.x, command.y);
+        }
+    }
+    return box;
 }
 
 /** Sample a quadratic Bézier at `t`. */
@@ -258,6 +286,110 @@ export default async () => {
             expect(commands).toBeGreaterThan(20000);
         });
     });
+    await describe('every shipped icon lands on the 16x16 grid', async () => {
+        /** Names of the icons whose whole drawn shape misses the canvas. */
+        const missingTheCanvas = (dropTransforms: boolean): string[] => {
+            const missed: string[] = [];
+            for (const [name, svg] of ALL_ICONS) {
+                if (typeof svg !== 'string' || !svg.includes('<path')) continue;
+                let box: Bounds = null;
+                for (const { d, transform } of extractIconPaths(svg)) {
+                    const one = transformedBounds(parseSvgPath(d), dropTransforms ? IDENTITY_TRANSFORM : transform);
+                    if (!one) continue;
+                    box = box
+                        ? {
+                              minX: Math.min(box.minX, one.minX),
+                              minY: Math.min(box.minY, one.minY),
+                              maxX: Math.max(box.maxX, one.maxX),
+                              maxY: Math.max(box.maxY, one.maxY),
+                          }
+                        : one;
+                }
+                if (!box) continue;
+                if (box.maxX <= 0 || box.minX >= 16 || box.maxY <= 0 || box.minY >= 16) missed.push(name);
+            }
+            return missed;
+        };
+
+        await it('draws every icon somewhere the 16x16 bitmap can see', () => {
+            expect(missingTheCanvas(false)).toStrictEqual([]);
+        });
+
+        await it('and fails when the transforms are dropped again', () => {
+            // The control. Parsing finite geometry proves nothing about WHERE it
+            // lands, which is why the old sweep stayed green through twelve icons
+            // rendering as empty bitmaps. Discarding the transforms reproduces
+            // exactly that state, so the guard above has to reject it.
+            expect(missingTheCanvas(true).length).toBeGreaterThan(10);
+        });
+    });
+
+    await describe('the tag scan only sees what the icon actually draws', async () => {
+        const svg = (body: string) => `<svg viewBox="0 0 16 16">${body}</svg>`;
+        const ds = (body: string) => extractIconPaths(svg(body)).map((p) => p.d);
+        const only = (body: string) => extractIconPaths(svg(body))[0];
+
+        await it('ignores a <path> commented out', () => {
+            expect(ds('<!-- <path d="M9 9"/> --><path d="M1 1"/>')).toStrictEqual(['M1 1']);
+        });
+
+        await it('does not let a commented <g> shift the paths after it', () => {
+            // The nastier half: a comment cannot close, so a commented opening tag
+            // used to push a transform that stayed on the stack for the whole icon.
+            expect(only('<!-- <g transform="translate(7,7)"> --><path d="M1 1"/>')!.transform).toStrictEqual(
+                IDENTITY_TRANSFORM,
+            );
+        });
+
+        await it('does not let a commented </g> close a real group', () => {
+            expect(only('<g transform="translate(5,5)"><!-- </g> --><path d="M1 1"/></g>')!.transform).toStrictEqual([
+                1, 0, 0, 1, 5, 5,
+            ]);
+        });
+
+        await it('ignores markup inside CDATA', () => {
+            expect(ds('<foo><![CDATA[<path d="M9 9"/>]]></foo><path d="M1 1"/>')).toStrictEqual(['M1 1']);
+        });
+
+        await it('steps over a `>` inside an attribute value', () => {
+            // `[^>]*` truncated the tag there, which dropped whichever attributes
+            // followed — the path itself when `d` came last, and the TRANSFORM when
+            // it did, which is the defect this module exists to prevent.
+            expect(ds('<path data-x="a>b" d="M1 1"/>')).toStrictEqual(['M1 1']);
+            expect(only('<g id="a>b" transform="translate(5,5)"><path d="M1 1"/></g>')!.transform).toStrictEqual([
+                1, 0, 0, 1, 5, 5,
+            ]);
+        });
+
+        await it('does not read `data-d` as path data', () => {
+            // `\b` matches after a `-` too, so `\bd="` used to accept `data-d="…"`.
+            expect(ds('<path data-d="M9 9"/>')).toStrictEqual([]);
+            expect(ds('<path data-d="M9 9" d="M1 1"/>')).toStrictEqual(['M1 1']);
+        });
+
+        await it('skips the shape-DEFINING containers', () => {
+            // A `<clipPath>` path is a clipping outline, never a fill. Drawing them
+            // is what turned `preferences-desktop-appearance` into a solid block.
+            expect(ds('<defs><path d="M9 9"/></defs><path d="M1 1"/>')).toStrictEqual(['M1 1']);
+            expect(ds('<clipPath id="c"><path d="M9 9"/></clipPath><path d="M1 1"/>')).toStrictEqual(['M1 1']);
+            expect(
+                ds('<mask id="m"><g transform="translate(3,3)"><path d="M9 9"/></g></mask><path d="M1 1"/>'),
+            ).toStrictEqual(['M1 1']);
+        });
+
+        await it('does not let a self-closing <defs/> swallow the document', () => {
+            // Inkscape writes one into most of these icons; waiting for a `</defs>`
+            // that never comes would hide every path in the file.
+            expect(ds('<defs id="d"/><path d="M1 1"/>')).toStrictEqual(['M1 1']);
+        });
+
+        await it('survives an unbalanced </g> instead of throwing', () => {
+            // A malformed icon must not take down the view rendering it.
+            expect(ds('</g><path d="M1 1"/>')).toStrictEqual(['M1 1']);
+            expect(only('<g transform="translate(5,5)"><path d="M1 1"/>')!.transform).toStrictEqual([1, 0, 0, 1, 5, 5]);
+        });
+    });
+
     await describe('extractIconPaths carries what the renderers have to draw', async () => {
         const svg = (body: string) => `<svg viewBox="0 0 16 16">${body}</svg>`;
 

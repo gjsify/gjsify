@@ -158,7 +158,10 @@ export function parseIconTransform(value: string): IconTransform | null {
     return matched ? out : null;
 }
 
-const NORMALIZED_ATTR_RE = /\b(d|fill|fill-rule|fill-opacity|transform|style)="([^"]*)"/g;
+// The leading `\s` is load-bearing: `\b` also matches after a `-`, so `\bd="` read
+// `data-d="…"` as path data and drew whatever it held. An attribute is always
+// preceded by whitespace inside a tag, so requiring it costs nothing.
+const NORMALIZED_ATTR_RE = /\s(d|fill|fill-rule|fill-opacity|transform|style)\s*=\s*"([^"]*)"/g;
 
 /** Attributes of one tag as a map. Only the ones this module reads. */
 function tagAttributes(tag: string): Map<string, string> {
@@ -187,6 +190,26 @@ function presentationValue(attrs: Map<string, string>, name: string): string | u
 }
 
 /**
+ * Comment and CDATA bodies, which a tag scan must not see.
+ *
+ * A `<path>` inside `<!-- … -->` is a note, not geometry — and a commented-out
+ * `<g transform=…>` is worse: it opens a group that never closes, so every later
+ * path in the icon silently inherits a transform nobody asked for. `String.replace`
+ * resets a global regex's `lastIndex` itself, so sharing this literal is safe.
+ */
+const NON_MARKUP_RE = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>/g;
+
+/**
+ * Elements whose `<path>` children DEFINE a shape without ever painting one.
+ *
+ * Reading them as drawable is not theoretical: `preferences-desktop-appearance`
+ * ships nine `<clipPath>` rectangles of `m 0 0 h 1024 v 800 h -1024 z`, which the
+ * `<path>`-only scan drew as nine opaque 1024×800 fills over a 16×16 bitmap — the
+ * whole icon came out as a solid block of the theme colour.
+ */
+const NON_RENDERING_CONTAINERS = new Set(['defs', 'clipPath', 'mask', 'symbol', 'marker', 'pattern']);
+
+/**
  * Extract every fillable `<path>` of a symbolic SVG.
  *
  * Each path must be drawn SEPARATELY (not concatenated): Adwaita icons frequently pair
@@ -204,17 +227,38 @@ function presentationValue(attrs: Map<string, string>, name: string): string | u
  */
 export function extractIconPaths(svg: string): IconPath[] {
     const paths: IconPath[] = [];
-    // `<g …>`, `</g>` and `<path …>` in document order, so the group stack is real
-    // nesting rather than a guess from attribute order.
-    const tokenRe = /<(g|path)\b([^>]*)>|<\/g\s*>/g;
+    // Openers, closers and `<path …>` in document order, so the group stack is real
+    // nesting rather than a guess from attribute order. An attribute VALUE is stepped
+    // over as a unit: `[^>]*` stopped at a `>` inside one, which truncated the tag
+    // before its `transform` and drew the path untransformed — the very failure this
+    // function exists to prevent.
+    const tokenRe =
+        /<(g|path|defs|clipPath|mask|symbol|marker|pattern)\b((?:"[^"]*"|'[^']*'|[^"'<>])*)>|<\/(g|defs|clipPath|mask|symbol|marker|pattern)\s*>/g;
     const stack: IconTransform[] = [];
+    // Depth inside a {@link NON_RENDERING_CONTAINERS} element. Its own `<g>` nesting
+    // is skipped with it, so the transform stack stays balanced across the subtree.
+    let hidden = 0;
     let token: RegExpExecArray | null;
-    while ((token = tokenRe.exec(svg)) !== null) {
-        const [whole, tag, rest] = token;
+    const scannable = svg.replace(NON_MARKUP_RE, '');
+    while ((token = tokenRe.exec(scannable)) !== null) {
+        const [whole, tag, rest, closing] = token;
         if (tag === undefined) {
-            stack.pop();
+            if (NON_RENDERING_CONTAINERS.has(closing as string)) hidden = Math.max(0, hidden - 1);
+            // An unbalanced `</g>` pops nothing rather than throwing: a malformed
+            // icon must not take down the view rendering it.
+            else if (hidden === 0) stack.pop();
             continue;
         }
+        // A self-closing `<x …/>` opens nothing — and Inkscape writes an empty
+        // `<defs id="…" />` into most of these icons, which would otherwise hide the
+        // whole rest of the document while waiting for a `</defs>` that never comes.
+        const selfClosing = (rest as string).trimEnd().endsWith('/');
+        if (NON_RENDERING_CONTAINERS.has(tag)) {
+            if (!selfClosing) hidden++;
+            continue;
+        }
+        if (hidden > 0) continue;
+
         const attrs = tagAttributes(whole);
         const own = attrs.has('transform') ? parseIconTransform(attrs.get('transform') as string) : IDENTITY_TRANSFORM;
         // An unreadable transform is NOT identity. Dropping it is what drew those
@@ -224,10 +268,7 @@ export function extractIconPaths(svg: string): IconPath[] {
         const effective = own === null ? null : composeTransforms(inherited, own);
 
         if (tag === 'g') {
-            // A self-closing `<g …/>` opens nothing.
-            if (!(rest as string).trimEnd().endsWith('/')) {
-                stack.push(effective ?? inherited);
-            }
+            if (!selfClosing) stack.push(effective ?? inherited);
             continue;
         }
 
