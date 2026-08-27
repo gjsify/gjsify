@@ -281,3 +281,6 @@
 [submodule "refs/cambalache"]
 	path = refs/cambalache
 	url = https://gitlab.gnome.org/jpu/cambalache
+[submodule "refs/metro"]
+	path = refs/metro
+	url = https://github.com/facebook/metro.git
