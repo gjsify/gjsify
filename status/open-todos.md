@@ -4,6 +4,26 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### A version stamp read off `@girs/*` is not the library that ran
+
+Seven measurements in this tree were stamped `Adw 1.10`. Installed is **1.9.3**
+(`rpm -q libadwaita`, and `Adw.MAJOR/MINOR/MICRO_VERSION` under gjs agree). The source is
+`node_modules/@girs/adw-1/package.json`, whose `description` reads *"generated from library
+version 1.10.0"* — so the number was taken from the TYPE package's declared upstream, not from
+the library the probe actually called.
+
+Six were corrected against the running library. **One deliberately was not**:
+`docs/adr/0027-gtk-host-layer.md:37` ("across 29 containers"). It is a different measurement,
+never reproduced here, and writing `1.9.3` there would assert a version for a run nobody
+observed — which is the same defect one layer down. Re-run that probe or leave the stamp; do not
+edit it.
+
+The skew is already known elsewhere: `gjsify system-check` catches `@girs/adw-1` 1.10.0 against
+libadwaita 1.9.2 (recorded further down this file). What was missing is the consequence — a
+`@girs/*` version is a claim about the GIR the types came from, and a measurement must name the
+library it ran against, which is `Adw.get_*_version()` and nothing else.
+
+
 ### A node:test FILE fails with no named test and no message, on a leg nobody watches
 
 **`packages/node-gi` `test/bytes.test.mjs`** on the Windows batteries-included leg

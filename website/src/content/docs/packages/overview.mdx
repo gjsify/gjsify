@@ -79,12 +79,13 @@ socket.addEventListener('message', (event) => console.log(event.data));
 
 ## When you do write `@gjsify/...` in an import
 
-Four cases, all of them things that have no standard bare specifier:
+These are the things that have no standard bare specifier:
 
 - **GTK bridge widgets.** `@gjsify/canvas2d`, `@gjsify/webgl`, `@gjsify/video` and `@gjsify/iframe` export widget classes you mount into a GTK tree. See [DOM & Graphics](/gjsify/packages/dom/).
 - **The Adwaita design system on the web.** `@gjsify/adwaita-web` gives you Adwaita as Web Components for `--app browser` builds. See the [Adwaita gallery](/gjsify/adwaita/).
 - **The native app shell.** `@gjsify/adwaita-app` wraps the `Adw.Application` boilerplate. See [Build a native Adwaita app](/gjsify/guides/native-adwaita-app/).
-- **The renderer host.** `@gjsify/gtk-host` is the element model Solid, Vue and React renderers bind to, so you describe a GTK window instead of assembling it. See [UI Frameworks](/gjsify/frameworks/).
+- **The renderer host.** `@gjsify/gtk-host` is the element model the Solid, Vue and React renderers bind to, so you describe a GTK window instead of assembling it. Its `/style` subpath answers a utility class or a style object with GTK CSS, a widget property, or an intent. See [UI Frameworks](/gjsify/frameworks/) and [Styling on GTK](/gjsify/frameworks/styling/).
+- **React Native's vocabulary.** `@gjsify/react-native` is the package a bundler aliases `react-native` to: `<View>`, `<Text>`, `<Pressable>` over the same host, with a support table that gives every name it does not implement a status and a reason. See [React Native](/gjsify/frameworks/react-native/).
 
 <CommandTabs title="Install a GJSify package">
   <Fragment slot="gjsify">
@@ -113,15 +114,15 @@ Four cases, all of them things that have no standard bare specifier:
 
 | Category | Packages | What you get |
 |---|---|---|
-| [Node.js Modules](/gjsify/packages/node/) | 41 plus 1 meta | `fs`, `net`, `http`, `crypto`, `stream`, `events`, `sqlite`, `ws` and more |
-| [Web APIs](/gjsify/packages/web/) | 19 plus 1 native bridge plus 1 meta | `fetch`, `XMLHttpRequest`, `WebSocket`, `WebRTC`, `WebAudio`, Streams, `DOMParser`, `MessageChannel`, `WebAssembly` and more |
-| [DOM & Graphics](/gjsify/packages/dom/) | 2 DOM plus 6 bridges | Canvas 2D, WebGL, DOM elements, and the GTK-backed Canvas / WebGL / Video / IFrame widgets |
-| Framework | renderer host, app shell plus tooling | [`@gjsify/gtk-host`](/gjsify/frameworks/), [`@gjsify/adwaita-app`](/gjsify/guides/native-adwaita-app/), [storybook](/gjsify/guides/storybook/), [devtools](/gjsify/guides/devtools/) |
+| [Node.js Modules](/gjsify/packages/node/) | one per builtin, plus meta packages that pull a whole set in | `fs`, `net`, `http`, `crypto`, `stream`, `events`, `sqlite`, `ws` and more |
+| [Web APIs](/gjsify/packages/web/) | one per standard, plus meta packages and the native Vala bridges some opt into | `fetch`, `XMLHttpRequest`, `WebSocket`, `WebRTC`, `WebAudio`, Streams, `DOMParser`, `MessageChannel`, `WebAssembly` and more |
+| [DOM & Graphics](/gjsify/packages/dom/) | the DOM element model, plus one bridge per GTK-backed element | Canvas 2D, WebGL, DOM elements, and the GTK-backed Canvas / WebGL / Video / IFrame widgets |
+| Framework | renderer host, React Native layer, app shell plus tooling | [`@gjsify/gtk-host`](/gjsify/frameworks/) and its [style partition](/gjsify/frameworks/styling/), [`@gjsify/react-native`](/gjsify/frameworks/react-native/), [`@gjsify/adwaita-app`](/gjsify/guides/native-adwaita-app/), [storybook](/gjsify/guides/storybook/), [devtools](/gjsify/guides/devtools/) |
 | Adwaita for the browser | 4 | `@gjsify/adwaita-web`, `@gjsify/adwaita-core`, `@gjsify/adwaita-fonts`, `@gjsify/adwaita-icons` |
 | Reverse bridge | 1 | [`@gjsify/node-gi`](/gjsify/projects/node-gi/), GObject-Introspection on Node.js, Bun and Deno |
 | Forward bridge | 1 | [`@gjsify/napi`](/gjsify/projects/napi/), native Node.js N-API `.node` addons in GJS |
 
-93% of the tracked Node.js modules and 58% of the tracked web standards are implemented. The [Coverage](/gjsify/coverage/) page renders the live numbers, module by module.
+How much of each pillar is implemented is on [Coverage](/gjsify/coverage/), which renders it from generated data, module by module — one place, checked, rather than a percentage repeated here by hand. The three linked pages enumerate the modules and standards themselves, which is where a count belongs: a rendered list cannot disagree with itself, and a number typed beside it in another page has nothing holding it.
 
 <BridgesGrid />
 

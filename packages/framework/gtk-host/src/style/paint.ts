@@ -306,15 +306,23 @@ export function partitionPaint(props: PaintProps): readonly string[] {
     }
 
     // A WIDTH WITHOUT A STYLE PAINTS NOTHING, and it occupies nothing either. CSS's
-    // initial `border-style` is `none`, and `none` zeroes the width — measured on
-    // GTK 4.22.4, `border-width: 4px` alone leaves a box at 9x18 px where adding
-    // `border-style: solid` gives 17x26. So a `border` utility that emitted only a
-    // width would be a class that does absolutely nothing, silently, which is the
-    // failure this whole partition exists against.
+    // initial `border-style` is `none`, and `none` zeroes the width.
+    //
+    // MEASURED on GTK 4.22.4, a Gtk.Box carrying the class and rooted in a window,
+    // for no border / width only / width plus `solid`. The SHAPE is part of the
+    // measurement, because a box's minimum size is its children's: empty it goes
+    // 0x0 -> 0x0 -> 8x8, holding a Label('x') it goes 9x18 -> 9x18 -> 17x26. The
+    // invariant is the first two columns being EQUAL on both — a width alone is a
+    // class that does absolutely nothing, silently, which is the failure this whole
+    // partition exists against. Quoting the 9x18 pair without its shape is how the
+    // website came to state a size a reader measuring an empty box gets 0x0 for, and
+    // concludes the doc is wrong about the part that is right.
     //
     // Tailwind solves it in its preflight, globally. There is no preflight here — a
-    // generated class must be self-sufficient — so the style travels with the width,
-    // and only when the author has not chosen one.
+    // generated class must be self-sufficient — so the style travels with the width.
+    // The `setsStyle` half of the condition has no route through `PaintProps` today:
+    // there is no `borderStyle` key and an unrouted property throws, so it guards
+    // the day one arrives rather than any input that can reach it now.
     const setsWidth = css.some((declaration) => /^border(-(top|right|bottom|left))?-width:/.test(declaration));
     const setsStyle = css.some((declaration) => /^border(-(top|right|bottom|left))?-style:/.test(declaration));
     if (setsWidth && !setsStyle) css.push('border-style: solid');

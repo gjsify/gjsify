@@ -245,8 +245,8 @@ function constructedDefaults(descriptor: WidgetDescriptor): Map<string, unknown>
     for (const [name, spec] of paramSpecs(klass, descriptor.gtype)) {
         // Construct-only never reaches the removal path — `rebuild` replays
         // `el.props` and gets the constructed value free. Worth saying because
-        // `css-name` is construct-only on all 26 descriptors and is 26 of the
-        // 104 disagreements below.
+        // `css-name` is construct-only on every curated descriptor and disagrees on
+        // every one of them — 27 of the 107 disagreements below, one per row.
         if (!isWritable(spec) || isConstructOnly(spec)) continue;
         if (!isFlag(spec.flags, GObject.ParamFlags.READABLE)) continue;
         // A DEPRECATED property warns on every READ under GJS: the probe read
@@ -276,10 +276,13 @@ function constructedDefaults(descriptor: WidgetDescriptor): Map<string, unknown>
  * leaves behind, not what the ParamSpec declares.
  *
  * The two disagree far too often to treat the ParamSpec as an approximation.
- * Measured on gjs 1.88.1 / GTK 4.22.4 / Adw 1.10 across the 26 shipped
- * descriptors: 953 scalar properties are both readable and writable, and
- * **104 of them disagree** — 78 once construct-only `css-name` is set aside.
- * Twelve property names carry it, four of them behavioural:
+ * Measured on gjs 1.88.1 / GTK 4.22.4 / libadwaita 1.9.3, one probe per row, over
+ * the curated descriptors as this table ships them — 27 of them at the time of the
+ * measurement, so the totals move when a row joins: 981 scalar properties are both
+ * readable and writable, and **107 of them disagree** — 80 once construct-only
+ * `css-name` is set aside. Twelve property names carry it, four of them
+ * behavioural, and those four are pinned BY NAME in `props.spec.ts` because a name
+ * is what survives a re-count:
  *
  *     GtkWindow.visible                 spec=true   constructed=false
  *     AdwActionRow.activatable          spec=true   constructed=false

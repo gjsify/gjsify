@@ -1,6 +1,6 @@
 ---
 title: React
-description: Render React into GTK 4 with @gjsify/gtk-host/react. No compile plugin, the jsxImportSource that keeps 178 DOM tags out, and the build recipe that is not optional.
+description: Render React into GTK 4 with @gjsify/gtk-host/react. No compile plugin, the jsxImportSource that keeps @types/react's DOM tags out, and the build recipe that is not optional.
 ---
 
 import CommandTabs from '../../../components/CommandTabs.astro';
@@ -8,11 +8,11 @@ import CommandTabs from '../../../components/CommandTabs.astro';
 [`@gjsify/gtk-host/react`](https://www.npmjs.com/package/@gjsify/gtk-host) renders React into
 real `Gtk` and `Adw` widgets, over the same host layer Solid and Vue use.
 
-React is the one of the three that needs **no compile plugin**. Its JSX is a runtime, not a
-transform: `jsx()` builds a plain `{type, props, key}` record and the host mapping happens
-afterwards, inside `react-reconciler`. So where the [Solid](/gjsify/frameworks/solid/) and
-[Vue](/gjsify/frameworks/vue/) pages are about a build step, this page is about two
-configuration decisions — where `jsxImportSource` points, and what the bundle defines.
+React needs **no compile plugin**. Its JSX is a runtime, not a transform: `jsx()` builds a plain
+`{type, props, key}` record and the host mapping happens afterwards, inside `react-reconciler`.
+So where the [Solid](/gjsify/frameworks/solid/) and [Vue](/gjsify/frameworks/vue/) pages are
+about a build step, this page is about two configuration decisions — where `jsxImportSource`
+points, and what the bundle defines.
 
 Both are load-bearing. Get either wrong and you get a green type-check or a green build with an
 empty window, which is the failure mode this package exists to refuse.
@@ -56,6 +56,12 @@ empty window, which is the failure mode this package exists to refuse.
 them is what selects the React adapter. `@types/react` is what the JSX surface is typed against.
 `react-dom` is not involved and must not be installed for this.
 
+**The adapter is written against React 19**, and the peer ranges say so: `react ^19.2.0` and
+`react-reconciler ^0.33.0`. Optional peers are not enforced on install, so an unpinned add into a
+project that still holds React 18 resolves a reconciler this adapter cannot drive — the
+synchronous render path alone crosses a rename (`flushSync` became `flushSyncFromReconciler`) and
+an argument list that grew two entries in its middle. Neither shows up as a type error.
+
 ## Wire it up
 
 ```jsonc
@@ -88,15 +94,16 @@ already held, so your tree renders *after* the app's own chrome rather than on t
 This is the trap worth spending a paragraph on, because the wrong answer type-checks clean.
 
 Write `"jsxImportSource": "react"` and the element list comes from `@types/react`'s own
-`JSX.IntrinsicElements` — **178 HTML and SVG tags that pass `tsc` against a GTK renderer and
-then render nothing** (measured against `@types/react@18.3.31`; React's list carries no MathML).
-`<div>` becomes a perfectly valid expression in a program that cannot draw a `div`.
+`JSX.IntrinsicElements` — **every HTML and SVG tag it pre-declares then passes `tsc` against a
+GTK renderer and renders nothing** (that list carries no MathML at all). `<div>` becomes a
+perfectly valid expression in a program that cannot draw a `div`.
 
 Pointing at `@gjsify/gtk-host/react` swaps that list for the generated GTK one, so `<div/>` is
 a `TS2339` naming the element and `<gtk-label label="hi" />` is checked against the real
-`GtkLabel` properties. Solid has the same problem one package over, at a different size —
-[ADR 0028 § 8](https://github.com/gjsify/gjsify/blob/main/docs/adr/0028-widget-table-provenance.md)
-measures the 208 tags `solid-js` pre-declares, and the fix there is the same one.
+`GtkLabel` properties. Solid has the same problem one package over and a larger one, because its
+pre-declared list does include MathML —
+[ADR 0028, item 8](https://github.com/gjsify/gjsify/blob/main/docs/adr/0028-widget-table-provenance.md)
+measures it and the fix there is the same one.
 
 TypeScript appends `/jsx-runtime` to whatever you name (`/jsx-dev-runtime` under
 `"jsx": "react-jsxdev"`), and the package exports both. The functions underneath are **React's
@@ -113,16 +120,16 @@ automatic runtime and provide it, which is why React gets its own.
 ## The build recipe, and it is not optional
 
 ```bash
-gjsify build --app gjs \
+gjsify build src/app.tsx --app gjs --outfile dist/app.gjs.mjs \
   --define 'process.env.NODE_ENV="production"' \
   --exclude-globals navigator
 ```
 
 **`--define`**, because `react-reconciler/index.js` is literally
-`process.env.NODE_ENV === 'production' ? require('./cjs/…production.min.js') :
-require('./cjs/…development.js')`. Without the define you bundle the development build, which
-reaches for `document`, `HTMLCanvasElement` and `Path2D`. `--globals auto` is a *static scan*:
-it answers those identifiers by injecting the GTK-backed DOM registers and pulling
+`process.env.NODE_ENV === 'production' ? require('./cjs/react-reconciler.production.js') :
+require('./cjs/react-reconciler.development.js')`. Without the define you bundle the development
+build, which reaches for `document`, `HTMLCanvasElement` and `Path2D`. `--globals auto` is a
+*static scan*: it answers those identifiers by injecting the GTK-backed DOM registers and pulling
 `gi://Gdk`, `GdkPixbuf`, `Pango` and `PangoCairo` into a bundle that needs none of them.
 
 **`--exclude-globals navigator`**, because even the production `scheduler` carries
@@ -132,12 +139,71 @@ the identifier is still free, and the detector answers it with the same GTK-back
 Vue needs the same `NODE_ENV` define for the same reason; the two recipes differ only in the
 `navigator` flag.
 
+**What holds the recipe, and how that changed shape.** Until `react-reconciler` 0.29.2 the
+HostConfig member count told the two bundles apart — production read 76, development 94 — so a
+spec pinning 76 also caught a lost define. On 0.33.0 both bundles read the *same* count and it
+cannot discriminate them at all. One conformance vector carries the whole recipe instead, and it
+asserts the fact rather than a proxy for it: `document`, `HTMLCanvasElement` and `Path2D` are
+absent from the built bundle. Recorded here rather than dropped, because a guard that silently
+stopped guarding is worth more as a known loss than as a deleted line.
+
+`navigator` is deliberately *not* asserted absent in that vector. Node ≥ 21 ships its own, so on
+the gjs-on-node leg "defined" would mean the runtime rather than a lost flag. The honest claim on
+every runtime is "absent, or the runtime's own", and the two are told apart by `userAgent`, which
+the injected register's bare `{}` never has.
+
+:::note[Both flags are warts with a known shape — not laws]
+Neither is fixed, and until one is, the recipe above is required exactly as written. But a reader
+should know which kind of thing they are looking at.
+
+**The `NODE_ENV` define is a default the build could hold itself.** Neither the CLI nor the
+bundler plugin mentions `NODE_ENV` anywhere, while `--minify` already defaults to on — so the
+build does take a production posture by default in one place and declines to in the other, and
+every consumer spells the same constant by hand instead.
+
+**`--exclude-globals navigator` is the more arguable of the two**, because the detector already
+models this case and stops one step short. A `typeof X` guard that is the *only* occurrence of
+`X` is deliberately not counted as a use, and the scanner says why: such guards are pervasive in
+isomorphic packages and the guarded branch is dead under GJS. It fires here only because
+`navigator.scheduling` — *inside* the branch that guard protects — is a genuine reference. And
+the injection it triggers cannot help even in principle: the register installs a bare `{}`, which
+flips `typeof navigator` to `'object'` and then answers `undefined` for `scheduling`, so the
+branch stays dead either way. What the flag buys back is therefore not behaviour but four
+`gi://` imports — which is the flag's own documented purpose, "false positives from dead
+browser-compat code".
+:::
+
 ## `render()` is synchronous, on purpose
 
 React's own `createRoot().render()` returns before the tree is committed and lets the scheduler
 drive. Under GJS that scheduler is a GLib timer source — so with no main loop running yet, an
-unflushed first render leaves the container **empty, with no error**. `render()` here wraps
-`updateContainer` in `flushSync`, so the widgets exist when it returns.
+unflushed first render leaves the container **empty, with no error**. `render()` here calls
+`updateContainerSync`, which puts the work on the sync lane, and then `flushSyncWork`, which
+drains it. Both are needed: the first alone leaves the work queued.
+
+Under React 18 the whole recipe was `flushSync(() => updateContainer(…))`. Do not reach for that
+shape if you drive the reconciler yourself through `gtkHostConfig`: on a concurrent root under
+React 19 that exact combination **mounts nothing** — the call returns cleanly, no error is raised,
+and the container is empty. Measured on `react-reconciler` 0.33.0. It is the silent-empty-window
+failure this package exists to refuse, reintroduced by a rename that looked mechanical.
+
+**`render()` throws, for two separate reasons.** By default it rethrows the first uncaught error
+at the call site. Under React 18 an error the host threw during render propagated out of
+`render()`, so a refusal like `<GtkBox> has no text sink` arrived where the caller was; React 19
+routes it to `onUncaughtError` and returns normally instead, and a named refusal that only
+reaches a log has bought nothing against a toolkit whose own wrong answer is already exit 0. The
+default handler *also* logs, and the "also" is load-bearing: a `setState` from a GTK signal
+handler commits on a later main-loop iteration with no `render()` on the stack to throw from, and
+React's own answer to an uncaught error there is to unmount the whole tree — so without the log
+the window goes blank and nothing reaches stderr.
+
+The second reason is re-entrancy. `flushSyncWork()` answers `true` for "I did **not** flush",
+because React refuses to flush while it is already inside a render or a commit — which is what a
+re-entrant `render()` is: one called from a `ref` callback, a `useLayoutEffect`, or a GTK signal
+handler that fires during a commit. Discarding that boolean would return cleanly with an empty
+container and let the widgets appear later, breaking the promise this section just made and doing
+it after the caller has already read the empty tree. So it throws, and the message names the
+remedy: render the second tree from a `useEffect` or an idle callback.
 
 The root is still a concurrent root, and that matters after startup: a `setState` from a GTK
 signal handler lands on a later main-loop iteration, which in a running application is the
@@ -162,12 +228,40 @@ flushSync(() => setCount(1));
 | `adopt(widget)` | wrap a container you hold in a host element |
 | `gtkHostConfig` | the raw `react-reconciler` HostConfig, for reconciler-level control |
 
-`options.onRecoverableError` handles an error React *recovered* from — one an error boundary
-caught and retried. It defaults to `console.error`, matching what `react-dom` does. Rethrowing
-is deliberately not the default: React calls it from inside the commit, so throwing would break
-the error boundary that had just done its job.
+### The error callbacks
 
-## Two places React differs from a DOM renderer
+React 19 split React 18's single callback into three, and `ReactRootOptions` carries all of them.
+Which one fires tells you what happened — and supplying one of them changes control flow.
+
+| Option | Fires for | Default |
+|---|---|---|
+| `onUncaughtError` | an error no error boundary caught: the tree is broken | logs **and** holds the error, so `render()` rethrows it |
+| `onCaughtError` | an error a boundary did catch, reported before the boundary handles it | `console.error` |
+| `onRecoverableError` | an error React *recovered* from — one a boundary caught and retried | `console.error`, matching `react-dom` |
+
+**Supplying `onUncaughtError` turns the rethrow off.** That is the intended trade — an
+application with its own error surface should not also get a throw — but it then owns reporting
+entirely. Passing this callback only to gain a diagnostic channel costs you the throw as well,
+silently, so pass it deliberately.
+
+Rethrowing is not the default for `onRecoverableError`, and that is deliberate too: React calls
+it from inside the commit, so a throw there would break the error boundary that had just done
+its job.
+
+`onCaughtError` stays on `console.error` because that is the right channel for an application.
+Under GJS that routes into the GLib log at CRITICAL, which `installDiagnosticsGate()` counts — so
+a spec that deliberately renders a failing boundary will be told GTK reported a diagnostic unless
+it passes its own recorder here.
+
+## Where React differs from a DOM renderer
+
+**`children` and `ref` never reach GObject.** They are the props the adapter reserves and never forwards;
+`key` never appears in props at all. `children` was always one of them — it arrives in `props`
+for every element, and forwarding it produced `<GtkBox> has no property "children"` on the very
+first nested element. `ref` joined in React 19, which made it an ordinary prop — the change that
+removed `forwardRef` — so it now reaches `createInstance` for host elements too. The first run
+without the strip failed with `<GtkButton> has no property "ref". … or bind it as a signal with
+onRef`, which is the host correctly refusing a prop React had previously never handed it.
 
 **`ref` gives you your own widget.** Where the host wraps a child — a `GtkListBoxRow` around a
 row, say — `getPublicInstance` still returns the widget *you* wrote. A `ref` handing back a

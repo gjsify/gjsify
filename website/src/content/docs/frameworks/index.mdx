@@ -72,7 +72,23 @@ Your framework is a peer dependency and stays yours: `solid-js`, `@vue/runtime-c
 | Vue | `@gjsify/gtk-host/vue` | `@vue/runtime-core`, 10 required + 4 optional | [`@gjsify/rolldown-plugin-vue`](/gjsify/frameworks/vue/) |
 | React | `@gjsify/gtk-host/react` | `react-reconciler` HostConfig | none — TypeScript's own automatic runtime |
 
-Pick one and the rest of this page is the same for all three.
+Pick one and the rest of this page is the same for all three. All three speak GTK's own tag
+vocabulary: `<gtk-box orientation="vertical">`, GTK property names, `css-classes` as a string
+array.
+
+## Bringing a React Native app instead
+
+`<View>`, `<Text>`, `<Pressable>` and `className="flex-1 items-center"` are a *different*
+vocabulary, and it renders over the same host rather than beside it:
+
+- [React Native](/gjsify/frameworks/react-native/) — React Native's export surface on GTK 4, the
+  package a bundler aliases `react-native` to. Every name it does not implement is still exported
+  and refuses with a status and a reason, so a divergence is something you read rather than
+  something you find in a window.
+- [Styling on GTK](/gjsify/frameworks/styling/) — `@gjsify/gtk-host/style`, the framework-agnostic
+  half of that. `class="flex-1"` in a Vue template is the same question as `className="flex-1"` on
+  a React element, which is why it is a subpath of the host and not part of the React Native
+  package. It also carries the traps that make GTK styling fail *silently*, each one measured.
 
 ## Solid JSX
 
@@ -233,9 +249,9 @@ root.render(
 `root.render()` is synchronous on purpose: with no main loop running yet nothing drives the
 scheduler, so an unflushed first render would leave the container empty and say nothing.
 
-Pointing `jsxImportSource` at the subpath rather than at `react` is what keeps `@types/react`'s
-178 DOM tags from type-checking clean against a GTK renderer. The build needs two flags instead of a
-plugin — `--define 'process.env.NODE_ENV="production"' --exclude-globals navigator`; the
+Pointing `jsxImportSource` at the subpath rather than at `react` is what keeps every DOM tag
+`@types/react` pre-declares from type-checking clean against a GTK renderer. The build needs two
+flags instead of a plugin — `--define 'process.env.NODE_ENV="production"' --exclude-globals navigator`; the
 [React page](/gjsify/frameworks/react/) has both, with the reason each one exists.
 
 ## What the host refuses to do quietly
