@@ -67,29 +67,39 @@ import { fileURLToPath } from 'node:url';
 /**
  * The slot values a declaration may use, and the runtimes it may name.
  *
- * EXPORTED because they are the CANONICAL lists and every hand-retyped copy of them has
- * drifted: `lib/index.d.ts` denied `nativescript` for the whole life of the 4th slot, and
- * `scripts/audit-runtimes.mjs` — the gate that would have caught that — carried a second
- * copy of both lists. Import these; do not retype them. What cannot import them (the
- * `.d.ts` unions, which are types) is held against them by
+ * EXPORTED because they are the CANONICAL lists and every hand-retyped copy of the TARGETS
+ * has drifted: `lib/index.d.ts` denied `nativescript` for the whole life of the 4th slot,
+ * and `scripts/audit-runtimes.mjs` — the gate that would have caught that — carried two
+ * more copies of its own (`REACH_TARGETS`, `diffDeclared`'s `slots`). The SLOT VALUES had
+ * the opposite problem: nothing outside this file listed them, so nothing outside this file
+ * rejected `"Polyfill"` either. Import these; do not retype them. What cannot import them
+ * (the `.d.ts` unions, which are types) is held against them by
  * `tests/e2e/runtime-slot-declarations`.
  */
 const VALID_SLOTS = new Set(['polyfill', 'native', 'partial', 'none']);
-// `react-native` is the 5th target and the second one gjsify does not BUNDLE:
-// Metro owns a React Native application's build the way `@nativescript/vite` owns
-// NativeScript's, so this slot feeds the ALIAS layer only. There is deliberately no
-// `--app react-native` — `build.ts`'s `choices` stays at four. `gjsify build --dialect
-// react-native` is a DIFFERENT axis: it says what the SOURCE is written in, not what
-// the PACKAGE runs on, so it is not this slot's sibling and the two are never equal.
+// `react-native` is the 5th target and the only one with no `--app` of its own. Not the
+// second: gjsify DOES bundle NativeScript (`--app nativescript`, `app/nativescript.ts`)
+// even though `@nativescript/vite` owns the APPLICATION build there. Metro owns a React
+// Native application's build the same way, and gjsify has no target under it at all, so
+// this slot feeds the ALIAS layer only and `build.ts`'s `choices` stays at four.
+// `gjsify build --dialect react-native` is a DIFFERENT axis: it says what the SOURCE is
+// written in, not what the PACKAGE runs on, so it is not this slot's sibling and the two
+// are never equal.
 const VALID_TARGETS = new Set(['gjs', 'node', 'browser', 'nativescript', 'react-native']);
 
 export { VALID_SLOTS, VALID_TARGETS };
 
 /**
- * A runtime a package can declare a slot for. ONE union in this file, referenced from
- * everywhere else via `import('./runtime-aliases.mjs').Target` — the five hand-written
- * copies this replaces are how `index.mjs` ended up still naming four targets after the
- * fifth landed.
+ * A runtime a package can declare a slot for. The union for JS callers, referenced from
+ * `index.mjs` and from this file's own `@param`s via
+ * `import('./runtime-aliases.mjs').Target`. It absorbs four of the six hand-written copies
+ * this package carried; the other two, in `index.d.ts`, became a second union
+ * (`RuntimeTarget`) on purpose. A `.d.ts` pointing at
+ * `import('./runtime-aliases.mjs').Target` hands every consumer without `allowJs` a TS7016
+ * against our own shipped `lib/` — measured — so one union there costs a compiler flag in
+ * somebody else's tsconfig. `tests/e2e/runtime-slot-declarations` holds `RuntimeTarget`
+ * against `VALID_TARGETS` instead. Six copies are how `index.mjs` still named four targets
+ * one commit after `VALID_TARGETS` gained the fifth.
  *
  * @typedef {'gjs'|'node'|'browser'|'nativescript'|'react-native'} Target
  */
