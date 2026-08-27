@@ -319,6 +319,15 @@ export default async () => {
                 // Measured on libadwaita 1.9.3: `present(null)` returned with no
                 // diagnostic. The gate around this describe is what asserts the "no
                 // diagnostic" half.
+                //
+                // THE PRECONDITION THAT MEASUREMENT WAS MISSING: presenting realises
+                // a real GDK surface, which is the first thing in this suite to make
+                // GSK bring up a renderer. On a Fedora 44 CI container with no
+                // `/dev/dri` that emitted eight Vulkan warnings and turned this red,
+                // while a desktop with a working GPU stayed silent — the gate was
+                // reporting a fact about the RUNNER. It now classifies those apart
+                // (`isEnvironmentDiagnostic`), so what is asserted here is what was
+                // always meant: libadwaita says nothing about this dialog.
                 const answers: string[] = [];
                 Alert.alert('Delete this?', 'It cannot be undone.', [
                     { text: 'Cancel', style: 'cancel', onPress: () => answers.push('cancel') },

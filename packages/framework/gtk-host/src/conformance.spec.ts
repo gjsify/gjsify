@@ -4,7 +4,13 @@ import { expect, it, on } from '@gjsify/unit';
 
 import Gtk from 'gi://Gtk?version=4.0';
 
-import { descriptorProblems, describeLogRecord, installDiagnosticsGate, methodsOf } from './conformance/index.js';
+import {
+    descriptorProblems,
+    describeLogRecord,
+    installDiagnosticsGate,
+    isEnvironmentDiagnostic,
+    methodsOf,
+} from './conformance/index.js';
 import { GTK_HOSTS, gated } from './testing/gate.mjs';
 import { lookupWidget, registeredTags } from './registry.js';
 import type { WidgetDescriptor } from './types.js';
@@ -51,6 +57,45 @@ export default async () => {
             // A record with nothing at all still says so, rather than ''.
             expect(describeLogRecord(null).length > 0).toBe(true);
             expect(describeLogRecord({}).length > 0).toBe(true);
+        });
+
+        await it('separates a diagnostic about the MACHINE from one about the tree', async () => {
+            // The vector that stops this gate from asserting a fact about the runner.
+            //
+            // MEASURED: a Fedora 44 CI container with no `/dev/dri` and a PowerVR
+            // Vulkan ICD emits eight warnings the moment GSK realises a surface —
+            // before any widget of ours is drawn. A vector that presented a dialog
+            // went red there and stayed silent on a desktop with a working GPU, so
+            // what it actually asserted was "this machine has a GPU".
+            //
+            // The classification is one-directional on purpose: a `Vulkan:` record
+            // is set aside, and EVERYTHING ELSE is still a failure. The two lines
+            // below are verbatim from that CI run.
+            expect(
+                isEnvironmentDiagnostic(
+                    'Vulkan: ../src/imagination/vulkan/pvr_instance.c:73: Failed to enumerate drm devices ' +
+                        '(errno 2: No such file or directory) (VK_ERROR_INITIALIZATION_FAILED)',
+                ),
+            ).toBe(true);
+            expect(
+                isEnvironmentDiagnostic(
+                    "Vulkan: Loader Message: setup_loader_term_phys_devs: Call to 'vkEnumeratePhysicalDevices' " +
+                        'in ICD /usr/lib64/libvulkan_powervr_mesa.so failed with error code -3',
+                ),
+            ).toBe(true);
+            // The control side, which is the half that makes the vector worth
+            // anything: the messages this module was written to catch are NOT
+            // environment, and a message that merely mentions Vulkan is not either —
+            // only the GDK/GSK prefix counts.
+            for (const message of [
+                'Gtk-WARNING **: Trying to snapshot GtkBox without a current allocation',
+                'Adwaita-ERROR **: AdwDialog can only be used inside a window',
+                'GLib-GObject-WARNING **: unable to set property text from value of type gchararray',
+                'a message mentioning Vulkan: in the middle',
+                '',
+            ]) {
+                expect(isEnvironmentDiagnostic(message)).toBe(false);
+            }
         });
 
         await gated(diagnostics, 'descriptor table vs installed typelib', async () => {
