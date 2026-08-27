@@ -98,6 +98,14 @@ export { auditPrebuildArtifacts, collectNativePackages, renderPrebuildSummary };
 // the website would come to tabulate a different population than the audit does.
 export { repoContext };
 
+// Re-exported for `tests/e2e/runtime-slot-declarations`. `auditRuntimeShape` is the only
+// thing standing between a mistyped runtime name and silence, and a validator can be
+// wrong in exactly one direction that a repository-wide run cannot reveal: it finds
+// nothing here because there is nothing to find, which is what a broken one does too.
+// The two target lists come with it so the suite can hold the reachability pass's
+// SEVERITY split against the resolver's list rather than against a copy of it.
+export { auditRuntimeShape, diffDeclared, REACH_FATAL_TARGETS, REACH_TARGETS };
+
 const ROOT = resolve(fileURLToPath(import.meta.url), '..', '..');
 const PACKAGES_DIR = resolve(ROOT, 'packages');
 
@@ -513,6 +521,11 @@ function deriveNativescriptSlot(axis, suggested, signals, pkgSubpath) {
 
 import { BROWSER_NATIVE_IDENTS } from '../packages/infra/resolve-npm/lib/globals-map.mjs';
 import { EXTERNALS_NODE } from '../packages/infra/resolve-npm/lib/index.mjs';
+// The slot vocabulary is IMPORTED, never restated. `resolve-npm` is the routing layer
+// this gate audits, so a list retyped here could disagree with the one that actually
+// routes — and the disagreement would be invisible in exactly the direction that matters:
+// a target the resolver knows and the gate does not is a target nothing checks.
+import { VALID_SLOTS, VALID_TARGETS } from '../packages/infra/resolve-npm/lib/runtime-aliases.mjs';
 
 /**
  * Bare specifiers safe to re-export from a `globals.mjs` aimed at the browser. Every
@@ -678,8 +691,13 @@ async function runProbes(rows) {
 // platform itself. A green parity check is permission to look, not a mandate to promote —
 // a routed entry must also have no unconditionally throwing value export.
 
-/** Targets that can carry a per-runtime platform entry. `gjs` never can. */
-const REACH_TARGETS = ['browser', 'nativescript', 'node', 'react-native'];
+/**
+ * Targets that can carry a per-runtime platform entry. `gjs` never can — `src/index.ts`
+ * IS the GJS implementation. Derived from `VALID_TARGETS` with exactly the predicate
+ * `resolve-npm`'s `collectPlatformEntries` uses, so the set this gate audits and the set
+ * the resolver routes cannot be different sets.
+ */
+const REACH_TARGETS = [...VALID_TARGETS].filter((t) => t !== 'gjs');
 
 /**
  * Targets where a GJS leak is SILENT (`gjsImportsEmptyPlugin` → `{}`) and must
@@ -1124,16 +1142,6 @@ function renderJson(rows) {
 }
 
 /**
- * Compare declared vs suggested triplets. Infra / unknown axes (`suggested === null`) are
- * skipped — the script has nothing to say about them. A row with a suggestion and no
- * declaration is flagged too: a new package landed without declaring its triplet.
- */
-/** The slot values a declaration may use. Mirrors `resolve-npm`'s `VALID_SLOTS`. */
-const DECLARABLE_SLOTS = new Set(['polyfill', 'native', 'partial', 'none']);
-/** The runtimes a declaration may name. Mirrors `resolve-npm`'s `VALID_TARGETS`. */
-const DECLARABLE_TARGETS = new Set(['gjs', 'node', 'browser', 'nativescript', 'react-native']);
-
-/**
  * Validate the SHAPE of every `gjsify.runtimes` declaration: each key must name a
  * runtime this repo knows, each value must be a slot it knows.
  *
@@ -1151,39 +1159,74 @@ const DECLARABLE_TARGETS = new Set(['gjs', 'node', 'browser', 'nativescript', 'r
  * drift has nothing to say about it at all and this is the ONLY thing standing
  * between a typo and silence.
  *
- * @returns {{name:string, problems:string[]}[]} one entry per package with problems
+ * @returns {{name:string, path:string, problems:string[]}[]} one entry per package with
+ *          problems; `path` is what `diffDeclared` skips on.
  */
 function auditRuntimeShape(rows) {
     const bad = [];
     for (const r of rows) {
-        if (!r.declared || typeof r.declared !== 'object') continue;
+        const name = r.name ?? r.path;
+        if (r.declared === null || r.declared === undefined) continue;
+        // A declaration that is not a map of runtime → slot is the loudest malformation
+        // there is and was the one shape this function let through: `typeof [] === 'object'`
+        // made an ARRAY iterate as index keys ("unknown runtime \"0\""), and a bare string
+        // or number `continue`d out silently — while `resolve-npm` drops the package from
+        // the alias cache entirely on the same input (`runtimes && typeof === 'object'`),
+        // which is the silence this whole function exists to end.
+        if (typeof r.declared !== 'object' || Array.isArray(r.declared)) {
+            bad.push({
+                name,
+                path: r.path,
+                problems: [
+                    `\`gjsify.runtimes\` is ${JSON.stringify(r.declared)} — expected an object mapping runtime → slot`,
+                ],
+            });
+            continue;
+        }
         const problems = [];
         for (const [key, value] of Object.entries(r.declared)) {
-            if (!DECLARABLE_TARGETS.has(key)) {
-                problems.push(`unknown runtime "${key}" — known: ${[...DECLARABLE_TARGETS].join(', ')}`);
+            if (!VALID_TARGETS.has(key)) {
+                problems.push(`unknown runtime "${key}" — known: ${[...VALID_TARGETS].join(', ')}`);
                 continue;
             }
-            if (!DECLARABLE_SLOTS.has(value)) {
-                problems.push(
-                    `runtimes.${key} is ${JSON.stringify(value)} — known: ${[...DECLARABLE_SLOTS].join(', ')}`,
-                );
+            if (!VALID_SLOTS.has(value)) {
+                problems.push(`runtimes.${key} is ${JSON.stringify(value)} — known: ${[...VALID_SLOTS].join(', ')}`);
             }
         }
-        if (problems.length > 0) bad.push({ name: r.name, problems });
+        // An EMPTY object is deliberately not a problem: it declares nothing, routes
+        // nothing and is exactly as (in)formative as no `gjsify.runtimes` key at all. On a
+        // declarable row `diffDeclared` already reports it as drift on every slot; on an
+        // infra row nothing has an opinion either way. Pinned by
+        // `tests/e2e/runtime-slot-declarations` so it stays a decision, not an accident.
+        if (problems.length > 0) bad.push({ name, path: r.path, problems });
     }
     return bad;
 }
 
-function diffDeclared(rows) {
+/**
+ * Compare declared vs suggested triplets. Infra / unknown axes (`suggested === null`) are
+ * skipped — the script has nothing to say about them. A row with a suggestion and no
+ * declaration is flagged too: a new package landed without declaring its triplet.
+ *
+ * `malformed` holds the paths `auditRuntimeShape` rejected. They are skipped rather than
+ * compared, which is what the `--check` output has always CLAIMED happens ("nothing below
+ * was read for these"): a declaration naming `reactNative` reads as `{gjs:undefined, …}`
+ * here and would be reported a second time as drift on every slot, burying the one line
+ * that says what is actually wrong under four that cannot be acted on.
+ *
+ * @param {Set<string>} [malformed]
+ */
+function diffDeclared(rows, malformed = new Set()) {
     const drifted = [];
     const missing = [];
     for (const r of rows) {
         if (!r.suggested) continue; // infra / unknown — out of scope
+        if (malformed.has(r.path)) continue; // shape-rejected — see the note above
         if (!r.declared) {
             missing.push(r);
             continue;
         }
-        const slots = ['gjs', 'node', 'browser', 'nativescript', 'react-native'];
+        const slots = [...VALID_TARGETS];
         // A pure-TS contract (no `.imports?.gi` guard, none of the hard GJS-binding
         // signals) is platform-agnostic: it runs unmodified on Node, the browser and NS'
         // V8, resolving to its real `lib/esm/index.js`. So it may opt the node / browser /
@@ -1238,10 +1281,11 @@ function diffDeclared(rows) {
             // one step further out — it is a different statement. `suggestTriplet` has no
             // react-native branch, so `suggested['react-native']` is `undefined` for every
             // row. Comparing against that would flag EVERY correct declaration as drift:
-            // `'polyfill' !== undefined`. The slot is still checked — `slotValues` rejects a
-            // value outside VALID_SLOTS, and the reachability pass treats it as fatal — it
-            // is only DRIFT that has nothing to say, because a heuristic nobody measured is
-            // a guess, and `--apply` would write that guess into 200 manifests.
+            // `'polyfill' !== undefined`. The slot is still checked — `auditRuntimeShape`
+            // rejects a value outside `VALID_SLOTS` and a key outside `VALID_TARGETS`, and
+            // the reachability pass treats it as fatal (`REACH_FATAL_TARGETS`) — it is only
+            // DRIFT that has nothing to say, because a heuristic nobody measured is a guess,
+            // and `--apply` would write that guess into 200 manifests.
             if (s === 'react-native') return false;
             // Pure-TS contract: `none` and `polyfill` are both valid on the portable slots
             // (see above), so neither drifts.
@@ -1279,9 +1323,25 @@ function summarizeSignals(r) {
     return `axis=${r.axis}, signals: ${flags.join(', ')}`;
 }
 
+/**
+ * The three ORIGINAL slots always print; every later one prints only where declared, so
+ * the rows that predate it read exactly as before.
+ *
+ * Derived rather than listed: `nativescript` was hand-appended here when the 4th slot
+ * landed and `react-native` was not when the 5th did, which made a declared 5th slot
+ * invisible in the drift and probe output that names the declaration — the report saying
+ * less than the manifest is the same failure mode as the type saying less than the
+ * runtime.
+ */
+const FMT_BASE_TARGETS = ['gjs', 'node', 'browser'];
+const FMT_OPTIONAL_TARGETS = [...VALID_TARGETS].filter((t) => !FMT_BASE_TARGETS.includes(t));
+
 function fmtTriplet(t) {
-    const ns = t?.nativescript !== undefined ? `, nativescript:${t.nativescript}` : '';
-    return `{gjs:${t?.gjs}, node:${t?.node}, browser:${t?.browser}${ns}}`;
+    const base = FMT_BASE_TARGETS.map((s) => `${s}:${t?.[s]}`).join(', ');
+    const extra = FMT_OPTIONAL_TARGETS.filter((s) => t?.[s] !== undefined)
+        .map((s) => `, ${s}:${t[s]}`)
+        .join('');
+    return `{${base}${extra}}`;
 }
 
 /** Read the declared slot for a single target on a row, defaulting to `?`. */
@@ -1349,7 +1409,7 @@ defineRule({
     async run() {
         const rows = await rowsFor();
         const shapeProblems = auditRuntimeShape(rows);
-        const { drifted, missing } = diffDeclared(rows);
+        const { drifted, missing } = diffDeclared(rows, new Set(shapeProblems.map((p) => p.path)));
         const probeFailures = STRICT ? await runProbes(rows) : [];
         const declarable = rows.filter((r) => r.suggested).length;
         const failures = [
@@ -1677,8 +1737,9 @@ async function main() {
         if (drift.shapeProblems.length > 0) {
             console.error(
                 `Malformed \`gjsify.runtimes\` declaration on ${drift.shapeProblems.length} package(s) — ` +
-                    `nothing below was read for these, because a declaration that names a runtime this repo ` +
-                    `does not know routes nothing and drifts from nothing:`,
+                    `nothing below was read for these: a declaration the resolver cannot read (an unknown ` +
+                    `runtime name, an unknown slot value, or something that is not a runtime → slot map) ` +
+                    `routes nothing and drifts from nothing:`,
             );
             for (const { name, problems } of drift.shapeProblems) {
                 console.error(`  - ${name}`);
