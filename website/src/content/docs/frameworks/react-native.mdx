@@ -1,480 +1,95 @@
 ---
 title: React Native
-description: React Native's export surface rendered onto GTK 4 — the package a bundler aliases react-native to, and the support table that turns every divergence into a fact you can read.
+description: Run React Native components on GTK 4. Primitives, lists, routing, styling and the one build flag that turns it on.
 ---
 
 import CommandTabs from '../../../components/CommandTabs.astro';
 
-[`@gjsify/react-native`](https://www.npmjs.com/package/@gjsify/react-native) renders React
-Native's **view vocabulary** — `<View>`, `<Text>`, `<Pressable>`, `className="flex-1 items-center"`
-— into real `Gtk` and `Adw` widgets, over the same [host layer](/gjsify/frameworks/) the Solid,
-Vue and React adapters bind to.
+Write `<View>`, `<Text>` and `<Pressable>` and get real GTK widgets. If you already have an
+Expo or React Native app, its view layer is the part that ports, and the aim is that it ports
+without a rename per file.
 
-The package name is the documentation of one line in a bundler config: `'react-native'` →
-`'@gjsify/react-native'`. That alias only works if the export surface mirrors React Native's own,
-so this package exports every name `react-native` exports — including the ones it does not
-implement.
-
-:::note[New in `v0.43.0`]
-The package is published at `0.43.0`, the version the whole
-[release train](/gjsify/versioning/) carries — so it installs alongside the `@gjsify/gtk-host` it
-renders through, with no version to reconcile between them.
-:::
-
-## What it promises, and what it does not
-
-**It is not a promise that one source tree runs everywhere.** There is no bridge and no native
-module host: this layer renders in-process onto GTK, which is why `NativeModules`,
-`TurboModuleRegistry`, `UIManager` and `findNodeHandle` are *refusals* rather than stubs.
-
-The promise is narrower and checkable. Porting is meant to be **cheap**, and every divergence
-from React Native is meant to be **knowable before you run the app** rather than discovered in a
-window that looks plausible. If you came expecting the first thing, the disappointment is the
-correct one to have — a layer that pretended otherwise would spend your debugging time instead of
-its own.
-
-That is what the support table is for.
+There is no bridge and no native module host. This renders in-process onto GTK, so
+`NativeModules`, `TurboModuleRegistry` and `findNodeHandle` are not available and say so when you
+import them. What you get instead is a checkable list of what works, and every gap named before
+you run the app rather than found in a window that looks plausible.
 
 ## Install
 
 <CommandTabs title="Install" group="pm">
   <Fragment slot="gjsify">
     ```bash
-    gjsify install @gjsify/react-native
+    gjsify install @gjsify/react-native react react-reconciler @types/react
     ```
   </Fragment>
   <Fragment slot="npm">
     ```bash
-    npm install @gjsify/react-native
+    npm install -D @gjsify/react-native react react-reconciler @types/react
     ```
   </Fragment>
   <Fragment slot="yarn">
     ```bash
-    yarn add @gjsify/react-native
+    yarn add -D @gjsify/react-native react react-reconciler @types/react
     ```
   </Fragment>
   <Fragment slot="pnpm">
     ```bash
-    pnpm add @gjsify/react-native
+    pnpm add -D @gjsify/react-native react react-reconciler @types/react
     ```
   </Fragment>
   <Fragment slot="bun">
     ```bash
-    bun add @gjsify/react-native
+    bun add --dev @gjsify/react-native react react-reconciler @types/react
     ```
   </Fragment>
   <Fragment slot="deno">
     ```bash
-    deno add npm:@gjsify/react-native
+    deno add --dev npm:@gjsify/react-native npm:react npm:react-reconciler npm:@types/react
     ```
   </Fragment>
 </CommandTabs>
 
-Your framework stays yours and arrives as a peer: `react` + `react-reconciler`, or `solid-js`.
-Routing adds two more, `@react-navigation/core` and `@react-navigation/routers`. Every one of them
-is optional, so install the ones you actually use — and mind the version ranges, because an
-optional peer is not enforced on install and the [React page](/gjsify/frameworks/react/) carries
-the measurement behind them.
+Pin React 19, as the [React page](/gjsify/frameworks/react/) explains. For routing you also need
+`@react-navigation/core`, which is a peer rather than a bundled copy.
 
-The Solid binding (`@gjsify/react-native/solid`) renders the same primitives, and it exists for a
-reason worth stating: with one framework binding, "the layers below are framework-agnostic" is a
-claim rather than a measurement. A second binding that shares no rendering model with the first is
-what turns it into one.
-
-## The support table is the contract
-
-One file — `src/support-table.ts` — gives every name `react-native` publicly exports a **status**
-and a **one-line reason**. It is data, not prose, and more than one reader consumes it: the
-runtime refusals throw the table's own sentence, the package README's support section is
-*generated* from it, and the declared bundler gate is written against it.
-
-`scripts/check-rn-surface.mjs` holds the table's key set against a **committed snapshot** of that
-export list, on every run — so the table cannot quietly drop a name or invent one. Whether the
-same run also catches an *upstream* bump depends on whether a `react-native` is installed to
-compare against, which is why it prints which of the two it did; the
-[toolchain section](#the-toolchain-as-it-actually-stands) has the consequence.
-
-| Status | What it promises |
-|---|---|
-| `supported` | Implemented. |
-| `partial` | Implemented with named limits — the entry lists them. |
-| `planned` | On the map, not built yet. The tier says how soon. |
-| `refused` | Will not be built, and there is a decision behind it. |
-| `no-desktop-meaning` | Exists so an import resolves; does nothing, because a desktop window has no such concept. |
-| `not-reachable` | Cannot be built in this toolchain at all — a capability statement, not a schedule. |
-
-Tiers are `P1`, `P2` and `P3`, and a tier answers *when*: every `planned` and `partial` entry
-carries one, and no `refused` or `not-reachable` entry does, because neither status is a schedule.
-Some `supported` and `no-desktop-meaning` names carry none either — nothing about `EventEmitter`
-or `Vibration` was ever scheduled, it was answered — so "everything outside a refusal has a tier"
-is the tidier claim and the false one. `support-table.spec.ts` asserts both halves of the rule
-that holds, because a paragraph like this one drifts back to the tidier claim on its own.
-
-**Read the table rather than trusting a page.** This page can go stale on its own; the table
-cannot, because code is generated out of it and a gate holds its key set. The per-name listing is
-[generated into the package README](https://github.com/gjsify/gjsify/blob/main/packages/framework/react-native/README.md),
-and the table is exported (`SUPPORT_TABLE`, `SUPPORTED_NAMES`, `explainUnsupported`,
-`isImportable`) so a lint rule or a migration script of your own can read the same data.
-
-### An unimplemented name refuses; it is not absent
-
-Omitting a name would already be loud — a bundler reports `MISSING_EXPORT`. But what it reports is
-"this package does not export `Animated`", which sends you to check your spelling. The table knows
-something better: that `Animated` is tier P3, that it maps onto `Adw.TimedAnimation` and
-`Adw.SpringAnimation`, and that it is not built yet.
-
-So every unimplemented name is exported as a value that refuses with the table's sentence:
-
-```
-@gjsify/react-native: "Animated" is not implemented yet (tier P3). Genuinely mappable,
-but it is a subsystem rather than a component. Doing it badly is worse than not doing
-it. The GTK counterpart is Adw.TimedAnimation / Adw.SpringAnimation.
-```
-
-The example above used to be `FlatList`, which is the warning two paragraphs up making itself:
-`FlatList` shipped, its sentence became `"FlatList" is available.`, and the illustration was
-quietly false. **Any name on this page can move; the README's generated listing cannot.**
-
-It throws on **property access**, not only on call, because `Animated.timing` and
-`NativeModules.Foo` are property reads — and a module that reads one during its own evaluation
-would otherwise get `undefined` and fail somewhere else entirely. The stand-in answers `typeof`
-honestly, so a `typeof X === 'function'` feature check still works, and it is constructible, so a
-`class X extends SomeRNThing` reaches the refusal instead of dying on a minified local name.
-
-## What renders today
-
-The primitives that render, each with the widget it becomes:
-
-| Primitive | Becomes |
-|---|---|
-| `View` | `Gtk.Box` — or `Gtk.Overlay`, when one of its children is absolutely positioned |
-| `Text` | `Gtk.Label` |
-| `Pressable` | `Gtk.Button`, flat |
-| `ScrollView` | `Gtk.ScrolledWindow` plus an implicit content box |
-| `ActivityIndicator` | `Adw.Spinner` |
-| `TextInput` | `Gtk.Entry`, or `Gtk.TextView` with `multiline` |
-| `Switch` | `Gtk.Switch` |
-| `FlatList`, `SectionList` | `Gtk.ListView` over a `Gio.ListStore` the component owns |
-| `VirtualizedList`, `VirtualizedSectionList` | `Gtk.ListView` — the same machinery under React Native's older names |
-| `Image` | `Gtk.Picture` |
-| `ImageBackground` | `Gtk.Picture` in a `Gtk.Overlay` |
-| `TouchableOpacity`, `TouchableHighlight` | `Gtk.Button`, flat |
-| `TouchableWithoutFeedback` | `Gtk.Box` with a `Gtk.GestureClick` — no button chrome |
-| `Button` | `Gtk.Button` |
-| `SafeAreaView`, `KeyboardAvoidingView` | `Gtk.Box` — a desktop window has neither notch nor soft keyboard |
-
-**One table, on purpose.** A separate "tier 2" list would be a second statement of what renders,
-and the second one is the one that drifts — which is the defect this page has already shipped
-once. Tiers are a roadmap concept and live in the generated README; what this table answers is
-"does it render".
-
-Plus the APIs: `Linking`, `Platform`, `Share`, `useColorScheme`, `StyleSheet`, `Dimensions`,
-`useWindowDimensions`, `Alert`, `Appearance`, `Keyboard` and `StatusBar`; `AppRegistry` and Expo's
-`registerRootComponent`; `EventEmitter`; and `unstable_batchedUpdates`, which is the identity call
-it already is under React 19 and is kept because application code still wraps in it.
-
-Everything in the second half of that table is `partial`, and every one of them names its refused
-props **in the table** rather than dropping them — the sections below are the shape of the
-answers, not the list of them.
-
-One export is **not** a React Native name and is part of the surface anyway: `configureStyle`
-installs your project's token scales. The class families are declared by the styling layer, the
-values belong to your project, and no React Native prop or API carries them — see
-[Styling on GTK](/gjsify/frameworks/styling/).
-
-### Two inverted defaults, written out on purpose
-
-A React Native `View` is a **column** (`flexDirection` defaults to `'column'`) and a `Gtk.Box`
-defaults to horizontal. A React Native `Text` **wraps** and a `Gtk.Label` does not. Both defaults
-are set explicitly in the primitive descriptors, because both would otherwise be wrong in the same
-way in every ported layout, and wrong *silently*: the window renders, every widget is there, and
-the rows are columns.
-
-### Lists are not elements
-
-`FlatList`, `SectionList`, `VirtualizedList` and `VirtualizedSectionList` are one
-component that differs only in how it is handed its rows. It is not an ordinary element,
-and three measurements on GTK 4.22.4 / gjs 1.88.1 force that:
-
-A `Gtk.ListView` **takes no children** — no `append`, `add`, `insert`, `prepend`,
-`remove` or `set_child` on its prototype. The host's placement policies are data naming a
-method for the host to call, so for this widget there is no method to name; the generated
-table lists it uncurated and an attempted child insertion is refused by name. That
-refusal is correct, and it is the end of the road for "the list is an element whose
-children are the rows". A `Gtk.ListItem` is **not a `Gtk.Widget`** — `type_is_a` answers
-false — so a React root cannot be created over a list item; it is created over the widget
-the factory puts *into* it. And rows **bind the moment the view is rooted in a window**:
-a bare view produced nothing, a view inside a `Gtk.ScrolledWindow` produced nothing,
-`measure()` produced nothing, `allocate(400, 400)` produced nothing and fifty main-loop
-iterations produced nothing — putting the scroller into a `Gtk.Window` produced
-`setup, bind 0, setup, bind 1, setup, bind 2` immediately, with no `present()`, no map
-and no main loop.
-
-So the component owns its `Gtk.ListView`, drives the model imperatively from `data`, and
-React lives only inside the item factory. What is still an element is the frame — an outer
-`Gtk.Box` and an inner `Gtk.ScrolledWindow`, which is where `style`, `className`,
-`horizontal` and the scrollbar policies land through the ordinary routes.
-
-**A row's React tree is rendered on a microtask, never inline.** GTK binds rows from
-inside whatever call rooted or spliced the view, and under React that call is a commit or
-an effect — where a nested root cannot flush and `render()` refuses a re-entrant flush by
-name, correctly, on every row. Deferring is uniform, needs no `catch`, and costs nothing
-visible: GJS drains the microtask queue when the JS stack empties, which is before GTK's
-next frame, so a row is never painted empty.
-
-**A data change splices the rows whose keys changed, and re-renders the rest in place.**
-Measured, `items_changed(0, 1, 1)` over the same carrier object produced no rebind at all
-while `splice(0, 1, [fresh])` produced `setup, bind 0, unbind 0, teardown`: GTK re-binds a
-row when its model *object* changes, not when that object's contents do.
-
-:::note[Two list warts worth knowing before you meet them]
-**The header and footer are outside the scroller.** Measured with a 500-row model in a
-presented 400×300 window: with the list as the scroller's own child, `get_child()` is the
-`Gtk.ListView` and the adjustment's `upper` is 11 000 — GTK's own `Gtk.Scrollable` path is
-in use. Wrap the list in a `Gtk.Box` to put a header inside, and `get_child()` becomes a
-`GtkViewport`, `upper` becomes 11 018, and the list is allocated its whole 11 000 px
-content height while still realising only 205 of the 500 rows — rows with no widget
-inside the allocated area. So `ListHeaderComponent` and `ListFooterComponent` are siblings
-of the scroller and stay put while the rows scroll, which is a divergence from React
-Native and the only arrangement that keeps virtualisation honest.
-
-**Teardown is driven by `dispose()`, not by GTK's `teardown` signal.** Measured,
-destroying a window whose `Gtk.SignalListItemFactory` still had JS handlers connected
-produced six `Gjs-CRITICAL` lines — "Attempting to call back into JSAPI during the
-sweeping phase of GC … the offending signal was unbind/teardown" — and ran none of them.
-A per-item React root unmounted only from `teardown` would therefore never be unmounted,
-and every signal the host connected inside that row would stay connected for the life of
-the process.
-:::
-
-React Native's virtualisation knobs — `initialNumToRender`, `maxToRenderPerBatch`,
-`windowSize`, `updateCellsBatchingPeriod`, `removeClippedSubviews`, `getItemLayout` — are
-refused by name on all four names. `Gtk.ListView` creates and recycles rows itself and
-installs no property that changes the batching, measured at 205 of 500 rows realised in a
-400×300 window. `SectionList` flattens its sections into one model with header rows, so a
-header scrolls with its section and `stickySectionHeadersEnabled` is refused rather than
-silently false — GTK's own sticky headers exist (`Gtk.SectionModel` is present,
-`set_header_factory` is there, and a flatten model over two stores answered
-`get_section(0)` as `[0, 2]`) and reaching them needs a second factory and a model of
-models, which is not built.
-
-### Images, touchables and a button that refuses to be styled
-
-| Primitive | Becomes |
-|---|---|
-| `FlatList`, `SectionList`, `VirtualizedList`, `VirtualizedSectionList` | `Gtk.ListView` + `Gio.ListStore`, owned by the component |
-| `Image` | `Gtk.Picture` |
-| `ImageBackground` | `Gtk.Picture` as the main child of a `Gtk.Overlay` |
-| `TouchableOpacity`, `TouchableHighlight` | `Gtk.Button`, flat |
-| `TouchableWithoutFeedback` | `Gtk.Box` + `Gtk.GestureClick` |
-| `Button` | `Gtk.Button` |
-| `SafeAreaView`, `KeyboardAvoidingView` | `Gtk.Box` |
-| `StatusBar` | nothing — it renders `null` |
-
-`Image` inverts a default the same way `View` and `Text` do: React Native defaults to
-`cover` and a `Gtk.Picture` to `contain`, measured, so `resizeMode` is written out. It
-answers `cover`, `contain`, `stretch` and `center`; `repeat` is refused because
-`GtkContentFit` is `FILL`, `CONTAIN`, `COVER`, `SCALE_DOWN` and has no tiling member —
-tiling is a `Gdk.Paintable` implementation, not a property of the widget that draws one.
-`source` takes a local path, a `file:` URI or a `resource:` URI; `http:`/`https:`/`data:`
-need a fetch, a decoder and a cache that this layer does not own, and a `require()` id is
-an index into React Native's asset registry, which the build chain deliberately does not
-own either. The load callbacks are refused rather than stubbed for a measured reason:
-`Gtk.Picture` emits **no signals at all**, and a file that does not exist leaves
-`paintable` null with no diagnostic — so an `onError` that never fires would hide exactly
-the case it exists to report.
-
-`ImageBackground` is sized by its **picture**, not by its children, which is the opposite
-of React Native. Measured: a `Gtk.Overlay` measures only its main child — a 9 px main child
-beside a 266 px overlay child gave the overlay 9 px — and `gtk_overlay_set_measure_overlay()`
-is a per-child *method* rather than a property, so the host's data-driven placement has no
-way to name it. Give the element a size, or let its parent stretch it with `flex-1`.
-
-The touchables are `Pressable`'s machinery under other names, and each refuses the prop
-that would smuggle a raw value into the styling path: `activeOpacity` refuses and points
-at `active:opacity-70`, `underlayColor` refuses and points at `active:bg-<token>`. Both
-would otherwise put a value into the class vocabulary that did not come from the project's
-token scale. `TouchableWithoutFeedback` is a real box with a `Gtk.GestureClick` on it —
-measured, `Gtk.Button` emits `activate` and `clicked`, a `Gtk.Box` emits neither, and
-`Gtk.GestureClick` emits `pressed`/`released`/`stopped`/`unpaired-release` — so unlike
-React Native it does not clone its child and vanish; it lays out like a `View` and takes
-one row of the parent's box. Its `disabled` becomes `can-target: false` rather than
-`sensitive: false`, because `sensitive` greys out every descendant of a wrapper that is
-supposed to have no appearance of its own.
-
-`Button` refuses `style` and `className` **by name**, and that is faithful rather than
-missing: React Native's `Button` takes neither. An Adwaita button is painted by the theme
-and by its own classes, which an application stylesheet sets. Reach for `Pressable` when
-you need to style it.
-
-### The APIs a desktop can answer, and the ones it must refuse
-
-`Appearance` is the one fully `supported` name of the tier: it is the imperative sibling
-of `useColorScheme` over the same reader, and the split lines up exactly — `getColorScheme`
-reads `Adw.StyleManager:dark`, which is what the user is looking at, and `setColorScheme`
-writes `:color-scheme`, which is what the application asked for.
-
-`Dimensions.get('window')` is the **window**, not the screen, because a desktop
-application is not full-screen and the screen's number would be wrong in the ordinary
-case; `get('screen')` is the monitor, because that is what it asks for. It throws by name
-when there is no window yet — which includes every read at module scope, where there is no
-honest number and a zero divides. The size reported is the window's **allocation**, and
-deliberately not the `Gdk.Surface` size: measured, a 640×480 window has a 668×509 surface,
-which carries the client-side-decoration shadow. `fontScale` comes from
-`Gtk.Settings:gtk-xft-dpi` divided by 1024 and by 96.
-
-`useWindowDimensions` is the hook form, through `useSyncExternalStore` so a resize between
-render and commit cannot tear. Its notifier and its value are two different objects, and
-that is measured rather than chosen: `Gtk.Widget` installs no width or height property and
-emits no `size-allocate` signal — the same wall `<View onLayout>` is refused against —
-while `Gdk.Surface` installs read-only `width` and `height` and notifies on them. So the
-surface says *when* and the window says *what*.
-
-:::note[One precondition is recorded as unknown, on purpose]
-Whether the window's allocation is already updated inside that `notify` handler has **not
-been measured**. A compositor-driven resize cannot be triggered from a probe —
-`set_default_size` on a mapped window is a no-op, measured — so the entry records it as
-unknown rather than guessing. It is in the table as a limit, where a reader who runs into it will
-find it recorded, instead of nowhere.
-:::
-
-The rest of the tier is mostly the discipline of refusing loudly. `Keyboard.addListener`
-refuses **for every event**, because there is no on-screen keyboard to raise one and a
-subscription that resolves and then never fires is the silent drop this layer exists to
-remove — a `keyboardDidShow` handler that never runs looks like a bug in your own code,
-for ever. Its `dismiss()` and `removeAllListeners()` are honest no-ops, and `isVisible()`
-answers `false`, which is React Native's own answer for a keyboard that is not up.
-`StatusBar` renders `null` and says so — it is in the first ten lines of most React Native
-screens, so failing to import would be worse — its declarative props are accepted no-ops,
-every imperative static refuses by name, and `currentHeight` throws rather than answering
-`0`, because code reads it straight into a layout and a number here would inset every
-ported screen by a bar that is not there. `SafeAreaView` and `KeyboardAvoidingView` are
-both `Gtk.Box`: the *inset* and the *avoiding* are the no-ops, not the box, not the column
-and not the children — a component that rendered nothing would be a screen that silently
-disappeared.
-
-### `Alert` is buildable where `Modal` is not
-
-`Alert` maps to `Adw.AlertDialog` and is real; `Modal` maps to `Adw.Dialog` and stays
-`planned`. The difference between them is not effort, and it is measured on libadwaita
-1.9.3.
-
-A host inserts an element by calling its parent's adder, and `box.append(dialog)` calls
-`g_error()` — SIGABRT and a core dump, not a catchable exception — but *only* once the box
-is rooted in a window. A detached box accepts the append in silence, so a re-test on a
-bare box appears to disprove this and puts the primitive back. An `Adw.Dialog` is
-*presented against* a parent rather than parented by it, which makes `<Modal>` a portal,
-and the host has no portal seam. `Alert` never makes that call at all: it is a function,
-`present(parent)` takes an optional anchor, and `present(null)` from a plain function with
-no parent and no window returned with no diagnostic. A refusing export is strictly better
-than a `partial` that aborts the process the first time somebody renders one.
-
-`Alert`'s own mapping earns two notes. `cancel` becomes the dialog's **close response**,
-which is stronger than an appearance — it is what Escape and the compositor's close button
-both produce — and the first non-cancel button becomes the default response, which is
-Adwaita's convention and has no React Native counterpart. Response ids are positional
-rather than derived from the label, so two buttons with the same text do not collide into
-one response. `Alert.prompt` throws by name: it is iOS-only, and its contract — four
-overloads, a login/password variant, a callback whose arity depends on the type — is what
-makes it a refusal rather than a port. `Adw.AlertDialog:extra-child` is there if you want
-to build it.
-
-:::note[A measurement that was reporting the wrong thing]
-Presenting a dialog realises a real GDK surface, which is the first thing in that suite to
-make GSK bring up a renderer. On a CI container with no `/dev/dri` that emitted eight
-Vulkan warnings and turned the vector red, while a desktop with a working GPU stayed
-silent — the diagnostics gate was reporting a fact about the runner rather than about the
-dialog. It now classifies environment diagnostics apart, so what is asserted is what was
-always meant: libadwaita says nothing about this dialog.
-:::
-
-## The divergences a porter hits first
-
-Each of these is a table entry with a reason, not a gap someone forgot.
-
-**The entry point needs an application id.** React Native hands `runApplication` a root tag from
-a native host that already exists — an Activity, a `UIViewController`. Nothing exists yet here, so
-`runApplication` must *create* the application and its window, which means it needs the one fact
-React Native never has to ask for: the `GApplication` id. A phone host supplies the application
-identity; a desktop one **is** the application.
+## Write a screen
 
 ```tsx
-import { AppRegistry, Text, View } from '@gjsify/react-native';
+import { View, Text, Pressable } from 'react-native';
 
-function App() {
+export function Counter({ count, onPress }: { count: number; onPress: () => void }) {
     return (
-        <View className="items-center">
-            <Text>Hello from GTK</Text>
+        <View className="flex-1 items-center justify-center gap-m">
+            <Text className="text-heading">{count}</Text>
+            <Pressable onPress={onPress}>
+                <Text>Add one</Text>
+            </Pressable>
         </View>
     );
 }
-
-AppRegistry.registerComponent('MyApp', () => App);
-
-await AppRegistry.runApplication('MyApp', {
-    applicationId: 'org.example.MyApp',
-    title: 'My App',
-});
 ```
 
-`runApplication` resolves with the application's exit code, and it is `async` on purpose: GJS does
-not drain the promise-job queue under a synchronous `Gio.Application.run`, so a view that loads
-asynchronously would hang on its spinner forever.
+That is an ordinary React Native component. The import says `react-native` because the build
+aliases it, so the file is the same one your phone app ships.
 
-The shell is built for you — an `Adw.ApplicationWindow` holding an `Adw.ToolbarView` and a header
-bar, rather than a bare window, because a desktop window without a header bar cannot be moved or
-closed on every compositor. React renders into the toolbar view's *content*, so that chrome
-survives the first commit.
+## Start the app
 
-Anything beyond `items-*`, `flex-*` and the other token-free utilities needs your project's token
-scales installed first, with `configureStyle`. The default scale is deliberately tiny, so the first
-`mt-2xs` you write without configuring one is a named error listing what the scale does hold — not
-a silently dropped class.
+`AppRegistry` creates the application and its window, which is the one thing a phone host never
+has to ask for: on a desktop, your app *is* the process, so it needs a `GApplication` id.
 
-**A dialog is presented against a parent, never parented by it.** `Modal` is tier P1 and stays
-`planned` for a measured reason, not a scheduling one — `box.append(dialog)` kills the process.
-`Alert`, which maps onto the same family of widgets, is real. The measurement and the difference
-between the two are written out once, under
-[`Alert` is buildable where `Modal` is not](#alert-is-buildable-where-modal-is-not).
+```tsx
+import { AppRegistry } from 'react-native';
+import { Counter } from './Counter.js';
 
-**Every `partial` primitive refuses some of its props by name, and its table entry lists which.**
-They share one shape, worth carrying with you: React Native puts the thing on the element as data,
-and GTK puts it in a second object. Allocation arrives through a `vfunc_size_allocate` override
-rather than a signal; focus and a long press are event controllers added to the widget; a multiline
-`TextInput`'s text lives in a `Gtk.TextBuffer` and not in `value`; press state is a CSS `:active`
-pseudo-class that never reaches the reconciler. So a refusal is not a to-do item — it names the GTK
-object to reach for through a `ref`, or the class to write instead.
-
-Which props those are stays in the table, for the reason this page keeps giving: a list repeated
-here is the copy that drifts, and it is the copy a reader finds first.
-
-## Platform files
-
-[ADR 0032 § 9](https://github.com/gjsify/gjsify/blob/main/docs/adr/0032-react-native-on-the-gtk-host.md)
-declares the resolution order a shared codebase should get:
-
-```
-foo.gtk.tsx      →  GTK-specific
-foo.linux.tsx    →  OS-specific (likewise .macos / .windows)
-foo.desktop.tsx  →  any desktop target
-foo.tsx          →  base
+AppRegistry.registerComponent('Counter', () => Counter);
+AppRegistry.runApplication('Counter', { applicationId: 'com.example.Counter' });
 ```
 
-**`.native` is deliberately not in that chain, and `.web` never is.** It looks like an oversight
-and is the opposite: a `.native.tsx` is by definition written for a React Native runtime, so
-reaching for it would feed the GTK build code that expects `NativeModules` — found only in the
-window. Falling through to the base file is the honest outcome. `.web` is worse, because it looks
-like the right choice for a desktop target while carrying exactly the DOM assumptions this design
-rules out.
+Expo's `registerRootComponent` works too and takes the same options.
 
-**None of that chain resolves yet.** The bundler's platform resolver today knows `.android`,
-`.ios`, `.visionos` and `.native` — the NativeScript / React Native mobile order — and extending
-it is where the desktop chain will land, never as a second plugin. Until then, a GTK build reads
-the base file, and a `.gtk.tsx` beside it is a file nothing imports.
+## Build it
 
-## The build opt-in: `--dialect react-native`
-
-One flag turns an ordinary `gjsify build` into a React Native port:
+One flag turns an ordinary build into a React Native port:
 
 ```bash
 gjsify build src/app.tsx --app gjs --outfile dist/app.gjs.mjs \
@@ -483,137 +98,189 @@ gjsify build src/app.tsx --app gjs --outfile dist/app.gjs.mjs \
   --exclude-globals navigator
 ```
 
-It composes exactly two plugins, on the `gjs` and `node` targets. The first is the alias
-line: `'react-native'` → `'@gjsify/react-native'`, so an unmodified application tree
-builds without a rename per file. The second is the build-time half of the gate — it
-fails the build on an import of a name the support table does not mark `supported` or
-`partial`, naming the importing file and the line before anything runs. That is the
-only thing it has over the runtime refusal, and it is the whole point: a sentence at
-build time rather than the same sentence the first time a code path is reached in a
-window.
+`--dialect react-native` does two things. It aliases `react-native` to `@gjsify/react-native`, so
+your files import the name they already import. And it **fails the build** on an import of a name
+that is not available, telling you the file and the line before anything runs.
 
-The flag is also readable as `gjsify.dialect` in `package.json#gjsify` or an
-`.gjsifyrc.*`. yargs' `choices` already rejects an unknown value typed on the command
-line, but a config-file value never passes through yargs — so the narrowing lives where
-both spellings meet, and it names the alternatives rather than ignoring what it did not
-understand.
+The other two flags are React's, and the [React page](/gjsify/frameworks/react/#build-it) says
+what they do.
 
-**It is opt-in and never inferred, and that is load-bearing rather than cautious.** A
-monorepo with a phone leg and a desktop leg has the real `react-native` installed *on
-purpose*; redirecting the specifier for every `gjsify build` in that tree changes what
-the phone build resolves. And `@gjsify/react-native` is an optional tier-3 package, so
-an unconditional alias would fail every build in every tree that does not have it — on
-a package nobody asked for, with a gjsify name in the error, which reads as our bug.
+You can set it in `package.json` instead:
 
-### The four shapes it answers
+```jsonc
+{
+    "gjsify": { "dialect": "react-native" }
+}
+```
 
-The alias is a `resolveId` hook rather than an entry in the alias table, because two of
-these cannot be expressed as a rewrite.
+## What renders
 
-**A subpath is a named refusal, not a rewrite.** `react-native/Libraries/Components/…`
-reaches into a module layout that exists because of Metro and the native bridge; the
-alias covers the package *root*, because the root is the export surface being mirrored.
-Resolving it to the real React Native source would build and then fail in the window on
-`NativeModules`, so the build says so with the importer named. The match on the root is
-exact and never a prefix — `react-native-web`, `react-native-reanimated` and
-`react-native-gesture-handler` share the first eleven characters and none of them is
-this package.
+| Component | Becomes |
+|---|---|
+| `View` | `Gtk.Box`, or `Gtk.Overlay` when a child is absolutely positioned |
+| `Text` | `Gtk.Label` |
+| `Pressable`, `TouchableOpacity`, `TouchableHighlight` | `Gtk.Button`, flat |
+| `TouchableWithoutFeedback` | `Gtk.Box` with a click gesture, no button chrome |
+| `Button` | `Gtk.Button` |
+| `ScrollView` | `Gtk.ScrolledWindow` with a content box |
+| `FlatList`, `SectionList`, `VirtualizedList` | `Gtk.ListView` over a list store |
+| `Image` | `Gtk.Picture` |
+| `ImageBackground` | `Gtk.Picture` in a `Gtk.Overlay` |
+| `TextInput` | `Gtk.Entry`, or `Gtk.TextView` with `multiline` |
+| `Switch` | `Gtk.Switch` |
+| `ActivityIndicator` | `Adw.Spinner` |
+| `SafeAreaView`, `KeyboardAvoidingView` | `Gtk.Box`, since a window has neither notch nor soft keyboard |
 
-**An unresolvable target is a named error, not a silent external.** The substitution
-*is* the promise, so its failure is the one thing that must not exit 0. It deliberately
-does not fall back to the real `react-native` for the reason above.
+A list looks the way it does on a phone:
 
-**A namespace import warns and builds.** `import * as RN from 'react-native'` makes the
-names a runtime question, so the gate says which form it hit, and that the runtime
-refusal — reading the same table — still covers the module, just later. Guessing would
-be worse than saying so.
+```tsx
+import { FlatList, Text, View } from 'react-native';
 
-**A type-only import costs nothing and is not refused.** That works because the gate is
-a `transform` hook at `order: 'pre'`: by the time a normal-order hook runs the
-annotations may already have been stripped, and the gate would then be unable to tell a
-type-only import from a value import and would fail a program that cannot fail.
+<FlatList
+    data={items}
+    keyExtractor={(item) => item.id}
+    renderItem={({ item }) => (
+        <View className="p-m">
+            <Text>{item.title}</Text>
+        </View>
+    )}
+/>;
+```
 
-### It reads the table, never a copy
+Plus the APIs: `Linking`, `Platform`, `Share`, `useColorScheme`, `StyleSheet`, `Dimensions`,
+`useWindowDimensions`, `Alert`, `Appearance`, `Keyboard`, `StatusBar`, `EventEmitter` and
+`AppRegistry`.
 
-The gate resolves `@gjsify/react-native/support-table` through the bundler's own
-resolver, from a module of the *project being built*, and imports it. So it states what
-this build's own copy of the layer supports, and a version skew between the plugin and
-the layer cannot make it lie in either direction. It is deliberately not a dependency:
-the bundler plugin is tier 1, the layer is tier 3, and a tier-1 package may not depend
-on a higher tier. Both spellings are watched — the ported application writes
-`react-native` and a gjsify-native one writes `@gjsify/react-native` — because the gate
-is about the surface, not about which name reached it.
+**The per-name list lives in the package, not here.** Each name carries a status and a reason,
+and the [package README](https://github.com/gjsify/gjsify/blob/main/packages/framework/react-native/README.md)
+is generated from that data, so it cannot drift. You can read the same data from your own code:
 
-Every refused import in one module is reported as one message. An application importing
-three unsupported names from the same file has one porting decision to make, and three
-separate build failures would show it one third of that decision per run.
+```ts
+import { SUPPORT_TABLE, isImportable, explainUnsupported } from '@gjsify/react-native';
+```
 
-:::note[One place the gate deliberately does not fail]
-A module the pinned parser cannot read produces a warning, per file, and the build goes
-on. `acorn-typescript` 1.4.13 cannot parse a `satisfies` expression or a `const` type
-parameter, both of which are ordinary TypeScript in a tree on `typescript ^6.0.3` —
-erroring there would refuse a correct program, and a false violation is how a checker
-teaches people to ignore it. The shape used instead is the one
-`scripts/check-rn-surface.mjs` already uses: degrade to the weaker half and say so out
-loud, rather than degrade quietly.
-:::
+## Two defaults that are inverted
 
-:::note[`--dialect react-native` is not `gjsify.runtimes['react-native']`]
-They answer opposite questions, and the flag is spelled as it is so the two cannot be
-read as one.
+A React Native `View` is a **column** and a `Gtk.Box` is horizontal. A React Native `Text`
+**wraps** and a `Gtk.Label` does not. Both are set explicitly, so your layouts keep the React
+Native behaviour. Worth knowing because the failure would have been silent: every widget present,
+every row a column.
 
-`gjsify.runtimes['react-native']` declares that **this package runs on** React Native.
-`--dialect react-native` declares that **this source is** a React Native application,
-being built for GTK.
+## Anything missing tells you what it is
 
-A package can truthfully be both — shipped to a phone through Metro *and* ported to the
-desktop through this build — and while the flag was also spelled `react-native`, those
-two true statements read as a contradiction. A reader could reasonably expect a manifest
-declaring `react-native: 'none'` to fail the build, and it never should: the two are
-unrelated facts. The closed runtime vocabulary keeps the name because it is the older,
-machine-checked one; the dialect is spelled as what it is. It is a union rather than a
-boolean because `nativescript` is the named follow-on and fits here without a second
-flag.
-:::
+Importing a name that is not built does not fail with a spelling error. It gives you the reason:
 
-All three readers of the table now fire: the build gate above, the runtime refusals, and the
-generated README section. `scripts/check-rn-surface.mjs` holds the key set from outside — against a
-committed snapshot of React Native's export list on every run, and against the *installed*
-`react-native` whenever one is resolvable, printing which of the two modes it ran in, because a
-gate that quietly degrades to the weaker half is worth less than one that says so.
+```
+@gjsify/react-native: "Animated" is not implemented yet (tier P3). Genuinely mappable,
+but it is a subsystem rather than a component. Doing it badly is worse than not doing
+it. The GTK counterpart is Adw.TimedAnimation / Adw.SpringAnimation.
+```
 
-The rest of the **build recipe is React's, not this package's** —
-`--define 'process.env.NODE_ENV="production"'` and `--exclude-globals navigator`, with the reason
-each flag exists on the
-[React page](/gjsify/frameworks/react/#the-build-recipe-and-it-is-not-optional). It applies
-unchanged here, because `react-reconciler` is what is underneath.
+With `--dialect react-native` you get that at build time. Without it you get it the first time
+the code path runs.
 
-## Read the source
+## Routing
 
-[`showcases/gtk/rn-design-system`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/rn-design-system)
-is ADR 0032 § 11's regression proof: an ordinary design-system layer — badge, button, card, chip,
-rule, rail, screen, section header, thumbnail, typography — written fresh under MIT against this
-class vocabulary. Its probe asserts which widget each primitive became, which `css-classes`
-landed, and what the generated rule behind each one says.
+`@gjsify/react-native/router` is the `expo-router` surface, and the build aliases `expo-router`
+to it. `router`, `usePathname`, `useLocalSearchParams`, `Stack` and `Tabs` are implemented.
 
-It is deliberately **not** comparable to the host-counter showcases listed on the
-[UI Frameworks](/gjsify/frameworks/) page, which build one identical window through the host's own
-tags once per adapter. This one asserts a different thing, so it is not another arm of that
-comparison. It is also `private`, and therefore not in the `gjsify showcase` catalog — read it
-from the checkout rather than reaching for `gjsify showcase rn-design-system`, which has nothing
-to resolve.
+File-based routes follow four conventions:
 
-## See also
+```
+(group)      groups without adding a URL segment
+[param]      a dynamic segment, readable via useLocalSearchParams()
+_layout      owns its directory and renders the navigator
++not-found   the fallback route
+```
 
-- [React Native routing](/gjsify/frameworks/react-native-routing/) for `expo-router`'s surface
-  over `Adw.NavigationView`, the file convention, and the reverse direction a back gesture needs
-- [Styling on GTK](/gjsify/frameworks/styling/) for `className`, `style={{…}}`, and the measured
-  reasons a property lands in GTK CSS, on a widget, or nowhere until attach time
-- [React](/gjsify/frameworks/react/) for the `jsxImportSource` and the build defines underneath
-  this layer
-- [UI Frameworks](/gjsify/frameworks/) for the host layer itself, and the GTK-vocabulary adapters
-- [Native Adwaita Apps](/gjsify/guides/native-adwaita-app/) for the application shell
-  `AppRegistry` builds on
-- [Platform Support](/gjsify/platform-support/) for the operating-system answer
-- [ADR 0032](https://github.com/gjsify/gjsify/blob/main/docs/adr/0032-react-native-on-the-gtk-host.md)
-  for the layer split, the measurement behind it, and every decision this page only summarises
+A directory without a `_layout` is not a navigator: its routes flatten into the nearest ancestor
+that is one. So `detail/[id].tsx` needs no `detail/_layout.tsx`.
+
+Add the manifest plugin to your build and hand the manifest to the root:
+
+```ts
+// build config
+rnRouteManifestPlugin({ routesDir: 'app' });
+```
+
+```tsx
+import { RouterRoot } from '@gjsify/react-native/router';
+import { manifest } from 'virtual:gjsify-rn-routes';
+
+AppRegistry.registerComponent('App', () => () => <RouterRoot manifest={manifest} />);
+```
+
+`<Stack>` renders onto `Adw.NavigationView`, so you get the platform's own back gesture, Escape
+to go back and the animated push and pop for free. `<Tabs>` renders onto `Adw.ViewStack` behind
+an `Adw.ViewSwitcher`: adding a route file adds a button, the label comes from the page title,
+and a screen reader announces the same text a user sees.
+
+Screen options are `title`, `headerShown` and `animation` on `<Stack.Screen>`, and `title` on
+`<Tabs.Screen>`. Anything else is refused by name.
+
+Router errors carry a stable `code`, so a test can assert one instead of matching a message:
+`duplicate-route`, `param-without-name`, `unresolved-href`, `not-a-screen-child`,
+`unknown-screen-option`, `no-router-mounted`.
+
+**`navigationRef` is exported too.** When `router` does not spell what you need, reach for React
+Navigation's own handle rather than a thinner copy of it.
+
+## Styling
+
+`className` works, over the same class families the [styling page](/gjsify/frameworks/styling/)
+documents. The values come from your project, and you install them once:
+
+```tsx
+import { configureStyle } from '@gjsify/react-native';
+import { tokens } from './tokens.js';
+
+configureStyle({ tokens });
+```
+
+```tsx
+import { StyleSheet, View } from 'react-native';
+
+const styles = StyleSheet.create({
+    card: { padding: 12, borderRadius: 9 },
+});
+
+<View style={styles.card} />;
+```
+
+`StyleSheet.create` and inline `style` objects go through the same partition as `className`.
+
+## Where a component refuses a prop
+
+Components marked `partial` name the props they do not take, in the table, with what to use
+instead. They share one shape worth carrying with you: React Native puts the thing on the element
+as data, and GTK puts it in a second object. Allocation arrives through a size-allocate override,
+focus and long press are event controllers on the widget, a multiline `TextInput`'s text lives in
+a `Gtk.TextBuffer`, and press state is a CSS pseudo-class that never reaches React.
+
+So a refusal points at the GTK object to reach through a `ref`, rather than at a to-do item:
+
+```tsx
+import { useRef, useEffect } from 'react';
+import { TextInput } from 'react-native';
+
+const input = useRef<Gtk.TextView>(null);
+
+useEffect(() => {
+    // multiline text lives in the buffer, not in `value`
+    input.current?.get_buffer().set_text('hello', -1);
+}, []);
+
+return <TextInput multiline ref={input} />;
+```
+
+## Related
+
+- [Getting started](/gjsify/getting-started/) if you do not have a gjsify project yet
+- [React](/gjsify/frameworks/react/) for the adapter underneath, and the build flags in full
+- [Styling on GTK](/gjsify/frameworks/styling/) for the class families and token scales
+- [Package README](https://github.com/gjsify/gjsify/blob/main/packages/framework/react-native/README.md)
+  for the generated per-name support listing
+- [`rn-design-system`](https://github.com/gjsify/gjsify/tree/main/showcases/gtk/rn-design-system)
+  for a design-system layer rendered unmodified into an Adwaita window
+- [How the React layers work](/gjsify/internals/react-layers/) for the measurements behind the
+  primitives, the lists and the router

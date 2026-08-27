@@ -22,6 +22,7 @@ export default defineConfig({
         // The framework pages moved out of `guides/` into their own section. They
         // shipped days earlier, so the old paths are already in the wild.
         '/guides/ui-frameworks': '/gjsify/frameworks/',
+        '/frameworks/react-native-routing': '/gjsify/frameworks/react-native/',
         '/guides/solid-jsx': '/gjsify/frameworks/solid/',
         '/guides/vue-sfc': '/gjsify/frameworks/vue/',
         '/framework/bridges': '/gjsify/patterns/bridges/',
@@ -139,7 +140,6 @@ export default defineConfig({
                         { slug: 'frameworks/vue', label: 'Vue' },
                         { slug: 'frameworks/react', label: 'React' },
                         { slug: 'frameworks/react-native', label: 'React Native' },
-                        { slug: 'frameworks/react-native-routing', label: 'React Native: routing' },
                         { slug: 'frameworks/styling', label: 'Styling on GTK' },
                     ],
                 },
@@ -205,6 +205,7 @@ export default defineConfig({
                     collapsed: true,
                     items: [
                         { slug: 'how-it-works' },
+                        { slug: 'internals/react-layers', label: 'How the React layers work' },
                         { slug: 'projects/ts-for-gir' },
                         { slug: 'projects/node-gi' },
                         { slug: 'projects/napi' },
