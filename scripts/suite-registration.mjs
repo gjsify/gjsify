@@ -230,7 +230,7 @@ function separatorIndex(part) {
  *
  * VALUE position, not key: `run({ Promise: promiseSuite })` registers `promiseSuite`,
  * and it is the local binding a caller compares against. An inline `key: async () => {…}`
- * registers no spec file and contributes nothing.
+ * names no spec file, so it raises `properties` and adds no symbol.
  */
 export function registeredSymbols(source) {
     const registered = new Set();
