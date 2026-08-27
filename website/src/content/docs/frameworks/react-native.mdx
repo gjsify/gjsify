@@ -53,6 +53,39 @@ Pin React 19, as the [React page](/gjsify/frameworks/react/) explains. For routi
 `@react-navigation/core` and `@react-navigation/routers`, which are peers rather than bundled
 copies.
 
+## Declare your tokens
+
+`className` works on every primitive, and the **values** behind those names are your project's.
+The layer ships a deliberately tiny default scale — `0` and `px`, and nothing between them — so
+that a class naming a token you have not declared is a named error rather than a wrong margin.
+Write the scales once:
+
+```tsx
+// tokens.ts, generated from your design-token source or written by hand.
+import type { StyleTokens } from '@gjsify/gtk-host/style';
+
+export const tokens: StyleTokens = {
+    spacing: { '0': '0px', px: '1px', xs: '4px', s: '8px', m: '12px', l: '16px', xl: '24px' },
+    fontSize: { caption: '11px', body: '14px', title: '18px', display: '26px' },
+};
+```
+
+…and install them before the first render:
+
+```tsx
+import { configureStyle } from '@gjsify/react-native';
+import { tokens } from './tokens.js';
+
+configureStyle({ tokens });
+```
+
+Every snippet on this page uses those two scales. **Skipping this step is not a styling
+difference, it is a blank window**: the first undeclared token throws out of the render, React
+unmounts the tree, and the process goes on to exit 0 with no GTK diagnostic at all — measured, and
+the reason [`shotEvidence`](https://github.com/gjsify/gjsify/blob/main/packages/framework/gtk-host/src/probe.ts)
+exists. The [styling page](/gjsify/frameworks/styling/) has the whole class vocabulary; the token
+names above are only what these examples need.
+
 ## Write a screen
 
 ```tsx
@@ -60,11 +93,17 @@ import { View, Text, Pressable } from 'react-native';
 
 export function Counter({ count, onPress }: { count: number; onPress: () => void }) {
     return (
-        <View className="flex-1 items-center justify-center gap-m">
-            <Text className="text-title">{count}</Text>
-            <Pressable onPress={onPress}>
-                <Text>Add one</Text>
-            </Pressable>
+        <View>
+            {/* `flex-1` resolves against the PARENT's orientation, so it goes on a
+                child and not on the root of the tree — the root has no parent to
+                resolve against, and the layer says so instead of guessing. Same rule
+                for `self-*` and `absolute`; see "Where a component refuses a prop". */}
+            <View className="flex-1 items-center justify-center gap-m">
+                <Text className="text-title">{count}</Text>
+                <Pressable onPress={onPress}>
+                    <Text>Add one</Text>
+                </Pressable>
+            </View>
         </View>
     );
 }
@@ -207,13 +246,14 @@ Three rules hold there, and the layer states each of them by refusing rather tha
   element directly under one is the root of its React tree and is told so.
 - **The container needs a curated child policy.** gtk-host will not guess how a widget adopts a
   child: `add`, `append` and `set_child` all exist somewhere in GTK and the wrong one is a
-  warning at exit 0. 26 of the 164 tags carry such a rule; toolbar view, header bar, status page,
-  navigation view, preferences page and action row are among them. Clamp, wrap box and action bar
-  are not, and refuse a child by name until someone writes their policy.
+  warning at exit 0. 35 of the 164 tags carry such a rule — `tableProvenance()` reports the live
+  figure, and this count has drifted twice — with toolbar view, header bar, clamp, both split
+  views, status page, navigation view, preferences page and action row among them. Wrap box and
+  action bar are not, and refuse a child by name until someone writes their policy.
 
 The [Layout page](/gjsify/adwaita/layout/) of the Adwaita gallery carries this as a **React
-Native on GTK** tab beside the GJS, Blueprint, web and NativeScript ones — on the header bar and
-the toolbar view, and on neither of the two whose policy is missing.
+Native on GTK** tab beside the GJS, Blueprint, web and NativeScript ones — on the clamp, the
+header bar and the toolbar view, and not on the wrap box, whose policy is still missing.
 
 ### What this is not
 
