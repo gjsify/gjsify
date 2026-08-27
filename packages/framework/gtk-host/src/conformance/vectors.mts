@@ -184,6 +184,62 @@ export async function runAdapterVectors(harness: VectorHarness, gate: Diagnostic
             handle.unmount();
         });
 
+        await it('the split views place BOTH setter slots, and unmount empties them', async () => {
+            // The vector that earns `slotted.remove` being optional. These two
+            // classes have no remove method of their own — measured on libadwaita
+            // 1.9.3, every `remove*` on them is GtkWidget's — so removal can only
+            // be the setter written back to null. Asserting the placement without
+            // asserting the EMPTYING would leave exactly that half unmeasured, and
+            // it is the half the optionality changed.
+            for (const tag of ['AdwNavigationSplitView', 'AdwOverlaySplitView'] as const) {
+                const container = new Gtk.Box();
+                const handle = await mount(
+                    container,
+                    h(
+                        tag,
+                        null,
+                        h('AdwNavigationPage', { slot: 'sidebar', title: 'Side' }),
+                        h('AdwNavigationPage', { slot: 'content', title: 'Main' }),
+                    ),
+                );
+                const view = onlyChild(container) as Adw.NavigationSplitView | Adw.OverlaySplitView;
+                expect((view.get_sidebar() as Adw.NavigationPage).title).toBe('Side');
+                expect((view.get_content() as Adw.NavigationPage).title).toBe('Main');
+                handle.unmount();
+                // GTK's own getters, not our shadow tree: the shadow tree would
+                // agree with itself whatever the setter did.
+                expect(view.get_sidebar()).toBe(null);
+                expect(view.get_content()).toBe(null);
+            }
+        });
+
+        await it('the single-child Adw containers take the child they were refusing', async () => {
+            // Curated late: until they were, these came from the GENERATED table
+            // and raised `uncurated-placement` for any child, in every JSX dialect
+            // this host serves.
+            //
+            // `AdwClampScrollable` gets a `GtkTextView` and the other two a label,
+            // and the difference is the measurement rather than a preference: that
+            // class binds its four scroll properties onto whatever child it is
+            // given, so a `GtkLabel` produces four `gbinding.c:1301` warnings at
+            // exit 0 — which the diagnostics gate around this suite turns into a
+            // failure. Using one tag for all three would have meant either a
+            // permanently noisy vector or an exemption hiding a real constraint.
+            const cases = [
+                { tag: 'AdwClamp', child: 'GtkLabel' },
+                { tag: 'AdwClampScrollable', child: 'GtkTextView' },
+                { tag: 'AdwBreakpointBin', child: 'GtkLabel' },
+            ] as const;
+            for (const { tag, child } of cases) {
+                const container = new Gtk.Box();
+                const handle = await mount(container, h(tag, null, h(child, { name: tag })));
+                const bin = onlyChild(container) as Adw.Clamp | Adw.ClampScrollable | Adw.BreakpointBin;
+                expect((bin.get_child() as Gtk.Widget).name).toBe(tag);
+                handle.unmount();
+                expect(bin.get_child()).toBe(null);
+            }
+        });
+
         await it('an unknown slot names the known ones', async () => {
             const container = new Gtk.Box();
             const said = await refusalOf(() =>

@@ -2,6 +2,7 @@
 
 import { expect, it, on } from '@gjsify/unit';
 
+import Adw from 'gi://Adw?version=1';
 import Gtk from 'gi://Gtk?version=4.0';
 
 import {
@@ -12,7 +13,8 @@ import {
     methodsOf,
 } from './conformance/index.js';
 import { GTK_HOSTS, gated } from './testing/gate.mjs';
-import { lookupWidget, registeredTags } from './registry.js';
+import { lookupWidget, registeredTags, registerWidget } from './registry.js';
+import { createElement, insert, materialize, remove, setSlot } from './host.js';
 import type { WidgetDescriptor } from './types.js';
 import { BUILTIN_DESCRIPTORS, registerBuiltinWidgets } from './descriptors/index.js';
 
@@ -164,6 +166,96 @@ export default async () => {
                 for (const liar of liars) {
                     expect(descriptorProblems([liar]).length > 0).toBe(true);
                 }
+            });
+
+            await it('reports an adder-backed slot with nothing to remove it with', async () => {
+                // `slotted.remove` is optional because a set_-prefixed slot is
+                // emptied through its own setter and needs no remove method. An
+                // ADDER-backed slot has no such fallback: `detachChild` would
+                // reach for `host[undefined]`. So the optionality has to come
+                // with a rule, and the rule has to be held against a defect.
+                const problems = descriptorProblems([
+                    {
+                        gtype: 'AdwToolbarView',
+                        ctor: () => Adw.ToolbarView,
+                        children: {
+                            kind: 'slotted',
+                            slots: { top: 'add_top_bar', content: 'set_content' },
+                            defaultSlot: 'content',
+                        },
+                    },
+                ]);
+                // The SLOT is named, not just the widget: a message that says
+                // "needs a remove" without saying which slot forced it sends the
+                // reader to read the whole policy back.
+                expect(problems.some((p) => p.problem.includes('top'))).toBe(true);
+            });
+
+            await it('an adder-backed slot with no remove refuses BY NAME, not by TypeError', async () => {
+                // The runtime half of the same rule. `policyProblems()` keeps this
+                // shape out of the BUILT-IN table, so this path is unreachable
+                // through it — but `registerWidget` takes descriptors from
+                // applications and nothing checks those. Unguarded, the unmount is
+                // `host[undefined] is not a function`, which blames the host for a
+                // claim the descriptor made and names neither the slot nor the file
+                // to fix.
+                registerWidget({
+                    gtype: 'AdwToolbarView',
+                    ctor: () => Adw.ToolbarView,
+                    children: {
+                        kind: 'slotted',
+                        slots: { top: 'add_top_bar', content: 'set_content' },
+                        defaultSlot: 'content',
+                    },
+                });
+                try {
+                    const view = createElement('AdwToolbarView');
+                    // MATERIALIZED, or the whole test proves nothing: `attach`
+                    // returns early on a parent with no widget, so the child is
+                    // never `attached`, `remove()` returns before `detachChild`,
+                    // and the assertion below reads an empty string. That is how
+                    // this test first passed while measuring nothing.
+                    materialize(view);
+                    const bar = createElement('AdwHeaderBar');
+                    setSlot(bar, 'top');
+                    insert(bar, view);
+                    expect(bar.attached).toBe(true);
+                    let said = '';
+                    try {
+                        remove(bar);
+                    } catch (error) {
+                        said = String((error as Error).message);
+                    }
+                    // The slot AND the adder that put the child there: either one
+                    // alone sends the reader back to read the policy.
+                    expect(said).toContain('"top"');
+                    expect(said).toContain('add_top_bar');
+                } finally {
+                    // The registry is module-global and every sibling suite reads
+                    // it, so the real table goes back even if the asserts throw.
+                    registerBuiltinWidgets();
+                }
+            });
+
+            await it('stays clean on an all-setter slotted policy with no remove', async () => {
+                // The other direction, and the one that is easy to skip. Making a
+                // field optional can turn a check into one that passes on
+                // everything; a rule measured only where it fires has not been
+                // measured. `Adw.NavigationSplitView` is the honest shape:
+                // two setter slots, and — measured on libadwaita 1.9.3 — no remove
+                // method of its own to name even if the policy wanted one.
+                const problems = descriptorProblems([
+                    {
+                        gtype: 'AdwNavigationSplitView',
+                        ctor: () => Adw.NavigationSplitView,
+                        children: {
+                            kind: 'slotted',
+                            slots: { sidebar: 'set_sidebar', content: 'set_content' },
+                            defaultSlot: 'content',
+                        },
+                    },
+                ]);
+                expect(problems.map((p) => `${p.gtype}: ${p.problem}`)).toStrictEqual([]);
             });
         });
     });

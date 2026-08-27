@@ -923,13 +923,29 @@ export default async () => {
             // slot method EXISTS, never that removal through that slot works. The
             // asymmetric cases are the ones that bite — `AdwToolbarView.content`
             // is a setter, its `top` is an adder, and one `remove` serves both.
+            // The child is a `GtkButton` unless the container refuses one. A
+            // container that accepts only a specific type is not an exception to
+            // this mechanism, it is the reason the mechanism cannot use one tag
+            // for everything: MEASURED, `adw_navigation_split_view_set_sidebar`
+            // takes an `AdwNavigationPage` and a button lands as
+            // "Object is of type Gtk.Button - cannot convert to AdwNavigationPage".
+            // Its overlay sibling takes any widget, so only this one is listed —
+            // a blanket "use a page for every Adw split view" would have hidden
+            // that difference behind a convention.
+            const CHILD_TAG: Readonly<Record<string, string>> = { AdwNavigationSplitView: 'AdwNavigationPage' };
             for (const d of BUILTIN_DESCRIPTORS) {
                 if (d.children.kind !== 'slotted') continue;
                 for (const slot of Object.keys(d.children.slots)) {
                     await it(`${d.gtype} slot "${slot}"`, async () => {
                         const parent = createElement(d.gtype);
                         materialize(parent);
-                        const child = createElement('GtkButton', { label: slot, slot });
+                        const childTag = CHILD_TAG[d.gtype] ?? 'GtkButton';
+                        // `label` is the button's; a page reads `title`. Both are
+                        // just something to look at in a failure message.
+                        const child = createElement(childTag, {
+                            [childTag === 'GtkButton' ? 'label' : 'title']: slot,
+                            slot,
+                        });
                         insert(child, parent);
                         expect(child.attached).toBe(true);
                         remove(child);
