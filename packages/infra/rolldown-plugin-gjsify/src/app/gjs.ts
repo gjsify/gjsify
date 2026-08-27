@@ -228,6 +228,10 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
     // ADR 0032 § 8's build-time gate reads the ORIGINAL source for the same reason
     // reflection does: `import type { ViewProps }` is what tells it a name costs
     // nothing, and a normal-order transform may already have stripped it.
+    // This target composes a dialect, so it is one of `DIALECT_APPS` — the set
+    // the CLI refuses `--dialect` against for every OTHER target. Adding a
+    // dialect here without adding the target there means a flag accepted and
+    // silently ignored.
     if (input.pluginOptions.dialect === 'react-native') prePlugins.push(reactNativeSupportGatePlugin());
 
     const plugins: RolldownPluginOption[] = [

@@ -48,6 +48,32 @@ async function resolveGlobals(
     }
 }
 
+/**
+ * Resolve a build config for a `--dialect` / `--app` pair, or return the message
+ * it was refused with. The fixture is the same throwaway shape as above.
+ */
+async function resolveDialect(
+    pkgGjsify: Record<string, unknown>,
+    cliArgs: Partial<CliBuildOptions>,
+): Promise<{ dialect?: string; app?: string; error?: string }> {
+    const dir = mkdtempSync(join(tmpdir(), 'gjsify-config-dialect-'));
+    writeFileSync(
+        join(dir, 'package.json'),
+        JSON.stringify({ name: 'fixture', version: '0.0.0', type: 'module', gjsify: pkgGjsify }),
+    );
+    const prevCwd = process.cwd();
+    try {
+        process.chdir(dir);
+        const data = await new Config().forBuild(cliArgs as ArgumentsCamelCase<CliBuildOptions>);
+        return { dialect: data.dialect, app: data.app };
+    } catch (error) {
+        return { error: (error as Error).message };
+    } finally {
+        process.chdir(prevCwd);
+        rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
+    }
+}
+
 export default async () => {
     await describe('Config.forBuild — globals precedence', async () => {
         await it("defaults to 'auto' when neither config nor CLI set it", async () => {
@@ -65,6 +91,44 @@ export default async () => {
 
         await it('honours an explicit CLI --globals with no config value', async () => {
             expect(await resolveGlobals({}, { globals: 'none' })).toBe('none');
+        });
+    });
+
+    await describe('Config.forBuild — the dialect must reach a target that composes it', async () => {
+        await it('accepts --dialect react-native on the two targets that compose it', async () => {
+            for (const app of ['gjs', 'node']) {
+                const resolved = await resolveDialect({}, { dialect: 'react-native', app } as Partial<CliBuildOptions>);
+                expect(resolved.error).toBeUndefined();
+                expect(resolved.dialect).toBe('react-native');
+            }
+        });
+
+        await it('REFUSES a dialect on a target that composes nothing', async () => {
+            // The failure this guards is silence, not a crash: only `app/gjs.ts` and
+            // `app/node.ts` compose the dialect plugins, so on any other target the
+            // alias never happens and the support gate never runs — and the build
+            // still succeeds, having done none of what was asked. yargs `choices`
+            // cannot catch it; the pair is only wrong together.
+            for (const app of ['browser', 'nativescript']) {
+                const resolved = await resolveDialect({}, { dialect: 'react-native', app } as Partial<CliBuildOptions>);
+                expect(resolved.error ?? '').toContain('has no effect on --app');
+                expect(resolved.error ?? '').toContain(app);
+            }
+        });
+
+        await it('refuses the same pair when the dialect came from the config file', async () => {
+            // `gjsify.dialect` never passes through yargs, which is why the check
+            // lives in Config rather than in the command definition.
+            const resolved = await resolveDialect({ dialect: 'react-native' }, {
+                app: 'browser',
+            } as Partial<CliBuildOptions>);
+            expect(resolved.error ?? '').toContain('has no effect on --app browser');
+        });
+
+        await it('says nothing about a build that asked for no dialect', async () => {
+            const resolved = await resolveDialect({}, { app: 'browser' } as Partial<CliBuildOptions>);
+            expect(resolved.error).toBeUndefined();
+            expect(resolved.dialect).toBeUndefined();
         });
     });
 };
