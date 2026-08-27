@@ -65,6 +65,12 @@ export {
 export type { NapiNodeAddonPluginOptions, AddonPackageJson } from './plugins/napi-node-addon.js';
 export {
     platformResolvePlugin,
+    nativescriptSuffixChain,
+    desktopSuffixChain,
+    desktopOsSuffix,
+    DESKTOP_OS_SUFFIXES,
+    DESKTOP_REFUSED_SUFFIXES,
+    PlatformVariantExternalError,
     detectNativescriptPlatform,
     nativescriptPlatformDefines,
 } from './plugins/platform-resolve.js';
@@ -78,6 +84,35 @@ export {
     MAX_ROUTE_DEPTH,
 } from './plugins/rn-route-manifest.js';
 export type { RnRouteManifestOptions, FoundRoute } from './plugins/rn-route-manifest.js';
+export {
+    reactNativeAliasPlugin,
+    classifyReactNativeSpecifier,
+    REACT_NATIVE_ALIAS_TARGET,
+    REACT_NATIVE_SPECIFIER,
+    ReactNativeDeepImportError,
+    ReactNativeAliasTargetMissingError,
+} from './plugins/react-native-alias.js';
+export type { ReactNativeSpecifierKind } from './plugins/react-native-alias.js';
+export {
+    reactNativeSupportGatePlugin,
+    loadSupportTable,
+    findSupportViolations,
+    formatSupportViolations,
+    formatOpaqueReference,
+    formatUnreadableModule,
+    SUPPORT_TABLE_SUBPATH,
+    WATCHED_SPECIFIERS,
+    ReactNativeUnsupportedImportError,
+    SupportTableUnreadableError,
+} from './plugins/react-native-gate.js';
+export type {
+    ReactNativeSupportGateOptions,
+    SupportTableReader,
+    SupportTableResolver,
+    SupportViolation,
+} from './plugins/react-native-gate.js';
+export { scanNamedImports, ImportScanParseError } from './utils/scan-named-imports.js';
+export type { NamedImport, OpaqueReference, ScanResult } from './utils/scan-named-imports.js';
 
 export * from './plugin.js';
 import { gjsifyPlugin } from './plugin.js';

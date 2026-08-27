@@ -11,6 +11,14 @@ import { aliasPlugin } from '../plugins/alias.js';
 import { externalsPlugin } from '../plugins/externals.js';
 import { napiNodeAddonPlugin } from '../plugins/napi-node-addon.js';
 import { unresolvedWorkspaceImportPlugin } from '../plugins/unresolved-workspace-import.js';
+import {
+    platformResolvePlugin,
+    desktopSuffixChain,
+    desktopOsSuffix,
+    DESKTOP_REFUSED_SUFFIXES,
+} from '../plugins/platform-resolve.js';
+import { reactNativeAliasPlugin } from '../plugins/react-native-alias.js';
+import { reactNativeSupportGatePlugin } from '../plugins/react-native-gate.js';
 
 import { deepkitPlugin } from '@gjsify/rolldown-plugin-deepkit';
 import blueprintPlugin from '@gjsify/vite-plugin-blueprint';
@@ -217,6 +225,14 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
     // Reflection reads the ORIGINAL TypeScript, so it runs before any user
     // transform can strip the annotations out from under it (see `GjsifyConfig`).
     const prePlugins: RolldownPluginOption[] = [deepkitPlugin({ reflection: input.pluginOptions.reflection })];
+    // ADR 0032 § 8's build-time gate reads the ORIGINAL source for the same reason
+    // reflection does: `import type { ViewProps }` is what tells it a name costs
+    // nothing, and a normal-order transform may already have stripped it.
+    // This target composes a dialect, so it is one of `DIALECT_APPS` — the set
+    // the CLI refuses `--dialect` against for every OTHER target. Adding a
+    // dialect here without adding the target there means a flag accepted and
+    // silently ignored.
+    if (input.pluginOptions.dialect === 'react-native') prePlugins.push(reactNativeSupportGatePlugin());
 
     const plugins: RolldownPluginOption[] = [
         // Virtual-entry plugin runs FIRST so its resolveId/load match the
@@ -227,6 +243,22 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
         // banner, and acorn (the auto-globals detector) rejects the `#` byte.
         // The final-output shebang is composed by shebangPlugin's renderChunk.
         inputShebangStripPlugin(),
+        // Platform-file forks for the desktop, ADR 0032 § 9: `.gtk` → `.<os>` →
+        // `.desktop` → base. BEFORE the alias layer, so a platform fork of a
+        // module that also has a Node-builtin substitution wins over the
+        // substitution — the fork is the more specific statement. `.native` and
+        // `.web` are deliberately absent from the chain and warned about when
+        // present; `DESKTOP_REFUSED_SUFFIXES` carries the reason.
+        platformResolvePlugin({
+            suffixes: desktopSuffixChain(desktopOsSuffix()),
+            refusedSuffixes: DESKTOP_REFUSED_SUFFIXES,
+            siblingIndex: true,
+        }),
+        // ADR 0032 § 2's alias line, only when the consumer asked for it
+        // (`--dialect react-native`). `pre`, ahead of the substitution table and the
+        // externals policy — a redirect after `externalsPlugin` would find the
+        // specifier already externalised.
+        ...(input.pluginOptions.dialect === 'react-native' ? [reactNativeAliasPlugin()] : []),
         // random-access-file's 'browser' field maps to a throwing stub; the alias
         // table forces the fs-backed Node entry.
         aliasPlugin({ entries: aliasEntries }),

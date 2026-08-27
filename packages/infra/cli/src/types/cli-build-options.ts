@@ -27,6 +27,17 @@ export interface CliBuildOptions {
      */
     consoleShim?: boolean;
     /**
+     * The dialect the SOURCE is written in — `--dialect react-native` (ADR 0032):
+     * alias `react-native` onto `@gjsify/react-native` and fail the build on an
+     * import whose support-table status is not `supported` or `partial`. `gjs` and
+     * `node` targets. Default: unset — a tree with a phone leg has the real
+     * `react-native` on purpose.
+     *
+     * A `string` here and a `SourceDialect` in `ConfigData`: yargs hands back
+     * whatever was typed, and the narrowing happens once, where the value is read.
+     */
+    dialect?: string;
+    /**
      * Comma-separated global identifiers the code needs, e.g.
      * `"fetch,Buffer,process,URL,crypto"`. Each maps to the corresponding
      * `@gjsify/<pkg>/register` module, injected into the bundle. GJS app builds only.

@@ -1,5 +1,5 @@
 import type { RolldownOptions, OutputOptions, RolldownPluginOption } from 'rolldown';
-import type { App } from '@gjsify/rolldown-plugin-gjsify';
+import type { App, SourceDialect } from '@gjsify/rolldown-plugin-gjsify';
 import type { ConfigDataLibrary, ConfigDataTypescript } from './index.js';
 
 /**
@@ -84,6 +84,20 @@ export interface ConfigData {
      * working ANSI colors). Default: true.
      */
     consoleShim?: boolean;
+    /**
+     * The dialect the SOURCE is written in (ADR 0032 § 2 + § 8). `'react-native'`
+     * aliases `react-native` onto `@gjsify/react-native` and gates every named
+     * import against the support table at BUILD time. `gjs` and `node` app builds.
+     * Default: unset.
+     *
+     * Opt-in and never inferred from the dependency list: a monorepo with a phone
+     * leg installs the real `react-native` on purpose, and redirecting the
+     * specifier for every build in that tree would change what that leg resolves.
+     *
+     * NOT `gjsify.runtimes['react-native']`, which answers the opposite question —
+     * see the header of `SourceDialect`.
+     */
+    dialect?: SourceDialect;
     /** Comma-separated global identifiers to register. Format: see CliBuildOptions. */
     globals?: string;
     /**

@@ -99,6 +99,9 @@ import jsxConfigSuite from './utils/jsx-config.spec.js';
 import nodeBundleGuardSuite from './utils/node-bundle-guard.spec.js';
 import prunePrefixSuite from './utils/prune-prefix.spec.js';
 import unresolvedWorkspaceImportSuite from './unresolved-workspace-import.spec.js';
+import platformResolveSuite from './platform-resolve.spec.js';
+import reactNativeAliasSuite from './react-native-alias.spec.js';
+import reactNativeGateSuite from './react-native-gate.spec.js';
 
 // ---------------------------------------------------------------------------
 // Capability-gated skips
@@ -285,6 +288,9 @@ run(
         nodeBundleGuardSuite,
         prunePrefixSuite,
         unresolvedWorkspaceImportSuite,
+        platformResolveSuite,
+        reactNativeAliasSuite,
+        reactNativeGateSuite,
     },
     { skip },
 );
