@@ -222,20 +222,22 @@ export function renderReachPath(entryFile, file, parents, pkgDir, root) {
         chain.push(cur);
     }
     if (chain[chain.length - 1] !== entryFile) chain.push(entryFile);
-    return chain
-        .reverse()
-        // `relative` decides the containment, not a `/`-spelled string prefix:
-        // both `pkgDir` and `f` are host-native, so on Windows the prefix test
-        // was always false and every hop rendered root-relative
-        // (`packages\dom\foo\src\index.ts → …` instead of `src/index.ts → …`).
-        // Only the message degraded, but a diagnostic nobody can read is the
-        // part of a failing rule that has to work.
-        .map((f) => {
-            const rel = relative(pkgDir, f);
-            const inside = rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
-            return (inside ? rel : relative(root, f)).split(sep).join('/');
-        })
-        .join(' → ');
+    return (
+        chain
+            .reverse()
+            // `relative` decides the containment, not a `/`-spelled string prefix:
+            // both `pkgDir` and `f` are host-native, so on Windows the prefix test
+            // was always false and every hop rendered root-relative
+            // (`packages\dom\foo\src\index.ts → …` instead of `src/index.ts → …`).
+            // Only the message degraded, but a diagnostic nobody can read is the
+            // part of a failing rule that has to work.
+            .map((f) => {
+                const rel = relative(pkgDir, f);
+                const inside = rel !== '' && rel !== '..' && !rel.startsWith(`..${sep}`) && !isAbsolute(rel);
+                return (inside ? rel : relative(root, f)).split(sep).join('/');
+            })
+            .join(' → ')
+    );
 }
 
 /**

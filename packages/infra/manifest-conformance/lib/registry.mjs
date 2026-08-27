@@ -90,7 +90,9 @@ export function defineRule(rule) {
         }
     }
     if (rule.scope !== 'portable' && rule.scope !== 'repo') {
-        throw new TypeError(`manifest-conformance: rule "${rule.id}" has scope "${rule.scope}" (expected portable|repo)`);
+        throw new TypeError(
+            `manifest-conformance: rule "${rule.id}" has scope "${rule.scope}" (expected portable|repo)`,
+        );
     }
     if (!Array.isArray(rule.fields)) {
         throw new TypeError(
