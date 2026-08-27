@@ -82,7 +82,12 @@ const COMMENT_RE = /^\s*\/\//;
  */
 function headingTitle(blockLines) {
     const text = blockLines
-        .map((line) => line.replace(/^\s*\/\/\s?/, '').replace(/\s*-+\s*$/, '').trim())
+        .map((line) =>
+            line
+                .replace(/^\s*\/\/\s?/, '')
+                .replace(/\s*-+\s*$/, '')
+                .trim(),
+        )
         .join(' ')
         .trim();
     // `. ` and not `.`, so `(\`_colors.scss:79,141\`).` stays one sentence.
@@ -150,7 +155,9 @@ if (Object.keys(dark).length === 0) {
 // A dark declaration whose name never appears in light is a token with no default. It
 // is not an error — libadwaita has dark-only values — but it must be VISIBLE, because
 // a consumer reading `light` alone would silently miss it.
-const darkOnly = Object.keys(dark).filter((name) => light[name] === undefined).sort();
+const darkOnly = Object.keys(dark)
+    .filter((name) => light[name] === undefined)
+    .sort();
 
 // `oklab(from …)`, `color-mix(…)` and bare `var(…)` aliases are deliberately
 // EXPRESSIONS in the stylesheet: `--success-color` tracks a re-themed
@@ -248,11 +255,13 @@ export const ADWAITA_TOKEN_COUNT = ${total};
 // of the website's records (`{ name: '--x', value: 'v' }`). The guard is the reason
 // that was a failure rather than a green run over nothing.
 const CORE_PAIRS = /['"](--[a-z0-9-]+)['"]\s*:\s*\{\s*["']?light["']?\s*:\s*['"]([^'"]*)['"]/g;
-const WEBSITE_PAIRS =
-    /["']?name["']?\s*:\s*['"](--[a-z0-9-]+)['"]\s*,\s*["']?value["']?\s*:\s*['"]([^'"]*)['"]/g;
+const WEBSITE_PAIRS = /["']?name["']?\s*:\s*['"](--[a-z0-9-]+)['"]\s*,\s*["']?value["']?\s*:\s*['"]([^'"]*)['"]/g;
 
 const pairsWith = (re) => (text) =>
-    [...text.matchAll(re)].map(([, name, value]) => `${name}=${value}`).sort().join('\n');
+    [...text.matchAll(re)]
+        .map(([, name, value]) => `${name}=${value}`)
+        .sort()
+        .join('\n');
 
 const emissions = [
     { path: coreOut, body: coreBody, pairs: pairsWith(CORE_PAIRS) },
