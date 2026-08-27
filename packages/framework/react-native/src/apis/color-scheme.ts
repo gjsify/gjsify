@@ -37,6 +37,42 @@ function manager(): Adw.StyleManager {
 export const currentColorScheme = (): ColorSchemeName => (manager().dark ? 'dark' : 'light');
 
 /**
+ * Ask for a scheme, or hand the choice back to the desktop.
+ *
+ * The WRITE side of the same object, and the one place `Adw.StyleManager:color-scheme`
+ * is the right property rather than `dark`: `color-scheme` is what the APPLICATION
+ * asked for, which is exactly what `Appearance.setColorScheme` sets, while `dark` is
+ * read-only and is what the user ends up looking at.
+ *
+ * MEASURED on libadwaita 1.9.3: `Adw.ColorScheme` is DEFAULT=0, FORCE_LIGHT=1,
+ * PREFER_LIGHT=2, PREFER_DARK=3, FORCE_DARK=4. React Native's three values are
+ * `'light'`, `'dark'` and `null` (follow the system), so the FORCE members are the
+ * mapping and the PREFER members are not: `PREFER_DARK` means "dark unless the
+ * desktop insists otherwise", which is a fourth state React Native cannot express and
+ * would make `setColorScheme('dark')` a request the desktop could refuse.
+ *
+ * The two are round-trip verifiable and the spec does it: setting FORCE_LIGHT made
+ * `dark` false and raised `notify::dark`, and FORCE_DARK made it true again.
+ */
+export function setColorSchemePreference(scheme: ColorSchemeName | null): void {
+    const styleManager = manager();
+    styleManager.colorScheme =
+        scheme === null
+            ? Adw.ColorScheme.DEFAULT
+            : scheme === 'dark'
+              ? Adw.ColorScheme.FORCE_DARK
+              : Adw.ColorScheme.FORCE_LIGHT;
+}
+
+/** What the application has ASKED for, which is not what it is looking at. */
+export const requestedColorScheme = (): ColorSchemeName | null => {
+    const scheme = manager().colorScheme;
+    if (scheme === Adw.ColorScheme.FORCE_DARK) return 'dark';
+    if (scheme === Adw.ColorScheme.FORCE_LIGHT) return 'light';
+    return null;
+};
+
+/**
  * Call `listener` whenever the scheme changes; returns the unsubscribe.
  *
  * `notify::dark` and not `notify::color-scheme`: the desktop switching from light

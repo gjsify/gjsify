@@ -8,6 +8,12 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import { SUPPORT_TABLE, SUPPORTED_NAMES, explainUnsupported, isImportable } from './support-table.js';
+// The whole package, because the invariant below is about the EXPORT SURFACE and not
+// about the table: a name cannot be both a real export and a generated refusing one.
+// It is the one vector here that needs the module graph, and it needs no display —
+// nothing in it renders.
+import * as reactNative from './index.js';
+import { UnsupportedError } from './unsupported.js';
 
 export default async () => {
     await describe('the support table', async () => {
@@ -58,6 +64,31 @@ export default async () => {
             expect(silent).toStrictEqual([]);
         });
 
+        await it('exports every importable name for real, and every other one as a refusal', async () => {
+            // THE ONE THING THE TABLE CANNOT SAY ABOUT ITSELF. `export *` from the
+            // generated file silently loses to an explicit export of the same name, so a
+            // status that moved to `partial` without a real implementation would leave a
+            // refusing proxy in place — importable by the gate, refusing at the call —
+            // and a name implemented without its status moving would be shadowed by the
+            // proxy. Both are invisible to `check-rn-surface.mjs`, which compares the
+            // table with the generator's output rather than with the module.
+            const surface = reactNative as unknown as Record<string, unknown>;
+            const wrong: string[] = [];
+            for (const name of SUPPORTED_NAMES) {
+                const value = surface[name];
+                const refusing = isRefusingProxy(value);
+                if (isImportable(name)) {
+                    if (value === undefined) wrong.push(`${name}: importable, but not exported`);
+                    else if (refusing) wrong.push(`${name}: importable, but exported as a refusal`);
+                } else if (value === undefined) {
+                    wrong.push(`${name}: not importable, and not exported at all`);
+                } else if (!refusing) {
+                    wrong.push(`${name}: not importable, but exported as a real value`);
+                }
+            }
+            expect(wrong).toStrictEqual([]);
+        });
+
         await it('tells a reader what to do about a name it does not know', async () => {
             const message = explainUnsupported('TotallyMadeUp');
             expect(message).toContain('TotallyMadeUp');
@@ -68,3 +99,21 @@ export default async () => {
         });
     });
 };
+
+/**
+ * Is this export the generated stand-in rather than an implementation?
+ *
+ * By BEHAVIOUR, because there is nothing else to look at: the stand-in is a `Proxy`
+ * over a function, so `typeof` says "function" for both. What separates them is that
+ * reading an arbitrary property off the stand-in throws `UnsupportedError` while a real
+ * component or API object answers `undefined`.
+ */
+function isRefusingProxy(value: unknown): boolean {
+    if (value === null || (typeof value !== 'function' && typeof value !== 'object')) return false;
+    try {
+        void (value as Record<string, unknown>)['gjsify-refusal-probe'];
+        return false;
+    } catch (error) {
+        return error instanceof UnsupportedError;
+    }
+}

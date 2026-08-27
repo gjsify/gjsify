@@ -7,25 +7,6 @@
 import { unsupported } from '../unsupported.js';
 
 export const Modal = unsupported('Modal');
-export const StyleSheet = unsupported('StyleSheet');
-export const FlatList = unsupported('FlatList');
-export const SectionList = unsupported('SectionList');
-export const VirtualizedList = unsupported('VirtualizedList');
-export const VirtualizedSectionList = unsupported('VirtualizedSectionList');
-export const Image = unsupported('Image');
-export const ImageBackground = unsupported('ImageBackground');
-export const TouchableOpacity = unsupported('TouchableOpacity');
-export const TouchableHighlight = unsupported('TouchableHighlight');
-export const TouchableWithoutFeedback = unsupported('TouchableWithoutFeedback');
-export const Button = unsupported('Button');
-export const Dimensions = unsupported('Dimensions');
-export const useWindowDimensions = unsupported('useWindowDimensions');
-export const Alert = unsupported('Alert');
-export const Appearance = unsupported('Appearance');
-export const SafeAreaView = unsupported('SafeAreaView');
-export const StatusBar = unsupported('StatusBar');
-export const KeyboardAvoidingView = unsupported('KeyboardAvoidingView');
-export const Keyboard = unsupported('Keyboard');
 export const RefreshControl = unsupported('RefreshControl');
 export const AppState = unsupported('AppState');
 export const PixelRatio = unsupported('PixelRatio');

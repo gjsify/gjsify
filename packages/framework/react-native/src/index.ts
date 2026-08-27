@@ -16,25 +16,84 @@ export type { ComponentProvider, RunApplicationOptions } from './app-registry.js
 export { EventEmitter } from './event-emitter.js';
 export type { EventSubscription } from './event-emitter.js';
 
-// The P1 primitives — ADR 0032 § 1's L3, thin React wrappers over the
+// The components — ADR 0032 § 1's L3, thin React wrappers over the
 // framework-agnostic descriptors in `./primitives`.
-export { ActivityIndicator, Pressable, ScrollView, Switch, Text, TextInput, View } from './components.js';
+export {
+    ActivityIndicator,
+    Button,
+    Image,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Pressable,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    Switch,
+    Text,
+    TextInput,
+    TouchableHighlight,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View,
+} from './components.js';
 export type {
     ActivityIndicatorProps,
+    ButtonProps,
     CommonProps,
+    ImageBackgroundProps,
+    ImageProps,
+    ImageURISource,
+    KeyboardAvoidingViewProps,
     PressableProps,
+    PressableState,
     ScrollViewProps,
+    StatusBarProps,
     SwitchProps,
     TextInputProps,
     TextProps,
+    TouchableHighlightProps,
+    TouchableProps,
+    TouchableWithoutFeedbackProps,
     ViewProps,
 } from './components.js';
 
-// The P1 APIs. `useColorScheme` is a hook and lives with the hooks; the other three
-// are plain objects over `gi://`.
-export { Linking, Platform, Share } from './apis/index.js';
-export type { ColorSchemeName, PlatformOS, PlatformSelectSpec, ShareAction, ShareContent } from './apis/index.js';
-export { useColorScheme } from './hooks.js';
+// The list family. One component under four names (ADR 0032: the useful subset of
+// `VirtualizedList` is what backs `FlatList`), and the only one in the surface that
+// owns its widget rather than being an element — `lists/controller.ts` says why, with
+// the measurements.
+export { FlatList, SectionList, VirtualizedList, VirtualizedSectionList } from './lists/components.js';
+export type {
+    FlatListProps,
+    ListRenderItemInfo,
+    ListSeparators,
+    ListSlot,
+    SectionListProps,
+    SectionListSection,
+    VirtualizedListProps,
+} from './lists/components.js';
+
+// The imperative APIs. `useColorScheme` and `useWindowDimensions` are hooks and live
+// with the hooks; the rest are plain objects over `gi://`.
+export { Alert, Appearance, Dimensions, Keyboard, Linking, Platform, Share } from './apis/index.js';
+export type {
+    AlertButton,
+    AlertOptions,
+    AppearancePreferences,
+    ColorSchemeName,
+    DimensionKey,
+    DimensionsPayload,
+    DisplayMetrics,
+    PlatformOS,
+    PlatformSelectSpec,
+    ShareAction,
+    ShareContent,
+} from './apis/index.js';
+export { useColorScheme, useWindowDimensions } from './hooks.js';
+
+// `StyleSheet`, whose `create` is identity and whose `hairlineWidth` is a getter —
+// `stylesheet.ts` says why both are the honest answer rather than a shortcut.
+export { StyleSheet } from './stylesheet.js';
+export type { NamedStyles } from './stylesheet.js';
 
 // NOT React Native names, and part of the surface anyway: a project's token scales
 // have to arrive from somewhere (ADR 0032 § 3 — the class families are declared here,

@@ -13,7 +13,15 @@ export { PrimitiveError } from './errors.js';
 export { resolveIntent } from './intents.js';
 export type { ChildContext, ChildFacts, IntentInput, IntentResolution, Orientation, WidgetFacts } from './intents.js';
 export { declaresAbsolute, resolvePrimitive } from './resolve.js';
-export type { PrimitiveContext, PrimitivePlan, PrimitiveProps, ResolvedEvent, WidgetNode } from './resolve.js';
+export type {
+    PrimitiveContext,
+    PrimitivePlan,
+    PrimitiveProps,
+    ResolvedEvent,
+    ResolvedFile,
+    ResolvedGesture,
+    WidgetNode,
+} from './resolve.js';
 export { flattenStyle, mintClass, normalise, variantDeclarations } from './style.js';
 export type { ClassNameSink, StyleAuthored, StyleInput, StyleObject } from './style.js';
 export { FRAMEWORK_PROPS, PRIMITIVE_NAMES, PRIMITIVES } from './table.js';
@@ -21,7 +29,10 @@ export type {
     Coercion,
     ContentSpec,
     EventRoute,
+    FileRoute,
+    GestureRoute,
     IgnoredRoute,
+    NodeKind,
     PrimitiveSpec,
     PropRoute,
     PropertyRoute,

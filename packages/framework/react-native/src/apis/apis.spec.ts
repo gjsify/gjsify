@@ -13,11 +13,17 @@
 // `openURL` asks `can_launch` first and rejects rather than hanging.
 
 import Adw from 'gi://Adw?version=1';
+import Gdk from 'gi://Gdk?version=4.0';
 import Gtk from 'gi://Gtk?version=4.0';
 import { afterEach, beforeEach, describe, expect, it, on, type Runtime } from '@gjsify/unit';
 import { installDiagnosticsGate } from '@gjsify/gtk-host/conformance';
 
+import { Alert } from './alert.js';
+import { Appearance } from './appearance.js';
 import { currentColorScheme, onColorSchemeChange } from './color-scheme.js';
+import { Dimensions } from './dimensions.js';
+import { resetWindowMetricsCache } from './display.js';
+import { Keyboard } from './keyboard.js';
 import { Linking } from './linking.js';
 import { Platform, resetPlatformCache } from './platform.js';
 import { Share } from './share.js';
@@ -165,8 +171,215 @@ export default async () => {
                 manager.colorScheme = original;
             });
         });
+
+        await gated('Appearance, over the same reader', async () => {
+            await it('reads the same scheme useColorScheme does', async () => {
+                // ONE reader, and this is what says so: a second one would disagree in
+                // the one moment that matters, while the desktop is switching.
+                expect(Appearance.getColorScheme()).toBe(currentColorScheme());
+            });
+
+            await it('round-trips setColorScheme through Adw.ColorScheme’s FORCE members', async () => {
+                // The transitions, never the starting value: whether this desktop is
+                // dark right now is a fact about the machine.
+                const manager = Adw.StyleManager.get_default();
+                const original = manager.colorScheme;
+                try {
+                    Appearance.setColorScheme('light');
+                    expect(manager.colorScheme).toBe(Adw.ColorScheme.FORCE_LIGHT);
+                    expect(Appearance.getColorScheme()).toBe('light');
+                    Appearance.setColorScheme('dark');
+                    expect(manager.colorScheme).toBe(Adw.ColorScheme.FORCE_DARK);
+                    expect(Appearance.getColorScheme()).toBe('dark');
+                    // `null` hands the choice back to the desktop, which is DEFAULT and
+                    // NOT one of the PREFER members: PREFER_DARK means "dark unless the
+                    // desktop insists otherwise", a fourth state React Native cannot
+                    // express and one that would make setColorScheme('dark') a request
+                    // the desktop could refuse.
+                    Appearance.setColorScheme(null);
+                    expect(manager.colorScheme).toBe(Adw.ColorScheme.DEFAULT);
+                } finally {
+                    manager.colorScheme = original;
+                }
+            });
+
+            await it('notifies a listener and lets go of it on remove', async () => {
+                const manager = Adw.StyleManager.get_default();
+                const original = manager.colorScheme;
+                const seen: (string | null)[] = [];
+                const subscription = Appearance.addChangeListener(({ colorScheme }) => seen.push(colorScheme));
+                try {
+                    Appearance.setColorScheme(manager.dark ? 'light' : 'dark');
+                    expect(seen.length).toBe(1);
+                    subscription.remove();
+                    Appearance.setColorScheme(manager.dark ? 'light' : 'dark');
+                    expect(seen.length).toBe(1);
+                } finally {
+                    manager.colorScheme = original;
+                }
+            });
+
+            await it('refuses a scheme React Native does not define', async () => {
+                expect(threw(() => Appearance.setColorScheme('sepia' as never)).message).toContain('null to follow');
+            });
+        });
+
+        await gated('Dimensions, from the window rather than the screen', async () => {
+            await it('throws by name when there is no window yet, which includes module scope', async () => {
+                // THE PRECONDITION IS ASSERTED, not assumed: `get_toplevels()` is
+                // process-wide, so a window another suite forgot to destroy would make
+                // this vector pass or fail for a reason that has nothing to do with
+                // Dimensions. Asserting it turns that into a loud failure here.
+                expect(Gtk.Window.get_toplevels().get_n_items()).toBe(0);
+                expect(threw(() => Dimensions.get('window')).message).toContain('there is none yet');
+            });
+
+            await it('reports the window’s own size, and its DEFAULT size before it is allocated', async () => {
+                const window = new Gtk.Window({ defaultWidth: 641, defaultHeight: 481 });
+                try {
+                    resetWindowMetricsCache();
+                    const metrics = Dimensions.get('window');
+                    // The allocation is 0×0 before the window has been laid out
+                    // (measured), so the default size is what is reported — the size
+                    // the window is about to have, readable from construction.
+                    expect(metrics.width).toBe(641);
+                    expect(metrics.height).toBe(481);
+                    expect(metrics.scale > 0).toBe(true);
+                    expect(metrics.fontScale > 0).toBe(true);
+                } finally {
+                    window.destroy();
+                    resetWindowMetricsCache();
+                }
+            });
+
+            await it('answers get("screen") from a monitor, and only the relationship is asserted', async () => {
+                const screen = Dimensions.get('screen');
+                const monitor = Gdk.Display.get_default()!.get_monitors().get_item(0) as Gdk.Monitor | null;
+                if (monitor === null) {
+                    // A display with no monitors is a headless session, and
+                    // `screenMetrics` refuses it by name — so reaching this branch means
+                    // the read above should not have succeeded.
+                    throw new Error('a display with no monitors answered get("screen")');
+                }
+                const geometry = monitor.get_geometry();
+                expect(screen.width).toBe(geometry.width);
+                expect(screen.height).toBe(geometry.height);
+            });
+
+            await it('refuses a dimension key and a listener event React Native does not define', async () => {
+                expect(threw(() => Dimensions.get('device' as never)).message).toContain('It has two');
+                expect(threw(() => Dimensions.addEventListener('resize' as never, () => {})).message).toContain(
+                    'There is one: "change"',
+                );
+                expect(threw(() => Dimensions.set()).message).toContain('no bridge here');
+            });
+
+            await it('hands back a subscription that removes cleanly with no window', async () => {
+                // With no window there is nothing to subscribe to, and the honest answer
+                // is a subscription that removes without error — NOT a throw: a
+                // component that mounts before the window exists is an ordinary tree,
+                // and `useWindowDimensions` re-reads on its own once one appears.
+                expect(Gtk.Window.get_toplevels().get_n_items()).toBe(0);
+                const subscription = Dimensions.addEventListener('change', () => {});
+                subscription.remove();
+            });
+        });
+
+        await gated('Keyboard, which refuses its events and answers its questions', async () => {
+            await it('refuses addListener rather than handing back a subscription that never fires', async () => {
+                // The distinction this whole API exists to make: a `keyboardDidShow`
+                // handler that silently never runs is indistinguishable from a bug in
+                // the application, for ever.
+                const error = threw(() => Keyboard.addListener('keyboardDidShow'));
+                expect(error.message).toContain('keyboardWillShow');
+                expect(error.message).toContain('never fires');
+            });
+
+            await it('answers the questions that HAVE an answer', async () => {
+                expect(Keyboard.isVisible()).toBe(false);
+                expect(Keyboard.metrics()).toBeUndefined();
+                // Declared no-ops: nothing was shown, so nothing has to be hidden.
+                Keyboard.dismiss();
+                Keyboard.removeAllListeners();
+            });
+
+            await it('sends scheduleLayoutAnimation to the subsystem that owns it', async () => {
+                expect(threw(() => Keyboard.scheduleLayoutAnimation()).message).toContain('LayoutAnimation');
+            });
+        });
+
+        await gated('Alert, which is buildable where Modal is not', async () => {
+            await it('presents from a plain function with NO element and no parent', async () => {
+                // THE MEASUREMENT THAT SETTLES THE DIFFERENCE. `Modal` is `planned`
+                // because `box.append(dialog)` calls `g_error()` — SIGABRT, not an
+                // exception — when the box is rooted in a window, and a host inserts an
+                // element by calling its parent's adder. `Alert` never makes that call:
+                // it is a function, `present(parent)` takes an OPTIONAL anchor, and the
+                // dialog is presented AGAINST a parent rather than parented BY one.
+                // Measured on libadwaita 1.9.3: `present(null)` returned with no
+                // diagnostic. The gate around this describe is what asserts the "no
+                // diagnostic" half.
+                const answers: string[] = [];
+                Alert.alert('Delete this?', 'It cannot be undone.', [
+                    { text: 'Cancel', style: 'cancel', onPress: () => answers.push('cancel') },
+                    { text: 'Delete', style: 'destructive', onPress: () => answers.push('delete') },
+                ]);
+                const dialog = presentedDialog();
+                expect(dialog !== null).toBe(true);
+                expect(dialog!.heading).toBe('Delete this?');
+                expect(dialog!.body).toBe('It cannot be undone.');
+                // `cancel` becomes the CLOSE RESPONSE, which is stronger than an
+                // appearance: it is what Escape and the compositor's close both produce.
+                expect(dialog!.closeResponse).toBe('response-0');
+                expect(dialog!.defaultResponse).toBe('response-1');
+                expect(dialog!.get_response_appearance('response-1')).toBe(Adw.ResponseAppearance.DESTRUCTIVE);
+                expect(dialog!.get_response_appearance('response-0')).toBe(Adw.ResponseAppearance.DEFAULT);
+                dialog!.emit('response', 'response-1');
+                expect(answers).toStrictEqual(['delete']);
+                dialog!.force_close();
+            });
+
+            await it('defaults to one OK button, because a dialog with no way out is not shippable', async () => {
+                Alert.alert('Saved');
+                const dialog = presentedDialog();
+                expect(dialog!.heading).toBe('Saved');
+                expect(dialog!.defaultResponse).toBe('response-0');
+                dialog!.force_close();
+            });
+
+            await it('refuses prompt by name, and says what to build instead', async () => {
+                expect(threw(() => Alert.prompt()).message).toContain('extra-child');
+            });
+        });
     });
 };
+
+/**
+ * The `Adw.AlertDialog` the last `Alert.alert` put on screen.
+ *
+ * Found through `Gtk.Window.get_toplevels()` rather than returned by `Alert.alert`,
+ * because React Native's `Alert.alert` returns nothing and this layer mirrors its
+ * surface — a handle invented for the tests would be a second API.
+ */
+function presentedDialog(): Adw.AlertDialog | null {
+    const toplevels = Gtk.Window.get_toplevels();
+    for (let index = toplevels.get_n_items() - 1; index >= 0; index--) {
+        const window = toplevels.get_item(index) as Gtk.Window | null;
+        if (window === null) continue;
+        const found = findDialog(window);
+        if (found !== null) return found;
+    }
+    return null;
+}
+
+function findDialog(widget: Gtk.Widget): Adw.AlertDialog | null {
+    if (widget instanceof Adw.AlertDialog) return widget;
+    for (let child = widget.get_first_child(); child !== null; child = child.get_next_sibling()) {
+        const found = findDialog(child);
+        if (found !== null) return found;
+    }
+    return null;
+}
 
 /** Read the clipboard back, because a write nobody reads proves nothing. */
 function readClipboard(): Promise<string> {

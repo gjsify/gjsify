@@ -133,21 +133,22 @@ A few that are worth knowing before they surprise you:
 
 <!-- BEGIN generated support table -->
 
-### Supported (3)
+### Supported (4)
 
 | export | tier | GTK | why |
 |---|---|---|---|
 | `useColorScheme` | P1 | Adw.StyleManager.dark | Follows the Adwaita colour scheme — the dark property, which is what the user is looking at, not color-scheme, which is what the application asked for. |
+| `Appearance` | P2 | Adw.StyleManager | The imperative sibling of useColorScheme, over the SAME reader — getColorScheme reads Adw.StyleManager:dark (what the user is looking at) and setColorScheme writes :color-scheme (what the application asked for), which is exactly the split React Native’s getter and setter have. |
 | `EventEmitter` | — | — | Pure JavaScript; nothing in it touches a platform. |
 | `unstable_batchedUpdates` | — | — | React 19 batches automatically; this is the identity call it already is upstream. |
 
-### Supported, with named limits (11)
+### Supported, with named limits (29)
 
 | export | tier | GTK | why |
 |---|---|---|---|
 | `View` | P1 | Gtk.Box, or Gtk.Overlay when a child is absolutely positioned | The container primitive. Which widget it becomes depends on its children, not on the element. |
 | `Text` | P1 | Gtk.Label | Wrapping is ON by default in React Native and OFF on a Gtk.Label, so the default is set explicitly. |
-| `Pressable` | P1 | Gtk.Button (flat) | Press state is a GTK CSS :active pseudo-class; children-as-a-function is P2. |
+| `Pressable` | P1 | Gtk.Button (flat) | Press state is a GTK CSS :active pseudo-class; children-as-a-function is implemented over the state flag, and costs nothing when it is unused. |
 | `ScrollView` | P1 | Gtk.ScrolledWindow + an implicit content box | contentContainerStyle styles the inner box, which is a second styleable node. |
 | `ActivityIndicator` | P1 | Adw.Spinner | Direct counterpart. |
 | `TextInput` | P1 | Gtk.Entry / Gtk.TextView | Single- versus multi-line is one prop in React Native and two different widgets in GTK. |
@@ -156,27 +157,30 @@ A few that are worth knowing before they surprise you:
 | `Platform` | P1 | — | OS is "linux" \| "macos" \| "windows"; select() picks the default branch. |
 | `Share` | P1 | Gdk.Clipboard | No desktop share sheet worth pretending about; copying the link is the honest mapping. |
 | `AppRegistry` | P1 | Adw.Application + Adw.ApplicationWindow | The entry point. Nothing renders without a window, so this is P1 despite being a shim. |
+| `StyleSheet` | P1 | Gdk.Monitor.scale for hairlineWidth | create/flatten/compose/hairlineWidth/absoluteFill. Style objects go through the same partition as classes (ADR 0032 § 4), which is why create can be identity. |
+| `FlatList` | P2 | Gtk.ListView + Gio.ListStore, owned by the component | GTK virtualises for real. The list is NOT an ordinary element: a Gtk.ListView takes no children (measured — no append, add, insert, prepend, remove or set_child), so the component owns the view and drives the model from data, with React only inside the item factory. |
+| `SectionList` | P2 | Gtk.ListView + one flattened Gio.ListStore | The same component as FlatList, handed sections instead of data. |
+| `VirtualizedList` | P2 | Gtk.ListView | Its public surface is wide and mostly not worth honouring literally; the useful subset backs FlatList, and this name is that subset plus getItem/getItemCount. |
+| `VirtualizedSectionList` | P2 | Gtk.ListView | The section-shaped sibling of VirtualizedList, which is SectionList here. |
+| `Image` | P2 | Gtk.Picture | resizeMode becomes content-fit, and the default is inverted: React Native defaults to cover, a Gtk.Picture to contain (measured). |
+| `ImageBackground` | P2 | Gtk.Picture in a Gtk.Overlay | A picture with the children stacked over it. The picture is the overlay’s MAIN child, because a Gtk.Overlay paints every overlay child ABOVE it. |
+| `TouchableOpacity` | P2 | Gtk.Button (flat) | The same machinery as Pressable, written over it: one shared record of routes in the primitive table, one line of component. |
+| `TouchableHighlight` | P2 | Gtk.Button (flat) | As TouchableOpacity. The pressed style is Adwaita’s own unless a variant says otherwise. |
+| `TouchableWithoutFeedback` | P2 | Gtk.Box + Gtk.GestureClick | No chrome, so no button: a vertical Gtk.Box like a View, with a Gtk.GestureClick added to it. Measured: Gtk.Button emits activate and clicked, a Gtk.Box emits neither, and Gtk.GestureClick emits pressed/released/stopped/unpaired-release. |
+| `Button` | P2 | Gtk.Button | The one component whose React Native styling story is "you cannot", which GTK agrees with. title, onPress and disabled. |
+| `Dimensions` | P2 | Gtk.Window allocation, Gdk.Monitor geometry | get("window") is the window, not the screen — a desktop app is not full-screen, so the screen’s number would be wrong in the ordinary case. get("screen") is the monitor, because that is what it asks for. |
+| `useWindowDimensions` | P2 | Gdk.Surface notify::width/height, Gtk.Window allocation | The hook form of Dimensions, through useSyncExternalStore so a resize between render and commit cannot tear. |
+| `Alert` | P2 | Adw.AlertDialog | Direct counterpart, and buildable where Modal is not: Alert is a FUNCTION CALL, so no element is ever inserted into a widget. Measured on libadwaita 1.9.3 — present(null) from a plain function, with no parent and no window, returned with no diagnostic. |
+| `SafeAreaView` | P2 | Gtk.Box | The INSET has no desktop meaning; the layout does. It is a View in every other respect, and it has to be a real export to be imported. |
+| `StatusBar` | P2 | — | A desktop window has no status bar to configure, and <StatusBar/> is in the first ten lines of most React Native screens — so it renders NOTHING and says so, rather than failing to import. |
+| `KeyboardAvoidingView` | P2 | Gtk.Box | No on-screen keyboard eats a desktop window layout, so the AVOIDING is the no-op. React Native’s KeyboardAvoidingView is a View that changes its own height; what is left here is the View. |
+| `Keyboard` | P2 | — | Its events are on-screen-keyboard events, which do not occur — so the questions with a correct answer get it and the ones whose answer would have to be invented refuse. |
 
-### Planned (43)
+### Planned (28)
 
 | export | tier | GTK | why |
 |---|---|---|---|
 | `Modal` | P1 | Adw.Dialog | An Adw.Dialog cannot be an ordinary element. MEASURED on libadwaita 1.10: box.append(dialog) calls g_error() — SIGABRT and a core dump, not a catchable exception — but ONLY when the box is rooted in a window. A detached box accepts the append in silence, so a re-test on a bare box appears to disprove this and puts the primitive back. A dialog is PRESENTED against a parent, never parented by it, so this is a PORTAL and needs a host seam that does not exist yet. |
-| `StyleSheet` | P1 | — | create/flatten/hairlineWidth/absoluteFill. Style objects go through the same partition as classes. |
-| `FlatList` | P2 | Gtk.ListView + Gio.ListStore | GTK virtualises for real, so this fits better here than it does on the web. |
-| `SectionList` | P2 | Gtk.ListView + a section model | Sections map onto GTK section models. |
-| `VirtualizedList` | P2 | Gtk.ListView | Its public surface is wide and mostly not worth honouring literally; the useful subset backs FlatList. |
-| `VirtualizedSectionList` | P2 | Gtk.ListView | The section-shaped sibling of VirtualizedList. |
-| `Image` | P2 | Gtk.Picture / Gdk.Texture | resizeMode becomes content-fit. |
-| `ImageBackground` | P2 | Gtk.Picture in a Gtk.Overlay | A picture with children over it. |
-| `TouchableOpacity` | P2 | Gtk.Button (flat) | The same machinery as Pressable, and nearly free once it exists. |
-| `TouchableHighlight` | P2 | Gtk.Button (flat) | As TouchableOpacity, with a different pressed style. |
-| `TouchableWithoutFeedback` | P2 | Gtk.GestureClick | A gesture controller on the child, with no button chrome. |
-| `Button` | P2 | Gtk.Button | The one component whose React Native styling story is "you cannot", which GTK agrees with. |
-| `Dimensions` | P2 | Gdk.Surface | Window size, not screen size — a desktop app is not full-screen. |
-| `useWindowDimensions` | P2 | Gdk.Surface | The hook form of Dimensions, re-rendering on resize. |
-| `Alert` | P2 | Adw.AlertDialog | Direct counterpart. |
-| `Appearance` | P2 | Adw.StyleManager | The imperative sibling of useColorScheme. |
 | `AppState` | P3 | Gtk.Application / Gdk.Surface state | active/background from window focus and visibility. |
 | `PixelRatio` | P3 | Gdk.Surface.scale-factor | The scale factor of the surface the widget is on. |
 | `PlatformColor` | P3 | Adwaita named colours | Maps unusually well — GTK’s palette is exactly this idea. |
@@ -205,14 +209,10 @@ A few that are worth knowing before they surprise you:
 | `NativeEventEmitter` | P3 | — | It would construct and subscribe, but nothing native would ever emit into it — shipping that needs a decision, not a class. |
 | `DeviceEventEmitter` | P3 | — | The global emitter. Lands with NativeEventEmitter, and for the same reason. |
 
-### No meaning on a desktop window (10)
+### No meaning on a desktop window (6)
 
 | export | tier | GTK | why |
 |---|---|---|---|
-| `SafeAreaView` | P2 | — | Insets are zero on a desktop window, but it has to exist to be imported. |
-| `StatusBar` | P2 | — | A desktop window has no status bar to configure. |
-| `KeyboardAvoidingView` | P2 | — | No on-screen keyboard eats a desktop window layout. |
-| `Keyboard` | P2 | — | Its events are on-screen-keyboard events, which do not occur. |
 | `LogBox` | P3 | — | A development overlay for a phone; the console is the desktop equivalent. |
 | `Systrace` | — | — | Android systrace has no desktop counterpart. |
 | `Vibration` | — | — | A desktop machine does not vibrate. |

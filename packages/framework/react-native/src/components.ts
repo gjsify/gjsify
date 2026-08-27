@@ -29,19 +29,23 @@
 // signal arguments at all. L2 says WHICH widget property holds the value
 // (`ResolvedEvent.read`); this file reads it off the widget its ref holds.
 
+import Gio from 'gi://Gio';
 import {
     Children,
-    createContext,
     createElement,
     isValidElement,
     useContext,
+    useEffect,
     useMemo,
     useRef,
+    useState,
     type ReactElement,
     type ReactNode,
     type Ref,
 } from 'react';
 
+import { ParentContext, ParentProvider } from './parent-context.js';
+import { onGesture, onPressStateChange } from './press.js';
 import type { ClassNameInput } from './primitives/classes.js';
 import { PrimitiveError } from './primitives/errors.js';
 import {
@@ -52,6 +56,8 @@ import {
     type PrimitivePlan,
     type PrimitiveProps,
     type ResolvedEvent,
+    type ResolvedFile,
+    type ResolvedGesture,
     type WidgetNode,
 } from './primitives/resolve.js';
 import type { StyleInput } from './primitives/style.js';
@@ -67,8 +73,6 @@ export interface CommonProps {
     ref?: Ref<unknown>;
     testID?: string;
 }
-
-const ParentContext = createContext<ChildContext | null>(null);
 
 type AnyProps = Readonly<Record<string, unknown>>;
 
@@ -159,7 +163,7 @@ function useSignals(
 }
 
 /** One plan node → its host props, in the order that makes precedence explicit. */
-function nodeProps(node: WidgetNode, inherited: AnyProps, extra: AnyProps): AnyProps {
+export function nodeProps(node: WidgetNode, inherited: AnyProps, extra: AnyProps): AnyProps {
     // inherited (the parent's `alignItems`) < the element's own (its `alignSelf`,
     // its style, its props) < the framework's (ref, slot, signal handlers, which
     // never collide with a GTK property name). That middle step is flexbox's own
@@ -172,13 +176,19 @@ function nodeProps(node: WidgetNode, inherited: AnyProps, extra: AnyProps): AnyP
     return out;
 }
 
-interface Rendered {
+export interface Rendered {
     readonly plan: PrimitivePlan;
     readonly children: readonly ReactNode[];
     readonly inherited: AnyProps;
     readonly extra: AnyProps;
+    /** `Gio.File` values and the slot, for the content node. */
+    readonly contentExtra: AnyProps;
+    /** `Gio.File` values and the slot, for the backdrop node. */
+    readonly backdropExtra: AnyProps;
     readonly published: ChildContext;
     readonly tokens: StyleTokens;
+    /** The element's own `Gtk.Widget`, once it is attached. The press and gesture seams need it. */
+    readonly widgetRef: { current: unknown };
 }
 
 /**
@@ -191,7 +201,7 @@ interface Rendered {
  * exactly the refusal L2's unknown-prop throw exists to give at build time through
  * these declarations.
  */
-function usePlan(primitive: string, authored: object): Rendered {
+export function usePlan(primitive: string, authored: object): Rendered {
     const props = authored as AnyProps;
     const parent = useContext(ParentContext);
     const config = styleConfig();
@@ -250,18 +260,105 @@ function usePlan(primitive: string, authored: object): Rendered {
         [userRef, signals.widgetRef],
     );
 
-    const extra: Record<string, unknown> = { ...signals.props, ref: mergedRef };
+    useGestures(plan.gestures, props, signals.widgetRef);
+    const files = useFiles(plan.files);
+
+    const extra: Record<string, unknown> = { ...signals.props, ref: mergedRef, ...files.outer };
     // A child's `slot` is declared BY THE CHILD — the host reads it off the child at
     // placement time — so it belongs on this element's own props, not on its
     // parent's `createElement` call.
     if (plan.slot !== null) extra.slot = plan.slot;
+    const contentExtra: Record<string, unknown> = { ...files.content };
+    if (plan.contentSlot !== null) contentExtra.slot = plan.contentSlot;
+    const backdropExtra: Record<string, unknown> = { ...files.backdrop };
+    if (plan.backdropSlot !== null) backdropExtra.slot = plan.backdropSlot;
 
     // Memoised on its own content: a fresh context value re-renders every consumer
     // below it, and this object is rebuilt on every call by construction.
     const contextKey = JSON.stringify(plan.childContext);
     const published = useMemo(() => plan.childContext, [contextKey, plan.childContext]);
 
-    return { plan, children, inherited: parent?.props ?? {}, extra, published, tokens: config.tokens };
+    return {
+        plan,
+        children,
+        inherited: parent?.props ?? {},
+        extra,
+        contentExtra,
+        backdropExtra,
+        published,
+        tokens: config.tokens,
+        widgetRef: signals.widgetRef,
+    };
+}
+
+/**
+ * L2's `files` → `Gio.File` values, one per node, with a STABLE identity.
+ *
+ * Memoised on the URIs rather than rebuilt per render, and for the same reason
+ * `useSignals` memoises its dispatchers: a fresh `Gio.File` every render makes the
+ * props change every render, so the host writes `Gtk.Picture:file` on every commit —
+ * and writing that property makes GTK re-read and re-decode the image.
+ *
+ * This is the one place in L3 that constructs a `gi://` value, and L2 decided
+ * everything about it: which shapes are refused, which schemes have a synchronous
+ * loader, and whether the string is a path or a URI (`ResolvedFile`). All that is left
+ * here is the call GTK needs.
+ */
+function useFiles(files: readonly ResolvedFile[]): {
+    readonly outer: AnyProps;
+    readonly content: AnyProps;
+    readonly backdrop: AnyProps;
+} {
+    const signature = files.map((file) => `${file.on}>${file.property}>${file.kind}>${file.value}`).join('|');
+    return useMemo(() => {
+        const nodes: {
+            outer: Record<string, unknown>;
+            content: Record<string, unknown>;
+            backdrop: Record<string, unknown>;
+        } = {
+            outer: {},
+            content: {},
+            backdrop: {},
+        };
+        for (const file of files) {
+            nodes[file.on][file.property] =
+                file.kind === 'path' ? Gio.File.new_for_path(file.value) : Gio.File.new_for_uri(file.value);
+        }
+        return nodes;
+        // `signature` alone, exactly as `useSignals` does it: `files` is freshly
+        // allocated by every `resolvePrimitive` call, so including it would invalidate
+        // the memo on every render and undo the whole point.
+    }, [signature]);
+}
+
+/**
+ * L2's `gestures` → a `Gtk.GestureClick` on the widget, for as long as it is mounted.
+ *
+ * `TouchableWithoutFeedback` is the only primitive that needs it, and the reason it is
+ * an effect rather than a prop is that a controller is not a property: it is
+ * `widget.add_controller(new Gtk.GestureClick())`, which needs the widget to exist.
+ * `press.ts` owns both halves of that and REMOVES the controller in the disposer —
+ * GJS blocks JS callbacks during GC, so a controller left on a widget is a handler
+ * connected for the life of the process.
+ */
+function useGestures(gestures: readonly ResolvedGesture[], props: AnyProps, widgetRef: { current: unknown }): void {
+    const latest = useRef(props);
+    latest.current = props;
+    const signature = gestures.map((gesture) => `${gesture.prop}>${gesture.signal}`).join('|');
+    useEffect(() => {
+        const widget = widgetRef.current;
+        if (signature === '' || widget === null || widget === undefined) return;
+        const disposers = signature.split('|').map((entry) => {
+            const [prop, signal] = entry.split('>');
+            return onGesture(widget as Parameters<typeof onGesture>[0], signal as string, () => {
+                const callback = latest.current[prop as string];
+                if (typeof callback === 'function') (callback as () => void)();
+            });
+        });
+        return () => {
+            for (const dispose of disposers) dispose();
+        };
+    }, [signature, widgetRef]);
 }
 
 /**
@@ -274,9 +371,9 @@ function usePlan(primitive: string, authored: object): Rendered {
  * where `Gtk.Overlay`'s `add_overlay` slot takes them).
  */
 function render(rendered: Rendered): ReactElement {
-    const { plan, children, inherited, extra, published, tokens } = rendered;
+    const { plan, children, inherited, extra, contentExtra, backdropExtra, published, tokens } = rendered;
     const wrap = (nodes: readonly ReactNode[]): ReactNode =>
-        createElement(ParentContext.Provider, { value: published }, ...nodes);
+        createElement(ParentProvider, { value: published }, ...nodes);
 
     if (plan.content === null) {
         // A text run must NOT be wrapped in a provider. A provider is not a host
@@ -292,10 +389,19 @@ function render(rendered: Rendered): ReactElement {
     const absolute = plan.absoluteSlot === null ? [] : children.filter((child) => isAbsoluteChild(child, tokens));
     const ordinary =
         plan.absoluteSlot === null ? children : children.filter((child) => !isAbsoluteChild(child, tokens));
-    const inner = createElement(plan.content.tag, nodeProps(plan.content, {}, {}), wrap(ordinary));
+    const inner = createElement(plan.content.tag, nodeProps(plan.content, {}, contentExtra), wrap(ordinary));
+    // The BACKDROP first, and the order is load-bearing rather than cosmetic: it is the
+    // overlay's MAIN child (`slot="child"`, a setter slot) and the content box is an
+    // `add_overlay` on top of it. A `Gtk.Overlay` paints its overlays above its main
+    // child, so a backdrop added second would still be behind — but the main child is
+    // also the one the overlay measures, and giving it to the overlay before anything
+    // stacks on it is what makes the element's first measurement its real one.
+    const backdrop =
+        plan.backdrop === null ? [] : [createElement(plan.backdrop.tag, nodeProps(plan.backdrop, {}, backdropExtra))];
     return createElement(
         plan.node.tag,
         nodeProps(plan.node, inherited, extra),
+        ...backdrop,
         inner,
         ...(absolute.length === 0 ? [] : [wrap(absolute)]),
     );
@@ -324,36 +430,53 @@ export function Text(props: TextProps): ReactElement {
     return render(usePlan('Text', props));
 }
 
-export interface PressableProps extends CommonProps {
+/** What React Native hands a `Pressable`'s function child. */
+export interface PressableState {
+    readonly pressed: boolean;
+}
+
+export interface PressableProps extends Omit<CommonProps, 'children'> {
     onPress?: () => void;
     disabled?: boolean;
     pointerEvents?: 'auto' | 'none';
     /**
-     * `ReactNode`, NEVER a function.
+     * A node, or a function of `{ pressed }`.
      *
-     * ADR 0032 § 7: children-as-a-function-of-`{ pressed }` belongs to the "usable"
-     * milestone and is a NAMED BUILD-TIME REFUSAL until then. This declaration is
-     * that build-time half — `children={({ pressed }) => …}` becomes a type error
-     * naming the property — and it earns its place on its own: the press state is
-     * the GTK CSS `:active` pseudo-class, so `active:opacity-70` already does what
-     * nearly every use of the function form does, with no re-render at all. Measured
-     * in the application ADR 0032 read: ZERO occurrences of the function form.
+     * THE FUNCTION FORM IS THE EXPENSIVE ONE AND IT IS NOT THE DEFAULT PATH. ADR 0032
+     * § 7: press styling is the GTK CSS `:active` pseudo-class, `active:opacity-70`
+     * costs nothing, and GTK animates the state itself with no re-render — measured in
+     * the application ADR 0032 read, the function form occurs ZERO times. So the
+     * function form is implemented for the code that does use it, and an element that
+     * does not use it subscribes to nothing at all: `press.ts`' `pressWatchCount()`
+     * exists so a spec can hold that apart, because both render and only a count tells
+     * them apart.
      */
-    children?: ReactNode;
+    children?: ReactNode | ((state: PressableState) => ReactNode);
 }
 
 export function Pressable(props: PressableProps): ReactElement {
-    // The runtime half of the same refusal, for the JavaScript callers a type cannot
-    // reach. "Never an `undefined` render" is the requirement: React renders a
-    // function child as nothing at all, which presents as an empty button.
-    if (typeof props.children === 'function') {
-        throw new PrimitiveError(
-            'Pressable',
-            'children',
-            'was given a function. Children-as-a-function-of-`{ pressed }` is not implemented (ADR 0032 § 7) — the press state is the GTK CSS `:active` pseudo-class, so write `className="active:opacity-70"` and GTK animates it with no re-render at all. A function child would otherwise render as nothing',
-        );
-    }
-    return render(usePlan('Pressable', props));
+    const asFunction =
+        typeof props.children === 'function' ? (props.children as (s: PressableState) => ReactNode) : null;
+    // Unconditional, because hooks are — and free when the function form is unused:
+    // nothing ever calls this setter, so the state never changes and React never
+    // re-renders for it.
+    const [pressed, setPressed] = useState(false);
+    const rendered = usePlan(
+        'Pressable',
+        asFunction === null ? props : { ...props, children: asFunction({ pressed }) },
+    );
+    const widgetRef = rendered.widgetRef;
+    useEffect(() => {
+        // THE CHEAP PATH'S GUARD. No function child means no subscription, which means
+        // `state-flags-changed` is never connected and a finger going down never
+        // reaches the reconciler. The `active:*` utilities still work — they became CSS
+        // in L1 and are already on the widget.
+        if (asFunction === null) return;
+        const widget = widgetRef.current;
+        if (widget === null || widget === undefined) return;
+        return onPressStateChange(widget as Parameters<typeof onPressStateChange>[0], setPressed);
+    }, [asFunction === null, widgetRef]);
+    return render(rendered);
 }
 
 export interface ScrollViewProps extends CommonProps {
@@ -407,3 +530,213 @@ export interface SwitchProps extends CommonProps {
 export function Switch(props: SwitchProps): ReactElement {
     return render(usePlan('Switch', props));
 }
+
+// ---------------------------------------------------------------------------
+// P2 — the surface that makes the layer usable rather than a subset
+// ---------------------------------------------------------------------------
+
+/** React Native's `ImageSourcePropType`, as much of it as GTK can open. */
+export interface ImageURISource {
+    /** A local path, a `file:` URI or a `resource:` URI. Anything else is refused by name. */
+    uri: string;
+}
+
+export interface ImageProps extends Omit<CommonProps, 'children'> {
+    source?: ImageURISource;
+    /** `repeat` is absent on purpose: `Gtk.ContentFit` has no tiling member (measured). */
+    resizeMode?: 'cover' | 'contain' | 'stretch' | 'center';
+    /** React Native 0.71's own name for the accessible description — `Gtk.Picture:alternative-text`. */
+    alt?: string;
+}
+
+export function Image(props: ImageProps): ReactElement {
+    return render(usePlan('Image', props));
+}
+
+export interface ImageBackgroundProps extends CommonProps {
+    source?: ImageURISource;
+    resizeMode?: 'cover' | 'contain' | 'stretch' | 'center';
+    alt?: string;
+    /** Styles the picture behind the children, not the container. React Native's own name. */
+    imageStyle?: StyleInput;
+    pointerEvents?: 'auto' | 'none';
+}
+
+export function ImageBackground(props: ImageBackgroundProps): ReactElement {
+    return render(usePlan('ImageBackground', props));
+}
+
+/**
+ * The Touchable family, written OVER `Pressable` rather than beside it.
+ *
+ * ADR 0032's planning entries say "the same machinery as Pressable, and nearly free
+ * once it exists", and this is what that costs when it is true: the three components
+ * are one line each over the same `usePlan`/`render` pair, and the only thing that
+ * differs is the row L2 looks up — `TouchableOpacity` and `TouchableHighlight` spread
+ * `Pressable`'s own routes out of one shared record, and `TouchableWithoutFeedback` is
+ * a `Gtk.Box` with a gesture controller because it has no chrome to press.
+ *
+ * `activeOpacity` and `underlayColor` are refusals rather than mappings, and the
+ * reason is ADR 0032 § 3 rather than ADR 0032 § 7: honouring them would put an opacity
+ * and a colour into the styling path that did not come from the project's token scale.
+ * `active:opacity-70` and `active:bg-<token>` do the same thing through the mechanism
+ * that reads it.
+ */
+export interface TouchableProps extends PressableProps {
+    /** Refused by name — write `active:opacity-70`. Declared so the type says so too. */
+    activeOpacity?: never;
+}
+
+export function TouchableOpacity(props: TouchableProps): ReactElement {
+    return render(usePlan('TouchableOpacity', props));
+}
+
+export interface TouchableHighlightProps extends TouchableProps {
+    /** Refused by name — write `active:bg-<token>`. */
+    underlayColor?: never;
+}
+
+export function TouchableHighlight(props: TouchableHighlightProps): ReactElement {
+    return render(usePlan('TouchableHighlight', props));
+}
+
+export interface TouchableWithoutFeedbackProps extends Omit<TouchableProps, 'children'> {
+    children?: ReactNode;
+}
+
+export function TouchableWithoutFeedback(props: TouchableWithoutFeedbackProps): ReactElement {
+    return render(usePlan('TouchableWithoutFeedback', props));
+}
+
+/**
+ * The one component whose styling story is "you cannot", in both vocabularies.
+ *
+ * `ButtonProps` does NOT extend `CommonProps`, which is the build-time half of the
+ * refusal: `<Button style={…}>` is a type error naming the property. The runtime half
+ * is L2's `refusesStyle`, checked before any prop is routed, so a JavaScript caller and
+ * the second L3 get the same sentence.
+ */
+export interface ButtonProps {
+    title: string;
+    onPress?: () => void;
+    disabled?: boolean;
+    testID?: string;
+    ref?: Ref<unknown>;
+}
+
+export function Button(props: ButtonProps): ReactElement {
+    return render(usePlan('Button', props));
+}
+
+/**
+ * A no-op that still lays out — which is what keeps it a no-op rather than a bug.
+ *
+ * The insets a `SafeAreaView` exists to apply are zero on a desktop window, so the
+ * INSET is what disappears. Everything else about it is a `View`: a vertical box, its
+ * children in a column, the same overlay switch when one of them is absolutely
+ * positioned, the same style vocabulary. A component that rendered nothing, or that
+ * rendered a `Gtk.Box` with the children dropped, would be a layout that silently
+ * lost a screen.
+ */
+export function SafeAreaView(props: ViewProps): ReactElement {
+    return render(usePlan('SafeAreaView', props));
+}
+
+export interface KeyboardAvoidingViewProps extends ViewProps {
+    /** A declared no-op: there is no on-screen keyboard to move out of the way of. */
+    behavior?: 'height' | 'position' | 'padding';
+    keyboardVerticalOffset?: number;
+    enabled?: boolean;
+}
+
+/**
+ * The same no-op, and the same reason it still lays out.
+ *
+ * React Native's `KeyboardAvoidingView` IS a `View` that changes its own height,
+ * padding or position while a keyboard is up. No keyboard comes up here, so what is
+ * left is the `View` — and `behavior`, `keyboardVerticalOffset` and `enabled` are
+ * declared no-ops in the table rather than refusals, because they describe the
+ * behaviour that is already off.
+ */
+export function KeyboardAvoidingView(props: KeyboardAvoidingViewProps): ReactElement {
+    return render(usePlan('KeyboardAvoidingView', props));
+}
+
+export interface StatusBarProps {
+    barStyle?: 'default' | 'light-content' | 'dark-content';
+    hidden?: boolean;
+    backgroundColor?: string;
+    translucent?: boolean;
+    animated?: boolean;
+    networkActivityIndicatorVisible?: boolean;
+    showHideTransition?: 'fade' | 'slide' | 'none';
+}
+
+/**
+ * Renders NOTHING, and that is the whole of it — there is no status bar.
+ *
+ * The one component in this file with no widget. `<StatusBar barStyle="light-content"/>`
+ * is in the first ten lines of most React Native screens, so it has to render; a
+ * desktop window has no bar above it to configure, so it must not render a box that
+ * takes space in the column. `null` is both.
+ *
+ * Its props are ACCEPTED rather than refused, which is the one place this component
+ * differs from `Keyboard`: they are declarative appearance hints with nothing to apply
+ * them to, like `hidesWhenStopped` on the spinner. Its imperative statics are a
+ * different question and refuse by name — see `StatusBarStatics`.
+ */
+export function StatusBar(_props: StatusBarProps): null {
+    return null;
+}
+
+/**
+ * `StatusBar`'s statics, each refusing by name.
+ *
+ * These are imperative calls a component makes to change the bar NOW, and every one of
+ * them would be a call that appears to work. `currentHeight` is the sharpest: it is
+ * read into a layout (`paddingTop: StatusBar.currentHeight`), so an invented number
+ * would inset a desktop window by a phone's status bar for ever.
+ */
+const NO_STATUS_BAR =
+    'configures the status bar above a phone screen, and a desktop window has none — the space above it belongs to the compositor and the header bar inside it is `Adw.HeaderBar`, an ordinary widget you render. This refuses rather than accepting the call, because a setter that appears to work is indistinguishable from one that does';
+
+const statusBarStatics = {
+    setBarStyle: (): never => {
+        throw new PrimitiveError('StatusBar', 'setBarStyle', NO_STATUS_BAR);
+    },
+    setHidden: (): never => {
+        throw new PrimitiveError('StatusBar', 'setHidden', NO_STATUS_BAR);
+    },
+    setBackgroundColor: (): never => {
+        throw new PrimitiveError('StatusBar', 'setBackgroundColor', NO_STATUS_BAR);
+    },
+    setTranslucent: (): never => {
+        throw new PrimitiveError('StatusBar', 'setTranslucent', NO_STATUS_BAR);
+    },
+    setNetworkActivityIndicatorVisible: (): never => {
+        throw new PrimitiveError('StatusBar', 'setNetworkActivityIndicatorVisible', NO_STATUS_BAR);
+    },
+    pushStackEntry: (): never => {
+        throw new PrimitiveError('StatusBar', 'pushStackEntry', NO_STATUS_BAR);
+    },
+    popStackEntry: (): never => {
+        throw new PrimitiveError('StatusBar', 'popStackEntry', NO_STATUS_BAR);
+    },
+    replaceStackEntry: (): never => {
+        throw new PrimitiveError('StatusBar', 'replaceStackEntry', NO_STATUS_BAR);
+    },
+    get currentHeight(): never {
+        throw new PrimitiveError(
+            'StatusBar',
+            'currentHeight',
+            'is the height of a phone’s status bar, and code reads it straight into a layout (`paddingTop: StatusBar.currentHeight`). A desktop window has no such bar, so any number here would inset every ported screen by a bar that is not there. Use 0 explicitly if that is what you mean',
+        );
+    },
+};
+
+// `defineProperties` over the DESCRIPTORS, not `Object.assign`. `Object.assign` READS
+// every source property, so it invoked the `currentHeight` getter and the refusal fired
+// at module load — the whole test entry threw before a single spec ran. A getter that
+// throws is exactly what this one is for, and copying it has to copy the getter rather
+// than its value.
+Object.defineProperties(StatusBar, Object.getOwnPropertyDescriptors(statusBarStatics));

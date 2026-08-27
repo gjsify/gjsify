@@ -24,17 +24,39 @@
 // injected into describe #15 printed to stderr, the case still reported a tick, and
 // the blame surfaced twelve tests later on an innocent neighbour.
 
+import Gdk from 'gi://Gdk?version=4.0';
 import GObject from 'gi://GObject';
 import Gtk from 'gi://Gtk?version=4.0';
 import { afterEach, beforeEach, describe, expect, it, on, type Runtime } from '@gjsify/unit';
 import { lookupWidget, paramSpecs, registerBuiltinWidgets } from '@gjsify/gtk-host';
 import { descriptorProblems, dumpTree, gtkChildren, installDiagnosticsGate } from '@gjsify/gtk-host/conformance';
-import { MINIMAL_TOKENS, type StyleTokens } from '@gjsify/gtk-host/style';
-import { createRoot } from '@gjsify/gtk-host/react';
+import { MINIMAL_TOKENS, StyleSheet as GeneratedStyleSheet, type StyleTokens } from '@gjsify/gtk-host/style';
+import { createRoot, flushSync } from '@gjsify/gtk-host/react';
 import { createElement, type ReactNode } from 'react';
 
 import { PRIMITIVES, type PrimitiveSpec } from './table.js';
-import { ActivityIndicator, Pressable, ScrollView, Switch, Text, TextInput, View } from '../components.js';
+import {
+    ActivityIndicator,
+    Button,
+    Image,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Pressable,
+    SafeAreaView,
+    ScrollView,
+    StatusBar,
+    Switch,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    TouchableWithoutFeedback,
+    View,
+} from '../components.js';
+import type { ImageProps, PressableState } from '../components.js';
+import { resetWindowMetricsCache } from '../apis/display.js';
+import { useWindowDimensions } from '../hooks.js';
+import { pressWatchCount } from '../press.js';
+import { StyleSheet } from '../stylesheet.js';
 import { configureStyle, resetStyleConfig } from '../style-config.js';
 
 /** Named identities, not a capability: a probe that answers "no" stands the suite DOWN, and a suite that ran zero tests reports success. */
@@ -78,20 +100,38 @@ function propertyClaims(): Claim[] {
 
     const walk = (name: string, spec: PrimitiveSpec): void => {
         const content = spec.content;
+        const backdrop = spec.backdrop;
+        // The three nodes a route can name, so a `on: 'backdrop'` claim is checked
+        // against the PICTURE rather than against the overlay it hangs in. Without this
+        // the gate reported `ImageBackground.resizeMode: GtkOverlay has no
+        // "content-fit"` — which is how it caught the third node being added.
+        const nodeTag: Record<string, string | undefined> = {
+            outer: spec.tag,
+            content: content?.tag,
+            backdrop: backdrop?.tag,
+        };
         for (const property of Object.keys(spec.widgetProps)) add(spec.tag, property, `${name}.widgetProps`);
         for (const property of Object.keys(content?.widgetProps ?? {})) {
             add(content!.tag, property, `${name}.content.widgetProps`);
         }
+        for (const property of Object.keys(backdrop?.widgetProps ?? {})) {
+            add(backdrop!.tag, property, `${name}.backdrop.widgetProps`);
+        }
         for (const [prop, route] of Object.entries(spec.props)) {
             for (const single of Array.isArray(route) ? route : [route]) {
                 if (single.to !== 'property') continue;
-                const gtype = single.on === 'content' ? content!.tag : spec.tag;
+                const gtype = nodeTag[single.on ?? 'outer'];
+                if (gtype === undefined) {
+                    throw new Error(
+                        `${name}.${prop} is routed to a "${single.on}" node the primitive does not declare`,
+                    );
+                }
                 for (const property of single.names) add(gtype, property, `${name}.${prop}`);
                 for (const property of Object.keys(single.also ?? {})) add(gtype, property, `${name}.${prop}.also`);
             }
         }
         // The intent resolver's own emissions, gated on the facts the table declares.
-        for (const gtype of [spec.tag, content?.tag, spec.overlayOnAbsoluteChild?.tag]) {
+        for (const gtype of [spec.tag, content?.tag, backdrop?.tag, spec.overlayOnAbsoluteChild?.tag]) {
             if (gtype === undefined) continue;
             for (const property of UNIVERSAL) add(gtype, property, `${name} (universal)`);
         }
@@ -103,6 +143,10 @@ function propertyClaims(): Claim[] {
         if (content?.widget.box === true) {
             for (const property of ['orientation', 'spacing'])
                 add(content.tag, property, `${name}.content (box intent)`);
+        }
+        if (backdrop?.widget.box === true) {
+            for (const property of ['orientation', 'spacing'])
+                add(backdrop.tag, property, `${name}.backdrop (box intent)`);
         }
         if (spec.widget.alignsText) {
             for (const property of ['xalign', 'justify']) add(spec.tag, property, `${name} (text intent)`);
@@ -186,17 +230,42 @@ export default async () => {
 
         await gated('the widget table L2 depends on', async () => {
             await it('has a placement rule for every tag L2 can name', async () => {
-                // `GtkOverlay` is the one this milestone added, and without a curated
+                // `GtkOverlay` is the one the P1 milestone added, and without a curated
                 // rule the overlay switch produces a tag whose insertion the host
                 // refuses BY NAME — correct, and useless to the layer that has to
                 // build it.
                 for (const spec of Object.values(PRIMITIVES)) {
-                    for (const gtype of [spec.tag, spec.content?.tag, spec.overlayOnAbsoluteChild?.tag]) {
+                    for (const gtype of [
+                        spec.tag,
+                        spec.content?.tag,
+                        spec.backdrop?.tag,
+                        spec.overlayOnAbsoluteChild?.tag,
+                    ]) {
                         if (gtype === undefined) continue;
                         expect(typeof lookupWidget(gtype).ctor()).toBe('function');
                     }
                 }
                 expect(lookupWidget('GtkOverlay').children.kind).toBe('slotted');
+            });
+
+            await it('names slots the outer node really has, for every node that declares one', async () => {
+                // A `slot` is a string the host looks up in the PARENT's policy, and a
+                // name that is not there is refused at insert time — in a window, at
+                // runtime, which is the latest possible moment. `ImageBackground` is the
+                // one primitive with two slotted nodes (`child` for the picture,
+                // `overlay` for the children), and getting either wrong is a tree that
+                // builds and then refuses.
+                for (const [name, spec] of Object.entries(PRIMITIVES)) {
+                    const slots = [spec.backdrop?.slot, spec.content?.slot].filter(
+                        (slot): slot is string => typeof slot === 'string',
+                    );
+                    if (slots.length === 0) continue;
+                    const policy = lookupWidget(spec.tag).children;
+                    expect(`${name}: ${policy.kind}`).toBe(`${name}: slotted`);
+                    for (const slot of slots) {
+                        expect(Object.keys((policy as { slots: Record<string, string> }).slots)).toContain(slot);
+                    }
+                }
             });
 
             await it('names only methods and sinks the installed GTK has', async () => {
@@ -412,6 +481,266 @@ export default async () => {
                     expect(spinner.widthRequest).toBe(16);
                     expect(spinner.heightRequest).toBe(16);
                 });
+            });
+        });
+
+        await gated('the P2 widgets, in a real tree', async () => {
+            beforeEach(() => configureStyle({ tokens: TOKENS }));
+            afterEach(() => resetStyleConfig());
+
+            await it('renders an Image as a Gtk.Picture that FILLS, with the file GTK will open', async () => {
+                // A path that does not exist is deliberate and safe: MEASURED, setting
+                // `Gtk.Picture:file` to a missing file stores the file, leaves
+                // `paintable` null and produces NO diagnostic — so this vector asserts
+                // the plumbing without asserting that any image exists on the machine
+                // running the suite, which would be a claim about the host and not the
+                // code.
+                mounted(
+                    createElement(Image, { source: { uri: '/nonexistent-gjsify-vector.png' }, alt: 'a picture' }),
+                    (container) => {
+                        const picture = gtkChildren(container)[0] as Gtk.Picture;
+                        expect(typeOf(picture)).toBe('GtkPicture');
+                        expect(picture.contentFit).toBe(Gtk.ContentFit.COVER);
+                        expect(picture.file?.get_path()).toBe('/nonexistent-gjsify-vector.png');
+                        expect(picture.alternativeText).toBe('a picture');
+                    },
+                );
+            });
+
+            await it('maps every resizeMode this GTK has a member for', async () => {
+                const expected: [ImageProps['resizeMode'], Gtk.ContentFit][] = [
+                    ['cover', Gtk.ContentFit.COVER],
+                    ['contain', Gtk.ContentFit.CONTAIN],
+                    ['stretch', Gtk.ContentFit.FILL],
+                    ['center', Gtk.ContentFit.SCALE_DOWN],
+                ];
+                for (const [mode, fit] of expected) {
+                    mounted(createElement(Image, { resizeMode: mode }), (container) => {
+                        expect((gtkChildren(container)[0] as Gtk.Picture).contentFit).toBe(fit);
+                    });
+                }
+            });
+
+            await it('puts an ImageBackground’s picture BEHIND its children, not over them', async () => {
+                mounted(
+                    createElement(
+                        ImageBackground,
+                        { source: { uri: '/nonexistent-gjsify-vector.png' }, className: 'p-2' },
+                        createElement(Text, null, 'over the picture'),
+                    ),
+                    (container) => {
+                        const overlay = gtkChildren(container)[0] as Gtk.Overlay;
+                        expect(typeOf(overlay)).toBe('GtkOverlay');
+                        // `get_child()` is the MAIN child, which a `Gtk.Overlay` paints
+                        // UNDER every overlay child — so the picture being here is the
+                        // whole of "behind".
+                        const picture = overlay.get_child() as Gtk.Picture;
+                        expect(typeOf(picture)).toBe('GtkPicture');
+                        expect(picture.file?.get_path()).toBe('/nonexistent-gjsify-vector.png');
+                        const box = gtkChildren(overlay).find((child) => child !== picture) as Gtk.Box;
+                        expect(typeOf(box)).toBe('GtkBox');
+                        expect(gtkChildren(box).map((child) => (child as Gtk.Label).label)).toStrictEqual([
+                            'over the picture',
+                        ]);
+                        // The padding stayed on the overlay, which is what insets the
+                        // children rather than the picture.
+                        expect(generatedClasses(overlay).length).toBe(1);
+                    },
+                );
+            });
+
+            await it('renders the Touchable family over Pressable’s own widget', async () => {
+                let pressed = 0;
+                mounted(createElement(TouchableOpacity, { onPress: () => (pressed += 1) }, 'Go'), (container) => {
+                    const button = gtkChildren(container)[0] as Gtk.Button;
+                    expect(typeOf(button)).toBe('GtkButton');
+                    expect([...button.cssClasses]).toContain('flat');
+                    button.emit('clicked');
+                    expect(pressed).toBe(1);
+                });
+            });
+
+            await it('gives TouchableWithoutFeedback a real Gtk.GestureClick and takes it away again', async () => {
+                let pressed = 0;
+                const container = new Gtk.Box();
+                const root = createRoot(container);
+                try {
+                    root.render(
+                        createElement(
+                            TouchableWithoutFeedback,
+                            { onPress: () => (pressed += 1) },
+                            createElement(Text, null, 'target'),
+                        ),
+                    );
+                    const box = gtkChildren(container)[0] as Gtk.Box;
+                    expect(typeOf(box)).toBe('GtkBox');
+                    const controllers = box.observe_controllers();
+                    expect(controllers.get_n_items()).toBe(1);
+                    const gesture = controllers.get_item(0) as Gtk.GestureClick;
+                    expect(typeOf(gesture as unknown as Gtk.Widget)).toBe('GtkGestureClick');
+                    gesture.emit('released', 1, 0, 0);
+                    expect(pressed).toBe(1);
+                    // The controller is REMOVED on unmount. A controller left on a
+                    // widget outlives every JS reference to it, and its handler is then
+                    // one of the callbacks GJS blocks during GC.
+                    root.render(null);
+                    expect(controllers.get_n_items()).toBe(0);
+                } finally {
+                    root.unmount();
+                }
+            });
+
+            await it('renders a Button as a FRAMED Gtk.Button, which is the opposite of Pressable', async () => {
+                let pressed = 0;
+                mounted(createElement(Button, { title: 'Send', onPress: () => (pressed += 1) }), (container) => {
+                    const button = gtkChildren(container)[0] as Gtk.Button;
+                    expect(typeOf(button)).toBe('GtkButton');
+                    expect(button.label).toBe('Send');
+                    expect([...button.cssClasses]).not.toContain('flat');
+                    button.emit('clicked');
+                    expect(pressed).toBe(1);
+                });
+            });
+
+            await it('lays SafeAreaView and KeyboardAvoidingView out, which is what keeps them no-ops', async () => {
+                for (const Component of [SafeAreaView, KeyboardAvoidingView]) {
+                    mounted(
+                        createElement(
+                            Component,
+                            { className: 'flex-row items-center' },
+                            createElement(Text, null, 'a'),
+                        ),
+                        (container) => {
+                            const box = gtkChildren(container)[0] as Gtk.Box;
+                            expect(typeOf(box)).toBe('GtkBox');
+                            expect(box.orientation).toBe(Gtk.Orientation.HORIZONTAL);
+                            const label = gtkChildren(box)[0] as Gtk.Label;
+                            expect(label.label).toBe('a');
+                            expect(label.valign).toBe(Gtk.Align.CENTER);
+                        },
+                    );
+                }
+            });
+
+            await it('renders a StatusBar as NO widget at all', async () => {
+                mounted(
+                    createElement(
+                        View,
+                        null,
+                        createElement(StatusBar, { barStyle: 'light-content' }),
+                        createElement(Text, null, 'body'),
+                    ),
+                    (container) => {
+                        const box = gtkChildren(container)[0] as Gtk.Box;
+                        // One child, not two: a status bar that rendered a box would
+                        // take a row of the column on every ported screen.
+                        expect(gtkChildren(box).map(typeOf)).toStrictEqual(['GtkLabel']);
+                    },
+                );
+            });
+        });
+
+        await gated('the press state, and the cheap path it must not cost', async () => {
+            afterEach(() => resetStyleConfig());
+
+            await it('resolves active:* to CSS and subscribes to NOTHING', async () => {
+                // ADR 0032 § 7's whole claim, as a measurement rather than a comment.
+                // Both spellings render a flat button that dims when pressed; only the
+                // subscription count says which one round-trips through React.
+                const sheet = new GeneratedStyleSheet();
+                configureStyle({ tokens: TOKENS, sheet });
+                const before = pressWatchCount();
+                mounted(createElement(Pressable, { className: 'active:opacity-70' }, 'Go'), (container) => {
+                    expect(typeOf(gtkChildren(container)[0])).toBe('GtkButton');
+                    expect(pressWatchCount()).toBe(before);
+                    expect(sheet.toString()).toContain(':active');
+                    expect(sheet.toString()).toContain('opacity: 0.7');
+                });
+                expect(pressWatchCount()).toBe(before);
+            });
+
+            await it('gives a function child the real press state, and lets go of it on unmount', async () => {
+                configureStyle({ tokens: TOKENS });
+                const before = pressWatchCount();
+                const container = new Gtk.Box();
+                const root = createRoot(container);
+                try {
+                    // The function goes through the `children` PROP, not through
+                    // `createElement`'s variadic children — whose declared type is
+                    // `ReactNode` and rightly excludes a function. JSX resolves
+                    // `<Pressable>{fn}</Pressable>` against the component's own
+                    // `children` type, so an application writes the ordinary spelling.
+                    root.render(
+                        createElement(Pressable, {
+                            children: ({ pressed }: PressableState) =>
+                                createElement(Text, null, pressed ? 'down' : 'up'),
+                        }),
+                    );
+                    const button = gtkChildren(container)[0] as Gtk.Button;
+                    const label = () => (gtkChildren(button)[0] as Gtk.Label).label;
+                    expect(label()).toBe('up');
+                    expect(pressWatchCount()).toBe(before + 1);
+
+                    // `set_state_flags` rather than a synthetic click: MEASURED, it
+                    // emits `state-flags-changed` (128 → 129) and `get_state_flags()`
+                    // answers the new flags, which is the mechanism — and it asserts
+                    // nothing about an input device the machine running the suite may
+                    // not have.
+                    //
+                    // `flushSync` because the default lane is concurrent: a `setState`
+                    // from a GTK signal handler commits on a LATER main-loop iteration
+                    // (the host's own `resolveUpdatePriority`), and a spec has no loop.
+                    flushSync(() => button.set_state_flags(Gtk.StateFlags.ACTIVE, false));
+                    expect(label()).toBe('down');
+                    flushSync(() => button.unset_state_flags(Gtk.StateFlags.ACTIVE));
+                    expect(label()).toBe('up');
+                } finally {
+                    root.unmount();
+                }
+                expect(pressWatchCount()).toBe(before);
+            });
+
+            await it('gives useWindowDimensions the WINDOW’s size, not the surface’s', async () => {
+                // The one vector that needs a window, so it builds one and never
+                // presents it. Measured: a presented 640×480 window has a 668×509
+                // surface (the CSD shadow), and React Native's number is the window's —
+                // so a hook that reported the surface would be wrong by the shadow on
+                // every desktop with client-side decorations.
+                configureStyle({ tokens: TOKENS });
+                resetWindowMetricsCache();
+                const window = new Gtk.Window({ defaultWidth: 643, defaultHeight: 483 });
+                const container = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
+                window.set_child(container);
+                const root = createRoot(container);
+                const Size = (): ReactNode => {
+                    const size = useWindowDimensions();
+                    return createElement(Text, null, `${size.width}x${size.height}`);
+                };
+                try {
+                    root.render(createElement(Size));
+                    expect((gtkChildren(container)[0] as Gtk.Label).label).toBe('643x483');
+                } finally {
+                    root.unmount();
+                    window.destroy();
+                    resetWindowMetricsCache();
+                }
+            });
+
+            await it('reads hairlineWidth as one device pixel, without asserting the device', async () => {
+                // The RELATIONSHIP, never the number: the scale of this machine's
+                // monitors is a fact about the machine, and a vector that asserted 1
+                // would be red on a HiDPI laptop and green here for the wrong reason.
+                const width = StyleSheet.hairlineWidth;
+                expect(width > 0).toBe(true);
+                expect(width <= 1).toBe(true);
+                const monitors = Gdk.Display.get_default()!.get_monitors();
+                let smallest = 0;
+                for (let index = 0; index < monitors.get_n_items(); index++) {
+                    const monitor = monitors.get_item(index) as Gdk.Monitor;
+                    const scale = monitor.get_scale() > 0 ? monitor.get_scale() : monitor.get_scale_factor();
+                    if (smallest === 0 || scale < smallest) smallest = scale;
+                }
+                expect(width).toBe(smallest === 0 ? 1 : 1 / smallest);
             });
         });
     });

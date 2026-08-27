@@ -574,7 +574,7 @@ export default async () => {
         });
 
         await it('refuses an unknown primitive, listing the ones it has', async () => {
-            expect(threw(() => plan('FlatList', {})).message).toContain('ActivityIndicator');
+            expect(threw(() => plan('Animated.View', {})).message).toContain('ActivityIndicator');
         });
 
         await it('ignores an absent prop, so a spread of optionals costs nothing', async () => {
@@ -644,6 +644,192 @@ export default async () => {
                 }
             }
             expect(bad).toStrictEqual([]);
+        });
+    });
+
+    await describe('the P2 rows, as data', async () => {
+        await it('inverts Gtk.Picture’s content-fit default, as View and Text invert theirs', async () => {
+            // The third inverted default of this layer. React Native's `Image`
+            // defaults to `cover`; a fresh `Gtk.Picture` reports CONTAIN (measured).
+            // Absent, every ported image is letterboxed instead of filled — which
+            // renders, looks deliberate, and is wrong.
+            expect(plan('Image', {}).plan.node.props['content-fit']).toBe('cover');
+            expect(plan('Image', { resizeMode: 'contain' }).plan.node.props['content-fit']).toBe('contain');
+            expect(plan('Image', { resizeMode: 'stretch' }).plan.node.props['content-fit']).toBe('fill');
+            expect(plan('Image', { resizeMode: 'center' }).plan.node.props['content-fit']).toBe('scale-down');
+        });
+
+        await it('refuses resizeMode="repeat", because GtkContentFit has no tiling member', async () => {
+            const error = threw(() => plan('Image', { resizeMode: 'repeat' }));
+            // The message lists what the enum DOES hold, which is the actionable half.
+            expect(error.message).toContain('center, contain, cover, stretch');
+        });
+
+        await it('turns a source into the one file GTK can open, saying which call to make', async () => {
+            expect(plan('Image', { source: { uri: '/tmp/x.png' } }).plan.files).toStrictEqual([
+                { on: 'outer', property: 'file', kind: 'path', value: '/tmp/x.png' },
+            ]);
+            expect(plan('Image', { source: { uri: 'file:///tmp/x.png' } }).plan.files[0]?.kind).toBe('uri');
+            expect(plan('Image', { source: { uri: 'resource:///a/b.png' } }).plan.files[0]?.kind).toBe('uri');
+        });
+
+        await it('refuses every source shape that would need a loader, by name', async () => {
+            expect(threw(() => plan('Image', { source: { uri: 'https://example.test/a.png' } })).message).toContain(
+                'fetch, a decoder and a cache',
+            );
+            expect(threw(() => plan('Image', { source: { uri: 'data:image/png;base64,AA' } })).message).toContain(
+                '`data:` URI',
+            );
+            expect(threw(() => plan('Image', { source: 42 })).message).toContain('asset registry');
+            expect(threw(() => plan('Image', { source: [{ uri: '/a.png' }] })).message).toContain(
+                'per-device-scale picker',
+            );
+            expect(threw(() => plan('Image', { source: '/a.png' })).message).toContain('bare string');
+            expect(threw(() => plan('Image', { source: { uri: '/a.png', width: 10 } })).message).toContain('width');
+            expect(threw(() => plan('Image', { source: { uri: 'sftp://host/a.png' } })).message).toContain('`sftp:`');
+        });
+
+        await it('gives ImageBackground three nodes, with the picture as the overlay’s MAIN child', async () => {
+            // The arrangement is forced, not chosen: a `Gtk.Overlay` paints every
+            // overlay child ABOVE its main child, so a picture in the overlay slot
+            // would cover the children it is supposed to sit behind.
+            const { plan: p } = plan('ImageBackground', { source: { uri: '/bg.png' }, className: 'p-2' });
+            expect(p.node.tag).toBe('GtkOverlay');
+            expect(p.backdrop?.tag).toBe('GtkPicture');
+            expect(p.backdropSlot).toBe('child');
+            expect(p.content?.tag).toBe('GtkBox');
+            expect(p.contentSlot).toBe('overlay');
+            expect(p.files).toStrictEqual([{ on: 'backdrop', property: 'file', kind: 'path', value: '/bg.png' }]);
+        });
+
+        await it('styles the picture from imageStyle and the container from style', async () => {
+            const { plan: p, sink } = plan('ImageBackground', {
+                className: 'p-2',
+                imageStyle: { opacity: 0.5 },
+            });
+            // Two mints, one per styleable node — the same shape `ScrollView`'s
+            // `contentContainerStyle` has, which is what makes the backdrop a second
+            // `ContentSpec` rather than a type of its own.
+            expect(sink.calls.length).toBe(2);
+            expect(sink.calls.some((call) => call.declarations.includes('opacity: 0.5'))).toBe(true);
+            expect(p.backdrop?.cssClasses.length).toBe(1);
+        });
+
+        await it('writes the Touchables over Pressable’s own routes', async () => {
+            for (const primitive of ['TouchableOpacity', 'TouchableHighlight']) {
+                const { plan: p } = plan(primitive, { onPress: () => {} });
+                expect(p.node.tag).toBe('GtkButton');
+                expect(p.node.cssClasses).toContain('flat');
+                expect(p.events).toStrictEqual([{ prop: 'onPress', signal: 'clicked', read: null }]);
+            }
+        });
+
+        await it('sends the pressed appearance to `active:`, not to a prop', async () => {
+            // ADR 0032 § 3's rule, not § 7's: honouring a raw number or colour here
+            // would put a value into the styling path that never came from the
+            // project's token scale.
+            expect(threw(() => plan('TouchableOpacity', { activeOpacity: 0.6 })).message).toContain(
+                'active:opacity-70',
+            );
+            expect(threw(() => plan('TouchableHighlight', { underlayColor: '#000' })).message).toContain(
+                'active:bg-<token>',
+            );
+        });
+
+        await it('gives TouchableWithoutFeedback a BOX and a gesture, not a button', async () => {
+            const { plan: p } = plan('TouchableWithoutFeedback', { onPress: () => {} });
+            expect(p.node.tag).toBe('GtkBox');
+            expect(p.node.props.orientation).toBe('vertical');
+            // A gesture, not an event: a `Gtk.Box` emits no `clicked` (measured), so
+            // the press arrives through a `Gtk.GestureClick` the framework layer adds.
+            expect(p.events).toStrictEqual([]);
+            expect(p.gestures).toStrictEqual([{ prop: 'onPress', signal: 'released' }]);
+            // `can-target`, not `sensitive`: greying out every descendant of a wrapper
+            // with no appearance of its own is a different thing from not being pressed.
+            expect(plan('TouchableWithoutFeedback', { disabled: true }).plan.node.props['can-target']).toBe(false);
+        });
+
+        await it('refuses a gesture prop that is not a function, naming the controller', async () => {
+            expect(threw(() => plan('TouchableWithoutFeedback', { onPress: 'go' })).message).toContain(
+                'Gtk.GestureClick',
+            );
+        });
+
+        await it('refuses style and className on Button, which is React Native’s own answer', async () => {
+            expect(plan('Button', { title: 'Go' }).plan.node.props.label).toBe('Go');
+            expect(threw(() => plan('Button', { title: 'Go', className: 'p-2' })).message).toContain(
+                'takes no `style` and no `className`',
+            );
+            expect(threw(() => plan('Button', { title: 'Go', style: { opacity: 1 } })).message).toContain('Pressable');
+            // The refusal fires BEFORE any prop is routed, so it names the styling and
+            // not whichever prop the loop reached first.
+            expect(threw(() => plan('Button', { className: 'p-2', nonsuch: 1 })).subject).toBe('prop "className"');
+        });
+
+        await it('lays SafeAreaView and KeyboardAvoidingView out exactly like a View', async () => {
+            for (const primitive of ['SafeAreaView', 'KeyboardAvoidingView']) {
+                const { plan: p } = plan(primitive, { className: 'flex-row items-center' });
+                expect(p.node.tag).toBe('GtkBox');
+                expect(p.node.props.orientation).toBe('horizontal');
+                // The inherited cross-axis alignment still reaches the children, which
+                // is the half a "renders nothing" no-op would have lost.
+                expect(p.childContext.props.valign).toBe('center');
+            }
+        });
+
+        await it('keeps the keyboard props declared no-ops and contentContainerStyle a refusal', async () => {
+            expect(plan('KeyboardAvoidingView', { behavior: 'padding', enabled: false }).plan.node.props).toStrictEqual(
+                {
+                    orientation: 'vertical',
+                },
+            );
+            expect(
+                threw(() => plan('KeyboardAvoidingView', { contentContainerStyle: { opacity: 1 } })).message,
+            ).toContain('Put it on `style`');
+        });
+
+        await it('gives the list family a box and a scroller, and flips both on horizontal', async () => {
+            const { plan: p } = plan('FlatList', { className: 'p-2' });
+            expect(p.node.tag).toBe('GtkBox');
+            expect(p.node.props.orientation).toBe('vertical');
+            expect(p.content?.tag).toBe('GtkScrolledWindow');
+            expect(p.content?.props.vexpand).toBe(true);
+            expect(p.content?.props['hscrollbar-policy']).toBe('never');
+            const horizontal = plan('FlatList', { horizontal: true }).plan;
+            expect(horizontal.node.props.orientation).toBe('horizontal');
+            expect(horizontal.content?.props['hscrollbar-policy']).toBe('automatic');
+            expect(horizontal.content?.props['vscrollbar-policy']).toBe('never');
+        });
+
+        await it('ignores the props the list COMPONENT reads, and refuses the virtualisation knobs', async () => {
+            // `data` and its siblings are React trees and functions: a widget property
+            // cannot hold one, so they are `ignored` in the table and read by the
+            // component. Listed rather than absent, so a misspelling is still named.
+            expect(
+                plan('FlatList', { data: [1, 2], renderItem: () => null, keyExtractor: () => 'k' }).plan.node.props,
+            ).toStrictEqual({ orientation: 'vertical' });
+            for (const prop of ['initialNumToRender', 'windowSize', 'getItemLayout', 'removeClippedSubviews']) {
+                expect(threw(() => plan('FlatList', { [prop]: 1 })).message).toContain('does that job itself');
+            }
+            expect(threw(() => plan('FlatList', { numColumns: 2 })).message).toContain('Gtk.GridView');
+            expect(threw(() => plan('FlatList', { onRefresh: () => {} })).message).toContain('pull-to-refresh');
+            expect(threw(() => plan('FlatList', { stickySectionHeadersEnabled: true })).message).toContain(
+                'header ROWS',
+            );
+        });
+
+        await it('keeps every P2 name in the table and the table in step with the primitives', async () => {
+            // The one place the two data sources are held against each other: a
+            // primitive whose row still says `planned` is an export the bundler gate
+            // refuses while the code answers it, which is the drift ADR 0032 § 8 is
+            // built to make impossible.
+            for (const name of Object.keys(PRIMITIVES)) {
+                const status = SUPPORT_TABLE[name]?.status;
+                expect(`${name}: ${status}`).toBe(`${name}: ${status === 'supported' ? 'supported' : 'partial'}`);
+            }
+            for (const name of ['Image', 'ImageBackground', 'Button', 'FlatList', 'SafeAreaView', 'StatusBar']) {
+                expect(SUPPORT_TABLE[name]?.limits?.length ?? 0).toBeGreaterThan(0);
+            }
         });
     });
 };
