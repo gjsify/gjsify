@@ -49,12 +49,26 @@ name: Cancel superseded PR runs
 # itself fails and the branch above it says so and exits 0. Untested from a fork —
 # this repository has no fork PR on record — so neither path is claimed as THE one.
 #
-# The checkout follows from the same decision. It is pinned to the head SHA rather than
-# left on the default merge ref, which is not guaranteed to still resolve once the PR
-# is closed — the event this workflow has always served; and it is sparse to the one
-# script, so the job holding `actions: write` materialises as little head code as it
-# can. What that leaves is head code from a branch whose author already has write
-# access to this repository, or from a fork whose token cannot cancel anything.
+# The checkout follows from the same decision, and it is pinned to the BASE SHA. Two
+# reasons, one of which cost a red job before it was understood:
+#
+#   · A branch created before this script landed does not contain it. `set -euo
+#     pipefail` then kills the job on `Cannot find module` — measured on #1340, whose
+#     branch predated #1334 by hours and which therefore failed a job about its own
+#     obsolete runs. Every future branch cut before a change to this script has the
+#     same shape, so this is not a one-off transition cost.
+#   · It carries the write-token argument FURTHER than the head SHA did. The job needs
+#     `actions: write`, AGENTS.md forbids pairing a write token with head code, and the
+#     head SHA was a compromise justified by sparseness — one script, from a branch
+#     whose author already has write access. The base SHA is not a compromise: the job
+#     materialises NO head code at all, and a fork PR now runs this repository's own
+#     selection rather than the fork's.
+#
+# The base SHA is a real commit on the base branch and still resolves after the PR is
+# closed, which is what ruled out the default merge ref. What it gives up is the ability
+# for a PR to test a change to the selection ON ITSELF — that PR's own cancel job runs
+# main's copy. `tests/e2e/ci-cancel-superseded-runs` is where such a change is proven,
+# which is why it was put under fixtures rather than left in the `run:` block.
 
 on:
     pull_request:
@@ -73,7 +87,7 @@ jobs:
             - name: Check out the selection
               uses: actions/checkout@v6
               with:
-                  ref: ${{ github.event.pull_request.head.sha }}
+                  ref: ${{ github.event.pull_request.base.sha }}
                   fetch-depth: 1
                   sparse-checkout: scripts/select-superseded-runs.mjs
                   sparse-checkout-cone-mode: false
