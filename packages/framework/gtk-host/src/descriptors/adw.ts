@@ -153,8 +153,14 @@ export const ADW_DESCRIPTORS: readonly WidgetDescriptor[] = [
         // Only the first pair is a CHILD policy. An `Adw.Breakpoint` is not a widget —
         // it is a GObject holding a condition and its setters (`set_condition`,
         // `add_setter`, measured) — so it can be neither a child nor a slot here, and a
-        // renderer applies it imperatively against the widget. Declaring it as a slot
-        // would put a non-widget through `addressOf()`, which throws `not-a-widget`.
+        // renderer applies it imperatively against the widget. It is not even a TAG:
+        // the generated table carries `GtkWidget` descendants only, so
+        // `createElement('AdwBreakpoint')` is `unknown-tag`. MEASURED with one
+        // registered by hand anyway, the placement is refused as `rejected-child`,
+        // carrying GTK's own `Object is of type Adw.Breakpoint - cannot convert to
+        // GtkWidget` — NOT as `not-a-widget`: `addressOf()` throws that only for an
+        // element with no widget at all, and a materialized `Adw.Breakpoint` is a
+        // perfectly real GObject that walks straight through it.
         children: { kind: 'single', set: 'set_child' },
     },
     {
