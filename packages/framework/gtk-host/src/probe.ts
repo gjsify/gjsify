@@ -29,6 +29,7 @@ import Gtk from 'gi://Gtk?version=4.0';
 import system from 'system';
 
 import { installDiagnosticsGate, type DiagnosticsGate } from './conformance/diagnostics.js';
+import { descendants } from './conformance/index.js';
 
 /**
  * Declared locally, exactly as `conformance/diagnostics.ts` declares `printerr`
@@ -246,4 +247,108 @@ export async function runHostProbeApp<T>(probe: HostProbeApp<T>): Promise<void> 
         })();
     });
     await app.runAsync([]);
+}
+
+// --- the SHOT half: evidence that a tree rendered, not only that it exists ------
+//
+// THE INCIDENT, and it is the reason this section is not optional.
+//
+// The website documented an `Adw.ToolbarView` written with `@gjsify/react-native`
+// primitives inside it, and the tree behind it had been asserted: `slot="top"`
+// reached `add_top_bar`, `slot="title"` reached `set_title_widget`, an RN `<View>`
+// in the default slot WAS `get_content()`. Every one of those assertions was true.
+// Built from the page's printed text and PRESENTED, the window was EMPTY — 720×420
+// of background, no header bar, no content, no bottom bar — because the snippet
+// named `gap-s`, and the layer's default spacing scale holds `0` and `px`. React
+// refused the tree, the root reported the refusal and unmounted, and the process
+// exited 0 with ZERO GTK diagnostics.
+//
+// So neither existing instrument could see it. `installDiagnosticsGate` counts what
+// GTK complains about, and GTK had nothing to complain about: there was no tree.
+// `runHostProbe`'s assertions read a tree the probe itself built — a probe that
+// builds the same widgets by hand agrees with itself while the DOCUMENTED source
+// renders nothing. The only witness is the window.
+//
+// WHY `capture` IS A PARAMETER. Rasterising a widget is `@gjsify/devtools`'
+// `captureWidgetPng` (`get_native().get_renderer()` → `Gtk.WidgetPaintable` →
+// `render_texture` → `save_to_png_bytes`), and `@gjsify/gtk-host` depends on no
+// `@gjsify/*` package — it is the element model everything else binds to, and an
+// edge from here up to a devtool would invert that. The seam is a parameter for the
+// same reason `resolvePrimitive` takes its tokens as one: injected, it is also the
+// only way to test THIS logic without a display, which is what `probe.spec.ts` does.
+
+/**
+ * Rasterise one widget. `@gjsify/devtools`' `captureWidgetPng` has this shape;
+ * `null` means the widget has no renderer or no size yet, never "the image is empty".
+ */
+export type CaptureWidget = (widget: Gtk.Widget) => Uint8Array | null;
+
+/** What a picture of a subtree is worth, in numbers a `check` can read. */
+export interface ShotEvidence {
+    /**
+     * STRICT descendants of the container in the REAL GTK tree.
+     *
+     * The decisive number, and the cheapest. `0` is not "a small tree": it is a
+     * container nothing was rendered into, which is what a refused render, an
+     * unmounted root and a component that returned `null` all look like from here.
+     */
+    widgets: number;
+    width: number;
+    height: number;
+    /** PNG byte count, `0` when `capture` produced none. */
+    bytes: number;
+}
+
+/**
+ * Count what a shot of `container` would be a picture OF.
+ *
+ * Reads the real GTK tree (`get_first_child`/`get_next_sibling`) rather than any
+ * host bookkeeping — the shadow tree would agree with itself here, which is the
+ * whole reason `conformance/` exists.
+ */
+export function shotEvidence(container: Gtk.Widget, capture: CaptureWidget): ShotEvidence {
+    const png = capture(container);
+    return {
+        // `descendants` includes the root; the question is what is INSIDE.
+        widgets: descendants(container).length - 1,
+        width: container.get_width(),
+        height: container.get_height(),
+        bytes: png ? png.length : 0,
+    };
+}
+
+/**
+ * Why a shot of this evidence would be blank — or `null` when it would not.
+ *
+ * Ordered by what a reader can act on. "Nothing was rendered" and "the renderer had
+ * no surface yet" are different bugs with the same photograph, and a message that
+ * cannot tell them apart sends the reader back to guessing — the state
+ * `describeLogRecord` exists to end one layer down.
+ *
+ * A NON-EMPTY PNG IS NOT PROOF, which is why byte count is the LAST question rather
+ * than the only one: a window with a refused tree still rasterises to several KB of
+ * perfectly valid background.
+ */
+export function blankReason(evidence: ShotEvidence): string | null {
+    if (evidence.widgets === 0) {
+        return 'nothing was rendered into the container: it has no children at all, which is what a refused render, an unmounted root and a component returning null all look like from GTK';
+    }
+    if (evidence.width <= 0 || evidence.height <= 0) {
+        return `the container is allocated ${evidence.width}×${evidence.height}: its ${evidence.widgets} widget(s) exist and occupy nothing`;
+    }
+    if (evidence.bytes === 0) {
+        return 'the capture produced no PNG: the widget has no renderer yet, so it was measured before it was ever on screen';
+    }
+    return null;
+}
+
+/**
+ * Record "this actually rendered" as a probe check, named.
+ *
+ * Takes the evidence rather than the widget so a caller that already shot it does
+ * not rasterise twice, and so the reason lands in the failure list verbatim.
+ */
+export function checkRendered(check: ProbeCheck, what: string, evidence: ShotEvidence): void {
+    const reason = blankReason(evidence);
+    check(reason === null ? what : `${what} — ${reason}`, reason === null);
 }

@@ -38,12 +38,17 @@ export {
 } from './props.js';
 export { assertInjective, tagOf } from './tags.js';
 export {
+    blankReason,
+    checkRendered,
     probeEnabled,
     runHostProbe,
     runHostProbeApp,
+    shotEvidence,
+    type CaptureWidget,
     type HostProbe,
     type HostProbeApp,
     type ProbeCheck,
+    type ShotEvidence,
 } from './probe.js';
 export type {
     ElementChild,
