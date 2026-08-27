@@ -1,4 +1,5 @@
 import type { App } from './app.js';
+import type { SourceDialect } from './source-dialect.js';
 
 /** CSS handling forwarded to Rolldown / Lightning CSS. */
 export interface GjsifyCssOptions {
@@ -70,8 +71,8 @@ export interface PluginOptions {
      */
     preserveDefaultExport?: boolean;
     /**
-     * React Native port mode (ADR 0032 § 2 + § 8), OFF by default. Composes two
-     * plugins on the `gjs` and `node` targets:
+     * The dialect the SOURCE is written in (ADR 0032 § 2 + § 8), unset by default.
+     * `'react-native'` composes two plugins on the `gjs` and `node` targets:
      *
      *   1. the alias line `'react-native'` → `'@gjsify/react-native'`, so an
      *      unmodified React Native application builds without a rename per file;
@@ -83,8 +84,11 @@ export interface PluginOptions {
      * every build in it would change what that leg resolves; `@gjsify/react-native`
      * is also tier 3 and optional, so an unconditional alias would fail builds
      * that never asked for it. Full reasoning: `plugins/react-native-alias.ts`.
+     *
+     * This is the SOURCE dialect, never the target runtime — the two answer
+     * opposite questions and once shared a name. See `SourceDialect`.
      */
-    reactNative?: boolean;
+    dialect?: SourceDialect;
     /**
      * Where to look for a `@gjsify/*` the PROJECT cannot resolve, when the input is
      * TOOLCHAIN rather than user code: a file path inside the running CLI's own

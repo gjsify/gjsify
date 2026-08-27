@@ -228,7 +228,7 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
     // ADR 0032 § 8's build-time gate reads the ORIGINAL source for the same reason
     // reflection does: `import type { ViewProps }` is what tells it a name costs
     // nothing, and a normal-order transform may already have stripped it.
-    if (input.pluginOptions.reactNative) prePlugins.push(reactNativeSupportGatePlugin());
+    if (input.pluginOptions.dialect === 'react-native') prePlugins.push(reactNativeSupportGatePlugin());
 
     const plugins: RolldownPluginOption[] = [
         // Virtual-entry plugin runs FIRST so its resolveId/load match the
@@ -251,10 +251,10 @@ export const setupForGjs = async (input: GjsFactoryInput): Promise<GjsBuildConfi
             siblingIndex: true,
         }),
         // ADR 0032 § 2's alias line, only when the consumer asked for it
-        // (`--react-native`). `pre`, ahead of the substitution table and the
+        // (`--dialect react-native`). `pre`, ahead of the substitution table and the
         // externals policy — a redirect after `externalsPlugin` would find the
         // specifier already externalised.
-        ...(input.pluginOptions.reactNative ? [reactNativeAliasPlugin()] : []),
+        ...(input.pluginOptions.dialect === 'react-native' ? [reactNativeAliasPlugin()] : []),
         // random-access-file's 'browser' field maps to a throwing stub; the alias
         // table forces the fs-backed Node entry.
         aliasPlugin({ entries: aliasEntries }),

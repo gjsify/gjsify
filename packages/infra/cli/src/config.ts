@@ -4,6 +4,7 @@ import { basename, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { isGjs, hostRuntime } from '@gjsify/rolldown-plugin-gjsify/runtime';
 import { buildAppForRuntime } from './utils/runtimes.js';
+import { isSourceDialect, SOURCE_DIALECTS } from '@gjsify/rolldown-plugin-gjsify';
 
 /**
  * Does the failed `import()` of a config look like a MODULE-RESOLUTION failure
@@ -297,7 +298,20 @@ export class Config {
         configData.verbose = cliArgs.verbose || cliArgs.logLevel === 'debug' || cliArgs.logLevel === 'verbose';
         configData.exclude = cliArgs.exclude || [];
         if (cliArgs.consoleShim !== undefined) configData.consoleShim = cliArgs.consoleShim;
-        if (cliArgs.reactNative !== undefined) configData.reactNative = cliArgs.reactNative;
+        // `--dialect` narrows here rather than at the call site. yargs `choices`
+        // already rejects an unknown value typed on the command line, but a
+        // `gjsify.dialect` in package.json or `.gjsifyrc.*` never passes through
+        // yargs — so the one place both spellings meet is the one place that
+        // checks, and it names the alternatives instead of silently ignoring.
+        if (cliArgs.dialect !== undefined) {
+            if (!isSourceDialect(cliArgs.dialect)) {
+                throw new Error(
+                    `gjsify build: "${cliArgs.dialect}" is not a source dialect. Known: ${SOURCE_DIALECTS.join(', ')}. ` +
+                        'This is the dialect the SOURCE is written in — not gjsify.runtimes, which declares the runtime a package RUNS on.',
+                );
+            }
+            configData.dialect = cliArgs.dialect;
+        }
         // Default `--app` FOLLOWS the host runtime the CLI executes in: gjs when
         // run under gjs, node when run under node/bun/deno (both consume the
         // `--app node` bundle). Applied post-merge (not as a yargs `default:`)

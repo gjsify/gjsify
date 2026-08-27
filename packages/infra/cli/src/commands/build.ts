@@ -1,6 +1,7 @@
 import { Config } from '../config.js';
 import { BuildAction } from '../actions/build.js';
 import type { Command, CliBuildOptions } from '../types/index.js';
+import { SOURCE_DIALECTS } from '@gjsify/rolldown-plugin-gjsify';
 
 // NO `normalize: true` ON THE GLOB-BEARING OPTIONS — `entry-points` and
 // `exclude` are PATTERNS, not paths.
@@ -115,11 +116,11 @@ export const buildCommand: Command<unknown, CliBuildOptions> = {
                 choices: ['silent', 'error', 'warning', 'info', 'debug', 'verbose'],
                 default: 'warning',
             })
-            .option('react-native', {
+            .option('dialect', {
                 description:
-                    "React Native port mode: alias 'react-native' onto '@gjsify/react-native' and fail the build on an import whose ADR 0032 support-table status is not supported/partial. GJS and Node app builds.",
-                type: 'boolean',
-                default: false,
+                    "The dialect the SOURCE is written in. 'react-native' aliases 'react-native' onto '@gjsify/react-native' and fails the build on an import whose ADR 0032 support-table status is not supported/partial. GJS and Node app builds. This is NOT gjsify.runtimes['react-native'], which declares the runtime a package RUNS on — the two answer opposite questions.",
+                type: 'string',
+                choices: [...SOURCE_DIALECTS],
             })
             .option('console-shim', {
                 description:

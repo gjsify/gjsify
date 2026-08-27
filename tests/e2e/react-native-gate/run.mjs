@@ -11,7 +11,7 @@
 // prove that a resolve plus a dynamic import of `@gjsify/react-native/support-table`
 // works in a consumer's node_modules.
 //
-// THE OPT-IN IS THE FIRST VECTOR, not an afterthought. Without `--react-native`
+// THE OPT-IN IS THE FIRST VECTOR, not an afterthought. Without `--dialect react-native`
 // the same entry must build EXACTLY as it did before this feature existed: the
 // specifier is not redirected and the gate does not run. That vector also records
 // the state ADR 0032 § 2 describes as the problem — `Could not resolve
@@ -157,7 +157,8 @@ describe('--app gjs react-native alias + support gate (ADR 0032 § 2, § 8)', { 
             'src/ok.ts',
             '--app',
             'gjs',
-            '--react-native',
+            '--dialect',
+            'react-native',
             '--outfile',
             'dist/ok.mjs',
         ]);
@@ -182,7 +183,8 @@ describe('--app gjs react-native alias + support gate (ADR 0032 § 2, § 8)', { 
             'src/refused.ts',
             '--app',
             'gjs',
-            '--react-native',
+            '--dialect',
+            'react-native',
             '--outfile',
             'dist/refused.mjs',
         ]);
@@ -204,7 +206,8 @@ describe('--app gjs react-native alias + support gate (ADR 0032 § 2, § 8)', { 
             'src/typeonly.ts',
             '--app',
             'gjs',
-            '--react-native',
+            '--dialect',
+            'react-native',
             '--outfile',
             'dist/typeonly.mjs',
         ]);
@@ -219,7 +222,8 @@ describe('--app gjs react-native alias + support gate (ADR 0032 § 2, § 8)', { 
             'src/opaque.ts',
             '--app',
             'gjs',
-            '--react-native',
+            '--dialect',
+            'react-native',
             '--outfile',
             'dist/opaque.mjs',
         ]);
@@ -233,7 +237,8 @@ describe('--app gjs react-native alias + support gate (ADR 0032 § 2, § 8)', { 
             'src/deep.ts',
             '--app',
             'gjs',
-            '--react-native',
+            '--dialect',
+            'react-native',
             '--outfile',
             'dist/deep.mjs',
         ]);

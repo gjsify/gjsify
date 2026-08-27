@@ -21,7 +21,7 @@
 //      for — and the failure names a gjsify package, so it reads as our bug.
 //
 // So the redirect happens only where the consumer asked for it: `gjsify build
-// --react-native`, or this plugin composed by hand.
+// --dialect react-native`, or this plugin composed by hand.
 //
 // A `resolveId` hook and not an `aliasPlugin` entry, for two reasons the alias
 // table cannot express: a deep import into React Native's internals is a NAMED
