@@ -50,10 +50,19 @@ export type Coercion =
     /** A number is a pixel count; a string is looked up in the map. */
     | 'pixels-or-map';
 
+/**
+ * Which of an element's up-to-three GTK nodes a prop lands on.
+ *
+ * `outer` is the node the parent adopts, `content` the node the element's children
+ * go into, `backdrop` a node that takes no children and sits BEHIND them —
+ * `ImageBackground`'s picture, and the only reason the third one exists.
+ */
+export type NodeKind = 'outer' | 'content' | 'backdrop';
+
 export interface PropertyRoute {
     readonly to: 'property';
     /** Which node it lands on. `content` is the implicit inner box, where there is one. */
-    readonly on?: 'outer' | 'content';
+    readonly on?: NodeKind;
     /** The GTK properties this one prop fills — plural for `size`, which is two requests. */
     readonly names: readonly string[];
     readonly as: Coercion;
@@ -105,7 +114,51 @@ export interface IgnoredRoute {
     readonly why: string;
 }
 
-export type PropRoute = PropertyRoute | StylePropertyRoute | EventRoute | RefusedRoute | IgnoredRoute;
+/**
+ * A prop whose value becomes a `Gio.File` — and the reason it is its own kind.
+ *
+ * `Gtk.Picture:file` takes a `Gio.File`, an OBJECT, and building one needs
+ * `gi://Gio`. Nothing under `primitives/` imports `gi://` (that is what makes L2
+ * testable without a display and reusable by a binding that never loads GTK), so the
+ * table cannot produce the value — only the DECISION about it. So L2 does the whole
+ * of the decision, which is where every refusal lives (`http:` has no synchronous
+ * loader, a `require()` id has no asset registry, an array is a device-scale
+ * picker), and hands the framework layer a `{ kind, value }` pair it turns into one
+ * call: `Gio.File.new_for_path` or `Gio.File.new_for_uri`.
+ */
+export interface FileRoute {
+    readonly to: 'file';
+    /** Which node it lands on. */
+    readonly on?: NodeKind;
+    /** The GTK property that takes the file — `file` on a `Gtk.Picture`. */
+    readonly property: string;
+}
+
+/**
+ * A prop bound through a gesture CONTROLLER rather than a signal on the widget.
+ *
+ * `TouchableWithoutFeedback` is the one primitive that needs it: it has no button
+ * chrome, so its widget is a `Gtk.Box`, and a box emits no `clicked` (measured —
+ * `Gtk.Button`'s two signals are `activate` and `clicked`, and a box has neither).
+ * The desktop answer is a `Gtk.GestureClick` added to the widget, whose `released`
+ * signal is the press completing. A controller is `add_controller(new
+ * Gtk.GestureClick())` — a constructed OBJECT, so the same rule as {@link FileRoute}
+ * applies: the table names the signal, the framework layer builds the controller.
+ */
+export interface GestureRoute {
+    readonly to: 'gesture';
+    /** The `Gtk.GestureClick` signal — `released` for a completed press. */
+    readonly signal: string;
+}
+
+export type PropRoute =
+    | PropertyRoute
+    | StylePropertyRoute
+    | EventRoute
+    | RefusedRoute
+    | IgnoredRoute
+    | FileRoute
+    | GestureRoute;
 
 /** A second styleable node inside the element, which the children go into. */
 export interface ContentSpec {
@@ -125,6 +178,16 @@ export interface ContentSpec {
      * the one that holds every child.
      */
     readonly classNameProp: string | null;
+    /**
+     * The slot this node declares to the OUTER node, when the outer node is slotted.
+     *
+     * Absent means the outer node's default slot, which is what every `single`-child
+     * container has. `ImageBackground` is the one primitive that needs it: its outer
+     * node is a `Gtk.Overlay`, whose two slots are not interchangeable — `child`
+     * holds the widget the overlay SIZES ITSELF TO and `add_overlay` stacks widgets
+     * on top of it.
+     */
+    readonly slot?: string;
 }
 
 export interface PrimitiveSpec {
@@ -152,6 +215,30 @@ export interface PrimitiveSpec {
     readonly overlayOnAbsoluteChild?: { readonly tag: string; readonly slot: string };
     /** One React Native prop, two GTK widgets. `TextInput`'s `multiline`. */
     readonly switchOn?: { readonly prop: string; readonly whenTrue: PrimitiveSpec };
+    /**
+     * A node BEHIND the children, which takes no children of its own.
+     *
+     * `ImageBackground` is the whole of this field, and the shape is forced rather
+     * than chosen. React Native's own `ImageBackground` is a `View` whose first child
+     * is an absolutely positioned `Image` — which is exactly the `overlayOnAbsoluteChild`
+     * switch above. But MEASURED on gtk 4.22.4: a `Gtk.Overlay` paints every overlay
+     * child ABOVE its main child, so a picture in the overlay slot covers the
+     * children instead of sitting behind them. The picture therefore has to be the
+     * MAIN child, and the children move into the overlay slot — which is a third
+     * node, not a variation of the second.
+     */
+    readonly backdrop?: ContentSpec;
+    /**
+     * This primitive answers for no `style` and no `className`, and why.
+     *
+     * `Button` only. React Native's `Button` takes neither — its documented styling
+     * story is "you cannot", and GTK agrees: an `Adw`-themed button is styled by the
+     * theme and by its own classes (`suggested-action`), not by a caller's utility
+     * list. Refusing here rather than in a component's prop type is what makes the
+     * refusal reach a JavaScript caller and both L3s, and it is a REFUSAL rather than
+     * a silent drop for the reason every other one in this file is.
+     */
+    readonly refusesStyle?: string;
 }
 
 const BOX: WidgetFacts = { box: true, alignsText: false };
@@ -285,6 +372,100 @@ const TEXT_INPUT_MULTILINE: PrimitiveSpec = {
             why: 'Return inserts a newline in a multiline field; there is nothing to submit',
         },
     },
+};
+
+/**
+ * `resizeMode` → `Gtk.ContentFit`, and one of the five has no member at all.
+ *
+ * MEASURED on gtk 4.22.4: `GtkContentFit` is FILL=0, CONTAIN=1, COVER=2,
+ * SCALE_DOWN=3 — four members, and `repeat` is not among them. Tiling a paintable is
+ * a `Gdk.Paintable` implementation, not a property of the widget that draws one, so
+ * `repeat` is absent from this map and refused by name rather than promoted to the
+ * nearest fit — which would silently render one stretched copy of a texture the
+ * author asked to be tiled.
+ *
+ * `center` → SCALE_DOWN is the mapping that reads as a guess and is not: React
+ * Native's `center` is "centre the image, and scale it DOWN if it does not fit",
+ * which is GTK's own definition of SCALE_DOWN.
+ */
+const CONTENT_FIT: Readonly<Record<string, string>> = {
+    cover: 'cover',
+    contain: 'contain',
+    stretch: 'fill',
+    center: 'scale-down',
+};
+
+/**
+ * Props of `Image` that describe a LOADER this layer does not own.
+ *
+ * MEASURED: `Gtk.Picture` emits no signals at all (`GObject.signal_list_ids` on its
+ * GType is empty), so `onLoad`, `onError`, `onLoadStart` and `onLoadEnd` have nothing
+ * to bind — a `Gtk.Picture` is handed a file or a paintable and draws it, and it
+ * reports neither progress nor failure. Setting a file that does not exist leaves
+ * `paintable` null with NO diagnostic (measured), which is exactly why these are
+ * refusals: a load callback that never fires would make a missing image
+ * indistinguishable from a slow one, for ever.
+ */
+const NO_IMAGE_LOAD_EVENTS =
+    'is a load event, and `Gtk.Picture` emits NO signals at all (measured: its GType lists none) — it is handed a file or a paintable and draws it, reporting neither progress nor failure. A missing file leaves `paintable` null with no diagnostic, so a callback that never fires would hide exactly the case it exists to report. Load the bytes yourself and set `paintable` through a ref';
+
+/** Image props that are a per-pixel effect GTK draws in a shader, not a widget property. */
+const NO_IMAGE_FILTER =
+    'is a per-pixel effect. GTK composites a `Gdk.Paintable` and has no filter property on the widget that draws it — the counterpart is a `Gsk` render node or a `Gtk.Snapshot` subclass, which is a widget of its own rather than a prop on this one';
+
+/**
+ * `activeOpacity` / `underlayColor` — the pressed style, which is CSS here.
+ *
+ * ADR 0032 § 7 is the whole answer: the press state is the GTK CSS `:active`
+ * pseudo-class, and `active:opacity-70` / `active:bg-emphasis` reach it through the
+ * same variant mechanism every other utility uses — GTK animates the state itself,
+ * with no re-render at all. Honouring these two props instead would put a colour and
+ * an opacity into the styling path that did NOT come from the project's token scale,
+ * which is the one thing ADR 0032 § 3 says the vocabulary's values may not do.
+ */
+const PRESSED_STYLE_IS_CSS = (utility: string): string =>
+    `sets the pressed appearance, which on GTK is the CSS \`:active\` pseudo-class rather than a prop (ADR 0032 § 7). Write \`${utility}\` — it resolves through the same variant mechanism as every other utility, reads the project's own token scale, and GTK animates it with no re-render at all`;
+
+/**
+ * Every `FlatList` prop that tunes React Native's own virtualisation.
+ *
+ * ADR 0032 puts the list on `Gtk.ListView` because "GTK virtualises for real", and
+ * these props configure the OTHER implementation. MEASURED on gtk 4.22.4 with a
+ * 500-row model in a presented 400×300 window: 205 rows were set up and bound, in
+ * both arrangements tried — the numbers are `Gtk.ListView`'s own and there is no
+ * property that moves them. Accepting a batch size and doing nothing with it is the
+ * silent drop this layer exists to remove; accepting one and acting on it would mean
+ * fighting the widget for a job it already does.
+ */
+const GTK_OWNS_VIRTUALISATION =
+    'tunes React Native’s own virtualisation, and `Gtk.ListView` does that job itself — it creates and recycles rows through the factory as the viewport moves (measured: 205 of 500 rows set up in a 400×300 window) and installs no property that changes the batching. There is nothing for this to set';
+
+/** Pull-to-refresh, refused in three places and for one reason. */
+const PULL_TO_REFRESH =
+    'is pull-to-refresh, which GTK has no idiom for and should not grow one — `RefreshControl` is `refused` in the support table for the same reason. Give the desktop build a refresh action in the header bar';
+
+/** Props of the Touchable family that describe a phone's touch handling. */
+const TOUCHABLE_COMMON: Readonly<Record<string, PropRoute | readonly PropRoute[]>> = {
+    ...COMMON,
+    disabled: { to: 'property', names: ['sensitive'], as: 'not' },
+    onPressIn: {
+        to: 'refused',
+        why: 'press state is the GTK CSS `:active` pseudo-class, not React state (ADR 0032 § 7) — write `active:opacity-70` and GTK animates it with no re-render at all',
+    },
+    onPressOut: { to: 'refused', why: 'see `onPressIn` — `active:` is the mechanism' },
+    onLongPress: {
+        to: 'refused',
+        why: 'a long press is a `Gtk.GestureLongPress` controller added to the widget, not a property or a signal on it, so it is not something this layer can route as data',
+    },
+    delayLongPress: { to: 'refused', why: 'see `onLongPress`' },
+    delayPressIn: { to: 'refused', why: 'see `onPressIn` — there is no press-in event to delay' },
+    delayPressOut: { to: 'refused', why: 'see `onPressIn`' },
+    hitSlop: {
+        to: 'refused',
+        why: 'GTK hit-tests the allocation and has no way to grow it past the widget. Pad the element (`p-*`), which enlarges the real target',
+    },
+    pressRetentionOffset: { to: 'refused', why: 'see `hitSlop` — GTK hit-tests the allocation and nothing around it' },
+    touchSoundDisabled: { to: 'ignored', why: 'an Android touch sound; a desktop button makes none' },
 };
 
 export const PRIMITIVES: Readonly<Record<string, PrimitiveSpec>> = {
@@ -584,6 +765,400 @@ export const PRIMITIVES: Readonly<Record<string, PrimitiveSpec>> = {
             },
             thumbColor: { to: 'refused', why: 'see `trackColor`' },
             ios_backgroundColor: { to: 'ignored', why: 'an iOS-only fallback colour' },
+        },
+    },
+
+    // --- P2 -------------------------------------------------------------------
+
+    Image: {
+        tag: 'GtkPicture',
+        // THE THIRD INVERTED DEFAULT, and it is the same shape as the other two.
+        // React Native's `Image` defaults to `resizeMode="cover"`; `Gtk.Picture`
+        // defaults to `content-fit: contain` (MEASURED: a fresh picture reports 1,
+        // which is CONTAIN). Absent, every ported image is letterboxed instead of
+        // filled — which renders, looks deliberate, and is wrong.
+        widgetProps: { 'content-fit': 'cover' },
+        cssClasses: [],
+        orientation: 'vertical',
+        widget: LEAF,
+        // A `Gtk.Picture` has no text sink, so text under an `<Image>` is refused by
+        // the host naming the tag. React Native's `Image` takes no children either.
+        textSink: null,
+        props: {
+            ...COMMON,
+            source: { to: 'file', property: 'file' },
+            resizeMode: { to: 'property', names: ['content-fit'], as: 'map', map: CONTENT_FIT },
+            // React Native 0.71's own name for the accessible description, and
+            // `Gtk.Picture` is the one widget in this table that installs a property
+            // for it — which is why `alt` is answered here while `accessibilityLabel`
+            // is refused everywhere (GTK carries that through an imperative
+            // `Gtk.Accessible.update_property()` call).
+            alt: { to: 'property', names: ['alternative-text'], as: 'string' },
+            onLoad: { to: 'refused', why: NO_IMAGE_LOAD_EVENTS },
+            onLoadStart: { to: 'refused', why: NO_IMAGE_LOAD_EVENTS },
+            onLoadEnd: { to: 'refused', why: NO_IMAGE_LOAD_EVENTS },
+            onError: { to: 'refused', why: NO_IMAGE_LOAD_EVENTS },
+            onProgress: { to: 'refused', why: NO_IMAGE_LOAD_EVENTS },
+            blurRadius: { to: 'refused', why: NO_IMAGE_FILTER },
+            tintColor: { to: 'refused', why: NO_IMAGE_FILTER },
+            capInsets: {
+                to: 'refused',
+                why: 'is iOS nine-part stretching. GTK’s counterpart is a CSS `border-image` on a widget’s background, which is a different widget and a different property set',
+            },
+            defaultSource: {
+                to: 'refused',
+                why: 'is the placeholder shown while the real image loads, and `Gtk.Picture` has one file at a time with no load event to swap on (measured: it emits no signals). Render a placeholder widget beside it and remove it yourself',
+            },
+            loadingIndicatorSource: { to: 'refused', why: 'see `defaultSource`' },
+            progressiveRenderingEnabled: { to: 'ignored', why: 'GTK decodes an image in one pass' },
+            fadeDuration: {
+                to: 'ignored',
+                why: 'an Android cross-fade on load; there is no load event here to fade from (measured)',
+            },
+            resizeMethod: { to: 'ignored', why: 'an Android decoder hint' },
+            resizeMultiplier: { to: 'ignored', why: 'an Android decoder hint' },
+        },
+    },
+
+    ImageBackground: {
+        tag: 'GtkOverlay',
+        widgetProps: {},
+        cssClasses: [],
+        orientation: 'vertical',
+        // The overlay is NOT a box: it has no `orientation` and no `spacing`
+        // (MEASURED: 37 properties, neither among them), so a `gap-*` or `items-*`
+        // written on `style` is refused naming the primitive and belongs on the
+        // children’s own container.
+        widget: LEAF,
+        textSink: null,
+        // The picture is the MAIN child and the children stack above it. Both halves
+        // are forced by one measurement: a `Gtk.Overlay` paints every overlay child
+        // ABOVE its main child, and it MEASURES only its main child (measured: a
+        // 9 px main child and a 266 px overlay child gave the overlay 9 px, and
+        // `set_measure_overlay(child, true)` gave it 266). So the element is sized by
+        // its picture rather than by its children — the support table’s
+        // `ImageBackground` limit says so, because the fix is a per-child METHOD call
+        // and this layer’s placement is data naming a method the host calls.
+        backdrop: {
+            tag: 'GtkPicture',
+            widgetProps: { 'content-fit': 'cover' },
+            orientation: 'vertical',
+            widget: LEAF,
+            styleProp: 'imageStyle',
+            classNameProp: null,
+            slot: 'child',
+        },
+        content: {
+            tag: 'GtkBox',
+            widgetProps: { orientation: 'vertical' },
+            orientation: 'vertical',
+            widget: BOX,
+            styleProp: null,
+            classNameProp: null,
+            slot: 'overlay',
+        },
+        props: {
+            ...COMMON,
+            pointerEvents: POINTER_EVENTS,
+            source: { to: 'file', on: 'backdrop', property: 'file' },
+            resizeMode: {
+                to: 'property',
+                on: 'backdrop',
+                names: ['content-fit'],
+                as: 'map',
+                map: CONTENT_FIT,
+            },
+            alt: { to: 'property', on: 'backdrop', names: ['alternative-text'], as: 'string' },
+            // Read directly as the backdrop’s style set (`resolveNode`), never through
+            // this lookup. Listed so an unknown-prop refusal names the right spelling.
+            imageStyle: { to: 'ignored', why: 'read directly as the picture node’s style set' },
+            imageRef: {
+                to: 'refused',
+                why: 'hands back the inner `Image`’s instance. This element’s `ref` is the `Gtk.Overlay`; the picture is its main child and `overlay.get_child()` reaches it, so a second ref would be a second way to say the same thing',
+            },
+        },
+    },
+
+    // The Touchable family is the SAME widget and the same routes as `Pressable`,
+    // spread from one shared record rather than copied — ADR 0032’s planning entry
+    // says "the same machinery as Pressable, and nearly free once it exists", and a
+    // second copy of the refusals is how that stops being true.
+    TouchableOpacity: {
+        tag: 'GtkButton',
+        cssClasses: ['flat'],
+        widgetProps: {},
+        orientation: 'vertical',
+        widget: LEAF,
+        textSink: 'label',
+        props: {
+            ...TOUCHABLE_COMMON,
+            pointerEvents: POINTER_EVENTS,
+            onPress: { to: 'event', signal: 'clicked' },
+            activeOpacity: { to: 'refused', why: PRESSED_STYLE_IS_CSS('active:opacity-70') },
+        },
+    },
+
+    TouchableHighlight: {
+        tag: 'GtkButton',
+        cssClasses: ['flat'],
+        widgetProps: {},
+        orientation: 'vertical',
+        widget: LEAF,
+        textSink: 'label',
+        props: {
+            ...TOUCHABLE_COMMON,
+            pointerEvents: POINTER_EVENTS,
+            onPress: { to: 'event', signal: 'clicked' },
+            activeOpacity: { to: 'refused', why: PRESSED_STYLE_IS_CSS('active:opacity-70') },
+            underlayColor: { to: 'refused', why: PRESSED_STYLE_IS_CSS('active:bg-<token>') },
+            onShowUnderlay: { to: 'refused', why: 'see `underlayColor` — there is no underlay to show' },
+            onHideUnderlay: { to: 'refused', why: 'see `underlayColor`' },
+        },
+    },
+
+    TouchableWithoutFeedback: {
+        // A BOX, not a button, and that is the whole difference. React Native’s
+        // `TouchableWithoutFeedback` has no chrome and no press feedback; a
+        // `Gtk.Button` has both (Adwaita paints `:hover` and `:active` on it from the
+        // theme, which no property turns off). So the widget is the same one a `View`
+        // becomes, and the press arrives through a controller instead of a signal:
+        // MEASURED, `Gtk.Button` emits exactly `activate` and `clicked` and a
+        // `Gtk.Box` emits neither, while `Gtk.GestureClick` emits `pressed`,
+        // `released`, `stopped` and `unpaired-release`.
+        tag: 'GtkBox',
+        widgetProps: { orientation: 'vertical' },
+        cssClasses: [],
+        orientation: 'vertical',
+        widget: BOX,
+        textSink: null,
+        overlayOnAbsoluteChild: { tag: 'GtkOverlay', slot: 'overlay' },
+        props: {
+            ...TOUCHABLE_COMMON,
+            pointerEvents: POINTER_EVENTS,
+            onPress: { to: 'gesture', signal: 'released' },
+            // `sensitive` on a box greys out every descendant, which is not what
+            // `disabled` means on a feedback-less wrapper — and `can-target: false`
+            // is what actually stops the gesture from firing.
+            disabled: { to: 'property', names: ['can-target'], as: 'not' },
+        },
+    },
+
+    Button: {
+        // NOT flat. React Native’s `Button` is the platform’s own button with its
+        // own background, which on GTK is a `Gtk.Button` with its frame — the
+        // opposite of `Pressable`, whose `flat` class removes it.
+        tag: 'GtkButton',
+        widgetProps: {},
+        cssClasses: [],
+        orientation: 'vertical',
+        widget: LEAF,
+        // `title` writes `label`, so a text CHILD would be a second authority for the
+        // same slot. React Native’s `Button` takes no children either, so `null` here
+        // is parity rather than a limitation.
+        textSink: null,
+        refusesStyle:
+            'takes no `style` and no `className`. React Native’s own `Button` takes neither — its documented styling story is that you cannot, and you use `Pressable` when you need to — and GTK agrees: an Adwaita button is painted by the theme and by its own classes (`suggested-action`, `destructive-action`), which an application stylesheet sets. Use `<Pressable>`',
+        props: {
+            ...COMMON,
+            title: { to: 'property', names: ['label'], as: 'string' },
+            onPress: { to: 'event', signal: 'clicked' },
+            disabled: { to: 'property', names: ['sensitive'], as: 'not' },
+            color: {
+                to: 'refused',
+                why: 'is the button’s background on Android and its text colour on iOS — one prop, two meanings, and GTK has a third answer: `suggested-action` and `destructive-action` are Adwaita’s own classes for the two cases a colour is usually asking for. Set them from the application stylesheet, or use `<Pressable>`',
+            },
+            touchSoundDisabled: { to: 'ignored', why: 'an Android touch sound; a desktop button makes none' },
+            hasTVPreferredFocus: { to: 'ignored', why: 'an Android TV focus hint' },
+            nextFocusDown: { to: 'ignored', why: 'an Android TV focus hint' },
+            nextFocusForward: { to: 'ignored', why: 'an Android TV focus hint' },
+            nextFocusLeft: { to: 'ignored', why: 'an Android TV focus hint' },
+            nextFocusRight: { to: 'ignored', why: 'an Android TV focus hint' },
+            nextFocusUp: { to: 'ignored', why: 'an Android TV focus hint' },
+        },
+    },
+
+    // A no-op that still LAYS OUT, which is the difference between a declared no-op
+    // and a bug. React Native’s `SafeAreaView` is a `View` that insets its children
+    // by the device’s safe-area insets; a desktop window’s insets are zero, so the
+    // inset is what disappears — not the box, not the column, not the children.
+    SafeAreaView: {
+        tag: 'GtkBox',
+        widgetProps: { orientation: 'vertical' },
+        cssClasses: [],
+        orientation: 'vertical',
+        widget: BOX,
+        textSink: null,
+        overlayOnAbsoluteChild: { tag: 'GtkOverlay', slot: 'overlay' },
+        props: { ...COMMON, pointerEvents: POINTER_EVENTS },
+    },
+
+    KeyboardAvoidingView: {
+        tag: 'GtkBox',
+        widgetProps: { orientation: 'vertical' },
+        cssClasses: [],
+        orientation: 'vertical',
+        widget: BOX,
+        textSink: null,
+        overlayOnAbsoluteChild: { tag: 'GtkOverlay', slot: 'overlay' },
+        props: {
+            ...COMMON,
+            pointerEvents: POINTER_EVENTS,
+            behavior: {
+                to: 'ignored',
+                why: 'describes how to move out of an on-screen keyboard’s way, and none appears',
+            },
+            keyboardVerticalOffset: { to: 'ignored', why: 'see `behavior`' },
+            enabled: { to: 'ignored', why: 'see `behavior` — the avoidance is already off' },
+            contentContainerStyle: {
+                to: 'refused',
+                why: 'styles the inner view React Native adds to do the avoiding, and there is no avoiding here — so there is no second node to style. Put it on `style`, which lands on the one box this element is',
+            },
+        },
+    },
+
+    // --- the list family ------------------------------------------------------
+    //
+    // WHY THESE ARE THREE NODES AND NOT ONE, and it is the sharpest measurement of
+    // this milestone after `Modal`. A `Gtk.ListView` renders from a MODEL through a
+    // `Gtk.ListItemFactory`; MEASURED on gtk 4.22.4, it installs no `append`, no
+    // `add`, no `insert`, no `prepend`, no `remove` and no `set_child` — nothing a
+    // child-placement policy could name. So the list itself cannot be an element
+    // whose children are the rows, and the rows are not this table’s business at
+    // all: `lists/controller.ts` owns them.
+    //
+    // What IS this table’s business is the frame around it, because that is where
+    // `style`, `className` and `horizontal` land: an outer `Gtk.Box` for the header,
+    // the scroller and the footer, and a `Gtk.ScrolledWindow` the controller puts the
+    // `Gtk.ListView` into. Both are ordinary nodes with ordinary routes.
+    FlatList: {
+        tag: 'GtkBox',
+        widgetProps: { orientation: 'vertical' },
+        cssClasses: [],
+        orientation: 'vertical',
+        widget: BOX,
+        textSink: null,
+        content: {
+            tag: 'GtkScrolledWindow',
+            // `vexpand` because the scroller is one of up to three children of the
+            // outer box and it is the one that takes the leftover space — a header
+            // and a footer are their own natural height. `hscrollbar-policy: never`
+            // for the reason `ScrollView` has it: a `Gtk.ScrolledWindow` scrolls both
+            // axes by default and therefore propagates a natural size on neither.
+            widgetProps: { 'hscrollbar-policy': 'never', vexpand: true, hexpand: true },
+            orientation: 'vertical',
+            widget: LEAF,
+            styleProp: null,
+            classNameProp: null,
+        },
+        props: {
+            ...COMMON,
+            horizontal: [
+                {
+                    to: 'property',
+                    on: 'outer',
+                    names: ['orientation'],
+                    as: 'map',
+                    map: { true: 'horizontal', false: 'vertical' },
+                },
+                {
+                    to: 'property',
+                    on: 'content',
+                    names: ['hscrollbar-policy'],
+                    as: 'map',
+                    map: { true: 'automatic', false: 'never' },
+                },
+                {
+                    to: 'property',
+                    on: 'content',
+                    names: ['vscrollbar-policy'],
+                    as: 'map',
+                    map: { true: 'never', false: 'automatic' },
+                },
+            ],
+            showsVerticalScrollIndicator: {
+                to: 'property',
+                on: 'content',
+                names: ['vscrollbar-policy'],
+                as: 'map',
+                map: { true: 'automatic', false: 'external' },
+            },
+            showsHorizontalScrollIndicator: {
+                to: 'property',
+                on: 'content',
+                names: ['hscrollbar-policy'],
+                as: 'map',
+                map: { true: 'automatic', false: 'external' },
+            },
+            // Read by the component, not routed: they are React trees and a widget
+            // property cannot hold one. Listed so an unknown-prop refusal names them.
+            data: { to: 'ignored', why: 'read by the component, which drives the Gio.ListStore from it' },
+            renderItem: { to: 'ignored', why: 'read by the item factory' },
+            keyExtractor: { to: 'ignored', why: 'read by the component, to key the model rows' },
+            getItem: { to: 'ignored', why: 'read by the component — VirtualizedList’s accessor form of `data`' },
+            getItemCount: { to: 'ignored', why: 'see `getItem`' },
+            sections: { to: 'ignored', why: 'read by the component — SectionList’s form of `data`' },
+            renderSectionHeader: { to: 'ignored', why: 'read by the item factory' },
+            ListEmptyComponent: { to: 'ignored', why: 'rendered by the component instead of the scroller' },
+            ListHeaderComponent: { to: 'ignored', why: 'rendered by the component, before the scroller' },
+            ListFooterComponent: { to: 'ignored', why: 'rendered by the component, after the scroller' },
+            onEndReached: { to: 'ignored', why: 'bound by the component to the scroller’s own Gtk.Adjustment' },
+            onEndReachedThreshold: { to: 'ignored', why: 'see `onEndReached`' },
+            extraData: { to: 'ignored', why: 'read by the component; a change re-renders every bound row' },
+            // NOT a React Native prop, and it earns its place: a row is a React root of
+            // its own, so an error inside `renderItem` has no ancestor boundary in the
+            // outer tree to reach. Listed here so it is not refused as unknown.
+            onRowError: { to: 'ignored', why: 'read by the component, and handed to each row’s own React root' },
+            // The refusals. React Native’s list surface is wide and most of it
+            // describes a virtualisation implementation GTK has its own version of —
+            // ADR 0032 says so in as many words, and honouring these literally would
+            // mean fighting `Gtk.ListView` for the job it already does.
+            initialNumToRender: { to: 'refused', why: GTK_OWNS_VIRTUALISATION },
+            maxToRenderPerBatch: { to: 'refused', why: GTK_OWNS_VIRTUALISATION },
+            updateCellsBatchingPeriod: { to: 'refused', why: GTK_OWNS_VIRTUALISATION },
+            windowSize: { to: 'refused', why: GTK_OWNS_VIRTUALISATION },
+            removeClippedSubviews: { to: 'refused', why: GTK_OWNS_VIRTUALISATION },
+            getItemLayout: { to: 'refused', why: GTK_OWNS_VIRTUALISATION },
+            initialScrollIndex: {
+                to: 'refused',
+                why: 'scrolls to a row before the first paint. `Gtk.ListView.scroll_to(position, flags, scroll_info)` is the counterpart and it is an imperative call on a realised view, not a property — reach the view through a ref and call it',
+            },
+            onViewableItemsChanged: {
+                to: 'refused',
+                why: 'reports which rows are on screen. `Gtk.ListView` binds and unbinds rows itself and exposes no viewport range — the closest fact is `Gtk.ListItem:position` inside the factory, which is per row rather than a set, so a faithful answer would be a guess assembled from bind order',
+            },
+            viewabilityConfig: { to: 'refused', why: 'see `onViewableItemsChanged`' },
+            viewabilityConfigCallbackPairs: { to: 'refused', why: 'see `onViewableItemsChanged`' },
+            onScroll: {
+                to: 'refused',
+                why: 'GTK reports scroll position through the `Gtk.Adjustment` objects behind the scroller’s `hadjustment`/`vadjustment` — `notify::value` on an adjustment, not a signal on the widget. `onEndReached` is the one question this layer answers from it; reach the adjustment through a ref for the rest',
+            },
+            scrollEventThrottle: { to: 'refused', why: 'see `onScroll`' },
+            numColumns: {
+                to: 'refused',
+                why: 'lays the rows out in a grid, and a `Gtk.ListView` is one column of rows by construction. `Gtk.GridView` is the widget that does this and it is a different tag with a different model contract, so it is a primitive of its own rather than a prop on this one',
+            },
+            columnWrapperStyle: { to: 'refused', why: 'see `numColumns`' },
+            inverted: {
+                to: 'refused',
+                why: 'draws the list bottom-up. GTK has no reversed list view; the honest equivalent is to reverse `data` yourself, which is one line and visible in the code',
+            },
+            refreshing: { to: 'refused', why: PULL_TO_REFRESH },
+            onRefresh: { to: 'refused', why: PULL_TO_REFRESH },
+            refreshControl: { to: 'refused', why: PULL_TO_REFRESH },
+            ItemSeparatorComponent: {
+                to: 'refused',
+                why: 'puts a widget BETWEEN rows, and a `Gtk.ListView` has no between — it has rows. `Gtk.ListView:show-separators` draws the Adwaita separator itself; set it through a ref, or give the row its own bottom border with `border-b`',
+            },
+            stickySectionHeadersEnabled: {
+                to: 'refused',
+                why: 'GTK’s own sticky headers are a `Gtk.ListView:header-factory` over a model that implements `Gtk.SectionModel` (MEASURED: `Gio.ListStore` does not, every selection model and `Gtk.FlattenListModel` do). This layer flattens the sections into one model with header ROWS instead, so a header scrolls with its section — which is what `stickySectionHeadersEnabled={false}` asks for and the only thing it can deliver',
+            },
+            keyboardShouldPersistTaps: { to: 'ignored', why: 'there is no on-screen keyboard to dismiss' },
+            keyboardDismissMode: { to: 'ignored', why: 'see `keyboardShouldPersistTaps`' },
+            contentContainerStyle: {
+                to: 'refused',
+                why: 'styles the box React Native puts the rows in, and there is no such box: `Gtk.ListView` builds each row from the factory and owns the space between them. Style the row inside `renderItem`, or the list itself through `style`',
+            },
         },
     },
 };

@@ -10,51 +10,51 @@ import { UnsupportedError, unsupported } from './unsupported.js';
 
 export default async () => {
     await describe('an unimplemented export', async () => {
-        const FlatList = unsupported('FlatList') as unknown as Record<string, unknown> & ((...a: unknown[]) => unknown);
+        const Animated = unsupported('Animated') as unknown as Record<string, unknown> & ((...a: unknown[]) => unknown);
 
         await it('throws when rendered or called', async () => {
-            expect(() => (FlatList as (...a: unknown[]) => unknown)()).toThrow(/UnsupportedError|FlatList/);
+            expect(() => (Animated as (...a: unknown[]) => unknown)()).toThrow(/UnsupportedError|Animated/);
         });
 
         await it('throws when constructed', async () => {
-            const Ctor = FlatList as unknown as new () => unknown;
-            expect(() => new Ctor()).toThrow(/UnsupportedError|FlatList/);
+            const Ctor = Animated as unknown as new () => unknown;
+            expect(() => new Ctor()).toThrow(/UnsupportedError|Animated/);
         });
 
         await it('throws on a property READ, not only on a call', async () => {
             // `Animated.timing` and `NativeModules.Foo` are reads. Answering
             // `undefined` here is what exports the failure into someone else's code.
-            expect(() => FlatList.timing).toThrow(/UnsupportedError|FlatList/);
+            expect(() => Animated.timing).toThrow(/UnsupportedError|Animated/);
         });
 
         await it('throws on a property write', async () => {
             expect(() => {
-                FlatList.anything = 1;
-            }).toThrow(/UnsupportedError|FlatList/);
+                Animated.anything = 1;
+            }).toThrow(/UnsupportedError|Animated/);
         });
 
         await it('carries the export name and the table sentence', async () => {
             let caught: unknown;
             try {
-                (FlatList as (...a: unknown[]) => unknown)();
+                (Animated as (...a: unknown[]) => unknown)();
             } catch (error) {
                 caught = error;
             }
             expect(caught instanceof UnsupportedError).toBe(true);
-            expect((caught as UnsupportedError).export).toBe('FlatList');
+            expect((caught as UnsupportedError).export).toBe('Animated');
             expect((caught as UnsupportedError).name).toBe('UnsupportedError');
-            expect((caught as UnsupportedError).message).toContain('Gtk.ListView');
+            expect((caught as UnsupportedError).message).toContain('Adw.TimedAnimation');
         });
 
         await it('still answers the reads feature detection makes', async () => {
             // A `typeof X === 'function'` guard must keep working, and so must the
             // three reads a bundler's interop and React's own element check make.
             // Throwing on these would break code that is behaving correctly.
-            expect(typeof FlatList).toBe('function');
-            expect(FlatList.name).toBe('FlatList');
-            expect(FlatList.displayName).toBe('FlatList');
-            expect(FlatList.$$typeof).toBe(undefined);
-            expect(FlatList.then).toBe(undefined);
+            expect(typeof Animated).toBe('function');
+            expect(Animated.name).toBe('Animated');
+            expect(Animated.displayName).toBe('Animated');
+            expect(Animated.$$typeof).toBe(undefined);
+            expect(Animated.then).toBe(undefined);
         });
     });
 };

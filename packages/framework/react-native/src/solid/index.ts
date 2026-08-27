@@ -384,7 +384,7 @@ function factsOf(primitive: string, resolved: unknown): ChildFacts {
             throw new PrimitiveError(
                 primitive,
                 'children',
-                'was given a function that takes an argument. Children-as-a-function-of-`{ pressed }` is not implemented (ADR 0032 § 7) — the press state is the GTK CSS `:active` pseudo-class, so write `className="active:opacity-70"` and GTK animates it with no reactive update at all. A zero-argument accessor is Solid\'s own dynamic child and never reaches this refusal',
+                'was given a function that takes an argument. Children-as-a-function-of-`{ pressed }` is implemented in the REACT binding and not in this one, and the difference is Solid\'s own: a component body runs once, so the press state would have to arrive as a SIGNAL the child reads rather than as a value the parent re-renders with — a different design, not a port of the React one. Write `className="active:opacity-70"`, which is the GTK CSS `:active` pseudo-class (ADR 0032 § 7) and what nearly every use of the function form is asking for. A zero-argument accessor is Solid\'s own dynamic child and never reaches this refusal',
             );
         } else if (child !== null && typeof child === 'object' && SLOTTED.has(child)) {
             absolute++;
@@ -531,10 +531,15 @@ export interface PressableProps extends CommonProps {
     /**
      * Never a function of `{ pressed }`.
      *
-     * `PrimitiveChildren` excludes functions, which is the build-time half of ADR
-     * 0032 § 7's refusal — the same half `components.ts` gets from `ReactNode`. The
-     * runtime half is in `factsOf`, and it is generic rather than per-primitive here
-     * because Solid resolves children before any primitive sees them.
+     * `PrimitiveChildren` excludes functions, which is the build-time half of the
+     * refusal. The runtime half is in `factsOf`, and it is generic rather than
+     * per-primitive here because Solid resolves children before any primitive sees
+     * them.
+     *
+     * The REACT binding implements the function form; this one does not, and the
+     * reason is in `factsOf`' message: a Solid component body runs once, so the press
+     * state has to reach the child as a signal rather than as a re-render, which is a
+     * design of its own rather than a port.
      */
     children?: PrimitiveChildren;
 }

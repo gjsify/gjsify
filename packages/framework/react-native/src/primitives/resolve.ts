@@ -34,6 +34,7 @@ import {
     FRAMEWORK_PROPS,
     PRIMITIVES,
     type ContentSpec,
+    type NodeKind,
     type PrimitiveSpec,
     type PropertyRoute,
     type PropRoute,
@@ -110,6 +111,33 @@ export interface ResolvedEvent {
     readonly read: string | null;
 }
 
+/**
+ * A widget property whose value is a `Gio.File`, decided here and BUILT one layer up.
+ *
+ * L2 holds every decision — which schemes have a synchronous loader, which shapes
+ * React Native accepts that this build chain cannot honour — and none of the
+ * construction, because building a `Gio.File` needs `gi://Gio` and nothing under
+ * `primitives/` imports `gi://`. That is not a stylistic rule: it is what lets this
+ * whole layer be asserted by comparison, with no display and no toolkit.
+ */
+export interface ResolvedFile {
+    /** Which node of the plan the property is on. */
+    readonly on: NodeKind;
+    /** The GTK property that takes it — `file` on a `Gtk.Picture`. */
+    readonly property: string;
+    /** `path` → `Gio.File.new_for_path`; `uri` → `Gio.File.new_for_uri`. */
+    readonly kind: 'path' | 'uri';
+    readonly value: string;
+}
+
+/** A press this element takes through a `Gtk.GestureClick` rather than a widget signal. */
+export interface ResolvedGesture {
+    /** The React Native prop that supplied the callback. */
+    readonly prop: string;
+    /** The `Gtk.GestureClick` signal — `released` is a completed press. */
+    readonly signal: string;
+}
+
 export interface PrimitivePlan {
     readonly primitive: string;
     /** The node the PARENT adopts. */
@@ -120,7 +148,17 @@ export interface PrimitivePlan {
     readonly slot: string | null;
     /** Where an absolutely positioned CHILD goes: into `node`, under this slot. */
     readonly absoluteSlot: string | null;
+    /** A node that takes no children and sits BEHIND them — `ImageBackground`'s picture. */
+    readonly backdrop: WidgetNode | null;
+    /** The slot `backdrop` declares to `node`, or null for the default slot. */
+    readonly backdropSlot: string | null;
+    /** The slot `content` declares to `node`, or null for the default slot. */
+    readonly contentSlot: string | null;
     readonly events: readonly ResolvedEvent[];
+    /** Widget properties whose value is a file the framework layer constructs. */
+    readonly files: readonly ResolvedFile[];
+    /** Presses that arrive through a gesture controller instead of a signal. */
+    readonly gestures: readonly ResolvedGesture[];
     /** Where a text child goes, or null when text under this primitive is refused. */
     readonly textSink: string | null;
     /** What this element publishes to its children. */
@@ -171,11 +209,28 @@ export function resolvePrimitive(primitive: string, props: PrimitiveProps, conte
     //    through the same partition as `text-grey-700` rather than beside it.
     const outerProps: Record<string, unknown> = { ...spec.widgetProps };
     const contentProps: Record<string, unknown> = { ...content?.widgetProps };
+    const backdropProps: Record<string, unknown> = { ...spec.backdrop?.widgetProps };
     const styleExtra: Record<string, unknown> = {};
     const events: ResolvedEvent[] = [];
+    const files: ResolvedFile[] = [];
+    const gestures: ResolvedGesture[] = [];
     const contentStyleProps: ReadonlySet<string> = new Set(
-        [content?.styleProp, content?.classNameProp].filter((name): name is string => typeof name === 'string'),
+        [content?.styleProp, content?.classNameProp, spec.backdrop?.styleProp, spec.backdrop?.classNameProp].filter(
+            (name): name is string => typeof name === 'string',
+        ),
     );
+
+    // `Button` and nothing else. Checked before the prop loop so the refusal names
+    // the primitive rather than whatever the loop reaches first, and checked HERE
+    // rather than in a component's prop type so it also reaches a JavaScript caller
+    // and the second L3.
+    if (spec.refusesStyle !== undefined && (props.className !== undefined || props.style !== undefined)) {
+        throw new PrimitiveError(
+            primitive,
+            props.className === undefined ? 'prop "style"' : 'prop "className"',
+            spec.refusesStyle,
+        );
+    }
 
     // KEYS FIRST, AND THE SKIP LIST BEFORE THE VALUE IS READ. `Object.entries` would
     // read every prop, and reading a prop is only free in React: Solid's props object
@@ -206,7 +261,17 @@ export function resolvePrimitive(primitive: string, props: PrimitiveProps, conte
             );
         }
         for (const one of Array.isArray(route) ? (route as readonly PropRoute[]) : [route as PropRoute]) {
-            applyRoute(one, prop, value, { primitive, spec, outerProps, contentProps, styleExtra, events });
+            applyRoute(one, prop, value, {
+                primitive,
+                spec,
+                outerProps,
+                contentProps,
+                backdropProps,
+                styleExtra,
+                events,
+                files,
+                gestures,
+            });
         }
     }
 
@@ -263,9 +328,14 @@ export function resolvePrimitive(primitive: string, props: PrimitiveProps, conte
             primitive,
             node: { tag: overlay.tag, props: outerProps, cssClasses: withOrientationClass(outerProps, cssClasses) },
             content: { tag: spec.tag, props: inner, cssClasses: [] },
+            backdrop: null,
+            backdropSlot: null,
+            contentSlot: null,
             slot: resolved.slot,
             absoluteSlot: overlay.slot,
             events,
+            files,
+            gestures,
             textSink: spec.textSink,
             childContext: { ...resolved.childContext, orientation: childOrientation, overlay: true },
             intent: resolved.remaining,
@@ -273,15 +343,22 @@ export function resolvePrimitive(primitive: string, props: PrimitiveProps, conte
     }
 
     const contentResolved =
-        content === undefined ? null : resolveContent(content, props, contentProps, context, primitive);
+        content === undefined ? null : resolveNode(content, props, contentProps, context, primitive);
+    const backdropResolved =
+        spec.backdrop === undefined ? null : resolveNode(spec.backdrop, props, backdropProps, context, primitive);
 
     return {
         primitive,
         node: { tag: spec.tag, props: outerProps, cssClasses: withOrientationClass(outerProps, cssClasses) },
         content: contentResolved === null ? null : contentResolved.node,
+        backdrop: backdropResolved === null ? null : backdropResolved.node,
+        backdropSlot: spec.backdrop?.slot ?? null,
+        contentSlot: content?.slot ?? null,
         slot: resolved.slot,
         absoluteSlot: null,
         events,
+        files,
+        gestures,
         textSink: spec.textSink,
         childContext:
             contentResolved === null
@@ -316,8 +393,14 @@ export function resolvePrimitive(primitive: string, props: PrimitiveProps, conte
  * AXIS. That is what makes `contentContainerStyle={{ flexGrow: 1 }}` — React
  * Native's own idiom for "the content is at least as tall as the viewport" —
  * resolve to `vexpand` on a vertical scroller instead of passing up unresolved.
+ *
+ * The BACKDROP goes through the same function, and that is the whole reason it is
+ * spelled `ContentSpec` rather than a type of its own: a backdrop is a second
+ * styleable node with its own style prop (`ImageBackground`'s `imageStyle`) that
+ * simply takes no children. Two functions differing in whether they returned a
+ * `childContext` nobody reads would be the same code twice.
  */
-function resolveContent(
+function resolveNode(
     content: ContentSpec,
     props: PrimitiveProps,
     contentProps: Record<string, unknown>,
@@ -364,8 +447,11 @@ interface RouteSink {
     readonly spec: PrimitiveSpec;
     readonly outerProps: Record<string, unknown>;
     readonly contentProps: Record<string, unknown>;
+    readonly backdropProps: Record<string, unknown>;
     readonly styleExtra: Record<string, unknown>;
     readonly events: ResolvedEvent[];
+    readonly files: ResolvedFile[];
+    readonly gestures: ResolvedGesture[];
 }
 
 function applyRoute(route: PropRoute, prop: string, value: unknown, sink: RouteSink): void {
@@ -392,21 +478,123 @@ function applyRoute(route: PropRoute, prop: string, value: unknown, sink: RouteS
             }
             sink.events.push({ prop, signal: route.signal, read: route.read ?? null });
             return;
-        case 'property': {
-            if (route.on === 'content' && sink.spec.content === undefined) {
+        case 'file':
+            sink.files.push({
+                on: nodeOf(route.on, sink, prop),
+                property: route.property,
+                ...normaliseSource(sink.primitive, prop, value),
+            });
+            return;
+        case 'gesture':
+            if (typeof value !== 'function') {
                 throw new PrimitiveError(
                     sink.primitive,
                     `prop "${prop}"`,
-                    'is routed to a content node this primitive does not declare — the table is wrong, not the call',
+                    `binds a Gtk.GestureClick's "${route.signal}" and needs a function; got ${describe(value)}`,
                 );
             }
-            const target = route.on === 'content' ? sink.contentProps : sink.outerProps;
+            sink.gestures.push({ prop, signal: route.signal });
+            return;
+        case 'property': {
+            const on = nodeOf(route.on, sink, prop);
+            const target =
+                on === 'content' ? sink.contentProps : on === 'backdrop' ? sink.backdropProps : sink.outerProps;
             const coerced = coerce(route, prop, value, sink.primitive);
             for (const name of route.names) target[name] = coerced;
             if (route.also !== undefined) Object.assign(target, route.also);
             return;
         }
     }
+}
+
+/** The node a route names, refusing a table that names one the primitive does not have. */
+function nodeOf(on: NodeKind | undefined, sink: RouteSink, prop: string): NodeKind {
+    if (on === 'content' && sink.spec.content === undefined) {
+        throw new PrimitiveError(
+            sink.primitive,
+            `prop "${prop}"`,
+            'is routed to a content node this primitive does not declare — the table is wrong, not the call',
+        );
+    }
+    if (on === 'backdrop' && sink.spec.backdrop === undefined) {
+        throw new PrimitiveError(
+            sink.primitive,
+            `prop "${prop}"`,
+            'is routed to a backdrop node this primitive does not declare — the table is wrong, not the call',
+        );
+    }
+    return on ?? 'outer';
+}
+
+/**
+ * `source` → the one file GTK can open, or a named refusal saying why not.
+ *
+ * FOUR SHAPES REACH HERE AND ONE SURVIVES, and each refusal is a measurement rather
+ * than a scheduling statement:
+ *
+ * - `{ uri }` with a local path, a `file:` URI or a `resource:` URI is the one that
+ *   works. MEASURED: `Gio.File.new_for_uri('resource:///a/b.png')` round-trips its
+ *   URI and `Gtk.Picture:file` accepts it, and a path that does not exist leaves
+ *   `paintable` null with no diagnostic at all.
+ * - `http:` / `https:` / `data:` need a LOADER. `Gtk.Picture:file` would hand a
+ *   non-native `Gio.File` to a synchronous decoder on the main loop, and the honest
+ *   alternative — fetch, decode, `Gdk.Texture.new_from_bytes` — is an asynchronous
+ *   pipeline with a cache and a cancellation story, which is a package rather than a
+ *   prop route.
+ * - a NUMBER is `require('./x.png')`, an opaque id into Metro's asset registry. ADR
+ *   0032 § 12 puts the build chain with the consumer, and this one has no registry to
+ *   resolve the id against.
+ * - an ARRAY is React Native's per-device-scale picker (`@2x`, `@3x`). GTK scales one
+ *   texture by the surface's scale factor, so there is no choice to make.
+ */
+function normaliseSource(
+    primitive: string,
+    prop: string,
+    value: unknown,
+): { readonly kind: 'path' | 'uri'; readonly value: string } {
+    const refuse = (why: string): never => {
+        throw new PrimitiveError(primitive, `prop "${prop}"`, why);
+    };
+    if (typeof value === 'number') {
+        return refuse(
+            "is a number, which is what `require('./image.png')` returns: an opaque id into React Native’s own asset registry. This build chain has no such registry (ADR 0032 § 12 leaves the build to the consumer), so there is nothing to resolve it against. Use `{ uri: '/path/to/image.png' }`, or ship the image in a GResource and use `{ uri: 'resource:///…' }`",
+        );
+    }
+    if (Array.isArray(value)) {
+        return refuse(
+            'is an array, which is React Native’s per-device-scale picker (`@2x`, `@3x`). GTK draws ONE texture and scales it by the surface’s own scale factor, so there is no candidate to choose between. Give one source',
+        );
+    }
+    if (typeof value === 'string') {
+        return refuse(
+            'is a bare string. React Native’s own type is `{ uri }`, and accepting both spellings here would make one string ambiguous between a path and a URI at exactly the layer that has to decide. Write `{ uri: … }`',
+        );
+    }
+    if (value === null || typeof value !== 'object') {
+        return refuse(`expects { uri }; got ${describe(value)}`);
+    }
+    const record = value as Record<string, unknown>;
+    const extra = Object.keys(record).filter((key) => key !== 'uri');
+    if (extra.length > 0) {
+        return refuse(
+            `carries ${extra.join(', ')} beside \`uri\`. Those describe a remote image React Native measures before it arrives (\`width\`/\`height\`) or fetches with headers, and neither reaches a \`Gtk.Picture\` — it takes a file and draws it. Keep \`uri\` alone`,
+        );
+    }
+    const uri = record.uri;
+    if (typeof uri !== 'string' || uri === '') {
+        return refuse(`expects { uri: string }; got uri = ${describe(uri)}`);
+    }
+    const scheme = /^([a-zA-Z][a-zA-Z0-9+.-]*):/.exec(uri)?.[1]?.toLowerCase();
+    if (scheme === undefined) return { kind: 'path', value: uri };
+    if (scheme === 'file' || scheme === 'resource') return { kind: 'uri', value: uri };
+    if (scheme === 'http' || scheme === 'https' || scheme === 'data') {
+        return refuse(
+            `is a \`${scheme}:\` URI, and loading one needs a fetch, a decoder and a cache — an asynchronous pipeline this layer does not own. Handing a non-native \`Gio.File\` to \`Gtk.Picture:file\` would decode on the main loop instead. Fetch the bytes yourself, build a \`Gdk.Texture\`, and set \`paintable\` through a ref`,
+        );
+    }
+    return refuse(
+        `is a \`${scheme}:\` URI, and this layer only opens what GTK can read synchronously: a local path, \`file:\` and \`resource:\` (measured). Anything else needs a loader that is not here`,
+    );
 }
 
 function coerce(route: PropertyRoute, prop: string, value: unknown, primitive: string): unknown {

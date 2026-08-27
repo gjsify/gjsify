@@ -21,11 +21,43 @@ import GLib from 'gi://GLib';
 declare const printerr: (message: string) => void;
 
 export interface DiagnosticsGate {
-    /** Warning-or-worse messages seen since the last `reset()`. */
+    /** Warning-or-worse messages ABOUT THE TREE, seen since the last `reset()`. */
     readonly seen: readonly string[];
+    /**
+     * Warning-or-worse messages about the HOST's graphics stack, kept apart.
+     *
+     * Recorded rather than dropped: `assertQuiet` names the count so a run is
+     * never quietly forgiven, and a caller that genuinely wants to assert on the
+     * environment can read them.
+     */
+    readonly environment: readonly string[];
     reset(): void;
-    /** Throw if anything was recorded, naming every message. */
+    /** Throw if anything about the tree was recorded, naming every message. */
     assertQuiet(context?: string): void;
+}
+
+/**
+ * Diagnostics that describe THE MACHINE, not the tree under test.
+ *
+ * GSK brings up a renderer the first time a surface is realised, and whether that
+ * succeeds is a property of the host: a CI container with no `/dev/dri` and a
+ * PowerVR Vulkan ICD emits eight warnings about enumerating physical devices
+ * before any widget of ours is drawn. MEASURED — the Fedora 44 CI leg turned a
+ * green vector red on exactly that, while the same vector was silent on a desktop
+ * with a working GPU. That is a claim about the runner wearing the costume of a
+ * claim about the code, and this gate exists to catch the second kind.
+ *
+ * The prefix is safe to classify wholesale BECAUSE THIS CODEBASE ISSUES NO VULKAN
+ * CALLS. Nothing here builds a `GskRenderer`, picks a backend or touches a device;
+ * every `Vulkan:` record originates inside GSK/GDK bringing up the display. A
+ * mis-parented widget, a refused property, a bad CSS rule — the whole class this
+ * module was written for — never surfaces under this prefix.
+ */
+const ENVIRONMENT_PREFIXES: readonly string[] = ['Vulkan: '];
+
+/** Whether `message` describes the host's graphics stack rather than the tree. */
+export function isEnvironmentDiagnostic(message: string): boolean {
+    return ENVIRONMENT_PREFIXES.some((prefix) => message.startsWith(prefix));
 }
 
 let installed: DiagnosticsGate | null = null;
@@ -74,6 +106,7 @@ export function installDiagnosticsGate(): DiagnosticsGate {
     if (installed) return installed;
 
     const seen: string[] = [];
+    const environment: string[] = [];
     const decoder = new TextDecoder();
     const verbose = GLib.getenv('G_MESSAGES_DEBUG') !== null;
 
@@ -86,7 +119,9 @@ export function installDiagnosticsGate(): DiagnosticsGate {
             // stops recording exactly the messages this exists to catch — under
             // `--g-fatal-warnings`, i.e. the strictest run there is.
             const severity = level & GLib.LogLevelFlags.LEVEL_MASK;
-            if (severity <= GLib.LogLevelFlags.LEVEL_WARNING) seen.push(message);
+            if (severity <= GLib.LogLevelFlags.LEVEL_WARNING) {
+                (isEnvironmentDiagnostic(message) ? environment : seen).push(message);
+            }
             if (verbose || severity <= GLib.LogLevelFlags.LEVEL_MESSAGE) printerr(message);
         } catch {
             printerr('<gtk-host: a log message could not be decoded>');
@@ -96,17 +131,27 @@ export function installDiagnosticsGate(): DiagnosticsGate {
 
     installed = {
         seen,
+        environment,
         reset() {
             seen.length = 0;
+            environment.length = 0;
         },
         assertQuiet(context?: string) {
+            const setAside = environment.length;
+            environment.length = 0;
             if (seen.length === 0) return;
             const count = seen.length;
             const messages = seen.join('\n  ');
             seen.length = 0; // do not blame the next test for this one's mess
+            // The set-aside count is printed even though it did not cause the
+            // failure: a filter nobody can see is a filter nobody can audit.
+            const aside =
+                setAside > 0
+                    ? `\n  (plus ${setAside} diagnostic(s) about the HOST's graphics stack, not the tree — see isEnvironmentDiagnostic)`
+                    : '';
             throw new Error(
                 `${context ? context + ': ' : ''}GTK reported ${count} diagnostic(s) ` +
-                    `that would have passed at exit 0:\n  ${messages}`,
+                    `that would have passed at exit 0:\n  ${messages}${aside}`,
             );
         },
     };
