@@ -55,11 +55,13 @@
 // undeclared blind files" also proves the differencing still finds the ~131 files it
 // is supposed to find. A broken oracle cannot come back green.
 //
-// KNOWN, AND NOT FIXED HERE: `.oxfmtrc.json` carries the same `**/lib` line, so the
-// FORMATTER is blind to the same 26 sources — measured with the pattern lifted, 15 of
-// them are unformatted. Closing that reformats load-bearing infra files, which is its
-// own change with its own diff to read, and this gate deliberately does not fail on it.
-// Written down so the second half stays a decision instead of becoming another silence.
+// THE FORMATTER HALF IS CLOSED, SEPARATELY: `.oxfmtrc.json` carried the same `**/lib`
+// line and hid the same 26 sources from oxfmt — 15 of them unformatted. That landed on
+// its own, because closing it reformats load-bearing infra and deserved its own diff to
+// read. This gate still says nothing about formatting: it answers "can the LINTER see
+// this file", and the equivalent question for oxfmt needs a different oracle (oxfmt has
+// no `--debug=files` and no `--no-ignore`, so its visible set is only recoverable by
+// bisecting an accepted-file count). That arm is owed and not written.
 //
 // Usage: node scripts/check-lint-visibility.mjs [--root <dir>] [--list]
 
