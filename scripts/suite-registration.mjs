@@ -160,14 +160,17 @@ export function relativeImports(file, source) {
     return found;
 }
 
-/** The local names an import clause introduces. `type` members bind no value. */
+/** The local names an import clause introduces. A type-only name binds no value. */
 function bindingsIn(clause) {
     const bindings = [];
     const text = clause.trim();
+    // `import type { AdwLengthUnit } from './x.js'` borrows a name for a field and runs
+    // nothing — the same distinction the driver gate's MODULE arm already turns on.
+    if (/^type\b/.test(text)) return bindings;
     const brace = text.indexOf('{');
     const head = (brace === -1 ? text : text.slice(0, brace)).replace(/,\s*$/, '').trim();
     if (head.startsWith('*')) bindings.push(head.replace(/^\*\s*as\s*/, ''));
-    else if (head && head !== 'type') bindings.push(head);
+    else if (head) bindings.push(head);
     if (brace !== -1) {
         for (const member of text.slice(brace + 1, text.indexOf('}', brace)).split(',')) {
             const part = member.trim();
