@@ -22,7 +22,7 @@
 // `adw_breakpoint_check_condition` does.
 //
 // The comment here used to say the bin picks "the best match". It does not: it picks the
-// one added LAST among those that match (adw-breakpoint-bin.c:433). The intuitive reading
+// one added LAST among those that match (adw-breakpoint-bin.c:432). The intuitive reading
 // and the wrong one, which is why it now has vectors.
 //
 // Reference: refs/libadwaita/src/adw-breakpoint.c (condition grammar, apply/unapply)

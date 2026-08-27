@@ -21,7 +21,7 @@ export interface BreakpointPickVector {
 
 /**
  * `adw_breakpoint_bin_size_allocate` iterates backwards and takes the first match:
- * "Iterate in reverse order since we prioritize breakpoints added last" (:433).
+ * "Iterate in reverse order since we prioritize breakpoints added last" (:432).
  *
  * CORE-ONLY: GAP — no renderer drives this table yet. The NativeScript bin binds
  * breakpoints to a view's post-layout size and runs its own callbacks; moving it onto
@@ -76,7 +76,7 @@ export const BREAKPOINT_PICK_VECTORS: ReadonlyArray<BreakpointPickVector> = [
         conditions: ['max-width: 400sp', 'not-a-condition'],
         size: { width: 300, height: 600 },
         pick: 0,
-        rule: 'an unparseable condition never matches, so the earlier valid one is picked',
+        rule: 'an unparseable condition never matches (adw_breakpoint_check_condition returns FALSE for a null one, adw-breakpoint.c:1831), so the earlier valid one is picked',
     },
 ];
 

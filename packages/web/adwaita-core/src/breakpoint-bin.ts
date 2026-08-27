@@ -8,12 +8,12 @@
 //   1. **The last matching breakpoint added wins**, not the narrowest and not the best
 //      fit. `adw_breakpoint_bin_size_allocate` iterates the array backwards and takes
 //      the first match: "Iterate in reverse order since we prioritize breakpoints added
-//      last" (adw-breakpoint-bin.c:433). `./breakpoint.ts` describes this as "the best
+//      last" (adw-breakpoint-bin.c:432). `./breakpoint.ts` describes this as "the best
 //      match", which is the intuitive reading and the wrong one.
 //   2. **A property both breakpoints set is never restored in between.**
 //      `adw_breakpoint_transition` skips a setter the incoming breakpoint also carries:
 //      "Don't unset the property if we'll immediately set it again afterwards"
-//      (adw-breakpoint.c:1800). Restoring it first would put the widget through a state
+//      (adw-breakpoint.c:1799). Restoring it first would put the widget through a state
 //      neither breakpoint describes, once per resize across the boundary.
 //   3. **The original value is captured when the setter is REGISTERED**, not when the
 //      breakpoint applies (`g_object_get_property` at adw-breakpoint.c:1627). A property
@@ -144,7 +144,7 @@ export class BreakpointBinState<O> {
     evaluate(size: BreakpointSize): BreakpointTransition<O> | null {
         if (!this._hasChild) return null;
 
-        // Backwards: the LAST matching breakpoint wins (adw-breakpoint-bin.c:433).
+        // Backwards: the LAST matching breakpoint wins (adw-breakpoint-bin.c:432).
         let next: Compiled<O> | null = null;
         for (let i = this._breakpoints.length - 1; i >= 0; i--) {
             const candidate = this._breakpoints[i] as Compiled<O>;
