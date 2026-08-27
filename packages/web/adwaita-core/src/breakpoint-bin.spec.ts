@@ -42,7 +42,7 @@ export default async () => {
                     const transition = bin.evaluate(size);
                     return transition === null ? null : transition.writes.map((w) => `${w.property}=${w.value}`);
                 });
-                expect(got).toEqual(vector.writes.map((w) => (w === null ? null : [...w])));
+                expect(got).toStrictEqual(vector.writes.map((w) => (w === null ? null : [...w])));
             });
         }
 
@@ -73,7 +73,7 @@ export default async () => {
             });
             bin.evaluate({ width: 500, height: 600 });
             const left = bin.evaluate({ width: 900, height: 600 });
-            expect(left?.writes.map((w) => `${w.object}:${w.value}`)).toEqual(['a:origA', 'b:origB']);
+            expect(left?.writes.map((w) => `${w.object}:${w.value}`)).toStrictEqual(['a:origA', 'b:origB']);
         });
     });
 
