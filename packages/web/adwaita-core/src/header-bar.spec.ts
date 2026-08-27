@@ -3,9 +3,11 @@
 //
 // No renderer suite drives those tables yet; the tables say so themselves (CORE-ONLY GAP,
 // #1343), and this suite is their only driver until the NativeScript and web header bars
-// move onto `HeaderBarState`. That is a gap, not coverage. The sentence that stood here
-// claimed "every renderer suite asserts the SAME table" over three tables no renderer
-// names — a coverage promise the file itself contradicted four lines further down.
+// move onto `HeaderBarState`. That is a gap, not coverage. What stood here before was a
+// promise about the other suites that the file itself contradicted four lines further
+// down; it is gone rather than softened, and it is NOT restated here — quoting a false
+// claim to retract it puts the claim back in the file, where the gate that reads this
+// header cannot tell a quotation from an assertion. It caught exactly that.
 
 import { describe, it, expect } from '@gjsify/unit';
 
