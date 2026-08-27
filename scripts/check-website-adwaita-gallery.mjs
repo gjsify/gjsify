@@ -30,6 +30,17 @@
 //      exists at its URL and is offered to nobody, so the gate would force a page no
 //      reader can reach. `adwaita/controls` was added there by hand in the very
 //      commit that first satisfied arm 1.
+//   5. Every `<Fragment slot="…">` inside a block names a slot `AdwWidget` renders.
+//      Astro drops an unmatched slot in SILENCE — no warning, no build failure — so a
+//      misspelled port is a snippet that is written, reviewed, committed and shown to
+//      nobody. Arms 1-4 cannot see it: the block has a title, the title has a meta,
+//      and the page is in the sidebar.
+//   6. Every port in `AdwWidget`'s `IMPLS` is provided by at least one block. The
+//      component renders a tab only for a slot a page actually gave it, so an entry
+//      nothing provides renders nowhere — a port declared to every reader of the
+//      component and shipped to none of them. The two arms are each other's inverse:
+//      5 refuses a page naming a port the component has not got, 6 refuses a component
+//      naming a port no page has got.
 //
 // The `title` IS the join: `Adw.ViewSwitcherBar` → `view-switcher-bar`, the same
 // bare name the widget files, the story metas and the ledgers are already spelled
@@ -113,6 +124,43 @@ function galleryTitles(root, pages) {
         }
     }
     return found;
+}
+
+/** The body of every `<AdwWidget …> … </AdwWidget>`, which is where a port slot lives. */
+function widgetBlocks(root, pages) {
+    const blocks = [];
+    for (const page of pages) {
+        const text = readFileSync(join(root, GALLERY, page), 'utf8');
+        const shape = /<AdwWidget\b[^>]*?\btitle="([^"]+)"[^>]*>([\s\S]*?)<\/AdwWidget>/g;
+        for (const [, title, body] of text.matchAll(shape)) {
+            blocks.push({ page: `${GALLERY}/${page}`, title, body });
+        }
+    }
+    return blocks;
+}
+
+/** The tab component: the one place a port is declared. */
+const WIDGET_COMPONENT = 'website/src/components/AdwWidget.astro';
+
+/**
+ * The slots `AdwWidget` reads, split into the PORTS it renders a tab for and the
+ * ones it renders some other way (`preview`, which is a live web component rather
+ * than a snippet).
+ *
+ * Both are read out of the component for the same reason the widget title is
+ * derived rather than tabled: a second hand-written list is the thing that drifts,
+ * and this one would drift in the more expensive direction — a port named here and
+ * absent from `IMPLS` would make this gate bless a tab that never renders.
+ */
+function componentSlots(root) {
+    const text = readFileSync(join(root, WIDGET_COMPONENT), 'utf8');
+    const impls = /\bconst IMPLS = \[([\s\S]*?)\n\];/.exec(text);
+    const ports = impls === null ? [] : [...impls[1].matchAll(/\bslot:\s*'([a-z][a-z0-9-]*)'/g)].map(([, s]) => s);
+    const others = [
+        ...text.matchAll(/Astro\.slots\.has\('([a-z][a-z0-9-]*)'\)/g),
+        ...text.matchAll(/<slot name="([a-z][a-z0-9-]*)"/g),
+    ].map(([, s]) => s);
+    return { ports: new Set(ports), others: new Set(others) };
 }
 
 /** Where the site's navigation is hand-written, and how a page is spelled in it. */
@@ -219,6 +267,53 @@ for (const page of pages) {
     );
 }
 
+// --- the tab arms: what a page provides against what the component renders ---
+
+const { ports, others } = componentSlots(ROOT);
+if (ports.size === 0) {
+    console.error(
+        `check-website-adwaita-gallery: no port found in the IMPLS array of ${WIDGET_COMPONENT} — that is\n` +
+            '  a broken scan, not a component with no tabs. Nothing is unprovided in an empty set.',
+    );
+    process.exit(1);
+}
+
+const blocks = widgetBlocks(ROOT, pages);
+if (blocks.length === 0) {
+    console.error(
+        `check-website-adwaita-gallery: no <AdwWidget> … </AdwWidget> body matched under ${GALLERY}, while\n` +
+            `  ${gallery.size} opening tag(s) did — the block reader is broken, not the gallery.`,
+    );
+    process.exit(1);
+}
+
+const provided = new Set();
+for (const block of blocks) {
+    for (const [, slot] of block.body.matchAll(/<Fragment slot="([^"]+)"/g)) {
+        if (ports.has(slot)) {
+            provided.add(slot);
+            continue;
+        }
+        if (others.has(slot)) continue;
+        failures.push(
+            `${block.page}: <AdwWidget title="${block.title}"> provides a "${slot}" fragment, and AdwWidget\n` +
+                '    renders no slot of that name. Astro drops an unmatched slot in SILENCE — no warning, no\n' +
+                '    build failure — so the snippet is written, reviewed, committed and shown to nobody.\n' +
+                `    Ports: ${[...ports].join(', ')}. Other slots: ${[...others].join(', ')}.`,
+        );
+    }
+}
+
+for (const port of ports) {
+    if (provided.has(port)) continue;
+    failures.push(
+        `${WIDGET_COMPONENT} declares the port "${port}" in IMPLS, and no <AdwWidget> block under\n` +
+            `    ${GALLERY} provides it. The component renders a tab only where a page gave it that slot, so\n` +
+            '    the entry renders nowhere at all: a port declared to every reader of the component and\n' +
+            '    shipped to none of them. Write the first snippet, or drop the entry.',
+    );
+}
+
 if (failures.length > 0) {
     console.error(`check-website-adwaita-gallery: ${failures.length} gallery/storybook disagreement(s):\n`);
     for (const failure of failures) console.error(`  - ${failure}`);
@@ -235,4 +330,9 @@ console.log(
     `check-website-adwaita-gallery: ${metas.size} story metas — ${metas.size - exempt} documented by ` +
         `${gallery.size} <AdwWidget> blocks across ${pages.length} pages, all of them in the sidebar, ` +
         `${exempt} ledgered with a reason.`,
+);
+console.log(
+    `check-website-adwaita-gallery: ${ports.size} port(s) in ${WIDGET_COMPONENT} — ` +
+        `${[...ports].join(', ')} — each provided by at least one of ${blocks.length} blocks, and every ` +
+        'fragment slot they write is one the component renders.',
 );

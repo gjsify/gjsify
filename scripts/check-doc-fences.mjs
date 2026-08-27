@@ -52,6 +52,30 @@
 //               there or in the web pillar's own `ICONS` map. Both spellings
 //               resolve: `go-next` and `go-next-symbolic` are the same glyph.
 //
+//   TOKENS      a `tsx` fence that writes `className` must be preceded — in the
+//               same fence, or earlier on the same page — by `configureStyle({
+//               tokens })`. The class VALUES are the reader's project's:
+//               `@gjsify/gtk-host/style` ships `0` and `px` and nothing between
+//               them, deliberately, so that an undeclared token is a named error
+//               rather than a wrong margin. That error THROWS OUT OF THE RENDER:
+//               React unmounts the tree, the window is empty, the process exits 0
+//               and GTK reports nothing, because there is no tree to report about.
+//
+//               MEASURED 2026-08-27, which is why this arm exists: FOUR of four
+//               className-bearing tsx fences in the docs were blank windows —
+//               `gap-s`, `gap-m`, `p-m`, `p-xl`, `text-title`, `text-caption`, none
+//               of them in any default scale. Every tree assertion behind them was
+//               true; `slot="title"` really did reach `set_title_widget`. Nothing
+//               in this repository could see it, because the only witness is the
+//               window.
+//
+//               WHAT IT DELIBERATELY DOES NOT CHECK: whether the scales shown
+//               COVER the tokens used. That needs `resolveUtility` out of a BUILT
+//               `@gjsify/gtk-host`, and this gate reads tracked files with no build
+//               — the property every other arm here has. Sufficiency is answered by
+//               a photograph instead: `shotEvidence`/`blankReason` in that package's
+//               `probe.ts`, which exist because a non-empty PNG is not proof.
+//
 //   CLASSES     every `adw-`-prefixed class in a `class=`/`className` value must
 //               appear somewhere in the tracked SCSS. The SCSS side is read as a
 //               loose token scan rather than a selector parse, because the
@@ -76,6 +100,13 @@ const rootFlag = process.argv.indexOf('--root');
 const ROOT = rootFlag === -1 ? join(dirname(fileURLToPath(import.meta.url)), '..') : process.argv[rootFlag + 1];
 
 const DOCS_DIR = join(ROOT, 'website/src/content/docs/adwaita');
+/**
+ * Scanned by the TOKENS arm ONLY, and the narrowness is deliberate: three of the
+ * four blank snippets were here rather than in the gallery, and widening the whole
+ * gate to these pages in the same commit would mix a fix with a coverage change
+ * whose failures would be about icons.
+ */
+const FRAMEWORKS_DIR = join(ROOT, 'website/src/content/docs/frameworks');
 const ICONS_PKG = join(ROOT, 'packages/web/adwaita-icons');
 const WEB_SCSS = join(ROOT, 'packages/web/adwaita-web/scss');
 const WEB_ICON_MAP = join(ROOT, 'packages/web/adwaita-web/scripts/build-scss.mjs');
@@ -469,6 +500,72 @@ function checkClasses(text, where, styled, webIcons, exempt) {
 }
 
 // ---------------------------------------------------------------------------
+// Arm: style tokens
+// ---------------------------------------------------------------------------
+
+/** Only `className`: `class=` is the web port's, and adwaita-web ships its own sheet. */
+const UTILITY_CLASS_ATTR = /\bclassName="([^"]*)"/g;
+
+/** The one call that puts a project's token scales in scope (ADR 0032 § 3). */
+const CONFIGURE_STYLE = /\bconfigureStyle\s*\(/;
+
+/**
+ * Is this fence inside a `<Fragment slot="…">` — i.e. one tab of a gallery block?
+ *
+ * THE SCOPE QUESTION, and the first version of this arm got it wrong in the
+ * expensive direction. It allowed "anywhere at or above on the page", which is
+ * right for a prose page — a Quick-start installs the tokens once and every later
+ * snippet inherits it, the way a reader actually works through one — and WRONG for
+ * a gallery, where each tab is copied on its own and there is no "earlier".
+ * MEASURED: under that rule, deleting the token step from `layout.mdx`'s
+ * toolbar-view fragment left this gate GREEN, because the clamp fragment above it
+ * still had one. A gate that passes the exact deletion it was written to catch is
+ * the shape this whole file exists against, so the two cases are two rules and this
+ * is what tells them apart.
+ */
+function insideGalleryFragment(lines, line) {
+    for (let i = line - 2; i >= 0; i--) {
+        if (/<\/Fragment>/.test(lines[i])) return false;
+        if (/<Fragment\s+slot="/.test(lines[i])) return true;
+    }
+    return false;
+}
+
+/**
+ * Fences that style with `className` and have nowhere to have got the values from.
+ *
+ * Returns how many className-bearing fences it saw, because an arm that scanned
+ * nothing must not report success.
+ */
+function checkStyleTokens(text, where, fenceList) {
+    const lines = text.split('\n');
+    let seen = 0;
+    for (const fence of fenceList) {
+        if (fence.lang !== 'tsx') continue;
+        const classes = [...fence.body.matchAll(UTILITY_CLASS_ATTR)].flatMap((m) => m[1].split(/\s+/)).filter(Boolean);
+        if (classes.length === 0) continue;
+        seen++;
+        const standalone = insideGalleryFragment(lines, fence.line);
+        // A gallery tab has to carry the step itself; a prose page may have set it
+        // up above. `fence.line` is the ``` line, so the body starts after it.
+        const scope = standalone ? fence.body : lines.slice(0, fence.line + fence.body.split('\n').length).join('\n');
+        if (CONFIGURE_STYLE.test(scope)) continue;
+        fail(
+            `${where}:${fence.line}`,
+            `this fence styles with \`${classes.join(' ')}\` and ` +
+                (standalone
+                    ? 'the fence itself never calls `configureStyle({ tokens })` — a gallery tab is copied on ' +
+                      'its own, so a token step in another tab does not cover it. '
+                    : 'nothing at or above it on the page calls `configureStyle({ tokens })`. ') +
+                "The values behind those names come from the reader's project — the default scale is `0` and " +
+                '`px` — so the first undeclared token throws out of the render: React unmounts, the window is ' +
+                'EMPTY, and the process exits 0 with no GTK diagnostic.',
+        );
+    }
+    return seen;
+}
+
+// ---------------------------------------------------------------------------
 // Run
 // ---------------------------------------------------------------------------
 
@@ -500,6 +597,12 @@ const sources = [
     ...EXTRA_SOURCES,
 ];
 
+const frameworkSources = existsSync(FRAMEWORKS_DIR)
+    ? readdirSync(FRAMEWORKS_DIR)
+          .filter((f) => f.endsWith('.mdx') || f.endsWith('.md'))
+          .map((f) => `website/src/content/docs/frameworks/${f}`)
+    : [];
+
 if (sources.length === 0) {
     console.error('check-doc-fences: found no sources to scan. A scan with nothing to scan proves nothing.');
     process.exit(1);
@@ -509,6 +612,7 @@ const dir = mkdtempSync(join(tmpdir(), 'gjsify-doc-fences-'));
 const blueprint = blueprintAvailable(dir);
 let tsFences = 0;
 let blueprintFences = 0;
+let styledFences = 0;
 
 try {
     for (const rel of sources) {
@@ -526,6 +630,7 @@ try {
         }
         checkIconStrings(text, rel, icons, webIcons, exempt);
         checkClasses(text, rel, styled, webIcons, exempt);
+        styledFences += checkStyleTokens(text, rel, list);
         if (blueprint.ok) {
             blueprintFences += checkBlueprint(list, rel, dir);
         } else {
@@ -536,9 +641,22 @@ try {
     rmSync(dir, { recursive: true, force: true });
 }
 
+for (const rel of frameworkSources) {
+    const abs = join(ROOT, rel);
+    if (!existsSync(abs)) {
+        fail(rel, 'listed as a token-arm source and not present');
+        continue;
+    }
+    const text = readFileSync(abs, 'utf8');
+    styledFences += checkStyleTokens(text, rel, fences(text));
+}
+
 // A scan whose corpus is empty reports green while proving nothing — the failure
 // class this repository pays most for. Every arm states what it saw.
 if (tsFences === 0) fail('scan', 'no `ts` fence was found across every source — the extractor is broken');
+if (styledFences === 0) {
+    fail('scan', 'no className-bearing tsx fence was found — the TOKENS extractor is broken, not the docs');
+}
 if (blueprintFences === 0) fail('scan', 'no `blueprint` fence was found — the extractor is broken');
 
 if (blueprint.ok) {
@@ -556,6 +674,10 @@ notes.push(
 );
 notes.push(
     `${webIcons.size} web ICONS names, ${styled.size} adw- tokens in ${readdirSync(WEB_SCSS).length} scss files`,
+);
+notes.push(
+    `${styledFences} className-bearing tsx fence(s) across the gallery and ${frameworkSources.length} ` +
+        'frameworks page(s), each with the token step at or above it',
 );
 if (exempt.size > 0) notes.push(`${exempt.size} exemption(s) from ${LEDGER.replace(`${ROOT}/`, '')}`);
 

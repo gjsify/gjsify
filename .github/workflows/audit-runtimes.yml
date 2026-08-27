@@ -538,7 +538,12 @@ jobs:
       # five were the entire `Controls` category, which the storybook's own
       # STORYBOOK_CATEGORY_ORDER already declared, so the site's category list was a
       # strict subset with nothing saying so. A hand is not a mechanism.
-      - name: Check the website gallery documents every storybook widget
+      #
+      # It holds the TABS the same way. Astro drops a `<Fragment slot="…">` that
+      # names no slot in silence, so a misspelled port ships as a snippet nobody is
+      # shown; and a port in AdwWidget's IMPLS that no page provides renders nowhere,
+      # declaring a target the site does not carry.
+      - name: Check the gallery documents every storybook widget and every port
         run: node scripts/check-website-adwaita-gallery.mjs
 
       # …and that the DATA those pages render is still the data its source says. Two
@@ -1032,7 +1037,12 @@ jobs:
       # five were the entire `Controls` category, which the storybook's own
       # STORYBOOK_CATEGORY_ORDER already declared, so the site's category list was a
       # strict subset with nothing saying so. A hand is not a mechanism.
-      - name: Check the website gallery documents every storybook widget
+      #
+      # It holds the TABS the same way. Astro drops a `<Fragment slot="…">` that
+      # names no slot in silence, so a misspelled port ships as a snippet nobody is
+      # shown; and a port in AdwWidget's IMPLS that no page provides renders nowhere,
+      # declaring a target the site does not carry.
+      - name: Check the gallery documents every storybook widget and every port
         run: node scripts/check-website-adwaita-gallery.mjs
 
       # …and that the DATA those pages render is still the data its source says. Two
