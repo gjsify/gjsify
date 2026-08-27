@@ -252,6 +252,24 @@ export default async () => {
             expect(violations[0]?.reason).toBe(FIXTURE_TABLE.explainUnsupported('FlatList'));
         });
 
+        // The gate keeps NO allowlist of its own, and this is where that shows.
+        // `@gjsify/react-native` exports names react-native does not — `configureStyle`
+        // carries ADR 0032 § 3's token scales — and they have no support-table entry,
+        // because `check-rn-surface.mjs` holds that key set equal to react-native's own.
+        // The layer answers for them through the same `isImportable`, so the gate needs
+        // to know nothing about them; a fixture that says yes proves the delegation, and
+        // the second half proves it is a delegation and not an open door.
+        await it('takes the table’s word on a name react-native does not export', () => {
+            const layer: SupportTableReader = {
+                isImportable: (name) => name === 'configureStyle',
+                explainUnsupported: (name) => `@gjsify/react-native: "${name}" is unknown here.`,
+            };
+            const own = scan(`import { configureStyle } from '@gjsify/react-native';`).named;
+            expect(findSupportViolations(own, layer)).toStrictEqual([]);
+            const nonsense = scan(`import { totalNonsense } from 'react-native';`).named;
+            expect(findSupportViolations(nonsense, layer).map((v) => v.name)).toStrictEqual(['totalNonsense']);
+        });
+
         await it('reports every refusal in one message, with file:line:col', () => {
             const { named } = scan(`import { FlatList, Image } from 'react-native';`);
             const violations = findSupportViolations(named, FIXTURE_TABLE);

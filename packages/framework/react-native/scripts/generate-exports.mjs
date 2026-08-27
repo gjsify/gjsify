@@ -19,6 +19,8 @@ const PKG = dirname(dirname(fileURLToPath(import.meta.url)));
 const TABLE = join(PKG, 'src/support-table.ts');
 const OUT = join(PKG, 'src/generated/unsupported-exports.ts');
 const ROUTER_OUT = join(PKG, 'src/generated/unsupported-router-exports.ts');
+export const INDEX = join(PKG, 'src/index.ts');
+export const OWN_OUT = join(PKG, 'src/generated/own-exports.ts');
 const README = join(PKG, 'README.md');
 export const README_BEGIN = '<!-- BEGIN generated support table -->';
 export const README_END = '<!-- END generated support table -->';
@@ -181,6 +183,192 @@ export function spliceReadme(readme, block, begin = README_BEGIN, end = README_E
     return readme.slice(0, from) + block + readme.slice(to + end.length);
 }
 
+// --- the layer's OWN exports ---------------------------------------------------
+//
+// `@gjsify/react-native` exports more than react-native does. `configureStyle` and
+// its two siblings carry ADR 0032 § 3's token scales, `primitives` is L2, and the
+// table plus its two readers are public so a consumer's own tooling can ask what the
+// gate asks. None of those is a React Native name, so none of them has a support
+// table entry — nor should have one, because `check-rn-surface.mjs` holds that key
+// set equal to react-native's own export list.
+//
+// THE BUILD GATE NEEDS THAT SECOND SET, and its absence was a real defect: ADR 0032
+// § 8's gate refuses every imported name the table does not call importable, so it
+// refused `import { configureStyle } from '@gjsify/react-native'` — the line the
+// package README and the website's React Native page both tell a reader to write,
+// on the page that also tells them to turn the gate on.
+//
+// DERIVED, NEVER LISTED BY HAND. A second list beside the export statements is the
+// drift this generator exists to remove, and here it would be the worse defect in
+// the other direction too: a stale entry is a name the gate lets through for good.
+//
+// THE DIRECTION IS: the module's own export list MINUS the names a support table
+// judges. Not "everything the table has never heard of" — that is the complement of
+// a finite set, and it would make a typo importable. Subtracting this way is safe
+// because a name that is both react-native's and ours stays with the TABLE, and
+// `isImportable` asks the table first, so nothing derived here can promote a
+// `planned` React Native name.
+
+/**
+ * `source` with every comment and every string's CONTENT replaced by spaces.
+ *
+ * Length-preserving, which is what lets the star-re-export specifier be read back out
+ * of the ORIGINAL text by index: the quotes stay where they were and only what is
+ * between them is blanked.
+ *
+ * Blanking rather than deleting is the point. A template literal holding
+ * `export { Ghost } from './x.js'` is documentation, not an export — the sibling gate
+ * in `react-native-gate.spec.ts` pins the same case for imports — and a scan that
+ * removed only comments still reported `Ghost`. That was this function's first
+ * version, and the self-test caught it.
+ *
+ * Regex literals are NOT tokenised: a `//` inside one would read as a comment. The
+ * blind spot is bounded — this runs over `src/index.ts` and the generated modules,
+ * neither of which holds a regex — and `support-table.spec.ts` holds the derived list
+ * against the module namespace object at runtime, which is where a mis-parse in
+ * either direction surfaces.
+ */
+export function maskSource(source) {
+    const out = [];
+    const blank = (text) => {
+        for (const char of text) out.push(char === '\n' ? '\n' : ' ');
+    };
+    for (let i = 0; i < source.length;) {
+        const two = source.slice(i, i + 2);
+        if (two === '//') {
+            const end = source.indexOf('\n', i);
+            const stop = end === -1 ? source.length : end;
+            blank(source.slice(i, stop));
+            i = stop;
+            continue;
+        }
+        if (two === '/*') {
+            const end = source.indexOf('*/', i + 2);
+            const stop = end === -1 ? source.length : end + 2;
+            blank(source.slice(i, stop));
+            i = stop;
+            continue;
+        }
+        const char = source[i];
+        if (char === "'" || char === '"' || char === '`') {
+            out.push(char);
+            i++;
+            while (i < source.length && source[i] !== char) {
+                if (source[i] === '\\') {
+                    blank(source.slice(i, i + 2));
+                    i += 2;
+                    continue;
+                }
+                blank(source[i]);
+                i++;
+            }
+            if (i < source.length) {
+                out.push(char);
+                i++;
+            }
+            continue;
+        }
+        out.push(char);
+        i++;
+    }
+    return out.join('');
+}
+
+/**
+ * The VALUE names a module exports, following relative `export * from` chains.
+ *
+ * Types are skipped in both spellings (`export type { … }` and an inline `type`
+ * specifier): a type erases before anything runs, which is the same reason the build
+ * gate does not judge one.
+ *
+ * `resolveStar(specifier, from)` returns `{ file, source }` for a star re-export and
+ * is expected to THROW for one it cannot follow. An export list that quietly omitted a
+ * re-exported name would refuse a build for a name the package really exports — loud,
+ * but wrong, and the reader would have nothing to go on.
+ */
+export function readModuleExports(source, file, resolveStar, seen = new Set()) {
+    if (seen.has(file)) return [];
+    seen.add(file);
+    const mask = maskSource(source);
+    const names = new Set();
+
+    for (const match of mask.matchAll(/export\s+(type\s+)?\{([^}]*)\}/g)) {
+        if (match[1] !== undefined) continue;
+        for (const raw of match[2].split(',')) {
+            const specifier = raw.trim();
+            if (specifier === '' || /^type\s/.test(specifier)) continue;
+            const parts = specifier.split(/\s+as\s+/);
+            names.add((parts[1] ?? parts[0]).trim());
+        }
+    }
+    for (const match of mask.matchAll(
+        /^export\s+(?:async\s+)?(?:function\s*\*?|const|let|var|class)\s+([A-Za-z_$][\w$]*)/gm,
+    )) {
+        names.add(match[1]);
+    }
+    for (const match of mask.matchAll(/export\s+\*\s+as\s+([A-Za-z_$][\w$]*)\s+from/g)) {
+        names.add(match[1]);
+    }
+    for (const match of mask.matchAll(/export\s+\*\s+from\s*(['"])/g)) {
+        const open = match.index + match[0].length - 1;
+        const close = mask.indexOf(match[1], open + 1);
+        if (close === -1) throw new Error(`generate-exports: unterminated \`export * from\` specifier in ${file}`);
+        const target = resolveStar(source.slice(open + 1, close), file);
+        for (const name of readModuleExports(target.source, target.file, resolveStar, seen)) names.add(name);
+    }
+    return [...names];
+}
+
+/** A relative `export * from` target, read off disk. `.js` is TypeScript's ESM spelling of `.ts`. */
+export function resolveStarFromDisk(specifier, from) {
+    if (!specifier.startsWith('.')) {
+        throw new Error(
+            `generate-exports: cannot follow \`export * from '${specifier}'\` in ${from} — the own-export ` +
+                'derivation only reads this package, and a bare specifier is another package’s surface.',
+        );
+    }
+    const file = join(dirname(from), specifier.replace(/\.js$/, '.ts'));
+    return { file, source: readFileSync(file, 'utf8') };
+}
+
+/** The module's own additions: everything it exports that no support table judges. */
+export function readOwnExports(indexSource, indexFile, judged, resolveStar = resolveStarFromDisk) {
+    const exported = readModuleExports(indexSource, indexFile, resolveStar);
+    return exported.filter((name) => !judged.includes(name)).sort();
+}
+
+/** The names back out of the generated module, for the staleness comparison. */
+export function readOwnExportNames(source) {
+    const start = source.indexOf('export const OWN_EXPORT_NAMES');
+    if (start === -1) throw new Error('OWN_EXPORT_NAMES declaration not found');
+    const end = source.indexOf('];', start);
+    if (end === -1) throw new Error('OWN_EXPORT_NAMES literal is not terminated');
+    return [...source.slice(start, end).matchAll(/'([A-Za-z_$][\w$]*)'/g)].map((match) => match[1]);
+}
+
+export function renderOwnExports(names) {
+    const lines = [
+        '// GENERATED by scripts/generate-exports.mjs — do not edit.',
+        '//',
+        '// The names this layer adds ON TOP of React Native’s surface: every value',
+        '// `src/index.ts` exports that no support table judges. `isImportable` reads it, which',
+        '// is what stops the ADR 0032 § 8 build gate refusing the package’s own API.',
+        '//',
+        '// Derived from the export statements themselves rather than listed, so it cannot drift',
+        '// from them — which is why it also contains the two names the mechanism itself adds:',
+        '// they are exports of the module like any other.',
+        '//',
+        '// The ROOT module only. `@gjsify/react-native/router` is a second entry point that the',
+        '// gate does not watch, and folding its names in here would let',
+        "// `import { RouterRoot } from 'react-native'` past a gate that names it today.",
+        '',
+        'export const OWN_EXPORT_NAMES: readonly string[] = [',
+    ];
+    for (const name of names) lines.push(`    '${name}',`);
+    lines.push('];', '');
+    return lines.join('\n');
+}
+
 if (import.meta.url === `file://${process.argv[1]}`) {
     const source = readFileSync(TABLE, 'utf8');
     let readme = readFileSync(README, 'utf8');
@@ -198,4 +386,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     }
     writeFileSync(README, readme);
     console.log(`generate-exports: ${TABLES.length} support section(s) → README.md`);
+
+    const judged = TABLES.flatMap((spec) => readEntries(source, spec.declaration).map((entry) => entry.name));
+    const own = readOwnExports(readFileSync(INDEX, 'utf8'), INDEX, judged);
+    writeFileSync(OWN_OUT, renderOwnExports(own));
+    console.log(
+        `generate-exports: ${own.length} own export(s) beyond the ${judged.length} judged name(s) → ${OWN_OUT.slice(OWN_OUT.indexOf('src/'))}`,
+    );
 }

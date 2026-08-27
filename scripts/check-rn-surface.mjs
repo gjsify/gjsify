@@ -27,9 +27,17 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 
+// Statically, not on demand: the self-test below exercises the generator's export
+// parser before anything is compared with it, and that runs first.
+import * as generator from '../packages/framework/react-native/scripts/generate-exports.mjs';
+
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const PKG = join(ROOT, 'packages/framework/react-native');
 const TABLE_TS = join(PKG, 'src/support-table.ts');
+// The generator's own, not a second spelling of the same two paths: it WRITES one of
+// them, and a check that guessed where would go green against a file nobody updates.
+const INDEX_TS = generator.INDEX;
+const OWN_TS = generator.OWN_OUT;
 const SNAPSHOT = join(PKG, 'react-native-surface.json');
 
 const problems = [];
@@ -224,6 +232,59 @@ function selfTest() {
         ['New declares tier P1 but sits under the P2 banner'],
     );
 
+    // The OWN-EXPORT parser. The negatives carry this one: it decides which names
+    // the build gate lets through WITHOUT a table entry, so a name it invents is a
+    // name nothing checks, and a name it drops is a build failure for an import the
+    // README tells a reader to write.
+    const NO_STAR = () => {
+        throw new Error('no star expected in this vector');
+    };
+    const exportsOf = (source, resolve = NO_STAR) => generator.readModuleExports(source, '/m/index.ts', resolve).sort();
+
+    ok('named re-exports', exportsOf(`export { A, B } from './x.js';`), ['A', 'B']);
+    ok('a renamed re-export reports the name it EXPORTS', exportsOf(`export { B as C } from './x.js';`), ['C']);
+    ok('declarations', exportsOf(`export const a = 1;\nexport function b() {}\nexport class C {}`), ['C', 'a', 'b']);
+    ok('a namespace re-export is one name', exportsOf(`export * as ns from './x.js';`), ['ns']);
+    // Types erase before anything runs, which is why the gate does not judge one
+    // either — both spellings.
+    ok('a type-only re-export is not a value', exportsOf(`export type { T } from './x.js';`), []);
+    ok('an inline type specifier is not a value', exportsOf(`export { type T, V } from './x.js';`), ['V']);
+    ok('an interface is not a value', exportsOf(`export interface I { a: number }`), []);
+    // The three a text scan gets wrong, and all three appear in the real file.
+    ok('an export in a line comment is not one', exportsOf(`// export { Ghost } from './x.js';\nexport const a = 1;`), [
+        'a',
+    ]);
+    ok('an export in a block comment is not one', exportsOf(`/*\nexport { Ghost } from './x.js';\n*/`), []);
+    ok('an export inside a string is not one', exportsOf("export const doc = `export { Ghost } from './x.js';`;"), [
+        'doc',
+    ]);
+    // `export *` carries no names of its own, so the derivation has to follow it —
+    // a re-exported name it could not see would be refused by the gate.
+    ok(
+        'a star re-export is followed',
+        exportsOf(`export * from './gen.js';`, () => ({ file: '/m/gen.ts', source: `export const G = 1;` })),
+        ['G'],
+    );
+    vectors++;
+    let starThrew = false;
+    try {
+        generator.readModuleExports(`export * from 'other-package';`, '/m/index.ts', generator.resolveStarFromDisk);
+    } catch {
+        starThrew = true;
+    }
+    if (!starThrew) fail('self-test: a star re-export that cannot be followed must throw, not silently narrow');
+
+    ok(
+        'the tables keep every name they judge',
+        generator.readOwnExports(`export { View, configureStyle } from './x.js';`, '/m/index.ts', ['View'], NO_STAR),
+        ['configureStyle'],
+    );
+    ok(
+        'the generated list reads back as the names that went in',
+        generator.readOwnExportNames(generator.renderOwnExports(['configureStyle', 'primitives'])),
+        ['configureStyle', 'primitives'],
+    );
+
     return vectors;
 }
 
@@ -296,7 +357,6 @@ compare(
 // `FlatList` is planned, the gate agrees, and `import { FlatList }` still resolves
 // to nothing because the export was never regenerated after the entry was added.
 {
-    const generator = await import('../packages/framework/react-native/scripts/generate-exports.mjs');
     const source = readFileSync(TABLE_TS, 'utf8');
     const readme = readFileSync(join(PKG, 'README.md'), 'utf8');
     const hint = '  run: gjsify workspace @gjsify/react-native run generate';
@@ -336,6 +396,35 @@ compare(
     }
     console.log(
         `${label}: ${routerKeys.length} expo-router name(s) declared, disjoint from the ${rnKeys.length} React Native ones.`,
+    );
+
+    // THE SECOND POPULATION the § 8 build gate answers for: the names this layer adds
+    // on top of react-native's surface, which by construction have no table entry.
+    // Compared as a NAME SET rather than byte-for-byte like the two modules above, and
+    // the difference is deliberate: `run generate` pipes this file through `gjsify
+    // format`, so its exact bytes are the formatter's claim while the derivation's
+    // claim is the set.
+    const derivedOwn = generator.readOwnExports(readFileSync(INDEX_TS, 'utf8'), INDEX_TS, [...rnKeys, ...routerKeys]);
+    const committedOwn = generator.readOwnExportNames(readFileSync(OWN_TS, 'utf8'));
+    const ownAgreed = compare(
+        'own exports vs src/index.ts',
+        derivedOwn,
+        committedOwn,
+        'src/index.ts exports it and no table judges it, so the gate has to let it through\n' + hint,
+        'nothing exports it under that name any more, and the gate would still let it through\n' + hint,
+    );
+    // A name the gate lets through WITHOUT a table entry must not also be one a table
+    // judges. `isImportable` asks the tables first, so a collision would be silent —
+    // the derived list would be describing a name it does not decide.
+    const judgedToo = committedOwn.filter((name) => rnKeys.includes(name) || routerKeys.includes(name));
+    if (judgedToo.length > 0) {
+        fail(
+            `${judgedToo.length} own export(s) are also support-table names — ${judgedToo.join(', ')}\n` +
+                '  a name belongs to one population, and the table owns its own',
+        );
+    }
+    console.log(
+        `${label}: ${committedOwn.length} own export(s) beyond React Native's surface${ownAgreed ? '' : ' — STALE'}.`,
     );
 }
 

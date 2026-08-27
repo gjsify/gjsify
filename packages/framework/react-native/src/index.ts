@@ -101,6 +101,13 @@ export type { NamedStyles } from './stylesheet.js';
 // carries them. `check-rn-surface.mjs` holds the SUPPORT TABLE's key set against
 // react-native's exports, not this module's, so an addition here widens the package
 // without weakening that gate.
+//
+// THE BUILD GATE STILL HAD TO LEARN THEM. This file is the derivation's SOURCE:
+// `generated/own-exports.ts` is every value exported here that no support table
+// judges, and `isImportable` reads it, so `--dialect react-native` stops refusing the
+// three names below. Add an export and run `gjsify workspace @gjsify/react-native run
+// generate`; forget to, and `check-rn-surface.mjs` and `support-table.spec.ts` both
+// say so.
 export { configureStyle, resetStyleConfig, styleConfig } from './style-config.js';
 export type { StyleConfig } from './style-config.js';
 
@@ -128,10 +135,12 @@ export * from './generated/unsupported-exports.js';
 // dashboard, a migration script — should read the same data the gate reads rather
 // than scrape the README that was generated from it.
 export {
+    OWN_EXPORT_NAMES,
     SUPPORT_TABLE,
     SUPPORTED_NAMES,
     explainUnsupported,
     isImportable,
+    isOwnExport,
     type SupportEntry,
     type SupportStatus,
     type SupportTier,

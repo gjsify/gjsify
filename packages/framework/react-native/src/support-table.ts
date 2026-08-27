@@ -21,6 +21,17 @@
 // is indistinguishable from an unknown one, and the gate would have to guess. A
 // name that is here with `refused` produces a sentence; a name that is missing
 // produces a shrug.
+//
+// AND A SECOND POPULATION, which the table deliberately does not hold: the names
+// this layer ADDS to react-native's surface (`configureStyle` and § 3's other token
+// hooks, `primitives`, the table's own readers). They cannot become entries here —
+// `check-rn-surface.mjs` holds this key set EQUAL to react-native's export list, and
+// an invented key there is exactly what that gate exists to catch. They are derived
+// instead, in `generated/own-exports.ts`, from the export statements themselves, and
+// `isImportable` reads both. Without them the § 8 build gate refused the package's
+// own documented API.
+
+import { OWN_EXPORT_NAMES } from './generated/own-exports.js';
 
 /** What this layer does about a React Native export. */
 export type SupportStatus =
@@ -815,7 +826,7 @@ export const SUPPORTED_NAMES: readonly string[] = Object.keys(SUPPORT_TABLE);
 /** Every `expo-router` name the routing surface declares a status for. */
 export const ROUTER_NAMES: readonly string[] = Object.keys(ROUTER_SUPPORT_TABLE);
 
-/** Statuses a build may import. Everything else is a named refusal. */
+/** Statuses a build may import. Every other status is a named refusal. */
 const IMPORTABLE: ReadonlySet<SupportStatus> = new Set<SupportStatus>(['supported', 'partial']);
 
 /**
@@ -838,9 +849,46 @@ const lookup = (name: string): { readonly module: string; readonly entry: Suppor
     return undefined;
 };
 
+/**
+ * The names this layer adds on top of React Native's, from the generated list.
+ *
+ * A Set rather than the array, because `isImportable` is asked once per imported
+ * name during a build.
+ */
+const OWN: ReadonlySet<string> = new Set(OWN_EXPORT_NAMES);
+
+/**
+ * Is `name` one of this layer's OWN exports rather than a React Native one?
+ *
+ * `configureStyle`, `resetStyleConfig` and `styleConfig` carry § 3's token scales,
+ * `primitives` is L2, and the table plus its readers are public. None is a React
+ * Native name, so none has — or should have — a table entry.
+ */
+export const isOwnExport = (name: string): boolean => OWN.has(name);
+
+// Public alongside `SUPPORTED_NAMES`, and from HERE rather than from the generated
+// module: `@gjsify/react-native/support-table` is the subpath the build gate reads,
+// and a consumer building their own tooling should not have to know that half the
+// answer lives in a generated file.
+export { OWN_EXPORT_NAMES };
+
+/**
+ * May a build import `name` from this package?
+ *
+ * TWO POPULATIONS, and the tables answer FIRST. A name react-native exports is the
+ * tables' to judge, whatever else claims it; only a name no table has heard of falls
+ * through to the layer's own exports. That order is the safety property: the derived
+ * list can add names, never promote a `planned` one, so a mistake upstream of it
+ * cannot turn `import { Modal }` into a green build.
+ *
+ * A name in NEITHER population is still refused — which is the whole difference
+ * between this and "anything the table does not know is fine", the shape that would
+ * pass every typo.
+ */
 export const isImportable = (name: string): boolean => {
     const found = lookup(name);
-    return found !== undefined && IMPORTABLE.has(found.entry.status);
+    if (found !== undefined) return IMPORTABLE.has(found.entry.status);
+    return isOwnExport(name);
 };
 
 /**
@@ -854,6 +902,15 @@ export const isImportable = (name: string): boolean => {
 export function explainUnsupported(name: string): string {
     const found = lookup(name);
     if (found === undefined) {
+        // Asked about one of this layer's own names, the sentence below would send a
+        // reader to a script that compares the table with react-native — where the
+        // name is correctly absent, and the reader would find nothing.
+        if (isOwnExport(name)) {
+            return (
+                `@gjsify/react-native: "${name}" is this layer's own export rather than a React Native ` +
+                `name, and it is available.`
+            );
+        }
         return (
             `@gjsify/react-native: "${name}" is not a React Native export this layer knows about. ` +
             `If the installed react-native really exports it, the support table is out of date — ` +

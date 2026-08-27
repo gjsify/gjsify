@@ -8,12 +8,14 @@
 import { describe, expect, it } from '@gjsify/unit';
 
 import {
+    OWN_EXPORT_NAMES,
     ROUTER_NAMES,
     ROUTER_SUPPORT_TABLE,
     SUPPORT_TABLE,
     SUPPORTED_NAMES,
     explainUnsupported,
     isImportable,
+    isOwnExport,
     type SupportEntry,
 } from './support-table.js';
 // The whole package, because the invariant below is about the EXPORT SURFACE and not
@@ -133,6 +135,67 @@ export default async () => {
             // the message must say which script settles that rather than leaving the
             // reader to conclude they typed it wrong.
             expect(message).toContain('check-rn-surface');
+        });
+    });
+
+    await describe('the layer’s own exports', async () => {
+        // THE SECOND POPULATION. `@gjsify/react-native` exports more than react-native
+        // does, and none of those names can have a table entry — `check-rn-surface.mjs`
+        // holds the table's key set EQUAL to react-native's, and an invented key there
+        // is what that gate exists to catch. Before this set existed, ADR 0032 § 8's
+        // build gate refused every one of them, `configureStyle` included: the import
+        // the package README and the website's React Native page both instruct, on the
+        // page that also says to turn the gate on.
+
+        await it('derives the set from the module, not from a list beside it', async () => {
+            // `generated/own-exports.ts` is a STATIC parse of `src/index.ts`, run by
+            // `scripts/generate-exports.mjs`. This asks the same question of the module
+            // that actually loaded — the one authority a parser cannot argue with. A
+            // dropped export, an invented one, or a generated file nobody regenerated
+            // all differ here.
+            const namespaceNames = Object.keys(reactNative as unknown as Record<string, unknown>);
+            const judged = new Set([...SUPPORTED_NAMES, ...ROUTER_NAMES]);
+            const expected = namespaceNames.filter((name) => !judged.has(name)).sort();
+            expect([...OWN_EXPORT_NAMES].sort()).toStrictEqual(expected);
+            // Not vacuous: an empty derivation would satisfy an empty namespace too.
+            expect(expected.length > 0).toBe(true);
+        });
+
+        await it('makes the package’s own API importable', async () => {
+            for (const name of ['configureStyle', 'resetStyleConfig', 'styleConfig', 'primitives']) {
+                expect(isOwnExport(name)).toBe(true);
+                expect(isImportable(name)).toBe(true);
+            }
+        });
+
+        await it('leaves every name a table judges to that table', async () => {
+            // THE SAFETY PROPERTY behind widening `isImportable`. The derived list can
+            // only ADD names no table has heard of; it can never promote a `planned`
+            // React Native name, because the lookup asks the tables first. `Modal` is
+            // planned and stays refused whatever else claims it.
+            expect(isImportable('Modal')).toBe(false);
+            expect(isOwnExport('Modal')).toBe(false);
+            const collisions = OWN_EXPORT_NAMES.filter(
+                (name) => SUPPORTED_NAMES.includes(name) || ROUTER_NAMES.includes(name),
+            );
+            expect(collisions).toStrictEqual([]);
+        });
+
+        await it('still refuses a name in NEITHER population', async () => {
+            // The opposite defect to the one this set fixes, and the worse of the two:
+            // "importable unless the table refuses it" would pass every typo.
+            expect(isOwnExport('totalNonsense')).toBe(false);
+            expect(isImportable('totalNonsense')).toBe(false);
+        });
+
+        await it('explains an own export as its own rather than as a stale table', async () => {
+            const message = explainUnsupported('configureStyle');
+            expect(message).toContain('configureStyle');
+            expect(message).toContain('own export');
+            // The unknown-name sentence sends a reader to the script that compares the
+            // table with react-native. For a name that is correctly absent from both,
+            // that is a trip to find nothing.
+            expect(message.includes('check-rn-surface')).toBe(false);
         });
     });
 

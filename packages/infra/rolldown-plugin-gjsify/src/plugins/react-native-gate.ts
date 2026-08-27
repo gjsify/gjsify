@@ -15,10 +15,15 @@
 // `explainUnsupported`, and the plugin resolves it through the bundler's own
 // resolver and imports it. Reading the SOURCE the way `scripts/check-rn-surface.mjs`
 // does is not an option here: `files` on that package ships `lib` and not `src`,
-// so in a consumer's `node_modules` there is no `support-table.ts` to parse. The
-// built module is dependency-free — no imports at all, pure data plus two
-// functions — so importing it costs nothing and cannot drag GTK into the bundler
-// process.
+// so in a consumer's `node_modules` there is no `support-table.ts` to parse.
+//
+// WHAT THAT IMPORT DRAGS IN, measured on the built file rather than assumed: two
+// RELATIVE imports, rolldown's two-helper runtime shim and the generated
+// `own-exports.js`, which is a string array importing nothing. Relative is the half
+// that matters twice over — nothing reachable from here can pull GTK into the
+// bundler process, and GJS's ESM loader follows a relative specifier where it does
+// not follow `package.json#exports`. This comment used to claim "no imports at all",
+// which the runtime shim already disproved before the second one arrived.
 //
 // AND IT IS NOT A DEPENDENCY, deliberately. `@gjsify/rolldown-plugin-gjsify` is
 // tier 1 and `@gjsify/react-native` is tier 3; a tier-1 package may not depend on
@@ -47,7 +52,16 @@ import {
  * types itself against a tier-3 package it must not import.
  */
 export interface SupportTableReader {
-    /** True for `supported` and `partial` — the statuses a build may import. */
+    /**
+     * May a build import this name from the layer?
+     *
+     * TWO POPULATIONS, and the layer composes them — not this plugin. A React Native
+     * name is `supported` or `partial` in the support table; a name the layer ADDS
+     * (`configureStyle` and the rest of ADR 0032 § 3's token hooks) cannot be in that
+     * table at all, because `check-rn-surface.mjs` holds its key set EQUAL to
+     * react-native's own exports. A gate that asked only the first question refused
+     * the package's own documented API. A name in NEITHER is still false.
+     */
     isImportable(name: string): boolean;
     /** The one sentence the build error and the runtime throw both print. */
     explainUnsupported(name: string): string;
