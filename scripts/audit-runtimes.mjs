@@ -1064,7 +1064,7 @@ async function buildReport() {
         const pkgJsonPath = join(pkgDir, 'package.json');
         const pkgJson = JSON.parse(await readFile(pkgJsonPath, 'utf8'));
         // Per-target platform packages (ADR 0017) carry a binary and no JavaScript. The
-        // quadruplet describes an API surface's cross-runtime reach, and a package with no
+        // quintuplet describes an API surface's cross-runtime reach, and a package with no
         // source has none — yet the path-based classifier would happily suggest one from
         // the pillar directory alone, a suggestion nothing can satisfy and a declaration
         // that would be false whichever way it was written. Skipped on the manifest's own
@@ -1213,8 +1213,10 @@ function auditRuntimeShape(rows) {
  * `malformed` holds the paths `auditRuntimeShape` rejected. They are skipped rather than
  * compared, which is what the `--check` output has always CLAIMED happens ("nothing below
  * was read for these"): a declaration naming `reactNative` reads as `{gjs:undefined, …}`
- * here and would be reported a second time as drift on every slot, burying the one line
- * that says what is actually wrong under four that cannot be acted on.
+ * here and would be reported a SECOND time as drift — on the three slots this comparison
+ * still has an opinion about (`nativescript` and `react-native` opt out below), in a
+ * five-line block that names none of them as the problem. Measured in
+ * `tests/e2e/runtime-slot-declarations`, which pins the three.
  *
  * @param {Set<string>} [malformed]
  */
@@ -1280,14 +1282,16 @@ function diffDeclared(rows, malformed = new Set()) {
             // makes the suggestion a hint rather than a target.
             if (s === 'nativescript' && r.declared[s] === undefined) return false;
             // The 5th slot is DECLARATION-ONLY, and this is not the 4th slot's optionality
-            // one step further out — it is a different statement. `suggestTriplet` has no
+            // one step further out — it is a different statement. `suggestRuntimes` has no
             // react-native branch, so `suggested['react-native']` is `undefined` for every
             // row. Comparing against that would flag EVERY correct declaration as drift:
             // `'polyfill' !== undefined`. The slot is still checked — `auditRuntimeShape`
             // rejects a value outside `VALID_SLOTS` and a key outside `VALID_TARGETS`, and
             // the reachability pass treats it as fatal (`REACH_FATAL_TARGETS`) — it is only
             // DRIFT that has nothing to say, because a heuristic nobody measured is a guess,
-            // and `--apply` would write that guess into 200 manifests.
+            // and `--apply` writes the suggestion VERBATIM into every declarable package
+            // that has no declaration yet — unreviewed, because there is nothing to review
+            // it against.
             if (s === 'react-native') return false;
             // Pure-TS contract: `none` and `polyfill` are both valid on the portable slots
             // (see above), so neither drifts.
