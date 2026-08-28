@@ -42,8 +42,8 @@
 //      5 refuses a page naming a port the component has not got, 6 refuses a component
 //      naming a port no page has got.
 //   7. Every WINDOW has at least one tab, and at least one tab some block provides. A
-//      window is a header bar, a title and a subtitle around its tabs; declared with an
-//      empty `tabs` list it renders that chrome over nothing, on all 40 blocks, and arm
+//      window is a header bar, a title and its tabs; declared with an empty `tabs` list
+//      it announces a kind of implementation that renders on no block at all, and arm
 //      6 cannot see it because there is no slot to be unprovided. Same class as 6, one
 //      level up — the level the restructure added.
 //   8. Every block providing the MARKUP OVERRIDE is ledgered in
@@ -58,6 +58,21 @@
 //      across the 40 blocks 17 were byte-identical and 23 had already diverged, with
 //      nothing checking either way. One policed copy, named and reasoned, is the price
 //      of the widget whose API is imperative; a second one has to say why.
+//   9. The LIVE PREVIEW is the FIRST pane of the window that runs the widget, in
+//      {@link WINDOW_COMPONENT} — the file that draws a window, which is where pane
+//      order is decided.
+//
+//      The preview and the markup tab beside it are ONE source: the pane mounts the
+//      bytes the tab shows. Order is what makes that legible — the reader meets the
+//      widget, then the markup that painted it, which is the order every gallery page's
+//      prose promises ("The first one RUNS the widget"). Swapped, the window opens on a
+//      block of HTML for a widget the reader has not seen yet, and NOTHING else would
+//      notice: arm 8 still holds, both tabs still render, the fence is still authored
+//      once. It is a source-order read because the panes are laid out in the template,
+//      and this gate deliberately runs without a build — so it reads the file with its
+//      COMMENTS BLANKED OUT and counts the mount, because a marker named in prose above
+//      the tabs, or mounted twice, is how a source-text read goes green over the defect
+//      it is named after.
 //
 // The `title` IS the join: `Adw.ViewSwitcherBar` → `view-switcher-bar`, the same
 // bare name the widget files, the story metas and the ledgers are already spelled
@@ -158,6 +173,61 @@ function widgetBlocks(root, pages) {
 
 /** The tab component: the one place a port is declared. */
 const WIDGET_COMPONENT = 'website/src/components/AdwWidget.astro';
+
+/**
+ * The component that DRAWS one window, as opposed to declaring it. Pane order is a
+ * fact about this file: `WINDOWS` says which tabs a window has, this file says where
+ * the live preview sits among them.
+ */
+const WINDOW_COMPONENT = 'website/src/components/AdwWidgetWindow.astro';
+
+/** The mounted preview's own element, and the expression that renders the code tabs. */
+const PREVIEW_MOUNT = 'adw-widget-preview-tpl';
+const TAB_MAP = 'tabs.map(';
+
+/**
+ * The same file with its comments blanked out.
+ *
+ * Arm 9 is a SOURCE-TEXT read, and a source-text read that counts PROSE is how a
+ * check goes green while the thing it names is gone. That is not hypothetical here:
+ * `check-website-preview-not-content.mjs` shipped in exactly that state — its first
+ * cut asked whether a file CONTAINED the marker string, and `AdwGalleryCard.astro`
+ * carries an eight-line comment naming the marker, so deleting the marker from its
+ * markup left the check green. Measured again on this arm: move the preview after
+ * the code tabs and leave `adw-widget-preview-tpl` in a comment above them, and the
+ * unmasked read exits 0 on a window that opens on HTML.
+ *
+ * Line comments are anchored to the start of a line so that a `https://` inside an
+ * attribute is not read as one.
+ */
+const withoutComments = (text) => text.replaceAll(/\/\*[\s\S]*?\*\//g, '').replaceAll(/^[ \t]*\/\/.*$/gm, '');
+
+/**
+ * Arm 9: the live preview is emitted BEFORE the code tabs, inside the tab view, and
+ * exactly once.
+ *
+ * The COUNTS are part of the arm, not tidiness: two preview panes render the widget
+ * twice under two "Preview" tabs mounting the same markup, and the order read alone
+ * blesses it — the first mount still precedes the tabs. Measured by duplicating the
+ * pane: exit 0.
+ *
+ * Returns null when the file is right, or the reason it is not.
+ */
+function previewPanePosition(root) {
+    const text = withoutComments(readFileSync(join(root, WINDOW_COMPONENT), 'utf8'));
+    const view = /<adw-tab-view\b[\s\S]*?<\/adw-tab-view>/.exec(text);
+    if (view === null) {
+        return `holds no <adw-tab-view> … </adw-tab-view>, so there is no pane order to read`;
+    }
+    const mounts = view[0].split(PREVIEW_MOUNT).length - 1;
+    const maps = view[0].split(TAB_MAP).length - 1;
+    if (mounts === 0) return `mounts no preview (\`${PREVIEW_MOUNT}\`) inside its tab view`;
+    if (maps === 0) return `renders no code tabs (\`${TAB_MAP}\`) inside its tab view`;
+    if (mounts > 1) return `mounts ${mounts} previews inside its tab view, and a window runs the widget once`;
+    if (maps > 1) return `renders the code tabs ${maps} times inside its tab view`;
+    if (view[0].indexOf(PREVIEW_MOUNT) > view[0].indexOf(TAB_MAP)) return `mounts the preview AFTER the code tabs`;
+    return null;
+}
 
 /**
  * Blocks whose `preview` fence is NOT the markup a reader should copy, so the
@@ -370,9 +440,9 @@ for (const window of windows) {
     if (window.slots.length === 0) {
         failures.push(
             `${WIDGET_COMPONENT} declares the window "${window.id}" with no tabs at all. A window is a\n` +
-                '    header bar, a title and a subtitle around its tabs, so an empty one renders that chrome\n' +
-                '    over nothing on every block — and arm 6 cannot see it, because there is no slot to be\n' +
-                '    unprovided. Give it a tab, or drop the window.',
+                '    header bar, a title and its tabs, so an empty one announces a kind of implementation\n' +
+                '    that renders on no block at all — and arm 6 cannot see it, because there is no slot to\n' +
+                '    be unprovided. Give it a tab, or drop the window.',
         );
         continue;
     }
@@ -407,6 +477,20 @@ for (const title of Object.keys(MARKUP_OVERRIDE_LEDGER)) {
     );
 }
 
+// --- arm 9: the live preview is the first pane of the window that runs the widget ---
+
+const panePosition = previewPanePosition(ROOT);
+if (panePosition !== null) {
+    failures.push(
+        `${WINDOW_COMPONENT} ${panePosition}. The preview and the markup tab beside it are ONE\n` +
+            '    source — the pane mounts the bytes the tab shows — and the order is what makes that\n' +
+            '    legible: the reader meets the widget, then the markup that painted it, which is the order\n' +
+            "    every gallery page's prose promises. Swapped, the window opens on a block of HTML for a\n" +
+            '    widget the reader has not seen yet, and nothing else here would notice: both tabs still\n' +
+            '    render and the fence is still authored once.',
+    );
+}
+
 if (failures.length > 0) {
     console.error(`check-website-adwaita-gallery: ${failures.length} gallery/storybook disagreement(s):\n`);
     for (const failure of failures) console.error(`  - ${failure}`);
@@ -428,5 +512,6 @@ console.log(
     `check-website-adwaita-gallery: ${windows.length} window(s) in ${WIDGET_COMPONENT} — ` +
         `${windows.map((w) => `${w.id} [${w.slots.join(' ')}]`).join(', ')} — each with a tab at least one ` +
         `of ${blocks.length} blocks provides, every fragment slot they write is one the component renders, ` +
-        `and ${overriding.size} block(s) override the markup tab, all ledgered.`,
+        `${overriding.size} block(s) override the markup tab, all ledgered, and ${WINDOW_COMPONENT} mounts ` +
+        'the live preview ahead of them.',
 );
