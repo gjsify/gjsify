@@ -37,22 +37,29 @@
 // real one. No import error, no type error, no failing test; a window that is subtly
 // wrong. Hence rule 3 below: a base module refuses, and may not re-export a sibling.
 //
-// WHAT IT CHECKS — eight rules, each falsified in both directions before landing:
+// WHAT IT CHECKS — nine rules, each falsified in both directions before landing:
 //
 //   1. Every widget has all three modules (base, `.gtk.tsx`, `.native.tsx`), and no
 //      platform module exists without the other two. Both directions, because a
 //      `.gtk.tsx` with no `.native.tsx` and a `.native.tsx` with no `.gtk.tsx` are
 //      different bugs with the same fix.
 //   2. Every widget has an `exports` entry naming BOTH platform builds under the right
-//      conditions, and every path an `exports` entry names has a source module behind
-//      it. A map entry pointing at a file that does not exist is a resolution failure
-//      in a consumer's bundler and nowhere else.
+//      conditions, EVERY entry declares `types`, and every path any of them names has a
+//      source module behind it. A map entry pointing at a file that does not exist is a
+//      resolution failure in a consumer's bundler and nowhere else — and `types` is the
+//      one condition whose target is not a build output of the half it describes, so it
+//      is also the one a copy-paste can leave pointing at a declaration that was never
+//      emitted.
 //   3. The base modules refuse: each widget's `<name>.ts` calls the named-throw helper,
 //      and neither it NOR the base barrel imports or re-exports a platform sibling.
 //      The barrel half is not decoration: `index.ts` is a second place the same drift
 //      lands, and rule 5 only asks whether the base modules are all NAMED there — a
 //      barrel that names them and ALSO re-exports `./widgets/clamp.native.js` satisfies
-//      it, which is the worse-copy case one file up.
+//      it, which is the worse-copy case one file up. The PLATFORM barrels are held to
+//      the same rule against each OTHER: `index.gtk.ts` re-exporting
+//      `./widgets/clamp.native.js` was measured passing every other rule here, and it is
+//      the worse-copy case in its most expensive form — the barrel every GTK consumer
+//      actually loads.
 //   4. Every platform module carries an explicit `@jsxImportSource` pragma, and the
 //      right one. Measured: the per-file pragma beats the tsconfig option, and the two
 //      halves need OPPOSITE values — `@gjsify/gtk-host/react` so `<div>` is a TS2339
@@ -60,8 +67,12 @@
 //      be right by inheriting a project default the other half contradicts.
 //   5. The three barrels are complete: the base barrel names every base module, the
 //      GTK barrel every `.gtk`, the native barrel every `.native`.
-//   6. `module`/`main` point at the BASE barrel — the entry a condition-blind tool
-//      falls back to, which is the only audience the refusal has left.
+//   6. `module`/`main` point at the BASE barrel — the entry a condition-blind tool falls
+//      back to, which is the only audience the refusal has left — and at least ONE of
+//      them EXISTS. The presence half is not pedantry: measured, deleting `module`
+//      outright left this gate at exit 0 while rules 3 and 5 went on guarding a barrel
+//      no consumer could reach, which is this repository's most expensive failure class
+//      wearing the uniform of a passing check.
 //   7. `parity.spec.ts` carries a type-level assertion per widget per platform, and
 //      `PARITY_ASSERTIONS` lists exactly those. That spec is what makes "one API
 //      surface" a thing `tsc` refuses rather than a sentence, and it is per-widget —
@@ -77,6 +88,14 @@
 //      `lib/esm/index.gtk.js` on both ios and android. A key lookup — which is all
 //      rules 2 and 6 can do — cannot see order, so this rule is the only thing between
 //      a one-line reordering and a phone bundle that imports `gi://Adw`.
+//   9. Neither half imports the other's platform. Rule 4 is the NARROW version of this —
+//      it keeps the JSX factory import off the phone — and it was the only version for
+//      a while: measured, `bin.native.tsx` with a plain `import Adw from 'gi://Adw'`, or
+//      with `@gjsify/gtk-host`, passed every rule above. On the phone that is a resolve
+//      failure inside a consumer's Metro build; on GTK the mirror case is worse, because
+//      the specifier `react-native` is ALIASED onto `@gjsify/react-native` there, so a
+//      `.gtk` module importing it runs — as the working worse copy this whole file is
+//      about. The pragma proves the JSX runtime; only this proves the module graph.
 //
 // A SCOPE THAT FINDS NOTHING IS A FAILURE. Zero widgets means a renamed directory or a
 // reader that stopped matching, and printing OK over a tree nothing looked at is the
@@ -120,6 +139,8 @@ const PLATFORMS = [
         buildSuffix: '.gtk.js',
         barrel: 'index.gtk.ts',
         jsxImportSource: '@gjsify/gtk-host/react',
+        /** Rule 9. On GTK `react-native` is ALIASED onto `@gjsify/react-native` and RUNS. */
+        forbiddenImports: ['react-native'],
     },
     {
         name: 'native',
@@ -128,6 +149,8 @@ const PLATFORMS = [
         buildSuffix: '.native.js',
         barrel: 'index.native.ts',
         jsxImportSource: 'react',
+        /** Rule 9. `gi://` is a GJS scheme and gtk-host is its React adapter; neither is on a phone. */
+        forbiddenImports: ['gi://', '@gjsify/gtk-host'],
     },
 ];
 
@@ -230,16 +253,16 @@ for (const widget of [...widgets].sort()) {
 
 // ─── Rule 3 — the base modules refuse, and re-export no sibling ─────────────
 /** Every `./widgets/<widget>.<platform>.js` a file must not name. Rule 3, twice. */
-const refusesPlatformSiblings = (source, where, prefix) => {
+const refusesPlatformSiblings = (source, where, prefix, platforms, instead) => {
     const imported = moduleSpecifiers(source);
     for (const widget of [...widgets].sort()) {
-        for (const platform of PLATFORMS) {
+        for (const platform of platforms) {
             const specifier = `${prefix}${widget}${platform.buildSuffix}`;
             if (imported.has(specifier)) {
                 fail(
                     'refusal',
                     `${where}: reaches the ${platform.name} implementation of \`${widget}\` ` +
-                        `(\`${specifier}\`) instead of refusing`,
+                        `(\`${specifier}\`) ${instead}`,
                 );
             }
         }
@@ -251,7 +274,25 @@ const refusesPlatformSiblings = (source, where, prefix) => {
 // "working worse copy" this file's header is about, one directory up.
 const baseBarrelPath = join(PACKAGE_DIR, 'src', 'index.ts');
 if (existsSync(baseBarrelPath)) {
-    refusesPlatformSiblings(read(baseBarrelPath), '`src/index.ts`', './widgets/');
+    refusesPlatformSiblings(read(baseBarrelPath), '`src/index.ts`', './widgets/', PLATFORMS, 'instead of refusing');
+}
+
+// And each PLATFORM barrel against the OTHER platform. Rule 5 makes a barrel name its own
+// half's modules; nothing made it name only those. Measured: `index.gtk.ts` with an extra
+// `export … from './widgets/clamp.native.js'` passed every rule in this file, and it is
+// the worse-copy case at its most expensive — that barrel is `exports["."]`'s `default`,
+// i.e. what every GTK consumer loads.
+for (const platform of PLATFORMS) {
+    const barrelPath = join(PACKAGE_DIR, 'src', platform.barrel);
+    if (!existsSync(barrelPath)) continue;
+    const others = PLATFORMS.filter((other) => other.name !== platform.name);
+    refusesPlatformSiblings(
+        read(barrelPath),
+        `\`src/${platform.barrel}\``,
+        './widgets/',
+        others,
+        `beside its own — this barrel is what \`exports['.']['${platform.condition}']\` loads`,
+    );
 }
 
 for (const widget of [...widgets].sort()) {
@@ -264,7 +305,7 @@ for (const widget of [...widgets].sort()) {
     // A base module that resolves to a platform implementation is the "working worse
     // copy" case in this file's header, and it is spelled as an ordinary import — which
     // is why the check is on the specifier and not on a keyword.
-    refusesPlatformSiblings(source, `${widget}: \`src/widgets/${widget}.ts\``, './');
+    refusesPlatformSiblings(source, `${widget}: \`src/widgets/${widget}.ts\``, './', PLATFORMS, 'instead of refusing');
 }
 
 // ─── Rule 4 — the right JSX source, per platform module ─────────────────────
@@ -285,6 +326,26 @@ for (const widget of [...widgets].sort()) {
                 'jsx-source',
                 `${widget}${platform.suffix}: \`@jsxImportSource ${match[1]}\`, expected ` +
                     `\`${platform.jsxImportSource}\``,
+            );
+        }
+    }
+}
+
+// ─── Rule 9 — neither half imports the other's platform ─────────────────────
+// Rule 4 above proves the JSX FACTORY; this proves the module graph, and the two are
+// different questions. A `.native.tsx` with the right pragma and a bare
+// `import Adw from 'gi://Adw?version=1'` was measured passing every other rule here.
+for (const widget of [...widgets].sort()) {
+    for (const platform of PLATFORMS) {
+        const path = join(WIDGETS_DIR, `${widget}${platform.suffix}`);
+        if (!existsSync(path)) continue;
+        for (const specifier of moduleSpecifiers(read(path))) {
+            const forbidden = platform.forbiddenImports.find((prefix) => specifier.startsWith(prefix));
+            if (forbidden === undefined) continue;
+            fail(
+                'platform-imports',
+                `${widget}${platform.suffix}: imports \`${specifier}\`, which is the OTHER ` +
+                    `platform's — a \`${forbidden}\` specifier has no meaning in a ${platform.name} build`,
             );
         }
     }
@@ -318,9 +379,18 @@ const CONDITION_POSITION = [
     },
 ];
 
-/** `./lib/esm/widgets/clamp.gtk.js` → the source module it is built from. */
+/**
+ * `./lib/esm/widgets/clamp.gtk.js` → the source module it is built from, `types` included.
+ *
+ * `./lib/types/**.d.ts` is emitted by a DIFFERENT command (`build:types`, i.e. `tsc`)
+ * from the one that writes `lib/esm`, so a `types` target is the one condition whose
+ * file can be absent while every runtime condition resolves. Reading it through the same
+ * function is what lets rule 2 ask the same question of all of them.
+ */
 const sourceBehind = (target) => {
-    const relative = String(target).replace(/^\.\/lib\/esm\//, '');
+    const relative = String(target)
+        .replace(/^\.\/lib\/(esm|types)\//, '')
+        .replace(/\.d\.ts$/, '.js');
     for (const extension of ['.tsx', '.ts']) {
         const candidate = join(PACKAGE_DIR, 'src', relative.replace(/\.js$/, extension));
         if (existsSync(candidate)) return candidate;
@@ -350,8 +420,14 @@ for (const [subpath, entry] of Object.entries(exportsField)) {
             );
         }
     }
+    if (entry.types === undefined) {
+        fail(
+            'exports',
+            `${subpath}: declares no \`types\` condition, so this subpath ships no declarations — ` +
+                'and the one surface both halves are held to is the one nothing would then describe',
+        );
+    }
     for (const [condition, target] of Object.entries(entry)) {
-        if (condition === 'types') continue;
         if (sourceBehind(target) === null) {
             fail('exports', `${subpath} → ${condition}: \`${target}\` has no source module under \`src/\``);
         }
@@ -388,7 +464,8 @@ for (const platform of PLATFORMS) {
         );
     }
 }
-for (const field of ['module', 'main']) {
+const BASE_ENTRY_FIELDS = ['module', 'main'];
+for (const field of BASE_ENTRY_FIELDS) {
     const value = manifest[field];
     if (value !== undefined && value !== 'lib/esm/index.js') {
         fail(
@@ -397,6 +474,19 @@ for (const field of ['module', 'main']) {
                 'what a tool that ignores export conditions falls back to, and the refusal is written for it',
         );
     }
+}
+// The PRESENCE half, which the loop above cannot express: with neither field declared,
+// every rule in this file stayed green (measured, exit 0) over a package whose base
+// barrel no consumer could reach — so `refuse.ts`, rule 3 and half of rule 5 were
+// guarding a file with no audience. A gate that goes on passing after its subject
+// disappears is the failure this repository pays for most often.
+if (!BASE_ENTRY_FIELDS.some((field) => manifest[field] !== undefined)) {
+    fail(
+        'base-entry',
+        `neither \`module\` nor \`main\` is declared, so nothing points at the base barrel — the ` +
+            'refusal in `src/refuse.ts` then has no audience at all, and the rules that keep the base ' +
+            'modules free of platform siblings guard a file no tool can reach',
+    );
 }
 
 // ─── Rule 5 — the barrels are complete ──────────────────────────────────────
@@ -476,5 +566,6 @@ console.log(
     `check-adwaita-rn-platform-split: ${widgets.size} widget(s) — ` +
         `${[...widgets].sort().join(', ')} — each with a base module that refuses, a ` +
         `${PLATFORMS.map((p) => p.name).join(' and a ')} module, an \`exports\` entry naming both ` +
-        'in an order that resolves to them, and the JSX source its platform needs.',
+        'in an order that resolves to them, the JSX source its platform needs, and no import ' +
+        'from the other platform.',
 );
