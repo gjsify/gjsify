@@ -28,11 +28,34 @@ measured against a real production Expo application — this package has no thir
 codebase behind it. What it has is a shared arithmetic core and two renderers held to
 the same numbers.
 
+## Install
+
+Not on npm yet: this is a new name, and the first publish plus its Trusted Publisher
+bootstrap is a maintainer action deliberately not attempted from CI or a feature branch
+([the procedure](../../../docs/publishing.md)). Until then it is consumable from a
+workspace checkout.
+
+```sh
+npm install @gjsify/adwaita-react-native
+```
+
+`react` (>= 19.2) is a peer dependency. `react-native` (>= 0.87) is an **optional** peer:
+a GTK-only consumer does not need it installed.
+
+## Widgets
+
+| widget | props | notes |
+|---|---|---|
+| `AdwBin` | `children` | One child, no layout of its own |
+| `AdwClamp` | `children`, `maximumSize` (600), `tighteningThreshold` (400) | Constrain a child's width and centre it, on libadwaita's easing curve |
+
+Props are libadwaita's own names, camelCased — `maximumSize` is `AdwClamp:maximum-size`,
+not a React Native `maxWidth` — so the property you look up in libadwaita's documentation
+is the property you write. Defaults are libadwaita's.
+
 ## How the two halves are selected
 
-Through the package's `exports` map and the `react-native` condition. Every barrel
-names its platform files **literally** (`./widgets/clamp.native.js` /
-`./widgets/clamp.gtk.js`); nothing relies on a resolver picking a sibling.
+Through the package's `exports` map and the `react-native` condition:
 
 | condition | entry |
 |---|---|
@@ -40,43 +63,21 @@ names its platform files **literally** (`./widgets/clamp.native.js` /
 | `default` | `lib/esm/index.gtk.js` |
 | `exports` ignored, `module` read | `lib/esm/index.js` — refuses, by name |
 
-A stock React Native 0.87 application gets the native half with no configuration:
-`metro-config` sets `unstable_enablePackageExports: true`, and
-`@react-native/metro-config` sets `unstable_conditionNames: ['react-native']`.
+**A stock React Native 0.87 application needs no configuration.** `metro-config` enables
+package exports and `@react-native/metro-config` supplies the `react-native` condition.
 
-**The ORDER of those conditions is the map**, not a formatting detail: `exports` answers
-with the first one that matches and `default` matches everything, so moving `default`
-ahead of `react-native` hands the GTK build to every phone — measured through
-`metro-resolver@0.87.0`, which then resolves this package to `lib/esm/index.gtk.js` on
-ios and android alike. `scripts/check-adwaita-rn-platform-split.mjs` asserts the order
-for that reason; a key lookup cannot see it.
+Two things follow that are easy to undo by accident, so both are held by
+`scripts/check-adwaita-rn-platform-split.mjs` rather than by convention — its header
+carries the resolver measurements behind them:
 
-The refusal's audience is narrower than "a tool that ignores export conditions", and the
-measurement says so: Node honours `exports` whenever it is present, and metro with
-package exports switched off reads `['browser', 'main']`, neither of which this package
-declares — it fails to resolve rather than reaching the base barrel. What is left is a
-bundler that ignores `exports` and reads `module`, which is where `lib/esm/index.js` and
-its named throw are for.
+- **The condition ORDER is part of the map.** `exports` answers with the first match and
+  `default` matches everything, so moving `default` ahead of `react-native` hands the GTK
+  build to every phone.
+- **Every barrel names its platform files literally.** Nothing relies on a resolver
+  picking a `.native` sibling: that mechanism is real, and right for an *application*,
+  but it does not carry a published library whose shipped imports carry a `.js` extension.
 
-### Why not `.native.tsx` beside `.tsx`
-
-Because it does not work for a published library, and this was measured rather than
-assumed. Metro's `resolveSourceFile` tries the **literal** path first — no platform, no
-`preferNativePlatform` — and our shipped modules import each other with the `.js`
-extension. Metro finds `clamp.js` and never looks at `clamp.native.js`. The `.native`
-step wins only for extensionless specifiers, which a `lib/esm` build does not emit.
-(NativeScript escapes this because its platform files are resolved in the *consumer's*
-build; Metro resolves at resolution time.)
-
-Both mechanisms still exist and are still right for an *application*. Neither carries
-this library.
-
-The price is that the `exports` map and the three barrels are hand-maintained, which is
-why `scripts/check-adwaita-rn-platform-split.mjs` is a condition of the design rather
-than a nicety: every widget has both platform modules, the map names both, the base
-module refuses, and each platform module carries the `@jsxImportSource` its half needs.
-
-## Consuming it
+### Consuming it on GTK
 
 Nothing to configure on the phone. On GTK, point JSX at the host that has a GTK element
 list, so a stray `<div>` is a type error instead of a tag that type-checks and renders
@@ -95,17 +96,17 @@ nothing:
 
 | claim | held by |
 |---|---|
-| both halves satisfy one declared surface | `tsc`, through `parity.spec.ts` — a platform module that renames, drops or invents a prop, or changes an arity, is a compile error. The prop half is a key-set comparison, not assignability: `AdwClampProps` is all-optional, and structural assignability accepts a rename between two such types |
-| the `.native` half type-checks against **real** React Native | the 32 MB `react-native` devDependency and its `types_generated`, never against a subset |
-| GTK: the widget is the real `Adw.*`, and it **renders** | `clamp.gtk.spec.tsx` — the live GTK tree plus a GSK rasterisation through `shotEvidence`, because GTK's failure mode is an empty window at exit 0 |
-| React Native: which primitives, which props, which nesting | `clamp.native.spec.tsx` — React's own reconciler over `react-test-renderer`, against a type-pinned double |
-| both halves agree on the number | two frames, one of them ON the easing curve: 1000 points at `maximumSize` 400 gives width 400 at offset 300, and 700 points at the default 600/400 gives **575 at offset 62** where a `min()` would give 600 — each asserted as a GTK allocation on one side and a style object on the other. The first pair alone would not be enough: `tightening-threshold` defaults to 400, so `maximumSize={400}` collapses `lower`/`max`/`upper` onto one point and the eased region has zero width there |
-| both halves answer the same for a property value GObject cannot store | `normalizeClampSize` from `@gjsify/adwaita-core`, run by **both** halves — the same call `@gjsify/adwaita-web` and `@gjsify/adwaita-nativescript` make. Asserted per row on both sides: `400.7` &rarr; 400, `NaN` &rarr; the default 600, `-5` &rarr; the range floor 0, read off the real widget's property in `clamp.gtk.spec.tsx` and off the style object in `clamp.native.spec.tsx`. GObject itself cannot be the shared rule: measured through the GTK component, `new Adw.Clamp({'maximum-size': NaN})` **stores 0**, `set_property` with the same NaN refuses and logs a `GLib-GObject-CRITICAL`, and a negative keeps the previous value and logs one too — one authored value, three answers |
+| both halves satisfy one declared surface | `tsc` — a platform module that renames, drops or invents a prop, or changes an arity, is a compile error |
+| the `.native` half type-checks against **real** React Native | the `react-native` package's own types, never a subset |
+| GTK: the widget is the real `Adw.*`, and it **renders** | the live GTK tree plus a GSK rasterisation, because GTK's failure mode is an empty window at exit 0 |
+| React Native: which primitives, which props, which nesting | React's own reconciler over `react-test-renderer` |
+| both halves agree on the number | two frames, one of them ON the easing curve: 1000 points at `maximumSize` 400 gives width 400 at offset 300, and 700 points at the default 600/400 gives **575 at offset 62**, where a `min()` would give 600 |
+| both halves answer the same for a property value GObject cannot store | `normalizeClampSize` from `@gjsify/adwaita-core`, run by **both** halves — the same call `@gjsify/adwaita-web` and `@gjsify/adwaita-nativescript` make. `400.7` &rarr; 400, `NaN` &rarr; the default 600, `-5` &rarr; the range floor 0, asserted on both sides |
 
 **Not proven: Yoga, and the device.** A `width` in a style object is an instruction to a
 layout engine that no test here runs. The React Native half is type-checked and
-tree-checked and has never been on a phone. That gap closes with an Expo app on a real
-device, and until then it is a gap, not a formality.
+tree-checked and has never been on a phone. That gap closes with an app on a real device,
+and until then it is a gap, not a formality.
 
 ## Named divergences
 
@@ -124,22 +125,12 @@ than smoothed over.
 - **One unclamped frame.** Before the first `onLayout` there is no available width, so
   the child renders full-width for one frame.
 - **A second child is kept on React Native and dropped on GTK, silently.** `Adw.Bin` and
-  `Adw.Clamp` are one-child widgets; gtk-host's `single` child policy fills that slot with
-  `set_child`, so the second child EVICTS the first. Measured through `<AdwBin>` with two
-  labels: the GTK tree keeps `"two"` and loses `"one"`, with no throw, no host error and no
-  GLib message (the suite's `installDiagnosticsGate` asserts the silence). A `View` has no
-  such limit and renders both. Both behaviours are pinned by a row on each side —
-  `clamp.gtk.spec.tsx` and `bin.native.spec.tsx` — so neither can move alone. Refusing more
-  than one child on both halves would close it and is a surface decision this slice does not
-  make.
+  `Adw.Clamp` are one-child widgets, and gtk-host's `single` child policy fills that slot
+  with `set_child`, so a second child EVICTS the first — with no throw, no host error and
+  no GLib message. A `View` has no such limit and renders both. Both behaviours are pinned
+  by a test on each side, so neither can move alone. Refusing more than one child on both
+  halves would close it and is a surface decision this slice does not make.
 - **`Adw.ClampScrollable` has no counterpart and will not get one.** It binds its four
   scroll properties onto its child, which is a GTK adoption concern; on React Native
   scrolling belongs to the `ScrollView`, not to the clamp. This is an asymmetry, not a
   missing widget.
-
-## Publishing
-
-`@gjsify/adwaita-react-native` is a new npm name. The first publish and the Trusted
-Publisher bootstrap are a maintainer action (`gjsify onboard`, twice — the trust
-configuration 404s immediately after the first publish), deliberately not attempted from
-CI or from a feature branch.
