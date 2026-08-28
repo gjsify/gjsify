@@ -4,6 +4,34 @@
      it) — the status-data check rejects struck-through / ✓ / "Completed"
      headings, so the done-log cannot regrow. -->
 
+### One package, two module instances — a "singleton" the bundle duplicates
+
+`@gjsify/adwaita-nativescript` is bundled **TWICE** into the NativeScript storybook
+showcase: 31 of its `lib/esm/**` modules appear under two `//#region` paths in
+`.ns-vite-build/vendor.mjs`, once as `node_modules/@gjsify/adwaita-nativescript/…` and
+once as `node_modules/@gjsify/storybook-nativescript/node_modules/@gjsify/adwaita-nativescript/…`.
+Both are symlinks to the SAME directory (`packages/nativescript-bridge/adwaita`); the
+resolver keys modules on the specifier path it walked, not on the realpath, so it never
+learns they are one package.
+
+The cost is not size. `window-insets-source.android.ts` is a deliberate singleton —
+`packages/nativescript-bridge/AGENTS.md` records "ONE broadcast — the platform takes one
+listener" as load-bearing, because `ViewCompat.setOnApplyWindowInsetsListener` REPLACES
+the previous listener rather than adding to it. The bundle constructs **two**
+`WindowInsetsBroadcast` instances with two `installed` flags, so both copies install, the
+second replaces the first, and every subscriber of the first copy keeps `NO_INSETS`
+forever. Measured on emulator-5554: the shell's panes (reached through the storybook
+package's copy) receive the reading; a story's own `AdwToolbarView` (Layout/Toolbar View,
+reached through the top-level copy) renders with no inset at all. It looks right there
+only because that widget is not at a window edge.
+
+`host-insets.android.ts` now guards against the consequence — it refuses to hand the top
+edge back to the page unless it holds a non-zero reading to pay it with — but that is a
+guard around the duplication, not a fix for it. The fix belongs in resolution: make the
+bundler realpath a workspace symlink before keying the module, or hoist so only one path
+exists. Any other per-package singleton in this tree has the same exposure and nothing
+currently detects it.
+
 ### A version stamp read off `@girs/*` is not the library that ran
 
 Seven measurements in this tree were stamped `Adw 1.10`. Installed is **1.9.3**
