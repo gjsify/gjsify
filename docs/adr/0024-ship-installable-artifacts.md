@@ -313,6 +313,22 @@ Follow-up work lands in `status/open-todos.md` per governance; this ADR records 
 `tar` — and `--target flatpak` packs a single-file bundle out of the same stage, proven by
 `tests/e2e/ship-flatpak` reading it back with `flatpak build-import-bundle` + `ostree ls -R`.
 
+**Landed since, and it is § A2 rather than a stage: the two-phase split.** `gjsify ship --stage` assembles and
+stops; `gjsify ship --from-stage <dir>` packs a stage that arrived from another host with no project, no
+`package.json`, no built bundle and no config in reach (#1268). `.gjsify-ship-stage.json` carries the closure —
+`{settings (arch resolved at stage time), staged, overlay, namespaces, mtime}` — and each omission was measured to
+fail SILENTLY at exit 0: without `staged` the launcher packs 0644, without the pre-rendered overlay the `.deb`
+carries no `/usr/share/doc/<pkg>/copyright`, without `namespaces` its `Depends` loses `gir1.2-gtk-4.0` and
+`gir1.2-adw-1`. `--expect-target <os>-<arch>` refuses a stage assembled for a different matrix leg, compared
+against what the stage RECORDED rather than against the packing host, because packing an arm64 stage on an x64
+runner is a supported path. The discriminating proof is a deletion: `tests/e2e/ship-from-stage` stages into a
+tmpdir, deletes the project tree, packs, and asserts byte-equality with the single-host artifact.
+
+That is also what closed the `dpkg` gap this section used to carry. `ship-pack-linux` (`main.yml:1914`) downloads a
+stage onto a bare `ubuntu-latest` and packs there, so the `.deb` now meets a real `dpkg --install` — `--force-depends`
+and deliberately not `--dry-run`, because the run worth having is the one that lays bytes down — then `dpkg --verify`
+against the package's own md5sums, `dpkg --purge`, and `lintian` as a third reader.
+
 **Stage 1 (the ELF glibc floor) was already landed when this ADR was written**, and this paragraph
 previously said the opposite. Both halves are in the tree and have been since 2026-08-01,
 `7896c51b02` (#897): the reader is `@gjsify/manifest-conformance`'s `binary.mjs`
