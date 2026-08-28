@@ -294,6 +294,12 @@ export interface TrustRequestResult {
     status: number;
     json: unknown;
     text: string;
+    /**
+     * Response headers, so a caller can honour npm's own `Retry-After` on a 429
+     * instead of guessing a backoff. Optional because test doubles construct this
+     * shape by hand and a missing header is a well-defined "it said nothing".
+     */
+    headers?: Headers;
 }
 
 /** A `(method, url, body?) => TrustRequestResult` function bound to a registry auth + OTP context. */
@@ -325,7 +331,7 @@ export function createTrustRequester(ctx: { npmrc: NpmrcConfig; otpProvider: Otp
         } catch {
             /* non-JSON body — leave json undefined */
         }
-        return { status: res.status, json, text };
+        return { status: res.status, json, text, headers: res.headers };
     };
 }
 

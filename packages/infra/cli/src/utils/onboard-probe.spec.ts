@@ -14,6 +14,8 @@ import {
     mapWithConcurrency,
     probeAllTrustStates,
     probeTrustState,
+    requestWaitingOutRateLimit,
+    retryAfterMs,
     type ProbeContext,
 } from './onboard-probe.js';
 
@@ -268,6 +270,77 @@ export default async () => {
             const plans = await probeAllTrustStates(request, [], 4, ctx(), { sleep: noSleep });
             expect(plans.length).toBe(0);
             expect(called).toBeFalsy();
+        });
+    });
+
+    await describe('onboard-probe — an HTTP 429 is not a state', async () => {
+        // Measured on the real 703-package sweep of `gjsify/types`: the first 662
+        // reads answered and the LAST 41 came back 429, so the plan reported
+        // `41 unreadable` for packages whose state nobody had failed to determine.
+        // A cumulative rate limit lands on the tail of an alphabetical list, which
+        // makes throttling look like a property of those packages.
+        const noSleep = async (): Promise<void> => {};
+
+        await it('retryAfterMs reads delta-seconds and refuses everything else', () => {
+            expect(retryAfterMs(new Headers({ 'retry-after': '7' }))).toBe(7000);
+            expect(retryAfterMs(new Headers({ 'retry-after': ' 0 ' }))).toBe(0);
+            // The HTTP-date form is legal and npm does not send it. Guessing at a
+            // date would be a second clock to get wrong, so it reads as "said
+            // nothing" and the exponential backoff decides.
+            expect(retryAfterMs(new Headers({ 'retry-after': 'Wed, 21 Oct 2026 07:28:00 GMT' }))).toBe(null);
+            expect(retryAfterMs(new Headers({ 'retry-after': '-3' }))).toBe(null);
+            expect(retryAfterMs(new Headers())).toBe(null);
+            expect(retryAfterMs(undefined)).toBe(null);
+        });
+
+        await it('waits out a 429 and returns the answer that follows it', async () => {
+            let calls = 0;
+            const req: TrustRequester = async () => {
+                calls++;
+                return calls <= 2
+                    ? { status: 429, json: undefined, text: '', headers: new Headers({ 'retry-after': '1' }) }
+                    : { status: 200, json: [], text: '[]' };
+            };
+            const res = await requestWaitingOutRateLimit(req, 'GET', 'https://r/x', undefined, { sleep: noSleep });
+            expect(res.status).toBe(200);
+            expect(calls).toBe(3);
+        });
+
+        await it('gives up after the budget and hands back the 429 — never hangs', async () => {
+            let calls = 0;
+            const req: TrustRequester = async () => {
+                calls++;
+                return { status: 429, json: undefined, text: '' };
+            };
+            const res = await requestWaitingOutRateLimit(req, 'GET', 'https://r/x', undefined, {
+                sleep: noSleep,
+                maxRateLimitRetries: 3,
+            });
+            expect(res.status).toBe(429);
+            expect(calls).toBe(4); // the first attempt plus three retries
+        });
+
+        await it('probeTrustState classifies the answer AFTER the throttling, not the 429', async () => {
+            let calls = 0;
+            const req: TrustRequester = async () => {
+                calls++;
+                return calls === 1
+                    ? { status: 429, json: undefined, text: '' }
+                    : { status: 404, json: undefined, text: '' };
+            };
+            const plan = await probeTrustState(req, ws('@onb/a'), ctx(), { sleep: noSleep });
+            expect(plan.state).toBe('unpublished');
+            expect(plan.action).toBe('publish-and-trust');
+        });
+
+        await it('still reports blocked when the throttling outlasts the budget', async () => {
+            const req: TrustRequester = async () => ({ status: 429, json: undefined, text: '' });
+            const plan = await probeTrustState(req, ws('@onb/a'), ctx(), {
+                sleep: noSleep,
+                maxRateLimitRetries: 1,
+            });
+            expect(plan.action).toBe('blocked');
+            expect(plan.httpStatus).toBe(429);
         });
     });
 };

@@ -56,7 +56,12 @@ import {
     parseRepoFromGitRemote,
     validateRepository,
 } from '../utils/trust-registry.js';
-import { DEFAULT_PROBE_CONCURRENCY, probeAllTrustStates, type PkgPlan } from '../utils/onboard-probe.js';
+import {
+    DEFAULT_PROBE_CONCURRENCY,
+    probeAllTrustStates,
+    requestWaitingOutRateLimit,
+    type PkgPlan,
+} from '../utils/onboard-probe.js';
 
 interface OnboardOptions {
     repository?: string;
@@ -324,6 +329,17 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
         log(
             `Plan: ${done.length} already done, ${toPublish.length} to publish+trust, ${toTrust.length} to trust, ${blocked.length} unreadable.`,
         );
+        // Name the cause when the unreadable ones are throttling rather than a
+        // property of those packages. It lands on the TAIL of an alphabetical
+        // sweep, which is exactly where it looks like "these packages are
+        // special" instead of "we asked too fast".
+        const throttled = blocked.filter((p) => p.httpStatus === 429).length;
+        if (throttled > 0) {
+            log(
+                `  ${throttled} of those are npm rate limits (HTTP 429) that outlasted the backoff — ` +
+                    'lower --concurrency and re-run; the sweep is idempotent and picks up where it left off.',
+            );
+        }
 
         const results: PkgResult[] = [];
 
@@ -419,8 +435,12 @@ export const onboardCommand: Command<unknown, OnboardOptions> = {
                 log(`  published ${pub.name}@${'version' in pub ? pub.version : ''}`);
             }
 
-            // Configure the Trusted Publisher.
-            const created = await trustRequest('POST', p.url, trustBody);
+            // Configure the Trusted Publisher. Through the rate-limit-aware
+            // wrapper: a 703-package sweep that gets throttled on its READS gets
+            // throttled on its WRITES too, and a bare 429 here would be recorded
+            // as `trust failed` — a failure attributed to the package rather
+            // than to the pacing.
+            const created = await requestWaitingOutRateLimit(trustRequest, 'POST', p.url, trustBody);
             if (created.status >= 200 && created.status < 300) {
                 log(`  trusted ${p.ws.name}`);
                 results.push({

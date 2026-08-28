@@ -1834,6 +1834,17 @@ gjsify onboard --yes                 # non-interactive
 
 What it does, in order: check the token is live (running the [`login`](#gjsify-login) flow only if it is not), enumerate the publishable packages, read each package's Trusted Publisher state concurrently, then act only on the gaps. One 2FA code is reused across every publish and trust operation, so a sweep of many packages usually asks you for a code once. Re-running when everything is already published and trusted does nothing and exits 0.
 
+One 2FA code covers the whole sweep, and it is asked for **once at a time** — concurrent probes
+share the prompt rather than each opening their own. npm codes expire on their ~30-second window,
+so a long sweep may ask again later; each such expiry costs exactly one prompt.
+
+An HTTP 429 is waited out, not reported. npm throttles a long sweep, and because it is cumulative
+it lands on the *tail* of the list — which reads as "these packages are special" when the truth is
+that the sweep asked too fast. Rate-limited reads and trust writes back off (honouring
+`Retry-After`) and retry; only throttling that outlasts the backoff is reported, and the summary
+then says so and suggests a lower `--concurrency`. Re-running is safe: the sweep is idempotent and
+skips whatever already landed.
+
 A package whose own `package.json` names a **different** `repository` than the one being
 configured is refused, with the foreign repo and the count. A workspace of a repo is not the same
 claim as a package published from it: `gjsify/ts-for-gir` has 703 generated `@girs/*` workspaces
